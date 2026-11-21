@@ -99,6 +99,7 @@ fn expected_keys() -> BTreeSet<String> {
         "working.stopping",
         "working.kill_stuck_mac",
         "working.kill_stuck_windows",
+        "working.deleting",
         "waiting_turn.queued",
         "waiting_turn.store",
         "problem.failed",
@@ -303,7 +304,121 @@ fn expected_keys() -> BTreeSet<String> {
     ] {
         k.insert(key.to_owned());
     }
+    for key in U34_TEXTS.iter().map(|(k, _)| *k) {
+        if key != "line.working.deleting" {
+            k.insert(key.to_owned());
+        }
+    }
     k
+}
+
+/// The texts of the question of a row's Delete, of its two notices and of the line of a delete
+/// that waits for its run to end (U3.4; ruling RD-19 (c), (d) (3), (6)), each as it stands; the
+/// texts of the closed list that the unit's plain readers read.
+const U34_TEXTS: [(&str, &str); 27] = [
+    (
+        "line.working.deleting",
+        "Halvo is stopping this agent and will then remove it.",
+    ),
+    ("ask.delete.title", "Remove “{name}” from Halvo?"),
+    ("ask.delete.next", "Its next task is set for {day}."),
+    (
+        "ask.delete.setup",
+        "Halvo removes what you set up and answered for it, and what it learned.",
+    ),
+    (
+        "ask.delete.sign_in",
+        "It also removes its schedule and what it kept on this computer to sign in.",
+    ),
+    (
+        "ask.delete.records",
+        "It removes the record of each task and of what it did.",
+    ),
+    ("ask.delete.final", "You cannot bring it back."),
+    (
+        "ask.delete.done",
+        "Nothing it already paid, ordered or sent is taken back, and nothing at a website is cancelled.",
+    ),
+    (
+        "ask.delete.copies",
+        "The copies that Halvo made beside your workbooks stay.",
+    ),
+    (
+        "ask.delete.starts",
+        "If it starts a task before you answer, Halvo stops it first and removes it once it has stopped.",
+    ),
+    (
+        "ask.delete.record",
+        "Halvo keeps no record of this once the agent is removed.",
+    ),
+    ("ask.delete.keep", "Keep it"),
+    (
+        "ask.effect.payment",
+        "Halvo does not know whether it made this payment.",
+    ),
+    (
+        "ask.effect.purchase",
+        "Halvo does not know whether it placed this order.",
+    ),
+    (
+        "ask.effect.send",
+        "Halvo does not know whether it sent this message.",
+    ),
+    (
+        "ask.effect.delete",
+        "Halvo does not know whether it removed this.",
+    ),
+    (
+        "ask.effect.submit",
+        "Halvo does not know whether it sent this form.",
+    ),
+    (
+        "ask.effect.sign",
+        "Halvo does not know whether it signed this document.",
+    ),
+    (
+        "ask.effect.local_edit",
+        "Halvo does not know whether it changed this file.",
+    ),
+    (
+        "ask.effect.other",
+        "Halvo does not know whether one step of its last task happened.",
+    ),
+    ("ask.working.title", "“{name}” is working now"),
+    (
+        "ask.working.text",
+        "Stop it first, and you can remove it once it has stopped.",
+    ),
+    ("ask.working.keep", "Let it work"),
+    ("ask.stopping.title", "“{name}” is stopping"),
+    ("ask.stopping.text", "You can remove it once it has stopped."),
+    ("ask.stopping.done", "OK"),
+    (
+        "line.needs_you.asks_again",
+        "You cancelled its start, so it asks you again before it starts.",
+    ),
+];
+
+/// Each text of U3.4 stands word for word, holds at most 20 words, and names neither the
+/// workflow nor the word delete, which the glossary reserves for the workflow run (I1.6); the
+/// question says no more than that the agent is removed from Halvo (the workflow run's S-82 and
+/// S-83) and promises nothing at Quit (ruling RD-147 (5)(i)).
+#[test]
+fn u34_the_texts_of_the_delete_stand_word_for_word() {
+    for (key, want) in U34_TEXTS {
+        let got = KEYS.iter().find(|(k, _)| *k == key).map(|(_, t)| *t);
+        assert_eq!(got, Some(want), "{key}");
+        assert!(want.split_whitespace().count() <= 20, "{key}");
+        let lower = want.to_lowercase();
+        for word in ["delete", "deleted", "workflow", "quit"] {
+            assert!(
+                !lower
+                    .split(|c: char| !c.is_alphanumeric())
+                    .any(|w| w == word),
+                "{key}: {want}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -321,7 +436,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 268);
+    assert_eq!(seen.len(), 295);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -362,6 +477,14 @@ fn placeholders_are_the_ones_that_the_contract_names() {
     want.insert("card.records_dropped".into(), vec!["count"]);
     want.insert("say_again".into(), vec!["name"]);
     want.insert("confirm.asked_by_place".into(), vec!["count", "n", "name"]);
+    for key in [
+        "ask.delete.title",
+        "ask.working.title",
+        "ask.stopping.title",
+    ] {
+        want.insert(key.into(), vec!["name"]);
+    }
+    want.insert("ask.delete.next".into(), vec!["day"]);
     for (key, text) in KEYS {
         let got: Vec<String> = placeholders(text).into_iter().collect();
         let expect: Vec<String> = want
@@ -866,7 +989,7 @@ fn every_status_line_has_its_key_and_its_status() {
         assert_eq!(line.status().name(), status, "{key}");
         assert!(keys.insert(key));
     }
-    assert_eq!(keys.len(), 30);
+    assert_eq!(keys.len(), 31);
 }
 
 #[test]

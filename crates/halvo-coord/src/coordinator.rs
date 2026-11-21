@@ -14,7 +14,7 @@ use crate::types::{
     Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
     FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse,
     OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind, Snapshot,
-    Status, System,
+    Status, StatusLine, System, WorkflowId,
 };
 use crate::words;
 use std::cell::RefCell;
@@ -104,6 +104,18 @@ struct Waited {
     raised_at: Option<u64>,
 }
 
+/// A delete that the person confirmed while a run of the agent was on the board, held in
+/// memory for this life alone and stored nowhere, so that a new life sends no delete from an
+/// earlier yes (I5.7; rulings RD-30 (1), RD-31 (4), RD-64 1.6 (b)).
+struct Deleting {
+    agent: AgentId,
+    workflow: WorkflowId,
+    run: RunId,
+    /// Whether the delete waits for the run to leave the board alone and not for its stored
+    /// `run_ended`: the agent's record was stuck at the yes (ruling RD-64 1.6 (b)).
+    board_end: bool,
+}
+
 #[derive(Clone, Copy)]
 struct AnsweredBy {
     step: Option<u32>,
@@ -131,6 +143,12 @@ struct State<C> {
     marked: Vec<RunId>,
     held_off: Vec<AgentId>,
     refused_on: Vec<(AgentId, crate::ports::Shared)>,
+    deleting: Vec<Deleting>,
+    /// The agents that ask first whose queued start the person took back, each with the `ready`
+    /// item that a later tick raised for it since, or none until then: that item's row says
+    /// that the start was cancelled and that the agent asks again, in this life alone (the
+    /// gates of U2.4e, ruling RD-152 (4)).
+    taken_back: Vec<(AgentId, Option<ItemId>)>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -466,6 +484,8 @@ where
                 marked: Vec::new(),
                 held_off: Vec::new(),
                 refused_on: Vec::new(),
+                deleting: Vec::new(),
+                taken_back: Vec::new(),
             }),
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
@@ -517,7 +537,7 @@ where
         st
     }
 
-    fn enter_control(&self, agent: &AgentId, action: Action) -> Entered<'_, P> {
+    fn enter_control(&self, agent: &AgentId, action: Option<Action>) -> Entered<'_, P> {
         let mut st = Entered {
             st: self.state.lock().unwrap_or_else(PoisonError::into_inner),
             ports: &self.ports,
@@ -556,7 +576,7 @@ where
         st
     }
 
-    fn takes_its_start_away(st: &State<Cfg<P>>, agent: &AgentId, action: Action) -> bool {
+    fn takes_its_start_away(st: &State<Cfg<P>>, agent: &AgentId, action: Option<Action>) -> bool {
         let named = st
             .board
             .as_ref()
@@ -564,9 +584,9 @@ where
         let off = st.offs.contains(agent) || st.held_off.contains(agent);
         named
             && match action {
-                Action::TakeBack | Action::Stop => true,
-                Action::SwitchOff => !off,
-                Action::RunNow | Action::SwitchOn => false,
+                None | Some(Action::TakeBack | Action::Stop) => true,
+                Some(Action::SwitchOff) => !off,
+                Some(Action::RunNow | Action::SwitchOn) => false,
             }
     }
 
@@ -915,6 +935,7 @@ where
             st.mark.tick = false;
         }
         st.returned = true;
+        self.deletes_due(&mut st);
         self.publish(&mut st);
     }
 
@@ -1344,6 +1365,7 @@ where
         let before = Self::agents_held_off(&st);
         let out = self.on_run_in(&mut st, run, &event);
         self.finish_switch_offs_after_reads(&mut st, &before);
+        self.deletes_due(&mut st);
         self.publish(&mut st);
         out
     }
@@ -2667,7 +2689,7 @@ where
     /// (h), RD-52 (d)). The call ends, as every control does, by publishing the state, which
     /// tells the page and the tray when it changed.
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
-        let mut st = self.enter_control(agent, action);
+        let mut st = self.enter_control(agent, Some(action));
         let before = Self::agents_held_off(&st);
         let off = matches!(action, Action::SwitchOff);
         st.refused_on.retain(|(a, _)| a != agent);
@@ -2683,8 +2705,161 @@ where
             self.setups_freed(&mut st, agent);
         }
         self.finish_switch_offs_after_reads(&mut st, &before);
+        self.deletes_due(&mut st);
         self.publish(&mut st);
         out
+    }
+
+    /// The person's yes to the question of a row's Delete (I8.1 `agents_delete`; ruling RD-19
+    /// (c) rule 7), which removes the agent with its workflow through `Owner::delete`, the one
+    /// delete of W-C3.10, at that yes and in this life or not at all (ruling RD-30 (1)). Like a
+    /// Stop, the call first takes up what an earlier move left, with the agent's queued start
+    /// set aside during it. An agent with no run on the board, or one that a new life set
+    /// aside, is deleted at once, and a start that only waits its turn leaves the queue with the
+    /// agent, as I5.7 drops it; the row then leaves the state and every control of the agent answers
+    /// `unknown_agent`. With a run on the board the call stores the hold `off` and stops the run
+    /// as the switch-off does, so that the agent stays switched off after a quit, keeps the
+    /// intent in memory alone, and sends the delete once that run's `run_ended` is stored, at
+    /// the end of the move that stores it or of a later tick; meanwhile the row shows
+    /// `working.deleting` with no control. An agent whose record is stuck is stopped as Stop
+    /// stops it, with no row of the hold, and its delete is sent once the run has left the
+    /// board (ruling RD-64 1.6 (b)). After the first step of the quit no intent is sent and the
+    /// end of the next move forgets each, so nothing is deleted and the agent stands stopped and switched off, with Delete on its row
+    /// in the next life (I5.7). Causes: `no_service` with no board; `unknown_agent` for an agent
+    /// that has no row or whose workflow is gone; `state` after the quit's first step, while a
+    /// switch-off of the agent waits for a read, or where the owner refuses the delete, its
+    /// guard among them, which the page meets by reading the state anew (ruling RD-19 (d)
+    /// (1)); `busy` and `no_service` where the owner or the store of the hold answers so, and
+    /// then nothing is deleted and no run is stopped. A second yes while an intent stands
+    /// answers success and changes nothing. A refusal `no_workflow` of the delete counts as
+    /// done, since the owner holds no row of the workflow.
+    pub fn delete(&self, agent: &AgentId) -> Result<(), Cause> {
+        let mut st = self.enter_control(agent, None);
+        let before = Self::agents_held_off(&st);
+        let out = self.delete_in(&mut st, agent);
+        self.finish_switch_offs_after_reads(&mut st, &before);
+        self.deletes_due(&mut st);
+        self.publish(&mut st);
+        out
+    }
+
+    fn delete_in(&self, st: &mut State<Cfg<P>>, agent: &AgentId) -> Result<(), Cause> {
+        if st.quitting {
+            return Err(Cause::State);
+        }
+        let board = st.board.as_ref().ok_or(Cause::NoService)?;
+        let i = index(board, agent).ok_or(Cause::UnknownAgent)?;
+        if Self::gone(st, board, i) {
+            return Err(Cause::UnknownAgent);
+        }
+        if st.deleting.iter().any(|d| &d.agent == agent) {
+            return Ok(());
+        }
+        let workflow = board.members[i].facts.workflow.id.clone();
+        let on_board = board
+            .runs
+            .iter()
+            .find(|r| &r.agent == agent)
+            .map(|r| r.run.clone());
+        let Some(run) = on_board.filter(|_| !board.aside(agent)) else {
+            return self.send_delete(st, agent, &workflow);
+        };
+        if st.offs.contains(agent) || st.held_off.contains(agent) {
+            return Err(Cause::State);
+        }
+        let stuck = board.record_stuck(agent, &self.limits);
+        let unstopped =
+            live_unstopped_run(board, agent).filter(|r| !st.ended.iter().any(|(e, _)| e == r));
+        let off = schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off);
+        if stuck {
+            if unstopped.is_some() {
+                self.stop_in(st, i)?;
+            }
+        } else if unstopped.is_some() || !off {
+            self.switch_off(
+                st,
+                i,
+                Move::SwitchOff {
+                    agent: agent.clone(),
+                },
+            )?;
+        }
+        st.deleting.push(Deleting {
+            agent: agent.clone(),
+            workflow,
+            run,
+            board_end: stuck,
+        });
+        Ok(())
+    }
+
+    /// Sends the delete of `workflow` and, once the owner took it, forgets the agent as a tick
+    /// forgets one whose workflow it saw gone: its row, its items and its queued start go.
+    fn send_delete(
+        &self,
+        st: &mut State<Cfg<P>>,
+        agent: &AgentId,
+        workflow: &WorkflowId,
+    ) -> Result<(), Cause> {
+        match self.ports.delete(workflow) {
+            Ok(()) => {}
+            Err(PortError::Refused(name)) if name.as_str() == "no_workflow" => {}
+            Err(PortError::Refused(_)) => return Err(Cause::State),
+            Err(e) => return Err(cause_of(&e)),
+        }
+        st.deleting.retain(|d| &d.agent != agent);
+        if !st.forgotten.contains(agent) {
+            st.forgotten.push(agent.clone());
+        }
+        st.held.retain(|h| h.ask().agent() != agent);
+        st.binds.retain(|b| &b.ask().agent != agent);
+        st.handbacks.retain(|(_, a)| &a.agent != agent);
+        st.waits.retain(|w| &w.agent != agent);
+        st.setups.retain(|s| s.agent() != agent);
+        for (a, l) in st.ledgers.iter_mut() {
+            if a == agent {
+                *l = run::forgotten(workflow.clone(), agent.clone(), l);
+            }
+        }
+        if let Some(board) = st.board.as_mut() {
+            board.queue.remove(agent);
+        }
+        Ok(())
+    }
+
+    /// Sends each delete whose run has ended: its `run_ended` stored, which is so once the run
+    /// has left the board and the board owes no `run_ended` of it, or, for a delete of a stuck
+    /// record, once the run has left the board. A delete that the owner answers `busy` or
+    /// `no_service` is tried again at the end of a later move; one that it refuses is dropped,
+    /// so the agent stands stopped and switched off with Delete on its row. After the first
+    /// step of the quit every intent is forgotten and nothing is sent.
+    fn deletes_due(&self, st: &mut State<Cfg<P>>) {
+        if st.quitting {
+            st.deleting.clear();
+            return;
+        }
+        let Some(board) = st.board.as_ref() else {
+            return;
+        };
+        let due: Vec<(AgentId, WorkflowId)> = st
+            .deleting
+            .iter()
+            .filter(|d| {
+                let on_board = board.runs.iter().any(|r| r.run == d.run);
+                let owed = board.owed.iter().any(
+                    |o| matches!(&o.what, schedule::Owing::RunEnded { run, .. } if run == &d.run),
+                );
+                let kept = st.ended.iter().any(|(r, _)| r == &d.run);
+                !on_board && (d.board_end || (!owed && !kept))
+            })
+            .map(|d| (d.agent.clone(), d.workflow.clone()))
+            .collect();
+        for (agent, workflow) in due {
+            match self.send_delete(st, &agent, &workflow) {
+                Ok(()) | Err(Cause::Busy | Cause::NoService) => {}
+                Err(_) => st.deleting.retain(|d| d.agent != agent),
+            }
+        }
     }
 
     fn control_in(
@@ -2721,13 +2896,51 @@ where
                 },
             ),
             Action::Stop => self.stop_in(st, i),
-            Action::TakeBack => self.schedule(
-                st,
-                Move::TakeBack {
-                    agent: agent.clone(),
-                },
-            ),
+            Action::TakeBack => {
+                self.schedule(
+                    st,
+                    Move::TakeBack {
+                        agent: agent.clone(),
+                    },
+                )?;
+                let asks = st.board.as_ref().is_some_and(|b| {
+                    index(b, agent)
+                        .is_some_and(|i| schedule::needs_person(&b.members[i].facts.config))
+                });
+                st.taken_back.retain(|(a, _)| a != agent);
+                if asks {
+                    st.taken_back.push((agent.clone(), None));
+                }
+                Ok(())
+            }
         }
+    }
+
+    /// Follows each agent whose start the person took back: the first `ready` item that the
+    /// agent holds after it is that mark's item; the mark ends once the agent holds no item of
+    /// its own any more after that item, holds another one, runs or waits in the queue.
+    fn follow_taken_back(st: &mut State<Cfg<P>>) {
+        let Some(board) = st.board.as_ref() else {
+            return;
+        };
+        let mut kept = Vec::new();
+        for (agent, item) in std::mem::take(&mut st.taken_back) {
+            let Some(i) = index(board, &agent) else {
+                continue;
+            };
+            let facts = &board.members[i].facts;
+            let open = facts
+                .doing
+                .item()
+                .filter(|o| o.kind == ItemKind::Ready && matches!(facts.doing, Doing::Idle(_)));
+            match (open, item) {
+                (Some(o), None) => kept.push((agent, Some(o.item))),
+                (Some(o), Some(was)) if o.item == was => kept.push((agent, Some(was))),
+                (None, None) if matches!(facts.doing, Doing::Idle(_)) => kept.push((agent, None)),
+                _ => {}
+            }
+        }
+        st.taken_back = kept;
     }
 
     /// The person's Stop (I5.7). It is refused by no read of the clock (ruling RD-133 1): where
@@ -3034,6 +3247,7 @@ where
     }
 
     fn publish(&self, st: &mut State<Cfg<P>>) {
+        Self::follow_taken_back(st);
         let State { board, ledgers, .. } = &mut *st;
         if let Some(board) = board.as_mut() {
             for (agent, l) in ledgers.iter_mut() {
@@ -3157,9 +3371,24 @@ where
                 .iter()
                 .find(|w| w.agent == facts.agent)
                 .map(|w| w.trigger);
-            let Ok(row) = roster::row(*facts, line, name, waiting, &self.limits) else {
+            let row = if st.deleting.iter().any(|d| d.agent == facts.agent) {
+                roster::deleting_row(*facts, name)
+            } else {
+                roster::row(*facts, line, name, waiting, &self.limits)
+            };
+            let Ok(mut row) = row else {
                 continue;
             };
+            let asks_again = st.taken_back.iter().any(|(a, item)| {
+                a == &facts.agent
+                    && item.is_some()
+                    && open.as_ref().map(|o| &o.item) == item.as_ref()
+            });
+            if asks_again && line == StatusLine::NeedsYou(ItemKind::Ready) {
+                if let Ok(text) = words::text("line.needs_you.asks_again", &[]) {
+                    row.line = text;
+                }
+            }
             let item = match (&open, line.status()) {
                 (Some(o), Status::NeedsYou) => self.item_of(st, facts, held, o.kind, &o.item, name),
                 _ => None,

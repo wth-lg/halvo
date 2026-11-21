@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import vm from 'node:vm';
 import {
+  CONFIRM,
   ROOT,
   VIEW,
   VIEW_FILE,
@@ -116,7 +117,7 @@ async function render(origin, dir, states) {
   const faults = [];
   for (const state of states) {
     const items = stateFile(dir, state).snapshot.items;
-    const h = await open({ origin, state, views: [VIEW] });
+    const h = await open({ origin, state, views: [CONFIRM, VIEW] });
     try {
       const r = await read(h);
       if (!r) {
@@ -171,7 +172,7 @@ function plan(item, choice) {
 
 async function after(origin, state, acts) {
   const out = outDir();
-  const h = await open({ origin, state, views: [VIEW], out });
+  const h = await open({ origin, state, views: [CONFIRM, VIEW], out });
   try {
     for (const a of acts) await act(h, a);
     return { calls: callsOf(out), page: await read(h) };
@@ -227,7 +228,7 @@ async function nextState(origin, dir) {
     { state: second },
   ];
   const faults = [];
-  const h = await open({ origin, replies, views: [VIEW] });
+  const h = await open({ origin, replies, views: [CONFIRM, VIEW] });
   try {
     const before = await read(h);
     if (firstDiff(before.units, expectedUnits(first.items)) >= 0) faults.push('first_state');
@@ -256,6 +257,69 @@ async function nextState(origin, dir) {
   return faults;
 }
 
+async function seqCase(origin, dir) {
+  const stuck = withId(stateFile(dir, 'needs_stuck').snapshot.items[0], 'b'.repeat(32));
+  const ready = withId(stateFile(dir, 'needs_ready').snapshot.items[0], 'c'.repeat(32));
+  const note = 'Halvo cannot reach its service right now.';
+  const src = readFileSync(VIEW_FILE, 'utf8');
+  const faults = [];
+  const cases = [
+    { name: 'lower', states: [{ seq: 9, rows: [], items: [stuck], note: null }, { seq: 4, rows: [], items: [stuck, ready], note: null }], want: [stuck, ready], afters: [9, 4] },
+    {
+      name: 'stand_in',
+      states: [{ seq: 9, rows: [], items: [stuck], note: null }, { seq: 0, rows: [], items: [], note }, { seq: 3, rows: [], items: [ready], note: null }],
+      want: [ready],
+      afters: [9, 0, 3],
+    },
+    { name: 'same', states: [{ seq: 9, rows: [], items: [stuck], note: null }, { seq: 9, rows: [], items: [], note: null }], want: [stuck], afters: [9, 9] },
+  ];
+  for (const c of cases) {
+    const h = await open({ origin, state: 'empty', views: [CONFIRM] });
+    try {
+      await h.page.evaluate(
+        ([code, list]) => {
+          window.r4needsAfters = [];
+          let n = 0;
+          let view = null;
+          const fake = {
+            views: { add: (v) => (view = v) },
+            confirm: window.Halvo.confirm,
+            ipc: {
+              call: (name, args) => {
+                if (name === 'agents_snapshot') return Promise.resolve(list[0]);
+                if (name === 'agents_next') {
+                  window.r4needsAfters.push(args.after);
+                  n += 1;
+                  return n < list.length ? Promise.resolve(list[n]) : new Promise(() => {});
+                }
+                return Promise.resolve({ ok: 'yes' });
+              },
+            },
+          };
+          new Function('Halvo', code)(fake);
+          const section = document.createElement('section');
+          section.id = 'view-needs';
+          const body = document.createElement('div');
+          section.appendChild(body);
+          document.getElementById('views').appendChild(section);
+          view.mount(body);
+          view.show();
+        },
+        [src, c.states],
+      );
+      await settled(h);
+      const shown = await h.page.evaluate(() => [...new Set([...document.querySelectorAll('[data-param]')].map((e) => e.getAttribute('data-param')))]);
+      const want = c.want.map((i) => i.item);
+      if (JSON.stringify(shown) !== JSON.stringify(want)) faults.push(c.name + '_list=' + shown.map((p) => p.slice(-2)).join(','));
+      const afters = await h.page.evaluate(() => window.r4needsAfters.slice());
+      if (JSON.stringify(afters) !== JSON.stringify(c.afters)) faults.push(c.name + '_after=' + afters.join(','));
+    } finally {
+      await h.close();
+    }
+  }
+  return faults;
+}
+
 async function hidden(origin, dir) {
   const native = withId(stateFile(dir, 'needs_confirm_native').snapshot.items[0], 'a'.repeat(32));
   const ready = withId(stateFile(dir, 'needs_ready').snapshot.items[0], 'c'.repeat(32));
@@ -267,7 +331,7 @@ async function hidden(origin, dir) {
     { state: second },
   ];
   const faults = [];
-  const h = await open({ origin, replies, views: [VIEW] });
+  const h = await open({ origin, replies, views: [CONFIRM, VIEW] });
   try {
     await h.page.evaluate(() => Halvo.views.window('hidden'));
     await act(h, { act: 'present', param: native.item });
@@ -289,7 +353,7 @@ async function escape(origin, dir, states) {
   for (const state of states) {
     if (pageConfirms(stateFile(dir, state).snapshot.items).length === 0) continue;
     const out = outDir();
-    const h = await open({ origin, state, views: [VIEW], out });
+    const h = await open({ origin, state, views: [CONFIRM, VIEW], out });
     try {
       for (let i = 0; i < 3; i++) {
         await h.page.keyboard.press('Escape');
@@ -370,7 +434,7 @@ async function once(origin, dir) {
     const want = plan(item, item.choices.find((c) => c.choice === choice)).calls;
     for (const how of ['held_enter', 'double_click', 'slow_held_enter', 'slow_double_click']) {
       const out = outDir();
-      const h = await open({ origin, state, views: [VIEW], out });
+      const h = await open({ origin, state, views: [CONFIRM, VIEW], out });
       try {
         for (const a of prepare(item)) await act(h, a);
         await presses(h, how, h.page.locator(sel(choice, item.item)));
@@ -386,7 +450,7 @@ async function once(origin, dir) {
   const setup = stateFile(dir, 'needs_setup').snapshot.items[0];
   const chain = plan(setup, setup.choices.find((c) => c.choice === 'choose')).calls;
   const out = outDir();
-  const h = await open({ origin, state: 'needs_setup', views: [VIEW], out });
+  const h = await open({ origin, state: 'needs_setup', views: [CONFIRM, VIEW], out });
   try {
     await act(h, { act: 'choose', param: setup.item });
     if (callsOf(out).length !== 0) faults.push('choose_with_nothing:calls=' + callsOf(out).length);
@@ -406,7 +470,7 @@ async function hold(origin, dir) {
   const first = { seq: 1, rows: [], items: [item], note: null };
   const same = { seq: 2, rows: [], items: [item], note: null };
   const done = { call: 'agents_answer', args: { item: item.item, step: item.step, choice: 'done' } };
-  let h = await open({ origin, replies: [{ state: first }, { ...done, hold: true }], views: [VIEW] });
+  let h = await open({ origin, replies: [{ state: first }, { ...done, hold: true }], views: [CONFIRM, VIEW] });
   try {
     await act(h, { act: 'done', param: item.item });
     await act(h, { act: 'done', param: item.item });
@@ -416,7 +480,7 @@ async function hold(origin, dir) {
     await h.close();
   }
   const out = outDir();
-  h = await open({ origin, replies: [{ state: first }, { ...done, hold: true }, { state: same }, { ...done, reply: { ok: 'yes' } }], views: [VIEW], out });
+  h = await open({ origin, replies: [{ state: first }, { ...done, hold: true }, { state: same }, { ...done, reply: { ok: 'yes' } }], views: [CONFIRM, VIEW], out });
   try {
     await act(h, { act: 'done', param: item.item });
     await act(h, { act: 'done', param: item.item });
@@ -427,7 +491,7 @@ async function hold(origin, dir) {
     await h.close();
   }
   const answered = outDir();
-  h = await open({ origin, replies: [{ state: first }, { ...done, reply: { ok: 'yes' } }, { ...done, reply: { error: 'state' } }], views: [VIEW], out: answered });
+  h = await open({ origin, replies: [{ state: first }, { ...done, reply: { ok: 'yes' } }, { ...done, reply: { error: 'state' } }], views: [CONFIRM, VIEW], out: answered });
   try {
     await act(h, { act: 'done', param: item.item });
     await act(h, { act: 'done', param: item.item });
@@ -463,7 +527,7 @@ async function replies(origin, dir) {
   ];
   const check2 = JSON.parse(JSON.stringify(check));
   check2.fields[0].value = ['Water Board'];
-  let h = await open({ origin, replies: [{ state: snap(1, [sign, check]) }, { state: snap(2, [step2, check2]) }], views: [VIEW] });
+  let h = await open({ origin, replies: [{ state: snap(1, [sign, check]) }, { state: snap(2, [step2, check2]) }], views: [CONFIRM, VIEW] });
   try {
     await shows(h, [step2, check2], 'changed_in_place', faults);
   } finally {
@@ -473,7 +537,7 @@ async function replies(origin, dir) {
   const reject = { call: 'agents_answer', args: { item: confirm.item, step: confirm.step, choice: 'reject' } };
   const back = async (line, tag) => {
     const out = outDir();
-    const k = await open({ origin, replies: [{ state: snap(1, [confirm]) }, line], views: [VIEW], out });
+    const k = await open({ origin, replies: [{ state: snap(1, [confirm]) }, line], views: [CONFIRM, VIEW], out });
     try {
       await act(k, { act: 'reject', param: confirm.item });
       const r = await shows(k, [confirm], tag, faults);
@@ -487,7 +551,7 @@ async function replies(origin, dir) {
   for (const cause of ['state', 'early', 'busy', 'no_service', 'stale', 'presenter']) await back({ ...reject, reply: { error: cause } }, 'refused_' + cause + '_comes_back');
   await back({ ...reject, reject: true }, 'rejected_comes_back');
   const out = outDir();
-  h = await open({ origin, replies: [{ state: snap(1, [confirm]) }, { ...reject, reply: { ok: 'yes' } }, { state: snap(2, [confirm]) }], views: [VIEW], out });
+  h = await open({ origin, replies: [{ state: snap(1, [confirm]) }, { ...reject, reply: { ok: 'yes' } }, { state: snap(2, [confirm]) }], views: [CONFIRM, VIEW], out });
   try {
     await act(h, { act: 'reject', param: confirm.item });
     const r = await read(h);
@@ -511,7 +575,7 @@ async function setups(origin, dir) {
   const odd = withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'odd id x');
   const dup = withId(stateFile(dir, 'needs_stuck').snapshot.items[0], '9'.repeat(32));
   const out = outDir();
-  const h = await open({ origin, replies: [{ state: snap(1, [one, two, dup, dup, odd]) }, { state: snap(2, [one, two, dup, dup, odd]) }], views: [VIEW], out });
+  const h = await open({ origin, replies: [{ state: snap(1, [one, two, dup, dup, odd]) }, { state: snap(2, [one, two, dup, dup, odd]) }], views: [CONFIRM, VIEW], out });
   try {
     await shows(h, [one, two, dup, dup, odd], 'two_setups', faults);
     const facts = await h.page.evaluate((words) => {
@@ -531,7 +595,7 @@ async function setups(origin, dir) {
   } finally {
     await h.close();
   }
-  const k = await open({ origin, replies: [{ state: snap(1, [one, two]) }, { call: 'agents_answer', args: { item: one.item, step: one.step, choice: 'choose', param: one.params[0].name, n: 1 }, reply: { ok: 'yes' } }], views: [VIEW], out: outDir() });
+  const k = await open({ origin, replies: [{ state: snap(1, [one, two]) }, { call: 'agents_answer', args: { item: one.item, step: one.step, choice: 'choose', param: one.params[0].name, n: 1 }, reply: { ok: 'yes' } }], views: [CONFIRM, VIEW], out: outDir() });
   try {
     const radios = k.page.locator('[data-act="candidate"][data-param="' + one.params[0].name + '"]');
     await radios.nth(0).check();
@@ -552,7 +616,7 @@ async function reorder(origin, dir) {
   const a = stateFile(dir, 'needs_sign_in').snapshot.items[0];
   const b = withId(stateFile(dir, 'needs_stuck').snapshot.items[0], 'b'.repeat(32));
   const c = withId(stateFile(dir, 'needs_ready').snapshot.items[0], 'c'.repeat(32));
-  const h = await open({ origin, replies: [{ state: snap(1, [a, b, c]) }, { state: snap(2, [c, a, b]) }], views: [VIEW] });
+  const h = await open({ origin, replies: [{ state: snap(1, [a, b, c]) }, { state: snap(2, [c, a, b]) }], views: [CONFIRM, VIEW] });
   try {
     await shows(h, [c, a, b], 'reordered', faults);
   } finally {
@@ -607,7 +671,7 @@ async function confirms(origin, dir) {
   writeState(dir, 'test_two_page', [a, b]);
   const keyed = async (tag, steps, want) => {
     const out = outDir();
-    const h = await open({ origin, state: 'test_two_page', views: [VIEW], out });
+    const h = await open({ origin, state: 'test_two_page', views: [CONFIRM, VIEW], out });
     try {
       const first = await openDialog(h);
       if (!first || first.item !== 'a' || !first.focused) faults.push(tag + ':first_not_taken');
@@ -631,7 +695,7 @@ async function confirms(origin, dir) {
   await keyed('tab_enter_twice', ['walk', 'enter', 'walk', 'enter'], 'agents_answer:reject:a,agents_answer:reject:b');
   await keyed('keys_on_the_confirmation', ['enter', 'down', 'up'], '');
   let out = outDir();
-  let h = await open({ origin, state: 'test_two_page', views: [VIEW], out });
+  let h = await open({ origin, state: 'test_two_page', views: [CONFIRM, VIEW], out });
   try {
     await h.page.evaluate(() => {
       window.r4needsClicks = [];
@@ -658,7 +722,7 @@ async function confirms(origin, dir) {
       { state: snap(2, [sign, a]) },
       { call: 'agents_answer', args: { item: a.item, step: a.step, choice: 'reject' }, reply: { ok: 'yes' } },
     ],
-    views: [VIEW],
+    views: [CONFIRM, VIEW],
     out,
   });
   try {
@@ -690,7 +754,7 @@ async function confirms(origin, dir) {
       { state: snap(2, [typed, stuck, a]) },
       { call: 'agents_answer', args: { item: a.item, step: a.step, choice: 'reject' }, reply: { ok: 'yes' } },
     ],
-    views: [VIEW],
+    views: [CONFIRM, VIEW],
     out,
   });
   try {
@@ -714,7 +778,7 @@ async function confirms(origin, dir) {
     await h.close();
   }
   out = outDir();
-  h = await open({ origin, state: 'needs_confirm_page', views: [VIEW], out });
+  h = await open({ origin, state: 'needs_confirm_page', views: [CONFIRM, VIEW], out });
   try {
     await h.page.evaluate((id) => document.querySelector('[data-act="reject"][data-param="' + id + '"]').click(), base.item);
     await frames(h);
@@ -725,7 +789,7 @@ async function confirms(origin, dir) {
     await h.close();
   }
   out = outDir();
-  h = await open({ origin, state: 'needs_confirm_page', views: [VIEW], out });
+  h = await open({ origin, state: 'needs_confirm_page', views: [CONFIRM, VIEW], out });
   try {
     await h.page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await h.page.locator(sel('reject', base.item)).click();
@@ -741,7 +805,7 @@ async function confirms(origin, dir) {
     await h.close();
   }
   out = outDir();
-  h = await open({ origin, state: 'needs_confirm_page', views: [VIEW], out });
+  h = await open({ origin, state: 'needs_confirm_page', views: [CONFIRM, VIEW], out });
   try {
     const box = await h.page.locator(sel('allow', base.item)).boundingBox();
     await h.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -760,7 +824,7 @@ async function confirms(origin, dir) {
   const allowA = { call: 'agents_answer', args: { item: a.item, step: a.step, choice: 'allow' }, reply: { ok: 'yes' } };
   const doneSign = { call: 'agents_answer', args: { item: sign.item, step: sign.step, choice: 'done' }, reply: { ok: 'yes' } };
   let point = null;
-  h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }], views: [VIEW] });
+  h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }], views: [CONFIRM, VIEW] });
   try {
     const box = await h.page.locator(sel('allow', a.item)).boundingBox();
     point = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
@@ -769,7 +833,7 @@ async function confirms(origin, dir) {
   }
   const opens = (k) => k.page.waitForFunction(() => Boolean(document.querySelector('[role="alertdialog"]:modal')), null, { timeout: 10000 }).then(() => true, () => false);
   out = outDir();
-  h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [VIEW], out });
+  h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [CONFIRM, VIEW], out });
   try {
     await h.page.mouse.move(point.x, point.y);
     await h.page.mouse.down();
@@ -792,7 +856,7 @@ async function confirms(origin, dir) {
       return (kind) => cdp.send('Input.dispatchTouchEvent', kind === 'start' ? { type: 'touchStart', touchPoints: [point] } : { type: 'touchEnd', touchPoints: [] });
     };
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [CONFIRM, VIEW], out });
     try {
       const send = await touch(h);
       await send('start');
@@ -808,7 +872,7 @@ async function confirms(origin, dir) {
       await h.close();
     }
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [CONFIRM, VIEW], out });
     try {
       const cdp = await h.page.context().newCDPSession(h.page);
       const pen = (type) => cdp.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: 'left', clickCount: 1, pointerType: 'pen' });
@@ -825,7 +889,7 @@ async function confirms(origin, dir) {
       await h.close();
     }
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }, allowA], views: [VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }, allowA], views: [CONFIRM, VIEW], out });
     try {
       const send = await touch(h);
       await send('start');
@@ -843,7 +907,7 @@ async function confirms(origin, dir) {
   const body = long.fields.find((f) => f.value.join('') !== '');
   long.fields = Array.from({ length: 40 }, () => ({ ...body, value: ['Thank you. Your rent for October came in and the receipt is attached for your records.'] }));
   writeState(dir, 'test_long_confirm', [long]);
-  h = await open({ origin, state: 'test_long_confirm', views: [VIEW] });
+  h = await open({ origin, state: 'test_long_confirm', views: [CONFIRM, VIEW] });
   try {
     const top = await h.page.evaluate(() => {
       const d = document.querySelector('[role="alertdialog"]');
@@ -872,7 +936,7 @@ async function crossed(origin, dir) {
   for (const choice of ['decline', 'done']) {
     const answer = { call: 'agents_answer', args: { item: b.item, step: b.step, choice }, reply: { ok: 'yes' } };
     let out = outDir();
-    let h = await open({ origin, state: 'test_two_sign_in', views: [VIEW], out });
+    let h = await open({ origin, state: 'test_two_sign_in', views: [CONFIRM, VIEW], out });
     try {
       const pointerClick = (from, to) =>
         h.page.evaluate(
@@ -895,7 +959,7 @@ async function crossed(origin, dir) {
     }
     if (engineOf(h) !== 'chromium') continue;
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [a, b]) }, gate, { state: snap(2, [b]) }, answer, answer], views: [VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [a, b]) }, gate, { state: snap(2, [b]) }, answer, answer], views: [CONFIRM, VIEW], out });
     try {
       const box = await h.page.locator(sel(choice, a.item)).boundingBox();
       const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -962,7 +1026,7 @@ async function region(origin, dir) {
       if (r) r.r4needsMark = true;
     });
   const step = async (tag, first, focusOn, second, wanted, wantFocus) => {
-    const h = await open({ origin, replies: [{ state: snap(1, first) }, gate, { state: snap(2, second) }], views: [VIEW] });
+    const h = await open({ origin, replies: [{ state: snap(1, first) }, gate, { state: snap(2, second) }], views: [CONFIRM, VIEW] });
     try {
       const at = await facts(h);
       if (at.count !== 1 || at.live !== 'polite' || at.says.length !== 0) faults.push(tag + ':before=' + JSON.stringify(at));
@@ -997,7 +1061,7 @@ async function region(origin, dir) {
   await step('one_goes_and_one_arrives', [stuck], null, [ready], ['Stuck went.', 'Ready came.'], null);
   await step('one_goes_with_the_focus_in_it_and_one_arrives', [stuck], sel('done', stuck.item), [ready], ['Stuck went.', 'Ready came.'], null);
   await step('an_item_with_no_sentence_adds_nothing', [stuck], null, [stuck, { ...ready, say_new: '' }], [], null);
-  const h = await open({ origin, state: 'test_many', views: [VIEW] });
+  const h = await open({ origin, state: 'test_many', views: [CONFIRM, VIEW] });
   try {
     await mark(h);
     await h.page.evaluate(() => Halvo.views.window('hidden'));
@@ -1013,7 +1077,7 @@ async function region(origin, dir) {
   }
   writeState(dir, 'test_region_hidden', [stuck]);
   const hid = 'an_item_that_comes_while_the_view_is_hidden_is_said_at_the_show';
-  const k = await open({ origin, state: 'test_region_hidden', views: [VIEW] });
+  const k = await open({ origin, state: 'test_region_hidden', views: [CONFIRM, VIEW] });
   try {
     await mark(k);
     await k.page.evaluate(() => Halvo.views.window('hidden'));
@@ -1055,7 +1119,7 @@ async function region(origin, dir) {
     await frames(h);
   };
   const flow = async (tag, replies, fn) => {
-    const h = await open({ origin, replies, views: [VIEW] });
+    const h = await open({ origin, replies, views: [CONFIRM, VIEW] });
     try {
       await fn(h);
     } catch (err) {
@@ -1236,7 +1300,7 @@ async function bound(origin, dir) {
   ];
   for (const [tag, text, fits] of once) {
     const out = outDir();
-    const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
+    const h = await open({ origin, state: 'setup_three', views: [CONFIRM, VIEW], out });
     try {
       await h.page.locator(line).fill(text);
       const f = await typedFacts(h, p.name);
@@ -1259,7 +1323,7 @@ async function bound(origin, dir) {
   ];
   for (const [tag, start, typed, want] of keyed) {
     const out = outDir();
-    const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
+    const h = await open({ origin, state: 'setup_three', views: [CONFIRM, VIEW], out });
     try {
       await h.page.locator(line).fill(start);
       await h.page.locator(line).pressSequentially(typed);
@@ -1274,7 +1338,7 @@ async function bound(origin, dir) {
       await h.close();
     }
   }
-  const same = await open({ origin, state: 'setup_three', views: [VIEW], out: outDir() });
+  const same = await open({ origin, state: 'setup_three', views: [CONFIRM, VIEW], out: outDir() });
   try {
     const t = 'the_same_letter_over_a_selection_at_the_bound_keeps_the_bound';
     await same.page.locator(line).fill(xs(1022));
@@ -1289,7 +1353,7 @@ async function bound(origin, dir) {
     await same.close();
   }
   const out = outDir();
-  const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
+  const h = await open({ origin, state: 'setup_three', views: [CONFIRM, VIEW], out });
   const tag = 'typed_key_by_key_to_the_bound';
   try {
     await act(h, { act: 'typed', param: p.name, text: xs(1022) + cp(0x20ac) + 'ab' });
@@ -1305,7 +1369,7 @@ async function bound(origin, dir) {
     ['a_refused_emoji_before_an_emoji_leaves_the_caret', xs(1020) + cp(0x1f600), [1020, 1020], cp(0x1f601), [1020, 1020]],
   ];
   for (const [t, start, at, typed, caret] of caretCases) {
-    const k = await open({ origin, state: 'setup_three', views: [VIEW], out: outDir() });
+    const k = await open({ origin, state: 'setup_three', views: [CONFIRM, VIEW], out: outDir() });
     try {
       await k.page.locator(line).fill(start);
       await k.page.locator(line).evaluate((x, a) => x.setSelectionRange(a[0], a[1]), at);
@@ -1318,7 +1382,7 @@ async function bound(origin, dir) {
       await k.close();
     }
   }
-  const m = await open({ origin, state: 'setup_three', views: [VIEW], out: outDir() });
+  const m = await open({ origin, state: 'setup_three', views: [CONFIRM, VIEW], out: outDir() });
   const mid = 'a_letter_put_into_the_middle_of_a_full_line';
   try {
     const full = 'a'.repeat(500) + 'b'.repeat(524);
@@ -1346,7 +1410,7 @@ async function bound(origin, dir) {
     await m.close();
   }
   const one = async (t, fn) => {
-    const k = await open({ origin, state: 'setup_three', views: [VIEW], out: outDir() });
+    const k = await open({ origin, state: 'setup_three', views: [CONFIRM, VIEW], out: outDir() });
     try {
       await fn(k, k.page.locator(line));
     } catch (err) {
@@ -1461,7 +1525,7 @@ async function bound(origin, dir) {
   const flag = 'a_flag_in_one_input_on_1018_bytes_then_four_digits(the_limit_of_1_6_a,pinned_as_ruled)';
   {
     const out = outDir();
-    const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
+    const h = await open({ origin, state: 'setup_three', views: [CONFIRM, VIEW], out });
     try {
       await h.page.locator(line).fill(xs(1018));
       await h.page.keyboard.insertText(cp(0x1f1eb, 0x1f1f7));
@@ -1520,7 +1584,7 @@ async function compose(origin, dir) {
   const sentence = (f) => (f.note === p.full ? 'full' : f.note === p.too_long ? 'too_long' : f.note === null ? 'none' : 'other');
   const run = async (tag, fn) => {
     const out = outDir();
-    const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
+    const h = await open({ origin, state: 'setup_three', views: [CONFIRM, VIEW], out });
     try {
       await fn(h, out);
     } catch (err) {
@@ -1830,7 +1894,7 @@ async function press(origin, dir) {
   const run = async (tag, fn, opts) => {
     if (skipCase(tag)) return;
     const out = outDir();
-    const h = await open({ origin, views: [VIEW], out, ...(opts || { state: 'setup_three' }) });
+    const h = await open({ origin, views: [CONFIRM, VIEW], out, ...(opts || { state: 'setup_three' }) });
     try {
       await fn(h, out, pageKit(h, engineOf(h)));
     } catch (err) {
@@ -2145,7 +2209,7 @@ async function holds(origin, dir) {
   };
   const flow = async (tag, replies, fn) => {
     if (skipCase(tag)) return;
-    const h = await open({ origin, replies, views: [VIEW] });
+    const h = await open({ origin, replies, views: [CONFIRM, VIEW] });
     try {
       await fn(h, pageKit(h, engineOf(h)));
     } catch (err) {
@@ -2415,7 +2479,7 @@ async function steps(origin, dir) {
   const marks = (out) => callsOf(out).map((c) => c.call.slice(7) + ':' + c.args.step).join(',') || '-';
 
   let out = outDir();
-  let h = await open({ origin, replies: [{ state: snap(1, [setup, later]) }, ...chain(later), none(later), none(setup)], views: [VIEW], out });
+  let h = await open({ origin, replies: [{ state: snap(1, [setup, later]) }, ...chain(later), none(later), none(setup)], views: [CONFIRM, VIEW], out });
   try {
     const cards = h.page.locator('#views .hn-item');
     await answerIn(h, cards.nth(1), later);
@@ -2435,7 +2499,7 @@ async function steps(origin, dir) {
 
   const [first, ...rest] = chain(setup);
   out = outDir();
-  h = await open({ origin, replies: [{ state: snap(1, [setup]) }, first, { state: snap(2, [later]) }, ...rest], views: [VIEW], out });
+  h = await open({ origin, replies: [{ state: snap(1, [setup]) }, first, { state: snap(2, [later]) }, ...rest], views: [CONFIRM, VIEW], out });
   try {
     for (const a of prepare(setup)) await act(h, a);
     await h.page.locator(sel('choose', setup.item)).click();
@@ -2464,7 +2528,7 @@ async function again(origin, dir) {
   const h = await open({
     origin,
     replies: [{ state: snap(1, [setup]) }, { ...first, reply: { error: 'state' } }, { state: snap(2, [later]) }, ...chain(later).map((c) => ({ ...c, reply: { ok: 'yes' } }))],
-    views: [VIEW],
+    views: [CONFIRM, VIEW],
     out,
   });
   try {
@@ -2501,7 +2565,7 @@ async function again(origin, dir) {
   ];
   for (const [tag, lines] of stops) {
     const o = outDir();
-    const k = await open({ origin, replies: [{ state: snap(1, [setup]) }, ...lines], views: [VIEW], out: o });
+    const k = await open({ origin, replies: [{ state: snap(1, [setup]) }, ...lines], views: [CONFIRM, VIEW], out: o });
     try {
       for (const a of prepare(setup)) await act(k, a);
       await k.page.locator(sel('choose', setup.item)).click();
@@ -2532,7 +2596,7 @@ async function features(origin) {
     else if (kind === 'allow' && parseFloat(version) > 17) faults.push('above_17_' + name);
     else if (kind === 'allow') allow.push([name, test]);
   });
-  const h = await open({ origin, state: 'empty', views: [VIEW] });
+  const h = await open({ origin, state: 'empty', views: [CONFIRM, VIEW] });
   try {
     for (const [name, test] of allow) {
       const ok = await h.page.evaluate(test).catch(() => false);
@@ -2553,7 +2617,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'seq', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -2562,6 +2626,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('render')) report('render', await render(origin, dir, states), ['states', 'items', 'texts', 'controls']);
     if (want('calls')) report('calls', await calls(origin, dir, states), ['plans', 'calls']);
     if (want('next')) report('next', await nextState(origin, dir));
+    if (want('seq')) report('seq', await seqCase(origin, dir));
     if (want('hidden')) report('hidden', await hidden(origin, dir));
     if (want('escape')) report('escape', await escape(origin, dir, states), ['escapes']);
     if (want('once')) report('once', await once(origin, dir), ['presses']);

@@ -37,6 +37,7 @@ pub use names::{
     ItemKind, LapseCause, LineKey, LivePhase, Mode, Outcome, Param, Period, Permission, Presenter,
     Reasoning, RunEnd, Runtime, Status, Tier, Trigger, WorkflowState, WorkflowTrigger, YesNo,
 };
+pub use reply::{Ask, AskAct, AskControl, AskEffect, AskKind};
 pub use reply::{
     Candidate, Card, CardEffect, CardLine, CardRun, ChoiceText, ClosedReply, ControlText,
     ErrorReply, Field, Item, OkReply, ParamEntry, Row, Snapshot,

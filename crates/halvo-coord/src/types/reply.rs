@@ -40,6 +40,120 @@ pub struct Row {
     pub next: Option<String>,
     /// `controls`.
     pub controls: Vec<ControlText>,
+    /// `ask`: the question that a press on the row's Delete opens in the page, which sends
+    /// nothing, or null on a row with no Delete (ruling RD-19 (c) rules (2) to (4)).
+    pub ask: Option<Ask>,
+}
+
+/// What the question of a row's Delete is (ruling RD-19 (c) rules (3) and (4)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AskKind {
+    /// `delete`: no run of the agent is live, and the question asks for the delete.
+    Delete,
+    /// `working`: a run of the agent is live; the notice says that it must be stopped first.
+    Working,
+    /// `stopping`: the agent's run is stopping; the notice says that the delete comes after.
+    Stopping,
+}
+
+/// The `data-act` of a control of the question: `reject`, the safe control that leaves the
+/// agent as it is; `allow`, the one control that sends `agents_delete`; `stop`, the control of
+/// the notice `working` that sends the row's stop; `done`, the one control of the notice
+/// `stopping`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AskAct {
+    /// `reject`.
+    Reject,
+    /// `allow`.
+    Allow,
+    /// `stop`.
+    Stop,
+    /// `done`.
+    Done,
+}
+
+/// A control of the question with its text.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct AskControl {
+    /// `act`.
+    pub act: AskAct,
+    /// `text`.
+    pub text: String,
+}
+
+/// An effect of the agent's last run whose outcome is not known, as the question shows it with
+/// its kept fields above the controls (ruling RD-19 (c) rule (4), (d) (3)).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct AskEffect {
+    /// `text`.
+    pub text: String,
+    /// `fields`: its kept fields, as the card shows them.
+    pub fields: Vec<Field>,
+}
+
+impl AskEffect {
+    /// The effect of `class` whose kept fields are `kept`: the sentence `ask.effect.<class>`, or
+    /// `ask.effect.other` for a class with no effect row, and each kept field as the card shows
+    /// it, but the `items` of a `delete`, which a person cannot read.
+    pub fn unknown(class: Class, kept: &[Kept]) -> Result<AskEffect, Cause> {
+        let key = match kept_names(class) {
+            Some(_) => format!("ask.effect.{}", class.name()),
+            None => "ask.effect.other".to_owned(),
+        };
+        let mut fields = Vec::new();
+        for k in kept {
+            if class == Class::Delete && k.name.as_str() == "items" {
+                continue;
+            }
+            fields.push(kept_field(class, k)?);
+        }
+        Ok(AskEffect {
+            text: words::text(&key, &[])?,
+            fields,
+        })
+    }
+
+    /// The effects of `unknown` under the open item `check` of the agent: one entry in that
+    /// item's words, its title, with every kept field, and no sentence of the question's own
+    /// (ruling RD-19 (d) (3)).
+    pub fn checked(title: String, unknown: &[(Class, &[Kept])]) -> Result<AskEffect, Cause> {
+        let mut fields = Vec::new();
+        for (class, kept) in unknown {
+            for k in kept.iter() {
+                if *class == Class::Delete && k.name.as_str() == "items" {
+                    continue;
+                }
+                fields.push(kept_field(*class, k)?);
+            }
+        }
+        Ok(AskEffect {
+            text: title,
+            fields,
+        })
+    }
+}
+
+/// The question of a row's Delete (I2.5; ruling RD-19 (c)): its kind, its title, its sentences
+/// in order, the effects of unknown outcome with the sentence on their record, and its controls,
+/// the safe one first.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Ask {
+    /// `kind`.
+    pub kind: AskKind,
+    /// `title`.
+    pub title: String,
+    /// `text`: its sentences, each a whole entry of the words table.
+    pub text: Vec<String>,
+    /// `effects`: empty but for `delete`.
+    pub effects: Vec<AskEffect>,
+    /// `record`: the sentence that Halvo keeps no record of those effects after the delete, or
+    /// null where `effects` is empty.
+    pub record: Option<String>,
+    /// `controls`: `reject` and `allow` for `delete`, `reject` and `stop` for `working`, and
+    /// `done` alone for `stopping`.
+    pub controls: Vec<AskControl>,
 }
 
 /// A control of a row with its text.

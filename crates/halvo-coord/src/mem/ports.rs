@@ -78,6 +78,8 @@ pub enum Method {
     Replies,
     /// `Owner::overlaps`.
     Overlaps,
+    /// `Owner::delete`.
+    Delete,
 }
 
 /// A call of a port that changes or reads the world outside the coordinator; the reads of the
@@ -213,6 +215,10 @@ pub struct Tried {
 /// stands in `reply_reads`.
 /// `Runs::answer_confirm` refuses answers that make no `Decision` (none, or two for one
 /// effect) with `malformed`, before it mints an id or calls `record`.
+/// `Owner::delete` refuses a workflow that is not in `workflows` with `no_workflow`, and one
+/// with a `run_started` that no `run_ended` follows with `state`, the guard of W-C3.10 (ruling
+/// RD-19 (d) (1)); else it removes the workflow, its entries of `agents` and every event that
+/// names it, and the workflow stands in `deletes`.
 pub struct Ports<C> {
     /// The owner's list of workflows.
     pub workflows: RefCell<Vec<Workflow>>,
@@ -234,6 +240,8 @@ pub struct Ports<C> {
     /// The agent and the slots of each call of `Owner::overlaps`, in order, a refused one among
     /// them.
     pub overlap_reads: RefCell<Vec<(AgentId, Option<Vec<Slot>>)>>,
+    /// The workflow of each decision `delete` that `Owner::delete` acknowledged, in order.
+    pub deletes: RefCell<Vec<WorkflowId>>,
     now: Cell<u64>,
     zone: Cell<i64>,
     step: Cell<u64>,
@@ -271,6 +279,7 @@ impl<C> Ports<C> {
             replies: RefCell::new(Vec::new()),
             reply_reads: RefCell::new(Vec::new()),
             overlap_reads: RefCell::new(Vec::new()),
+            deletes: RefCell::new(Vec::new()),
             now: Cell::new(now),
             zone: Cell::new(zone_of(now, today)),
             step: Cell::new(0),
@@ -1033,6 +1042,32 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
         let more = entries.len() > OVERLAPS_MAX;
         entries.truncate(OVERLAPS_MAX);
         Ok(Overlaps { entries, more })
+    }
+
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        self.refused(Method::Delete)?;
+        if !self.workflows.borrow().iter().any(|w| w.id() == workflow) {
+            return Err(refusal("no_workflow"));
+        }
+        let events = self.events.borrow();
+        let live = events.iter().any(|e| match &e.what {
+            What::RunStarted { run, .. } => {
+                &e.workflow == workflow
+                    && !events
+                        .iter()
+                        .any(|f| matches!(&f.what, What::RunEnded { run: r, .. } if r == run))
+            }
+            _ => false,
+        });
+        drop(events);
+        if live {
+            return Err(refusal("state"));
+        }
+        self.workflows.borrow_mut().retain(|w| w.id() != workflow);
+        self.agents.borrow_mut().retain(|a| &a.workflow != workflow);
+        self.events.borrow_mut().retain(|e| &e.workflow != workflow);
+        self.deletes.borrow_mut().push(workflow.clone());
+        Ok(())
     }
 }
 
