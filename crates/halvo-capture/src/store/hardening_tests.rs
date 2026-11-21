@@ -10490,6 +10490,33 @@ fn an_open_that_meets_no_entropy_hook_is_refused_by_its_name() {
     );
 }
 
+/// The LibTomCrypt sources supply the salt of every new store, and no check
+/// reads them: two stores made over file roots differ in the first 16 bytes
+/// of store.db, the salt, and neither salt is one byte sixteen times. The test
+/// prints true or false and no byte of a salt.
+#[test]
+fn two_new_stores_have_salts_of_their_own() {
+    let salt = || -> Vec<u8> {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        let opened = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
+        assert!(
+            opened.is_ok(),
+            "the open of a new store answered {opened:?}"
+        );
+        std::fs::read(store_dir.join("store.db")).unwrap()[..16].to_vec()
+    };
+    let (first, second) = (salt(), salt());
+    let one_byte = |salt: &[u8]| salt.iter().all(|b| *b == salt[0]);
+    let equal = first == second;
+    let repeated = one_byte(&first) || one_byte(&second);
+    println!("SALT salts_equal={equal} one_byte_sixteen_times={repeated}");
+    assert!(
+        !equal && !repeated,
+        "two new stores: salts_equal={equal} one_byte_sixteen_times={repeated}"
+    );
+}
+
 /// A made mark of create.pending that records the identity of the file at
 /// `path`, written as another program could write it.
 #[cfg(unix)]
