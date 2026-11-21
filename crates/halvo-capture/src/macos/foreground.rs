@@ -11,13 +11,16 @@ use objc2::rc::autoreleasepool;
 use objc2_app_kit::NSWorkspace;
 
 use crate::event::{EventClock, FloorEvent};
-use crate::floor::exclude::{FloorHandle, Keep, PrivateWindow, ProcessId, Subject, Verdict};
+use crate::floor::exclude::{
+    DropReason, FloorHandle, Keep, PrivateWindow, ProcessId, Subject, Verdict,
+};
 use crate::floor::kind::{self as floor_kind, Recorded};
 use crate::floor::payload::{Title, TitleWhy};
 use crate::floor::Switch;
 use crate::macos::run_loop::RunLoopTurns;
 use crate::macos::source_failure;
 use crate::macos::window_title::{self, TitleError, TitleText};
+use crate::secure_input::{SecureInputProbe, SecureInputReading};
 use crate::secure_input_macos::SystemProbe;
 use crate::sink::SinkHandle;
 use crate::source::{
@@ -527,12 +530,26 @@ impl Poller {
         }
     }
 
-    fn keep<K: Recorded>(&self, front: &Foreground, window: PrivateWindow) -> Option<Keep<K>> {
+    fn verdict<K: Recorded>(
+        &self,
+        front: &Foreground,
+        window: PrivateWindow,
+    ) -> Option<Verdict<K>> {
         let pid = ProcessId::new(u32::try_from(front.pid).ok()?);
         let subject = Subject::new(front.identity.to_event(), pid);
-        match self.floor.decide::<K>(subject, window, &self.probe) {
+        Some(self.floor.decide::<K>(subject, window, &self.probe))
+    }
+
+    fn keep<K: Recorded>(&self, front: &Foreground, window: PrivateWindow) -> Option<Keep<K>> {
+        match self.verdict::<K>(front, window)? {
             Verdict::Keep(keep) => Some(keep),
             Verdict::Drop(_) => None,
+        }
+    }
+
+    fn dropped(&mut self, reason: DropReason) {
+        if reason == DropReason::SecureInput {
+            self.change += 1;
         }
     }
 
@@ -574,8 +591,10 @@ impl Poller {
             self.last_title = Some(title.into_text());
             return;
         }
-        let Some(keep) = self.keep::<floor_kind::WindowTitle>(&front, window) else {
-            return;
+        let keep = match self.verdict::<floor_kind::WindowTitle>(&front, window) {
+            Some(Verdict::Keep(keep)) => keep,
+            Some(Verdict::Drop(reason)) => return self.dropped(reason),
+            None => return,
         };
         if !self.health.emits() {
             return;
@@ -630,7 +649,14 @@ impl Poller {
         if !self.floor.switches().is_on(Switch::TitleText) {
             return None;
         }
-        self.keep::<floor_kind::WindowTitle>(&front, PrivateWindow::Unknown)?;
+        match self.verdict::<floor_kind::WindowTitle>(&front, PrivateWindow::Unknown) {
+            Some(Verdict::Keep(_)) => {}
+            Some(Verdict::Drop(reason)) => {
+                self.dropped(reason);
+                return None;
+            }
+            None => return None,
+        }
         Some(TitleRequest {
             pid: front.pid,
             change: self.change,
@@ -649,7 +675,10 @@ struct TitleThread {
 }
 
 impl TitleThread {
-    fn spawn(mut read_title: TitleReader) -> Result<(Self, JoinHandle<()>), CaptureError> {
+    fn spawn(
+        mut read_title: TitleReader,
+        probe: SystemProbe,
+    ) -> Result<(Self, JoinHandle<()>), CaptureError> {
         let queue = Arc::new((
             Mutex::new(TitleQueue {
                 latest: None,
@@ -663,8 +692,18 @@ impl TitleThread {
             .name("halvo-window-title".into())
             .spawn(move || {
                 while let Some(request) = next_request(&shared) {
-                    let read = catch_unwind(AssertUnwindSafe(|| read_title(request.pid)))
-                        .unwrap_or(Err(TitleError::ReaderPanicked));
+                    let active = || probe.read() == SecureInputReading::Active;
+                    let read = if active() {
+                        Ok(None)
+                    } else {
+                        let read = catch_unwind(AssertUnwindSafe(|| read_title(request.pid)))
+                            .unwrap_or(Err(TitleError::ReaderPanicked));
+                        if active() {
+                            Ok(None)
+                        } else {
+                            read
+                        }
+                    };
                     let answer = TitleAnswer {
                         change: request.change,
                         read,
@@ -838,7 +877,7 @@ impl CaptureSource for ForegroundSource {
         let (stop, stop_rx) = channel();
         let sink = ctx.sink().clone();
         let interval = self.interval;
-        let started = TitleThread::spawn(read_title).and_then(|(titles, title)| {
+        let started = TitleThread::spawn(read_title, poller.probe).and_then(|(titles, title)| {
             std::thread::Builder::new()
                 .name("halvo-foreground".into())
                 .spawn(move || poll_loop(read_front, poller, titles, sink, interval, stop_rx))
@@ -1245,13 +1284,15 @@ mod tests {
         drop(poller);
     }
 
-
     #[test]
     fn a_title_asked_before_an_active_reading_and_answered_after_it_is_not_emitted() {
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
         let front = app("com.example.a", 10);
         let asked = poller.step(front.clone(), Vec::new(), &handle);
-        assert!(asked.is_some(), "tick 1 reads inactive and asks for the title");
+        assert!(
+            asked.is_some(),
+            "tick 1 reads inactive and asks for the title"
+        );
         PROBE_BYTE.with(|byte| byte.set(1));
         let during = poller.step(front.clone(), Vec::new(), &handle);
         assert_eq!(during, None, "tick 2 reads active and asks nothing");
@@ -1283,16 +1324,21 @@ mod tests {
         let front = app("com.example.a", 10);
         let (go, wait) = std::sync::mpsc::channel::<()>();
         let (seen, read_under) = std::sync::mpsc::channel::<u8>();
+        let (entered, came) = std::sync::mpsc::channel::<()>();
         let reader: TitleReader = Box::new(move |_pid| {
+            entered.send(()).ok();
             wait.recv().ok();
             seen.send(inside_byte()).ok();
             read("READ-WHILE-ACTIVE")
         });
-        let (thread, joined) = TitleThread::spawn(reader).expect("the title thread of the test");
+        let (thread, joined) =
+            TitleThread::spawn(reader, poller.probe).expect("the title thread of the test");
         let request = poller
             .step(front.clone(), thread.answers(), &handle)
             .expect("tick 1 reads inactive and asks for the title");
         thread.ask(request);
+        came.recv_timeout(Duration::from_secs(60))
+            .expect("the title thread calls its reader");
         INSIDE_BYTE.store(1, Ordering::SeqCst);
         go.send(()).expect("the reader waits for the test");
         let byte_at_the_read = read_under.recv_timeout(Duration::from_secs(60));
@@ -1319,7 +1365,6 @@ mod tests {
             "a title that was read while the reading was active"
         );
     }
-
 
     #[test]
     fn readings_a_a_b_of_one_app_give_two_title_events_with_a_and_b() {
@@ -1375,9 +1420,11 @@ mod tests {
             "no read while secure input is active"
         );
         PROBE_BYTE.with(|byte| byte.set(0));
-        let request = poller.step(front.clone(), Vec::new(), &handle);
-        assert_eq!(request, Some(TitleRequest { pid: 10, change: 1 }));
-        poller.step(front.clone(), answer(1, read("B")), &handle);
+        let request = poller
+            .step(front.clone(), Vec::new(), &handle)
+            .expect("the first tick after asks for the title");
+        assert_eq!(request.pid, 10);
+        poller.step(front.clone(), answer(request.change, read("B")), &handle);
         assert_eq!(titles(&writer), [("B".to_string(), "app_change", false)]);
         drop(poller);
     }
@@ -1391,7 +1438,10 @@ mod tests {
         poller.step(front.clone(), answer(1, read("A")), &handle);
         PROBE_BYTE.with(|byte| byte.set(0));
         assert_eq!(titles(&writer), []);
-        poller.step(front.clone(), answer(1, read("A")), &handle);
+        let again = poller
+            .step(front.clone(), Vec::new(), &handle)
+            .expect("the first tick after asks for the title");
+        poller.step(front.clone(), answer(again.change, read("A")), &handle);
         assert_eq!(
             titles(&writer).len(),
             1,
