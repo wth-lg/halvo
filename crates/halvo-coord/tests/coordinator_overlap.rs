@@ -511,3 +511,221 @@ fn a_switch_off_of_the_asking_agent_sends_no_kept_body() {
         writes(&c, m)
     );
 }
+
+fn listed_state(c: &Coordinator<Both>, flow: &WorkflowId) -> Option<WorkflowState> {
+    c.ports()
+        .ports
+        .workflows
+        .borrow()
+        .iter()
+        .find_map(|w| match w {
+            Workflow::Full(f) if &f.id == flow => Some(f.state),
+            _ => None,
+        })
+}
+
+/// Ruling RD-160 (2), part 1, from lens 3's case `adv3_1`: the person switches off b0, which the
+/// sentence names, and the owner answers that switch-off's `paused` with `busy` once. Every
+/// `paused` that the board owes goes before the kept body, as before the once-more send of a
+/// refusal (I3.5 (b)): here b0's `paused` again, acknowledged, and then the kept body, which the
+/// owner takes, so the item closes in the control's move.
+#[test]
+fn a_switch_off_of_the_named_agent_whose_paused_is_busy_sends_the_owed_paused_before_the_kept_body()
+{
+    let (c, item) = coordinator(ports(&[ANN]));
+    answer(&c, &item, ANN).unwrap();
+    let m = mark(&c);
+    c.ports().paused_busy.set(1);
+    assert_eq!(c.control(&other(0), Action::SwitchOff), Ok(()));
+    assert_eq!(
+        c.ports().refused_paused.borrow().clone(),
+        ["set_state b0 paused busy"]
+    );
+    assert_eq!(
+        writes(&c, m),
+        [
+            "set_state b0 paused",
+            "set_bindings ann@people.test",
+            "set_state 01 active"
+        ]
+    );
+    assert_eq!(
+        listed_state(&c, &other_flow(0)),
+        Some(WorkflowState::Paused)
+    );
+    assert_eq!(setup_item(&c), None);
+    assert_eq!(c.setup_overlap(&item), None);
+}
+
+/// Ruling RD-160 (2), part 2, the verify step's case with two `busy` answers to `paused`: the
+/// freed body goes only once the `paused` of the task that the person switched off is
+/// acknowledged. Until then the item keeps its body and its sentence and sends nothing; the
+/// first tick that brings b0 `paused` sends the body, and the item closes.
+#[test]
+fn freed_body_goes_again_once_the_named_agent_is_listed_paused() {
+    let (c, item) = coordinator(ports(&[ANN]));
+    answer(&c, &item, ANN).unwrap();
+    let named_b0 = c.setup_overlap(&item);
+    let m = mark(&c);
+    c.ports().paused_busy.set(2);
+    let out = c.control(&other(0), Action::SwitchOff);
+    println!("VFY-5 switch-off answered: {out:?}");
+    println!(
+        "VFY-5 refused by the stand-in: {:?}",
+        c.ports().refused_paused.borrow()
+    );
+    println!("VFY-5 writes of the switch-off move: {:?}", writes(&c, m));
+    println!(
+        "VFY-5 b0 in the owner's list after the move: {:?}",
+        listed_state(&c, &other_flow(0))
+    );
+    println!(
+        "VFY-5 item open after the move: {}",
+        setup_item(&c).is_some()
+    );
+    println!("VFY-5 held after the move: {:?}", c.setup_overlap(&item));
+    assert_eq!(out, Ok(()));
+    assert_eq!(
+        writes(&c, m),
+        Vec::<String>::new(),
+        "no body while b0 is listed active"
+    );
+    assert_eq!(
+        setup_item(&c),
+        Some(item.clone()),
+        "the item waits with its body"
+    );
+    assert_eq!(
+        c.setup_overlap(&item),
+        named_b0,
+        "and with the sentence of the newest read"
+    );
+    let m2 = mark(&c);
+    for _ in 0..4 {
+        c.tick();
+    }
+    println!("VFY-5 writes of four ticks: {:?}", writes(&c, m2));
+    println!(
+        "VFY-5 b0 in the owner's list after them: {:?}",
+        listed_state(&c, &other_flow(0))
+    );
+    println!("VFY-5 item open after them: {}", setup_item(&c).is_some());
+    println!(
+        "VFY-5 held for the page after them: {:?}",
+        c.setup_overlap(&item)
+    );
+    assert_eq!(
+        writes(&c, m2),
+        [
+            "set_state b0 paused",
+            "set_bindings ann@people.test",
+            "set_state 01 active"
+        ]
+    );
+    assert_eq!(
+        listed_state(&c, &other_flow(0)),
+        Some(WorkflowState::Paused)
+    );
+    assert_eq!(setup_item(&c), None, "the item closes once b0 is off");
+    assert_eq!(c.setup_overlap(&item), None);
+}
+
+/// A body that waits for the `paused` of the task that the person switched off goes at the first
+/// tick at which that task's workflow is no longer in the owner's list, since a task off the list
+/// is live no more (I3.5 (e): a delete of a named task frees the body as a switch-off does).
+#[test]
+fn a_waiting_body_goes_when_the_switched_off_task_leaves_the_list() {
+    let (c, item) = coordinator(ports(&[ANN]));
+    answer(&c, &item, ANN).unwrap();
+    c.ports().paused_busy.set(2);
+    assert_eq!(c.control(&other(0), Action::SwitchOff), Ok(()));
+    assert_eq!(setup_item(&c), Some(item.clone()));
+    c.ports().paused_busy.set(u32::MAX);
+    c.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .retain(|w| w.id() != &other_flow(0));
+    let m = mark(&c);
+    c.tick();
+    assert_eq!(
+        writes(&c, m)
+            .into_iter()
+            .filter(|w| w.starts_with("set_bindings"))
+            .collect::<Vec<_>>(),
+        ["set_bindings ann@people.test"]
+    );
+    assert_eq!(setup_item(&c), None);
+}
+
+/// The same wait where the sentence names nobody: the person switches off b1, which the read did
+/// not name, and the owner answers `busy` to the first two `paused` of b1. The move sends no body;
+/// the tick that brings b1 `paused` sends it once, and the owner refuses it again while b0 still
+/// shares ann, so the item names b0 from the read that followed.
+#[test]
+fn a_switch_off_while_the_sentence_names_nobody_waits_for_the_paused_of_the_task_switched_off() {
+    let (c, item) = coordinator(ports(&[ANN, "zed@people.test"]));
+    c.ports().ports.refuse(Method::Overlaps, PortError::Busy);
+    answer(&c, &item, ANN).unwrap();
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.setup_overlap(&item), Some(Shared::Unread { again: true }));
+    let m = mark(&c);
+    c.ports().paused_busy.set(2);
+    assert_eq!(c.control(&other(1), Action::SwitchOff), Ok(()));
+    assert_eq!(
+        c.ports().refused_paused.borrow().clone(),
+        ["set_state b1 paused busy", "set_state b1 paused busy"]
+    );
+    assert_eq!(
+        writes(&c, m),
+        Vec::<String>::new(),
+        "no body while b1 is listed active"
+    );
+    assert_eq!(c.setup_overlap(&item), Some(Shared::Unread { again: true }));
+    let m2 = mark(&c);
+    c.tick();
+    assert_eq!(
+        writes(&c, m2),
+        [
+            "set_state b1 paused",
+            "set_bindings ann@people.test refused"
+        ]
+    );
+    assert_eq!(
+        c.setup_overlap(&item),
+        Some(named(&[(other(0), other_flow(0), ANN)], false))
+    );
+    let m3 = mark(&c);
+    c.tick();
+    assert_eq!(writes(&c, m3), Vec::<String>::new(), "the body went once");
+}
+
+/// Lens 3's case `adv3_6`, which reads after RD-160 (2) as it read before: a switch-off of the
+/// named agent under a failing clock sends nothing in its move, and the ticks that follow send
+/// b0's `paused` and then the kept body, which the owner takes.
+#[test]
+fn a_switch_off_under_a_failing_clock_sends_the_kept_body_after_the_paused_at_a_tick() {
+    let (c, item) = coordinator(ports(&[ANN]));
+    answer(&c, &item, ANN).unwrap();
+    let m = mark(&c);
+    c.ports().clock_fails.set(true);
+    let out = c.control(&other(0), Action::SwitchOff);
+    c.ports().clock_fails.set(false);
+    assert_eq!(out, Ok(()));
+    assert_eq!(writes(&c, m), Vec::<String>::new());
+    assert!(c.setup_overlap(&item).is_some());
+    let m2 = mark(&c);
+    for _ in 0..3 {
+        c.tick();
+    }
+    assert_eq!(
+        writes(&c, m2),
+        [
+            "set_state b0 paused",
+            "set_bindings ann@people.test",
+            "set_state 01 active"
+        ]
+    );
+    assert_eq!(setup_item(&c), None);
+    assert_eq!(c.setup_overlap(&item), None);
+}
