@@ -34,10 +34,12 @@ pub trait StateWrite: Send {
 }
 
 /// The folder that holds the state file. On macOS it is a descriptor of the
-/// folder of its own, so that every read and write of the state file reaches
-/// that folder wherever it is moved and no name of it is read again; the
-/// service run opens it through the instance lock's descriptor. On Windows it
-/// is the folder's path.
+/// folder of its own, so that every open, read, rename and removal of the
+/// state file goes through that folder wherever it is moved; the folder's
+/// present name is read only as the store's writer records it at each write,
+/// where a failure of that read fails the write, and for the words of an
+/// error. The service run opens it through the instance lock's descriptor. On
+/// Windows it is the folder's path.
 pub struct StateDir {
     #[cfg(target_os = "macos")]
     fd: std::os::fd::OwnedFd,
@@ -205,9 +207,10 @@ pub enum StateError {
     LeftAsItIs { file: PathBuf, health: StateHealth },
     #[error("the state file {} was not written: {kind}", .file.display())]
     NotWritten { file: PathBuf, kind: io::ErrorKind },
-    /// The file holds the change and memory took it, but the flush of its
-    /// folder failed, so the change is in effect and may not outlive a power
-    /// loss.
+    /// The file holds the change, which differs from the state of before, and
+    /// memory took it: the write failed after the file came to hold the
+    /// change, as when the flush of its folder fails after the rename, so the
+    /// change is in effect and may not outlive a power loss.
     #[error("the state file {} holds the change and memory took it, but the flush of its folder failed: {kind}", .file.display())]
     NotFlushed { file: PathBuf, kind: io::ErrorKind },
     /// The write failed with `kind`, and the file could not be read after it
@@ -231,10 +234,13 @@ enum Loaded {
 /// The state file of one data directory and the state that it holds: the one
 /// holder of the daemon's state. A change is written whole before memory
 /// takes it, and after a failed write memory takes what the file reads, so
-/// memory equals the file, or differs from it only toward not capturing:
-/// where the file did not load and memory holds the defaults, desired paused
-/// among them, or where a failed write left a file that does not load and
-/// memory took desired paused.
+/// memory equals the file, or differs from it toward not capturing where the
+/// file did not load and memory holds the defaults, desired paused among
+/// them, and where a failed write left a file that is missing, does not load
+/// or could not be read and memory took desired paused. One place differs
+/// toward capturing: a write that grows the file past
+/// [`STATE_FILE_MAX_BYTES`] succeeds and memory takes it, while the next start
+/// reads the file as corrupt and paused.
 pub struct StateFile {
     dir: StateDir,
     state: DaemonState,
