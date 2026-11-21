@@ -39,44 +39,83 @@ keychain_items() {
 
 fast_plan() {
   { [ -f "$slow_list" ] && [ -r "$slow_list" ]; } ||
-    fail "$slow_list cannot be read; the form of the merge gate reads from it the test targets, the unit tests and the test names that it skips"
+    fail "$slow_list cannot be read; the form of the merge gate reads from it the test targets, the unit tests and the test names that it skips, and the group form the ones that it runs"
+  want_group=
+  [ -n "${CI_D_MERGE_GATE:-}" ] || want_group=$CI_D_TEST_GROUP
+  group_target_packages=' '
+  group_targets=' '
+  group_unit_packages=
+  group_units=
+  group_parts=
+  group_part_packages=' '
+  group_part_count=0
+  group_doc=
   cr=$(printf '\r')
   skipped_targets=' '
   target_packages=' '
   unit_packages=' '
+  part_packages=
   target_excludes=
   unit_excludes=
   name_skips=
   skipped_names=0
   doc_tests=run
   line_number=0
-  while read -r kind word _ || [ -n "$kind" ]; do
+  while read -r kind word line_group line_package _ || [ -n "$kind" ]; do
     line_number=$((line_number + 1))
     kind=${kind%"$cr"}
     word=${word%"$cr"}
+    line_group=${line_group%"$cr"}
+    line_package=${line_package%"$cr"}
     case $kind in
       '' | '#'*) continue ;;
-      doc-tests)
-        doc_tests=skipped
-        continue
-        ;;
+      doc-tests) line_group=$word ;;
     esac
+    case $line_group in
+      [A-Z]) ;;
+      *) fail "$slow_list line $line_number names no group: after the name, or after the word doc-tests, a line holds one capital letter, the group in which a slice runs it" ;;
+    esac
+    if [ "$kind" = doc-tests ]; then
+      doc_tests=skipped
+      [ "$line_group" != "$want_group" ] || group_doc=yes
+      continue
+    fi
     case $kind:$word in
       target: | targets: | units: | test: | target:*[!A-Za-z0-9_-]* | targets:*[!A-Za-z0-9_-]* | units:*[!A-Za-z0-9_-]* | test:*[!A-Za-z0-9_:]*)
         fail "$slow_list line $line_number: after its first word a line names a test target or a package in letters, digits, - and _, or a part of a test name in letters, digits, _ and :"
         ;;
-      target:*) skipped_targets="$skipped_targets$word " ;;
+      target:*)
+        skipped_targets="$skipped_targets$word "
+        [ "$line_group" != "$want_group" ] || group_targets="$group_targets$word "
+        ;;
       targets:*)
         target_packages="$target_packages$word "
         target_excludes="$target_excludes --exclude $word"
+        [ "$line_group" != "$want_group" ] || group_target_packages="$group_target_packages$word "
         ;;
       units:*)
         unit_packages="$unit_packages$word "
         unit_excludes="$unit_excludes --exclude $word"
+        if [ "$line_group" = "$want_group" ]; then
+          group_unit_packages="$group_unit_packages -p $word"
+          group_units=$((${group_units:-0} + 1))
+        fi
         ;;
       test:*)
         name_skips="$name_skips --skip $word"
         skipped_names=$((skipped_names + 1))
+        case $line_package in
+          '' | *[!A-Za-z0-9_-]*) fail "$slow_list line $line_number: after its group a test line names the package whose unit tests hold the test, in letters, digits, - and _" ;;
+        esac
+        part_packages="$part_packages$line_package "
+        if [ "$line_group" = "$want_group" ]; then
+          group_parts="$group_parts$line_package=$word "
+          group_part_count=$((group_part_count + 1))
+          case $group_part_packages in
+            *" $line_package "*) ;;
+            *) group_part_packages="$group_part_packages$line_package " ;;
+          esac
+        fi
         ;;
       *) fail "$slow_list line $line_number begins with another word than target, targets, units, test or doc-tests" ;;
     esac
@@ -87,7 +126,7 @@ fast_plan() {
   all_targets=$(printf '%s\n' "$pairs" | sed -n 's/^target [^ ]* //p' | sort -u)
   [ -n "$all_targets" ] && [ -n "$all_packages" ] ||
     fail "cargo metadata names no test target or no package in the form that this check reads"
-  for package in $target_packages $unit_packages; do
+  for package in $target_packages $unit_packages $part_packages; do
     case $nl$all_packages$nl in
       *"$nl$package$nl"*) ;;
       *) fail "$slow_list names the package $package, and the workspace has no package of that name; take the line out" ;;
@@ -120,10 +159,105 @@ EOF
   for package in $unit_packages; do
     skipped_units=$((skipped_units + 1))
   done
-  printf 'form: the merge gate; %s names what this run skips: %s of %s test targets, the unit tests of %s packages, %s parts of a test name; doc-tests: %s\n' "$slow_list" "$((all_count - kept_count))" "$all_count" "$skipped_units" "$skipped_names" "$doc_tests"
+  if [ -z "$want_group" ]; then
+    printf 'form: the merge gate; %s names what this run skips: %s of %s test targets, the unit tests of %s packages, %s parts of a test name; doc-tests: %s\n' "$slow_list" "$((all_count - kept_count))" "$all_count" "$skipped_units" "$skipped_names" "$doc_tests"
+    return
+  fi
+  group_package_names=
+  group_package_flags=
+  group_named=
+  group_owners=
+  group_count=0
+  seen_targets=' '
+  seen_named=' '
+  seen_owners=' '
+  for package in $group_target_packages; do
+    group_package_flags="$group_package_flags -p $package"
+  done
+  while read -r pair_kind package target; do
+    [ "$pair_kind" = target ] || continue
+    case $group_target_packages in
+      *" $package "*)
+        group_count=$((group_count + 1))
+        case $seen_targets in
+          *" $target "*) ;;
+          *)
+            seen_targets="$seen_targets$target "
+            group_package_names="$group_package_names --test $target"
+            ;;
+        esac
+        continue
+        ;;
+    esac
+    case $group_targets in
+      *" $target "*) ;;
+      *) continue ;;
+    esac
+    group_count=$((group_count + 1))
+    case $seen_named in
+      *" $target "*) ;;
+      *)
+        seen_named="$seen_named$target "
+        group_named="$group_named --test $target"
+        ;;
+    esac
+    case $seen_owners in
+      *" $package "*) ;;
+      *)
+        seen_owners="$seen_owners$package "
+        group_owners="$group_owners -p $package"
+        ;;
+    esac
+  done <<EOF
+$pairs
+EOF
+  [ "$group_count" -gt 0 ] || [ -n "$group_units$group_parts$group_doc" ] ||
+    fail "$slow_list gives no line the group $want_group; CI_D_TEST_GROUP names a group of that list"
+  printf 'form: the group %s of %s, and no other test: %s test targets, the unit tests of %s packages, %s parts of a test name; doc-tests: %s\n' "$want_group" "$slow_list" "$group_count" "${group_units:-0}" "$group_part_count" "${group_doc:-no}"
+}
+
+group_one() {
+  if [ "$group_step" = build ]; then
+    cargo "$@" --no-run
+    return
+  fi
+  # shellcheck disable=SC2086
+  TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo "$@" -- $group_names 2>&1
+}
+
+group_cargo() {
+  group_step=$1
+  group_names=
+  if [ -n "$group_package_names" ]; then
+    # shellcheck disable=SC2086
+    group_one test --locked $group_package_flags $group_package_names || return
+  fi
+  if [ -n "$group_named" ]; then
+    # shellcheck disable=SC2086
+    group_one test --locked $group_owners $group_named || return
+  fi
+  if [ -n "$group_unit_packages" ]; then
+    # shellcheck disable=SC2086
+    group_one test --locked $group_unit_packages --lib --bins || return
+  fi
+  for package in $group_part_packages; do
+    group_names=
+    for part in $group_parts; do
+      case $part in
+        "$package="*) group_names="$group_names ${part#*=}" ;;
+      esac
+    done
+    group_one test --locked -p "$package" --lib --bins || return
+  done
+  [ "$group_step" = run ] && [ -n "$group_doc" ] || return 0
+  TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace --locked --doc 2>&1
 }
 
 build_tests() {
+  if [ -n "$want_group" ]; then
+    group_cargo build
+    return
+  fi
   if [ -z "${CI_D_MERGE_GATE:-}" ]; then
     cargo test --workspace --locked --no-run
     return
@@ -134,6 +268,10 @@ build_tests() {
 }
 
 run_tests() {
+  if [ -n "$want_group" ]; then
+    group_cargo run
+    return
+  fi
   if [ -z "${CI_D_MERGE_GATE:-}" ]; then
     TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace --locked 2>&1
     return
@@ -145,7 +283,7 @@ run_tests() {
 }
 
 line_seconds() {
-  if [ -z "${CI_D_MERGE_GATE:-}" ]; then
+  if [ -z "${CI_D_MERGE_GATE:-}$want_group" ]; then
     cat
     return
   fi
@@ -154,7 +292,9 @@ line_seconds() {
 
 measure() {
   cd "$CI_D_REPO" || exit 2
-  [ -z "${CI_D_MERGE_GATE:-}" ] || fast_plan
+  want_group=
+  CI_D_TEST_GROUP=${CI_D_TEST_GROUP:-}
+  [ -z "${CI_D_MERGE_GATE:-}$CI_D_TEST_GROUP" ] || fast_plan
   build_tests || fail "the test build failed: cargo test --no-run exited $?"
   scratch=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/$name.XXXXXX") || fail "mktemp failed"
   output=$(mktemp -d "${TMPDIR:-/tmp}/$name-output.XXXXXX") || fail "mktemp failed"
@@ -212,7 +352,7 @@ check() {
     CI_D_ARTIFACTS=$work/artifacts/$1
     RUNNER_TEMP=$work/runner-temp
     export PATH CI_D_REPO CI_D_JOB CI_D_ARTIFACTS RUNNER_TEMP STUB_CALLS STUB_BUILD_EXIT STUB_TEST_EXIT STUB_LEAVES STUB_MOVES STUB_KILLS_PARENT
-    unset CI_D_MERGE_GATE
+    unset CI_D_MERGE_GATE CI_D_TEST_GROUP
     sh "$0" 2>&1
   )
   code=$?
