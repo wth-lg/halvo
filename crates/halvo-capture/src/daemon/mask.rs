@@ -1,6 +1,6 @@
-//! The R2 filter of stored text: a window title is stored as
-//! `halvo_redact::mask` gives it, and the app id and the site's domain are
-//! stored as captured.
+//! The mask of stored text, which no feature switches off: a window title is
+//! stored as `halvo_redact::mask` gives it, and the app id and the site's
+//! domain are stored as captured.
 
 use halvo_redact::mask;
 
@@ -13,8 +13,9 @@ use crate::floor::text::{TextField, TEXT_MAX_BYTES};
 /// title as one that the entry may have cut inside an identifier.
 const TITLE_MASKED_MAX_BYTES: usize = TEXT_MAX_BYTES - 4;
 
-/// The filter that `TextFilters::r1` registers ahead of the byte cap.
-pub(in crate::daemon) fn text_filter() -> impl Fn(TextField, &str) -> String + Send + Sync {
+/// The filter that `TextFilters::r1` registers ahead of the byte cap, in every
+/// build.
+pub(super) fn text_filter() -> impl Fn(TextField, &str) -> String + Send + Sync {
     stored_text
 }
 

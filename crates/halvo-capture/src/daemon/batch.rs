@@ -368,12 +368,12 @@ mod stored {
             }
         }
 
-        /// The filters of R1: the byte cap and nothing else. A later run
-        /// registers its filter ahead of the cap.
+        /// The filters of stored text: the mask of a window title, then the
+        /// byte cap. No feature takes the mask out, so the owner, which
+        /// filters with this set, stores no title that the mask did not see.
         pub fn r1() -> TextFilters {
             let mut filters = TextFilters::empty();
-            #[cfg(feature = "r2")]
-            filters.register(crate::daemon::r2::text_filter());
+            filters.register(crate::daemon::mask::text_filter());
             filters.register(byte_cap);
             filters
         }
@@ -442,9 +442,9 @@ mod tests {
         TextField::Site,
     ];
 
-    /// The longest title that is stored whole: the cap of the text entry, and
-    /// with the feature r2 the longest title that its filter masks.
-    const TITLE_BYTES: usize = if cfg!(feature = "r2") { 1020 } else { 1024 };
+    /// The longest title that is stored: the longest that the mask takes. A
+    /// longer title is stored empty.
+    const TITLE_BYTES: usize = 1020;
 
     #[test]
     fn no_registered_filter_returns_the_input_bytes() {
@@ -480,7 +480,7 @@ mod tests {
             };
             let stored = StoredText::filtered(field, &raw, &r1);
             let text = stored.as_ref();
-            if cfg!(feature = "r2") && field == TextField::Title {
+            if field == TextField::Title {
                 assert_eq!(text, "", "a title above 1,020 bytes was not stored empty");
                 let short = "x".repeat(cap);
                 assert_eq!(StoredText::filtered(field, &short, &r1).as_ref(), short);
@@ -604,7 +604,7 @@ mod tests {
         let block = harness.owner.payload_block();
         for round in 0..3 {
             for _ in 0..100 {
-                harness.emit(title_of(1024, 1024));
+                harness.emit(title_of(1024, TITLE_BYTES));
                 harness.pass();
             }
             harness.ask(Command::Settle);
