@@ -280,7 +280,8 @@ pub struct SegmentRead {
 /// One live segment as its store read it: the plain lines of its payload,
 /// each with its line end, in a buffer that is wiped when it drops, and the
 /// instant at which the store destroys the segment, in signed unix
-/// nanoseconds.
+/// nanoseconds. A live segment whose file is gone or does not authenticate
+/// answers its ordinal and its instant with no line.
 #[cfg(feature = "r2")]
 pub struct LiveSegment {
     pub ordinal: Ordinal,
@@ -746,5 +747,21 @@ pub(crate) mod tests {
         drop(store);
         made.root.finish().unwrap();
         dir.close().unwrap();
+    }
+
+    /// Stores `payload` as one segment of one record, first and last captured
+    /// at `at`, for a test outside the daemon, which cannot fill a
+    /// [`SegmentWrite`].
+    #[cfg(feature = "r2")]
+    pub(crate) fn write_at<S: CaptureStore>(store: &mut S, at: i64, payload: &[u8]) -> Written {
+        let entries = [KindEntry {
+            kind: EntryKind::of(Modality::Keystroke),
+            events: 1,
+            bytes: payload.len() as u64,
+        }];
+        let id = SegmentId::mint().unwrap();
+        let day = crate::daemon::batch::utc_day(at);
+        let write = SegmentWrite::new(&id, day, at, at, &entries, payload);
+        store.write_batch(write).unwrap()
     }
 }
