@@ -441,9 +441,9 @@ where
     P: Owner + Rng,
     P::Config: ConfigView,
 {
-    report
-        .stamp
-        .map_or_else(Vec::new, |stamp| raise_checks(ports, board, limits, only, stamp))
+    report.stamp.map_or_else(Vec::new, |stamp| {
+        raise_checks(ports, board, limits, only, stamp)
+    })
 }
 
 /// Carries out a move of a run on the ports, the board and the guard's table (I5.6, I5.7,

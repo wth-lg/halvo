@@ -4307,12 +4307,20 @@ fn rd73_a_move_after_94_days_in_one_life_holds_the_board_that_recovery_builds() 
     }
     days_on(&w, 94);
     w.go(Move::Create);
-    let new = halvo_coord::run::recover(&w.ports, &w.limits).unwrap().board;
+    let new = halvo_coord::run::recover(&w.ports, &w.limits)
+        .unwrap()
+        .board;
     assert_eq!(w.board.day, new.day);
     assert_eq!(w.board.members.len(), new.members.len());
     let line = |board: &Board<Config>, f: &Facts<Config>| {
         let stuck = board.record_stuck(&f.agent, &w.limits);
-        row(f, status_of(f, &w.limits, None, stuck), "x", None, &w.limits)
+        row(
+            f,
+            status_of(f, &w.limits, None, stuck),
+            "x",
+            None,
+            &w.limits,
+        )
     };
     for (i, (long, fresh)) in w.board.members.iter().zip(&new.members).enumerate() {
         let (a, b) = (&long.facts, &fresh.facts);
@@ -4331,7 +4339,11 @@ fn rd73_a_move_after_94_days_in_one_life_holds_the_board_that_recovery_builds() 
         assert_eq!(tick(a), tick(b), "the tick's answer for {i}");
         assert_eq!(long, fresh, "every other field of {i}");
     }
-    assert_eq!(count(&w.facts(0).events, "run_started"), 1, "the rows of day 50");
+    assert_eq!(
+        count(&w.facts(0).events, "run_started"),
+        1,
+        "the rows of day 50"
+    );
 }
 
 /// RD-73 2.1 with the derived `off` of I5.4: the row of a switch-off passes its day in one life;
@@ -4344,10 +4356,16 @@ fn rd73_a_switch_off_whose_row_passed_its_day_shows_off_kept_until_switch_on() {
     w.ports.keep_rows_for(KEPT_DAYS);
     let off = w.go(Move::SwitchOff { agent: agent(0) });
     assert_eq!(off.answer, Ok(Answer::Ok));
-    assert_eq!(status_of(w.facts(0), &w.limits, None, false), StatusLine::Off);
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Off
+    );
     days_on(&w, 94);
     w.tick();
-    assert_eq!(status_of(w.facts(0), &w.limits, None, false), StatusLine::Kept);
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Kept
+    );
     w.forget();
     assert_eq!(w.start(0).answer, Err(Cause::Hold));
     assert_eq!(w.starts(), 0);
@@ -4407,12 +4425,24 @@ fn rd73_a_hold_of_this_life_stands_past_its_day_until_paused_is_acknowledged() {
     let from = w.ports.tried.borrow().len();
     w.go(Move::Create);
     assert_eq!(paused(&w, from), vec![false], "paused goes before the read");
-    assert!(held_by_events(w.facts(0)), "the hold stands without an answer");
-    assert_eq!(status_of(w.facts(0), &w.limits, None, false), StatusLine::Off);
+    assert!(
+        held_by_events(w.facts(0)),
+        "the hold stands without an answer"
+    );
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Off
+    );
     w.ports.clear_refusals();
     let from = w.ports.tried.borrow().len();
     w.go(Move::Owed);
     assert_eq!(paused(&w, from), vec![true]);
-    assert!(!held_by_events(w.facts(0)), "the read is taken after the answer");
-    assert_eq!(status_of(w.facts(0), &w.limits, None, false), StatusLine::Kept);
+    assert!(
+        !held_by_events(w.facts(0)),
+        "the read is taken after the answer"
+    );
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Kept
+    );
 }
