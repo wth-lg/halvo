@@ -582,17 +582,23 @@ impl Rig {
     }
 
     pub fn configured(name: &str, set: impl FnOnce(&mut Config)) -> Rig {
-        Rig::built(name, set, None)
+        Rig::built(name, set, None, None)
     }
 
     pub fn reading(name: &str, read: fn(SystemValue) -> Option<std::ffi::OsString>) -> Rig {
-        Rig::built(name, |_| {}, Some(read))
+        Rig::built(name, |_| {}, Some(read), None)
+    }
+
+    /// A rig whose supervisor sends its owner requests over `link`; its memory store gets none of them.
+    pub fn linked(name: &str, link: Arc<dyn OwnerLink>) -> Rig {
+        Rig::built(name, |_| {}, None, Some(link))
     }
 
     fn built(
         name: &str,
         set: impl FnOnce(&mut Config),
         read: Option<fn(SystemValue) -> Option<std::ffi::OsString>>,
+        link: Option<Arc<dyn OwnerLink>>,
     ) -> Rig {
         let dir = scratch(name);
         let store = Arc::new(Store::default());
@@ -604,7 +610,7 @@ impl Rig {
         });
         let rec = Arc::new(Recorder::default());
         let parts = Parts {
-            link: store.clone(),
+            link: link.unwrap_or_else(|| store.clone()),
             confirmer: people.clone(),
             human: people.clone(),
             secrets: vault.clone(),
