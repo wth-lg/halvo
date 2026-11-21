@@ -1,0 +1,2 @@
+- Added: The set-up of an email agent reads each sender answer through a new port of the coordinator, Senders: an answer that the port refuses is kept nowhere and its entry and kind reach the page as the key refused of the parameter, a list that it takes is stored exactly as typed, and an offered sender that it refuses is not offered.
+- Changed: A value typed or offered at the set-up for a payee, a seller or an instrument must meet the predicate of a deciding field, as a raised value of that field must.
