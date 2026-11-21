@@ -2270,12 +2270,18 @@ fn after_a_quit_that_left_a_run(answer: Reaped) -> (coord::Both, RunId) {
     c.ports().ports.refuse(Method::Kill, PortError::NoService);
     c.quit_kill();
     c.quit_write();
-    let next = coord::owner(&[], Limits::PRODUCT);
-    *next.ports.workflows.borrow_mut() = c.ports().ports.workflows.borrow().clone();
-    *next.ports.agents.borrow_mut() = c.ports().ports.agents.borrow().clone();
-    *next.ports.events.borrow_mut() = c.ports().ports.events.borrow().clone();
-    next.ports.leave_marks(&[(run.clone(), answer)]);
+    let next = same_store(c.ports(), &[(run.clone(), answer)]);
     (next, run)
+}
+
+/// The owner of a new life on the store of `from`, whose reap gives `marks`.
+fn same_store(from: &coord::Both, marks: &[(RunId, Reaped)]) -> coord::Both {
+    let next = coord::owner(&[], Limits::PRODUCT);
+    *next.ports.workflows.borrow_mut() = from.ports.workflows.borrow().clone();
+    *next.ports.agents.borrow_mut() = from.ports.agents.borrow().clone();
+    *next.ports.events.borrow_mut() = from.ports.events.borrow().clone();
+    next.ports.leave_marks(marks);
+    next
 }
 
 #[test]
@@ -2290,4 +2296,27 @@ fn u46d_the_first_row_of_the_next_life_says_that_its_task_was_still_running_when
         "reap answered gone, and the first row says that the task was still running when \
          Halvo quit: {row:?}"
     );
+}
+
+#[test]
+fn u46d_the_row_shows_the_recorded_end_of_that_run_in_the_same_life_and_after_one_more_start() {
+    let (next, run) = after_a_quit_that_left_a_run(Reaped::Alive);
+    let life = halvo_coord::Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    let record = PastRun {
+        run: run.clone(),
+        day: DAY,
+        outcome: Outcome::Completed,
+        unknown: 0,
+    };
+    life.ports().ports.store_end(&agent(0), record);
+    life.tick();
+    let done = halvo_coord::words::text("line.all_set.done", &[]).unwrap();
+    let row = life.snapshot().rows[0].clone();
+    assert_eq!(row.line, done, "in the same life: {row:?}");
+    let third = same_store(life.ports(), &[(run, Reaped::Gone)]);
+    let after = halvo_coord::Coordinator::new(third, Limits::PRODUCT);
+    after.tick();
+    let row = after.snapshot().rows[0].clone();
+    assert_eq!(row.line, done, "after one more start: {row:?}");
 }

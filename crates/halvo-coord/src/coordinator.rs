@@ -3100,10 +3100,9 @@ where
             self.flush_ledgers(board, ledgers);
         }
         let _ = self.act(&mut st, Act::KillAll);
-        let killed = st
-            .board
-            .as_ref()
-            .map_or_else(Vec::new, |b| run::kill_kept(&self.ports, b, &st.killed_kept));
+        let killed = st.board.as_ref().map_or_else(Vec::new, |b| {
+            run::kill_kept(&self.ports, b, &st.killed_kept)
+        });
         st.killed_kept.extend(killed);
         self.publish(&mut st);
     }
@@ -3141,9 +3140,8 @@ where
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
-        let acknowledged = run::write_not_stopped(&self.ports, &fresh, &flows, || {
-            self.last_stamp()
-        });
+        let acknowledged =
+            run::write_not_stopped(&self.ports, &fresh, &flows, || self.last_stamp());
         self.written
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -3474,10 +3472,19 @@ where
                     .any(|r| r.agent == facts.agent && r.kill_refused)
                     || board.alive_at_reap(&facts.agent).is_some()
                     || board.kept_gone().iter().any(|f| f.agent == facts.agent);
-                let row = if roster::not_stopped_at_quit(facts).is_some() {
-                    roster::quit_row(*facts, name, Vec::new()).map(|r| Row { next: None, ..r })
-                } else {
-                    roster::gone_row(*facts, stuck, System::HOST, name)
+                let quit = roster::not_stopped_at_quit(facts);
+                let recorded =
+                    quit.and_then(|r| roster::recorded_end(facts, r, board.answered_alive(r)));
+                let row = match (quit, recorded) {
+                    (Some(run), Some(end)) => {
+                        let read = roster::with_end(facts, run, end);
+                        let line = roster::status_of(&read, &self.limits, None, false);
+                        roster::gone_ended_row(&read, line, name)
+                    }
+                    (Some(_), None) => {
+                        roster::quit_row(*facts, name, Vec::new()).map(|r| Row { next: None, ..r })
+                    }
+                    (None, _) => roster::gone_row(*facts, stuck, System::HOST, name),
                 };
                 if let Ok(row) = row {
                     placed.push((Placed { row, raised: None }, None));
@@ -3488,7 +3495,13 @@ where
             let held = open
                 .as_ref()
                 .and_then(|o| st.held.iter().find(|h| h.item() == &o.item));
+            let quit = roster::not_stopped_at_quit(facts);
+            let recorded =
+                quit.and_then(|r| roster::recorded_end(facts, r, board.answered_alive(r)));
             let mut after = board.ended_after_reap(facts, &facts.runs);
+            if let (Some(run), Some(end)) = (quit, recorded) {
+                after = Some(roster::with_end(after.as_ref().unwrap_or(facts), run, end));
+            }
             if let Some(read) = after.as_mut() {
                 if Self::ready_only_by_interrupted(facts, read) {
                     read.doing = Doing::Idle(None);
@@ -3518,7 +3531,8 @@ where
                 .iter()
                 .find(|w| w.agent == facts.agent)
                 .map(|w| w.trigger);
-            let quit_line = roster::not_stopped_at_quit(facts).is_some()
+            let quit_line = quit.is_some()
+                && recorded.is_none()
                 && !matches!(
                     line,
                     crate::types::StatusLine::Record

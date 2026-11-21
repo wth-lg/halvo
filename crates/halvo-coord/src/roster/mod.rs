@@ -452,6 +452,56 @@ pub fn not_stopped_at_quit<C>(facts: &Facts<C>) -> Option<&RunId> {
     not_stopped_in(&facts.events)
 }
 
+/// The end that the store's record of `run` gives, among the records of `facts`, where a row may
+/// take it as how that run ended (the fifth named limit of U4.6b; ruling RD-150): any end where
+/// this life's `Runs::reap` answered the run `alive` (`answered_alive`), for which no `end_run`
+/// is sent; and any end but `failed` otherwise, since the store records the `end_run` of a run
+/// that recovery ends as `failed` too. None where no such record names the run.
+pub fn recorded_end<C>(facts: &Facts<C>, run: &RunId, answered_alive: bool) -> Option<RunEnd> {
+    facts
+        .runs
+        .iter()
+        .find(|r| &r.run == run)
+        .map(|r| RunEnd::from(r.outcome))
+        .filter(|end| answered_alive || *end != RunEnd::Failed)
+}
+
+/// A copy of `facts` in which `run` ends with `end`: each of its `run_ended` rows with
+/// `interrupted`, which recovery stored, holds `end`, and where no `run_ended` row of it stands,
+/// one of `end` follows its `run_started`; so the row reads the recorded end of that run.
+pub fn with_end<C: Clone>(facts: &Facts<C>, run: &RunId, end: RunEnd) -> Facts<C> {
+    let mut read = facts.clone();
+    let mut ended = false;
+    for e in &mut read.events {
+        if let What::RunEnded { run: r, cause, .. } = &mut e.what {
+            if r == run {
+                ended = true;
+                if *cause == RunEnd::Interrupted {
+                    *cause = end;
+                }
+            }
+        }
+    }
+    if !ended {
+        let at = read
+            .events
+            .iter()
+            .position(|e| matches!(&e.what, What::RunStarted { run: r, .. } if r == run));
+        if let Some(k) = at {
+            let row = Event {
+                what: What::RunEnded {
+                    run: run.clone(),
+                    cause: end,
+                    defers: None,
+                },
+                ..read.events[k].clone()
+            };
+            read.events.insert(k + 1, row);
+        }
+    }
+    read
+}
+
 /// The row of an agent whose newest run a Quit named as not stopped (`not_stopped_at_quit`;
 /// ruling RD-150): the status `problem` with `line.problem.quit`, that its task was still
 /// running when Halvo quit and may have gone on, and `offered`, the controls; the row of an
@@ -468,6 +518,20 @@ pub fn quit_row<C: ConfigView>(
         name,
         offered,
     )
+}
+
+/// The row of an agent of a gone workflow whose newest run a Quit named as not stopped, once the
+/// store's record names how that run ended (`recorded_end`): `line`, the line of that end, no
+/// control and no next day.
+pub fn gone_ended_row<C: ConfigView>(
+    facts: &Facts<C>,
+    line: StatusLine,
+    name: &str,
+) -> Result<Row, Cause> {
+    Ok(Row {
+        next: None,
+        ..row_offering(facts, line, name, Vec::new())?
+    })
 }
 
 /// A row with the time at which its open item was raised, which orders the group `needs_you`.
