@@ -113,7 +113,7 @@
     if (shown !== null && key !== shown) heldUntil = performance.now() + HOLD_MS;
     shown = key;
     shownService = s.service;
-    dot.classList.toggle("on", s.service === "running" && (s.capture === "running" || s.capture === "partial"));
+    dot.classList.toggle("on", !s.hold && s.service === "running" && (s.capture === "running" || s.capture === "partial"));
     state.textContent = heading(s);
     if (s.hold) reason.textContent = heldReason(s);
     else reason.textContent = s.service === "running" && s.capture === "faulted" ? FAULT[s.capture_reason] || "" : "";

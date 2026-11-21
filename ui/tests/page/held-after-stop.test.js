@@ -16,12 +16,14 @@ const visibleText = (node) =>
 test("after capture ended itself the page names the cause and the press that brings it back, a Pause that did not happen is said, and the page never says that Halvo is paused", async () => {
   const shown = [];
   const rows = [
-    ["a held child that answers", "held-child", RESUME_LINE, "Resume"],
-    ["no child after the third end with 5", "held-no-child", START_LINE, "Start"],
+    ["a held child that answers", fixture("held-child"), RESUME_LINE, "Resume"],
+    ["no child after the third end with 5", fixture("held-no-child"), START_LINE, "Start"],
+    ["a hold over the last status of a child that read running", { ...fixture("capture_status-running"), hold: fixture("held-child").hold }, RESUME_LINE, "Resume"],
   ];
-  for (const [name, file, line, word] of rows) {
-    const page = await openPage({ replies: { capture_status: () => fixture(file), set_capture_state: () => ({ ...fixture("capture_status-no-indicator"), reached: true }) } });
+  for (const [name, status, line, word] of rows) {
+    const page = await openPage({ replies: { capture_status: () => status, set_capture_state: () => ({ ...fixture("capture_status-no-indicator"), reached: true }) } });
     assert.equal(page.text("state"), CAUSE, name);
+    assert.equal(page.byId("dot").classList.contains("on"), false, `${name}: the dot does not say that capture is on`);
     assert.equal(page.text("capture-reason"), line, name);
     assert.equal(page.text("toggle"), word, name);
     assert.equal(page.byId("toggle").disabled, false, name);
