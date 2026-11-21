@@ -51,7 +51,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use rusqlite::Connection;
+use super::Connection;
 
 /// What [`check`] found and what it read: the lines of the rules that a page
 /// breaks, the pages of the image, and how many of them it read as a b-tree
@@ -492,6 +492,7 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
         return clean.problems;
     }
     let size = read2(db, 16).unwrap_or(0);
+    let usable = size.saturating_sub(usize::from(db.get(20).copied().unwrap_or(0)));
     let page = |number: usize| (number - 1) * size;
     let word2 = |at: usize| read2(db, at).unwrap_or(0);
     let word4 = |at: usize| read4(db, at).unwrap_or(0);
@@ -518,7 +519,7 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
         misses.extend(planted(
             db,
             conn,
-            page(trunk) + size - 4,
+            page(trunk) + usable - 4,
             &[0xff; 4],
             "the freelist trunk past its count",
         ));
@@ -571,11 +572,11 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
         )),
         None => misses.push("the image has no leaf after page 1".to_owned()),
     }
-    match tails.iter().find(|(_, tail)| *tail + 4 <= size) {
+    match tails.iter().find(|(_, tail)| *tail + 4 <= usable) {
         Some((number, _)) => misses.extend(planted(
             db,
             conn,
-            page(*number) + size - 4,
+            page(*number) + usable - 4,
             &[0xff; 4],
             "the tail of an overflow page",
         )),
