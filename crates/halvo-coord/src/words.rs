@@ -435,6 +435,30 @@ pub const KEYS: &[(&str, &str)] = &[
         "run.effect.unshown",
         "It did one thing that Halvo cannot show.",
     ),
+    (
+        "run.effect.payment.partial",
+        "It made this payment, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.purchase.partial",
+        "It placed this order, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.send.partial",
+        "It sent this message, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.submit.partial",
+        "It sent this form, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.sign.partial",
+        "It signed this document, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.local_edit.partial",
+        "It changed a file, but Halvo shows only the details it could read.",
+    ),
     ("run.effect.payment.not_done", "This payment was not made."),
     ("run.effect.purchase.not_done", "This order was not placed."),
     ("run.effect.send.not_done", "This message was not sent."),
@@ -477,6 +501,38 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "run.effect.refused",
         "You said no, so one step of this task was not done.",
+    ),
+    (
+        "run.effect.payment.unknown",
+        "A payment may have been made; Halvo could not tell. Check your bank or the site before you pay again.",
+    ),
+    (
+        "run.effect.purchase.unknown",
+        "An order may have been placed; Halvo could not tell. Check the shop's order page before you order again.",
+    ),
+    (
+        "run.effect.send.unknown",
+        "A message may have been sent; Halvo could not tell. Look in your sent messages before you send it again.",
+    ),
+    (
+        "run.effect.delete.unknown",
+        "Something may have been removed; Halvo could not tell. Look where this agent works for anything missing.",
+    ),
+    (
+        "run.effect.submit.unknown",
+        "A form may have been sent; Halvo could not tell. Check the site before you send it again.",
+    ),
+    (
+        "run.effect.sign.unknown",
+        "A document may have been signed for you; Halvo could not tell. Check your email before you sign it again.",
+    ),
+    (
+        "run.effect.local_edit.unknown",
+        "A file may have been changed; Halvo could not tell. Open it and look before you change it again.",
+    ),
+    (
+        "run.effect.unknown",
+        "One step may have been done; Halvo could not tell. Check where this agent works before you run it again.",
     ),
     ("line.run.stopped", "It stopped before the task was done."),
     ("field.local_edit.file", "File"),
