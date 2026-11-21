@@ -331,7 +331,9 @@ of the same checkout, and for good if none follows; one unmarked group when a KI
 the spawn and the first write of its mark; a group whose leader is gone while other processes
 keep its id, which the sweep and `endGroup` leave with a line (a group whose leader died before a
 test calls `endGroup` is left to the sweep; a group whose leader left on the TERM of an `endGroup`
-that is still waiting gets KILL from the kit's handlers for its members after the grace); and a
+that is still waiting gets KILL from the kit's handlers for its members after the grace; one whose
+leader left on the TERM of an `endGroup` that then threw, on a failed read of ps or on a member left
+after KILL, is left by the handlers too); and a
 group marked under a test's own
 `HALVO_GROUP_MARKS` directory, which no sweep reads. The kit signals a group only after it has
 read the pid and start time of the group's leader, with one exception: when `startGroup` cannot

@@ -270,7 +270,9 @@ export function marksDir(): string {
  * HUP (and then dies by that signal), when its IPC channel to vitest's main process closes (and then exits with 1),
  * and when it exits: TERM to a group whose leader has the recorded pid and start time, and KILL after the grace to
  * the members that are left, also when the leader itself left on TERM, that TERM or the TERM of an endGroup that had
- * read the leader and was still waiting. When vitest stops a fork it sends KILL 500 ms
+ * read the leader and was still waiting. After an endGroup that threw, it signals the group only while the leader has
+ * the recorded pid and start time at its own read, and otherwise leaves the group and its mark. When vitest stops a
+ * fork it sends KILL 500 ms
  * after its TERM, so a group that outlives TERM by more than that keeps its mark, as does a group that ends on TERM
  * when the kit's own read of ps before its TERM takes longer than those 500 ms. A KILL of the owner runs none of
  * these: the group and its mark stay until sweepMarks.
@@ -344,8 +346,11 @@ function startOwn(command: string, args: string[], options: Options): Group {
  * Ends the group while its leader has the recorded pid and start time: TERM, and KILL to the members that are left
  * after 5 s (also when the leader itself left on TERM); throws if a member is left 5 s after KILL. The group stays
  * known to the owner's handlers until endGroup has ended it, so that a stop or a failed read of ps while endGroup
- * runs still leaves the group to the handlers, which send KILL after the grace to the members that are left also when
- * the leader has left on endGroup's own TERM; a second endGroup of the same group waits for the first. endGroup and
+ * runs still leaves the group to the handlers. While endGroup waits after its TERM, they send KILL after the grace to
+ * the members that are left also when the leader has left on that TERM; once endGroup has thrown, on a failed read
+ * of ps or on members left after KILL, they send TERM, and KILL after the grace, only when the leader has the recorded
+ * pid and start time at their own read, and otherwise leave the group and its mark to the sweep, which leaves a group
+ * with members and no leader with a line. A second endGroup of the same group waits for the first. endGroup and
  * the handlers remove a mark only while it reads as the text that startGroup wrote for the group; where a mark of
  * another text stands at the group's path, endGroup sends no signal, forgets the group and prints one line, and
  * where no mark stands there it ends the group as above. A group whose
