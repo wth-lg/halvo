@@ -2424,16 +2424,16 @@ where
     /// delete of W-C3.10, at that yes and in this life or not at all (ruling RD-30 (1)). Like a
     /// Stop, the call first takes up what an earlier move left, with the agent's queued start
     /// set aside during it. An agent with no run on the board, or one that a new life set
-    /// aside, is deleted at once, and a start that only waits its turn leaves the queue first,
-    /// as I5.7 drops it; the row then leaves the state and every control of the agent answers
+    /// aside, is deleted at once, and a start that only waits its turn leaves the queue with the
+    /// agent, as I5.7 drops it; the row then leaves the state and every control of the agent answers
     /// `unknown_agent`. With a run on the board the call stores the hold `off` and stops the run
     /// as the switch-off does, so that the agent stays switched off after a quit, keeps the
     /// intent in memory alone, and sends the delete once that run's `run_ended` is stored, at
     /// the end of the move that stores it or of a later tick; meanwhile the row shows
     /// `working.deleting` with no control. An agent whose record is stuck is stopped as Stop
     /// stops it, with no row of the hold, and its delete is sent once the run has left the
-    /// board (ruling RD-64 1.6 (b)). The first step of the quit forgets every such intent, so
-    /// nothing is deleted and the agent stands stopped and switched off, with Delete on its row
+    /// board (ruling RD-64 1.6 (b)). After the first step of the quit no intent is sent and the
+    /// end of the next move forgets each, so nothing is deleted and the agent stands stopped and switched off, with Delete on its row
     /// in the next life (I5.7). Causes: `no_service` with no board; `unknown_agent` for an agent
     /// that has no row or whose workflow is gone; `state` after the quit's first step, while a
     /// switch-off of the agent waits for a read, or where the owner refuses the delete, its
@@ -2471,13 +2471,6 @@ where
             .find(|r| &r.agent == agent)
             .map(|r| r.run.clone());
         let Some(run) = on_board.filter(|_| !board.aside(agent)) else {
-            let board = st.board.as_mut().ok_or(Cause::NoService)?;
-            if board.queue.remove(agent) {
-                let facts = &mut board.members[i].facts;
-                if let Doing::Queued(item) = &facts.doing {
-                    facts.doing = Doing::Idle(item.clone());
-                }
-            }
             return self.send_delete(st, agent, &workflow);
         };
         if st.offs.contains(agent) || st.held_off.contains(agent) {
@@ -2717,7 +2710,6 @@ where
     pub fn quit_stop(&self) -> QuitWait {
         let mut st = self.enter(Entry::Move);
         st.quitting = true;
-        st.deleting.clear();
         self.stop_for_settles(&mut st);
         let last = self.last_read.load(Ordering::Relaxed);
         let now = self.clock_now().unwrap_or(last);
