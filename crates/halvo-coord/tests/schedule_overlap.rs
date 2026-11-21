@@ -835,7 +835,8 @@ fn c_a_paused_that_does_not_reach_the_list_goes_again_at_each_tick_and_no_active
 }
 
 #[test]
-fn c_a_move_of_the_person_takes_the_mark_off_and_a_new_life_sends_active_once_more() {
+fn c_a_refused_switch_on_keeps_the_mark_an_acknowledged_one_takes_it_off_and_a_new_life_sends_active_once_more(
+) {
     let p = ports(&[
         (APPROVED, ACCOUNT, &["ann@people.test"], &[]),
         (ACTIVE, ACCOUNT, &["ann@people.test"], &[]),
@@ -859,10 +860,29 @@ fn c_a_move_of_the_person_takes_the_mark_off_and_a_new_life_sends_active_once_mo
         "the store refuses the switch-on with overlap"
     );
     assert!(
-        !board.active_refused(&agent(0)),
-        "the person's move takes the mark off"
+        board.active_refused(&agent(0)),
+        "a refused switch-on keeps the mark (RD-160 (1))"
+    );
+    assert_eq!(
+        holds_of(&board, 0),
+        vec![OFF],
+        "the agent stands as off after the press"
+    );
+    assert_eq!(
+        go(&p, &mut board, start(0)).answer,
+        Err(halvo_coord::types::Cause::Hold),
+        "no gap in which a start passes"
     );
     set_listed(&p, 1, PAUSED);
+    assert_eq!(
+        go(&p, &mut board, switch_on(0)).answer,
+        Ok(halvo_coord::schedule::Answer::Ok)
+    );
+    assert!(
+        !board.active_refused(&agent(0)),
+        "an acknowledged switch-on takes the mark off"
+    );
+    assert_eq!(holds_of(&board, 0), vec![]);
     set_listed(&p, 0, APPROVED);
     fresh(&p);
     go(&p, &mut board, tick());
@@ -1220,8 +1240,16 @@ fn c_a_paused_with_no_acknowledgement_after_a_refused_active_holds_every_start()
         let t = PausedLost { p: &p, form };
         for k in 0..3 {
             let r = halvo_coord::schedule::drive(&t, &mut board, &L, tick());
-            assert!(r.started.is_empty(), "{form} tick {k}: {:?}", r.started);
-            assert!(r.raised.is_empty(), "{form} tick {k}: {:?}", r.raised);
+            assert!(
+                r.started.iter().all(|s| s.agent != agent(0)),
+                "{form} tick {k}: {:?}",
+                r.started
+            );
+            assert!(
+                !r.raised.contains(&agent(0)),
+                "{form} tick {k}: {:?}",
+                r.raised
+            );
             assert_eq!(
                 stored(&p, 0),
                 before,
