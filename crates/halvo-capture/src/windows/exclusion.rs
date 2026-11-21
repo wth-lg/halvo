@@ -361,6 +361,50 @@ mod tests {
     const ENDED: u32 = 1000;
     const UNDER_ENDED: u32 = 1100;
 
+    /// Where the walk up from `pid` ends: in the tree under ROOT, outside it,
+    /// at an unknown parent, or in a loop.
+    fn walk_end(lineage: &impl Lineage, pid: u32) -> &'static str {
+        let mut at = pid;
+        for _ in 0..16 {
+            match lineage.parent_of(ProcessId::new(at)) {
+                Parent::Of(parent) if parent.get() == ROOT => return "in_tree",
+                Parent::Of(parent) => at = parent.get(),
+                Parent::None => return "outside",
+                Parent::Unknown => return "unknown",
+            }
+        }
+        "loop"
+    }
+
+    #[test]
+    fn a_cached_parent_reused_by_a_child_of_the_root() {
+        const APP: u32 = 2_000;
+        const PARENT: u32 = 2_100;
+        let mut lineage = ProcessLineage::over(
+            Table::default()
+                .with(4, 0, 1)
+                .with(ROOT, 4, 10)
+                .with(PARENT, 4, 40)
+                .with(APP, PARENT, 50),
+        );
+        let before = walk_end(&lineage, APP);
+        lineage.table.processes.insert(PARENT, (ROOT, 60));
+        let after_reuse_with_cache = walk_end(&lineage, APP);
+        let fresh = ProcessLineage::over(
+            Table::default()
+                .with(4, 0, 1)
+                .with(ROOT, 4, 10)
+                .with(PARENT, ROOT, 60)
+                .with(APP, PARENT, 50),
+        );
+        let after_reuse_without_cache = walk_end(&fresh, APP);
+        assert!(
+            before == "outside" && after_reuse_with_cache == after_reuse_without_cache,
+            "before={before} after_reuse_with_cache={after_reuse_with_cache} \
+             after_reuse_without_cache={after_reuse_without_cache}"
+        );
+    }
+
     fn table() -> Table {
         Table::default()
             .with(4, 0, 1)
