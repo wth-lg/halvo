@@ -2086,8 +2086,8 @@ pkill_fallback_wrapper_gone() {
 
 pkill_fallback_real() {
   [ "${GITHUB_ACTIONS:-}" = true ] || return 3
-  start_wrapper_with_its_child 60 || return 1
   fallback_start=$(date +%s)
+  start_wrapper_with_its_child 60 || return 1
   stop_children
   fallback_end=$(date +%s)
   fallback_rest=$(ps -o pid= -p "$fallback_child" | wc -l | tr -d ' ')
