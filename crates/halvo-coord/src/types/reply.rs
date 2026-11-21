@@ -324,6 +324,7 @@ fn standing(class: Class, kept: &[Kept]) -> Vec<Field> {
         .iter()
         .filter(|name| !(class == Class::Delete && **name == "items"))
         .filter_map(|name| once(name))
+        .filter(|k| k.value.iter().any(|piece| !piece.is_empty()))
         .filter_map(|k| kept_field(class, k).ok())
         .collect()
 }
