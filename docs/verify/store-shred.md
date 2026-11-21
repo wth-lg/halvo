@@ -2418,7 +2418,9 @@ This file describes the checks of the commit that holds it. One run keeps
 that true for each merged commit, and it needs no commit id that a squash
 merge would change:
 
-- In every run of the CI workflow, `12-test` runs the eight tests.
+- In the Sunday run of the CI workflow and in a run by hand, `12-test` runs
+  the eight tests. In the merge gate of a push or a pull request it skips
+  them, because `scripts/ci/slow-tests.txt` names `store::formal_tests`.
 
 The mutation rows that this file names, their runner and the check that
 applied them have left the tree. So no run shows that a named test fails
