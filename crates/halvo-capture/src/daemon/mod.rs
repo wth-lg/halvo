@@ -2120,7 +2120,13 @@ pub(crate) struct ServiceParts<F> {
     pub(crate) lease: lease::Lease,
     #[cfg(test)]
     pub(crate) settled: Option<Box<dyn FnOnce(Option<counters::Snapshot>)>>,
+    #[cfg(test)]
+    pub(crate) wrap_store: Option<WrapStore>,
 }
+
+#[cfg(all(test, target_os = "macos", debug_assertions))]
+pub(crate) type WrapStore =
+    Box<dyn FnOnce(Box<dyn port::CaptureStore + Send>) -> Box<dyn port::CaptureStore + Send>>;
 
 #[cfg(all(target_os = "macos", debug_assertions))]
 impl<F: supervisor::SystemSources> ServiceParts<F> {
@@ -2132,6 +2138,8 @@ impl<F: supervisor::SystemSources> ServiceParts<F> {
             lease: lease::Lease::NONE,
             #[cfg(test)]
             settled: None,
+            #[cfg(test)]
+            wrap_store: None,
         }
     }
 }
@@ -2285,6 +2293,8 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     };
     let mut status = halvo_control::exit::CLEAN;
     let mut stop_asked = None;
+    #[cfg(test)]
+    let mut wrap_store = parts.wrap_store;
     loop {
         let opening = matches!(store, HeldStore::None)
             && opener.as_ref().is_some_and(owner::open::Opener::is_running);
@@ -2316,6 +2326,10 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             status = halvo_control::exit::RESTART;
             break;
         }
+        if store.link().is_some_and(|owner| !owner.is_running()) {
+            status = halvo_control::exit::ERROR;
+            break;
+        }
         if let Some(shut) = dir_shut {
             if shut.left().is_zero() {
                 let finishing = opener.as_ref().is_some_and(owner::open::Opener::is_running);
@@ -2340,6 +2354,11 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         mark = mark_the_store_made(mark.at_the_answer(), &mut supervisor, err);
         store = match held {
             owner::open::Held::Capture { store, id } => {
+                #[cfg(test)]
+                let store = match wrap_store.take() {
+                    Some(wrap) => wrap(store),
+                    None => store,
+                };
                 match capture_owner(store, held_cap, switches, root) {
                     Ok(owner) => {
                         let wanted = sources::starting(
@@ -2388,6 +2407,15 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             settled.events_lost.saturating_add(settled.events_pending)
         });
     let status = outcome.map_or(status, |outcome| outcome.status);
+    if let HeldStore::Capture(owner) = &store {
+        if !supervisor::OwnerLink::is_running(&owner.watched) {
+            let _ = writeln!(
+                err,
+                "{}",
+                owner_ended(&owner.watched.snapshot(), &owner.sink.counts()).line
+            );
+        }
+    }
     let status = match store {
         HeldStore::Capture(owner) => close_the_store(*owner, status, err),
         HeldStore::None | HeldStore::Maintenance(_) => status,
