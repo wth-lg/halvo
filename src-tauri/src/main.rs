@@ -24,9 +24,9 @@ pub fn open_pane(permission: Permission) -> Result<(), String> {
 }
 
 fn main() {
-    let started = std::time::Instant::now();
     #[cfg(windows)]
     app::take_engine_arguments_out_of_the_environment();
+    let started = std::time::Instant::now();
     match launch::parse(std::env::args_os().skip(1)) {
         Ok(launch::Launch::Version) => println!("{}", app::VERSION),
         Ok(launch::Launch::Run) => run(),
