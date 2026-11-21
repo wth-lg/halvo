@@ -350,6 +350,8 @@ const CHILD_EXE_NAME: &str = "halvo-verify-child.exe";
 const LISTED_CHILD_EXE: &str = "KeePass.exe";
 const GHOST_CLASS: &str = "HalvoVerifyGhostChild";
 const GHOST_CAPTION: &str = "halvo-verify-ghost-caption";
+/// What the system adds to the caption of a hung window's ghost.
+const GHOST_CAPTION_ENDING: &str = " (Not Responding)";
 const BACKGROUND_CLASS: &str = "HalvoVerifyBackgroundChild";
 const CHILD_MODE_ENV: &str = "HALVO_VERIFY_CHILD_MODE";
 const LISTENER_OUT_ENV: &str = "HALVO_VERIFY_LISTENER_OUT";
@@ -725,7 +727,7 @@ fn known_titles() -> Vec<String> {
         titles.extend((0..3).map(|step| format!("{prefix}-{step}")));
     }
     titles.push(GHOST_CAPTION.to_string());
-    titles.push(format!("{GHOST_CAPTION} (Not Responding)"));
+    titles.push(GHOST_CAPTION.to_string() + GHOST_CAPTION_ENDING);
     titles
 }
 
