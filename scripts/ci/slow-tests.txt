@@ -15,9 +15,13 @@
 # halvo-capture, halvo-derived, halvo-learn, halvo-learn-gate, halvo-learn-store, halvo-redact,
 # halvo-route, halvo-route-gate and halvo-route-wire. In those, a target or a group of unit tests
 # is here when it took about 6 s or more in one of the two jobs.
-# The groups: A the tests of the store (the slice mon), B the other test targets and unit tests (tue),
-# C the name parts of halvo-capture's unit tests and the doc-tests (sat in the macos job, fri in the
-# windows job). CI_D_TEST_GROUP=<group> sh scripts/ci/run-ci-d.sh <job> 12-test runs one group by hand.
+# The groups: A the tests of the store (the slice mon); B the test targets of the agent and
+# coordinator packages, the target formal_traces and the unit tests of five packages (tue); C the name
+# parts of halvo-capture's unit tests and the doc-tests (sun in the macos job, fri in the windows job);
+# D the test targets of seven more packages and three targets by name (sat). B and D were one group,
+# which took 738 s in the macos job and 877 s in the windows job of the run 44917046290, 273 s and
+# 445 s of it builds.
+# CI_D_TEST_GROUP=<group> sh scripts/ci/run-ci-d.sh <job> 12-test runs one group by hand.
 # The seconds of a target and of a package's test targets are the ones that libtest printed in
 # the macos job and in the windows job of the pull request run 44877874023, which ran every test.
 # The seconds of a test line are the gaps before the test's lines in the two jobs of the push
@@ -26,28 +30,28 @@
 targets halvo-agent-client B 12 test targets: 57 s macos, 42 s windows
 targets halvo-agent-gate B 2 test targets: 3 s macos, 2 s windows
 targets halvo-agent-store B 10 test targets: 6 s macos, 5 s windows
-targets halvo-cap B 4 test targets: 6 s macos, 6 s windows
-targets halvo-checkpoint B 10 test targets: 13 s macos, 3 s windows
-targets halvo-connect B 8 test targets: 24 s macos, 19 s windows
+targets halvo-cap D 4 test targets: 6 s macos, 6 s windows
+targets halvo-checkpoint D 10 test targets: 13 s macos, 3 s windows
+targets halvo-connect D 8 test targets: 24 s macos, 19 s windows
 targets halvo-coord B 40 test targets: 17 s macos, 11 s windows
 targets halvo-coord-app B 12 test targets: 21 s macos, 16 s windows
 targets halvo-coord-store B 8 test targets: under 1 s in each job
 targets halvo-policy B 10 test targets: under 1 s in each job
 targets halvo-runner B 10 test targets: 9 s macos, 9 s windows
-targets halvo-sample B 9 test targets: 8 s macos, 5 s windows
+targets halvo-sample D 9 test targets: 8 s macos, 5 s windows
 targets halvo-schema A 43 test targets: 78 s macos, 56 s windows
 targets halvo-schema-core A 1 test target: under 1 s in each job
 targets halvo-seam A 11 test targets: 46 s macos, 28 s windows
-targets halvo-sheet B 19 test targets: 42 s macos, 23 s windows
-targets halvo-test-dir B 1 test target: under 1 s in each job
-targets halvo-web B 1 test target: 33 s macos, 33 s windows
+targets halvo-sheet D 19 test targets: 42 s macos, 23 s windows
+targets halvo-test-dir D 1 test target: under 1 s in each job
+targets halvo-web D 1 test target: 33 s macos, 33 s windows
 target privacy A halvo-derived: 52 s macos, 60 s windows
 target replaced A halvo-derived: 8 s macos, 7 s windows
 target page_gap_check A halvo-derived: 6 s macos, 4 s windows
 target formal_traces B halvo-route: 15 s macos, 10 s windows; halvo-learn holds a target of the same name, under 1 s
-target derive_rules B halvo-route-gate: 12 s macos, 8 s windows
-target drift_cli B halvo-learn-gate: 9 s macos, 5 s windows
-target macos_stall_fixture B halvo-capture: 10 s macos, every test ignored on windows
+target derive_rules D halvo-route-gate: 12 s macos, 8 s windows
+target drift_cli D halvo-learn-gate: 9 s macos, 5 s windows
+target macos_stall_fixture D halvo-capture: 10 s macos, every test ignored on windows
 units halvo-learn-gate B 42 s macos, 24 s windows
 kept halvo-learn-gate tests::privacy the deletion of learned rows: the module tests::privacy of the package's unit tests, and the four tests of its module privacy::tests whose own name begins with privacy; under 1 s on a Mac
 units halvo-sqlcipher A 27 s macos, 32 s windows

@@ -1,10 +1,10 @@
-# The six slices: what CI runs outside the merge gate, one slice a day from Monday to Saturday.
+# The seven slices: what CI runs outside the merge gate, one slice a day.
 # sh scripts/ci/run-ci-d.sh <job> --slice <slice> runs the lines of its slice and job: first the
 # self-tests, then the checks. A check or a self-test that no line here and no line of
 # scripts/ci/merge-gate.txt names runs in no run of CI.
 #
 # A line is: <slice> <job> <kind> <name>
-#   slice  mon, tue, wed, thu, fri or sat
+#   slice  mon, tue, wed, thu, fri, sat or sun
 #   job    macos or windows
 #   kind   check      the check of that name
 #          self-test  the self-test of the check of that name
@@ -73,12 +73,16 @@ fri windows self-test 27-r7-metering-self
 fri windows tests C
 
 sat macos check 16-shell-lint
-sat macos tests C
+sat macos tests D
 sat macos check 10-r7-account
-sat windows check 62-build
 sat windows check 32-app-check-page
 sat windows check 38-app-engine-routes
 sat windows check 10-egress
 sat windows check 20-r6-gateway
-sat windows check 60-r6-egress
 sat windows check 80-r6-absent
+sat windows tests D
+
+sun macos check 62-build
+sun macos tests C
+sun windows check 62-build
+sun windows check 60-r6-egress

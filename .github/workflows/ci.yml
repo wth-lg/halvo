@@ -12,12 +12,13 @@ on:
     - cron: '17 3 * * 4'
     - cron: '17 3 * * 5'
     - cron: '17 3 * * 6'
+    - cron: '17 3 * * 0'
   workflow_dispatch:
     inputs:
       slice:
         description: The slice to run, as the run of its day at 03:17 UTC does
         type: choice
-        options: [mon, tue, wed, thu, fri, sat]
+        options: [mon, tue, wed, thu, fri, sat, sun]
         default: mon
       checks:
         description: In place of the slice, these checks alone, each with its self-test (names with blanks between them)
@@ -55,6 +56,7 @@ jobs:
             'schedule:17 3 * * 4') slice=thu ;;
             'schedule:17 3 * * 5') slice=fri ;;
             'schedule:17 3 * * 6') slice=sat ;;
+            'schedule:17 3 * * 0') slice=sun ;;
             workflow_dispatch:*) slice=$SLICE ;;
             *)
               echo "Slice: no slice belongs to the event $GITHUB_EVENT_NAME with the cron line '$CRON'. Fix: give each cron line of the schedule its slice in this step."
@@ -193,6 +195,7 @@ jobs:
             'schedule:17 3 * * 4') slice=thu ;;
             'schedule:17 3 * * 5') slice=fri ;;
             'schedule:17 3 * * 6') slice=sat ;;
+            'schedule:17 3 * * 0') slice=sun ;;
             workflow_dispatch:*) slice=$SLICE ;;
             *)
               echo "Slice: no slice belongs to the event $GITHUB_EVENT_NAME with the cron line '$CRON'. Fix: give each cron line of the schedule its slice in this step."
