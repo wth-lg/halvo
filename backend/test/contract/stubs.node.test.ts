@@ -97,9 +97,9 @@ test("the metering module answers every call of contract 3.2 on test-kit/sql (P5
     metering.seal(sql, 0, 25_000, 3_600_000);
     expect(metering.nextSend(sql)).toBe(3_600_000);
     const next = metering.send(sql, 3_600_000);
-    expect(next).toEqual({ call: { kind: "send", interval: 0, identifier: `${ACCOUNT}:0`, amountMinor: 2, timestamp: 3_599 }, notBillable: 0 });
+    expect(next).toEqual({ call: { kind: "send", interval: 0, identifier: `${ACCOUNT}:0`, amountMinor: 2, timestamp: 3_599 }, notBillable: 0, unexplained: 0 });
     if (next.call === null) throw new Error("the module named no call");
-    expect(metering.record(sql, next.call, { kind: "recorded" }, 3_600_000)).toEqual({ call: null, notBillable: 0 });
+    expect(metering.record(sql, next.call, { kind: "recorded" }, 3_600_000)).toEqual({ call: null, notBillable: 0, unexplained: 0 });
     metering.cut(sql, "cancel", 3_600_000, 3_600_000);
     expect(metering.settled(sql)).toBe(true);
   });

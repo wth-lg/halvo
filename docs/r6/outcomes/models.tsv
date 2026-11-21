@@ -1,0 +1,13 @@
+model	machine	bound_bytes	fits	group	source
+gemma_4_e2b	hosted-win	5855248384	yes	routing	s2
+gemma_4_e2b	mac	5561647104	yes	routing	s2
+gemma_4_e4b	hosted-win	8833204224	no	routing	s2
+gemma_4_e4b	mac	8774483968	no	routing	s2
+granite_4_2_3b	hosted-win	4127195136	yes	agents	s2
+granite_4_2_3b	mac	4085252096	yes	agents	s2
+minicpm5_2b	hosted-win	2961178624	yes	agents	s2
+minicpm5_2b	mac	2835349504	yes	agents	s2
+ministral_3_3b	hosted-win	4353687552	yes	agents	s2
+ministral_3_3b	mac	4831838208	yes	agents	s2
+s5_nano_4b	hosted-win	5226102784	yes	routing	s2
+s5_nano_4b	mac	5402263552	yes	routing	s2
