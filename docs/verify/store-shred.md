@@ -122,8 +122,7 @@ operations that hold those moves, and one that makes each of them in a
 fixed order. Check 2 is three tests: one over random races of processes
 that open a store, one over random races of processes that create one in
 an empty directory, and one of two fixed cases around the directory lock.
-`docs/verify/check-covered.sh` reads this table and the table under
-Covered code. The delete tail, `EncryptedStore::delete_data_dir`, is held
+The delete tail, `EncryptedStore::delete_data_dir`, is held
 by tests and rows, not by the formal checks: no move of check 1 calls it,
 and a later unit adds it as a move (ruling ST-45 Addition 1). So is the
 root step by identity of store-3b, and its sweep of every regular file of
@@ -151,9 +150,7 @@ A line of this table names code through which a check has been seen to
 fail. Each name in its last cell is a row of a `mutants.rows` file beside
 the code: `sh scripts/r1-gate/mutation-test.sh` applies the row's
 substitution to a copy of HEAD and requires that the one test of the row's
-verdict fails. `sh docs/verify/check-covered.sh` fails when a line names no
-row, or names a row that is missing, not `required`, on another file, or
-judged by a test that is not a test of the line's check. Code that the
+verdict fails. No check holds a line of this table to a row. Code that the
 checks call and that no row fails through stands under Not covered.
 
 | Check | File | Functions | Rows that fail through it |
@@ -1114,7 +1111,6 @@ When a change to covered code is intended:
    row of the changed file, or every row with no argument. Each must print
    `PASS mutation`. For new covered code, add a row that breaks it, see the
    check fail, and name the row on the code's line of the covered table.
-5. Run `sh docs/verify/check-covered.sh`.
 
 If the property itself is meant to change (for example, a shredded segment
 may stay readable until a later sweep), that is a product decision; record
@@ -2446,8 +2442,7 @@ squash merge would change:
   name another row file
   holds prints MOVED and is not applied. A covered function that changes
   shape under its row fails that run: the substitution no longer applies.
-- In every run of the CI workflow, `scripts/r1/ci.d/30-formal-covered.sh`
-  runs `sh docs/verify/check-covered.sh`, and `12-test` runs the eight tests.
+- In every run of the CI workflow, `12-test` runs the eight tests.
 
 On each push to main, `30-mutants.sh` also runs, in the full mode, the
 rows that start within its budget, in an order that the commit id decides. It starts no row once its budget of
