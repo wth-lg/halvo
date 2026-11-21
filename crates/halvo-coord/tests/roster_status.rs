@@ -274,7 +274,7 @@ fn rows_that_tie_in_group_and_name_stand_in_ascending_agent_id() {
         let mut f = utility();
         f.agent = halvo_coord::types::AgentId::parse(&format!("{:032x}", 0x5000 + n)).unwrap();
         Placed {
-            row: row(&f, line, "Same name").unwrap(),
+            row: row(&f, line, "Same name", None, &Limits::PRODUCT).unwrap(),
             raised,
         }
     };
@@ -308,12 +308,18 @@ fn u24r_the_record_row_offers_stop_where_a_run_is_live_the_delete_and_no_other_c
     use halvo_coord::roster::row;
     use halvo_coord::types::Control;
     let controls = |f: &Facts<Config>| -> Vec<Control> {
-        row(f, StatusLine::Record, "A name")
-            .unwrap()
-            .controls
-            .iter()
-            .map(|c| c.control)
-            .collect()
+        row(
+            f,
+            StatusLine::Record,
+            "A name",
+            Some(Trigger::Person),
+            &Limits::PRODUCT,
+        )
+        .unwrap()
+        .controls
+        .iter()
+        .map(|c| c.control)
+        .collect()
     };
     let idle = utility();
     assert_eq!(controls(&idle), [Control::Delete], "idle");

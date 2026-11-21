@@ -1,5 +1,5 @@
 use halvo_coord::roster::{lines, names, order, plain_site, row, status, Placed};
-use halvo_coord::types::fixtures::{facts, State};
+use halvo_coord::types::fixtures::{facts, waiting, State};
 use halvo_coord::types::{Category, Limits};
 use serde_json::Value;
 
@@ -18,8 +18,16 @@ fn rows(state: State) -> Value {
     let mut placed: Vec<Placed> = all
         .iter()
         .zip(&names)
-        .map(|(f, name)| Placed {
-            row: row(f, status(f, &Limits::PRODUCT, None), name).unwrap(),
+        .zip(waiting(state))
+        .map(|((f, name), w)| Placed {
+            row: row(
+                f,
+                status(f, &Limits::PRODUCT, None),
+                name,
+                w,
+                &Limits::PRODUCT,
+            )
+            .unwrap(),
             raised: None,
         })
         .collect();
@@ -95,7 +103,14 @@ fn inside_needs_you_the_oldest_open_item_comes_first_and_elsewhere_the_name() {
         }));
     }
     let place = |f: &halvo_coord::types::Facts<_>, name: &str, raised| Placed {
-        row: row(f, status(f, &Limits::PRODUCT, None), name).unwrap(),
+        row: row(
+            f,
+            status(f, &Limits::PRODUCT, None),
+            name,
+            None,
+            &Limits::PRODUCT,
+        )
+        .unwrap(),
         raised,
     };
     let mut placed = vec![
