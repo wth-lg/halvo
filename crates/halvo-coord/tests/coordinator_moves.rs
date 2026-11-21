@@ -11853,3 +11853,126 @@ fn rd140_r1_c08_a_switch_off_beside_another_agents_waiting_row_that_panics() {
         "(the press, cancels in the move, hold_set rows, Run now)"
     );
 }
+
+fn u24v_tick(c: &Coordinator<Both>, k: u64) {
+    c.ports().ports.set_clock(T0 + k * 1_000, DAY);
+    c.tick();
+}
+
+fn u24v_item_of(c: &Coordinator<Both>, n: usize) -> ItemId {
+    let s = c.snapshot();
+    let item = s.items.iter().find(|i| i.agent() == &agent(n)).unwrap();
+    assert_eq!(item.kind(), ItemKind::Confirm);
+    assert_eq!(
+        item.presenter(),
+        Some(halvo_coord::types::Presenter::Native)
+    );
+    item.item().clone()
+}
+
+fn u24v_native_held_while_its_raise_is_refused(
+    limits: Limits,
+) -> (Coordinator<Both>, RunId, ItemId) {
+    let c = coordinator(&[MANUAL], limits);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("store"));
+    c.on_run(&run, ask_confirm_native_signature(&run, 0))
+        .unwrap();
+    let item = u24v_item_of(&c, 0);
+    (c, run, item)
+}
+
+#[test]
+fn u24v_1_a_native_confirmation_held_before_the_third_refusal_is_not_presented_while_the_row_reads_stuck(
+) {
+    for stuck_ticks in [3u32, 5] {
+        let limits = Limits {
+            record_stuck_ticks: stuck_ticks,
+            ..Limits::PRODUCT
+        };
+        let (c, _run, item) = u24v_native_held_while_its_raise_is_refused(limits);
+        for k in 1..u64::from(stuck_ticks) {
+            u24v_tick(&c, k);
+            let case = format!("record_stuck_ticks {stuck_ticks}, tick {k}");
+            assert!(!c.record_stuck(&agent(0)), "{case}");
+            assert_eq!(c.present(&item), Ok(()), "{case}: presented");
+            assert!(c.native_card(&item).is_ok(), "{case}: its card is read");
+        }
+        u24v_tick(&c, u64::from(stuck_ticks));
+        let case = format!("record_stuck_ticks {stuck_ticks}, tick {stuck_ticks}");
+        assert!(c.record_stuck(&agent(0)), "{case}");
+        let s = c.snapshot();
+        assert_eq!(row_line(&s, 0), text("line.problem.record"), "{case}");
+        assert!(s.items.is_empty(), "{case}: the page shows no item");
+        assert_eq!(
+            c.present(&item),
+            Err(Cause::NoService),
+            "{case}: the native path does not present it"
+        );
+        assert_eq!(
+            c.native_card(&item),
+            Err(Cause::NoService),
+            "{case}: the dialog gets no card"
+        );
+    }
+}
+
+#[test]
+fn u24v_3_when_the_record_saves_again_the_held_confirmation_is_presented_again_with_its_own_time_left(
+) {
+    let limit = T0 + Limits::PRODUCT.wait_limit_s * 1000;
+    for press in [true, false] {
+        let case = format!("press {press}");
+        let (c, run, item) = u24v_native_held_while_its_raise_is_refused(Limits::PRODUCT);
+        u24v_tick(&c, 1);
+        u24v_tick(&c, 2);
+        let card = c.native_card(&item).unwrap();
+        c.on_screen(&item);
+        u24v_tick(&c, 3);
+        assert_eq!(
+            c.present(&item),
+            Err(Cause::NoService),
+            "{case}: withdrawn while the row reads stuck"
+        );
+        c.ports().ports.clear_refusals();
+        u24v_tick(&c, 4);
+        assert!(!c.record_stuck(&agent(0)), "{case}");
+        let s = c.snapshot();
+        assert_eq!(row_line(&s, 0), text("line.needs_you.confirm"), "{case}");
+        assert_eq!(s.items.len(), 1, "{case}");
+        assert_eq!(s.items[0].item(), &item, "{case}: the same item");
+        assert_eq!(c.present(&item), Ok(()), "{case}: presented again");
+        assert_eq!(c.native_card(&item), Ok(card.clone()), "{case}: its card");
+        if press {
+            let m = mark(&c);
+            assert_eq!(
+                c.answer_native(&item, ConfirmAnswer::Allow),
+                Ok(()),
+                "{case}: a press now is taken"
+            );
+            assert_eq!(decisions_since(&c, m).len(), 1, "{case}");
+            continue;
+        }
+        c.ports().ports.set_clock(limit - 1, DAY);
+        c.tick();
+        assert_eq!(
+            c.present(&item),
+            Ok(()),
+            "{case}: not lapsed before wait_limit_s from its raise"
+        );
+        let m = mark(&c);
+        c.ports().ports.set_clock(limit, DAY);
+        c.tick();
+        assert!(
+            events(&c).contains(&What::ItemLapsed {
+                item: item.clone(),
+                lapsed: Lapsed::Confirm(LapseCause::WaitLimit)
+            }),
+            "{case}: it lapses wait_limit_s after its raise, the time while stuck counted"
+        );
+        assert_eq!(cancels_of(&c, m, &run), 1, "{case}");
+        assert_eq!(c.present(&item), Err(Cause::UnknownItem), "{case}");
+    }
+}

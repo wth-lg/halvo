@@ -2157,7 +2157,8 @@ where
     }
 
     /// `agents_present` (I8.1): a confirmation whose presenter is native; `presenter` for the
-    /// page's.
+    /// page's; `no_service` for a native one while the board holds the record of its agent
+    /// stuck, so that nobody is asked to allow what Halvo cannot save (ruling RD-147 (5)(ii)).
     pub fn present(&self, item: &ItemId) -> Result<(), Cause> {
         let st = self.lock();
         let h = st
@@ -2166,6 +2167,7 @@ where
             .find(|h| h.item() == item)
             .ok_or(Cause::UnknownItem)?;
         match h.confirmation().presenter() {
+            Presenter::Native if self.withdrawn(&st, h) => Err(Cause::NoService),
             Presenter::Native => Ok(()),
             Presenter::Page => Err(Cause::Presenter),
         }
@@ -2174,8 +2176,9 @@ where
     /// The card of the native dialog of the confirmation `item` (I8.1 `agents_present`, ruling
     /// RD-77 12.1): `items::native_card` of the confirmation that the coordinator holds for that
     /// id, read under the lock; it calls no port and stores nothing. `unknown_item` for an id that
-    /// is no held confirmation, an item of another kind and no item among them, and the causes of
-    /// `items::native_card` otherwise.
+    /// is no held confirmation, an item of another kind and no item among them, the causes of
+    /// `items::native_card` otherwise, and then `no_service` while the board holds the record of
+    /// the item's agent stuck (ruling RD-147 (5)(ii)).
     pub fn native_card(&self, item: &ItemId) -> Result<NativeCard, Cause> {
         let st = self.lock();
         let h = st
@@ -2183,7 +2186,17 @@ where
             .iter()
             .find(|h| h.item() == item)
             .ok_or(Cause::UnknownItem)?;
-        native_card(h)
+        let card = native_card(h)?;
+        if self.withdrawn(&st, h) {
+            return Err(Cause::NoService);
+        }
+        Ok(card)
+    }
+
+    fn withdrawn(&self, st: &State<Cfg<P>>, h: &Held) -> bool {
+        st.board
+            .as_ref()
+            .is_some_and(|b| b.record_stuck(h.ask().agent(), &self.limits))
     }
 
     /// The page's report that it opened the page confirmation `item` at the step mark `step`
