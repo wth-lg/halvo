@@ -507,6 +507,14 @@ struct TitleRequest {
     change: u64,
 }
 
+fn window_of(front: &Foreground) -> PrivateWindow {
+    let bundle_id = match &front.identity {
+        AppIdentity::BundleId(id) => Some(id.as_str()),
+        AppIdentity::ExecutablePath(_) | AppIdentity::Unknown => None,
+    };
+    window_title::window_privacy(bundle_id)
+}
+
 fn verdict_of<K: Recorded>(
     floor: &FloorHandle,
     probe: &SystemProbe,
@@ -620,11 +628,7 @@ impl Poller {
         let Some(front) = self.front.clone() else {
             return;
         };
-        let bundle_id = match &front.identity {
-            AppIdentity::BundleId(id) => Some(id.as_str()),
-            AppIdentity::ExecutablePath(_) | AppIdentity::Unknown => None,
-        };
-        let window = window_title::window_privacy(bundle_id, &title);
+        let window = window_of(&front);
         if window == PrivateWindow::Private {
             self.health.private_dropped.fetch_add(1, Ordering::Relaxed);
             self.last_title = Some(title.into_text());
@@ -688,7 +692,7 @@ impl Poller {
         if !self.floor.switches().is_on(Switch::TitleText) {
             return None;
         }
-        match self.verdict::<floor_kind::WindowTitle>(&front, PrivateWindow::Unknown) {
+        match self.verdict::<floor_kind::WindowTitle>(&front, window_of(&front)) {
             Some(Verdict::Keep(_)) => {}
             Some(Verdict::Drop(reason)) => {
                 self.dropped(reason);
@@ -738,7 +742,7 @@ impl TitleThread {
                                 &floor,
                                 &probe,
                                 &request.front,
-                                PrivateWindow::Unknown,
+                                window_of(&request.front),
                             ),
                             Some(Verdict::Keep(_))
                         )
@@ -1584,6 +1588,49 @@ mod tests {
     }
 
     #[test]
+    fn on_a_mac_no_title_of_a_browsers_window_is_kept_in_english_or_german_while_another_apps_are()
+    {
+        let visit = [
+            "Quarterly plan - Google Docs",
+            "New Tab - Google Chrome (Incognito)",
+            "Quartalsplan - Google Docs",
+            "Neuer Tab - Google Chrome (Inkognito)",
+        ];
+        for bundle_id in [
+            "com.google.Chrome",
+            "com.microsoft.edgemac",
+            "org.mozilla.firefox",
+            "com.apple.Safari",
+            "com.brave.Browser",
+            "company.thebrowser.Browser",
+            "com.example.editor",
+        ] {
+            let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+            let front = app(bundle_id, 40);
+            let asked = poller.step(front.clone(), Vec::new(), &handle);
+            for title in visit {
+                poller.step(front.clone(), answer(1, read(title)), &handle);
+            }
+            let made = kinds(&writer);
+            drop(poller);
+            let titles = made
+                .iter()
+                .filter(|&&kind| kind == Modality::WindowTitle)
+                .count();
+            let browser = bundle_id != "com.example.editor";
+            assert_eq!(
+                (asked.is_some(), made.first().copied(), titles),
+                if browser {
+                    (false, Some(Modality::ForegroundApp), 0)
+                } else {
+                    (true, Some(Modality::ForegroundApp), visit.len())
+                },
+                "{bundle_id}"
+            );
+        }
+    }
+
+    #[test]
     fn readings_a_a_b_of_one_app_give_two_title_events_with_a_and_b() {
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
         let front = app("com.example.a", 10);
@@ -1754,8 +1801,8 @@ mod tests {
         );
         assert_eq!(
             titles(&writer).len(),
-            1,
-            "the word private elsewhere is kept"
+            0,
+            "no title of a browser's window is kept"
         );
         drop(poller);
     }

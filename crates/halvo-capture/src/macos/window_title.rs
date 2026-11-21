@@ -29,9 +29,6 @@ const AX_ERROR_ATTRIBUTE_UNSUPPORTED: i32 = -25205;
 
 pub const TITLE_READ_CAP_UNITS: usize = 1024;
 
-/// The UTF-16 units at the end of a title that the private-window rule reads.
-pub const TITLE_ENDING_UNITS: usize = 64;
-
 pub const TITLE_READ_DEADLINE: Duration = crate::macos::foreground::FOREGROUND_POLL;
 
 const HEAD_READ_UNITS: usize = TITLE_READ_CAP_UNITS + 1;
@@ -39,15 +36,13 @@ const HEAD_READ_UNITS: usize = TITLE_READ_CAP_UNITS + 1;
 const _: () = assert!(crate::floor::text::TEXT_MAX_BYTES <= TITLE_READ_CAP_UNITS);
 
 /// The bounded read of a window title: at most one UTF-16 unit more than
-/// [`TITLE_READ_CAP_UNITS`] from its start and at most [`TITLE_ENDING_UNITS`]
-/// from its end, each with an unpaired surrogate read as U+FFFD. A unit takes
-/// at least one byte, so the floor's text entry, which keeps at most
-/// [`TITLE_READ_CAP_UNITS`] bytes, cuts every title longer than the cap and
-/// records the cut. It prints a placeholder.
+/// [`TITLE_READ_CAP_UNITS`] from its start, with an unpaired surrogate read as
+/// U+FFFD. A unit takes at least one byte, so the floor's text entry, which
+/// keeps at most [`TITLE_READ_CAP_UNITS`] bytes, cuts every title longer than
+/// the cap and records the cut. It prints a placeholder.
 #[derive(Clone, PartialEq, Eq)]
 pub struct TitleText {
     text: String,
-    ending: String,
 }
 
 impl TitleText {
@@ -59,17 +54,11 @@ impl TitleText {
         self.text
     }
 
-    pub fn ending(&self) -> &str {
-        &self.ending
-    }
-
     #[cfg(test)]
     pub(crate) fn for_test(text: &str) -> Self {
         let units: Vec<u16> = text.encode_utf16().collect();
-        let start = units.len().saturating_sub(TITLE_ENDING_UNITS);
         Self {
             text: lossy(&units[..units.len().min(HEAD_READ_UNITS)]),
-            ending: lossy(&units[start..]),
         }
     }
 }
@@ -124,25 +113,50 @@ fn bounded_title(text: &CFString) -> TitleText {
     // SAFETY: `string` is a live CFString that `text` holds.
     let total = usize::try_from(unsafe { CFStringGetLength(string) }).unwrap_or(0);
     let head = units_of(string, 0, total.min(HEAD_READ_UNITS));
-    let start = total.saturating_sub(TITLE_ENDING_UNITS);
-    TitleText {
-        text: lossy(&head),
-        ending: lossy(&units_of(string, start, total - start)),
-    }
+    TitleText { text: lossy(&head) }
 }
 
-const PRIVATE_ENDINGS: [(&str, &str); 4] = [
-    ("com.google.Chrome", "(Incognito)"),
-    ("com.microsoft.edgemac", "(InPrivate)"),
-    ("org.mozilla.firefox", "\u{2014} Private Browsing"),
-    ("com.apple.Safari", ", Private Browsing"),
+const BROWSER_BUNDLE_IDS: [&str; 30] = [
+    "com.google.Chrome",
+    "com.google.chrome.for.testing",
+    "com.microsoft.edgemac",
+    "org.mozilla.",
+    "com.apple.Safari",
+    "com.brave.Browser",
+    "company.thebrowser.Browser",
+    "company.thebrowser.dia",
+    "com.operasoftware.Opera",
+    "com.vivaldi.Vivaldi",
+    "org.torproject.",
+    "com.duckduckgo.macos.browser",
+    "com.kagi.kagimacOS",
+    "org.chromium.",
+    "com.pushplaylabs.sidekick",
+    "net.waterfox.waterfox",
+    "io.gitlab.librewolf-community",
+    "app.zen-browser.zen",
+    "one.ablaze.floorp",
+    "net.mullvad.mullvadbrowser",
+    "ru.yandex.desktop.yandex-browser",
+    "ai.perplexity.comet",
+    "com.sigmaos.sigmaos.macos",
+    "com.naver.Whale",
+    "com.hiddenreflex.Epic",
+    "com.ghostery.dawn",
+    "com.avast.browser",
+    "com.avg.browser",
+    "com.ecosia.macapp",
+    "de.iron.Iron",
 ];
 
-pub(crate) fn window_privacy(bundle_id: Option<&str>, title: &TitleText) -> PrivateWindow {
-    let private = PRIVATE_ENDINGS
-        .iter()
-        .any(|&(browser, ending)| bundle_id == Some(browser) && title.ending().ends_with(ending));
-    if private {
+pub(crate) fn window_privacy(bundle_id: Option<&str>) -> PrivateWindow {
+    let browser = bundle_id.is_some_and(|id| {
+        BROWSER_BUNDLE_IDS.iter().any(|browser| {
+            id.get(..browser.len())
+                .is_some_and(|head| head.eq_ignore_ascii_case(browser))
+        })
+    });
+    if browser {
         PrivateWindow::Private
     } else {
         PrivateWindow::Unknown
@@ -299,7 +313,6 @@ mod tests {
     fn a_title_with_an_unpaired_surrogate_reads_it_as_the_replacement_character() {
         let title = bounded_title(&utf16_string(&[0x41, 0xD800, 0x42]));
         assert_eq!(title.text(), "A\u{FFFD}B");
-        assert_eq!(title.ending(), "A\u{FFFD}B");
         assert_eq!(
             bounded_title(&utf16_string(&[0xD83D, 0xDE00, 0x00E9])).text(),
             "\u{1F600}\u{E9}"
@@ -307,14 +320,11 @@ mod tests {
     }
 
     #[test]
-    fn a_title_over_the_cap_reads_one_unit_past_the_cap_from_its_start_and_its_ending_from_its_end()
-    {
+    fn a_title_over_the_cap_reads_one_unit_past_the_cap_from_its_start() {
         let mut units = vec![u16::from(b'a'); TITLE_READ_CAP_UNITS + 976];
         units.extend("Page - Google Chrome (Incognito)".encode_utf16());
         let title = bounded_title(&utf16_string(&units));
         assert_eq!(title.text(), "a".repeat(TITLE_READ_CAP_UNITS + 1));
-        assert_eq!(title.ending().encode_utf16().count(), TITLE_ENDING_UNITS);
-        assert!(title.ending().ends_with("Page - Google Chrome (Incognito)"));
     }
 
     #[test]
@@ -348,9 +358,9 @@ mod tests {
     }
 
     #[test]
-    fn the_deadline_is_one_poll_interval_and_the_caps_1024_and_64_units() {
+    fn the_deadline_is_one_poll_interval_and_the_cap_1024_units() {
         assert_eq!(TITLE_READ_DEADLINE, Duration::from_millis(400));
-        assert_eq!((TITLE_READ_CAP_UNITS, TITLE_ENDING_UNITS), (1024, 64));
+        assert_eq!(TITLE_READ_CAP_UNITS, 1024);
     }
 
     #[test]
@@ -383,47 +393,33 @@ mod tests {
     }
 
     #[test]
-    fn each_private_ending_drops_the_title_only_for_its_own_browser() {
-        let rows = [
-            ("com.google.Chrome", "New Tab - Google Chrome (Incognito)"),
-            (
-                "com.microsoft.edgemac",
-                "New Tab - Microsoft Edge (InPrivate)",
-            ),
-            ("org.mozilla.firefox", "New Tab \u{2014} Private Browsing"),
-            ("com.apple.Safari", "Start Page, Private Browsing"),
-        ];
-        for (browser, title) in rows {
+    fn each_browser_of_the_closed_list_reads_private_and_no_other_app_does() {
+        for browser in [
+            "com.google.Chrome",
+            "com.google.Chrome.canary",
+            "com.microsoft.edgemac",
+            "com.microsoft.edgemac.Dev",
+            "org.mozilla.firefox",
+            "org.mozilla.nightly",
+            "com.apple.Safari",
+            "com.apple.SafariTechnologyPreview",
+            "com.brave.Browser.beta",
+            "company.thebrowser.Browser",
+            "com.operasoftware.OperaGX",
+            "com.vivaldi.Vivaldi",
+            "org.torproject.torbrowser",
+            "com.duckduckgo.macos.browser",
+            "com.kagi.kagimacOS",
+            "org.chromium.Chromium",
+        ] {
             assert_eq!(
-                window_privacy(Some(browser), &TitleText::for_test(title)),
+                window_privacy(Some(browser)),
                 PrivateWindow::Private,
                 "{browser}"
             );
-            assert_eq!(
-                window_privacy(Some("com.example.editor"), &TitleText::for_test(title)),
-                PrivateWindow::Unknown,
-                "the ending of {browser} under another bundle id"
-            );
-            assert_eq!(
-                window_privacy(None, &TitleText::for_test(title)),
-                PrivateWindow::Unknown,
-                "the ending of {browser} under no bundle id"
-            );
         }
-        for (browser, title) in [
-            ("com.google.Chrome", "Private Browsing tips - Google Chrome"),
-            ("com.apple.Safari", "Private Browsing, explained"),
-            (
-                "org.mozilla.firefox",
-                "Private browsing \u{2014} Mozilla Firefox",
-            ),
-            ("com.microsoft.edgemac", "(InPrivate) mode - Microsoft Edge"),
-        ] {
-            assert_eq!(
-                window_privacy(Some(browser), &TitleText::for_test(title)),
-                PrivateWindow::Unknown,
-                "{title}"
-            );
+        for other in [Some("com.example.editor"), Some("com.apple.TextEdit"), None] {
+            assert_eq!(window_privacy(other), PrivateWindow::Unknown, "{other:?}");
         }
     }
 
