@@ -1848,6 +1848,11 @@ where
     /// `choose` names its parameter and its candidate. `step` is the step mark of the item that
     /// the page showed: an answer whose step is no longer the item's current one is refused with
     /// `state`, a decline among them, and nothing is stored or sent (I3.4, ruling RD-28 (k)).
+    /// While the board holds the record of a held confirmation's agent stuck, a press of either
+    /// choice on that confirmation, from a page that drew it before, answers `no_service` and is
+    /// not taken: nothing of it is armed, stored or sent to the run, and the item stays held with
+    /// its own time, which the page shows again once the record can be saved (rulings RD-147
+    /// (5)(ii), RD-159).
     pub fn answer(
         &self,
         item: &ItemId,
@@ -1858,6 +1863,14 @@ where
         let now = self.clock_now().ok();
         let mut st = self.enter(Entry::Move);
         if Self::waits_on_item(&st, item) {
+            return Err(Cause::NoService);
+        }
+        if st
+            .held
+            .iter()
+            .find(|h| h.item() == item)
+            .is_some_and(|h| self.withdrawn(&st, h))
+        {
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);
