@@ -721,6 +721,32 @@ search_scope() {
   esac
 }
 
+index_scope() {
+  with_git_paths '
+    use strict;
+    use warnings;
+    my ($search) = @ARGV;
+    binmode STDIN;
+    binmode STDOUT;
+    while (my $entry = <STDIN>) {
+      $entry =~ /\t(.*)\n\z/s or die "unreadable index entry\n";
+      my $path = git_path($1);
+      my $in;
+      if ($search eq "backend") {
+        $in = $path =~ m{\A[Bb][Aa][Cc][Kk][Ee][Nn][Dd]/};
+      } elsif ($search eq "app") {
+        $in = $path !~ m{\A(?:[Bb][Aa][Cc][Kk][Ee][Nn][Dd]|[Ff][Oo][Rr][Mm][Aa][Ll]/[Rr]7-[Ll][Ee][Dd][Gg][Ee][Rr])/};
+      } elsif ($search eq "case-lines") {
+        $in = $path =~ m{(?:\.sh|\.bash)\z|\A\.githooks/};
+      } else {
+        die "no scope for the search $search\n";
+      }
+      if ($in) { print $entry or die $! }
+    }
+    close STDOUT or die $!;
+  ' "$1"
+}
+
 search_records() {
   with_git_paths '
     use strict;
@@ -790,6 +816,8 @@ search_lines() {
   search_scope git_search -L "$@" >"$work/nonmatches" || return
   case $search in
     anchors|assignments) selected_index=$work/index ;;
+    backend|app|case-lines) selected_index=$work/selected
+       index_scope "$search" <"$work/index" >"$selected_index" || return 2 ;;
     *) selected_index=$work/selected
        search_scope git -c core.quotepath=off ls-files -s >"$selected_index" || return 2 ;;
   esac
@@ -945,8 +973,11 @@ no script (a script has mode 100755 or the extension .sh, .bash, .mjs, .cjs,
 a tracked file whose name git quotes, a line of git grep that names no tracked
 path, and a step of scripts/prerequisites.sh that it cannot read. Each search
 accounts for its listed files by name from its matching lines, binary matches
-and files without a match. If both outputs omit a listed path, it repeats the
-search on that path, reports the outcome and checks the recovered lines. A path
+and files without a match. The searches of backend/, of the app's files, of
+case lines, of anchors and of assignments take their listed files from the one
+listing of the index that the check makes first, each cut to its own paths. If
+both outputs omit a listed path, it repeats the search on that path, reports
+the outcome and checks the recovered lines. A path
 that stays unread, an exit above 1 or a diagnostic on stderr fails the check.
 Coverage counts files. Another matching line from a file, or a report that the
 file has no matches, can conceal a missing line. The tally includes links read by id.
