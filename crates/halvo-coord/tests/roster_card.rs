@@ -1559,3 +1559,94 @@ fn u24q_a_value_in_pieces_that_each_read_stands_on_partial_and_unknown_entries()
         assert!(!all.contains("zqr9"), "{want}: {all}");
     }
 }
+
+/// A kept field `name` whose value is `pieces`.
+fn kept_pieces(name: &str, pieces: &[&str]) -> Kept {
+    Kept {
+        name: Name::parse(name).unwrap(),
+        value: pieces.iter().map(|p| p.to_string()).collect(),
+    }
+}
+
+/// Ruling RD-158 (3): a kept value that holds no byte, with no piece or with pieces that are all
+/// empty, never stands on a partial or an unknown entry. A row with nothing else to show keeps the
+/// unshown entry of the base and the unknown entry with no field; where other fields read, they
+/// stand in the table's order and the empty one is left out.
+#[test]
+fn u24q_a_kept_value_of_no_byte_never_stands_on_a_partial_or_an_unknown_entry() {
+    let empties: [&[&str]; 3] = [&[], &[""], &["", "", ""]];
+    for pieces in empties {
+        for (class, name, word) in [
+            (Class::Payment, "payee", "payment"),
+            (Class::Send, "to", "send"),
+        ] {
+            let alone = vec![kept_pieces(name, pieces)];
+            for (effect, want) in [
+                (
+                    committed(class, alone.clone()),
+                    format!("run.effect.{word}.unshown"),
+                ),
+                (
+                    unknown(class, alone.clone()),
+                    format!("run.effect.{word}.unknown"),
+                ),
+            ] {
+                let c = beside_a_good_run(effect);
+                let e = &c.runs[0].effects[1];
+                assert_eq!(
+                    (e.key(), e.text().to_owned()),
+                    (want.clone(), line(&want)),
+                    "{pieces:?}"
+                );
+                assert!(e.fields().is_empty(), "{pieces:?}: {want}");
+            }
+        }
+        let mut kept = paid_rest();
+        kept.insert(1, kept_pieces("payee", pieces));
+        for (effect, want) in [
+            (
+                committed(Class::Payment, kept.clone()),
+                "run.effect.payment.partial",
+            ),
+            (
+                unknown(Class::Payment, kept.clone()),
+                "run.effect.payment.unknown",
+            ),
+        ] {
+            let c = beside_a_good_run(effect);
+            let e = &c.runs[0].effects[1];
+            assert_eq!(e.key(), want, "{pieces:?}");
+            let labels: Vec<&str> = e.fields().iter().map(|f| f.label.as_str()).collect();
+            assert_eq!(labels, ["Amount", "Pay with", "Site"], "{pieces:?}: {want}");
+        }
+    }
+}
+
+/// The control of the rule above: a kept value that holds a byte stands as before, a value of
+/// white space alone and a value with one empty piece among them.
+#[test]
+fn u24q_a_kept_value_that_holds_a_byte_stands_white_space_among_them() {
+    let values: [&[&str]; 3] = [&[" "], &["", "City Power"], &["City Power"]];
+    for pieces in values {
+        let shown_value: Vec<String> = pieces.iter().map(|p| p.to_string()).collect();
+        for (effect, want) in [
+            (
+                committed(Class::Payment, vec![kept_pieces("payee", pieces)]),
+                "run.effect.payment.partial",
+            ),
+            (
+                unknown(Class::Payment, vec![kept_pieces("payee", pieces)]),
+                "run.effect.payment.unknown",
+            ),
+        ] {
+            let c = beside_a_good_run(effect);
+            let e = &c.runs[0].effects[1];
+            assert_eq!(e.key(), want, "{pieces:?}");
+            assert_eq!(
+                shown(e),
+                [("Pay to".to_owned(), shown_value.clone())],
+                "{pieces:?}: {want}"
+            );
+        }
+    }
+}
