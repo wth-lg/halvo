@@ -120,9 +120,6 @@ sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
   (`sh scripts/ci/run-ci-d.sh <job> --merge-gate`), and what
   `scripts/ci/slices.txt` names runs in six slices, one a day from Monday to
   Saturday and in a run by hand (`sh scripts/ci/run-ci-d.sh <job> --slice <slice>`).
-- `sh scripts/r1-gate/run.sh --self-test` proves the logic of the R1 gate on
-  fixtures, and `sh scripts/r1-gate/run.sh --help` lists its sub-checks and its
-  measured form; `scripts/r1-gate/README.md` describes it.
 - The checks of the repository's rules in `AGENTS.md`:
   `sh scripts/check-changelog.sh`, `sh scripts/check-line-endings.sh`,
   `sh scripts/check-own-source-reads.sh` and `sh scripts/check-commit-messages.sh`.
