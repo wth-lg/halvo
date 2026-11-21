@@ -750,8 +750,8 @@ fn a_fifth_stream_is_answered_full_and_a_dropped_end_frees_its_place() {
     }
 }
 
-/// Rulings 3 and 4 of the owner stream: on a stream a `runner` request reaches the store, which answers
-/// `unsupported` because the step list holds no handler, and an interface read answers `role`; on the starter's
+/// Rulings 3 and 4 of the owner stream: on a stream a `runner` request reaches the store, whose handler of `runner`
+/// requests answers `malformed` to a body with no `op`, and an interface read answers `role`; on the starter's
 /// channel the bytes of the same `runner` request answer `role`.
 #[test]
 fn on_a_stream_a_runner_request_reaches_the_store_and_an_interface_read_answers_role() {
@@ -762,7 +762,7 @@ fn on_a_stream_a_runner_request_reaches_the_store_and_an_interface_read_answers_
 
     let runner = runner_request();
     stream.send(&runner);
-    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Unsupported);
+    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Malformed);
     stream.send(&read_workflows());
     assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Role);
 
