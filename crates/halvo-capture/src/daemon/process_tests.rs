@@ -241,6 +241,112 @@ fn a_second_service_run_exits_0_within_2_s_and_changes_nothing_in_the_directory(
     );
 }
 
+const TIMED: &str = "HALVO_DAEMON_TIMED_STORE_DIR";
+const TIMED_RUNNER: &str = "daemon::process_tests::timed_run_for_parent";
+
+struct WaitsForTheSignal(super::scripted::ScriptedRun);
+
+impl super::RunSources for WaitsForTheSignal {
+    fn start(
+        &mut self,
+        ctx: &crate::source::SourceContext,
+        wanted: &[super::SourceName],
+        hold_after: Option<Duration>,
+    ) -> Vec<super::FailedSource> {
+        self.0.start(ctx, wanted, hold_after)
+    }
+
+    fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
+        let started = Instant::now();
+        let _ = self.0.wait(Duration::ZERO, stop);
+        while !stop.load(Ordering::SeqCst) && started.elapsed() < window {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        stop.load(Ordering::SeqCst)
+    }
+
+    fn stop(&mut self) -> Vec<super::FailedSource> {
+        self.0.stop()
+    }
+
+    fn figures(&self) -> super::SourceCounters {
+        self.0.figures()
+    }
+
+    fn hold_refusal(&self) -> Option<super::DaemonError> {
+        self.0.hold_refusal()
+    }
+}
+
+#[test]
+fn timed_run_for_parent() {
+    use super::model_store::foreground_now;
+    use super::scripted::{ScriptedRun, ScriptedSource};
+    let Some(dir) = std::env::var_os(TIMED) else {
+        return;
+    };
+    signal::prepare().unwrap();
+    let run = super::TimedRun {
+        window: Duration::from_secs(60),
+        secure_input: super::SecureInput::DoNotHold,
+        switches: super::SwitchFlags(Vec::new()),
+        store_dir: PathBuf::from(dir),
+    };
+    let mut sources = WaitsForTheSignal(ScriptedRun::new(vec![(
+        super::SourceName::Foreground,
+        ScriptedSource::emitting(vec![foreground_now(), foreground_now()]),
+    )]));
+    let scratch = super::scratch_store(&run).unwrap();
+    let answer = super::run_timed(
+        &run,
+        &mut sources,
+        scratch.store,
+        super::maintenance::SystemClocks::new(),
+        signal::flag(),
+        super::SETTLE_BOUND,
+    );
+    let outcome = super::end_of_a_scratch_run(answer, scratch.root).unwrap();
+    let status = super::outcome_answer(&outcome, &mut std::io::stdout(), &mut std::io::stderr());
+    std::process::exit(status);
+}
+
+#[test]
+fn a_signalled_timed_run_prints_its_report_and_leaves_no_root_of_its_scratch_store() {
+    use std::io::Read;
+    let dir = kept_dir("timed-tests-");
+    let mut child = Service(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", TIMED_RUNNER, "--test-threads=1"])
+            .env(TIMED, &dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap(),
+    );
+    let started = Instant::now();
+    while !(dir.join("store.key").exists() && names(&dir.join("roots")).len() == 1) {
+        if let Some(status) = child.0.try_wait().unwrap() {
+            panic!("the timed run ended before its store was made: {status}");
+        }
+        assert!(started.elapsed() < READY_WITHIN, "the timed run made no scratch store");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    std::thread::sleep(Duration::from_millis(500));
+    let mut out = child.0.stdout.take().unwrap();
+    assert_eq!(terminate(child), Some(halvo_control::exit::TIMED_RUN_INTERRUPTED));
+    let mut report = String::new();
+    out.read_to_string(&mut report).unwrap();
+    assert!(report.lines().any(|line| line == "segments_written=1"), "{report}");
+    assert!(report.lines().any(|line| line == "events_persisted=2"), "{report}");
+    assert!(dir.join("store.key").exists(), "the run removed its store's files");
+    assert_eq!(
+        names(&dir.join("roots")),
+        Vec::<String>::new(),
+        "a root of the scratch store stays"
+    );
+}
+
 #[test]
 fn a_second_service_run_changes_no_byte_of_the_store_that_the_first_holds() {
     let dir = kept_dir("service-tests-");

@@ -950,7 +950,10 @@ mod tests {
 
     use super::open::{try_open, CreateRule, Held, Opener};
     use crate::daemon::custody_policy::{self, Custody, Selection};
-    use crate::daemon::port::{Access, OpenFault, Opened, Probe, StoreHost, StoreId};
+    use crate::daemon::port::{
+        Access, MaintainStore, OpenFault, Opened, Ordinal, Pass, Probe, SegmentWrite, StoreHost,
+        StoreId, Usage, Written,
+    };
     use crate::daemon::slot::Slot;
 
     fn resumed(harness: &mut Harness) -> Barrier {
@@ -1672,33 +1675,6 @@ mod tests {
                 ..
             }
         )));
-    }
-
-    #[test]
-    fn an_owner_over_the_discard_port_flushes_its_batch() {
-        let (sink, writer) = sink::channel(64);
-        let (mut owner, handle, _reports) = Owner::open(OwnerParts {
-            writer,
-            store: crate::daemon::discard_port::DiscardPort::new(std::path::PathBuf::from(env!(
-                "CARGO_MANIFEST_DIR"
-            ))),
-            clocks: ManualClocks::at(noon()),
-            floor: open_floor(),
-            cap: StorageCap::DEFAULT,
-            shred_chunk: SHRED_CHUNK,
-        });
-        let ask = |owner: &mut Owner<_, _>, command| {
-            let pending = handle.ask(command).unwrap();
-            owner.pass(Duration::ZERO);
-            pending.try_answer().unwrap()
-        };
-        ask(&mut owner, Command::ClosePause);
-        assert_eq!(sink.emit_event(foreground_now()), sink::Emitted::Queued);
-        let Answer::Settled(snapshot) = ask(&mut owner, Command::Settle) else {
-            panic!("no settle answer");
-        };
-        assert_eq!(snapshot.events_persisted, 1);
-        assert_eq!(snapshot.segments_written, 1);
     }
 
     #[test]
@@ -2565,7 +2541,7 @@ mod tests {
             let (sink, writer) = sink::channel(QUEUE_SLOTS);
             let thread = spawn(OwnerParts {
                 writer,
-                store: crate::daemon::discard_port::DiscardPort::new(std::env::temp_dir()),
+                store: KeepsNothing(0),
                 clocks: crate::daemon::maintenance::SystemClocks::new(),
                 floor: open_floor(),
                 cap: StorageCap::DEFAULT,
@@ -3671,6 +3647,37 @@ mod tests {
         let (mut harness, _) = stopped_by(WriteFault::Db(19));
         kept_then_already_written(&mut harness);
         the_count_starts_again(&mut harness, "in the hold");
+    }
+
+    struct KeepsNothing(u64);
+
+    impl MaintainStore for KeepsNothing {
+        fn expire_due(&mut self, _now: SystemTime, _max: usize) -> Result<Pass, MaintFault> {
+            Ok(Pass::default())
+        }
+
+        fn evict_to(&mut self, _bound: ByteBound, _max: usize) -> Result<Pass, MaintFault> {
+            Ok(Pass::default())
+        }
+
+        fn usage(&mut self) -> Result<Usage, MaintFault> {
+            Ok(Usage::default())
+        }
+    }
+
+    impl CaptureStore for KeepsNothing {
+        fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+            self.0 += 1;
+            Ok(Written {
+                ordinal: Ordinal::new(self.0),
+                logical_bytes: write.payload().len() as u64,
+                disk_bytes: 0,
+            })
+        }
+
+        fn volume_free_bytes(&self) -> io::Result<u64> {
+            Ok(u64::MAX)
+        }
     }
 
     #[derive(Clone)]

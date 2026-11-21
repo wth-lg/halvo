@@ -12,8 +12,6 @@ pub mod children;
 pub mod counters;
 pub mod custody_policy;
 pub mod delete_all;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
-pub mod discard_port;
 pub mod instance;
 pub mod lease;
 pub mod main_loop;
@@ -1673,6 +1671,43 @@ pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
     {
         let _ = run;
         Err(DaemonError::NotImplemented("timed-run on this platform"))
+    }
+}
+
+/// The scratch store of a timed run in its store directory, made through the
+/// adapter with its root file under `roots` in that directory, and the guard
+/// of that root, held from right after the create (contracts.md C4 item 5,
+/// C20 item 7).
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub fn scratch_store(run: &TimedRun) -> Result<port::ScratchStore, DaemonError> {
+    port::ScratchDir::at(&run.store_dir)
+        .create()
+        .map_err(|fault| DaemonError::Store(format!("the scratch store was not made: {fault:?}")))
+}
+
+/// The answer of a timed run on a scratch store whose root `root` guards:
+/// the root is destroyed now, and a destroy that fails makes the status 1,
+/// with a line on standard error. After a panic the guard's drop destroys
+/// the root.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub fn end_of_a_scratch_run(
+    answer: Result<RunOutcome, DaemonError>,
+    root: port::RootGuard,
+) -> Result<RunOutcome, DaemonError> {
+    use std::io::Write as _;
+    match (answer, root.finish()) {
+        (Ok(outcome), Err(error)) => {
+            let _ = writeln!(
+                std::io::stderr(),
+                "halvo-capture: the root of the scratch store was not destroyed: {}",
+                error.kind()
+            );
+            Ok(RunOutcome {
+                status: halvo_control::exit::ERROR,
+                ..outcome
+            })
+        }
+        (answer, _) => answer,
     }
 }
 
