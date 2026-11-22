@@ -867,7 +867,7 @@ impl crate::commands::control::Control for Claims {
         Err(halvo_control::client::ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn owner_stream(
         &self,
         _: crate::commands::control::Made,
@@ -875,7 +875,7 @@ impl crate::commands::control::Control for Claims {
         Err(halvo_control::client::ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn run_mark(
         &self,
         _: crate::commands::control::Made,
@@ -884,7 +884,7 @@ impl crate::commands::control::Control for Claims {
         Err(halvo_control::client::ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn defer(
         &self,
         _: crate::commands::control::Made,
