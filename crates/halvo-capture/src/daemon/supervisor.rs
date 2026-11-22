@@ -1845,7 +1845,10 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// reads, the entry takes SESSION_END_BUDGET_MS from its start (contracts.md
     /// C14 item 6): the watchdog is armed for that budget with `status`, no
     /// stop turns the arm into 5, the first settle is skipped and the last one
-    /// is cut to what is left of the budget. A source that does not stop in
+    /// is cut to what is left of the budget; the owner's counts as they stand
+    /// at the entry's start take the first settle's place, so that a life
+    /// that lost events in its end answers 1 there too, and its run marker
+    /// stays. A source that does not stop in
     /// its one pass is let go with its line, and no second ask and no ending
     /// call follow, so the exit status stays that of the last settle. The arm
     /// stays at the entry's end with the entry's answer, so that what follows
@@ -1881,7 +1884,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             });
         let before = match first {
             Some(Answer::Settled(snapshot)) => Some(snapshot),
-            _ => None,
+            _ => owner
+                .filter(|_| session_end.is_some())
+                .map(|owner| owner.snapshot()),
         };
         let stops = self.stop_every_source();
         #[cfg(feature = "r2")]

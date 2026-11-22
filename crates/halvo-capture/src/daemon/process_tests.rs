@@ -1606,6 +1606,188 @@ fn a_service_run_whose_owner_thread_ended_ends_through_its_shutdown_entry_with_1
     );
 }
 
+/// The store of a life of a session's end: once `slow` reads true each write
+/// takes `takes` before it reaches the store, and its drop is marked, so that
+/// the next life opens the store after this life's owner let it go.
+struct SlowAtWrite {
+    inner: Box<dyn CaptureStore + Send>,
+    slow: Arc<AtomicBool>,
+    takes: Duration,
+    dropped: Arc<AtomicBool>,
+}
+
+impl Drop for SlowAtWrite {
+    fn drop(&mut self) {
+        self.dropped.store(true, Ordering::SeqCst);
+    }
+}
+
+impl MaintainStore for SlowAtWrite {
+    fn expire_due(&mut self, now: SystemTime, max_segments: usize) -> Result<Pass, MaintFault> {
+        self.inner.expire_due(now, max_segments)
+    }
+
+    fn evict_to(&mut self, bound: ByteBound, max_segments: usize) -> Result<Pass, MaintFault> {
+        self.inner.evict_to(bound, max_segments)
+    }
+
+    fn usage(&mut self) -> Result<Usage, MaintFault> {
+        self.inner.usage()
+    }
+}
+
+impl CaptureStore for SlowAtWrite {
+    fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        if self.slow.load(Ordering::SeqCst) {
+            std::thread::sleep(self.takes);
+        }
+        self.inner.write_batch(write)
+    }
+
+    fn volume_free_bytes(&self) -> std::io::Result<u64> {
+        self.inner.volume_free_bytes()
+    }
+}
+
+/// The ending call of a life of a session's end, which the watchdog makes at
+/// the end of the budget: recorded, where the product ends the process.
+struct EndedWith(Arc<Mutex<Option<i32>>>);
+
+impl main_loop::EndCall for EndedWith {
+    fn end(&self, status: i32) {
+        *self.0.lock().unwrap() = Some(status);
+    }
+}
+
+/// Sets the stop flag of a life when the client of the life ends, also on a
+/// panic of its asks, so that no life waits for a stop that never comes.
+struct StopAtTheEnd(Arc<AtomicBool>);
+
+impl Drop for StopAtTheEnd {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+}
+
+struct SessionLife {
+    status: i32,
+    first_status: halvo_control::proto::DaemonStatus,
+    err: String,
+    ended: Arc<Mutex<Option<i32>>>,
+    store_let_go: Arc<AtomicBool>,
+}
+
+/// One service run of `dir` on this thread, which a session's end ends: a
+/// client reads the life's first Status, waits for an event pending in the
+/// open store, makes each write of the store take `write_takes` and stops
+/// the life, whose shutdown entry runs with the session's budget.
+fn a_life_that_the_session_ends(dir: &Path, write_takes: Duration) -> SessionLife {
+    use halvo_control::proto::StoreState;
+    let factory = super::sources::tests::Factory::adjusting(|source| {
+        if source.name == super::SourceName::Foreground {
+            source.on_begin = Some(Box::new(|ctx: &crate::source::SourceContext| {
+                let _ = ctx.sink().emit_event(super::model_store::foreground_now());
+            }));
+        }
+    });
+    let slow = Arc::new(AtomicBool::new(false));
+    let store_let_go = Arc::new(AtomicBool::new(false));
+    let (slowed, dropped) = (slow.clone(), store_let_go.clone());
+    let parts = super::ServiceParts {
+        lease: super::lease::Lease::never_lapsing(),
+        wrap_store: Some(Box::new(move |inner| {
+            Box::new(SlowAtWrite {
+                inner,
+                slow: slowed,
+                takes: write_takes,
+                dropped,
+            })
+        })),
+        ..super::ServiceParts::of(factory)
+    };
+    let stop = Arc::new(AtomicBool::new(false));
+    let client = {
+        let (dir, stop) = (dir.to_path_buf(), StopAtTheEnd(stop.clone()));
+        std::thread::spawn(move || {
+            let first = status_until(&dir, "a first Status", |_| true);
+            status_until(&dir, "an event pending in the open store", |status| {
+                status.fields().store == StoreState::Open && status.fields().events_pending > 0
+            });
+            slow.store(true, Ordering::SeqCst);
+            drop(stop);
+            first
+        })
+    };
+    let ended = Arc::new(Mutex::new(None));
+    let mut err = Vec::new();
+    signal::end_the_session_on_this_thread(true);
+    let status = super::serve_on(
+        &data_dir(dir),
+        Box::new(TestWrite::default()),
+        SleepLoop(Instant::now()),
+        &stop,
+        Arc::new(EndedWith(ended.clone())),
+        &mut err,
+        parts,
+    );
+    signal::end_the_session_on_this_thread(false);
+    let err = String::from_utf8_lossy(&err).into_owned();
+    let first_status = client
+        .join()
+        .unwrap_or_else(|_| panic!("the client of the life failed; the life's stderr:\n{err}"));
+    SessionLife {
+        status,
+        first_status,
+        err,
+        ended,
+        store_let_go,
+    }
+}
+
+#[test]
+fn a_session_end_that_does_not_fit_leaves_the_marker_and_the_next_start_reads_unclean() {
+    use halvo_control::proto::LastStop;
+    let (dir, _marks) = running_dir(false);
+    let marker = data_dir(&dir).run_marker();
+    let budget = Duration::from_millis(halvo_control::SESSION_END_BUDGET_MS);
+    let let_go = |life: &SessionLife| {
+        wait_until(READY_WITHIN, "the life's owner let its store go", || {
+            life.store_let_go.load(Ordering::SeqCst)
+        });
+    };
+
+    let first = a_life_that_the_session_ends(&dir, budget + Duration::from_secs(2));
+    assert_eq!(first.first_status.fields().last_stop, LastStop::None);
+    wait_until(budget, "the watchdog's ending call", || {
+        first.ended.lock().unwrap().is_some()
+    });
+    assert_ne!(first.status, halvo_control::exit::CLEAN, "{}", first.err);
+    assert!(
+        marker.exists(),
+        "the marker went with a settle that did not fit: {}",
+        first.err
+    );
+    let_go(&first);
+
+    let second = a_life_that_the_session_ends(&dir, Duration::ZERO);
+    let printed = halvo_control::ctl_text::status_text(&second.first_status);
+    assert!(
+        printed.lines().any(|line| line == "last_stop=unclean"),
+        "{printed}"
+    );
+    assert_eq!(second.status, halvo_control::exit::CLEAN, "{}", second.err);
+    assert!(
+        !marker.exists(),
+        "the marker stays after a settle that fits: {}",
+        second.err
+    );
+    let_go(&second);
+
+    let third = a_life_that_the_session_ends(&dir, Duration::ZERO);
+    assert_eq!(third.first_status.fields().last_stop, LastStop::Clean);
+    let_go(&third);
+}
+
 const LIFE_DIR: &str = "HALVO_LIFE_DIR";
 const LIFE_MARKS: &str = "HALVO_LIFE_MARKS";
 const LIFE: &str = "HALVO_LIFE";

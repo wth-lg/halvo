@@ -34,15 +34,33 @@ pub fn end_for_the_session() {
     SIGNALLED.store(true, Ordering::SeqCst);
 }
 
+#[cfg(all(test, target_os = "macos", debug_assertions))]
+thread_local! {
+    static SESSION_ENDS_ON_THIS_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 /// The budget of the shutdown entry at a session's end, SESSION_END_BUDGET_MS
 /// once the session window marked one (contracts.md C14 item 6), and none on
-/// every other run, every test of the library among them.
+/// every other run. In the library's process tests on macOS a test marks the
+/// session's end for the entries of its own thread alone.
 pub fn session_end_budget() -> Option<Duration> {
     #[cfg(windows)]
     if SESSION_ENDING.load(Ordering::SeqCst) {
         return Some(Duration::from_millis(halvo_control::SESSION_END_BUDGET_MS));
     }
+    #[cfg(all(test, target_os = "macos", debug_assertions))]
+    if SESSION_ENDS_ON_THIS_THREAD.with(std::cell::Cell::get) {
+        return Some(Duration::from_millis(halvo_control::SESSION_END_BUDGET_MS));
+    }
     None
+}
+
+/// In the library's process tests on macOS: marks, or takes back, the
+/// session's end for the shutdown entries that run on this thread, as the
+/// session window marks it for the whole process on Windows.
+#[cfg(all(test, target_os = "macos", debug_assertions))]
+pub(crate) fn end_the_session_on_this_thread(ends: bool) {
+    SESSION_ENDS_ON_THIS_THREAD.with(|cell| cell.set(ends));
 }
 
 pub fn prepare() -> io::Result<()> {
