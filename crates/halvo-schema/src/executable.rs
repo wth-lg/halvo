@@ -284,6 +284,7 @@ record::run_list! { names_with_run_list
     "start",
     "reply_row",
     "load_replies",
+    "drop_session",
     "message_ids",
     "replies",
     "blocked",

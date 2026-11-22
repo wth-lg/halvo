@@ -22,6 +22,7 @@ mod playbook;
 mod release;
 mod run;
 mod secret;
+mod session;
 mod web;
 
 use std::ffi::OsString;

@@ -17,6 +17,7 @@ path = "src/main.rs"
 loopback = ["halvo-connect/loopback"]
 
 [dependencies]
+base64 = "=0.22.1"
 halvo-checkpoint = { path = "../halvo-checkpoint" }
 halvo-connect = { path = "../halvo-connect" }
 halvo-control = { path = "../halvo-control", default-features = false }

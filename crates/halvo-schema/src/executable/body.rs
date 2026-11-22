@@ -283,6 +283,19 @@ object_type! {
 }
 
 object_type! {
+    /// `drop_session`: the end of the use of the kept sign-in of one origin. The store keeps one more revision of
+    /// that origin, of one part in the drop form (`SessionData::dropped`), which `load` lists as that origin's newest
+    /// revision and from which a runner imports nothing.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct DropSession [op = "drop_session"] {
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub origin: WebOrigin = "origin" => from_json,
+    }
+    rules(_b) { Ok(()) }
+}
+
+object_type! {
     /// `effect`: one row of an effect of the body's agent and run.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct PutEffect [op = "effect"] {
@@ -388,6 +401,7 @@ op_enum! {
         Checkpoint(PutCheckpoint) = "checkpoint",
         ReplyRow(PutReplyRow) = "reply_row",
         LoadReplies(LoadReplies) = "load_replies",
+        DropSession(DropSession) = "drop_session",
     }
 }
 
@@ -406,6 +420,7 @@ impl RunnerCall {
             RunnerCall::Checkpoint(b) => &b.agent,
             RunnerCall::ReplyRow(b) => &b.agent,
             RunnerCall::LoadReplies(b) => &b.agent,
+            RunnerCall::DropSession(b) => &b.agent,
         }
     }
 
@@ -423,6 +438,7 @@ impl RunnerCall {
             RunnerCall::Checkpoint(b) => &b.run,
             RunnerCall::ReplyRow(b) => &b.run,
             RunnerCall::LoadReplies(b) => &b.run,
+            RunnerCall::DropSession(b) => &b.run,
         }
     }
 }
@@ -532,8 +548,8 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of the runner bodies `put_playbook`, `put_session`, `effect`, `log`, `finish`, `checkpoint` and
-    /// `reply_row`, and of the coordinator body `mark_checkpoint`: the count stored.
+    /// The reply of the runner bodies `put_playbook`, `put_session`, `effect`, `log`, `finish`, `checkpoint`,
+    /// `reply_row` and `drop_session`, and of the coordinator body `mark_checkpoint`: the count stored.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Stored {
         pub stored: u32 = "stored" => from_json,
@@ -657,6 +673,7 @@ impl RunnerReply {
                         | RunnerCall::Finish(_)
                         | RunnerCall::Checkpoint(_)
                         | RunnerCall::ReplyRow(_)
+                        | RunnerCall::DropSession(_)
                 )
             ),
         }

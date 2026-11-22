@@ -1,0 +1,1 @@
+- Security: (RUSTSEC-2026-0592) Cargo.lock takes url 2.5.9, the version that the advisory names as mended, in place of url 2.5.8, with form_urlencoded 1.2.3, which url 2.5.9 requires. In url 2.5.8 and earlier, Url::origin() calls itself once for each blob: prefix of a URL, so a URL with many nested blob: prefixes overflows the stack and ends the whole process.

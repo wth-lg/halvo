@@ -39,6 +39,10 @@ fn log(r: u32, seq: u32) -> Value {
     }]})
 }
 
+fn drop_session(r: u32) -> Value {
+    json!({"op": "drop_session", "agent": agent(1), "run": run(r), "origin": ORIGIN})
+}
+
 fn load(r: u32) -> Value {
     json!({"op": "load", "agent": agent(1), "run": run(r)})
 }
@@ -118,7 +122,11 @@ fn put_playbook_is_refused(end: End) {
 fn put_session_is_refused(end: End) {
     let mut store = refused_after(
         end,
-        &[session(1, "https://other.test:443"), session(1, ORIGIN)],
+        &[
+            session(1, "https://other.test:443"),
+            session(1, ORIGIN),
+            drop_session(1),
+        ],
     );
     assert_eq!(runner(&mut store, session(2, ORIGIN)), Ok(stored(1)));
 }
