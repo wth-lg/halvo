@@ -19,6 +19,7 @@
     not_running: w.NOT_LOOKING,
     store_unavailable: w.STORE_UNAVAILABLE,
     deleting: w.STORE_DELETING,
+    delete_unfinished: w.STORE_DELETE_UNFINISHED,
   };
   var stateLine;
   var nothingFound;

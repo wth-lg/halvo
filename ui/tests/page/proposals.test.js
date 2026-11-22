@@ -86,6 +86,7 @@ test("each state without a list shows its one text and no row", async () => {
     not_running: "Halvo is not looking for repeated tasks yet.",
     store_unavailable: "Halvo's store cannot be opened right now.",
     deleting: "Halvo is deleting everything.",
+    delete_unfinished: "The last delete did not finish. Press Delete everything to finish it.",
   };
   for (const [state, text] of Object.entries(texts)) {
     const page = await openPage({ replies: { workflows: () => ({ state }) } });
