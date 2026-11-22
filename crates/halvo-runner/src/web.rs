@@ -126,8 +126,7 @@ pub(crate) trait Page: Send {
     fn held(&mut self) -> Vec<HeldRequest> {
         Vec::new()
     }
-    /// Lets the held request `id` leave, once, and notes the top document, so that `page_amounts` reads the page that
-    /// the reply loads.
+    /// Lets the held request `id` leave, once.
     #[cfg(feature = "loopback")]
     fn let_through(&mut self, _id: u64) -> Result<(), ()> {
         Err(())
@@ -138,8 +137,8 @@ pub(crate) trait Page: Send {
     fn released_status(&mut self) -> Option<i64> {
         None
     }
-    /// Every amount that the page after the reply names, in minor units, read once the top document that
-    /// `let_through` noted has given way to a loaded one.
+    /// Every amount that the page after the reply names, in minor units, read once the top document that `arm_hold`
+    /// noted has given way to a loaded one.
     #[cfg(feature = "loopback")]
     fn page_amounts(&mut self) -> Result<Vec<u64>, ()> {
         Err(())
@@ -168,8 +167,8 @@ struct Live {
     loaded: BTreeSet<String>,
     /// The origins of the newest arm in `Mode::Fail`, whose loopback hosts keep their mark in the handback's mode.
     armed: Vec<WebOrigin>,
-    /// The wait for the top document that replaces the one that the page held at `let_through`, run once by
-    /// `page_amounts`.
+    /// The wait for the top document that replaces the one that the page held at `arm_hold`, before the act, run once
+    /// by `page_amounts`.
     #[cfg(feature = "loopback")]
     after_release: Option<AfterRelease>,
     /// The cause word of the newest `carry_out` that failed (`Page::last_fault`).
@@ -177,7 +176,7 @@ struct Live {
     fault: Option<&'static str>,
 }
 
-/// The wait for the top document that replaces the one noted at `let_through`.
+/// The wait for the top document that replaces the one noted at `arm_hold`.
 #[cfg(feature = "loopback")]
 type AfterRelease = Box<dyn FnOnce(&Executor, &tokio::runtime::Runtime) -> Result<(), ()> + Send>;
 
@@ -691,8 +690,26 @@ impl Page for Live {
     }
 
     #[cfg(feature = "loopback")]
+    /// Arms the rule in `Mode::Hold`, then notes the top document while the page is idle, before the act: the
+    /// executor's read of the frame tree fails while the page's navigation is held (the hosted macos job of run
+    /// 45028032532, `call=let_through cause=frame`), so `page_amounts` waits for the document that replaces the one
+    /// noted here.
     fn arm_hold(&mut self, origins: &[WebOrigin]) -> Result<(), ()> {
-        self.arm_in(origins, Mode::Hold)
+        self.arm_in(origins, Mode::Hold)?;
+        let executor = &self.executor;
+        let done = self.runtime.block_on(async move {
+            let frame = executor.main_frame().await?;
+            let before = executor.loader(&frame).await?;
+            Ok::<_, Fault>((frame, before))
+        });
+        let (frame, before) = told("arm_hold", done)?;
+        self.after_release = Some(Box::new(move |executor, runtime| {
+            told(
+                "page_after",
+                runtime.block_on(executor.wait_loaded_after(&frame, Some(&before))),
+            )
+        }));
+        Ok(())
     }
 
     #[cfg(feature = "loopback")]
@@ -701,22 +718,14 @@ impl Page for Live {
     }
 
     #[cfg(feature = "loopback")]
+    /// Lets the held request leave and sends the page no other command: a read of the page fails while its
+    /// navigation is held.
     fn let_through(&mut self, id: u64) -> Result<(), ()> {
         let executor = &mut self.executor;
-        let done = self.runtime.block_on(async move {
-            let frame = executor.main_frame().await?;
-            let before = executor.loader(&frame).await?;
-            executor.let_through(id).await?;
-            Ok::<_, Fault>((frame, before))
-        });
-        let (frame, before) = told("let_through", done)?;
-        self.after_release = Some(Box::new(move |executor, runtime| {
-            told(
-                "page_after",
-                runtime.block_on(executor.wait_loaded_after(&frame, Some(&before))),
-            )
-        }));
-        Ok(())
+        told(
+            "let_through",
+            self.runtime.block_on(executor.let_through(id)),
+        )
     }
 
     #[cfg(feature = "loopback")]
