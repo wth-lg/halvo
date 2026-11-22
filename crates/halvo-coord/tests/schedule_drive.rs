@@ -4608,9 +4608,9 @@ fn under_a_refused_sign_in_the_scheduler_starts_nothing_and_one_start_by_the_per
 }
 
 /// U2.4h, sentence 3 (ruling RD-73 4.3, 4.7; I1.3, I2.5): while the hold of a refused sign-in
-/// stands beside `failures`, the row says that the site did not let it sign in and offers Start
-/// now, Switch on and Delete; one Switch on sends the state first and ends both holds with one
-/// `hold_cleared` each, the one of `sign_in_refused` naming the run.
+/// stands beside `failures`, the row says that the agent needs you to sign in at the site and
+/// offers Start now, Switch on and Delete; one Switch on sends the state first and ends both holds
+/// with one `hold_cleared` each, the one of `sign_in_refused` naming the run.
 #[test]
 fn the_row_of_a_refused_sign_in_stands_before_failures_and_one_switch_on_ends_both() {
     use halvo_coord::roster::{controls, status_of};
@@ -4629,7 +4629,7 @@ fn the_row_of_a_refused_sign_in_stands_before_failures_and_one_switch_on_ends_bo
     assert_eq!(line.key(), "line.problem.sign_in_refused");
     assert_eq!(
         halvo_coord::words::text(&line.key(), &[]).as_deref(),
-        Ok("The site did not let it sign in.")
+        Ok("This agent needs you to sign in at the site.")
     );
     assert_eq!(
         holds(w.facts(0)),
