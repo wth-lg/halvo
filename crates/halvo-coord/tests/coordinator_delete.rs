@@ -5,8 +5,8 @@ use halvo_coord::mem::{Call, Method};
 use halvo_coord::ports::PortError;
 use halvo_coord::types::commands::LIST;
 use halvo_coord::types::{
-    Action, Cause, HandbackAsk, HandbackReason, HoldSetCause, Limits, Name, RunEvent, RunId,
-    Snapshot, Status, What,
+    Action, Body, Cause, Control, HandbackAsk, HandbackReason, HoldSetCause, Limits, Name,
+    RunEvent, RunId, Snapshot, Status, What,
 };
 use halvo_coord::{words, Coordinator};
 use support::{agent, calls_since, coordinator, flow, mark, started, Both, DAY, MANUAL, T0};
@@ -94,6 +94,70 @@ fn a_delete_with_no_live_run_sends_the_decision_at_once_and_the_row_leaves() {
     c.tick();
     assert!(row(&c.snapshot(), 0).is_none(), "a later tick shows no row");
     assert_eq!(deletes(&c), [flow(0)], "one decision");
+}
+
+/// r4 U2.4y, sentence 2: the yes of the question of `stop_sign_in` sends ONE body
+/// `drop_sessions` for an idle agent, after which its row offers the control no more, also after
+/// a tick; a live run answers `state` and sends nothing; the owner's refusals `state` and `day`
+/// answer their causes with their sentences, and the row keeps the control.
+#[test]
+fn the_yes_of_stop_sign_in_sends_one_drop_sessions_and_the_row_offers_it_no_more() {
+    let offers = |c: &Coordinator<Both>, n: usize| {
+        row(&c.snapshot(), n)
+            .is_some_and(|r| r.controls.iter().any(|x| x.control == Control::StopSignIn))
+    };
+    let drops = |c: &Coordinator<Both>, from: usize| -> Vec<Call> {
+        calls_since(c, from)
+            .into_iter()
+            .filter(|call| matches!(call, Call::Send(Body::DropSessions { .. })))
+            .collect()
+    };
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    assert!(offers(&c, 0), "an idle agent with a kept sign-in offers it");
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::StopSignIn), Ok(()));
+    assert_eq!(
+        drops(&c, m),
+        [Call::Send(Body::DropSessions {
+            workflow: flow(0),
+            agent: agent(0)
+        })]
+    );
+    assert!(
+        !offers(&c, 0),
+        "the row that the call publishes offers it no more"
+    );
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    assert!(!offers(&c, 0), "nor after a tick");
+    assert_eq!(drops(&c, m).len(), 1, "one body");
+
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    start(&c, 0);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::StopSignIn), Err(Cause::State));
+    assert!(drops(&c, m).is_empty(), "a live run: nothing sent");
+
+    for (name, cause, sentence) in [
+        ("state", Cause::State, text("refused.state")),
+        (
+            "day",
+            Cause::Day,
+            "Halvo cannot do that today because this computer's clock was changed. Try again in a day or two.".to_owned(),
+        ),
+    ] {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        c.ports().ports.refuse(Method::Send, refused(name));
+        let m = mark(&c);
+        let refusal = c
+            .control_reply(&agent(0), Action::StopSignIn)
+            .expect_err(name);
+        assert_eq!(refusal.cause(), cause, "{name}");
+        assert_eq!(refusal.text(), Ok(sentence), "{name}");
+        assert!(drops(&c, m).is_empty(), "{name}: nothing stored");
+        assert!(c.ports().ports.agents.borrow()[0].session, "{name}");
+        assert!(offers(&c, 0), "{name}: the row keeps the control");
+    }
 }
 
 #[test]

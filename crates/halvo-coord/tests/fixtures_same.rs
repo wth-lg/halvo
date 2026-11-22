@@ -23,9 +23,9 @@ fn names(dir: &Path) -> BTreeSet<String> {
 #[test]
 fn fixtures_same() {
     let dir = fresh_dir("fixtures_same");
-    assert_eq!(fixtures::write(&dir).unwrap(), 40);
+    assert_eq!(fixtures::write(&dir).unwrap(), 41);
     let written = names(&dir);
-    assert_eq!(written.len(), 40);
+    assert_eq!(written.len(), 41);
     assert_eq!(
         names(Path::new(TRACKED)),
         written,
@@ -58,7 +58,7 @@ fn a_second_write_changes_no_file() {
         .iter()
         .map(|n| std::fs::read(dir.join(n)).unwrap())
         .collect();
-    assert_eq!(fixtures::write(&dir).unwrap(), 40);
+    assert_eq!(fixtures::write(&dir).unwrap(), 41);
     let second: Vec<Vec<u8>> = names(&dir)
         .iter()
         .map(|n| std::fs::read(dir.join(n)).unwrap())
@@ -101,11 +101,12 @@ fn the_files_are_those_of_i8_3() {
         "unknown_agent",
         "malformed",
         "overlap",
+        "day",
     ] {
         want.insert(format!("reply-error-{c}.json"));
     }
     assert_eq!(State::ALL.len(), 22);
-    assert_eq!(want.len(), 40);
+    assert_eq!(want.len(), 41);
     assert_eq!(names(Path::new(TRACKED)), want);
     for command in LIST {
         for stem in command.replies {
@@ -192,8 +193,18 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                 Some("snapshot") => &["snapshot", "card"],
                 Some("seq") => &["seq", "rows", "items", "note"],
                 Some("agent") if keys.get(1).map(String::as_str) == Some("workflow") => &[
-                    "agent", "workflow", "name", "status", "word", "line", "say", "level", "next",
-                    "controls", "ask",
+                    "agent",
+                    "workflow",
+                    "name",
+                    "status",
+                    "word",
+                    "line",
+                    "say",
+                    "level",
+                    "next",
+                    "controls",
+                    "ask",
+                    "ask_stop_sign_in",
                 ],
                 Some("kind") => &["kind", "title", "text", "effects", "record", "controls"],
                 Some("act") => &["act", "text"],

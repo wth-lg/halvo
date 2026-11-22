@@ -12760,7 +12760,12 @@ fn u24e_a_take_back_drops_the_queued_start_stores_nothing_and_a_later_tick_asks_
     assert_eq!(row_line(&s, 1), text("line.all_set.done"));
     assert_eq!(
         controls_of(&c, 1),
-        [Control::RunNow, Control::SwitchOff, Control::Delete],
+        [
+            Control::RunNow,
+            Control::SwitchOff,
+            Control::StopSignIn,
+            Control::Delete
+        ],
         "the agent stays on"
     );
     c.ports().ports.end_runner(&first);
