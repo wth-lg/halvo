@@ -1064,3 +1064,107 @@ fn an_unreadable_mark_is_passed_and_counted() {
     assert!(out.contains(" entries_left=0 "), "{out}");
     assert!(!dir.join("agents").exists());
 }
+
+#[test]
+fn a_walk_whose_store_delete_fails_prints_what_it_removed_and_what_stays_and_ends_1() {
+    fn entries_of(folder: &Path, besides: &[&str]) -> u64 {
+        std::fs::read_dir(folder)
+            .unwrap()
+            .map(|entry| {
+                let entry = entry.unwrap();
+                if besides.contains(&entry.file_name().to_str().unwrap()) {
+                    return 0;
+                }
+                1 + if entry.file_type().unwrap().is_dir() {
+                    entries_of(&entry.path(), &[])
+                } else {
+                    0
+                }
+            })
+            .sum()
+    }
+    let dir = kept_dir("delete-all-store-fails-");
+    a_store_with_a_segment(&dir);
+    std::fs::create_dir(dir.join("derived")).unwrap();
+    std::fs::write(dir.join("derived/derived.db"), b"derived rows").unwrap();
+    std::fs::write(
+        dir.join("derived/master.key"),
+        b"a key of the derived store",
+    )
+    .unwrap();
+    std::fs::create_dir(dir.join("agents")).unwrap();
+    std::fs::write(dir.join("agents/profile"), b"a runner's profile").unwrap();
+    let table = rows();
+
+    let fails = super::stand_in::fails();
+    let (status, out, err) = offline_run(&dir, &product_how(&table));
+    drop(fails);
+
+    let files_left = entries_of(
+        &dir.join("store"),
+        &[
+            "store.key",
+            "store.db",
+            "store.db-wal",
+            "store.db-shm",
+            "store.db-journal",
+        ],
+    );
+    assert!(files_left > 0, "the segment does not stand");
+    let shown = halvo_control::paths::one_line(dir.to_str().unwrap());
+    assert_eq!(
+        (status, out),
+        (
+            1,
+            format!(
+                "data_dir={shown}\ndeleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=unknown root_id=- files_left={files_left} database_left=yes not_followed=0 entries_removed=4 entries_left=2 unknown_entries=0 intent=written\n"
+            )
+        ),
+        "err: {err}"
+    );
+    assert!(
+        err.contains("halvo-capture: a stand-in of the store's delete failed\n"),
+        "{err}"
+    );
+    assert!(!dir.join("derived").exists());
+    assert!(!dir.join("agents").exists());
+    assert!(dir.join("store/store.key").exists());
+    assert_eq!(root_files(&dir).len(), 1);
+}
+
+#[test]
+fn a_data_folder_that_cannot_be_used_ends_66_and_removes_nothing() {
+    let root = kept_dir("delete-all-unusable-");
+    let file = root.join("file");
+    std::fs::write(&file, b"a shortcut").unwrap();
+    let link = root.join("link");
+    std::os::unix::fs::symlink(root.join("gone"), &link).unwrap();
+    let table = rows();
+
+    for (dir, cause) in [
+        (&file, "an entry that is no directory"),
+        (&link, "a link that leads nowhere"),
+    ] {
+        let (status, out, err) = offline_run(dir, &product_how(&table));
+        let shown = halvo_control::paths::one_line(dir.to_str().unwrap());
+        assert_eq!(
+            (status, out),
+            (
+                halvo_control::exit::DATA_DIR_UNUSABLE,
+                format!("data_dir={shown}\n")
+            ),
+            "err: {err}"
+        );
+        assert_eq!(
+            err,
+            format!("halvo-capture: the data directory's path meets {cause}\n")
+        );
+    }
+    let mut names: Vec<_> = std::fs::read_dir(&root)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["file", "link"]);
+    assert_eq!(std::fs::read(&file).unwrap(), b"a shortcut");
+}
