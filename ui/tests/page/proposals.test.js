@@ -137,6 +137,20 @@ test("behind an answer of a delete that did not finish the view reads again and 
   assert.equal(page.byId("stored-workflows").children.length, 0);
 });
 
+test("while the newest reply reads deleting the view reads again every 3 s, and after another reply no timer reads", async () => {
+  const replies = [{ state: "deleting" }, { state: "delete_unfinished" }];
+  const page = await openPage({ replies: { workflows: () => replies.shift() } });
+  assert.deepEqual(textsShown(page), ["Halvo is deleting everything."]);
+  await page.clock.advance(2999);
+  assert.equal(page.calls("workflows").length, 1);
+  await page.clock.advance(1);
+  assert.equal(page.calls("workflows").length, 2);
+  assert.deepEqual(textsShown(page), ["The last delete did not finish. Press Delete everything to finish it."]);
+  await page.clock.advance(60000);
+  assert.equal(page.calls("workflows").length, 2);
+  assert.equal(page.text("error"), "");
+});
+
 test("the view reads again at a show and after a decision, and not on a status reply", async () => {
   const proposal = { id: PROPOSED, category: "email", app: null, site: null, count: 2 };
   const page = await openPage({

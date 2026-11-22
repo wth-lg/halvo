@@ -29,6 +29,9 @@
   var stored;
   var rowsMade = 0;
   var reads = 0;
+  /** While the newest reply reads deleting, the view reads again after this many ms, and at no other time. */
+  var DELETING_READ_MS = 3000;
+  var readAgain = null;
 
   function known(text) {
     return typeof text === "string" && text !== "" ? text : null;
@@ -80,10 +83,14 @@
   function read() {
     reads += 1;
     var mine = reads;
+    clearTimeout(readAgain);
+    readAgain = null;
     return Halvo.ipc
       .call("workflows")
       .then(function (reply) {
-        if (mine === reads) render(reply);
+        if (mine !== reads) return;
+        render(reply);
+        if (reply.state === "deleting") readAgain = setTimeout(read, DELETING_READ_MS);
       })
       .catch(Halvo.showError);
   }
