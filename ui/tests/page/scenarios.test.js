@@ -219,7 +219,7 @@ test("an error of a reply is shown in the page's own words and never as it came"
     },
   });
   await page.click("toggle");
-  assert.equal(page.text("error"), "The request failed.");
+  assert.equal(page.text("error"), "Capture was not paused. Try again, or quit Halvo to stop capture.");
   assert.doesNotMatch(shown(page), /<name>|control\.sock/);
 });
 
