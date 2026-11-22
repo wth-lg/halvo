@@ -13,6 +13,7 @@ getrandom = "0.3"
 halvo-agent-client = { path = "../halvo-agent-client" }
 halvo-agent-store = { path = "../halvo-agent-store" }
 halvo-checkpoint = { path = "../halvo-checkpoint" }
+halvo-control = { path = "../halvo-control", features = ["r2"] }
 halvo-derived = { path = "../halvo-derived" }
 halvo-owner = { path = "../halvo-owner" }
 halvo-policy = { path = "../halvo-policy" }
@@ -20,8 +21,18 @@ halvo-schema = { path = "../halvo-schema" }
 halvo-sheet = { path = "../halvo-sheet" }
 serde_json = { version = "1", features = ["raw_value"] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Time"] }
+
 [dev-dependencies]
+halvo-seam = { path = "../halvo-seam" }
 halvo-test-dir = { path = "../halvo-test-dir" }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Pipes"] }
 
 [[bin]]
 name = "agent-gate"

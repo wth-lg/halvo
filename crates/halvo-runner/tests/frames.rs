@@ -1,6 +1,8 @@
 mod support;
 
-use std::time::Duration;
+use std::io::Read;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 use halvo_schema::executable::frame::{Cancel, SecretReply, StoreReply, StoreReplyFrame};
 use halvo_schema::executable::record::RUN_LIST_KEYS;
@@ -118,6 +120,68 @@ fn arguments_outside_the_form_are_refused_with_usage_and_no_frame() {
         assert_eq!(lines.len(), 1, "{what}: one line: {stderr}");
         assert!(lines[0].starts_with("REFUSED usage: "), "{what}: {stderr}");
     }
+}
+
+/// The flag `--version` as the only argument prints the package's version and a line feed on standard output,
+/// nothing on standard error, and exits 0 while its standard input stays open with no frame on it: the runner
+/// starts no link, so it writes no `hello` and waits for no frame. Beside another argument the flag stays a refusal
+/// `usage` with no line on standard output.
+#[test]
+fn the_version_flag_prints_one_line_and_reads_no_frame() {
+    let start = |args: &[&str]| -> (Option<i32>, Vec<u8>, String) {
+        let mut child = Command::new(support::RUNNER)
+            .args(args)
+            .env("TMPDIR", env!("CARGO_TARGET_TMPDIR"))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("start the runner");
+        let open_input = child.stdin.take();
+        let started = Instant::now();
+        let status = loop {
+            if let Some(status) = child.try_wait().expect("try_wait") {
+                break status;
+            }
+            if started.elapsed() > LONG {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("{args:?}: the runner did not end within {LONG:?} with its input open");
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        drop(open_input);
+        let mut stdout = Vec::new();
+        let mut stderr = String::new();
+        child
+            .stdout
+            .take()
+            .expect("the runner's output")
+            .read_to_end(&mut stdout)
+            .expect("read the output");
+        child
+            .stderr
+            .take()
+            .expect("the runner's standard error")
+            .read_to_string(&mut stderr)
+            .expect("read standard error");
+        (status.code(), stdout, stderr)
+    };
+    let (code, stdout, stderr) = start(&["--version"]);
+    assert_eq!(code, Some(0), "status: {stderr}");
+    assert_eq!(
+        String::from_utf8_lossy(&stdout),
+        format!("{}\n", env!("CARGO_PKG_VERSION")),
+        "one line, the version"
+    );
+    assert_eq!(stderr, "", "nothing on standard error");
+    let (code, stdout, stderr) = start(&["--version", "--headed"]);
+    assert_eq!(code, Some(2), "beside another argument: status: {stderr}");
+    assert!(stdout.is_empty(), "beside another argument: no output");
+    assert!(
+        stderr.starts_with("REFUSED usage: ") && stderr.lines().count() == 1,
+        "beside another argument: {stderr}"
+    );
 }
 
 /// The arguments of `sup` without `--utc-offset` and its value.

@@ -8,6 +8,7 @@
 //!   app's relay call. No write of the coordinator goes through the relay.
 //! - `Runs` is the supervisor library over a second owner stream: `start` hands the machine's zone offset of the
 //!   moment as `utc_offset_s`; the first `reap` of a life answers what the start's own reap answered.
+//! - `Analysis` sends the capture service the request `defer` of the core's deadline at each call (unit U5.4c).
 //! - `Clock` reads the system clock and the zone of the Mac, `Rng` the system's generator, `Policy` the table of
 //!   halvo-policy (`decide_row`) and `Senders` the schema's reader of `reply_senders`.
 //!
@@ -65,7 +66,8 @@ use halvo_schema_core::request::{decode_reply, InterfaceDecision, InterfaceRead,
 use halvo_schema_core::request::{ErrorName, ReplyResult};
 use serde_json::Value;
 
-use crate::hub::{Core, Hub, Present};
+use crate::hub::{Core, Hub};
+use crate::present::{dialog_hub, Dialog};
 
 /// The call of one end of a new owner stream.
 pub type StreamCall = Arc<dyn Fn() -> Result<OwnerStreamEnd, ClientError> + Send + Sync>;
@@ -73,9 +75,12 @@ pub type StreamCall = Arc<dyn Fn() -> Result<OwnerStreamEnd, ClientError> + Send
 pub type RelayCall = Arc<dyn Fn(&[u8]) -> Result<Vec<u8>, ClientError> + Send + Sync>;
 /// The call of one run mark.
 pub type MarkCall = Arc<dyn Fn(RunEdge) -> Result<RunMarked, ClientError> + Send + Sync>;
+/// The call of one request `defer` (`Client::defer`): the deadline in nanoseconds since 1970, and the deadline in
+/// force that the service names, none where none is.
+pub type DeferCall = Arc<dyn Fn(i64) -> Result<Option<i64>, ClientError> + Send + Sync>;
 
 /// The app's client calls that the product's ports go through: a new owner stream, the relay of one request of the
-/// role `interface`, and one run mark.
+/// role `interface`, one run mark, and one request `defer`.
 #[derive(Clone)]
 pub struct Calls {
     /// One end of a new owner stream (`Control::owner_stream` of the app).
@@ -84,6 +89,8 @@ pub struct Calls {
     pub relay: RelayCall,
     /// One run mark (`Control::run_mark`).
     pub mark: MarkCall,
+    /// One request `defer` of the analysis batch (`Control::defer`).
+    pub defer: DeferCall,
 }
 
 /// Where the product's runs live: the absolute data directory and the absolute paths that a start hands the
@@ -100,17 +107,17 @@ pub struct Places {
 pub type ProductHub = Hub<Product>;
 
 /// The hub over the product's ports of `calls` and `places`, whose count of agents that need the person goes to
-/// `tray` and whose native confirmations go to `present`. It starts nothing and reads nothing: `start` takes the
-/// steps of the app's start.
-pub fn hub(
+/// `tray` and whose native confirmations are shown in `dialog` with the card that the core composes
+/// (`crate::dialog_hub`). It starts nothing and reads nothing: `start` takes the steps of the app's start.
+pub fn hub<D: Dialog>(
     calls: Calls,
     places: Places,
     tray: Box<dyn Fn(u32) + Send + Sync>,
-    present: Box<dyn Present>,
+    dialog: Arc<D>,
 ) -> Arc<ProductHub> {
     let limits = Limits::PRODUCT;
     let (product, events) = Product::new(calls, places);
-    let hub = Hub::new(product, limits, tray, present);
+    let hub = dialog_hub(product, limits, tray, dialog);
     events.attach(Arc::downgrade(&hub));
     hub
 }
@@ -659,6 +666,7 @@ impl Secrets for NoSecrets {
 pub struct Product {
     link: Arc<dyn OwnerLink>,
     relay: RelayCall,
+    defer: DeferCall,
     supervisor: Supervisor,
     places: Places,
     marks: Arc<Marks>,
@@ -717,6 +725,7 @@ impl Product {
         let product = Product {
             link: link_of(&calls),
             relay: Arc::clone(&calls.relay),
+            defer: Arc::clone(&calls.defer),
             supervisor,
             places,
             marks,
@@ -1474,11 +1483,19 @@ impl Runs for Product {
     }
 }
 
-/// The daemon's request that defers the analysis batch is not in the control crate: the batch is not deferred, and
-/// the core asks again at its ticks.
+/// One request `defer` of the capture service at each call of the core (at a run's start and at each tick while a
+/// run is live), with the core's deadline as it is, turned from milliseconds into the nanoseconds of
+/// `Client::defer`; a deadline beyond an `i64` goes as the largest, which the service caps. The port keeps nothing
+/// between calls, so each tick renews the deadline. It answers `Ok` where the service names a deadline in force, and
+/// `no_service` for every error of the call and where the service holds no deadline, as a failed relay call answers:
+/// the core then stops nothing and asks again at its next tick.
 impl Analysis for Product {
-    fn defer(&self, _until: u64) -> Result<(), PortError> {
-        Err(PortError::NoService)
+    fn defer(&self, until: u64) -> Result<(), PortError> {
+        let nanos = i64::try_from(u128::from(until) * 1_000_000).unwrap_or(i64::MAX);
+        match (self.defer)(nanos) {
+            Ok(Some(_)) => Ok(()),
+            Ok(None) | Err(_) => Err(PortError::NoService),
+        }
     }
 }
 
@@ -1625,6 +1642,7 @@ mod tests {
             owner_stream: Arc::new(|| Err(ClientError::Unsupported)),
             relay: Arc::new(|_: &[u8]| Err(ClientError::Unsupported)),
             mark: Arc::new(|_| Err(ClientError::Unsupported)),
+            defer: Arc::new(|_| Err(ClientError::Unsupported)),
         };
         let places = Places {
             data_dir: PathBuf::from("/nowhere/halvo-u54a"),
@@ -1632,7 +1650,7 @@ mod tests {
             browser: PathBuf::from("/nowhere/halvo-browser"),
             model: None,
         };
-        let hub = hub(fails, places, Box::new(|_| {}), Box::new(Drops));
+        let hub = hub(fails, places, Box::new(|_| {}), Arc::new(Unseen));
         assert!(attached.set(Arc::downgrade(&hub)).is_ok());
         let unread = guarded.request(&effect(&record("no_such_class"))).unwrap();
         assert_eq!(error_of(&unread).as_deref(), Some("approval"));
@@ -1642,10 +1660,81 @@ mod tests {
         );
     }
 
-    /// A presenter that drops each dialog.
-    struct Drops;
+    /// A hub over the product's ports whose request `defer` is `defer` and whose every other call fails; its places
+    /// name a data directory of this test's own, which no code opens.
+    fn deferring(defer: DeferCall) -> Arc<ProductHub> {
+        let calls = Calls {
+            owner_stream: Arc::new(|| Err(ClientError::Unsupported)),
+            relay: Arc::new(|_: &[u8]| Err(ClientError::Unsupported)),
+            mark: Arc::new(|_| Err(ClientError::Unsupported)),
+            defer,
+        };
+        let places = Places {
+            data_dir: PathBuf::from("/nowhere/halvo-u54c"),
+            runner: PathBuf::from("/nowhere/halvo-runner"),
+            browser: PathBuf::from("/nowhere/halvo-browser"),
+            model: None,
+        };
+        hub(calls, places, Box::new(|_| {}), Arc::new(Unseen))
+    }
 
-    impl Present for Drops {
-        fn present(&self, _dialog: crate::hub::Native) {}
+    /// U5.4c, sentence 1: each call of the port `Analysis::defer` sends one request `defer` with the core's time in
+    /// nanoseconds since 1970, and answers `Ok` where the service names a deadline in force.
+    #[test]
+    fn the_port_defer_sends_each_deadline_of_the_core_in_nanoseconds() {
+        let sent: Arc<Mutex<Vec<i64>>> = Arc::default();
+        let kept = Arc::clone(&sent);
+        let hub = deferring(Arc::new(move |until| {
+            lock(&kept).push(until);
+            Ok(Some(until))
+        }));
+        let ports = hub.coordinator().ports();
+
+        assert_eq!(ports.defer(1_800_000_000_000), Ok(()));
+        assert_eq!(ports.defer(1_800_000_003_000), Ok(()));
+        assert_eq!(
+            *lock(&sent),
+            [1_800_000_000_000_000_000, 1_800_000_003_000_000_000]
+        );
+    }
+
+    /// U5.4c, sentence 2: an error reply of v1, no answer in time and the answer that no deadline is in force are each
+    /// `no_service` to the core, one request a call.
+    #[test]
+    fn the_port_defer_answers_no_service_for_a_failed_request_and_for_no_deadline() {
+        let answers = Mutex::new(std::collections::VecDeque::from([
+            Err(ClientError::Daemon(halvo_control::proto::ErrorReply::new(
+                halvo_control::proto::ErrorCode::Busy,
+                "busy",
+            ))),
+            Err(ClientError::Deadline { seconds: 5 }),
+            Ok(None),
+        ]));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&calls);
+        let hub = deferring(Arc::new(move |_| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            lock(&answers).pop_front().unwrap_or(Ok(None))
+        }));
+        let ports = hub.coordinator().ports();
+
+        assert_eq!(ports.defer(1_800_000_000_000), Err(PortError::NoService));
+        assert_eq!(ports.defer(1_800_000_003_000), Err(PortError::NoService));
+        assert_eq!(ports.defer(1_800_000_006_000), Err(PortError::NoService));
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
+    }
+
+    /// A dialog that is never on screen and answers `reject`: no native confirmation is answered.
+    struct Unseen;
+
+    impl Dialog for Unseen {
+        fn show(
+            &self,
+            _: &crate::Card,
+            _: Duration,
+            _: &dyn Fn(),
+        ) -> halvo_coord::items::ConfirmAnswer {
+            halvo_coord::items::ConfirmAnswer::Reject
+        }
     }
 }

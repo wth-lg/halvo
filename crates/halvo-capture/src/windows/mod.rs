@@ -7,10 +7,11 @@ pub mod exclusion;
 pub mod foreground;
 pub mod input;
 pub mod screen;
+#[cfg(all(windows, debug_assertions))]
+pub mod session;
 pub mod sources;
 pub mod window_title;
 
-use crate::daemon::{DaemonError, TimedRunReport};
 use crate::event::{AppIdentity, FloorEvent, FoldEvent, Modality};
 use crate::floor::exclude::{
     DropReason, FloorHandle, Keep, PrivateWindow, ProcessId, Subject, Verdict,
@@ -903,11 +904,92 @@ fn read_at_stop(limit: usize) {
     }
 }
 
-pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
-    let _ = seconds;
-    Err(DaemonError::NotImplemented(
-        "Windows functional capture (deferred to a permissioned interactive desktop)",
-    ))
+/// Why a Windows run did not start: the call that takes the run out of
+/// Windows Error Reporting failed, with its error code. No key was read and
+/// no store was opened.
+#[cfg(all(windows, debug_assertions))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FaultReportsOn {
+    pub call: &'static str,
+    pub code: u32,
+}
+
+#[cfg(all(windows, debug_assertions))]
+impl std::fmt::Display for FaultReportsOn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} answered {:#010x}: the run is not out of Windows Error Reporting, so it reads no key and opens no store",
+            self.call, self.code
+        )
+    }
+}
+
+/// The first step of every Windows run, before any read of the key or of
+/// the store (unit win-5, DR-09 (a)): the process's error mode turns the
+/// fault dialog off and keeps a fault from calling Windows Error Reporting,
+/// and WerAddExcludedApplication takes the program out of Windows Error
+/// Reporting for this user. Then `run`. A failed exclusion ends the start
+/// with its call and code, and `run` is not called.
+#[cfg(all(windows, debug_assertions))]
+pub fn start_a_run<T>(run: impl FnOnce() -> T) -> Result<T, FaultReportsOn> {
+    use windows::core::{HRESULT, HSTRING};
+    use windows::Win32::System::Diagnostics::Debug::{
+        GetErrorMode, SetErrorMode, SEM_FAILCRITICALERRORS, SEM_NOGPFAULTERRORBOX,
+        THREAD_ERROR_MODE,
+    };
+    use windows::Win32::System::ErrorReporting::WerAddExcludedApplication;
+    // SAFETY: GetErrorMode and SetErrorMode take and give plain values.
+    unsafe {
+        SetErrorMode(THREAD_ERROR_MODE(
+            GetErrorMode() | SEM_FAILCRITICALERRORS.0 | SEM_NOGPFAULTERRORBOX.0,
+        ))
+    };
+    let program = std::env::current_exe().map_err(|error| FaultReportsOn {
+        call: "GetModuleFileNameW",
+        code: HRESULT::from_win32(error.raw_os_error().map_or(0, |code| code as u32)).0 as u32,
+    })?;
+    let name = HSTRING::from(program.file_name().unwrap_or(program.as_os_str()));
+    // SAFETY: the name is a live wide string that ends with a NUL; the call
+    // copies it.
+    unsafe { WerAddExcludedApplication(&name, false) }.map_err(|error| FaultReportsOn {
+        call: "WerAddExcludedApplication",
+        code: error.code().0 as u32,
+    })?;
+    Ok(run())
+}
+
+/// The gate's timed run on Windows (contracts.md C4, C5.5): the sources of
+/// a service run's set, by the names of Windows, run for the window on a
+/// scratch store in the run's store directory, whose root is destroyed at
+/// the end. A console's Ctrl-C or Ctrl-Break ends the window early, and the
+/// run reports and exits 2. The set makes no keyboard source and no screen
+/// source, and the parse refuses the switches that would ask for them.
+#[cfg(all(windows, debug_assertions))]
+pub(crate) fn timed_run(
+    run: &crate::daemon::TimedRun,
+) -> Result<crate::daemon::RunOutcome, crate::daemon::DaemonError> {
+    use halvo_control::proto::Platform;
+    let started = start_a_run(|| {
+        let mut supervisor = crate::daemon::supervisor::Supervisor::new(
+            Platform::Windows,
+            sources::ServiceSet::new(),
+            crate::daemon::WindowsLoop::new(),
+        )
+        .with_ending(Arc::new(crate::daemon::main_loop::ExitNow));
+        let scratch = crate::daemon::scratch_store(run)?;
+        let answer = crate::daemon::run_timed_on(
+            Platform::Windows,
+            run,
+            &mut supervisor,
+            scratch.store,
+            crate::daemon::maintenance::SystemClocks::new(),
+            crate::daemon::signal::flag(),
+            crate::daemon::SETTLE_BOUND,
+        );
+        crate::daemon::end_of_a_scratch_run(answer, scratch.root)
+    });
+    started.map_err(|refused| crate::daemon::DaemonError::StartRefused(refused.to_string()))?
 }
 
 #[cfg(test)]
@@ -1233,12 +1315,23 @@ pub(crate) mod tests {
         );
     }
 
+    #[cfg(all(windows, debug_assertions))]
     #[test]
-    fn timed_run_reports_the_deferral() {
-        assert!(matches!(
-            timed_run(600),
-            Err(DaemonError::NotImplemented(_))
-        ));
+    fn the_windows_start_shuts_fault_reports_off_before_it_reads_the_key() {
+        use windows::Win32::System::Diagnostics::Debug::{
+            GetErrorMode, SEM_FAILCRITICALERRORS, SEM_NOGPFAULTERRORBOX,
+        };
+        let off = SEM_FAILCRITICALERRORS.0 | SEM_NOGPFAULTERRORBOX.0;
+        // SAFETY: GetErrorMode takes no argument and reads the process's mode.
+        let mode = || unsafe { GetErrorMode() } & off;
+        let mut steps = Vec::new();
+        let answer = start_a_run(|| {
+            steps.push(("the run, where the key is read", mode()));
+            "ran"
+        });
+        assert_eq!(answer, Ok("ran"));
+        assert_eq!(steps, [("the run, where the key is read", off)]);
+        assert_eq!(mode(), off, "the error mode behind the call");
     }
 
     #[cfg(target_os = "windows")]

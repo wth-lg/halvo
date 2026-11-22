@@ -20,6 +20,12 @@ use crate::view_state::Hold;
 
 pub const MAX_CALLS_IN_FLIGHT: usize = 4;
 
+/// How long a relayed request waits for a place: the 5 s that the client call of the request
+/// `relay` then waits from its own connect. The control crate holds its own 5 s as
+/// `CLIENT_DEADLINE` in crates/halvo-control/src/r2/owner_stream.rs, a module that it does not
+/// export.
+const RELAY_LIMIT: Duration = Duration::from_secs(5);
+
 #[cfg(test)]
 pub const REPLY_BYTES_IN_FLIGHT: usize = MAX_CALLS_IN_FLIGHT * halvo_control::wire::REPLY_MAX_BYTES;
 
@@ -187,6 +193,14 @@ pub trait Control: Send + Sync {
     fn run_mark(&self, _made: Made, _edge: RunEdge) -> Result<RunMarked, ClientError> {
         Err(ClientError::Unsupported)
     }
+
+    /// Asks the daemon to hold the search for repeated tasks off until `until`, in nanoseconds since 1970 (the
+    /// workflows run's C24.5), and gives the deadline in force, none where none is. A control with no defer call
+    /// answers `ClientError::Unsupported`.
+    #[cfg(target_os = "macos")]
+    fn defer(&self, _made: Made, _until: i64) -> Result<Option<i64>, ClientError> {
+        Err(ClientError::Unsupported)
+    }
 }
 
 /// How long a stream call or a mark waits for its place in the line and for the daemon, from the call on.
@@ -259,7 +273,17 @@ impl<C: Connector + Clone> Gated<C> {
         request: &Request,
         call: impl FnOnce(&Client<C>) -> Result<T, ClientError>,
     ) -> Result<T, ClientError> {
-        let limit = Deadlines::V1.of(request);
+        self.within(made, Deadlines::V1.of(request), call)
+    }
+
+    /// Runs `call` in a place of the line, which it enters within `limit` of the moment at which
+    /// the call was made.
+    fn within<T>(
+        &self,
+        made: Made,
+        limit: Duration,
+        call: impl FnOnce(&Client<C>) -> Result<T, ClientError>,
+    ) -> Result<T, ClientError> {
         let until = made.deadline_from + limit;
         let late = || ClientError::Deadline {
             seconds: limit.as_secs(),
@@ -393,6 +417,25 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
             )),
         }
     }
+
+    /// The request `defer` of `until` by `Client::defer`, once the call has its place in the line, for which it waits
+    /// as long as a mark does; the client's call then waits up to 5 s for the daemon. It gives the deadline in force
+    /// that the daemon names, or the error of the call.
+    #[cfg(target_os = "macos")]
+    fn defer(&self, made: Made, until: i64) -> Result<Option<i64>, ClientError> {
+        let by = made.deadline_from + CALL_DEADLINE;
+        let late = ClientError::Deadline {
+            seconds: CALL_DEADLINE.as_secs(),
+        };
+        let place = made.enter(by).ok_or(late)?;
+        let answer = Client::new(self.connector.clone()).defer(until);
+        drop(place);
+        answer
+    }
+
+    fn relay(&self, made: Made, request: &[u8]) -> Result<Vec<u8>, ClientError> {
+        self.within(made, RELAY_LIMIT, |client| client.relay(request))
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -412,17 +455,307 @@ impl Connector for Unresolved {
     }
 }
 
-/// The pid of the app's own daemon child of the moment, 0 while it has none: the connector of
-/// `control_of_child` expects that process as the server at each connect.
+/// The pid of the app's own daemon child of the moment, none while it has none: the connector
+/// of `control_of_child` expects that process as the server at each connect. Beside it, what the
+/// app's control read in its answers, for the supervisor of the child.
 #[derive(Debug, Default)]
-pub struct ChildPid(pub AtomicU32);
+pub struct ChildPid {
+    pid: AtomicU32,
+    #[cfg(any(target_os = "macos", test))]
+    read: Mutex<Read>,
+}
+
+#[cfg(any(target_os = "macos", test))]
+#[derive(Debug, Default)]
+struct Read {
+    answers: u64,
+    no_daemon: bool,
+    sight: Option<(u32, Sight)>,
+    deleting: Vec<u32>,
+}
+
+/// What an answer of the app's own child showed of that child (contracts.md C14 item 4).
+#[cfg(any(target_os = "macos", test))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sight {
+    /// A status that reads capture=pausing beside a source that carries the mark `unstopped`,
+    /// a source that a stop did not end.
+    SourceNotStopped,
+    /// A status of a daemon_version other than the app's, or a reply of another protocol
+    /// version: a reply of another version, a value unknown to v1, or the error
+    /// unsupported_version; never unsupported_op, which a daemon of the app's own version gives
+    /// for an op that its build does not serve.
+    AnotherVersion,
+    /// The request's deadline passed with no reply, while no delete_all of the app was in
+    /// flight against that child; the passed deadline of the delete_all itself is one.
+    NoReply,
+}
 
 impl ChildPid {
     pub fn get(&self) -> Option<u32> {
-        match self.0.load(Ordering::SeqCst) {
+        match self.pid.load(Ordering::SeqCst) {
             0 => None,
             pid => Some(pid),
         }
+    }
+
+    /// Names `pid` as the app's child of the moment, 0 for none.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn set(&self, pid: u32) {
+        self.pid.store(pid, Ordering::SeqCst);
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    fn read(&self) -> std::sync::MutexGuard<'_, Read> {
+        self.read.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// How many answers the app's control has taken.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn answers(&self) -> u64 {
+        self.read().answers
+    }
+
+    /// Whether an answer came after the first `answers` ones and the newest answer reads that no
+    /// daemon answers.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn no_daemon_after(&self, answers: u64) -> bool {
+        let read = self.read();
+        read.answers > answers && read.no_daemon
+    }
+
+    /// Takes what the answers showed of the child `child`; a sight of another child is dropped.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn take_sight(&self, child: u32) -> Option<Sight> {
+        match self.read().sight.take() {
+            Some((of, sight)) if of == child => Some(sight),
+            _ => None,
+        }
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    fn delete_began(&self, child: Option<u32>) {
+        let Some(child) = child else {
+            return;
+        };
+        let mut read = self.read();
+        read.deleting.push(child);
+        if read.sight == Some((child, Sight::NoReply)) {
+            read.sight = None;
+        }
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    fn delete_ended(&self, child: Option<u32>) {
+        let Some(child) = child else {
+            return;
+        };
+        let mut read = self.read();
+        if let Some(at) = read.deleting.iter().position(|of| *of == child) {
+            read.deleting.remove(at);
+        }
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    fn took(
+        &self,
+        before: Option<u32>,
+        error: Option<&ClientError>,
+        status: Option<&DaemonStatus>,
+    ) {
+        let mut read = self.read();
+        read.answers += 1;
+        read.no_daemon = matches!(error, Some(ClientError::Unreachable { .. }));
+        let Some(child) = before.filter(|child| self.get() == Some(*child)) else {
+            return;
+        };
+        let sight = match (status, error) {
+            (Some(status), _) if status.fields().pid != child => None,
+            (Some(status), _) if source_not_stopped(status) => Some(Sight::SourceNotStopped),
+            (Some(status), _) if another_daemon_version(status) => Some(Sight::AnotherVersion),
+            (_, Some(ClientError::Deadline { .. })) if !read.deleting.contains(&child) => {
+                Some(Sight::NoReply)
+            }
+            (_, Some(error)) if of_another_protocol(error) => Some(Sight::AnotherVersion),
+            _ => None,
+        };
+        let waiting = read
+            .sight
+            .filter(|(of, _)| *of == child)
+            .map(|(_, kind)| kind);
+        let kept = match (sight, waiting) {
+            (Some(sight), None) => Some(sight),
+            (Some(Sight::SourceNotStopped), Some(other)) if other != Sight::SourceNotStopped => {
+                Some(Sight::SourceNotStopped)
+            }
+            _ => None,
+        };
+        if let Some(sight) = kept {
+            read.sight = Some((child, sight));
+        }
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+struct Deleting<'a> {
+    pid: &'a ChildPid,
+    child: Option<u32>,
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl<'a> Deleting<'a> {
+    fn began(pid: &'a ChildPid, child: Option<u32>) -> Self {
+        pid.delete_began(child);
+        Deleting { pid, child }
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl Drop for Deleting<'_> {
+    fn drop(&mut self) {
+        self.pid.delete_ended(self.child);
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn source_not_stopped(status: &DaemonStatus) -> bool {
+    let fields = status.fields();
+    fields.capture == halvo_control::proto::Capture::Pausing
+        && fields.sources.iter().any(|line| line.unstopped)
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn of_another_protocol(error: &ClientError) -> bool {
+    match error {
+        ClientError::ReplyOfAnotherVersion { .. } | ClientError::ValueUnknownToV1(_) => true,
+        ClientError::Daemon(reply) => {
+            reply.code() == halvo_control::proto::ErrorCode::UnsupportedVersion
+        }
+        _ => false,
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn another_daemon_version(status: &DaemonStatus) -> bool {
+    crate::app::VERSION
+        .parse::<halvo_control::proto::DaemonVersion>()
+        .ok()
+        != Some(status.fields().daemon_version)
+}
+
+/// The app's control of its child: each answer of the control inside tells `pid` what it read,
+/// and what it showed of the child that `pid` named while the request ran. It hands every
+/// method of `Control` on to the control inside, those with a default body among them; a
+/// builder who adds a method to `Control` adds its forward here, and adds that method, with an
+/// answer of its own, to the stand-in `EachItsOwn` and to the last row of the test
+/// `another_daemon_version_restarts_the_own_child_once_and_a_child_seen_ending_is_killed`.
+#[cfg(any(target_os = "macos", test))]
+pub struct Watching<C> {
+    inner: C,
+    pid: Arc<ChildPid>,
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl<C> Watching<C> {
+    pub fn new(inner: C, pid: Arc<ChildPid>) -> Self {
+        Watching { inner, pid }
+    }
+
+    fn took<T>(
+        &self,
+        before: Option<u32>,
+        answer: Result<T, ClientError>,
+    ) -> Result<T, ClientError> {
+        self.pid.took(before, answer.as_ref().err(), None);
+        answer
+    }
+
+    fn took_status(
+        &self,
+        before: Option<u32>,
+        answer: Result<DaemonStatus, ClientError>,
+    ) -> Result<DaemonStatus, ClientError> {
+        self.pid
+            .took(before, answer.as_ref().err(), answer.as_ref().ok());
+        answer
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl<C: Control> Control for Watching<C> {
+    fn places(&self) -> &Arc<Places> {
+        self.inner.places()
+    }
+
+    fn status(&self, made: Made, claim: bool) -> Result<DaemonStatus, ClientError> {
+        let before = self.pid.get();
+        self.took_status(before, self.inner.status(made, claim))
+    }
+
+    fn status_of_a_pass(
+        &self,
+        made: Made,
+        claim: bool,
+        hold: &Hold,
+    ) -> Result<DaemonStatus, ClientError> {
+        let before = self.pid.get();
+        self.took_status(before, self.inner.status_of_a_pass(made, claim, hold))
+    }
+
+    fn inventory(&self, made: Made) -> Result<InventoryReply, ClientError> {
+        let before = self.pid.get();
+        self.took(before, self.inner.inventory(made))
+    }
+
+    fn pause(&self, made: Made) -> Result<DaemonStatus, ClientError> {
+        let before = self.pid.get();
+        self.took_status(before, self.inner.pause(made))
+    }
+
+    fn resume(&self, made: Made) -> Result<DaemonStatus, ClientError> {
+        let before = self.pid.get();
+        self.took_status(before, self.inner.resume(made))
+    }
+
+    fn delete_all(&self, made: Made, armed: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
+        let before = self.pid.get();
+        let deleting = Deleting::began(&self.pid, before);
+        let answer = self.inner.delete_all(made, armed);
+        drop(deleting);
+        self.took(before, answer)
+    }
+
+    fn set_storage_cap(&self, made: Made, cap: StorageCap) -> Result<CapSet, ClientError> {
+        let before = self.pid.get();
+        self.took(before, self.inner.set_storage_cap(made, cap))
+    }
+
+    fn request_permission(
+        &self,
+        made: Made,
+        permission: Permission,
+    ) -> Result<RequestOutcome, ClientError> {
+        let before = self.pid.get();
+        self.took(before, self.inner.request_permission(made, permission))
+    }
+
+    fn relay(&self, made: Made, request: &[u8]) -> Result<Vec<u8>, ClientError> {
+        self.inner.relay(made, request)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn owner_stream(&self, made: Made) -> Result<OwnerStreamEnd, ClientError> {
+        self.inner.owner_stream(made)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn run_mark(&self, made: Made, edge: RunEdge) -> Result<RunMarked, ClientError> {
+        self.inner.run_mark(made, edge)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn defer(&self, made: Made, until: i64) -> Result<Option<i64>, ClientError> {
+        self.inner.defer(made, until)
     }
 }
 
@@ -486,7 +819,26 @@ pub fn control_of_child<E>(
         return (Arc::new(Gated::new(Unresolved)), None);
     };
     match halvo_control::client::system_connector(&dir) {
-        Ok(connector) => (Arc::new(streaming(ToChild { connector, pid })), Some(dir)),
+        Ok(connector) => {
+            let control = streaming(ToChild {
+                connector,
+                pid: Arc::clone(&pid),
+            });
+            (watched(control, pid), Some(dir))
+        }
         Err(_) => (Arc::new(Gated::new(Unresolved)), Some(dir)),
     }
+}
+
+/// `control` inside the wrapper `Watching`, which reads its answers for `pid`.
+#[cfg(any(target_os = "macos", test))]
+pub fn watched<C: Control + 'static>(control: C, pid: Arc<ChildPid>) -> Arc<dyn Control> {
+    Arc::new(Watching::new(control, pid))
+}
+
+/// `control` alone: no child of the app lives on this system.
+#[cfg(not(any(target_os = "macos", test)))]
+pub fn watched<C: Control + 'static>(control: C, pid: Arc<ChildPid>) -> Arc<dyn Control> {
+    let _ = pid;
+    Arc::new(control)
 }

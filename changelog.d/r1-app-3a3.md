@@ -1,0 +1,3 @@
+- Added: Only one Halvo runs at a time for your data: opening Halvo again shows the window of the Halvo that already runs, and a second start in the background does nothing.
+- Changed: On macOS, Halvo starts its capture service again once a capture service that it did not start has ended, restarts its own capture service once when that service is of another version, and ends its own capture service when that service stops answering or cannot stop a part of capture.
+- Fixed: On macOS, Quit no longer stays for ever behind a capture service that Halvo did not start: Halvo says that it could not confirm that capture has stopped, and the next Quit quits.

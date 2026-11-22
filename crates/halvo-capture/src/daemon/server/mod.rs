@@ -407,16 +407,19 @@ fn at_the_end<S: Read>(stream: &mut S) -> bool {
 }
 
 fn served_by_this_build(request: &Request) -> bool {
-    matches!(
-        request,
+    match request {
         Request::Status { .. }
-            | Request::Inventory
-            | Request::Pause
-            | Request::Resume
-            | Request::Stop
-            | Request::DeleteAll { .. }
-            | Request::SetStorageCap { .. }
-    )
+        | Request::Inventory
+        | Request::Pause
+        | Request::Resume
+        | Request::Stop
+        | Request::DeleteAll { .. }
+        | Request::SetStorageCap { .. } => true,
+        Request::RequestPermission { .. } | Request::AcknowledgeLostPermission { .. } => {
+            cfg!(target_os = "macos")
+        }
+        Request::PermissionAsked { .. } => false,
+    }
 }
 
 fn refusal(request: &Request, admitting: &Admitting) -> Result<Admission, Box<Reply>> {
@@ -548,6 +551,9 @@ pub struct StatusParts {
     pub switches: Switches,
     pub once_granted: Vec<Permission>,
     pub asked: Vec<Permission>,
+    /// Whether the input source's events hold keys, so that it needs Input
+    /// Monitoring; the walk names that permission only then.
+    pub input_keys: bool,
     /// Whether the hold of a record in the run marker stands (ruling PL-3
     /// part (5)): capture reads `awaiting_resume` while desired is running.
     pub held: bool,
@@ -606,7 +612,13 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
             once_granted: parts.once_granted.contains(&name),
         })
         .collect();
-    let onboarding = onboarding_of(platform, &permissions, parts.switches);
+    let onboarding = onboarding_of(
+        platform,
+        &permissions,
+        &board.permissions,
+        parts.switches,
+        parts.input_keys,
+    );
     DaemonStatus::new(StatusFields {
         daemon_version: env!("CARGO_PKG_VERSION").parse().unwrap_or(DaemonVersion {
             major: 0,
@@ -799,7 +811,9 @@ fn guard_of(board: &Board, lines: &[SourceLine]) -> PasswordGuard {
 fn onboarding_of(
     platform: Platform,
     lines: &[PermissionLine],
+    answered: &[(Permission, GrantState)],
     switches: Switches,
+    input_keys: bool,
 ) -> OnboardingState {
     let set = |pick: fn(&PermissionLine) -> bool| -> PermissionSet {
         lines
@@ -812,11 +826,24 @@ fn onboarding_of(
         grants.with(line.name, line.grant)
     });
     onboarding::assess(&AssessInput {
-        required: required_of(platform),
+        required: &required_of(platform)
+            .iter()
+            .copied()
+            .filter(|permission| input_keys || *permission != Permission::InputMonitoring)
+            .collect::<Vec<_>>(),
         now,
         granted_at_capture_start: set(|line| line.at_start == GrantState::Granted),
         asked: set(|line| line.asked),
-        once_granted: set(|line| line.once_granted),
+        once_granted: lines
+            .iter()
+            .filter(|line| {
+                line.once_granted
+                    && answered
+                        .iter()
+                        .any(|(permission, _)| *permission == line.name)
+            })
+            .map(|line| line.name)
+            .collect(),
         macos_major: None,
         settings_entry_name: "Halvo",
         screen_activity: switches.is_on(Switch::ScreenActivity),
@@ -952,6 +979,7 @@ mod tests {
             switches,
             once_granted: Vec::new(),
             asked: Vec::new(),
+            input_keys: false,
             held: false,
         };
         let facts = RunFacts {

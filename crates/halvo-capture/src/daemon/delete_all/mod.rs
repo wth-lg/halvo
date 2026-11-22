@@ -124,6 +124,7 @@ fn entries_under(path: &Path) -> u64 {
     }
 }
 
+#[cfg(not(windows))]
 fn runs(owner: Owner) -> bool {
     start_time_of(owner.pid) == Some(owner.started)
 }
@@ -163,19 +164,37 @@ fn end_by_signal(owner: Owner) -> bool {
 #[cfg(windows)]
 const OWNER_END_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// Ends `owner` on Windows, the owner of a row and the runner and the browser
+/// of a run's mark alike: true when no process of its pid and start time
+/// runs after the call. A pid that names no process is gone. An open that
+/// the system refuses is a process that runs, as the owner slot of the
+/// workflows run reads it, unless a plain read of the same pid shows another
+/// start time; such an owner is not ended, and its row keeps its files.
 #[cfg(windows)]
 fn end_by_signal(owner: Owner) -> bool {
+    use super::owner_pid::{Opened, ProcessHandle};
     use windows::Win32::System::Threading::{
         PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
     };
     let access = PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | PROCESS_SYNCHRONIZE;
-    let Some(process) = super::owner_pid::ProcessHandle::open(owner.pid, access) else {
-        return !runs(owner);
-    };
-    if process.started() != Some(owner.started) {
-        return true;
+    match ProcessHandle::open_or_refused(owner.pid, access) {
+        Opened::Process(process) => {
+            if process.started() != Some(owner.started) {
+                return true;
+            }
+            process.end_within(1, OWNER_END_WAIT)
+        }
+        Opened::NoProcess => true,
+        Opened::Refused => {
+            match ProcessHandle::open_or_refused(owner.pid, PROCESS_QUERY_LIMITED_INFORMATION) {
+                Opened::Process(process) => process
+                    .started()
+                    .is_some_and(|started| started != owner.started),
+                Opened::NoProcess => true,
+                Opened::Refused => false,
+            }
+        }
     }
-    process.end_within(1, OWNER_END_WAIT)
 }
 
 #[cfg(not(any(unix, windows)))]

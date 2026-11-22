@@ -14,7 +14,7 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=45
+failing_fixtures=49
 form_test=stall::the_round_count_of_the_stall_tests
 prints_rule=scripts/r1/windows-prints-rule.sh
 prints_rule_line='^prints-rule [A-Za-z0-9_:]+ line=[0-9]+ length=[0-9]+ token=[0-9]+$'
@@ -79,8 +79,10 @@ c8_display_affinity_exclude_from_capture_is_set_and_read_back group=native
 c8b_window_destroyed_after_the_last_capture_session group=native
 c9_peak_working_set_of_sources_1_to_4_for_60_seconds group=native
 capture_times_follow_the_input_order group=native
+daemon_refuses_a_second_account group=native
 helper_child_window group=native
 helper_limited_listener group=native
+helper_second_account group=native
 keys_queued_before_a_stop_are_delivered_or_counted group=native
 known_defect::browser_self_move_after_a_held_main_thread_in_chrome W3-5-A2 group=browser
 known_defect::browser_self_move_after_a_held_main_thread_in_edge W3-5-A2 group=browser
@@ -543,7 +545,9 @@ launch() {
       WF_TIMEOUT_TOOL=$tool
       export WF_TIMEOUT_TOOL
     fi
-    if [ -n "$args_knob" ]; then
+    if [ "$args_knob" = --as-standard-account ]; then
+      form_call "$drop_knob" >"$work/out-$1" 2>&1
+    elif [ -n "$args_knob" ]; then
       sh "$self_script" "$args_knob" >"$work/out-$1" 2>&1
     else
       sh "$0" >"$work/out-$1" 2>&1
@@ -555,6 +559,15 @@ launch() {
     wait
     running=0
   fi
+}
+
+form_call() {
+  case $1 in
+    GITHUB_ACTIONS) env -u GITHUB_ACTIONS RUNNER_ENVIRONMENT=github-hosted RUNNER_OS=Windows sh "$self_script" --as-standard-account -- standard-command ;;
+    RUNNER_ENVIRONMENT) env -u RUNNER_ENVIRONMENT GITHUB_ACTIONS=true RUNNER_OS=Windows sh "$self_script" --as-standard-account -- standard-command ;;
+    RUNNER_OS) env -u RUNNER_OS GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted sh "$self_script" --as-standard-account -- standard-command ;;
+    *) env -u GITHUB_ACTIONS -u RUNNER_ENVIRONMENT -u RUNNER_OS sh "$self_script" --as-standard-account -- standard-command ;;
+  esac
 }
 
 check() {
@@ -614,6 +627,7 @@ reset_knobs() {
   repo_knob=
   group_knob=$group
   args_knob=
+  drop_knob=
 }
 
 write_stubs() {
@@ -844,7 +858,15 @@ case $kind in
   *) exit 98 ;;
 esac
 EOF
-  chmod +x "$work/bin/cargo" "$work/bin/tf-stub" || exit 2
+  cat >"$work/bin/powershell.exe" <<'EOF'
+#!/bin/sh
+printf 'STUB-POWERSHELL-RAN\n'
+EOF
+  cat >"$work/bin/standard-command" <<'EOF'
+#!/bin/sh
+printf 'STUB-STANDARD-COMMAND-RAN\n'
+EOF
+  chmod +x "$work/bin/cargo" "$work/bin/tf-stub" "$work/bin/powershell.exe" "$work/bin/standard-command" || exit 2
 }
 
 make_repo() {
@@ -1144,6 +1166,16 @@ fixtures() {
   args_knob=--no-such-form
   check an-unknown-argument-prints-the-usage-and-exits-64 exit-64 "$right" \
     "usage: sh " "!PASS " "!FAIL "
+  args_knob=--as-standard-account
+  check the-standard-account-form-refuses-outside-a-hosted-runner FAIL "$right" \
+    "FAIL $name (--as-standard-account runs on a GitHub-hosted Windows runner alone, where GITHUB_ACTIONS is true, RUNNER_ENVIRONMENT is github-hosted and RUNNER_OS is Windows; it made and changed nothing here)" \
+    "!STUB-POWERSHELL-RAN" "!STUB-STANDARD-COMMAND-RAN" "!standard_account"
+  for drop_knob in GITHUB_ACTIONS RUNNER_ENVIRONMENT RUNNER_OS; do
+    args_knob=--as-standard-account
+    check "the-standard-account-form-refuses-without-$drop_knob" FAIL "$right" \
+      "FAIL $name (--as-standard-account runs on a GitHub-hosted Windows runner alone, where GITHUB_ACTIONS is true, RUNNER_ENVIRONMENT is github-hosted and RUNNER_OS is Windows; it made and changed nothing here)" \
+      "!STUB-POWERSHELL-RAN" "!STUB-STANDARD-COMMAND-RAN" "!standard_account"
+  done
   check two-logs-that-break-the-prints-rule-are-not-printed FAIL "c1_raw_input|rule-break${nl}helper_child_window|rule-break${nl}known_defect::x1_password|defect|RR-windows-01" \
     "prints-rule c1_raw_input line=3 length=" "$name: c1_raw_input: wpr_check_log exited 1 with 1 lines that break the prints rule, so its log is not printed${nl}WF c1_raw_input result=FAIL${nl}" \
     "${nl}prints-rule helper_child_window line=3 length=" "${nl}prints_rule broken_lines=2 withheld_logs=2${nl}" \
@@ -1179,13 +1211,129 @@ fixtures() {
   check the-prints-rule-cannot-write-its-vocabulary FAIL "$right" "FAIL $name (wpr_vocabulary of scripts/r1/windows-prints-rule.sh exited 2, so no log can be read by its rule)"
 }
 
+usage() {
+  cat >&2 <<EOF
+usage: sh $0 [--self-test | --as-standard-account -- COMMAND [ARGUMENT ...]]
+EOF
+  exit 64
+}
+
+standard_account_script() {
+  cat <<'EOF'
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+$account = 'halvo-standard'
+$step = 'secondary_logon'
+function Say([string]$line) { [Console]::Error.WriteLine('standard_account' + $line) }
+function Quote([string]$text) {
+  if ($text.Length -gt 0 -and $text -notmatch '[\s"]') { return $text }
+  $quoted = '"'
+  $slashes = 0
+  foreach ($char in $text.ToCharArray()) {
+    if ($char -eq [char]'\') { $slashes++; continue }
+    if ($char -eq [char]'"') { $quoted += ('\' * (2 * $slashes + 1)) + '"' }
+    else { $quoted += ('\' * $slashes) + $char }
+    $slashes = 0
+  }
+  return $quoted + ('\' * (2 * $slashes)) + '"'
+}
+try {
+  $service = Get-Service -Name seclogon -ErrorAction SilentlyContinue
+  if ($null -eq $service) { Say '=refused secondary_logon=absent'; exit 1 }
+  if ([string]$service.StartType -eq 'Disabled') { Say '=refused secondary_logon=disabled'; exit 1 }
+  if ([string]$service.Status -ne 'Running') {
+    Start-Service -Name seclogon -ErrorAction SilentlyContinue
+    $service.Refresh()
+    if ([string]$service.Status -ne 'Running') { Say '=refused secondary_logon=not_started'; exit 1 }
+  }
+  $command = @()
+  for ($index = 1; $index -le [int]$env:WF_SA_COUNT; $index++) {
+    $command += [Environment]::GetEnvironmentVariable('WF_SA_ARG_' + $index)
+  }
+  $step = 'password'
+  $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+  $bytes = New-Object byte[] 32
+  [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+  $password = New-Object System.Security.SecureString
+  foreach ($byte in $bytes) { $password.AppendChar($alphabet[$byte % $alphabet.Length]) }
+  foreach ($char in [char[]]'aZ7!') { $password.AppendChar($char) }
+  $password.MakeReadOnly()
+  [Array]::Clear($bytes, 0, $bytes.Length)
+  $step = 'account'
+  if ($null -eq (Get-LocalUser -Name $account -ErrorAction SilentlyContinue)) {
+    $null = New-LocalUser -Name $account -Password $password -AccountNeverExpires -PasswordNeverExpires -Description 'Standard account of the Halvo windows job'
+    try { Add-LocalGroupMember -SID 'S-1-5-32-545' -Member $account -ErrorAction SilentlyContinue } catch { }
+    Say '=made'
+  } else {
+    Set-LocalUser -Name $account -Password $password
+    Say '=new_password'
+  }
+  $step = 'start'
+  $arguments = @()
+  for ($index = 1; $index -lt $command.Count; $index++) { $arguments += (Quote ($command[$index])) }
+  $info = New-Object System.Diagnostics.ProcessStartInfo
+  $info.FileName = $command[0]
+  $info.Arguments = $arguments -join ' '
+  $info.UserName = $account
+  $info.Domain = $env:COMPUTERNAME
+  $info.Password = $password
+  $info.LoadUserProfile = $true
+  $info.UseShellExecute = $false
+  $info.WorkingDirectory = $env:SystemRoot
+  $info.RedirectStandardInput = $true
+  $info.RedirectStandardOutput = $true
+  $info.RedirectStandardError = $true
+  $process = [System.Diagnostics.Process]::Start($info)
+  $process.StandardInput.Close()
+  $out = $process.StandardOutput.ReadToEndAsync()
+  $err = $process.StandardError.ReadToEndAsync()
+  $process.WaitForExit()
+  $step = 'output'
+  [Console]::Out.Write($out.Result)
+  [Console]::Out.Flush()
+  [Console]::Error.Write($err.Result)
+  $code = $process.ExitCode
+  Say ('_exit=' + $code)
+  exit $code
+} catch {
+  $fault = $_.Exception
+  while ($null -ne $fault.InnerException) { $fault = $fault.InnerException }
+  $line = '=failed step=' + $step + ' hresult=0x' + $fault.HResult.ToString('x8')
+  if ($fault -is [System.ComponentModel.Win32Exception]) { $line += ' code=' + $fault.NativeErrorCode }
+  Say $line
+  exit 1
+}
+EOF
+}
+
+as_standard_account() {
+  if [ "${GITHUB_ACTIONS:-}" != true ] || [ "${RUNNER_ENVIRONMENT:-}" != github-hosted ] || [ "${RUNNER_OS:-}" != Windows ]; then
+    fail "--as-standard-account runs on a GitHub-hosted Windows runner alone, where GITHUB_ACTIONS is true, RUNNER_ENVIRONMENT is github-hosted and RUNNER_OS is Windows; it made and changed nothing here"
+  fi
+  [ "${1:-}" = -- ] && [ "$#" -ge 2 ] || usage
+  shift
+  WF_SA_COUNT=$#
+  export WF_SA_COUNT
+  index=0
+  for arg in "$@"; do
+    index=$((index + 1))
+    export "WF_SA_ARG_$index=$arg"
+  done
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name-standard-account.XXXXXX") || fail "mktemp failed"
+  standard_account_script >"$work/standard-account.ps1" || fail "the script of the standard account cannot be written"
+  script=$(cygpath -w "$work/standard-account.ps1") || fail "cygpath cannot name the script of the standard account for PowerShell"
+  MSYS2_ARG_CONV_EXCL='*'
+  MSYS2_ENV_CONV_EXCL=WF_SA_
+  export MSYS2_ARG_CONV_EXCL MSYS2_ENV_CONV_EXCL
+  exec powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$script"
+}
+
 case ${1:-} in
   --self-test) self_test ;;
-  '') measure ;;
-  *)
-    cat >&2 <<EOF
-usage: sh $0 [--self-test]
-EOF
-    exit 64
+  --as-standard-account)
+    shift
+    as_standard_account "$@"
     ;;
+  '') measure ;;
+  *) usage ;;
 esac

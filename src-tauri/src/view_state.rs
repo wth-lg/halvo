@@ -116,6 +116,7 @@ pub struct RunningView {
     pub texts: Texts,
     pub ext: Vec<Section>,
     pub hold: Option<HoldView>,
+    pub login_item_loaded: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,6 +126,7 @@ pub struct NoStatusView {
     pub window: ObservationWindow,
     pub last_exit: Option<i32>,
     pub hold: Option<HoldView>,
+    pub login_item_loaded: Option<bool>,
 }
 
 /// Why the app holds capture off: a child of the app ended itself with status 5, because a
@@ -158,6 +160,7 @@ struct HoldState {
     child_lives: bool,
     no_more_child: bool,
     start_asked: bool,
+    another_version: bool,
 }
 
 /// The app's hold on capture after a child of the app ended itself with status 5 (contracts.md
@@ -195,10 +198,20 @@ impl Hold {
     }
 
     /// `view` with the hold, and on `not_running` the status of the last end while no child of
-    /// the app lives.
+    /// the app lives; while the app leaves its own child of another daemon_version, a running
+    /// view reads another_version.
     pub fn mark(&self, view: StatusView) -> StatusView {
         let hold = self.view();
-        let last_exit = self.state().last_exit;
+        let (last_exit, another_version) = {
+            let state = self.state();
+            (state.last_exit, state.another_version)
+        };
+        let view = match view {
+            StatusView::Running(running) if another_version => {
+                StatusView::no_status(NoStatusService::AnotherVersion, running.platform)
+            }
+            other => other,
+        };
         match view {
             StatusView::Running(mut view) => {
                 view.hold = hold;
@@ -274,12 +287,20 @@ impl Hold {
         asked
     }
 
+    /// The app leaves its own child that reads another daemon_version after the one restart of
+    /// the launch: views read another_version until a child starts again.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn another_version_left(&self) {
+        self.state().another_version = true;
+    }
+
     /// A child of the app started.
     #[cfg(any(target_os = "macos", test))]
     pub fn child_started(&self) {
         let mut state = self.state();
         state.child_lives = true;
         state.last_exit = None;
+        state.another_version = false;
         drop(state);
         self.changed.notify_all();
     }
@@ -310,6 +331,7 @@ struct WireView<'a> {
     service: Service,
     last_exit: Option<i32>,
     hold: Option<HoldView>,
+    login_item_loaded: Option<bool>,
     platform: Platform,
     desired: Option<CaptureState>,
     capture: Option<Capture>,
@@ -338,6 +360,7 @@ impl Serialize for StatusView {
                 service: Service::Running,
                 last_exit: None,
                 hold: view.hold,
+                login_item_loaded: view.login_item_loaded,
                 platform: view.platform,
                 desired: Some(view.desired),
                 capture: Some(view.capture),
@@ -362,6 +385,7 @@ impl Serialize for StatusView {
                 service: view.service.word(),
                 last_exit: view.last_exit,
                 hold: view.hold,
+                login_item_loaded: view.login_item_loaded,
                 platform: view.platform,
                 desired: None,
                 capture: None,
@@ -403,6 +427,7 @@ impl StatusView {
             window: ObservationWindow::r1(),
             last_exit: None,
             hold: None,
+            login_item_loaded: None,
         })
     }
 
@@ -416,6 +441,16 @@ impl StatusView {
             StatusView::Running(view) => view.hold,
             StatusView::NoStatus(view) => view.hold,
         }
+    }
+
+    /// This view with what the app read of its login item at its start: whether launchd holds
+    /// it, none where nothing was read.
+    pub fn with_login_item_loaded(mut self, loaded: Option<bool>) -> Self {
+        match &mut self {
+            StatusView::Running(view) => view.login_item_loaded = loaded,
+            StatusView::NoStatus(view) => view.login_item_loaded = loaded,
+        }
+        self
     }
 
     #[cfg(test)]
@@ -489,6 +524,7 @@ impl StatusView {
             texts: texts(status),
             ext: f.ext.clone(),
             hold: None,
+            login_item_loaded: None,
         }))
     }
 }

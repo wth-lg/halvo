@@ -1,7 +1,7 @@
 //! The lease of contracts.md C14 item 3, the run condition that reads it, and
 //! the lifeline of C14 item 2.
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 pub mod lifeline;
 #[cfg(all(test, target_os = "macos"))]
 mod process_tests;
@@ -68,8 +68,9 @@ pub fn holds(desired: Desired, slot: &Slot, lease: Lease, now: Duration) -> bool
     desired == Desired::Running && slot.is_open() && lease.is_fresh(now)
 }
 
-/// What ends a run with its parent: on unix the lifeline, whose read end
-/// reached its end of file or whose parent is no longer the one of its start.
+/// What ends a run with its parent: the lifeline, whose read end reached its
+/// end of file or whose parent is no longer the one of its start (on Windows,
+/// whose parent's handle is signalled).
 #[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub trait ParentWatch: Send {
     fn ended(&self) -> bool;

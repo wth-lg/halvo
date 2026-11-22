@@ -987,7 +987,12 @@ object_type! {
 object_type! {
     /// One agent of the reply of `list_agents`: its configuration, the state of its workflow, the slot names of its
     /// newest bindings, `session` (`yes` when a session of the agent is stored whole), its newest run record or
-    /// null, and its effects whose newest row is `unknown`. A run record of another agent is refused.
+    /// null, its effects whose newest row is `unknown`, `refused_run` (the id of the agent's newest started run
+    /// where that run's log holds `step_failed` with the cause `unauthorized`, or null), `reply_unknown` (`yes` when
+    /// the run of `last` left a reply in the state `unknown`) and `refused_slots` (the names of the slots of those
+    /// bindings that their one reader refuses). The three last keys hold a run id, a yes or no and slot names alone:
+    /// never a slot's value, no secret and no text. A run record of another agent is refused, and `reply_unknown`
+    /// `yes` beside `last` null.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct ListedAgent {
         pub config: AgentConfig = "config" => AgentConfig::from_raw,
@@ -996,6 +1001,9 @@ object_type! {
         pub session: YesNo = "session" => from_json,
         pub last: Option<AgentRun> = "last" => opt(AgentRun::from_raw),
         pub unknown: Vec<UnknownEffect> = "unknown" => list(UnknownEffect::from_raw),
+        pub refused_run: Option<RunId> = "refused_run" => opt(from_json),
+        pub reply_unknown: YesNo = "reply_unknown" => from_json,
+        pub refused_slots: Vec<Name> = "refused_slots" => list(from_json),
     }
     rules(a) {
         if a
@@ -1004,6 +1012,11 @@ object_type! {
             .is_some_and(|r| (&r.workflow, &r.agent) != (&a.config.workflow, &a.config.agent))
         {
             return Err(Refusal::malformed("ListedAgent", "record_of_another_agent").at("last"));
+        }
+        if a.reply_unknown == YesNo::Yes && a.last.is_none() {
+            return Err(
+                Refusal::malformed("ListedAgent", "reply_unknown_without_last").at("reply_unknown"),
+            );
         }
         Ok(())
     }

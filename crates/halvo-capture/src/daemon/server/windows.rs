@@ -377,6 +377,7 @@ mod tests {
             switches: Switches::default(),
             once_granted: Vec::new(),
             asked: Vec::new(),
+            input_keys: false,
             held: false,
         };
         let facts = RunFacts {
