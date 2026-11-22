@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin or signingIdentity, makes Halvo.app under release/bundle/macos of the target directory with Contents/Info.plist, whose CFBundleIdentifier is the identifier of src-tauri/tauri.conf.json and whose CFBundleShortVersionString and CFBundleVersion are what 61-version.sh --print prints, with halvo and each helper that packaging/helpers.d names as an executable file in Contents/MacOS, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, no import of the call that holds secure input, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started).
+# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin or signingIdentity, makes Halvo.app under release/bundle/macos of the target directory with Contents/Info.plist, whose CFBundleIdentifier is the identifier of src-tauri/tauri.conf.json and whose CFBundleShortVersionString and CFBundleVersion are what 61-version.sh --print prints, with halvo and each helper that packaging/helpers.d names as an executable file in Contents/MacOS and no other entry there, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, no import of the call that holds secure input, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started).
 set -u
 name=70-package-macos
 config_keys='externalBin signingIdentity'
@@ -55,6 +55,15 @@ bundle_defect() {
       printf 'Halvo.app holds no executable file Contents/MacOS/%s\n' "$executable"
       return 1
     fi
+  done
+  # Every entry of Contents/MacOS, of any type and with a dot name too, is halvo or a helper.
+  for entry in "$app/Contents/MacOS"/* "$app/Contents/MacOS"/.[!.]* "$app/Contents/MacOS"/..?*; do
+    [ -e "$entry" ] || [ -L "$entry" ] || continue
+    for executable in halvo "$@"; do
+      [ "${entry##*/}" = "$executable" ] && continue 2
+    done
+    printf 'Halvo.app holds Contents/MacOS/%s, which is neither halvo nor a helper of packaging/helpers.d\n' "${entry##*/}"
+    return 1
   done
   value=$(plutil -extract CFBundleIdentifier raw -o - "$plist") || { printf 'plutil could not read the CFBundleIdentifier of Info.plist\n'; return 1; }
   [ "$value" = "$identifier" ] || { printf 'the CFBundleIdentifier of Info.plist is not the identifier of src-tauri/tauri.conf.json\n'; return 1; }
@@ -131,17 +140,34 @@ EOF
       chmod +x "$app/Contents/MacOS/$executable" || exit 2
     done
   }
+  # A case names its helpers after the wanted line, or reads halvo-capture alone.
   bundle_case() {
-    output=$(bundle_defect "$app" "$identifier" "$version" halvo-capture 2>"$work/$1.err")
+    case_name=$1 want=$2
+    shift 2
+    [ $# -gt 0 ] || set -- halvo-capture
+    output=$(bundle_defect "$app" "$identifier" "$version" "$@" 2>"$work/$case_name.err")
     code=$?
     got=unexpected-exit-$code
     [ "$code" = 0 ] && got=PASS
-    [ "$code:$output" = "1:$2" ] && got=FAIL
-    verdict "$1" FAIL "$got"
+    [ "$code:$output" = "1:$want" ] && got=FAIL
+    verdict "$case_name" FAIL "$got"
   }
 
   stand_in_bundle without-the-daemon halvo
   bundle_case bundle-without-the-daemon 'Halvo.app holds no executable file Contents/MacOS/halvo-capture'
+
+  # The list of packaging/helpers.d as the tree holds it, and a bundle with every helper of it but the runner.
+  helpers=$(helper_names)
+  others=$(printf '%s\n' "$helpers" | grep -v -x -F halvo-runner)
+  # shellcheck disable=SC2086
+  stand_in_bundle without-the-runner halvo $others
+  # shellcheck disable=SC2086
+  bundle_case bundle-without-the-runner 'Halvo.app holds no executable file Contents/MacOS/halvo-runner' $helpers
+
+  # shellcheck disable=SC2086
+  stand_in_bundle with-one-more-executable halvo $helpers halvo-updater
+  # shellcheck disable=SC2086
+  bundle_case bundle-with-one-more-executable 'Halvo.app holds Contents/MacOS/halvo-updater, which is neither halvo nor a helper of packaging/helpers.d' $helpers
 
   case $0 in /*) check_script=$0 ;; *) check_script=$PWD/$0 ;; esac
   measure_repo=$work/measure

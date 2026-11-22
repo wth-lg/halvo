@@ -1,0 +1,3 @@
+package=halvo-runner
+bin=halvo-runner
+manifest=crates/halvo-runner/Cargo.toml
