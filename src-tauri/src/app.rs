@@ -482,6 +482,28 @@ fn engine_folder<R: Runtime>(
     }
 }
 
+/// The folder in which the web view of Halvo's own window writes its crash reports, by the rule
+/// of its data folder with none given (`engine_folder`): the app's local data folder as tauri
+/// 2.12.5 names it (src/path/desktop.rs lines 265 to 271: the account's LocalAppData known
+/// folder, then the app's identifier), then EBWebView, Crashpad, reports. None where the account
+/// names no LocalAppData. The one function of both removals: the start empties the folder before
+/// the app is built, and the form `--remove-crash-reports` empties it with no window.
+#[cfg(windows)]
+pub fn crash_report_folder(config: &tauri::Config) -> Option<PathBuf> {
+    use halvo_control::paths::AccountLookup;
+    let local = halvo_control::paths::SystemAccount.base_dir().ok()??;
+    Some(reports_under(
+        &PathBuf::from(local).join(&config.identifier),
+    ))
+}
+
+/// The folder of the crash reports under the web view's data folder `data`, which the web view's
+/// environment answers (test 2 of win-crash-reports).
+#[cfg(windows)]
+fn reports_under(data: &std::path::Path) -> PathBuf {
+    data.join("EBWebView").join("Crashpad").join("reports")
+}
+
 /// The system's maker of the web view's environment, on the main thread as the runtime's own:
 /// the folder is made as tauri makes it, and an environment that cannot be made fails the window,
 /// with no fall-back to the runtime's own environment.
@@ -651,4 +673,72 @@ fn load<R: Runtime>(app: &AppHandle<R>, visible: bool) -> tauri::Result<()> {
         window.show()?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    #[cfg(windows)]
+    use super::*;
+
+    /// A new folder of this test binary under target/tmp, by the test's `name` and this process.
+    /// This module is compiled again by tests/page_guard.rs, which has no `crate::tests`.
+    fn scratch(name: &str) -> PathBuf {
+        let target = std::env::current_exe()
+            .expect("the test binary has a path")
+            .ancestors()
+            .nth(3)
+            .expect("the test binary sits under target/<profile>/deps")
+            .to_path_buf();
+        let dir = target
+            .join("tmp")
+            .join(format!("halvo-app-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("the scratch folder can be made");
+        dir
+    }
+
+    /// What the web view's environment answers as the folder of its crash reports
+    /// (ICoreWebView2Environment11::FailureReportFolderPath), on the thread that made it.
+    #[cfg(windows)]
+    fn failure_report_folder(
+        environment: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment,
+    ) -> windows_core::Result<PathBuf> {
+        use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment11;
+        use windows_core::{Interface, PWSTR};
+        let environment: ICoreWebView2Environment11 = environment.cast()?;
+        let mut path = PWSTR::null();
+        // SAFETY: on the thread that made the environment; on success the call writes a string
+        // allocated with CoTaskMemAlloc that this caller owns, and take_pwstr frees it once with
+        // CoTaskMemFree; on an error `path` stays null and is not read.
+        unsafe { environment.FailureReportFolderPath(&mut path) }?;
+        Ok(PathBuf::from(webview2_com::take_pwstr(path)))
+    }
+
+    /// Test 2 of win-crash-reports: the one function names the folder that the web view's
+    /// environment answers. Its data folder is the one that `engine_folder` gives the window with
+    /// none given; and an environment made as the app makes it, with the app's options, answers
+    /// EBWebView, Crashpad, reports under its data folder (made on a scratch folder, so that no
+    /// web view of the account's own folder starts).
+    #[cfg(windows)]
+    #[test]
+    fn the_one_function_names_the_folder_of_the_crash_reports_that_the_web_views_environment_answers(
+    ) {
+        let app = tauri::test::mock_builder()
+            .build(context())
+            .expect("the app builds on the mock runtime");
+        let data = engine_folder(app.handle(), None).expect("the app's local data folder");
+        assert_eq!(
+            crash_report_folder(app.config()),
+            Some(reports_under(&data))
+        );
+        let folder = scratch("environment-crash-reports");
+        let environment = system_environment(engine_options(), &folder)
+            .expect("the environment is made")
+            .expect("an environment");
+        assert_eq!(
+            failure_report_folder(&environment).expect("the environment answers its folder"),
+            reports_under(&folder)
+        );
+    }
 }
