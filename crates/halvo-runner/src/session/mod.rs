@@ -14,12 +14,13 @@
 //! does the same for each such site but the one at whose sign-in field the run ended. Each store exports the browser's
 //! cookies of that site's host and of its parent domains and the site's localStorage, and stores them by
 //! `put_session` as the next revision of that site: the newer of the listed revision and the one that the run itself
-//! took for that site, plus 1, else 1; where the store refuses its part 1 with `binding`, as it does at a number where
-//! a revision that a fault cut between its parts left a part, the next number, at most 64 numbers in all (U5.11). The
-//! store refuses a revision more than one above the newest stored one of its origin, so the number after every stored
-//! part of the site is the highest that a run can take. The state is stored as its JSON form in base64 text, cut into
-//! pieces of 1,024 bytes and parts of 48 pieces; a state of more than 64 parts is not stored, the run's log gets one
-//! `stopped` line with the cause `session_size` (once a run), and the run's outcome stays.
+//! took for that site, plus 1, else 1; where the store refuses a part of it with `binding`, whichever part, as it does
+//! at a number where a revision that a fault cut between its parts left a part with other data or another count of
+//! parts, the next number, from part 1 again, at most 64 numbers in all (U5.11). The store refuses a revision more than
+//! one above the newest stored one of its origin, so the number after every stored part of the site is the highest
+//! that a run can take. The state is stored as its JSON form in base64 text, cut into pieces of 1,024 bytes and parts
+//! of 48 pieces; a state of more than 64 parts is not stored, the run's log gets one `stopped` line with the cause
+//! `session_size` (once a run), and the run's outcome stays.
 //!
 //! The state passes in the frames `store` and `store_reply` alone: the runner writes no byte of it in a line, an
 //! error or another frame.
@@ -99,7 +100,7 @@ impl Sessions {
 pub(crate) struct TooLarge;
 
 /// The count of numbers that a run tries at most for one revision of a site: the first, and each next one after the
-/// store refused part 1 at the number before with `binding`.
+/// store refused a part, whichever part, at the number before with `binding`.
 const NUMBERS_MAX: u32 = 64;
 
 /// The parts of `state` as `put_session` stores them: its JSON form in base64 text, cut into pieces of 1,024 bytes,
@@ -267,9 +268,10 @@ impl Runner {
     }
 
     /// Stores `parts` as the next revision of `origin` (`Sessions::next`), part by part, until the store refuses one.
-    /// Where the store refuses part 1 with `binding`, as it does at a number where a revision that a fault cut between
-    /// its parts left a part, the run takes the next number and stores from part 1 again, at most `NUMBERS_MAX`
-    /// numbers in all.
+    /// Where the store refuses a part with `binding`, whichever part, as it does at a number where a revision that a
+    /// fault cut between its parts left a part with other data or another count of parts, the run takes the next
+    /// number and stores from part 1 again, at most `NUMBERS_MAX` numbers in all. A first part equal to the one that
+    /// the cut left, with the same count, is answered as stored, and the refusal comes at a later part.
     fn put_revision(&mut self, origin: &WebOrigin, parts: Vec<SessionData>) -> Result<(), Broken> {
         let Some(of) = u32::try_from(parts.len()).ok().and_then(NonZeroU32::new) else {
             return Ok(());
@@ -288,7 +290,8 @@ impl Runner {
     }
 
     /// Stores `parts` as revision `rev` of `origin`, part by part, until the store refuses one; the run takes `rev` for
-    /// `origin` once the store took part 1. It answers whether the store refused part 1 with `binding`.
+    /// `origin` once the store took part 1. It answers whether the store refused a part, whichever part, with
+    /// `binding`.
     fn put_parts(
         &mut self,
         origin: &WebOrigin,
@@ -309,7 +312,7 @@ impl Runner {
             match self.store(call)? {
                 Ok(_) if part == NonZeroU32::MIN => self.sessions.took(origin, rev),
                 Ok(_) => {}
-                Err(error) => return Ok(part == NonZeroU32::MIN && error.as_str() == "binding"),
+                Err(error) => return Ok(error.as_str() == "binding"),
             }
         }
         Ok(false)

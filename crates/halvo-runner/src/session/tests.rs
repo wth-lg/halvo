@@ -1424,3 +1424,58 @@ fn a_run_numbers_its_revision_past_a_part_that_a_fault_left() {
         "the stray part stays"
     );
 }
+
+/// U5.11, the round of the coordinator's log line 15547 (verifier-109's own case): the store holds a whole revision 1
+/// of site A and parts 1 and 2 of 3 of revision 2, which a fault cut between its parts. The state of the run at its end
+/// has three parts too, the same first part and another second part, so the store answers part 1 at revision 2 as
+/// stored and refuses part 2. The run ends completed, and the load then lists a whole revision newer than 1, which
+/// holds the browser's state of the site at the run's end.
+#[test]
+fn a_run_numbers_its_revision_past_a_cut_revision_whose_first_part_equals_its_own() {
+    let world = World::default();
+    world.store(A, 1, &export_of(&signed_in(), A));
+    let head = "t".repeat(40_000);
+    let tail = "u".repeat(60_000);
+    let state = |mid: &str| {
+        jar(
+            &[cookie("sid", "a-kept", "a.test")],
+            &[(A, &[("a_cache", &head), ("b_mid", mid), ("c_pad", &tail)])],
+        )
+    };
+    let cut = parts_of(&export_of(&state("old"), A)).expect("a state within the limit");
+    assert_eq!(cut.len(), 3, "the cut revision has three parts");
+    for part in [1u32, 2] {
+        world.parts.lock().expect("parts").insert(
+            (A.to_string(), 2, part),
+            (3, cut[part as usize - 1].pieces().to_vec()),
+        );
+    }
+    let mut binding = Run::new(SessionState::default(), &[A]);
+    binding.headed = true;
+    binding.signs = &[Some(Sign::Secret), None];
+    binding.answers = &[DONE, BOUND_YES];
+    binding.person = Some(state("new"));
+    let ran = world.run(&binding, &[click()]);
+    assert_eq!(ran.seen.finish, Some(Outcome::Completed), "{}", ran.end);
+    let new = parts_of(&export_of(&ran.jar, A)).expect("a state within the limit");
+    assert_eq!(
+        (
+            new.len(),
+            new[0].pieces() == cut[0].pieces(),
+            new[1].pieces() == cut[1].pieces()
+        ),
+        (3, true, false),
+        "the premise: three parts, the same first part, another second part"
+    );
+    let listed: Vec<(String, u32)> = world
+        .listed()
+        .iter()
+        .map(|s| (s.origin.as_str().to_string(), s.rev.get()))
+        .collect();
+    assert!(
+        listed.len() == 1 && listed[0].0 == A && listed[0].1 > 1,
+        "a whole revision newer than 1: {listed:?} {:?}",
+        lines(&ran.log, "frame store put_session")
+    );
+    assert_eq!(world.stored(A, listed[0].1), Some(export_of(&ran.jar, A)));
+}
