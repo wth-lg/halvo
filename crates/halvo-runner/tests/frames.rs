@@ -103,7 +103,6 @@ fn arguments_outside_the_form_are_refused_with_usage_and_no_frame() {
         ("no agent", without("--agent")),
         ("no workflow", without("--workflow")),
         ("no mode", without("--mode")),
-        ("no browser", without("--browser")),
         ("a mode outside the list", bad_mode),
         ("a run id in upper case", bad_run),
         ("a key twice", with(&["--mode", "replay"])),

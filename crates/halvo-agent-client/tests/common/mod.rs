@@ -649,7 +649,7 @@ impl Rig {
             agent: AgentId::from_random(id16()),
             workflow: WorkflowId::from_random(id16()),
             mode: Mode::Replay,
-            browser: script.path.clone(),
+            browser: Some(script.path.clone()),
             model: None,
             headed: false,
             utc_offset_s: 0,
