@@ -125,7 +125,7 @@ test("RR-app-ui-30: a failed source gets a row with its steps, a failing drain g
   const unsupported = await page(fixture("capture_status-unsupported"));
   assert.equal(unsupported.text("state"), "Capture is not available on Windows in this version.");
   const notAtLogin = await page({ ...fixture("capture_status-not-running"), login_item_loaded: false });
-  assert.equal(notAtLogin.text("login-line"), "Halvo does not start when you log in. To turn this on, open System Settings, then General, then Login Items.");
+  assert.equal(notAtLogin.text("login-line"), "Halvo should start by itself when you log in. If it does not, open System Settings, then General, then Login Items, and turn Halvo on.");
   for (const loaded of [true, null]) assert.equal((await page({ ...fixture("capture_status-running"), login_item_loaded: loaded })).text("login-line"), "", String(loaded));
 });
 
