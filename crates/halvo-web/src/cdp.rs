@@ -2353,27 +2353,36 @@ const CONTROL_ROLES: [&str; 7] = [
 ];
 
 /// The closed list of the names by which a link or a button asks for a sign-in (r3 U5.14, the
-/// coordinator's ruling of log line 14127 (1)), in lower case, each as words in a row. Left out:
-/// `log on` and `sign on`, which everyday names hold too; `sign up`, `register` and `create
-/// account`, which ask for a new account; `my account`, `continue` and `sign out`; every other
-/// language.
+/// coordinator's ruling of log line 14127 (1)), in lower case, each as words in a row. A name that
+/// also holds one of `PASSWORD_WORDS` or of `SIGNED_IN_WORDS` asks for none. Left out: `log on` and
+/// `sign on`, which everyday names hold too; `sign up`, `register` and `create account`, which ask
+/// for a new account; `my account`, `continue` and `sign out`; every other language.
 pub const SIGN_IN_NAMES: [&str; 4] = ["sign in", "signin", "log in", "login"];
 
 /// The words of A8.2 by which a name is a password's: a name that holds one asks for no sign-in,
 /// whatever else it holds (`Change password`, `Forgot your login password?`).
 const PASSWORD_WORDS: [&str; 4] = ["password", "passwd", "pwd", "passcode"];
 
+/// The words by which a name is one of a page for a person who is signed in (the coordinator's
+/// ruling of log line 16283 (1)): a name that holds one asks for no sign-in, whatever else it holds
+/// (`Login & security`, `Login history`, `Sign-in options`, `Login settings`).
+const SIGNED_IN_WORDS: [&str; 4] = ["security", "history", "options", "settings"];
+
 /// Whether a control of the role `role`, as `map_role` gives it, with the accessible name `name`
 /// asks for a sign-in by itself (r3 U5.14): a link or a button whose name, in lower case and with
 /// each run of signs that are not letters or digits read as one space, holds the words of one of
-/// `SIGN_IN_NAMES` in a row, and holds none of `PASSWORD_WORDS`. Every other role, a field among
-/// them, asks for none: fields are the rule of a credential field's (A8.2).
+/// `SIGN_IN_NAMES` in a row, and holds none of `PASSWORD_WORDS` and none of `SIGNED_IN_WORDS`. Every
+/// other role, a field among them, asks for none: fields are the rule of a credential field's
+/// (A8.2).
 pub fn asks_to_sign_in(role: &str, name: &str) -> bool {
     if !matches!(role, "link" | "button") {
         return false;
     }
     let lower = name.to_lowercase();
     if PASSWORD_WORDS.iter().any(|word| lower.contains(word)) {
+        return false;
+    }
+    if SIGNED_IN_WORDS.iter().any(|word| lower.contains(word)) {
         return false;
     }
     let words: Vec<&str> = lower
@@ -2385,6 +2394,7 @@ pub fn asks_to_sign_in(role: &str, name: &str) -> bool {
         words.windows(wanted.len()).any(|row| row == wanted)
     })
 }
+
 const VALUE_ROLES: [&str; 2] = ["textbox", "combobox"];
 const MAX_FRAME_DEPTH: usize = 8;
 const FRAME_CLICK_TRIES: usize = 3;

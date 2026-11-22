@@ -914,11 +914,12 @@ fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
 /// r3 U5.14: on a page that shows no credential field and no link or button that asks for a sign-in by its name, a web
 /// step that fails fails as before, with `step_failed` and no handback, after the second reading. The pages: a link
 /// that names a password alone; a link that names a login and a password; buttons and a link that ask for a new
-/// account; a link to sign out; the words of a sign-in on a heading and in the name of a field; and a page with none.
-/// Each with a click whose act fails and with a fill of a target marked `credential`.
+/// account; a link to sign out; the words of a sign-in on a heading and in the name of a field; a link of a page for a
+/// person who is signed in (the coordinator's ruling of log line 16283 (1)); and a page with none. Each with a click
+/// whose act fails and with a fill of a target marked `credential`.
 #[test]
 fn a_failed_step_on_a_page_with_no_such_sign_fails_as_before() {
-    let pages: [&[(&'static str, &'static str)]; 6] = [
+    let pages: [&[(&'static str, &'static str)]; 7] = [
         &[("link", "Change password")],
         &[("link", "Forgot your login password?")],
         &[
@@ -928,6 +929,7 @@ fn a_failed_step_on_a_page_with_no_such_sign_fails_as_before() {
         ],
         &[("link", "Sign out")],
         &[("heading", "Log in"), ("textbox", "Login")],
+        &[("link", "Login & security")],
         &[],
     ];
     for page in pages {
