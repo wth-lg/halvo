@@ -400,6 +400,9 @@ pub struct TailReport {
     pub database_left: bool,
     pub files_left: u64,
     pub not_followed: u64,
+    /// On Windows, the tail was refused the lock because the lock file stands
+    /// marked for removal while another handle keeps it open.
+    pub lock_file_kept: bool,
 }
 
 /// What the tail says of the store's root: destroyed by this call, left
@@ -441,7 +444,8 @@ impl TailReport {
     /// answered through its not-opened report for another cause: the root left
     /// with no id, and store.key, the database and one file read as not removed
     /// because the tail never looked. A removal that left exactly those three
-    /// and read no root id reads the same.
+    /// and read no root id reads the same, and so does a tail refused the lock
+    /// that read exactly those three standing and no root id.
     fn not_opened(&self) -> bool {
         self.root == TailRoot::Left(None)
             && !self.key_file_gone
@@ -472,10 +476,16 @@ impl TailReport {
         )
     }
 
-    /// What stays, for standard error: the root files and partial root files
-    /// by their names in the folder roots, every other entry there by kind.
+    /// What stays, for standard error: first, on Windows, a lock file that
+    /// another program keeps open behind its mark; the root files and partial
+    /// root files by their names in the folder roots, every other entry there
+    /// by kind; then the store's files, the count of its other files behind
+    /// its words.
     fn what_stays(&self) -> String {
         let mut stays = Vec::new();
+        if self.lock_file_kept {
+            stays.push("another program holds the store's lock file open".to_owned());
+        }
         if matches!(self.root, TailRoot::Left(_)) {
             stays.push("this call did not destroy the store's root".to_owned());
         }
@@ -507,7 +517,10 @@ impl TailReport {
             stays.push("a database file stays".to_owned());
         }
         if self.files_left > 0 {
-            stays.push(format!("{} other files of the store stay", self.files_left));
+            stays.push(format!(
+                "other files of the store that stay: {}",
+                self.files_left
+            ));
         }
         if self.not_followed > 0 {
             stays.push(format!(
@@ -4696,7 +4709,7 @@ mod tests {
         assert!(out.contains(" root_destroyed=yes root_id=- "), "{out}");
         assert_eq!(
             err,
-            "halvo-capture: the delete is not finished: the folder roots could not be listed; the folder roots no longer stands at its path; store.key stays; a database file stays; 2 other files of the store stay; 2 names were a link or an entry of another kind and were not followed\n"
+            "halvo-capture: the delete is not finished: the folder roots could not be listed; the folder roots no longer stands at its path; store.key stays; a database file stays; other files of the store that stay: 2; 2 names were a link or an entry of another kind and were not followed\n"
         );
         let unnamed = TailReport {
             files_left: 1,
@@ -4708,7 +4721,7 @@ mod tests {
         assert!(out.contains(" root_destroyed=unknown root_id=- "), "{out}");
         assert_eq!(
             err,
-            "halvo-capture: the delete is not finished: 1 other files of the store stay\n"
+            "halvo-capture: the delete is not finished: other files of the store that stay: 1\n"
         );
     }
 
@@ -4795,7 +4808,7 @@ mod tests {
             let (_, _, err, _) = scratch_answer(Path::new("/s"), TailAnswer::NotFinished(other));
             assert!(
                 !err.contains("could not be opened")
-                    && err.contains("1 other files of the store stay"),
+                    && err.contains("other files of the store that stay: 1"),
                 "{what}: {err}"
             );
         }

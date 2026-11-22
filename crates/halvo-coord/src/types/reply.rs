@@ -1195,6 +1195,11 @@ pub enum Refusal {
     /// which says both halves, that the task is stopped and that the agent is still on
     /// (RD-155 (1); term (5) of RD-161 R1).
     SwitchNotSaved(Cause),
+    /// A `stop_sign_in` whose body `drop_sessions` the owner refused with `store`, a fault of the
+    /// store behind which the agent's kept sign-ins may be gone from every read or may all stand,
+    /// with the cause of that refusal: the sentence of `refused.sign_in_not_finished`, which says
+    /// that Halvo could not finish this and names neither (r4 U3.16).
+    SignInNotFinished(Cause),
     /// A Switch on whose state the owner refused with `overlap`, the cause `overlap`, with what
     /// the read that followed gave to say: the sentence of `Overlapping::refused`, which names
     /// the other agent and the shared senders where the read named them, and is the sentence of
@@ -1206,7 +1211,9 @@ impl Refusal {
     /// The cause.
     pub fn cause(&self) -> Cause {
         match self {
-            Refusal::Cause(cause) | Refusal::SwitchNotSaved(cause) => *cause,
+            Refusal::Cause(cause)
+            | Refusal::SwitchNotSaved(cause)
+            | Refusal::SignInNotFinished(cause) => *cause,
             Refusal::Overlap(_) => Cause::Overlap,
         }
     }
@@ -1216,6 +1223,7 @@ impl Refusal {
         match self {
             Refusal::Cause(cause) => ErrorReply { error: *cause }.text(),
             Refusal::SwitchNotSaved(_) => words::text("refused.switch_not_saved", &[]),
+            Refusal::SignInNotFinished(_) => words::text("refused.sign_in_not_finished", &[]),
             Refusal::Overlap(say) => say.refused(),
         }
     }

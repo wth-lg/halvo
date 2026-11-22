@@ -423,7 +423,9 @@ impl RootReading {
 /// the store names, the store directory's own name among them, at which the
 /// delete met a link, an entry of another kind or a directory that was not
 /// the handle's, and the data directory given to the tail when it is a link
-/// in any spelling, which the tail does not follow.
+/// in any spelling, which the tail does not follow. `lock_file_kept` reads
+/// true only on Windows, for a tail refused the lock because the lock file
+/// stands marked for removal while another handle keeps it open.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteReport {
     pub keyed_segments: Option<u64>,
@@ -434,6 +436,7 @@ pub struct DeleteReport {
     pub database_left: bool,
     pub files_left: u64,
     pub not_followed: u64,
+    pub lock_file_kept: bool,
 }
 
 pub(in crate::store) use crate::custody::file_root::RootsLeft;

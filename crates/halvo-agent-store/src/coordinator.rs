@@ -117,8 +117,8 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 ///   run, as `refused_run` finds that run, else null: null until the run's `agent_run` record stands, then the cause
 ///   of the run's `stopped` row with no step, else of its `stopped` row with a step, each whose cause is not in
 ///   `GOES_ON_AFTER` (`not_selected` and `amount_unread`, steps after which the run goes on, and `session_size`, a
-///   state over the limit that the run's end does not store), else null; a name of the closed list of
-///   causes alone, never a text of a page, of a site or of an error. A `stopped` row
+///   sign-in over the limit that the run does not keep, at a handback's opening or before its end), else null; a
+///   name of the closed list of causes alone, never a text of a page, of a site or of an error. A `stopped` row
 ///   whose stored cause is no name of the list reads with the cause null, so it gives `last_cause` null and does not
 ///   refuse the roster; every other `agent_log` row that the typed reader refuses refuses it with `store`. Each key
 ///   reads the agent's own rows alone and holds no slot's value. Named limits of the contract: a newer start of the
@@ -138,16 +138,20 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 /// - `drop_sessions`: `no_workflow`; `binding` unless the workflow's agent is the body's; `state` while a run of the
 ///   agent is open: a start row of the agent (`start_accepted`) stands in the store's read as the runner bodies read
 ///   one, from 93 days back to two days ahead of the request's day, and no `agent_run` record of its run is stored;
-///   after `end_run` of that run the body is taken; `day` while a row of an origin that it would drop stands with a
-///   day after the request's day, as `drop_session` refuses it, and then it stores no row of any origin. Else, in one
-///   commit, it stores the drop row of `drop_session`, by that body's one writer, for each origin of the agent, bound
-///   or no longer bound, whose newest whole revision, as `load` lists it, is not in the drop form, and answers the
-///   count of rows stored, 0 at a repeat. So `list_agents`
-///   reads `session` `no`, and no row of another agent changes. Halvo stops using the sign-ins; what it kept stays
-///   under the store's key until its own day, at most 35 days. An origin whose stored revision is incomplete gets no
-///   row: nothing of it is in use. Named limits: a run that never gets its record keeps the body refused until its
-///   `end_run`, or until its start row leaves the store's read; only after a clock that was set back, and for at
-///   most two days, the body is refused with `day`.
+///   after `end_run` of that run the body is taken. Else it makes the host's removal call, `Host::remove_under`, for
+///   the kind `agent_session` under the body's workflow with no record: in one write the store removes every row of
+///   that kind that names the workflow, whatever its agent and its day, the rows that no read hands out any more
+///   among them, each under the store's secure delete with the truncating checkpoint behind the commit (W-C25.5,
+///   r3 U9.12a). It stores no row and answers `{"stored":0}`, also at a repeat. So `load` lists no session of the
+///   agent, `list_agents` reads `session` `no`, `put_session` takes revision 1 of a site again, and no row of
+///   another kind or of another workflow changes. Where the call refuses, the body answers its refusal: `store`
+///   where the store refuses the call or faults. A refusal and a fault before the commit leave every row. After a
+///   fault behind the commit (the checkpoint or the host's report) `store` comes with the rows gone from every read,
+///   and their bytes may lie in the store's files, under the store's key, until the next checkpointed write or the
+///   next open; a repeat of the body then removes nothing and checkpoints again. `unsupported` comes from a host
+///   that does not hand the call on, which removes nothing. Named limits: a run that never gets its record keeps
+///   the body refused until its `end_run`, or until its start row leaves the store's read; a copy or a backup of the
+///   store's files from before the body keeps what it held.
 /// - `list_replies`: `no_workflow`; `binding`. It stores nothing and changes no state. For each message after `after`
 ///   that has an `agent_reply` row of the agent, in ascending order of message id by its bytes, it gives the agent's
 ///   newest row of that message, the last by seq and then by the order stored, as the runner's `load_replies` reads
@@ -187,18 +191,8 @@ fn drop_sessions(
     if open_run_of(&*host, now, &b.agent)? {
         return Err(ErrorName::State);
     }
-    let own: Vec<AgentSession> = rows::sessions(host.rows())?
-        .into_iter()
-        .filter(|s| s.agent == b.agent)
-        .collect();
-    let origins: Vec<_> = runner::newest_sessions(&own)
-        .into_iter()
-        .map(|listed| listed.origin)
-        .collect();
-    let count = runner::drop_rows(host, now, &b.workflow, &b.agent, &origins)?;
-    Ok(CoordinatorReply::Stored(Stored {
-        stored: u32::try_from(count).unwrap_or(u32::MAX),
-    }))
+    host.remove_under(rows::AGENT_SESSION, &b.workflow, Vec::new())?;
+    Ok(CoordinatorReply::Stored(Stored { stored: 0 }))
 }
 
 /// Whether a run of the agent is open: a start row of the agent (`start_accepted`) stands in the store's read as
@@ -340,7 +334,8 @@ fn newest_start<'a>(starts: &'a [AgentLog], agent: &AgentId) -> Option<&'a Agent
 
 /// The causes of a step's `stopped` row after which the runner goes on with its run: `not_selected`, the row of a
 /// send whose message the reply rule no longer selects; `session_size`, the row with no step that the runner writes
-/// at its end, before its own end row, for a state over the limit that it does not store (r3 U5.2); and
+/// once a run for a sign-in over the limit that it does not keep, at the opening of a handback or at its end before
+/// its own end row (r3 U5.2, U5.2f); and
 /// `amount_unread`, the row of a committed payment or purchase whose page after the reply names no amount (r3 U4.1w-2).
 /// `last_cause` of `list_agents` never reads such a row as the row of a run's end. The list is the runner's knowledge
 /// held by name: a second such cause of the runner reads as the cause of an end until it stands here.
@@ -648,6 +643,7 @@ fn start_run(host: &mut dyn Host, now: Now, b: &StartRun) -> Result<CoordinatorR
             ms: None,
             tokens_in: None,
             tokens_out: None,
+            page_amount: None,
         };
         day::commit(host, now, vec![record(rows::AGENT_LOG, row.to_json())?])?;
     }

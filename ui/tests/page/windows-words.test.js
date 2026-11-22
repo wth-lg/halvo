@@ -22,3 +22,12 @@ test("app-4a: on Windows the page says that Halvo is not recording with Start, t
   const mac = await page(fixture("capture_status-not-running"));
   assert.equal(mac.text("state"), "Capture service not running");
 });
+
+test("app-4b: where the app's one renewal still read the screen spent, the page says to quit Halvo and open it again; a renewed screen says nothing of it", async () => {
+  const running = fixture("capture_status-running-windows");
+  const stopped = running.sources.map((source) => (source.name === "screen" ? { ...source, state: "stopped" } : source));
+  const spent = await page({ ...running, capture: "partial", sources: stopped, screen_not_renewed: true });
+  assert.equal(spent.text("screen-line"), "Halvo is not recording the screen. Quit Halvo and open it again to record it.");
+  const renewed = await page(running);
+  assert.equal(renewed.text("screen-line"), "");
+});

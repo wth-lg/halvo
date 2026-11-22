@@ -8,7 +8,10 @@ use halvo_control::client::{ClientError, DeleteOutcome};
 use halvo_control::model::{CaptureState, StorageCap, StoreId};
 use halvo_control::onboarding::{OnboardingState, Permission, RequestOutcome};
 use halvo_control::paths::DataDir;
-use halvo_control::proto::{reaches_the_end, CaptureChange, DaemonStatus, ErrorCode, StateFile};
+use halvo_control::proto::{
+    reaches_the_end, Capture as CaptureValue, CaptureChange, DaemonStatus, ErrorCode, OnOff,
+    Platform, SourceName, SourceState, StateFile, SwitchName,
+};
 use halvo_control::service::DATA_DIR_ARG;
 use tauri::ipc::Invoke;
 use tauri::{AppHandle, Manager, Runtime, State};
@@ -53,6 +56,9 @@ pub struct AppState {
     /// The app's hold on the agents' runs around a delete of everything.
     pub runs: Arc<RunsHold>,
     offline_running: Arc<AtomicBool>,
+    /// The folder of the crash reports of the web view of Halvo's own window, which the web
+    /// view's environment names on Windows; set once after the window's build, never on a Mac.
+    pub crash_reports: Arc<OnceLock<PathBuf>>,
     /// What Remove Halvo takes from main, set once the app has started the supervisor of its
     /// child, through the cell that main holds from before the state moves into the app; never
     /// set in a test app, whose remove_halvo so runs no step.
@@ -98,6 +104,7 @@ impl AppState {
             unfinished_in_a_row: AtomicU32::new(0),
             runs: Arc::default(),
             offline_running: Arc::default(),
+            crash_reports: Arc::default(),
             #[cfg(target_os = "macos")]
             removal: Arc::default(),
         }
@@ -190,7 +197,9 @@ const START_STATUS_STEP: Duration = Duration::from_millis(250);
 /// What a person's press of Pause or Resume sends, from the page's command and from the tray's
 /// toggle: the request of `change` in the place `made`, and in place of a Resume a Start where
 /// the hold reads that no further child starts, which waits for its child as
-/// `start_and_resume` says.
+/// `start_and_resume` says. A Resume that reached its end with a screen that `screen_spent`
+/// reads is followed by one renewal, `renew_the_screen`, whose Resume then answers the press. A
+/// Pause press counts itself in the hold, so that no Resume behind a wait undoes it.
 /// Answers its answer with the number of the call that it answers.
 pub fn press(
     control: &dyn Control,
@@ -199,14 +208,112 @@ pub fn press(
     change: CaptureChange,
     within: Duration,
 ) -> (Result<DaemonStatus, ClientError>, u64) {
+    let pauses = views.hold().pauses();
     if change == CaptureChange::Resume && views.hold().ask_start() {
         drop(made);
-        return start_and_resume(control, views.hold(), within);
+        return start_and_resume(control, views.hold(), within, pauses);
     }
     let call = made.number();
     let answer = match change {
-        CaptureChange::Pause => control.pause(made),
+        CaptureChange::Pause => {
+            let _turn = views.hold().pause_pressed();
+            control.pause(made)
+        }
         CaptureChange::Resume => control.resume(made),
+    };
+    if change == CaptureChange::Resume {
+        if let Ok(status) = &answer {
+            if holds(change, status) {
+                if let Some(renewed) = renew_where_spent(control, views.hold(), status, pauses) {
+                    return renewed;
+                }
+            }
+        }
+    }
+    (answer, call)
+}
+
+/// How long a renewal of the screen waits for the end of the app's child and for its next child
+/// to answer a Status: the end within STOP_WAIT_MS and the 2 s in which the app ends a child that
+/// it saw ending, then the wait of a press on Start.
+pub const RENEWAL_WAIT: Duration = Duration::from_millis(
+    halvo_control::STOP_WAIT_MS + 2_000 + START_ANSWER_WAIT.as_secs() * 1_000,
+);
+
+/// Whether `status` reads the screen of a Windows run spent: the run makes one screen session
+/// (form B of contracts.md C14.3), so behind a pause, or a delete through the service, its
+/// screen source reads stopped, or failed with the first session's error, while the switch
+/// screen_activity reads on and capture runs. A Mac's stopped or failed screen is a permission
+/// or a fault, which no new child cures, and reads no.
+pub fn screen_spent(status: &DaemonStatus) -> bool {
+    let f = status.fields();
+    f.platform == Platform::Windows
+        && matches!(f.capture, CaptureValue::Running | CaptureValue::Partial)
+        && f.switches
+            .iter()
+            .any(|switch| switch.name == SwitchName::ScreenActivity && switch.value == OnOff::On)
+        && f.sources.iter().any(|source| {
+            source.name == SourceName::Screen
+                && matches!(
+                    source.state,
+                    SourceState::Stopped { .. } | SourceState::Failed { .. }
+                )
+        })
+}
+
+/// A Status of `status` that reads the screen spent gets ONE renewal, `renew_the_screen`, for
+/// the press or the delete whose start read `pauses` Pause presses, and its answer; one that does
+/// not clears what the last renewal said, and gets none.
+fn renew_where_spent(
+    control: &dyn Control,
+    hold: &Hold,
+    status: &DaemonStatus,
+    pauses: u64,
+) -> Option<(Result<DaemonStatus, ClientError>, u64)> {
+    if !screen_spent(status) {
+        hold.screen_renewed(true);
+        return None;
+    }
+    renew_the_screen(control, hold, RENEWAL_WAIT, pauses)
+}
+
+/// The one renewal of a spent screen: it asks the supervisor to end the app's child with the mark
+/// of a wanted start (`Hold::ask_renewal`), waits until `within` for a later child that answers
+/// a plain Status, and sends that child one Resume by `resume_unless_paused_since`, whose answer
+/// it answers with the number of its call; it tells the hold whether that answer still reads the
+/// screen spent. With no child of the app it runs nothing; with no later child in time it sends
+/// no Resume, and the hold reads the screen not renewed.
+pub fn renew_the_screen(
+    control: &dyn Control,
+    hold: &Hold,
+    within: Duration,
+    pauses: u64,
+) -> Option<(Result<DaemonStatus, ClientError>, u64)> {
+    let life = hold.ask_renewal()?;
+    if !a_later_life_answers(control, hold, life, Instant::now() + within) {
+        hold.screen_renewed(false);
+        return None;
+    }
+    let (answer, call) = resume_unless_paused_since(control, hold, pauses);
+    hold.screen_renewed(!answer.as_ref().is_ok_and(screen_spent));
+    Some((answer, call))
+}
+
+/// The one Resume that a press sends behind a wait for a child, the Start's after the third end
+/// with 5 and a renewal's of a spent screen: it goes out only where no Pause press came after the
+/// press or the delete that it serves, whose start read `pauses` Pause presses, and under the
+/// turn of the hold, so that a Pause in the same moment goes out after it; else a plain Status
+/// goes out in its place. Answers the answer with the number of its call.
+fn resume_unless_paused_since(
+    control: &dyn Control,
+    hold: &Hold,
+    pauses: u64,
+) -> (Result<DaemonStatus, ClientError>, u64) {
+    let made = control.places().make();
+    let call = made.number();
+    let answer = match hold.no_pause_since(pauses) {
+        Some(_turn) => control.resume(made),
+        None => control.status(made, false),
     };
     (answer, call)
 }
@@ -214,19 +321,20 @@ pub fn press(
 /// The press on Start after the third end with 5 in a row (contracts.md C14 item 4), once it
 /// has asked the supervisor for exactly one child: asks for a plain Status until one is answered
 /// or `within` has passed, the last Status keeping its own deadline of 2 s, and then sends the
-/// Resume; with no answer it answers the deadline of `within`, sends no Resume, and the hold
-/// stands. Where that child ends before a Status is answered, the asking goes on, and the
-/// Resume goes to the next child of the backoff.
+/// Resume by `resume_unless_paused_since`, so that a Pause pressed after the press whose start
+/// read `pauses` stands; with no answer it answers the deadline of `within`, sends no Resume,
+/// and the hold stands. Where that child ends before a Status is answered, the asking goes on,
+/// and the Resume goes to the next child of the backoff.
 fn start_and_resume(
     control: &dyn Control,
     hold: &Hold,
     within: Duration,
+    pauses: u64,
 ) -> (Result<DaemonStatus, ClientError>, u64) {
     let until = Instant::now() + within;
     let answered = hold.wait_for_the_asked_child(until) && status_until(control, until).is_some();
-    let made = control.places().make();
-    let call = made.number();
     if !answered {
+        let call = control.places().make().number();
         return (
             Err(ClientError::Deadline {
                 seconds: within.as_secs(),
@@ -234,7 +342,7 @@ fn start_and_resume(
             call,
         );
     }
-    (control.resume(made), call)
+    resume_unless_paused_since(control, hold, pauses)
 }
 
 fn status_until(control: &dyn Control, until: Instant) -> Option<DaemonStatus> {
@@ -564,7 +672,9 @@ impl Drop for HeldForADelete {
 }
 
 /// The flow of a person's press at the service's door: `Before::tell`, then `ask_to_delete`;
-/// where the flow ended in a deadline, the guard tells the hold so before it drops.
+/// where the flow ended in a deadline, the guard tells the hold so before it drops; behind a
+/// deleted answer, where the view of the moment reads a Windows run, one plain Status, and where
+/// it reads the screen spent ONE renewal of the screen, as at a Resume.
 pub fn delete_everything(
     before: &Before,
     control: &dyn Control,
@@ -572,15 +682,28 @@ pub fn delete_everything(
     armed: Option<StoreId>,
     waits: DeleteWaits,
 ) -> DeleteAsked {
-    let held = before.tell();
-    let asked = ask_to_delete(control, views, armed, waits);
+    let pauses = views.hold().pauses();
+    let asked = {
+        let held = before.tell();
+        let asked = ask_to_delete(control, views, armed, waits);
+        if matches!(
+            &asked.end,
+            DeleteEnd::Answered(Err(ClientError::Deadline { .. }))
+                | DeleteEnd::NoLifeAnswered(ClientError::Deadline { .. })
+                | DeleteEnd::FirstNotKnown(ClientError::Deadline { .. })
+        ) {
+            held.answer_passed_its_deadline();
+        }
+        asked
+    };
     if matches!(
-        &asked.end,
-        DeleteEnd::Answered(Err(ClientError::Deadline { .. }))
-            | DeleteEnd::NoLifeAnswered(ClientError::Deadline { .. })
-            | DeleteEnd::FirstNotKnown(ClientError::Deadline { .. })
-    ) {
-        held.answer_passed_its_deadline();
+        asked.end,
+        DeleteEnd::Answered(Ok(DeleteOutcome::Deleted(_)))
+    ) && views.view().platform() == Platform::Windows
+    {
+        if let Ok(status) = control.status(control.places().make(), false) {
+            let _ = renew_where_spent(control, views.hold(), &status, pauses);
+        }
     }
     asked
 }
@@ -635,6 +758,11 @@ pub async fn delete_all<R: Runtime>(
     };
     if let Ok(answer) = &mut view {
         answer.count_at_the_services_door(&state.unfinished_in_a_row, state.data_dir.as_ref());
+        remove_the_crash_reports(
+            answer,
+            state.crash_reports.get().map(PathBuf::as_path),
+            &|file| std::fs::remove_file(file),
+        );
     }
     match &view {
         Ok(
@@ -769,8 +897,7 @@ impl Drop for OfflineRuns {
 }
 
 /// The fourteenth command: the offline delete of contracts.md C10.5, which takes no id. One runs
-/// at a time: a second press while one runs answers busy and runs nothing. On Windows it runs
-/// nothing and answers unsupported_op.
+/// at a time: a second press while one runs answers busy and runs nothing.
 #[tauri::command]
 pub async fn delete_offline<R: Runtime>(
     app: AppHandle<R>,
@@ -780,9 +907,6 @@ pub async fn delete_offline<R: Runtime>(
         error,
         outcome_not_known: false,
     };
-    if cfg!(windows) {
-        return Err(refused(ActionError::UnsupportedOp));
-    }
     let Some(running) = OfflineRuns::take(&state.offline_running) else {
         return Err(refused(ActionError::Busy));
     };
@@ -803,6 +927,11 @@ pub async fn delete_offline<R: Runtime>(
     }));
     if let Ok(view) = &mut answer {
         view.count_unfinished(&state.unfinished_in_a_row);
+        remove_the_crash_reports(
+            view,
+            state.crash_reports.get().map(PathBuf::as_path),
+            &|file| std::fs::remove_file(file),
+        );
     }
     if answer != Ok(DeleteView::DeleteRefused) {
         let next = state.control.places().next_number();
@@ -1063,4 +1192,122 @@ pub async fn open_permission_pane(
     off_the_main_thread(move || open(permission))
         .await?
         .map_err(|_| ActionError::PaneNotOpened)
+}
+
+/// The end of a whole Delete everything beside Halvo's data directory: where `view` finished and
+/// `folder`, the folder of the crash reports of the web view of Halvo's own window, is known,
+/// every file under it goes by `remove`; where one stays, the answer names the folder, and the
+/// delete of Halvo's data stays whole by it.
+pub fn remove_the_crash_reports(
+    view: &mut DeleteView,
+    folder: Option<&Path>,
+    remove: &dyn Fn(&Path) -> std::io::Result<()>,
+) {
+    let Some(folder) = folder else {
+        return;
+    };
+    if !view.finished() {
+        return;
+    }
+    if let DeleteView::Deleted {
+        crash_reports_left, ..
+    } = view
+    {
+        if !every_file_goes(folder, remove) {
+            *crash_reports_left = Some(halvo_control::paths::one_line(&folder.to_string_lossy()));
+        }
+    }
+}
+
+/// Removes every file under `dir` by `remove`, folders kept: whether none stayed. A folder that
+/// does not stand holds none.
+fn every_file_goes(dir: &Path, remove: &dyn Fn(&Path) -> std::io::Result<()>) -> bool {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) => return error.kind() == std::io::ErrorKind::NotFound,
+    };
+    let mut none_stayed = true;
+    for entry in entries {
+        let Ok(entry) = entry else {
+            none_stayed = false;
+            continue;
+        };
+        let path = entry.path();
+        let gone = match entry.file_type() {
+            Ok(kind) if kind.is_dir() => every_file_goes(&path, remove),
+            Ok(_) => remove(&path).is_ok(),
+            Err(_) => false,
+        };
+        none_stayed &= gone;
+    }
+    none_stayed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn deleted(code: i32, files_left: u64) -> DeleteView {
+        let out = format!(
+            "data_dir=/scratch/halvo-data\ndeleted segments_shredded=2 keys_destroyed=3 root_destroyed=yes root_id=- files_left={files_left} database_left=no not_followed=0 entries_removed=4 entries_left=0 unknown_entries=0 intent=written\n"
+        );
+        offline_view(&OfflineEnd::Exited { code, out }, None).expect("a deleted answer")
+    }
+
+    fn left(view: &DeleteView) -> Option<String> {
+        match view {
+            DeleteView::Deleted {
+                crash_reports_left, ..
+            } => crash_reports_left.clone(),
+            other => panic!("not a deleted answer: {other:?}"),
+        }
+    }
+
+    /// Test 7 of app-4b: at the end of a whole delete the crash reports of the window go; one that
+    /// a stand-in removal refuses stays, and the answer names its folder, the delete still whole;
+    /// a delete that did not finish removes none.
+    #[test]
+    fn a_crash_report_that_stays_at_a_whole_deletes_end_is_named_by_its_folder_and_the_delete_stays_whole(
+    ) {
+        let folder = std::env::current_exe()
+            .expect("the test binary has a path")
+            .ancestors()
+            .nth(3)
+            .expect("the test binary sits under target/<profile>/deps")
+            .join("tmp")
+            .join(format!("halvo-app-crash-reports-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).expect("the folder of the reports");
+        let shown = halvo_control::paths::one_line(&folder.to_string_lossy());
+        let report = |name: &str| {
+            let file = folder.join(name);
+            std::fs::write(&file, b"a dump of the window").expect("a report");
+            file
+        };
+        let (a, b) = (report("a.dmp"), report("b.dmp"));
+        let refuses_b = |file: &Path| {
+            if file == b.as_path() {
+                Err(std::io::Error::other("held by the web view"))
+            } else {
+                std::fs::remove_file(file)
+            }
+        };
+        let mut view = deleted(0, 0);
+        remove_the_crash_reports(&mut view, Some(&folder), &refuses_b);
+        assert_eq!(left(&view).as_deref(), Some(shown.as_str()));
+        assert!(view.finished(), "the delete of Halvo's data stays whole");
+        assert!(!a.exists() && b.exists());
+
+        let mut view = deleted(0, 0);
+        remove_the_crash_reports(&mut view, Some(&folder), &|file| std::fs::remove_file(file));
+        assert_eq!(left(&view), None);
+        assert!(!b.exists());
+
+        let c = report("c.dmp");
+        let mut unfinished = deleted(1, 1);
+        remove_the_crash_reports(&mut unfinished, Some(&folder), &|file| {
+            std::fs::remove_file(file)
+        });
+        assert_eq!(left(&unfinished), None);
+        assert!(c.exists(), "a delete that did not finish removes no report");
+    }
 }

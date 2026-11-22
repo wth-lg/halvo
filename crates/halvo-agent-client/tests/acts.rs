@@ -917,7 +917,7 @@ fn load_store() -> String {
 /// bytes 0x53.
 fn end_row(step: Option<u32>) -> String {
     let step = step.map_or_else(|| "null".to_owned(), |s| s.to_string());
-    let line = r#"{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","seq":1,"day":20768,"at":1794339000000000001,"event":"stopped","step":STEP,"cause":"declined","model":null,"ms":null,"tokens_in":null,"tokens_out":null}"#
+    let line = r#"{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","seq":1,"day":20768,"at":1794339000000000001,"event":"stopped","step":STEP,"cause":"declined","model":null,"ms":null,"tokens_in":null,"tokens_out":null,"page_amount":null}"#
         .replace("STEP", &step);
     common::ask_store(
         &common::id(0x53),
