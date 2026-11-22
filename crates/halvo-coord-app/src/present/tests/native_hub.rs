@@ -11,10 +11,11 @@ use halvo_coord::items::{ConfirmAnswer, NativeCard};
 use halvo_coord::mem::Call;
 use halvo_coord::types::{
     Action, AskedEffect, BoundField, BoundFrom, Choice, Class, ConfirmAsk, Digest, EffectAnswer,
-    EffectId, ItemId, Limits, Name, RunEvent, RunId,
+    EffectId, ItemId, Limits, Name, RunEvent, RunId, YesNo,
 };
 use halvo_coord::words;
 use serde_json::json;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -57,6 +58,20 @@ impl StandIn {
     }
 }
 
+/// A stand-in of the system's dialog whose show never reports itself on screen, as when the
+/// call onto the main thread fails, and answers `allow`; it counts its shows.
+#[derive(Default)]
+struct Unseen {
+    shows: AtomicUsize,
+}
+
+impl Dialog for Unseen {
+    fn show(&self, _: &Card, _: Duration, _: &dyn Fn()) -> ConfirmAnswer {
+        self.shows.fetch_add(1, Ordering::SeqCst);
+        ConfirmAnswer::Allow
+    }
+}
+
 fn until(done: impl Fn() -> bool) -> bool {
     let end = Instant::now() + WAIT;
     while Instant::now() < end {
@@ -70,7 +85,7 @@ fn until(done: impl Fn() -> bool) -> bool {
 
 /// The hub of `dialog_hub` over the memory ports of `agents` manual agents, `max_live_runs` of
 /// them at once, with the product's other limits, and `dialog`; ticked once.
-fn hub_of(agents: usize, dialog: &Arc<StandIn>) -> Arc<Hub<Shared>> {
+fn hub_of<D: Dialog>(agents: usize, dialog: &Arc<D>) -> Arc<Hub<Shared>> {
     let limits = Limits {
         max_live_runs: agents as u32,
         ..Limits::PRODUCT
@@ -251,5 +266,41 @@ fn a_press_in_the_dialog_of_one_payment_answers_that_payment_alone() {
     assert!(
         items(&hub).contains(&second),
         "the second payment is still held"
+    );
+}
+
+#[test]
+fn a_dialog_that_is_never_on_screen_answers_nothing_and_the_payment_lapses_rejected() {
+    let dialog = Arc::new(Unseen::default());
+    let hub = hub_of(1, &dialog);
+    let (run, item) = payment(&hub, 0, FIRST);
+    let from = mark(&hub);
+    assert_eq!(present(&hub, &item), Reply::Ok);
+    assert!(
+        until(|| dialog.shows.load(Ordering::SeqCst) > 0),
+        "the dialog was called"
+    );
+    clock(&hub, Limits::PRODUCT.arm_ms);
+    assert!(
+        until(|| Arc::strong_count(&dialog) == 2),
+        "the presenter's thread ended"
+    );
+    assert_eq!(
+        answers(&hub, from, &run),
+        Vec::<Vec<EffectAnswer>>::new(),
+        "no allow_once and no other answer reached the run"
+    );
+    let held = hub.coordinator().snapshot().items;
+    assert!(
+        held.iter()
+            .any(|i| i.item() == &item && i.armed() == YesNo::No),
+        "the payment is held and not armed: {held:?}"
+    );
+    clock(&hub, Limits::PRODUCT.wait_limit_s * 1000);
+    assert!(!items(&hub).contains(&item), "it lapsed at its wait limit");
+    assert_eq!(
+        answers(&hub, from, &run),
+        [[EffectAnswer::RejectOnce]],
+        "every effect of the run is answered reject_once"
     );
 }
