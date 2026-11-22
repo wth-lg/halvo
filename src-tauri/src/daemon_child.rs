@@ -2187,6 +2187,111 @@ mod tests {
     }
 
     #[test]
+    fn a_timed_out_status_during_the_own_delete_changes_no_view_and_ends_no_child() {
+        use crate::commands::capture::ask_to_delete;
+        use crate::commands::control::Watching;
+        use crate::view_state::Service;
+        let deadline = || Err(ClientError::Deadline { seconds: 2 });
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let spawner = StandInSpawner {
+            children: [(1000, false), (1001, true)]
+                .into_iter()
+                .map(|(pid, ends_at_close)| StandInChild {
+                    ends_at_close,
+                    ..StandInChild::new(pid, &clock, &record)
+                })
+                .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let (give, deletes) = std::sync::mpsc::channel();
+        let control = Arc::new(Watching::new(
+            SlowDelete {
+                places: Arc::default(),
+                record: Arc::clone(&record),
+                statuses: Mutex::new(
+                    vec![
+                        Ok(status_of(1000, 0, false)),
+                        deadline(),
+                        deadline(),
+                        deadline(),
+                    ]
+                    .into(),
+                ),
+                deletes: Mutex::new(deletes),
+            },
+            Arc::clone(&pid),
+        ));
+        let tray = crate::tray::installed_for_tests();
+        let lines = || record.lock().unwrap().clone();
+        until("the first child starts", || pid.get() == Some(1000));
+        pass(control.as_ref(), &views, Some(&tray));
+        let before = serde_json::to_value(views.view()).unwrap();
+        assert_eq!(before["service"], serde_json::json!("running"));
+        let deleting = {
+            let (control, views) = (Arc::clone(&control), Arc::clone(&views));
+            std::thread::spawn(move || ask_to_delete(control.as_ref(), &views, None))
+        };
+        until("the delete is in flight", || {
+            lines().contains(&"delete begins".to_owned())
+        });
+        pass(control.as_ref(), &views, Some(&tray));
+        pass(control.as_ref(), &views, Some(&tray));
+        looked_again(&clock);
+        assert_eq!(
+            serde_json::to_value(views.view()).unwrap(),
+            before,
+            "the view of before the press stands while the app's own delete is in flight"
+        );
+        assert_eq!(
+            lines(),
+            ["start 1000", "status", "delete begins", "status", "status"],
+            "no lifeline is closed, no child is killed and none is started"
+        );
+        give.send(Ok(DeleteOutcome::Deleted(halvo_control::proto::Deleted {
+            report: halvo_control::testing::sample_delete_report(),
+            store: None,
+        })))
+        .unwrap();
+        assert!(deleting.join().unwrap().answer.is_ok());
+        pass(control.as_ref(), &views, Some(&tray));
+        until("the child seen giving no reply is replaced", || {
+            lines().contains(&"start 1001".to_owned())
+        });
+        let seen = lines();
+        drop(supervisor.close());
+        assert_eq!(
+            views.view().service(),
+            Service::HeldUnreachable,
+            "with no delete in flight a passed deadline reads as before"
+        );
+        assert_eq!(
+            seen,
+            [
+                "start 1000",
+                "status",
+                "delete begins",
+                "status",
+                "status",
+                "delete answers",
+                "status",
+                "closed descriptor",
+                "kill after 20 s",
+                "start 1001",
+            ],
+            "with no delete in flight the same Status makes part 2's sight"
+        );
+    }
+
+    #[test]
     fn the_child_is_started_again_by_its_exit_status() {
         let s = Duration::from_secs;
         let status = Ending::Status;

@@ -2,7 +2,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use halvo_control::client::ClientError;
+use halvo_control::client::{ClientError, DeleteOutcome};
 use halvo_control::model::{CaptureState, StorageCap, StoreId};
 use halvo_control::onboarding::{OnboardingState, Permission, RequestOutcome};
 use halvo_control::paths::DataDir;
@@ -250,6 +250,31 @@ impl Drop for NotLeftInFlight<'_> {
     }
 }
 
+/// What the flow of a person's delete ended with: the answer that the page reads, the number of
+/// the call of the delete request that gave it, and the next number of the line at that answer.
+#[derive(Debug)]
+pub struct DeleteAsked {
+    pub answer: Result<DeleteOutcome, ClientError>,
+    pub call: u64,
+    pub next_number_at_answer: u64,
+}
+
+/// The flow of a person's press of Delete everything, off the main thread: the delete request
+/// armed with `armed`, marked in `views` as the app's own delete while it is in flight.
+pub fn ask_to_delete(control: &dyn Control, views: &Views, armed: Option<StoreId>) -> DeleteAsked {
+    let made = control.places().make();
+    let call = made.number();
+    let answer = {
+        let _in_flight = views.own_delete();
+        control.delete_all(made, armed)
+    };
+    DeleteAsked {
+        answer,
+        call,
+        next_number_at_answer: control.places().next_number(),
+    }
+}
+
 #[tauri::command]
 pub async fn delete_all(
     state: State<'_, AppState>,
@@ -264,18 +289,17 @@ pub async fn delete_all(
     };
     state.keep_last_delete(LastDelete::InFlight);
     let _in_flight = NotLeftInFlight(state.inner());
-    let made = state.control.places().make();
-    let call = made.number();
     let control = Arc::clone(&state.control);
-    let ended = off_the_main_thread(move || {
-        let answer = control.delete_all(made, armed);
-        (answer, control.places().next_number())
-    })
-    .await;
-    let Ok((answer, next_number_at_answer)) = ended else {
-        state
-            .views
-            .take_delete(call, state.control.places().next_number());
+    let views = Arc::clone(&state.views);
+    let ended = off_the_main_thread(move || ask_to_delete(control.as_ref(), &views, armed)).await;
+    let Ok(DeleteAsked {
+        answer,
+        call,
+        next_number_at_answer,
+    }) = ended
+    else {
+        let next = state.control.places().next_number();
+        state.views.take_delete(next, next);
         draw_off_the_main_thread(&state.views).await;
         return Err(OutcomeError {
             error: ActionError::Internal,

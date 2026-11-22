@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::Duration;
 
@@ -23,6 +24,9 @@ struct Latest {
 pub enum PollAnswer {
     Stands,
     DroppedAsOlderThanTheLastMutation,
+    /// A Status that passed its deadline while the app's own delete is in flight: nothing new,
+    /// the view of before stands.
+    NothingNewWhileTheOwnDeleteRuns,
 }
 
 /// What a draw of the app's view does: the tray's refresh and every module's `on_status`.
@@ -57,6 +61,18 @@ pub struct Views {
     drawer: OnceLock<Drawer>,
     hold: Arc<Hold>,
     pause_missed: Mutex<bool>,
+    own_deletes: AtomicUsize,
+}
+
+/// The mark of the app's own delete request in flight, from `Views::own_delete` until it is
+/// dropped.
+#[derive(Debug)]
+pub struct OwnDelete<'a>(&'a Views);
+
+impl Drop for OwnDelete<'_> {
+    fn drop(&mut self) {
+        self.0.own_deletes.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 impl Default for Views {
@@ -74,6 +90,7 @@ impl Default for Views {
             drawer: OnceLock::new(),
             hold: Arc::default(),
             pause_missed: Mutex::new(false),
+            own_deletes: AtomicUsize::new(0),
         }
     }
 }
@@ -115,10 +132,25 @@ impl Views {
         self.latest().status.clone()
     }
 
+    /// Marks the app's own delete request as in flight until the mark is dropped.
+    pub fn own_delete(&self) -> OwnDelete<'_> {
+        self.own_deletes.fetch_add(1, Ordering::SeqCst);
+        OwnDelete(self)
+    }
+
+    /// Takes the answer of a poll whose call has the number `number` into the view: an answer
+    /// whose call was made before the newest answer of a mutation is dropped, and a Status that
+    /// passed its deadline while the app's own delete is in flight is nothing new: the service
+    /// answers no Status while a delete that it accepted runs.
     pub fn take_poll(&self, number: u64, answer: &Result<DaemonStatus, ClientError>) -> PollAnswer {
         let mut latest = self.latest();
         if number < latest.mutation_mark {
             return PollAnswer::DroppedAsOlderThanTheLastMutation;
+        }
+        if matches!(answer, Err(ClientError::Deadline { .. }))
+            && self.own_deletes.load(Ordering::SeqCst) > 0
+        {
+            return PollAnswer::NothingNewWhileTheOwnDeleteRuns;
         }
         latest.view = view_of(answer);
         latest.status = answer.as_ref().ok().cloned();
