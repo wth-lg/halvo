@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: the built app loads its page and its read commands answer through the capability, and it prints when its event loop was ready; on Windows its window's display affinity is 17, WDA_EXCLUDEFROMCAPTURE, so that the system keeps the window out of every capture, and its web view's general autofill is off
+# rule: the built app loads its page and its read commands answer through the capability, and it prints when its event loop was ready; on Windows its window's display affinity is 17, WDA_EXCLUDEFROMCAPTURE, so that the system keeps the window out of screenshots, screen shares and screen recordings that are made through Windows' own capture features, Halvo's own screen record among them, and its web view's general autofill is off
 # lane: alone
 set -u
 name=32-app-check-page
@@ -39,7 +39,8 @@ expected_service() {
 }
 
 # What the line ends with in this job: on Windows the window's display affinity, 17, which keeps it out of
-# every capture, and the web view's general autofill, off.
+# screenshots, screen shares and screen recordings that are made through Windows' own capture features,
+# Halvo's own screen record among them, and the web view's general autofill, off.
 expected_tail() {
   case ${CI_D_JOB:-} in
     windows) printf ' display_affinity=17 general_autofill=off\n' ;;

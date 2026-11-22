@@ -22,8 +22,9 @@
 //! On Windows every case that shows a dialog, the bound cases among them, reads the display
 //! affinity of the dialog's window by the system's own GetWindowDisplayAffinity once the dialog
 //! has reported itself on screen and before the case acts, and fails on a number other than 17,
-//! WDA_EXCLUDEFROMCAPTURE, where the system keeps the window out of every capture. After the bound
-//! cases one line, `dialog_hosted capture:`, prints the readings, each once, and as the control of
+//! WDA_EXCLUDEFROMCAPTURE, where the system keeps the window out of screenshots, screen shares and
+//! screen recordings that are made through Windows' own capture features. After the bound cases one
+//! line, `dialog_hosted capture:`, prints the readings, each once, and as the control of
 //! the read in the same run the affinity of a hidden top-level window of the target's own process
 //! that never got the call, which reads 0.
 //!
@@ -1436,7 +1437,8 @@ mod cases {
     }
 
     /// Keeps the reading of a case's dialog for the run's line, and its failure: a reading other
-    /// than 17, WDA_EXCLUDEFROMCAPTURE, where the system keeps the window out of every capture.
+    /// than 17, WDA_EXCLUDEFROMCAPTURE, where the system keeps the window out of screenshots, screen
+    /// shares and screen recordings that are made through Windows' own capture features.
     fn out_of_capture(read: Option<String>) -> Option<String> {
         let read = read.unwrap_or_else(|| "none".to_owned());
         AFFINITIES

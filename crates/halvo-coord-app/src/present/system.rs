@@ -45,10 +45,11 @@ use tauri::{AppHandle, Runtime};
 /// at an activation while visible, or at the window's own show, the message WM_WINDOWPOSCHANGED
 /// with SWP_SHOWWINDOW, while active; it refuses the message WM_CLOSE inside the hold. At
 /// TDN_CREATED, before the window is visible and before anything else, the window gets the display
-/// affinity WDA_EXCLUDEFROMCAPTURE, so that no capture of the screen, Halvo's own screen record
-/// among them, shows the card; when the system refuses that call, or when that subclass cannot be
-/// set, the show closes at once through its rejecting control, before it reports itself on screen,
-/// and its allowing control answers nothing. The same target holds that a click of the allowing
+/// affinity WDA_EXCLUDEFROMCAPTURE, so that the system keeps it out of screenshots, screen shares
+/// and screen recordings that are made through Windows' own capture features, Halvo's own screen
+/// record among them; when the system refuses that call, or when that subclass cannot be set, the
+/// show closes at once through its rejecting control and never reports itself on screen, and its
+/// allowing control answers nothing. The same target holds that a click of the allowing
 /// id 100 allows, and that a click of the rejecting id 101, of the cancel response 2, which the
 /// Escape key and the close control give, of an id that no button has, and the message WM_CLOSE
 /// each reject, each after the hold and after one report; that the window of every dialog that it
