@@ -2742,6 +2742,7 @@ mod tests {
         give.send(Ok(DeleteOutcome::Deleted(halvo_control::proto::Deleted {
             report: halvo_control::testing::sample_delete_report(),
             store: None,
+            unfinished: false,
         })))
         .unwrap();
         let answer = deleting.join().unwrap();
@@ -2867,6 +2868,7 @@ mod tests {
         give.send(Ok(DeleteOutcome::Deleted(halvo_control::proto::Deleted {
             report: halvo_control::testing::sample_delete_report(),
             store: None,
+            unfinished: false,
         })))
         .unwrap();
         assert!(matches!(
@@ -3776,8 +3778,17 @@ mod tests {
             record: Arc::clone(&record),
         };
         let views = Views::default();
+        let read_behind_the_answer = || {
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+            pass(&control, &views, None);
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+        };
         let _ = delete_everything(&before, &control, &views, None, DELETE_WAITS);
-        pass(&control, &views, None);
+        read_behind_the_answer();
         let dir = DataDir::from_flag(crate::tests::scratch_dir("tell-first"))
             .expect("an absolute directory");
         let looked_in = dir.path().display().to_string();
@@ -3799,6 +3810,7 @@ mod tests {
             ask_offline(&views, 0, Some(&offline), &before),
             Ok(DeleteView::NoStore { looked_in })
         );
+        read_behind_the_answer();
         let seen = record.lock().unwrap().clone();
         assert_eq!(seen.len(), 10, "{seen:?}");
         for (door, part, request) in [
@@ -3815,7 +3827,7 @@ mod tests {
             assert_eq!(
                 part[2..],
                 ["stop", request, "lift"],
-                "{door}: the stop, then the request, then the lift"
+                "{door}: the stop, then the request, then the lift, at the latest at the first poll read behind the answer"
             );
         }
 
@@ -3960,6 +3972,7 @@ mod tests {
                 &DeleteOutcome::Deleted(Deleted {
                     report,
                     store: None,
+                    unfinished: false,
                 }),
                 None,
             )
@@ -4546,6 +4559,7 @@ mod tests {
             Ok(DeleteOutcome::Deleted(halvo_control::proto::Deleted {
                 report: halvo_control::testing::sample_delete_report(),
                 store: None,
+                unfinished: false,
             }))
         }
 

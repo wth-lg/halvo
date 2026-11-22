@@ -95,7 +95,7 @@
       },
       {
         "switch": "key_class",
-        "text": "Halvo records a class for each key you press, never the character."
+        "text": "Halvo records each key you press, when and in which app, and what kind of key it is: a letter, digit or sign, a delete key, an arrow or page key, Return or Enter, Tab, a shortcut, or another key. It never records which letter, digit or sign."
       },
       {
         "switch": "pointer_class",
@@ -107,7 +107,7 @@
       }
     ],
     "storage": "Halvo keeps at most 10 GB and removes the oldest days first when it reaches that.",
-    "typed_ahead": "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password."
+    "typed_ahead": "A key that you press before a program or page has moved to its password field, for example while it is frozen or still loading, can be noted: when it was pressed, in which app and what kind of key, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in."
   },
   "window": {
     "first_report_day": 7,
