@@ -416,6 +416,36 @@ fn the_step_of_a_verb_has_the_kind_target_and_effect_of_its_row() {
     }
 }
 
+/// r3 U5.10-S (the coordinator's ruling of log line 16728, point 1): a step with the effect `request` that marks a
+/// credential, by its own target, by the target of a condition `pre` or by that of a condition `post`, is refused at
+/// the key `effect`.
+#[test]
+fn a_step_with_an_effect_that_marks_a_credential_is_refused() {
+    let pay_on = |target| Step {
+        effect: "request",
+        ..web("click", target, pay(), "payment")
+    };
+    let cases = [
+        pay_on(CRED),
+        Step {
+            pre: cond("present", CRED, "null"),
+            ..pay_on(WT)
+        },
+        Step {
+            post: cond("present", CRED, "null"),
+            ..pay_on(WT)
+        },
+    ];
+    for step in cases {
+        expect(
+            &step.json(),
+            "ExecutableStep",
+            "effect_with_credential",
+            "effect",
+        );
+    }
+}
+
 #[test]
 fn the_args_of_a_step_are_those_of_its_verb_by_name_order_and_source() {
     let request = |args, class| Step {
