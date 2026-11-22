@@ -6,6 +6,8 @@ pub(super) enum Lead {
     Enter,
     Nothing,
     AccessKey,
+    LateMove,
+    OwnChangeThenLateMove,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -120,6 +122,8 @@ pub(super) enum Kind {
     EnterTabOutAndTwoStep,
     SelfFocus,
     AccessKey,
+    LateMove,
+    OwnChangeThenLateMove,
 }
 
 impl Kind {
@@ -133,6 +137,8 @@ impl Kind {
             Kind::EnterTabOutAndTwoStep => "stall-enter-tab-out-two-step",
             Kind::SelfFocus => "stall-self-focus",
             Kind::AccessKey => "stall-access-key",
+            Kind::LateMove => "stall-late-move",
+            Kind::OwnChangeThenLateMove => "stall-own-change",
         }
     }
 
@@ -228,6 +234,27 @@ impl Kind {
                 )
             })
             .collect(),
+            Kind::LateMove => vec![Phase {
+                letters_through_the_wait: false,
+                ..phase(
+                    "stall-late-move",
+                    "late_move",
+                    Lead::LateMove,
+                    Wait::ServesSent,
+                    50,
+                )
+            }],
+            Kind::OwnChangeThenLateMove => vec![Phase {
+                letters_through_the_wait: false,
+                checks: Checks::ControlsAndSink,
+                ..phase(
+                    "stall-own-change",
+                    "own_change_then_late_move",
+                    Lead::OwnChangeThenLateMove,
+                    Wait::ServesSent,
+                    50,
+                )
+            }],
             Kind::AccessKey => [Wait::Sleeps, Wait::ServesSent]
                 .into_iter()
                 .map(|wait| {
@@ -259,6 +286,7 @@ pub(crate) struct Totals {
     pub(crate) rounds_not_withheld_by_the_password_field: u32,
     pub(crate) sink_differs: u32,
     pub(crate) keystroke_events: u32,
+    pub(crate) records_beyond_time_app_and_class: u32,
 }
 
 impl Totals {
@@ -277,6 +305,7 @@ impl Totals {
             other.rounds_not_withheld_by_the_password_field;
         self.sink_differs += other.sink_differs;
         self.keystroke_events += other.keystroke_events;
+        self.records_beyond_time_app_and_class += other.records_beyond_time_app_and_class;
     }
 }
 

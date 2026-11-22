@@ -72,6 +72,9 @@ const ARG_SECOND: usize = 0x1;
 const ARG_START_IN_PASSWORD: usize = 0x2;
 const ARG_SILENT_PASSWORD: usize = 0x4;
 const TWO_STEP_MS: u64 = 200;
+const ARG_LATE_MOVE: usize = 0x40_0000;
+const ARG_OWN_CHANGE: usize = 0x80_0000;
+const LATE_MOVE_WORK_MS: u64 = 200;
 
 const LETTER_STEP: Duration = Duration::from_millis(60);
 const FORM_ENV: &str = "HALVO_WF_FORM";
@@ -717,6 +720,17 @@ fn fixture_main() {
                     if arg & ARG_SELF_FOCUS != 0 {
                         focus_on(password);
                     }
+                    if arg & ARG_LATE_MOVE != 0 {
+                        if arg & ARG_OWN_CHANGE != 0 {
+                            // SAFETY: SetWindowTextW takes this thread's edit
+                            // control and a live HSTRING.
+                            unsafe {
+                                let _ = SetWindowTextW(plain, &HSTRING::from("x"));
+                            }
+                        }
+                        stall(LATE_MOVE_WORK_MS, Wait::ServesSent);
+                        focus_on(password);
+                    }
                     if let Some(other) = other {
                         let _ = other.join();
                     }
@@ -1227,6 +1241,11 @@ fn run_rounds(
         if phase.other_front {
             arg |= ARG_OTHER_FRONT;
         }
+        match phase.lead {
+            Lead::LateMove => arg |= ARG_LATE_MOVE,
+            Lead::OwnChangeThenLateMove => arg |= ARG_LATE_MOVE | ARG_OWN_CHANGE,
+            _ => {}
+        }
         let ack = fixture.ask(CMD_ROUND, arg, "ack");
         let sent_at = Instant::now();
         let mut letters_sent = 0u32;
@@ -1255,7 +1274,7 @@ fn run_rounds(
                     inputs += 2;
                     std::thread::sleep(Duration::from_millis(30));
                 }
-                Lead::Nothing => {}
+                Lead::Nothing | Lead::LateMove | Lead::OwnChangeThenLateMove => {}
             }
             burst.extend(key_pair(VK_A));
             accepted += send(&burst);
@@ -1283,6 +1302,19 @@ fn run_rounds(
         let keystroke_events = seen
             .iter()
             .filter(|e| e.modality == Modality::Keystroke)
+            .count() as u32;
+        let records_beyond_time_app_and_class = seen
+            .iter()
+            .filter(|e| e.modality == Modality::Keystroke)
+            .filter(|e| {
+                e.foreground_app.is_empty()
+                    || !e.view.as_ref().is_some_and(|view| {
+                        view.key_class.is_some()
+                            && view.click.is_none()
+                            && view.fold.is_none()
+                            && view.title.is_none()
+                    })
+            })
             .count() as u32;
         let landed_key = match phase.landing {
             Landing::Password => "letters_password",
@@ -1394,6 +1426,7 @@ fn run_rounds(
         totals.rounds += 1;
         totals.sink_differs += u32::from(sink_differs);
         totals.keystroke_events += keystroke_events;
+        totals.records_beyond_time_app_and_class += records_beyond_time_app_and_class;
         totals.late_moved += late_moved;
         totals.withheld_set += u32::from(withheld_set);
         if counted {
@@ -2016,6 +2049,28 @@ fn a_masked_edit_and_a_focus_notice_that_the_system_does_not_deliver_record_no_l
             failures.join(";")
         );
     });
+}
+
+pub(super) fn the_programs_own_change_of_the_focused_field_before_a_late_move(
+) -> (u32, u64, u32, u32) {
+    run_kind(Kind::OwnChangeThenLateMove).iter().fold(
+        (0, 0, 0, 0),
+        |(recorded, late, records, beyond), run| match run.outcome {
+            Outcome::Rounds { totals, .. } => (
+                recorded + totals.letters_recorded,
+                late + totals.late_moved,
+                records + totals.keystroke_events,
+                beyond + totals.records_beyond_time_app_and_class,
+            ),
+            Outcome::Native { .. } => (recorded, late, records, beyond),
+        },
+    )
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_key_queued_before_a_late_move_to_the_password_field_records_nothing() {
+    kind_test(Kind::LateMove);
 }
 
 pub(super) fn no_focus_key_and_the_program_moves_the_focus_itself() -> (u32, u64) {

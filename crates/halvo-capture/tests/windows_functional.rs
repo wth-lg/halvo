@@ -5792,6 +5792,28 @@ mod known_defect {
     use super::*;
 
     #[test]
+    #[ignore = "known defect: win-6, the program's own change of the focused field before a late move"]
+    fn stall_the_programs_own_change_of_the_focused_field_before_a_late_move() {
+        with_deadline("stall-own-change", Duration::from_secs(300), || {
+            let (recorded, late, records, beyond) =
+                stall::the_programs_own_change_of_the_focused_field_before_a_late_move();
+            assert_eq!(late, 0, "the source's late value moved");
+            assert_eq!(
+                beyond, 0,
+                "a keystroke record held more than its time, its app and its class"
+            );
+            defect!(
+                "W6-own-change",
+                recorded == 0,
+                format!(
+                    "TF stall-own-change letters_recorded_that_landed_in_the_password_field={recorded} \
+                     keystroke_records={records} records_beyond_time_app_and_class={beyond}"
+                )
+            );
+        });
+    }
+
+    #[test]
     #[ignore = "known defect: W3-20, a text input that a page masks by style alone"]
     fn style_masked_input_in_chrome_and_edge() {
         let mut recorded = 0;
