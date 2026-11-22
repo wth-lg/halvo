@@ -97,6 +97,7 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
             if app.try_state::<Agents>().is_none() {
                 let handle = app.handle().clone();
                 let (agents, steps) = commands::agents::core(
+                    app.handle(),
                     Box::new(move |count| tray::set_attention(&handle, count)),
                     &control,
                     parts.state.data_dir.as_ref(),

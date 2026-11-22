@@ -65,7 +65,8 @@ use halvo_schema_core::request::{decode_reply, InterfaceDecision, InterfaceRead,
 use halvo_schema_core::request::{ErrorName, ReplyResult};
 use serde_json::Value;
 
-use crate::hub::{Core, Hub, Present};
+use crate::hub::{Core, Hub};
+use crate::present::{dialog_hub, Dialog};
 
 /// The call of one end of a new owner stream.
 pub type StreamCall = Arc<dyn Fn() -> Result<OwnerStreamEnd, ClientError> + Send + Sync>;
@@ -100,17 +101,17 @@ pub struct Places {
 pub type ProductHub = Hub<Product>;
 
 /// The hub over the product's ports of `calls` and `places`, whose count of agents that need the person goes to
-/// `tray` and whose native confirmations go to `present`. It starts nothing and reads nothing: `start` takes the
-/// steps of the app's start.
-pub fn hub(
+/// `tray` and whose native confirmations are shown in `dialog` with the card that the core composes
+/// (`crate::dialog_hub`). It starts nothing and reads nothing: `start` takes the steps of the app's start.
+pub fn hub<D: Dialog>(
     calls: Calls,
     places: Places,
     tray: Box<dyn Fn(u32) + Send + Sync>,
-    present: Box<dyn Present>,
+    dialog: Arc<D>,
 ) -> Arc<ProductHub> {
     let limits = Limits::PRODUCT;
     let (product, events) = Product::new(calls, places);
-    let hub = Hub::new(product, limits, tray, present);
+    let hub = dialog_hub(product, limits, tray, dialog);
     events.attach(Arc::downgrade(&hub));
     hub
 }
