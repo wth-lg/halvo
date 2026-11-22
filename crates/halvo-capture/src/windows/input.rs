@@ -301,7 +301,7 @@ pub(crate) fn latch_on_button_down(gate: &PasswordGate, bytes: &[u8], tick: u32)
 }
 
 fn is_modifier(vkey: u16) -> bool {
-    matches!(vkey, 0x10..=0x12 | 0xA0..=0xA5) || vkey == VK_LWIN.0 || vkey == VK_RWIN.0
+    matches!(vkey, 0x10..=0x12 | 0x14 | 0xA0..=0xA5) || vkey == VK_LWIN.0 || vkey == VK_RWIN.0
 }
 
 pub(crate) fn class_of(vkey: u16) -> KeyClass {
@@ -330,7 +330,7 @@ pub(crate) fn map_keystroke(state: &mut KeyState, key: KeyStroke) -> Option<KeyC
         return None;
     }
     if is_modifier(key.vkey) {
-        return Some(KeyClass::Other);
+        return None;
     }
     if CHORD_KEYS
         .iter()

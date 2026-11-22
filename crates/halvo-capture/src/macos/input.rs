@@ -405,60 +405,6 @@ fn is_tap_disabled(etype: CGEventType) -> bool {
     )
 }
 
-/// The device-independent masks of the modifier keys in an event's flags: caps
-/// lock, shift, control, option, command, help and fn; not the numeric pad.
-const MODIFIER_KEY_MASKS: u64 = 0x00DF_0000;
-
-/// The device-dependent bits of the left and right modifier keys in an event's
-/// flags.
-const MODIFIER_SIDE_BITS: u64 = 0x0000_207F;
-
-/// The modifier keys by their virtual key code, each with the device-dependent
-/// bit that an event's own flags hold while that key is down (0 where the key
-/// has none) and the device-independent mask of its family: left and right
-/// shift, left and right control, left and right option, left and right
-/// command, caps lock and fn.
-const MODIFIER_KEYS: [(i64, u64, u64); 10] = [
-    (0x38, 0x0000_0002, 0x0002_0000),
-    (0x3C, 0x0000_0004, 0x0002_0000),
-    (0x3B, 0x0000_0001, 0x0004_0000),
-    (0x3E, 0x0000_2000, 0x0004_0000),
-    (0x3A, 0x0000_0020, 0x0008_0000),
-    (0x3D, 0x0000_0040, 0x0008_0000),
-    (0x37, 0x0000_0008, 0x0010_0000),
-    (0x36, 0x0000_0010, 0x0010_0000),
-    (0x39, 0, 0x0001_0000),
-    (0x3F, 0, 0x0080_0000),
-];
-
-const _: () = {
-    let mut at = 0;
-    while at < MODIFIER_KEYS.len() {
-        let (_, side, family) = MODIFIER_KEYS[at];
-        assert!(side & !MODIFIER_SIDE_BITS == 0 && family & !MODIFIER_KEY_MASKS == 0);
-        at += 1;
-    }
-};
-
-const CAPS_LOCK: i64 = 0x39;
-
-fn modifier_pressed(key_code: Option<i64>, flags: u64) -> bool {
-    if key_code == Some(CAPS_LOCK) {
-        return true;
-    }
-    let Some(&(_, side, family)) = MODIFIER_KEYS
-        .iter()
-        .find(|&&(code, _, _)| Some(code) == key_code)
-    else {
-        return false;
-    };
-    if side == 0 {
-        flags & family != 0
-    } else {
-        flags & side != 0
-    }
-}
-
 const CHORD_MASKS: u64 = 0x001C_0000;
 
 fn key_class(key_code: Option<i64>, flags: u64) -> KeyClass {
@@ -501,9 +447,6 @@ fn kind_of(etype: CGEventType, key_code: Option<i64>, flags: u64, autorepeat: bo
     match etype {
         CGEventType::KeyDown if autorepeat => Kind::Reading,
         CGEventType::KeyDown => Kind::Key(key_class(key_code, flags)),
-        CGEventType::FlagsChanged if modifier_pressed(key_code, flags) => {
-            Kind::Key(KeyClass::Other)
-        }
         CGEventType::KeyUp | CGEventType::FlagsChanged => Kind::Reading,
         CGEventType::LeftMouseDown => Kind::Click(Button::Primary),
         CGEventType::RightMouseDown => Kind::Click(Button::Secondary),
