@@ -23,7 +23,7 @@ use super::suite::{
     request_bytes, run_path, send_bytes, slot, slot_changed_at_the_load_before_the_begin,
     stopped_between_begin_and_commit, Case, Fixture, Maker, Plan, Record,
 };
-use super::{Left, MakerFacts, Paused, ReadPage, Replied};
+use super::{Left, MakerFacts, PageAfter, Paused, ReadPage, Replied};
 use crate::web::amounts_named;
 
 /// How long the stand-in waits for the reply of a request that left.
@@ -71,12 +71,16 @@ impl Left for Sent {
     }
 
     /// The reply as `replied` reads its status, and for a reply read as made the read of its page: every amount
-    /// that the body names (`amounts_named`).
+    /// that the body names (`amounts_named`), no failed request and no condition.
     fn reply_and_page(self: Box<Self>) -> (Replied, Option<ReadPage>) {
         let answer = answer_of(self.0, REPLY_WAIT);
         let made = replied(self.1, answer.as_ref().map(|a| a.status));
         let page: Option<ReadPage> = match (made, answer) {
-            (Replied::Made, Some(answer)) => Some(Box::new(move || amounts_named(&answer.body))),
+            (Replied::Made, Some(answer)) => Some(Box::new(move |_| PageAfter {
+                amounts: Ok(amounts_named(&answer.body)),
+                refused: false,
+                post_held: true,
+            })),
             _ => None,
         };
         (made, page)

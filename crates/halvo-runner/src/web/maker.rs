@@ -14,8 +14,11 @@
 //!
 //! What the maker reads as made: the HTTP status of the response of the request that left, as the rule paused it,
 //! 200 alone; every other status is answered, and no response within `STEP_TIMEOUT` is no reply, both of which leave
-//! the effect not known. After a reply read as made the runner reads the page for a `payment` and a `purchase`
-//! (`page_amounts`, `amounts_named`). The maker reads no body of a request.
+//! the effect not known. After a reply read as made, and never while the request is held (r3 U5.10-B), the maker
+//! reads the page (`page_after`): its amounts for a `payment` and a `purchase` (`page_amounts`, `amounts_named`), and
+//! for a step with conditions `post` the page that they are read on; then the rule's record, where a request of the
+//! page that the rule failed ends the run `refused` with `origin`; then the step's conditions `post`. The maker reads
+//! no body of a request.
 
 use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -24,13 +27,13 @@ use std::time::{Duration, Instant};
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::names::{FieldName, Source};
 use halvo_schema::executable::record::Slot;
-use halvo_schema::executable::step::WebTarget;
+use halvo_schema::executable::step::{Cond, WebTarget};
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, ExecutableStep, WebOrigin};
 use halvo_web::cdp::{HeldRequest, STEP_TIMEOUT};
 
 use super::{class_of, end_of_step, refused_by_the_page, rule_origin, Act, Values, Web};
-use crate::release::{Left, MakerFacts, Paused, ReadPage, Replied};
+use crate::release::{Left, MakerFacts, PageAfter, Paused, ReadPage, Replied};
 use crate::run::{Failure, Runner};
 
 /// How long after its act an effect step waits for the first held request.
@@ -81,6 +84,8 @@ struct Held {
     fields: Vec<(FieldName, From)>,
     /// The value of each slot that the first `bound` read, by the slot's name.
     seen: Vec<(String, String)>,
+    /// The conditions `post` of the step, each with the text of its arg, read after the reply (r3 U5.10-B).
+    post: Vec<(Cond, Option<String>)>,
     left: bool,
 }
 
@@ -177,6 +182,7 @@ impl Paused for Held {
         Box::new(Sent {
             web: Arc::clone(&self.web),
             went,
+            post: std::mem::take(&mut self.post),
         })
     }
 
@@ -214,10 +220,11 @@ impl Drop for Held {
     }
 }
 
-/// The request that the maker let leave.
+/// The request that the maker let leave, and the conditions `post` of its step.
 struct Sent {
     web: Shared,
     went: bool,
+    post: Vec<(Cond, Option<String>)>,
 }
 
 impl Left for Sent {
@@ -225,17 +232,16 @@ impl Left for Sent {
         self.reply_and_page().0
     }
 
-    /// Made for the status 200 alone, with the read of the page after it; answered for every other status; no reply
-    /// where the browser did not take the release or no status came within `STEP_TIMEOUT`.
+    /// Made for the status 200 alone, with the read of the page after it (`page_after`); answered for every other
+    /// status; no reply where the browser did not take the release or no status came within `STEP_TIMEOUT`.
     fn reply_and_page(self: Box<Self>) -> (Replied, Option<ReadPage>) {
-        if !self.went {
+        let Sent { web, went, post } = *self;
+        if !went {
             return (Replied::NoReply, None);
         }
         let until = Instant::now() + STEP_TIMEOUT;
         let status = loop {
-            let status = lock(&self.web)
-                .as_mut()
-                .and_then(|web| web.0.released_status());
+            let status = lock(&web).as_mut().and_then(|web| web.0.released_status());
             if status.is_some() || Instant::now() >= until {
                 break status;
             }
@@ -243,18 +249,51 @@ impl Left for Sent {
         };
         match status {
             Some(MADE) => {
-                let web = self.web;
-                let read: ReadPage = Box::new(move || {
-                    lock(&web)
-                        .as_mut()
-                        .and_then(|web| web.0.page_amounts().ok())
-                        .unwrap_or_default()
+                let read: ReadPage = Box::new(move |amounts| match lock(&web).as_mut() {
+                    Some(web) => page_after(web, &post, amounts),
+                    None => PageAfter {
+                        amounts: Err(()),
+                        refused: false,
+                        post_held: post.is_empty(),
+                    },
                 });
                 (Replied::Made, Some(read))
             }
             Some(_) => (Replied::Answered, None),
             None => (Replied::NoReply, None),
         }
+    }
+}
+
+/// The read of the page after a reply read as made, in this order (r3 U5.10-B): the page's amounts, where the runner asks for them or the step has conditions
+/// `post`, read once the top document that `arm_hold` noted has given way to a loaded one (`Page::page_amounts`), a
+/// failed read giving `Err`; the rule's record, read again for `REFUSAL_WAIT` (`Page::record_after_a_fault`); and the
+/// step's conditions `post`, read on that page alone, none of which holds where the page could not be read. One line
+/// on standard error names what each read gave.
+fn page_after(web: &mut Web, post: &[(Cond, Option<String>)], amounts: bool) -> PageAfter {
+    let page = if amounts || !post.is_empty() {
+        web.0.page_amounts()
+    } else {
+        Ok(Vec::new())
+    };
+    let refused = refused_by_the_page(&web.0.record_after_a_fault());
+    let conds: Vec<(&Cond, Option<String>)> = post.iter().map(|(c, a)| (c, a.clone())).collect();
+    let post_held = post.is_empty()
+        || (page.is_ok()
+            && web
+                .0
+                .carry_out(&[], &Act::Wait(Duration::ZERO), &conds)
+                .is_ok());
+    crate::line(&format!(
+        "run effect=made page={} refused={} post={}",
+        if page.is_ok() { "read" } else { "unread" },
+        if refused { "yes" } else { "no" },
+        if post_held { "held" } else { "failed" }
+    ));
+    PageAfter {
+        amounts: if amounts { page } else { Ok(Vec::new()) },
+        refused,
+        post_held,
     }
 }
 
@@ -325,7 +364,9 @@ impl Runner {
     /// A web step of an effect class (the module's text): its act and conditions as a web step that acts takes them,
     /// the page read first for a credential field (crate::handback), the rule armed in `Mode::Hold` with the run's
     /// origins for the act, the one held request given to `release`, and the rule armed in `Mode::Fail` again. A
-    /// request of the page that the rule failed ends the run `refused` with the cause `origin` (`end_of_step`).
+    /// request of the page that the rule failed ends the run `refused` with the cause `origin` (`end_of_step`). Its
+    /// conditions `pre` are read before the act; its conditions `post` are not read at the act, while the request is
+    /// held, but on the page after a reply read as made (`page_after`, r3 U5.10-B).
     pub(crate) fn effect_step(
         &mut self,
         step: &ExecutableStep,
@@ -339,7 +380,12 @@ impl Runner {
         };
         let act = Act::of(step, &values).ok_or_else(failed)?;
         let pre = values.conditions(&step.pre).ok_or_else(failed)?;
-        let post = values.conditions(&step.post).ok_or_else(failed)?;
+        let post: Vec<(Cond, Option<String>)> = values
+            .conditions(&step.post)
+            .ok_or_else(failed)?
+            .into_iter()
+            .map(|(cond, arg)| (cond.clone(), arg))
+            .collect();
         let sources = self.sources(step, class).ok_or_else(failed)?;
         self.browser(loaded)?;
         let mut web = self.web.take().ok_or_else(failed)?;
@@ -363,7 +409,7 @@ impl Runner {
             let _ = web.0.arm(&origins);
             return Err(failed());
         }
-        let done = web.0.carry_out(&pre, &act, &post);
+        let done = web.0.carry_out(&pre, &act, &[]);
         let held = if done.is_ok() {
             held_after_the_act(web)
         } else {
@@ -400,6 +446,7 @@ impl Runner {
             step: step.n,
             fields,
             seen: Vec::new(),
+            post,
             left: false,
         };
         let end = self.release(vec![Box::new(request)]);
@@ -447,6 +494,9 @@ mod tests {
     /// origin of the bindings.
     const PAY: &str = r#"{"v":1,"n":3,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"pay-now","name":null}]},"args":[{"name":"payee","from":"slot","value":null,"key":"payee"},{"name":"amount","from":"extract","value":null,"key":"amount"},{"name":"instrument","from":"slot","value":null,"key":"instrument"},{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null}],"pre":[],"post":[],"effect":"request","class":"payment"}"#;
 
+    /// `PAY` with one condition `post`: the control `paid` is present.
+    const PAY_POST: &str = r#"{"v":1,"n":3,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"pay-now","name":null}]},"args":[{"name":"payee","from":"slot","value":null,"key":"payee"},{"name":"amount","from":"extract","value":null,"key":"amount"},{"name":"instrument","from":"slot","value":null,"key":"instrument"},{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null}],"pre":[],"post":[{"check":"present","target":{"desc":"paid","frame":[],"credential":"no","locators":[{"by":"test_id","value":"paid","name":null}]},"arg":null}],"effect":"request","class":"payment"}"#;
+
     /// A step `click` of the button `send` with the effect `request`, of the class `submit` for an agent of the
     /// category `email`.
     const SUBMIT: &str = r#"{"v":1,"n":2,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"send","name":null}]},"args":[{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null},{"name":"fields","from":"const","value":"note=hello","key":null}],"pre":[],"post":[],"effect":"request","class":"submit"}"#;
@@ -475,14 +525,17 @@ mod tests {
 
     /// The stand-in of the executor: an arm in `Mode::Fail` fails what it holds, a click holds the requests that the
     /// test gave, an extract reads `12.34`, a release of a held id gives the status that the test gave, the page after
-    /// it names the amounts that the test gave, and every call is one line of the log.
+    /// it names the amounts that the test gave, the rule's record after the release holds the requests that the test
+    /// gave in `after`, and every call is one line of the log.
     struct StandIn {
         log: Log,
         holds: Vec<HeldRequest>,
         click_holds: Vec<HeldRequest>,
         status: Option<i64>,
         released: bool,
-        amounts: Vec<u64>,
+        amounts: Result<Vec<u64>, ()>,
+        after: Vec<PausedRequest>,
+        post_fails: bool,
     }
 
     impl StandIn {
@@ -493,8 +546,24 @@ mod tests {
                 click_holds,
                 status: Some(200),
                 released: false,
-                amounts: vec![1234],
+                amounts: Ok(vec![1234]),
+                after: Vec::new(),
+                post_fails: false,
             }
+        }
+    }
+
+    /// A request of the page that the rule failed: a script of an origin outside the bindings, of the frame `F1`.
+    fn failed_of_the_page() -> PausedRequest {
+        PausedRequest {
+            id: None,
+            method: "GET".to_string(),
+            origin: "http://127.0.0.1:9090".to_string(),
+            path: "/after.js".to_string(),
+            frame: "F1".to_string(),
+            resource: "Script".to_string(),
+            let_through: false,
+            outcome: halvo_web::cdp::Outcome::Failed,
         }
     }
 
@@ -521,9 +590,15 @@ mod tests {
             &mut self,
             _: &[(&Cond, Option<String>)],
             act: &Act<'_>,
-            _: &[(&Cond, Option<String>)],
+            post: &[(&Cond, Option<String>)],
         ) -> Result<Option<String>, ()> {
             note(&self.log, format!("act {}", act.verb()));
+            if !post.is_empty() {
+                note(&self.log, format!("read post {}", post.len()));
+                if self.post_fails {
+                    return Err(());
+                }
+            }
             match act {
                 Act::Extract(_) => Ok(Some("12.34".to_string())),
                 Act::Click(_) => {
@@ -535,11 +610,16 @@ mod tests {
         }
 
         fn record(&mut self) -> Vec<PausedRequest> {
-            Vec::new()
+            if self.released {
+                self.after.clone()
+            } else {
+                Vec::new()
+            }
         }
 
         fn record_after_a_fault(&mut self) -> Vec<PausedRequest> {
-            Vec::new()
+            note(&self.log, "read record");
+            self.record()
         }
 
         fn stop(self: Box<Self>) -> bool {
@@ -609,7 +689,7 @@ mod tests {
 
         fn page_amounts(&mut self) -> Result<Vec<u64>, ()> {
             note(&self.log, "read page");
-            Ok(self.amounts.clone())
+            self.amounts.clone()
         }
     }
 
@@ -633,6 +713,16 @@ mod tests {
 
     /// The payment step run on the stand-in with `click_holds`, answered as `plan` says.
     fn pay(log: &Log, click_holds: Vec<HeldRequest>, plan: Plan) -> Record {
+        pay_on(StandIn::new(log, click_holds), plan)
+    }
+
+    /// The payment step run on `stand_in`, answered as `plan` says.
+    fn pay_on(stand_in: StandIn, plan: Plan) -> Record {
+        pay_step(stand_in, PAY, plan)
+    }
+
+    /// The payment step `json` run on `stand_in`, answered as `plan` says.
+    fn pay_step(stand_in: StandIn, json: &str, plan: Plan) -> Record {
         let (kept, extracts) = kept_amount();
         run_web_step(
             Category::UtilityBillPayment,
@@ -643,8 +733,8 @@ mod tests {
                     slot("instrument", "Card ending 4417"),
                 ],
             ),
-            Web(Box::new(StandIn::new(log, click_holds))),
-            &step(PAY),
+            Web(Box::new(stand_in)),
+            &step(json),
             kept,
             extracts,
             plan,
@@ -779,5 +869,122 @@ mod tests {
             );
             assert_eq!(record.done(), Some(Outcome::Failed));
         }
+    }
+
+    /// r3 U5.10-B (5), A9.2: a request of the page that the rule failed after the release, which the rule's record
+    /// holds once the reply has come, ends the run `refused` with the cause `origin`; the request left once and its
+    /// effect stays `committed`.
+    #[test]
+    fn a_failed_request_of_the_page_after_the_release_ends_the_run_refused() {
+        let log: Log = Arc::default();
+        let mut stand_in = StandIn::new(&log, vec![held(7)]);
+        stand_in.after = vec![failed_of_the_page()];
+        let record = pay_on(stand_in, Plan::plain());
+        let log = lines(&log);
+        assert_eq!(
+            log.iter().filter(|l| l.starts_with("let through")).count(),
+            1,
+            "{log:?}"
+        );
+        assert_eq!(
+            record.states().last(),
+            Some(&EffectState::Committed),
+            "{log:?}"
+        );
+        assert_eq!(
+            rows(&record).last(),
+            Some(&(LogEvent::Stopped, None, Some(Cause::Origin))),
+            "{log:?}"
+        );
+        assert_eq!(record.done(), Some(Outcome::Refused), "{log:?}");
+    }
+
+    /// r3 U5.10-B (1), on the stand-in: an effect step reads its conditions `post` after the release of its request
+    /// and its reply, never while the request is held; where one does not hold after a made reply, the step's row says
+    /// `step_failed` and the run ends `failed`, the request having left once and its effect staying `committed`.
+    #[test]
+    fn on_the_stand_in_an_effect_step_reads_its_post_conditions_after_the_release() {
+        for fails in [false, true] {
+            let log: Log = Arc::default();
+            let mut stand_in = StandIn::new(&log, vec![held(7)]);
+            stand_in.post_fails = fails;
+            let record = pay_step(stand_in, PAY_POST, Plan::plain());
+            let log = lines(&log);
+            assert_eq!(
+                log.iter().filter(|l| l.starts_with("let through")).count(),
+                1,
+                "{log:?}"
+            );
+            assert!(
+                at(&log, "let through 7") < at(&log, "read post 1"),
+                "{log:?}"
+            );
+            assert!(at(&log, "read page") < at(&log, "read post 1"), "{log:?}");
+            assert_eq!(
+                record.states().last(),
+                Some(&EffectState::Committed),
+                "{log:?}"
+            );
+            if fails {
+                assert_eq!(
+                    rows(&record),
+                    [
+                        (LogEvent::Confirm, None, None),
+                        (LogEvent::StepFailed, Some(3), Some(Cause::StepFailed)),
+                        (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+                    ],
+                    "{log:?}"
+                );
+                assert_eq!(record.done(), Some(Outcome::Failed));
+            } else {
+                assert_eq!(rows(&record), [(LogEvent::Confirm, None, None)], "{log:?}");
+                assert_eq!(record.done(), Some(Outcome::Completed));
+            }
+        }
+    }
+
+    /// r3 U5.10-B (3), on the stand-in: a made payment whose page after the reply cannot be read writes `page_unread`
+    /// in the step's `stopped` row and ends the run `failed` with it, its effect staying `committed`; a page that was
+    /// read and names no amount keeps `amount_unread`, and the run goes on to `completed`.
+    #[test]
+    fn on_the_stand_in_a_made_payment_whose_page_cannot_be_read_ends_the_run_with_page_unread() {
+        let log: Log = Arc::default();
+        let mut stand_in = StandIn::new(&log, vec![held(7)]);
+        stand_in.amounts = Err(());
+        let record = pay_on(stand_in, Plan::plain());
+        let log = lines(&log);
+        assert_eq!(
+            log.iter().filter(|l| l.starts_with("let through")).count(),
+            1,
+            "{log:?}"
+        );
+        assert_eq!(
+            record.states().last(),
+            Some(&EffectState::Committed),
+            "{log:?}"
+        );
+        assert_eq!(
+            rows(&record),
+            [
+                (LogEvent::Confirm, None, None),
+                (LogEvent::Stopped, Some(3), Some(Cause::PageUnread)),
+                (LogEvent::Stopped, None, Some(Cause::PageUnread)),
+            ],
+            "{log:?}"
+        );
+        assert_eq!(record.done(), Some(Outcome::Failed));
+
+        let log: Log = Arc::default();
+        let mut stand_in = StandIn::new(&log, vec![held(7)]);
+        stand_in.amounts = Ok(Vec::new());
+        let record = pay_on(stand_in, Plan::plain());
+        assert_eq!(
+            rows(&record),
+            [
+                (LogEvent::Confirm, None, None),
+                (LogEvent::Stopped, Some(3), Some(Cause::AmountUnread)),
+            ]
+        );
+        assert_eq!(record.done(), Some(Outcome::Completed));
     }
 }

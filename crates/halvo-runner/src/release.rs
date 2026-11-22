@@ -112,10 +112,32 @@ pub(crate) struct MakerFacts {
     pub(crate) senders: Vec<String>,
 }
 
-/// The read of the page after a reply that the maker reads as made: every amount that the page names, in minor
-/// units, none where it names none or cannot be read. The runner calls it after its `commit` row, for a `payment` and
-/// a `purchase` alone.
-pub(crate) type ReadPage = Box<dyn FnOnce() -> Vec<u64>>;
+/// What the runner reads of the page after a reply that the maker reads as made, all of it after the `commit` row
+/// (r3 U5.10-B): every amount that the page names, in minor units, where the runner asks for them (a `payment` or a
+/// `purchase`) and none where it asks for none, and `Err` where the page could not be read; whether the rule's record
+/// holds a request of the page that the rule failed; and whether every condition `post` of the step holds on the page
+/// after the reply, true for a step with none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PageAfter {
+    pub(crate) amounts: Result<Vec<u64>, ()>,
+    pub(crate) refused: bool,
+    pub(crate) post_held: bool,
+}
+
+impl PageAfter {
+    /// The read of a maker that reads no page: a page that names no amount, no failed request and no condition.
+    fn of_no_page() -> PageAfter {
+        PageAfter {
+            amounts: Ok(Vec::new()),
+            refused: false,
+            post_held: true,
+        }
+    }
+}
+
+/// The read of the page after a reply that the maker reads as made, which the runner calls once after its `commit`
+/// row, with whether it asks for the page's amounts.
+pub(crate) type ReadPage = Box<dyn FnOnce(bool) -> PageAfter>;
 
 /// A request of an effect that left.
 pub(crate) trait Left {
@@ -123,30 +145,34 @@ pub(crate) trait Left {
     /// as made.
     fn reply(self: Box<Self>) -> Replied;
     /// `reply`, and the read of the page after it where the maker reads one: none for a maker that reads no page,
-    /// which the runner takes as a page that names no amount.
+    /// which the runner takes as a page that names no amount, holds no failed request and no condition.
     fn reply_and_page(self: Box<Self>) -> (Replied, Option<ReadPage>) {
         (self.reply(), None)
     }
 }
 
 /// The cause of the read of the page after the reply of a committed `payment` or `purchase` (contracts.md, the
-/// pull request that first links a payment or purchase maker; the coordinator's ruling of log line 14717, points (1)
-/// and (2)): `amount_unread` where the page names no amount; `amount_differs` where it names an amount that is not
-/// the kept `amount` of `bound`, each amount read in minor units by `extract_amount`; none where every amount that it
-/// names is the kept one. The record keeps no amount of the page.
-fn amount_cause(bound: &Bound, named: &[u64]) -> Option<Cause> {
+/// pull request that first links a payment or purchase maker; the coordinator's rulings of log lines 14717, points (1)
+/// and (2), and 15717), with the amount that the step's `stopped` row holds: `page_unread` where the page could not
+/// be read; `amount_unread` where it names no amount; `amount_differs` where it names an amount that is not the kept
+/// `amount` of `bound`, each amount read in minor units by `extract_amount`, with the first such amount that the page
+/// names, none where it does not fit the row's count; none where every amount that it names is the kept one.
+fn amount_cause(bound: &Bound, named: &Result<Vec<u64>, ()>) -> (Option<Cause>, Option<u32>) {
+    let Ok(named) = named else {
+        return (Some(Cause::PageUnread), None);
+    };
     let kept = bound
         .fields()
         .iter()
         .find(|f| f.name == FieldName::Amount)
         .and_then(|f| halvo_web::extract_amount(&f.value.joined()));
     if named.is_empty() {
-        return Some(Cause::AmountUnread);
+        return (Some(Cause::AmountUnread), None);
     }
-    if named.iter().any(|n| Some(*n) != kept) {
-        return Some(Cause::AmountDiffers);
+    match named.iter().find(|n| Some(**n) != kept) {
+        Some(other) => (Some(Cause::AmountDiffers), u32::try_from(*other).ok()),
+        None => (None, None),
     }
-    None
 }
 
 /// What came of a request that left: an answer that the maker reads as made, from the one success status that its
@@ -324,11 +350,14 @@ impl Runner {
     /// more of the run was ended by a `reject_once`, the person's or the one that a lapse of its card sent, and says
     /// nothing of the other effects, which the effect rows show; such a run is never `completed` (A6.5).
     ///
-    /// For a `payment` or a `purchase` whose reply the maker reads as made, the runner reads the page after its
-    /// `commit` row (`amount_cause`): where the page names another amount than the kept `amount`, the step's `stopped`
-    /// row holds `amount_differs`, the effect stays `committed`, and the run makes no further step and ends `failed`
-    /// with that cause; where it names no amount, the row holds `amount_unread` and the run goes on (the coordinator's
-    /// ruling of log line 14717, points (1) and (2)).
+    /// After the `commit` row of a reply that the maker reads as made, the runner reads the page after it
+    /// (`after_the_reply`, r3 U5.10-B): for a `payment` or a `purchase`, a page that could not be read writes
+    /// `page_unread` and one that names another amount than the kept `amount` writes `amount_differs` with that amount,
+    /// each in the step's `stopped` row, the effect staying `committed`, and the run makes no further step and ends
+    /// `failed` with that cause; one that names no amount writes `amount_unread` and the run goes on (the coordinator's
+    /// rulings of log lines 14717, points (1) and (2), and 15717). Then a request of the page that the rule failed
+    /// ends the run `refused` with `origin` (A9.2), and a condition `post` of the step that does not hold writes
+    /// `step_failed` for the step and ends the run `failed`.
     pub(crate) fn release(&mut self, requests: Vec<Box<dyn Paused>>) -> Result<(), Stop> {
         let loaded = self.load()?;
         let mut open = VecDeque::new();
@@ -430,6 +459,35 @@ impl Runner {
         self.reply_row(&reply.message, state, Some(&reply.draft), Some(&effect))
     }
 
+    /// The ends that the read of the page after a made reply gives, in this order (r3 U5.10-B): where `amounts`, the
+    /// cause of `amount_cause` in the `stopped` row of `step` with its amount, after which `page_unread` and
+    /// `amount_differs` end the run `failed`; a request of the page that the rule failed ends it `refused` with
+    /// `origin` (A9.2); a condition `post` that does not hold writes `step_failed` for `step` and ends it `failed`.
+    fn after_the_reply(
+        &mut self,
+        step: Option<NonZeroU32>,
+        bound: &Bound,
+        amounts: bool,
+        after: &PageAfter,
+    ) -> Result<(), Stop> {
+        if amounts {
+            if let (Some(cause), page_amount) = amount_cause(bound, &after.amounts) {
+                self.log_amount(LogEvent::Stopped, step, Some(cause), page_amount)?;
+                if cause != Cause::AmountUnread {
+                    return Err(failed(cause));
+                }
+            }
+        }
+        if after.refused {
+            return Err(Stop::End(Outcome::Refused, Some(Cause::Origin)));
+        }
+        if !after.post_held {
+            self.log(LogEvent::StepFailed, step, Some(Cause::StepFailed))?;
+            return Err(failed(Cause::StepFailed));
+        }
+        Ok(())
+    }
+
     /// Asks the person about the effects of `open` that are `held`, together in one confirmation request.
     fn ask_held<'a>(&mut self, open: impl Iterator<Item = &'a Open>) -> Result<(), Stop> {
         let asked: Vec<(usize, Bound)> = open
@@ -528,15 +586,9 @@ impl Runner {
                     Replied::Made => {
                         self.advance(one.at, EffectMove::Commit)?;
                         self.reply_moved(one.at, reply.as_ref(), ReplyState::Committed)?;
-                        if matches!(class, ActionClass::Payment | ActionClass::Purchase) {
-                            let named = page.map_or_else(Vec::new, |read| read());
-                            if let Some(cause) = amount_cause(&now, &named) {
-                                self.log(LogEvent::Stopped, step, Some(cause))?;
-                                if cause == Cause::AmountDiffers {
-                                    return Err(failed(cause));
-                                }
-                            }
-                        }
+                        let amounts = matches!(class, ActionClass::Payment | ActionClass::Purchase);
+                        let after = page.map_or_else(PageAfter::of_no_page, |read| read(amounts));
+                        self.after_the_reply(step, &now, amounts, &after)?;
                         Ok(Through::Left)
                     }
                     Replied::NotMade(case) => {
