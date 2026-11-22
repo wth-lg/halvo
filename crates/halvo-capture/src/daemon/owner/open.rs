@@ -200,8 +200,9 @@ impl Opener {
     /// finished whole, a store is made where none stands, also under the rule
     /// StoreMade, whose mark a clear that failed may have left, and a slot of
     /// a make that failed reads Empty. After a delete that a start could not
-    /// finish whole, no try of the open is made: the slot reads Deleting until
-    /// the tries are stopped, and the next start tries the delete again.
+    /// finish whole, no try of the open is made: the slot reads
+    /// DeleteUnfinished until the tries are stopped, a second delete-all is
+    /// taken there, and the next start tries the delete again.
     pub fn start_with(
         at_start: AtStartCall,
         host: Box<dyn StoreHost>,
@@ -215,8 +216,8 @@ impl Opener {
     /// the finish of a delete-all intent where the data directory failed its
     /// check, which never gates a delete (contracts.md C3.2 step 3). The slot
     /// reads Deleting from the moment that `at_start` begins a delete; after
-    /// a finish that is not whole the thread waits for its stop, and after a
-    /// whole one it ends.
+    /// a finish that is not whole it reads DeleteUnfinished and the thread
+    /// waits for its stop, and after a whole one it ends.
     pub fn finish_alone(at_start: AtStartCall, host: Box<dyn StoreHost>) -> io::Result<Opener> {
         Opener::spawn(at_start, host, None)
     }
@@ -242,7 +243,8 @@ impl Opener {
                         || *slot.lock().unwrap_or_else(PoisonError::into_inner) = Slot::Deleting;
                     let found = at_start(host.as_ref(), &deleting);
                     if found == (AtStart::Finished { whole: false }) {
-                        deleting();
+                        *slot.lock().unwrap_or_else(PoisonError::into_inner) =
+                            Slot::DeleteUnfinished;
                         wait_unless_stopped(&stop, None);
                         return;
                     }

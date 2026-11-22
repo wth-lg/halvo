@@ -37,6 +37,10 @@ pub enum Slot {
     /// A delete-all runs, or the intent of one is finished before the open
     /// (contracts.md C17 item 3): no store is held.
     Deleting,
+    /// A delete-all, or the finish of its intent at a start, ended not
+    /// whole: no store is held, nothing opens, and a second delete-all is
+    /// taken. It reads deleting, with the status's `store_delete_unfinished`.
+    DeleteUnfinished,
     /// A delete-all removed the store and the fresh store was not made, for
     /// `cause`; with `retry_in`, the make is tried again after that wait.
     Empty {
@@ -113,15 +117,25 @@ impl Slot {
             Slot::Sealed { .. } => StoreState::Sealed,
             Slot::Unavailable { .. } => StoreState::Unavailable,
             Slot::OlderFormat | Slot::NewerFormat => StoreState::UnsupportedVersion,
-            Slot::Deleting => StoreState::Deleting,
+            Slot::Deleting | Slot::DeleteUnfinished => StoreState::Deleting,
             Slot::Empty { .. } => StoreState::Unavailable,
         }
+    }
+
+    /// Whether the last delete-all ended not whole and a second one is
+    /// taken: the status's `store_delete_unfinished`.
+    pub fn delete_unfinished(&self) -> bool {
+        matches!(self, Slot::DeleteUnfinished)
     }
 
     /// The `store_error=` cause of the status, none for a slot that has none.
     pub fn cause(&self) -> Option<StoreErrorKind> {
         match self {
-            Slot::Opening | Slot::Open { .. } | Slot::Maintenance { .. } | Slot::Deleting => None,
+            Slot::Opening
+            | Slot::Open { .. }
+            | Slot::Maintenance { .. }
+            | Slot::Deleting
+            | Slot::DeleteUnfinished => None,
             Slot::Sealed { cause, .. }
             | Slot::Unavailable { cause, .. }
             | Slot::Empty { cause, .. } => Some(*cause),
@@ -141,7 +155,8 @@ impl Slot {
             | Slot::Sealed { .. }
             | Slot::OlderFormat
             | Slot::NewerFormat
-            | Slot::Deleting => None,
+            | Slot::Deleting
+            | Slot::DeleteUnfinished => None,
         }
     }
 }
