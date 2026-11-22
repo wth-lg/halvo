@@ -203,6 +203,14 @@ pub trait Control: Send + Sync {
     fn run_mark(&self, _made: Made, _edge: RunEdge) -> Result<RunMarked, ClientError> {
         Err(ClientError::Unsupported)
     }
+
+    /// Asks the daemon to hold the search for repeated tasks off until `until`, in nanoseconds since 1970 (the
+    /// workflows run's C24.5), and gives the deadline in force, none where none is. A control with no defer call
+    /// answers `ClientError::Unsupported`.
+    #[cfg(target_os = "macos")]
+    fn defer(&self, _made: Made, _until: i64) -> Result<Option<i64>, ClientError> {
+        Err(ClientError::Unsupported)
+    }
 }
 
 /// How long a stream call or a mark waits for its place in the line and for the daemon, from the call on.
@@ -430,6 +438,21 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
                 "the reply is no run_marked".to_owned(),
             )),
         }
+    }
+
+    /// The request `defer` of `until` by `Client::defer`, once the call has its place in the line, for which it waits
+    /// as long as a mark does; the client's call then waits up to 5 s for the daemon. It gives the deadline in force
+    /// that the daemon names, or the error of the call.
+    #[cfg(target_os = "macos")]
+    fn defer(&self, made: Made, until: i64) -> Result<Option<i64>, ClientError> {
+        let by = made.deadline_from + CALL_DEADLINE;
+        let late = ClientError::Deadline {
+            seconds: CALL_DEADLINE.as_secs(),
+        };
+        let place = made.enter(by).ok_or(late)?;
+        let answer = Client::new(self.connector.clone()).defer(until);
+        drop(place);
+        answer
     }
 
     fn relay(&self, made: Made, request: &[u8]) -> Result<Vec<u8>, ClientError> {
@@ -762,6 +785,11 @@ impl<C: Control> Control for Watching<C> {
     #[cfg(target_os = "macos")]
     fn run_mark(&self, made: Made, edge: RunEdge) -> Result<RunMarked, ClientError> {
         self.inner.run_mark(made, edge)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn defer(&self, made: Made, until: i64) -> Result<Option<i64>, ClientError> {
+        self.inner.defer(made, until)
     }
 }
 
