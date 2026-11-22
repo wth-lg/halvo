@@ -99,6 +99,16 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
         ("status-refused", none(NoStatusService::StatusRefused)),
         ("unsupported", none(NoStatusService::Unsupported)),
         ("another-version", none(NoStatusService::AnotherVersion)),
+        ("not-started", {
+            let hold = crate::view_state::Hold::default();
+            hold.awaits_consent();
+            hold.mark(none(NoStatusService::NotRunning))
+        }),
+        ("data-dir-unusable", {
+            let hold = crate::view_state::Hold::default();
+            hold.data_dir_unusable();
+            hold.mark(none(NoStatusService::HeldUnreachable))
+        }),
         ("running", of(status_with(mac, |_| {}))),
         ("running-windows", of(sample_status(Platform::Windows))),
         (
@@ -392,7 +402,9 @@ fn every_service() -> Vec<Service> {
         Service::HeldUnreachable => Some(Service::StatusRefused),
         Service::StatusRefused => Some(Service::Unsupported),
         Service::Unsupported => Some(Service::AnotherVersion),
-        Service::AnotherVersion => None,
+        Service::AnotherVersion => Some(Service::NotStarted),
+        Service::NotStarted => Some(Service::DataDirUnusable),
+        Service::DataDirUnusable => None,
     };
     std::iter::successors(Some(Service::Connecting), |service| following(*service)).collect()
 }
@@ -491,6 +503,7 @@ fn with_any_service_but_running_every_daemon_field_is_null() {
                     "login_item_loaded",
                 ]
                 .contains(&key.as_str())
+                    || (key == "texts" && view.service() == Service::NotStarted)
                 {
                     continue;
                 }
@@ -776,6 +789,15 @@ impl crate::commands::control::Control for Claims {
         Ok(status_with(Platform::Macos, |_| {}))
     }
 
+    fn status_of_a_pass(
+        &self,
+        made: crate::commands::control::Made,
+        claim: bool,
+        hold: &crate::view_state::Hold,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        self.status(made, claim && !hold.stands())
+    }
+
     fn inventory(
         &self,
         _: crate::commands::control::Made,
@@ -818,6 +840,48 @@ impl crate::commands::control::Control for Claims {
         _: crate::commands::control::Made,
         _: Permission,
     ) -> Result<halvo_control::onboarding::RequestOutcome, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn relay(
+        &self,
+        _: crate::commands::control::Made,
+        _: &[u8],
+    ) -> Result<Vec<u8>, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn acknowledge_lost_permission(
+        &self,
+        _: crate::commands::control::Made,
+        _: Permission,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn owner_stream(
+        &self,
+        _: crate::commands::control::Made,
+    ) -> Result<halvo_control::r2::OwnerStreamEnd, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn run_mark(
+        &self,
+        _: crate::commands::control::Made,
+        _: halvo_control::r2::RunEdge,
+    ) -> Result<halvo_control::r2::RunMarked, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn defer(
+        &self,
+        _: crate::commands::control::Made,
+        _: i64,
+    ) -> Result<Option<i64>, halvo_control::client::ClientError> {
         Err(halvo_control::client::ClientError::Unsupported)
     }
 }

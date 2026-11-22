@@ -11,6 +11,7 @@
   var drain;
   var expiry;
   var loginLine;
+  var firstRun;
   var action = null;
   var pending = null;
   var shown = null;
@@ -27,6 +28,8 @@
     status_refused: w.STATUS_REFUSED,
     unsupported: w.UNSUPPORTED,
     another_version: w.ERROR_UPDATE,
+    not_started: w.FIRST_RUN_HEADING,
+    data_dir_unusable: w.DATA_DIR_UNUSABLE,
   };
   var CAPTURE = {
     running: w.CAPTURE_RUNNING,
@@ -81,7 +84,8 @@
 
   function renderToggle(s) {
     var press = pressOf(s);
-    if (press === "start") action = "running";
+    if (s.service === "not_started") action = "start";
+    else if (press === "start") action = "running";
     else if (press === "resume") action = s.service === "running" ? "running" : null;
     else if (s.capture === "awaiting_resume") action = "running";
     else action = s.desired === "running" ? "paused" : s.desired === "paused" ? "running" : null;
@@ -90,7 +94,7 @@
       toggle.disabled = true;
       return;
     }
-    if (press === "start") toggle.textContent = w.START;
+    if (press === "start" || action === "start") toggle.textContent = w.START;
     else toggle.textContent = press === "resume" || action === "running" ? w.RESUME : w.PAUSE;
     toggle.disabled = action === null;
   }
@@ -110,6 +114,35 @@
     failed.classList.toggle("hidden", rows.length === 0);
   }
 
+  function renderFirstRun(s) {
+    var t = s.service === "not_started" ? s.texts : null;
+    firstRun.classList.toggle("hidden", !t);
+    if (!t) {
+      firstRun.replaceChildren();
+      return;
+    }
+    var lines = [t.repeated_tasks, t.passwords, t.typed_ahead, t.backup_limit, t.storage, t.limits, t.custody].filter(function (line) {
+      return typeof line === "string" && line !== "";
+    });
+    firstRun.replaceChildren.apply(
+      firstRun,
+      [
+        Halvo.el("p", { text: w.FIRST_RUN_INTRO }),
+        Halvo.el(
+          "ul",
+          { id: "first-run-recorded" },
+          (t.recorded || []).map(function (r) {
+            return Halvo.el("li", { text: r.text });
+          }),
+        ),
+      ].concat(
+        lines.map(function (line) {
+          return Halvo.el("p", { class: "muted", text: line });
+        }),
+      ),
+    );
+  }
+
   function render(s) {
     var key = s.service + ":" + s.capture + ":" + s.desired + ":" + pressOf(s);
     if (shown !== null && key !== shown) heldUntil = performance.now() + HOLD_MS;
@@ -126,7 +159,8 @@
     var x = s.expiry;
     expiry.textContent =
       x && x.state === "failing" ? w.EXPIRY_FAILING + " " + (EXPIRY[x.error] || w.CAUSE_IO) + (x.last_at ? " " + w.EXPIRY_SINCE + " " + x.last_at + "." : "") : "";
-    loginLine.textContent = s.login_item_loaded === false ? w.LOGIN_ITEM_OFF : "";
+    loginLine.textContent = s.login_item_written === false ? w.LOGIN_ITEM_NOT_WRITTEN : s.login_item_loaded === false ? w.LOGIN_ITEM_OFF : "";
+    renderFirstRun(s);
   }
 
   function refresh() {
@@ -152,6 +186,7 @@
     toggle.disabled = true;
     toggle.textContent = asked === "paused" ? w.PAUSING : w.STARTING;
     Halvo.showError("");
+    if (asked === "start") return consent();
     return Halvo.ipc
       .call("set_capture_state", { capture: asked })
       .then(function (reply) {
@@ -164,6 +199,21 @@
       .catch(function (e) {
         pending = null;
         Halvo.showError(asked === "paused" ? w.PAUSE_NOT_REACHED : e);
+        renderToggle(last);
+      });
+  }
+
+  function consent() {
+    return Halvo.ipc
+      .call("start_capture")
+      .then(function (reply) {
+        pending = null;
+        Halvo.takeMutationReply(reply);
+        if (reply.service === "running" && reply.desired !== "running") Halvo.showError(w.START_STEPS_OPEN);
+      })
+      .catch(function (e) {
+        pending = null;
+        Halvo.showError(e && e.error === "deadline" ? w.START_NO_ANSWER.replace("{seconds}", String(Number(e.seconds) || 0)) : e);
         renderToggle(last);
       });
   }
@@ -182,12 +232,14 @@
       drain = Halvo.el("p", { id: "drain-line" });
       expiry = Halvo.el("p", { id: "expiry-line" });
       loginLine = Halvo.el("p", { id: "login-line" });
+      firstRun = Halvo.el("div", { id: "first-run", class: "hidden" });
       el.append(
         Halvo.el("div", { class: "row status-row" }, [dot, Halvo.el("p", { class: "state-line" }, [state, " ", reason]), toggle]),
         failed,
         drain,
         expiry,
         loginLine,
+        firstRun,
       );
       status.on(function (s) {
         last = s;

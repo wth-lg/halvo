@@ -94,12 +94,11 @@ pub struct Calls {
 }
 
 /// Where the product's runs live: the absolute data directory and the absolute paths that a start hands the
-/// runner.
+/// runner. A start hands it no browser: the runner finds the person's browser itself.
 #[derive(Clone, Debug)]
 pub struct Places {
     pub data_dir: PathBuf,
     pub runner: PathBuf,
-    pub browser: PathBuf,
     pub model: Option<PathBuf>,
 }
 
@@ -1387,7 +1386,7 @@ impl Runs for Product {
                 .map_err(|_| PortError::NoService)?,
             mode: halvo_schema::executable::names::Mode::parse(spec.mode.name())
                 .map_err(|_| PortError::NoService)?,
-            browser: self.places.browser.clone(),
+            browser: None,
             model: self.places.model.clone(),
             headed: spec.headed,
             utc_offset_s: zone_offset_s(SystemTime::now()).ok_or(PortError::NoService)?,
@@ -1664,7 +1663,6 @@ mod tests {
         let places = Places {
             data_dir: PathBuf::from("/nowhere/halvo-u54a"),
             runner: PathBuf::from("/nowhere/halvo-runner"),
-            browser: PathBuf::from("/nowhere/halvo-browser"),
             model: None,
         };
         let hub = hub(fails, places, Box::new(|_| {}), Arc::new(Unseen));
@@ -1689,7 +1687,6 @@ mod tests {
         let places = Places {
             data_dir: PathBuf::from("/nowhere/halvo-u54c"),
             runner: PathBuf::from("/nowhere/halvo-runner"),
-            browser: PathBuf::from("/nowhere/halvo-browser"),
             model: None,
         };
         hub(calls, places, Box::new(|_| {}), Arc::new(Unseen))

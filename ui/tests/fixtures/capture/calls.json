@@ -3,6 +3,7 @@
   { "command": "inventory", "args": {}, "reply": "inventory-sample" },
   { "command": "onboarding_state", "args": {}, "reply": "onboarding_state-granted" },
   { "command": "last_delete", "args": {}, "reply": "last_delete-none" },
+  { "command": "start_capture", "args": {}, "reply": "start_capture-running" },
   { "command": "request_permission", "args": { "permission": "input_monitoring" }, "reply": "request_permission-already-granted" },
   { "command": "open_permission_pane", "args": { "permission": "input_monitoring" }, "reply": "open_permission_pane-opened" },
   { "command": "acknowledge_lost_permission", "args": { "permission": "accessibility" }, "reply": "onboarding_state-granted" },

@@ -7,7 +7,7 @@ use halvo_control::proto::{
     RootDestroyed, Section, SourceName, SourceStateName, StopKind, StoreErrorKind, StoreState,
     SwitchName,
 };
-use halvo_control::texts::{texts, Texts};
+use halvo_control::texts::{first_run, texts, Texts};
 use serde::{Deserialize, Serialize};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
@@ -22,6 +22,8 @@ pub enum Service {
     StatusRefused,
     Unsupported,
     AnotherVersion,
+    NotStarted,
+    DataDirUnusable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -118,6 +120,7 @@ pub struct RunningView {
     pub ext: Vec<Section>,
     pub hold: Option<HoldView>,
     pub login_item_loaded: Option<bool>,
+    pub login_item_written: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -128,6 +131,28 @@ pub struct NoStatusView {
     pub last_exit: Option<i32>,
     pub hold: Option<HoldView>,
     pub login_item_loaded: Option<bool>,
+    pub login_item_written: Option<bool>,
+    pub first_run: Option<FirstRun>,
+}
+
+/// What a view without a status says before the app's first child (contracts.md C10.7): on a
+/// data directory that is not provisioned the not-started state, whose Start is the consent,
+/// with the first-run text of halvo-control's table; on a directory whose name leads nowhere,
+/// is no directory or cannot be read its own cause, and never the consent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FirstRun {
+    NotStarted(Texts),
+    DataDirUnusable,
+}
+
+impl NoStatusView {
+    fn word(&self) -> Service {
+        match self.first_run {
+            Some(FirstRun::NotStarted(_)) => Service::NotStarted,
+            Some(FirstRun::DataDirUnusable) => Service::DataDirUnusable,
+            None => self.service.word(),
+        }
+    }
 }
 
 /// Why the app holds capture off: a child of the app ended itself with status 5, because a
@@ -164,6 +189,20 @@ struct HoldState {
     another_version: bool,
     lives: u64,
     ended: Option<(u64, Option<i32>)>,
+    awaits_consent: bool,
+    data_dir_unusable: bool,
+    consenting: bool,
+    login_item_written: Option<bool>,
+}
+
+/// A consent click in flight, from `Hold::begin_consent` to its drop.
+#[derive(Debug)]
+pub struct Consenting<'a>(&'a Hold);
+
+impl Drop for Consenting<'_> {
+    fn drop(&mut self) {
+        self.0.state().consenting = false;
+    }
 }
 
 /// The app's hold on capture after a child of the app ended itself with status 5 (contracts.md
@@ -202,26 +241,46 @@ impl Hold {
 
     /// `view` with the hold, and on `not_running` the status of the last end while no child of
     /// the app lives; while the app leaves its own child of another daemon_version, a running
-    /// view reads another_version.
+    /// view reads another_version. A view without a status reads data_dir_unusable while the
+    /// supervisor found the data directory's own cause, and a not_running view reads
+    /// not_started while the supervisor awaits the consent.
     pub fn mark(&self, view: StatusView) -> StatusView {
         let hold = self.view();
-        let (last_exit, another_version) = {
+        let (last_exit, another_version, awaits_consent, data_dir_unusable, written) = {
             let state = self.state();
-            (state.last_exit, state.another_version)
+            (
+                state.last_exit,
+                state.another_version,
+                state.awaits_consent,
+                state.data_dir_unusable,
+                state.login_item_written,
+            )
         };
         let view = match view {
             StatusView::Running(running) if another_version => {
                 StatusView::no_status(NoStatusService::AnotherVersion, running.platform)
+            }
+            StatusView::NoStatus(mut view) if data_dir_unusable => {
+                view.first_run = Some(FirstRun::DataDirUnusable);
+                StatusView::NoStatus(view)
+            }
+            StatusView::NoStatus(mut view)
+                if awaits_consent && view.service == NoStatusService::NotRunning =>
+            {
+                view.first_run = Some(FirstRun::NotStarted(first_run(view.platform)));
+                StatusView::NoStatus(view)
             }
             other => other,
         };
         match view {
             StatusView::Running(mut view) => {
                 view.hold = hold;
+                view.login_item_written = written;
                 StatusView::Running(view)
             }
             StatusView::NoStatus(mut view) => {
                 view.hold = hold;
+                view.login_item_written = written;
                 if view.service == NoStatusService::NotRunning {
                     view.last_exit = last_exit;
                 }
@@ -249,6 +308,38 @@ impl Hold {
             self.changed.notify_all();
         }
         start
+    }
+
+    /// The click on Start, the consent, asks the supervisor for one child where it awaits the
+    /// consent, no ask stands and no child lives; the read and the ask stand under one lock, so
+    /// that a second click in flight asks for none. Answers whether it asked.
+    pub fn ask_consent(&self) -> bool {
+        let mut state = self.state();
+        let ask = state.awaits_consent && !state.start_asked && !state.child_lives;
+        if ask {
+            state.start_asked = true;
+            drop(state);
+            self.changed.notify_all();
+        }
+        ask
+    }
+
+    /// Begins a consent click: none while the hold stands, whose press is then the hold's and
+    /// never a new consent, while the data directory reads its own cause, and while another
+    /// consent click is in flight.
+    pub fn begin_consent(&self) -> Option<Consenting<'_>> {
+        let mut state = self.state();
+        if state.held || state.data_dir_unusable || state.consenting {
+            return None;
+        }
+        state.consenting = true;
+        Some(Consenting(self))
+    }
+
+    /// What the consent click read of its write of the login item: whether the plist stands
+    /// written; every view says it from then on.
+    pub fn login_item_written(&self, written: bool) {
+        self.state().login_item_written = Some(written);
     }
 
     /// The number of the app's child that lives at this moment, counted from the first child of
@@ -332,7 +423,8 @@ impl Hold {
         self.changed.notify_all();
     }
 
-    /// Takes the ask of a Start, if one waits: the press then asked for the next child.
+    /// Takes the ask of a Start or of the consent, if one waits: the press then asked for the
+    /// next child.
     #[cfg(any(target_os = "macos", test))]
     pub fn take_start(&self) -> bool {
         let mut state = self.state();
@@ -340,8 +432,25 @@ impl Hold {
         if asked {
             state.start_asked = false;
             state.no_more_child = false;
+            state.awaits_consent = false;
         }
         asked
+    }
+
+    /// The supervisor's spawner reads the data directory not provisioned: no child starts before
+    /// the person's click on Start, the consent (contracts.md C10.7).
+    #[cfg(any(target_os = "macos", test))]
+    pub fn awaits_consent(&self) {
+        self.state().awaits_consent = true;
+        self.changed.notify_all();
+    }
+
+    /// The supervisor's spawner reads the data directory's own cause (ruling ST-36 (e)): no child
+    /// starts and no consent is offered.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn data_dir_unusable(&self) {
+        self.state().data_dir_unusable = true;
+        self.changed.notify_all();
     }
 
     /// The app leaves its own child that reads another daemon_version after the one restart of
@@ -393,6 +502,8 @@ struct WireView<'a> {
     last_exit: Option<i32>,
     hold: Option<HoldView>,
     login_item_loaded: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    login_item_written: Option<bool>,
     platform: Platform,
     desired: Option<CaptureState>,
     capture: Option<Capture>,
@@ -422,6 +533,7 @@ impl Serialize for StatusView {
                 last_exit: None,
                 hold: view.hold,
                 login_item_loaded: view.login_item_loaded,
+                login_item_written: view.login_item_written,
                 platform: view.platform,
                 desired: Some(view.desired),
                 capture: Some(view.capture),
@@ -443,10 +555,11 @@ impl Serialize for StatusView {
                 ext: Some(&view.ext),
             },
             StatusView::NoStatus(view) => WireView {
-                service: view.service.word(),
+                service: view.word(),
                 last_exit: view.last_exit,
                 hold: view.hold,
                 login_item_loaded: view.login_item_loaded,
+                login_item_written: view.login_item_written,
                 platform: view.platform,
                 desired: None,
                 capture: None,
@@ -464,7 +577,10 @@ impl Serialize for StatusView {
                 lost_grants: None,
                 password_guard: None,
                 screen_filter_excludes_app: None,
-                texts: None,
+                texts: match &view.first_run {
+                    Some(FirstRun::NotStarted(texts)) => Some(texts),
+                    Some(FirstRun::DataDirUnusable) | None => None,
+                },
                 ext: None,
             },
         };
@@ -489,6 +605,8 @@ impl StatusView {
             last_exit: None,
             hold: None,
             login_item_loaded: None,
+            login_item_written: None,
+            first_run: None,
         })
     }
 
@@ -518,7 +636,7 @@ impl StatusView {
     pub fn service(&self) -> Service {
         match self {
             StatusView::Running(_) => Service::Running,
-            StatusView::NoStatus(view) => view.service.word(),
+            StatusView::NoStatus(view) => view.word(),
         }
     }
 
@@ -589,6 +707,7 @@ impl StatusView {
             ext: f.ext.clone(),
             hold: None,
             login_item_loaded: None,
+            login_item_written: None,
         }))
     }
 }
@@ -637,7 +756,7 @@ pub fn texts_shown(status: &DaemonStatus) -> Texts {
     if !typing_shown(status) {
         shown
             .recorded
-            .retain(|row| row.switch != SwitchName::KeyClass);
+            .retain(|row| row.switch != Some(SwitchName::KeyClass));
         shown.passwords = "";
         shown.typed_ahead = None;
     }

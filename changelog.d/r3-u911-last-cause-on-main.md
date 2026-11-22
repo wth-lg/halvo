@@ -1,0 +1,2 @@
+- Added: Each entry of the agents roster (`list_agents`) holds `last_cause`, the cause of the end of the agent's newest started run, a name of the closed list of causes such as `no_browser`, or null.
+- Changed: The agents roster reads a `stopped` log row whose stored cause is no name of the closed list as a row with no cause, where it refused the whole roster with `store` before.

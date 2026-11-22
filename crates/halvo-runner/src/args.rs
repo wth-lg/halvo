@@ -8,12 +8,13 @@ use halvo_schema::executable::RunId;
 use halvo_schema::{AgentId, WorkflowId};
 
 /// The arguments of A6.1: `--run <run id> --agent <agent id> --workflow <workflow id> --mode compile|replay
-/// --browser PATH --utc-offset SECONDS [--model FILE] [--headed]`, each once, in any order, and `[--data-dir DIR]`,
+/// --utc-offset SECONDS [--browser PATH] [--model FILE] [--headed]`, each once, in any order, and `[--data-dir DIR]`,
 /// Halvo's data directory, whose `agents/locks/` the file steps lock (the coordinator's ruling CP-134). The supervisor
 /// library passes `--data-dir` with the directory that its caller resolved (U4.7); the argument stays optional here,
 /// as A6.1 writes it, and a file step or a web step of a runner without it fails with `step_failed`. It keeps
-/// `--browser` and `--headed`, which the start of the run's browser takes at its first web step (crate::web); this
-/// build starts no model, so it checks the form of `--model` and keeps it not.
+/// `--browser` and `--headed`, which the start of the run's browser takes at its first web step (crate::web); a run
+/// given no `--browser` finds the person's browser there (crate::find, U9.10). This build starts no model, so it
+/// checks the form of `--model` and keeps it not.
 #[derive(Debug)]
 pub(crate) struct Args {
     pub run: RunId,
@@ -27,8 +28,9 @@ pub(crate) struct Args {
     /// The run's offset of `--utc-offset`: whole seconds east of UTC, from -50,400 to 50,400, by which the runner
     /// stamps the day of every row (`day_of`, the coordinator's ruling CP-204).
     pub utc_offset_s: i32,
-    /// The browser's program of `--browser`, as given; the executor's start refuses a relative path.
-    pub browser: PathBuf,
+    /// The browser's program of `--browser`, as given, and none without the argument; the executor's start refuses a
+    /// relative path.
+    pub browser: Option<PathBuf>,
     /// Whether `--headed` was given: the browser then runs with a window.
     pub headed: bool,
 }
@@ -122,7 +124,6 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
     let agent = agent.ok_or("no --agent")?;
     let workflow = workflow.ok_or("no --workflow")?;
     let mode = mode.ok_or("no --mode")?;
-    let browser = browser.ok_or("no --browser")?;
     let offset = offset.ok_or("no --utc-offset")?;
     Ok(Args {
         run: RunId::parse(text(run, "--run")?).map_err(|_| "--run is no run id")?,
@@ -134,7 +135,7 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
             .map(|dir| DataDir::from_flag(dir).map_err(data_dir_refusal))
             .transpose()?,
         utc_offset_s: utc_offset(offset)?,
-        browser: PathBuf::from(browser),
+        browser: browser.map(PathBuf::from),
         headed,
     })
 }
@@ -197,7 +198,13 @@ mod tests {
         bad[1] = "0123";
         assert_eq!(parse(&args(&bad)).err(), Some("--run is no run id"));
         assert_eq!(parse(&args(&full()[2..])).err(), Some("no --run"));
-        assert_eq!(parse(&args(&full()[..8])).err(), Some("no --browser"));
+        let mut no_browser = full();
+        no_browser.drain(8..10);
+        assert_eq!(
+            parse(&args(&no_browser)).map(|a| a.browser),
+            Ok(None),
+            "no --browser"
+        );
         assert_eq!(parse(&args(&full()[..10])).err(), Some("no --utc-offset"));
         let mut headed = full();
         headed.extend(["--headed", "--headed"]);

@@ -1,31 +1,45 @@
 //! The owner stream on Windows: a stream is two anonymous pipes from `CreatePipe`, one for each direction, so an end is
 //! two handles, the one that reads and the one that writes. The handler gives each handle to its process with
 //! `DuplicateHandle`, not inheritable and with `DUPLICATE_CLOSE_SOURCE`, and names the two values in a frame: to the
-//! owner in the frame `stream`, to the client in `handles` of the reply. Where the client's hand-over fails, the
-//! handler takes back what it gave the client.
+//! owner in the frame `stream`, to the client in `handles` of the reply. The client's process is opened once, from the
+//! process id of the client of the pipe, and the handler gives its end only into a process whose token user, read on
+//! that handle, is the daemon's own. Where the client's hand-over fails, the handler takes back what it gave the
+//! client. The handler writes on the pipe with overlapped writes of its own, since the server opens its instance for
+//! overlapped I/O, and waits at most 2 s for a reply.
 
 use std::ffi::c_void;
-use std::fs::File;
-use std::io::{self, Read};
-use std::mem::ManuallyDrop;
+use std::io::{self, Read, Write};
 use std::os::windows::io::{
     AsHandle, AsRawHandle, BorrowedHandle, FromRawHandle, IntoRawHandle, OwnedHandle,
 };
 use std::time::{Duration, Instant};
 
+use windows::core::PCWSTR;
 use windows::Win32::Foundation::{
-    DuplicateHandle, DUPLICATE_CLOSE_SOURCE, DUPLICATE_SAME_ACCESS, HANDLE,
+    DuplicateHandle, DUPLICATE_CLOSE_SOURCE, DUPLICATE_SAME_ACCESS, ERROR_IO_PENDING,
+    ERROR_OPERATION_ABORTED, HANDLE, WAIT_OBJECT_0,
 };
-use windows::Win32::Storage::FileSystem::{GetFileType, FILE_TYPE_PIPE};
+use windows::Win32::Storage::FileSystem::{GetFileType, WriteFile, FILE_TYPE_PIPE};
 use windows::Win32::System::Pipes::{
     CreatePipe, GetNamedPipeClientProcessId, GetNamedPipeServerProcessId,
 };
-use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcess, PROCESS_DUP_HANDLE};
+use windows::Win32::System::Threading::{
+    CreateEventW, GetCurrentProcess, OpenProcess, WaitForSingleObject, PROCESS_DUP_HANDLE,
+    PROCESS_QUERY_LIMITED_INFORMATION,
+};
+use windows::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
 
 use super::owner_stream::{cannot, judge, stream_frame, OwnerStreamEnd, OwnerStreamReady};
 use crate::client::Transport;
+use crate::client_windows::{current_user, os_error, user_of_token_of};
 use crate::proto::ErrorReply;
 use crate::wire::{read_frame, write_frame, FrameError, REPLY_MAX_BYTES};
+
+/// The longest wait of the handler for the write of one reply: the server's deadline of a reply's write.
+const REPLY_WRITE_WAIT: Duration = Duration::from_secs(2);
+
+/// The reading of the SID string of the token user of a process from a handle of that process.
+type UserOf = fn(HANDLE) -> io::Result<String>;
 
 /// The accepted connection of the control server, a pipe, borrowed for the length of the handler's call.
 pub type Connection<'a> = BorrowedHandle<'a>;
@@ -151,25 +165,103 @@ fn give(process: BorrowedHandle<'_>, end: [OwnedHandle; 2]) -> io::Result<[u64; 
     }
 }
 
-/// The client's process, opened with the right to duplicate handles alone, from the process id of the client of the
-/// accepted connection.
-fn client_process(connection: Connection<'_>) -> io::Result<OwnedHandle> {
+/// The client's process, opened once from the process id of the client of the accepted connection, with the rights to
+/// duplicate handles into it and to read its token: an error, and the handle closed, unless the token user that
+/// `user_of` reads on that handle is the user of this process, the daemon's own. The process id is read once, so the
+/// process that is checked is the one that receives the end.
+fn client_process(connection: Connection<'_>, user_of: UserOf) -> io::Result<OwnedHandle> {
     let mut pid = 0u32;
     // SAFETY: the borrow keeps the connection open for the call, which writes the one u32 that the pointer names.
-    unsafe { GetNamedPipeClientProcessId(raw(connection), &mut pid) }.map_err(io::Error::other)?;
+    unsafe { GetNamedPipeClientProcessId(raw(connection), &mut pid) }.map_err(os_error)?;
     // SAFETY: OpenProcess returns a new handle, which nothing else owns.
-    let process =
-        unsafe { OpenProcess(PROCESS_DUP_HANDLE, false, pid) }.map_err(io::Error::other)?;
+    let process = unsafe {
+        OpenProcess(
+            PROCESS_DUP_HANDLE | PROCESS_QUERY_LIMITED_INFORMATION,
+            false,
+            pid,
+        )
+    }
+    .map_err(os_error)?;
     // SAFETY: the handle is new and open, and nothing else in this process owns it.
-    Ok(unsafe { OwnedHandle::from_raw_handle(process.0) })
+    let process = unsafe { OwnedHandle::from_raw_handle(process.0) };
+    if user_of(raw(process.as_handle()))? != current_user()? {
+        return Err(io::ErrorKind::PermissionDenied.into());
+    }
+    Ok(process)
 }
 
-/// Writes one reply frame on the connection.
+/// A new event of manual reset, not signalled.
+fn new_event() -> io::Result<OwnedHandle> {
+    // SAFETY: CreateEventW is given no attributes and no name; the handle that it returns is owned at once below.
+    let event = unsafe { CreateEventW(None, true, false, PCWSTR::null()) }.map_err(os_error)?;
+    // SAFETY: `event` is a new handle that nothing else owns or closes.
+    Ok(unsafe { OwnedHandle::from_raw_handle(event.0) })
+}
+
+/// The writer of one reply on the borrowed connection: each write is a write with an `OVERLAPPED` and an event of its
+/// own, which waits at most until `deadline` and is cancelled then. On a handle opened for overlapped I/O the write may
+/// pend; on any other it ends inside the call.
+struct OverlappedWriter<'a> {
+    connection: Connection<'a>,
+    event: OwnedHandle,
+    deadline: Instant,
+}
+
+impl Write for OverlappedWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let len = buf.len().min(u32::MAX as usize);
+        if len == 0 {
+            return Ok(0);
+        }
+        let left = self.deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        let pipe = raw(self.connection);
+        let event = HANDLE(self.event.as_raw_handle());
+        let mut overlapped = OVERLAPPED {
+            hEvent: event,
+            ..Default::default()
+        };
+        // SAFETY: the borrow keeps the connection open, and `buf` and `overlapped` outlive the write, which
+        // GetOverlappedResult below waits for.
+        match unsafe { WriteFile(pipe, Some(&buf[..len]), None, Some(&mut overlapped)) } {
+            Ok(()) => {}
+            Err(error) if error.code() == ERROR_IO_PENDING.to_hresult() => {
+                let millis = u32::try_from(left.as_millis().max(1)).unwrap_or(u32::MAX - 1);
+                // SAFETY: the event is open; the call takes no pointer.
+                if unsafe { WaitForSingleObject(event, millis) } != WAIT_OBJECT_0 {
+                    // SAFETY: the connection is open and `overlapped` names the one write started above.
+                    let _ = unsafe { CancelIoEx(pipe, Some(&overlapped)) };
+                }
+            }
+            Err(error) => return Err(os_error(error)),
+        }
+        let mut done = 0u32;
+        // SAFETY: the call waits until the write of `overlapped` has ended, which a cancel ends at once; `overlapped`,
+        // `done` and `buf` live until it returns.
+        match unsafe { GetOverlappedResult(pipe, &overlapped, &mut done, true) } {
+            Ok(()) => Ok(done as usize),
+            Err(error) if error.code() == ERROR_OPERATION_ABORTED.to_hresult() => {
+                Err(io::ErrorKind::TimedOut.into())
+            }
+            Err(error) => Err(os_error(error)),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Writes one reply frame on the connection, with overlapped writes of its own that wait at most 2 s in all.
 pub(super) fn write_reply(connection: Connection<'_>, reply: &[u8]) -> Result<(), FrameError> {
-    // SAFETY: the file borrows the handle of the connection, which the borrow keeps open, for this call alone, and
-    // ManuallyDrop keeps it from closing the handle.
-    let mut file = ManuallyDrop::new(unsafe { File::from_raw_handle(connection.as_raw_handle()) });
-    write_frame(&mut *file, reply, REPLY_MAX_BYTES)
+    let mut writer = OverlappedWriter {
+        connection,
+        event: new_event().map_err(FrameError::Io)?,
+        deadline: Instant::now() + REPLY_WRITE_WAIT,
+    };
+    write_frame(&mut writer, reply, REPLY_MAX_BYTES)
 }
 
 /// Steps (c) to (f) of the handler: it returns the refusal to write when it handed no end to the client, with both
@@ -178,6 +270,16 @@ pub(super) fn serve(
     connection: Connection<'_>,
     owner: &mut dyn OwnerChannel,
     answer_by: Instant,
+) -> Result<(), ErrorReply> {
+    serve_reading(connection, owner, answer_by, user_of_token_of)
+}
+
+/// [`serve`] with `user_of` as the reading of the token user of the client's process.
+fn serve_reading(
+    connection: Connection<'_>,
+    owner: &mut dyn OwnerChannel,
+    answer_by: Instant,
+    user_of: UserOf,
 ) -> Result<(), ErrorReply> {
     let (owners, clients) =
         new_stream().map_err(|_| cannot("the stream to the owner cannot be made"))?;
@@ -190,7 +292,7 @@ pub(super) fn serve(
         return Err(refusal);
     }
     let handed = cannot("the end of the stream cannot be handed to the client");
-    let process = client_process(connection).map_err(|_| handed.clone())?;
+    let process = client_process(connection, user_of).map_err(|_| handed.clone())?;
     let values = give(process.as_handle(), clients).map_err(|_| handed)?;
     let ready = OwnerStreamReady {
         handles: Some(values),
@@ -280,4 +382,118 @@ pub(super) fn take_end<T: CarriesEnds>(
             OwnedHandle::from_raw_handle(writes.0),
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::proto::{decode_reply, encode_reply, ErrorCode, Reply};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use windows::Win32::Storage::FileSystem::{FILE_FLAG_OVERLAPPED, PIPE_ACCESS_DUPLEX};
+    use windows::Win32::System::Pipes::{
+        CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
+    };
+
+    const ANOTHER_USER: &str = "S-1-5-21-1000000001-1000000002-1000000003-1001";
+
+    /// Whether the reading of another user ran.
+    static READ: AtomicBool = AtomicBool::new(false);
+
+    /// A reading of the token user that answers another user's SID for every process.
+    fn another_user(_: HANDLE) -> io::Result<String> {
+        READ.store(true, Ordering::SeqCst);
+        Ok(ANOTHER_USER.to_owned())
+    }
+
+    /// An owner's channel in this process that takes every end and closes the two handles that the frame names.
+    struct Taking;
+
+    impl OwnerChannel for Taking {
+        fn owner_process(&self) -> BorrowedHandle<'_> {
+            // SAFETY: the pseudo handle of this process is open for the life of the process and needs no close.
+            unsafe { BorrowedHandle::borrow_raw(GetCurrentProcess().0) }
+        }
+
+        fn send_stream(&mut self, frame: &[u8]) -> io::Result<()> {
+            let frame: serde_json::Value = serde_json::from_slice(frame).unwrap();
+            for value in frame["stream"]["handles"].as_array().unwrap() {
+                let handle = named(value.as_u64().unwrap()).unwrap();
+                // SAFETY: the handler gave this handle to this process, the owner's, and nothing else owns it.
+                drop(unsafe { OwnedHandle::from_raw_handle(handle.0) });
+            }
+            Ok(())
+        }
+
+        fn send(&mut self, _: &[u8]) -> io::Result<()> {
+            unreachable!("the handler of owner_stream writes no frame without an end")
+        }
+
+        fn answer(&mut self, _: Duration) -> io::Result<Option<Vec<u8>>> {
+            Ok(Some(br#"{"stream":"taken"}"#.to_vec()))
+        }
+    }
+
+    /// The server's end of a new pipe, opened for overlapped I/O as the control server opens its instances.
+    fn server_end(name: &str) -> OwnedHandle {
+        let name: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+        // SAFETY: `name` ends in a NUL and outlives the call; no attributes are passed.
+        let pipe = unsafe {
+            CreateNamedPipeW(
+                PCWSTR(name.as_ptr()),
+                PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+                PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+                1,
+                4_096,
+                4_096,
+                0,
+                None,
+            )
+        };
+        assert!(!pipe.is_invalid(), "{}", io::Error::last_os_error());
+        // SAFETY: `pipe` is a new handle that nothing else owns or closes.
+        unsafe { OwnedHandle::from_raw_handle(pipe.0) }
+    }
+
+    /// Rule 5: with a reading of the client's token user that answers another user's SID, the handler hands the
+    /// client no end after the owner took its own: it returns `internal`, the one reply on the pipe is that error
+    /// reply of v1, and no reply names a handle.
+    #[test]
+    fn an_end_goes_to_no_process_of_another_user() {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let name = format!(
+            r"\\.\pipe\halvo-control-test-{}-{nanos}",
+            std::process::id()
+        );
+        let server = server_end(&name);
+        let mut client = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&name)
+            .unwrap();
+        let answer_by = Instant::now() + Duration::from_secs(4);
+        let refusal = serve_reading(server.as_handle(), &mut Taking, answer_by, another_user)
+            .expect_err("the handler handed an end into a process of another user");
+        assert!(READ.load(Ordering::SeqCst), "the token user was not read");
+        assert_eq!(refusal.code(), ErrorCode::Internal);
+        write_reply(server.as_handle(), &encode_reply(&Reply::Error(refusal))).unwrap();
+        let frame = read_frame(&mut client, REPLY_MAX_BYTES).unwrap();
+        drop(server);
+        let mut after = [0u8; 1];
+        let read = client.read(&mut after);
+        assert!(
+            !matches!(read, Ok(n) if n > 0),
+            "a byte came after the reply: {read:?}"
+        );
+        assert!(
+            OwnerStreamReady::decode(&frame).is_err(),
+            "a reply names handles"
+        );
+        match decode_reply(&frame).unwrap() {
+            Reply::Error(error) => assert_eq!(error.code(), ErrorCode::Internal),
+            other => panic!("the reply is {other:?}"),
+        }
+    }
 }

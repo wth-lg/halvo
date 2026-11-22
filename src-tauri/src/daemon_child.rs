@@ -7,7 +7,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use halvo_control::exit;
-use halvo_control::paths::DataDir;
+use halvo_control::paths::{DataDir, EntryAtDataDir};
 use halvo_control::service::{DAEMON_ARG, DATA_DIR_ARG};
 
 use crate::commands::control::{ChildPid, Sight};
@@ -151,11 +151,30 @@ pub trait Watched: Send + 'static {
     fn kill(&mut self) -> io::Result<()>;
 }
 
-/// What starts the app's child: `Ok(None)` when no child may start, because the data
-/// directory is not provisioned.
+/// What a spawner answers at a start.
+#[derive(Debug)]
+pub enum Spawned<C> {
+    /// A child started.
+    Child(C),
+    /// No child may start in this life of the app: a stand-in's answer once its children ran
+    /// out.
+    #[cfg(test)]
+    Never,
+    /// The data directory reads not provisioned: no child starts before the person's click on
+    /// Start, the consent (contracts.md C10.7).
+    AwaitsConsent,
+    /// The data directory's own cause (ruling ST-36 (e)): no child starts and no consent is
+    /// offered.
+    Unusable(EntryAtDataDir),
+}
+
+/// What starts the app's child.
 pub trait Spawner: Send + 'static {
     type Child: Watched;
-    fn start(&mut self) -> io::Result<Option<Self::Child>>;
+    fn start(&mut self) -> io::Result<Spawned<Self::Child>>;
+    /// The person's click on Start, the consent: from it on `start` starts a child on a data
+    /// directory that does not read provisioned yet.
+    fn consent(&mut self);
 }
 
 /// The time of the supervisor: the system's in the app, a stand-in in the tests.
@@ -281,26 +300,50 @@ mod sys {
     }
 }
 
-/// The start of the app's daemon on its data directory.
+/// The start of the app's daemon on its data directory; `consented` once the person clicked
+/// Start, the consent.
 #[derive(Debug, Clone)]
 pub struct Plan {
     pub program: Program,
     pub data_dir: DataDir,
     pub given: bool,
+    pub consented: bool,
+}
+
+impl Plan {
+    /// What holds a start back, read before it: the directory's own cause, where
+    /// `is_provisioned` answers one twice in a row for CannotBeRead (contracts.md C10.7), and
+    /// before the consent a directory that does not read provisioned; none where the daemon may
+    /// start.
+    pub fn held_back(&self) -> Option<Spawned<Running>> {
+        let read = match self.data_dir.is_provisioned() {
+            Err(EntryAtDataDir::CannotBeRead) => self.data_dir.is_provisioned(),
+            other => other,
+        };
+        match read {
+            Err(cause) => Some(Spawned::Unusable(cause)),
+            Ok(false) if !self.consented => Some(Spawned::AwaitsConsent),
+            Ok(_) => None,
+        }
+    }
 }
 
 impl Spawner for Plan {
     type Child = Running;
 
-    /// Starts the daemon when `is_provisioned` answers true; on false or on its error it starts
-    /// nothing and makes no entry in the directory.
-    fn start(&mut self) -> io::Result<Option<Running>> {
-        if !matches!(self.data_dir.is_provisioned(), Ok(true)) {
-            return Ok(None);
+    /// Starts the daemon unless `held_back` answers what holds it back; then it starts nothing
+    /// and makes no entry in the directory.
+    fn start(&mut self) -> io::Result<Spawned<Running>> {
+        if let Some(held) = self.held_back() {
+            return Ok(held);
         }
         let err = daemon_err(&self.data_dir)?;
         let given = self.given.then(|| self.data_dir.path());
-        start_child(&self.program, &arguments(given), err).map(Some)
+        start_child(&self.program, &arguments(given), err).map(Spawned::Child)
+    }
+
+    fn consent(&mut self) {
+        self.consented = true;
     }
 }
 
@@ -424,9 +467,16 @@ fn end_child<C: Watched, K: Clock>(child: &mut C, clock: &K, wait: Duration) {
     }
 }
 
-/// The supervisor's thread: after the third end with 5 in a row it starts no further child
-/// until a person's press on Start asks for one, and then supervises again with the count of
-/// 5s at zero; a quit ends the wait.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Waits {
+    Start,
+    Consent,
+}
+
+/// The supervisor's thread: after the third end with 5 in a row, and before the first child
+/// on a data directory that is not provisioned, it starts no child until a person's press on
+/// Start asks for one, and then supervises again with the count of 5s at zero; a quit ends the
+/// wait. After the consent its spawner starts on a directory that is not provisioned yet.
 fn supervise_and_start_again<S: Spawner, K: Clock>(
     spawner: S,
     shared: &Shared<S::Child>,
@@ -435,9 +485,12 @@ fn supervise_and_start_again<S: Spawner, K: Clock>(
     views: &Views,
 ) {
     let mut spawner = spawner;
-    while let Some(back) = supervise(spawner, shared, pid, clock, views) {
+    while let Some((mut back, waits)) = supervise(spawner, shared, pid, clock, views) {
         if !asked_to_start_before_a_quit(shared, clock, views.hold()) {
             return;
+        }
+        if waits == Waits::Consent {
+            back.consent();
         }
         spawner = back;
     }
@@ -457,16 +510,16 @@ fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold
 }
 
 /// Starts the child and starts it again by the rule of `next`, after a 0 once the other daemon
-/// is gone; hands the spawner back after the third end with 5 in a row, and none otherwise.
-/// After each end it draws the views, so that the set of the hold reaches the tray's menu at
-/// once.
+/// is gone; hands the spawner back after the third end with 5 in a row and where it awaits the
+/// consent, and none otherwise. After each end it draws the views, so that the set of the hold
+/// reaches the tray's menu at once.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
     pid: &ChildPid,
     clock: &K,
     views: &Views,
-) -> Option<S> {
+) -> Option<(S, Waits)> {
     let hold = views.hold();
     let mut restarts = Restarts::default();
     loop {
@@ -480,8 +533,20 @@ fn supervise<S: Spawner, K: Clock>(
             (ending, step, after)
         };
         let (ending, step, after) = match spawner.start() {
-            Ok(None) => return None,
-            Ok(Some(child)) => {
+            #[cfg(test)]
+            Ok(Spawned::Never) => return None,
+            Ok(Spawned::AwaitsConsent) => {
+                hold.awaits_consent();
+                views.draw_now();
+                return Some((spawner, Waits::Consent));
+            }
+            Ok(Spawned::Unusable(cause)) => {
+                eprintln!("halvo: the capture service is not started: {cause}");
+                hold.data_dir_unusable();
+                views.draw_now();
+                return None;
+            }
+            Ok(Spawned::Child(child)) => {
                 let mut state = shared.lock();
                 if state.quitting {
                     return None;
@@ -517,7 +582,7 @@ fn supervise<S: Spawner, K: Clock>(
             Next::NoMoreChild => {
                 hold.no_more_child();
                 views.draw_now();
-                return Some(spawner);
+                return Some((spawner, Waits::Start));
             }
             Next::StartNow => {}
             Next::StartAfter(period) => {
@@ -828,12 +893,16 @@ pub mod stand_in {
     impl Spawner for StandInSpawner {
         type Child = StandInChild;
 
-        fn start(&mut self) -> io::Result<Option<StandInChild>> {
+        fn start(&mut self) -> io::Result<Spawned<StandInChild>> {
             let child = self.children.pop_front();
             if let Some(child) = &child {
                 note(&self.record, format!("start {}", child.pid));
             }
-            Ok(child)
+            Ok(child.map_or(Spawned::Never, Spawned::Child))
+        }
+
+        fn consent(&mut self) {
+            note(&self.record, "consent");
         }
     }
 }
@@ -893,6 +962,15 @@ mod tests {
                 })
         }
 
+        fn status_of_a_pass(
+            &self,
+            made: Made,
+            claim: bool,
+            hold: &Hold,
+        ) -> Result<DaemonStatus, ClientError> {
+            self.status(made, claim && !hold.stands())
+        }
+
         fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
             unreachable!("no inventory here")
         }
@@ -920,6 +998,38 @@ mod tests {
             _: Permission,
         ) -> Result<RequestOutcome, ClientError> {
             unreachable!("no permission here")
+        }
+
+        fn relay(&self, _: Made, _: &[u8]) -> Result<Vec<u8>, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
+            note(&self.record, "owner_stream");
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn run_mark(
+            &self,
+            _: Made,
+            _: halvo_control::r2::RunEdge,
+        ) -> Result<halvo_control::r2::RunMarked, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn acknowledge_lost_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
         }
     }
 
@@ -1128,8 +1238,9 @@ mod tests {
             program: stub_program(),
             data_dir: DataDir::from_flag(&empty).unwrap(),
             given: true,
+            consented: false,
         };
-        assert!(on_empty.start().unwrap().is_none());
+        assert!(matches!(on_empty.start().unwrap(), Spawned::AwaitsConsent));
         assert_eq!(std::fs::read_dir(&empty).unwrap().count(), 0);
 
         let data_dir = DataDir::from_flag(&provisioned).unwrap();
@@ -1146,6 +1257,7 @@ mod tests {
             program: stub_program(),
             data_dir: data_dir.clone(),
             given: true,
+            consented: false,
         };
         let supervisor = Supervisor::start(plan, Arc::clone(&pid), Arc::new(SystemClock));
         let err = data_dir.daemon_err();
@@ -1412,6 +1524,15 @@ mod tests {
                 })
         }
 
+        fn status_of_a_pass(
+            &self,
+            made: Made,
+            claim: bool,
+            hold: &Hold,
+        ) -> Result<DaemonStatus, ClientError> {
+            self.status(made, claim && !hold.stands())
+        }
+
         fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
             unreachable!("no inventory here")
         }
@@ -1440,6 +1561,37 @@ mod tests {
             _: Permission,
         ) -> Result<RequestOutcome, ClientError> {
             unreachable!("no permission here")
+        }
+
+        fn relay(&self, _: Made, _: &[u8]) -> Result<Vec<u8>, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn run_mark(
+            &self,
+            _: Made,
+            _: halvo_control::r2::RunEdge,
+        ) -> Result<halvo_control::r2::RunMarked, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn acknowledge_lost_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
         }
     }
 
@@ -1714,6 +1866,15 @@ mod tests {
             next.expect("one answer for each Status")
         }
 
+        fn status_of_a_pass(
+            &self,
+            made: Made,
+            claim: bool,
+            hold: &Hold,
+        ) -> Result<DaemonStatus, ClientError> {
+            self.status(made, claim && !hold.stands())
+        }
+
         fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
             unreachable!("no inventory here")
         }
@@ -1744,6 +1905,37 @@ mod tests {
         ) -> Result<RequestOutcome, ClientError> {
             unreachable!("no permission here")
         }
+
+        fn relay(&self, _: Made, _: &[u8]) -> Result<Vec<u8>, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn run_mark(
+            &self,
+            _: Made,
+            _: halvo_control::r2::RunEdge,
+        ) -> Result<halvo_control::r2::RunMarked, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn acknowledge_lost_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
     }
 
     struct EachItsOwn {
@@ -1757,7 +1949,7 @@ mod tests {
     fn kind_of<T>(answer: Result<T, ClientError>) -> &'static str {
         match answer {
             Err(ClientError::UnexpectedReply { kind }) => kind,
-            Err(ClientError::Unsupported) => "the trait's default body",
+            Err(ClientError::Unsupported) => "unsupported",
             Err(_) => "another error",
             Ok(_) => "an answer",
         }
@@ -2334,6 +2526,15 @@ mod tests {
             Ok(status_of(4242, 0, false))
         }
 
+        fn status_of_a_pass(
+            &self,
+            made: Made,
+            claim: bool,
+            hold: &Hold,
+        ) -> Result<DaemonStatus, ClientError> {
+            self.status(made, claim && !hold.stands())
+        }
+
         fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
             unreachable!("no inventory here")
         }
@@ -2377,6 +2578,37 @@ mod tests {
             _: Permission,
         ) -> Result<RequestOutcome, ClientError> {
             unreachable!("no permission here")
+        }
+
+        fn relay(&self, _: Made, _: &[u8]) -> Result<Vec<u8>, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn acknowledge_lost_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn run_mark(
+            &self,
+            _: Made,
+            _: halvo_control::r2::RunEdge,
+        ) -> Result<halvo_control::r2::RunMarked, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(target_os = "macos")]
+        fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
+            Err(ClientError::Unsupported)
         }
     }
 
@@ -2751,5 +2983,453 @@ mod tests {
             );
             assert_eq!(pid.get(), None, "{name}: no pid once no child lives");
         }
+    }
+
+    fn no_pane(_: Permission) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn entries_under(dir: &Path) -> Vec<String> {
+        let mut found = Vec::new();
+        let mut open = vec![PathBuf::new()];
+        while let Some(at) = open.pop() {
+            for entry in std::fs::read_dir(dir.join(&at)).expect("a directory that can be read") {
+                let entry = entry.expect("an entry");
+                let name = at.join(entry.file_name());
+                if entry.file_type().expect("a type").is_dir() {
+                    open.push(name.clone());
+                }
+                let parts: Vec<String> = name
+                    .components()
+                    .map(|part| part.as_os_str().to_string_lossy().into_owned())
+                    .collect();
+                found.push(parts.join("/"));
+            }
+        }
+        found.sort();
+        found
+    }
+
+    #[test]
+    fn a_first_launch_starts_nothing_and_reads_not_started() {
+        use crate::view_state::Service;
+        let root = crate::tests::scratch_dir("first-launch");
+        let data = root.join("data");
+        let home = root.join("home");
+        std::fs::create_dir(&home).unwrap();
+        let data_dir = DataDir::from_flag(&data).unwrap();
+        let _lock = match crate::instance::take(&data_dir, true) {
+            Ok(crate::instance::Taken::First(lock)) => lock,
+            other => panic!("the first launch takes the lock: {other:?}"),
+        };
+
+        let record = Record::default();
+        let control: Arc<dyn Control> = Arc::new(Recording::new(&record, None));
+        let state = crate::commands::capture::AppState::with_control(
+            control,
+            Some(data_dir.clone()),
+            no_pane,
+        );
+        let views = Arc::clone(&state.views);
+        let daemon =
+            halvo_control::testing::ScriptedConnector::new(crate::tests::macos_fixture_daemon());
+        let test = crate::tests::test_app_from(
+            crate::tests::test_parts(root.join("webview"), state),
+            crate::app::context(),
+            daemon,
+        );
+        let pid = Arc::<ChildPid>::default();
+        let plan = Plan {
+            program: Program {
+                path: root.join("no-such-program"),
+                leading: Vec::new(),
+            },
+            data_dir: data_dir.clone(),
+            given: false,
+            consented: false,
+        };
+        let supervisor = Supervisor::start_holding(
+            plan,
+            Arc::clone(&pid),
+            Arc::new(SystemClock),
+            Arc::clone(&views),
+        );
+        #[cfg(target_os = "macos")]
+        {
+            struct Home(PathBuf);
+            impl halvo_control::paths::AccountLookup for Home {
+                fn base_dir(&self) -> Result<Option<OsString>, halvo_control::paths::PathError> {
+                    Ok(Some(self.0.clone().into_os_string()))
+                }
+                fn user_temp_dir(
+                    &self,
+                ) -> Result<
+                    Option<halvo_control::paths::DarwinUserTempDir>,
+                    halvo_control::paths::PathError,
+                > {
+                    Ok(None)
+                }
+            }
+            struct NoRunner(Record);
+            impl crate::login_item::Runner for NoRunner {
+                fn status(&self, args: &[String]) -> Option<i32> {
+                    note(&self.0, format!("runner {}", args.join(" ")));
+                    None
+                }
+            }
+            let program = PathBuf::from("/Applications/Halvo.app/Contents/MacOS/halvo");
+            crate::login_item::at_start(
+                &views,
+                &data_dir,
+                false,
+                || {
+                    crate::login_item::LoginItem::new(
+                        halvo_control::service::LOGIN_ITEM_LABEL,
+                        &program,
+                        halvo_control::paths::LoginItemDir::for_account(&Home(home.clone()))
+                            .ok()?,
+                        None,
+                    )
+                    .ok()
+                },
+                &NoRunner(Arc::clone(&record)),
+            );
+            until("the agents core's start asks its owner stream", || {
+                record
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .any(|line| line == "owner_stream")
+            });
+        }
+
+        test.poll();
+        until("the view reads not_started", || {
+            views.view().service() == Service::NotStarted
+        });
+        assert_eq!(
+            serde_json::to_value(views.view()).unwrap()["service"],
+            "not_started"
+        );
+        assert_eq!(pid.get(), None, "no child starts before the click");
+        assert!(
+            !crate::quit::Children::lives(&supervisor),
+            "the supervisor holds no child"
+        );
+        let seen = record.lock().unwrap().clone();
+        let expected: &[&str] = if cfg!(target_os = "macos") {
+            &["owner_stream", "status"]
+        } else {
+            &["status"]
+        };
+        let mut kinds = seen.clone();
+        kinds.sort();
+        kinds.dedup();
+        assert_eq!(
+            kinds, expected,
+            "the poller's Status and the agents core's one ask of an owner stream, and no request beside them: {seen:?}"
+        );
+        assert_eq!(
+            seen.iter().filter(|line| *line == "status").count(),
+            1,
+            "{seen:?}"
+        );
+        assert_eq!(
+            entries_under(&data),
+            ["run", "run/app.lock"],
+            "before the click the launch made run/ and its lock alone"
+        );
+        assert_eq!(entries_under(&home), Vec::<String>::new(), "no login item");
+        drop(supervisor.close());
+
+        let provisioned = root.join("provisioned");
+        std::fs::create_dir(&provisioned).unwrap();
+        let on = |dir: &Path| Plan {
+            program: Program {
+                path: root.join("no-such-program"),
+                leading: Vec::new(),
+            },
+            data_dir: DataDir::from_flag(dir).unwrap(),
+            given: false,
+            consented: false,
+        };
+        std::fs::write(on(&provisioned).data_dir.state_file(), b"").unwrap();
+        assert!(
+            on(&provisioned).held_back().is_none(),
+            "a provisioned directory starts its child and never shows the consent"
+        );
+        let file = root.join("a-file");
+        std::fs::write(&file, b"x").unwrap();
+        assert!(matches!(
+            on(&file).held_back(),
+            Some(Spawned::Unusable(EntryAtDataDir::NotADirectory))
+        ));
+        #[cfg(unix)]
+        {
+            let away = root.join("away");
+            std::os::unix::fs::symlink(root.join("nothing-here"), &away).unwrap();
+            assert!(matches!(
+                on(&away).held_back(),
+                Some(Spawned::Unusable(EntryAtDataDir::LinkLeadsNowhere))
+            ));
+            let views = Arc::new(Views::default());
+            let supervisor = Supervisor::start_holding(
+                on(&away),
+                Arc::default(),
+                Arc::new(SystemClock),
+                Arc::clone(&views),
+            );
+            views.take_poll(
+                0,
+                &Err(ClientError::Unreachable {
+                    endpoint: String::new(),
+                }),
+            );
+            until("the view names the directory's cause", || {
+                views.view().service() == Service::DataDirUnusable
+            });
+            drop(supervisor.close());
+        }
+    }
+
+    struct BeforeTheConsent {
+        consented: bool,
+        inner: StandInSpawner,
+    }
+
+    impl Spawner for BeforeTheConsent {
+        type Child = StandInChild;
+
+        fn start(&mut self) -> io::Result<Spawned<StandInChild>> {
+            if self.consented {
+                self.inner.start()
+            } else {
+                Ok(Spawned::AwaitsConsent)
+            }
+        }
+
+        fn consent(&mut self) {
+            self.consented = true;
+        }
+    }
+
+    fn status_with_an_open_step() -> DaemonStatus {
+        let mut f = held_child_status().into_fields();
+        for line in f.permissions.iter_mut() {
+            if line.name == Permission::Accessibility {
+                line.grant = halvo_control::onboarding::GrantState::NotGranted;
+            }
+        }
+        f.onboarding = halvo_control::testing::onboarding_of(f.platform, &f.permissions);
+        DaemonStatus::new(f).expect("the status holds together")
+    }
+
+    #[test]
+    fn the_consent_click_starts_one_child_and_resumes_only_with_no_open_step() {
+        use crate::commands::capture::{consent, LoginItemWriter};
+        use crate::view_state::Service;
+        let root = crate::tests::scratch_dir("consent-click");
+        for given in [false, true] {
+            let record = Record::default();
+            let clock = Arc::new(StandInClock::default());
+            let spawner = BeforeTheConsent {
+                consented: false,
+                inner: StandInSpawner {
+                    children: [1000, 1001]
+                        .into_iter()
+                        .map(|pid| StandInChild {
+                            ends_at_close: true,
+                            ..StandInChild::new(pid, &clock, &record)
+                        })
+                        .collect(),
+                    record: Arc::clone(&record),
+                },
+            };
+            let views = Arc::new(Views::default());
+            let pid = Arc::<ChildPid>::default();
+            let supervisor = Supervisor::start_holding(
+                spawner,
+                Arc::clone(&pid),
+                Arc::clone(&clock),
+                Arc::clone(&views),
+            );
+            pass(&Recording::new(&Record::default(), None), &views, None);
+            until("the view reads not_started", || {
+                views.view().service() == Service::NotStarted
+            });
+            let home = root.join(if given { "home-data-dir" } else { "home" });
+            std::fs::create_dir(&home).unwrap();
+            let plist = home.join("Library/LaunchAgents/com.halvo.desktop.plist");
+            #[cfg(target_os = "macos")]
+            let item = {
+                struct Home(PathBuf);
+                impl halvo_control::paths::AccountLookup for Home {
+                    fn base_dir(
+                        &self,
+                    ) -> Result<Option<OsString>, halvo_control::paths::PathError>
+                    {
+                        Ok(Some(self.0.clone().into_os_string()))
+                    }
+                    fn user_temp_dir(
+                        &self,
+                    ) -> Result<
+                        Option<halvo_control::paths::DarwinUserTempDir>,
+                        halvo_control::paths::PathError,
+                    > {
+                        Ok(None)
+                    }
+                }
+                let (record, home) = (Arc::clone(&record), home.clone());
+                move || {
+                    note(&record, "login item");
+                    crate::login_item::LoginItem::new(
+                        halvo_control::service::LOGIN_ITEM_LABEL,
+                        Path::new("/Applications/Halvo.app/Contents/MacOS/halvo"),
+                        halvo_control::paths::LoginItemDir::for_account(&Home(home.clone()))
+                            .ok()?,
+                        None,
+                    )
+                    .ok()
+                }
+            };
+            #[cfg(target_os = "macos")]
+            let writer: Option<LoginItemWriter> =
+                crate::login_item::at_the_click(given, item.clone());
+            #[cfg(not(target_os = "macos"))]
+            let writer: Option<LoginItemWriter> = {
+                let record = Arc::clone(&record);
+                (!given).then(|| -> LoginItemWriter {
+                    Arc::new(move || {
+                        note(&record, "login item");
+                        true
+                    })
+                })
+            };
+            let write = writer.as_deref().map(|write| write as &dyn Fn() -> bool);
+            let status = if given {
+                status_with_an_open_step()
+            } else {
+                held_child_status()
+            };
+            let control = Recording::new(&record, Some(status));
+
+            let answer = consent(&control, &views, write, START_ANSWER_WAIT)
+                .expect("the click answers a view");
+            assert_eq!(answer.service(), Service::Running);
+            let seen = record.lock().unwrap().clone();
+            if given {
+                assert_eq!(
+                    seen,
+                    ["start 1000", "status"],
+                    "with --data-dir no login item, and with an open step no Resume"
+                );
+                assert!(!plist.exists(), "with --data-dir no plist");
+                assert_eq!(std::fs::read_dir(&home).unwrap().count(), 0);
+            } else {
+                assert_eq!(
+                    seen,
+                    ["login item", "start 1000", "status", "resume"],
+                    "login item, one child, Status, no open step, one Resume"
+                );
+                if cfg!(target_os = "macos") {
+                    assert!(plist.is_file(), "the click wrote the login item");
+                }
+                assert_eq!(
+                    serde_json::to_value(views.view()).unwrap()["login_item_written"],
+                    true
+                );
+                let again = consent(&control, &views, write, START_ANSWER_WAIT)
+                    .expect("a second click answers a view");
+                assert_eq!(again.service(), Service::Running);
+                let after = record.lock().unwrap().clone();
+                assert!(
+                    after[seen.len()..]
+                        .iter()
+                        .all(|line| !line.starts_with("start")),
+                    "a click while the child lives starts no second child: {after:?}"
+                );
+                assert_eq!(pid.get(), Some(1000));
+                #[cfg(target_os = "macos")]
+                {
+                    struct Runner(Record);
+                    impl crate::login_item::Runner for Runner {
+                        fn status(&self, args: &[String]) -> Option<i32> {
+                            note(&self.0, args.join(" "));
+                            Some(0)
+                        }
+                    }
+                    let provisioned = root.join("provisioned");
+                    std::fs::create_dir(&provisioned).unwrap();
+                    let data_dir = DataDir::from_flag(&provisioned).unwrap();
+                    std::fs::write(data_dir.state_file(), b"").unwrap();
+                    let runner = Runner(Record::default());
+                    crate::login_item::at_start(&views, &data_dir, false, item, &runner);
+                    let calls = runner.0.lock().unwrap().clone();
+                    assert!(
+                        calls.iter().all(|call| call.starts_with("print ")),
+                        "the runner's record holds no bootstrap: {calls:?}"
+                    );
+                }
+            }
+            drop(supervisor.close());
+        }
+    }
+
+    #[test]
+    fn the_first_run_text_is_the_table_of_the_defaults_without_typing() {
+        use crate::view_state::{Hold, NoStatusService, StatusView};
+        let hold = Hold::default();
+        hold.awaits_consent();
+        let view = hold.mark(StatusView::no_status(
+            NoStatusService::NotRunning,
+            Platform::Macos,
+        ));
+        let wire = serde_json::to_value(&view).expect("the view writes");
+        assert_eq!(wire["service"], "not_started");
+        let texts = &wire["texts"];
+        let rows: Vec<&str> = texts["recorded"]
+            .as_array()
+            .expect("the table's rows")
+            .iter()
+            .map(|row| row["text"].as_str().expect("a sentence"))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                "Halvo records which app is in front, each time that changes.",
+                "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private.",
+                "Halvo records each click and which button you pressed, and how many times you scroll, drag or move the pointer each second, never where on the screen.",
+                "Halvo does not record what you type.",
+                "Screen activity is not recorded.",
+            ],
+            "the rows of the default switches on a Mac, word for word"
+        );
+        assert_eq!(texts["passwords"], "", "no sentence on passwords");
+        assert!(texts.get("typed_ahead").is_none(), "no key pressed early");
+        assert!(texts.get("keys_withheld").is_none());
+        assert_eq!(texts["backup_limit"], serde_json::Value::Null);
+        assert_eq!(
+            texts["custody"],
+            "This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account."
+        );
+        assert_eq!(
+            texts["storage"],
+            "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
+        );
+        assert_eq!(
+            texts["limits"],
+            "A copy of Halvo's data made earlier, such as a backup, keeps what it held: expiry does not reach it, and after a delete-all a copy of the whole data folder can still be read."
+        );
+        assert_eq!(
+            texts,
+            &serde_json::to_value(halvo_control::texts::first_run(Platform::Macos))
+                .expect("the table writes"),
+            "every sentence comes from halvo-control's one table"
+        );
+        assert_eq!(
+            wire,
+            read_json(&fixtures_dir().join("capture_status-not-started.json")),
+            "the page's fixture of the not-started view"
+        );
     }
 }

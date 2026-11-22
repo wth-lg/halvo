@@ -125,7 +125,9 @@ pub struct RunSpec {
     pub agent: AgentId,
     pub workflow: WorkflowId,
     pub mode: Mode,
-    pub browser: PathBuf,
+    /// The browser that the runner starts; none, and no `--browser`, where the runner finds the person's browser
+    /// itself.
+    pub browser: Option<PathBuf>,
     pub model: Option<PathBuf>,
     pub headed: bool,
     /// The offset of the person's clock from UTC at the start, in whole seconds east of UTC, which the runner takes
@@ -302,9 +304,10 @@ pub struct Parts {
 /// `link_end`, as after any close.
 /// The runner gets a whole environment of its own and nothing else of the library's: on macOS `HOME`, as the
 /// library's process has it, and `TMPDIR`, the per-user temporary directory that the system answers; on Windows
-/// `LOCALAPPDATA`, as the library's process has it, and `SystemRoot`, `TEMP` and `TMP`, as the system answers them
-/// for the account of the library's token, `TEMP` and `TMP` the directory Temp under its LocalAppData known folder.
-/// `HOME` and `LOCALAPPDATA` are not set where the library's process has none. The runner works in `/` on macOS
+/// `LOCALAPPDATA`, `ProgramFiles` and `ProgramFiles(x86)`, as the library's process has them, and `SystemRoot`,
+/// `TEMP` and `TMP`, as the system answers them for the account of the library's token, `TEMP` and `TMP` the
+/// directory Temp under its LocalAppData known folder. `HOME`, `LOCALAPPDATA`, `ProgramFiles` and
+/// `ProgramFiles(x86)` are not set where the library's process has none. The runner works in `/` on macOS
 /// and in the system directory on Windows, never in the library's working directory or in `data_dir`, so `runner`,
 /// `data_dir` and the paths of a `RunSpec` must be absolute; `Supervisor::start` refuses a start whose path is not.
 #[derive(Clone, Debug)]
@@ -346,7 +349,7 @@ pub enum RelativePath {
 pub(crate) fn absolute_paths(config: &Config, spec: &RunSpec) -> Result<(), RelativePath> {
     let paths = [
         (Some(&config.runner), RelativePath::Runner),
-        (Some(&spec.browser), RelativePath::Browser),
+        (spec.browser.as_ref(), RelativePath::Browser),
         (spec.model.as_ref(), RelativePath::Model),
         (Some(&config.data_dir), RelativePath::DataDir),
     ];
@@ -414,7 +417,7 @@ mod tests {
             agent: AgentId::from_random([2; 16]),
             workflow: WorkflowId::from_random([3; 16]),
             mode: Mode::Replay,
-            browser,
+            browser: Some(browser),
             model,
             headed: false,
             utc_offset_s: 0,

@@ -55,10 +55,10 @@ pub(crate) fn outcome(outcome: Outcome) -> learn::Outcome {
     }
 }
 
-/// The cause of a log line as halvo-learn names it. The eleven causes that the schema's list holds and halvo-learn's
+/// The cause of a log line as halvo-learn names it. The twelve causes that the schema's list holds and halvo-learn's
 /// does not, `secret`, `unauthorized`, `not_sent`, `not_replaced`, `throttled`, `not_selected`, `no_start`,
-/// `no_channel`, `browser_start`, `senders_unread` and `reproposed`, are no counted cause (contracts.md L3.5 counts
-/// `step_failed`, `class_mismatch` and `origin` alone) and map to none (CP-188).
+/// `no_channel`, `browser_start`, `senders_unread`, `reproposed` and `no_browser`, are no counted cause (contracts.md
+/// L3.5 counts `step_failed`, `class_mismatch` and `origin` alone) and map to none (CP-188).
 pub(crate) fn log_cause(cause: Cause) -> Option<learn::LogCause> {
     Some(match cause {
         Cause::Approval => learn::LogCause::Approval,
@@ -94,7 +94,8 @@ pub(crate) fn log_cause(cause: Cause) -> Option<learn::LogCause> {
         | Cause::NoChannel
         | Cause::BrowserStart
         | Cause::SendersUnread
-        | Cause::Reproposed => return None,
+        | Cause::Reproposed
+        | Cause::NoBrowser => return None,
     })
 }
 
@@ -148,7 +149,7 @@ pub(crate) fn stored_state(
 mod tests {
     use super::*;
 
-    /// CP-188: the ten causes after `secret` that halvo-learn does not hold map to none, as `secret` does, and every
+    /// CP-188: the eleven causes after `secret` that halvo-learn does not hold map to none, as `secret` does, and every
     /// other cause of the schema's list maps to a name of halvo-learn, so that a new cause of the schema fails this
     /// test and not only the build.
     #[test]
@@ -165,6 +166,7 @@ mod tests {
             Cause::BrowserStart,
             Cause::SendersUnread,
             Cause::Reproposed,
+            Cause::NoBrowser,
         ];
         for cause in none {
             assert_eq!(log_cause(cause), None, "{} maps to none", cause.as_str());

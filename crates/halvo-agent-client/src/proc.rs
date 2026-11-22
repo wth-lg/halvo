@@ -97,10 +97,11 @@ pub(crate) fn system_value(value: SystemValue) -> Option<OsString> {
 
 /// The whole environment of a runner, from the closed list of its system (contracts.md A6.1 and A6.6, ruling CP-160
 /// (1) (b)); nothing else of the library's process reaches the runner. On macOS `HOME`, as the library's process has
-/// it, and `TMPDIR`; on Windows `SystemRoot`, `TEMP` and `TMP`, and `LOCALAPPDATA`, as the library's process has it;
-/// the values of the system as `read` gives them. `HOME` and `LOCALAPPDATA` are left out where the library's process
-/// has none. A value of the system that `read` does not give is named in the error, and no list is made (ruling
-/// CP-178 (8) (b)).
+/// it, and `TMPDIR`; on Windows `SystemRoot`, `TEMP` and `TMP`, and `LOCALAPPDATA`, `ProgramFiles` and
+/// `ProgramFiles(x86)`, as the library's process has them, the three roots under which the runner finds the person's
+/// browser (U9.10); the values of the system as `read` gives them. `HOME`, `LOCALAPPDATA`, `ProgramFiles` and
+/// `ProgramFiles(x86)` are left out where the library's process has none. A value of the system that `read` does not
+/// give is named in the error, and no list is made (ruling CP-178 (8) (b)).
 pub(crate) fn environment(read: ReadValue) -> Result<Vec<(OsString, OsString)>, SystemValue> {
     let mut env = Vec::new();
     #[cfg(target_os = "macos")]
@@ -118,8 +119,10 @@ pub(crate) fn environment(read: ReadValue) -> Result<Vec<(OsString, OsString)>, 
         let temp = read(SystemValue::Temp).ok_or(SystemValue::Temp)?;
         env.push(("TEMP".into(), temp.clone()));
         env.push(("TMP".into(), temp));
-        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-            env.push(("LOCALAPPDATA".into(), local));
+        for name in ["LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"] {
+            if let Some(value) = std::env::var_os(name) {
+                env.push((name.into(), value));
+            }
         }
     }
     Ok(env)

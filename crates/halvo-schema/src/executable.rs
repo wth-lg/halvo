@@ -272,6 +272,7 @@ record::run_list! { names_with_run_list
     "browser_start",
     "senders_unread",
     "reproposed",
+    "no_browser",
     "not_made",
     "start_accepted",
     "message",
@@ -316,6 +317,7 @@ record::run_list! { names_with_run_list
     "refused_run",
     "reply_unknown",
     "refused_slots",
+    "last_cause",
     "agent_history",
     "runs",
 }
