@@ -184,6 +184,7 @@ const WORDS = {
   HELD_RESUME: "Press Resume to turn capture back on.",
   HELD_START: "This happened three times in a row, so Halvo did not start its capture service again. Press Start to turn capture back on.",
   START: "Start",
+  LOGIN_ITEM_OFF: "Halvo does not start when you log in. To turn this on, open System Settings, then General, then Login Items.",
 };
 
 const OWNER = {

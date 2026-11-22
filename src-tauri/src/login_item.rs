@@ -2,15 +2,26 @@ use std::path::{Path, PathBuf};
 
 use halvo_control::paths::{AccountLookup, DataDir, LoginItemDir, PathError, ScratchDir};
 use halvo_control::service::{
-    install_login_item, login_item_state, InstallOutcome, LoginItemSpec, LoginItemState, SpecError,
-    LOGIN_ITEM_LABEL,
+    install_login_item, login_item_path, login_item_state, InstallOutcome, LoginItemSpec,
+    LoginItemState, SpecError, LOGIN_ITEM_LABEL,
 };
 
 use crate::launch::Exit;
+use crate::poller::Views;
 
 /// The sentence that a person reads where Halvo runs under an AppTranslocation path, and so
 /// writes no login item.
 pub const MOVE_TO_APPLICATIONS: &str = "Halvo cannot start at login while macOS runs it from a temporary location. Move Halvo to your Applications folder, open it from there, and try again.";
+
+/// The exit status with which the system's service manager answers a print of a label that
+/// launchd does not hold.
+pub const NOT_LOADED: i32 = 113;
+
+/// Runs the system's service manager with the arguments that the manager builds and answers its
+/// exit status alone: none where it did not start, ended by a signal or outlived its wait.
+pub trait Runner {
+    fn status(&self, args: &[String]) -> Option<i32>;
+}
 
 /// Why the manager writes no login item for a program.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +67,27 @@ impl LoginItem {
     /// Writes the plist through `install_login_item`, atomically with mode 0644.
     pub fn write(&self) -> std::io::Result<InstallOutcome> {
         install_login_item(&self.spec, &self.dir)
+    }
+
+    /// Whether launchd holds the label, read through `runner` from the exit status alone: true
+    /// for 0, false for NOT_LOADED while the plist stands as the manager writes it; none where no
+    /// such plist stands and for any other answer. The domain's uid is that plist's owner, which
+    /// `login_item_state` reads as Current only where it is the effective user.
+    pub fn load(&self, runner: &dyn Runner) -> Option<bool> {
+        if login_item_state(&self.spec, &self.dir).ok()? != LoginItemState::Current {
+            return None;
+        }
+        let plist = std::fs::symlink_metadata(login_item_path(&self.spec, &self.dir)).ok()?;
+        let uid = std::os::unix::fs::MetadataExt::uid(&plist);
+        let args = [
+            "print".to_owned(),
+            format!("gui/{uid}/{}", self.spec.label()),
+        ];
+        match runner.status(&args)? {
+            0 => Some(true),
+            NOT_LOADED => Some(false),
+            _ => None,
+        }
     }
 }
 
@@ -119,8 +151,15 @@ pub fn write_scratch(
 /// What a start of `run` does with the login item: with --data-dir (`given`), or on a data
 /// directory that does not read provisioned, nothing. Otherwise the manager that `item` makes for
 /// the app's own path reads the plist's state, and writes it again where it reads Stale; Absent
-/// and Current write nothing, and a program that the manager refuses writes nothing.
-pub fn at_start(data_dir: &DataDir, given: bool, item: impl FnOnce() -> Option<LoginItem>) {
+/// and Current write nothing, and a program that the manager refuses writes nothing. Then the
+/// load state that the manager reads through `runner` stands in every view of `views`.
+pub fn at_start(
+    views: &Views,
+    data_dir: &DataDir,
+    given: bool,
+    item: impl FnOnce() -> Option<LoginItem>,
+    runner: &dyn Runner,
+) {
     if given || !matches!(data_dir.is_provisioned(), Ok(true)) {
         return;
     }
@@ -129,6 +168,9 @@ pub fn at_start(data_dir: &DataDir, given: bool, item: impl FnOnce() -> Option<L
     };
     if let Ok(LoginItemState::Stale) = login_item_state(&item.spec, &item.dir) {
         let _ = item.write();
+    }
+    if let Some(loaded) = item.load(runner) {
+        let _ = views.login_item_loaded.set(loaded);
     }
 }
 
@@ -152,14 +194,44 @@ fn refused_dir(error: PathError) -> Exit {
 mod tests {
     use super::*;
     use crate::launch::{parse, Launch};
+    use crate::view_state::StatusView;
     use halvo_control::paths::DarwinUserTempDir;
+    use halvo_control::proto::Platform;
+    use halvo_control::testing::sample_status;
+    use serde_json::{json, Value};
     use std::ffi::OsString;
+    use std::sync::Mutex;
 
     const PROGRAM: &str = "/Applications/Halvo.app/Contents/MacOS/halvo";
     const LABEL: &str = "dev.halvo.test.scratch";
     const OTHER_PROGRAM: &str = "/Users/Shared/Halvo.app/Contents/MacOS/halvo";
     const TRANSLOCATED: &str =
         "/private/var/folders/zz/T/AppTranslocation/0A1B2C3D/d/Halvo.app/Contents/MacOS/halvo";
+
+    struct Recorded {
+        answer: Option<i32>,
+        calls: Mutex<Vec<Vec<String>>>,
+    }
+
+    impl Recorded {
+        fn answering(answer: Option<i32>) -> Self {
+            Self {
+                answer,
+                calls: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn calls(&self) -> Vec<Vec<String>> {
+            self.calls.lock().expect("the record").clone()
+        }
+    }
+
+    impl Runner for Recorded {
+        fn status(&self, args: &[String]) -> Option<i32> {
+            self.calls.lock().expect("the record").push(args.to_vec());
+            self.answer
+        }
+    }
 
     struct Home(PathBuf);
 
@@ -310,10 +382,22 @@ mod tests {
         std::os::unix::fs::MetadataExt::ino(&std::fs::metadata(path).expect("the plist stands"))
     }
 
-    fn start(home: &Path, data_dir: &DataDir, given: bool, program: &str) {
-        at_start(data_dir, given, || {
-            LoginItem::new(LOGIN_ITEM_LABEL, Path::new(program), agents_of(home), None).ok()
-        });
+    fn start(
+        home: &Path,
+        data_dir: &DataDir,
+        given: bool,
+        program: &str,
+        runner: &Recorded,
+    ) -> Views {
+        let views = Views::default();
+        at_start(
+            &views,
+            data_dir,
+            given,
+            || LoginItem::new(LOGIN_ITEM_LABEL, Path::new(program), agents_of(home), None).ok(),
+            runner,
+        );
+        views
     }
 
     #[test]
@@ -323,7 +407,7 @@ mod tests {
 
         let home = scratch("login-item-stale");
         let plist = stand(&home, OTHER_PROGRAM);
-        start(&home, &ready, false, PROGRAM);
+        start(&home, &ready, false, PROGRAM, &Recorded::answering(Some(0)));
         assert_eq!(
             std::fs::read_to_string(&plist).expect("the plist stands"),
             plist_of(PROGRAM),
@@ -331,7 +415,7 @@ mod tests {
         );
 
         let home = scratch("login-item-absent");
-        start(&home, &ready, false, PROGRAM);
+        start(&home, &ready, false, PROGRAM, &Recorded::answering(Some(0)));
         assert_eq!(
             entries(&home),
             Vec::<PathBuf>::new(),
@@ -341,7 +425,7 @@ mod tests {
         let home = scratch("login-item-current");
         let plist = stand(&home, PROGRAM);
         let before = inode(&plist);
-        start(&home, &ready, false, PROGRAM);
+        start(&home, &ready, false, PROGRAM, &Recorded::answering(Some(0)));
         assert_eq!(inode(&plist), before, "Current writes nothing");
 
         for (row, data_dir, given, program) in [
@@ -357,13 +441,68 @@ mod tests {
             let home = scratch("login-item-kept");
             let plist = stand(&home, OTHER_PROGRAM);
             let before = inode(&plist);
-            start(&home, data_dir, given, program);
+            let runner = Recorded::answering(Some(0));
+            start(&home, data_dir, given, program, &runner);
             assert_eq!(inode(&plist), before, "{row}");
+            assert_eq!(runner.calls(), Vec::<Vec<String>>::new(), "{row}");
             assert_eq!(
                 std::fs::read_to_string(&plist).expect("the plist stands"),
                 plist_of(OTHER_PROGRAM),
                 "{row}"
             );
         }
+    }
+
+    fn wire(view: StatusView) -> Value {
+        serde_json::to_value(view).expect("the view writes")["login_item_loaded"].clone()
+    }
+
+    #[test]
+    fn the_load_state_reads_the_exit_status_alone_and_the_view_carries_not_loaded() {
+        let ready = data_dir("login-item-load-ready", true);
+        let not_found = "Could not find service \"com.halvo.desktop\" in domain for user gui";
+        for (standing, status, output, expected) in [
+            (PROGRAM, Some(0), not_found, json!(true)),
+            (PROGRAM, Some(NOT_LOADED), "state = running", json!(false)),
+            (
+                OTHER_PROGRAM,
+                Some(NOT_LOADED),
+                "state = running",
+                json!(false),
+            ),
+            (PROGRAM, Some(1), "state = running", Value::Null),
+            (PROGRAM, Some(5), not_found, Value::Null),
+            (PROGRAM, None, "state = running", Value::Null),
+        ] {
+            let row =
+                format!("a plist of {standing}, the status {status:?}, the output {output:?}");
+            let home = scratch("login-item-load");
+            let plist = stand(&home, standing);
+            let runner = Recorded::answering(status);
+            let views = start(&home, &ready, false, PROGRAM, &runner);
+            assert_eq!(wire(views.view()), expected, "{row}");
+            assert_eq!(
+                wire(views.marked(StatusView::of(&sample_status(Platform::Macos)))),
+                expected,
+                "{row}"
+            );
+            let uid = std::os::unix::fs::MetadataExt::uid(
+                &std::fs::metadata(&plist).expect("the plist stands"),
+            );
+            assert_eq!(
+                runner.calls(),
+                vec![vec![
+                    "print".to_owned(),
+                    format!("gui/{uid}/com.halvo.desktop")
+                ]],
+                "{row}"
+            );
+        }
+
+        let home = scratch("login-item-load-absent");
+        let runner = Recorded::answering(Some(NOT_LOADED));
+        let views = start(&home, &ready, false, PROGRAM, &runner);
+        assert_eq!(wire(views.view()), Value::Null, "no plist");
+        assert_eq!(runner.calls(), Vec::<Vec<String>>::new(), "no plist");
     }
 }

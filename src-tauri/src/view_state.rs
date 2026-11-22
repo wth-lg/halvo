@@ -116,6 +116,7 @@ pub struct RunningView {
     pub texts: Texts,
     pub ext: Vec<Section>,
     pub hold: Option<HoldView>,
+    pub login_item_loaded: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,6 +126,7 @@ pub struct NoStatusView {
     pub window: ObservationWindow,
     pub last_exit: Option<i32>,
     pub hold: Option<HoldView>,
+    pub login_item_loaded: Option<bool>,
 }
 
 /// Why the app holds capture off: a child of the app ended itself with status 5, because a
@@ -310,6 +312,7 @@ struct WireView<'a> {
     service: Service,
     last_exit: Option<i32>,
     hold: Option<HoldView>,
+    login_item_loaded: Option<bool>,
     platform: Platform,
     desired: Option<CaptureState>,
     capture: Option<Capture>,
@@ -338,6 +341,7 @@ impl Serialize for StatusView {
                 service: Service::Running,
                 last_exit: None,
                 hold: view.hold,
+                login_item_loaded: view.login_item_loaded,
                 platform: view.platform,
                 desired: Some(view.desired),
                 capture: Some(view.capture),
@@ -362,6 +366,7 @@ impl Serialize for StatusView {
                 service: view.service.word(),
                 last_exit: view.last_exit,
                 hold: view.hold,
+                login_item_loaded: view.login_item_loaded,
                 platform: view.platform,
                 desired: None,
                 capture: None,
@@ -403,6 +408,7 @@ impl StatusView {
             window: ObservationWindow::r1(),
             last_exit: None,
             hold: None,
+            login_item_loaded: None,
         })
     }
 
@@ -416,6 +422,16 @@ impl StatusView {
             StatusView::Running(view) => view.hold,
             StatusView::NoStatus(view) => view.hold,
         }
+    }
+
+    /// This view with what the app read of its login item at its start: whether launchd holds
+    /// it, none where nothing was read.
+    pub fn with_login_item_loaded(mut self, loaded: Option<bool>) -> Self {
+        match &mut self {
+            StatusView::Running(view) => view.login_item_loaded = loaded,
+            StatusView::NoStatus(view) => view.login_item_loaded = loaded,
+        }
+        self
     }
 
     #[cfg(test)]
@@ -489,6 +505,7 @@ impl StatusView {
             texts: texts(status),
             ext: f.ext.clone(),
             hold: None,
+            login_item_loaded: None,
         }))
     }
 }

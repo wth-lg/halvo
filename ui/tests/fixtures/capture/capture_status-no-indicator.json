@@ -16,6 +16,7 @@
   "hold": null,
   "last_exit": null,
   "lease": "lapsed",
+  "login_item_loaded": null,
   "loss": {
     "events_lost": 0,
     "events_pending": 0,
