@@ -602,23 +602,26 @@ fn a_cancel_before_any_begin_ends_the_run_declined() {
     assert_eq!(files.workbook_bytes(), before);
 }
 
-/// CP-142 (3): the confirm path's request maker of the suite is test code alone; the binary still fails a `web`
-/// step of an effect class (a `click` with the effect `request`, of the class `payment`; the steps of the classes
-/// `read` and `prepare` start the browser) with `step_failed` and an `api` call with the cause `adapter`, with no
-/// effect row and no confirmation.
+/// CP-142 (3): the binary asks no confirmation and writes no effect row for a `web` step of an effect class (a
+/// `click` with the effect `request`, of the class `payment`) or for an `api` call that stops before any request.
+/// The web step is the browser's maker's in a build with the feature `loopback`, as every test build is (r3
+/// U4.1w-2), and the browser that it needs cannot start here, so the run ends `failed` with `browser_start` before
+/// any effect row; in a build without the feature it answers `step_failed`, which no test here shows.
 #[test]
 fn the_binary_still_fails_a_web_step_and_an_api_call_and_asks_no_confirmation() {
     let click = r#"{"v":1,"n":1,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"pay","name":null}]},"args":[{"name":"payee","from":"const","value":"p","key":null},{"name":"amount","from":"const","value":"1.00","key":null},{"name":"instrument","from":"const","value":"i","key":null},{"name":"origin","from":"const","value":"https://pay.example.com","key":null}],"pre":[],"post":[],"effect":"request","class":"payment"}"#;
     let mut web = Supervisor::new(156, Category::UtilityBillPayment, Vec::new());
     web.steps = vec![ExecutableStep::parse(click.as_bytes()).expect("a step")];
     let seen = web.serve(|_, _| Act::Answer, LONG);
-    let failed: Vec<(LogEvent, Option<Cause>)> = seen
-        .logs()
-        .iter()
-        .map(|l| (l.event, l.cause))
-        .filter(|(e, _)| *e == LogEvent::StepFailed)
-        .collect();
-    assert_eq!(failed, [(LogEvent::StepFailed, Some(Cause::StepFailed))]);
+    assert_eq!(
+        (seen.done(), seen.logs().last().map(|l| (l.event, l.cause))),
+        (
+            Some(Outcome::Failed),
+            Some((LogEvent::Stopped, Some(Cause::BrowserStart)))
+        ),
+        "{}",
+        seen.stderr
+    );
     assert!(seen.effects().is_empty() && !seen.tags().contains(&"confirm"));
 
     let api = api_agent(157);

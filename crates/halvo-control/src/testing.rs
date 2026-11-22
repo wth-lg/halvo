@@ -140,6 +140,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
         store_id: Some(FIXTURE_STORE_ID),
         store_error: None,
         store_retry_in_s: None,
+        store_delete_unfinished: false,
         store_bytes: Some(1_048_576),
         store_logical_bytes: Some(524_288),
         cap_bytes: Cap::Known(StorageCap::DEFAULT),
@@ -510,6 +511,7 @@ impl ScriptedDaemon {
             f.capture,
             f.store,
             f.store_error,
+            f.store_delete_unfinished,
             f.store_id,
             armed,
         ) {

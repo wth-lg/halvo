@@ -1997,6 +1997,11 @@ fn the_roster_names_the_cause_of_the_newest_started_run() {
 fn the_roster_names_no_cause_of_a_step_after_which_the_run_went_on() {
     let mut store = store_with("email");
     assert!(GOES_ON_AFTER.contains(&Cause::NotSelected));
+    assert!(
+        GOES_ON_AFTER.contains(&Cause::AmountUnread)
+            && !GOES_ON_AFTER.contains(&Cause::AmountDiffers),
+        "a page that names no amount lets the run go on; another amount ends it"
+    );
     for cause in GOES_ON_AFTER {
         log_line(
             &mut store,

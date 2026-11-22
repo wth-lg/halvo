@@ -1,8 +1,11 @@
 // Runs the Tauri CLI with ~/.cargo/bin on PATH, so `npm run tauri build`
 // works in a shell that has not re-read its profile since rustup was installed.
 // For `build` and `bundle` it first runs scripts/r1/ci.d/54-tag-needs-store4.sh,
-// then builds and stages each helper of packaging/helpers.d and gives the CLI
-// their paths as bundle.externalBin for that run alone (packaging/README.md).
+// then has scripts/notices/generate.js write target/notices/THIRD-PARTY-NOTICES.txt
+// for the host triple, and stops when either fails. It builds and stages each helper
+// of packaging/helpers.d, and gives the CLI their paths as bundle.externalBin and the
+// notices file as bundle.resources for that run alone (packaging/README.md), so the
+// Mac bundle holds the file in Contents/Resources and the installer beside halvo.exe.
 // On a Mac it also gives the CLI bundle.macOS.signingIdentity "-", the ad hoc seal,
 // for that run alone, and starts the CLI with CI=true, so that the script of the
 // disk image drives no Finder window; when that CLI call fails on hdiutil's busy line,
@@ -118,8 +121,13 @@ if (stages) {
   if (ruled !== 0) fail(`scripts/r1/ci.d/54-tag-needs-store4.sh exited ${ruled}, so nothing is built`);
   const host = /^host: (\S+)$/m.exec(read("rustc", ["-vV"]));
   if (!host) fail("rustc -vV names no host triple");
+  // The generator writes the file only when its bytes differ, as stage() copies a helper.
+  const notices = path.join(root, "target", "notices", "THIRD-PARTY-NOTICES.txt");
+  const generated = run(process.execPath, [path.join(root, "scripts", "notices", "generate.js"), "--triple", host[1], "--out", notices], { cwd: root });
+  if (generated !== 0) fail(`scripts/notices/generate.js exited ${generated}, so nothing is built`);
   const externalBin = helpers().map((helper) => stage(helper, host[1]));
-  const bundle = mac ? { externalBin, macOS: { signingIdentity: "-" } } : { externalBin };
+  const resources = { "../target/notices/THIRD-PARTY-NOTICES.txt": "THIRD-PARTY-NOTICES.txt" };
+  const bundle = mac ? { externalBin, resources, macOS: { signingIdentity: "-" } } : { externalBin, resources };
   const at = args.indexOf(command) + 1;
   cliArgs = [...args.slice(0, at), "--config", JSON.stringify({ bundle }), ...args.slice(at)];
 }

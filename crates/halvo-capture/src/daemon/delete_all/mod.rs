@@ -305,6 +305,7 @@ pub struct Offline<'a> {
 
 /// The offline form of contracts.md C3.3 with the product's rows, selection
 /// and hands, as the binary runs it.
+#[cfg(not(windows))]
 pub fn offline(dir: &DataDir, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let rows = rows();
     run(
@@ -317,6 +318,64 @@ pub fn offline(dir: &DataDir, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
         out,
         err,
     )
+}
+
+/// The offline form of contracts.md C3.3 on Windows, behind the first step
+/// of every Windows run: once that step has taken the program out of Windows
+/// Error Reporting, the delete of [`run`] with the product's rows, selection
+/// and hands. Where the step is refused, a line says so on `err`, and the
+/// same delete runs with a selection that opens no store: the store goes by
+/// the keyless tail on the directory, so no root is unprotected and no key
+/// is unwrapped in a process that a fault report could carry.
+#[cfg(windows)]
+pub fn offline(dir: &DataDir, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let rows = rows();
+    let how = |select: fn(Option<Custody>) -> Selection| Offline {
+        rows: &rows,
+        select,
+        hands: &SystemHands,
+    };
+    let with_the_store = how(super::custody_policy::of_this_build);
+    match the_first_step(|| run(dir, &with_the_store, out, err)) {
+        Ok(status) => status,
+        Err(refused) => {
+            let _ = writeln!(
+                err,
+                "halvo-capture: {} answered {:#010x}: the delete is not out of Windows Error Reporting, so it opens no store and deletes by the directory alone",
+                refused.call, refused.code
+            );
+            run(dir, &how(opens_no_store), out, err)
+        }
+    }
+}
+
+/// The variable that, in a build of the crate's own tests alone, makes the
+/// offline form's first step answer refused without its call.
+#[cfg(all(windows, debug_assertions, feature = "test-seam"))]
+pub const REFUSE_THE_EXCLUSION: &str = "HALVO_DELETE_ALL_REFUSE_THE_EXCLUSION";
+
+/// The first step of a Windows run for the offline form,
+/// [`crate::windows::start_a_run`].
+#[cfg(windows)]
+fn the_first_step<T>(run: impl FnOnce() -> T) -> Result<T, crate::windows::FaultReportsOn> {
+    #[cfg(all(debug_assertions, feature = "test-seam"))]
+    if std::env::var_os(REFUSE_THE_EXCLUSION).is_some() {
+        return Err(crate::windows::FaultReportsOn {
+            call: "WerAddExcludedApplication",
+            code: 0x8007_0005,
+        });
+    }
+    crate::windows::start_a_run(run)
+}
+
+/// The selection of a delete that opens no store: the store of a key file of
+/// any custody is refused, and where no key file stands nothing is made.
+#[cfg(windows)]
+const fn opens_no_store(recorded: Option<Custody>) -> Selection {
+    match recorded {
+        Some(_) => Selection::Open(OpenAs::Refused),
+        None => Selection::Create(None),
+    }
 }
 
 /// What the walk over the rows did: the rows handled and left, whether it
@@ -363,10 +422,11 @@ const BUSY_LINE: &str =
 /// The offline delete of `dir` with `how` (contracts.md C3.3): it prints
 /// `data_dir=` and then `no_store`, or the `deleted` line of C2.6 without
 /// `store_id=`, on `out`, and on `err` what stays. It takes the instance
-/// lock first. It answers 0 once the root and store.key are gone and every
-/// row was handled, 75 when another process holds the directory's instance
-/// lock or its store, which this request then leaves as it found it, and 1
-/// when something stays or the directory cannot be used.
+/// lock first. It answers 0 once the root and store.key are gone, every row
+/// was handled and every folder that the steps flush reached the drive, 75
+/// when another process holds the directory's instance lock or its store,
+/// which this request then leaves as it found it, and 1 when something
+/// stays, a folder was not flushed or the directory cannot be used.
 pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let path = dir.path();
     let mut text = format!("data_dir={}\n", one_line(&path.to_string_lossy()));
@@ -405,7 +465,11 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
     if let Some(line) = &ran.line {
         text.push_str(line);
     }
-    let status = if ran.whole { exit::CLEAN } else { exit::ERROR };
+    let status = if ran.whole && ran.synced {
+        exit::CLEAN
+    } else {
+        exit::ERROR
+    };
     let causes = (!ran.causes.is_empty()).then(|| ran.causes.join("\n"));
     print(out, err, &text, causes, status)
 }
@@ -434,8 +498,9 @@ pub struct Ran {
     /// What stays, a line each for standard error; no line holds a path of
     /// the store.
     pub causes: Vec<String>,
-    /// The offline form's exit 0: the store's delete finished, no row stays
-    /// and no intent was kept by a failed removal.
+    /// The store's delete finished, no row stays and no intent was kept by a
+    /// failed removal. The offline form's exit 0, as the service's own
+    /// delete, needs this and [`Ran::synced`].
     pub whole: bool,
     /// Whether every folder that the steps flush reached the drive, which a
     /// whole finish needs before its intent goes.
