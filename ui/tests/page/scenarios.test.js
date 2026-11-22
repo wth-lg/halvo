@@ -23,7 +23,7 @@ const everyPoll = async (page) => {
 
 test("the page starts two polls of 3 s and one of 15 s", async () => {
   const page = await openPage({ replies: { capture_status: running, inventory: () => fixture("inventory-empty"), onboarding_state: () => noOnboarding } });
-  assert.deepEqual(page.clock.periods(), [3000, 3000, 15000]);
+  assert.deepEqual([...page.clock.periods()].sort((a, b) => a - b), [3000, 3000, 15000]);
 });
 
 test("scenario 1: Save with an empty field sends nothing and the message outlives a status poll", async () => {
@@ -234,7 +234,7 @@ test("scenario 5: an onboarding poll and the permission buttons", async () => {
     ],
   };
   const page = await openPage({ replies: { capture_status: running, onboarding_state: () => onboarding } });
-  const open = () => page.byId("permissions").children[0].querySelector("button");
+  const open = () => page.byId("walkback-steps").children[1].querySelector("button");
   const ask = () => page.byId("walkback-steps").children[0].querySelector("button");
   const before = open();
   const askBefore = ask();
@@ -242,7 +242,7 @@ test("scenario 5: an onboarding poll and the permission buttons", async () => {
   await page.clock.fire(3000);
   assert.equal(open() === before, false);
   assert.equal(ask() === askBefore, false);
-  assert.equal(page.byId("permissions").contains(before), false);
+  assert.equal(page.byId("walkback-steps").contains(before), false);
 });
 
 test("RR-app-ui-04: when every command fails from launch the page shows none of the four claims, through 20 rounds of polls", async () => {

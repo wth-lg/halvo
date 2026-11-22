@@ -387,11 +387,12 @@ pub fn assess(input: &AssessInput<'_>) -> OnboardingState {
     }
 }
 
-fn needs_request_step(permission: Permission, grant: GrantState, asked: bool, lost: bool) -> bool {
-    let input_monitoring = permission == Permission::InputMonitoring;
-    let undetermined_input_monitoring = input_monitoring && grant == GrantState::NotDetermined;
-    let denied_input_monitoring = input_monitoring && grant == GrantState::NotGranted;
-    undetermined_input_monitoring || !(asked || lost || denied_input_monitoring)
+fn needs_request_step(grant: GrantState, asked: bool, lost: bool) -> bool {
+    grant == GrantState::NotDetermined || !(asked || lost)
+}
+
+fn needs_settings_step(grant: GrantState, asked: bool, lost: bool) -> bool {
+    lost || !(asked && grant == GrantState::NotDetermined)
 }
 
 fn needs_restart_step(
@@ -429,11 +430,14 @@ fn walkback_for(context: &StepContext<'_>) -> Vec<WalkbackStep> {
         text,
     };
     let mut steps = Vec::with_capacity(2);
-    if needs_request_step(permission, grant, asked, lost) {
+    if needs_request_step(grant, asked, lost) {
         steps.push(step(
             WalkbackAction::RequestFromSystem,
             format!("Click Ask now, then click {alert_button} in the message from macOS, and turn on {entry} under {pane}."),
         ));
+    }
+    if !needs_settings_step(grant, asked, lost) {
+        return steps;
     }
     let lead = if lost {
         format!("{entry} no longer has the {pane} permission. If you turned it off, nothing else is needed. ")
@@ -1068,34 +1072,48 @@ mod tests {
     }
 
     #[test]
-    fn a_permission_already_asked_about_gets_no_request_step() {
-        every_state(|input, state| {
-            for step in &state.walkback {
-                if step.action == WalkbackAction::RequestFromSystem {
-                    let p = step.permission;
-                    let undetermined_input_monitoring =
-                        p == InputMonitoring && input.now.of(p) == GrantState::NotDetermined;
-                    assert!(
-                        undetermined_input_monitoring || !input.asked.contains(p),
-                        "{p:?}"
-                    );
-                }
+    fn a_permission_already_asked_gets_a_request_step_only_while_it_reads_not_determined() {
+        every_state(|_, state| {
+            for row in &state.permissions {
+                let p = row.permission;
+                let has = |action| {
+                    state
+                        .walkback
+                        .iter()
+                        .any(|s| s.permission == p && s.action == action)
+                };
+                let missing = row.grant != GrantState::Granted;
+                let undetermined = row.grant == GrantState::NotDetermined;
+                assert_eq!(
+                    has(WalkbackAction::RequestFromSystem),
+                    missing && (undetermined || !(row.asked || row.lost)),
+                    "{p:?} {row:?}"
+                );
+                assert_eq!(
+                    has(WalkbackAction::OpenSettingsPane),
+                    missing && (row.lost || !(row.asked && undetermined)),
+                    "{p:?} {row:?}: an ask that did not reach the person sends nobody to System Settings"
+                );
             }
         });
     }
 
     #[test]
-    fn a_lost_or_denied_permission_starts_at_the_settings_step_unless_input_monitoring_is_undetermined(
-    ) {
+    fn a_lost_or_refused_permission_starts_at_the_settings_step_and_one_never_asked_at_the_ask() {
         let first_action =
             |input: &AssessInput<'_>| assess(input).walkback.first().map(|s| s.action);
         let mut lost = input(&[Accessibility], &[(Accessibility, GrantState::NotGranted)]);
         lost.once_granted = [Accessibility].into_iter().collect();
         assert_eq!(first_action(&lost), Some(WalkbackAction::OpenSettingsPane));
-        let denied = input(
+        let mut denied = input(
             &[InputMonitoring],
             &[(InputMonitoring, GrantState::NotGranted)],
         );
+        assert_eq!(
+            first_action(&denied),
+            Some(WalkbackAction::RequestFromSystem)
+        );
+        denied.asked = [InputMonitoring].into_iter().collect();
         assert_eq!(
             first_action(&denied),
             Some(WalkbackAction::OpenSettingsPane)

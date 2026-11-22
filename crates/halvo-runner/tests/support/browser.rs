@@ -248,6 +248,12 @@ fn serve_runner(
         runner.kill();
     }
     let stderr = runner.stderr();
+    for line in stderr
+        .lines()
+        .filter(|l| l.starts_with("run request=failed"))
+    {
+        say("runner", line);
+    }
     Seen {
         data_dir: runner.data_dir.clone(),
         line: runner.line.clone(),

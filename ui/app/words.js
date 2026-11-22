@@ -111,6 +111,10 @@
     CAP_NOT_CHANGED: "The cap was not changed.",
     CAP_UNKNOWN_OUTCOME: "Halvo cannot tell whether the cap was changed. Look at the cap shown here once the capture service answers. If it was lowered, older capture may have been removed.",
     DELETE_BUSY: "This press deleted nothing. Halvo's capture service is busy with another change. Press Delete everything again in a moment.",
+    DELETE_REFUSED_TWICE: "This is the second time in a row that Halvo could not delete.",
+    DELETE_NOTHING_REMOVED: "This press deleted nothing. Look at what this page shows as stored.",
+    DELETE_SERVICE_NOT_BACK: "Halvo's capture service shut down during your delete and did not start again in time, so Halvo could not ask it again.",
+    DELETE_SERVICE_ENDING: "This press deleted nothing, because Halvo's capture service was shutting down.",
     DELETE_NOT_FOLLOWED_KEY_LEFT: "Something that was not Halvo's stood in its data folder, or the folder was moved while Halvo was running. Halvo removed nothing in that place. Files may be left there, and you can remove them.",
     DELETE_FILES_COUNT: "Some files could not be removed: {count}.",
     DELETE_DATABASE_ALONE: "A database file could not be removed.",
@@ -129,6 +133,10 @@
     GRANT_OFF: "Off",
     OPEN_SETTINGS: "Open System Settings",
     ASK_NOW: "Ask now",
+    ASK_REQUESTED: "Halvo asked macOS for the {pane} permission. If a message from macOS appears, answer it there. Your choice then shows here.",
+    ASK_ALREADY_ON: "The {pane} permission is already on.",
+    ASK_UNSUPPORTED: "Halvo's capture service cannot ask macOS for this permission right now. Quit Halvo, open it again, and try once more.",
+    LEAVE_OFF: "Leave it off",
     PERMISSIONS_HEADING: "Permissions",
     WALKBACK_INTRO: "To get capture working again:",
     CAPTURE_HEADING: "Capture",
@@ -213,6 +221,8 @@
       case "pane_not_opened":
         return w.ERROR_PANE;
       case "not_answering":
+        return w.ERROR_NOT_ANSWERING;
+      case "service_ending":
         return w.ERROR_NOT_ANSWERING;
       default:
         return w.ERROR_OTHER;
