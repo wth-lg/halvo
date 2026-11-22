@@ -1099,3 +1099,35 @@ fn the_two_replies_name_the_agent_of_their_rows() {
         )
     );
 }
+
+/// r3 U9.12 (the coordinator's ruling of 2026-11-22, log line 15958): the runner's own body `drop_session` keeps the
+/// refusal `day` of its one writer `drop_rows`. While a part of the origin stands with a day after the request's day,
+/// as a part kept while the clock stood a day ahead does, the body is refused with `day` and stores no row.
+#[test]
+fn drop_session_is_refused_with_day_while_a_part_of_the_origin_lies_after_today() {
+    let origin = "https://pay.test:443";
+    let tomorrow = at(NOW.at.0 + NANOS_PER_DAY);
+    let mut store = store_with("utility_bill_payment");
+    assert_eq!(
+        runner_at(
+            &mut store,
+            tomorrow,
+            json!({"op": "put_session", "agent": agent(1), "run": run(1), "origin": origin, "rev": 1, "part": 1, "of": 1, "data": ["QUJD"]}),
+        ),
+        Ok(stored(1)),
+        "a part kept while the clock stood a day ahead"
+    );
+    let before = every_agent_row(&store);
+    assert_eq!(
+        runner(
+            &mut store,
+            json!({"op": "drop_session", "agent": agent(1), "run": run(1), "origin": origin}),
+        ),
+        Err(declared("day"))
+    );
+    assert_eq!(
+        every_agent_row(&store),
+        before,
+        "a refused body stores nothing"
+    );
+}
