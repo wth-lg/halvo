@@ -71,8 +71,8 @@ The limits, which docs/privacy-limits.md states with their sources:
 ## Amendments
 
 - 2026-11-22: The third item of the Decision changes, by the coordinator's order at
-  line 16453 of its pending starts in run 20261108-halvo-r1-capture, which turns
-  ruling D10: the key-down of a modifier key (Shift, Caps Lock, Control, Option or
+  line 16453 and its ruling at line 16515 of its pending starts in run
+  20261108-halvo-r1-capture, which turn ruling D10: the key-down of a modifier key (Shift, Caps Lock, Control, Option or
   Alt, Command or the Windows key, Fn) is no key-class event, whether the modifier
   is released alone or starts a chord, on both systems. A key pressed while one is
   held keeps its class as before: a shortcut while Command, Control, Option or Alt,
