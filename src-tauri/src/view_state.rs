@@ -1262,6 +1262,27 @@ impl DeleteView {
         }
     }
 
+    /// Counts this answer of the service's door as [`DeleteView::count_unfinished`] does, and
+    /// from the second delete in a row that did not finish on names `data_dir`, the app's data
+    /// directory, as the folder that the delete ran in, in the form of the offline door's
+    /// `data_dir=` line: the service's answer names no folder of its own.
+    pub fn count_at_the_services_door(
+        &mut self,
+        in_a_row: &std::sync::atomic::AtomicU32,
+        data_dir: Option<&halvo_control::paths::DataDir>,
+    ) {
+        self.count_unfinished(in_a_row);
+        if let DeleteView::Deleted {
+            unfinished_in_a_row: Some(2..),
+            looked_in: looked_in @ None,
+            ..
+        } = self
+        {
+            *looked_in =
+                data_dir.map(|dir| halvo_control::paths::one_line(&dir.path().to_string_lossy()));
+        }
+    }
+
     /// Whether this is a deleted answer that finished: its run ended as whole, and it left no
     /// key, no file, no database and no entry of Halvo's own; an entry that Halvo does not know
     /// does not count.
