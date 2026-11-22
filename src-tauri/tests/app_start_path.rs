@@ -13,6 +13,7 @@ const EMPTY_WAIT: Duration = Duration::from_secs(5);
 const APP_SECOND_LAUNCH_EXIT_MAX: Duration = Duration::from_secs(2);
 const WITHIN: Duration = Duration::from_secs(60);
 const STOP_WAIT: Duration = Duration::from_millis(halvo_control::STOP_WAIT_MS);
+static ONE_BUILT_APP_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 struct Own(Child);
 
@@ -186,6 +187,9 @@ fn the_built_app_starts_its_daemon_and_the_daemon_ends_with_it() {
     if !on_a_hosted_runner(NAME, "the built app and its capture daemon") {
         return;
     }
+    let _one_at_a_time = ONE_BUILT_APP_AT_A_TIME
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let began = Instant::now();
     let (app, daemon) = built();
     let root = scratch_root("app-start-path");
@@ -264,6 +268,9 @@ fn a_second_launch_exits_zero_and_leaves_one_halvo_and_one_daemon() {
     if !on_a_hosted_runner(SECOND, "the built app three times and its capture daemon") {
         return;
     }
+    let _one_at_a_time = ONE_BUILT_APP_AT_A_TIME
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let began = Instant::now();
     let (app, daemon) = built();
     let dir = provisioned(
