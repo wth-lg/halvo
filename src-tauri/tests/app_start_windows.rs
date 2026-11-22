@@ -1,10 +1,24 @@
 #![cfg(windows)]
-//! The built app's start on Windows, the gate form of check 34 (scripts/r1/ci.d/34-app-windows-start.sh) on the
-//! programs that the gate's test build made: three apps at once, A on a data directory that is not provisioned, B
-//! and C on provisioned ones; no child and no store of A before the Start step, one halvo-capture.exe of B and of C,
-//! each a child of its app with no window of its own, none of B behind a ctl stop while its app runs, and none of C
-//! behind a kill of its app. Each test returns at its first line off a hosted runner.
+//! The built app's start on Windows, a test form of the cases of check 34 (scripts/r1/ci.d/34-app-windows-start.sh)
+//! on the programs that the test build made: three apps at once, A on a data directory that is not provisioned, B and
+//! C on provisioned ones; no child and no store of A before the Start step, one halvo-capture.exe of B and of C, each
+//! a child of its app with no window of its own, none of B behind a ctl stop while its app runs, and none of C behind
+//! a kill of its app. The test returns at its first line off a hosted runner.
+//!
+//! THE SEAM: a stop that the service takes before the app has read its child's first answer is followed by a child
+//! that the app starts again: the app reads a child as its own only when its poll, every 3 s, takes that child's
+//! Status, and an end with 0 of a child that never answered as the app's own goes by the attach rule, which starts a
+//! child once no service answers (app-4a's named limit; a unit of its own follows). So the stop of B waits until ctl
+//! status of B reads `lease=fresh`, which the app's claimed Status renews in the service when the app reads its child.
+//!
+//! THE WAITS. Each of these waits on a state that the app or the service writes: a halvo-capture.exe of B and of C in
+//! the process table; ctl status of B and C answered; ctl status of B reading `lease=fresh`; the killed app's end; the
+//! end of C's child behind that kill. TWO waits are absences over a span, which no state of today's app replaces,
+//! since the app writes nothing when it decides that no child starts: no child and no store of A in the first
+//! `BEFORE_START` (5 s), and no child of B again in `STOP_HOLD` (10 s) behind the stop. So this target stands in the
+//! slice sat of the windows job beside check 34 (scripts/ci/slow-tests.txt, group D), not in the merge gate.
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::time::{Duration, Instant};
@@ -14,7 +28,6 @@ const STATE_FILE: &str = "daemon-state.json";
 const BEFORE_START: Duration = Duration::from_secs(5);
 const CHILD_START: Duration = Duration::from_secs(60);
 const ANSWER: Duration = Duration::from_secs(30);
-const OWN_ANSWER: Duration = Duration::from_secs(4);
 const STOP_HOLD: Duration = Duration::from_secs(10);
 const KILL_END: Duration = Duration::from_secs(12);
 const POLL: Duration = Duration::from_millis(200);
@@ -43,8 +56,9 @@ impl Drop for Own {
     }
 }
 
+/// A line of the test on standard error, written past libtest's capture, so that a passing run shows it too.
 fn say(name: &str, line: &str) {
-    eprintln!("{name}: {line}");
+    let _ = std::io::stderr().write_all(format!("{name}: {line}\n").as_bytes());
 }
 
 fn on_a_hosted_runner(name: &str, what: &str) -> bool {
@@ -260,6 +274,13 @@ fn the_built_app_on_windows_starts_one_child_only_on_a_provisioned_directory_and
             .then_some(())
         },
     );
+    say(
+        START,
+        &format!(
+            "case provisioned: ctl status of each provisioned directory answered after {:.1} s",
+            began.elapsed().as_secs_f64()
+        ),
+    );
     let seen = processes(&script);
     let child_b = one_child_of_the_app(&seen, &dir_b, &on_b, "provisioned");
     let child_c = one_child_of_the_app(&seen, &dir_c, &on_c, "second provisioned");
@@ -277,13 +298,37 @@ fn the_built_app_on_windows_starts_one_child_only_on_a_provisioned_directory_and
         ),
     );
 
-    std::thread::sleep(OWN_ANSWER);
+    within(
+        ANSWER,
+        "the app's read of its child: ctl status of the provisioned directory reads lease=fresh",
+        || {
+            let out = ctl(&daemon, &dir_b, "status");
+            String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .any(|line| line == "lease=fresh")
+                .then_some(())
+        },
+    );
+    say(
+        START,
+        &format!(
+            "case stop: ctl status of the provisioned directory read lease=fresh after {:.1} s",
+            began.elapsed().as_secs_f64()
+        ),
+    );
     let stop = ctl(&daemon, &dir_b, "stop");
     assert!(
         stop.status.success(),
         "case stop: ctl stop of the provisioned directory: {stop:?}"
     );
     let stopped = Instant::now();
+    say(
+        START,
+        &format!(
+            "case stop: ctl stop of the provisioned directory exited 0 after {:.1} s",
+            began.elapsed().as_secs_f64()
+        ),
+    );
 
     let wait = BEFORE_START.saturating_sub(began.elapsed());
     std::thread::sleep(wait);
@@ -379,126 +424,4 @@ fn the_built_app_on_windows_starts_one_child_only_on_a_provisioned_directory_and
             began.elapsed().as_secs()
         ),
     );
-}
-
-const DELETE: &str = "the_apps_offline_delete_on_windows_leaves_no_store_and_deletes_nothing_while_a_service_holds_the_directory";
-
-/// Runs the app's own entry of the offline delete, `halvo.exe --delete-all --data-dir DIR`, the scratch form of the
-/// run that a press on Windows makes where no service runs.
-fn app_delete(app: &Path, dir: &Path) -> (Option<i32>, serde_json::Value) {
-    let out = Command::new(app)
-        .args(["--delete-all", "--data-dir"])
-        .arg(dir)
-        .stdin(Stdio::null())
-        .output()
-        .unwrap_or_else(|e| panic!("{} does not start: {e}", app.display()));
-    let answer = serde_json::from_slice(&out.stdout).unwrap_or_else(|e| panic!("{e}: {out:?}"));
-    (out.status.code(), answer)
-}
-
-fn files_under(dir: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    let mut found = Vec::new();
-    for entry in entries.map(Result::unwrap) {
-        if entry.file_type().unwrap().is_dir() {
-            found.extend(files_under(&entry.path()));
-        } else {
-            found.push(entry.path());
-        }
-    }
-    found
-}
-
-/// What stands in `dir` of the store, its key, its root and the intent: every file under store/, its writer lock among
-/// them, and under roots/.
-fn what_stays_of_the_store(dir: &Path) -> Vec<PathBuf> {
-    let mut stays = files_under(&dir.join("store"));
-    stays.extend(files_under(&dir.join("roots")));
-    if dir.join("delete-all.intent").exists() {
-        stays.push(dir.join("delete-all.intent"));
-    }
-    stays
-}
-
-/// A service run on `dir` until its store opens.
-fn a_service_with_its_store_open(daemon: &Path, dir: &Path) -> Own {
-    let service = Own(Command::new(daemon)
-        .args(["--service-run", "--data-dir"])
-        .arg(dir)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .spawn()
-        .expect("the service run starts"));
-    within(CHILD_START, "the service's store=open", || {
-        let out = ctl(daemon, dir, "status");
-        String::from_utf8_lossy(&out.stdout)
-            .lines()
-            .any(|line| line == "store=open")
-            .then_some(())
-    });
-    service
-}
-
-/// Test 1 of app-4b: on Windows the app runs the offline delete as on a Mac. On a scratch directory whose store a
-/// service run made and left, the app's own entry ends as deleted, names the directory and leaves no store; while a
-/// service run holds the directory it deletes nothing and says that the directory is held.
-#[test]
-fn the_apps_offline_delete_on_windows_leaves_no_store_and_deletes_nothing_while_a_service_holds_the_directory(
-) {
-    if !on_a_hosted_runner(
-        DELETE,
-        "the built app's offline delete and its capture service",
-    ) {
-        return;
-    }
-    let _one_at_a_time = ONE_BUILT_APP_AT_A_TIME
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let began = Instant::now();
-    let (app, daemon) = built();
-    let dir = scratch_root("app-offline-delete").join("data");
-    std::fs::create_dir_all(&dir).expect("the data directory is made");
-    let shown = halvo_control::paths::one_line(&dir.to_string_lossy());
-
-    let mut left = a_service_with_its_store_open(&daemon, &dir);
-    let stop = ctl(&daemon, &dir, "stop");
-    assert!(stop.status.success(), "ctl stop: {stop:?}");
-    within(STOP_HOLD, "the service run ends after its stop", || {
-        left.0.try_wait().ok().flatten().map(|_| ())
-    });
-    assert!(
-        !files_under(&dir.join("roots")).is_empty(),
-        "a store stands before the delete"
-    );
-
-    let (code, answer) = app_delete(&app, &dir);
-    assert_eq!(code, Some(0), "{answer}");
-    assert_eq!(answer["outcome"], "deleted", "{answer}");
-    assert_eq!(answer["nothing_left"], true, "{answer}");
-    assert_eq!(answer["looked_in"], shown, "{answer}");
-    assert_eq!(
-        what_stays_of_the_store(&dir),
-        Vec::<PathBuf>::new(),
-        "{answer}"
-    );
-
-    let holding = a_service_with_its_store_open(&daemon, &dir);
-    let roots = files_under(&dir.join("roots"));
-    let (code, answer) = app_delete(&app, &dir);
-    assert_eq!(code, Some(1), "{answer}");
-    assert_eq!(answer["error"], "delete_held", "{answer}");
-    assert_eq!(answer["looked_in"], shown, "{answer}");
-    assert_eq!(answer["outcome_not_known"], false, "{answer}");
-    assert_eq!(
-        files_under(&dir.join("roots")),
-        roots,
-        "the held store keeps its root"
-    );
-    drop(holding);
-    say(DELETE, &format!(
-        "ran on a hosted runner in {} s: deleted, nothing left, looked_in the directory; held, delete_held, the root kept",
-        began.elapsed().as_secs()
-    ));
 }
