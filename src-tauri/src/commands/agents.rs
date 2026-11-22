@@ -104,10 +104,10 @@ impl RunsHold {
             wanted.0 > 0 || wanted.1
         };
         if held != *applied {
+            *applied = held;
             if let Some(core) = core {
                 core.hold_runs(held);
             }
-            *applied = held;
         }
     }
 }

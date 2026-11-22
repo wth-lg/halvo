@@ -401,8 +401,8 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
     /// after it the supervisor goes on by its rule.
     pub fn without_the_child<T>(&self, run: impl FnOnce() -> T) -> T {
         let until = self.clock.now() + STOP_WAIT;
+        let _lifted = HeldForARun::mark(&self.shared);
         let mut state = self.shared.lock();
-        state.held_for_a_run = true;
         while let Some(child) = state.child.as_mut() {
             child.close_lifeline();
             if let Ok(Some(_)) = child.ended() {
@@ -417,10 +417,25 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
             state = self.clock.wait(&self.shared.changed, state, STOP_POLL);
         }
         drop(state);
-        let answer = run();
-        self.shared.lock().held_for_a_run = false;
-        self.shared.changed.notify_all();
-        answer
+        run()
+    }
+}
+
+/// The offline delete's hold of the supervision, lifted when it is dropped: on every path out
+/// of the run, an unwind among them, so that the supervisor goes on by its rule.
+struct HeldForARun<'a, C>(&'a Shared<C>);
+
+impl<'a, C> HeldForARun<'a, C> {
+    fn mark(shared: &'a Shared<C>) -> Self {
+        shared.lock().held_for_a_run = true;
+        HeldForARun(shared)
+    }
+}
+
+impl<C> Drop for HeldForARun<'_, C> {
+    fn drop(&mut self) {
+        self.0.lock().held_for_a_run = false;
+        self.0.changed.notify_all();
     }
 }
 
@@ -3275,5 +3290,46 @@ mod tests {
             0,
             "a whole delete ends the row"
         );
+    }
+
+    #[test]
+    fn a_run_that_unwinds_leaves_a_supervisor_that_starts_its_child_again() {
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let ends_with_1_at_its_close = |pid| {
+            let later = Later::default();
+            let at_close = Arc::clone(&later);
+            StandInChild {
+                later: Some(later),
+                at_close: Some(AtClose(Arc::new(move || {
+                    *at_close.lock().unwrap() = Some(Ending::Status(1));
+                }))),
+                ..StandInChild::new(pid, &clock, &record)
+            }
+        };
+        let spawner = StandInSpawner {
+            children: (1000..1002).map(ends_with_1_at_its_close).collect(),
+            record: Arc::clone(&record),
+        };
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::new(Views::default()),
+        );
+        until("the first child lives", || pid.get() == Some(1000));
+        let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            supervisor.without_the_child(|| -> () { panic!("the offline run unwinds") })
+        }));
+        assert!(unwound.is_err(), "the run unwound through the entry");
+        until("the child starts again after a run that unwound", || {
+            pid.get() == Some(1001)
+        });
+        assert_eq!(
+            *record.lock().unwrap(),
+            ["start 1000", "closed descriptor", "start 1001"]
+        );
+        crate::quit::Children::end(&supervisor);
     }
 }

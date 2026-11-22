@@ -432,14 +432,16 @@ impl Before {
     }
 
     /// Tells every module, waiting for them at most STOP_WAIT_MS, and holds the agents' runs;
-    /// the hold of this delete is lifted when the answer is dropped.
+    /// the hold of this delete is lifted when the answer is dropped, also where the hold's own
+    /// call unwinds.
     pub fn tell(&self) -> HeldForADelete {
         tell_before_delete_all(
             &self.modules,
             Duration::from_millis(halvo_control::STOP_WAIT_MS),
         );
+        let held = HeldForADelete(self.clone());
         self.runs.delete_begins(self.core.as_deref());
-        HeldForADelete(self.clone())
+        held
     }
 }
 
