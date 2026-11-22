@@ -86,9 +86,10 @@ pub enum Stop {
     /// The child read another version: one child starts again at once, since the app asked for
     /// the stop in order to restart, unless the child ended with 5.
     Restart,
-    /// A reply or a Status of the child read capture=pausing with a source that did not stop:
-    /// the end counts as an end with 5, whether the child ended or was killed, and what starts
-    /// next is the rule of `next`.
+    /// A reply or a Status of the child read capture=pausing with a source that did not stop,
+    /// also one that came while a stop of another kind waited for the child's end: the end
+    /// counts as an end with 5, whether the child ended or was killed, and what starts next is
+    /// the rule of `next`.
     SourceNotStopped,
     /// A request of the app to the child passed its deadline with no reply: what starts next is
     /// the rule of `next`, and a kill sets no hold.
@@ -491,7 +492,7 @@ fn supervise<S: Spawner, K: Clock>(
                 hold.child_started();
                 match watch(shared, pid, clock, views)? {
                     Seen::Ended(ending) => by_the_rule(ending),
-                    Seen::Stop(stop) => stop_and_start(shared, clock, stop, began, restarts)?,
+                    Seen::Stop(stop) => stop_and_start(shared, pid, clock, stop, began, restarts)?,
                 }
             }
             Err(e) => {
@@ -603,11 +604,13 @@ fn watch<C: Watched, K: Clock>(
 
 fn stop_and_start<C: Watched, K: Clock>(
     shared: &Shared<C>,
+    pid: &ChildPid,
     clock: &K,
     stop: Stop,
     began: Instant,
     before: Restarts,
 ) -> Option<(Ending, Next, Restarts)> {
+    let mut stop = stop;
     let until = clock.now() + STOP_WAIT;
     let mut state = shared.lock();
     state.child.as_mut()?.close_lifeline();
@@ -618,6 +621,9 @@ fn stop_and_start<C: Watched, K: Clock>(
         let child = state.child.as_mut()?;
         if let Ok(Some(ending)) = child.ended() {
             break ending;
+        }
+        if pid.take_sight(child.pid()) == Some(Sight::SourceNotStopped) {
+            stop = Stop::SourceNotStopped;
         }
         if clock.now() >= until {
             if let Err(e) = child.kill() {
@@ -990,7 +996,7 @@ mod tests {
     type Row = (&'static str, Vec<(Ending, u64)>, usize, Vec<Duration>);
     type Row4 = (
         &'static str,
-        Vec<(u32, Result<DaemonStatus, ClientError>)>,
+        Vec<(u32, &'static str, Result<DaemonStatus, ClientError>)>,
         Vec<(u32, bool)>,
         Vec<&'static str>,
         (bool, bool, Option<crate::view_state::Service>),
@@ -1685,8 +1691,8 @@ mod tests {
             (
                 "another daemon_version of the own child: one end and one start at once, none at a second reading",
                 vec![
-                    (1000, Ok(status_of(1000, 1, false))),
-                    (1001, Ok(status_of(1001, 1, false))),
+                    (1000, "", Ok(status_of(1000, 1, false))),
+                    (1001, "", Ok(status_of(1001, 1, false))),
                 ],
                 vec![(1000, true), (1001, true)],
                 vec!["start 1000", "status", "closed descriptor", "start 1001", "status"],
@@ -1694,7 +1700,7 @@ mod tests {
             ),
             (
                 "a reply of another version from the own child: one end and one start at once",
-                vec![(1000, Err(ClientError::ReplyOfAnotherVersion { version: 2 }))],
+                vec![(1000, "", Err(ClientError::ReplyOfAnotherVersion { version: 2 }))],
                 vec![(1000, false), (1001, true)],
                 vec![
                     "start 1000",
@@ -1707,14 +1713,14 @@ mod tests {
             ),
             (
                 "another daemon_version of a daemon that is not the app's child: none",
-                vec![(1000, Ok(status_of(4242, 1, false)))],
+                vec![(1000, "", Ok(status_of(4242, 1, false)))],
                 vec![(1000, true)],
                 vec!["start 1000", "status"],
                 (false, false, Some(Service::Running)),
             ),
             (
                 "pausing beside a source that did not stop: the kill after STOP_WAIT_MS, and the hold",
-                vec![(1000, Ok(status_of(1000, 0, true)))],
+                vec![(1000, "", Ok(status_of(1000, 0, true)))],
                 vec![(1000, false), (1001, true)],
                 vec![
                     "start 1000",
@@ -1727,14 +1733,14 @@ mod tests {
             ),
             (
                 "pausing beside a source that did not stop, and an end of its own after the close: the hold",
-                vec![(1000, Ok(status_of(1000, 0, true)))],
+                vec![(1000, "", Ok(status_of(1000, 0, true)))],
                 vec![(1000, true), (1001, true)],
                 vec!["start 1000", "status", "closed descriptor", "start 1001"],
                 (true, true, None),
             ),
             (
                 "a passed deadline: the kill after STOP_WAIT_MS, and no hold",
-                vec![(1000, deadline())],
+                vec![(1000, "", deadline())],
                 vec![(1000, false), (1001, true)],
                 vec![
                     "start 1000",
@@ -1750,16 +1756,34 @@ mod tests {
                 vec![
                     (
                         1000,
+                        "",
                         Err(ClientError::Daemon(halvo_control::proto::ErrorReply::new(
                             halvo_control::proto::ErrorCode::UnsupportedOp,
                             "this build of the capture service does not serve the op",
                         ))),
                     ),
-                    (1000, Ok(status_of(1000, 0, false))),
+                    (1000, "", Ok(status_of(1000, 0, false))),
                 ],
                 vec![(1000, true), (1001, true)],
                 vec!["start 1000", "status", "status"],
                 (false, false, Some(Service::Running)),
+            ),
+            (
+                "a deadline, then pausing beside a source that did not stop inside the stop's wait: the hold",
+                vec![
+                    (1000, "", deadline()),
+                    (1000, "closed descriptor", Ok(status_of(1000, 0, true))),
+                ],
+                vec![(1000, false), (1001, true)],
+                vec![
+                    "start 1000",
+                    "status",
+                    "closed descriptor",
+                    "status",
+                    "kill after 20 s",
+                    "start 1001",
+                ],
+                (true, true, None),
             ),
         ];
         let tray = crate::tray::installed_for_tests();
@@ -1784,13 +1808,22 @@ mod tests {
                 Arc::clone(&clock),
                 Arc::clone(&views),
             );
-            let (children, answers): (Vec<u32>, Vec<_>) = steps.into_iter().unzip();
+            let mut waits = Vec::new();
+            let mut answers = Vec::new();
+            for (child, line, answer) in steps {
+                waits.push((child, line));
+                answers.push(answer);
+            }
             let control = Watching::new(
                 Scripted::new(&record, answers, Vec::new()),
                 Arc::clone(&pid),
             );
-            for child in children {
-                until(name, || pid.get() == Some(child));
+            for (child, line) in waits {
+                until(name, || {
+                    pid.get() == Some(child)
+                        && (line.is_empty()
+                            || record.lock().unwrap().iter().any(|seen| seen == line))
+                });
                 pass(&control, &views, Some(&tray));
             }
             until(name, || record.lock().unwrap().len() >= expected.len());

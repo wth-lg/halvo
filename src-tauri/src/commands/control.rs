@@ -404,8 +404,18 @@ impl ChildPid {
             (_, Some(error)) if of_another_protocol(error) => Some(Sight::AnotherVersion),
             _ => None,
         };
-        let waiting = read.sight.is_some_and(|(of, _)| of == child);
-        if let (Some(sight), false) = (sight, waiting) {
+        let waiting = read
+            .sight
+            .filter(|(of, _)| *of == child)
+            .map(|(_, kind)| kind);
+        let kept = match (sight, waiting) {
+            (Some(sight), None) => Some(sight),
+            (Some(Sight::SourceNotStopped), Some(other)) if other != Sight::SourceNotStopped => {
+                Some(Sight::SourceNotStopped)
+            }
+            _ => None,
+        };
+        if let Some(sight) = kept {
             read.sight = Some((child, sight));
         }
     }
