@@ -417,6 +417,13 @@ fn credential_fill() -> ExecutableStep {
     )
 }
 
+/// A payment, a step of an effect class, whose condition has a target marked `credential`.
+fn payment_with_a_credential_condition() -> ExecutableStep {
+    web_step(
+        r#"{"v":1,"n":2,"kind":"web","verb":"click","target":{"desc":"the pay button","frame":[],"credential":"no","locators":[{"by":"test_id","value":"pay","name":null}]},"args":[{"name":"payee","from":"const","value":"p","key":null},{"name":"amount","from":"const","value":"1.00","key":null},{"name":"instrument","from":"const","value":"i","key":null},{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null}],"pre":[{"check":"value_is","target":{"desc":"the password field","frame":[],"credential":"yes","locators":[{"by":"test_id","value":"password","name":null}]},"arg":{"name":"text","from":"const","value":"x","key":null}}],"post":[],"effect":"request","class":"payment"}"#,
+    )
+}
+
 /// A case of `each_end_without_a_bind_ends_the_run`: the readings, the address, the answers, the end, and how many
 /// handback requests come before it.
 type Case = (
@@ -806,7 +813,8 @@ fn after_bound_no_nothing_leaves() {
 /// credential field. A click whose act fails reads the page for a field, then reads it a second time, then opens the
 /// handback in the order of a credential field's, and the request names the page's origin; so does a fill of a target
 /// marked `credential`, which fails where the page shows no credential field. Declined, the run ends `declined`. A
-/// click that does not fail on such a page acts, and makes no second reading. Behind the person's `done` and the bind
+/// click that does not fail on such a page acts, and makes no second reading; a payment whose condition's target is
+/// marked `credential` makes none either, and fails as before. Behind the person's `done` and the bind
 /// the click's act is asked once more (the coordinator's ruling of log line 16106 (3)): end (i), it acts and the step
 /// is done; end (ii), it fails again and the step fails as before, with one handback at that step.
 #[test]
@@ -815,6 +823,17 @@ fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
     let mut bench = Bench::on_page(&[], BOUND, &[], 0, &[], &page("Sign in"));
     assert!(bench.step(&click()).is_ok(), "{:?}", bench.log());
     assert_eq!(bench.log(), ["read", "act click"]);
+
+    // The coordinator's ruling of log line 16292: a step of an effect class makes no second reading, whatever its
+    // targets: a payment whose condition's target is marked `credential` fails on that page with `step_failed`.
+    let mut bench = Bench::on_page(&[], BOUND, &[DECLINED], 0, &[], &page("Sign in"));
+    let got = bench.step(&payment_with_a_credential_condition());
+    let log = bench.log();
+    assert!(
+        matches!(got, Err(Failure::Step(Cause::StepFailed))),
+        "{log:?}"
+    );
+    assert_eq!(log, ["read"]);
 
     let opening = [
         "address",

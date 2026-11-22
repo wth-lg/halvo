@@ -15,7 +15,8 @@
 //! target, or the target of one of its conditions, is marked `credential` act on nothing: each reads the page when
 //! the browser runs, and is done after a handback that ended in a bind; a step of the verb `handback` with no
 //! credential field on the page, or before any browser runs, is done; every other answers `step_failed`. A web step
-//! that fails on the run's page, its act or a step marked `credential`, reads the page a second time before its
+//! that fails on the run's page, its act or a step marked `credential` of no effect class, reads the page a second
+//! time before its
 //! failure is written, and hands back with the reason `sign_in` where a link or a button asks for a sign-in by its
 //! name (r3 U5.14, `Runner::asked_at_a_failure`); behind the bind of that handback the act that failed is asked once
 //! more, and a second failure fails the step as before. A step with
@@ -943,8 +944,9 @@ impl Runner {
     /// ended in a bind, or where the page shows no credential field. After an act that failed, with no failed request
     /// of the page in the rule's record, it reads the page again, so that a field that turned into a credential field
     /// at the act's own focus, which the executor refuses, opens a handback; after one that ended in a bind the step
-    /// is done. Where that reading finds no credential field, and where a step marked `credential` meets a running
-    /// browser's page with none, the second reading (`asked_at_a_failure`, r3 U5.14) hands back with the reason
+    /// is done. Where that reading finds no credential field, and where a step marked `credential` of no effect class
+    /// meets a running browser's page with none, the second reading (`asked_at_a_failure`, r3 U5.14) hands back with
+    /// the reason
     /// `sign_in` at a link or a button that asks for a sign-in, in place of the failure. After one that ended in a bind
     /// the act that failed is asked once more, with the reading of the page before it and without a second reading
     /// after it, so that a second failure fails the step as before (the coordinator's ruling of log line 16106 (3));
@@ -974,7 +976,11 @@ impl Runner {
                 }
                 None => false,
             };
-            return if handed || handback || self.asked_at_a_failure(loaded, step.n)? {
+            return if handed
+                || handback
+                || (!of_an_effect_class(loaded.config.category, step)
+                    && self.asked_at_a_failure(loaded, step.n)?)
+            {
                 Ok(())
             } else {
                 Err(failed())
