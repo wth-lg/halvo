@@ -28,10 +28,12 @@
 //! nothing else of its body, so a body whose `workflow` and `agent` are null goes to the handler of its `op` as every
 //! other body does.
 //!
-//! While it answers a request a handler gets five calls of the store and no other: `HandlerCx::commit`, the typed
+//! While it answers a request a handler gets six calls of the store and no other: `HandlerCx::commit`, the typed
 //! commit; `HandlerCx::state`, the state call; `HandlerCx::held_ahead`, under a `coordinator_write` alone, the yes or
 //! no whether a row of one kind of its own family under one workflow id lies more than two days after the clock's day;
-//! `HandlerCx::rows`, the read of the rows of its own family, of one kind whole or of one kind under one workflow id
+//! `HandlerCx::remove_under`, under a `coordinator_write` alone, the removal of every row of one kind of its own family
+//! under one workflow id, in one write with a typed commit, by the path of the delete cascade; `HandlerCx::rows`, the
+//! read of the rows of its own family, of one kind whole or of one kind under one workflow id
 //! (`Rows::for_each_under`); and `HandlerCx::workflow` and `HandlerCx::evidence`, the interface read of one stored
 //! workflow. The store knows for which request it runs a typed commit and takes it from no argument: a record of a kind
 //! of origin own is stored for a `runner` request and a `coordinator_write`, and refused from a step and for a request
@@ -135,7 +137,9 @@ use halvo_schema_core::record::RecurrenceStep;
 pub use batch::{CommitOutcome, ProposalOutcome};
 pub use error::{Error, Fault, OpenError, StoredFault};
 pub use guard::{DeleteGuard, GuardAnswer, HeldAhead};
-pub use handler::{Cause, Committed, DayFault, Handler, HandlerCx, Refusal, Takes};
+pub use handler::{
+    Cause, Committed, DayFault, Handler, HandlerCx, Refusal, RemoveRefusal, Removed, Takes,
+};
 pub use host::{Clock, DbKey, Host, IdSource, ReportSink};
 pub use read::ReadHandle;
 pub use report::{CommittedPosition, Counts, PositionState, Report};
