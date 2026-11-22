@@ -552,9 +552,14 @@ pub fn texts_shown(status: &DaemonStatus) -> Texts {
 #[serde(tag = "error", rename_all = "snake_case")]
 pub enum ActionError {
     Busy,
-    Deadline { seconds: u64 },
+    Deadline {
+        seconds: u64,
+    },
     InvalidArgument,
-    CapOutOfRange { min_bytes: u64, max_bytes: u64 },
+    CapOutOfRange {
+        min_bytes: u64,
+        max_bytes: u64,
+    },
     BadStoreId,
     UpdateTheApp,
     StoreUnavailable,
@@ -564,7 +569,12 @@ pub enum ActionError {
     BrokenReply,
     ChannelFailed,
     PaneNotOpened,
-    NotAnswering { service: NoStatusService },
+    NotAnswering {
+        service: NoStatusService,
+    },
+    /// The service does not serve a request of this kind; the page says it in its own words for
+    /// the request, never the message of the service's reply.
+    UnsupportedOp,
 }
 
 impl ActionError {

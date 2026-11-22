@@ -6,7 +6,7 @@ use halvo_control::client::ClientError;
 use halvo_control::model::{CaptureState, StorageCap, StoreId};
 use halvo_control::onboarding::{OnboardingState, Permission, RequestOutcome};
 use halvo_control::paths::DataDir;
-use halvo_control::proto::{reaches_the_end, CaptureChange, DaemonStatus, StateFile};
+use halvo_control::proto::{reaches_the_end, CaptureChange, DaemonStatus, ErrorCode, StateFile};
 use tauri::ipc::Invoke;
 use tauri::{Runtime, State};
 
@@ -403,12 +403,20 @@ pub async fn request_permission(
     let control = Arc::clone(&state.control);
     off_the_main_thread(move || control.request_permission(made, permission))
         .await?
-        .map_err(|error| {
-            let reading = read_error(&error);
-            reading.command_error.unwrap_or(ActionError::NotAnswering {
-                service: reading.service,
-            })
+        .map_err(|error| match &error {
+            ClientError::Daemon(reply) if reply.code() == ErrorCode::UnsupportedOp => {
+                ActionError::UnsupportedOp
+            }
+            _ => not_taken(&error),
         })
+}
+
+/// The error of a request that the service did not take, as the page reads it.
+fn not_taken(error: &ClientError) -> ActionError {
+    let reading = read_error(error);
+    reading.command_error.unwrap_or(ActionError::NotAnswering {
+        service: reading.service,
+    })
 }
 
 #[tauri::command]

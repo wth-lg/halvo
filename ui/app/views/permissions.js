@@ -3,12 +3,16 @@
   var w = Halvo.words;
   var onboarding = Halvo.feed("onboarding");
   var SOURCE_OF = { input_monitoring: ["input"], accessibility: ["foreground"], screen_and_system_audio_recording: ["screen"] };
+  var ASK_ERRORS = { busy: w.ASK_BUSY, unsupported_op: w.ASK_UNSUPPORTED };
   var sources = [];
+  var shown = null;
+  var kept = {};
   var section;
   var banner;
   var list;
   var walkback;
   var steps;
+  var outcome;
 
   function button(text, onclick) {
     var b = Halvo.el("button", { text: text });
@@ -22,7 +26,59 @@
     };
   }
 
+  function paneOf(permission) {
+    var row = shown && shown.permissions.filter(function (p) {
+      return p.permission === permission;
+    })[0];
+    return row ? row.pane_name : permission;
+  }
+
+  function askWords(e) {
+    var code = e && typeof e === "object" ? e.error : null;
+    return Object.prototype.hasOwnProperty.call(ASK_ERRORS, code) ? ASK_ERRORS[code] : Halvo.errorWords(e);
+  }
+
+  function ask(step) {
+    return function () {
+      return Halvo.ipc.call("request_permission", { permission: step.permission }).then(
+        function (answer) {
+          delete kept[step.permission];
+          outcome.textContent = (answer === "already_granted" ? w.ASK_ALREADY_ON : w.ASK_REQUESTED).replace("{pane}", paneOf(step.permission));
+          return refresh();
+        },
+        function (e) {
+          kept[step.permission] = step;
+          outcome.textContent = askWords(e);
+          if (shown) render(shown);
+        },
+      );
+    };
+  }
+
+  function withKept(o) {
+    var all = o.walkback.slice();
+    Object.keys(kept).forEach(function (permission) {
+      var row = o.permissions.filter(function (p) {
+        return p.permission === permission;
+      })[0];
+      if (!row || row.grant === "granted") {
+        delete kept[permission];
+        return;
+      }
+      var asks = all.some(function (s) {
+        return s.permission === permission && s.action === "request_from_system";
+      });
+      if (asks) return;
+      var at = all.findIndex(function (s) {
+        return s.permission === permission;
+      });
+      all.splice(at < 0 ? all.length : at, 0, kept[permission]);
+    });
+    return all;
+  }
+
   function render(o) {
+    shown = o;
     var needed = o.permissions.length > 0;
     section.classList.toggle("hidden", !needed);
     if (!needed) return;
@@ -56,28 +112,19 @@
         var granted = p.grant === "granted";
         var badge = Halvo.el("span", {
           class: "badge " + (granted ? "granted" : "missing"),
-          text: granted ? w.GRANT_ON : p.lost ? w.GRANT_LOST : p.grant === "not_determined" ? w.GRANT_NOT_ASKED : w.GRANT_OFF,
+          text: granted ? w.GRANT_ON : p.lost ? w.GRANT_LOST : p.asked ? w.GRANT_OFF : w.GRANT_NOT_ASKED,
         });
-        var row = Halvo.el("div", { class: "row" }, [
-          badge,
-          Halvo.el("strong", { text: p.pane_name }),
-          Halvo.el("span", { class: "muted why", text: p.why }),
-        ]);
-        if (!granted) row.appendChild(button(w.OPEN_SETTINGS, openPane(p.permission)));
-        return row;
+        return Halvo.el("div", { class: "row" }, [badge, Halvo.el("strong", { text: p.pane_name }), Halvo.el("span", { class: "muted why", text: p.why })]);
       }),
     );
-    walkback.classList.toggle("hidden", o.walkback.length === 0);
+    var all = withKept(o);
+    walkback.classList.toggle("hidden", all.length === 0);
     steps.replaceChildren.apply(
       steps,
-      o.walkback.map(function (s) {
+      all.map(function (s) {
         var li = Halvo.el("li", { text: s.text + " " });
         if (s.action === "request_from_system") {
-          li.appendChild(
-            button(w.ASK_NOW, function () {
-              return Halvo.ipc.call("request_permission", { permission: s.permission }).then(refresh).catch(Halvo.showError);
-            }),
-          );
+          li.appendChild(button(w.ASK_NOW, ask(s)));
         } else if (s.action === "open_settings_pane") {
           li.appendChild(button(w.OPEN_SETTINGS, openPane(s.permission)));
         }
@@ -100,11 +147,12 @@
       banner = Halvo.el("div", { id: "lost-banner", class: "banner hidden" });
       list = Halvo.el("div", { id: "permissions" });
       steps = Halvo.el("ol", { id: "walkback-steps" });
+      outcome = Halvo.el("p", { id: "ask-outcome", class: "muted" });
       walkback = Halvo.el("div", { id: "walkback", class: "hidden" }, [
         Halvo.el("p", { class: "muted walkback-intro", text: w.WALKBACK_INTRO }),
         steps,
       ]);
-      el.append(banner, list, walkback);
+      el.append(banner, list, walkback, outcome);
       onboarding.on(render);
       Halvo.feed("status").on(function (s) {
         sources = s.sources || [];

@@ -161,6 +161,64 @@ test("the permission steps send the argument object of calls.json", async () => 
   }
 });
 
+test("the walk asks by the asked record and again while a row reads not_determined", async () => {
+  const accessibility = fixture("onboarding_state-missing").permissions.find((p) => p.permission === "accessibility");
+  const step = (action, text) => ({ action, permission: "accessibility", settings_url: accessibility.settings_url, text });
+  const ask = step("request_from_system", "Click Ask now, then click Open System Settings in the message from macOS, and turn on Halvo under Accessibility.");
+  const settings = step(
+    "open_settings_pane",
+    "Open System Settings > Privacy & Security > Accessibility and turn on Halvo. If Halvo is already listed and still not working, remove it with the minus button and add it again.",
+  );
+  const rows = (asked, grant, walkback) => ({ permissions: [{ ...accessibility, asked, grant, lost: false }], lost_grants: [], all_granted: false, walkback });
+  const controls = (page) => page.byId("permissions-section").querySelectorAll("button").map((b) => b.textContent);
+  for (const [pair, answer, badge, offered] of [
+    ["no record, not determined", rows(false, "not_determined", [ask, settings]), "Not asked yet", ["Ask now", "Open System Settings"]],
+    ["no record, not granted", rows(false, "not_granted", [ask, settings]), "Not asked yet", ["Ask now", "Open System Settings"]],
+    ["a record, not determined", rows(true, "not_determined", [ask]), "Off", ["Ask now"]],
+    ["a record, not granted", rows(true, "not_granted", [settings]), "Off", ["Open System Settings"]],
+  ]) {
+    const page = await openPage({ replies: { onboarding_state: () => answer } });
+    assert.equal(page.byId("permissions").querySelector("span.badge").textContent, badge, pair);
+    assert.deepEqual(controls(page), offered, pair);
+  }
+
+  let answer = rows(true, "not_determined", [ask]);
+  let reply = () => "requested";
+  const page = await openPage({ replies: { onboarding_state: () => answer, request_permission: (args) => reply(args) } });
+  const w = page.window.Halvo.words;
+  const press = () => page.click(page.byId("walkback-steps").querySelector("button"));
+  const reads = page.calls("onboarding_state").length;
+  await press();
+  assert.deepEqual(page.calls("request_permission").map((c) => c.args), [{ permission: "accessibility" }], "one press, one request");
+  assert.equal(page.text("ask-outcome"), String(w.ASK_REQUESTED).replace("{pane}", "Accessibility"));
+  assert.ok(page.calls("onboarding_state").length > reads, "the page reads the choice from the next rows");
+  reply = () => "already_granted";
+  await press();
+  assert.equal(page.calls("request_permission").length, 2);
+  assert.equal(page.text("ask-outcome"), String(w.ASK_ALREADY_ON).replace("{pane}", "Accessibility"));
+  for (const [kind, words] of [
+    ["busy", w.ASK_BUSY],
+    ["unsupported_op", w.ASK_UNSUPPORTED],
+    ["state_file", w.ERROR_STATE_FILE],
+    ["internal", w.ERROR_INTERNAL],
+  ]) {
+    reply = () => {
+      throw { error: kind, message: "the message field of the service's reply" };
+    };
+    await press();
+    assert.equal(typeof words, "string", kind);
+    assert.equal(page.text("ask-outcome"), words, kind);
+    assert.doesNotMatch(page.document.body.textContent, /message field/, kind);
+  }
+  answer = rows(true, "not_granted", [settings]);
+  await page.clock.advance(3000);
+  assert.deepEqual(controls(page), ["Ask now", "Open System Settings"], "the Ask stays after an error reply");
+  reply = () => "requested";
+  await press();
+  assert.deepEqual(controls(page), ["Open System Settings"], "an answered ask leaves the walk to the rows");
+  assert.equal(page.calls("request_permission").length, 7);
+});
+
 test("calls.json names a fixture that exists for every reply and error", () => {
   for (const call of calls()) {
     for (const name of [call.reply, call.error].filter(Boolean)) {
