@@ -147,7 +147,7 @@ The first-run text and the data view quote these three sentences word for word.
 The owner approves them once, in the table of user-visible sentences for each
 system; until then they are the recommended text.
 
-- `Typing is not observed on Windows in this version.` win-3 keeps the Windows
+- `Halvo does not record what you type.` win-3 keeps the Windows
   keyboard source out of the default source set.
 - `Screen activity is not recorded.` core-2 builds the switch `screen_activity`
   with the default off; the sentence holds while the switch is off.

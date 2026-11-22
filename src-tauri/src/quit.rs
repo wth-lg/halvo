@@ -3,6 +3,7 @@ use std::sync::{Arc, LazyLock, PoisonError};
 
 use halvo_control::client::{ClientError, PeerRejection};
 use halvo_control::proto::{Capture, DaemonStatus};
+#[cfg(any(target_os = "macos", test))]
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Builder, Manager, Runtime};
 
@@ -85,12 +86,15 @@ impl Presses {
 }
 
 /// The id of the app menu's Quit.
+#[cfg(any(target_os = "macos", test))]
 pub const APP_QUIT_ID: &str = "app-quit";
 
 /// The keys of the app menu's Quit.
+#[cfg(any(target_os = "macos", test))]
 pub const QUIT_KEYS: &str = "CmdOrCtrl+Q";
 
 /// An item of the system in the app menu; no item of this list quits.
+#[cfg(any(target_os = "macos", test))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SystemItem {
     Hide,
@@ -107,6 +111,7 @@ pub enum SystemItem {
 }
 
 /// An entry of the app menu: an item of the system, a separator, or the app's own Quit.
+#[cfg(any(target_os = "macos", test))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Entry {
     System(SystemItem),
@@ -116,6 +121,7 @@ pub enum Entry {
 
 /// The app menu in place of the default macOS menu, whose predefined Quit runs no code of the
 /// app: each submenu with its entries.
+#[cfg(any(target_os = "macos", test))]
 pub const APP_MENU: [(&str, &[Entry]); 3] = [
     (
         "Halvo",
@@ -286,6 +292,7 @@ fn notice<R: Runtime>(app: &AppHandle<R>, sentence: Option<&'static str>) {
 }
 
 /// The app menu of `APP_MENU`.
+#[cfg(any(target_os = "macos", test))]
 pub fn app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let menu = Menu::new(app)?;
     for (title, entries) in APP_MENU {
@@ -308,6 +315,7 @@ pub fn app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     Ok(menu)
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn system_item<R: Runtime>(
     app: &AppHandle<R>,
     item: SystemItem,
@@ -327,9 +335,15 @@ fn system_item<R: Runtime>(
     }
 }
 
-/// Puts the app's one quit in place: the default macOS menu off, the app menu with its own
-/// Quit, and the quit that the tray's Quit calls.
+/// Puts the app's one quit in place: the quit that the tray's Quit calls, and on macOS the
+/// default menu off and the app menu with its own Quit.
 pub fn installed<R: Runtime>(builder: Builder<R>) -> Builder<R> {
+    with_the_app_menu(builder).manage(quit::<R> as QuitWith<R>)
+}
+
+/// The app menu with its own Quit in place of the default macOS menu.
+#[cfg(any(target_os = "macos", test))]
+fn with_the_app_menu<R: Runtime>(builder: Builder<R>) -> Builder<R> {
     builder
         .enable_macos_default_menu(false)
         .menu(app_menu)
@@ -338,7 +352,12 @@ pub fn installed<R: Runtime>(builder: Builder<R>) -> Builder<R> {
                 crate::tray::quit_after_the_hook(app);
             }
         })
-        .manage(quit::<R> as QuitWith<R>)
+}
+
+/// No app menu: a window on Windows carries no menu bar.
+#[cfg(not(any(target_os = "macos", test)))]
+fn with_the_app_menu<R: Runtime>(builder: Builder<R>) -> Builder<R> {
+    builder
 }
 
 #[cfg(test)]

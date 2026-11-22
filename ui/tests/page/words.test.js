@@ -10,9 +10,10 @@ const { APP } = require("../lib/page.js");
 const WORDS = {
   CONNECTING: "Connecting to Halvo's capture service",
   NOT_RUNNING: "Capture service not running",
+  NOT_RECORDING_ON_WINDOWS: "Halvo is not recording. Press Start to record.",
+  FAULT_REPORTS_ON: "Halvo cannot record on this computer. Windows refused the setting that keeps Halvo's data out of error reports.",
   HELD_UNREACHABLE: "Halvo's capture service is not answering. Capture may still be running. Halvo keeps trying.",
   STATUS_REFUSED: "Halvo's capture service reported a state that Halvo cannot rely on. Capture may be running.",
-  UNSUPPORTED: "Capture is not available on Windows in this version.",
   CAPTURE_RUNNING: "Halvo is capturing",
   CAPTURE_PARTIAL: "Halvo is capturing, but not every part of capture runs",
   CAPTURE_STARTING: "Halvo's capture is starting",

@@ -234,12 +234,15 @@ impl AsHandle for PipeStream {
 /// [`ClientError::Unreachable`] with the pipe's name when no pipe of that name stands. Before it
 /// hands the stream over, it reads the server's process id from the pipe and requires the token
 /// user of that process to be its own; otherwise it answers
-/// [`PeerRejection::ServerOfAnotherUser`] and no byte of the request is written.
+/// [`PeerRejection::ServerOfAnotherUser`] and no byte of the request is written. With an expected
+/// process id it also requires the server to be that process, and answers
+/// [`PeerRejection::NotTheExpectedServer`] otherwise, before any byte of the request.
 #[derive(Debug, Clone)]
 pub struct PipeConnector {
     name: String,
     own: String,
     user_of: fn(u32) -> io::Result<String>,
+    expected_pid: Option<u32>,
 }
 
 /// Whether a client whose own user has the SID string `own` sends to a server whose token user
@@ -261,7 +264,14 @@ impl PipeConnector {
             name: crate::paths::pipe_name(&own, data_dir),
             own,
             user_of: user_of_process,
+            expected_pid: None,
         })
+    }
+
+    /// Accepts only the server process `pid`.
+    pub fn expecting_pid(mut self, pid: u32) -> Self {
+        self.expected_pid = Some(pid);
+        self
     }
 
     #[cfg(test)]
@@ -282,6 +292,11 @@ impl PipeConnector {
             .map_err(|error| ClientError::Io(os_error(error)))?;
         let server = (self.user_of)(pid).map_err(ClientError::Io)?;
         check_server(&server, &self.own).map_err(ClientError::PeerRejected)?;
+        if self.expected_pid.is_some_and(|expected| expected != pid) {
+            return Err(ClientError::PeerRejected(
+                PeerRejection::NotTheExpectedServer,
+            ));
+        }
         PipeStream::from_overlapped(pipe).map_err(ClientError::Io)
     }
 }
@@ -399,6 +414,43 @@ mod tests {
             written.is_empty(),
             "the client wrote {} bytes to a server of another user ({read:?})",
             written.len()
+        );
+    }
+
+    #[test]
+    fn the_pipe_client_refuses_a_server_of_another_process_than_the_expected_one() {
+        let this_process = std::process::id();
+        let root = tempfile::tempdir().unwrap();
+        let connector = PipeConnector::for_data_dir(&DataDir::from_flag(root.path()).unwrap())
+            .unwrap()
+            .expecting_pid(this_process.wrapping_add(4));
+        let mut server = server_end(connector.name());
+        let refused = Client::new(connector).status();
+        assert!(
+            matches!(
+                refused,
+                Err(ClientError::PeerRejected(
+                    PeerRejection::NotTheExpectedServer
+                ))
+            ),
+            "{refused:?}"
+        );
+        server.set_timeout(Duration::from_secs(5)).unwrap();
+        let mut written = Vec::new();
+        let read = server.read_to_end(&mut written);
+        assert!(
+            written.is_empty(),
+            "the client wrote {} bytes to a server of another process ({read:?})",
+            written.len()
+        );
+        let other = tempfile::tempdir().unwrap();
+        let expected = PipeConnector::for_data_dir(&DataDir::from_flag(other.path()).unwrap())
+            .unwrap()
+            .expecting_pid(this_process);
+        let _server = server_end(expected.name());
+        assert!(
+            expected.connect(Duration::from_secs(5)).is_ok(),
+            "the server of the expected process is taken"
         );
     }
 }

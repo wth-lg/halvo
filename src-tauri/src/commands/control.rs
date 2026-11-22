@@ -475,11 +475,11 @@ impl Connector for Unresolved {
 #[derive(Debug, Default)]
 pub struct ChildPid {
     pid: AtomicU32,
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     read: Mutex<Read>,
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 #[derive(Debug, Default)]
 struct Read {
     answers: u64,
@@ -490,7 +490,7 @@ struct Read {
 }
 
 /// What an answer of the app's own child showed of that child (contracts.md C14 item 4).
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Sight {
     /// A status that reads capture=pausing beside a source that carries the mark `unstopped`,
@@ -516,7 +516,7 @@ impl ChildPid {
 
     /// Names `pid` as the app's child of the moment, 0 for none; the child so named has not
     /// answered as the app's own yet.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn set(&self, pid: u32) {
         let mut read = self.read();
         read.answered_as_own = false;
@@ -526,32 +526,32 @@ impl ChildPid {
     /// Whether the child of the moment has answered as the app's own: a status of its own pid
     /// came from it since `set` named it. Such a child has passed the instance lock of
     /// contracts.md C3.2 step 3.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn answered_as_own(&self) -> bool {
         self.read().answered_as_own
     }
 
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     fn read(&self) -> std::sync::MutexGuard<'_, Read> {
         self.read.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     /// How many answers the app's control has taken.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn answers(&self) -> u64 {
         self.read().answers
     }
 
     /// Whether an answer came after the first `answers` ones and the newest answer reads that no
     /// daemon answers.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn no_daemon_after(&self, answers: u64) -> bool {
         let read = self.read();
         read.answers > answers && read.no_daemon
     }
 
     /// Takes what the answers showed of the child `child`; a sight of another child is dropped.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn take_sight(&self, child: u32) -> Option<Sight> {
         match self.read().sight.take() {
             Some((of, sight)) if of == child => Some(sight),
@@ -559,7 +559,7 @@ impl ChildPid {
         }
     }
 
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     fn delete_began(&self, child: Option<u32>) {
         let Some(child) = child else {
             return;
@@ -571,7 +571,7 @@ impl ChildPid {
         }
     }
 
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     fn delete_ended(&self, child: Option<u32>) {
         let Some(child) = child else {
             return;
@@ -582,7 +582,7 @@ impl ChildPid {
         }
     }
 
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     fn took(
         &self,
         before: Option<u32>,
@@ -625,13 +625,13 @@ impl ChildPid {
     }
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 struct Deleting<'a> {
     pid: &'a ChildPid,
     child: Option<u32>,
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 impl<'a> Deleting<'a> {
     fn began(pid: &'a ChildPid, child: Option<u32>) -> Self {
         pid.delete_began(child);
@@ -639,21 +639,21 @@ impl<'a> Deleting<'a> {
     }
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 impl Drop for Deleting<'_> {
     fn drop(&mut self) {
         self.pid.delete_ended(self.child);
     }
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 fn source_not_stopped(status: &DaemonStatus) -> bool {
     let fields = status.fields();
     fields.capture == halvo_control::proto::Capture::Pausing
         && fields.sources.iter().any(|line| line.unstopped)
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 fn of_another_protocol(error: &ClientError) -> bool {
     match error {
         ClientError::ReplyOfAnotherVersion { .. } | ClientError::ValueUnknownToV1(_) => true,
@@ -664,7 +664,7 @@ fn of_another_protocol(error: &ClientError) -> bool {
     }
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 fn another_daemon_version(status: &DaemonStatus) -> bool {
     crate::app::VERSION
         .parse::<halvo_control::proto::DaemonVersion>()
@@ -678,13 +678,13 @@ fn another_daemon_version(status: &DaemonStatus) -> bool {
 /// its forward here, and adds that method, with an answer of its own, to the stand-in
 /// `EachItsOwn` and to the last row of the test
 /// `another_daemon_version_restarts_the_own_child_once_and_a_child_seen_ending_is_killed`.
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 pub struct Watching<C> {
     inner: C,
     pid: Arc<ChildPid>,
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 impl<C> Watching<C> {
     pub fn new(inner: C, pid: Arc<ChildPid>) -> Self {
         Watching { inner, pid }
@@ -710,7 +710,7 @@ impl<C> Watching<C> {
     }
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 impl<C: Control> Control for Watching<C> {
     fn places(&self) -> &Arc<Places> {
         self.inner.places()
@@ -839,12 +839,12 @@ fn streaming(connector: ToChild) -> Gated<ToChild> {
     Gated::new(connector)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn expecting(connector: SystemConnector, pid: u32) -> SystemConnector {
     connector.expecting_pid(pid)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn expecting(connector: SystemConnector, pid: u32) -> SystemConnector {
     let _ = pid;
     connector
@@ -878,13 +878,13 @@ pub fn control_of_child<E>(
 }
 
 /// `control` inside the wrapper `Watching`, which reads its answers for `pid`.
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 pub fn watched<C: Control + 'static>(control: C, pid: Arc<ChildPid>) -> Arc<dyn Control> {
     Arc::new(Watching::new(control, pid))
 }
 
 /// `control` alone: no child of the app lives on this system.
-#[cfg(not(any(target_os = "macos", test)))]
+#[cfg(not(any(target_os = "macos", windows, test)))]
 pub fn watched<C: Control + 'static>(control: C, pid: Arc<ChildPid>) -> Arc<dyn Control> {
     let _ = pid;
     Arc::new(control)

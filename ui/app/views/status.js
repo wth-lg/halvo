@@ -1,6 +1,7 @@
 (function () {
   "use strict";
   var HOLD_MS = 1000;
+  var EXIT_FAULT_REPORTS_ON = 6;
   var w = Halvo.words;
   var status = Halvo.feed("status");
   var dot;
@@ -33,7 +34,7 @@
     not_running: w.NOT_RUNNING,
     held_unreachable: w.HELD_UNREACHABLE,
     status_refused: w.STATUS_REFUSED,
-    unsupported: w.UNSUPPORTED,
+    unsupported: w.NOT_RUNNING,
     another_version: w.ERROR_UPDATE,
     not_started: w.FIRST_RUN_HEADING,
     data_dir_unusable: w.DATA_DIR_UNUSABLE,
@@ -79,6 +80,8 @@
 
   function heading(s) {
     if (s.hold) return w.CAPTURE_HELD;
+    if (s.service === "not_running" && s.last_exit === EXIT_FAULT_REPORTS_ON) return w.FAULT_REPORTS_ON;
+    if (s.service === "not_running" && s.platform === "windows") return w.NOT_RECORDING_ON_WINDOWS;
     if (s.service !== "running") return SERVICE[s.service] || w.STATUS_REFUSED;
     return CAPTURE[s.capture] || w.CAPTURE_UNKNOWN;
   }
