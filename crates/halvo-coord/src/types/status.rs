@@ -1,4 +1,4 @@
-use super::{Failure, ItemKind, Status};
+use super::{Failure, ItemKind, LastCause, Status};
 
 /// The system that Halvo runs on, which chooses the words of `working.kill_stuck`, because the
 /// way to quit Halvo differs on each (I5.7).
@@ -59,6 +59,11 @@ pub enum StatusLine {
     Store,
     /// `problem.<cause>`: a last run that ended with a cause of the failure class.
     Problem(Failure),
+    /// `problem.<last cause>`: the row of `Problem` for an agent whose newest started run the
+    /// agent store ended with a cause that the roster has a sentence for (the roster's key
+    /// `last_cause`, I6.1), in place of the failed run's line. `all` does not list it until its
+    /// fixture state of I8.3 is written.
+    LastCause(LastCause),
     /// `all_set.tried_today`: a day with `starts_per_day` starts.
     TriedToday,
     /// `all_set.new`: no run of the agent has ended.
@@ -117,6 +122,7 @@ impl StatusLine {
             StatusLine::SignInRefused
             | StatusLine::Failures
             | StatusLine::Problem(_)
+            | StatusLine::LastCause(_)
             | StatusLine::Record => Status::Problem,
             StatusLine::Starting
             | StatusLine::Working
@@ -149,6 +155,7 @@ impl StatusLine {
             StatusLine::Queued => "queued",
             StatusLine::Store => "store",
             StatusLine::Problem(f) => f.name(),
+            StatusLine::LastCause(c) => c.name(),
             StatusLine::TriedToday => "tried_today",
             StatusLine::New => "new",
             StatusLine::Done => "done",

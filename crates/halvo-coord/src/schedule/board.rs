@@ -610,6 +610,7 @@ impl<C> Board<C> {
             runs: agent.last.into_iter().collect(),
             unknown: Vec::new(),
             refused: agent.refused_run,
+            last_cause: agent.last_cause,
             events,
             store_ended: false,
             replies: crate::types::Replies::NotAsked,

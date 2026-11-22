@@ -12,6 +12,8 @@
   var expiry;
   var loginLine;
   var firstRun;
+  var settingsLine;
+  var settingsReset;
   var action = null;
   var pending = null;
   var shown = null;
@@ -41,6 +43,7 @@
     awaiting_resume: w.CAPTURE_AWAITING_RESUME,
     faulted: w.CAPTURE_FAULTED,
   };
+  var SETTINGS = { corrupt: w.SETTINGS_UNREADABLE, newer_version: w.SETTINGS_NEWER };
   var FAULT = { store: w.FAULT_STORE, drain: w.FAULT_DRAIN, no_source: w.FAULT_NO_SOURCE, permission: w.FAULT_PERMISSION };
   var DRAIN = { no_space: w.CAUSE_NO_SPACE, io: w.CAUSE_IO, db: w.CAUSE_DB, rejected: w.CAUSE_REJECTED };
   var EXPIRY = { io: w.CAUSE_IO, no_space: w.CAUSE_NO_SPACE, db: w.CAUSE_DB };
@@ -84,8 +87,9 @@
 
   function renderToggle(s) {
     var press = pressOf(s);
+    var notRunning = s.service === "not_running";
     if (s.service === "not_started") action = "start";
-    else if (press === "start") action = "running";
+    else if (press === "start" || notRunning) action = "running";
     else if (press === "resume") action = s.service === "running" ? "running" : null;
     else if (s.capture === "awaiting_resume") action = "running";
     else action = s.desired === "running" ? "paused" : s.desired === "paused" ? "running" : null;
@@ -94,7 +98,7 @@
       toggle.disabled = true;
       return;
     }
-    if (press === "start" || action === "start") toggle.textContent = w.START;
+    if (press === "start" || action === "start" || notRunning) toggle.textContent = w.START;
     else toggle.textContent = press === "resume" || action === "running" ? w.RESUME : w.PAUSE;
     toggle.disabled = action === null;
   }
@@ -160,6 +164,9 @@
     expiry.textContent =
       x && x.state === "failing" ? w.EXPIRY_FAILING + " " + (EXPIRY[x.error] || w.CAUSE_IO) + (x.last_at ? " " + w.EXPIRY_SINCE + " " + x.last_at + "." : "") : "";
     loginLine.textContent = s.login_item_written === false ? w.LOGIN_ITEM_NOT_WRITTEN : s.login_item_loaded === false ? w.LOGIN_ITEM_OFF : "";
+    var settings = SETTINGS[s.state_file] || "";
+    settingsLine.textContent = settings;
+    settingsReset.classList.toggle("hidden", settings === "");
     renderFirstRun(s);
   }
 
@@ -233,12 +240,19 @@
       expiry = Halvo.el("p", { id: "expiry-line" });
       loginLine = Halvo.el("p", { id: "login-line" });
       firstRun = Halvo.el("div", { id: "first-run", class: "hidden" });
+      settingsLine = Halvo.el("span", { id: "settings-line" });
+      settingsReset = Halvo.el("button", { id: "settings-reset", class: "danger", text: w.DELETE_EVERYTHING });
+      settingsReset.classList.add("hidden");
+      settingsReset.onclick = function (event) {
+        Halvo.armDelete(event, settingsReset);
+      };
       el.append(
         Halvo.el("div", { class: "row status-row" }, [dot, Halvo.el("p", { class: "state-line" }, [state, " ", reason]), toggle]),
         failed,
         drain,
         expiry,
         loginLine,
+        Halvo.el("div", { class: "row" }, [settingsLine, settingsReset]),
         firstRun,
       );
       status.on(function (s) {

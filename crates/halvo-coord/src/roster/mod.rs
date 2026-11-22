@@ -18,7 +18,8 @@ use crate::words;
 /// of an open item that waits for the person, the holds `not_yet`, `off`, `sign_in_refused`
 /// (ruling RD-73 4.3) and `failures`, a live
 /// run with its phase, a queued start, a newest run that the agent store has not ended, a last
-/// run that ended with a cause of the failure class, a day with `starts_per_day` starts, and the
+/// run that ended with a cause of the failure class, said by the sentence of the facts'
+/// `last_cause` where they hold one, a day with `starts_per_day` starts, and the
 /// end of the last run. `confirm` is the state of the agent's open confirmation where the
 /// coordinator holds it: a confirmation waits for the person only while it is `shown` or `armed`
 /// (I1.2, I4.2), and a run that waits for an answered one is `working`. The end of a run is the
@@ -83,7 +84,10 @@ pub fn status_of<C: ConfigView>(
         _ => None,
     });
     if let Some(failure) = last.and_then(RunEnd::failure) {
-        return StatusLine::Problem(failure);
+        return match facts.last_cause {
+            Some(cause) => StatusLine::LastCause(cause),
+            None => StatusLine::Problem(failure),
+        };
     }
     let today = facts
         .events

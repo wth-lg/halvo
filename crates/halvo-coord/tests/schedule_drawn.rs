@@ -196,6 +196,7 @@ fn member(sim: &Sim, n: usize) -> Member<Config> {
             replies: halvo_coord::types::Replies::NotAsked,
             unknown: Vec::new(),
             refused: None,
+            last_cause: None,
             events,
             today: sim.h.day,
             doing: Doing::Idle(None),
@@ -253,6 +254,7 @@ impl Sim {
                 }),
                 unknown: vec![],
                 refused_run: None,
+                last_cause: None,
             });
             if spec.finished {
                 let run = RunId::parse(&format!("{:032x}", 0x900 + n)).unwrap();
