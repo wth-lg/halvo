@@ -609,7 +609,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
             once_granted: parts.once_granted.contains(&name),
         })
         .collect();
-    let onboarding = onboarding_of(platform, &permissions, parts.switches);
+    let onboarding = onboarding_of(platform, &permissions, &board.permissions, parts.switches);
     DaemonStatus::new(StatusFields {
         daemon_version: env!("CARGO_PKG_VERSION").parse().unwrap_or(DaemonVersion {
             major: 0,
@@ -802,6 +802,7 @@ fn guard_of(board: &Board, lines: &[SourceLine]) -> PasswordGuard {
 fn onboarding_of(
     platform: Platform,
     lines: &[PermissionLine],
+    answered: &[(Permission, GrantState)],
     switches: Switches,
 ) -> OnboardingState {
     let set = |pick: fn(&PermissionLine) -> bool| -> PermissionSet {
@@ -819,7 +820,16 @@ fn onboarding_of(
         now,
         granted_at_capture_start: set(|line| line.at_start == GrantState::Granted),
         asked: set(|line| line.asked),
-        once_granted: set(|line| line.once_granted),
+        once_granted: lines
+            .iter()
+            .filter(|line| {
+                line.once_granted
+                    && answered
+                        .iter()
+                        .any(|(permission, _)| *permission == line.name)
+            })
+            .map(|line| line.name)
+            .collect(),
         macos_major: None,
         settings_entry_name: "Halvo",
         screen_activity: switches.is_on(Switch::ScreenActivity),

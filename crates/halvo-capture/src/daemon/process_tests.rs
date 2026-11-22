@@ -2210,12 +2210,37 @@ fn an_acknowledged_lost_grant_leaves_the_record_and_its_row_reads_lost_no_more()
     .update(|state| state.permissions_once_granted = vec![Permission::InputMonitoring])
     .unwrap();
     let life = Probing::new();
-    life.probe
-        .answer(Permission::InputMonitoring, GrantState::NotGranted);
     let asking = {
-        let (dir, stop) = (dir.clone(), life.stop.clone());
+        let (dir, probe, jump, stop) = (
+            dir.clone(),
+            life.probe.clone(),
+            life.jump.clone(),
+            life.stop.clone(),
+        );
         std::thread::spawn(move || {
             let _stop = StopOnPanic(stop.clone());
+            let not_lost = |status: &halvo_control::proto::DaemonStatus| {
+                !lost_row(status, Permission::InputMonitoring)
+                    && status.fields().onboarding.lost_grants.is_empty()
+                    && grant_row(status, Permission::InputMonitoring).once_granted
+            };
+            wait_until(READY_WITHIN, "the probe was started", || {
+                !probe.asked().is_empty()
+            });
+            let unanswered = status_until(&dir, "a status before the first answer", |_| true);
+            assert!(
+                not_lost(&unanswered),
+                "before the first answer: {unanswered:?}"
+            );
+            probe.answers.lock().unwrap().push_back(Probed::Failed);
+            wait_until(READY_WITHIN, "the failed probe was read", || {
+                probe.answers.lock().unwrap().is_empty()
+            });
+            let failed = status_until(&dir, "a status after a failed probe", |_| true);
+            assert!(not_lost(&failed), "after a failed probe: {failed:?}");
+            probe.answer(Permission::InputMonitoring, GrantState::NotGranted);
+            *jump.lock().unwrap() +=
+                super::supervisor::PROBE_INTERVAL_MISSING + Duration::from_secs(1);
             let lost = status_until(&dir, "the row reads lost", |status| {
                 grant_row(status, Permission::InputMonitoring).grant == GrantState::NotGranted
             });
