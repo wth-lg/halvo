@@ -192,7 +192,8 @@ pub enum Mode {
     Hold,
     /// The handback's mode of U5.1 (A6.4, A11.1): every request that a page of the browser makes,
     /// of every origin and method, is let through, while the interception stays armed; a request
-    /// for which the browser names no frame, the browser's own, is failed.
+    /// for which the browser names no frame, the browser's own, and the script of a service worker
+    /// are failed.
     Handback,
 }
 
@@ -1135,19 +1136,19 @@ impl Executor {
         self.refs.new_snapshot();
         let main = self.main_frame().await?;
         let mut lines = Vec::new();
-        self.snapshot_frame(&main, None, &mut lines, &mut Vec::new())
-            .await?;
+        self.snapshot_frame(&main, None, &mut lines, None).await?;
         Ok(lines)
     }
 
     /// The reading of A6.4: the page read as `snapshot` reads it, the top document and every frame
-    /// in it, and the strongest sign of a credential field that it shows (A8.2); none where it
-    /// shows none. Every earlier ref is stale from here (`RefTable`).
+    /// in it, and in each of those documents the sweep of every field by what it is (`sweep_fn`);
+    /// the strongest sign of a credential field that it shows (A8.2), none where it shows none.
+    /// Every earlier ref is stale from here (`RefTable`).
     pub async fn sign(&mut self) -> Res<Option<Sign>> {
         self.refs.new_snapshot();
         let main = self.main_frame().await?;
         let mut signs = Vec::new();
-        self.snapshot_frame(&main, None, &mut Vec::new(), &mut signs)
+        self.snapshot_frame(&main, None, &mut Vec::new(), Some(&mut signs))
             .await?;
         Ok(signs.into_iter().max())
     }
@@ -1169,7 +1170,7 @@ impl Executor {
             _ => return Err(Fault::new("resolve", "many")),
         };
         let mut lines = Vec::new();
-        self.lines_under(&main, &nodes, root, None, &mut lines, &mut Vec::new())
+        self.lines_under(&main, &nodes, root, None, &mut lines, None)
             .await?;
         Ok(lines)
     }
@@ -1183,15 +1184,19 @@ impl Executor {
         frame: &FrameId,
         label: Option<String>,
         lines: &mut Vec<SnapshotLine>,
-        signs: &mut Vec<Sign>,
+        mut signs: Option<&mut Vec<Sign>>,
     ) -> Res<()> {
         let nodes = self.ax_tree(frame).await?;
         let root = nodes
             .iter()
             .position(|n| n.parent_id.is_none())
             .ok_or_else(|| Fault::new("snapshot", "no root"))?;
-        self.lines_under(frame, &nodes, root, label, lines, signs)
-            .await
+        self.lines_under(frame, &nodes, root, label, lines, signs.as_deref_mut())
+            .await?;
+        if let Some(signs) = signs {
+            signs.extend(Sign::of(&self.eval_value(frame, &sweep_fn()).await?));
+        }
+        Ok(())
     }
 
     async fn lines_under(
@@ -1201,7 +1206,7 @@ impl Executor {
         root: usize,
         label: Option<String>,
         lines: &mut Vec<SnapshotLine>,
-        signs: &mut Vec<Sign>,
+        mut signs: Option<&mut Vec<Sign>>,
     ) -> Res<()> {
         let place = self.place_of(frame);
         let index: HashMap<String, usize> = nodes
@@ -1260,7 +1265,9 @@ impl Executor {
                     } else {
                         None
                     };
-                    signs.extend(sign);
+                    if let Some(signs) = signs.as_deref_mut() {
+                        signs.extend(sign);
+                    }
                     let credential = sign.is_some();
                     let value = line_value(credential, role, &ax_text(&node.value));
                     let r = self.add_ref(Target {
@@ -1280,7 +1287,13 @@ impl Executor {
                         let child = self.child_frame_of(&place, &b).await?;
                         self.enter_frame(&child, &place, b);
                         let origin = self.frame_origin(&child).await?;
-                        Box::pin(self.snapshot_frame(&child, Some(origin), lines, signs)).await?;
+                        Box::pin(self.snapshot_frame(
+                            &child,
+                            Some(origin),
+                            lines,
+                            signs.as_deref_mut(),
+                        ))
+                        .await?;
                     } else {
                         push_children(&mut stack, true);
                     }
@@ -2145,13 +2158,14 @@ const CONTENT_CORNER_FN: &str = "function () {
 /// page's tree gives it, where the caller has one: the kind of its sign, `challenge` for a place
 /// inside an element with `data-halvo-captcha`, `code` for an `autocomplete` that holds
 /// `one-time-code`, `secret` for an input of the type `password`, an `autocomplete` that holds
-/// `current-password`, `new-password` or `cc-csc`, or a `name` attribute or a name of the control
-/// (the given accessible name, which the page's tree makes from its labels and `aria-labelledby`
-/// too, `aria-label`, `title`, `placeholder`) that holds `password`, `passwd`, `pwd` or `passcode`
-/// in lower case;
-/// the empty text for no sign. A control that showed a sign keeps it on its node for the life of
-/// the node, so that a toggle that sets `type` to `text` does not unmark it. It reads no value
-/// and no text of the control itself.
+/// `current-password`, `new-password` or `cc-csc`, or, on a field alone (an input that takes text,
+/// a textarea, a select, an element editable by its own attribute, each known by its interface;
+/// never a link or a button), a `name` attribute or a name of the field (the given accessible name,
+/// which the page's tree makes from its labels and `aria-labelledby` too, `aria-label`, `title`,
+/// `placeholder`) that holds `password`, `passwd`, `pwd` or `passcode` in lower case; the empty
+/// text for no sign. A control that showed a sign keeps it on its node for the life of the node, in
+/// the script world in which the call runs, so that a toggle that sets `type` to `text` does not
+/// unmark it. It reads no value and no text of the control itself.
 const CREDENTIAL_FN: &str = "function (named) {
   if (typeof this.__halvoSign === 'string') return this.__halvoSign;
   if (typeof this.getAttribute !== 'function') return '';
@@ -2159,15 +2173,42 @@ const CREDENTIAL_FN: &str = "function (named) {
   const says = (t) => ['password', 'passwd', 'pwd', 'passcode'].some((w) => String(t).toLowerCase().includes(w));
   const auto = attr('autocomplete').toLowerCase().split(/\\s+/);
   const names = [typeof named === 'string' ? named : '', attr('aria-label'), attr('title'), attr('placeholder')];
+  const own = this.getAttribute('contenteditable');
+  const field = (this instanceof HTMLInputElement && !['button', 'submit', 'reset', 'image', 'checkbox', 'radio', 'hidden', 'file', 'range', 'color'].includes(attr('type').toLowerCase()))
+    || this instanceof HTMLTextAreaElement || this instanceof HTMLSelectElement
+    || (own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase()));
   let sign = '';
   if (this.parentElement !== null && this.parentElement.closest('[data-halvo-captcha]') !== null) sign = 'challenge';
   else if (auto.includes('one-time-code')) sign = 'code';
   else if ((this.tagName === 'INPUT' && attr('type').toLowerCase() === 'password')
     || ['current-password', 'new-password', 'cc-csc'].some((t) => auto.includes(t))
-    || says(attr('name')) || names.some(says)) sign = 'secret';
+    || (field && (says(attr('name')) || names.some(says)))) sign = 'secret';
   if (sign !== '') this.__halvoSign = sign;
   return sign;
 }";
+
+/// The sweep of the reading in one document (the coordinator's ruling of log line 14127 (F)):
+/// `CREDENTIAL_FN` on every input, textarea, select and element editable by its own attribute of
+/// the document, each found by what the browser says it is and whatever its role in the page's
+/// tree; the strongest sign, or the empty text. It enters no frame and no shadow root.
+fn sweep_fn() -> String {
+    format!(
+        "(() => {{
+  const sign = {CREDENTIAL_FN};
+  const rank = {{ '': 0, secret: 1, code: 2, challenge: 3 }};
+  let best = '';
+  for (const el of document.querySelectorAll('*')) {{
+    const own = el.getAttribute('contenteditable');
+    const field = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement
+      || (own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase()));
+    if (!field) continue;
+    const found = sign.call(el, '');
+    if ((rank[found] || 0) > rank[best]) best = found;
+  }}
+  return best;
+}})()"
+    )
+}
 
 const SELECT_FN: &str = "function (label) {
   const option = Array.from(this.options || []).find((o) => o.text.trim() === label);

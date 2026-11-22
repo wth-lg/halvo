@@ -146,18 +146,12 @@ impl Holds {
     /// A state-changing request is failed outside the list and in `Mode::Fail`; in `Mode::Hold` it
     /// is held under a new id, unless the browser gave it no number, a release was made since the
     /// arm, or `MAX_HELD` requests wait, which fail it. In `Mode::Handback` every request that
-    /// names a frame goes on and every other is failed. A second pause of one request (the same
+    /// names a frame goes on but the script of a service worker, and every other is failed. A second pause of one request (the same
     /// number, address, method and hop) follows the answer of the first.
     pub(crate) fn on_pause(&mut self, rule: Option<&Rule>, f: &Facts, pause: Pause) -> (Act, bool) {
         if rule.is_some_and(|r| r.mode == Mode::Handback) {
-            return (
-                if f.frame.is_empty() {
-                    Act::Fail
-                } else {
-                    Act::Continue
-                },
-                true,
-            );
+            let passes = !f.frame.is_empty() && !f.worker_script;
+            return (if passes { Act::Continue } else { Act::Fail }, true);
         }
         let allowed = !f.worker_script && rule.is_some_and(|r| r.allowed.contains(&f.origin));
         if !changes_state(&f.method) {
@@ -1396,6 +1390,23 @@ mod tests {
         assert_eq!(h.on_pause(Some(&r), &script, pause("a")).0, Act::Fail);
         let plain = facts("GET", U, "/app.js", Some("n2"));
         assert_eq!(h.on_pause(Some(&r), &plain, pause("b")).0, Act::Continue);
+    }
+
+    /// U5.1, point (5) of its round (the coordinator's ruling of log line 14127, and its point on
+    /// the static seat): in the handback's mode the script of a service worker is failed, whatever
+    /// frame the browser names for its pause, while a state-changing request of a page goes on.
+    #[test]
+    fn a_service_worker_s_script_fails_in_the_handback_s_mode() {
+        let r = rule(&[], Mode::Handback);
+        let mut h = Holds::default();
+        let script = Facts {
+            worker_script: true,
+            ..facts("GET", U, "/sw.js", Some("n1"))
+        };
+        assert_eq!(script.frame, "F1");
+        assert_eq!(h.on_pause(Some(&r), &script, pause("a")).0, Act::Fail);
+        let post = facts("POST", U, "/sign-in", Some("n2"));
+        assert_eq!(h.on_pause(Some(&r), &post, pause("b")).0, Act::Continue);
     }
 
     /// CP-176 A1 (a): in the mode that fails, a state-changing request to an allowed origin is

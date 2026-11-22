@@ -7,7 +7,7 @@ use std::net::{Ipv4Addr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use halvo_schema::executable::{ExecutableStep, FromRunner, RunId, WebOrigin};
 
@@ -64,6 +64,101 @@ pub fn hosted_headed(test: &str) -> Option<PathBuf> {
         return None;
     }
     hosted(test)
+}
+
+/// The bundle id of the browser that the hosted macos job gives the headed test (`HALVO_BROWSER`, Google Chrome).
+const BUNDLE: &str = "com.google.Chrome";
+
+/// The most lines that `print_outside_the_profile` prints for one place.
+const MOST_LINES: usize = 60;
+
+/// Prints for `test`, after its run's browser stopped, what stands outside the run's profile on a Mac for the
+/// browser's bundle id (the coordinator's ruling of log line 14152): the saved state of the bundle id under the
+/// account's `Library/Saved Application State`, the account's caches of the bundle ids that begin with it, the
+/// preferences files of those bundle ids, and the entries of the system's temporary directory of that browser. Each
+/// entry below each of them comes with its name, its kind, its size and whether its time of change lies between
+/// `started` and `stopped`; a place that holds none says `none`. It opens no file and asserts nothing.
+pub fn print_outside_the_profile(test: &str, started: SystemTime, stopped: SystemTime) {
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        say(test, "outside the profile: no HOME");
+        return;
+    };
+    let library = home.join("Library");
+    let temp = std::process::Command::new("/usr/bin/getconf")
+        .arg("DARWIN_USER_TEMP_DIR")
+        .output()
+        .ok()
+        .map(|out| PathBuf::from(String::from_utf8_lossy(&out.stdout).trim()))
+        .filter(|dir| dir.is_absolute());
+    let places = [
+        ("saved state", Some(library.join("Saved Application State"))),
+        ("caches", Some(library.join("Caches"))),
+        ("preferences", Some(library.join("Preferences"))),
+        ("temp", temp),
+    ];
+    for (place, dir) in places {
+        let Some(dir) = dir else {
+            say(test, &format!("outside the profile: {place}: unread"));
+            continue;
+        };
+        let mut lines = Vec::new();
+        for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.trim_start_matches('.').starts_with(BUNDLE) {
+                walk(&entry.path(), &name, started, stopped, &mut lines);
+            }
+        }
+        if lines.is_empty() {
+            say(test, &format!("outside the profile: {place}: none"));
+        }
+        for line in lines.iter().take(MOST_LINES) {
+            say(test, &format!("outside the profile: {place}: {line}"));
+        }
+        if lines.len() > MOST_LINES {
+            say(
+                test,
+                &format!(
+                    "outside the profile: {place}: {} more",
+                    lines.len() - MOST_LINES
+                ),
+            );
+        }
+    }
+}
+
+/// One line for `path`, named `rel`, and one for each entry below it: its kind, its size and whether its time of
+/// change lies between `started` and `stopped`. A link is not followed.
+fn walk(path: &Path, rel: &str, started: SystemTime, stopped: SystemTime, lines: &mut Vec<String>) {
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return;
+    };
+    let inside = meta
+        .modified()
+        .is_ok_and(|at| at >= started && at <= stopped);
+    let kind = if meta.file_type().is_symlink() {
+        "link"
+    } else if meta.is_dir() {
+        "dir"
+    } else {
+        "file"
+    };
+    lines.push(format!(
+        "{rel} {kind} {} bytes, changed in the run: {}",
+        meta.len(),
+        if inside { "yes" } else { "no" }
+    ));
+    if meta.is_dir() {
+        for entry in std::fs::read_dir(path).into_iter().flatten().flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            walk(
+                &entry.path(),
+                &format!("{rel}/{name}"),
+                started,
+                stopped,
+                lines,
+            );
+        }
+    }
 }
 
 /// One connection that the fixture accepted: the request's method and path, empty where none came, and every byte

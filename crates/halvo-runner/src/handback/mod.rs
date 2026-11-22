@@ -14,8 +14,9 @@
 //! command and reads nothing. After `done` it reads the page again and hands back again while a credential field is
 //! still there, at most `IN_A_ROW` times in a row. After the `done` that leaves no credential field it reads once
 //! the address of the page on which the handback opened and sends its origin in the frame `bind`; after
-//! `bind_reply` with `bound=yes` it closes the pages that were opened meanwhile, arms `Mode::Fail` with the origins
-//! of the bindings and the bound one, and the run goes on.
+//! `bind_reply` with `bound=yes` it first arms `Mode::Fail` with the origins of the bindings and every origin bound
+//! in this run, then closes the pages that were opened meanwhile, so that no page loads outside the rule (the
+//! coordinator's ruling of log line 14127 (3), (4)), and the run goes on.
 //!
 //! Every other end binds nothing and makes no further step: the runner first lets no request through (the rule in
 //! `Mode::Fail` with no origin, the relay with no host), fails every request that it holds paused and closes the
@@ -82,16 +83,21 @@ impl Runner {
             .and_then(|origin| self.bind(origin))
         {
             Ok((origin, YesNo::Yes)) => {
+                if !self.bound.contains(&origin) {
+                    self.bound.push(origin);
+                }
                 let mut origins = loaded
                     .bindings
                     .as_ref()
                     .map_or_else(Vec::new, |b| b.origins.clone());
-                if !origins.contains(&origin) {
-                    origins.push(origin);
+                for bound in &self.bound {
+                    if !origins.contains(bound) {
+                        origins.push(bound.clone());
+                    }
                 }
                 if page
-                    .close_others()
-                    .and_then(|()| page.arm(&origins))
+                    .arm(&origins)
+                    .and_then(|()| page.close_others())
                     .is_err()
                 {
                     shut(page);

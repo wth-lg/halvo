@@ -39,6 +39,8 @@ const BOUND: &str = "http://127.0.0.1:8080";
 struct StandIn {
     log: Log,
     signs: VecDeque<Option<Sign>>,
+    /// The addresses that the reads give first, in order, before `address`.
+    addresses: VecDeque<String>,
     address: String,
     act_fails: bool,
 }
@@ -112,7 +114,10 @@ impl Page for StandIn {
 
     fn address(&mut self) -> Result<String, ()> {
         note(&self.log, "address");
-        Ok(self.address.clone())
+        Ok(self
+            .addresses
+            .pop_front()
+            .unwrap_or_else(|| self.address.clone()))
     }
 }
 
@@ -243,15 +248,17 @@ impl Bench {
     /// A runner of an agent bound to `BOUND`, whose stand-in's readings give `signs` and whose page holds `address`,
     /// and whose supervisor answers each handback request and `bind` by `answers` in order.
     fn new(signs: &[Option<Sign>], address: &str, answers: &[&'static str]) -> Bench {
-        Bench::with(signs, address, answers, false)
+        Bench::with(signs, address, answers, false, &[])
     }
 
-    /// `new`, with a stand-in whose acts fail where `act_fails` holds.
+    /// `new`, with a stand-in whose acts fail where `act_fails` holds and whose reads of the address give
+    /// `addresses` first.
     fn with(
         signs: &[Option<Sign>],
         address: &str,
         answers: &[&'static str],
         act_fails: bool,
+        addresses: &[&str],
     ) -> Bench {
         let log: Log = Arc::default();
         let requests: Log = Arc::default();
@@ -294,6 +301,7 @@ impl Bench {
         runner.web = Some(Web(Box::new(StandIn {
             log: Arc::clone(&log),
             signs: signs.iter().copied().collect(),
+            addresses: addresses.iter().map(|a| a.to_string()).collect(),
             address: address.to_string(),
             act_fails,
         })));
@@ -417,7 +425,7 @@ fn refusal_acts_on_credential_page() {
         );
     }
 
-    let mut bench = Bench::with(&[None, Some(Sign::Secret)], BOUND, &[DECLINED], true);
+    let mut bench = Bench::with(&[None, Some(Sign::Secret)], BOUND, &[DECLINED], true, &[]);
     let got = stop_of(bench.step(&fill()));
     let log = bench.log();
     assert_eq!(
@@ -556,9 +564,9 @@ fn refusal_acts_during_handback() {
 }
 
 /// A6.4: after a `done` that leaves no credential field the runner reads once the address of the page on which the
-/// handback opened and sends `bind` with its origin; after `bound=yes` it closes the pages opened meanwhile, arms
-/// `Mode::Fail` with the origins of the bindings and the bound one, and goes on to the next step, which acts, and
-/// the run completes.
+/// handback opened and sends `bind` with its origin; after `bound=yes` it first arms `Mode::Fail` with the origins
+/// of the bindings and the bound one, then closes the pages opened meanwhile (the coordinator's ruling of log line
+/// 14127 (4)), and goes on to the next step, which acts, and the run completes.
 #[test]
 fn a_sign_in_ends_in_a_bind_and_the_run_goes_on() {
     let address = "https://accounts.example.com/done?x=1";
@@ -578,8 +586,8 @@ fn a_sign_in_ends_in_a_bind_and_the_run_goes_on() {
             "address",
             "frame bind https://accounts.example.com:443",
             "bind_reply yes",
-            "close others",
             "arm fail [http://127.0.0.1:8080 https://accounts.example.com:443]",
+            "close others",
             "read",
             "act click",
             "stop",
@@ -589,6 +597,35 @@ fn a_sign_in_ends_in_a_bind_and_the_run_goes_on() {
         "{log:?}"
     );
     assert_eq!(count(&log[result + 1..], "address"), 1);
+}
+
+/// The coordinator's ruling of log line 14127 (3): every origin that was bound in this run stays in the rule after a
+/// second bind, beside the origins of the bindings.
+#[test]
+fn every_origin_bound_in_the_run_stays_after_a_second_bind() {
+    let (first, second) = (
+        "https://accounts.example.com/done",
+        "https://pay.example.com/done",
+    );
+    let mut bench = Bench::with(
+        &[Some(Sign::Secret), None, Some(Sign::Code), None],
+        BOUND,
+        &[DONE, BOUND_YES, DONE, BOUND_YES],
+        false,
+        &[first, first, second, second],
+    );
+    assert!(bench.step(&handback()).is_ok(), "{:?}", bench.log());
+    assert!(bench.step(&handback()).is_ok(), "{:?}", bench.log());
+    let log = bench.log();
+    let arms: Vec<&String> = log.iter().filter(|l| l.starts_with("arm fail")).collect();
+    assert_eq!(
+        arms,
+        [
+            "arm fail [http://127.0.0.1:8080 https://accounts.example.com:443]",
+            "arm fail [http://127.0.0.1:8080 https://accounts.example.com:443 https://pay.example.com:443]",
+        ],
+        "{log:?}"
+    );
 }
 
 /// A6.4: no bind and no further step at each other end of a handback: `declined` ends the run `declined`, `timeout`

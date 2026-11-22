@@ -14,7 +14,8 @@ use halvo_schema::executable::{Cause, FromRunner, Outcome, RunnerCall, ToRunner}
 use halvo_schema::Category;
 use support::browser::{
     bearing, cond, extract_amount, from_slot, handback, hosted, hosted_headed, hosted_mac, konst,
-    navigate, own_start_us, profile_of, say, serve_finding, serve_with, step, Fixture,
+    navigate, own_start_us, print_outside_the_profile, profile_of, say, serve_finding, serve_with,
+    step, Fixture,
 };
 use support::{slot, tag, Act, Seen, Supervisor, FINDS_ITS_BROWSER, LONG};
 
@@ -404,6 +405,10 @@ const HANDS: &str = r#"<!doctype html><title>typed</title><input data-testid="na
 /// field of `INNER`, and the object element that shows `INNER`, and no password field of its own.
 const INTO: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="into" aria-label="Note" onfocus="document.querySelector('object').contentDocument.querySelector('input').focus()"><object data="/inner" type="text/html"></object>"#;
 
+/// `TYPED` with its name field and a code field of the type number whose `autocomplete` is `one-time-code`, which the
+/// page's tree gives the role `spinbutton`.
+const CODE: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="number" data-testid="code" aria-label="Code" autocomplete="one-time-code" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+
 /// U4.1w part 1 (3), U5.1: a step whose `post` fails after it acted, a step whose locator finds no control and a
 /// step whose `pre` fails, on a page with no password field, each log one `step_failed` row with the cause
 /// `step_failed`, never `timeout`, and the run is handed back. A step stored with `credential` `no` whose locator
@@ -413,10 +418,12 @@ const INTO: &str = r#"<!doctype html><title>typed</title><input data-testid="nam
 /// only into an element that holds the focus of the four kinds that it reads whole, and meet the runner's reading
 /// after the refused act: each opens a handback of the reason `sign_in`, and the supervisor's `declined` ends the run
 /// `declined`. A fill of a field whose focus hands the focus on into an object's document, on a page with no password
-/// field of its own, is refused the same way and ends either way: handed back with `step_failed` where the reading
-/// does not see the object's password field, or a `sign_in` handback that is declined where it does; the test prints
-/// which. No step that would reach a password field types a byte, the one with the failing `post` acted, and no frame
-/// and no line of the runner holds the password field's value.
+/// field of its own, is refused the same way and is handed back with `step_failed`: the reading enters the frames of
+/// the page's tree alone and not an object's document, so it does not see the object's password field (run
+/// 44998838561 read this end in both jobs). A fill of the name field on a page with a code field of the type number
+/// meets the reading's sweep of every field, which opens a handback of the reason `second_factor`. No step that would
+/// reach a password field types a byte, the one with the failing `post` acted, and no frame and no line of the runner
+/// holds the password field's value.
 #[test]
 fn a_post_condition_that_fails_logs_step_failed() {
     let Some(browser) = hosted("a_post_condition_that_fails_logs_step_failed") else {
@@ -497,6 +504,11 @@ fn a_post_condition_that_fails_logs_step_failed() {
             step(2, "fill", Some("into"), &[konst("text", "Ada")], &[], &[]),
             false,
         ),
+        (
+            247,
+            step(2, "fill", Some("name"), &[konst("text", "Ada")], &[], &[]),
+            false,
+        ),
     ];
     for (n, second, acted) in cases {
         let page = match n {
@@ -504,28 +516,17 @@ fn a_post_condition_that_fails_logs_step_failed() {
             255 => TURNS,
             250 => HANDS,
             249 => INTO,
+            247 => CODE,
             _ => NAMED,
         };
         let fixture = Fixture::start(&[("/typed-form", page), ("/inner", INNER)]);
         let mut sup = web_agent(n, &fixture);
         sup.steps = vec![navigate(1, &fixture.url("/typed-form")), second];
         let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
-        if n == 249 {
-            let done = seen.done();
-            say(
-                "a_post_condition_that_fails_logs_step_failed",
-                &format!("run 249, the object's password field: {done:?}"),
-            );
-            match done {
-                Some(Outcome::Declined) => {
-                    assert_eq!(rows(&seen), declined, "run {n}");
-                    assert_eq!(seen.handbacks(), [HandbackReason::SignIn], "run {n}");
-                }
-                _ => {
-                    assert_eq!(done, Some(Outcome::HandedBack), "{}", seen.stderr);
-                    assert_eq!(rows(&seen), failed, "run {n}");
-                }
-            }
+        if n == 247 {
+            assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+            assert_eq!(rows(&seen), declined, "run {n}");
+            assert_eq!(seen.handbacks(), [HandbackReason::SecondFactor], "run {n}");
         } else if matches!(n, 250 | 254 | 255) {
             assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
             assert_eq!(rows(&seen), declined, "run {n}");
@@ -604,7 +605,9 @@ const SIGN_IN: &str = r#"<!doctype html><title>sign in</title><form onsubmit="re
 /// loaded the page again by GET;
 /// while the handback is open the page's own POST reaches the fixture and its script takes the password field out;
 /// the test answers `done` 8 s after the request, the runner finds no credential field, sends `bind` with the
-/// fixture's origin, and after `bound=yes` the run goes on to a page of the bound origin and ends `completed`.
+/// fixture's origin, and after `bound=yes` the run goes on to a page of the bound origin and ends `completed`. After
+/// the browser's stop it prints what stands outside the profile for the browser's bundle id (names, sizes and whether
+/// each changed in the run; the coordinator's ruling of log line 14152), and asserts nothing of it.
 #[test]
 fn a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind() {
     let Some(browser) =
@@ -612,6 +615,7 @@ fn a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind() {
     else {
         return;
     };
+    let started = std::time::SystemTime::now();
     let fixture = Fixture::start(&[("/sign-in", SIGN_IN), ("/read", READ)]);
     let mut sup = web_agent(245, &fixture);
     sup.headed = true;
@@ -638,6 +642,11 @@ fn a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind() {
             _ => Act::Answer,
         },
         Duration::from_secs(120),
+    );
+    print_outside_the_profile(
+        "a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind",
+        started,
+        std::time::SystemTime::now(),
     );
     assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
     assert_eq!(seen.handbacks(), [HandbackReason::SignIn]);
