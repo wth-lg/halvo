@@ -1381,11 +1381,10 @@ mod tests {
                     &Err(halvo_control::client::ClientError::Unsupported),
                 );
                 held.runs.drawn(held.core.as_deref(), &views, &calls);
-                expected.push("lift the runs".to_owned());
                 assert_eq!(
                     noted(&record),
                     expected,
-                    "the lift comes at the first poll read behind the list"
+                    "behind a list that stopped, a poll that finds no service lifts nothing"
                 );
                 let _ = consent(
                     &Gated::new(Unresolved),
@@ -1411,6 +1410,23 @@ mod tests {
                     );
                     std::thread::sleep(Duration::from_millis(5));
                 }
+                views.take_poll(
+                    calls.make().number(),
+                    &Ok(halvo_control::testing::sample_status(
+                        halvo_control::proto::Platform::Macos,
+                    )),
+                );
+                held.runs.drawn(held.core.as_deref(), &views, &calls);
+                let seen = noted(&record);
+                let at = |line: &str| seen.iter().position(|seen| seen == line);
+                assert_eq!(
+                    (
+                        seen.iter().filter(|line| *line == "lift the runs").count(),
+                        at("start 8") < at("lift the runs"),
+                    ),
+                    (1, true),
+                    "the lift comes once, behind the child of the press, at the first poll that the child answers with a store that does not bar: {seen:?}"
+                );
             }
             supervisor.end();
         }
