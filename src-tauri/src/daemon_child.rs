@@ -3794,7 +3794,7 @@ mod tests {
             assert_eq!(
                 part[2..],
                 ["stop", request, "lift"],
-                "{door}: the stop, then the request, then the lift at the first poll read behind the answer"
+                "{door}: the stop, then the request, then the lift, at the latest at the first poll read behind the answer"
             );
         }
 

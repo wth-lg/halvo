@@ -3,8 +3,9 @@
 //! page of the window main alone, through the `Agents` that the app manages.
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use halvo_control::client::Deadlines;
 use halvo_coord::items::ConfirmAnswer;
 use halvo_coord::types::commands::LIST;
 use halvo_coord::types::{AgentId, Cause, ItemId, RunId, Snapshot};
@@ -17,7 +18,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use super::control::{Control, Places};
 use super::names::{Names, AGENTS};
 use super::Registration;
-use crate::poller::Views;
+use crate::poller::{Polled, Views};
 use halvo_control::paths::DataDir;
 
 pub struct Module;
@@ -56,17 +57,29 @@ pub struct RunsHold {
 }
 
 /// What the hold wants at a moment: it stands while a delete runs, while the newest view drawn
-/// bars, or while a reading is owed.
+/// bars, or while a reading is owed. `late` is the moment at which the answer of a delete passed
+/// its deadline, until a reading clears it.
 #[derive(Debug, Default)]
 struct Wanted {
     deletes: usize,
     barred: bool,
     owed: Owed,
+    late: Option<Instant>,
 }
 
 impl Wanted {
     fn held(&self) -> bool {
         self.deletes > 0 || self.barred || self.owed != Owed::Nothing
+    }
+
+    /// Whether `poll` is a reading at `now`: a poll that answered always is; a poll that passed
+    /// its deadline is not while a late answer stands and less than `Deadlines::V1.delete_all`
+    /// has passed since it.
+    fn reads(&self, poll: Polled, now: Instant) -> bool {
+        !poll.passed_its_deadline
+            || self
+                .late
+                .is_none_or(|late| now.saturating_duration_since(late) >= Deadlines::V1.delete_all)
     }
 }
 
@@ -84,14 +97,24 @@ impl Wanted {
 /// 3. The reading: the first draw whose views hold the view of a poll at or past the fence
 ///    clears it, and the hold lifts there unless that view bars.
 ///
+/// Behind a late answer the reading waits longer. At the service's door, a delete whose own
+/// answer passed its deadline is marked (`answer_passed_its_deadline`, from the door's guard
+/// before its drop): the service may still delete, and it answers no status while it does. Then
+/// a poll that passes its deadline is no reading, and the first poll at or past the fence that
+/// answers, with a status or another error, is the reading and clears the mark. Once
+/// `Deadlines::V1.delete_all` (120 s, the wait for a delete's answer) has passed since the mark,
+/// a poll that passes its deadline is a reading again. The offline door and Remove Halvo's list
+/// take no answer of the service and are never marked.
+///
 /// It cannot stand for good while the poller runs: the door draws behind its answer and each
 /// round of the poller draws, so the fence comes at the first of these draws; the woken
 /// poller's next poll is made after it, and its answer is taken as a view, a status or any
 /// error, no service among them. Two answers are not taken. One is a poll made before a newer
 /// answer of a mutation, and the poller's next poll follows it. The other is a deadline while a
-/// delete of the app is in flight, and that delete's own end owes a new reading. Where no
-/// poller runs, as in the launch form `--delete-all` and in a test app, nothing clears it, and
-/// at a quit the process may end first: there the hold stands until the process ends.
+/// delete of the app is in flight, and that delete's own end owes a new reading. Behind a late
+/// answer, a poll that passes its deadline is a reading again once the bound has passed. Where
+/// no poller runs, as in the launch form `--delete-all` and in a test app, nothing clears it,
+/// and at a quit the process may end first: there the hold stands until the process ends.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum Owed {
     /// No reading is owed.
@@ -113,6 +136,13 @@ impl RunsHold {
     pub fn delete_begins(&self, core: Option<&dyn Core>) {
         self.wanted().deletes += 1;
         self.apply(core);
+    }
+
+    /// The answer of a delete of everything that runs passed its deadline at `at`, while the
+    /// service may still delete: from its end on, a poll that passes its deadline is no reading
+    /// until a poll answers or `Deadlines::V1.delete_all` has passed since `at` (`Owed`).
+    pub fn answer_passed_its_deadline(&self, at: Instant) {
+        self.wanted().late = Some(at);
     }
 
     /// A delete of everything ended: a reading is owed (`Owed`), and the hold stands on until
@@ -137,21 +167,25 @@ impl RunsHold {
         }
     }
 
-    /// What a draw tells the hold, from `views` at that moment: whether their view bars, and,
-    /// behind a delete's end, the fence at the next call number of `places` or the reading
-    /// (`Owed`). Returns whether what is wanted changed, for `apply`.
-    fn told_by_a_draw(&self, views: &Views, places: &Places) -> bool {
+    /// What a draw at `now` tells the hold, from `views` at that moment: whether their view
+    /// bars, and, behind a delete's end, the fence at the next call number of `places` or the
+    /// reading (`Owed`). Returns whether what is wanted changed, for `apply`.
+    fn told_by_a_draw(&self, views: &Views, places: &Places, now: Instant) -> bool {
         let (view, poll) = views.reading();
         let mut wanted = self.wanted();
         let held = wanted.held();
         wanted.barred = Self::bars(&view);
-        match wanted.owed {
+        let owed = wanted.owed;
+        match owed {
             Owed::Unfenced => {
                 wanted.owed = Owed::From(places.next_number());
                 views.wake_the_poller();
             }
-            Owed::From(fence) if poll.is_some_and(|number| number >= fence) => {
+            Owed::From(fence)
+                if poll.is_some_and(|poll| poll.number >= fence && wanted.reads(poll, now)) =>
+            {
                 wanted.owed = Owed::Nothing;
+                wanted.late = None;
             }
             Owed::Nothing | Owed::From(_) => {}
         }
@@ -162,7 +196,13 @@ impl RunsHold {
     /// on a thread of its own.
     #[cfg(test)]
     pub fn drawn(&self, core: Option<&dyn Core>, views: &Views, places: &Places) {
-        if self.told_by_a_draw(views, places) {
+        self.drawn_at(core, views, places, Instant::now());
+    }
+
+    /// `drawn` at the moment `now` that the caller gives.
+    #[cfg(test)]
+    pub fn drawn_at(&self, core: Option<&dyn Core>, views: &Views, places: &Places, now: Instant) {
+        if self.told_by_a_draw(views, places, now) {
             self.apply(core);
         }
     }
@@ -194,16 +234,17 @@ impl RunsHold {
 }
 
 /// What a draw of the app's view tells the agents' hold, from the drawer of `app::build`: the
-/// views and the places of the app's own state, read by the hold under its lock in the order of
-/// the draws, and a change of what is wanted goes to the core on a thread of its own. The view
-/// of the draw is not read: the views may hold a newer one, taken while the draw ran.
+/// views of the app's own state, read at the draw, and the next call number of its places, read
+/// under the hold's lock; the draw lock keeps the draws in order. A change of what is wanted goes
+/// to the core on a thread of its own. The view of the draw is not read: the views may hold a
+/// newer one, taken while the draw ran.
 pub fn hold_by_the_view<R: Runtime>(app: &AppHandle<R>, _view: &crate::view_state::StatusView) {
     let Some(state) = app.try_state::<super::capture::AppState>() else {
         return;
     };
     if !state
         .runs
-        .told_by_a_draw(&state.views, state.control.places())
+        .told_by_a_draw(&state.views, state.control.places(), Instant::now())
     {
         return;
     }
@@ -343,11 +384,12 @@ impl Core for NoService {
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Condvar, Mutex, PoisonError};
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
+    use halvo_control::client::{ClientError, Deadlines};
     use halvo_control::paths::DataDir;
     use halvo_control::proto::{DaemonStatus, Platform, StoreState};
-    use halvo_control::testing::sample_status;
+    use halvo_control::testing::{sample_status, ScriptedConnector, ScriptedDaemon};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord::types::{AgentId, Cause, ItemId, RunId};
     use halvo_coord_app::{Agents, Core, Reply};
@@ -355,8 +397,10 @@ mod tests {
     use tauri::test::{mock_builder, MockRuntime};
     use tauri::{App, Manager};
 
-    use super::hold_by_the_view;
-    use crate::commands::capture::{AppState, Before};
+    use super::{hold_by_the_view, RunsHold};
+    use crate::commands::capture::{delete_everything, AppState, Before, DeleteEnd, DELETE_WAITS};
+    use crate::commands::control::{Control, Gated, Places};
+    use crate::poller::Views;
 
     /// A core that records every `hold_runs` that reaches it.
     #[derive(Default)]
@@ -494,6 +538,92 @@ mod tests {
         assert!(
             state.runs.stands(),
             "the hold stands on while that view reads deleting with the field"
+        );
+    }
+
+    #[test]
+    fn behind_a_delete_whose_answer_passed_its_deadline_a_poll_past_its_deadline_is_no_reading() {
+        let core = Arc::new(Told::default());
+        let mut silent = ScriptedDaemon::new(sample_status(Platform::Macos));
+        silent.set_silent(true);
+        let control = Gated::new(ScriptedConnector::new(silent));
+        let views = Views::default();
+        let before = Before {
+            modules: Vec::new(),
+            runs: Arc::new(RunsHold::default()),
+            core: Some(Arc::clone(&core) as Arc<dyn Core>),
+        };
+        let drawn = || {
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+        };
+        let asked = delete_everything(&before, &control, &views, None, DELETE_WAITS);
+        assert!(
+            matches!(
+                asked.end,
+                DeleteEnd::Answered(Err(ClientError::Deadline { .. }))
+            ),
+            "the delete's own answer passed its deadline: {:?}",
+            asked.end
+        );
+        views.take_delete(asked.call, asked.next_number_at_answer);
+        drawn();
+        let number = control.places().make().number();
+        views.take_poll(number, &Err(ClientError::Deadline { seconds: 2 }));
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true],
+            "behind a late answer, a poll that passed its deadline is no reading and lifts nothing"
+        );
+        let number = control.places().make().number();
+        views.take_poll(number, &Ok(sample_status(Platform::Macos)));
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first poll behind it that answers, the store open, lifts the hold once"
+        );
+    }
+
+    #[test]
+    fn behind_a_late_answer_a_poll_past_its_deadline_lifts_the_hold_at_the_bound_and_not_before_it()
+    {
+        let core = Told::default();
+        let runs = RunsHold::default();
+        let views = Views::default();
+        let places = Arc::<Places>::default();
+        let late = Instant::now();
+        let bound = Deadlines::V1.delete_all;
+        let a_poll_past_its_deadline = || {
+            views.take_poll(
+                places.make().number(),
+                &Err(ClientError::Deadline { seconds: 2 }),
+            );
+        };
+        runs.delete_begins(Some(&core));
+        runs.answer_passed_its_deadline(late);
+        runs.delete_ends(Some(&core));
+        runs.drawn_at(Some(&core), &views, &places, late);
+        a_poll_past_its_deadline();
+        runs.drawn_at(
+            Some(&core),
+            &views,
+            &places,
+            late + bound - Duration::from_millis(1),
+        );
+        assert_eq!(
+            core.holds(),
+            [true],
+            "before the bound, a poll that passed its deadline lifts nothing"
+        );
+        a_poll_past_its_deadline();
+        runs.drawn_at(Some(&core), &views, &places, late + bound);
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "at the bound, a poll that passed its deadline is a reading again and lifts the hold once"
         );
     }
 }

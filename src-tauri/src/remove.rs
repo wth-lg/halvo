@@ -542,10 +542,12 @@ pub fn account_hook() -> (Outcome, Detail) {
 /// the child's by `WithoutTheChild`, and from the child's end on, before the account step, the
 /// agents' runs by a guard of the list, which also sets the mark of a removal on `hold`, so that
 /// no press writes the login item or asks for a child while the list runs. The guard is made
-/// before its hold begins, as the delete's own is, and its drop lifts the runs' hold once and
-/// takes the mark off: after a list that stopped, and where a step unwinds. After a whole list
-/// the list keeps the guard (`keep` marks it kept, and its drop then lifts nothing), so the runs
-/// stay held and the mark stands to the end of the app, and the child's supervisor ends as at a
+/// before its hold begins, as the delete's own is, and its drop ends the list's delete in the
+/// runs' hold, which stands on until the view of a poll made after that end is drawn
+/// (`agents::RunsHold`), and takes the mark off: after a list that stopped, and where a step
+/// unwinds. After a whole list the list keeps the guard (`keep` marks it kept, and its drop then
+/// ends nothing), so the runs stay held and the mark stands to the end of the app, and the
+/// child's supervisor ends as at a
 /// quit, so that no child starts after it; after a list that stopped the supervisor goes on by
 /// its rule. The account step is `account`; the delete is the offline delete of `offline` after
 /// `before`, and it is done only where it deleted and left nothing of the store, or found no
@@ -1393,7 +1395,7 @@ mod tests {
         assert_eq!(
             noted(&record),
             vec!["hold the runs".to_owned(), "lift the runs".to_owned()],
-            "the core was told to hold once and to lift once, at the first poll read behind the unwind"
+            "the core was told to hold once and to lift once, at the latest at the first poll read behind the unwind"
         );
         assert!(
             views.hold().begin_consent().is_some(),

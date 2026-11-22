@@ -18,6 +18,15 @@ struct Latest {
     status: Option<DaemonStatus>,
     mutation_mark: u64,
     poll_number: Option<u64>,
+    poll_passed_its_deadline: bool,
+}
+
+/// The poll whose view stands at or past the mark, as `Views::reading` gives it: the number of
+/// its call, and whether its answer passed its deadline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Polled {
+    pub number: u64,
+    pub passed_its_deadline: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,6 +95,7 @@ impl Default for Views {
                 status: None,
                 mutation_mark: 0,
                 poll_number: None,
+                poll_passed_its_deadline: false,
             }),
             woken: Mutex::new(false),
             wake: Condvar::new(),
@@ -162,6 +172,7 @@ impl Views {
         latest.view = view_of(answer);
         latest.status = answer.as_ref().ok().cloned();
         latest.poll_number = Some(latest.poll_number.map_or(number, |n| n.max(number)));
+        latest.poll_passed_its_deadline = matches!(answer, Err(ClientError::Deadline { .. }));
         PollAnswer::Stands
     }
 
@@ -234,19 +245,23 @@ impl Views {
         self.wake_the_poller();
     }
 
-    /// The view of this moment, with the app's hold, and the number of the poll that gave it
+    /// The view of this moment, with the app's hold, and the poll that gave it (`Polled`)
     /// where that poll's call was made at or after the newest answer of a mutation taken, that
-    /// is where its number is at or past the mark. No number goes with a view that an answer
+    /// is where its number is at or past the mark. No poll goes with a view that an answer
     /// gave, Connecting behind a delete's answer among them, nor with the view of a poll made
     /// before that answer, also where it stands on behind a refusal.
-    pub fn reading(&self) -> (StatusView, Option<u64>) {
+    pub fn reading(&self) -> (StatusView, Option<Polled>) {
         let (view, poll) = {
             let latest = self.latest();
             (
                 latest.view.clone(),
                 latest
                     .poll_number
-                    .filter(|number| *number >= latest.mutation_mark),
+                    .filter(|number| *number >= latest.mutation_mark)
+                    .map(|number| Polled {
+                        number,
+                        passed_its_deadline: latest.poll_passed_its_deadline,
+                    }),
             )
         };
         (self.marked(view), poll)

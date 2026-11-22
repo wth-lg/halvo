@@ -547,13 +547,22 @@ impl Before {
 /// the hold owes a reading (`agents::RunsHold::delete_ends`).
 pub struct HeldForADelete(Before);
 
+impl HeldForADelete {
+    /// Tells the hold, at this moment and before the drop, that the answer of this delete passed
+    /// its deadline (`agents::RunsHold::answer_passed_its_deadline`).
+    pub fn answer_passed_its_deadline(&self) {
+        self.0.runs.answer_passed_its_deadline(Instant::now());
+    }
+}
+
 impl Drop for HeldForADelete {
     fn drop(&mut self) {
         self.0.runs.delete_ends(self.0.core.as_deref());
     }
 }
 
-/// The flow of a person's press at the service's door: `Before::tell`, then `ask_to_delete`.
+/// The flow of a person's press at the service's door: `Before::tell`, then `ask_to_delete`;
+/// where the flow ended in a deadline, the guard tells the hold so before it drops.
 pub fn delete_everything(
     before: &Before,
     control: &dyn Control,
@@ -561,8 +570,17 @@ pub fn delete_everything(
     armed: Option<StoreId>,
     waits: DeleteWaits,
 ) -> DeleteAsked {
-    let _held = before.tell();
-    ask_to_delete(control, views, armed, waits)
+    let held = before.tell();
+    let asked = ask_to_delete(control, views, armed, waits);
+    if matches!(
+        &asked.end,
+        DeleteEnd::Answered(Err(ClientError::Deadline { .. }))
+            | DeleteEnd::NoLifeAnswered(ClientError::Deadline { .. })
+            | DeleteEnd::FirstNotKnown(ClientError::Deadline { .. })
+    ) {
+        held.answer_passed_its_deadline();
+    }
+    asked
 }
 
 #[tauri::command]
