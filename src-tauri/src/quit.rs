@@ -60,8 +60,9 @@ pub static CAPTURE_GOES_ON: LazyLock<String> = LazyLock::new(|| {
 pub const CAPTURE_MAY_GO_ON: &str =
     "Halvo did not quit, because it could not confirm that capture has stopped. Choose Quit again to quit anyway. Halvo cannot tell whether capture goes on after that.";
 
-/// What one press of the app's quit leaves for the next: whether it stayed for a capture service
-/// that the app did not start, after which the next press exits.
+/// What one press of the app's quit leaves for the next press alone: whether it stayed for a
+/// capture service that the app did not start. The next press exits where its Pause meets such a
+/// service again, and is decided by its own rows otherwise; either way the mark ends there.
 #[derive(Debug, Default)]
 pub struct Presses {
     stayed_for_another: AtomicBool,
@@ -74,8 +75,8 @@ impl Presses {
         }
     }
 
-    fn stayed_for_another(&self) -> bool {
-        self.stayed_for_another.load(Ordering::SeqCst)
+    fn take_stay_for_another(&self) -> bool {
+        self.stayed_for_another.swap(false, Ordering::SeqCst)
     }
 
     fn stay_for_another(&self) {
@@ -202,20 +203,21 @@ pub fn reached(answer: &Result<DaemonStatus, ClientError>) -> Reached {
 
 /// The steps of the app's one quit (contracts.md C14 item 5): Pause with the client's Pause
 /// deadline. On paused or pausing, where no daemon is reached, where the app's own child
-/// answered in another version, and at a press after the app has ended its own child or stayed
-/// for a daemon that it did not start, it ends the child and exits with status 0. Where the
-/// app's own child took no connection or gave no reply, it ends that child and stays with
-/// `NOT_ANSWERED`. Where no child of the app lives and the daemon gave no reply, it stays with
-/// `CAPTURE_GOES_ON`; where the server is not the app's own, or a daemon that is no child of the
-/// app answered in another version, with `CAPTURE_MAY_GO_ON`. In each of these the next press
-/// exits. On any other answer it stays with `NOT_PAUSED`, at every press.
+/// answered in another version, and at a press after the app has ended its own child, it ends
+/// the child and exits with status 0. Where the app's own child took no connection or gave no
+/// reply, it ends that child and stays with `NOT_ANSWERED`. Where no child of the app lives and
+/// the daemon gave no reply, it stays with `CAPTURE_GOES_ON`; where the server is not the app's
+/// own, or a daemon that is no child of the app answered in another version, with
+/// `CAPTURE_MAY_GO_ON`. The press right after one of these two stays exits with status 0 where
+/// its Pause meets such a daemon again; any other answer of that press is read as at a first
+/// press. On any other answer a press stays with `NOT_PAUSED`.
 pub fn quit_and_pause(
     control: &dyn Control,
     children: Option<&dyn Children>,
     presses: &Presses,
 ) -> Quit {
-    let ended_before =
-        children.is_some_and(|children| children.ended()) || presses.stayed_for_another();
+    let ended_before = children.is_some_and(|children| children.ended());
+    let stayed_before = presses.take_stay_for_another();
     let answer = control.pause(control.places().make());
     let own_child = children.filter(|children| children.lives());
     match (reached(&answer), own_child) {
@@ -225,6 +227,8 @@ pub fn quit_and_pause(
             child.end();
             return Quit::Stay(NOT_ANSWERED);
         }
+        (Reached::NoReply, None) | (Reached::NotTheApps | Reached::AnotherVersion, _)
+            if stayed_before => {}
         (Reached::NoReply, None) => {
             presses.stay_for_another();
             return Quit::Stay(CAPTURE_GOES_ON.as_str());

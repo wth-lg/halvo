@@ -1534,6 +1534,18 @@ mod tests {
                 goes_on_and_exit.clone(),
             ),
             (
+                "after one stay for another, a press whose Pause reads busy stays",
+                vec![
+                    Err(ClientError::Deadline { seconds: 10 }),
+                    Err(ClientError::Daemon(ErrorReply::new(
+                        ErrorCode::Busy,
+                        "busy",
+                    ))),
+                ],
+                None,
+                lines(&["pause", "stay, goes on", "pause", "stay, not paused"]),
+            ),
+            (
                 "a held directory while no child of the app lives",
                 vec![
                     Err(ClientError::DataDirInUse {
