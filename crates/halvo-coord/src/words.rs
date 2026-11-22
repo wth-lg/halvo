@@ -88,6 +88,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "The site did not let it sign in.",
     ),
     (
+        "line.problem.site_declined",
+        "You did not allow a site, so this agent waits. Start it when it should ask again.",
+    ),
+    (
         "line.problem.no_browser",
         "This agent needs Google Chrome or Microsoft Edge to open web pages. Install one of them, then run the agent again.",
     ),

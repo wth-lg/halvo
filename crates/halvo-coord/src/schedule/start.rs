@@ -98,7 +98,9 @@ pub struct StartStep {
 
 /// Steps 0 to 4 of a start (I5.5), the first that fails giving the answer: (0) the workflow is
 /// in the owner's list, else `state`; a start of the person that does not leave the queue then
-/// ends the holds `failures` and `sign_in_refused`; (1) no hold stands, else `hold`; (2) fewer
+/// ends the holds `failures` and `sign_in_refused`; (1) no hold stands, else `hold`, where a
+/// start of the person passes the hold `site_declined` with nothing stored or sent for it,
+/// because its own `run_started` ends that hold (r4 U2.4a); (2) fewer
 /// than `starts_per_day`
 /// `run_started` events of the agent have the facts' day, else `budget`; (3) no run of the
 /// agent is live or queued, the agent store has ended its newest run and no `run_ended` of the
@@ -128,6 +130,9 @@ pub fn start_step<C: ConfigView>(
         });
     if clear.is_some() {
         standing.retain(|h| !ends(h));
+    }
+    if trigger == Trigger::Person {
+        standing.retain(|h| *h != Hold::SiteDeclined);
     }
     if !standing.is_empty() {
         return refused(clear, Cause::Hold);
