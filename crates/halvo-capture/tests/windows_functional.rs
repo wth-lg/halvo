@@ -6034,7 +6034,7 @@ fn c5_three_probe_entries_against_what_windows_lists() {
 
 #[test]
 #[ignore = "functional: was a known defect: E4, a keystroke record holds no class"]
-fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
+fn one_key_of_each_class_gives_a_record_only_for_the_keys_that_change_text() {
     with_deadline("classes", Duration::from_secs(90), || {
         env_report("classes");
         source_built_by_test("classes", "keyboard");
@@ -6108,14 +6108,15 @@ fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
             accepted, 14,
             "INCONCLUSIVE: SendInput did not insert every key"
         );
+        let changed_text = [KeyClass::Printable, KeyClass::Editing];
         flipped!(
             "E4",
-            KeyClass::ALL
-                .iter()
-                .all(|class| classes.iter().filter(|seen| *seen == class).count() == 1)
-                && classes.len() == KeyClass::ALL.len(),
+            KeyClass::ALL.iter().all(|class| {
+                classes.iter().filter(|seen| *seen == class).count()
+                    == usize::from(changed_text.contains(class))
+            }) && classes.len() == changed_text.len(),
             format!(
-                "TF classes keystroke_records_with_a_class={}",
+                "TF classes keystroke_records_with_a_class={} the_keys_that_changed_text_alone_are_noted",
                 classes.len()
             )
         );

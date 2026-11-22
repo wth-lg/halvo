@@ -30,8 +30,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     TranslateMessage, UnregisterClassW, WindowFromPoint, ES_PASSWORD, MSG, MWMO_INPUTAVAILABLE,
     PEEK_MESSAGE_REMOVE_TYPE, PM_NOREMOVE, PM_QS_SENDMESSAGE, QS_SENDMESSAGE, SC_KEYMENU,
     SM_CXSCREEN, SM_CYSCREEN, SW_MINIMIZE, SW_RESTORE, SW_SHOW, WINDOW_EX_STYLE, WINDOW_STYLE,
-    WM_APP, WM_KEYDOWN, WM_SYSCOMMAND, WM_SYSKEYDOWN, WNDCLASSW, WS_CHILD, WS_OVERLAPPEDWINDOW,
-    WS_TABSTOP, WS_VISIBLE,
+    WM_APP, WM_CHAR, WM_KEYDOWN, WM_SYSCOMMAND, WM_SYSKEYDOWN, WNDCLASSW, WS_CHILD,
+    WS_OVERLAPPEDWINDOW, WS_TABSTOP, WS_VISIBLE,
 };
 
 use super::{
@@ -70,6 +70,7 @@ const ARG_OTHER_FRONT: usize = 0x10_0000;
 const ARG_TWO_STEP: usize = 0x20_0000;
 const ARG_SECOND: usize = 0x1;
 const ARG_START_IN_PASSWORD: usize = 0x2;
+const ARG_SILENT_PASSWORD: usize = 0x4;
 const TWO_STEP_MS: u64 = 200;
 
 const LETTER_STEP: Duration = Duration::from_millis(60);
@@ -518,6 +519,7 @@ fn fixture_main() {
     let mut letters = [0u32; 4];
     let mut tabs = [0u32; 4];
     let mut wander: Option<Wander> = None;
+    let mut silent_password = false;
     let mut msg = MSG::default();
     loop {
         // SAFETY: `msg` is a live MSG that GetMessageW fills.
@@ -594,6 +596,7 @@ fn fixture_main() {
                     };
                     let focused = focus_on(start);
                     letters = [0; 4];
+                    silent_password = arg & ARG_SILENT_PASSWORD != 0;
                     tabs = [0; 4];
                     println!(
                         "STALLC reset fg={} focused={} reactivated={}",
@@ -724,6 +727,9 @@ fn fixture_main() {
                     unsafe { PostQuitMessage(0) };
                 }
             }
+            continue;
+        }
+        if silent_password && msg.message == WM_CHAR && msg.hwnd == password {
             continue;
         }
         if msg.message == WM_SYSKEYDOWN && msg.wParam.0 == usize::from(VK_P.0) {
@@ -1745,6 +1751,115 @@ fn enter_a_tab_out_and_a_focus_move_in_two_steps_record_no_letter() {
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn an_access_key_that_moves_the_focus_while_the_program_waits_records_no_letter() {
     kind_test(Kind::AccessKey);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn letters_at_a_password_edit_that_makes_no_event_then_a_tab_and_a_letter_record_none_of_them() {
+    let test = "stall-silent-password";
+    with_deadline(test, Duration::from_secs(200), move || {
+        source_built_by_test(test, "keyboard");
+        let mut fixture = Fixture::open(test, false);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        start_report(test, "keyboard", &start);
+        assert!(
+            start.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start: {start:?}"
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let before = control(test, "before", &mut fixture, &events);
+        let mut rounds = 0;
+        let mut counted = 0;
+        let mut recorded_at_the_password = 0;
+        for (wait, stall_ms) in [
+            (Wait::Sleeps, 0),
+            (Wait::ServesSent, 300),
+            (Wait::Sleeps, 300),
+        ] {
+            for round in 0..rounds_for(2, 5) {
+                let reset = fixture.ask(
+                    CMD_RESET,
+                    ARG_START_IN_PASSWORD | ARG_SILENT_PASSWORD,
+                    "reset",
+                );
+                let _ = events.drain_for(Duration::from_millis(400));
+                let _ = seam::take();
+                let mut arg = usize::try_from(stall_ms).unwrap_or(0) & 0xFFFF;
+                if wait == Wait::ServesSent {
+                    arg |= ARG_SERVE_SENT;
+                }
+                let ack = fixture.ask(CMD_ROUND, arg, "ack");
+                let mut accepted = 0;
+                for _ in 0..3 {
+                    accepted += send(&key_pair(VK_A));
+                    std::thread::sleep(LETTER_STEP);
+                }
+                accepted += send(&key_pair(VK_TAB));
+                std::thread::sleep(LETTER_STEP);
+                accepted += send(&key_pair(VK_A));
+                let _ = fixture.expect("woke", Duration::from_secs(10));
+                let _ = events.drain_for(Duration::from_millis(900));
+                let state = fixture.ask(CMD_STATE, 0, "state");
+                let letters: Vec<bool> = seam::take()
+                    .iter()
+                    .filter(|key| key.class == KeyClass::Printable)
+                    .map(|key| key.verdict == Verdict::Recorded)
+                    .collect();
+                let at_the_password = letters.iter().take(3).filter(|r| **r).count();
+                let in_the_plain_field = letters.get(3).copied().unwrap_or(false);
+                let ok = get(&reset, "fg") == 1
+                    && get(&ack, "focus_password") == 1
+                    && accepted == 10
+                    && get(&state, "letters_password") == 3
+                    && get(&state, "letters_plain") == 1
+                    && get(&state, "password_len") == 0
+                    && letters.len() == 4;
+                say(
+                    test,
+                    format!(
+                        "phase=silent_password wait={wait:?} stall_ms={stall_ms} round={round} counted={} \
+                         letters_password={} letters_plain={} password_len={} letters_decided={} \
+                         recorded_at_the_password={at_the_password} recorded_in_the_plain_field={}",
+                        u8::from(ok),
+                        get(&state, "letters_password"),
+                        get(&state, "letters_plain"),
+                        get(&state, "password_len"),
+                        letters.len(),
+                        u8::from(in_the_plain_field),
+                    ),
+                );
+                rounds += 1;
+                counted += u32::from(ok);
+                recorded_at_the_password += at_the_password;
+            }
+        }
+        let after = control(test, "after", &mut fixture, &events);
+        let late = keyboard.health().counters.late_events;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        drop(fixture);
+        say(
+            test,
+            format!(
+                "form={} rounds={rounds} counted_rounds={counted} recorded_at_the_password={recorded_at_the_password} \
+                 control_before={before} control_after={after}",
+                form().word()
+            ),
+        );
+        assert_eq!(
+            recorded_at_the_password, 0,
+            "a letter typed at the password edit that makes no event was recorded"
+        );
+        assert_eq!(late, 0, "the source's late value moved");
+        assert_eq!(
+            (before, after),
+            (CONTROL_LETTERS, CONTROL_LETTERS),
+            "a control recorded another number of letters in the plain field"
+        );
+        assert_eq!(counted, rounds, "INCONCLUSIVE: not every round counted");
+    });
 }
 
 #[test]

@@ -81,7 +81,7 @@ function reset() {
   // letters before it go into the text input (W3-10 T5).
   armed = phase !== 'burst';
   if (phase === 'burst') later(1000, () => { armed = true; });
-  if (phase === 'cold' || phase === 'show-hide' || phase === 'show-control') password.focus();
+  if (phase === 'cold' || phase === 'show-hide' || phase === 'show-control' || phase === 'other') password.focus();
   else if (phase === 'swap-focus') { button.focus(); later(300, () => plain.focus()); }
   // The burst's page moves its own focus there and back, so that the gate's
   // newest mark is a focus event of this page and not a stale event of the
@@ -105,6 +105,7 @@ function reset() {
     later(1300, () => { password.type = 'password'; });
   }
   if (phase === 'self') later(600, () => { busy(hold); password.focus(); freed(); });
+  if (phase === 'other') timers.push(setInterval(() => { plain.value = String(Date.now() % 100000); }, 30));
   show();
 }
 document.addEventListener('focusin', () => show());
@@ -1256,6 +1257,44 @@ fn assert_stall(test: &str, phase: &str, rounds: &[Round], wanted: usize) -> usi
         rounds.len()
     );
     counted
+}
+
+pub(super) fn other_field_phases(test: &'static str, name: &'static str) {
+    with_deadline(test, Duration::from_secs(240), move || {
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
+        let rounds = super::stall::rounds_for(2, 5);
+        let mut out = Vec::new();
+        if let Some(hwnd) = browser.open(test, "other", 0) {
+            for round in 0..rounds {
+                let start = reset(&keyboard, hwnd).unwrap_or_default();
+                let front = foreground_window() == hwnd;
+                let sent = letters_for(Duration::from_millis(900), Duration::from_millis(60));
+                let mut r = end_round(&keyboard, hwnd, sent, front);
+                r.why.extend(not_in_front(front));
+                r.counted = front
+                    && start.focus == "password"
+                    && r.page.password == sent
+                    && r.page.text == 0;
+                say(
+                    test,
+                    format!(
+                        "browser={} phase=other round={round} foreground={front} {}",
+                        browser.name,
+                        r.line()
+                    ),
+                );
+                out.push(r);
+            }
+        }
+        assert_stall(test, "other", &out, usize::try_from(rounds).unwrap_or(1));
+    });
 }
 
 fn chromium(name: &str) -> &'static Browser {
@@ -2786,6 +2825,18 @@ fn after_a_start_behind_another_window_in_chrome() {
 #[ignore = "functional: needs an interactive Windows desktop and Edge"]
 fn after_a_start_behind_another_window_in_edge() {
     after_a_start_behind_another_window("browser-after-start-edge", "edge");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn another_field_that_changes_its_value_by_itself_records_no_password_letter_in_chrome() {
+    other_field_phases("browser-other-chrome", "chrome");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn another_field_that_changes_its_value_by_itself_records_no_password_letter_in_edge() {
+    other_field_phases("browser-other-edge", "edge");
 }
 
 #[test]
