@@ -14,6 +14,7 @@
   var steps;
   var outcome;
   var asking = null;
+  var fresh = false;
 
   function button(text, onclick) {
     var b = Halvo.el("button", { text: text });
@@ -169,15 +170,19 @@
         sources = s.sources || [];
       });
       onboarding.source(refresh);
+      refresh();
+      fresh = true;
     },
     show: function () {
-      if (asking !== null || document.visibilityState === "hidden") return;
-      refresh();
+      if (asking !== null) return;
+      if (!fresh) refresh();
+      fresh = false;
       asking = setInterval(refresh, 3000);
     },
     hide: function () {
       clearInterval(asking);
       asking = null;
+      fresh = false;
     },
   });
 })();

@@ -22,7 +22,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The script that tells the page that the window hides: the close handler of
 /// `build` sends it before it hides the window, and the page then disarms
-/// Delete everything. The page test ui/tests/page/window-scripts.test.js runs
+/// Delete everything; the page load of a window that is not visible sends it
+/// too, so that a page that was never shown asks nothing on a timer. The page test ui/tests/page/window-scripts.test.js runs
 /// this text in the stub page, and the Rust test
 /// `the_close_handler_tells_the_page_before_it_hides_the_window` reads the
 /// text of the handler, because the mock runtime runs no script. Only the real
@@ -184,6 +185,9 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 && is_app_url(payload.url())
             {
                 let _ = webview.window().set_title(&format!("Halvo {VERSION}"));
+                if !webview.window().is_visible().unwrap_or(false) {
+                    let _ = webview.eval(WINDOW_HIDDEN);
+                }
                 if let Some(loads) = webview.try_state::<PageLoads>() {
                     loads.0.fetch_add(1, Ordering::SeqCst);
                 }

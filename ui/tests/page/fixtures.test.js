@@ -102,6 +102,14 @@ test("every permission granted shows every row as On and no steps, and the view 
   page.window.Halvo.views.window("hidden");
   await page.clock.advance(9000);
   assert.equal(reads(), hidden + 2, "the close handler's hide stops it too");
+  for (const visibility of ["hidden", "visible"]) {
+    const never = await openPage({ visibility, replies: { onboarding_state: () => fixture("onboarding_state-granted") } });
+    never.window.Halvo.views.window("hidden");
+    await never.settle();
+    assert.equal(never.calls("onboarding_state").length, 1, `the mount's one read, the document reading ${visibility}`);
+    await never.clock.advance(9000);
+    assert.equal(never.calls("onboarding_state").length, 1, `a page never shown asks nothing after it, the document reading ${visibility}`);
+  }
 });
 
 test("a lost permission shows the banner that names its pane", async () => {
