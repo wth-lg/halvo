@@ -11,7 +11,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
-halvo-control = { path = "../crates/halvo-control" }
+halvo-control = { path = "../crates/halvo-control", features = ["r2"] }
 halvo-coord = { path = "../crates/halvo-coord" }
 halvo-coord-app = { path = "../crates/halvo-coord-app" }
 halvo-schema-core = { path = "../crates/halvo-schema-core" }

@@ -150,6 +150,7 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
+          HALVO_BROWSER: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
         run: |
           if [ -n "$SLICE" ]; then
             sh scripts/ci/run-ci-d.sh macos --slice "$SLICE"
@@ -238,6 +239,7 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
+          HALVO_BROWSER: 'C:\Program Files\Google\Chrome\Application\chrome.exe'
         run: |
           if [ -n "$SLICE" ]; then
             sh scripts/ci/run-ci-d.sh windows --slice "$SLICE"

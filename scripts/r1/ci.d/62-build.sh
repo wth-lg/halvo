@@ -10,7 +10,8 @@ feature_flags='--features -F -f --all-features --no-default-features'
 configuration_flags='--config -c'
 allowed_configurations='.cargo/config.toml'
 markers='halvo-standin-module-present
-halvo-capture:test-seam:this-build-has-it!'
+halvo-capture:test-seam:this-build-has-it!
+halvo-web:test-fence:this-build-has-it!'
 macos_calls='npm run tauri build -- -- --locked
 cargo build --release --locked -p halvo-capture --bin halvo-capture
 cargo build --release --locked -p halvo-owner --bin halvo-owner
@@ -520,7 +521,8 @@ EOF
   printf 'head\000\001\002%s\000tail' 'halvo-standin-module-present' >"$work/standin.bin"
   printf 'head\000%s\377' 'halvo-capture:test-seam:this-build-has-it!' >"$work/seam.bin"
   printf 'head\000\377halvo-standin-module\000present' >"$work/clean.bin"
-  for fixture in standin:FAIL seam:FAIL clean:PASS; do
+  printf 'head\000%s\000tail' 'halvo-web:test-fence:this-build-has-it!' >"$work/fence.bin"
+  for fixture in standin:FAIL seam:FAIL clean:PASS fence:FAIL; do
     got=FAIL
     marker_defect "$work/${fixture%:*}.bin" >/dev/null && got=PASS
     verdict "marker-${fixture%:*}" "${fixture#*:}" "$got"
