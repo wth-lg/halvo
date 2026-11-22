@@ -14,10 +14,15 @@
 //! after it, and `holds` decides each on what the executor read. A step of the verb `handback` and a step whose
 //! target, or the target of one of its conditions, is marked `credential` act on nothing: each reads the page when
 //! the browser runs, and is done after a handback that ended in a bind; a step of the verb `handback` with no
-//! credential field on the page, or before any browser runs, is done; every other answers `step_failed`. A step with
-//! the effect `request`, a web step of an effect class (`payment`, `purchase`, `submit`, `sign`), is the browser's
-//! request maker's (crate::web::maker), which this build holds under the feature `loopback` alone: without it such a
-//! step answers `step_failed` before any browser starts, and `Live` lets no held request through.
+//! credential field on the page, or before any browser runs, is done; every other answers `step_failed`. A web step
+//! that fails on the run's page, its act or a step marked `credential` of no effect class, reads the page a second
+//! time before its failure is written, and hands back with the reason `sign_in` where a link or a button asks for a
+//! sign-in by its name (r3 U5.14, `Runner::asked_at_a_failure`), but in a run with no window that imported a kept
+//! sign-in; behind the bind of that handback the act that failed is asked once more, and a second failure fails the
+//! step as before. A step with the effect `request`, a web step of an effect class (`payment`, `purchase`, `submit`,
+//! `sign`), is the browser's request maker's (crate::web::maker), which this build holds under the feature `loopback`
+//! alone: without it such a step answers `step_failed` before any browser starts, and `Live` lets no held request
+//! through.
 
 use std::collections::HashMap;
 use std::num::{NonZeroU32, NonZeroU64};
@@ -96,6 +101,12 @@ pub(crate) trait Page: Send {
     fn stop(self: Box<Self>) -> bool;
     /// The reading of A6.4: the strongest sign of a credential field that the page shows (A8.2), none for none.
     fn sign(&mut self) -> Result<Option<Sign>, ()>;
+    /// The second reading (r3 U5.14), made after a web step that failed alone: whether the page shows a link or a
+    /// button that asks for a sign-in by its name (halvo-web's `Executor::asks_for_a_sign_in`). The stand-ins of the
+    /// unit tests of crate::session and crate::web::maker take the default, a page that asks for none.
+    fn asks_for_a_sign_in(&mut self) -> Result<bool, ()> {
+        Ok(false)
+    }
     /// Fails every request that the rule holds paused.
     fn fail_held(&mut self) -> Result<(), ()>;
     /// Closes every page of the run but the top one.
@@ -818,6 +829,14 @@ impl Page for Live {
         told("sign", self.runtime.block_on(executor.sign()))
     }
 
+    fn asks_for_a_sign_in(&mut self) -> Result<bool, ()> {
+        let executor = &mut self.executor;
+        told(
+            "asks_for_a_sign_in",
+            self.runtime.block_on(executor.asks_for_a_sign_in()),
+        )
+    }
+
     fn fail_held(&mut self) -> Result<(), ()> {
         let executor = &mut self.executor;
         let done = self.runtime.block_on(async move {
@@ -925,7 +944,14 @@ impl Runner {
     /// ended in a bind, or where the page shows no credential field. After an act that failed, with no failed request
     /// of the page in the rule's record, it reads the page again, so that a field that turned into a credential field
     /// at the act's own focus, which the executor refuses, opens a handback; after one that ended in a bind the step
-    /// is done.
+    /// is done. Where that reading finds no credential field, and where a step marked `credential` of no effect class
+    /// meets a running browser's page with none, the second reading (`asked_at_a_failure`, r3 U5.14) hands back with
+    /// the reason `sign_in` at a link or a button that asks for a sign-in, in place of the failure; a run with no
+    /// window that imported a kept sign-in reads no sign (the coordinator's ruling of log line 16376). After one that
+    /// ended in a bind the act that failed is asked once more, with the reading of the page before it and without a
+    /// second reading after it, so that a second failure fails the step as before (the coordinator's ruling of log
+    /// line 16106 (3)); a step marked `credential`, which acts on nothing, is done after that bind. A step that does
+    /// not fail makes no second reading.
     /// A condition of `pre` that does not hold acts on nothing; a control that the locators do not find, an act that
     /// fails and a condition of `post` that does not hold fail the step with `step_failed`. At the step's end a
     /// request of the run's page that the rule failed ends the run `refused` with the cause `origin` (A9.2,
@@ -950,7 +976,11 @@ impl Runner {
                 }
                 None => false,
             };
-            return if handed || handback {
+            return if handed
+                || handback
+                || (!of_an_effect_class(loaded.config.category, step)
+                    && self.asked_at_a_failure(loaded, step.n)?)
+            {
                 Ok(())
             } else {
                 Err(failed())
@@ -980,37 +1010,72 @@ impl Runner {
             _ => None,
         };
         self.browser(loaded)?;
-        let mut web = self.web.take().ok_or_else(failed)?;
-        let read = self.read_page(&mut *web.0, loaded, step.n);
-        self.web = Some(web);
-        read?;
-        let web = &mut self.web.as_mut().ok_or_else(failed)?.0;
-        let done = web
-            .carry_out(&pre, &act, &post)
-            .and_then(|read| match (&as_parsed, read) {
-                (Some((_, parse)), Some(text)) => parsed(parse, text).map(Some),
-                _ => Ok(None),
-            });
-        let record = if done.is_err() || act.on_a_control() {
-            web.record_after_a_fault()
-        } else {
-            web.record()
-        };
-        if done.is_err() && !refused_by_the_page(&record) {
+        let mut asked = false;
+        loop {
             let mut web = self.web.take().ok_or_else(failed)?;
             let read = self.read_page(&mut *web.0, loaded, step.n);
             self.web = Some(web);
-            if read? {
-                return Ok(());
+            read?;
+            let web = &mut self.web.as_mut().ok_or_else(failed)?.0;
+            let done = web
+                .carry_out(&pre, &act, &post)
+                .and_then(|read| match (&as_parsed, read) {
+                    (Some((_, parse)), Some(text)) => parsed(parse, text).map(Some),
+                    _ => Ok(None),
+                });
+            let record = if done.is_err() || act.on_a_control() {
+                web.record_after_a_fault()
+            } else {
+                web.record()
+            };
+            if done.is_err() && !refused_by_the_page(&record) {
+                let mut web = self.web.take().ok_or_else(failed)?;
+                let read = self.read_page(&mut *web.0, loaded, step.n);
+                self.web = Some(web);
+                if read? {
+                    return Ok(());
+                }
+                if !asked && self.asked_at_a_failure(loaded, step.n)? {
+                    asked = true;
+                    continue;
+                }
             }
-        }
-        if let (Some((name, parse)), Some(value)) = (as_parsed, end_of_step(done, &record)?) {
-            if let Act::Extract(target) = act {
-                self.extracts.insert(name.clone(), (target.clone(), parse));
+            if let (Some((name, parse)), Some(value)) = (as_parsed, end_of_step(done, &record)?) {
+                if let Act::Extract(target) = act {
+                    self.extracts.insert(name.clone(), (target.clone(), parse));
+                }
+                self.kept.insert(name, vec![vec![value]]);
             }
-            self.kept.insert(name, vec![vec![value]]);
+            return Ok(());
         }
-        Ok(())
+    }
+
+    /// The second reading of a web step that failed (r3 U5.14, the coordinator's ruling of log line 14127 (1)), made
+    /// after the reading of the fields has found none and before the failure is written: where the run's browser runs
+    /// and its page shows a link or a button that asks for a sign-in by its name (`Page::asks_for_a_sign_in`), the
+    /// runner opens a handback of the reason `sign_in` in place of the failure, by the opening and with the ends of a
+    /// handback at a credential field (`Runner::open_handback`); true after one that ended in a bind. False where no
+    /// browser runs, where the page shows no such link or button, and where the second reading fails: the step fails
+    /// as before. In a run with no window that imported a kept sign-in (crate::session), where the opening would end
+    /// the run for want of a window (`Runner::no_window`), the sign is not read at all: the step fails as before and
+    /// no kept sign-in is dropped (the coordinator's ruling of log line 16376).
+    fn asked_at_a_failure(
+        &mut self,
+        loaded: &LoadReply,
+        step: NonZeroU32,
+    ) -> Result<bool, Failure> {
+        if self.sessions.imported && !self.args.headed {
+            return Ok(false);
+        }
+        let Some(mut web) = self.web.take() else {
+            return Ok(false);
+        };
+        let read = match web.0.asks_for_a_sign_in() {
+            Ok(true) => self.open_handback(&mut *web.0, loaded, step, Sign::Secret),
+            Ok(false) | Err(()) => Ok(false),
+        };
+        self.web = Some(web);
+        read
     }
 
     /// The run's browser, started at the first call: the frame `browser` once it runs, its `browser_reply`, the
