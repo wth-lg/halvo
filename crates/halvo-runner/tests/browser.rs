@@ -15,10 +15,10 @@ use halvo_schema::executable::EffectState;
 use halvo_schema::executable::{Cause, FromRunner, Outcome, RunnerCall, ToRunner};
 use halvo_schema::Category;
 use support::browser::{
-    bearing, cond, entries_below, extract_amount, from_slot, handback, hosted, hosted_headed,
-    hosted_mac, hosted_on_mac, konst, navigate, own_start_us, pay_click, print_entries,
-    print_outside_the_profile, profile_of, say, serve_finding, serve_in, serve_with, step, Fixture,
-    Made,
+    bearing, cond, entries_below, extract_amount, fixture_sign_in, framed_cond, framed_step,
+    from_slot, handback, hosted, hosted_headed, hosted_mac, hosted_on_mac, konst, navigate,
+    own_start_us, pay_click, print_entries, print_outside_the_profile, profile_of, say,
+    serve_finding, serve_in, serve_with, step, Fixture, Forwarder, Made, SEED_1,
 };
 use support::connect::decision;
 use support::{slot, tag, Act, Seen, Supervisor, FINDS_ITS_BROWSER, LONG};
@@ -1325,5 +1325,176 @@ fn a_page_s_script_cannot_take_the_mark_off_a_password_field() {
             "a frame holds the password field's value"
         );
     }
+    assert!(!profile_of(&seen, &sup.run).0.exists());
+}
+
+/// The heading of the fixture's payment frame, behind which the payment forwarder of
+/// `a_run_reads_and_selects_inside_the_payment_frame` puts `CLICK_MARK`.
+const HEADING: &str = "<h1>Payment</h1>";
+
+/// A listener of the test in the payment frame: a click that arrives at the amount adds one element with the test id
+/// `halvo-clicked`, which the click step's post condition finds.
+const CLICK_MARK: &str = r#"<script>document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('[data-testid="amount"]')) { var p = document.createElement('p'); p.setAttribute('data-testid', 'halvo-clicked'); p.textContent = 'clicked'; document.body.appendChild(p); } }, true);</script>"#;
+
+/// U5.10-F (the coordinator's ruling of log line 15706, and its word on C2: an agent can click and read inside a
+/// frame that its step names): on the product's own framed fixture, the page `/pay` of the utility site with its
+/// payment frame of another origin, a run clicks the amount inside the frame, reads it and selects the payment
+/// method inside it, each target found by the frame's origin that its step names, and each step's post condition
+/// read in the frame: the click's by the mark of a listener of the test that only a click arriving at the amount
+/// adds. No step is of an effect class, so nothing changes state at the fixture. The browser reaches the fixture's
+/// two hosts by two forwarders of the test on the loopback address: the utility one carries the fixture's own
+/// sign-in and writes the frame's address as the payment forwarder's, so that the frame is of another origin than
+/// the page, and the payment one puts the listener into the frame's page; the bindings are the two forwarders'
+/// origins.
+#[test]
+fn a_run_reads_and_selects_inside_the_payment_frame() {
+    const TEST: &str = "a_run_reads_and_selects_inside_the_payment_frame";
+    let Some(browser) = hosted(TEST) else {
+        return;
+    };
+    let fixture = support::connect::Fixture::start();
+    fixture.reset(1, &[]);
+    let (_, port) =
+        halvo_web::cdp::host_port(fixture.origin("utility").as_str()).expect("the fixture's port");
+    let cookie = fixture_sign_in(port);
+    let pay = Forwarder::start(
+        port,
+        "pay.agent.test",
+        None,
+        Some((HEADING.to_string(), format!("{HEADING}{CLICK_MARK}"))),
+    );
+    let utility = Forwarder::start(
+        port,
+        "utility.agent.test",
+        Some(cookie),
+        Some((format!("http://pay.agent.test:{port}"), pay.url(""))),
+    );
+    let seed: serde_json::Value = serde_json::from_str(SEED_1).expect("seed 1");
+    let minor = seed["utility"]["amount_due"]
+        .as_u64()
+        .expect("the amount due");
+    let amount = format!("{}.{:02}", minor / 100, minor % 100);
+    let method = seed["utility"]["instruments"][1]
+        .as_str()
+        .expect("a second instrument")
+        .to_string();
+    let frame = pay.origin();
+    let mut sup = Supervisor::new(254, Category::UtilityBillPayment, Vec::new());
+    sup.origins = vec![utility.origin(), pay.origin()];
+    sup.steps = vec![
+        navigate(1, &utility.url("/pay")),
+        framed_step(
+            2,
+            "click",
+            "amount",
+            &[&frame],
+            &[],
+            &[framed_cond("present", "halvo-clicked", &[&frame], None)],
+        ),
+        framed_step(
+            3,
+            "extract",
+            "amount",
+            &[&frame],
+            &[konst("as", "amount"), konst("parse", "amount")],
+            &[framed_cond("text_is", "amount", &[&frame], Some(&amount))],
+        ),
+        framed_step(
+            4,
+            "select",
+            "payment-method",
+            &[&frame],
+            &[konst("option", &method)],
+            &[framed_cond(
+                "value_is",
+                "payment-method",
+                &[&frame],
+                Some(&method),
+            )],
+        ),
+    ];
+    let changing = |state: &serde_json::Value| state["requests"]["state_changing"].as_u64();
+    let before = changing(&fixture.state());
+    let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
+    let got = rows(&seen);
+    say(TEST, &format!("rows {got:?}"));
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(
+        got,
+        [
+            (LogEvent::StepOk, Some(1), None),
+            (LogEvent::StepOk, Some(2), None),
+            (LogEvent::StepOk, Some(3), None),
+            (LogEvent::StepOk, Some(4), None)
+        ]
+    );
+    let framed = pay.requests();
+    assert!(
+        framed
+            .iter()
+            .any(|(m, p)| m == "GET" && p.starts_with("/frame?kind=bill&token=")),
+        "the frame's document came through the payment forwarder: {framed:?}"
+    );
+    let state = fixture.state();
+    assert_eq!(changing(&state), before, "{state}");
+    assert_eq!(
+        state["utility"]["payments"].as_array().map(Vec::len),
+        Some(0),
+        "{state}"
+    );
+    assert!(!profile_of(&seen, &sup.run).0.exists());
+}
+
+/// A page that asks for a sign-in by a button alone: no field, a paragraph and a button `Sign in`.
+const BUTTON_ALONE: &str = r#"<!doctype html><title>bills</title><p>Your bills are behind a sign-in.</p><button type="button" data-testid="sign-in">Sign in</button>"#;
+
+/// r3 U5.14, the coordinator's rulings of log lines 14127 (1) and 16106, on a hosted runner alone: on a page that
+/// shows no credential field and asks for a sign-in by a button alone, a click on a control that the page does not
+/// have fails, and the run hands back with the reason `sign_in` in place of the failure: the second reading reads the
+/// button by the role and the name that the browser's accessibility tree gives it. The request names the fixture's
+/// origin; the supervisor declines, and the run ends `declined` with no row of a failed step. With the base's web.rs,
+/// which makes no second reading, the step fails, the run hands back with `step_failed` and ends `handed_back`, and
+/// the case fails at its first assertion, on the handback.
+#[test]
+fn a_failed_step_on_a_page_that_asks_by_a_button_alone_hands_back() {
+    let Some(browser) = hosted("a_failed_step_on_a_page_that_asks_by_a_button_alone_hands_back")
+    else {
+        return;
+    };
+    let fixture = Fixture::start(&[("/bills", BUTTON_ALONE)]);
+    let mut sup = web_agent(214, &fixture);
+    sup.steps = vec![
+        navigate(1, &fixture.url("/bills")),
+        step(2, "click", Some("pay-bill"), &[], &[], &[]),
+    ];
+    let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
+    assert_eq!(
+        seen.handbacks(),
+        [HandbackReason::SignIn],
+        "U5.14: the failed step did not hand back with the reason sign_in: outcome {:?}, rows {:?}, {}",
+        seen.done(),
+        rows(&seen),
+        seen.stderr
+    );
+    assert_eq!(
+        rows(&seen),
+        [
+            (LogEvent::StepOk, Some(1), None),
+            (LogEvent::Handback, None, None),
+            (LogEvent::Stopped, None, Some(Cause::Declined)),
+        ],
+        "{}",
+        seen.stderr
+    );
+    assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+    let origins: Vec<Option<&str>> = seen
+        .frames
+        .iter()
+        .filter_map(|f| match f {
+            FromRunner::Handback(h) => Some(h.request.origin.as_ref().map(|o| o.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(origins, [Some(fixture.origin().as_str())]);
     assert!(!profile_of(&seen, &sup.run).0.exists());
 }

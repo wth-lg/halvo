@@ -21,8 +21,19 @@
 //! the effect not known. After a reply read as made, and never while the request is held (r3 U5.10-B), the maker
 //! reads the page (`page_after`): its amounts for a `payment` and a `purchase` (`page_amounts`, `amounts_named`), and
 //! for a step with conditions `post` the page that they are read on; then the rule's record, where a request of the
-//! page that the rule failed ends the run `refused` with `origin`; then the step's conditions `post`. The maker reads
-//! no body of a request.
+//! page that the rule failed ends the run `refused` with `origin`; then the step's conditions `post`.
+//!
+//! The card is held against the held request itself (r3 U5.10-C; the coordinator's ruling of log line 16208): for a
+//! `payment` or a `purchase`, right after the read of the rule's record and the count of the one held request that
+//! follow the act, and before any card, the maker reads what the wire read of the request's body and of its
+//! address's query (`HeldRequest::form`, log line 16426): the values of the form fields whose names name an amount,
+//! and no other byte of either. A
+//! listed value is read whole by `extract_amount`, the reading of the card's own amount (log line 16399). A body
+//! that names another amount than the card's fails the held request, no card is shown and no effect row stands, and
+//! the step answers `amount_differs`; a body that the wire could not read, or a listed value that is not one amount
+//! (digits, one point and two decimals), answers `step_failed` the same way; a navigation with no body and no listed
+//! field in its query, and a form that names no amount, go on to the card, and one whose query names another amount
+//! is failed. A `submit` and a `sign` go on as before.
 //!
 //! A binary that holds the maker holds its marker text (`MAKER_MARKER`), which the scan of check 62-build
 //! (scripts/r1/ci.d/62-build.sh) refuses in every shipped file.
@@ -37,7 +48,7 @@ use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::step::{Cond, WebTarget};
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, ExecutableStep, WebOrigin};
-use halvo_web::cdp::{HeldRequest, STEP_TIMEOUT};
+use halvo_web::cdp::{HeldForm, HeldRequest, STEP_TIMEOUT};
 
 use super::{class_of, end_of_step, refused_by_the_page, rule_origin, Act, Values, Web};
 use crate::release::{Left, MakerFacts, PageAfter, Paused, ReadPage, Replied};
@@ -68,13 +79,77 @@ fn lock(web: &Shared) -> MutexGuard<'_, Option<Web>> {
     web.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Every amount that `text` names in the form that `extract_amount` reads (digits, one `.` and two decimals), each
-/// run of digits, `.` and `,` with the `,` taken out and a `.` or `,` at either end left off, in minor units.
+/// Every amount that `text`, the text of a page, names in the form that `extract_amount` reads (digits, one `.` and
+/// two decimals), each run of digits, `.` and `,` with the `,` taken out and a `.` or `,` at either end left off, in
+/// minor units; a run that does not read is dropped. It reads the page after the reply; a listed value of a held
+/// request's body is not read by it but whole (`body_holds_the_card`), since a run cut out of `12.34e2`, `-12.34` or
+/// `1,2.34` reads as the card's amount where a server reads another number.
 pub(crate) fn amounts_named(text: &str) -> Vec<u64> {
     text.split(|c: char| !(c.is_ascii_digit() || c == '.' || c == ','))
         .map(|run| run.trim_matches(|c| c == '.' || c == ',').replace(',', ""))
         .filter_map(|run| halvo_web::extract_amount(&run))
         .collect()
+}
+
+/// The card's amount in minor units, as `amount_cause` of the release reads the kept amount (`extract_amount` of the
+/// field's value): the value of the step's field `amount` as its card shows it, from its const, from the slot of
+/// `loaded` that it names, or from the extract read again right before the act; none where the step has no such
+/// field or its value is no amount.
+fn card_amount(fields: &[(FieldName, From)], loaded: &LoadReply) -> Option<u64> {
+    let (_, from) = fields.iter().find(|(name, _)| *name == FieldName::Amount)?;
+    let value = match from {
+        From::Const(value) | From::Read { value, .. } => value.clone(),
+        From::Slot(key) => loaded
+            .bindings
+            .as_ref()?
+            .slots
+            .iter()
+            .find(|s| s.name.as_str() == key)?
+            .value
+            .joined(),
+        From::Extract { .. } => return None,
+    };
+    halvo_web::extract_amount(&value)
+}
+
+/// Whether the body of the one held request of a `payment` or a `purchase` holds the card's amount `card`, read at the
+/// act, before the card (r3 U5.10-C; the coordinator's rulings of log lines 16208 and 16399): a navigation with no
+/// body and no listed field in its query (`HeldForm::NoBody`) holds it, as does a form or a query that names no
+/// amount, or whose every amount is the card's. Each value of a field of
+/// the closed list (`HeldForm::Named`) is read WHOLE, with the spaces at its ends left off, by `extract_amount`, the
+/// reading of the card's own amount: it must be ONE amount, digits, one point and two decimals within a u64, and
+/// nothing else. A form that names another amount gives `amount_differs`; a body that the wire could not read, and a
+/// listed value that is not one such amount (an exponent, a sign, a digit that is not ASCII, a comma, a currency
+/// word, a second number), give `step_failed`. One line on standard error names the reason word, never a value of
+/// the body.
+fn body_holds_the_card(form: &HeldForm, card: Option<u64>) -> Result<(), Cause> {
+    let values = match form {
+        HeldForm::NoBody => return Ok(()),
+        HeldForm::Unread(reason) => {
+            crate::line(&format!(
+                "run effect=failed at=body reason={}",
+                reason.as_str()
+            ));
+            return Err(Cause::StepFailed);
+        }
+        HeldForm::Named(values) => values,
+    };
+    let mut named = Vec::new();
+    for value in values {
+        let Some(amount) = halvo_web::extract_amount(value.trim_matches(' ')) else {
+            crate::line("run effect=failed at=body reason=amount_unreadable");
+            return Err(Cause::StepFailed);
+        };
+        named.push(amount);
+    }
+    if named.iter().any(|n| Some(*n) != card) {
+        crate::line(&format!(
+            "run effect=failed at=body reason=amount_differs amounts={}",
+            named.len()
+        ));
+        return Err(Cause::AmountDiffers);
+    }
+    Ok(())
 }
 
 /// Where a bound field of the step comes from: the const of its arg, the slot that its arg names, or the value that
@@ -416,7 +491,8 @@ impl Runner {
     /// origins for the act, the one held request given to `release`, and the rule armed in `Mode::Fail` again. A
     /// request of the page that the rule failed ends the run `refused` with the cause `origin` (`end_of_step`), the
     /// record read also right before the arm of the hold mode, which empties it, so that no card is shown behind such a
-    /// request (log line 15974). Its
+    /// request (log line 15974). For a `payment` or a `purchase` the body of the one held request is then held against
+    /// the card's amount (`body_holds_the_card`, r3 U5.10-C), before the card. Its
     /// conditions `pre` are read before the act; its conditions `post` are not read at the act, while the request is
     /// held, but on the page after a reply read as made (`page_after`, r3 U5.10-B).
     pub(crate) fn effect_step(
@@ -476,11 +552,11 @@ impl Runner {
         let record = web.0.record_after_a_fault();
         let one = match held.as_slice() {
             [one] if done.is_ok() && !refused_by_the_page(&record) => {
-                origin_of(one, &origins).map(|origin| (one.id, origin))
+                origin_of(one, &origins).map(|origin| (one.id, origin, one.form.clone()))
             }
             _ => None,
         };
-        let Some((id, origin)) = one else {
+        let Some((id, origin, form)) = one else {
             crate::line(&format!(
                 "run effect=failed at=act act={} held={} refused={}",
                 if done.is_ok() { "done" } else { "failed" },
@@ -495,6 +571,13 @@ impl Runner {
             let _ = web.0.arm(&origins);
             return end_of_step(Err(()), &record);
         };
+        if matches!(class, ActionClass::Payment | ActionClass::Purchase) {
+            if let Err(cause) = body_holds_the_card(&form, card_amount(&fields, loaded)) {
+                let _ = web.0.fail_held();
+                let _ = web.0.arm(&origins);
+                return Err(Failure::Step(cause));
+            }
+        }
         let shared: Shared = Arc::new(Mutex::new(self.web.take()));
         let request = Held {
             web: Arc::clone(&shared),
@@ -578,6 +661,7 @@ mod tests {
             origin: BOUND.to_string(),
             path: "/charge".to_string(),
             frame: "F1".to_string(),
+            form: halvo_web::cdp::HeldForm::NoBody,
         }
     }
 
@@ -1155,5 +1239,175 @@ mod tests {
             "{log:?}"
         );
         assert_eq!(record.done(), Some(Outcome::Failed), "{log:?}");
+    }
+
+    /// The parameters of the browser's paused event of a form's navigation to the bound origin's `path` (its query
+    /// included) with the body `body` in a form's own encoding, in the form that the hosted probe of r3 U5.10-C saw
+    /// the browser send.
+    fn paused_form(path: &str, body: &str) -> serde_json::Value {
+        use base64::Engine;
+        serde_json::json!({
+            "requestId": "interception-7",
+            "request": {
+                "url": format!("{BOUND}{path}"),
+                "method": "POST",
+                "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+                "initialPriority": "VeryHigh",
+                "referrerPolicy": "strict-origin-when-cross-origin",
+                "hasPostData": true,
+                "postDataEntries": [{"bytes": base64::engine::general_purpose::STANDARD.encode(body)}]
+            },
+            "frameId": "F1",
+            "resourceType": "Document",
+            "networkId": "n7"
+        })
+    }
+
+    /// r3 U5.10-C, stage two (the coordinator's ruling of log line 16208), on the stand-in, each held request's form
+    /// made by the wire's own reading (`form_of_paused`) of a form's body that carries a made token beside its amount
+    /// fields, the card's amount being `12.34`: a body that names another amount than the card never leaves: the held
+    /// request is failed, no card is shown, no effect row stands, the step's row says `step_failed` with
+    /// `amount_differs` and no row holds a `page_amount`, and the run ends `failed`; an amount field whose value names
+    /// no one amount, read whole (an exponent, a sign, a digit that is not ASCII, a comma inside, a number that fits
+    /// no u64 beside the card's), and a body that the wire could not read, end the same way with
+    /// `step_failed`; a body that names the card's amount, and one that names no amount, leave once. A listed field of
+    /// the request's address is held as one of its body: another amount there fails the request, the card's leaves; a
+    /// body with a raw `;` between its pairs is not a form's own encoding and fails. In every case no frame that the
+    /// runner wrote to its supervisor holds a byte of the token's value or of the other amount.
+    #[test]
+    fn on_the_stand_in_a_held_request_whose_body_names_another_amount_than_the_card_never_leaves() {
+        const TOKEN: &str = "tok-5f1c9e27a3b4d608";
+        const OTHER: &str = "4302.29";
+        let run = |path: &str, body: &str| {
+            let log: Log = Arc::default();
+            let form = halvo_web::cdp::form_of_paused(&paused_form(path, body));
+            let record = pay(&log, vec![HeldRequest { form, ..held(7) }], Plan::plain());
+            for frame in &record.frames {
+                let json = frame.to_json().expect("a frame");
+                assert!(!json.contains(TOKEN), "{path} {body}: {json}");
+                assert!(!json.contains(OTHER), "{path} {body}: {json}");
+            }
+            assert!(
+                record.logs().iter().all(|l| l.page_amount.is_none()),
+                "{path} {body}"
+            );
+            (lines(&log), record)
+        };
+        // Round 1 (the coordinator's rulings of log lines 16399 and 16426): a listed value that holds the card's amount
+        // beside an exponent, a sign, a digit that is not ASCII, a comma inside, or a number that fits no u64, is no
+        // amount; a listed field of the address is held as the body's; a raw semicolon fails the body.
+        let charge = "/charge";
+        let refused: Vec<(String, Cause, Vec<String>, Record)> = [
+            (
+                charge,
+                format!("token={TOKEN}&amount={OTHER}"),
+                Cause::AmountDiffers,
+            ),
+            (
+                charge,
+                format!("amount=12.34&total={OTHER}&token={TOKEN}"),
+                Cause::AmountDiffers,
+            ),
+            (
+                charge,
+                format!("amount=12&token={TOKEN}"),
+                Cause::StepFailed,
+            ),
+            (
+                charge,
+                format!("amount=12.34&token={TOKEN}&x=%zz"),
+                Cause::StepFailed,
+            ),
+            (
+                charge,
+                format!("token={TOKEN}&amount=12.34e2"),
+                Cause::StepFailed,
+            ),
+            (
+                charge,
+                format!("token={TOKEN}&amount=-12.34"),
+                Cause::StepFailed,
+            ),
+            (
+                charge,
+                format!("token={TOKEN}&amount=%D9%A112.34"),
+                Cause::StepFailed,
+            ),
+            (
+                charge,
+                format!("token={TOKEN}&amount=1%2C2.34"),
+                Cause::StepFailed,
+            ),
+            (
+                charge,
+                format!("token={TOKEN}&amount=12.34+99999999999999999999.99"),
+                Cause::StepFailed,
+            ),
+            (
+                "/charge?amount=4302.29",
+                format!("amount=12.34&token={TOKEN}"),
+                Cause::AmountDiffers,
+            ),
+            (
+                charge,
+                format!("t=x;amount={OTHER}&amount=12.34&token={TOKEN}"),
+                Cause::StepFailed,
+            ),
+        ]
+        .into_iter()
+        .map(|(path, body, cause)| {
+            let (log, record) = run(path, &body);
+            (format!("{path} {body}"), cause, log, record)
+        })
+        .collect();
+        let left: Vec<&str> = refused
+            .iter()
+            .filter(|(_, _, log, _)| log.iter().any(|l| l.starts_with("let through")))
+            .map(|(case, ..)| case.as_str())
+            .collect();
+        assert!(left.is_empty(), "these requests left: {left:?}");
+        for (case, cause, log, record) in &refused {
+            let cause = *cause;
+            assert!(log.iter().any(|l| l == "fail held 1"), "{case}: {log:?}");
+            assert_eq!(log.last(), Some(&format!("arm fail [{BOUND}]")), "{case}");
+            assert!(record.confirms().is_empty(), "no card: {case}");
+            assert!(record.states().is_empty(), "no effect row: {case}");
+            assert_eq!(
+                rows(record),
+                [
+                    (LogEvent::StepFailed, Some(3), Some(cause)),
+                    (LogEvent::Stopped, None, Some(cause)),
+                ],
+                "{case}"
+            );
+            assert_eq!(record.done(), Some(Outcome::Failed), "{case}");
+        }
+        for (path, body) in [
+            (charge, format!("amount=12.34&token={TOKEN}")),
+            (
+                charge,
+                format!("token={TOKEN}&kind=card&instrument=card-4417"),
+            ),
+            ("/charge?amount=12.34", format!("token={TOKEN}")),
+        ] {
+            let (log, record) = run(path, &body);
+            let body = format!("{path} {body}");
+            assert_eq!(
+                log.iter().filter(|l| l.starts_with("let through")).count(),
+                1,
+                "{body}: {log:?}"
+            );
+            assert!(
+                !log.iter().any(|l| l.starts_with("fail held")),
+                "{body}: {log:?}"
+            );
+            assert_eq!(record.confirms().len(), 1, "one card: {body}");
+            assert_eq!(
+                record.states().last(),
+                Some(&EffectState::Committed),
+                "{body}"
+            );
+            assert_eq!(record.done(), Some(Outcome::Completed), "{body}");
+        }
     }
 }

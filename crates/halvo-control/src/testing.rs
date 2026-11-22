@@ -541,6 +541,7 @@ impl ScriptedDaemon {
                 Reply::Deleted(Deleted {
                     report: sample_delete_report(),
                     store: fresh,
+                    unfinished: false,
                 })
             }
         }

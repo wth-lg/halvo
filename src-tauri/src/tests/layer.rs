@@ -299,6 +299,7 @@ fn a_deleted_report_reads_nothing_left_only_with_each_of_its_six_fields_clean() 
             Ok(DeleteOutcome::Deleted(Deleted {
                 report,
                 store: Some(store_id(0x10)),
+                unfinished: false,
             })),
             None,
         )
@@ -311,6 +312,38 @@ fn a_deleted_report_reads_nothing_left_only_with_each_of_its_six_fields_clean() 
         assert!(!left_nothing(&fields), "{name}");
         assert_eq!(wire(fields), json!(false), "{name}");
     }
+}
+
+#[test]
+fn a_deleted_answer_whose_run_was_not_whole_reads_not_finished_with_every_field_clean() {
+    use crate::view_state::delete_view;
+    use halvo_control::proto::{decode_reply, Reply};
+    let frame = br#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"not_followed":0,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null,"unfinished":true}}"#;
+    let Ok(Reply::Deleted(deleted)) = decode_reply(frame) else {
+        panic!("not a deleted reply");
+    };
+    let in_a_row = std::sync::atomic::AtomicU32::new(0);
+    let answered = |count: u64| {
+        let mut view =
+            delete_view(Ok(DeleteOutcome::Deleted(deleted.clone())), None).expect("a view");
+        view.count_at_the_services_door(&in_a_row, None);
+        assert!(
+            !view.finished(),
+            "a run that was not whole reads as finished"
+        );
+        let shown = serde_json::to_value(&view).expect("the view writes");
+        assert_eq!(
+            (
+                shown["nothing_left"].clone(),
+                shown["unfinished_in_a_row"].clone()
+            ),
+            (json!(false), json!(count)),
+            "{shown}"
+        );
+    };
+    answered(1);
+    answered(2);
+    assert_eq!(in_a_row.load(Ordering::SeqCst), 2);
 }
 
 #[test]
