@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::num::NonZeroU32;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -103,9 +104,13 @@ pub fn hub(
     hub
 }
 
-/// The steps of the app's start: the hub's first tick, whose recovery reaps what an earlier life left.
+/// The steps of the app's start, in their order: the hub's first tick, whose recovery reaps what an earlier life
+/// left; then the removal of the checkpoints that may go, once, before any start of a run (a start inside that
+/// first tick removes them first).
 pub fn start(hub: &ProductHub) {
+    let product = hub.coordinator().ports().inner();
     Core::tick(hub);
+    product.remove_checkpoints_once();
 }
 
 /// The configuration of a product's agent: the coordinator's reading of the record of A-A2.1 and the agent store's
@@ -340,6 +345,7 @@ pub struct Product {
     places: Places,
     runs: RunsOf,
     agents: Mutex<HashMap<AgentId, WorkflowId>>,
+    checkpoints: AtomicBool,
 }
 
 /// A link over the owner streams that `calls` asks for.
@@ -378,8 +384,16 @@ impl Product {
             places,
             runs,
             agents: Mutex::new(HashMap::new()),
+            checkpoints: AtomicBool::new(false),
         };
         (product, events)
+    }
+
+    /// `Supervisor::remove_checkpoints` once in this life.
+    fn remove_checkpoints_once(&self) {
+        if !self.checkpoints.swap(true, Ordering::SeqCst) {
+            let _ = self.supervisor.remove_checkpoints();
+        }
     }
 
     /// A new request id.
@@ -977,6 +991,7 @@ fn call_error(error: halvo_agent_client::CallError) -> PortError {
 
 impl Runs for Product {
     fn start(&self, spec: &RunSpec) -> Result<(), PortError> {
+        self.remove_checkpoints_once();
         let wire = halvo_agent_client::RunSpec {
             run: wire_run(&spec.run)?,
             agent: halvo_schema::AgentId::parse(spec.agent.as_str())

@@ -66,7 +66,7 @@ mod mac {
         if args.first().map(String::as_str) == Some("--run") {
             std::process::exit(runner(&args));
         }
-        let tests: [(&str, fn()); 2] = [
+        let tests: [(&str, fn()); 3] = [
             (
                 "a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record",
                 a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record,
@@ -74,6 +74,10 @@ mod mac {
             (
                 "after_a_run_the_snapshot_holds_the_agents_row_with_that_run_as_last_and_no_note",
                 after_a_run_the_snapshot_holds_the_agents_row_with_that_run_as_last_and_no_note,
+            ),
+            (
+                "the_start_removes_the_checkpoint_of_an_ended_run_of_an_earlier_life",
+                the_start_removes_the_checkpoint_of_an_ended_run_of_an_earlier_life,
             ),
         ];
         let exact = args.iter().any(|a| a == "--exact");
@@ -531,6 +535,16 @@ mod mac {
         .unwrap()
     }
 
+    /// The instant now in nanoseconds and its local day by the Mac's zone.
+    fn local_now() -> (i64, i64) {
+        let at = now_ns();
+        let offset = i64::from(product::zone_offset_s(SystemTime::now()).unwrap());
+        (
+            at,
+            (at.div_euclid(1_000_000_000) + offset).div_euclid(86_400),
+        )
+    }
+
     fn analysis_write(id: RequestId, episodes: Vec<Episode>, commit: Position) -> Vec<u8> {
         let store = StoreId::parse(&"1".repeat(32)).unwrap();
         let mut write = AnalysisWrite::new(&AnalysisRole::claim(), id, store);
@@ -649,5 +663,86 @@ mod mac {
             snapshot["seq"].as_u64().is_some_and(|s| s > 0),
             "{snapshot}"
         );
+    }
+
+    /// U5.4a sentence 4: at the app's start, after recovery and before any start of a run, the checkpoints that may
+    /// go are removed: the copy of an ended run of an earlier life, whose run's effect on the workbook is none, is
+    /// gone after the start.
+    fn the_start_removes_the_checkpoint_of_an_ended_run_of_an_earlier_life() {
+        let mut world = World::new("checkpoint");
+        let (workflow, agent) = world.agent();
+        let folder = world.dir.join("files");
+        std::fs::create_dir_all(&folder).unwrap();
+        let workbook = folder.join("budget.xlsx");
+        std::fs::write(&workbook, b"the workbook").unwrap();
+        let run = format!("{:032x}", 0xe1);
+        let copy_name = halvo_checkpoint::checkpoint_name(
+            &workbook,
+            &halvo_checkpoint::RunId::parse(&run).unwrap(),
+        )
+        .unwrap();
+        let copy = folder.join(&copy_name);
+        let bytes = b"the copy of the workbook";
+        std::fs::write(&copy, bytes).unwrap();
+
+        let link = world.link();
+        let head = format!(r#""workflow":"{workflow}","agent":"{agent}""#);
+        world.ask(
+            &link,
+            "coordinator_write",
+            &format!(r#"{{"op":"start_run",{head},"run":"{run}","mode":"replay"}}"#),
+        );
+        world.ask(
+            &link,
+            "runner",
+            &format!(r#"{{"op":"load","agent":"{agent}","run":"{run}"}}"#),
+        );
+        let (at, day) = local_now();
+        let own = |text: &str| {
+            serde_json::to_string(&halvo_schema::executable::text::OwnValue::new(text)).unwrap()
+        };
+        let sha = halvo_checkpoint::Sha256::of(bytes).hex();
+        for (seq, state, sha256, size) in [
+            (1, "planned", "null".to_owned(), "null".to_owned()),
+            (2, "made", format!(r#""{sha}""#), bytes.len().to_string()),
+        ] {
+            let record = format!(
+                r#"{{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","seq":{seq},"day":{day},"at":{at},"folder":{},"workbook":{},"copy":{},"sha256":{sha256},"bytes":{size},"state":"{state}","left":null}}"#,
+                own(&folder.display().to_string()),
+                own(&workbook.display().to_string()),
+                own(copy_name.to_str().unwrap()),
+            );
+            world.ask(
+                &link,
+                "runner",
+                &format!(
+                    r#"{{"op":"checkpoint","agent":"{agent}","run":"{run}","record":{record}}}"#
+                ),
+            );
+        }
+        let record = json!({
+            "v": 1, "workflow": workflow, "agent": agent, "run": run, "day": day,
+            "mode": "replay", "outcome": "completed", "playbook": null,
+            "steps": 0, "prompts": 0, "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0,
+            "model_calls": 0, "tokens_in": 0, "tokens_out": 0, "wall_s": 1, "model": null,
+            "before_start": null, "cut": null, "no_key": null, "not_to_account": null,
+            "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
+            "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
+        });
+        world.ask(
+            &link,
+            "runner",
+            &format!(r#"{{"op":"finish","agent":"{agent}","run":"{run}","record":{record}}}"#),
+        );
+        assert!(copy.exists(), "the copy stands before the start");
+
+        let hub = world.hub();
+        product::start(&hub);
+        assert!(
+            !copy.exists(),
+            "the copy {} is gone after the start",
+            copy.display()
+        );
+        assert!(workbook.exists(), "the workbook stands");
     }
 }

@@ -1711,6 +1711,7 @@ name = "halvo-coord-app"
 version = "0.0.0"
 dependencies = [
  "halvo-agent-client",
+ "halvo-checkpoint",
  "halvo-control",
  "halvo-coord",
  "halvo-owner",
