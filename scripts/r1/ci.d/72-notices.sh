@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: scripts/notices/generate.js, run twice for each of the triples aarch64-apple-darwin and x86_64-pc-windows-msvc, exits 0 and writes the same bytes both times, and its file names Zetetic, the holder of SQLCipher; the generator lists each crate that the app or a helper of packaging/helpers.d reaches over normal edges, past proc-macro crates and the members of the workspace, with the licence text files at the crate's root, or, for a crate that ships none, the standard text of each id of its licence field, and the texts that scripts/notices/config.json names, and it fails for a crate that ships no licence text file and names no licence, and for a build-dependency whose name ends in -src that config.json does not name as compiled in.
+# rule: scripts/notices/generate.js, run twice for each of the triples aarch64-apple-darwin and x86_64-pc-windows-msvc, exits 0 and writes the same bytes both times, and its file names Zetetic, the holder of SQLCipher; the generator lists each crate that the app or a helper of packaging/helpers.d reaches over normal edges, past proc-macro crates and the members of the workspace, with the licence text files at the crate's root, or, for a crate that ships none, the standard text of each id of its licence field, and the texts that scripts/notices/config.json names, and it fails for a crate that ships no licence text file and names no licence, for a standard text that holds no line Copyright (c) <holder>, which it fills with the authors of the crate, and for a build-dependency whose name ends in -src that config.json does not name as compiled in.
 set -u
 name=72-notices
 triples='aarch64-apple-darwin x86_64-pc-windows-msvc'
@@ -97,23 +97,28 @@ SH
   printf '%s\n' '{"app":"app/Cargo.toml","compiled":[{"crate":"sqlcipher-src","by":"halvo-sqlcipher","texts":[{"file":"sqlcipher/LICENSE-sqlcipher"}]}],"tracked":[]}' >"$work/config.json" || exit 2
   printf '%s\n' '{"app":"app/Cargo.toml","tracked":[]}' >"$work/config-without-the-build-dependency.json" || exit 2
 
-  # Runs the generator on the stand-in workspace with the metadata $2 and the configuration $3.
+  # Runs the generator on the stand-in workspace with the metadata $2, the configuration $3 and the
+  # arguments after them.
   run_case() {
-    case_out=$work/$1.txt
+    case_name=$1 case_metadata=$2 case_config=$3
+    shift 3
+    case_out=$work/$case_name.txt
     output=$(
-      NOTICES_METADATA=$2 PATH=$work/tools:$PATH
+      NOTICES_METADATA=$case_metadata PATH=$work/tools:$PATH
       export NOTICES_METADATA PATH
-      generate_defect "$case_out" "$work/$1.err" --triple stand-in-triple --repo "$ws" --config "$3"
+      generate_defect "$case_out" "$work/$case_name.err" --triple stand-in-triple --repo "$ws" --config "$case_config" "$@"
     )
     code=$?
   }
-  # A fixture is rejected when the generator fails with the line $4.
+  # A fixture is rejected when the generator fails with the line $4; arguments after it go to the generator.
   rejected_case() {
-    run_case "$1" "$2" "$3"
+    case_label=$1 case_metadata_in=$2 case_config_in=$3 case_want=$4
+    shift 4
+    run_case "$case_label" "$case_metadata_in" "$case_config_in" "$@"
     got=unexpected-exit-$code
     [ "$code" = 0 ] && got=PASS
-    [ "$code:$output" = "1:$4" ] && got=FAIL
-    verdict "$1" FAIL "$got"
+    [ "$code:$output" = "1:$case_want" ] && got=FAIL
+    verdict "$case_label" FAIL "$got"
   }
 
   # Fixture 1: a configuration without the rule for the build-dependency sqlcipher-src.
@@ -123,6 +128,13 @@ SH
   # Fixture 2: a crate with no licence text file and no licence field.
   rejected_case crate-with-no-text-and-no-licence "$work/metadata-no-licence.json" "$work/config.json" \
     'bare 0.1.0 ships no licence text file and names no licence'
+
+  # Fixture 7: a standard text with no line for the holder, for bare, which ships no text file.
+  mkdir -p "$work/licences-without-a-holder" || exit 2
+  printf '%s\n' 'MIT License, a stand-in text with no line for the holder' >"$work/licences-without-a-holder/MIT.txt" || exit 2
+  rejected_case standard-text-without-a-holder-line "$work/metadata.json" "$work/config.json" \
+    'the standard text MIT.txt holds no line "Copyright (c) <holder>", so it would name no holder for bare 0.1.0' \
+    --licences "$work/licences-without-a-holder"
 
   # Case 5: the app, a member of the workspace that names a licence, is not listed, while dep-a is.
   run_case member-that-names-a-licence "$work/metadata.json" "$work/config.json"

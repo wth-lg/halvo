@@ -1,7 +1,7 @@
 // Writes THIRD-PARTY-NOTICES.txt for one target triple: the software of others that a build of
 // Halvo holds, and the licence texts of each (packaging/README.md, Notices).
 //
-//   node scripts/notices/generate.js --triple <triple> [--out <file>] [--offline] [--repo <dir>] [--config <file>]
+//   node scripts/notices/generate.js --triple <triple> [--out <file>] [--offline] [--repo <dir>] [--config <file>] [--licences <dir>]
 //
 // It reads `cargo metadata --locked --format-version 1 --filter-platform <triple>` once and walks
 // from the app and from each helper of packaging/helpers.d over normal edges, past proc-macro
@@ -24,7 +24,8 @@ const HEAD = [
 
 // A file at the root of a crate whose name says that it holds a licence text.
 const TEXT_NAME = /^(licen[cs]e|copying|copyright|notice|unlicense)([-._].*)?$/i;
-// The line of a standard text that names the holder; the generator fills it in.
+// The line of a standard text that names the holder; the generator fills it in, and fails for a
+// standard text without it, so that each piece with a standard text names its holder.
 const HOLDER_LINE = "Copyright (c) <holder>";
 
 function fail(message) {
@@ -33,7 +34,7 @@ function fail(message) {
 }
 
 function options(argv) {
-  const known = { "--triple": "triple", "--out": "out", "--repo": "repo", "--config": "config" };
+  const known = { "--triple": "triple", "--out": "out", "--repo": "repo", "--config": "config", "--licences": "licences" };
   const given = { offline: false };
   for (let at = 0; at < argv.length; at += 1) {
     if (argv[at] === "--offline") {
@@ -42,12 +43,13 @@ function options(argv) {
       given[known[argv[at]]] = argv[at + 1];
       at += 1;
     } else {
-      fail(`the argument "${argv[at]}" is not one of --triple <triple>, --out <file>, --offline, --repo <dir>, --config <file>`);
+      fail(`the argument "${argv[at]}" is not one of --triple <triple>, --out <file>, --offline, --repo <dir>, --config <file>, --licences <dir>`);
     }
   }
   if (!given.triple) fail("--triple <triple> is required");
   given.repo = path.resolve(given.repo || path.join(__dirname, "..", ".."));
   given.config = path.resolve(given.config || path.join(__dirname, "config.json"));
+  given.licences = path.resolve(given.licences || path.join(__dirname, "licences"));
   return given;
 }
 
@@ -116,9 +118,9 @@ function metadata(repo, triple, offline) {
   }
 }
 
-function standardText(id) {
+function standardText(dir, id) {
   if (!/^[A-Za-z0-9.+-]+$/.test(id)) fail(`the licence id "${id}" is no name of a file of scripts/notices/licences`);
-  const file = path.join(__dirname, "licences", `${id}.txt`);
+  const file = path.join(dir, `${id}.txt`);
   if (!fs.existsSync(file)) return null;
   return fs.readFileSync(file, "utf8");
 }
@@ -270,8 +272,11 @@ function generate(given) {
       if (ids.length === 0) fail(`${label} ships no licence text file and names no licence`);
       standard.push(label);
       for (const licence of ids) {
-        const body = standardText(licence);
+        const body = standardText(given.licences, licence);
         if (body === null) fail(`${label} ships no licence text file, and scripts/notices/licences holds no standard text of ${licence}`);
+        if (!body.replace(/\r\n/g, "\n").split("\n").includes(HOLDER_LINE)) {
+          fail(`the standard text ${licence}.txt holds no line "${HOLDER_LINE}", so it would name no holder for ${label}`);
+        }
         const holder = p.authors && p.authors.length > 0 ? `the authors of ${p.name}: ${p.authors.join(", ")}` : `the authors of ${p.name}`;
         const filled = body
           .replace(/\r\n/g, "\n")

@@ -150,7 +150,9 @@ COPYRIGHT, NOTICE or UNLICENSE, in any case, and the file that its
 `license-file` names. A crate that ships no such file gets the standard text of
 each licence id of its field from `scripts/notices/licences/<id>.txt`, with the
 line `Copyright (c) the authors of <crate>: <authors>` as the holder, and the
-generator prints at every run how many crates take that way. A crate that ships
+generator prints at every run how many crates take that way. Each standard text
+holds the line `Copyright (c) <holder>`, which the generator fills in, and the
+generator fails for a standard text without it. A crate that ships
 no text file and names no licence fails the generator. An equal text stands
 once. The file holds no path of a machine, no date and no version of Halvo, so
 two runs give the same bytes. The wrapper writes the file only when its bytes
@@ -175,7 +177,8 @@ differ, as it copies a helper, and no tracked configuration names it.
   member.
 
 The standard texts are licence files of crates on crates.io, with the holder
-line in place of the holder's name: Apache-2.0 from `LICENSE-APACHE` of
+line in place of the holder's name, or before the text where it names no holder
+(Apache-2.0 and MPL-2.0): Apache-2.0 from `LICENSE-APACHE` of
 annotate-snippets 0.12.16, MPL-2.0 from `LICENSE` of cssparser 0.37.0,
 BSD-3-Clause from `LICENSE` of alloc-no-stdlib 3.0.0, Zlib from `LICENSE-ZLIB`
 of bytemuck 1.25.2 and MIT from `LICENSE` of sqlcipher-src 420.0.0.
