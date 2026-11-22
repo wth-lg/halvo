@@ -1,0 +1,2 @@
+- Added: The cause page_unread, for a made payment or purchase whose page could not be read afterwards, and the agent_log key page_amount, for the first amount that the page named other than the card's.
+- Changed: Under the runner's test feature loopback, a web step of an effect class reads its page and its post conditions after its request has left, never while it is held; a failed request of the page before the hold or at the let-through, or a second held request, lets nothing leave, and one behind the release ends the run refused.

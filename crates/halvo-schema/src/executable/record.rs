@@ -267,7 +267,10 @@ object_type! {
     /// One line of a run's log, kind `agent_log`: ids, an event, a step number, a cause, the model token and
     /// figures, and no text. A `start_accepted` line has `seq` 1 and no step, cause, model or figure; the cause
     /// `unauthorized` stands in a `step_failed` line alone, and `not_selected` and `no_start` in a `stopped` line
-    /// alone.
+    /// alone. `page_amount` is the first amount that the page after a made payment or purchase named that is not
+    /// the amount of the card, in minor units (`13.34` is 1334), as the runner read it (r3 U5.10-B): it may be a fee
+    /// or a balance and is no charge that the record knows of; it stands in a `stopped` line with the cause
+    /// `amount_differs` alone, and is null in every other line.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct AgentLog {
         pub v: V1 = "v" => from_json,
@@ -284,9 +287,15 @@ object_type! {
         pub ms: Option<u32> = "ms" => opt(from_json),
         pub tokens_in: Option<u32> = "tokens_in" => opt(from_json),
         pub tokens_out: Option<u32> = "tokens_out" => opt(from_json),
+        pub page_amount: Option<u32> = "page_amount" => opt(from_json),
     }
     rules(l) {
         let fail = |key, rule| Err(Refusal::malformed("AgentLog", rule).at(key));
+        if l.page_amount.is_some()
+            && (l.event != LogEvent::Stopped || l.cause != Some(Cause::AmountDiffers))
+        {
+            return fail("page_amount", "page_amount_of_cause");
+        }
         if l.event == LogEvent::StartAccepted {
             if l.seq.get() != 1 {
                 return fail("seq", "start_accepted_first");

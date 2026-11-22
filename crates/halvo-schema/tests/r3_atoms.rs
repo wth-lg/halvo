@@ -108,7 +108,8 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
             "reproposed",
             "no_browser",
             "amount_differs",
-            "amount_unread"
+            "amount_unread",
+            "page_unread"
         ]
     );
     assert_eq!(

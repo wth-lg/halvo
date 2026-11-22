@@ -55,10 +55,10 @@ pub(crate) fn outcome(outcome: Outcome) -> learn::Outcome {
     }
 }
 
-/// The cause of a log line as halvo-learn names it. The fourteen causes that the schema's list holds and halvo-learn's
+/// The cause of a log line as halvo-learn names it. The fifteen causes that the schema's list holds and halvo-learn's
 /// does not, `secret`, `unauthorized`, `not_sent`, `not_replaced`, `throttled`, `not_selected`, `no_start`,
-/// `no_channel`, `browser_start`, `senders_unread`, `reproposed`, `no_browser`, `amount_differs` and `amount_unread`,
-/// are no counted cause (contracts.md
+/// `no_channel`, `browser_start`, `senders_unread`, `reproposed`, `no_browser`, `amount_differs`, `amount_unread` and
+/// `page_unread`, are no counted cause (contracts.md
 /// L3.5 counts `step_failed`, `class_mismatch` and `origin` alone) and map to none (CP-188).
 pub(crate) fn log_cause(cause: Cause) -> Option<learn::LogCause> {
     Some(match cause {
@@ -98,7 +98,8 @@ pub(crate) fn log_cause(cause: Cause) -> Option<learn::LogCause> {
         | Cause::Reproposed
         | Cause::NoBrowser
         | Cause::AmountDiffers
-        | Cause::AmountUnread => return None,
+        | Cause::AmountUnread
+        | Cause::PageUnread => return None,
     })
 }
 
@@ -172,6 +173,7 @@ mod tests {
             Cause::NoBrowser,
             Cause::AmountDiffers,
             Cause::AmountUnread,
+            Cause::PageUnread,
         ];
         for cause in none {
             assert_eq!(log_cause(cause), None, "{} maps to none", cause.as_str());
