@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 getrandom = "0.3"
 halvo-agent-store = { path = "../halvo-agent-store" }
+halvo-coord-store = { path = "../halvo-coord-store" }
 halvo-derived = { path = "../halvo-derived" }
 halvo-identify = { path = "../halvo-identify" }
 halvo-learn-store = { path = "../halvo-learn-store" }

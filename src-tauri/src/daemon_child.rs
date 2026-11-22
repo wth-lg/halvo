@@ -1739,6 +1739,20 @@ mod tests {
         fn relay(&self, _: Made, _: &[u8]) -> Result<Vec<u8>, ClientError> {
             own("relay")
         }
+
+        #[cfg(target_os = "macos")]
+        fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
+            own("owner_stream")
+        }
+
+        #[cfg(target_os = "macos")]
+        fn run_mark(
+            &self,
+            _: Made,
+            _: halvo_control::r2::RunEdge,
+        ) -> Result<halvo_control::r2::RunMarked, ClientError> {
+            own("run_mark")
+        }
     }
 
     fn status_of(pid: u32, versions_up: u32, pausing: bool) -> DaemonStatus {
@@ -1933,7 +1947,14 @@ mod tests {
             "places is handed on"
         );
         let made = || control.places().make();
-        let seen = [
+        #[cfg(target_os = "macos")]
+        let of_the_system = vec![
+            kind_of(control.owner_stream(made())),
+            kind_of(control.run_mark(made(), halvo_control::r2::RunEdge::Start)),
+        ];
+        #[cfg(not(target_os = "macos"))]
+        let of_the_system: Vec<&str> = Vec::new();
+        let seen: Vec<&str> = [
             kind_of(control.status(made(), false)),
             kind_of(control.status_of_a_pass(made(), true, &Hold::default())),
             kind_of(control.inventory(made())),
@@ -1943,20 +1964,30 @@ mod tests {
             kind_of(control.set_storage_cap(made(), StorageCap::DEFAULT)),
             kind_of(control.request_permission(made(), Permission::Accessibility)),
             kind_of(control.relay(made(), b"{}")),
-        ];
+        ]
+        .into_iter()
+        .chain(of_the_system)
+        .collect();
+        let every: Vec<&str> = [
+            "status",
+            "status_of_a_pass",
+            "inventory",
+            "pause",
+            "resume",
+            "delete_all",
+            "set_storage_cap",
+            "request_permission",
+            "relay",
+        ]
+        .into_iter()
+        .chain(if cfg!(target_os = "macos") {
+            vec!["owner_stream", "run_mark"]
+        } else {
+            Vec::new()
+        })
+        .collect();
         assert_eq!(
-            seen,
-            [
-                "status",
-                "status_of_a_pass",
-                "inventory",
-                "pause",
-                "resume",
-                "delete_all",
-                "set_storage_cap",
-                "request_permission",
-                "relay",
-            ],
+            seen, every,
             "every method of Control comes back through the wrapper as the control inside answered it"
         );
     }

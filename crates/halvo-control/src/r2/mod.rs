@@ -6,10 +6,16 @@
 //! to [`dispatch_unknown`]. The requests of this module: `owner_stream`, in owner_stream.rs, and `relay`, in relay.rs.
 //! A further request joins as one module file beside these, one `mod` line below and one arm of the match in
 //! [`dispatch_unknown`].
+//!
+//! The request `defer`, in defer.rs, is the one that needs no owner: the server asks its handler [`serve_defer`]
+//! before [`serves`], with the setter of the daemon's deadline, and [`serves`] and [`dispatch_unknown`] do not know
+//! it.
 
 use crate::client::ClientError;
 use crate::proto::Reply;
 
+#[cfg(any(target_os = "macos", windows))]
+mod defer;
 #[cfg(any(target_os = "macos", windows))]
 mod owner_stream;
 #[cfg(target_os = "macos")]
@@ -20,6 +26,8 @@ mod owner_stream_windows;
 mod relay;
 mod run_mark;
 
+#[cfg(any(target_os = "macos", windows))]
+pub use defer::{serve_defer, Defer, Deferred, DeferredError};
 #[cfg(any(target_os = "macos", windows))]
 pub use owner_stream::{
     CarriesEnds, Connection, OwnerChannel, OwnerStream, OwnerStreamEnd, OwnerStreamReady,

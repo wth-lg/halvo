@@ -3,12 +3,18 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
+#[cfg(target_os = "macos")]
+use halvo_control::client::Transport;
 use halvo_control::client::{
     Client, ClientError, Connector, Deadlines, DeleteOutcome, NoTransport, SystemConnector,
 };
 use halvo_control::model::{StorageCap, StoreId};
 use halvo_control::onboarding::{Permission, RequestOutcome};
 use halvo_control::proto::{CapSet, DaemonStatus, InventoryReply, Request};
+#[cfg(target_os = "macos")]
+use halvo_control::r2::{OwnerStreamEnd, RunEdge, RunMarked};
+#[cfg(target_os = "macos")]
+use halvo_control::wire::{read_frame, write_frame, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
 
 use crate::view_state::Hold;
 
@@ -166,6 +172,37 @@ pub trait Control: Send + Sync {
     fn relay(&self, _made: Made, _request: &[u8]) -> Result<Vec<u8>, ClientError> {
         Err(ClientError::Unsupported)
     }
+
+    /// Asks the daemon for one end of a new owner stream (the workflows run's W-C24.13), on which the coordinator's
+    /// requests reach the owner of the derived store. A control with no stream call answers
+    /// `ClientError::Unsupported`.
+    #[cfg(target_os = "macos")]
+    fn owner_stream(&self, _made: Made) -> Result<OwnerStreamEnd, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    /// Sends one run mark, `run_start` or `run_end` (the workflows run's C24.12), and gives the daemon's reply. A
+    /// control with no mark call answers `ClientError::Unsupported`.
+    #[cfg(target_os = "macos")]
+    fn run_mark(&self, _made: Made, _edge: RunEdge) -> Result<RunMarked, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+}
+
+/// How long a stream call or a mark waits for its place in the line and for the daemon, from the call on.
+#[cfg(target_os = "macos")]
+const CALL_DEADLINE: Duration = Duration::from_secs(5);
+
+/// The call of a new owner stream on the system's connector of this account.
+#[cfg(target_os = "macos")]
+#[derive(Clone)]
+struct Streams(Arc<dyn Fn() -> Result<OwnerStreamEnd, ClientError> + Send + Sync>);
+
+#[cfg(target_os = "macos")]
+impl std::fmt::Debug for Streams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Streams")
+    }
 }
 
 fn the_same_for_each_request(left: Duration) -> Deadlines {
@@ -185,6 +222,8 @@ fn the_same_for_each_request(left: Duration) -> Deadlines {
 pub struct Gated<C> {
     connector: C,
     places: Arc<Places>,
+    #[cfg(target_os = "macos")]
+    streams: Option<Streams>,
 }
 
 impl<C: Connector + Clone> Gated<C> {
@@ -192,6 +231,25 @@ impl<C: Connector + Clone> Gated<C> {
         Gated {
             connector,
             places: Arc::default(),
+            #[cfg(target_os = "macos")]
+            streams: None,
+        }
+    }
+
+    /// The control of `connector` whose `owner_stream` asks the daemon for an end of a new owner stream; every
+    /// other call is that of `new`.
+    #[cfg(target_os = "macos")]
+    pub fn streaming(connector: C) -> Self
+    where
+        C: Send + Sync + 'static,
+        C::Transport: halvo_control::r2::CarriesEnds,
+    {
+        let call = connector.clone();
+        Gated {
+            streams: Some(Streams(Arc::new(move || {
+                Client::new(call.clone()).owner_stream()
+            }))),
+            ..Gated::new(connector)
         }
     }
 
@@ -287,6 +345,53 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
         self.run(made, &Request::RequestPermission { permission }, |client| {
             client.request_permission(permission)
         })
+    }
+
+    /// The stream call of `streaming`, in its place in the line; a control made by `new` answers
+    /// `ClientError::Unsupported`.
+    #[cfg(target_os = "macos")]
+    fn owner_stream(&self, made: Made) -> Result<OwnerStreamEnd, ClientError> {
+        let Some(Streams(call)) = &self.streams else {
+            return Err(ClientError::Unsupported);
+        };
+        let until = made.deadline_from + CALL_DEADLINE;
+        let place = made.enter(until).ok_or(ClientError::Deadline {
+            seconds: CALL_DEADLINE.as_secs(),
+        })?;
+        let end = call();
+        drop(place);
+        end
+    }
+
+    /// The request of the edge, `{"v":1,"body":{"op":"run_start"}}` or `run_end`, in its place in the line: the
+    /// reply `run_marked`, or the daemon's error reply.
+    #[cfg(target_os = "macos")]
+    fn run_mark(&self, made: Made, edge: RunEdge) -> Result<RunMarked, ClientError> {
+        let until = made.deadline_from + CALL_DEADLINE;
+        let late = || ClientError::Deadline {
+            seconds: CALL_DEADLINE.as_secs(),
+        };
+        let place = made.enter(until).ok_or_else(late)?;
+        let left = until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(late());
+        }
+        let frame = |e: halvo_control::wire::FrameError| ClientError::Protocol(e.to_string());
+        let mut transport = self.connector.connect(left)?;
+        transport.set_timeout(left).map_err(ClientError::Io)?;
+        write_frame(&mut transport, &edge.request(), REQUEST_MAX_BYTES).map_err(frame)?;
+        transport.end_request().map_err(ClientError::Io)?;
+        let reply = read_frame(&mut transport, REPLY_MAX_BYTES).map_err(frame)?;
+        drop(place);
+        if let Some(marked) = RunMarked::decode(&reply) {
+            return Ok(marked);
+        }
+        match halvo_control::proto::decode_reply(&reply) {
+            Ok(halvo_control::proto::Reply::Error(error)) => Err(ClientError::Daemon(error)),
+            _ => Err(ClientError::Protocol(
+                "the reply is no run_marked".to_owned(),
+            )),
+        }
     }
 }
 
@@ -543,6 +648,16 @@ impl<C: Control> Control for Watching<C> {
     fn relay(&self, made: Made, request: &[u8]) -> Result<Vec<u8>, ClientError> {
         self.inner.relay(made, request)
     }
+
+    #[cfg(target_os = "macos")]
+    fn owner_stream(&self, made: Made) -> Result<OwnerStreamEnd, ClientError> {
+        self.inner.owner_stream(made)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn run_mark(&self, made: Made, edge: RunEdge) -> Result<RunMarked, ClientError> {
+        self.inner.run_mark(made, edge)
+    }
 }
 
 /// The system's connector, which expects the server to be the child of `pid` while it holds one.
@@ -565,6 +680,17 @@ impl Connector for ToChild {
             None => self.connector.connect(timeout),
         }
     }
+}
+
+/// The app's control of the system's connector: on macOS one that also asks for owner streams.
+#[cfg(target_os = "macos")]
+fn streaming(connector: ToChild) -> Gated<ToChild> {
+    Gated::streaming(connector)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn streaming(connector: ToChild) -> Gated<ToChild> {
+    Gated::new(connector)
 }
 
 #[cfg(target_os = "macos")]
@@ -595,7 +721,7 @@ pub fn control_of_child<E>(
     };
     match halvo_control::client::system_connector(&dir) {
         Ok(connector) => {
-            let control = Gated::new(ToChild {
+            let control = streaming(ToChild {
                 connector,
                 pid: Arc::clone(&pid),
             });
