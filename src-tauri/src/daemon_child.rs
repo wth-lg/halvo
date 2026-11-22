@@ -2188,7 +2188,7 @@ mod tests {
 
     #[test]
     fn a_timed_out_status_during_the_own_delete_changes_no_view_and_ends_no_child() {
-        use crate::commands::capture::ask_to_delete;
+        use crate::commands::capture::{ask_to_delete, DeleteEnd, DELETE_WAITS};
         use crate::commands::control::Watching;
         use crate::view_state::Service;
         let deadline = || Err(ClientError::Deadline { seconds: 2 });
@@ -2238,7 +2238,7 @@ mod tests {
         assert_eq!(before["service"], serde_json::json!("running"));
         let deleting = {
             let (control, views) = (Arc::clone(&control), Arc::clone(&views));
-            std::thread::spawn(move || ask_to_delete(control.as_ref(), &views, None))
+            std::thread::spawn(move || ask_to_delete(control.as_ref(), &views, None, DELETE_WAITS))
         };
         until("the delete is in flight", || {
             lines().contains(&"delete begins".to_owned())
@@ -2261,7 +2261,10 @@ mod tests {
             store: None,
         })))
         .unwrap();
-        assert!(deleting.join().unwrap().answer.is_ok());
+        assert!(matches!(
+            deleting.join().unwrap().end,
+            DeleteEnd::Answered(Ok(_))
+        ));
         pass(control.as_ref(), &views, Some(&tray));
         until("the child seen giving no reply is replaced", || {
             lines().contains(&"start 1001".to_owned())
@@ -2289,6 +2292,257 @@ mod tests {
             ],
             "with no delete in flight the same Status makes part 2's sight"
         );
+    }
+
+    /// A scripted answer of a delete request, with the end of the child of the moment that
+    /// comes after it.
+    type ScriptedDelete = (Result<DeleteOutcome, ClientError>, Option<Later>);
+
+    /// A control whose delete requests answer from a script, each with the end of the child of
+    /// the moment that comes after its answer; it records each delete with its id and the child
+    /// that it reached, each Status with its claim, and each Resume.
+    struct Deletes {
+        places: Arc<Places>,
+        record: Record,
+        pid: Arc<ChildPid>,
+        answers: Mutex<std::collections::VecDeque<ScriptedDelete>>,
+    }
+
+    impl Control for Deletes {
+        fn places(&self) -> &Arc<Places> {
+            &self.places
+        }
+
+        fn status(&self, _: Made, claim: bool) -> Result<DaemonStatus, ClientError> {
+            note(&self.record, if claim { "status, claim" } else { "status" });
+            Ok(status_of(4242, 0, false))
+        }
+
+        fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
+            unreachable!("no inventory here")
+        }
+
+        fn pause(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            unreachable!("no Pause here")
+        }
+
+        fn resume(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            note(&self.record, "resume");
+            Ok(status_of(4242, 0, false))
+        }
+
+        fn delete_all(
+            &self,
+            _: Made,
+            armed: Option<StoreId>,
+        ) -> Result<DeleteOutcome, ClientError> {
+            let id = armed.map_or_else(|| "null".to_owned(), |id| id.to_string());
+            let child = self.pid.get().unwrap_or(0);
+            note(&self.record, format!("delete {id} to {child}"));
+            let (answer, ends) = self
+                .answers
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("a scripted answer for each delete");
+            if let Some(later) = ends {
+                *later.lock().unwrap() = Some(Ending::Status(5));
+            }
+            answer
+        }
+
+        fn set_storage_cap(&self, _: Made, _: StorageCap) -> Result<CapSet, ClientError> {
+            unreachable!("no cap here")
+        }
+
+        fn request_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<RequestOutcome, ClientError> {
+            unreachable!("no permission here")
+        }
+    }
+
+    #[test]
+    fn after_a_5_inside_a_delete_the_flow_asks_once_more_with_the_old_id_and_stops_on_the_typed_busy(
+    ) {
+        use crate::commands::capture::{ask_to_delete, DeleteEnd, DeleteWaits};
+        use crate::commands::control::Watching;
+        use halvo_control::proto::{AlreadyDeleted, ErrorCode, ErrorReply, Life};
+        type Answer = fn() -> Result<DeleteOutcome, ClientError>;
+        fn armed_id() -> StoreId {
+            "00000000000000000000000000000009".parse().unwrap()
+        }
+        fn busy() -> Result<DeleteOutcome, ClientError> {
+            Err(ClientError::Daemon(ErrorReply::new(
+                ErrorCode::Busy,
+                "another process holds the store; this request deleted nothing",
+            )))
+        }
+        fn no_reply() -> Result<DeleteOutcome, ClientError> {
+            Err(ClientError::Deadline { seconds: 120 })
+        }
+        fn already_deleted() -> Result<DeleteOutcome, ClientError> {
+            Ok(DeleteOutcome::AlreadyDeleted(AlreadyDeleted {
+                current: "00000000000000000000000000000010".parse().unwrap(),
+            }))
+        }
+        fn refused() -> Result<DeleteOutcome, ClientError> {
+            Ok(DeleteOutcome::Refused)
+        }
+        fn typed_busy() -> Result<DeleteOutcome, ClientError> {
+            let mut daemon = halvo_control::testing::ScriptedDaemon::new(status_of(1001, 0, false));
+            daemon.set_life(Life::Ending);
+            let connector = halvo_control::testing::ScriptedConnector::new(daemon);
+            halvo_control::client::Client::new(connector).delete_all(Some(armed_id()))
+        }
+        assert!(
+            matches!(typed_busy(), Err(ClientError::ServiceEnding(_))),
+            "the client reads the busy of an ending life as its own kind"
+        );
+        let id = armed_id();
+        let long = DeleteWaits {
+            asked_life_end: Duration::from_secs(10),
+            next_life: Duration::from_secs(10),
+        };
+        let short = DeleteWaits {
+            asked_life_end: Duration::from_millis(200),
+            ..long
+        };
+        let lines = |of: &[&str]| of.iter().map(|line| (*line).to_owned()).collect::<Vec<_>>();
+        let first = format!("delete {id} to 1000");
+        let second = format!("delete {id} to 1001");
+        let twice = lines(&["start 1000", &first, "start 1001", "status", &second]);
+        type AskRow = (
+            &'static str,
+            Option<StoreId>,
+            Vec<(Answer, bool)>,
+            DeleteWaits,
+            Vec<String>,
+            &'static str,
+        );
+        let rows: Vec<AskRow> = vec![
+            (
+                "a busy and an end with 5: one second ask with the old id to the next child, and already_deleted is done",
+                Some(id),
+                vec![(busy as Answer, true), (already_deleted as Answer, false)],
+                long,
+                twice.clone(),
+                "done",
+            ),
+            (
+                "no reply and an end with 5: one second ask with the old id, and delete_refused is not done",
+                Some(id),
+                vec![(no_reply as Answer, true), (refused as Answer, false)],
+                long,
+                twice.clone(),
+                "refused",
+            ),
+            (
+                "a busy and an end with 5, then the typed busy: no third ask",
+                Some(id),
+                vec![(busy as Answer, true), (typed_busy as Answer, false)],
+                long,
+                twice,
+                "ending",
+            ),
+            (
+                "a plain busy in a life that goes on: no second ask",
+                Some(id),
+                vec![(busy as Answer, false)],
+                short,
+                lines(&["start 1000", &first]),
+                "busy",
+            ),
+            (
+                "a busy and an end with 5 after a delete with no id: no second ask",
+                None,
+                vec![(busy as Answer, true)],
+                long,
+                lines(&["start 1000", "delete null to 1000", "start 1001"]),
+                "busy",
+            ),
+        ];
+        for (name, armed, script, waits, expected, end) in rows {
+            let record = Record::default();
+            let clock = Arc::new(StandInClock::default());
+            let first_ends = Later::default();
+            let spawner = StandInSpawner {
+                children: [
+                    StandInChild {
+                        later: Some(Arc::clone(&first_ends)),
+                        ..StandInChild::new(1000, &clock, &record)
+                    },
+                    StandInChild::new(1001, &clock, &record),
+                ]
+                .into_iter()
+                .collect(),
+                record: Arc::clone(&record),
+            };
+            let views = Arc::new(Views::default());
+            let pid = Arc::<ChildPid>::default();
+            let supervisor = Supervisor::start_holding(
+                spawner,
+                Arc::clone(&pid),
+                Arc::clone(&clock),
+                Arc::clone(&views),
+            );
+            let fives = script.iter().filter(|(_, ends)| *ends).count();
+            let control = Watching::new(
+                Deletes {
+                    places: Arc::default(),
+                    record: Arc::clone(&record),
+                    pid: Arc::clone(&pid),
+                    answers: Mutex::new(
+                        script
+                            .into_iter()
+                            .map(|(answer, ends)| (answer(), ends.then(|| Arc::clone(&first_ends))))
+                            .collect(),
+                    ),
+                },
+                Arc::clone(&pid),
+            );
+            until(name, || pid.get() == Some(1000));
+            let ended = ask_to_delete(&control, &views, armed, waits);
+            if fives > 0 {
+                until(name, || {
+                    record
+                        .lock()
+                        .unwrap()
+                        .iter()
+                        .any(|line| line == "start 1001")
+                });
+            }
+            let seen: Vec<String> = record
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|line| !line.starts_with("closed") && !line.starts_with("kill"))
+                .cloned()
+                .collect();
+            drop(supervisor.close());
+            assert_eq!(seen, expected, "{name}");
+            let read = match &ended.end {
+                DeleteEnd::Answered(Ok(
+                    DeleteOutcome::Deleted(_) | DeleteOutcome::AlreadyDeleted(_),
+                )) => "done",
+                DeleteEnd::Answered(Ok(DeleteOutcome::Refused)) => "refused",
+                DeleteEnd::Answered(Err(ClientError::ServiceEnding(_))) => "ending",
+                DeleteEnd::Answered(Err(ClientError::Daemon(reply)))
+                    if reply.code() == ErrorCode::Busy =>
+                {
+                    "busy"
+                }
+                _ => "another end",
+            };
+            assert_eq!(read, end, "{name}: {:?}", ended.end);
+            assert_eq!(
+                views.hold().stands(),
+                fives > 0,
+                "{name}: part 1's hold after a 5"
+            );
+        }
     }
 
     #[test]

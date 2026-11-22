@@ -6,7 +6,7 @@ use halvo_control::client::{ClientError, DeleteOutcome};
 use halvo_control::model::{CaptureState, StorageCap, StoreId};
 use halvo_control::onboarding::{OnboardingState, Permission, RequestOutcome};
 use halvo_control::paths::DataDir;
-use halvo_control::proto::{reaches_the_end, CaptureChange, DaemonStatus, StateFile};
+use halvo_control::proto::{reaches_the_end, CaptureChange, DaemonStatus, ErrorCode, StateFile};
 use tauri::ipc::Invoke;
 use tauri::{Runtime, State};
 
@@ -250,29 +250,122 @@ impl Drop for NotLeftInFlight<'_> {
     }
 }
 
-/// What the flow of a person's delete ended with: the answer that the page reads, the number of
-/// the call of the delete request that gave it, and the next number of the line at that answer.
+/// How long the flow of a delete waits before its second ask.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeleteWaits {
+    /// For the end of the life that the first ask reached, from the first answer.
+    pub asked_life_end: Duration,
+    /// For a later life to answer a plain Status, from the end of that life.
+    pub next_life: Duration,
+}
+
+/// The waits of a person's delete: the end of the asked life within STOP_WAIT_MS and 2 s, the
+/// time in which the app ends a child that it saw ending; a later life within the longest wait
+/// of the backoff and the wait of a Start.
+pub const DELETE_WAITS: DeleteWaits = DeleteWaits {
+    asked_life_end: Duration::from_millis(halvo_control::STOP_WAIT_MS + 2_000),
+    next_life: Duration::from_secs(70),
+};
+
+/// How the flow of a person's delete ended.
+#[derive(Debug)]
+pub enum DeleteEnd {
+    /// The answer of the last delete request that the flow sent.
+    Answered(Result<DeleteOutcome, ClientError>),
+    /// The life that the first request reached ended with status 5 and no later life answered
+    /// within the wait, so no second request was sent: the first request's error.
+    NoLifeAnswered(ClientError),
+}
+
+/// What the flow of a person's delete ended with, the number of the call of the delete request
+/// of its end, and the next number of the line at that end.
 #[derive(Debug)]
 pub struct DeleteAsked {
-    pub answer: Result<DeleteOutcome, ClientError>,
+    pub end: DeleteEnd,
     pub call: u64,
     pub next_number_at_answer: u64,
 }
 
 /// The flow of a person's press of Delete everything, off the main thread: the delete request
-/// armed with `armed`, marked in `views` as the app's own delete while it is in flight.
-pub fn ask_to_delete(control: &dyn Control, views: &Views, armed: Option<StoreId>) -> DeleteAsked {
+/// armed with `armed`, marked in `views` as the app's own delete while it is in flight. Where it
+/// read a plain busy or no reply, a store id was armed and the child that it reached ended with
+/// status 5, the flow waits for a later child that answers a plain Status and asks once more with
+/// the same id; it sends no Status that claims the indicator and no Resume, and never a third
+/// request (contracts.md C2.1).
+pub fn ask_to_delete(
+    control: &dyn Control,
+    views: &Views,
+    armed: Option<StoreId>,
+    waits: DeleteWaits,
+) -> DeleteAsked {
+    let hold = views.hold();
+    let life = hold.life();
+    let (answer, call, next_number_at_answer) = ask_once(control, views, armed);
+    let first = DeleteAsked {
+        end: DeleteEnd::Answered(answer),
+        call,
+        next_number_at_answer,
+    };
+    let (Some(life), Some(_), DeleteEnd::Answered(Err(error))) = (life, armed, &first.end) else {
+        return first;
+    };
+    if !asks_again(error) || !hold.ended_with_5(life, Instant::now() + waits.asked_life_end) {
+        return first;
+    }
+    if !a_later_life_answers(control, hold, life, Instant::now() + waits.next_life) {
+        let DeleteEnd::Answered(Err(error)) = first.end else {
+            return first;
+        };
+        return DeleteAsked {
+            end: DeleteEnd::NoLifeAnswered(error),
+            call: first.call,
+            next_number_at_answer: control.places().next_number(),
+        };
+    }
+    let (answer, call, next_number_at_answer) = ask_once(control, views, armed);
+    DeleteAsked {
+        end: DeleteEnd::Answered(answer),
+        call,
+        next_number_at_answer,
+    }
+}
+
+fn asks_again(error: &ClientError) -> bool {
+    match error {
+        ClientError::Deadline { .. } => true,
+        ClientError::Daemon(reply) => reply.code() == ErrorCode::Busy,
+        _ => false,
+    }
+}
+
+fn a_later_life_answers(control: &dyn Control, hold: &Hold, life: u64, until: Instant) -> bool {
+    loop {
+        if !hold.wait_for_a_life_after(life, until) {
+            return false;
+        }
+        if control.status(control.places().make(), false).is_ok() {
+            return true;
+        }
+        let left = until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return false;
+        }
+        std::thread::sleep(left.min(START_STATUS_STEP));
+    }
+}
+
+fn ask_once(
+    control: &dyn Control,
+    views: &Views,
+    armed: Option<StoreId>,
+) -> (Result<DeleteOutcome, ClientError>, u64, u64) {
     let made = control.places().make();
     let call = made.number();
     let answer = {
         let _in_flight = views.own_delete();
         control.delete_all(made, armed)
     };
-    DeleteAsked {
-        answer,
-        call,
-        next_number_at_answer: control.places().next_number(),
-    }
+    (answer, call, control.places().next_number())
 }
 
 #[tauri::command]
@@ -291,9 +384,11 @@ pub async fn delete_all(
     let _in_flight = NotLeftInFlight(state.inner());
     let control = Arc::clone(&state.control);
     let views = Arc::clone(&state.views);
-    let ended = off_the_main_thread(move || ask_to_delete(control.as_ref(), &views, armed)).await;
+    let ended =
+        off_the_main_thread(move || ask_to_delete(control.as_ref(), &views, armed, DELETE_WAITS))
+            .await;
     let Ok(DeleteAsked {
-        answer,
+        end,
         call,
         next_number_at_answer,
     }) = ended
@@ -306,9 +401,16 @@ pub async fn delete_all(
             outcome_not_known: true,
         });
     };
-    let nothing_removed = answer.as_ref().err().is_some_and(removes_nothing);
     let roots = state.data_dir.as_ref().map(DataDir::roots_dir);
-    let view = delete_view(answer, roots.as_deref());
+    let (view, nothing_removed) = match end {
+        DeleteEnd::Answered(answer) => {
+            let nothing_removed = answer.as_ref().err().is_some_and(removes_nothing);
+            (delete_view(answer, roots.as_deref()), nothing_removed)
+        }
+        DeleteEnd::NoLifeAnswered(first) => {
+            (Err(ActionError::ServiceNotBack), removes_nothing(&first))
+        }
+    };
     match &view {
         Ok(DeleteView::Deleted { .. } | DeleteView::AlreadyDeleted { .. }) => {
             state.views.take_delete(call, next_number_at_answer);

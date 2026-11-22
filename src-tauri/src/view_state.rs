@@ -159,6 +159,8 @@ struct HoldState {
     no_more_child: bool,
     start_asked: bool,
     another_version: bool,
+    lives: u64,
+    ended: Option<(u64, Option<i32>)>,
 }
 
 /// The app's hold on capture after a child of the app ended itself with status 5 (contracts.md
@@ -246,6 +248,60 @@ impl Hold {
         start
     }
 
+    /// The number of the app's child that lives at this moment, counted from the first child of
+    /// this life of the app; none while no child lives.
+    pub fn life(&self) -> Option<u64> {
+        let state = self.state();
+        state.child_lives.then_some(state.lives)
+    }
+
+    /// Waits until `until` for the end of the child of number `life`: true where it ended with
+    /// status 5, false where it ended otherwise, where a later child ended first, and at `until`.
+    pub fn ended_with_5(&self, life: u64, until: Instant) -> bool {
+        let mut state = self.state();
+        loop {
+            match state.ended {
+                Some((of, status)) if of == life => {
+                    return status == Some(halvo_control::exit::SOURCE_NOT_STOPPED)
+                }
+                Some((of, _)) if of > life => return false,
+                _ => {}
+            }
+            let left = until.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return false;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+    }
+
+    /// Waits until `until` for a child after the child of number `life`: true once one lives,
+    /// false at `until` and once no further child starts.
+    pub fn wait_for_a_life_after(&self, life: u64, until: Instant) -> bool {
+        let mut state = self.state();
+        loop {
+            if state.child_lives && state.lives > life {
+                return true;
+            }
+            if state.no_more_child {
+                return false;
+            }
+            let left = until.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return false;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+    }
+
     /// Waits until `until` for the child that a Start asked for: true once the supervisor took
     /// the ask and a child lives.
     pub fn wait_for_the_asked_child(&self, until: Instant) -> bool {
@@ -296,6 +352,7 @@ impl Hold {
     #[cfg(any(target_os = "macos", test))]
     pub fn child_started(&self) {
         let mut state = self.state();
+        state.lives += 1;
         state.child_lives = true;
         state.last_exit = None;
         state.another_version = false;
@@ -308,6 +365,9 @@ impl Hold {
     #[cfg(any(target_os = "macos", test))]
     pub fn child_ended(&self, status: Option<i32>) {
         let mut state = self.state();
+        if state.child_lives {
+            state.ended = Some((state.lives, status));
+        }
         state.child_lives = false;
         state.last_exit = status;
         if status == Some(halvo_control::exit::SOURCE_NOT_STOPPED) {
@@ -516,9 +576,14 @@ impl StatusView {
 #[serde(tag = "error", rename_all = "snake_case")]
 pub enum ActionError {
     Busy,
-    Deadline { seconds: u64 },
+    Deadline {
+        seconds: u64,
+    },
     InvalidArgument,
-    CapOutOfRange { min_bytes: u64, max_bytes: u64 },
+    CapOutOfRange {
+        min_bytes: u64,
+        max_bytes: u64,
+    },
     BadStoreId,
     UpdateTheApp,
     StoreUnavailable,
@@ -528,7 +593,12 @@ pub enum ActionError {
     BrokenReply,
     ChannelFailed,
     PaneNotOpened,
-    NotAnswering { service: NoStatusService },
+    NotAnswering {
+        service: NoStatusService,
+    },
+    /// The service ended with status 5 during a person's delete and no later life answered
+    /// within the wait, so the flow could not ask again.
+    ServiceNotBack,
 }
 
 impl ActionError {
