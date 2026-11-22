@@ -1248,6 +1248,15 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             .iter()
             .chain(&idle)
             .filter_map(|name| self.needs(*name))
+            .chain(
+                self.state_file()
+                    .is_some_and(|file| {
+                        file.state()
+                            .permissions_asked
+                            .contains(&Permission::Accessibility)
+                    })
+                    .then_some(Permission::Accessibility),
+            )
             .collect()
     }
 
@@ -1301,10 +1310,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         match self.board.granted_at_start.clone() {
             None => self.board.granted_at_start = Some(granted.clone()),
             Some(at_start) => {
-                if granted
-                    .iter()
-                    .any(|permission| !at_start.contains(permission))
-                {
+                if granted.iter().any(|permission| {
+                    permission.restarts_capture() && !at_start.contains(permission)
+                }) {
                     return Some(Ending::Restart);
                 }
             }
@@ -3013,6 +3021,87 @@ mod tests {
             .borrow()
             .iter()
             .all(|named| named == &[Permission::InputMonitoring]));
+    }
+
+    #[test]
+    fn the_probe_names_accessibility_once_its_asked_record_stands() {
+        let (f, answers, asked) = probed(fixture(Factory::new()));
+        let (mut f, _dir, _writer) = with_state_file(f);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        f.start(&two());
+        f.tick();
+        assert!(
+            asked
+                .borrow()
+                .iter()
+                .all(|named| !named.contains(&Permission::Accessibility)),
+            "before the record stands the probe names no Accessibility: {:?}",
+            asked.borrow()
+        );
+        f.supervisor
+            .state_file()
+            .expect("the state file")
+            .record_asked(Permission::Accessibility)
+            .expect("the record is written");
+        answers.borrow_mut().push_back(Probed::Answered(vec![
+            (Permission::InputMonitoring, GrantState::Granted),
+            (Permission::Accessibility, GrantState::NotGranted),
+        ]));
+        f.later(PROBE_INTERVAL);
+        assert_eq!(
+            asked
+                .borrow()
+                .last()
+                .map(|named| named.contains(&Permission::Accessibility)),
+            Some(true),
+            "once the record stands the probe names Accessibility: {:?}",
+            asked.borrow()
+        );
+        let row = |f: &Fixture<Factory>| {
+            let facts = super::super::server::RunFacts {
+                started_at: halvo_control::model::UtcSecond::from_unix_seconds(1_800_000_000)
+                    .unwrap(),
+                parent: halvo_control::proto::Parent::None,
+                last_stop: halvo_control::proto::LastStop::None,
+                rss_peak_bytes: 0,
+            };
+            let status = super::super::server::status_of(&f.supervisor.status_parts(None), &facts)
+                .expect("the status holds together");
+            status
+                .fields()
+                .onboarding
+                .permissions
+                .iter()
+                .find(|row| row.permission == Permission::Accessibility)
+                .map(|row| (row.grant, row.lost))
+        };
+        assert_eq!(
+            row(&f),
+            Some((GrantState::NotGranted, false)),
+            "the row of Accessibility shows the answer"
+        );
+        answers.borrow_mut().push_back(Probed::Answered(vec![
+            (Permission::InputMonitoring, GrantState::Granted),
+            (Permission::Accessibility, GrantState::Granted),
+        ]));
+        assert_eq!(
+            f.later(PROBE_INTERVAL),
+            None,
+            "a granted Accessibility answer ends no life"
+        );
+        assert_eq!(row(&f), Some((GrantState::Granted, false)));
+        answers.borrow_mut().push_back(Probed::Answered(vec![
+            (Permission::InputMonitoring, GrantState::Granted),
+            (Permission::Accessibility, GrantState::NotGranted),
+        ]));
+        f.later(PROBE_INTERVAL);
+        assert_eq!(
+            row(&f),
+            Some((GrantState::NotGranted, true)),
+            "the grant was recorded, so its loss reads lost"
+        );
     }
 
     #[test]
