@@ -345,6 +345,46 @@ fn a_release_build_on_windows_answers_the_gate_modes_with_usage() {
     assert!(!dir.exists(), "a refused line made {}", dir.display());
 }
 
+#[cfg(not(debug_assertions))]
+#[test]
+fn a_release_service_run_makes_the_screen_source_only_where_the_files_switch_is_on() {
+    for (name, on, screen, switch) in [
+        ("screen-on", true, "source name=screen state=running", "on"),
+        ("screen-off", false, "source name=screen state=off", "off"),
+    ] {
+        let dir = scratch_data_dir(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("daemon-state.json"),
+            format!(r#"{{"desired":"running","switches":{{"screen_activity":{on}}}}}"#),
+        )
+        .unwrap();
+        let mut daemon = start(&dir);
+        let status = until(START_WAIT, || {
+            let output = ctl(&dir, &["status", "--indicator"]);
+            let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+            let capturing = stdout
+                .lines()
+                .any(|line| line == "capture=running" || line == "capture=partial");
+            (output.status.code() == Some(0) && capturing && stdout.lines().any(|l| l == screen))
+                .then_some(stdout)
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "{name}: no Status with capture on and `{screen}` within {START_WAIT:?}; the last:\n{}\nthe run's stderr:\n{}",
+                text(&ctl(&dir, &["status", "--indicator"])),
+                daemon.stderr()
+            )
+        });
+        let switch_line = format!("switch name=screen_activity value={switch}");
+        assert!(
+            status.lines().any(|line| line == switch_line),
+            "{name}: {status}"
+        );
+        stop(&dir, &mut daemon);
+    }
+}
+
 /// Gives this process a console when it has none, with its standard handles
 /// kept, so that a Ctrl-Break can reach a child that shares it.
 #[cfg(debug_assertions)]
