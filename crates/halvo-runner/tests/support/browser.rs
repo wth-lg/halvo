@@ -304,6 +304,20 @@ pub fn extract_amount(n: u32, id: &str) -> ExecutableStep {
     ExecutableStep::parse(json.as_bytes()).expect("an extract step")
 }
 
+/// A step `click` of the control with the test id `id` with the effect `request`, of the class `payment`, number `n`:
+/// the payee and the instrument from their slots, the amount from the value that an earlier extract kept as
+/// `amount`, and the origin `origin`.
+pub fn pay_click(n: u32, id: &str, origin: &str) -> ExecutableStep {
+    let json = format!(
+        r#"{{"v":1,"n":{n},"kind":"web","verb":"click","target":{},"args":[{},{{"name":"amount","from":"extract","value":null,"key":"amount"}},{},{}],"pre":[],"post":[],"effect":"request","class":"payment"}}"#,
+        target(id),
+        from_slot("payee", "payee"),
+        from_slot("instrument", "instrument"),
+        konst("origin", origin)
+    );
+    ExecutableStep::parse(json.as_bytes()).expect("a payment step")
+}
+
 /// The JSON of a web target of the top document found by the test id `id`.
 pub fn target(id: &str) -> String {
     format!(

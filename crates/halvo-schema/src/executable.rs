@@ -273,6 +273,8 @@ record::run_list! { names_with_run_list
     "senders_unread",
     "reproposed",
     "no_browser",
+    "amount_differs",
+    "amount_unread",
     "not_made",
     "start_accepted",
     "message",

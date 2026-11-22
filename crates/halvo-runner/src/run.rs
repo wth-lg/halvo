@@ -8,7 +8,7 @@ use halvo_schema::executable::frame::{
     Done, Handback, HandbackReply, Hello, Progress, ReplyError, Store, StoreReplyFrame,
 };
 use halvo_schema::executable::names::{HandbackReason, LogEvent, StepKind};
-use halvo_schema::executable::step::Target;
+use halvo_schema::executable::step::{Target, WebTarget};
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
     ActionClass, AgentLog, AgentRun, ApprovalId, Cause, EffectState, ExecutableStep, FromRunner,
@@ -97,6 +97,9 @@ pub(crate) struct Runner {
     )]
     pub(crate) approvals: Vec<ApprovalId>,
     pub(crate) kept: HashMap<String, Vec<Vec<Value>>>,
+    /// The target and the parse of the `extract` that kept each value of `kept`, by its name, which the browser's
+    /// maker reads again while its request is held (crate::web::maker).
+    pub(crate) extracts: HashMap<String, (WebTarget, String)>,
     pub(crate) read_under: Option<ReadUnder>,
     /// The newest row of each checkpoint of the run that the store took, by the workbook's path as the rows name it.
     pub(crate) checkpoints: HashMap<String, Taken>,
@@ -160,6 +163,7 @@ impl Runner {
             effects: Vec::new(),
             approvals: Vec::new(),
             kept: HashMap::new(),
+            extracts: HashMap::new(),
             read_under: None,
             checkpoints: HashMap::new(),
             lists: Lists::default(),

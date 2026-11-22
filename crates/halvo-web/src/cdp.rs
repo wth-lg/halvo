@@ -1705,6 +1705,14 @@ impl Executor {
         self.wire.fail_held(id).await
     }
 
+    /// The HTTP status of the response of the one request that `let_through` released in this arm,
+    /// as the browser paused that response; none before it and in an arm with no release (the
+    /// coordinator's ruling of log line 14732). A response that the rule does not pause, such as
+    /// that of a request that is no document and no script, gives none.
+    pub fn released_status(&self) -> Option<i64> {
+        self.wire.released_status()
+    }
+
     /// How often the executor gave a response the policy line of A4.2 (CP-176 A2): a document by
     /// fulfilment (`fulfilled`), a script with the line added (`line_added`), a response with no
     /// document passed on as it is (`passed`), and the responses that it failed because the
