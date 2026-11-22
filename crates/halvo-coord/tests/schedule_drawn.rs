@@ -195,6 +195,7 @@ fn member(sim: &Sim, n: usize) -> Member<Config> {
             store_ended: newest.is_none_or(|r| last.is_some_and(|l| l.run == r)),
             replies: halvo_coord::types::Replies::NotAsked,
             unknown: Vec::new(),
+            refused: None,
             events,
             today: sim.h.day,
             doing: Doing::Idle(None),
@@ -251,6 +252,7 @@ impl Sim {
                     unknown: 0,
                 }),
                 unknown: vec![],
+                refused_run: None,
             });
             if spec.finished {
                 let run = RunId::parse(&format!("{:032x}", 0x900 + n)).unwrap();

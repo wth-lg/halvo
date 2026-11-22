@@ -12,9 +12,9 @@ use crate::schedule::wants_active;
 use crate::types::{
     hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Category, Cause,
     CheckAnswer, Choice, Cleared, ConfigView, ConfirmAsk, DecisionEntry, DoneAnswer, Event, Facts,
-    HandbackAsk, HandbackResult, Item, ItemId, ItemKind, LapseCause, Lapsed, Limits, LinkAnswer,
-    OtherLapse, OwnItem, OwnItemKind, Param, Presenter, Raised, RunId, RunItem, RunItemKind,
-    SetupAnswer, SignInAnswer, What, WorkflowId,
+    HandbackAsk, HandbackResult, HoldSetCause, Item, ItemId, ItemKind, LapseCause, Lapsed, Limits,
+    LinkAnswer, OtherLapse, OwnItem, OwnItemKind, Param, Presenter, Raised, RunId, RunItem,
+    RunItemKind, SetupAnswer, SignInAnswer, What, WorkflowId,
 };
 use serde::Serialize;
 use std::num::NonZeroU32;
@@ -533,6 +533,10 @@ impl<'a> Record<'a> {
             },
             What::HoldSet { cause } => Record {
                 event: "hold_set",
+                run: match cause {
+                    HoldSetCause::SignInRefused { run } => Some(run.as_str()),
+                    HoldSetCause::Person | HoldSetCause::Failures => None,
+                },
                 cause: Some(cause.name()),
                 ..base
             },
@@ -543,6 +547,7 @@ impl<'a> Record<'a> {
                     Cleared::Check { run, answer } => {
                         (Some(run.as_str()), Some(answer.name()), "check")
                     }
+                    Cleared::SignInRefused { run } => (Some(run.as_str()), None, "sign_in_refused"),
                 };
                 Record {
                     event: "hold_cleared",

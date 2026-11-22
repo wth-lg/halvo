@@ -314,7 +314,6 @@ fn every_closed_list_parses_its_names_and_refuses_others() {
     round(AgentState::ALL, AgentState::name, AgentState::parse);
     round(EffectAnswer::ALL, EffectAnswer::name, EffectAnswer::parse);
     round(LapseCause::ALL, LapseCause::name, LapseCause::parse);
-    round(HoldSetCause::ALL, HoldSetCause::name, HoldSetCause::parse);
     round(LineKey::ALL, LineKey::name, LineKey::parse);
     round(ArgType::ALL, ArgType::name, ArgType::parse);
     round(Param::ALL, Param::name, Param::parse);

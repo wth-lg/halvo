@@ -530,6 +530,7 @@ fn log_refuses_an_agent_that_is_not_the_workflow_s() {
         session: false,
         last: None,
         unknown: vec![],
+        refused_run: None,
     });
     p.log(&[event(1, 2)]).unwrap();
     p.send(&Body::CreateAgent {
@@ -597,6 +598,7 @@ fn send_refuses_set_state_active_for_a_web_agent_with_no_playbook() {
         session: false,
         last: None,
         unknown: vec![],
+        refused_run: None,
     };
     let record = |a: u8| {
         BILL.replace(
@@ -882,6 +884,7 @@ fn owner_lists_what_the_test_put_in() {
         session: false,
         last: None,
         unknown: vec![],
+        refused_run: None,
     });
     assert_eq!(p.agents().unwrap().len(), 1);
 }

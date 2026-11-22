@@ -393,11 +393,38 @@ names! {
     }
 }
 
-names! {
-    /// The cause of a `hold_set` event: the hold that was set (I7.1).
-    HoldSetCause {
-        Person = "person",
-        Failures = "failures",
+/// The cause of a `hold_set` event: the hold that was set, with the run whose refused sign-in
+/// the hold `sign_in_refused` answers (I7.1; ruling RD-73 4.2), as halvo-schema's `Held` holds it.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum HoldSetCause {
+    /// `person`: the hold `off`.
+    Person,
+    /// `failures`.
+    Failures,
+    /// `sign_in_refused`, with the run that it answers.
+    SignInRefused {
+        /// `run`.
+        run: super::RunId,
+    },
+}
+
+impl HoldSetCause {
+    /// The names of the list of I7.1, in its order.
+    pub const NAMES: &'static [&'static str] = &["person", "failures", "sign_in_refused"];
+
+    /// The value's name.
+    pub const fn name(&self) -> &'static str {
+        match self {
+            HoldSetCause::Person => "person",
+            HoldSetCause::Failures => "failures",
+            HoldSetCause::SignInRefused { .. } => "sign_in_refused",
+        }
+    }
+}
+
+impl ::std::fmt::Display for HoldSetCause {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.name())
     }
 }
 

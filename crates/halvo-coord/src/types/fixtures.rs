@@ -566,7 +566,7 @@ fn build(state: State) -> Vec<Built> {
                 },
             );
         }
-        if let Some((cause, day)) = spec.hold {
+        if let Some((cause, day)) = spec.hold.clone() {
             push(day, What::HoldSet { cause });
         }
         if let Some(run) = &live {
@@ -631,6 +631,7 @@ fn build(state: State) -> Vec<Built> {
             store_ended: !matches!(doing, Doing::Live(_)),
             replies: crate::types::Replies::NotAsked,
             unknown: Vec::new(),
+            refused: None,
             today: TODAY,
             doing,
             stand_in: false,
