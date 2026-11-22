@@ -13,6 +13,7 @@
   var walkback;
   var steps;
   var outcome;
+  var asking = null;
 
   function button(text, onclick) {
     var b = Halvo.el("button", { text: text });
@@ -168,10 +169,15 @@
         sources = s.sources || [];
       });
       onboarding.source(refresh);
-      refresh();
-      setInterval(refresh, 3000);
     },
-    show: function () {},
-    hide: function () {},
+    show: function () {
+      if (asking !== null || document.visibilityState === "hidden") return;
+      refresh();
+      asking = setInterval(refresh, 3000);
+    },
+    hide: function () {
+      clearInterval(asking);
+      asking = null;
+    },
   });
 })();

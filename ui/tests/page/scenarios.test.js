@@ -23,7 +23,7 @@ const everyPoll = async (page) => {
 
 test("the page starts two polls of 3 s and one of 15 s", async () => {
   const page = await openPage({ replies: { capture_status: running, inventory: () => fixture("inventory-empty"), onboarding_state: () => noOnboarding } });
-  assert.deepEqual(page.clock.periods(), [3000, 3000, 15000]);
+  assert.deepEqual([...page.clock.periods()].sort((a, b) => a - b), [3000, 3000, 15000]);
 });
 
 test("scenario 1: Save with an empty field sends nothing and the message outlives a status poll", async () => {

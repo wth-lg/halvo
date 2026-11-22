@@ -3,6 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { openPage, fixture, calls, keptDelete, loadedAgain } = require("../lib/page.js");
+const { makeEvent } = require("../lib/dom.js");
 
 const rowsOf = (page) =>
   page.byId("inventory").querySelector("tbody").children.map((tr) => tr.children.map((td) => td.textContent));
@@ -79,14 +80,28 @@ test("a missing permission shows its row and the Ask now step", async () => {
   }
 });
 
-test("every permission granted shows every row as On and no steps", async () => {
+test("every permission granted shows every row as On and no steps, and the view asks its rows only while it shows", async () => {
   const page = await openPage({ replies: { onboarding_state: () => fixture("onboarding_state-granted") } });
   const badges = page.byId("permissions").querySelectorAll("span.badge").map((b) => b.textContent);
   assert.deepEqual(badges, ["On", "On"]);
   assert.equal(page.visible("walkback"), false);
-  const reads = page.calls("onboarding_state").length;
+  const reads = () => page.calls("onboarding_state").length;
+  const atLoad = reads();
   await page.clock.advance(3000);
-  assert.equal(page.calls("onboarding_state").length, reads + 1, "the open view asks its rows every 3 s");
+  assert.equal(reads(), atLoad + 1, "the shown view asks its rows every 3 s");
+  await page.hide();
+  const hidden = reads();
+  await page.clock.advance(9000);
+  assert.equal(reads(), hidden, "a view hidden with its window asks nothing");
+  page.document.visibilityState = "visible";
+  page.document.dispatchEvent(makeEvent("visibilitychange"));
+  await page.settle();
+  assert.equal(reads(), hidden + 1, "a show asks at once");
+  await page.clock.advance(3000);
+  assert.equal(reads(), hidden + 2, "and then every 3 s");
+  page.window.Halvo.views.window("hidden");
+  await page.clock.advance(9000);
+  assert.equal(reads(), hidden + 2, "the close handler's hide stops it too");
 });
 
 test("a lost permission shows the banner that names its pane", async () => {
