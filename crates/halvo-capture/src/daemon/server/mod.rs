@@ -384,8 +384,10 @@ fn served_by_this_build(request: &Request) -> bool {
         | Request::Stop
         | Request::DeleteAll { .. }
         | Request::SetStorageCap { .. } => true,
-        Request::AcknowledgeLostPermission { .. } => cfg!(target_os = "macos"),
-        Request::RequestPermission { .. } | Request::PermissionAsked { .. } => false,
+        Request::RequestPermission { .. } | Request::AcknowledgeLostPermission { .. } => {
+            cfg!(target_os = "macos")
+        }
+        Request::PermissionAsked { .. } => false,
     }
 }
 

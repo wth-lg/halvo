@@ -2013,12 +2013,16 @@ fn serve_the_mac(
 
 #[cfg(target_os = "macos")]
 fn system_parts<F: supervisor::SystemSources>(factory: F) -> ServiceParts<F> {
-    let probe: Box<dyn permissions::ProbeRunner> = match children::own_dir() {
-        Ok(dir) => Box::new(permissions::ChildProbe::new(dir, permissions::PROGRAM)),
-        Err(_) => Box::new(permissions::Unanswered),
+    let dir = children::own_dir().ok();
+    let probe: Box<dyn permissions::ProbeRunner> = match dir.clone() {
+        Some(dir) => Box::new(permissions::ChildProbe::new(dir, permissions::PROGRAM)),
+        None => Box::new(permissions::Unanswered),
     };
     ServiceParts {
         probe: Some(probe),
+        requests: dir.map(|dir| {
+            Box::new(permissions::ChildRequests::new(dir)) as Box<dyn permissions::RequestStarter>
+        }),
         ..ServiceParts::of(factory)
     }
 }
@@ -2136,6 +2140,7 @@ pub(crate) struct ServiceParts<F> {
     pub(crate) factory: F,
     pub(crate) lifeline: Option<lease::lifeline::Lifeline>,
     pub(crate) probe: Option<Box<dyn permissions::ProbeRunner>>,
+    pub(crate) requests: Option<Box<dyn permissions::RequestStarter>>,
     #[cfg(test)]
     pub(crate) lease: lease::Lease,
     #[cfg(test)]
@@ -2155,6 +2160,7 @@ impl<F: supervisor::SystemSources> ServiceParts<F> {
             factory,
             lifeline: None,
             probe: None,
+            requests: None,
             #[cfg(test)]
             lease: lease::Lease::NONE,
             #[cfg(test)]
@@ -2303,6 +2309,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     }
     if let Some(probe) = parts.probe {
         supervisor = supervisor.with_probe(probe);
+    }
+    if let Some(requests) = parts.requests {
+        supervisor = supervisor.with_requests(requests);
     }
     #[cfg(test)]
     supervisor.set_lease(parts.lease, None);
@@ -2663,6 +2672,9 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         Request::AcknowledgeLostPermission { permission } => {
             acknowledged_reply(permission, supervisor, serving)
         }
+        Request::RequestPermission { permission } => {
+            permission_reply(supervisor.request_permission(permission))
+        }
         Request::Pause | Request::Resume => {
             capture_change(asked, supervisor, serving, store);
             return;
@@ -3016,6 +3028,38 @@ fn cap_set_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
             |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
             |status| Reply::CapSet(CapSet { status, evicting }),
         ),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn permission_reply(requested: supervisor::AskAnswer) -> halvo_control::proto::Reply {
+    use halvo_control::onboarding::RequestOutcome;
+    use halvo_control::proto::{ErrorCode, ErrorReply, PermissionRequested, Reply};
+    use supervisor::AskAnswer;
+    let outcome = |outcome| Reply::PermissionRequested(PermissionRequested { outcome });
+    match requested {
+        AskAnswer::AlreadyGranted => outcome(RequestOutcome::AlreadyGranted),
+        AskAnswer::Requested => outcome(RequestOutcome::Requested),
+        AskAnswer::AnotherRuns => Reply::Error(ErrorReply::new(
+            ErrorCode::Busy,
+            "the system's question about another permission is still open; this request asked nothing",
+        )),
+        AskAnswer::NotServed => Reply::Error(ErrorReply::new(
+            ErrorCode::UnsupportedOp,
+            "this build of the capture service does not serve the op",
+        )),
+        AskAnswer::NoStateFile => Reply::Error(ErrorReply::new(
+            ErrorCode::Internal,
+            "the capture service holds no state file",
+        )),
+        AskAnswer::NotRecorded(error) => Reply::Error(ErrorReply::new(
+            ErrorCode::StateFile,
+            format!("the request was not recorded and asked nothing: {error}"),
+        )),
+        AskAnswer::NotStarted(error) => Reply::Error(ErrorReply::new(
+            ErrorCode::Internal,
+            format!("the request child did not start: {}", error.kind()),
+        )),
     }
 }
 

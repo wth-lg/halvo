@@ -404,6 +404,21 @@ impl StateFile {
         })
     }
 
+    /// Adds `permission` to `permissions_asked` through
+    /// [`StateFile::update`]; when a file that loaded holds it already,
+    /// nothing is written, and a file that did not load answers
+    /// [`StateError::LeftAsItIs`].
+    pub fn record_asked(&mut self, permission: Permission) -> Result<(), StateError> {
+        if self.loaded == Loaded::Readable && self.state.permissions_asked.contains(&permission) {
+            return Ok(());
+        }
+        self.update(|state| {
+            if !state.permissions_asked.contains(&permission) {
+                state.permissions_asked.push(permission);
+            }
+        })
+    }
+
     /// Takes `permission` out of `permissions_once_granted` through
     /// [`StateFile::update`]; when a file that loaded does not hold it, nothing
     /// is written, and a file that did not load answers

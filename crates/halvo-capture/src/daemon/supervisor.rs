@@ -19,7 +19,7 @@ use super::main_loop::{self, EndCall, MainLoop, Watchdog};
 use super::owner::{
     Answer, Command, OwnerGone, OwnerHandle, OwnerPanicked, OwnerThread, Pending, Report,
 };
-use super::permissions::{ProbeRunner, Probed};
+use super::permissions::{ProbeRunner, Probed, RequestStarter};
 use super::report::FailedSource;
 use super::slot::Slot;
 use super::sources::{
@@ -233,6 +233,30 @@ pub trait SystemSources: SourceFactory {
     }
 }
 
+/// The answer of a client's request for the system's question about one
+/// permission (contracts.md C2.1, form A).
+#[cfg(target_os = "macos")]
+#[derive(Debug)]
+pub(crate) enum AskAnswer {
+    /// The newest probe answer reads the permission granted: nothing was
+    /// written and nothing started.
+    AlreadyGranted,
+    /// The record holds the permission and its request child runs.
+    Requested,
+    /// The request child of another permission still runs: nothing was
+    /// written and nothing started.
+    AnotherRuns,
+    /// The run starts no request child.
+    NotServed,
+    /// The supervisor holds no state file.
+    NoStateFile,
+    /// The record was not written; nothing started.
+    NotRecorded(StateError),
+    /// The record holds the permission, and its request child did not
+    /// start.
+    NotStarted(std::io::Error),
+}
+
 /// Why a wait ended before its window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ending {
@@ -430,6 +454,9 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     started_failed: Vec<SourceName>,
     stopped_for_drain: bool,
     probe: Option<Box<dyn ProbeRunner>>,
+    requests: Option<Box<dyn RequestStarter>>,
+    #[cfg(target_os = "macos")]
+    request_for: Option<Permission>,
     probe_last: Option<Duration>,
     probe_retry_at: Option<Duration>,
     probe_missing: bool,
@@ -473,6 +500,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             started_failed: Vec::new(),
             stopped_for_drain: false,
             probe: None,
+            requests: None,
+            #[cfg(target_os = "macos")]
+            request_for: None,
             probe_last: None,
             probe_retry_at: None,
             probe_missing: false,
@@ -539,6 +569,62 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     pub fn with_probe(mut self, probe: Box<dyn ProbeRunner>) -> Supervisor<F, L> {
         self.probe = Some(probe);
         self
+    }
+
+    /// The starter of the request children of a client's asks; a child that
+    /// still runs when the supervisor is dropped is ended with it.
+    pub fn with_requests(mut self, requests: Box<dyn RequestStarter>) -> Supervisor<F, L> {
+        self.requests = Some(requests);
+        self
+    }
+
+    /// A client's request for the system's question about `permission`,
+    /// answered from what the supervisor holds and never after a wait: the
+    /// newest probe answer, the request child that still runs, then the
+    /// record in `permissions_asked` through the state file's one writer and
+    /// ONE request child with [`super::permissions::REQUEST_DEADLINE`].
+    #[cfg(target_os = "macos")]
+    pub(crate) fn request_permission(&mut self, permission: Permission) -> AskAnswer {
+        if self
+            .board
+            .permissions
+            .contains(&(permission, GrantState::Granted))
+        {
+            return AskAnswer::AlreadyGranted;
+        }
+        let Some(requests) = self.requests.as_mut() else {
+            return AskAnswer::NotServed;
+        };
+        if requests.running() {
+            return if self.request_for == Some(permission) {
+                AskAnswer::Requested
+            } else {
+                AskAnswer::AnotherRuns
+            };
+        }
+        match self
+            .state_file()
+            .map(|mut state| state.record_asked(permission))
+        {
+            None => return AskAnswer::NoStateFile,
+            Some(Err(error)) => return AskAnswer::NotRecorded(error),
+            Some(Ok(())) => {}
+        }
+        self.publish();
+        let Some(requests) = self.requests.as_mut() else {
+            return AskAnswer::NotServed;
+        };
+        match requests.start(
+            super::permissions::PROGRAM,
+            &super::permissions::request_args(permission),
+            super::permissions::REQUEST_DEADLINE,
+        ) {
+            Ok(()) => {
+                self.request_for = Some(permission);
+                AskAnswer::Requested
+            }
+            Err(error) => AskAnswer::NotStarted(error),
+        }
     }
 
     /// The call that ends the process, and the watchdog that makes it at the
@@ -928,6 +1014,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
         if let Some(ending) = self.read_permissions(now, owner) {
             self.ending = Some(ending);
+        }
+        if let Some(requests) = self.requests.as_mut() {
+            requests.running();
         }
         self.publish();
         self.ending
