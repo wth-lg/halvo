@@ -1,0 +1,1 @@
+- Fixed: The runner sends the end row of a run and the run's finish up to three times when the store answers with a fault (store or internal), so a short fault of the store no longer loses the reason why the run ended.
