@@ -112,21 +112,25 @@ enum HoldState {
 }
 
 /// One state-changing request of an arm, by the browser's number, its address, its method and
-/// whether it is a redirect's hop, with every pause of it.
+/// whether it is a redirect's hop, with every pause of it and every level that paused it (the
+/// session of a pause, `None` for the browser's level).
 struct Held {
     request: HeldRequest,
     key: (String, String, String, bool),
     state: HoldState,
     pauses: Vec<Pause>,
+    levels: Vec<Option<String>>,
     hook: Option<(String, u16)>,
 }
 
 /// The state-changing requests of one arm (CP-176 A1): what is held, whether a release was made
-/// since the arm, and the executor's next id, which is never given twice in its life.
+/// since the arm, the status of the response of the one request that the release let through,
+/// and the executor's next id, which is never given twice in its life.
 #[derive(Default)]
 pub(crate) struct Holds {
     held: Vec<Held>,
     released: bool,
+    status: Option<i64>,
     next: u64,
 }
 
@@ -147,7 +151,9 @@ impl Holds {
     /// is held under a new id, unless the browser gave it no number, a release was made since the
     /// arm, or `MAX_HELD` requests wait, which fail it. In `Mode::Handback` every request that
     /// names a frame goes on but the script of a service worker, and every other is failed. A second pause of one request (the same
-    /// number, address, method and hop) follows the answer of the first.
+    /// number, address, method and hop) from a level that has not paused it follows the answer of the first; a pause from a
+    /// level that has paused it already is a request of its own (r3 U4.1w-2, CP-186 (7)): held before the release, failed
+    /// after it, so that it errs toward an effect that is not known and never toward a second request.
     pub(crate) fn on_pause(&mut self, rule: Option<&Rule>, f: &Facts, pause: Pause) -> (Act, bool) {
         if rule.is_some_and(|r| r.mode == Mode::Handback) {
             let passes = !f.frame.is_empty() && !f.worker_script;
@@ -166,7 +172,12 @@ impl Holds {
             f.method.clone(),
             f.redirected,
         );
-        if let Some(h) = self.held.iter_mut().find(|h| h.key == key) {
+        if let Some(h) = self
+            .held
+            .iter_mut()
+            .find(|h| h.key == key && !h.levels.contains(&pause.session))
+        {
+            h.levels.push(pause.session.clone());
             let act = match h.state {
                 HoldState::Waiting => {
                     h.pauses.push(pause);
@@ -202,11 +213,13 @@ impl Holds {
         if !holds && self.held.len() >= KEPT_FAILED {
             return (act, true);
         }
+        let levels = vec![pause.session.clone()];
         self.held.push(Held {
             request,
             key,
             state,
             pauses: if holds { vec![pause] } else { Vec::new() },
+            levels,
             hook: f.hook.clone(),
         });
         (act, true)
@@ -272,7 +285,35 @@ impl Holds {
         }
         self.held.clear();
         self.released = false;
+        self.status = None;
         fail
+    }
+
+    /// Keeps `code`, the status of a response that the browser paused with the facts `f`, where it
+    /// is the first response of the one request that the release of this arm let through (the same
+    /// number, address and method); a response of any other request is not kept (the coordinator's
+    /// ruling of log line 14732).
+    pub(crate) fn on_response(&mut self, f: &Facts, code: i64) {
+        if self.status.is_some() {
+            return;
+        }
+        let released = f.network.as_ref().is_some_and(|network| {
+            self.held.iter().any(|h| {
+                h.state == HoldState::Released
+                    && h.key.0 == *network
+                    && h.key.1 == f.url
+                    && h.key.2 == f.method
+            })
+        });
+        if released {
+            self.status = Some(code);
+        }
+    }
+
+    /// The status of the response of the one request that the release of this arm let through,
+    /// none before that response and in an arm with no release.
+    pub(crate) fn released_status(&self) -> Option<i64> {
+        self.status
     }
 
     /// The requests that wait, each once.
@@ -590,6 +631,11 @@ impl Wire {
             .lock()
             .map(|b| b.holds.waiting())
             .unwrap_or_default()
+    }
+
+    /// The status of the response of the one request that the release of this arm let through.
+    pub(crate) fn released_status(&self) -> Option<i64> {
+        self.book.lock().ok()?.holds.released_status()
     }
 
     /// Sets the outcome of the records of the requests `ids`.
@@ -926,6 +972,9 @@ impl Wire {
             return;
         }
         if let Some(code) = ev.response_status_code {
+            if let Ok(mut b) = self.book.lock() {
+                b.holds.on_response(&facts_of_event(&ev, None), code);
+            }
             self.respond(session, ev, code).await;
             return;
         }
@@ -1253,7 +1302,10 @@ mod tests {
             h.on_pause(
                 Some(&r),
                 &facts_of_event(&event(url, false), None),
-                pause("p3")
+                Pause {
+                    session: None,
+                    id: "p3".to_string()
+                }
             ),
             (Act::Continue, false)
         );
@@ -1461,13 +1513,18 @@ mod tests {
     }
 
     /// CP-176 A1 (c) and (f): one request paused at both levels is one held request; both pauses
-    /// go on at its release, and a pause of it after the release follows the release.
+    /// go on at its release, and a pause of it after the release from a level that has not paused
+    /// it follows the release.
     #[test]
     fn a1_one_request_paused_twice_is_held_once_and_follows_its_answer() {
         let r = rule(&[U], Mode::Hold);
         let mut h = Holds::default();
         let post = facts("POST", U, "/prefs", Some("n1"));
-        let (first, new) = h.on_pause(Some(&r), &post, pause("browser"));
+        let browser = Pause {
+            session: None,
+            id: "browser".to_string(),
+        };
+        let (first, new) = h.on_pause(Some(&r), &post, browser.clone());
         let Act::Hold(id) = first else {
             panic!("{first:?}")
         };
@@ -1478,11 +1535,82 @@ mod tests {
         );
         assert_eq!(h.waiting().len(), 1);
         let done = h.release(id).unwrap();
-        assert_eq!(done.go, vec![pause("browser"), pause("target")]);
+        assert_eq!(done.go, vec![browser, pause("target")]);
         assert!(done.fail.is_empty() && done.failed.is_empty());
+        let late = Pause {
+            session: Some("S2".to_string()),
+            id: "late".to_string(),
+        };
+        assert_eq!(h.on_pause(Some(&r), &post, late), (Act::Continue, false));
+    }
+
+    /// The coordinator's ruling of log line 14732: the status of the response of the one request
+    /// that a release let through is kept and read, the first of its responses alone; a response of
+    /// a request that was not released, before or after the release, is not kept; a new arm drops it.
+    #[test]
+    fn the_status_of_the_one_released_request_is_kept_and_read() {
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        let pay = facts("POST", U, "/pay", Some("n1"));
+        let other = facts("POST", U, "/pay", Some("n2"));
+        let (Act::Hold(id), true) = h.on_pause(Some(&r), &pay, pause("a")) else {
+            panic!("held")
+        };
+        assert!(matches!(
+            h.on_pause(Some(&r), &other, pause("b")).0,
+            Act::Hold(_)
+        ));
+        h.on_response(&pay, 200);
+        assert_eq!(h.released_status(), None, "no status before the release");
+        h.release(id).unwrap();
+        h.on_response(&other, 200);
+        assert_eq!(h.released_status(), None, "a failed request has none");
+        h.on_response(&facts("GET", U, "/pay", Some("n1")), 200);
+        assert_eq!(h.released_status(), None, "another method has none");
+        h.on_response(&pay, 402);
+        assert_eq!(h.released_status(), Some(402));
+        h.on_response(&pay, 200);
+        assert_eq!(h.released_status(), Some(402), "the first response alone");
+        h.end_arm();
+        assert_eq!(h.released_status(), None, "a new arm has none");
+    }
+
+    /// r3 U4.1w-2 (4), CP-186 (7): a pause from a level that has paused that request already is a
+    /// request of its own: held under an id of its own before the release, and failed after it as a
+    /// record of its own; a pause from a level that has not paused it follows its request.
+    #[test]
+    fn a_second_pause_at_one_level_is_a_request_of_its_own() {
+        let at = |level: Option<&str>, id: &str| Pause {
+            session: level.map(str::to_string),
+            id: id.to_string(),
+        };
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        let post = facts("POST", U, "/pay", Some("n1"));
+        let (Act::Hold(first), true) = h.on_pause(Some(&r), &post, at(None, "b1")) else {
+            panic!("the first pause is held")
+        };
         assert_eq!(
-            h.on_pause(Some(&r), &post, pause("late")),
-            (Act::Continue, false)
+            h.on_pause(Some(&r), &post, at(Some("S"), "t1")),
+            (Act::Hold(first), false)
+        );
+        let (Act::Hold(second), true) = h.on_pause(Some(&r), &post, at(Some("S"), "t2")) else {
+            panic!("a second pause at the level S is held as a request of its own")
+        };
+        assert_ne!(first, second);
+        assert_eq!(
+            h.on_pause(Some(&r), &post, at(None, "b2")),
+            (Act::Hold(second), false)
+        );
+        assert_eq!(h.waiting().len(), 2);
+        let done = h.release(first).unwrap();
+        assert_eq!(done.go, vec![at(None, "b1"), at(Some("S"), "t1")]);
+        assert_eq!(done.fail, vec![at(Some("S"), "t2"), at(None, "b2")]);
+        assert_eq!(done.failed, vec![second]);
+        assert_eq!(
+            h.on_pause(Some(&r), &post, at(Some("S"), "t3")),
+            (Act::Fail, true),
+            "after the release a pause at a level that paused it is failed as a request of its own"
         );
     }
 
@@ -1519,7 +1647,11 @@ mod tests {
             ..facts("POST", U, "/prefs", Some("n1"))
         };
         assert_eq!(h.on_pause(Some(&r), &hop, pause("b")), (Act::Fail, true));
-        assert_eq!(h.on_pause(Some(&r), &hop, pause("c")), (Act::Fail, false));
+        let browser = Pause {
+            session: None,
+            id: "c".to_string(),
+        };
+        assert_eq!(h.on_pause(Some(&r), &hop, browser), (Act::Fail, false));
         let get = Facts {
             redirected: true,
             ..facts("GET", U, "/saved", Some("n1"))

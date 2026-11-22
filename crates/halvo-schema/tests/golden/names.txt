@@ -22,6 +22,8 @@ agent_start
 agents
 allow
 allow_once
+amount_differs
+amount_unread
 analysis
 analysis_write
 answer

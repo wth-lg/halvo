@@ -208,6 +208,7 @@ also have test ids, so that a playbook can read them.
 | frame, kind `bill` | `<button>` | button `Pay now` | `pay-now` |
 | frame, kind `order` | `<button>` | button `Place order` | `place-order` |
 | frame after `/charge` | `<h1>` | heading `Payment received` or `Order placed` | none |
+| frame after `/charge` | the amount charged after the text `Amount charged`, none with the variant `charged_no_amount` | text | `amount-charged` |
 | `/reorder` | the page marker after the text `Reference` | text | `reference` |
 | `/reorder` | `<ul>`, one item `<quantity> x <name> at <price>` per seed item | list `Saved order` | `saved-order` |
 | `/reorder` | the total after the text `Total` | text | `order-total` |
@@ -360,6 +361,7 @@ the variants in the order of this table, each once.
 | `reply_not_draft` | createReply makes its draft with `isDraft` false, and answers it so |
 | `reply_listed_id` | createReply makes no draft and answers 201 with a draft whose `id` is the id of the message that it answers, an id that the inbox list holds; a PATCH or a send that names that id gets 400 or 404 as for any inbox message |
 | `amount_changes` | turns on the control call `POST /change`: after it, the amount that the payment frame shows and the amount that `/charge` records are the seed's amount plus 100 minor units, until the next reset. Without this variant `/change` gets 404 |
+| `charged_no_amount` | the frame after a `/charge` that is recorded shows its heading alone and names no amount charged |
 
 Two variants serve the runner's own cases of A5.4, which the port's suite of U4.2 runs
 (`crates/halvo-runner/src/release/suite.rs`): `no_reply` holds the request of the case
