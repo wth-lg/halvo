@@ -1156,8 +1156,16 @@ mod tests {
     fn a_dropped_screen_source_whose_stop_thread_is_refused_ends_its_capture() {
         use std::sync::mpsc::RecvTimeoutError;
         let _serial = crate::windows::tests::serial();
+        use crate::secure_input::windows::{FocusRead, Kind};
         let (sink, writer) = crate::sink::channel(64);
-        let mut source = ScreenSource::new(Arc::default());
+        let gate = PasswordGate::new();
+        let read = FocusRead::Answered {
+            is_password: false,
+            protected: false,
+            kind: Kind::NativeEdit,
+        };
+        gate.focus_read_at(super::super::now_tick(), read, false);
+        let mut source = ScreenSource::new(Arc::default()).with_password_gate(Arc::new(gate));
         source.life = ScreenLife::with_spawner(always_refuses);
         let started = source.begin(screen_on(sink));
         let first = writer.recv_timeout(Duration::from_secs(10)).is_ok();
