@@ -1341,3 +1341,164 @@ fn a_length_above_the_bound_ends_its_stream_alone() {
     owner.send(&read_workflows());
     assert_eq!(workflows(owner.reply()), []);
 }
+
+/// Ends the starter's channel of an owner that `start_on` started over `stream_channel`. On macOS the test's end of
+/// that channel is one socket, of which the reader thread holds a copy, so the socket is shut down for writes and the
+/// owner reads its end; on Windows the pipe that the test writes is closed.
+fn end_stream_channel(owner: &mut Owner) {
+    let requests = owner.requests.take().unwrap();
+    #[cfg(unix)]
+    std::os::unix::net::UnixStream::from(std::os::fd::OwnedFd::from(requests))
+        .shutdown(std::net::Shutdown::Write)
+        .unwrap();
+    #[cfg(windows)]
+    drop(requests);
+}
+
+/// The request `name` with `body`, sent on the stream, and the text of its result; a refusal fails the test with its
+/// error name. No reply of the bodies that the test sends holds a piece of a kept state.
+fn agent_body(stream: &mut Stream, name: &str, body: &str) -> String {
+    let id = serde_json::to_string(&request_id()).unwrap();
+    let request = format!(r#"{{"v":1,"id":{id},"request":"{name}","body":{body}}}"#);
+    stream.send(request.as_bytes());
+    match stream.reply().outcome {
+        Ok(ReplyResult::Raw(raw)) => raw.get().to_owned(),
+        other => panic!("the request {name} answers {other:?}"),
+    }
+}
+
+/// The `coordinator_write` body `op` of the workflow and the agent with the keys `more`, and the text of its result.
+fn coordinator(stream: &mut Stream, workflow: &str, agent: &str, op: &str, more: &str) -> String {
+    let body = format!(r#"{{"op":"{op}","workflow":"{workflow}","agent":"{agent}"{more}}}"#);
+    agent_body(stream, "coordinator_write", &body)
+}
+
+/// The key `session` of the agent's entry in the roster of `list_agents`.
+fn session_of(stream: &mut Stream, agent: &str) -> String {
+    let body = r#"{"op":"list_agents","workflow":null,"agent":null,"after":null}"#;
+    let roster: Value =
+        serde_json::from_str(&agent_body(stream, "coordinator_write", body)).unwrap();
+    let entry = roster["agents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["config"]["agent"] == agent)
+        .unwrap_or_else(|| panic!("the roster holds no entry of the agent {agent}"));
+    entry["session"].as_str().unwrap().to_owned()
+}
+
+/// r3 U9.12 (the coordinator's rulings of 2026-11-22, log lines 15547 and 15663): the body `drop_sessions` removes the
+/// agent's kept sign-in from the owner's store by the removal call, through the owner's adapter. The owner's program
+/// runs on a scratch store with two approved workflows, one of each app id of the analysis write, the agent `A` of the
+/// first and `B` of the second; each ran once and ended, `A` kept a sign-in of two parts and `B` one of one part, whose
+/// pieces are text that the test makes. After `drop_sessions` of `A`, read by SQL with the store's key and with no
+/// condition of the store's reads: no `agent_session` row stands under the first workflow and the row of the second
+/// stands. The write-ahead log, read right after the reply while the owner runs, is empty behind the checkpoint; the
+/// roster reads `session` `no` for `A` and `yes` for `B`; and the reply says `{"stored":0}`.
+#[test]
+fn drop_sessions_leaves_no_session_row_of_the_agent_at_rest() {
+    const A: &str = "40000000000000000000000000000001";
+    const B: &str = "40000000000000000000000000000002";
+    const RUN_A: &str = "50000000000000000000000000000001";
+    const RUN_B: &str = "50000000000000000000000000000002";
+    const ORIGIN: &str = "https://pay.test:443";
+    let scratch = Scratch::new("owner-drop-at-rest");
+    let mut owner = start_on(
+        stream_channel(),
+        &scratch.0,
+        KEY,
+        1,
+        true,
+        &["--check-ms=60000"],
+    );
+    let day = two_days_ago();
+    let mut episodes: Vec<Episode> = (1..=3).map(|n| episode(n, day, FAR)).collect();
+    episodes.extend((4..=6).map(|n| Episode {
+        app: AppId::parse("com.example.other").unwrap(),
+        ..episode(n, day, FAR)
+    }));
+    owner.write(&analysis_write(episodes, Position { seg: 7, idx: 0 }));
+    assert!(matches!(
+        owner.worker_reply().outcome,
+        Ok(ReplyResult::Null)
+    ));
+    owner.send(&read_workflows());
+    let ids = workflows(owner.reply());
+    assert_eq!(ids.len(), 2, "the two app ids make two workflows");
+    for id in &ids {
+        let approve = halvo_schema_core::request::InterfaceDecision::approve(
+            &InterfaceRole::claim(),
+            request_id(),
+            id.clone(),
+        );
+        owner.send(&approve.to_bytes().unwrap());
+        assert!(matches!(owner.reply().outcome, Ok(ReplyResult::Null)));
+    }
+    let (ours, other) = (ids[0].as_str(), ids[1].as_str());
+
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let s = &mut stream;
+    for (workflow, agent, run) in [(ours, A, RUN_A), (other, B, RUN_B)] {
+        let create = coordinator(s, workflow, agent, "create_agent", "");
+        assert_eq!(create, r#"{"rev":1}"#);
+        let start = format!(r#","run":"{run}","mode":"compile""#);
+        let started = coordinator(s, workflow, agent, "start_run", &start);
+        assert_eq!(started, r#"{"ok":"yes"}"#);
+    }
+    let full: String = "U912TestKeptPart".chars().cycle().take(1024).collect();
+    for (agent, run, part, of, data) in [
+        (A, RUN_A, 1, 2, vec![full; 48]),
+        (A, RUN_A, 2, 2, vec!["U912TestKeptLast".to_owned()]),
+        (B, RUN_B, 1, 1, vec!["U912TestKeptOther".to_owned()]),
+    ] {
+        let body = serde_json::json!({
+            "op": "put_session", "agent": agent, "run": run, "origin": ORIGIN,
+            "rev": 1, "part": part, "of": of, "data": data,
+        });
+        let stored = agent_body(s, "runner", &body.to_string());
+        assert_eq!(stored, r#"{"stored":1}"#);
+    }
+    for (workflow, agent, run) in [(ours, A, RUN_A), (other, B, RUN_B)] {
+        let end = format!(r#","run":"{run}""#);
+        assert_eq!(
+            coordinator(s, workflow, agent, "end_run", &end),
+            r#"{"ok":"yes"}"#
+        );
+    }
+    assert_eq!(session_of(s, A), "yes", "the kept sign-in is listed");
+
+    let dropped = coordinator(s, ours, A, "drop_sessions", "");
+    let wal =
+        std::fs::metadata(scratch.0.join("derived").join("derived.db-wal")).map_or(0, |m| m.len());
+    let sessions = (session_of(s, A), session_of(s, B));
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+
+    halvo_sqlcipher::initialize().unwrap();
+    let hex: String = KEY.iter().map(|b| format!("{b:02x}")).collect();
+    let conn = Connection::open(scratch.0.join("derived").join("derived.db")).unwrap();
+    conn.execute_batch(&format!("PRAGMA key = \"x'{hex}'\";"))
+        .unwrap();
+    let rows_under = |workflow: &str| -> i64 {
+        conn.query_row(
+            "SELECT count(*) FROM rows WHERE kind = 'agent_session' AND workflow = ?1",
+            [workflow],
+            |row| row.get(0),
+        )
+        .unwrap()
+    };
+    assert_eq!(
+        rows_under(ours),
+        0,
+        "agent_session rows stand under the workflow of drop_sessions"
+    );
+    assert_eq!(
+        rows_under(other),
+        1,
+        "the kept sign-in of the other workflow"
+    );
+    assert_eq!(wal, 0, "bytes of the write-ahead log right after the reply");
+    assert_eq!(sessions, ("no".to_owned(), "yes".to_owned()));
+    assert_eq!(dropped, r#"{"stored":0}"#);
+}

@@ -1612,6 +1612,15 @@ fn drop_sessions_ends_the_use_of_every_kept_sign_in_of_one_agent() {
             "{origin} {rev}"
         );
     }
+    let earlier = json!({"v": 1, "workflow": wf(1), "agent": agent(3), "origin": BOUND, "rev": 1, "part": 1, "of": 1, "day": TODAY, "data": ["QUJD"]});
+    assert_eq!(
+        store.commit(vec![TypedRecord {
+            kind: "agent_session",
+            json: earlier.to_string()
+        }]),
+        Ok(()),
+        "a kept part of an earlier agent of the workflow"
+    );
     assert_eq!(end_run(&mut store, 1), Ok(accepted()));
     let session = |store: &mut MemoryStore| -> Vec<Value> {
         let listed = roster(store)["agents"].clone();
@@ -1620,14 +1629,11 @@ fn drop_sessions_ends_the_use_of_every_kept_sign_in_of_one_agent() {
     assert_eq!(session(&mut store), [json!("yes"), json!("yes")]);
 
     let before = every_row(&store);
-    let mut host = Stopper::new(&mut store, None);
-    let body = drop_sessions_of(1, 1).to_string();
     assert_eq!(
-        halvo_agent_store::coordinator(&mut host, NOW, body.as_bytes()),
-        Ok(stored_reply(2)),
-        "the bound origin and the one that the bindings no longer hold; no row for an incomplete revision"
+        coordinator(&mut store, drop_sessions_of(1, 1)),
+        Ok(stored_reply(0)),
+        "the body stores no row"
     );
-    assert_eq!(host.commits, 1, "every drop row in one commit");
     let after = every_row(&store);
     let sessions = AGENT_KINDS
         .iter()
@@ -1638,20 +1644,24 @@ fn drop_sessions_ends_the_use_of_every_kept_sign_in_of_one_agent() {
             assert_eq!(was, is, "{:?}", AGENT_KINDS[i].0);
         }
     }
-    let (was, is) = (&before[sessions], &after[sessions]);
-    assert!(was.iter().all(|r| is.contains(r)), "no stored row changes");
-    let mut new: Vec<Value> = is
-        .iter()
-        .filter(|r| !was.contains(r))
-        .map(|r| serde_json::from_str(r).expect("a session row"))
-        .collect();
-    new.sort_by_key(|r| r["origin"].to_string());
-    assert_eq!(is.len(), was.len() + new.len());
-    let drop_row = |origin: &str, rev: u32| json!({"v": 1, "workflow": wf(1), "agent": agent(1), "origin": origin, "rev": rev, "part": 1, "of": 1, "day": TODAY, "data": ["="]});
+    let under = |w: u32| -> Vec<String> {
+        before[sessions]
+            .iter()
+            .filter(|r| {
+                serde_json::from_str::<Value>(r).expect("a session row")["workflow"] == wf(w)
+            })
+            .cloned()
+            .collect()
+    };
     assert_eq!(
-        new,
-        [drop_row(UNBOUND, 3), drop_row(BOUND, 2)],
-        "one revision of the drop form after every stored revision of each origin"
+        under(1).len(),
+        5,
+        "the agent's four parts, two of them of incomplete revisions, and the earlier agent's part"
+    );
+    assert_eq!(
+        after[sessions],
+        under(2),
+        "every row of the kind under the body's workflow leaves, whatever its agent; the other workflow's row stands"
     );
     assert_eq!(
         session(&mut store),
@@ -1665,7 +1675,7 @@ fn drop_sessions_ends_the_use_of_every_kept_sign_in_of_one_agent() {
         Ok(stored_reply(0)),
         "a repeat"
     );
-    assert_eq!(every_row(&store), rows_now, "a repeat stores nothing");
+    assert_eq!(every_row(&store), rows_now, "a repeat removes nothing");
 }
 
 #[test]
@@ -1699,13 +1709,14 @@ fn drop_sessions_is_refused_while_a_run_of_the_agent_is_open() {
     assert_eq!(end_run(&mut store, 1), Ok(accepted()));
     assert_eq!(
         coordinator(&mut store, drop_sessions_of(1, 1)),
-        Ok(stored_reply(1)),
+        Ok(stored_reply(0)),
         "taken after the run's end"
     );
+    assert_eq!(rows(&store, "agent_session"), Vec::<String>::new());
 }
 
 #[test]
-fn a_drop_is_refused_with_day_while_a_kept_row_of_the_origin_lies_after_today() {
+fn a_kept_row_of_a_day_after_today_leaves_at_the_body() {
     const ORIGIN: &str = "http://utility.test:18090";
     let tomorrow = at(NOW.at.0 + NANOS_PER_DAY);
     let mut store = store_with("utility_bill_payment");
@@ -1715,42 +1726,13 @@ fn a_drop_is_refused_with_day_while_a_kept_row_of_the_origin_lies_after_today() 
         "a part kept while the clock stood a day ahead"
     );
     assert_eq!(end_run(&mut store, 1), Ok(accepted()));
-    let before = every_row(&store);
     assert_eq!(
         coordinator(&mut store, drop_sessions_of(1, 1)),
-        Err(declared("day")),
-        "a drop row of today would leave the read a day before the part"
+        Ok(stored_reply(0)),
+        "no refusal day: the removal takes a row whatever its day"
     );
-    assert_eq!(every_row(&store), before, "a refused body stores nothing");
-    assert_eq!(
-        coordinator_at(&mut store, tomorrow, drop_sessions_of(1, 1)),
-        Ok(stored_reply(1)),
-        "taken on the part's day"
-    );
-    let sessions = |store: &MemoryStore| -> Vec<Value> {
-        rows(store, "agent_session")
-            .iter()
-            .map(|r| serde_json::from_str(r).expect("a session row"))
-            .collect()
-    };
-    let drop_row = json!({"v": 1, "workflow": wf(1), "agent": agent(1), "origin": ORIGIN, "rev": 2, "part": 1, "of": 1, "day": TODAY + 1, "data": ["="]});
-    assert!(
-        sessions(&store).contains(&drop_row),
-        "the drop row takes the day of its request"
-    );
-    store.set_clock(at(NOW.at.0 + 35 * NANOS_PER_DAY).at);
-    assert_eq!(
-        sessions(&store).len(),
-        2,
-        "on the day a drop row of the first request would have left the read, the drop stands with the part"
-    );
+    assert_eq!(rows(&store, "agent_session"), Vec::<String>::new());
     assert_eq!(roster(&mut store)["agents"][0]["session"], json!("no"));
-    store.set_clock(at(NOW.at.0 + 36 * NANOS_PER_DAY).at);
-    assert_eq!(
-        sessions(&store),
-        Vec::<Value>::new(),
-        "on the day the drop's own bound ends, the part is out of the read too"
-    );
 }
 
 #[test]
@@ -1771,7 +1753,7 @@ fn after_a_drop_a_run_that_names_the_older_revision_by_its_number_is_refused() {
     assert_eq!(end_run(&mut store, 1), Ok(accepted()));
     assert_eq!(
         coordinator(&mut store, drop_sessions_of(1, 1)),
-        Ok(stored_reply(1))
+        Ok(stored_reply(0))
     );
     start_at(&mut store, NOW, 1, 1, 2).expect("start_run of a later run");
     assert_eq!(
@@ -1779,14 +1761,10 @@ fn after_a_drop_a_run_that_names_the_older_revision_by_its_number_is_refused() {
         Err(declared("binding")),
         "the kept revision, named by its number after the drop"
     );
-    let Ok(RunnerReply::Session(listed)) = read(&mut store, 2, 2) else {
-        panic!("the drop row's own part, which load lists")
-    };
-    assert!(listed.data.is_dropped());
 }
 
 #[test]
-fn after_a_drop_a_part_under_the_drop_row_s_own_number_is_refused() {
+fn after_a_drop_the_next_keep_of_a_site_takes_revision_1() {
     const ORIGIN: &str = "http://utility.test:18090";
     let mut store = store_with("utility_bill_payment");
     assert_eq!(
@@ -1796,13 +1774,18 @@ fn after_a_drop_a_part_under_the_drop_row_s_own_number_is_refused() {
     assert_eq!(end_run(&mut store, 1), Ok(accepted()));
     assert_eq!(
         coordinator(&mut store, drop_sessions_of(1, 1)),
-        Ok(stored_reply(1))
+        Ok(stored_reply(0))
     );
     start_at(&mut store, NOW, 1, 1, 2).expect("start_run of a later run");
     assert_eq!(
-        runner(&mut store, session_part(1, 2, ORIGIN, 2, 2, 2)),
+        runner(&mut store, session_part(1, 2, ORIGIN, 2, 1, 1)),
         Err(declared("binding")),
-        "part 2 of 2 under the drop row's revision, whose stored part names 1"
+        "revision 2, more than one above the newest stored revision, which no row holds"
+    );
+    assert_eq!(
+        runner(&mut store, session_part(1, 2, ORIGIN, 1, 1, 1)),
+        Ok(stored(1)),
+        "revision 1 again"
     );
     let load = runner(
         &mut store,
@@ -1813,8 +1796,8 @@ fn after_a_drop_a_part_under_the_drop_row_s_own_number_is_refused() {
         serde_json::from_str(&load.to_json().expect("the reply's JSON")).expect("the reply's text");
     assert_eq!(
         load["sessions"],
-        json!([{"origin": ORIGIN, "rev": 2, "parts": 1}]),
-        "the load lists the drop row, no kept revision"
+        json!([{"origin": ORIGIN, "rev": 1, "parts": 1}]),
+        "the load lists the new revision 1"
     );
 }
 
