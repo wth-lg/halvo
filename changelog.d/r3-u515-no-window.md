@@ -1,0 +1,1 @@
+- Added: Each agent in the reply of list_agents says whether its next run needs a browser window (the key `window`, yes or no), read from the agent's own runs and kept sign-ins; no part of the app reads it yet.
