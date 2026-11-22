@@ -159,12 +159,13 @@ fn helper_run_value() {
     say("children=1");
     let visible = visible_windows(pid);
     for window in &visible {
-        say(&format!("window {window}"));
+        if window.is_the_crates_event_window() {
+            say(&format!("window of the crate, not shown: {window}"));
+        } else {
+            say(&format!("window {window}"));
+        }
     }
-    let shown: Vec<&Window> = visible
-        .iter()
-        .filter(|window| window.has_an_area())
-        .collect();
+    let shown: Vec<&Window> = visible.iter().filter(|window| window.is_shown()).collect();
     let names: Vec<String> = shown.iter().map(|window| window.to_string()).collect();
     assert!(
         shown.is_empty(),
@@ -173,7 +174,7 @@ fn helper_run_value() {
         names.join("; ")
     );
     say(&format!(
-        "visible_windows=0 with an area, of {} visible",
+        "visible_windows=0 with an area but the crate's event window, of {} visible",
         visible.len()
     ));
     let elevated = token_elevated(process).expect("the app's token reads");
@@ -350,15 +351,39 @@ struct Window {
     bottom: i32,
 }
 
+/// The event window of the windowing crate that Cargo.lock pins (tao 0.37.2): its Windows event
+/// loop makes it at size 0, layered, click-through and a tool window, and keeps it in the
+/// visible state so that it receives paint messages; the system reads it at 16 by 16 at the
+/// screen's upper left corner (run 45044830383 printed it so).
+const CRATE_EVENT_WINDOW_CLASS: &str = "Tao Thread Event Target";
+const CRATE_EVENT_WINDOW_STYLE: u32 = 0x9400_0000;
+const CRATE_EVENT_WINDOW_EXSTYLE: u32 = 0x0808_00a0;
+const CRATE_EVENT_WINDOW_MOST: i32 = 16;
+
 impl Window {
-    /// The case counts as shown a visible window whose rectangle has an area, and no other: a
-    /// window with an area is one that a person can see, a tool window among them, and a window
-    /// of no area is not. The windowing crate of the app keeps one top-level window of 0 by 0 in
-    /// the visible state, so that it receives paint messages (tao, the event target window of
-    /// its Windows event loop); it falls out by its size, and any other window that the app shows
-    /// at a hidden start fails the case by its name and size.
+    /// The case counts as shown every visible window whose rectangle has an area, a tool window
+    /// among them, but one: the crate's event window, named exactly by its class, its empty
+    /// title, its style and extended style and a rectangle of at most 16 by 16 at 0,0. No run
+    /// shows whether Windows draws that window, which is a named limit of the unit and a hand
+    /// check of the owner's sitting; any other window that the app shows at a hidden start fails
+    /// the case by its name and size.
+    fn is_shown(&self) -> bool {
+        self.has_an_area() && !self.is_the_crates_event_window()
+    }
+
     fn has_an_area(&self) -> bool {
         self.right > self.left && self.bottom > self.top
+    }
+
+    fn is_the_crates_event_window(&self) -> bool {
+        self.class == CRATE_EVENT_WINDOW_CLASS
+            && self.title.is_empty()
+            && self.style == CRATE_EVENT_WINDOW_STYLE
+            && self.extended == CRATE_EVENT_WINDOW_EXSTYLE
+            && self.left == 0
+            && self.top == 0
+            && (0..=CRATE_EVENT_WINDOW_MOST).contains(&self.right)
+            && (0..=CRATE_EVENT_WINDOW_MOST).contains(&self.bottom)
     }
 }
 
