@@ -1194,6 +1194,52 @@ fn history_of(run: &Value) -> Option<RunHistory> {
     })
 }
 
+/// The rows of `agent_reply` of the run `run` of the agent, read by r3 U9.8's coordinator body `list_replies` through
+/// `call`, which sends one coordinator body and gives its result: from `after` null, then with the message id that
+/// the reply's `next` names, to `next` null. Each entry of `run` gives its state, in the reply's order: a name of
+/// `ReplyState` is `ReplyRow::Read` of it and any other is `ReplyRow::Unreadable`; an entry of another run is dropped.
+/// A refusal of the owner passes under its own name. A reply that the reader cannot trust is `no_service`, with no row
+/// of the pages before it: one whose `replies` is no list, an entry whose run is no run id or whose state is no text,
+/// and a `next` that is neither null nor a message id greater by its bytes than the `after` sent, since the reply
+/// ascends by message id; so a store that names the same page again ends the read.
+fn list_replies(
+    mut call: impl FnMut(&str) -> Result<Value, PortError>,
+    workflow: &WorkflowId,
+    agent: &AgentId,
+    run: &RunId,
+) -> Result<Vec<ReplyRow>, PortError> {
+    let mut rows = Vec::new();
+    let mut after: Option<String> = None;
+    loop {
+        let reply = call(&format!(
+            r#"{{"op":"list_replies","workflow":"{}","agent":"{}","after":{}}}"#,
+            workflow.as_str(),
+            agent.as_str(),
+            after.as_deref().map_or("null".to_owned(), json_str)
+        ))?;
+        for entry in reply["replies"].as_array().ok_or(PortError::NoService)? {
+            let of = entry["run"].as_str().and_then(|r| RunId::parse(r).ok());
+            let state = entry["state"].as_str();
+            let (Some(of), Some(state)) = (of, state) else {
+                return Err(PortError::NoService);
+            };
+            if of == *run {
+                rows.push(
+                    halvo_coord::types::ReplyState::parse(state)
+                        .map_or(ReplyRow::Unreadable, ReplyRow::Read),
+                );
+            }
+        }
+        match reply.get("next") {
+            Some(Value::Null) => return Ok(rows),
+            Some(Value::String(next)) if after.as_ref().is_none_or(|before| next > before) => {
+                after = Some(next.clone());
+            }
+            _ => return Err(PortError::NoService),
+        }
+    }
+}
+
 impl Owner for Product {
     type Config = AgentConfig;
 
@@ -1309,15 +1355,15 @@ impl Owner for Product {
             .ok_or(PortError::NoService)
     }
 
-    /// The rows of `agent_reply` are read by the read that serves `interface_read` alone (ruling RD-65 (d)), which
-    /// no request of the relay carries yet: the read does not answer.
+    /// The rows of `agent_reply` of the run `run`, read by `list_replies` with the body `list_replies` of r3 U9.8, a
+    /// `coordinator_write` on the app's own owner stream.
     fn replies(
         &self,
-        _workflow: &WorkflowId,
-        _agent: &AgentId,
-        _run: &RunId,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        run: &RunId,
     ) -> Result<Vec<ReplyRow>, PortError> {
-        Err(PortError::NoService)
+        list_replies(|body| self.coordinator(body), workflow, agent, run)
     }
 
     fn overlaps(
@@ -1790,6 +1836,102 @@ mod tests {
             .map(event_of)
             .collect();
         assert_eq!(read, events.into_iter().map(Some).collect::<Vec<_>>());
+    }
+
+    /// r4 U5.4r, sentence 1: the read of `Owner::replies` sends r3 U9.8's body `list_replies` with the keys `op`,
+    /// `workflow`, `agent` and `after` in that order, `after` null and then the `next` of the page before, to `next`
+    /// null, and keeps the states of the asked run in the reply's order: a state that the core lacks is `Unreadable`,
+    /// and an entry of another run is dropped.
+    #[test]
+    fn the_read_of_replies_pages_by_after_and_keeps_the_states_of_the_asked_run() {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let run = RunId::parse(&"d1".repeat(16)).unwrap();
+        let other = "d2".repeat(16);
+        let mut pages = std::collections::VecDeque::from([
+            format!(
+                r#"{{"replies":[{{"message":"m1","run":"{run}","state":"committed"}},{{"message":"m2","run":"{other}","state":"committed"}},{{"message":"m3","run":"{run}","state":"unknown"}}],"next":"m3"}}"#
+            ),
+            format!(
+                r#"{{"replies":[{{"message":"m4","run":"{run}","state":"sent"}}],"next":null}}"#
+            ),
+        ]);
+        let mut sent = Vec::new();
+        let rows = list_replies(
+            |body| {
+                sent.push(body.to_owned());
+                let page = pages.pop_front().ok_or(PortError::NoService)?;
+                Ok(serde_json::from_str(&page).unwrap())
+            },
+            &workflow,
+            &agent,
+            &run,
+        );
+        assert_eq!(
+            sent,
+            [
+                r#"{"op":"list_replies","workflow":"f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1","agent":"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1","after":null}"#,
+                r#"{"op":"list_replies","workflow":"f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1","agent":"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1","after":"m3"}"#,
+            ]
+        );
+        assert_eq!(
+            rows,
+            Ok(vec![
+                ReplyRow::Read(halvo_coord::types::ReplyState::Committed),
+                ReplyRow::Read(halvo_coord::types::ReplyState::Unknown),
+                ReplyRow::Unreadable,
+            ])
+        );
+    }
+
+    /// r4 U5.4r, sentence 2: no answer is never an empty list. The owner's refusal passes under its own name after one
+    /// call, a call that fails is `no_service`, and so is a reply that the reader cannot trust: one with no list
+    /// `replies`, and a `next` that is not greater than the `after` sent, which answers no row of the page before it.
+    #[test]
+    fn the_read_of_replies_passes_a_refusal_and_answers_no_service_for_a_reply_that_it_cannot_trust(
+    ) {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let run = RunId::parse(&"d1".repeat(16)).unwrap();
+        let read = |answers: Vec<Result<Value, PortError>>| {
+            let mut answers = std::collections::VecDeque::from(answers);
+            let mut calls = 0;
+            let rows = list_replies(
+                |_| {
+                    calls += 1;
+                    answers.pop_front().unwrap_or(Err(PortError::NoService))
+                },
+                &workflow,
+                &agent,
+                &run,
+            );
+            (rows, calls)
+        };
+        let page =
+            |text: &str| -> Result<Value, PortError> { Ok(serde_json::from_str(text).unwrap()) };
+        assert_eq!(
+            read(vec![Err(PortError::Refused(name("no_workflow")))]),
+            (Err(PortError::Refused(name("no_workflow"))), 1)
+        );
+        assert_eq!(
+            read(vec![Err(PortError::Refused(name("binding")))]),
+            (Err(PortError::Refused(name("binding"))), 1)
+        );
+        assert_eq!(
+            read(vec![Err(PortError::NoService)]),
+            (Err(PortError::NoService), 1)
+        );
+        assert_eq!(
+            read(vec![page(r#"{"next":null}"#)]),
+            (Err(PortError::NoService), 1)
+        );
+        let first = format!(
+            r#"{{"replies":[{{"message":"m1","run":"{run}","state":"committed"}},{{"message":"m2","run":"{run}","state":"lost"}}],"next":"m2"}}"#
+        );
+        assert_eq!(
+            read(vec![page(&first), page(r#"{"replies":[],"next":"m2"}"#)]),
+            (Err(PortError::NoService), 2)
+        );
     }
 
     /// r4 U2.4y, sentence 3: the body `drop_sessions` goes out as r3 U5.2c built it, with the keys `op`,
