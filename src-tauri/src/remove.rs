@@ -4,7 +4,7 @@ use std::sync::Arc;
 use halvo_control::model::APP_BUNDLE_ID;
 use halvo_control::paths::{
     one_line, AccountLookup, DataDir, RemovedBy, ENTRIES, INTENT_FILE, KEYCHAIN_ITEMS,
-    MACOS_LAUNCH_AGENTS_DIR, STATE_FILE,
+    MACOS_DATA_DIR, MACOS_LAUNCH_AGENTS_DIR, STATE_FILE,
 };
 
 use crate::commands::capture::{run_offline, Before, Offline, WithoutTheChild};
@@ -51,6 +51,7 @@ enum Last {
     Id,
     IdThen(&'static str),
     InId(&'static str),
+    Fixed(&'static str),
 }
 
 struct Row {
@@ -67,7 +68,9 @@ const APPLICATION_SUPPORT: &str = "Application Support";
 
 const OLD_CONSENT_FILE: &str = "consent.json";
 
-const ROWS: [Row; 5] = [
+const DATA_FOLDER_NAME: &str = MACOS_DATA_DIR[2];
+
+const ROWS: [Row; 6] = [
     Row {
         step: Step::LoginItem,
         parents: &MACOS_LAUNCH_AGENTS_DIR,
@@ -103,11 +106,19 @@ const ROWS: [Row; 5] = [
         kind: Kind::EmptyFolder,
         at_start: true,
     },
+    Row {
+        step: Step::AppFiles,
+        parents: &[LIBRARY, "Caches", DATA_FOLDER_NAME],
+        last: Last::Fixed("agents"),
+        kind: Kind::Tree,
+        at_start: false,
+    },
 ];
 
-const KEPT: [&[&str]; 5] = [
+const KEPT: [&[&str]; 6] = [
     &[LIBRARY],
     &[LIBRARY, "Caches"],
+    &[LIBRARY, "Caches", DATA_FOLDER_NAME],
     &[LIBRARY, "WebKit"],
     &[LIBRARY, APPLICATION_SUPPORT],
     &MACOS_LAUNCH_AGENTS_DIR,
@@ -123,8 +134,9 @@ struct DataFolder {
 }
 
 /// Every place that a removal may take, each made from the home, the bundle id and a fixed last
-/// part, or from the data folder and a name of halvo-control's table, and each checked by one
-/// check before any removal.
+/// part, or from the home, the default data folder's name and a fixed last part (the cache place
+/// of the agents' browser), or from the data folder and a name of halvo-control's table, and each
+/// checked by one check before any removal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Places {
     login_item: Option<Place>,
@@ -230,7 +242,8 @@ fn path_of(home: &Path, bundle_id: &str, row: &Row) -> Result<PathBuf, Refused> 
             path.push(bundle_id);
             path.push(name);
         }
-        Last::IdThen(_) | Last::InId(_) => return Err(Refused::LastPart),
+        Last::Fixed(name) if one_name(name) => path.push(name),
+        Last::IdThen(_) | Last::InId(_) | Last::Fixed(_) => return Err(Refused::LastPart),
     }
     Ok(path)
 }
@@ -732,6 +745,16 @@ mod tests {
             &library(home, &[APPLICATION_SUPPORT, ID, OLD_CONSENT_FILE]),
             "{}",
         );
+        write(
+            &library(
+                home,
+                &[
+                    "Caches", "Halvo", "agents", "profiles", "run-1", "profile", "Default",
+                    "Cache", "data_0",
+                ],
+            ),
+            "a page that an agent's browser loaded",
+        );
     }
 
     fn tree(dir: &Path) -> BTreeMap<PathBuf, String> {
@@ -926,6 +949,7 @@ mod tests {
             library(home, &[APPLICATION_SUPPORT, "notes of the person.txt"]),
             library(home, &[APPLICATION_SUPPORT, other, "settings.json"]),
             library(home, &[APPLICATION_SUPPORT, ID, "kept by the person.txt"]),
+            library(home, &["Caches", "Halvo", "model.lock"]),
         ];
         for path in &placed {
             write(path, "the person's");
@@ -939,6 +963,7 @@ mod tests {
             library(home, &["Caches", ID]),
             library(home, &["WebKit", ID]),
             library(home, &[APPLICATION_SUPPORT, ID, OLD_CONSENT_FILE]),
+            library(home, &["Caches", "Halvo", "agents"]),
             data.state_file(),
             data.intent_file(),
         ];
