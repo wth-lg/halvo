@@ -2369,9 +2369,11 @@ fn handback_line(w: u32, a: u32, r: u32) -> Value {
     })
 }
 
-/// r3 U5.15 (the coordinator's ruling of its log line 16446): the next run needs no window where the agent's newest
-/// started run completed and either its log holds no `handback` row, or `session` reads `yes` and its log holds no
-/// `stopped` row with the cause `session_size`; it needs one in every other case, also after an earlier completed run.
+/// r3 U5.15 (the coordinator's rulings of its log lines 16446 and 16516): the next run needs no window where the
+/// agent's newest started run completed and either `session` reads `yes` and that run's log does not hold both a
+/// `handback` row and a `stopped` row with the cause `session_size`, or `session` reads `no` and no run of the agent in
+/// the log's reach opened a hand-back of a sign-in (a `handback` row that is not a failed step's item, the row after
+/// its `step_failed` row); it needs one in every other case, also after an earlier completed run.
 #[test]
 fn the_roster_asks_for_no_window_after_a_run_that_completed_and_met_no_sign_in_field() {
     const SITE: &str = "http://utility.test:18090";
@@ -2446,7 +2448,7 @@ fn the_roster_asks_for_no_window_after_a_run_that_completed_and_met_no_sign_in_f
     finish_of(&mut store, 1, 1, 6, "completed");
     assert_eq!(
         session_and_window(&mut store),
-        [yes.clone(), no],
+        [yes.clone(), no.clone()],
         "a kept revision and a completed run with a session_size row and no hand-back row"
     );
 
@@ -2461,7 +2463,100 @@ fn the_roster_asks_for_no_window_after_a_run_that_completed_and_met_no_sign_in_f
     finish_of(&mut store, 1, 1, 7, "completed");
     assert_eq!(
         session_and_window(&mut store),
-        [yes.clone(), yes],
+        [yes.clone(), yes.clone()],
         "a completed run with a hand-back row and a session_size row"
+    );
+
+    start_at(&mut store, second(7), 1, 1, 8).expect("start_run of run 8");
+    finish_of(&mut store, 1, 1, 8, "completed");
+    assert_eq!(
+        session_and_window(&mut store),
+        [yes.clone(), no.clone()],
+        "a kept sign-in used by a completed run with no hand-back row"
+    );
+    assert_eq!(
+        coordinator(&mut store, drop_sessions_of(1, 1)),
+        Ok(stored_reply(0))
+    );
+    assert_eq!(
+        session_and_window(&mut store),
+        [no.clone(), yes.clone()],
+        "the kept sign-in gone by Stop using its sign-in, a run in reach that opened a sign-in hand-back"
+    );
+    start_at(&mut store, second(8), 1, 1, 9).expect("start_run of run 9");
+    assert_eq!(
+        runner(&mut store, session_part(1, 9, SITE, 1, 1, 1)),
+        Ok(stored(1))
+    );
+    finish_of(&mut store, 1, 1, 9, "completed");
+    assert_eq!(
+        session_and_window(&mut store),
+        [yes.clone(), no.clone()],
+        "kept again by a completed run with no hand-back row"
+    );
+    store.set_clock(at(NOW.at.0 + 35 * NANOS_PER_DAY).at);
+    assert_eq!(
+        session_and_window(&mut store),
+        [no.clone(), yes.clone()],
+        "the kept sign-in gone after its 35 days, a run in reach that opened a sign-in hand-back"
+    );
+
+    let mut other = unstarted("utility_bill_payment");
+    start_at(&mut other, NOW, 1, 1, 1).expect("start_run of the other store's run 1");
+    assert_eq!(
+        runner(&mut other, session_part(1, 1, SITE, 1, 1, 1)),
+        Ok(stored(1))
+    );
+    finish_of(&mut other, 1, 1, 1, "completed");
+    assert_eq!(
+        coordinator(&mut other, drop_sessions_of(1, 1)),
+        Ok(stored_reply(0))
+    );
+    assert_eq!(
+        session_and_window(&mut other),
+        [no.clone(), no.clone()],
+        "a kept sign-in gone, and no run in reach that opened a sign-in hand-back"
+    );
+    start_at(&mut other, second(1), 1, 1, 2).expect("start_run of the other store's run 2");
+    step_failed(&mut other, 1, 1, 2, "step_failed");
+    log_line(&mut other, 1, 2, handback_line(1, 1, 2));
+    finish_of(&mut other, 1, 1, 2, "handed_back");
+    start_at(&mut other, second(2), 1, 1, 3).expect("start_run of the other store's run 3");
+    finish_of(&mut other, 1, 1, 3, "completed");
+    assert_eq!(
+        session_and_window(&mut other),
+        [no.clone(), no],
+        "a failed step's item alone in reach, nothing kept, a completed newest run"
+    );
+    start_at(&mut other, second(3), 1, 1, 4).expect("start_run of the other store's run 4");
+    log_line(&mut other, 1, 4, handback_line(1, 1, 4));
+    finish_of(&mut other, 1, 1, 4, "completed");
+    assert_eq!(
+        session_and_window(&mut other),
+        [json!("no"), yes],
+        "a completed run with a hand-back row and nothing kept"
+    );
+
+    let mut third = unstarted("utility_bill_payment");
+    start_at(&mut third, NOW, 1, 1, 1).expect("start_run of the third store's run 1");
+    let mut asked = handback_line(1, 1, 1);
+    asked["seq"] = json!(2);
+    let mut failed = handback_line(1, 1, 1);
+    failed["seq"] = json!(3);
+    failed["event"] = json!("step_failed");
+    failed["step"] = json!(1);
+    failed["cause"] = json!("step_failed");
+    let mut item = handback_line(1, 1, 1);
+    item["seq"] = json!(4);
+    for line in [asked, failed, item] {
+        log_line(&mut third, 1, 1, line);
+    }
+    finish_of(&mut third, 1, 1, 1, "handed_back");
+    start_at(&mut third, second(1), 1, 1, 2).expect("start_run of the third store's run 2");
+    finish_of(&mut third, 1, 1, 2, "completed");
+    assert_eq!(
+        session_and_window(&mut third),
+        [json!("no"), json!("yes")],
+        "an earlier run in reach with a sign-in's hand-back, then a failed step's item, and nothing kept"
     );
 }
