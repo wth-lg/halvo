@@ -12,7 +12,7 @@ use base64::Engine;
 use halvo_control::model::UtcDay;
 use halvo_control::paths::DataDir;
 
-use super::{at_start, rows, run, AtStart, Hands, Offline, Owner, Row, SystemHands};
+use super::{at_start, rows, run, start_time_of, AtStart, Hands, Offline, Owner, Row, SystemHands};
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{KeyCustody, KeyLabel, RootId, WrappedKey};
 use crate::daemon::custody_policy::{self, Custody, OpenAs, Selection};
@@ -172,6 +172,7 @@ const SPARE: Row = Row {
     name: "spare",
     key_files: &["spare/spare.key"],
     owner_pid_file: Some("spare/owner.pid"),
+    marks_dir: None,
 };
 
 #[test]
@@ -287,6 +288,7 @@ fn a_delete_ends_the_derived_key_and_a_new_store_makes_a_new_one() {
             name: "derived",
             key_files: &["derived/master.key"],
             owner_pid_file: Some("derived/owner.pid"),
+            marks_dir: None,
         });
     }
     let how = Offline {
@@ -766,4 +768,149 @@ fn a_finish_whose_intent_cannot_be_removed_is_not_whole() {
         AtStart::Finished { whole: false },
         "a finish whose intent stays read whole"
     );
+}
+
+/// A plain child of the test in a runner's or a browser's place: /bin/cat, which lives until the end of its
+/// standard input, which the test holds. A thread reaps it and hands its exit status over; dropped, the stand
+/// closes that input, so the test itself ends no process by its pid.
+struct Stand {
+    pid: u32,
+    created: u64,
+    input: Option<std::process::ChildStdin>,
+    ended: mpsc::Receiver<std::process::ExitStatus>,
+}
+
+impl Stand {
+    fn start() -> Stand {
+        let mut child = Command::new("/bin/cat")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap();
+        let input = child.stdin.take();
+        let pid = child.id();
+        let created = start_time_of(pid).unwrap();
+        let (tx, ended) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(child.wait().unwrap());
+        });
+        Stand {
+            pid,
+            created,
+            input,
+            ended,
+        }
+    }
+
+    /// The line `<word> pid=<n> created=<microseconds> group=<n>` of a mark, with `created` as the creation time.
+    fn line(&self, word: &str, created: u64) -> String {
+        format!(
+            "{word} pid={} created={created} group={}\n",
+            self.pid, self.pid
+        )
+    }
+}
+
+impl Drop for Stand {
+    fn drop(&mut self) {
+        drop(self.input.take());
+        let _ = self.ended.recv_timeout(Duration::from_secs(60));
+    }
+}
+
+/// Writes the mark of the run `run` under agents/marks of `dir` with the bytes `text`.
+fn write_mark(dir: &Path, run: &str, text: &[u8]) {
+    let marks = dir.join("agents/marks");
+    std::fs::create_dir_all(&marks).unwrap();
+    std::fs::write(marks.join(run), text).unwrap();
+}
+
+fn product_how(table: &[Row]) -> Offline<'_> {
+    Offline {
+        rows: table,
+        select: custody_policy::of_this_build,
+        hands: &SystemHands,
+    }
+}
+
+#[test]
+fn a_runner_that_a_mark_names_is_ended() {
+    use std::os::unix::process::ExitStatusExt;
+    let dir = kept_dir("delete-all-marks-ended-");
+    a_store_with_a_segment(&dir);
+    let runner = Stand::start();
+    let browser = Stand::start();
+    let run = "60000000000000000000000000000001";
+    let text = format!(
+        "mark run={run}\n{}{}",
+        runner.line("runner", runner.created),
+        browser.line("browser", browser.created)
+    );
+    write_mark(&dir, run, text.as_bytes());
+    let table = rows();
+
+    let (status, out, err) = offline_run(&dir, &product_how(&table));
+
+    for (name, stand) in [("runner", &runner), ("browser", &browser)] {
+        let ended = stand
+            .ended
+            .recv_timeout(Duration::from_secs(30))
+            .unwrap_or_else(|e| panic!("the {name} did not end: {e}; out: {out} err: {err}"));
+        assert_eq!(ended.signal(), Some(libc::SIGTERM), "the {name}");
+    }
+    assert_eq!((status, err.as_str()), (0, ""), "out: {out}");
+    assert!(!dir.join("agents").exists());
+}
+
+#[test]
+fn a_live_pid_with_another_creation_time_is_left() {
+    let dir = kept_dir("delete-all-marks-left-");
+    a_store_with_a_segment(&dir);
+    let runner = Stand::start();
+    let run = "60000000000000000000000000000002";
+    let text = format!(
+        "mark run={run}\n{}",
+        runner.line("runner", runner.created + 1)
+    );
+    write_mark(&dir, run, text.as_bytes());
+    let table = rows();
+
+    let (status, out, err) = offline_run(&dir, &product_how(&table));
+
+    assert_eq!(
+        start_time_of(runner.pid),
+        Some(runner.created),
+        "the process was ended; out: {out} err: {err}"
+    );
+    assert!(runner.ended.try_recv().is_err(), "the process ended");
+    assert_eq!((status, err.as_str()), (0, ""), "out: {out}");
+    assert!(!dir.join("agents").exists());
+}
+
+#[test]
+fn an_unreadable_mark_is_passed_and_counted() {
+    let dir = kept_dir("delete-all-marks-unreadable-");
+    a_store_with_a_segment(&dir);
+    write_mark(
+        &dir,
+        "60000000000000000000000000000003",
+        b"mark run=60000000000000000000000000000004\n",
+    );
+    write_mark(
+        &dir,
+        "60000000000000000000000000000005",
+        b"mark run=6000000000000000000000000000000\xff\n",
+    );
+    let table = rows();
+
+    let (status, out, err) = offline_run(&dir, &product_how(&table));
+
+    assert_eq!(
+        err,
+        "halvo-capture: 2 of the runs' marks could not be read and were passed; what they name was not ended\n",
+        "out: {out}"
+    );
+    assert_eq!(status, 0, "out: {out}");
+    assert!(out.contains(" entries_left=0 "), "{out}");
+    assert!(!dir.join("agents").exists());
 }
