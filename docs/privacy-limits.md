@@ -139,13 +139,16 @@ docs-2 confirms each sentence of this section against the merged code.
 A person's agent runs in a program of its own, halvo-runner. That program links
 no crate that opens a store (check 21, `scripts/r1/ci.d/21-tree-bans.sh`), and
 no client of the capture service, which can pause the capture and delete
-everything. The stored records that it gets are the answers to the eleven
+everything. The stored records that it gets are the answers to the twelve
 runner bodies that its supervisor answers, and a runner body answers records of
 these kinds alone:
 
 - `agent_config`, `agent_finished`, `agent_playbook`, `agent_bindings`,
   `agent_session`, `agent_start` and `agent_reply`;
 - the target of a `learn_edit` row, laid on a step of `load_steps`.
+
+The twelfth body, `drop_session`, answers no record: it makes Halvo stop using
+the kept sign-in of one site of the agent.
 
 The test `a_runner_body_answers_no_kind_outside_the_closed_list`
 (`crates/halvo-learn-store/src/tests/kinds.rs`) holds that list.
