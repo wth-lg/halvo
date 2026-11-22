@@ -271,7 +271,9 @@ impl Runner {
     /// Where the store refuses a part with `binding`, whichever part, as it does at a number where a revision that a
     /// fault cut between its parts left a part with other data or another count of parts, the run takes the next
     /// number and stores from part 1 again, at most `NUMBERS_MAX` numbers in all. A first part equal to the one that
-    /// the cut left, with the same count, is answered as stored, and the refusal comes at a later part.
+    /// the cut left, with the same count, is answered as stored; a refusal then comes at a later part only where the
+    /// cut left that part too, with other data. Where the cut left part 1 alone, the store takes the later parts and
+    /// the revision stands whole at that number.
     fn put_revision(&mut self, origin: &WebOrigin, parts: Vec<SessionData>) -> Result<(), Broken> {
         let Some(of) = u32::try_from(parts.len()).ok().and_then(NonZeroU32::new) else {
             return Ok(());
