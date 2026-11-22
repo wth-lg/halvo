@@ -212,7 +212,11 @@ names! {
     /// `senders_unread` of a slot of senders that its reader refuses at the load before the list (A5.1).
     /// `reproposed` is the cause of the runner's end of an effect that it then proposes again, and stands only in a
     /// `rejected` row of an effect with a null approval (A7.4). `no_browser` stands in a `stopped` line, the line of a
-    /// run given no `--browser` whose runner found no browser at the fixed places of its system.
+    /// run given no `--browser` whose runner found no browser at the fixed places of its system. `amount_differs` and
+    /// `amount_unread` stand in the `stopped` line of the step of a `payment` or a `purchase` whose effect is
+    /// `committed`, from the runner's read of the page after the reply (r3 U4.1w-2): `amount_differs` where the page
+    /// names another amount than the kept `amount`, after which the run makes no further step and ends with that cause;
+    /// `amount_unread` where the page names no amount, after which the run goes on.
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -249,6 +253,8 @@ names! {
         SendersUnread = "senders_unread",
         Reproposed = "reproposed",
         NoBrowser = "no_browser",
+        AmountDiffers = "amount_differs",
+        AmountUnread = "amount_unread",
     }
 }
 

@@ -1,9 +1,9 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use super::{rows, start_time_of, walk, Hands, Owner, SystemHands};
+use super::{held, rows, start_time_of, walk, Hands, Owner, SystemHands};
 
 const OWNER_VAR: &str = "HALVO_DELETE_WALK_OWNER";
 const OWNER_LIFE: Duration = Duration::from_secs(120);
@@ -278,4 +278,78 @@ fn the_delete_walk_leaves_the_row_of_an_owner_that_it_may_not_open() {
     let walked = walk(dir, &rows, true, &hands);
     assert_eq!(walked.left, 0, "case 2: {walked:?}");
     assert!(!dir.join("derived").exists(), "case 2: the row stands");
+}
+
+/// A handle on `folder` that shares its reading and writing and not its
+/// deletion, as a scanner or a program that has not let go of the folder yet
+/// holds it.
+fn a_holder_of(folder: &Path) -> std::fs::File {
+    use std::os::windows::fs::OpenOptionsExt;
+    use windows::Win32::Storage::FileSystem::{
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    };
+    std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode((FILE_SHARE_READ | FILE_SHARE_WRITE).0)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS.0)
+        .open(folder)
+        .expect("the holder opens the folder")
+}
+
+/// The folder of the row derived with one file in it and no owner.pid.
+fn a_derived_folder(dir: &Path) -> PathBuf {
+    let folder = dir.join("derived");
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(folder.join("kept"), b"kept").unwrap();
+    folder
+}
+
+#[test]
+fn a_folder_that_a_holder_lets_go_inside_the_bound_is_removed_and_the_walk_leaves_no_row() {
+    const HOLD: Duration = Duration::from_millis(300);
+    let _bound = held::length_on_this_thread(HOLD * 10);
+    let root = tempfile::tempdir().unwrap();
+    let dir = root.path();
+    let folder = a_derived_folder(dir);
+    let holder = a_holder_of(&folder);
+    let held_from = Instant::now();
+    let letting_go = std::thread::spawn(move || {
+        std::thread::sleep(HOLD);
+        drop(holder);
+    });
+
+    let walked = walk(dir, &rows(), true, &SystemHands);
+    let took = held_from.elapsed();
+    letting_go.join().unwrap();
+    assert_eq!(walked.left, 0, "{walked:?}");
+    assert!(!folder.exists(), "the row's folder stands");
+    assert!(
+        took >= HOLD,
+        "the walk ended after {took:?}, before the holder let go: the hold refused no removal"
+    );
+}
+
+#[test]
+fn a_folder_that_is_held_past_the_bound_leaves_its_row_and_the_walk_ends_at_the_bound() {
+    const BOUND: Duration = Duration::from_secs(1);
+    let _bound = held::length_on_this_thread(BOUND);
+    let root = tempfile::tempdir().unwrap();
+    let dir = root.path();
+    let folder = a_derived_folder(dir);
+    let holder = a_holder_of(&folder);
+
+    let started = Instant::now();
+    let walked = walk(dir, &rows(), true, &SystemHands);
+    let took = started.elapsed();
+    drop(holder);
+    assert_eq!(walked.left, 1, "{walked:?}");
+    assert!(folder.exists(), "the held folder went");
+    assert!(
+        took >= BOUND,
+        "the walk ended after {took:?}, before its bound"
+    );
+    assert!(
+        took < BOUND * 2,
+        "the walk ended after {took:?}, past twice its bound"
+    );
 }

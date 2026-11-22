@@ -34,9 +34,12 @@ use halvo_schema::executable::{
 };
 use halvo_schema::{AgentId, Category, WorkflowId};
 
+use halvo_schema::executable::step::WebTarget;
+use halvo_schema::executable::ExecutableStep;
+
 use super::Paused;
 use crate::link::{encode, Link};
-use crate::run::Runner;
+use crate::run::{Failure, Runner, Stop};
 
 /// The case of A5.4 for which a maker pauses a request.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -478,6 +481,8 @@ pub(crate) struct Plan {
     pub(crate) clock: Arc<AtomicU64>,
     /// The run's `--utc-offset`.
     pub(crate) utc_offset_s: i32,
+    /// What the supervisor does once, when it has read the first `begin` row and before it answers it.
+    pub(crate) on_begin: Option<Box<dyn FnOnce() + Send>>,
 }
 
 impl Plan {
@@ -501,6 +506,7 @@ impl Plan {
             wall_s: None,
             clock: Arc::default(),
             utc_offset_s: 0,
+            on_begin: None,
         }
     }
 }
@@ -649,6 +655,11 @@ fn supervise(
         };
         let begun = matches!(&frame, FromRunner::Store(s)
             if matches!(s.request.body(), RunnerCall::Effect(b) if b.record.state == EffectState::Releasing));
+        if begun {
+            if let Some(on_begin) = plan.on_begin.take() {
+                on_begin();
+            }
+        }
         let cancel_now = plan
             .cancel_before
             .as_mut()
@@ -749,6 +760,86 @@ pub(crate) fn run_many_path(
         !data_dir().exists(),
         "the suite's runner writes nothing under its data directory"
     );
+    Record {
+        frames,
+        after_end,
+        status,
+    }
+}
+
+/// Runs the web step `step` of an agent of `category` with `bindings` in this process on the stand-in browser `web`,
+/// with the values `kept` and the extracts `extracts` that earlier steps left, against the in-memory supervisor, and
+/// ends the run as the runner ends one whose step of an effect class failed: its `step_failed` row, then the outcome
+/// `failed` with the step's cause.
+pub(crate) fn run_web_step(
+    category: Category,
+    bindings: (Vec<WebOrigin>, Vec<Slot>),
+    web: crate::web::Web,
+    step: &ExecutableStep,
+    kept: HashMap<String, Vec<Vec<halvo_sheet::Value>>>,
+    extracts: HashMap<String, (WebTarget, String)>,
+    plan: Plan,
+) -> Record {
+    let run = RunId::from_random([0x54; 16]);
+    let agent = AgentId::from_random([0x55; 16]);
+    let workflow = WorkflowId::from_random([0x56; 16]);
+    let config = preset(category, workflow.clone(), agent.clone()).expect("a preset");
+    let loaded = LoadReply {
+        config: config.clone(),
+        playbook: None,
+        next_playbook: NonZeroU32::MIN,
+        bindings: Some(LoadedBindings {
+            rev: NonZeroU32::MIN,
+            origins: bindings.0.clone(),
+            slots: bindings.1.clone(),
+        }),
+        sessions: Vec::new(),
+        start: None,
+    };
+    let data = data_dir().to_string_lossy().into_owned();
+    let words = [
+        "--run",
+        run.as_str(),
+        "--agent",
+        agent.as_str(),
+        "--workflow",
+        workflow.as_str(),
+        "--mode",
+        "replay",
+        "--browser",
+        "none",
+        "--data-dir",
+        &data,
+        "--utc-offset",
+        "0",
+    ];
+    let words: Vec<OsString> = words.iter().map(OsString::from).collect();
+    let args = crate::args::parse(&words).expect("the arguments");
+    let (to_runner_read, to_runner) = std::io::pipe().expect("a pipe");
+    let (from_runner, from_runner_write) = std::io::pipe().expect("a pipe");
+    let link = Link::start(
+        Box::new(to_runner_read),
+        Box::new(from_runner_write),
+        Box::new(|| {}),
+    );
+    let supervisor =
+        std::thread::spawn(move || supervise(from_runner, to_runner, config, bindings, plan));
+    let mut runner = Runner::new(args, link);
+    runner.web = Some(web);
+    runner.kept = kept;
+    runner.extracts = extracts;
+    let end = match runner.web_step(step, &loaded) {
+        Ok(()) => Ok(Outcome::Completed),
+        Err(Failure::Stop(stop)) => Err(stop),
+        Err(Failure::Step(cause)) => {
+            match runner.log(LogEvent::StepFailed, Some(step.n), Some(cause)) {
+                Err(stop) => Err(stop),
+                Ok(()) => Err(Stop::End(Outcome::Failed, Some(cause))),
+            }
+        }
+    };
+    let status = runner.close(end);
+    let (frames, after_end) = supervisor.join().expect("the supervisor");
     Record {
         frames,
         after_end,
