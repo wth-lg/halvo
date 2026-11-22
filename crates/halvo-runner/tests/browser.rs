@@ -324,10 +324,11 @@ fn a_run_fills_a_form_and_reads_it_back() {
     assert!(!profile_of(&seen, &sup.run).0.exists());
 }
 
-/// A name field, a password field that holds `SECRET`, and a field that becomes a password field when it is
-/// focused, each of which, at each input, asks its own origin for `/typed` by a synchronous GET, a request that
-/// changes no state and that the rule lets through to a bound origin, so that the fixture sees each act on a field.
-const TYPED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" value="halvo-runner-secret-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="turns" aria-label="Code" onfocus="this.type = 'password'" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+/// A name field, a password field that holds `SECRET`, a field that becomes a password field when it is focused,
+/// and a field whose focus hands the focus on to the password field, each of which, at each input, asks its own
+/// origin for `/typed` by a synchronous GET, a request that changes no state and that the rule lets through to a
+/// bound origin, so that the fixture sees each act on a field.
+const TYPED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" value="halvo-runner-secret-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="turns" aria-label="Code" onfocus="this.type = 'password'" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="hands" aria-label="Pin" onfocus="document.querySelector('[data-testid=secret]').focus()" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
 
 /// `TYPED` with its name field alone.
 const NAMED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
@@ -338,15 +339,21 @@ const SECRET: &str = "halvo-runner-secret-marker";
 /// `TYPED` with its name field and its field that becomes a password field when it is focused, and no password field.
 const TURNS: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="turns" aria-label="Code" onfocus="this.type = 'password'" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
 
+/// `TYPED` with its name field and a field whose focus makes a password field and hands the focus on to it, and no
+/// password field before that focus.
+const HANDS: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="hands" aria-label="Pin" onfocus="var p = document.createElement('input'); p.type = 'password'; p.setAttribute('aria-label', 'Password'); p.oninput = function () { var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {} }; document.body.appendChild(p); p.focus();" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+
 /// U4.1w part 1 (3), U5.1: a step whose `post` fails after it acted, a step whose locator finds no control and a
 /// step whose `pre` fails, on a page with no password field, each log one `step_failed` row with the cause
 /// `step_failed`, never `timeout`, and the run is handed back. A step stored with `credential` `no` whose locator
-/// finds a password field meets the runner's reading of the page before the act, and a fill of a field that becomes
-/// a password field at the focus that the fill makes, on a page with no password field before it, is refused after
-/// that focus and meets the runner's reading after the refused act: each opens a handback of the reason `sign_in`,
-/// and the supervisor's `declined` ends the run `declined`. The step with the failing `pre` and the two on a password
-/// field act on nothing, the one with the failing `post` acted, and no frame and no line of the runner holds the
-/// password field's value (A4.3: the fresh read marks it credential, before the act and after its focus).
+/// finds a password field meets the runner's reading of the page before the act; a fill of a field that becomes a
+/// password field at the focus that the fill makes, and a fill of a field whose focus hands the focus on to a
+/// password field, each on a page with no password field before that focus, are refused at the read of the element
+/// that holds the focus and meet the runner's reading after the refused act: each opens a handback of the reason
+/// `sign_in`, and the supervisor's `declined` ends the run `declined`. The step with the failing `pre` and the three
+/// that would reach a password field act on nothing, the one with the failing `post` acted, and no frame and no line
+/// of the runner holds the password field's value (A4.3: the fresh read marks the target credential before the act,
+/// and the element that holds the focus before the insert).
 #[test]
 fn a_post_condition_that_fails_logs_step_failed() {
     let Some(browser) = hosted("a_post_condition_that_fails_logs_step_failed") else {
@@ -417,18 +424,24 @@ fn a_post_condition_that_fails_logs_step_failed() {
             step(2, "fill", Some("turns"), &[konst("text", "Ada")], &[], &[]),
             false,
         ),
+        (
+            250,
+            step(2, "fill", Some("hands"), &[konst("text", "Ada")], &[], &[]),
+            false,
+        ),
     ];
     for (n, second, acted) in cases {
         let page = match n {
             254 => TYPED,
             255 => TURNS,
+            250 => HANDS,
             _ => NAMED,
         };
         let fixture = Fixture::start(&[("/typed-form", page)]);
         let mut sup = web_agent(n, &fixture);
         sup.steps = vec![navigate(1, &fixture.url("/typed-form")), second];
         let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
-        if n >= 254 {
+        if matches!(n, 250 | 254 | 255) {
             assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
             assert_eq!(rows(&seen), declined, "run {n}");
             assert_eq!(seen.handbacks(), [HandbackReason::SignIn], "run {n}");
