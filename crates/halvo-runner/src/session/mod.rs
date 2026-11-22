@@ -60,7 +60,8 @@ pub(crate) struct Sessions {
 }
 
 impl Sessions {
-    /// Notes that the run stores `origin` anew at its end.
+    /// Notes that the run stores `origin` anew: at the next handback's opening, or where none opens, at the run's end.
+    /// An opening at a field of `origin` itself does not store it (`Runner::store_kept`).
     pub(crate) fn keep(&mut self, origin: &WebOrigin) {
         if !self.keep.contains(origin) {
             self.keep.push(origin.clone());
