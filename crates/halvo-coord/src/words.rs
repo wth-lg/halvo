@@ -650,7 +650,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "ask.stop_sign_in.stops",
-        "Halvo will stop using the sign-in that it keeps for this agent, and removes it within 35 days.",
+        "Halvo will stop using the sign-in that it keeps for this agent and remove it from this computer.",
     ),
     (
         "ask.stop_sign_in.next",
