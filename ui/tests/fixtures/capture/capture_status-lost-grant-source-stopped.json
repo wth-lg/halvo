@@ -95,14 +95,6 @@
         "text": "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private."
       },
       {
-        "switch": "key_class",
-        "text": "Halvo records each key you press, when and in which app, and what kind of key it is: a letter, digit or sign, a delete key, an arrow or page key, Return or Enter, Tab, a shortcut, or another key. It never records which letter, digit or sign."
-      },
-      {
-        "switch": "pointer_class",
-        "text": "Halvo records each click and which button you pressed, and how many times you scroll, drag or move the pointer each second, never where on the screen."
-      },
-      {
         "switch": "screen_activity",
         "text": "Screen activity is not recorded."
       }
