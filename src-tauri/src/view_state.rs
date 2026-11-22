@@ -137,6 +137,10 @@ pub struct RunningView {
     pub login_item_written: Option<bool>,
     pub data_folder: Option<String>,
     pub state_file: Option<SettingsUnread>,
+    /// The app's one renewal of a Windows run's spent screen still read the screen spent, and
+    /// this view's screen source does not run: the page then says to quit Halvo and open it
+    /// again.
+    pub screen_not_renewed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -213,6 +217,8 @@ struct HoldState {
     consenting: bool,
     login_item_written: Option<bool>,
     removing: bool,
+    renewal_asked: Option<u64>,
+    screen_spent: bool,
 }
 
 /// A consent click in flight, from `Hold::begin_consent` to its drop.
@@ -277,6 +283,7 @@ impl Hold {
                 state.login_item_written,
             )
         };
+        let screen_spent = self.state().screen_spent;
         let view = match view {
             StatusView::Running(running) if another_version => {
                 StatusView::no_status(NoStatusService::AnotherVersion, running.platform)
@@ -298,6 +305,14 @@ impl Hold {
                 view.hold = hold;
                 view.data_folder = folder.clone();
                 view.login_item_written = written;
+                let screen_runs = view.sources.iter().any(|source| {
+                    source.name == SourceName::Screen
+                        && matches!(
+                            source.state,
+                            SourceStateName::Running | SourceStateName::Impaired
+                        )
+                });
+                view.screen_not_renewed = screen_spent && !screen_runs;
                 StatusView::Running(view)
             }
             StatusView::NoStatus(mut view) => {
@@ -375,6 +390,41 @@ impl Hold {
     #[cfg(target_os = "macos")]
     pub fn removal(&self, stands: bool) {
         self.state().removing = stands;
+    }
+
+    /// A press asks the supervisor to end the app's child of the moment with the mark of a start
+    /// that the app wants, as the stop NoReply does, so that a new child, with a screen session of
+    /// its own, starts at once: answers the number of that child, none while no child of the app
+    /// lives and while the mark of a removal of Halvo stands.
+    pub fn ask_renewal(&self) -> Option<u64> {
+        let mut state = self.state();
+        if !state.child_lives || state.removing {
+            return None;
+        }
+        let life = state.lives;
+        state.renewal_asked = Some(life);
+        drop(state);
+        self.changed.notify_all();
+        Some(life)
+    }
+
+    /// The supervisor takes the ask of a renewal: true where one waits for the child that lives
+    /// at this moment; an ask for a child that has ended is dropped.
+    #[cfg(any(target_os = "macos", windows, test))]
+    pub fn take_renewal(&self) -> bool {
+        let mut state = self.state();
+        let lives = state.child_lives.then_some(state.lives);
+        state
+            .renewal_asked
+            .take()
+            .is_some_and(|life| Some(life) == lives)
+    }
+
+    /// What the last Resume of a press read of a Windows run's screen, after its one renewal
+    /// where one ran: `renewed` false where the screen still read spent, and every running view
+    /// whose screen source does not run then says so.
+    pub fn screen_renewed(&self, renewed: bool) {
+        self.state().screen_spent = !renewed;
     }
 
     /// What the consent click read of its write of the login item: whether the plist stands
@@ -580,6 +630,8 @@ struct WireView<'a> {
     data_folder: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     state_file: Option<SettingsUnread>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    screen_not_renewed: bool,
 }
 
 impl Serialize for StatusView {
@@ -612,6 +664,7 @@ impl Serialize for StatusView {
                 ext: Some(&view.ext),
                 data_folder: view.data_folder.as_deref(),
                 state_file: view.state_file,
+                screen_not_renewed: view.screen_not_renewed,
             },
             StatusView::NoStatus(view) => WireView {
                 service: view.word(),
@@ -643,6 +696,7 @@ impl Serialize for StatusView {
                 ext: None,
                 data_folder: view.data_folder.as_deref(),
                 state_file: None,
+                screen_not_renewed: false,
             },
         };
         wire.serialize(serializer)
@@ -680,6 +734,14 @@ impl StatusView {
 
     pub fn without_status(service: NoStatusService) -> Self {
         StatusView::no_status(service, APP_PLATFORM)
+    }
+
+    /// The system of the run that this view reads, or of the app where it reads no status.
+    pub fn platform(&self) -> Platform {
+        match self {
+            StatusView::Running(view) => view.platform,
+            StatusView::NoStatus(view) => view.platform,
+        }
     }
 
     /// The app's hold as this view says it.
@@ -783,6 +845,7 @@ impl StatusView {
                 StateFile::Ok | StateFile::WriteFailed => None,
             },
             login_item_written: None,
+            screen_not_renewed: false,
         }))
     }
 }

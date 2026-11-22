@@ -8,7 +8,10 @@ use halvo_control::client::{ClientError, DeleteOutcome};
 use halvo_control::model::{CaptureState, StorageCap, StoreId};
 use halvo_control::onboarding::{OnboardingState, Permission, RequestOutcome};
 use halvo_control::paths::DataDir;
-use halvo_control::proto::{reaches_the_end, CaptureChange, DaemonStatus, ErrorCode, StateFile};
+use halvo_control::proto::{
+    reaches_the_end, Capture as CaptureValue, CaptureChange, DaemonStatus, ErrorCode, OnOff,
+    Platform, SourceName, SourceState, StateFile, SwitchName,
+};
 use halvo_control::service::DATA_DIR_ARG;
 use tauri::ipc::Invoke;
 use tauri::{AppHandle, Manager, Runtime, State};
@@ -188,7 +191,8 @@ const START_STATUS_STEP: Duration = Duration::from_millis(250);
 /// What a person's press of Pause or Resume sends, from the page's command and from the tray's
 /// toggle: the request of `change` in the place `made`, and in place of a Resume a Start where
 /// the hold reads that no further child starts, which waits for its child as
-/// `start_and_resume` says.
+/// `start_and_resume` says. A Resume that reached its end with a screen that `screen_spent`
+/// reads is followed by one renewal, `renew_the_screen`, whose Resume then answers the press.
 /// Answers its answer with the number of the call that it answers.
 pub fn press(
     control: &dyn Control,
@@ -206,7 +210,81 @@ pub fn press(
         CaptureChange::Pause => control.pause(made),
         CaptureChange::Resume => control.resume(made),
     };
+    if change == CaptureChange::Resume {
+        if let Ok(status) = &answer {
+            if holds(change, status) {
+                if let Some(renewed) = renew_where_spent(control, views.hold(), status) {
+                    return renewed;
+                }
+            }
+        }
+    }
     (answer, call)
+}
+
+/// How long a renewal of the screen waits for the end of the app's child and for its next child
+/// to answer a Status: the end within STOP_WAIT_MS and the 2 s in which the app ends a child that
+/// it saw ending, then the wait of a press on Start.
+pub const RENEWAL_WAIT: Duration = Duration::from_millis(
+    halvo_control::STOP_WAIT_MS + 2_000 + START_ANSWER_WAIT.as_secs() * 1_000,
+);
+
+/// Whether `status` reads the screen of a Windows run spent: the run makes one screen session
+/// (form B of contracts.md C14.3), so behind a pause, or a delete through the service, its
+/// screen source reads stopped, or failed with the first session's error, while the switch
+/// screen_activity reads on and capture runs. A Mac's stopped or failed screen is a permission
+/// or a fault, which no new child cures, and reads no.
+pub fn screen_spent(status: &DaemonStatus) -> bool {
+    let f = status.fields();
+    f.platform == Platform::Windows
+        && matches!(f.capture, CaptureValue::Running | CaptureValue::Partial)
+        && f.switches
+            .iter()
+            .any(|switch| switch.name == SwitchName::ScreenActivity && switch.value == OnOff::On)
+        && f.sources.iter().any(|source| {
+            source.name == SourceName::Screen
+                && matches!(
+                    source.state,
+                    SourceState::Stopped { .. } | SourceState::Failed { .. }
+                )
+        })
+}
+
+/// A Status of `status` that reads the screen spent gets ONE renewal, `renew_the_screen`, and its
+/// answer; one that does not clears what the last renewal said, and gets none.
+fn renew_where_spent(
+    control: &dyn Control,
+    hold: &Hold,
+    status: &DaemonStatus,
+) -> Option<(Result<DaemonStatus, ClientError>, u64)> {
+    if !screen_spent(status) {
+        hold.screen_renewed(true);
+        return None;
+    }
+    renew_the_screen(control, hold, RENEWAL_WAIT)
+}
+
+/// The one renewal of a spent screen: it asks the supervisor to end the app's child with the mark
+/// of a wanted start (`Hold::ask_renewal`), waits until `within` for a later child that answers
+/// a plain Status, and sends that child one Resume, whose answer it answers with the number of
+/// its call; it tells the hold whether that answer still reads the screen spent. With no child
+/// of the app it runs nothing; with no later child in time it sends no Resume, and the hold
+/// reads the screen not renewed.
+pub fn renew_the_screen(
+    control: &dyn Control,
+    hold: &Hold,
+    within: Duration,
+) -> Option<(Result<DaemonStatus, ClientError>, u64)> {
+    let life = hold.ask_renewal()?;
+    if !a_later_life_answers(control, hold, life, Instant::now() + within) {
+        hold.screen_renewed(false);
+        return None;
+    }
+    let made = control.places().make();
+    let call = made.number();
+    let answer = control.resume(made);
+    hold.screen_renewed(!answer.as_ref().is_ok_and(screen_spent));
+    Some((answer, call))
 }
 
 /// The press on Start after the third end with 5 in a row (contracts.md C14 item 4), once it
@@ -551,7 +629,9 @@ impl Drop for HeldForADelete {
     }
 }
 
-/// The flow of a person's press at the service's door: `Before::tell`, then `ask_to_delete`.
+/// The flow of a person's press at the service's door: `Before::tell`, then `ask_to_delete`;
+/// behind a deleted answer, where the view of the moment reads a Windows run, one plain Status,
+/// and where it reads the screen spent ONE renewal of the screen, as at a Resume.
 pub fn delete_everything(
     before: &Before,
     control: &dyn Control,
@@ -559,8 +639,20 @@ pub fn delete_everything(
     armed: Option<StoreId>,
     waits: DeleteWaits,
 ) -> DeleteAsked {
-    let _held = before.tell();
-    ask_to_delete(control, views, armed, waits)
+    let asked = {
+        let _held = before.tell();
+        ask_to_delete(control, views, armed, waits)
+    };
+    if matches!(
+        asked.end,
+        DeleteEnd::Answered(Ok(DeleteOutcome::Deleted(_)))
+    ) && views.view().platform() == Platform::Windows
+    {
+        if let Ok(status) = control.status(control.places().make(), false) {
+            let _ = renew_where_spent(control, views.hold(), &status);
+        }
+    }
+    asked
 }
 
 #[tauri::command]

@@ -37,6 +37,7 @@ const WORDS = {
   READ_FAILED: "Halvo could not read the state of its capture service.",
   SOURCE_FAILED: "has stopped",
   SOURCE_WALKBACK: "The steps under Permissions turn it back on.",
+  SCREEN_NOT_RENEWED: "Halvo is not recording the screen. Quit Halvo and open it again to record it.",
   NOT_SAVING: "Not saving:",
   CAUSE_NO_SPACE: "the disk is full.",
   CAUSE_IO: "a read or a write failed.",
