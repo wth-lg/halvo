@@ -1042,8 +1042,9 @@ impl Runner {
     }
 
     /// Whether the step reaches into a frame: its target or the target of one of its conditions names a frame, or one
-    /// of its args takes a value that an `extract` of this run read in a frame (`extracts`). A web step of an effect
-    /// class that does answers `step_failed` before any act (the coordinator's ruling of log line 15706, NOT BUILT):
+    /// of its args or of the args of its conditions takes a value that an `extract` of this run read in a frame
+    /// (`extracts`; the coordinator's ruling of log line 16325, point 1). A web step of an effect class that does
+    /// answers `step_failed` before any act (the coordinator's ruling of log line 15706, NOT BUILT):
     /// this build makes no effect in a frame, and the browser's maker, which reads such a value again right before its
     /// act, records the top document's address as the origin of that read (crate::web::maker, `read_again`).
     fn reaches_a_frame(&self, step: &ExecutableStep) -> bool {
@@ -1058,6 +1059,12 @@ impl Runner {
             || step
                 .args
                 .iter()
+                .chain(
+                    step.pre
+                        .iter()
+                        .chain(&step.post)
+                        .filter_map(|cond| cond.arg.as_ref()),
+                )
                 .filter(|arg| matches!(arg.from, Source::Extract))
                 .filter_map(|arg| self.extracts.get(arg.key.as_ref()?.as_str()))
                 .any(|(target, _)| framed(target))
@@ -1706,9 +1713,10 @@ mod tests {
     /// a step on the top document is, and so is a condition on such a target: the extract of the amount with a
     /// condition `present` on it, the select of the payment method, and a click in a frame inside the frame. The page
     /// is read first, as before each act, and the extract keeps its amount. A step of an effect class whose target
-    /// names a frame, or whose amount is the value read in the frame, and a `fill`, a `press` and an `upload` whose
-    /// target names a frame, each answer `step_failed`, and the stand-in page sees no read and no act of them (the
-    /// coordinator's words on this unit: no effect in a frame is built, and no text, key or file goes into a frame).
+    /// names a frame, whose amount is the value read in the frame, or whose condition's arg is a text read in the
+    /// frame, and a `fill`, a `press` and an `upload` whose target names a frame, each answer `step_failed`, and the
+    /// stand-in page sees no read and no act of them (the coordinator's words on this unit: no effect in a frame is
+    /// built, no effect step takes anything read in a frame, and no text, key or file goes into a frame).
     #[test]
     fn a_step_acts_on_a_target_inside_the_frame_that_its_step_names() {
         let amount = framed(r#"{"by":"test_id","value":"amount","name":null}"#, &[PAY]);
@@ -1728,6 +1736,10 @@ mod tests {
                 r#"{"by":"role","value":"button","name":"Show terms"}"#,
                 &[PAY, INNER]
             )
+        );
+        let payee = framed(r#"{"by":"test_id","value":"payee","name":null}"#, &[PAY]);
+        let payee_text = format!(
+            r#"{{"v":1,"n":4,"kind":"web","verb":"extract","target":{payee},"args":[{{"name":"as","from":"const","value":"payee_text","key":null}},{{"name":"parse","from":"const","value":"text","key":null}}],"pre":[],"post":[],"effect":"none","class":"read"}}"#
         );
         let (workflow, agent) = (
             WorkflowId::from_random([7; 16]),
@@ -1781,7 +1793,7 @@ mod tests {
         let mut runner = Runner::new(args, link);
         let page_log = Arc::new(Mutex::new(Vec::new()));
         runner.web = Some(Web(Box::new(FramePage(Arc::clone(&page_log)))));
-        for json in [&extract, &select, &click] {
+        for json in [&extract, &select, &click, &payee_text] {
             let step = ExecutableStep::parse(json.as_bytes()).expect("a step");
             let got = runner.web_step(&step, &loaded);
             assert!(
@@ -1802,6 +1814,8 @@ mod tests {
                 format!("act select in [{PAY}]"),
                 "read".to_string(),
                 format!("act click in [{PAY} {INNER}]"),
+                "read".to_string(),
+                format!("act extract in [{PAY}]"),
             ]
         );
         assert_eq!(
@@ -1823,6 +1837,11 @@ mod tests {
             &framed(pay_now, &[]),
             r#"{"name":"amount","from":"extract","value":null,"key":"amount"}"#,
         );
+        let judged_by_the_frame = format!(
+            r#"{{"v":1,"n":4,"kind":"web","verb":"click","target":{},"args":[{{"name":"payee","from":"const","value":"p","key":null}},{{"name":"amount","from":"const","value":"12.34","key":null}},{{"name":"instrument","from":"const","value":"i","key":null}},{{"name":"origin","from":"const","value":"{PAY}","key":null}}],"pre":[{{"check":"text_is","target":{},"arg":{{"name":"arg","from":"extract","value":null,"key":"payee_text"}}}}],"post":[],"effect":"request","class":"payment"}}"#,
+            framed(pay_now, &[]),
+            framed(r#"{"by":"test_id","value":"payee","name":null}"#, &[])
+        );
         let typed = |verb: &str, arg: &str| {
             format!(
                 r#"{{"v":1,"n":5,"kind":"web","verb":"{verb}","target":{},"args":[{arg}],"pre":[],"post":[],"effect":"none","class":"prepare"}}"#,
@@ -1841,7 +1860,14 @@ mod tests {
             "upload",
             r#"{"name":"file","from":"slot","value":null,"key":"document"}"#,
         );
-        for json in [&in_the_frame, &read_in_the_frame, &fill, &press, &upload] {
+        for json in [
+            &in_the_frame,
+            &read_in_the_frame,
+            &judged_by_the_frame,
+            &fill,
+            &press,
+            &upload,
+        ] {
             let step = ExecutableStep::parse(json.as_bytes()).expect("a step");
             let got = runner.web_step(&step, &loaded);
             let now = page_log.lock().expect("the log").clone();
