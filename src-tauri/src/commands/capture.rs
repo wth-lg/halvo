@@ -56,8 +56,9 @@ pub struct AppState {
     /// The app's hold on the agents' runs around a delete of everything.
     pub runs: Arc<RunsHold>,
     offline_running: Arc<AtomicBool>,
-    /// The folder of the crash reports of the web view of Halvo's own window, which the web
-    /// view's environment names on Windows; set once after the window's build, never on a Mac.
+    /// The folder of the crash reports of the web view of Halvo's own window on Windows, which
+    /// the one function `app::crash_report_folder` names; set once at the app's start before the
+    /// app is built, never on a Mac and never in a test app.
     pub crash_reports: Arc<OnceLock<PathBuf>>,
     /// What Remove Halvo takes from main, set once the app has started the supervisor of its
     /// child, through the cell that main holds from before the state moves into the app; never
@@ -1221,7 +1222,7 @@ pub fn remove_the_crash_reports(
 
 /// Removes every file under `dir` by `remove`, folders kept: whether none stayed. A folder that
 /// does not stand holds none.
-fn every_file_goes(dir: &Path, remove: &dyn Fn(&Path) -> std::io::Result<()>) -> bool {
+pub(crate) fn every_file_goes(dir: &Path, remove: &dyn Fn(&Path) -> std::io::Result<()>) -> bool {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(error) => return error.kind() == std::io::ErrorKind::NotFound,
