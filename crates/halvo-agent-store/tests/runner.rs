@@ -91,7 +91,7 @@ fn log_line(seq: u32) -> Value {
         "model": null,
         "ms": null,
         "tokens_in": null,
-        "tokens_out": null,
+        "tokens_out": null, "page_amount": null,
     })
 }
 
@@ -1037,6 +1037,34 @@ fn a_repeat_of_a_stored_stopped_row_stores_nothing_and_is_answered_with_its_coun
         Ok(stored(2))
     );
     assert_eq!(rows(&store, "agent_log").len(), 3);
+}
+
+/// r3 U5.10-B (4): the step's `stopped` row of a made payment whose page named another amount than the card
+/// (`amount_differs`) holds that amount as the page named it, in minor units under `page_amount`, and the handler keeps
+/// it in the stored row; beside any other cause the key is refused and nothing is stored.
+#[test]
+fn the_row_of_another_amount_holds_the_amount_as_the_page_named_it() {
+    let mut store = store_with("utility_bill_payment");
+    let mut stopped = log_line(2);
+    stopped["event"] = json!("stopped");
+    stopped["cause"] = json!("amount_differs");
+    stopped["page_amount"] = json!(1334);
+    let mut unread = stopped.clone();
+    unread["seq"] = json!(3);
+    unread["cause"] = json!("amount_unread");
+    assert_eq!(put_log(&mut store, vec![stopped]), Ok(stored(1)));
+    assert_eq!(put_log(&mut store, vec![unread]), Err(ErrorName::Malformed));
+    let held: Vec<String> = rows(&store, "agent_log")
+        .into_iter()
+        .filter(|r| r.contains(r#""event":"stopped""#))
+        .collect();
+    assert_eq!(held.len(), 1, "{held:?}");
+    assert!(
+        held[0].contains(r#""cause":"amount_differs""#)
+            && held[0].contains(r#""page_amount":1334"#),
+        "{held:?}"
+    );
+    AgentLog::parse(held[0].as_bytes()).expect("a log row");
 }
 
 #[test]

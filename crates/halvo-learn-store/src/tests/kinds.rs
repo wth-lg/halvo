@@ -637,7 +637,7 @@ fn log_line(w: &World, r: u32) -> Value {
     json!({
         "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(r), "seq": 2, "day": w.host.day,
         "at": at(w, 13), "event": "step_ok", "step": 1, "cause": null, "model": null, "ms": LOG_MS,
-        "tokens_in": null, "tokens_out": null,
+        "tokens_in": null, "tokens_out": null, "page_amount": null,
     })
 }
 

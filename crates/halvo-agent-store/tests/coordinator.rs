@@ -517,7 +517,7 @@ fn log_at(store: &mut MemoryStore, now: halvo_agent_store::Now) -> Result<(), Er
     let line = json!({
         "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(1), "seq": 2, "day": day,
         "at": now.at.0, "event": "step_ok", "step": 1, "cause": null, "model": null, "ms": null,
-        "tokens_in": null, "tokens_out": null,
+        "tokens_in": null, "tokens_out": null, "page_amount": null,
     });
     runner_at(
         store,
@@ -1866,7 +1866,7 @@ fn step_failed(store: &mut MemoryStore, w: u32, a: u32, r: u32, cause: &str) {
     let line = json!({
         "v": 1, "workflow": wf(w), "agent": agent(a), "run": run(r), "seq": 2, "day": TODAY,
         "at": NOW.at.0, "event": "step_failed", "step": 1, "cause": cause, "model": null, "ms": null,
-        "tokens_in": null, "tokens_out": null,
+        "tokens_in": null, "tokens_out": null, "page_amount": null,
     });
     let body = json!({"op": "log", "agent": agent(a), "run": run(r), "records": [line]});
     assert_eq!(runner(store, body), Ok(stored(1)), "{cause}");
@@ -1906,7 +1906,7 @@ fn stopped_line(w: u32, a: u32, r: u32, step: Option<u32>, cause: &str) -> Value
     json!({
         "v": 1, "workflow": wf(w), "agent": agent(a), "run": run(r), "seq": 2, "day": TODAY,
         "at": NOW.at.0, "event": "stopped", "step": step, "cause": cause, "model": null, "ms": null,
-        "tokens_in": null, "tokens_out": null,
+        "tokens_in": null, "tokens_out": null, "page_amount": null,
     })
 }
 

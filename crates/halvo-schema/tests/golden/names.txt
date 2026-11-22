@@ -268,6 +268,8 @@ other
 other_task
 outcome
 overlaps
+page_amount
+page_unread
 part
 parts
 party

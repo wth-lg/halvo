@@ -380,6 +380,7 @@ impl Runner {
             ms: None,
             tokens_in: None,
             tokens_out: None,
+            page_amount: None,
         };
         let call = RunnerCall::Log(PutLog {
             agent: self.args.agent.clone(),
@@ -479,6 +480,7 @@ impl Runner {
                 ms: None,
                 tokens_in: None,
                 tokens_out: None,
+                page_amount: None,
             };
             let call = RunnerCall::Log(PutLog {
                 agent: self.args.agent.clone(),

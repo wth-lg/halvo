@@ -66,7 +66,7 @@ fn held() -> String {
     effect(R, "held", "payment", PAY_KEPT, 4, None, None)
 }
 
-const LOG_REST: &str = r#""seq":1,"day":20768,"at":1794339000000000000,"event":"model_call","step":3,"cause":null,"model":"qwen3_1_7b","ms":812,"tokens_in":900,"tokens_out":40"#;
+const LOG_REST: &str = r#""seq":1,"day":20768,"at":1794339000000000000,"event":"model_call","step":3,"cause":null,"model":"qwen3_1_7b","ms":812,"tokens_in":900,"tokens_out":40,"page_amount":null"#;
 
 fn session(rest: &str) -> String {
     format!(r#"{{"v":1,"workflow":"{W}","agent":"{A}","origin":"{U}",{rest}}}"#)
@@ -767,7 +767,7 @@ fn a_log_line_holds_figures_and_no_text() {
     );
     let bare = run_record(
         R,
-        r#""seq":2,"day":20768,"at":0,"event":"stopped","step":null,"cause":"session_size","model":null,"ms":null,"tokens_in":null,"tokens_out":null"#,
+        r#""seq":2,"day":20768,"at":0,"event":"stopped","step":null,"cause":"session_size","model":null,"ms":null,"tokens_in":null,"tokens_out":null,"page_amount":null"#,
     );
     assert!(AgentLog::parse(bare.as_bytes()).is_ok());
     expect(

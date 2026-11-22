@@ -450,7 +450,7 @@ fn every_runner_body_of_an_ended_run_is_refused() {
         json!({"op": "log", "agent": agent, "run": r.as_str(), "records": [{
             "v": 1, "workflow": workflow, "agent": agent, "run": r.as_str(), "seq": 2, "day": day,
             "at": at, "event": "step_ok", "step": 1, "cause": null,
-            "model": null, "ms": null, "tokens_in": null, "tokens_out": null,
+            "model": null, "ms": null, "tokens_in": null, "tokens_out": null, "page_amount": null,
         }]})
     };
     let playbook = |r: &RunId| {
