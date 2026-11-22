@@ -77,6 +77,8 @@ pub fn test_parts(dir: PathBuf, state: AppState) -> app::Parts<MockRuntime> {
     app::Parts {
         #[cfg(windows)]
         webview_data_dir: Some(dir.join("webview")),
+        #[cfg(windows)]
+        webview_environment: environment_made::record,
         state,
         tray: None,
         guard: guard_installed,
@@ -1398,6 +1400,73 @@ fn the_engine_start_arguments_repeat_the_runtime_default_and_map_every_host_to_n
         1
     );
     assert_eq!(app.matches("proxy_url").count(), 0);
+}
+
+/// The maker of the web view's environment that every test app of this module gets, and the
+/// test of what the window's builder hands it.
+#[cfg(windows)]
+pub(crate) mod environment_made {
+    use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, PoisonError};
+
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2Environment, COREWEBVIEW2_SCROLLBAR_STYLE_DEFAULT,
+    };
+
+    use crate::app;
+
+    /// What the window's builder handed the maker of its environment.
+    struct Made {
+        folder: PathBuf,
+        custom_crash_reporting: bool,
+        arguments: String,
+        extensions: bool,
+        language: String,
+        scroll_bar: i32,
+    }
+
+    static MADE: Mutex<Vec<Made>> = Mutex::new(Vec::new());
+
+    /// The tests' maker: it keeps what the options say and makes no environment, so that the
+    /// mock runtime goes on as before.
+    pub fn record(
+        options: webview2_com::CoreWebView2EnvironmentOptions,
+        folder: &Path,
+    ) -> Result<Option<ICoreWebView2Environment>, String> {
+        // SAFETY: the options were handed to this function by value, and nothing else reads or
+        // writes their cells.
+        let made = unsafe {
+            Made {
+                folder: folder.to_path_buf(),
+                custom_crash_reporting: options.is_custom_crash_reporting_enabled(),
+                arguments: options.additional_browser_arguments().to_string(),
+                extensions: options.are_browser_extensions_enabled(),
+                language: options.language().to_string(),
+                scroll_bar: options.scroll_bar_style().0,
+            }
+        };
+        MADE.lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(made);
+        Ok(None)
+    }
+
+    #[test]
+    fn the_window_hands_its_environment_custom_crash_reporting_and_the_settings_of_today() {
+        let dir = super::scratch_dir("environment-made");
+        let _test = super::test_app(dir.clone());
+        let folder = dir.join("webview");
+        let made = MADE.lock().unwrap_or_else(PoisonError::into_inner);
+        let mine: Vec<&Made> = made.iter().filter(|m| m.folder == folder).collect();
+        assert_eq!(mine.len(), 1, "one environment for the window main");
+        let mine = mine[0];
+        assert!(mine.custom_crash_reporting);
+        assert_eq!(mine.arguments, app::ENGINE_ARGS);
+        assert!(!mine.extensions);
+        assert!(!mine.language.is_empty());
+        assert_eq!(mine.language, app::display_language());
+        assert_eq!(mine.scroll_bar, COREWEBVIEW2_SCROLLBAR_STYLE_DEFAULT.0);
+    }
 }
 
 #[test]

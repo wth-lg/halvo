@@ -184,6 +184,8 @@ fn run(background: bool, given: Option<PathBuf>) {
         engine_rules_dir: None,
         #[cfg(windows)]
         webview_data_dir: None,
+        #[cfg(windows)]
+        webview_environment: app::system_environment,
     };
     let builder = tauri::Builder::default().manage(tray::QuitNotice::default());
     #[cfg(any(target_os = "macos", windows, test))]
