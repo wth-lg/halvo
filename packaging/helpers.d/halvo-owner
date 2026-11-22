@@ -1,0 +1,4 @@
+package=halvo-owner
+bin=halvo-owner
+manifest=crates/halvo-owner/Cargo.toml
+version=none

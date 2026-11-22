@@ -6,6 +6,7 @@ use std::time::Duration;
 mod card;
 mod guard;
 mod moment;
+mod native_hub;
 mod outcome;
 mod scripted;
 mod serve;

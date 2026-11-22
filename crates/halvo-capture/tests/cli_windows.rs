@@ -1,6 +1,8 @@
 #![cfg(all(windows, debug_assertions))]
 
+use std::ffi::OsStr;
 use std::io::{BufRead, BufReader};
+use std::os::windows::io::AsHandle;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
 use std::sync::{Arc, Mutex};
@@ -52,7 +54,11 @@ fn start(dir: &Path) -> Daemon {
         .stderr(Stdio::piped())
         .spawn()
         .expect("the service run starts");
-    let pipe = child.stderr.take().unwrap();
+    let stderr = lines_of(child.stderr.take().unwrap());
+    Daemon { child, stderr }
+}
+
+fn lines_of(pipe: impl std::io::Read + Send + 'static) -> Arc<Mutex<Vec<String>>> {
     let stderr = Arc::new(Mutex::new(Vec::new()));
     let lines = stderr.clone();
     std::thread::spawn(move || {
@@ -60,7 +66,7 @@ fn start(dir: &Path) -> Daemon {
             lines.lock().unwrap().push(line);
         }
     });
-    Daemon { child, stderr }
+    stderr
 }
 
 fn ctl(dir: &Path, verb: &[&str]) -> Output {
@@ -96,6 +102,10 @@ fn until<T>(within: Duration, mut read: impl FnMut() -> Option<T>) -> Option<T> 
 }
 
 fn first_status(dir: &Path, daemon: &Daemon, holds: impl Fn(&str) -> bool) -> String {
+    status_of(dir, &daemon.stderr, holds)
+}
+
+fn status_of(dir: &Path, stderr: &Mutex<Vec<String>>, holds: impl Fn(&str) -> bool) -> String {
     until(START_WAIT, || {
         let output = ctl(dir, &["status"]);
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -105,7 +115,7 @@ fn first_status(dir: &Path, daemon: &Daemon, holds: impl Fn(&str) -> bool) -> St
         panic!(
             "no such status within {START_WAIT:?}; the last ctl status:\n{}\nthe run's stderr:\n{}",
             text(&ctl(dir, &["status"])),
-            daemon.stderr()
+            stderr.lock().unwrap().join("\n")
         )
     })
 }
@@ -143,23 +153,65 @@ fn a_service_run_on_windows_answers_status_over_its_pipe_and_stops_on_request() 
         .unwrap_or_else(|| panic!("no rss_peak_bytes line: {status}"));
     assert!(peak > 0, "{status}");
 
-    let lifeline = Command::new(BIN)
+    stop(&dir, &mut daemon);
+}
+
+#[test]
+fn a_lifeline_run_on_windows_ends_when_its_starter_closes_the_pipe() {
+    let dir = scratch_data_dir("lifeline");
+    let refused = Command::new(BIN)
         .args(["--service-run", "--lifeline", "--data-dir"])
         .arg(&dir)
         .stdin(Stdio::null())
         .output()
-        .expect("the lifeline form runs");
-    assert_eq!(lifeline.status.code(), Some(1), "{}", text(&lifeline));
+        .expect("a start with no pipe runs");
+    assert_eq!(refused.status.code(), Some(64), "{}", text(&refused));
     assert!(
-        String::from_utf8_lossy(&lifeline.stderr)
-            .contains("the lifeline mode is not built on this system"),
+        String::from_utf8_lossy(&refused.stderr)
+            .contains("--lifeline needs a pipe on standard input"),
         "{}",
-        text(&lifeline)
+        text(&refused)
     );
-    let again = ctl(&dir, &["status"]);
-    assert_eq!(again.status.code(), Some(0), "{}", text(&again));
+    assert!(!dir.exists(), "a start with no pipe made {}", dir.display());
 
-    stop(&dir, &mut daemon);
+    let (input, lifeline) = std::io::pipe().unwrap();
+    let (errors, error_end) = std::io::pipe().unwrap();
+    let null = std::fs::OpenOptions::new().write(true).open("NUL").unwrap();
+    let args = [
+        OsStr::new("--service-run"),
+        OsStr::new("--lifeline"),
+        OsStr::new("--data-dir"),
+        dir.as_os_str(),
+    ];
+    let child = halvo_control::child_windows::start_with_handles(
+        Path::new(BIN),
+        &args,
+        halvo_control::child_windows::StdHandles {
+            input: input.as_handle(),
+            output: null.as_handle(),
+            error: error_end.as_handle(),
+        },
+        &[],
+    )
+    .expect("the lifeline run starts");
+    drop((input, null, error_end));
+    let stderr = lines_of(errors);
+    let status = status_of(&dir, &stderr, |status| {
+        status.lines().any(|line| line == "store=open")
+    });
+    assert!(
+        status.lines().any(|line| line == "parent=watched"),
+        "{status}"
+    );
+
+    drop(lifeline);
+    let ended = until(STOP_WAIT, || child.wait(Duration::ZERO).unwrap());
+    assert_eq!(
+        ended,
+        Some(0),
+        "the run's end after its pipe closed; its stderr:\n{}",
+        stderr.lock().unwrap().join("\n")
+    );
 }
 
 #[test]
@@ -190,4 +242,187 @@ fn a_fresh_windows_store_keeps_its_root_under_the_data_directory_and_its_key_und
             .is_some_and(|name| name.starts_with(root_id)),
         "{roots:?} for the root id {root_id}"
     );
+}
+
+#[test]
+fn a_windows_run_ends_inside_the_budget_when_the_session_ends() {
+    use halvo_capture::windows::session::CLASS_NAME;
+    use windows::core::{HSTRING, PCWSTR};
+    use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        FindWindowExW, GetWindowThreadProcessId, PostMessageW, WM_ENDSESSION, WM_QUERYENDSESSION,
+    };
+    let dir = scratch_data_dir("session");
+    let mut daemon = start(&dir);
+    first_status(&dir, &daemon, |status| {
+        status.lines().any(|line| line == "store=open")
+    });
+    let class = HSTRING::from(CLASS_NAME);
+    let pid = daemon.child.id();
+    let window = until(START_WAIT, || {
+        let mut after: Option<HWND> = None;
+        loop {
+            // SAFETY: the class name is a live wide string; the call reads the
+            // top-level windows after `after` and takes no other pointer.
+            let found = unsafe { FindWindowExW(None, after, &class, PCWSTR::null()) }.ok()?;
+            let mut owner = 0_u32;
+            // SAFETY: `owner` is a live u32 that the call fills.
+            unsafe { GetWindowThreadProcessId(found, Some(&mut owner)) };
+            if owner == pid {
+                return Some(found);
+            }
+            after = Some(found);
+        }
+    })
+    .unwrap_or_else(|| {
+        panic!(
+            "no window of the class {CLASS_NAME} for the run {pid}; its stderr:\n{}",
+            daemon.stderr()
+        )
+    });
+    // SAFETY: the call takes the window and two plain values.
+    unsafe { PostMessageW(Some(window), WM_QUERYENDSESSION, WPARAM(0), LPARAM(0)) }.unwrap();
+    let posted = Instant::now();
+    // SAFETY: as above; a WPARAM of 1 says that the session ends.
+    unsafe { PostMessageW(Some(window), WM_ENDSESSION, WPARAM(1), LPARAM(0)) }.unwrap();
+    let budget = Duration::from_millis(halvo_control::SESSION_END_BUDGET_MS);
+    let ended = loop {
+        if let Some(status) = daemon.child.try_wait().unwrap() {
+            break Some((status, posted.elapsed()));
+        }
+        if posted.elapsed() > budget {
+            break None;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    let (status, took) = ended.unwrap_or_else(|| {
+        panic!(
+            "the run still ran {budget:?} after the session's messages; its stderr:\n{}",
+            daemon.stderr()
+        )
+    });
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "the run's end after {took:?}; its stderr:\n{}",
+        daemon.stderr()
+    );
+    assert!(took <= budget, "the run took {took:?}");
+}
+
+/// Gives this process a console when it has none, with its standard handles
+/// kept, so that a Ctrl-Break can reach a child that shares it.
+fn a_console() {
+    use windows::Win32::System::Console::{
+        AllocConsole, GetStdHandle, SetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE,
+        STD_OUTPUT_HANDLE,
+    };
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let kinds = [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE];
+        // SAFETY: GetStdHandle reads a handle of this process and takes no
+        // pointer.
+        let kept = kinds.map(|kind| unsafe { GetStdHandle(kind) });
+        // SAFETY: AllocConsole takes no argument; it fails when this process
+        // has a console already.
+        if unsafe { AllocConsole() }.is_ok() {
+            for (kind, handle) in kinds.into_iter().zip(kept) {
+                if let Ok(handle) = handle {
+                    // SAFETY: the handle is the one that GetStdHandle read
+                    // before the console came.
+                    let _ = unsafe { SetStdHandle(kind, handle) };
+                }
+            }
+        }
+    });
+}
+
+#[test]
+fn a_timed_run_on_windows_ends_on_ctrl_break_with_its_report_and_exit_2() {
+    use std::os::windows::process::CommandExt;
+    use windows::Win32::System::Console::{GenerateConsoleCtrlEvent, CTRL_BREAK_EVENT};
+    use windows::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
+    let store = scratch_data_dir("timed");
+    std::fs::create_dir_all(&store).unwrap();
+    for (flags, line) in [
+        (
+            &["--hold-secure-input"][..],
+            "--hold-secure-input is a flag of macOS",
+        ),
+        (
+            &["--switch", "key_class=on"][..],
+            "--switch key_class=on is refused on Windows",
+        ),
+        (
+            &["--switch", "screen_activity=on"][..],
+            "--switch screen_activity=on is refused on Windows",
+        ),
+    ] {
+        let refused = Command::new(BIN)
+            .args(["--timed-run", "5", "--store-dir"])
+            .arg(&store)
+            .args(flags)
+            .output()
+            .expect("a refused timed run runs");
+        assert_eq!(
+            refused.status.code(),
+            Some(64),
+            "{flags:?}: {}",
+            text(&refused)
+        );
+        assert!(
+            String::from_utf8_lossy(&refused.stderr).contains(line),
+            "{flags:?}: {}",
+            text(&refused)
+        );
+    }
+
+    a_console();
+    let mut child = Command::new(BIN)
+        .args(["--timed-run", "60", "--store-dir"])
+        .arg(&store)
+        .creation_flags(CREATE_NEW_PROCESS_GROUP.0)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the timed run starts");
+    let stdout = lines_of(child.stdout.take().unwrap());
+    let stderr = lines_of(child.stderr.take().unwrap());
+    let mut daemon = Daemon { child, stderr };
+    let roots = store.join("roots");
+    let entries = |dir: &Path| {
+        std::fs::read_dir(dir).map_or(0, |entries| entries.filter_map(Result::ok).count())
+    };
+    until(START_WAIT, || (entries(&roots) > 0).then_some(())).unwrap_or_else(|| {
+        panic!(
+            "no root under {} within {START_WAIT:?}; the run's stderr:\n{}",
+            roots.display(),
+            daemon.stderr()
+        )
+    });
+    // SAFETY: the call takes two plain values; the group is the child's own.
+    unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, daemon.child.id()) }.unwrap();
+    let ended = daemon.ended_within(Duration::from_secs(2));
+    assert_eq!(
+        ended.and_then(|status| status.code()),
+        Some(2),
+        "the run's end after Ctrl-Break; its stderr:\n{}",
+        daemon.stderr()
+    );
+    let report = until(Duration::from_secs(5), || {
+        let lines = stdout.lock().unwrap();
+        lines
+            .iter()
+            .any(|line| line.starts_with("failed_sources="))
+            .then(|| lines.join("\n"))
+    })
+    .unwrap_or_else(|| panic!("no report on standard output: {:?}", stdout.lock().unwrap()));
+    for line in [
+        "modality=keystroke count=0",
+        "modality=screen_frame count=0",
+    ] {
+        assert!(report.lines().any(|seen| seen == line), "{line}:\n{report}");
+    }
+    assert_eq!(entries(&roots), 0, "a root stays under {}", roots.display());
 }

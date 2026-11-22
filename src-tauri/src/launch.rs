@@ -14,6 +14,10 @@ pub enum Launch {
         data_dir: PathBuf,
         within: Duration,
     },
+    WriteLoginItem {
+        label: String,
+        data_dir: PathBuf,
+    },
 }
 
 pub const MAX_WITHIN_S: u64 = 3600;
@@ -25,13 +29,14 @@ pub enum Exit {
     PageLoaded,
     PageNotLoaded,
     GuardNotInstalled,
+    LoginItemNotWritten,
 }
 
 impl Exit {
     pub const fn code(self) -> i32 {
         match self {
             Exit::Quit | Exit::PageLoaded => 0,
-            Exit::PageNotLoaded => 1,
+            Exit::PageNotLoaded | Exit::LoginItemNotWritten => 1,
             Exit::GuardNotInstalled => 3,
             Exit::Usage => 64,
         }
@@ -48,6 +53,7 @@ pub enum Usage {
     NoValue(&'static str),
     RelativeDir,
     BadSeconds(String),
+    LoginItemMissing(&'static str),
 }
 
 impl fmt::Display for Usage {
@@ -64,6 +70,7 @@ impl fmt::Display for Usage {
                 f,
                 "--within-s needs a whole number of seconds from 1 to {MAX_WITHIN_S}, not {value}"
             ),
+            Usage::LoginItemMissing(option) => write!(f, "--write-login-item needs {option}"),
         }
     }
 }
@@ -82,6 +89,7 @@ pub fn parse<I: IntoIterator<Item = OsString>>(
         [only] if only == "--version" => Ok(Launch::Version),
         [first, ..] if first == "--version" => Err(Usage::Extra(first.clone())),
         [first, rest @ ..] if first == "--check-page" => check_page(rest),
+        [first, rest @ ..] if first == "--write-login-item" => write_login_item(rest),
         options => run(options),
     }
 }
@@ -112,21 +120,27 @@ fn run(options: &[String]) -> Result<Launch, Usage> {
     })
 }
 
-fn check_page(options: &[String]) -> Result<Launch, Usage> {
-    let mut data_dir = None;
-    let mut within = None;
+fn values<const N: usize>(
+    options: &[String],
+    names: [&'static str; N],
+) -> Result<[Option<String>; N], Usage> {
+    let mut values = std::array::from_fn(|_| None);
     let mut rest = options.iter();
     while let Some(option) = rest.next() {
-        let (name, slot): (&'static str, &mut Option<String>) = match option.as_str() {
-            "--data-dir" => ("--data-dir", &mut data_dir),
-            "--within-s" => ("--within-s", &mut within),
-            other => return Err(Usage::Unknown(other.to_string())),
-        };
-        let value = rest.next().ok_or(Usage::NoValue(name))?;
-        if slot.replace(value.clone()).is_some() {
-            return Err(Usage::Repeated(name));
+        let at = names
+            .iter()
+            .position(|name| name == option)
+            .ok_or_else(|| Usage::Unknown(option.clone()))?;
+        let value = rest.next().ok_or(Usage::NoValue(names[at]))?;
+        if values[at].replace(value.clone()).is_some() {
+            return Err(Usage::Repeated(names[at]));
         }
     }
+    Ok(values)
+}
+
+fn check_page(options: &[String]) -> Result<Launch, Usage> {
+    let [data_dir, within] = values(options, ["--data-dir", "--within-s"])?;
     let data_dir = PathBuf::from(data_dir.ok_or(Usage::Missing("--data-dir DIR"))?);
     if !data_dir.is_absolute() {
         return Err(Usage::RelativeDir);
@@ -141,6 +155,16 @@ fn check_page(options: &[String]) -> Result<Launch, Usage> {
         data_dir,
         within: Duration::from_secs(seconds),
     })
+}
+
+fn write_login_item(options: &[String]) -> Result<Launch, Usage> {
+    let [label, data_dir] = values(options, ["--login-label", "--data-dir"])?;
+    let label = label.ok_or(Usage::LoginItemMissing("--login-label LABEL"))?;
+    let data_dir = PathBuf::from(data_dir.ok_or(Usage::LoginItemMissing("--data-dir DIR"))?);
+    if !data_dir.is_absolute() {
+        return Err(Usage::RelativeDir);
+    }
+    Ok(Launch::WriteLoginItem { label, data_dir })
 }
 
 #[cfg(test)]
@@ -170,6 +194,7 @@ mod tests {
         assert_eq!(Exit::PageNotLoaded.code(), 1);
         assert_eq!(Exit::Usage.code(), 64);
         assert_eq!(Exit::GuardNotInstalled.code(), 3);
+        assert_eq!(Exit::LoginItemNotWritten.code(), 1);
     }
 
     #[test]

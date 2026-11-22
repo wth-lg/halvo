@@ -15,11 +15,13 @@ pub use outcome::{decide, Outcome};
 pub use scripted::Scripted;
 pub use system::System;
 
-use crate::hub::{Native, Present};
+use crate::hub::{Hub, Native, Present};
+use halvo_coord::guard::Policy;
 use halvo_coord::items::ConfirmAnswer;
-use halvo_coord::types::{Cause, ItemId};
+use halvo_coord::ports::{Analysis, Clock, Owner, Rng, Runs, Senders};
+use halvo_coord::types::{Cause, ConfigView, ItemId, Limits};
 use std::cell::Cell;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, Weak};
 use std::thread;
 use std::time::Duration;
 
@@ -85,6 +87,50 @@ impl<D: Dialog> Present for DialogPresenter<D> {
     fn present(&self, dialog: Native) {
         self.spawn(dialog);
     }
+}
+
+/// A hub of a new life over `ports` and `limits`, as `Hub::new` makes it, whose native
+/// confirmations go to a `DialogPresenter` over `dialog` (I4.9): its reader is the card of the
+/// native dialog that the hub's own coordinator composes for the item
+/// (`Coordinator::native_card`, ruling RD-77 part 12), taken by `Card::native`, and its hold is
+/// `arm_ms` of `limits`. The reader is bound to the hub once `Hub::new` has returned and holds it
+/// weakly, so that the presenter keeps no hub alive; a read before that bind or after the hub
+/// has gone answers `no_service`, and the presenter then shows nothing and answers nothing.
+pub fn dialog_hub<P, D>(
+    ports: P,
+    limits: Limits,
+    tray: Box<dyn Fn(u32) + Send + Sync>,
+    dialog: Arc<D>,
+) -> Arc<Hub<P>>
+where
+    P: Owner
+        + Runs
+        + Analysis
+        + Clock
+        + Rng
+        + Policy<Config = <P as Owner>::Config>
+        + Senders
+        + Send
+        + Sync
+        + 'static,
+    <P as Owner>::Config: ConfigView + Clone + Send + 'static,
+    D: Dialog,
+{
+    let bound: Arc<OnceLock<Weak<Hub<P>>>> = Arc::new(OnceLock::new());
+    let hub_of = bound.clone();
+    let read = move |item: &ItemId| {
+        let hub = hub_of
+            .get()
+            .and_then(Weak::upgrade)
+            .ok_or(Cause::NoService)?;
+        let card = hub.coordinator().native_card(item)?;
+        Card::native(&card)
+    };
+    let arm = Duration::from_millis(limits.arm_ms);
+    let presenter = DialogPresenter::new(dialog, read, arm);
+    let hub = Hub::new(ports, limits, tray, Box::new(presenter));
+    let _ = bound.set(Arc::downgrade(&hub));
+    hub
 }
 
 trait Target {

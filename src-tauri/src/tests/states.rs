@@ -3,7 +3,7 @@ use halvo_control::onboarding::{GrantState, Permission};
 use halvo_control::proto::{
     Cap, Capture, CaptureReason, Custody, DaemonStatus, DrainError, ExpiryError, Health, LastStop,
     Lease, LostRecord, Platform, Reason, SourceError, SourceLine, SourceName, SourceState,
-    StatusFields, StopKind, StopSourceLine, StoreErrorKind, StoreState,
+    StatusFields, StopKind, StopSourceLine, StoreErrorKind, StoreState, SwitchName,
 };
 use halvo_control::testing::{onboarding_of, sample_status, FIXTURE_STORE_ID};
 use serde_json::Value;
@@ -26,6 +26,9 @@ fn error(kind: &str, stage: &str, domain: &str, code: i64) -> SourceError {
 
 pub fn status_with(platform: Platform, edit: impl FnOnce(&mut StatusFields)) -> DaemonStatus {
     let mut f = sample_status(platform).into_fields();
+    if platform == Platform::Macos {
+        f.typing = Some(true);
+    }
     edit(&mut f);
     f.onboarding = onboarding_of(f.platform, &f.permissions);
     DaemonStatus::new(f).unwrap_or_else(|e| panic!("the edited status breaks: {}", e.rule()))
@@ -96,7 +99,7 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
         ("status-refused", none(NoStatusService::StatusRefused)),
         ("unsupported", none(NoStatusService::Unsupported)),
         ("another-version", none(NoStatusService::AnotherVersion)),
-        ("running", of(sample_status(mac))),
+        ("running", of(status_with(mac, |_| {}))),
         ("running-windows", of(sample_status(Platform::Windows))),
         (
             "starting",
@@ -460,6 +463,7 @@ fn with_any_service_but_running_every_daemon_field_is_null() {
                 "hold",
                 "last_exit",
                 "lease",
+                "login_item_loaded",
                 "loss",
                 "lost_grants",
                 "password_guard",
@@ -478,7 +482,16 @@ fn with_any_service_but_running_every_daemon_field_is_null() {
         );
         if view.service() != Service::Running {
             for (key, value) in &map {
-                if ["service", "platform", "window", "last_exit", "hold"].contains(&key.as_str()) {
+                if [
+                    "service",
+                    "platform",
+                    "window",
+                    "last_exit",
+                    "hold",
+                    "login_item_loaded",
+                ]
+                .contains(&key.as_str())
+                {
                     continue;
                 }
                 assert_eq!(value, &Value::Null, "{name}: {key}");
@@ -520,6 +533,340 @@ fn the_store_id_and_the_custody_sentence_come_from_the_status() {
         f.custody = Custody::SecureEnclave
     }));
     assert!(!custody(&enclave).unwrap_or("").contains("unsigned"));
+}
+
+#[test]
+fn a_mac_status_with_typing_off_gets_none_of_the_four() {
+    let key_row = halvo_control::texts::recorded_when_on(SwitchName::KeyClass);
+    let early = halvo_control::texts::KEY_TYPED_AHEAD_CAN_BE_NOTED;
+    for (platform, typing, shown) in [
+        (Platform::Macos, Some(false), false),
+        (Platform::Macos, None, false),
+        (Platform::Macos, Some(true), true),
+        (Platform::Windows, None, true),
+    ] {
+        let case = format!("{platform:?} typing {typing:?}");
+        let status = status_with(platform, |f| {
+            f.typing = typing;
+            if let Some(line) = f
+                .permissions
+                .iter_mut()
+                .find(|line| line.name == Permission::InputMonitoring)
+            {
+                line.grant = GrantState::NotGranted;
+                line.once_granted = true;
+            }
+        });
+        let before = halvo_control::texts::texts(&status);
+        let test = super::test_app_with(
+            super::scratch_dir(&format!("typing-{}", case.replace(' ', "-"))),
+            halvo_control::testing::ScriptedDaemon::new(status.clone()),
+        );
+        test.poll();
+        let window = super::main_window(&test.app);
+        let view = super::invoke(
+            &window,
+            super::APP_URL,
+            "capture_status",
+            serde_json::json!({}),
+        )
+        .unwrap_or_else(|e| panic!("{case}: capture_status answers {e}"));
+        let onboarding = super::invoke(
+            &window,
+            super::APP_URL,
+            "onboarding_state",
+            serde_json::json!({}),
+        )
+        .unwrap_or_else(|e| panic!("{case}: onboarding_state answers {e}"));
+        let recorded: Vec<&str> = view["texts"]["recorded"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{case}: the view lists what is recorded"))
+            .iter()
+            .filter_map(|row| row["text"].as_str())
+            .collect();
+        let others = [&view["texts"]["passwords"], &view["texts"]["typed_ahead"]]
+            .into_iter()
+            .filter_map(Value::as_str)
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>();
+        let rows: Vec<&str> = onboarding["permissions"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{case}: onboarding_state lists rows"))
+            .iter()
+            .filter_map(|row| row["permission"].as_str())
+            .collect();
+        let steps: Vec<&str> = onboarding["walkback"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{case}: onboarding_state lists steps"))
+            .iter()
+            .filter_map(|step| step["permission"].as_str())
+            .collect();
+        let named = |list: &Value| {
+            list.as_array()
+                .is_some_and(|names| names.iter().any(|n| n == "input_monitoring"))
+        };
+        let sources: Vec<&str> = view["sources"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{case}: the view lists sources"))
+            .iter()
+            .filter_map(|line| line["name"].as_str())
+            .collect();
+        let mac = platform == Platform::Macos;
+        assert_eq!(
+            recorded.contains(&key_row),
+            shown && mac,
+            "{case}: the row of keys"
+        );
+        assert_eq!(
+            sources.contains(&"input"),
+            shown && mac,
+            "{case}: the input source's name for typing"
+        );
+        assert_eq!(
+            sources.contains(&"pointer"),
+            !shown || !mac,
+            "{case}: the name for the pointer alone"
+        );
+        assert_eq!(
+            rows.contains(&"input_monitoring"),
+            shown && mac,
+            "{case}: the card"
+        );
+        assert_eq!(
+            steps.contains(&"input_monitoring"),
+            shown && mac,
+            "{case}: its steps"
+        );
+        assert_eq!(
+            named(&onboarding["lost_grants"]),
+            shown && mac,
+            "{case}: its lost grant"
+        );
+        assert_eq!(
+            named(&view["lost_grants"]),
+            shown && mac,
+            "{case}: the banner's name"
+        );
+        assert_eq!(
+            others.contains(&early),
+            shown && mac,
+            "{case}: a key pressed early"
+        );
+        assert_eq!(
+            others.contains(&before.passwords),
+            shown,
+            "{case}: the sentence on passwords"
+        );
+        assert!(
+            !rows.contains(&"screen_and_system_audio_recording"),
+            "{case}: the screen's card while screen_activity is off"
+        );
+        if shown {
+            assert_eq!(
+                view["texts"],
+                serde_json::to_value(&before).expect("the texts write"),
+                "{case}: the texts as the status gives them"
+            );
+        }
+        if !mac {
+            assert_eq!(
+                onboarding,
+                serde_json::to_value(&status.fields().onboarding).expect("the rows write"),
+                "{case}: a Windows status is untouched"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_acknowledged_lost_grant_reads_lost_no_more_on_the_row_and_the_tray() {
+    use tauri::Manager;
+    let grant = |once_granted: bool| {
+        status_with(Platform::Macos, |f| {
+            if let Some(line) = f
+                .permissions
+                .iter_mut()
+                .find(|line| line.name == Permission::Accessibility)
+            {
+                line.grant = GrantState::NotGranted;
+                line.once_granted = once_granted;
+            }
+        })
+    };
+    let lost = grant(true);
+    let put_away = crate::tray::labels(&StatusView::of(&grant(false)));
+    let test = super::test_app_with(
+        super::scratch_dir("acknowledge"),
+        halvo_control::testing::ScriptedDaemon::new(lost),
+    );
+    let before = crate::tray::labels(&test.poll());
+    assert_ne!(
+        before.status_text, put_away.status_text,
+        "the tray says that a grant was lost"
+    );
+    let window = super::main_window(&test.app);
+    let answer = super::invoke(
+        &window,
+        super::APP_URL,
+        "acknowledge_lost_permission",
+        serde_json::json!({ "permission": "accessibility" }),
+    )
+    .unwrap_or_else(|e| panic!("acknowledge_lost_permission answers {e}"));
+    let acknowledged: Vec<halvo_control::proto::Request> = test
+        .daemon
+        .requests()
+        .into_iter()
+        .filter(|r| {
+            matches!(
+                r,
+                halvo_control::proto::Request::AcknowledgeLostPermission { .. }
+            )
+        })
+        .collect();
+    assert_eq!(
+        acknowledged,
+        [halvo_control::proto::Request::AcknowledgeLostPermission {
+            permission: Permission::Accessibility
+        }],
+        "one request of that name"
+    );
+    let row = answer["permissions"]
+        .as_array()
+        .and_then(|rows| rows.iter().find(|row| row["permission"] == "accessibility"))
+        .unwrap_or_else(|| panic!("the answer holds the row: {answer}"));
+    assert_eq!(
+        row["lost"],
+        Value::Bool(false),
+        "the row reads lost no more"
+    );
+    assert_eq!(row["grant"], "not_granted");
+    assert_eq!(
+        answer["lost_grants"],
+        serde_json::json!([]),
+        "the banner goes"
+    );
+    let state = test.app.state::<crate::commands::capture::AppState>();
+    let after = crate::tray::labels(&state.views.view());
+    assert_eq!(after, put_away, "the tray's line goes with the answer");
+}
+
+#[derive(Default)]
+struct Claims {
+    places: std::sync::Arc<crate::commands::control::Places>,
+    seen: std::sync::Mutex<Vec<bool>>,
+}
+
+impl Claims {
+    fn taken(&self) -> Vec<bool> {
+        std::mem::take(&mut *self.seen.lock().expect("the claims"))
+    }
+}
+
+impl crate::commands::control::Control for Claims {
+    fn places(&self) -> &std::sync::Arc<crate::commands::control::Places> {
+        &self.places
+    }
+
+    fn status(
+        &self,
+        _: crate::commands::control::Made,
+        claim: bool,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        self.seen.lock().expect("the claims").push(claim);
+        Ok(status_with(Platform::Macos, |_| {}))
+    }
+
+    fn inventory(
+        &self,
+        _: crate::commands::control::Made,
+    ) -> Result<halvo_control::proto::InventoryReply, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn pause(
+        &self,
+        _: crate::commands::control::Made,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn resume(
+        &self,
+        _: crate::commands::control::Made,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn delete_all(
+        &self,
+        _: crate::commands::control::Made,
+        _: Option<halvo_control::model::StoreId>,
+    ) -> Result<halvo_control::client::DeleteOutcome, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn set_storage_cap(
+        &self,
+        _: crate::commands::control::Made,
+        _: halvo_control::model::StorageCap,
+    ) -> Result<halvo_control::proto::CapSet, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn request_permission(
+        &self,
+        _: crate::commands::control::Made,
+        _: Permission,
+    ) -> Result<halvo_control::onboarding::RequestOutcome, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+}
+
+#[test]
+fn the_open_view_asks_a_status_without_the_claim_and_the_poller_still_claims() {
+    use tauri::Manager;
+    let control = std::sync::Arc::new(Claims::default());
+    let state =
+        crate::commands::capture::AppState::with_control(control.clone(), None, super::no_pane);
+    let test = super::test_app_from(
+        super::test_parts(super::scratch_dir("open-view"), state),
+        crate::app::context(),
+        halvo_control::testing::ScriptedConnector::new(super::macos_fixture_daemon()),
+    );
+    let window = super::main_window(&test.app);
+    let state = test.app.state::<crate::commands::capture::AppState>();
+    let tray = crate::tray::installed_for_tests();
+    let pass = || crate::poller::pass(control.as_ref(), &state.views, Some(&tray));
+    let ask = |command: &str| {
+        super::invoke(&window, super::APP_URL, command, serde_json::json!({}))
+            .unwrap_or_else(|e| panic!("{command} answers {e}"))
+    };
+    control.taken();
+    for _ in 0..3 {
+        pass();
+        ask("capture_status");
+    }
+    assert_eq!(
+        control.taken(),
+        [true; 3],
+        "with the view closed every Status claims"
+    );
+    for _ in 0..3 {
+        pass();
+        let rows = ask("onboarding_state");
+        assert!(rows["permissions"].is_array(), "{rows}");
+    }
+    assert_eq!(
+        control.taken(),
+        [true, false, true, false, true, false],
+        "the open view's Status carries no claim, and each pass beside it claims"
+    );
+    pass();
+    assert_eq!(
+        control.taken(),
+        [true],
+        "closed again, none goes out without"
+    );
 }
 
 #[test]

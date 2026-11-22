@@ -949,7 +949,7 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
 }
 
 /// The agent of the bill's configuration with playbook 1 finished, its newest run record that left one effect
-/// `unknown`, and that effect.
+/// `unknown`, and that effect; a site refused the sign-in of that run, and the run left a reply `unknown`.
 fn listed_agent() -> ListedAgent {
     let mut config = configs().remove(0);
     config.playbook = Some(n(1));
@@ -967,6 +967,9 @@ fn listed_agent() -> ListedAgent {
             class: row.class,
             kept: row.kept,
         }],
+        refused_run: Some(run()),
+        reply_unknown: YesNo::Yes,
+        refused_slots: Vec::new(),
     }
 }
 
