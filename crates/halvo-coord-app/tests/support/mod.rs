@@ -365,6 +365,7 @@ pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
             }),
             unknown: Vec::new(),
             refused_run: None,
+            last_cause: None,
         });
     }
     Shared {
@@ -840,6 +841,7 @@ fn mail_entry(flow: WorkflowId, agent: AgentId, slots: &[&str]) -> Agent<Config>
         last: None,
         unknown: vec![],
         refused_run: None,
+        last_cause: None,
     }
 }
 

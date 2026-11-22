@@ -1,7 +1,7 @@
 use super::{
     AgentId, AgentState, Category, Class, Digest, EffectId, Name, Outcome, RunId, WorkflowId,
 };
-use super::{WorkflowState, WorkflowTrigger};
+use super::{LastCause, WorkflowState, WorkflowTrigger};
 use std::num::NonZeroU32;
 
 /// A workflow of the owner's list, in the two shapes of W-C2.4: a dismissed workflow has no
@@ -111,6 +111,10 @@ pub struct Agent<C> {
     /// `refused_run`: the agent's newest started run whose log holds a `step_failed` row with
     /// the cause `unauthorized`, or none (the agent-setup run's contracts line 305).
     pub refused_run: Option<RunId>,
+    /// `last_cause`: the cause of the end of the agent's newest started run where the roster
+    /// has a sentence for it, or none: also for a cause of the store's list that `LastCause`
+    /// lacks.
+    pub last_cause: Option<LastCause>,
 }
 
 /// What the coordinator reads of a run record `agent_run` (A-A7.4).

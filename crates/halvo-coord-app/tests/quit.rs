@@ -3,15 +3,16 @@ mod support;
 use halvo_coord::mem::{Call, Method};
 use halvo_coord::ports::PortError;
 use halvo_coord::types::{
-    Action, AgentId, Body, Cause, Limits, Outcome, RunEnd, RunEvent, RunId, What,
+    Action, AgentId, Body, Cause, Limits, Outcome, RunEnd, RunEvent, RunId, What, Workflow,
+    WorkflowTrigger,
 };
 use halvo_coord_app::{Core, Hub};
 use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::{Duration, Instant};
 use support::{
-    agent, calls_since, events, mark, started, world, Counts, Dialogs, Hold, Shared, StartGate,
-    QUIT_HOOK_THREAD, T0,
+    agent, calls_since, events, flow, mark, started, world, Counts, Dialogs, Hold, Shared,
+    StartGate, DAY, QUIT_HOOK_THREAD, T0,
 };
 
 fn ms(n: u64) -> Duration {
@@ -1142,4 +1143,166 @@ fn u46_r9_a_first_step_whose_own_read_of_the_clock_fails_leaves_the_whole_grace(
         halvo_coord::ports::Clock::now(hub.coordinator().ports()).is_err(),
         "the clock failed"
     );
+}
+
+/// A hub of three agents after its first tick: agent 0 is manual, and agents 1 and 2 have a
+/// schedule of period 2 whose next slot is the day after the clock's day.
+fn hub_with_slots_tomorrow(grace_s: u64, max_live_runs: u32) -> Arc<Hub<Shared>> {
+    let limits = Limits {
+        cancel_grace_s: grace_s,
+        max_live_runs,
+        ..Limits::PRODUCT
+    };
+    let ports = world(3, limits);
+    ports.with(|p| {
+        for workflow in p.workflows.borrow_mut().iter_mut() {
+            if let Workflow::Full(full) = workflow {
+                if full.id != flow(0) {
+                    full.trigger = WorkflowTrigger::Schedule;
+                    full.last = DAY - 1;
+                }
+            }
+        }
+    });
+    let hub = Hub::new(
+        ports,
+        limits,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    hub.tick();
+    hub
+}
+
+fn the_slots_fall_due(hub: &Hub<Shared>) {
+    hub.coordinator()
+        .ports()
+        .inner()
+        .with(|p| p.set_clock(T0 + 86_400_000, DAY + 1));
+}
+
+fn started_agents(hub: &Hub<Shared>) -> Vec<AgentId> {
+    hub.coordinator().ports().inner().with(|p| {
+        p.calls
+            .borrow()
+            .iter()
+            .filter_map(|t| match &t.call {
+                Call::Start(spec) => Some(spec.agent.clone()),
+                _ => None,
+            })
+            .collect()
+    })
+}
+
+fn ended_rows_of(hub: &Hub<Shared>, run: &RunId) -> usize {
+    events(hub)
+        .iter()
+        .filter(|e| matches!(&e.what, What::RunEnded { run: ended, .. } if ended == run))
+        .count()
+}
+
+#[test]
+fn while_the_hold_stands_nothing_starts_and_each_live_run_is_cancelled_and_killed_with_nothing_stored(
+) {
+    let hub = hub_with_slots_tomorrow(1, 1);
+    let c = hub.coordinator();
+    let run = live_run(&hub);
+    assert_eq!(c.control(&agent(2), Action::RunNow), Ok(()));
+    assert_eq!(c.queued().len(), 1, "agent 2 waits in the queue");
+    let m = mark(&hub);
+    let called = Instant::now();
+    hub.hold_runs(true);
+    let took = called.elapsed();
+    assert!(took >= ms(900) && took < ms(3_000), "{took:?}");
+    let cancels = calls_since(&hub, m)
+        .iter()
+        .filter(|call| **call == Call::Cancel(run.clone()))
+        .count();
+    assert_eq!(cancels, 1, "the live run got cancel once");
+    assert_eq!(
+        kills(&hub, m),
+        std::slice::from_ref(&run),
+        "and a kill at its grace"
+    );
+    assert!(c.queued().is_empty(), "the queue is empty");
+    assert_eq!(
+        c.control(&agent(0), Action::RunNow),
+        Err(Cause::NoService),
+        "a start by the person answers no_service"
+    );
+    the_slots_fall_due(&hub);
+    hub.tick();
+    assert_eq!(
+        started(&hub),
+        std::slice::from_ref(&run),
+        "the due slots start nothing"
+    );
+    assert_eq!(
+        ended_rows_of(&hub, &run),
+        0,
+        "nothing was stored for the run"
+    );
+}
+
+#[test]
+fn after_the_lift_a_due_slot_runs_and_this_life_ends_the_held_run_and_starts_its_agent_again() {
+    let hub = hub_with_slots_tomorrow(1, 3);
+    let c = hub.coordinator();
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    let ended = started(&hub).pop().unwrap();
+    c.on_run(&ended, RunEvent::Hello).unwrap();
+    hub.hold_runs(true);
+    the_slots_fall_due(&hub);
+    hub.tick();
+    assert_eq!(started(&hub), std::slice::from_ref(&ended));
+    assert_eq!(
+        hub.hold_runs(false),
+        [],
+        "a lift stops nothing and names nothing"
+    );
+    hub.tick();
+    assert_eq!(
+        started_agents(&hub),
+        [agent(1), agent(2)],
+        "after the lift a due slot starts a run"
+    );
+    assert!(
+        c.on_run(&ended, RunEvent::Hello).is_err(),
+        "the board holds no row of the run that the hold ended"
+    );
+    let ends: Vec<RunEnd> = events(&hub)
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::RunEnded { run, cause, .. } if run == &ended => Some(*cause),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        ends,
+        [RunEnd::Interrupted],
+        "the first whole tick after the lift ends it interrupted in this life"
+    );
+    hub.tick();
+    assert_eq!(
+        started_agents(&hub),
+        [agent(1), agent(2), agent(1)],
+        "its agent's next slot runs"
+    );
+}
+
+#[test]
+fn after_mark_quit_a_lift_starts_nothing() {
+    let hub = hub_with_slots_tomorrow(1, 3);
+    let c = hub.coordinator();
+    hub.hold_runs(true);
+    c.mark_quit();
+    assert_eq!(hub.hold_runs(false), []);
+    the_slots_fall_due(&hub);
+    hub.tick();
+    assert_eq!(
+        c.control(&agent(0), Action::RunNow),
+        Err(Cause::State),
+        "the quit's mark stands after the lift"
+    );
+    assert!(started(&hub).is_empty(), "nothing starts");
 }

@@ -75,6 +75,7 @@ fn facts(spec: &Spec, whats: Vec<(u32, What)>) -> Facts<Config> {
         replies: halvo_coord::types::Replies::NotAsked,
         unknown: Vec::new(),
         refused: None,
+        last_cause: None,
         today: TODAY,
         doing: Doing::Idle(None),
         stand_in: false,

@@ -2468,6 +2468,7 @@ fn the_creations_facts_take_the_roster_key_of_the_newest_run() {
         }),
         unknown: vec![entry(&older, 0), entry(&run, 1)],
         refused_run: None,
+        last_cause: None,
     });
     let report = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);
     assert_eq!(report.created, vec![made.clone()]);
@@ -2789,6 +2790,7 @@ fn the_creation_reads_the_reply_rows_of_an_email_agent_with_a_record() {
         }),
         unknown: vec![],
         refused_run: None,
+        last_cause: None,
     });
     reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
     let report = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);
@@ -3312,6 +3314,7 @@ fn the_creation_takes_the_key_before_it_reads_the_reply_rows() {
             kept: vec![],
         }],
         refused_run: None,
+        last_cause: None,
     });
     w.ports.refuse(Method::Replies, PortError::NoService);
     let report = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);

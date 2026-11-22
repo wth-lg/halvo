@@ -439,6 +439,7 @@ fn setup_agent() -> (Coordinator<Both>, AgentId, ItemId) {
         last: None,
         unknown: vec![],
         refused_run: None,
+        last_cause: None,
     });
     let late = both.ports.workflows.borrow_mut().pop().unwrap();
     let c = Coordinator::new(both, Limits::PRODUCT);
