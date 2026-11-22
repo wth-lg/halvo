@@ -40,6 +40,10 @@ pub enum StatusLine {
     /// `problem.sign_in_refused`: the hold `sign_in_refused` (ruling RD-73 4.3). `all` does not
     /// list it until its fixture state of I8.3 is written.
     SignInRefused,
+    /// `problem.site_declined`: the hold `site_declined`, after the person's no at the question
+    /// that allows a site (r4 U2.4a). `all` does not list it until its fixture state of I8.3 is
+    /// written.
+    SiteDeclined,
     /// `problem.failures`: the hold `failures`.
     Failures,
     /// `working.starting`: a live run in the phase `starting`.
@@ -120,6 +124,7 @@ impl StatusLine {
             StatusLine::Off => Status::Off,
             StatusLine::Kept => Status::Off,
             StatusLine::SignInRefused
+            | StatusLine::SiteDeclined
             | StatusLine::Failures
             | StatusLine::Problem(_)
             | StatusLine::LastCause(_)
@@ -146,6 +151,7 @@ impl StatusLine {
             StatusLine::Off => "person",
             StatusLine::Kept => "kept",
             StatusLine::SignInRefused => "sign_in_refused",
+            StatusLine::SiteDeclined => "site_declined",
             StatusLine::Failures => "failures",
             StatusLine::Starting => "starting",
             StatusLine::Working => "working",

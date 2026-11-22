@@ -399,6 +399,7 @@ fn holds_come_in_the_order_of_i5_4() {
             "not_yet",
             "off",
             "sign_in_refused",
+            "site_declined",
             "failures",
             "check",
             "setup"
