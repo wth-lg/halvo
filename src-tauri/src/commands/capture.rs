@@ -446,7 +446,6 @@ pub async fn acknowledge_lost_permission(
     Ok(onboarding_shown(&status))
 }
 
-/// The error of a request that the service did not take, as the page reads it.
 fn not_taken(error: &ClientError) -> ActionError {
     let reading = read_error(error);
     reading.command_error.unwrap_or(ActionError::NotAnswering {

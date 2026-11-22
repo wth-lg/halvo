@@ -740,8 +740,6 @@ fn an_acknowledged_lost_grant_reads_lost_no_more_on_the_row_and_the_tray() {
     assert_eq!(after, put_away, "the tray's line goes with the answer");
 }
 
-/// A control whose Status answers a Mac's status and records its claim; every other call
-/// answers Unsupported.
 #[derive(Default)]
 struct Claims {
     places: std::sync::Arc<crate::commands::control::Places>,
