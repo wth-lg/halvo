@@ -49,6 +49,8 @@ function read(file, args) {
 
 // Each file of packaging/helpers.d is one helper; its name is the installed name.
 // A name that starts with a dot, such as Finder's .DS_Store, is no helper.
+// Beside its three lines a file may hold the one line version=none, for a helper
+// with no version argument: scripts/r1/ci.d/62-build.sh --files does not start it.
 function helpers() {
   const directory = path.join(root, "packaging", "helpers.d");
   return fs
@@ -61,8 +63,8 @@ function helpers() {
       const fields = {};
       for (const line of fs.readFileSync(path.join(directory, name), "utf8").split(/\r?\n/)) {
         if (line === "") continue;
-        const match = /^(package|bin|manifest)=([^\s=]+)$/.exec(line);
-        if (!match || match[1] in fields) fail(`${where}: the line "${line}" is not one of package=, bin=, manifest=`);
+        const match = /^(package|bin|manifest)=([^\s=]+)$/.exec(line) || /^(version)=(none)$/.exec(line);
+        if (!match || match[1] in fields) fail(`${where}: the line "${line}" is not one of package=, bin=, manifest=, version=none`);
         fields[match[1]] = match[2];
       }
       for (const key of ["package", "bin", "manifest"]) {
