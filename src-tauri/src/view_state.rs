@@ -33,6 +33,9 @@ pub struct StoreView {
     pub id: Option<StoreId>,
     pub error: Option<StoreErrorKind>,
     pub retry_in_s: Option<u64>,
+    /// The status's `store_delete_unfinished`, written for the page only while it stands.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub delete_unfinished: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -719,6 +722,7 @@ impl StatusView {
                 id: f.store_id,
                 error: f.store_error,
                 retry_in_s: f.store_retry_in_s,
+                delete_unfinished: f.store_delete_unfinished,
             },
             store_bytes: f.store_bytes,
             store_logical_bytes: f.store_logical_bytes,
@@ -1255,6 +1259,27 @@ impl DeleteView {
                 in_a_row.store(0, Ordering::SeqCst);
             }
             DeleteView::DeleteRefused => {}
+        }
+    }
+
+    /// Counts this answer of the service's door as [`DeleteView::count_unfinished`] does, and
+    /// from the second delete in a row that did not finish on names `data_dir`, the app's data
+    /// directory, as the folder that the delete ran in, in the form of the offline door's
+    /// `data_dir=` line: the service's answer names no folder of its own.
+    pub fn count_at_the_services_door(
+        &mut self,
+        in_a_row: &std::sync::atomic::AtomicU32,
+        data_dir: Option<&halvo_control::paths::DataDir>,
+    ) {
+        self.count_unfinished(in_a_row);
+        if let DeleteView::Deleted {
+            unfinished_in_a_row: Some(2..),
+            looked_in: looked_in @ None,
+            ..
+        } = self
+        {
+            *looked_in =
+                data_dir.map(|dir| halvo_control::paths::one_line(&dir.path().to_string_lossy()));
         }
     }
 

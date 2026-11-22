@@ -120,6 +120,28 @@ Where a sentence names a unit, that unit makes it true.
   (contract C4 item 13).
 - Characters and key codes are never stored: the types that core-2 builds have no
   field for them.
+- On a Mac, Halvo records nothing of an agent's own browser: no app in front, no
+  title, no key or click, and no frame of its windows, also while a person signs in
+  for the agent there (agent-browser-out). It tells that browser by its process. The
+  app starts each run's runner and the runner starts the browser, so every process
+  whose parents lead back to the app is left out. Each run also has a mark under
+  `agents/marks` in the data directory that names its runner and its browser by
+  process number and start time; the capture service reads the marks once a second
+  and leaves out each process that a mark names, and each process under one, for as
+  long as that process runs, also after its runner has ended or its mark was
+  removed. A process number that a mark names is recorded again once another program
+  holds it, because that program started at another time. Where the service cannot
+  list that folder or read a mark, it records nothing at all until it can again;
+  Status meanwhile shows capture as running and counts nothing as left out, so a
+  fault of that folder that lasts stops all recording without a sign. The limits:
+  Halvo reads which app is in front every 0.4 seconds, so a click or a key in an
+  agent's browser within 0.4 seconds after it comes to the front can be recorded for
+  the app that was in front before; a capture service that the app did not start
+  knows a run's browser only from its first reading of the marks after the run's
+  runner started, up to a second later, and one that starts after a mark was removed
+  does not know that run's browser; a service on another data directory reads only
+  that directory's marks; on Windows Halvo does not read the marks, so there only the
+  process tree leaves an agent's browser out.
 
 The first-run text and the data view quote these three sentences word for word.
 The owner approves them once, in the table of user-visible sentences for each

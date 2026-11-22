@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, each read for a number of bytes above zero before anything starts it, and no other file in that directory whose name ends in .exe but the uninstall.exe of the installer template, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started).
+# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, each read for a number of bytes above zero before anything starts it, and no other file in that directory whose name ends in .exe but the uninstall.exe of the installer template, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started), and that directory holds THIRD-PARTY-NOTICES.txt as a file with the bytes that scripts/notices/generate.js writes for the host triple in the same run, in which grep -i -c zetetic counts at least 1.
 set -u
 name=70-package-windows
 config_keys='externalBin signCommand certificateThumbprint'
@@ -136,6 +136,25 @@ release_defect() {
   return 1
 }
 
+# The notices: the directory $1 of halvo.exe in the unpacked installer holds THIRD-PARTY-NOTICES.txt
+# as a file with the bytes that scripts/notices/generate.js writes for the host triple now, into the
+# file $2, and the file names Zetetic, the holder of SQLCipher, on at least one line.
+notices_defect() {
+  notices=$1/THIRD-PARTY-NOTICES.txt
+  if [ -L "$notices" ] || [ ! -f "$notices" ]; then
+    printf 'the installer holds no file THIRD-PARTY-NOTICES.txt beside halvo.exe\n'
+    return 1
+  fi
+  host=$(rustc -vV | sed -n 's/^host: //p')
+  [ -n "$host" ] || { printf 'rustc -vV names no host triple\n'; return 1; }
+  node scripts/notices/generate.js --triple "$host" >"$2" 2>"$CI_D_ARTIFACTS/notices.err" || { printf 'scripts/notices/generate.js exited %s; see notices.err\n' "$?"; return 1; }
+  cmp -s "$notices" "$2" || { printf 'the THIRD-PARTY-NOTICES.txt of the installer is not the file that scripts/notices/generate.js writes for %s\n' "$host"; return 1; }
+  zetetic=$(grep -i -c zetetic "$notices")
+  [ "$zetetic" -ge 1 ] || { printf 'the THIRD-PARTY-NOTICES.txt of the installer names no Zetetic, the holder of SQLCipher\n'; return 1; }
+  bytes=$(wc -c <"$notices" | tr -d ' ')
+  printf 'installer holds THIRD-PARTY-NOTICES.txt beside halvo.exe, bytes=%s, zetetic lines: %s\n' "$bytes" "$zetetic"
+}
+
 build() {
   : >"$CI_D_ARTIFACTS/build.txt"
   attempt=1
@@ -198,6 +217,8 @@ measure() {
   # shellcheck disable=SC2086
   read_output=$(release_defect "$directory" $helpers) || fail "$read_output"
   printf '%s\n' "$read_output"
+  found=$(notices_defect "$directory" "$work/notices.txt") || fail "$found"
+  printf '%s\n' "$found"
   printf 'PASS %s\n' "$name"
 }
 
@@ -253,6 +274,11 @@ self_test() {
   printf '%s\n' '# halvo-capture:test-seam:this-build-has-it!' >>"$work/daemon-with-the-test-seam/halvo-capture.exe" || exit 2
   output=$(release_defect "$work/daemon-with-the-test-seam" halvo-capture 2>"$work/seam.err")
   answer daemon-with-the-test-seam $? "$output" '62-build --files: halvo-capture.exe holds the marker halvo-capture:test-seam:this-build-has-it!'
+
+  # Fixture 4: an unpacked installer without the notices file beside halvo.exe.
+  stand_in content-without-the-notices/Halvo halvo.exe
+  output=$(notices_defect "$work/content-without-the-notices/Halvo" "$work/notices.txt" 2>"$work/notices.err")
+  answer installer-content-without-the-notices $? "$output" 'the installer holds no file THIRD-PARTY-NOTICES.txt beside halvo.exe'
 
   config_repo=$work/config
   mkdir -p "$config_repo/src-tauri" || exit 2

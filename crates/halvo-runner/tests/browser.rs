@@ -9,15 +9,18 @@ mod support;
 use std::time::{Duration, Instant};
 
 use halvo_runner::LINK_END;
+use halvo_schema::executable::names::Answer;
 use halvo_schema::executable::names::{HandbackReason, LogEvent};
+use halvo_schema::executable::EffectState;
 use halvo_schema::executable::{Cause, FromRunner, Outcome, RunnerCall, ToRunner};
 use halvo_schema::Category;
 use support::browser::{
     bearing, cond, entries_below, extract_amount, from_slot, handback, hosted, hosted_headed,
-    hosted_mac, hosted_on_mac, konst, navigate, own_start_us, print_entries,
+    hosted_mac, hosted_on_mac, konst, navigate, own_start_us, pay_click, print_entries,
     print_outside_the_profile, profile_of, say, serve_finding, serve_in, serve_with, step, Fixture,
     Made,
 };
+use support::connect::decision;
 use support::{slot, tag, Act, Seen, Supervisor, FINDS_ITS_BROWSER, LONG};
 
 /// A page whose one control with the test id `amount` reads `12.34`.
@@ -1067,4 +1070,89 @@ fn cache_case(
         .filter(|(held, _)| !held)
         .map(|(_, fault)| format!("{browser}: {fault}"))
         .collect()
+}
+
+/// A payment page: the amount `12.34` and a form that posts a token to `/charge` by its button `pay-now`.
+const PAY: &str = r#"<!doctype html><title>pay</title><p>Amount <span data-testid="amount">12.34</span></p><form method="post" action="/charge"><input type="hidden" name="token" value="halvo-runner-pay-token"><button data-testid="pay-now">Pay now</button></form>"#;
+
+/// The page after the charge, which names the amount charged.
+const CHARGED: &str = r#"<!doctype html><title>paid</title><h1>Payment received</h1><p>Amount charged <span data-testid="amount-charged">12.34</span></p>"#;
+
+/// r3 U4.1w-2 (7), on the hosted macos job alone: in a real browser the POST of the fixture's payment form, which the
+/// web step of the class `payment` makes, is held while the person is asked; after the test's `allow_once` it leaves
+/// once, the fixture answers it 200 with a page that names the amount that the card showed, and the run ends
+/// `completed` with the effect `committed`. ONE payment stands in the fixture's list: one `POST /charge`, with the
+/// form's token.
+#[test]
+fn a_payment_leaves_once_after_the_yes() {
+    let test = "a_payment_leaves_once_after_the_yes";
+    if cfg!(windows) {
+        say(
+            test,
+            "not run: it starts a real browser, on the hosted macos job alone",
+        );
+        return;
+    }
+    let Some(browser) = hosted(test) else {
+        return;
+    };
+    let fixture = Fixture::start(&[("/pay", PAY), ("/charge", CHARGED)]);
+    let mut sup = web_agent(253, &fixture);
+    sup.slots = vec![
+        slot("payee", "Larkspur Power"),
+        slot("instrument", "Card ending 4417"),
+    ];
+    sup.steps = vec![
+        navigate(1, &fixture.url("/pay")),
+        extract_amount(2, "amount"),
+        pay_click(3, "pay-now", fixture.origin().as_str()),
+    ];
+    let seen = serve_with(
+        &sup,
+        &browser,
+        |frame, _| match frame {
+            FromRunner::Browser(_) => Act::With(browser_reply()),
+            FromRunner::Confirm(_) => decision(frame, |_| Answer::AllowOnce),
+            _ => Act::Answer,
+        },
+        LONG,
+    );
+    let charges: Vec<_> = fixture
+        .requests()
+        .into_iter()
+        .filter(|r| r.method == "POST")
+        .collect();
+    assert_eq!(
+        charges.iter().map(|r| r.path.as_str()).collect::<Vec<_>>(),
+        ["/charge"],
+        "one payment: rows {:?}, states {:?}, stderr {}",
+        rows(&seen),
+        seen.states(),
+        seen.stderr
+    );
+    assert!(charges[0]
+        .bytes
+        .windows(b"halvo-runner-pay-token".len())
+        .any(|w| w == b"halvo-runner-pay-token"));
+    assert_eq!(
+        seen.frames
+            .iter()
+            .filter(|f| matches!(f, FromRunner::Confirm(_)))
+            .count(),
+        1,
+        "one card"
+    );
+    assert_eq!(
+        seen.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Releasing,
+            EffectState::Committed
+        ],
+        "{}",
+        seen.stderr
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert!(!profile_of(&seen, &sup.run).0.exists());
 }

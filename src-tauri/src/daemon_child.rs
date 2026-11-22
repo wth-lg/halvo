@@ -82,7 +82,8 @@ pub enum Next {
     WaitForAPress,
     StartNow,
     StartAfter(Duration),
-    /// No further child in this life of the app.
+    /// No child starts by itself, after the third end with 5 in a row and after an end with 6:
+    /// a person's press on Start starts one again, and a quit ends the wait.
     NoMoreChild,
 }
 
@@ -1219,13 +1220,13 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             note(&self.record, "owner_stream");
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn run_mark(
             &self,
             _: Made,
@@ -1234,7 +1235,7 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
             Err(ClientError::Unsupported)
         }
@@ -1782,12 +1783,12 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn run_mark(
             &self,
             _: Made,
@@ -1796,7 +1797,7 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
             Err(ClientError::Unsupported)
         }
@@ -2286,12 +2287,12 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn run_mark(
             &self,
             _: Made,
@@ -2300,7 +2301,7 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
             Err(ClientError::Unsupported)
         }
@@ -2389,12 +2390,12 @@ mod tests {
             own("acknowledge_lost_permission")
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             own("owner_stream")
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn run_mark(
             &self,
             _: Made,
@@ -2403,7 +2404,7 @@ mod tests {
             own("run_mark")
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
             own("defer")
         }
@@ -2968,12 +2969,12 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn run_mark(
             &self,
             _: Made,
@@ -2982,7 +2983,7 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
             Err(ClientError::Unsupported)
         }
@@ -3706,7 +3707,7 @@ mod tests {
                 Err(ClientError::Unsupported)
             }
 
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", windows))]
             fn owner_stream(
                 &self,
                 _: Made,
@@ -3714,7 +3715,7 @@ mod tests {
                 Err(ClientError::Unsupported)
             }
 
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", windows))]
             fn run_mark(
                 &self,
                 _: Made,
@@ -3723,7 +3724,7 @@ mod tests {
                 Err(ClientError::Unsupported)
             }
 
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", windows))]
             fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
                 Err(ClientError::Unsupported)
             }
@@ -3818,6 +3819,35 @@ mod tests {
     }
 
     #[test]
+    fn the_agents_runs_stay_held_while_the_store_reads_deleting_with_the_field() {
+        use crate::commands::agents::RunsHold;
+        use crate::view_state::StatusView;
+        use halvo_control::proto::StoreState;
+
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        fields.store = StoreState::Deleting;
+        fields.store_id = None;
+        fields.store_delete_unfinished = true;
+        let view = StatusView::of(&DaemonStatus::new(fields).expect("a status that holds"));
+        let StatusView::Running(running) = &view else {
+            panic!("a status reads as a running view");
+        };
+        assert_eq!(
+            (running.store.state, running.store.delete_unfinished),
+            (StoreState::Deleting, true),
+            "the view carries the field"
+        );
+        let runs = RunsHold::default();
+        runs.delete_begins(None);
+        runs.view_reads(None, RunsHold::bars(&view));
+        runs.delete_ends(None);
+        assert!(
+            runs.stands(),
+            "no run of an agent starts while the store reads deleting with the field"
+        );
+    }
+
+    #[test]
     fn an_offline_end_with_1_and_a_clean_deleted_line_is_no_whole_delete() {
         use crate::view_state::{offline_view, OfflineEnd};
         use std::sync::atomic::{AtomicU32, Ordering};
@@ -3864,6 +3894,66 @@ mod tests {
             in_a_row.load(Ordering::SeqCst),
             0,
             "a whole delete ends the row"
+        );
+    }
+
+    #[test]
+    fn at_the_services_door_a_second_unfinished_delete_names_the_folder() {
+        use crate::view_state::DeleteView;
+        use halvo_control::paths::DataDir;
+        use halvo_control::proto::{
+            DeleteFields, DeleteReport, Deleted, IntentState, RootDestroyed,
+        };
+        use serde_json::{json, Value};
+        use std::sync::atomic::AtomicU32;
+
+        let dir = DataDir::from_flag(crate::tests::scratch_dir("door-folder"))
+            .expect("an absolute directory");
+        let folder = halvo_control::paths::one_line(&dir.path().to_string_lossy());
+        let answer = |entries_left: u64| {
+            let report = DeleteReport::new(DeleteFields {
+                segments_shredded: Some(0),
+                keys_destroyed: Some(1),
+                root_destroyed: RootDestroyed::Yes,
+                root_id: None,
+                files_left: 0,
+                database_left: false,
+                not_followed: 0,
+                entries_removed: 5,
+                entries_left,
+                unknown_entries: 0,
+                intent: IntentState::Written,
+            })
+            .expect("the report holds together");
+            DeleteView::of(
+                &DeleteOutcome::Deleted(Deleted {
+                    report,
+                    store: None,
+                }),
+                None,
+            )
+        };
+        let in_a_row = AtomicU32::new(0);
+        let read: Vec<(Value, Value)> = [1, 1, 0]
+            .into_iter()
+            .map(|left| {
+                let mut view = answer(left);
+                view.count_at_the_services_door(&in_a_row, Some(&dir));
+                let read = serde_json::to_value(&view).expect("JSON");
+                (
+                    read["unfinished_in_a_row"].clone(),
+                    read["looked_in"].clone(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            read,
+            [
+                (json!(1), Value::Null),
+                (json!(2), json!(folder)),
+                (Value::Null, Value::Null),
+            ],
+            "the service's answer names the folder from the second unfinished delete in a row on"
         );
     }
 
@@ -4017,14 +4107,15 @@ mod tests {
                 },
                 &NoRunner(Arc::clone(&record)),
             );
-            until("the agents core's start asks its owner stream", || {
-                record
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .any(|line| line == "owner_stream")
-            });
         }
+        #[cfg(any(target_os = "macos", windows))]
+        until("the agents core's start asks its owner stream", || {
+            record
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|line| line == "owner_stream")
+        });
 
         test.poll();
         until("the view reads not_started", || {
@@ -4040,7 +4131,7 @@ mod tests {
             "the supervisor holds no child"
         );
         let seen = record.lock().unwrap().clone();
-        let expected: &[&str] = if cfg!(target_os = "macos") {
+        let expected: &[&str] = if cfg!(any(target_os = "macos", windows)) {
             &["owner_stream", "status"]
         } else {
             &["status"]
