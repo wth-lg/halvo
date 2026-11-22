@@ -620,6 +620,9 @@ impl Drop for HeldForTheList<'_> {
     fn drop(&mut self) {
         if !self.kept {
             self.hold.removal(false);
+            self.before
+                .runs
+                .ended_with_no_service(std::time::Instant::now());
             self.before.runs.delete_ends(self.before.core.as_deref());
         }
     }
@@ -1425,8 +1428,20 @@ mod tests {
         held.runs.drawn(held.core.as_deref(), &views, &calls);
         assert_eq!(
             noted(&record),
+            vec!["hold the runs".to_owned()],
+            "behind the list that the unwind stopped, a poll that finds no service lifts nothing"
+        );
+        views.take_poll(
+            calls.make().number(),
+            &Ok(halvo_control::testing::sample_status(
+                halvo_control::proto::Platform::Macos,
+            )),
+        );
+        held.runs.drawn(held.core.as_deref(), &views, &calls);
+        assert_eq!(
+            noted(&record),
             vec!["hold the runs".to_owned(), "lift the runs".to_owned()],
-            "the core was told to hold once and to lift once, at the latest at the first poll read behind the unwind"
+            "the core was told to hold once and to lift once, at the first poll behind the unwind that finds the service"
         );
         assert!(
             views.hold().begin_consent().is_some(),
