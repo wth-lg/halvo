@@ -13,9 +13,10 @@ use halvo_schema::executable::names::{HandbackReason, LogEvent};
 use halvo_schema::executable::{Cause, FromRunner, Outcome, RunnerCall, ToRunner};
 use halvo_schema::Category;
 use support::browser::{
-    bearing, cond, extract_amount, from_slot, handback, hosted, hosted_headed, hosted_mac, konst,
-    navigate, own_start_us, print_outside_the_profile, profile_of, say, serve_finding, serve_with,
-    step, Fixture,
+    bearing, cond, entries_below, extract_amount, from_slot, handback, hosted, hosted_headed,
+    hosted_mac, hosted_on_mac, konst, navigate, own_start_us, print_entries,
+    print_outside_the_profile, profile_of, say, serve_finding, serve_in, serve_with, step, Fixture,
+    Made,
 };
 use support::{slot, tag, Act, Seen, Supervisor, FINDS_ITS_BROWSER, LONG};
 
@@ -832,5 +833,88 @@ fn the_browser_takes_the_profile_after_a_quoted_single_argument() {
         took,
         "the browser did not take {} after a quoted --single-argument",
         profile.display()
+    );
+}
+
+/// r3 U5.2e, on the hosted macos job alone (the coordinator's lines 14401 and 14450): a run whose data directory lies
+/// under the hosted runner's own `Library/Application Support`, in a folder whose name the test makes and no other
+/// program uses, loads a fixture page and completes with a clean stop. After the stop nothing of the run stands under
+/// the runner's `Library/Caches` below that folder's name, where the browser's own rule puts the cache of a profile
+/// under `Library/Application Support` when its start names no other cache place: no folder of the run's id, and no
+/// file at any depth. It prints every entry that it finds there, with its kind and size. Its limits: one browser of
+/// one version (`HALVO_BROWSER`, the runner's Google Chrome) on one system; and at its end it removes, by its own code
+/// (`Made`), both folders that it made under the runner's `Library`, with all that they hold, also when it fails; a
+/// hosted runner is thrown away after the job.
+#[test]
+fn a_run_under_the_persons_library_leaves_no_cache_outside_its_profile() {
+    const TEST: &str = "a_run_under_the_persons_library_leaves_no_cache_outside_its_profile";
+    let Some(browser) = hosted_on_mac(TEST) else {
+        return;
+    };
+    let home = std::path::PathBuf::from(std::env::var_os("HOME").expect("HOME is set"));
+    let made_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("the clock")
+        .as_nanos();
+    let name = format!("halvo-u52e-cache-place-{}-{made_at}", std::process::id());
+    let data = home.join("Library/Application Support").join(&name);
+    let caches = home.join("Library/Caches").join(&name);
+    assert!(
+        std::fs::symlink_metadata(&data).is_err() && std::fs::symlink_metadata(&caches).is_err(),
+        "the folder {name} stands before the run"
+    );
+    let _made = Made {
+        test: TEST,
+        dirs: vec![data.clone(), caches.clone()],
+    };
+    std::fs::create_dir(&data).expect("make the data directory");
+    let fixture = Fixture::start(&[("/read", READ)]);
+    let mut sup = web_agent(251, &fixture);
+    sup.steps = vec![
+        navigate(1, &fixture.url("/read")),
+        extract_amount(2, "amount"),
+    ];
+    let seen = serve_in(&sup, &browser, &data, reply_to_browser, LONG);
+    let entries = entries_below(&caches);
+    print_entries(TEST, &format!("Library/Caches/{name}"), &entries);
+    let run_folder = caches
+        .join("agents")
+        .join("profiles")
+        .join(sup.run.as_str());
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(
+        rows(&seen),
+        [
+            (LogEvent::StepOk, Some(1), None),
+            (LogEvent::StepOk, Some(2), None)
+        ]
+    );
+    let (run_dir, _) = profile_of(&seen, &sup.run);
+    assert!(!run_dir.exists(), "{} is left", run_dir.display());
+    assert!(
+        fixture
+            .requests()
+            .iter()
+            .any(|r| r.method == "GET" && r.path == "/read"),
+        "the page was not loaded"
+    );
+    let files: Vec<&str> = entries
+        .iter()
+        .filter(|e| !e.dir)
+        .map(|e| e.rel.as_str())
+        .collect();
+    assert!(
+        files.is_empty(),
+        "files of the run stand under Library/Caches/{name}: {files:?}"
+    );
+    assert!(
+        std::fs::symlink_metadata(&run_folder).is_err(),
+        "the run's folder stands under Library/Caches: {}",
+        run_folder.display()
+    );
+    assert!(
+        seen.stderr.contains("run browser=stopped removed=yes"),
+        "{}",
+        seen.stderr
     );
 }

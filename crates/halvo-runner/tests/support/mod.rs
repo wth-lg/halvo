@@ -367,7 +367,14 @@ impl Runner {
     /// `args`, so that no runner of a test locks under this account's real data directory
     /// (CP-134); it refuses before the child starts a line without the argument.
     pub fn start(args: &[String]) -> Runner {
-        Runner::start_with_data_dir(args, Browser::Given)
+        Runner::start_with_data_dir(args, scratch("data"), Browser::Given)
+    }
+
+    /// Starts the runner as `start` does, with `data_dir`, a directory that the test made, in place of a scratch
+    /// directory of its own: for the test of the cache place (r3 U5.2e), whose data directory lies under the hosted
+    /// runner's own `Library/Application Support`.
+    pub fn start_in(args: &[String], data_dir: PathBuf) -> Runner {
+        Runner::start_with_data_dir(args, data_dir, Browser::Given)
     }
 
     /// Starts the runner as `start` does, with no `--browser`, so that it finds the browser of the machine by
@@ -385,11 +392,10 @@ impl Runner {
             !args.iter().any(|a| a == "--browser"),
             "{test}: a start with no --browser"
         );
-        Runner::start_with_data_dir(args, Browser::Found)
+        Runner::start_with_data_dir(args, scratch("data"), Browser::Found)
     }
 
-    fn start_with_data_dir(args: &[String], browser: Browser) -> Runner {
-        let data_dir = scratch("data");
+    fn start_with_data_dir(args: &[String], data_dir: PathBuf, browser: Browser) -> Runner {
         let mut line = vec![
             "--data-dir".to_string(),
             data_dir.to_string_lossy().into_owned(),
