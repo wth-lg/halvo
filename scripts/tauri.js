@@ -5,10 +5,11 @@
 // their paths as bundle.externalBin for that run alone (packaging/README.md).
 // On a Mac it also gives the CLI bundle.macOS.signingIdentity "-", the ad hoc seal,
 // for that run alone, and starts the CLI with CI=true, so that the script of the
-// disk image drives no Finder window.
+// disk image drives no Finder window; when that CLI call fails on hdiutil's busy line,
+// it runs the CLI once more.
 // It takes the signing variables out of the environment of everything it starts.
 "use strict";
-const { spawnSync } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -123,6 +124,46 @@ if (stages) {
   cliArgs = [...args.slice(0, at), "--config", JSON.stringify({ bundle }), ...args.slice(at)];
 }
 
-const status = run(process.execPath, [cli, ...cliArgs], mac ? { env: { ...env, CI: "true" } } : {});
-if (status === 0 && stages && !own.includes("--no-bundle")) sign_step();
-process.exit(status);
+// hdiutil's answer when it cannot make the disk image's file because the system holds
+// something that it needs; a hosted macOS runner gives it now and then.
+const busy = "hdiutil: create failed - Resource busy";
+
+// Runs the CLI of a Mac build with its output written on to this process's own as it
+// comes, and answers its exit status and whether that output held hdiutil's busy line.
+function watched() {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [cli, ...cliArgs], { env: { ...env, CI: "true" }, stdio: ["inherit", "pipe", "pipe"] });
+    let held = false;
+    for (const [from, to] of [[child.stdout, process.stdout], [child.stderr, process.stderr]]) {
+      let tail = "";
+      from.on("data", (chunk) => {
+        to.write(chunk);
+        const text = tail + chunk.toString("latin1");
+        held ||= text.includes(busy);
+        tail = text.slice(-busy.length);
+      });
+    }
+    child.on("error", (error) => fail(`${process.execPath}: ${error.message}`));
+    child.on("close", (code) => resolve({ status: code === null ? 1 : code, held }));
+  });
+}
+
+// A Mac build whose CLI failed on hdiutil's busy line runs the CLI once more, and says so
+// on standard error; any other failure, and a second failure, ends the build.
+async function main() {
+  let status;
+  if (mac) {
+    const first = await watched();
+    status = first.status;
+    if (status !== 0 && first.held) {
+      console.error(`scripts/tauri.js: the Tauri CLI exited ${status} after "${busy}" while it made the disk image, so it runs once more`);
+      status = (await watched()).status;
+    }
+  } else {
+    status = run(process.execPath, [cli, ...cliArgs], {});
+  }
+  if (status === 0 && stages && !own.includes("--no-bundle")) sign_step();
+  process.exitCode = status;
+}
+
+main();

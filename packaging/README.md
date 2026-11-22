@@ -109,6 +109,11 @@ The same file `src-tauri/tauri.macos.conf.json` names the targets `app` and
 hosted runner builds the image. The image has no layout of its own: a person sees
 the app and the link to Applications where Finder puts them.
 
+A hosted runner's hdiutil now and then answers `hdiutil: create failed - Resource
+busy` when the script makes the image. When the CLI's call fails and its output
+holds that line, the wrapper says so on standard error and runs the CLI once more;
+it tries no second time, and for no other failure.
+
 Check 70 requires exactly one `*.dmg` in `release/bundle/dmg` of the target
 directory, newer than the start of its build. It attaches the image read-only and
 unbrowsed under its scratch directory, copies `Halvo.app` out of it with `ditto`
