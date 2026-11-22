@@ -15,6 +15,7 @@ const MARKER: &str = "halvo-runner:web-maker:this-build-has-it!";
 /// targets start stays as cargo built it for them (the coordinator's rule on a test that builds another program
 /// inside itself). The built file holds the maker's marker, and the list `markers` of check 62-build holds the text.
 #[test]
+#[ignore = "one release build of the runner in a target directory of its own: scripts/r1/ci.d/63-maker-marker.sh runs it by its exact name in the macos job"]
 fn a_runner_built_with_the_feature_holds_the_maker_s_marker() {
     let target = Path::new(env!("CARGO_TARGET_TMPDIR")).join("maker-marker");
     let built = Command::new(env!("CARGO"))
