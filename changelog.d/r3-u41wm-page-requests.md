@@ -1,0 +1,2 @@
+- Fixed: A run with a web step is no longer refused by chance: the browser's start opens about:blank after its probe, so the browser cannot load the probe's error page again after the runner arms its rule.
+- Changed: The runner ends a run refused only for a failed request of its page, and writes one line on standard error for each request that the rule failed, with no path and no query.

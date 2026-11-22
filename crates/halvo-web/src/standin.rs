@@ -219,6 +219,8 @@ fn browser(me: &Path, args: &[String], early: bool, slow_probe: bool) {
     let mut reader = BufReader::new(input);
     let mut targets: Vec<String> = Vec::new();
     let mut probed = false;
+    // Whether the page opened about:blank: only then is it loaded to the start's wait (U4.1wm).
+    let mut blank = false;
     let mut buf = Vec::new();
     loop {
         buf.clear();
@@ -260,6 +262,13 @@ fn browser(me: &Path, args: &[String], early: bool, slow_probe: bool) {
                 }
                 serde_json::json!({ "targetId": id })
             }
+            "Page.navigate" if m["params"]["url"].as_str() == Some("about:blank") => {
+                blank = true;
+                serde_json::json!({ "frameId": "F1", "loaderId": "L2" })
+            }
+            "Runtime.evaluate" => serde_json::json!({
+                "result": { "type": "boolean", "value": blank }
+            }),
             "Page.navigate" => {
                 let url = m["params"]["url"].as_str().unwrap_or("");
                 if url.contains("halvo-start-probe.invalid") {
