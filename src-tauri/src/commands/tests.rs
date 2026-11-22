@@ -413,6 +413,11 @@ fn page(items: Vec<Value>, next: Option<u8>) -> Result<Vec<u8>, ClientError> {
     owner_reply("ok", json!({"workflows": items, "next": next.map(hex)}))
 }
 
+/// A stand-in of the system's function that names no app.
+fn no_name(_: &str) -> Option<String> {
+    None
+}
+
 fn daemon_refuses(code: ErrorCode) -> Result<Vec<u8>, ClientError> {
     Err(ClientError::Daemon(ErrorReply::new(code, "refused")))
 }
@@ -450,7 +455,7 @@ fn workflows_reads_every_page_and_lists_what_the_owner_holds() {
             None,
         ),
     ]);
-    let reply = read(&control);
+    let reply = read(&control, &no_name);
     let afters: Vec<Option<WorkflowId>> = control
         .requests()
         .iter()
@@ -517,7 +522,11 @@ fn each_answer_without_a_list_gives_its_state() {
     for (answer, reply) in cases {
         let case = format!("{answer:?}");
         let control = Relayed::answering(vec![answer]);
-        assert_eq!(as_the_page_gets_it(read(&control)), reply, "{case}");
+        assert_eq!(
+            as_the_page_gets_it(read(&control, &no_name)),
+            reply,
+            "{case}"
+        );
         assert_eq!(control.requests().len(), 1, "{case}");
     }
 }
@@ -567,24 +576,24 @@ fn a_decision_sends_one_request_with_the_workflow_id_alone() {
 }
 
 #[test]
-fn a_row_names_no_app_id_and_no_day() {
+fn a_row_names_the_app_that_the_system_names_and_no_app_id_and_no_day() {
+    let (named, unnamed) = ("com.apple.Safari", "com.example.unnamed");
     let control = Relayed::answering(vec![page(
-        vec![page_item(
-            0x44,
-            "proposed",
-            "ride_order",
-            "com.apple.Safari",
-            &[0x70],
-        )],
+        vec![
+            page_item(0x44, "proposed", "ride_order", named, &[0x70]),
+            page_item(0x55, "proposed", "email", unnamed, &[0x71]),
+        ],
         None,
     )]);
-    let reply = as_the_page_gets_it(read(&control));
-    assert!(!reply.to_string().contains("com.apple.Safari"), "{reply}");
+    let system = |app: &str| (app == named).then(|| "Safari".to_string());
+    let reply = as_the_page_gets_it(read(&control, &system));
+    assert!(!reply.to_string().contains(named), "{reply}");
+    assert!(!reply.to_string().contains(unnamed), "{reply}");
     let rows: Vec<&Value> = ["proposals", "stored"]
         .iter()
         .flat_map(|list| reply[*list].as_array().expect("a list of rows"))
         .collect();
-    assert_eq!(rows.len(), 2, "{reply}");
+    assert_eq!(rows.len(), 4, "{reply}");
     for row in rows {
         let mut keys: Vec<&str> = row
             .as_object()
@@ -594,7 +603,38 @@ fn a_row_names_no_app_id_and_no_day() {
             .collect();
         keys.sort_unstable();
         assert_eq!(keys, ["app", "category", "count", "id", "site"]);
-        assert_eq!(row["app"], Value::Null);
+        let app = match row["id"].as_str() {
+            Some(id) if id == hex(0x44) => json!("Safari"),
+            Some(id) if id == hex(0x55) => Value::Null,
+            _ => panic!("a row of no workflow of the page: {row}"),
+        };
+        assert_eq!(row["app"], app, "{reply}");
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn an_apps_names_are_read_only_where_it_lies_under_applications_or_system() {
+    let read = |place: &str| super::workflows::names_readable_at(std::path::Path::new(place));
+    for place in [
+        "/Applications/Safari.app",
+        "/System/Applications/Mail.app",
+        "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app",
+    ] {
+        assert!(read(place), "{place} is not read");
+    }
+    for place in [
+        "/Users/someone/Downloads/Tool.app",
+        "/Users/someone/Desktop/Tool.app",
+        "/Users/someone/Documents/Tool.app",
+        "/Users/someone/Applications/Tool.app",
+        "/Volumes/Disk/Tool.app",
+        "/Applications/../Users/someone/Downloads/Tool.app",
+        "/System/Volumes/Data/Users/someone/Downloads/Tool.app",
+        "/System/Volumes/Data/Users/someone/Applications/Tool.app",
+        "/System/Volumes/Data/Applications/Tool.app",
+    ] {
+        assert!(!read(place), "{place} is read");
     }
 }
 
@@ -696,7 +736,7 @@ fn the_gated_control_relays_one_request() {
 
     let no_daemon = Gated::new(Timeouts::default());
     assert_eq!(
-        as_the_page_gets_it(read(&no_daemon)),
+        as_the_page_gets_it(read(&no_daemon, &no_name)),
         json!({"state": "not_running"})
     );
 }
