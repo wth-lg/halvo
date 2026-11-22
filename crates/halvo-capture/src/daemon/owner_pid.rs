@@ -90,7 +90,7 @@ pub struct ProcessHandle(windows::Win32::Foundation::HANDLE);
 
 // SAFETY: a process handle names a kernel object that any thread of the
 // process may use; this value owns its handle alone and closes it once.
-#[cfg(all(windows, debug_assertions))]
+#[cfg(windows)]
 unsafe impl Send for ProcessHandle {}
 
 /// What an open of a process by its pid found: the process, an open that the
@@ -177,7 +177,7 @@ impl ProcessHandle {
     }
 }
 
-#[cfg(all(windows, debug_assertions))]
+#[cfg(windows)]
 impl ProcessHandle {
     /// Whether the process has ended, read with no wait. The handle needs
     /// the right to wait for the process.

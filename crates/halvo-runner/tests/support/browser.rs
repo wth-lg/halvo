@@ -66,6 +66,94 @@ pub fn hosted_headed(test: &str) -> Option<PathBuf> {
     hosted(test)
 }
 
+/// `hosted` on macOS alone: on Windows none, after one line that says so, for a test that reads the account's
+/// `Library` of a Mac on the hosted macos job alone.
+pub fn hosted_on_mac(test: &str) -> Option<PathBuf> {
+    if cfg!(windows) {
+        say(
+            test,
+            "not run: it reads the account's Library of a Mac, on the hosted macos job alone",
+        );
+        return None;
+    }
+    hosted(test)
+}
+
+/// The folders that a test made under the account's `Library`, each removed with all that it holds when the test
+/// ends, also by a panic, with one line that says how each removal went.
+pub struct Made {
+    pub test: &'static str,
+    pub dirs: Vec<PathBuf>,
+}
+
+impl Drop for Made {
+    fn drop(&mut self) {
+        for dir in &self.dirs {
+            let how = match std::fs::remove_dir_all(dir) {
+                Ok(()) => "removed".to_string(),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => "none to remove".to_string(),
+                Err(e) => format!("not removed: {e}"),
+            };
+            say(self.test, &format!("made {}: {how}", dir.display()));
+        }
+    }
+}
+
+/// One entry below a directory: its path from that directory, whether it is a directory, and its size.
+#[derive(Debug)]
+pub struct Entry {
+    pub rel: String,
+    pub dir: bool,
+    pub len: u64,
+}
+
+/// Every entry below `dir`, at any depth, in the order of the directory reads; none where `dir` does not stand. A
+/// link is not followed.
+pub fn entries_below(dir: &Path) -> Vec<Entry> {
+    fn walk_into(dir: &Path, rel: &str, out: &mut Vec<Entry>) {
+        for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let rel = if rel.is_empty() {
+                name
+            } else {
+                format!("{rel}/{name}")
+            };
+            let Ok(meta) = std::fs::symlink_metadata(entry.path()) else {
+                continue;
+            };
+            out.push(Entry {
+                rel: rel.clone(),
+                dir: meta.is_dir(),
+                len: meta.len(),
+            });
+            if meta.is_dir() {
+                walk_into(&entry.path(), &rel, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk_into(dir, "", &mut out);
+    out
+}
+
+/// Prints for `test` each entry of `entries`, below the place named `place`, with its kind and size, at most
+/// `MOST_LINES` lines and then how many more; `none` where there is none.
+pub fn print_entries(test: &str, place: &str, entries: &[Entry]) {
+    if entries.is_empty() {
+        say(test, &format!("{place}: none"));
+    }
+    for e in entries.iter().take(MOST_LINES) {
+        let kind = if e.dir { "dir" } else { "file" };
+        say(test, &format!("{place}: {} {kind} {} bytes", e.rel, e.len));
+    }
+    if entries.len() > MOST_LINES {
+        say(
+            test,
+            &format!("{place}: {} more", entries.len() - MOST_LINES),
+        );
+    }
+}
+
 /// The bundle id of the browser that the hosted macos job gives the headed test (`HALVO_BROWSER`, Google Chrome).
 const BUNDLE: &str = "com.google.Chrome";
 
@@ -375,6 +463,23 @@ pub fn serve_with(
     rule: impl FnMut(&FromRunner, &[FromRunner]) -> Act,
     limit: Duration,
 ) -> Seen {
+    serve_runner(sup, Runner::start(&args_with(sup, browser)), rule, limit)
+}
+
+/// `serve_with` with the runner's data directory `data_dir`, a directory that the test made (`Runner::start_in`).
+pub fn serve_in(
+    sup: &Supervisor,
+    browser: &Path,
+    data_dir: &Path,
+    rule: impl FnMut(&FromRunner, &[FromRunner]) -> Act,
+    limit: Duration,
+) -> Seen {
+    let runner = Runner::start_in(&args_with(sup, browser), data_dir.to_path_buf());
+    serve_runner(sup, runner, rule, limit)
+}
+
+/// The supervisor's arguments with `--browser` set to `browser`.
+fn args_with(sup: &Supervisor, browser: &Path) -> Vec<String> {
     let mut args = sup.args();
     let at = args
         .iter()
@@ -382,7 +487,7 @@ pub fn serve_with(
         .expect("the key --browser")
         + 1;
     args[at] = browser.to_string_lossy().into_owned();
-    serve_runner(sup, Runner::start(&args), rule, limit)
+    args
 }
 
 /// `Supervisor::serve` with no `--browser`, for the test `test`, which `Runner::start_finding_its_browser` lets

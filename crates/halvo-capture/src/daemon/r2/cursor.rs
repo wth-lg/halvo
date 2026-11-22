@@ -114,7 +114,7 @@ pub(in crate::daemon) trait ReadEntry {
     fn read_from(&mut self, from: Ordinal) -> (Result<SegmentRead, MaintFault>, SystemTime);
 }
 
-#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
+#[cfg(any(test, target_os = "macos", windows))]
 impl<S, C> ReadEntry for crate::daemon::owner::Owner<S, C>
 where
     S: crate::daemon::port::CaptureStore,

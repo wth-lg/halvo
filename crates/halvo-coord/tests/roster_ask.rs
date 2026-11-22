@@ -1,9 +1,9 @@
 use halvo_coord::mem::Config;
-use halvo_coord::roster::{deleting_row, gone_row, row, status};
+use halvo_coord::roster::{deleting_row, gone_row, row, row_with_session, status};
 use halvo_coord::types::fixtures::{facts, State};
 use halvo_coord::types::{
-    Class, Doing, EffectId, Facts, ItemId, ItemKind, Kept, Limits, Live, Name, OwnItem,
-    OwnItemKind, RunId, StatusLine, System, Unknown,
+    Class, Control, Doing, EffectId, Facts, ItemId, ItemKind, Kept, Limits, Live, Name, OwnItem,
+    OwnItemKind, Row, RunId, StatusLine, System, Trigger, Unknown,
 };
 use halvo_coord::words;
 use serde_json::{json, Value};
@@ -90,6 +90,70 @@ fn the_row_of_an_agent_with_no_live_run_holds_the_question_of_its_delete_in_its_
             {"act": "allow", "text": text("control.delete")}
         ])
     );
+}
+
+/// r4 U2.4y, sentence 1: an idle agent whose member holds a stored session offers
+/// `stop_sign_in` before `delete`, with its question in `ask_stop_sign_in`, each text as the
+/// coordinator ruled it; with no session, a live run or a queued start the row holds neither.
+#[test]
+fn the_row_of_an_idle_agent_with_a_kept_sign_in_offers_stop_sign_in_before_delete_with_its_question(
+) {
+    let f = idle();
+    assert!(matches!(f.doing, Doing::Idle(_)), "{:?}", f.doing);
+    let line = status(&f, &Limits::PRODUCT, None);
+    let today = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+    let kept = row_with_session(&f, true, line, NAME, None, &Limits::PRODUCT).unwrap();
+    let names = |r: &Row| r.controls.iter().map(|c| c.control).collect::<Vec<_>>();
+    let mut want = names(&today);
+    assert_eq!(want.last(), Some(&Control::Delete), "{want:?}");
+    want.insert(want.len() - 1, Control::StopSignIn);
+    assert_eq!(
+        names(&kept),
+        want,
+        "the controls of today with stop_sign_in before delete"
+    );
+    let control = kept
+        .controls
+        .iter()
+        .find(|c| c.control == Control::StopSignIn);
+    assert_eq!(
+        control.map(|c| c.text.as_str()),
+        Some("Stop using its sign-in")
+    );
+    let value = serde_json::to_value(&kept).unwrap();
+    assert_eq!(
+        value["ask_stop_sign_in"],
+        json!({
+            "kind": "stop_sign_in",
+            "title": "Stop using the sign-in of “Pay bills on Site1”?",
+            "text": [
+                "Halvo will stop using the sign-in that it keeps for this agent, and removes it within 35 days.",
+                "The next time the agent runs, it asks you to sign in again."
+            ],
+            "effects": [],
+            "record": null,
+            "controls": [
+                {"act": "reject", "text": "Keep the sign-in"},
+                {"act": "allow", "text": "Stop using its sign-in"}
+            ]
+        })
+    );
+    assert_eq!(value["ask"], serde_json::to_value(&today).unwrap()["ask"]);
+    let mut queued = idle();
+    queued.doing = Doing::Queued(None);
+    for (f, session, waiting) in [
+        (idle(), false, None),
+        (working(), true, None),
+        (queued, true, Some(Trigger::Person)),
+    ] {
+        let line = status(&f, &Limits::PRODUCT, None);
+        let r = row_with_session(&f, session, line, NAME, waiting, &Limits::PRODUCT).unwrap();
+        assert!(!names(&r).contains(&Control::StopSignIn), "{:?}", f.doing);
+        assert_eq!(
+            serde_json::to_value(&r).unwrap()["ask_stop_sign_in"],
+            Value::Null
+        );
+    }
 }
 
 #[test]

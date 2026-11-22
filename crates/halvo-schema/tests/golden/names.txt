@@ -199,6 +199,7 @@ list_agents
 list_checkpoints
 list_overlaps
 list_refinements
+list_replies
 load
 load_replies
 load_session

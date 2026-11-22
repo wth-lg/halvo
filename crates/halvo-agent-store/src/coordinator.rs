@@ -26,7 +26,7 @@ use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
 use crate::workbook::{workbook_path, PathForm};
-use crate::{bind, bindings, checkpoint, day, end, runner};
+use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 
 /// Answers one coordinator body of A7.2, read from its bytes with the typed parser: the reply, or the error name of
 /// the first check that refuses it. A refused body stores nothing, but for `create_agent`, whose state call comes
@@ -148,6 +148,14 @@ use crate::{bind, bindings, checkpoint, day, end, runner};
 ///   row: nothing of it is in use. Named limits: a run that never gets its record keeps the body refused until its
 ///   `end_run`, or until its start row leaves the store's read; only after a clock that was set back, and for at
 ///   most two days, the body is refused with `day`.
+/// - `list_replies`: `no_workflow`; `binding`. It stores nothing and changes no state. For each message after `after`
+///   that has an `agent_reply` row of the agent, in ascending order of message id by its bytes, it gives the agent's
+///   newest row of that message, the last by seq and then by the order stored, as the runner's `load_replies` reads
+///   it: the message id, the run and the state of that row alone, no draft, effect, seq, day or instant, and no row
+///   of another agent. A page holds whole entries while the writer takes it, and `next` names its last message where
+///   entries are left; `length` where the first entry of the page alone does not fit, which an id of at most 1,024
+///   bytes cannot reach. Named limits: a row that a later row of its message follows is not listed; a stored row
+///   that the typed reader refuses fails the whole read with `store`.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -166,6 +174,7 @@ pub fn coordinator(
         CoordinatorCall::ListAgents(b) => list_agents(&*host, &b),
         CoordinatorCall::AgentHistory(b) => agent_history(&*host, &b),
         CoordinatorCall::DropSessions(b) => drop_sessions(host, now, &b),
+        CoordinatorCall::ListReplies(b) => reply::list(&*host, &b),
     }
 }
 

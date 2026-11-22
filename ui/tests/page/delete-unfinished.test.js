@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const { openPage, fixture, KEPT_AT_MS } = require("../lib/page.js");
 
 const FOLDER = "/scratch/halvo-data";
-const NOT_FINISHED = "The delete did not finish. Press Delete everything again to finish it.";
+const NOT_FINISHED = "The delete did not finish. Press Delete everything again to finish it. If the button cannot be pressed, quit Halvo and open it again: Halvo then tries the delete again.";
 const AGAIN = `The delete did not finish a second time in a row. Something is still left in Halvo's data folder, ${FOLDER}.`;
 
 const notRunning = () => ({ ...fixture("capture_status-not-running"), data_folder: FOLDER });
@@ -77,6 +77,7 @@ test("a second unfinished delete says that something is left", async () => {
 
   const first = await page.reopen();
   assert.ok(first.text("delete-result").includes(NOT_FINISHED), "the first unfinished answer");
+  assert.equal(first.byId("delete").disabled, false, "beside the offered control at the offline door");
   assert.ok(!first.text("delete-result").includes(AGAIN));
   const again = await confirmDelete(first);
   assert.equal(app.sent, 2);
@@ -87,4 +88,16 @@ test("a second unfinished delete says that something is left", async () => {
   assert.ok(second.text("delete-result").includes(AGAIN), "the next in a row");
   assert.ok(second.text("delete-result").includes(second.window.Halvo.words.REMOVE_BY_HAND), "and what a person does by hand with that folder");
   assert.ok(!second.text("delete-result").includes(NOT_FINISHED));
+});
+
+test("behind the running service an unfinished delete stands beside the disabled control", async () => {
+  const page = await openPage({
+    replies: {
+      capture_status: () => fixture("capture_status-store-deleting"),
+      last_delete: () => ({ state: "answered", at_ms: KEPT_AT_MS, answer: leftSomething(1) }),
+    },
+  });
+  assert.equal(page.byId("delete").disabled, true, "the store reads deleting, so Delete everything cannot be pressed");
+  assert.ok(page.text("delete-result").includes(NOT_FINISHED), "the sentence names the way that is left");
+  assert.ok(!page.text("delete-result").includes(AGAIN));
 });
