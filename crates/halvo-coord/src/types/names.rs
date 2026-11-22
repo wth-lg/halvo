@@ -101,6 +101,7 @@ names! {
         TakeBack = "take_back",
         SwitchOff = "switch_off",
         SwitchOn = "switch_on",
+        StopSignIn = "stop_sign_in",
         Delete = "delete",
     }
 }
@@ -113,6 +114,7 @@ names! {
         TakeBack = "take_back",
         SwitchOff = "switch_off",
         SwitchOn = "switch_on",
+        StopSignIn = "stop_sign_in",
     }
 }
 
@@ -322,6 +324,8 @@ names! {
     /// causes, whose other names the reader of the key takes as none (ruling of 2026-11-22
     /// on `last_cause`).
     LastCause {
+        NoChannel = "no_channel",
+        BrowserStart = "browser_start",
         NoBrowser = "no_browser",
     }
 }

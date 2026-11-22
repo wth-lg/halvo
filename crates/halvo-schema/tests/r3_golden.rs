@@ -6,12 +6,12 @@ use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
     Accepted, AddOrigin, AgentHistory, AgentsReply, CheckpointsReply, CoordinatorCall,
     CoordinatorReply, CreateAgent, DropSession, DropSessions, EndRun, Finish, HistoryReply,
-    HistoryRun, ListAgents, ListCheckpoints, ListOverlaps, ListedAgent, ListedCheckpoint, Load,
-    LoadReplies, LoadRepliesReply, LoadReply, LoadSession, LoadSteps, LoadedBindings,
-    LoadedPlaybook, LoadedSession, MarkCheckpoint, Overlap, OverlapsReply, PastCheckpoint,
-    PastEffect, PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession, RevReply,
-    RunnerCall, RunnerReply, SessionReply, SetBindings, SetState, StartRun, StateReply, StepsReply,
-    Stored, UnknownEffect,
+    HistoryRun, ListAgents, ListCheckpoints, ListOverlaps, ListReplies, ListedAgent,
+    ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply, LoadSession, LoadSteps,
+    LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint, Overlap, OverlapsReply,
+    PastCheckpoint, PastEffect, PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow,
+    PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings, SetState, StartRun,
+    StateReply, StepsReply, Stored, UnknownEffect,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -953,6 +953,11 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
         CoordinatorCall::DropSessions(DropSessions {
             workflow: workflow(),
             agent: agent(),
+        }),
+        CoordinatorCall::ListReplies(ListReplies {
+            workflow: workflow(),
+            agent: agent(),
+            after: None,
         }),
     ]
 }

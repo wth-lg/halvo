@@ -1,9 +1,14 @@
-use halvo_schema::executable::body::{LoadReplies, LoadRepliesReply, PutReplyRow, Stored};
+use std::collections::BTreeMap;
+
+use halvo_schema::executable::body::{
+    ListReplies, ListRepliesReply, ListedReply, LoadReplies, LoadRepliesReply, PutReplyRow, Stored,
+    CHECKPOINTS_REPLY_MAX,
+};
 use halvo_schema::executable::names::{EffectState, ReplyState};
-use halvo_schema::executable::{AgentReply, ProviderId, RunId, RunnerReply};
+use halvo_schema::executable::{AgentReply, CoordinatorReply, ProviderId, RunId, RunnerReply};
 use halvo_schema::{AgentId, ErrorName, TypedRecord};
 
-use crate::errors::Own;
+use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
 use crate::{bind, day};
@@ -104,6 +109,70 @@ pub(crate) fn load(host: &dyn Host, now: Now, b: &LoadReplies) -> Result<RunnerR
         return Err(ErrorName::Internal);
     }
     Ok(RunnerReply::Replies(reply))
+}
+
+/// The reply of `list_replies`: for each message after `after` that has a row of the agent, the last row of
+/// `of_message`, as its message id, run and state alone, in ascending order of message id, a page at a time.
+pub(crate) fn list(host: &dyn Host, b: &ListReplies) -> Result<CoordinatorReply, ErrorName> {
+    bind::of_agent(host, &b.workflow, &b.agent)?;
+    let all = rows::replies(host.rows())?;
+    let mut newest: BTreeMap<&str, &AgentReply> = BTreeMap::new();
+    for row in all.iter().filter(|r| r.agent == b.agent) {
+        let message = row.message.as_str();
+        if b.after
+            .as_ref()
+            .is_some_and(|after| message <= after.as_str())
+        {
+            continue;
+        }
+        if newest.get(message).is_none_or(|held| held.seq <= row.seq) {
+            newest.insert(message, row);
+        }
+    }
+    let entries = newest
+        .into_values()
+        .map(|row| ListedReply {
+            message: row.message.clone(),
+            run: row.run.clone(),
+            state: row.state,
+        })
+        .collect();
+    Ok(CoordinatorReply::Replies(page(entries)?))
+}
+
+/// The first entries that fit one reply as the writer writes it, with `next` the message of the last of them where
+/// entries are left: the compact text of a page is that of the empty list with that message id, or null, under
+/// `next`, and each entry's own text with a comma before every entry but the first. A message id has 1 to 1,024
+/// bytes, so the text of `next` is counted for each entry that may end a page.
+fn page(entries: Vec<ListedReply>) -> Result<ListRepliesReply, ErrorName> {
+    let frame = |next: Option<&ProviderId>| -> Result<usize, ErrorName> {
+        let empty = ListRepliesReply {
+            replies: Vec::new(),
+            next: next.cloned(),
+        };
+        Ok(empty.to_json().map_err(refused)?.len())
+    };
+    let count = entries.len();
+    let mut used = 0;
+    let mut replies: Vec<ListedReply> = Vec::new();
+    for (n, entry) in entries.into_iter().enumerate() {
+        used += entry.to_json().map_err(refused)?.len() + usize::from(!replies.is_empty());
+        let next = (n + 1 < count).then_some(&entry.message);
+        if frame(next)? + used > CHECKPOINTS_REPLY_MAX {
+            let Some(next) = replies.last().map(|r| r.message.clone()) else {
+                return Err(Own::Length.into());
+            };
+            return Ok(ListRepliesReply {
+                replies,
+                next: Some(next),
+            });
+        }
+        replies.push(entry);
+    }
+    Ok(ListRepliesReply {
+        replies,
+        next: None,
+    })
 }
 
 fn stored() -> RunnerReply {

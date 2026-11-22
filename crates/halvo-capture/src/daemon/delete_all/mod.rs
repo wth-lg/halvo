@@ -105,6 +105,8 @@ impl Hands for SystemHands {
             Ok(_) => std::fs::remove_file(&path),
             Err(_) => Ok(()),
         };
+        #[cfg(windows)]
+        held::try_again(&path);
         entries_under(&path)
     }
 }
@@ -120,6 +122,97 @@ fn entries_under(path: &Path) -> u64 {
                     .map(|entry| entries_under(&entry.path()))
                     .sum()
             })
+        }
+    }
+}
+
+/// How long the walk tries again, on Windows, the removal of an entry that
+/// stays, counted from the start of the walk: past it the entry stays, and
+/// its row with it. A start of the service runs the same walk, so the bound
+/// is well under the 10 s for which the app waits for an answer after a start.
+#[cfg(windows)]
+const HELD_BOUND: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// The wait between two tries of a removal under [`HELD_BOUND`].
+#[cfg(windows)]
+const HELD_TRY_EVERY: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// The bound of the remover on Windows. There a folder or a file that another
+/// process holds without sharing its deletion, such as a scanner or a program
+/// that has not let go of it yet, refuses its removal for a moment: with a
+/// sharing violation, a denied access or a folder that is not empty, by
+/// turns. A walk sets one end for the tries of all its rows at its start, so
+/// a held row late in the walk gets what remains of the bound.
+#[cfg(windows)]
+mod held {
+    use std::cell::Cell;
+    use std::path::Path;
+    use std::time::{Duration, Instant};
+
+    thread_local! {
+        /// The length of the bound on this thread, and the end of the bound
+        /// of the walk that runs on it, none outside a walk.
+        static SEAT: Cell<(Duration, Option<Instant>)> =
+            const { Cell::new((super::HELD_BOUND, None)) };
+    }
+
+    /// The bound of the walk that runs on this thread, from its start to the
+    /// drop of this value.
+    pub(super) struct Walk(());
+
+    impl Walk {
+        pub(super) fn start() -> Walk {
+            SEAT.with(|seat| {
+                let (length, _) = seat.get();
+                seat.set((length, Instant::now().checked_add(length)));
+            });
+            Walk(())
+        }
+    }
+
+    impl Drop for Walk {
+        fn drop(&mut self) {
+            SEAT.with(|seat| seat.set((seat.get().0, None)));
+        }
+    }
+
+    /// After a removal of `path` that left an entry at its name: the same
+    /// removal again, whatever its error, every [`super::HELD_TRY_EVERY`],
+    /// until no entry stands there or the end of the walk's bound has
+    /// passed. Outside a walk the bound starts at this call.
+    pub(super) fn try_again(path: &Path) {
+        let (length, end) = SEAT.with(Cell::get);
+        let Some(end) = end.or_else(|| Instant::now().checked_add(length)) else {
+            return;
+        };
+        while super::stands(path) {
+            let left = end.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return;
+            }
+            std::thread::sleep(left.min(super::HELD_TRY_EVERY));
+            let _ = match std::fs::symlink_metadata(path) {
+                Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(path),
+                Ok(_) => std::fs::remove_file(path),
+                Err(_) => Ok(()),
+            };
+        }
+    }
+
+    /// Sets the length of the bound on this thread to `length` for the life
+    /// of the answer, whose drop gives the length before back.
+    #[cfg(test)]
+    pub(super) fn length_on_this_thread(length: Duration) -> Length {
+        Length(SEAT.with(|seat| seat.replace((length, seat.get().1)).0))
+    }
+
+    #[cfg(test)]
+    pub(super) struct Length(Duration);
+
+    #[cfg(test)]
+    impl Drop for Length {
+        fn drop(&mut self) {
+            SEAT.with(|seat| seat.set((self.0, seat.get().1)));
         }
     }
 }
@@ -699,6 +792,8 @@ fn steps_3_to_5(dir: &Path, rows: &[Row], hands: &dyn Hands, store: TailAnswer) 
 /// rows are the store's delete, which ran first; the kept rows keep their
 /// files.
 fn walk(dir: &Path, rows: &[Row], store_done: bool, hands: &dyn Hands) -> Walked {
+    #[cfg(windows)]
+    let _bound = held::Walk::start();
     let mut walked = Walked::default();
     for row in rows {
         let handled = if STORE_ROWS.contains(&row.name) {

@@ -594,6 +594,15 @@ pub enum Body {
         /// `run`.
         run: RunId,
     },
+    /// `drop_sessions` (r3 U5.2c): Halvo stops using every sign-in that the agent store keeps
+    /// for the agent; the store refuses it with `state` while a run of the agent is open and
+    /// answers the count of rows stored, after which the agent's `session` reads no (r4 U2.4y).
+    DropSessions {
+        /// `workflow`.
+        workflow: WorkflowId,
+        /// `agent`.
+        agent: AgentId,
+    },
 }
 
 /// A slot of `set_bindings`: its name and its value in pieces (A-A7.4).

@@ -113,10 +113,18 @@ marker_defect() {
     [ -f "$file" ] || continue
     while IFS= read -r marker; do
       [ -n "$marker" ] || continue
-      if LC_ALL=C grep -q -a -F -e "$marker" "$file"; then
-        printf '%s holds the marker %s\n' "$(basename "$file")" "$marker"
-        return 1
-      fi
+      LC_ALL=C grep -q -a -F -e "$marker" "$file"
+      case $? in
+        0)
+          printf '%s holds the marker %s\n' "$(basename "$file")" "$marker"
+          return 1
+          ;;
+        1) ;;
+        *)
+          printf 'grep could not read %s, so its markers are unknown\n' "$file"
+          return 1
+          ;;
+      esac
     done <<EOF
 $markers
 EOF
@@ -535,6 +543,10 @@ EOF
     marker_defect "$work/${fixture%:*}.bin" >/dev/null && got=PASS
     verdict "marker-${fixture%:*}" "${fixture#*:}" "$got"
   done
+  mkdir -p "$work/unreadable-tools" && printf '%s\n' '#!/bin/sh' 'echo "grep: Permission denied" >&2' 'exit 2' >"$work/unreadable-tools/grep" && chmod +x "$work/unreadable-tools/grep" || exit 2
+  got=$(PATH="$work/unreadable-tools:$PATH" marker_defect "$work/clean.bin" 2>"$work/unreadable.err")
+  case $?:$got in "1:grep could not read $work/clean.bin, so its markers are unknown") got=FAIL ;; 0:*) got=PASS ;; *) got=unexpected-answer ;; esac
+  verdict marker-file-that-cannot-be-read FAIL "$got"
 
   listing_case() {
     printf '%s\n' "$3" >"$work/$1.txt"

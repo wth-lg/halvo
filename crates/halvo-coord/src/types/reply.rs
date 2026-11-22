@@ -44,9 +44,13 @@ pub struct Row {
     /// `ask`: the question that a press on the row's Delete opens in the page, which sends
     /// nothing, or null on a row with no Delete (ruling RD-19 (c) rules (2) to (4)).
     pub ask: Option<Ask>,
+    /// `ask_stop_sign_in`: the question that a press on the row's `stop_sign_in` opens in the
+    /// page, which sends nothing, or null on a row with no such control (r4 U2.4y).
+    pub ask_stop_sign_in: Option<Ask>,
 }
 
-/// What the question of a row's Delete is (ruling RD-19 (c) rules (3) and (4)).
+/// What the question of a row's Delete or of its `stop_sign_in` is (ruling RD-19 (c) rules (3)
+/// and (4); r4 U2.4y).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AskKind {
@@ -56,11 +60,15 @@ pub enum AskKind {
     Working,
     /// `stopping`: the agent's run is stopping; the notice says that the delete comes after.
     Stopping,
+    /// `stop_sign_in`: the question asks whether Halvo stops using the sign-in that it keeps for
+    /// the agent.
+    StopSignIn,
 }
 
 /// The `data-act` of a control of the question: `reject`, the safe control that leaves the
-/// agent as it is; `allow`, the one control that sends `agents_delete`; `stop`, the control of
-/// the notice `working` that sends the row's stop; `done`, the one control of the notice
+/// agent as it is; `allow`, the one control that sends `agents_delete`, or in the question
+/// `stop_sign_in` the one that sends `agents_control` with `stop_sign_in`; `stop`, the control
+/// of the notice `working` that sends the row's stop; `done`, the one control of the notice
 /// `stopping`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -136,9 +144,9 @@ impl AskEffect {
     }
 }
 
-/// The question of a row's Delete (I2.5; ruling RD-19 (c)): its kind, its title, its sentences
-/// in order, the effects of unknown outcome with the sentence on their record, and its controls,
-/// the safe one first.
+/// The question of a row's Delete (I2.5; ruling RD-19 (c)) or of its `stop_sign_in` (r4 U2.4y):
+/// its kind, its title, its sentences in order, the effects of unknown outcome with the sentence
+/// on their record, and its controls, the safe one first.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Ask {
     /// `kind`.
@@ -152,8 +160,8 @@ pub struct Ask {
     /// `record`: the sentence that Halvo keeps no record of those effects after the delete, or
     /// null where `effects` is empty.
     pub record: Option<String>,
-    /// `controls`: `reject` and `allow` for `delete`, `reject` and `stop` for `working`, and
-    /// `done` alone for `stopping`.
+    /// `controls`: `reject` and `allow` for `delete` and for `stop_sign_in`, `reject` and `stop`
+    /// for `working`, and `done` alone for `stopping`.
     pub controls: Vec<AskControl>,
 }
 
