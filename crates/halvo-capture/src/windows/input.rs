@@ -1735,6 +1735,7 @@ impl CaptureSource for RawInputSource {
                 late_events: u64::from(self.gate_counts.late.load(Ordering::Relaxed)),
                 max_lag_ms: self.gate_counts.max_lag_ms.load(Ordering::Relaxed),
                 keys_withheld: self.gate_counts.withheld.load(Ordering::Relaxed),
+                typing_gate: self.password_gate().map(|gate| gate.typing_gate()),
                 ..SourceCounters::default()
             },
             RawDevice::Pointer => SourceCounters {
@@ -2398,6 +2399,7 @@ mod tests {
                 1_000
             ));
             let key = gate.hold(1_010, false, 0);
+            gate.landing_at(1_010, crate::secure_input::windows::FieldState::Clear);
             gate.read_at(
                 1_130,
                 crate::secure_input::windows::FieldState::Clear,
@@ -3158,6 +3160,9 @@ mod tests {
         let later = now.wrapping_sub(150);
         for (tick, app) in [(early, "first"), (later, "second")] {
             let held = state.gate.hold(tick, false, front);
+            state
+                .gate
+                .landing_at(tick, crate::secure_input::windows::FieldState::Clear);
             state
                 .held
                 .push_back((held, stroke, KeyClass::Printable, test_front(app)));
@@ -3995,6 +4000,7 @@ mod tests {
         let mut hold = |state: &mut GateState, tick: u32, name: String| {
             keys += 1;
             let held = state.gate.hold(tick, false, front);
+            state.gate.landing_at(tick, FieldState::Clear);
             state.held.push_back((
                 held,
                 KeyStroke {

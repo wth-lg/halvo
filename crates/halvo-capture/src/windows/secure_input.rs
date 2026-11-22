@@ -299,6 +299,7 @@ enum Mark {
     Read { state: FieldState, moved: Moved },
     Latch { from: LatchFrom, at: u32 },
     Started,
+    Landing { state: FieldState },
 }
 
 impl Mark {
@@ -306,7 +307,14 @@ impl Mark {
         match self {
             Mark::Field(state) | Mark::Read { state, .. } => Some(state),
             Mark::Started => Some(FieldState::Unknown),
-            Mark::Latch { .. } => None,
+            Mark::Latch { .. } | Mark::Landing { .. } => None,
+        }
+    }
+
+    fn landed(self) -> Option<FieldState> {
+        match self {
+            Mark::Landing { state } => Some(state),
+            _ => None,
         }
     }
 }
@@ -361,6 +369,9 @@ pub enum Rule {
     /// The pointer source owned the click route, and its pump had not
     /// forwarded its input past the key's hold within 250 ms.
     ClicksNotForwarded,
+    /// A latch before the key was still open, and the key's landing, made
+    /// after that latch, and an own read after the landing's hold read Clear.
+    LandingAfterTheLatch,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -433,9 +444,13 @@ fn judge(m: &Marks, key: &HeldKey, now: u32, front: u32, password_edit_now: bool
     let late = now.wrapping_sub(key.tick) > ms(super::LATE_KEY_MAX);
     if late {
         let rule = if m.clicks_not_forwarded(key)
-            && judge_marks(m, key, now)
-                == Judgment::Decided(SecureInputReading::Inactive, Rule::ReadAfterTheHold)
-        {
+            && matches!(
+                judge_marks(m, key, now),
+                Judgment::Decided(
+                    SecureInputReading::Inactive,
+                    Rule::ReadAfterTheHold | Rule::LandingAfterTheLatch
+                )
+            ) {
             Rule::ClicksNotForwarded
         } else {
             Rule::NotClearedInTime
@@ -446,11 +461,10 @@ fn judge(m: &Marks, key: &HeldKey, now: u32, front: u32, password_edit_now: bool
         return Judgment::Decided(SecureInputReading::Unknown, Rule::AnotherThreadInFront);
     }
     match judge_marks(m, key, now) {
-        Judgment::Decided(SecureInputReading::Inactive, Rule::ReadAfterTheHold)
-            if m.clicks_not_forwarded(key) =>
-        {
-            Judgment::Wait(now.wrapping_add(ms(READ_STEP)))
-        }
+        Judgment::Decided(
+            SecureInputReading::Inactive,
+            Rule::ReadAfterTheHold | Rule::LandingAfterTheLatch,
+        ) if m.clicks_not_forwarded(key) => Judgment::Wait(now.wrapping_add(ms(READ_STEP))),
         judged => judged,
     }
 }
@@ -466,6 +480,15 @@ fn judge_marks(m: &Marks, key: &HeldKey, now: u32) -> Judgment {
                 .at
                 .is_none_or(|at| (0..=bound).contains(&offset(at, key.tick)))
     };
+    let made_after_key = |entry: &Entry| {
+        entry
+            .at
+            .is_some_and(|at| (0..=bound).contains(&offset(at, key.tick)))
+    };
+    let landing = m
+        .entries
+        .iter()
+        .find(|entry| entry.mark.landed().is_some() && made_after_key(entry));
     let before_first_read = |entry: &Entry| {
         m.started.is_some_and(|started| entry.seq > started)
             && m.first_read.is_none_or(|read| entry.seq < read)
@@ -499,12 +522,25 @@ fn judge_marks(m: &Marks, key: &HeldKey, now: u32) -> Judgment {
         floor = floor.max(offset(latch.closing_tick, key.tick) + i64::from(ms(KEY_HOLD)));
         floor_seq = floor_seq.max(latch.closing_seq + 1);
     }
-    let open_latch = m
+    if let Some(landing) = landing {
+        let made = landing.at.unwrap_or(landing.began);
+        floor = floor.max(offset(made, key.tick) + i64::from(ms(KEY_HOLD)));
+        floor_seq = floor_seq.max(landing.seq + 1);
+    }
+    let behind: Vec<&OpenLatch> = m
         .open
         .iter()
-        .find(|latch| behind_the_key(latch.seq, latch.at, latch.from, key))
-        .map(|latch| latch.at);
-    let deciding = if open_latch.is_some() {
+        .filter(|latch| behind_the_key(latch.seq, latch.at, latch.from, key))
+        .collect();
+    let open_latch = behind.first().map(|latch| latch.at);
+    let given_back = landing.filter(|landing| {
+        let made = landing.at.unwrap_or(landing.began);
+        !behind.is_empty()
+            && behind.iter().all(|latch| {
+                landing.seq > latch.seq && (0..=bound).contains(&offset(made, latch.at))
+            })
+    });
+    let deciding = if landing.is_none() || (open_latch.is_some() && given_back.is_none()) {
         None
     } else {
         m.entries.iter().find(|entry| {
@@ -520,8 +556,24 @@ fn judge_marks(m: &Marks, key: &HeldKey, now: u32) -> Judgment {
         .filter(|entry| after_key(entry) && entry.seq <= upto)
         .filter_map(|entry| entry.mark.state())
         .fold(FieldState::Clear, most_restrictive);
+    let landed = m
+        .entries
+        .iter()
+        .filter(|entry| made_after_key(entry) && entry.seq <= upto)
+        .filter_map(|entry| entry.mark.landed())
+        .fold(FieldState::Clear, most_restrictive);
+    let later = most_restrictive(later, landed);
+    let moves_from = match given_back {
+        Some(landing) => m
+            .entries
+            .iter()
+            .find(|entry| entry.seq > landing.seq && matches!(entry.mark, Mark::Read { .. }))
+            .map_or(u64::MAX, |first| first.seq + 1),
+        None => 0,
+    };
     let moved = m.entries.iter().any(|entry| {
         after_key(entry)
+            && entry.seq >= moves_from
             && entry.seq <= upto
             && matches!(entry.mark, Mark::Read { moved, .. } if moved != Moved::Same)
     });
@@ -535,6 +587,9 @@ fn judge_marks(m: &Marks, key: &HeldKey, now: u32) -> Judgment {
         FieldState::Unknown => Judgment::Decided(SecureInputReading::Unknown, rule),
         FieldState::Clear if deciding.is_some() && moved => {
             Judgment::Decided(SecureInputReading::Unknown, Rule::ElementNotTheSame)
+        }
+        FieldState::Clear if deciding.is_some() && given_back.is_some() => {
+            Judgment::Decided(SecureInputReading::Inactive, Rule::LandingAfterTheLatch)
         }
         FieldState::Clear if deciding.is_some() => {
             Judgment::Decided(SecureInputReading::Inactive, Rule::ReadAfterTheHold)
@@ -550,8 +605,10 @@ fn judge_marks(m: &Marks, key: &HeldKey, now: u32) -> Judgment {
                 .tick
                 .wrapping_add(u32::try_from(floor.max(0)).unwrap_or(u32::MAX));
             let earliest = match open_latch {
-                Some(at) => later_of(now, at.wrapping_add(ms(LATCH_SETTLE))),
-                None => floor_tick,
+                Some(at) if given_back.is_none() => {
+                    later_of(now, at.wrapping_add(ms(LATCH_SETTLE)))
+                }
+                _ => floor_tick,
             };
             Judgment::Wait(last_read.map_or(earliest, |step| later_of(earliest, step)))
         }
@@ -709,7 +766,7 @@ impl Marks {
                 based: false,
             }),
             Mark::Read { moved, .. } => self.read_came(seq, began, at.unwrap_or(began), moved),
-            Mark::Field(_) | Mark::Started => {}
+            Mark::Field(_) | Mark::Started | Mark::Landing { .. } => {}
         }
     }
 
@@ -842,6 +899,13 @@ impl Shared {
         if marks.read_due.is_some_and(|due| not_after(due, began)) {
             marks.read_due = None;
         }
+    }
+
+    fn landing(&self, at: u32, state: FieldState) {
+        note_mark("landing", Some(state), None, Some(at), at, None);
+        let mut marks = self.lock();
+        marks.push(Some(at), at, Mark::Landing { state });
+        marks.ask_read(at.wrapping_add(ms(KEY_HOLD)));
     }
 
     fn latch(&self, tick: u32, from: LatchFrom) {
@@ -1092,6 +1156,34 @@ impl PasswordGate {
             .unwrap_or(FieldState::Unknown)
     }
 
+    /// Whether typing is being noted now, for Status: Unknown at the gate's
+    /// newest state, then a latch that no landing made after it answers.
+    pub fn typing_gate(&self) -> halvo_control::proto::TypingGate {
+        let marks = self.shared.lock();
+        let newest = marks
+            .entries
+            .iter()
+            .rev()
+            .find_map(|entry| entry.mark.state())
+            .unwrap_or(FieldState::Unknown);
+        let withholding = marks.open.iter().any(|latch| {
+            !marks.entries.iter().any(|entry| {
+                entry.seq > latch.seq
+                    && entry.mark.landed().is_some()
+                    && entry.at.is_some_and(|made| {
+                        (0..=i64::from(ms(MARK_AGE_LIMIT))).contains(&offset(made, latch.at))
+                    })
+            })
+        });
+        if newest == FieldState::Unknown {
+            halvo_control::proto::TypingGate::FieldUnknown
+        } else if withholding {
+            halvo_control::proto::TypingGate::LatchOpen
+        } else {
+            halvo_control::proto::TypingGate::Ok
+        }
+    }
+
     /// The reading of a window title or a screen frame now.
     pub fn content_reading(&self) -> ContentReading {
         self.shared.lock().content
@@ -1143,6 +1235,11 @@ impl PasswordGate {
         let key = state_of(read, false);
         self.shared
             .field(at, key, content_of(read, gecko, key), None);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn landing_at(&self, at: u32, state: FieldState) {
+        self.shared.landing(at, state);
     }
 
     #[cfg(test)]
@@ -1215,17 +1312,19 @@ mod detector {
     };
     use windows::Win32::System::Variant::{VariantClear, VARIANT, VT_BOOL, VT_I4};
     use windows::Win32::UI::Accessibility::{
-        CUIAutomation, IUIAutomation, IUIAutomationCacheRequest, IUIAutomationElement,
-        IUIAutomationFocusChangedEventHandler, IUIAutomationFocusChangedEventHandler_Vtbl,
-        SetWinEventHook, UIA_FrameworkIdPropertyId, UIA_IsPasswordPropertyId,
-        UIA_LegacyIAccessiblePatternId, UIA_LegacyIAccessibleStatePropertyId,
-        UIA_ProcessIdPropertyId, UnhookWinEvent, HWINEVENTHOOK,
+        AccessibleObjectFromEvent, CUIAutomation, IAccessible, IUIAutomation,
+        IUIAutomationCacheRequest, IUIAutomationElement, IUIAutomationFocusChangedEventHandler,
+        IUIAutomationFocusChangedEventHandler_Vtbl, SetWinEventHook, UIA_FrameworkIdPropertyId,
+        UIA_IsPasswordPropertyId, UIA_LegacyIAccessiblePatternId,
+        UIA_LegacyIAccessibleStatePropertyId, UIA_ProcessIdPropertyId, UnhookWinEvent,
+        HWINEVENTHOOK,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindowLongW,
         GetWindowThreadProcessId, MsgWaitForMultipleObjectsEx, PeekMessageW, TranslateMessage,
-        ES_PASSWORD, EVENT_SYSTEM_DESKTOPSWITCH, GUITHREADINFO, GWL_STYLE, MSG,
-        MWMO_INPUTAVAILABLE, PM_REMOVE, QS_ALLINPUT, STATE_SYSTEM_PROTECTED, WINEVENT_OUTOFCONTEXT,
+        ES_PASSWORD, EVENT_OBJECT_VALUECHANGE, EVENT_SYSTEM_DESKTOPSWITCH, GUITHREADINFO,
+        GWL_STYLE, MSG, MWMO_INPUTAVAILABLE, PM_REMOVE, QS_ALLINPUT, STATE_SYSTEM_FOCUSED,
+        STATE_SYSTEM_PROTECTED, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
     };
 
     use super::{kind_of, FieldState, FocusRead, PasswordGate, Shared};
@@ -2010,6 +2109,84 @@ mod detector {
         });
     }
 
+    thread_local! {
+        static LANDING_GATE: std::cell::RefCell<Option<Arc<Shared>>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    fn landing_state(hwnd: HWND, object: i32, child: i32) -> Option<FieldState> {
+        // SAFETY: GetForegroundWindow and GetWindowThreadProcessId read handle
+        // values and take no pointer.
+        let in_front = unsafe {
+            let front = GetWindowThreadProcessId(GetForegroundWindow(), None);
+            front != 0 && GetWindowThreadProcessId(hwnd, None) == front
+        };
+        if !in_front {
+            return None;
+        }
+        let mut accessible: Option<IAccessible> = None;
+        let mut target = VARIANT::default();
+        // SAFETY: the out pointers are live locals; the call takes plain values.
+        let found = unsafe {
+            AccessibleObjectFromEvent(
+                hwnd,
+                object as u32,
+                child as u32,
+                &mut accessible,
+                &mut target,
+            )
+        };
+        let accessible = accessible.filter(|_| found.is_ok())?;
+        // SAFETY: `accessible` is live and `target` names the child that the
+        // call gave.
+        let mut state = unsafe { accessible.get_accState(&target) }.ok()?;
+        // SAFETY: `target` is the live VARIANT that the call above filled.
+        let _ = unsafe { VariantClear(&mut target) };
+        let flags = variant_i32(&mut state)? as u32;
+        if flags & STATE_SYSTEM_FOCUSED == 0 {
+            return None;
+        }
+        Some(if flags & STATE_SYSTEM_PROTECTED != 0 {
+            FieldState::Password
+        } else {
+            FieldState::Clear
+        })
+    }
+
+    unsafe extern "system" fn landing_proc(
+        _hook: HWINEVENTHOOK,
+        _event: u32,
+        hwnd: HWND,
+        object: i32,
+        child: i32,
+        _thread: u32,
+        time: u32,
+    ) {
+        LANDING_GATE.with(|cell| {
+            if let Some(shared) = cell.borrow().as_ref() {
+                if let Some(state) = landing_state(hwnd, object, child) {
+                    shared.landing(time, state);
+                }
+            }
+        });
+    }
+
+    fn set_landing_hook() -> HWINEVENTHOOK {
+        // SAFETY: an out-of-context hook with no module and a callback with the
+        // WINEVENTPROC signature, served by the calling thread's pump.
+        unsafe {
+            SetWinEventHook(
+                EVENT_OBJECT_VALUECHANGE,
+                EVENT_OBJECT_VALUECHANGE,
+                None,
+                Some(landing_proc),
+                0,
+                0,
+                WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
+            )
+        }
+    }
+
     struct Com;
 
     impl Drop for Com {
@@ -2149,6 +2326,17 @@ mod detector {
             )));
             return Ok(());
         }
+        LANDING_GATE.with(|cell| *cell.borrow_mut() = Some(Arc::clone(shared)));
+        let landing = set_landing_hook();
+        if landing.is_invalid() {
+            let error = windows::core::Error::from_thread();
+            LANDING_GATE.with(|cell| *cell.borrow_mut() = None);
+            DESKTOP_GATE.with(|cell| *cell.borrow_mut() = None);
+            let _ = (removals.handler)(&reader.automation, &handler);
+            let _ = (removals.desktop_hook)(desktop);
+            let _ = ready.send(Err(os("SetWinEventHook(EVENT_OBJECT_VALUECHANGE)", &error)));
+            return Ok(());
+        }
         #[cfg(test)]
         (removals.before_first_read)();
         own_read(shared, &reader, Some(writer));
@@ -2195,7 +2383,11 @@ mod detector {
             }
         }
         DESKTOP_GATE.with(|cell| *cell.borrow_mut() = None);
+        LANDING_GATE.with(|cell| *cell.borrow_mut() = None);
         let mut removed = Ok(());
+        if let Err(error) = unhook_desktop(landing) {
+            removed = removed.and(Err(os("UnhookWinEvent", &error)));
+        }
         if let Err(error) = (removals.handler)(&reader.automation, &handler) {
             removed = removed.and(Err(os("RemoveFocusChangedEventHandler", &error)));
         }
@@ -3606,12 +3798,154 @@ mod tests {
     fn a_key_in_a_clear_field_waits_for_an_own_read_that_began_after_its_hold() {
         let gate = plain();
         let key = key(&gate, 2_000);
+        gate.landing_at(2_000, FieldState::Clear);
         assert_eq!(reading(&gate, &key, 2_200), None);
         gate.read_at(2_000 + HOLD - 1, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 2_200), None);
         gate.read_at(2_000 + HOLD, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 2_200), Some(Ok(())));
         assert_eq!(rule(&gate, &key, 2_200), Some(Rule::ReadAfterTheHold));
+    }
+
+    #[test]
+    fn a_key_with_no_landing_is_cleared_by_no_read_and_is_withheld_at_its_bound() {
+        let gate = plain();
+        let key = key(&gate, 2_000);
+        gate.read_at(2_000 + HOLD, FieldState::Clear, Moved::Same);
+        gate.read_at(2_200, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &key, 2_240), None);
+        assert_eq!(reading(&gate, &key, 2_251), Some(Err(Withheld::Unknown)));
+        assert_eq!(rule(&gate, &key, 2_251), Some(Rule::NotClearedInTime));
+    }
+
+    #[test]
+    fn a_landing_made_before_the_key_is_no_landing_of_the_key() {
+        let gate = plain();
+        let key = key(&gate, 2_000);
+        gate.landing_at(1_999, FieldState::Clear);
+        gate.read_at(2_000 + HOLD, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &key, 2_240), None);
+        assert_eq!(reading(&gate, &key, 2_251), Some(Err(Withheld::Unknown)));
+    }
+
+    #[test]
+    fn the_deciding_read_begins_a_hold_after_the_keys_landing() {
+        let gate = plain();
+        let key = key(&gate, 2_000);
+        gate.landing_at(2_050, FieldState::Clear);
+        gate.read_at(2_000 + HOLD, FieldState::Clear, Moved::Same);
+        gate.read_at(2_050 + HOLD - 1, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &key, 2_200), None);
+        gate.read_at(2_050 + HOLD, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &key, 2_200), Some(Ok(())));
+        assert_eq!(rule(&gate, &key, 2_200), Some(Rule::ReadAfterTheHold));
+    }
+
+    #[test]
+    fn a_landing_in_a_password_field_withholds_the_keys_before_it() {
+        let gate = plain();
+        let first = key(&gate, 2_000);
+        let second = key(&gate, 2_030);
+        gate.landing_at(2_010, FieldState::Clear);
+        gate.landing_at(2_040, FieldState::Password);
+        gate.read_at(2_200, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &first, 2_210), Some(Err(Withheld::Active)));
+        assert_eq!(reading(&gate, &second, 2_210), Some(Err(Withheld::Active)));
+    }
+
+    #[test]
+    fn a_landing_made_after_an_open_latch_gives_the_key_behind_it_back() {
+        for click in [false, true] {
+            let gate = plain();
+            if click {
+                gate.latch_after(2_000);
+            } else {
+                gate.latch(2_000);
+            }
+            let letter = key(&gate, 2_010);
+            gate.landing_at(2_020, FieldState::Clear);
+            gate.read_at(2_100, FieldState::Clear, Moved::Another);
+            gate.read_at(2_130, FieldState::Clear, Moved::Same);
+            assert_eq!(reading(&gate, &letter, 2_135), None, "click={click}");
+            gate.read_at(2_140, FieldState::Clear, Moved::Same);
+            assert_eq!(gate.latch_count(), 1, "click={click}");
+            assert_eq!(
+                reading(&gate, &letter, 2_150),
+                Some(Ok(())),
+                "click={click}"
+            );
+            assert_eq!(
+                rule(&gate, &letter, 2_150),
+                Some(Rule::LandingAfterTheLatch),
+                "click={click}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_landing_that_reaches_the_gate_before_the_latch_gives_nothing_back() {
+        let gate = plain();
+        let letter = key(&gate, 2_010);
+        gate.landing_at(2_020, FieldState::Clear);
+        gate.latch_after(2_000);
+        gate.read_at(2_100, FieldState::Clear, Moved::Same);
+        gate.read_at(2_140, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_150), None);
+        assert_eq!(reading(&gate, &letter, 2_261), Some(Err(Withheld::Unknown)));
+        let gate = plain();
+        let letter = key(&gate, 2_010);
+        gate.latch_after(2_000);
+        gate.landing_at(2_020, FieldState::Clear);
+        gate.read_at(2_100, FieldState::Clear, Moved::Same);
+        gate.read_at(2_140, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_150), Some(Ok(())));
+    }
+
+    #[test]
+    fn a_move_after_the_first_read_behind_the_landing_withholds_the_given_back_key() {
+        let gate = plain();
+        gate.latch(2_000);
+        let letter = key(&gate, 2_010);
+        gate.landing_at(2_020, FieldState::Clear);
+        gate.read_at(2_100, FieldState::Clear, Moved::Another);
+        gate.read_at(2_120, FieldState::Clear, Moved::NotCompared);
+        gate.read_at(2_140, FieldState::Clear, Moved::Same);
+        assert_eq!(gate.latch_count(), 1);
+        assert_eq!(reading(&gate, &letter, 2_150), Some(Err(Withheld::Unknown)));
+        assert_eq!(rule(&gate, &letter, 2_150), Some(Rule::ElementNotTheSame));
+    }
+
+    #[test]
+    fn the_typing_gate_reads_ok_at_a_password_field_and_at_a_clear_field() {
+        use halvo_control::proto::TypingGate;
+        let clear = plain();
+        assert_eq!(clear.typing_gate(), TypingGate::Ok);
+        let password = PasswordGate::new();
+        password.read_at(1_000, FieldState::Password, Moved::NotCompared);
+        assert_eq!(password.typing_gate(), TypingGate::Ok);
+        password.field_at(1_010, FieldState::Password);
+        assert_eq!(password.typing_gate(), TypingGate::Ok);
+    }
+
+    #[test]
+    fn the_typing_gate_reads_field_unknown_before_latch_open_and_ok_once_a_landing_answers() {
+        use halvo_control::proto::TypingGate;
+        let gate = PasswordGate::new();
+        assert_eq!(gate.typing_gate(), TypingGate::FieldUnknown);
+        gate.read_at(1_000, FieldState::Clear, Moved::NotCompared);
+        assert_eq!(gate.typing_gate(), TypingGate::Ok);
+        gate.latch(1_100);
+        assert_eq!(gate.typing_gate(), TypingGate::LatchOpen);
+        gate.field_at(1_110, FieldState::Unknown);
+        assert_eq!(gate.typing_gate(), TypingGate::FieldUnknown);
+        gate.read_at(1_200, FieldState::Clear, Moved::Same);
+        assert_eq!(gate.typing_gate(), TypingGate::LatchOpen);
+        gate.landing_at(1_090, FieldState::Clear);
+        assert_eq!(gate.typing_gate(), TypingGate::LatchOpen);
+        gate.landing_at(1_210, FieldState::Clear);
+        assert_eq!(gate.typing_gate(), TypingGate::Ok);
+        gate.started_at(1_300);
+        assert_eq!(gate.typing_gate(), TypingGate::FieldUnknown);
     }
 
     #[test]
@@ -3719,6 +4053,7 @@ mod tests {
         gate.read_at(2_160, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_200), None);
         gate.read_at(2_190, FieldState::Clear, Moved::Another);
+        gate.landing_at(2_190, FieldState::Clear);
         assert_eq!(reading(&gate, &letter, 2_240), None);
         gate.read_at(2_309, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_240), None);
@@ -3887,6 +4222,7 @@ mod tests {
         gate.started_at(1_000);
         gate.read_at(1_004, FieldState::Clear, Moved::NotCompared);
         let key3 = key(&gate, 1_010);
+        gate.landing_at(1_010, FieldState::Clear);
         gate.read_at(1_130, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key3, 1_140), Some(Ok(())));
     }
@@ -3899,6 +4235,7 @@ mod tests {
         gate.read_at(1_004, FieldState::Clear, Moved::NotCompared);
         let key = key(&gate, 1_005);
         gate.read_at(1_030, FieldState::Clear, Moved::Another);
+        gate.landing_at(1_030, FieldState::Clear);
         gate.read_at(1_149, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 1_200), None);
         gate.read_at(1_150, FieldState::Clear, Moved::Same);
@@ -3909,7 +4246,9 @@ mod tests {
         let gate = plain();
         gate.read_at(1_990, FieldState::Clear, Moved::Same);
         let letter = key(&gate, 2_000);
+        gate.landing_at(2_000, FieldState::Clear);
         let tab = key(&gate, 2_050);
+        gate.landing_at(2_050, FieldState::Clear);
         gate.latch(2_050);
         gate.field_at(2_060, FieldState::Clear);
         gate.read_at(2_065, FieldState::Clear, armed);
@@ -3951,6 +4290,7 @@ mod tests {
         let gate = plain();
         gate.read_at(2_050, FieldState::Clear, Moved::Another);
         let letter = key(&gate, 2_000);
+        gate.landing_at(2_000, FieldState::Clear);
         gate.read_at(2_125, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_130), Some(Err(Withheld::Unknown)));
         assert_eq!(rule(&gate, &letter, 2_130), Some(Rule::ElementNotTheSame));
@@ -3989,6 +4329,7 @@ mod tests {
             gate.read_at(2_100, FieldState::Clear, Moved::Same);
             gate.read_at(2_130, FieldState::Clear, Moved::Another);
             let after = key(&gate, 2_140);
+            gate.landing_at(2_140, FieldState::Clear);
             gate.read_at(2_250, FieldState::Clear, Moved::Same);
             gate.read_at(2_260, FieldState::Clear, Moved::Same);
             assert_eq!(
@@ -4005,20 +4346,24 @@ mod tests {
         let gate = plain();
         gate.read_at(1_990, FieldState::Clear, Moved::Same);
         let letter = key(&gate, 2_000);
+        gate.landing_at(2_000, FieldState::Clear);
         gate.read_at(2_030, FieldState::Clear, Moved::NotCompared);
         gate.read_at(2_120, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_130), Some(Err(Withheld::Unknown)));
         let gate = plain();
         gate.read_at(1_990, FieldState::Clear, Moved::Same);
         let letter = key(&gate, 2_000);
+        gate.landing_at(2_000, FieldState::Clear);
         gate.read_at(2_120, FieldState::Clear, Moved::NotCompared);
         assert_eq!(reading(&gate, &letter, 2_130), Some(Err(Withheld::Unknown)));
         let gate = PasswordGate::new();
         gate.started_at(1_000);
         let first = key(&gate, 1_010);
+        gate.landing_at(1_010, FieldState::Clear);
         gate.read_at(1_130, FieldState::Clear, Moved::NotCompared);
         assert_eq!(reading(&gate, &first, 1_140), Some(Err(Withheld::Unknown)));
         let after = key(&gate, 1_140);
+        gate.landing_at(1_140, FieldState::Clear);
         gate.read_at(1_260, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &after, 1_270), Some(Ok(())));
     }
@@ -4058,6 +4403,7 @@ mod tests {
     fn a_key_whose_hold_meets_a_time_with_no_click_route_is_withheld() {
         let gate = plain();
         let before = key(&gate, 1_800);
+        gate.landing_at(1_800, FieldState::Clear);
         let edge = key(&gate, 1_900);
         gate.read_at(1_925, FieldState::Clear, Moved::Same);
         gate.clicks_lost(2_000);
@@ -4065,6 +4411,7 @@ mod tests {
         let while_open = rule(&gate, &inside, 2_060);
         gate.clicks_back(2_100);
         let after = key(&gate, 2_101);
+        gate.landing_at(2_101, FieldState::Clear);
         gate.read_at(2_221, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &before, 1_930), Some(Ok(())));
         assert_eq!(while_open, Some(Rule::NoClickRoute));
@@ -4079,6 +4426,7 @@ mod tests {
         let gate = PasswordGate::new();
         gate.read_at(u32::MAX - 100, FieldState::Clear, Moved::NotCompared);
         let key = key(&gate, u32::MAX - 50);
+        gate.landing_at(u32::MAX - 50, FieldState::Clear);
         gate.read_at(68, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 80), None);
         gate.read_at(69, FieldState::Clear, Moved::Same);
@@ -4333,6 +4681,7 @@ mod tests {
         gate.read_at(k - 100_000, FieldState::Clear, Moved::NotCompared);
         gate.pointer_takes_the_clicks(k - 99_000);
         let letter = gate.hold(k, false, 7);
+        gate.landing_at(k, FieldState::Clear);
         if let Some(before) = click_before {
             gate.latch_after(k - before);
         }
@@ -4492,6 +4841,7 @@ mod tests {
         let gate = plain();
         gate.pointer_takes_the_clicks(1_000);
         let letter = key(&gate, 2_000);
+        gate.landing_at(2_000, FieldState::Clear);
         gate.read_at(2_120, FieldState::Clear, Moved::Same);
         gate.pointer_forwarded(2_000 + HOLD + 15);
         assert_eq!(reading(&gate, &letter, 2_140), None);
@@ -4675,6 +5025,7 @@ mod tests {
         let gate = plain();
         gate.read_at(2_000, FieldState::Clear, Moved::Another);
         let letter = key(&gate, 2_000);
+        gate.landing_at(2_000, FieldState::Clear);
         gate.read_at(2_120, FieldState::Clear, Moved::Same);
         gate.read_at(2_150, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_160), Some(Err(Withheld::Unknown)));
