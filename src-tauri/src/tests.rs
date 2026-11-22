@@ -1589,7 +1589,7 @@ fn every_cause_that_keeps_the_window_closed_gives_the_tray_one_sentence_on_macos
         } else if restart_cures {
             "Halvo's window is not available. Quit Halvo and start it again."
         } else {
-            "Halvo's window cannot open on this version of macOS. You can still pause or resume here. A newer Halvo is needed to see or delete what Halvo has stored."
+            "Halvo's window cannot open right now. You can still pause or resume here. Quit Halvo and start it again."
         };
         assert_eq!(
             tray::shown(app.handle(), &view).status_text,
@@ -1661,8 +1661,9 @@ fn no_manifest_turns_the_feature_scripted_of_halvo_coord_app_on_for_the_app() {
 }
 
 /// The tray's count of agents that need the person (I10.3): above zero the icon variant and
-/// the tooltip of `Attention::of`, and on macOS the tray's own title with the count after it,
-/// so that the title still says whether Halvo captures; at zero the tray's own.
+/// the tooltip of `Attention::of`, after the tray's own tooltip on Windows, and on macOS the
+/// tray's own title with the count after it, so that the title still says whether Halvo
+/// captures; at zero the tray's own.
 #[test]
 fn the_tray_shows_the_count_of_agents_that_need_the_person_as_attention_of_gives_it() {
     let test = test_app(scratch_dir("tray-count"));
@@ -1674,7 +1675,11 @@ fn the_tray_shows_the_count_of_agents_that_need_the_person_as_attention_of_gives
         let attention = halvo_coord_app::Attention::of(count);
         let shown = tray::with_attention(handle, &view);
         assert_eq!(shown.variant, attention.variant, "{count}");
-        let tooltip = attention.tooltip.unwrap_or_else(|| own.tooltip.to_string());
+        let tooltip = match attention.tooltip {
+            Some(needs) if cfg!(windows) => format!("{}\n{needs}", own.tooltip),
+            Some(needs) => needs,
+            None => own.tooltip.to_string(),
+        };
         assert_eq!(shown.tooltip, tooltip, "{count}");
         let title = if count > 0 && cfg!(target_os = "macos") {
             format!("{} {count}", own.title)
@@ -1697,6 +1702,111 @@ fn the_tray_shows_the_count_of_agents_that_need_the_person_as_attention_of_gives
         title_with(Capture::Paused, CaptureState::Paused),
         "with 12 agents that need the person, the title still says whether Halvo captures"
     );
+}
+
+/// What Windows shows of a tooltip: its first 127 UTF-16 units, as the tooltip of a
+/// notification icon holds 128 with the closing NUL.
+fn shown_on_windows(tooltip: &str) -> String {
+    String::from_utf16_lossy(&tooltip.encode_utf16().take(127).collect::<Vec<u16>>())
+}
+
+#[test]
+fn on_windows_the_tooltip_differs_between_every_two_states_and_no_label_names_the_mac() {
+    use crate::view_state::{HoldCause, HoldView, NoStatusService, Press};
+    use std::collections::BTreeMap;
+    let windows = |capture: Capture| {
+        let StatusView::Running(mut view) = StatusView::of(&sample_status(Platform::Windows))
+        else {
+            panic!("the sample status makes a running view")
+        };
+        view.capture = capture;
+        StatusView::Running(view)
+    };
+    let mut states: Vec<(String, StatusView, bool, Option<&'static str>)> = Vec::new();
+    for service in [
+        NoStatusService::Connecting,
+        NoStatusService::NotRunning,
+        NoStatusService::HeldUnreachable,
+        NoStatusService::StatusRefused,
+        NoStatusService::AnotherVersion,
+    ] {
+        let view = StatusView::no_status(service, Platform::Windows);
+        states.push((format!("{service:?}"), view, false, None));
+    }
+    for capture in Capture::ALL.iter().copied() {
+        states.push((format!("{capture:?}"), windows(capture), false, None));
+    }
+    let StatusView::Running(mut held) = windows(Capture::Running) else {
+        unreachable!("windows makes a running view")
+    };
+    held.hold = Some(HoldView {
+        cause: HoldCause::SourceNotStopped,
+        press: Press::Resume,
+    });
+    states.push(("the hold".into(), StatusView::Running(held), false, None));
+    let missed = windows(Capture::Running);
+    states.push(("a Pause that did not happen".into(), missed, true, None));
+    for (name, notice) in [
+        ("NOT_PAUSED", crate::quit::NOT_PAUSED),
+        ("NOT_ANSWERED", crate::quit::NOT_ANSWERED),
+        ("CAPTURE_GOES_ON", crate::quit::CAPTURE_GOES_ON.as_str()),
+        ("CAPTURE_MAY_GO_ON", crate::quit::CAPTURE_MAY_GO_ON),
+    ] {
+        states.push((name.into(), windows(Capture::Running), false, Some(notice)));
+    }
+
+    let cut: Vec<&str> = states
+        .iter()
+        .filter(|(_, view, missed, notice)| {
+            tray::labels_with(view, None, *missed, *notice)
+                .tooltip
+                .encode_utf16()
+                .count()
+                > 127
+        })
+        .map(|(name, ..)| name.as_str())
+        .collect();
+    assert_eq!(
+        cut,
+        ["CAPTURE_GOES_ON", "CAPTURE_MAY_GO_ON"],
+        "the tooltips cut"
+    );
+    let mut seen: BTreeMap<String, String> = BTreeMap::new();
+    for (name, view, missed, notice) in &states {
+        let own = tray::labels_with(view, None, *missed, *notice);
+        let alone = shown_on_windows(&tray::marked(own, 0, Platform::Windows).tooltip);
+        let counted = shown_on_windows(&tray::marked(own, 3, Platform::Windows).tooltip);
+        if cut.contains(&name.as_str()) {
+            assert_eq!(counted, alone, "{name}: the count line is cut away");
+        }
+        for (row, tooltip) in [
+            (name.clone(), alone),
+            (format!("{name}, 3 agents"), counted),
+        ] {
+            if let Some(other) = seen.insert(tooltip.clone(), row.clone()) {
+                assert!(
+                    cut.contains(&name.as_str()) && other == *name,
+                    "{row} and {other} show one tooltip on Windows: {tooltip:?}"
+                );
+            }
+        }
+        for missing in [None, Some(true), Some(false)] {
+            let labels = tray::labels_with(view, missing, *missed, *notice);
+            let tooltip = tray::marked(labels, 3, Platform::Windows).tooltip;
+            for text in [
+                labels.title,
+                labels.tooltip,
+                labels.status_text,
+                labels.toggle_text,
+                tooltip.as_str(),
+            ] {
+                assert!(
+                    !text.contains("macOS") && !text.contains("Mac"),
+                    "{name}, window {missing:?}: {text}"
+                );
+            }
+        }
+    }
 }
 
 /// A stand-in for the app's `Core` that records each call with the thread that made it, and
