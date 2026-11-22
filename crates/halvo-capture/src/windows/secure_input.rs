@@ -133,8 +133,9 @@ pub struct GateReadings {
     pub edge: u64,
     /// Clear by another kind that answered.
     pub other_kind: u64,
-    /// Password.
-    pub password: u64,
+    /// Password. Its word is not the bare `password`, because GitHub's log
+    /// of a run masks a bare `password=` with its value.
+    pub password_field: u64,
     /// Unknown before the detector's first read.
     pub before_first_read: u64,
     /// Unknown in Firefox.
@@ -168,7 +169,7 @@ impl GateReadings {
             ContentReading::Clear(ClearBy::Chrome) => &mut self.chrome,
             ContentReading::Clear(ClearBy::Edge) => &mut self.edge,
             ContentReading::Clear(ClearBy::OtherKind) => &mut self.other_kind,
-            ContentReading::Password => &mut self.password,
+            ContentReading::Password => &mut self.password_field,
             ContentReading::Unknown(UnknownBy::BeforeFirstRead) => &mut self.before_first_read,
             ContentReading::Unknown(UnknownBy::Firefox) => &mut self.firefox,
             ContentReading::Unknown(UnknownBy::NoAnswer) => &mut self.no_answer,

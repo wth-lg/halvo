@@ -413,9 +413,9 @@ fn gate_readings(test: &str, gate: &PasswordGate) {
     say(
         test,
         format!(
-            "gate_readings clear={} password={} unknown={}",
+            "gate_readings clear={} password_field={} unknown={}",
             readings.clear(),
-            readings.password,
+            readings.password_field,
             readings.unknown()
         ),
     );
