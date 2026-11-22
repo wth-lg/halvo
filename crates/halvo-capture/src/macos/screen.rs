@@ -2103,7 +2103,7 @@ mod tests {
     }
 
     #[test]
-    fn a_frame_while_secure_input_reads_active_gives_no_record_and_while_it_reads_unknown_one() {
+    fn a_frame_while_secure_input_reads_active_or_unknown_gives_no_record() {
         let active = SystemProbe::with_readers(at_console, byte_one);
         let (ivars, writer, _front) = screen_ivars(active);
         on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
@@ -2111,7 +2111,7 @@ mod tests {
         let unknown = SystemProbe::with_readers(not_at_console, byte_one);
         let (ivars, writer, _front) = screen_ivars(unknown);
         on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
-        assert_eq!(records(ivars, &writer), 1, "unknown");
+        assert_eq!(records(ivars, &writer), 0, "unknown");
     }
 
     #[test]

@@ -7,6 +7,7 @@ pub mod exclusion;
 pub mod foreground;
 pub mod input;
 pub mod screen;
+pub mod sources;
 pub mod window_title;
 
 use crate::daemon::{DaemonError, TimedRunReport};

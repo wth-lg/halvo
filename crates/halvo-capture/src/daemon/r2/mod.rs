@@ -19,7 +19,7 @@ pub(crate) fn site_reader<P>(_pid: P) -> Option<String> {
 /// A pass that took no event and answered no message reads the store once
 /// where the daemon's caller asked for a read.
 #[cfg_attr(
-    not(any(test, target_os = "macos")),
+    not(any(test, target_os = "macos", all(windows, debug_assertions))),
     expect(
         dead_code,
         reason = "the store owner, its one caller, is built in tests and in macOS debug builds alone"
@@ -35,7 +35,7 @@ pub(super) fn owner_pass<T: marks::MarkEntry + cursor::ReadEntry>(owner: &mut T,
 
 /// The R2 children that the supervisor starts after its sources: none yet.
 #[cfg_attr(
-    not(any(test, target_os = "macos")),
+    not(any(test, target_os = "macos", all(windows, debug_assertions))),
     expect(
         dead_code,
         reason = "the supervisor, its one caller, is built in tests and in macOS debug builds alone"
@@ -47,7 +47,7 @@ pub(super) fn start_children<T>(_supervisor: &mut T) {}
 /// thread of the worker slot's driver gets the time (`when::tick`); with no
 /// driver started it does nothing.
 #[cfg_attr(
-    not(any(test, all(target_os = "macos", debug_assertions))),
+    not(any(test, target_os = "macos", all(windows, debug_assertions))),
     expect(
         dead_code,
         reason = "the supervisor, its one caller, is built in tests and in macOS debug builds alone"
@@ -58,6 +58,7 @@ pub(super) fn tick(now: std::time::Duration) {
 }
 pub mod daemon_caller;
 pub mod owner_slot;
+pub mod service;
 pub mod when;
 #[cfg(target_os = "macos")]
 mod when_macos;

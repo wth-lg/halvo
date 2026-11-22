@@ -61,19 +61,36 @@
     status.set(view);
   };
 
+  function pressOf(s) {
+    return s.hold ? s.hold.press : null;
+  }
+
   function heading(s) {
+    if (s.hold) return w.CAPTURE_HELD;
     if (s.service !== "running") return SERVICE[s.service] || w.STATUS_REFUSED;
     return CAPTURE[s.capture] || w.CAPTURE_UNKNOWN;
   }
 
+  function heldReason(s) {
+    var press = pressOf(s);
+    if (press === "start") return w.HELD_START;
+    if (press === "resume" && s.service === "running") return w.HELD_RESUME;
+    return "";
+  }
+
   function renderToggle(s) {
-    action = s.desired === "running" ? "paused" : s.desired === "paused" ? "running" : null;
+    var press = pressOf(s);
+    if (press === "start") action = "running";
+    else if (press === "resume") action = s.service === "running" ? "running" : null;
+    else if (s.capture === "awaiting_resume") action = "running";
+    else action = s.desired === "running" ? "paused" : s.desired === "paused" ? "running" : null;
     if (pending !== null) {
       toggle.textContent = pending === "paused" ? w.PAUSING : w.STARTING;
       toggle.disabled = true;
       return;
     }
-    toggle.textContent = s.desired === "paused" ? w.RESUME : w.PAUSE;
+    if (press === "start") toggle.textContent = w.START;
+    else toggle.textContent = press === "resume" || action === "running" ? w.RESUME : w.PAUSE;
     toggle.disabled = action === null;
   }
 
@@ -93,13 +110,14 @@
   }
 
   function render(s) {
-    var key = s.service + ":" + s.capture + ":" + s.desired;
+    var key = s.service + ":" + s.capture + ":" + s.desired + ":" + pressOf(s);
     if (shown !== null && key !== shown) heldUntil = performance.now() + HOLD_MS;
     shown = key;
     shownService = s.service;
-    dot.classList.toggle("on", s.service === "running" && (s.capture === "running" || s.capture === "partial"));
+    dot.classList.toggle("on", !s.hold && s.service === "running" && (s.capture === "running" || s.capture === "partial"));
     state.textContent = heading(s);
-    reason.textContent = s.service === "running" && s.capture === "faulted" ? FAULT[s.capture_reason] || "" : "";
+    if (s.hold) reason.textContent = heldReason(s);
+    else reason.textContent = s.service === "running" && s.capture === "faulted" ? FAULT[s.capture_reason] || "" : "";
     renderToggle(s);
     renderSources(s);
     var d = s.drain;
@@ -137,13 +155,13 @@
       .then(function (reply) {
         pending = null;
         Halvo.takeMutationReply(reply);
-        if (reply.service === "running" && reply.reached !== true) {
-          Halvo.showError(asked === "paused" ? w.PAUSE_NOT_REACHED : w.RESUME_NOT_REACHED);
-        }
+        if (reply.reached === true) return;
+        if (asked === "paused") Halvo.showError(w.PAUSE_NOT_REACHED);
+        else if (reply.service === "running") Halvo.showError(w.RESUME_NOT_REACHED);
       })
       .catch(function (e) {
         pending = null;
-        Halvo.showError(e);
+        Halvo.showError(asked === "paused" ? w.PAUSE_NOT_REACHED : e);
         renderToggle(last);
       });
   }

@@ -390,7 +390,7 @@ pub enum EntryKind {
 
 /// ```compile_fail
 /// use halvo_control::paths::{Entry, EntryKind};
-/// let outside = Entry { name: "..", kind: EntryKind::Log, key_files: &[], owner_pid_file: None };
+/// let outside = Entry { name: "..", kind: EntryKind::Log, key_files: &[], owner_pid_file: None, marks_dir: None };
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Entry {
@@ -398,6 +398,7 @@ pub struct Entry {
     kind: EntryKind,
     key_files: &'static [&'static str],
     owner_pid_file: Option<&'static str>,
+    marks_dir: Option<&'static str>,
 }
 
 impl Entry {
@@ -416,6 +417,12 @@ impl Entry {
     pub const fn owner_pid_file(&self) -> Option<&'static str> {
         self.owner_pid_file
     }
+
+    /// The folder of the runs' marks under the entry ([`crate::marks`]), each of which names a runner and a browser by
+    /// pid and creation time.
+    pub const fn marks_dir(&self) -> Option<&'static str> {
+        self.marks_dir
+    }
 }
 
 pub const STORE: Entry = Entry {
@@ -423,24 +430,28 @@ pub const STORE: Entry = Entry {
     kind: EntryKind::Content,
     key_files: &["store/store.key"],
     owner_pid_file: None,
+    marks_dir: None,
 };
 pub const ROOTS: Entry = Entry {
     name: "roots",
     kind: EntryKind::Custody,
     key_files: &[],
     owner_pid_file: None,
+    marks_dir: None,
 };
 pub const RUN: Entry = Entry {
     name: "run",
     kind: EntryKind::Runtime,
     key_files: &[],
     owner_pid_file: None,
+    marks_dir: None,
 };
 pub const LOGS: Entry = Entry {
     name: "logs",
     kind: EntryKind::Log,
     key_files: &[],
     owner_pid_file: None,
+    marks_dir: None,
 };
 /// The derived store of the workflow run: the entry holds its database, the key file of that database, and the pid
 /// file in which the process that owns the database records itself.
@@ -449,15 +460,17 @@ pub const DERIVED: Entry = Entry {
     kind: EntryKind::Content,
     key_files: &["derived/master.key"],
     owner_pid_file: Some("derived/owner.pid"),
+    marks_dir: None,
 };
-/// The folder of the agent-setup run: its runners' profiles, locks and marks. It has no key file. Its owner pid file
-/// is `agents/owner.pid`, which no process of this build writes yet, so a delete of everything ends no runner before
-/// it removes the folder.
+/// The folder of the agent-setup run: its runners' profiles, locks and marks. It has no key file and no owner pid
+/// file. Its marks are under `agents/marks`, and a delete of everything ends the runner and the browser that each
+/// mark names before it removes the folder.
 pub const AGENTS: Entry = Entry {
     name: "agents",
     kind: EntryKind::Content,
     key_files: &[],
-    owner_pid_file: Some("agents/owner.pid"),
+    owner_pid_file: None,
+    marks_dir: Some("agents/marks"),
 };
 
 pub const ENTRIES: [Entry; 6] = [STORE, ROOTS, RUN, LOGS, DERIVED, AGENTS];
@@ -2478,10 +2491,12 @@ mod tests {
         assert!(ENTRIES[1..4].iter().all(|entry| entry.key_files.is_empty()));
         assert!(AGENTS.key_files.is_empty());
         assert_eq!(DERIVED.owner_pid_file, Some("derived/owner.pid"));
-        assert_eq!(AGENTS.owner_pid_file, Some("agents/owner.pid"));
+        assert_eq!(AGENTS.owner_pid_file, None);
+        assert_eq!(AGENTS.marks_dir, Some("agents/marks"));
         assert!(ENTRIES[..4]
             .iter()
             .all(|entry| entry.owner_pid_file.is_none()));
+        assert!(ENTRIES[..5].iter().all(|entry| entry.marks_dir.is_none()));
         assert!(RESERVED_ENTRY_NAMES.is_empty());
         assert!(KEYCHAIN_ITEMS.is_empty());
     }

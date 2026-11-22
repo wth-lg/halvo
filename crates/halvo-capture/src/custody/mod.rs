@@ -318,7 +318,7 @@ pub enum CustodyError {
     RootCorrupt,
     #[error("this process may not read or destroy the root of this store")]
     RootDenied,
-    /// This user has no directory for root files: `LOCALAPPDATA` is not set.
+    /// This user has no directory for root files.
     #[error("this user has no directory for root files")]
     NoRootDirectory,
     /// A platform state that can clear, with the platform's code: a DPAPI
