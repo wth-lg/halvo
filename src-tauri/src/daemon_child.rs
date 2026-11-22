@@ -1673,6 +1673,74 @@ mod tests {
         }
     }
 
+    struct EachItsOwn {
+        places: Arc<Places>,
+    }
+
+    fn own<T>(kind: &'static str) -> Result<T, ClientError> {
+        Err(ClientError::UnexpectedReply { kind })
+    }
+
+    fn kind_of<T>(answer: Result<T, ClientError>) -> &'static str {
+        match answer {
+            Err(ClientError::UnexpectedReply { kind }) => kind,
+            Err(ClientError::Unsupported) => "the trait's default body",
+            Err(_) => "another error",
+            Ok(_) => "an answer",
+        }
+    }
+
+    impl Control for EachItsOwn {
+        fn places(&self) -> &Arc<Places> {
+            &self.places
+        }
+
+        fn status(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+            own("status")
+        }
+
+        fn status_of_a_pass(
+            &self,
+            _: Made,
+            _: bool,
+            _: &Hold,
+        ) -> Result<DaemonStatus, ClientError> {
+            own("status_of_a_pass")
+        }
+
+        fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
+            own("inventory")
+        }
+
+        fn pause(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            own("pause")
+        }
+
+        fn resume(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            own("resume")
+        }
+
+        fn delete_all(&self, _: Made, _: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
+            own("delete_all")
+        }
+
+        fn set_storage_cap(&self, _: Made, _: StorageCap) -> Result<CapSet, ClientError> {
+            own("set_storage_cap")
+        }
+
+        fn request_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<RequestOutcome, ClientError> {
+            own("request_permission")
+        }
+
+        fn relay(&self, _: Made, _: &[u8]) -> Result<Vec<u8>, ClientError> {
+            own("relay")
+        }
+    }
+
     fn status_of(pid: u32, versions_up: u32, pausing: bool) -> DaemonStatus {
         let app: halvo_control::proto::DaemonVersion =
             crate::app::VERSION.parse().expect("the app's version");
@@ -1852,6 +1920,45 @@ mod tests {
             }
             drop(supervisor.close());
         }
+
+        let places = Arc::<Places>::default();
+        let control = crate::commands::control::watched(
+            EachItsOwn {
+                places: Arc::clone(&places),
+            },
+            Arc::default(),
+        );
+        assert!(
+            Arc::ptr_eq(control.places(), &places),
+            "places is handed on"
+        );
+        let made = || control.places().make();
+        let seen = [
+            kind_of(control.status(made(), false)),
+            kind_of(control.status_of_a_pass(made(), true, &Hold::default())),
+            kind_of(control.inventory(made())),
+            kind_of(control.pause(made())),
+            kind_of(control.resume(made())),
+            kind_of(control.delete_all(made(), None)),
+            kind_of(control.set_storage_cap(made(), StorageCap::DEFAULT)),
+            kind_of(control.request_permission(made(), Permission::Accessibility)),
+            kind_of(control.relay(made(), b"{}")),
+        ];
+        assert_eq!(
+            seen,
+            [
+                "status",
+                "status_of_a_pass",
+                "inventory",
+                "pause",
+                "resume",
+                "delete_all",
+                "set_storage_cap",
+                "request_permission",
+                "relay",
+            ],
+            "every method of Control comes back through the wrapper as the control inside answered it"
+        );
     }
 
     #[test]

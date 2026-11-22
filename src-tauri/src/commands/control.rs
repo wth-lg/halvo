@@ -448,7 +448,11 @@ fn another_daemon_version(status: &DaemonStatus) -> bool {
 }
 
 /// The app's control of its child: each answer of the control inside tells `pid` what it read,
-/// and what it showed of the child that `pid` named while the request ran.
+/// and what it showed of the child that `pid` named while the request ran. It hands every
+/// method of `Control` on to the control inside, those with a default body among them; a
+/// builder who adds a method to `Control` adds its forward here, and adds that method, with an
+/// answer of its own, to the stand-in `EachItsOwn` and to the last row of the test
+/// `another_daemon_version_restarts_the_own_child_once_and_a_child_seen_ending_is_killed`.
 #[cfg(any(target_os = "macos", test))]
 pub struct Watching<C> {
     inner: C,
@@ -535,6 +539,10 @@ impl<C: Control> Control for Watching<C> {
         let before = self.pid.get();
         self.took(before, self.inner.request_permission(made, permission))
     }
+
+    fn relay(&self, made: Made, request: &[u8]) -> Result<Vec<u8>, ClientError> {
+        self.inner.relay(made, request)
+    }
 }
 
 /// The system's connector, which expects the server to be the child of `pid` while it holds one.
@@ -597,13 +605,15 @@ pub fn control_of_child<E>(
     }
 }
 
+/// `control` inside the wrapper `Watching`, which reads its answers for `pid`.
 #[cfg(any(target_os = "macos", test))]
-fn watched<C: Control + 'static>(control: C, pid: Arc<ChildPid>) -> Arc<dyn Control> {
+pub fn watched<C: Control + 'static>(control: C, pid: Arc<ChildPid>) -> Arc<dyn Control> {
     Arc::new(Watching::new(control, pid))
 }
 
+/// `control` alone: no child of the app lives on this system.
 #[cfg(not(any(target_os = "macos", test)))]
-fn watched<C: Control + 'static>(control: C, pid: Arc<ChildPid>) -> Arc<dyn Control> {
+pub fn watched<C: Control + 'static>(control: C, pid: Arc<ChildPid>) -> Arc<dyn Control> {
     let _ = pid;
     Arc::new(control)
 }
