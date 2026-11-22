@@ -45,10 +45,13 @@ thu windows check 52-windows-browser
 thu windows check 10-egress
 
 fri macos self-test 12-test
+fri macos self-test 17-workflow-lint
 fri macos self-test 18-hook-scan
 fri macos self-test 19-control-links-no-store
 fri macos self-test 20-app-links-no-store
 fri macos self-test 23-daemon-port-only
+fri macos self-test 23-licences
+fri macos self-test 25-advisories
 fri macos self-test 30-core-boundary-proofs
 fri macos self-test 31-app-page-layout
 fri macos self-test 31-store-full-volume
