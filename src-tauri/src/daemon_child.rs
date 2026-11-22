@@ -10,7 +10,7 @@ use halvo_control::exit;
 use halvo_control::paths::DataDir;
 use halvo_control::service::{DAEMON_ARG, DATA_DIR_ARG};
 
-use crate::commands::control::ChildPid;
+use crate::commands::control::{ChildPid, Sight};
 use crate::poller::Views;
 use crate::view_state::Hold;
 
@@ -78,6 +78,21 @@ pub enum Next {
     StartAfter(Duration),
     /// No further child in this life of the app.
     NoMoreChild,
+}
+
+/// Why the app ends its own child (contracts.md C14 item 4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stop {
+    /// The child read another version: one child starts again at once, since the app asked for
+    /// the stop in order to restart, unless the child ended with 5.
+    Restart,
+    /// A reply or a Status of the child read capture=pausing with a source that did not stop:
+    /// the end counts as an end with 5, whether the child ended or was killed, and what starts
+    /// next is the rule of `next`.
+    SourceNotStopped,
+    /// A request of the app to the child passed its deadline with no reply: what starts next is
+    /// the rule of `next`, and a kill sets no hold.
+    NoReply,
 }
 
 /// What the rule keeps from one end of a child to the next: the last wait of the backoff and
@@ -304,6 +319,7 @@ fn daemon_err(dir: &DataDir) -> io::Result<File> {
 struct State<C> {
     quitting: bool,
     child: Option<C>,
+    version_restarted: bool,
 }
 
 #[derive(Debug)]
@@ -344,6 +360,7 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
             state: Mutex::new(State {
                 quitting: false,
                 child: None,
+                version_restarted: false,
             }),
             changed: Condvar::new(),
         });
@@ -453,7 +470,15 @@ fn supervise<S: Spawner, K: Clock>(
     let mut restarts = Restarts::default();
     loop {
         let began = clock.now();
-        let ending = match spawner.start() {
+        let by_the_rule = |ending: Ending| {
+            let (step, after) = next(
+                ending,
+                clock.now().saturating_duration_since(began),
+                restarts,
+            );
+            (ending, step, after)
+        };
+        let (ending, step, after) = match spawner.start() {
             Ok(None) => return None,
             Ok(Some(child)) => {
                 let mut state = shared.lock();
@@ -464,11 +489,14 @@ fn supervise<S: Spawner, K: Clock>(
                 state.child = Some(child);
                 drop(state);
                 hold.child_started();
-                watch(shared, clock)?
+                match watch(shared, pid, clock, views)? {
+                    Seen::Ended(ending) => by_the_rule(ending),
+                    Seen::Stop(stop) => stop_and_start(shared, clock, stop, began, restarts)?,
+                }
             }
             Err(e) => {
                 eprintln!("halvo: the capture service did not start: {e}");
-                Ending::NotStarted
+                by_the_rule(Ending::NotStarted)
             }
         };
         pid.set(0);
@@ -478,11 +506,6 @@ fn supervise<S: Spawner, K: Clock>(
         });
         views.draw_now();
         eprintln!("halvo: the capture service ended: {ending:?}");
-        let (step, after) = next(
-            ending,
-            clock.now().saturating_duration_since(began),
-            restarts,
-        );
         restarts = after;
         match step {
             Next::Attach => {
@@ -537,7 +560,17 @@ fn waited_for_no_daemon<C, K: Clock>(shared: &Shared<C>, pid: &ChildPid, clock: 
     }
 }
 
-fn watch<C: Watched, K: Clock>(shared: &Shared<C>, clock: &K) -> Option<Ending> {
+enum Seen {
+    Ended(Ending),
+    Stop(Stop),
+}
+
+fn watch<C: Watched, K: Clock>(
+    shared: &Shared<C>,
+    pid: &ChildPid,
+    clock: &K,
+    views: &Views,
+) -> Option<Seen> {
     let mut state = shared.lock();
     loop {
         if state.quitting {
@@ -546,10 +579,65 @@ fn watch<C: Watched, K: Clock>(shared: &Shared<C>, clock: &K) -> Option<Ending> 
         let child = state.child.as_mut()?;
         if let Ok(Some(ending)) = child.ended() {
             state.child = None;
-            return Some(ending);
+            return Some(Seen::Ended(ending));
+        }
+        match pid.take_sight(child.pid()) {
+            Some(Sight::SourceNotStopped) => return Some(Seen::Stop(Stop::SourceNotStopped)),
+            Some(Sight::NoReply) => return Some(Seen::Stop(Stop::NoReply)),
+            Some(Sight::AnotherVersion) if !state.version_restarted => {
+                state.version_restarted = true;
+                return Some(Seen::Stop(Stop::Restart));
+            }
+            Some(Sight::AnotherVersion) => {
+                drop(state);
+                views.hold().another_version_left();
+                views.draw_now();
+                state = shared.lock();
+                continue;
+            }
+            None => {}
         }
         state = clock.wait(&shared.changed, state, CHILD_POLL);
     }
+}
+
+fn stop_and_start<C: Watched, K: Clock>(
+    shared: &Shared<C>,
+    clock: &K,
+    stop: Stop,
+    began: Instant,
+    before: Restarts,
+) -> Option<(Ending, Next, Restarts)> {
+    let until = clock.now() + STOP_WAIT;
+    let mut state = shared.lock();
+    state.child.as_mut()?.close_lifeline();
+    let ended = loop {
+        if state.quitting {
+            return None;
+        }
+        let child = state.child.as_mut()?;
+        if let Ok(Some(ending)) = child.ended() {
+            break ending;
+        }
+        if clock.now() >= until {
+            if let Err(e) = child.kill() {
+                eprintln!("halvo: the capture service could not be ended: {e}");
+            }
+            break Ending::Signal;
+        }
+        state = clock.wait(&shared.changed, state, STOP_POLL);
+    };
+    state.child = None;
+    drop(state);
+    let ending = match stop {
+        Stop::SourceNotStopped => Ending::Status(exit::SOURCE_NOT_STOPPED),
+        Stop::Restart | Stop::NoReply => ended,
+    };
+    if stop == Stop::Restart && ending != Ending::Status(exit::SOURCE_NOT_STOPPED) {
+        return Some((ending, Next::StartNow, Restarts::default()));
+    }
+    let (step, after) = next(ending, clock.now().saturating_duration_since(began), before);
+    Some((ending, step, after))
 }
 
 #[cfg(test)]
@@ -900,6 +988,13 @@ mod tests {
     #[cfg(unix)]
     const STUB: &str = "daemon_child::tests::stub_child";
     type Row = (&'static str, Vec<(Ending, u64)>, usize, Vec<Duration>);
+    type Row4 = (
+        &'static str,
+        Vec<(u32, Result<DaemonStatus, ClientError>)>,
+        Vec<(u32, bool)>,
+        Vec<&'static str>,
+        (bool, bool, Option<crate::view_state::Service>),
+    );
     type Row3 = (
         &'static str,
         Vec<Result<DaemonStatus, ClientError>>,
@@ -1560,6 +1655,144 @@ mod tests {
         }
     }
 
+    fn status_of(pid: u32, versions_up: u32, pausing: bool) -> DaemonStatus {
+        let app: halvo_control::proto::DaemonVersion =
+            crate::app::VERSION.parse().expect("the app's version");
+        let mut f = sample_status(Platform::Macos).into_fields();
+        f.pid = pid;
+        f.daemon_version = halvo_control::proto::DaemonVersion {
+            major: app.major + versions_up,
+            ..app
+        };
+        if pausing {
+            f.capture = Capture::Pausing;
+            let line = f
+                .sources
+                .iter_mut()
+                .find(|line| line.state != SourceState::Off);
+            line.expect("a source that runs").unstopped = true;
+        }
+        DaemonStatus::new(f).expect("the status holds together")
+    }
+
+    #[test]
+    fn another_daemon_version_restarts_the_own_child_once_and_a_child_seen_ending_is_killed() {
+        use crate::commands::control::Watching;
+        use crate::view_state::Service;
+        assert_eq!(STOP_WAIT, Duration::from_millis(20_000));
+        let deadline = || Err(ClientError::Deadline { seconds: 2 });
+        let rows: Vec<Row4> = vec![
+            (
+                "another daemon_version of the own child: one end and one start at once, none at a second reading",
+                vec![
+                    (1000, Ok(status_of(1000, 1, false))),
+                    (1001, Ok(status_of(1001, 1, false))),
+                ],
+                vec![(1000, true), (1001, true)],
+                vec!["start 1000", "status", "closed descriptor", "start 1001", "status"],
+                (false, false, Some(Service::AnotherVersion)),
+            ),
+            (
+                "a reply of another version from the own child: one end and one start at once",
+                vec![(1000, Err(ClientError::ReplyOfAnotherVersion { version: 2 }))],
+                vec![(1000, false), (1001, true)],
+                vec![
+                    "start 1000",
+                    "status",
+                    "closed descriptor",
+                    "kill after 20 s",
+                    "start 1001",
+                ],
+                (false, false, None),
+            ),
+            (
+                "another daemon_version of a daemon that is not the app's child: none",
+                vec![(1000, Ok(status_of(4242, 1, false)))],
+                vec![(1000, true)],
+                vec!["start 1000", "status"],
+                (false, false, Some(Service::Running)),
+            ),
+            (
+                "pausing beside a source that did not stop: the kill after STOP_WAIT_MS, and the hold",
+                vec![(1000, Ok(status_of(1000, 0, true)))],
+                vec![(1000, false), (1001, true)],
+                vec![
+                    "start 1000",
+                    "status",
+                    "closed descriptor",
+                    "kill after 20 s",
+                    "start 1001",
+                ],
+                (true, true, None),
+            ),
+            (
+                "pausing beside a source that did not stop, and an end of its own after the close: the hold",
+                vec![(1000, Ok(status_of(1000, 0, true)))],
+                vec![(1000, true), (1001, true)],
+                vec!["start 1000", "status", "closed descriptor", "start 1001"],
+                (true, true, None),
+            ),
+            (
+                "a passed deadline: the kill after STOP_WAIT_MS, and no hold",
+                vec![(1000, deadline())],
+                vec![(1000, false), (1001, true)],
+                vec![
+                    "start 1000",
+                    "status",
+                    "closed descriptor",
+                    "kill after 20 s",
+                    "start 1001",
+                ],
+                (false, true, None),
+            ),
+        ];
+        let tray = crate::tray::installed_for_tests();
+        for (name, steps, children, expected, (held, backoff, service)) in rows {
+            let record = Record::default();
+            let clock = Arc::new(StandInClock::default());
+            let spawner = StandInSpawner {
+                children: children
+                    .into_iter()
+                    .map(|(pid, ends_at_close)| StandInChild {
+                        ends_at_close,
+                        ..StandInChild::new(pid, &clock, &record)
+                    })
+                    .collect(),
+                record: Arc::clone(&record),
+            };
+            let views = Arc::new(Views::default());
+            let pid = Arc::<ChildPid>::default();
+            let supervisor = Supervisor::start_holding(
+                spawner,
+                Arc::clone(&pid),
+                Arc::clone(&clock),
+                Arc::clone(&views),
+            );
+            let (children, answers): (Vec<u32>, Vec<_>) = steps.into_iter().unzip();
+            let control = Watching::new(
+                Scripted::new(&record, answers, Vec::new()),
+                Arc::clone(&pid),
+            );
+            for child in children {
+                until(name, || pid.get() == Some(child));
+                pass(&control, &views, Some(&tray));
+            }
+            until(name, || record.lock().unwrap().len() >= expected.len());
+            looked_again(&clock);
+            assert_eq!(*record.lock().unwrap(), expected, "{name}");
+            assert_eq!(views.hold().stands(), held, "{name}: the hold");
+            assert_eq!(
+                clock.waits().contains(&BACKOFF_FIRST),
+                backoff,
+                "{name}: the backoff before the next child"
+            );
+            if let Some(service) = service {
+                assert_eq!(views.view().service(), service, "{name}: the view");
+            }
+            drop(supervisor.close());
+        }
+    }
+
     #[test]
     fn the_child_is_started_again_by_its_exit_status() {
         let s = Duration::from_secs;
@@ -1638,6 +1871,7 @@ mod tests {
                 state: Mutex::new(State {
                     quitting: false,
                     child: None,
+                    version_restarted: false,
                 }),
                 changed: Condvar::new(),
             };

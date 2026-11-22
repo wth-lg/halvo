@@ -322,6 +322,21 @@ pub struct ChildPid {
 struct Read {
     answers: u64,
     no_daemon: bool,
+    sight: Option<(u32, Sight)>,
+}
+
+/// What an answer of the app's own child showed of that child (contracts.md C14 item 4).
+#[cfg(any(target_os = "macos", test))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sight {
+    /// A status that reads capture=pausing beside a source that carries the mark `unstopped`,
+    /// a source that a stop did not end.
+    SourceNotStopped,
+    /// A status of a daemon_version other than the app's, or an error that `read_error` reads
+    /// as another version.
+    AnotherVersion,
+    /// The request's deadline passed with no reply.
+    NoReply,
 }
 
 impl ChildPid {
@@ -357,15 +372,65 @@ impl ChildPid {
         read.answers > answers && read.no_daemon
     }
 
+    /// Takes what the answers showed of the child `child`; a sight of another child is dropped.
     #[cfg(any(target_os = "macos", test))]
-    fn took(&self, error: Option<&ClientError>) {
+    pub fn take_sight(&self, child: u32) -> Option<Sight> {
+        match self.read().sight.take() {
+            Some((of, sight)) if of == child => Some(sight),
+            _ => None,
+        }
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    fn took(
+        &self,
+        before: Option<u32>,
+        error: Option<&ClientError>,
+        status: Option<&DaemonStatus>,
+    ) {
         let mut read = self.read();
         read.answers += 1;
         read.no_daemon = matches!(error, Some(ClientError::Unreachable { .. }));
+        let Some(child) = before.filter(|child| self.get() == Some(*child)) else {
+            return;
+        };
+        let sight = match (status, error) {
+            (Some(status), _) if status.fields().pid != child => None,
+            (Some(status), _) if source_not_stopped(status) => Some(Sight::SourceNotStopped),
+            (Some(status), _) if another_daemon_version(status) => Some(Sight::AnotherVersion),
+            (_, Some(ClientError::Deadline { .. })) => Some(Sight::NoReply),
+            (_, Some(error))
+                if crate::view_state::read_error(error).service
+                    == crate::view_state::NoStatusService::AnotherVersion =>
+            {
+                Some(Sight::AnotherVersion)
+            }
+            _ => None,
+        };
+        let waiting = read.sight.is_some_and(|(of, _)| of == child);
+        if let (Some(sight), false) = (sight, waiting) {
+            read.sight = Some((child, sight));
+        }
     }
 }
 
-/// The app's control of its child: each answer of the control inside tells `pid` what it read.
+#[cfg(any(target_os = "macos", test))]
+fn source_not_stopped(status: &DaemonStatus) -> bool {
+    let fields = status.fields();
+    fields.capture == halvo_control::proto::Capture::Pausing
+        && fields.sources.iter().any(|line| line.unstopped)
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn another_daemon_version(status: &DaemonStatus) -> bool {
+    crate::app::VERSION
+        .parse::<halvo_control::proto::DaemonVersion>()
+        .ok()
+        != Some(status.fields().daemon_version)
+}
+
+/// The app's control of its child: each answer of the control inside tells `pid` what it read,
+/// and what it showed of the child that `pid` named while the request ran.
 #[cfg(any(target_os = "macos", test))]
 pub struct Watching<C> {
     inner: C,
@@ -378,8 +443,22 @@ impl<C> Watching<C> {
         Watching { inner, pid }
     }
 
-    fn took<T>(&self, answer: Result<T, ClientError>) -> Result<T, ClientError> {
-        self.pid.took(answer.as_ref().err());
+    fn took<T>(
+        &self,
+        before: Option<u32>,
+        answer: Result<T, ClientError>,
+    ) -> Result<T, ClientError> {
+        self.pid.took(before, answer.as_ref().err(), None);
+        answer
+    }
+
+    fn took_status(
+        &self,
+        before: Option<u32>,
+        answer: Result<DaemonStatus, ClientError>,
+    ) -> Result<DaemonStatus, ClientError> {
+        self.pid
+            .took(before, answer.as_ref().err(), answer.as_ref().ok());
         answer
     }
 }
@@ -391,7 +470,8 @@ impl<C: Control> Control for Watching<C> {
     }
 
     fn status(&self, made: Made, claim: bool) -> Result<DaemonStatus, ClientError> {
-        self.took(self.inner.status(made, claim))
+        let before = self.pid.get();
+        self.took_status(before, self.inner.status(made, claim))
     }
 
     fn status_of_a_pass(
@@ -400,27 +480,33 @@ impl<C: Control> Control for Watching<C> {
         claim: bool,
         hold: &Hold,
     ) -> Result<DaemonStatus, ClientError> {
-        self.took(self.inner.status_of_a_pass(made, claim, hold))
+        let before = self.pid.get();
+        self.took_status(before, self.inner.status_of_a_pass(made, claim, hold))
     }
 
     fn inventory(&self, made: Made) -> Result<InventoryReply, ClientError> {
-        self.took(self.inner.inventory(made))
+        let before = self.pid.get();
+        self.took(before, self.inner.inventory(made))
     }
 
     fn pause(&self, made: Made) -> Result<DaemonStatus, ClientError> {
-        self.took(self.inner.pause(made))
+        let before = self.pid.get();
+        self.took_status(before, self.inner.pause(made))
     }
 
     fn resume(&self, made: Made) -> Result<DaemonStatus, ClientError> {
-        self.took(self.inner.resume(made))
+        let before = self.pid.get();
+        self.took_status(before, self.inner.resume(made))
     }
 
     fn delete_all(&self, made: Made, armed: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
-        self.took(self.inner.delete_all(made, armed))
+        let before = self.pid.get();
+        self.took(before, self.inner.delete_all(made, armed))
     }
 
     fn set_storage_cap(&self, made: Made, cap: StorageCap) -> Result<CapSet, ClientError> {
-        self.took(self.inner.set_storage_cap(made, cap))
+        let before = self.pid.get();
+        self.took(before, self.inner.set_storage_cap(made, cap))
     }
 
     fn request_permission(
@@ -428,7 +514,8 @@ impl<C: Control> Control for Watching<C> {
         made: Made,
         permission: Permission,
     ) -> Result<RequestOutcome, ClientError> {
-        self.took(self.inner.request_permission(made, permission))
+        let before = self.pid.get();
+        self.took(before, self.inner.request_permission(made, permission))
     }
 }
 
