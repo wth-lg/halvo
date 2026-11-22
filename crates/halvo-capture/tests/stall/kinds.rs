@@ -394,8 +394,12 @@ fn of_rounds(totals: &Totals, checks: Checks) -> Result<(), &'static str> {
         .find(|(failed, _)| *failed),
         Checks::Enter => [
             (
-                totals.letters_recorded > 0,
-                "a letter after Enter was recorded",
+                totals.letters_recorded > totals.letters_landed,
+                "a letter after Enter was recorded that did not land in the plain field",
+            ),
+            (
+                totals.other_recorded > 0,
+                "the Enter itself, which changes no text, was recorded",
             ),
             (
                 totals.withheld_set == 0 && totals.counted > 0,

@@ -1341,7 +1341,7 @@ mod detector {
         GetWindowThreadProcessId, MsgWaitForMultipleObjectsEx, PeekMessageW, TranslateMessage,
         ES_PASSWORD, EVENT_OBJECT_VALUECHANGE, EVENT_SYSTEM_DESKTOPSWITCH, GUITHREADINFO,
         GWL_STYLE, MSG, MWMO_INPUTAVAILABLE, PM_REMOVE, QS_ALLINPUT, STATE_SYSTEM_FOCUSED,
-        STATE_SYSTEM_PROTECTED, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
+        STATE_SYSTEM_PROTECTED, WINEVENT_OUTOFCONTEXT,
     };
 
     use super::{kind_of, FieldState, FocusRead, PasswordGate, Shared};
@@ -2199,7 +2199,7 @@ mod detector {
                 Some(landing_proc),
                 0,
                 0,
-                WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
+                WINEVENT_OUTOFCONTEXT,
             )
         }
     }
@@ -4912,6 +4912,7 @@ mod tests {
         let gate = plain();
         gate.pointer_takes_the_clicks(1_000);
         let letter = key(&gate, 2_000);
+        gate.landing_at(2_000, FieldState::Clear);
         gate.read_at(2_120, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_200), None);
         assert_eq!(reading(&gate, &letter, 2_251), Some(Err(Withheld::Unknown)));

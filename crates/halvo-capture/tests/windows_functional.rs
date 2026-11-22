@@ -43,7 +43,7 @@ use windows::Win32::System::Threading::{
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYBD_EVENT_FLAGS,
     KEYEVENTF_KEYUP, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_WHEEL,
-    MOUSEINPUT, MOUSE_EVENT_FLAGS, VIRTUAL_KEY, VK_F15, VK_MENU,
+    MOUSEINPUT, MOUSE_EVENT_FLAGS, VIRTUAL_KEY, VK_A, VK_F15, VK_MENU,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
@@ -729,6 +729,17 @@ fn send(inputs: &[INPUT]) -> u32 {
     // SAFETY: `inputs` is a live slice of INPUT values and the size argument
     // is the size of one INPUT, as SendInput requires.
     unsafe { SendInput(inputs, core::mem::size_of::<INPUT>() as i32) }
+}
+
+fn type_letters(presses: u32) -> u32 {
+    let mut accepted = 0;
+    for _ in 0..presses {
+        accepted += send(&[key_input(VK_A, false)]);
+        std::thread::sleep(Duration::from_millis(5));
+        accepted += send(&[key_input(VK_A, true)]);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    accepted
 }
 
 fn press_keys(presses: u32) -> u32 {
@@ -1795,7 +1806,7 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
         let quiet = events.drain_for(Duration::from_secs(1));
         summarize("c1", "no-input-1s", &quiet);
 
-        let key_events_accepted = press_keys(PRESSES);
+        let key_events_accepted = type_letters(PRESSES);
         let after_keys = events.drain_for(Duration::from_millis(1500));
         summarize("c1", "after-key-presses", &after_keys);
 
@@ -1806,7 +1817,7 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
 
         let _ = stop_counted(&mut keyboard, "keyboard");
         let _ = stop_counted(&mut pointer, "pointer");
-        press_keys(3);
+        type_letters(3);
         move_pointer(3);
         let after_stop = events.drain_for(Duration::from_millis(700));
         summarize("c1", "after-stop", &after_stop);
@@ -3717,9 +3728,9 @@ fn capture_times_follow_the_input_order() {
         let mut turns_sent = Vec::new();
         let mut accepted = 0;
         for _ in 0..ROUNDS {
-            accepted += send(&[key_input(VK_F15, false)]);
+            accepted += send(&[key_input(VK_A, false)]);
             keys_sent.push(SystemTime::now());
-            accepted += send(&[key_input(VK_F15, true)]);
+            accepted += send(&[key_input(VK_A, true)]);
             std::thread::sleep(Duration::from_millis(100));
             accepted += send(&[wheel_notch()]);
             turns_sent.push(SystemTime::now());
@@ -3810,7 +3821,7 @@ fn stop_with_a_full_sink() {
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         gate_reads_clear("full-sink", Some(&fields), &keyboard);
-        let accepted = press_keys(3);
+        let accepted = type_letters(3);
         std::thread::sleep(Duration::from_millis(500));
         let (done, returned) = mpsc::channel();
         let began = Instant::now();
@@ -3864,14 +3875,14 @@ fn a_dropped_keyboard_source_stops_capturing() {
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         gate_reads_clear("dropped", Some(&fields), &keyboard);
-        let accepted_before = press_keys(1);
+        let accepted_before = type_letters(1);
         let before = count(
             &events.drain_for(Duration::from_millis(700)),
             Modality::Keystroke,
         );
         drop(keyboard);
         std::thread::sleep(Duration::from_millis(300));
-        let accepted_after = press_keys(3);
+        let accepted_after = type_letters(3);
         let after = count(
             &events.drain_for(Duration::from_secs(1)),
             Modality::Keystroke,
@@ -3879,7 +3890,7 @@ fn a_dropped_keyboard_source_stops_capturing() {
         let mut next = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let next_start = next.begin(SourceContext::new(sink.clone()));
         gate_reads_clear("dropped", Some(&fields), &next);
-        let accepted_next = press_keys(1);
+        let accepted_next = type_letters(1);
         let next_keys = count(
             &events.drain_for(Duration::from_millis(700)),
             Modality::Keystroke,
@@ -4270,7 +4281,7 @@ fn x3_attribution_before_the_first_foreground_change() {
         gate_reads_clear("x3", None, &keyboard);
         let settle = events.drain_for(Duration::from_secs(1));
         let cell_before_typing = last_app.lock().ok().and_then(|cell| cell.clone());
-        press_keys(5);
+        type_letters(5);
         let before = events.drain_for(Duration::from_millis(700));
         let still_child_foreground = foreground_pid() == child_pid;
 
@@ -4283,7 +4294,7 @@ fn x3_attribution_before_the_first_foreground_change() {
         {
             between.extend(events.drain_for(Duration::from_millis(100)));
         }
-        press_keys(5);
+        type_letters(5);
         let after = events.drain_for(Duration::from_millis(700));
         let exit = child.wait();
         let _ = stop_counted(&mut foreground, "foreground");
@@ -4781,10 +4792,10 @@ fn x15_a_held_key() {
         gate_reads_clear("x15", Some(&fields), &keyboard);
         let mut accepted = 0;
         for _ in 0..REPEATS {
-            accepted += send(&[key_input(VK_F15, false)]);
+            accepted += send(&[key_input(VK_A, false)]);
             std::thread::sleep(Duration::from_millis(30));
         }
-        accepted += send(&[key_input(VK_F15, true)]);
+        accepted += send(&[key_input(VK_A, true)]);
         let seen = events.drain_for(Duration::from_secs(1));
         let _ = stop_counted(&mut keyboard, "keyboard");
         let keystrokes = count(&seen, Modality::Keystroke);
