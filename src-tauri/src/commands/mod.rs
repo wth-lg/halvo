@@ -11,6 +11,8 @@ pub mod workflows;
 #[cfg(test)]
 mod tests;
 
+use std::time::{Duration, Instant};
+
 use tauri::ipc::Invoke;
 use tauri::{Runtime, Url};
 
@@ -23,6 +25,42 @@ pub trait Registration: Send + Sync {
     fn names(&self) -> &'static Names;
 
     fn on_status(&self, _status: &Status) {}
+
+    /// Told before a delete of everything goes out, at either door (contracts.md C10.1), off
+    /// the calling thread; the caller waits for it at most for STOP_WAIT_MS and then goes on.
+    /// None of the three modules implements it today, so a module that holds what a delete
+    /// removes stops nothing here unless it does: the agents' runs are held by the command
+    /// itself (`agents::RunsHold`), and behind that the delete walk ends every runner that a
+    /// mark names.
+    fn before_delete_all(&self) {}
+}
+
+/// Tells every module of `modules` that a delete of everything is about to go out, each on a
+/// thread of its own, and waits for them at most `within`; a module that has not returned by
+/// then goes on in its thread.
+pub fn tell_before_delete_all(modules: &[&'static dyn Registration], within: Duration) {
+    let (done, answered) = std::sync::mpsc::channel();
+    let mut asked = 0;
+    for &module in modules {
+        let done = done.clone();
+        let spawned = std::thread::Builder::new()
+            .name("halvo-before-delete".to_owned())
+            .spawn(move || {
+                module.before_delete_all();
+                let _ = done.send(());
+            });
+        if spawned.is_ok() {
+            asked += 1;
+        }
+    }
+    drop(done);
+    let until = Instant::now() + within;
+    for _ in 0..asked {
+        let left = until.saturating_duration_since(Instant::now());
+        if answered.recv_timeout(left).is_err() {
+            break;
+        }
+    }
 }
 
 pub struct Module<R: Runtime> {

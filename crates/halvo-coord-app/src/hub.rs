@@ -10,7 +10,7 @@ use halvo_coord::types::{
     Action, AgentId, Card, Cause, Choice, ClosedReply, ConfigView, ErrorReply, ItemId, Limits,
     OkReply, Param, RunId, Snapshot, YesNo,
 };
-use halvo_coord::{words, Coordinator};
+use halvo_coord::{words, Coordinator, QuitWait};
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -173,6 +173,18 @@ pub trait Core: Send + Sync {
     /// and returns. The next life's reap is then the kill (RD-34 (e)).
     fn quit(&self, budget: Option<Duration>) -> Vec<(AgentId, RunId)>;
 
+    /// The hold of the agents' runs while a delete of everything runs and while the capture
+    /// service's store reads deleting or locked (the capture run's app-3b4). With `held` it marks
+    /// the hold (`Coordinator::mark_hold`), so that every start that has not passed its last
+    /// reading of the marks is refused, the person's with `no_service`, the queue's and a tick's;
+    /// then it takes the quit's first step after its mark (`Coordinator::hold_stop`), the quit's
+    /// wait under the same bounds, and the quit's second step without its rows
+    /// (`Coordinator::hold_kill`), and writes no list of the runs that did not stop; it returns
+    /// that list as `quit` does. While the hold stands a tick starts nothing and stores nothing.
+    /// Without `held` it lifts the hold and nothing else, and returns no run; it never lifts the
+    /// quit's mark.
+    fn hold_runs(&self, held: bool) -> Vec<(AgentId, RunId)>;
+
     /// The native dialog's report that the item is on screen (I4.2).
     fn on_screen(&self, item: &ItemId);
 
@@ -334,18 +346,49 @@ where
     /// for the second step and then for the write, both until the end of the window. Where no
     /// thread can be started for the second step, the hook takes it no further, and writes
     /// nothing; where none can be started for the write, it waits for the second step alone.
-    fn kill_and_write(&self) {
+    /// The wait of the quit after its first step and its second step, which the hold of a delete
+    /// of everything takes too: no move of the coordinator is held open, and the wait reads
+    /// `Coordinator::live` with no clock of its own, until no run is live, at most the grace that
+    /// the first step gave and `budget` from `start`; then `kill`, and with `write` the list of
+    /// the runs that did not stop, which is the quit's alone.
+    fn wait_and_kill(
+        &self,
+        start: Instant,
+        budget: Option<Duration>,
+        wait: QuitWait,
+        kill: fn(&Coordinator<Wired<P>>),
+        write: bool,
+    ) {
+        let stopped = Instant::now();
+        let grace = Duration::from_millis(wait.until.saturating_sub(wait.at)).min(self.grace);
+        let end = budget.map_or(stopped + grace, |b| (start + b).min(stopped + grace));
+        let mut seen = self.bell.mark();
+        while self.coord.live() > 0 {
+            let now = Instant::now();
+            if now >= end {
+                break;
+            }
+            seen = self.bell.wait(seen, end.min(now + LOOK));
+        }
+        self.kill_and_write(kill, write);
+    }
+
+    fn kill_and_write(&self, second_step: fn(&Coordinator<Wired<P>>), write: bool) {
         let (to_writer, kill_seen_by_writer) = mpsc::channel::<()>();
         let (to_hook, kill_seen_by_hook) = mpsc::channel::<()>();
         let (wrote, written) = mpsc::channel::<()>();
         let end = Instant::now() + self.grace;
         let coord = Arc::clone(&self.coord);
         let kill = std::thread::Builder::new().spawn(move || {
-            coord.quit_kill();
+            second_step(&coord);
             let _ = to_writer.send(());
             let _ = to_hook.send(());
         });
         if kill.is_err() {
+            return;
+        }
+        if !write {
+            let _ = kill_seen_by_hook.recv_timeout(end.saturating_duration_since(Instant::now()));
             return;
         }
         let coord = Arc::clone(&self.coord);
@@ -554,18 +597,21 @@ where
         let Some(wait) = self.step(Coordinator::quit_stop) else {
             return self.coord.not_stopped();
         };
-        let stopped = Instant::now();
-        let grace = Duration::from_millis(wait.until.saturating_sub(wait.at)).min(self.grace);
-        let end = budget.map_or(stopped + grace, |b| (start + b).min(stopped + grace));
-        let mut seen = self.bell.mark();
-        while self.coord.live() > 0 {
-            let now = Instant::now();
-            if now >= end {
-                break;
-            }
-            seen = self.bell.wait(seen, end.min(now + LOOK));
+        self.wait_and_kill(start, budget, wait, Coordinator::quit_kill, true);
+        self.coord.not_stopped()
+    }
+
+    fn hold_runs(&self, held: bool) -> Vec<(AgentId, RunId)> {
+        if !held {
+            self.coord.lift_hold();
+            return Vec::new();
         }
-        self.kill_and_write();
+        let start = Instant::now();
+        self.coord.mark_hold();
+        let Some(wait) = self.step(Coordinator::hold_stop) else {
+            return self.coord.not_stopped();
+        };
+        self.wait_and_kill(start, None, wait, Coordinator::hold_kill, false);
         self.coord.not_stopped()
     }
 
