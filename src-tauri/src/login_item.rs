@@ -233,7 +233,7 @@ pub mod run_value {
     use std::sync::Arc;
 
     use halvo_control::paths::DataDir;
-    use halvo_control::service::{InstallOutcome, StartValueSpec};
+    use halvo_control::service::{InstallOutcome, RemoveOutcome, StartValueSpec};
 
     use crate::commands::capture::LoginItemWriter;
     use crate::poller::Views;
@@ -245,6 +245,9 @@ pub mod run_value {
 
         /// Writes the value of `spec` where it does not stand as `spec` makes it.
         fn write(&self, spec: &StartValueSpec) -> std::io::Result<InstallOutcome>;
+
+        /// Takes the value of `spec` away.
+        fn remove(&self, spec: &StartValueSpec) -> std::io::Result<RemoveOutcome>;
     }
 
     /// The person's own registry, through halvo-control's calls.
@@ -271,6 +274,10 @@ pub mod run_value {
         fn write(&self, spec: &StartValueSpec) -> std::io::Result<InstallOutcome> {
             halvo_control::service::write_start_value(spec)
         }
+
+        fn remove(&self, spec: &StartValueSpec) -> std::io::Result<RemoveOutcome> {
+            halvo_control::service::remove_start_value(spec)
+        }
     }
 
     /// What the start step did with the value.
@@ -283,6 +290,8 @@ pub mod run_value {
         Kept,
         /// A consented app whose value differed or stood not: written again.
         Written,
+        /// An app with no consent: its value taken away, or none stood.
+        Removed,
         /// A call that failed.
         Failed(Failed),
     }
@@ -295,6 +304,7 @@ pub mod run_value {
         NoPath,
         Read(std::io::Error),
         Write(std::io::Error),
+        Remove(std::io::Error),
     }
 
     impl std::fmt::Display for Failed {
@@ -303,16 +313,21 @@ pub mod run_value {
                 Failed::NoPath => f.write_str("the start value Halvo has no path of the app"),
                 Failed::Read(e) => write!(f, "the start value Halvo could not be read: {e}"),
                 Failed::Write(e) => write!(f, "the start value Halvo could not be written: {e}"),
+                Failed::Remove(e) => {
+                    write!(f, "the start value Halvo could not be taken away: {e}")
+                }
             }
         }
     }
 
     /// The start step of `run` on Windows, which main runs before the app is built, so that no
-    /// press on Start meets it: with --data-dir (`given`), or on a data directory that does not
-    /// read consented (provisioned), nothing. A consented app reads the value of its own path,
-    /// which `spec` makes, and writes it where it differs or stands not; where a call fails, the
-    /// step answers that error and every view of `views` says that the login item is not
-    /// written.
+    /// press on Start meets it: with --data-dir (`given`), or on a data directory that reads its
+    /// own cause, nothing. A consented app, whose data directory reads provisioned, reads the
+    /// value of its own path, which `spec` makes, and writes it where it differs or stands not;
+    /// where one of those calls fails, the step answers that error and every view of `views`
+    /// says that the login item is not written. An app that finds no consent takes the value
+    /// away; a removal that fails is the step's error alone, as the page then shows the Start
+    /// step and no line on the login item.
     pub fn at_start(
         views: &Views,
         data_dir: &DataDir,
@@ -320,14 +335,31 @@ pub mod run_value {
         spec: impl FnOnce() -> Option<StartValueSpec>,
         values: &dyn RunValue,
     ) -> AtStart {
-        if given || !matches!(data_dir.is_provisioned(), Ok(true)) {
+        if given {
             return AtStart::Nothing;
         }
-        let answer = rewrite(spec(), values);
-        if let AtStart::Failed(_) = answer {
-            views.hold().login_item_written(false);
+        match data_dir.is_provisioned() {
+            Ok(true) => {
+                let answer = rewrite(spec(), values);
+                if let AtStart::Failed(_) = answer {
+                    views.hold().login_item_written(false);
+                }
+                answer
+            }
+            Ok(false) => take_away(spec(), values),
+            Err(_) => AtStart::Nothing,
         }
-        answer
+    }
+
+    /// Takes the value of `spec` away.
+    fn take_away(spec: Option<StartValueSpec>, values: &dyn RunValue) -> AtStart {
+        let Some(spec) = spec else {
+            return AtStart::Failed(Failed::NoPath);
+        };
+        match values.remove(&spec) {
+            Ok(_) => AtStart::Removed,
+            Err(e) => AtStart::Failed(Failed::Remove(e)),
+        }
     }
 
     /// Reads the value of `spec` and writes it where it differs or stands not.
@@ -377,6 +409,7 @@ pub mod run_value {
         enum Call {
             Read(String, String, String),
             Write(String, String, String),
+            Remove(String, String, String),
         }
 
         /// The calls of the Run value, recorded, each with the test's own answer; `stored` is
@@ -387,6 +420,7 @@ pub mod run_value {
             stored: Option<String>,
             read: Option<ErrorKind>,
             write: Option<ErrorKind>,
+            remove: Option<ErrorKind>,
         }
 
         impl StandIn {
@@ -423,6 +457,16 @@ pub mod run_value {
                 self.record(Call::Write(key, name, data));
                 answer(self.write, InstallOutcome::Written)
             }
+
+            fn remove(&self, spec: &StartValueSpec) -> std::io::Result<RemoveOutcome> {
+                let (key, name, data) = named(spec);
+                self.record(Call::Remove(key, name, data));
+                let outcome = match self.stored {
+                    Some(_) => RemoveOutcome::Removed,
+                    None => RemoveOutcome::Absent,
+                };
+                answer(self.remove, outcome)
+            }
         }
 
         fn the_app() -> Option<StartValueSpec> {
@@ -442,6 +486,13 @@ pub mod run_value {
                 unreachable!("written is a write")
             };
             Call::Read(key, name, data)
+        }
+
+        fn removed() -> Call {
+            let Call::Write(key, name, data) = written() else {
+                unreachable!("written is a write")
+            };
+            Call::Remove(key, name, data)
         }
 
         fn data_dir(name: &str, consented: bool) -> DataDir {
@@ -565,6 +616,57 @@ pub mod run_value {
                 ..StandIn::default()
             };
             let answer = at_start(&Views::default(), &consented, true, the_app, &given);
+            assert!(matches!(answer, AtStart::Nothing), "--data-dir: {answer:?}");
+            assert_eq!(given.calls(), Vec::<Call>::new(), "nothing with --data-dir");
+        }
+
+        #[test]
+        fn a_start_with_no_consent_takes_the_value_away_and_a_failed_removal_is_an_error() {
+            let unconsented = data_dir("run-value-unconsented", false);
+            let consented = data_dir("run-value-consented-kept", true);
+            let own = format!("\"{PROGRAM}\" --background");
+
+            let values = StandIn {
+                stored: Some(own.clone()),
+                ..StandIn::default()
+            };
+            let views = Views::default();
+            let answer = at_start(&views, &unconsented, false, the_app, &values);
+            assert!(matches!(answer, AtStart::Removed), "no consent: {answer:?}");
+            assert_eq!(values.calls(), vec![removed()], "no consent");
+            assert_eq!(shown(&views, "login_item_written"), serde_json::Value::Null);
+
+            let kept = StandIn {
+                stored: Some(own),
+                ..StandIn::default()
+            };
+            let answer = at_start(&Views::default(), &consented, false, the_app, &kept);
+            assert!(matches!(answer, AtStart::Kept), "consent: {answer:?}");
+            assert_eq!(
+                kept.calls(),
+                vec![read()],
+                "a start with consent takes nothing away"
+            );
+
+            let refused = StandIn {
+                remove: Some(ErrorKind::PermissionDenied),
+                ..StandIn::default()
+            };
+            let views = Views::default();
+            let answer = at_start(&views, &unconsented, false, the_app, &refused);
+            assert!(
+                matches!(answer, AtStart::Failed(Failed::Remove(_))),
+                "a refused removal: {answer:?}"
+            );
+            assert_eq!(refused.calls(), vec![removed()], "a refused removal");
+            assert_eq!(
+                shown(&views, "login_item_written"),
+                serde_json::Value::Null,
+                "the page shows the Start step, with no logon line"
+            );
+
+            let given = StandIn::default();
+            let answer = at_start(&Views::default(), &unconsented, true, the_app, &given);
             assert!(matches!(answer, AtStart::Nothing), "--data-dir: {answer:?}");
             assert_eq!(given.calls(), Vec::<Call>::new(), "nothing with --data-dir");
         }
