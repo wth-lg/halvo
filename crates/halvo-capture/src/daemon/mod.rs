@@ -1937,7 +1937,8 @@ pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::S
     }
     #[cfg(all(windows, debug_assertions))]
     {
-        serve_windows(dir, writer, None)
+        crate::windows::start_a_run(|| serve_windows(dir, writer, None))
+            .unwrap_or_else(refused_start)
     }
     #[cfg(not(any(target_os = "macos", all(windows, debug_assertions))))]
     {
@@ -1971,10 +1972,13 @@ pub fn lifeline_service_run(
     }
     #[cfg(all(windows, debug_assertions))]
     {
-        match lease::lifeline::start_or_status(&mut std::io::stderr()) {
-            Ok(lifeline) => serve_windows(dir, writer, Some(lifeline)),
-            Err(status) => status,
-        }
+        crate::windows::start_a_run(|| {
+            match lease::lifeline::start_or_status(&mut std::io::stderr()) {
+                Ok(lifeline) => serve_windows(dir, writer, Some(lifeline)),
+                Err(status) => status,
+            }
+        })
+        .unwrap_or_else(refused_start)
     }
     #[cfg(not(any(target_os = "macos", all(windows, debug_assertions))))]
     {
@@ -2200,6 +2204,15 @@ impl main_loop::MainLoop for ServiceLoop {
     fn now(&self) -> Duration {
         self.started.elapsed()
     }
+}
+
+/// The answer of a Windows run whose first step failed: its line on standard
+/// error and exit 1, before any read of the key or of the store.
+#[cfg(all(windows, debug_assertions))]
+fn refused_start(refused: crate::windows::FaultReportsOn) -> i32 {
+    use std::io::Write as _;
+    let _ = writeln!(std::io::stderr(), "halvo-capture: {refused}");
+    halvo_control::exit::ERROR
 }
 
 /// The service run on Windows: the session window first, whose messages of
@@ -3646,6 +3659,10 @@ pub enum DaemonError {
     DrainPanicked,
     #[error("the timed run is entered on the process main thread")]
     NotMainThread,
+    /// A Windows run whose first step failed: it read no key and opened no
+    /// store; the text names the call and its code.
+    #[error("{0}")]
+    StartRefused(String),
 }
 
 #[cfg(test)]
