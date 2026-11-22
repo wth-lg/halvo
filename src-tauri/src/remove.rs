@@ -1,6 +1,10 @@
 use std::path::{Component, Path, PathBuf};
 
-use halvo_control::paths::{DataDir, ENTRIES, INTENT_FILE, MACOS_LAUNCH_AGENTS_DIR, STATE_FILE};
+use halvo_control::model::APP_BUNDLE_ID;
+use halvo_control::paths::{
+    one_line, AccountLookup, DataDir, RemovedBy, ENTRIES, INTENT_FILE, KEYCHAIN_ITEMS,
+    MACOS_LAUNCH_AGENTS_DIR, STATE_FILE,
+};
 use serde::Serialize;
 
 use crate::commands::capture::{run_offline, Before, Offline, WithoutTheChild};
@@ -104,6 +108,7 @@ enum Kind {
     File,
     Tree,
     EmptyFolder,
+    Link,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,14 +129,14 @@ struct Row {
     parents: &'static [&'static str],
     last: Last,
     kind: Kind,
+    at_start: bool,
 }
 
 const LIBRARY: &str = "Library";
 
 const APPLICATION_SUPPORT: &str = "Application Support";
 
-/// The name of the settings file that 685d846 wrote under the app's config folder.
-pub const OLD_CONSENT_FILE: &str = "consent.json";
+const OLD_CONSENT_FILE: &str = "consent.json";
 
 const ROWS: [Row; 5] = [
     Row {
@@ -139,30 +144,35 @@ const ROWS: [Row; 5] = [
         parents: &MACOS_LAUNCH_AGENTS_DIR,
         last: Last::IdThen(".plist"),
         kind: Kind::File,
+        at_start: false,
     },
     Row {
         step: Step::AppFiles,
         parents: &[LIBRARY, "Caches"],
         last: Last::Id,
         kind: Kind::Tree,
+        at_start: false,
     },
     Row {
         step: Step::AppFiles,
         parents: &[LIBRARY, "WebKit"],
         last: Last::Id,
         kind: Kind::Tree,
+        at_start: false,
     },
     Row {
         step: Step::AppFiles,
         parents: &[LIBRARY, APPLICATION_SUPPORT],
         last: Last::InId(OLD_CONSENT_FILE),
         kind: Kind::File,
+        at_start: true,
     },
     Row {
         step: Step::AppFiles,
         parents: &[LIBRARY, APPLICATION_SUPPORT],
         last: Last::Id,
         kind: Kind::EmptyFolder,
+        at_start: true,
     },
 ];
 
@@ -177,9 +187,10 @@ const KEPT: [&[&str]; 5] = [
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DataFolder {
     name: PathBuf,
-    link: bool,
     resolved: Option<PathBuf>,
     entries: Vec<Place>,
+    folder: Option<Place>,
+    link: Option<Place>,
 }
 
 /// Every place that a removal may take, each made from the home, the bundle id and a fixed last
@@ -189,6 +200,7 @@ struct DataFolder {
 pub struct Places {
     login_item: Option<Place>,
     app_files: Option<Vec<Place>>,
+    at_start: Vec<Place>,
     data: DataFolder,
 }
 
@@ -212,9 +224,9 @@ impl Places {
         let data = data_folder(home, &real_home, data_dir)?;
         let mut held = vec![data.name.as_path()];
         held.extend(data.resolved.as_deref());
-        let mut outside = |step: Step| -> Result<Vec<Place>, Refused> {
+        let outside = |take: &dyn Fn(&Row) -> bool| -> Result<Vec<Place>, Refused> {
             ROWS.iter()
-                .filter(|row| row.step == step)
+                .filter(|row| take(row))
                 .map(|row| {
                     let path = path_of(home, bundle_id, row)?;
                     check(home, &path, &held)?;
@@ -225,13 +237,40 @@ impl Places {
                 })
                 .collect()
         };
-        let login_item = outside(Step::LoginItem)?.pop();
-        let app_files = outside(Step::AppFiles)?;
+        let login_item = outside(&|row| row.step == Step::LoginItem)?.pop();
+        let app_files = outside(&|row| row.step == Step::AppFiles)?;
+        let at_start = outside(&|row| row.at_start)?;
         Ok(Places {
             login_item: (!given).then_some(login_item).flatten(),
             app_files: (!given).then_some(app_files),
+            at_start,
             data,
         })
+    }
+
+    /// Removes the old consent.json of 685d846 and then its folder where that is empty, at a
+    /// start (H-09); the file is never read.
+    pub fn remove_at_start(&self) {
+        for place in &self.at_start {
+            if let Err(e) = remove(place) {
+                eprintln!("halvo: the old settings file could not be removed: {e}");
+            }
+        }
+    }
+}
+
+/// The home of `account`, none where it gives none.
+pub fn home_of(account: &dyn AccountLookup) -> Option<PathBuf> {
+    account.base_dir().ok().flatten().map(PathBuf::from)
+}
+
+/// At a start with the account's own data folder: the places of this app's bundle id and the
+/// removal of the old consent.json through them.
+pub fn old_consent_at_start(account: &dyn AccountLookup, data_dir: &DataDir) {
+    if let Some(home) = home_of(account) {
+        if let Ok(places) = Places::new(&home, APP_BUNDLE_ID, data_dir, false) {
+            places.remove_at_start();
+        }
     }
 }
 
@@ -305,7 +344,9 @@ fn data_folder(home: &Path, real_home: &Path, data_dir: &DataDir) -> Result<Data
         return Err(Refused::DataFolder);
     }
     let link = std::fs::symlink_metadata(&name).is_ok_and(|meta| meta.file_type().is_symlink());
-    let resolved = std::fs::canonicalize(&name).ok();
+    let resolved = std::fs::canonicalize(&name)
+        .ok()
+        .filter(|folder| std::fs::metadata(folder).is_ok_and(|meta| meta.is_dir()));
     if let Some(folder) = &resolved {
         let at_home = [home, real_home]
             .iter()
@@ -328,12 +369,214 @@ fn data_folder(home: &Path, real_home: &Path, data_dir: &DataDir) -> Result<Data
             .collect::<Result<_, _>>()?,
         None => Vec::new(),
     };
+    let folder = resolved.clone().map(|path| Place {
+        path,
+        kind: Kind::EmptyFolder,
+    });
+    let link = link.then(|| Place {
+        path: name.clone(),
+        kind: Kind::Link,
+    });
     Ok(DataFolder {
         name,
-        link,
         resolved,
         entries,
+        folder,
+        link,
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Gone {
+    Removed,
+    Absent,
+    Left,
+}
+
+fn remove(place: &Place) -> std::io::Result<Gone> {
+    let meta = match std::fs::symlink_metadata(&place.path) {
+        Ok(meta) => meta,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Gone::Absent),
+        Err(e) => return Err(e),
+    };
+    let folder = meta.is_dir();
+    let link = meta.file_type().is_symlink();
+    let removed = match place.kind {
+        Kind::Tree if folder => std::fs::remove_dir_all(&place.path),
+        Kind::EmptyFolder if folder => match std::fs::remove_dir(&place.path) {
+            Err(e) if e.kind() == std::io::ErrorKind::DirectoryNotEmpty => return Ok(Gone::Left),
+            other => other,
+        },
+        Kind::Link if link => std::fs::remove_file(&place.path),
+        Kind::File if folder => return Ok(Gone::Left),
+        Kind::EmptyFolder | Kind::Link => return Ok(Gone::Left),
+        Kind::Tree | Kind::File => std::fs::remove_file(&place.path),
+    };
+    removed.map(|()| Gone::Removed)
+}
+
+fn failed(cause: String) -> (Outcome, Detail) {
+    (
+        Outcome::Failed,
+        Detail {
+            cause: Some(cause),
+            ..Detail::default()
+        },
+    )
+}
+
+fn own_folder() -> (Outcome, Detail) {
+    (
+        Outcome::Skipped,
+        Detail {
+            cause: Some("own_data_folder".to_owned()),
+            ..Detail::default()
+        },
+    )
+}
+
+fn counted(count: usize) -> Option<u64> {
+    Some(u64::try_from(count).unwrap_or(u64::MAX))
+}
+
+fn keychain() -> (Outcome, Detail) {
+    let ours = KEYCHAIN_ITEMS
+        .iter()
+        .filter(|item| item.removed_by == RemovedBy::RemoveHalvo)
+        .count();
+    if ours == 0 {
+        return (
+            Outcome::Done,
+            Detail {
+                count: counted(0),
+                ..Detail::default()
+            },
+        );
+    }
+    (
+        Outcome::Failed,
+        Detail {
+            count: counted(ours),
+            cause: Some("no_removal_in_this_build".to_owned()),
+            ..Detail::default()
+        },
+    )
+}
+
+fn login_item(place: Option<&Place>) -> (Outcome, Detail) {
+    let Some(place) = place else {
+        return own_folder();
+    };
+    match remove(place) {
+        Ok(Gone::Removed) => (
+            Outcome::Done,
+            Detail {
+                count: counted(1),
+                ..Detail::default()
+            },
+        ),
+        Ok(Gone::Absent) => (
+            Outcome::Done,
+            Detail {
+                count: counted(0),
+                ..Detail::default()
+            },
+        ),
+        Ok(Gone::Left) => failed("not_a_file".to_owned()),
+        Err(e) => failed(e.to_string()),
+    }
+}
+
+fn app_files(places: Option<&[Place]>) -> (Outcome, Detail) {
+    let Some(places) = places else {
+        return own_folder();
+    };
+    let mut removed = 0;
+    let mut first_error = None;
+    for place in places {
+        match remove(place) {
+            Ok(Gone::Removed) => removed += 1,
+            Ok(Gone::Absent | Gone::Left) => {}
+            Err(e) => {
+                first_error.get_or_insert_with(|| format!("{}: {e}", place.path.display()));
+            }
+        }
+    }
+    match first_error {
+        Some(cause) => failed(cause),
+        None => (
+            Outcome::Done,
+            Detail {
+                count: counted(removed),
+                ..Detail::default()
+            },
+        ),
+    }
+}
+
+fn unknown_in(folder: &Path) -> usize {
+    std::fs::read_dir(folder).map_or(0, |entries| {
+        entries
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                !entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| table_names().any(|known| known == name))
+            })
+            .count()
+    })
+}
+
+fn data_dir(data: &DataFolder) -> (Outcome, Detail) {
+    let mut left = 0;
+    for entry in &data.entries {
+        if !matches!(remove(entry), Ok(Gone::Removed | Gone::Absent)) {
+            left += 1;
+        }
+    }
+    let unknown = data.resolved.as_deref().map_or(0, unknown_in);
+    let folder_left = match &data.folder {
+        Some(folder) if left == 0 && unknown == 0 => {
+            !matches!(remove(folder), Ok(Gone::Removed | Gone::Absent))
+        }
+        Some(_) => true,
+        None => false,
+    };
+    let link_left = data
+        .link
+        .as_ref()
+        .is_some_and(|link| !matches!(remove(link), Ok(Gone::Removed | Gone::Absent)));
+    let no_folder_stands = data.resolved.is_none()
+        && data.link.is_none()
+        && std::fs::symlink_metadata(&data.name).is_ok();
+    let shown = data.resolved.as_deref().unwrap_or(&data.name);
+    let named = Some(one_line(&shown.to_string_lossy()));
+    if left > 0 || link_left || no_folder_stands || (folder_left && unknown == 0) {
+        return (
+            Outcome::Failed,
+            Detail {
+                folder: named,
+                count: counted(unknown),
+                cause: Some(
+                    if no_folder_stands {
+                        "not_a_folder"
+                    } else {
+                        "own_files_left"
+                    }
+                    .to_owned(),
+                ),
+            },
+        );
+    }
+    (
+        Outcome::Done,
+        Detail {
+            folder: (unknown > 0).then_some(named).flatten(),
+            count: counted(unknown),
+            cause: None,
+        },
+    )
 }
 
 /// The account step in this version: the hook that a later run fills, which removes nothing.
@@ -358,7 +601,7 @@ pub fn remove_halvo(
     offline: Option<&Offline>,
     before: &Before,
 ) -> Removal {
-    let _places = match places {
+    let places = match places {
         Ok(places) => places,
         Err(refused) => {
             eprintln!("halvo: Remove Halvo removes nothing, because its list refused a place: {refused:?}");
@@ -371,13 +614,10 @@ pub fn remove_halvo(
         let (result, detail) = match step {
             Step::Account => account(),
             Step::DeleteAll => delete_all(offline, before),
-            Step::Keychain | Step::LoginItem | Step::AppFiles | Step::DataDir => (
-                Outcome::Skipped,
-                Detail {
-                    cause: Some("not_built".to_owned()),
-                    ..Detail::default()
-                },
-            ),
+            Step::Keychain => keychain(),
+            Step::LoginItem => login_item(places.login_item.as_ref()),
+            Step::AppFiles => app_files(places.app_files.as_deref()),
+            Step::DataDir => data_dir(&places.data),
         };
         steps.push(StepResult {
             step,
@@ -687,5 +927,180 @@ mod tests {
             );
             assert_eq!(removal.exit(), None, "{name}: the app does not end");
         }
+    }
+
+    fn neighbours(home: &Path) -> Vec<PathBuf> {
+        let other = "com.other.app";
+        let placed = [
+            library(home, &["Caches", other, "cached"]),
+            library(home, &["WebKit", other, "WebsiteData"]),
+            library(home, &["LaunchAgents", &format!("{other}.plist")]),
+            library(home, &[APPLICATION_SUPPORT, "notes of the person.txt"]),
+            library(home, &[APPLICATION_SUPPORT, other, "settings.json"]),
+            library(home, &[APPLICATION_SUPPORT, ID, "kept by the person.txt"]),
+        ];
+        for path in &placed {
+            write(path, "the person's");
+        }
+        placed.to_vec()
+    }
+
+    fn halvos_names(home: &Path, data: &DataDir) -> Vec<PathBuf> {
+        let mut names = vec![
+            library(home, &["LaunchAgents", &format!("{ID}.plist")]),
+            library(home, &["Caches", ID]),
+            library(home, &["WebKit", ID]),
+            library(home, &[APPLICATION_SUPPORT, ID, OLD_CONSENT_FILE]),
+            data.state_file(),
+            data.intent_file(),
+        ];
+        names.extend(ENTRIES.iter().map(|entry| data.entry(entry)));
+        names
+    }
+
+    fn whole(offline: &Offline, places: Result<Places, Refused>) -> Removal {
+        remove_halvo(places, None, &account_hook, Some(offline), &before())
+    }
+
+    #[test]
+    fn remove_halvo_takes_what_halvo_wrote_and_leaves_what_it_does_not_know() {
+        let every_step: Vec<(Step, Outcome)> = STEPS
+            .iter()
+            .map(|step| {
+                let result = if *step == Step::Account {
+                    Outcome::Skipped
+                } else {
+                    Outcome::Done
+                };
+                (*step, result)
+            })
+            .collect();
+        let delete_of = |data: &DataDir, record: &Record| {
+            let looked_in = data.path().display().to_string();
+            let end = OfflineEnd::Exited {
+                code: 0,
+                out: deleted(&looked_in, "yes", "-", 0),
+            };
+            (
+                offline(data, record, end),
+                format!("run /stand-in/halvo-capture --delete-all --data-dir {looked_in}"),
+            )
+        };
+
+        let home = scratch_dir("remove-whole").join("home");
+        let data = halvos_data(&home);
+        halvos_places(&home);
+        let theirs = neighbours(&home);
+        let record = Record::default();
+        let (stand_in, ran) = delete_of(&data, &record);
+        let removal = whole(&stand_in, Places::new(&home, ID, &data, false));
+        assert_eq!(
+            ended_at(&removal),
+            every_step,
+            "a whole removal: {removal:?}"
+        );
+        assert_eq!(removal.exit(), Some(0));
+        for name in halvos_names(&home, &data) {
+            assert!(
+                std::fs::symlink_metadata(&name).is_err(),
+                "{} is gone",
+                name.display()
+            );
+        }
+        assert!(!data.path().exists(), "the data folder is gone");
+        for path in &theirs {
+            assert_eq!(
+                std::fs::read_to_string(path).ok().as_deref(),
+                Some("the person's"),
+                "{} stands",
+                path.display()
+            );
+        }
+        assert_eq!(
+            *record.lock().unwrap(),
+            vec![ran],
+            "the runner records the delete and no other program"
+        );
+
+        let home = scratch_dir("remove-unknown").join("home");
+        let data = halvos_data(&home);
+        halvos_places(&home);
+        let theirs = neighbours(&home);
+        let unknown = data.path().join("a file of an unknown name");
+        write(&unknown, "the person's");
+        let record = Record::default();
+        let (stand_in, _) = delete_of(&data, &record);
+        let removal = whole(&stand_in, Places::new(&home, ID, &data, false));
+        assert_eq!(ended_at(&removal), every_step);
+        let last = removal.steps.last().expect("a last step");
+        assert_eq!(last.detail.count, Some(1), "the unknown entry is counted");
+        assert_eq!(
+            last.detail.folder.as_deref(),
+            Some(data.path().to_string_lossy().as_ref()),
+            "and its folder named"
+        );
+        assert_eq!(
+            tree(data.path()).into_keys().collect::<Vec<_>>(),
+            vec![PathBuf::from("a file of an unknown name")],
+            "it stands, and the folder stays"
+        );
+        for path in &theirs {
+            assert!(path.exists(), "{} stands", path.display());
+        }
+
+        let scratch = scratch_dir("remove-link");
+        let home = scratch.join("home");
+        let elsewhere = scratch.join("elsewhere").join("Halvo");
+        let real = halvos_data(&elsewhere.join("home"));
+        let resolved = scratch.join("elsewhere").join("data");
+        std::fs::rename(real.path(), &resolved).expect("the data folder moves");
+        write(&resolved.join("a file of an unknown name"), "the person's");
+        write(&scratch.join("elsewhere").join("beside"), "the person's");
+        let data = DataDir::for_account(&Home(home.clone())).expect("a data folder");
+        std::fs::create_dir_all(data.path().parent().expect("a parent"))
+            .expect("the parent is made");
+        std::os::unix::fs::symlink(&resolved, data.path()).expect("the link is made");
+        let record = Record::default();
+        let (stand_in, _) = delete_of(&data, &record);
+        let removal = whole(&stand_in, Places::new(&home, ID, &data, false));
+        assert_eq!(ended_at(&removal), every_step);
+        assert!(
+            std::fs::symlink_metadata(data.path()).is_err(),
+            "the link goes as the link that it is"
+        );
+        assert_eq!(
+            tree(&resolved).into_keys().collect::<Vec<_>>(),
+            vec![PathBuf::from("a file of an unknown name")],
+            "the resolved folder's entries go"
+        );
+        let named = std::fs::canonicalize(&resolved).expect("the resolved folder stands");
+        assert_eq!(
+            removal
+                .steps
+                .last()
+                .and_then(|step| step.detail.folder.clone()),
+            Some(named.to_string_lossy().into_owned()),
+            "the report names the resolved folder"
+        );
+        assert!(scratch.join("elsewhere").join("beside").exists());
+
+        let home = scratch_dir("remove-no-bundle-id").join("home");
+        let data = halvos_data(&home);
+        halvos_places(&home);
+        neighbours(&home);
+        let as_before = tree(&home);
+        let record = Record::default();
+        let (stand_in, _) = delete_of(&data, &record);
+        let removal = whole(&stand_in, Places::new(&home, "", &data, false));
+        assert_eq!(
+            removal,
+            Removal::default(),
+            "an empty bundle id runs no step"
+        );
+        assert_eq!(tree(&home), as_before, "and removes nothing");
+        assert!(
+            record.lock().unwrap().is_empty(),
+            "and the runner records nothing"
+        );
     }
 }

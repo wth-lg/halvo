@@ -146,6 +146,10 @@ fn run(background: bool, given: Option<PathBuf>) {
             None
         }
     };
+    #[cfg(target_os = "macos")]
+    if let (None, Ok(dir)) = (&given, &resolved) {
+        remove::old_consent_at_start(&halvo_control::paths::SystemAccount, dir);
+    }
     let pid = Arc::<ChildPid>::default();
     let (control, data_dir) = control_of_child(|| resolved, Arc::clone(&pid));
     #[cfg(any(target_os = "macos", test))]
