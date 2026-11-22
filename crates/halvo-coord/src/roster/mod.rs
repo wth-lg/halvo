@@ -436,9 +436,9 @@ pub fn ask<C: ConfigView>(facts: &Facts<C>, name: &str) -> Result<Ask, Cause> {
 
 /// The question that a press on the row's `stop_sign_in` opens in the page, which sends nothing
 /// (r4 U2.4y): its title names the agent; it says that Halvo will stop using the sign-in that it
-/// keeps for the agent and removes it within 35 days, and that the agent's next run asks the
-/// person to sign in again; then the safe control, and the one that sends `agents_control` with
-/// `stop_sign_in`, in the control's own words.
+/// keeps for the agent and remove it from this computer (r4 U3.16), and that the agent's next run
+/// asks the person to sign in again; then the safe control, and the one that sends
+/// `agents_control` with `stop_sign_in`, in the control's own words.
 pub fn stop_sign_in_ask(name: &str) -> Result<Ask, Cause> {
     Ok(Ask {
         kind: AskKind::StopSignIn,

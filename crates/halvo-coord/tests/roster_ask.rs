@@ -127,7 +127,7 @@ fn the_row_of_an_idle_agent_with_a_kept_sign_in_offers_stop_sign_in_before_delet
             "kind": "stop_sign_in",
             "title": "Stop using the sign-in of “Pay bills on Site1”?",
             "text": [
-                "Halvo will stop using the sign-in that it keeps for this agent, and removes it within 35 days.",
+                "Halvo will stop using the sign-in that it keeps for this agent and remove it from this computer.",
                 "The next time the agent runs, it asks you to sign in again."
             ],
             "effects": [],
