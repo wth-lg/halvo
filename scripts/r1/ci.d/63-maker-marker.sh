@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: A runner built in the release profile with the feature loopback holds the marker text of the browser's web request maker (crates/halvo-runner/src/web/maker.rs), and the list markers of 62-build holds that text, as the ignored test a_runner_built_with_the_feature_holds_the_maker_s_marker of halvo-runner shows when this check runs it alone by its exact name: it builds the runner into a target directory of its own under target/tmp and reads the built file and the list; the windows job never builds a runner with the feature.
+# rule: A runner built in the release profile with the feature loopback holds the marker text of the browser's web request maker (crates/halvo-runner/src/web/maker.rs), and the list markers of 62-build holds that text, as the ignored test a_runner_built_with_the_feature_holds_the_maker_s_marker of halvo-runner shows when this check runs it alone by its exact name: it builds the runner into a target directory of its own under target/tmp and reads the built file and the list; the windows job never runs this check, so no run of ci.yml reads a runner built on Windows in the release profile with the feature for the marker, and the windows job builds the runner with the feature in the debug profile, for the crate's tests.
 set -u
 name=63-maker-marker
 test_name=a_runner_built_with_the_feature_holds_the_maker_s_marker
