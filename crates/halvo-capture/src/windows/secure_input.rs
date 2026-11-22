@@ -612,9 +612,27 @@ struct Marks {
     pointer_since: Option<u32>,
     forwarded: Option<u32>,
     content: ContentReading,
+    writer: Option<u64>,
 }
 
 impl Marks {
+    /// Writes the content reading of a read: one with no writer (a test's
+    /// own mark) always, one of a detector only while that detector is the
+    /// gate's writer.
+    fn set_content(&mut self, by: Option<u64>, content: ContentReading) {
+        if by.is_none() || by == self.writer {
+            self.content = content;
+        }
+    }
+
+    /// Ends the writer of the content reading: a detector that its attach or
+    /// its detach gave up writes no content reading from then on, and the
+    /// reading is Unknown until an attach succeeds.
+    fn give_up_the_writer(&mut self) {
+        self.writer = None;
+        self.content = ContentReading::default();
+    }
+
     fn clicks_unseen_for(&self, key: &HeldKey) -> bool {
         self.gap.is_some_and(|gap| match gap.back {
             None => true,
@@ -723,6 +741,7 @@ impl Marks {
 struct Shared {
     marks: Mutex<Marks>,
     readings: Mutex<GateReadings>,
+    writers: std::sync::atomic::AtomicU64,
 }
 
 impl Shared {
@@ -730,9 +749,19 @@ impl Shared {
         self.marks.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn field(&self, at: u32, state: FieldState, content: ContentReading) {
+    fn field(&self, at: u32, state: FieldState, content: ContentReading, by: Option<u64>) {
         let _ = self.begin_event();
-        self.field_seen(at, state, content, None);
+        self.field_seen(at, state, (content, by), None);
+    }
+
+    /// Makes a new detector the only writer of the content reading.
+    fn open_writer(&self) -> u64 {
+        let writer = self
+            .writers
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        self.lock().writer = Some(writer);
+        writer
     }
 
     fn begin_event(&self) -> u64 {
@@ -746,12 +775,12 @@ impl Shared {
         &self,
         at: u32,
         state: FieldState,
-        content: ContentReading,
+        (content, by): (ContentReading, Option<u64>),
         seen: Option<String>,
     ) {
         let mut marks = self.lock();
         marks.push(Some(at), at, Mark::Field(state));
-        marks.content = content;
+        marks.set_content(by, content);
         marks.events_in_flight = marks.events_in_flight.saturating_sub(1);
         marks.ask_read(at);
         note_mark("event", Some(state), None, Some(at), at, seen);
@@ -761,14 +790,14 @@ impl Shared {
         &self,
         began: u32,
         at: u32,
-        (state, content): (FieldState, ContentReading),
+        (state, content, by): (FieldState, ContentReading, Option<u64>),
         moved: Moved,
         seen: Option<String>,
     ) {
         note_mark("read", Some(state), Some(moved), Some(at), began, seen);
         let mut marks = self.lock();
         marks.push(Some(at), began, Mark::Read { state, moved });
-        marks.content = content;
+        marks.set_content(by, content);
         if marks.settle_due.is_some_and(|due| not_after(due, began)) {
             marks.settle_due = None;
         }
@@ -809,11 +838,12 @@ impl Shared {
         marks.push(Some(at), at, Mark::Started);
     }
 
-    fn desktop_switched(&self, tick: u32) {
+    fn desktop_switched(&self, tick: u32, by: Option<u64>) {
         self.field(
             tick,
             FieldState::Unknown,
             ContentReading::Unknown(UnknownBy::DesktopSwitch),
+            by,
         );
         self.latch(tick, LatchFrom::AnotherThread);
     }
@@ -1045,7 +1075,7 @@ impl PasswordGate {
     #[cfg(test)]
     pub(crate) fn field_at(&self, at: u32, state: FieldState) {
         let content = self.content_reading();
-        self.shared.field(at, state, content);
+        self.shared.field(at, state, content, None);
     }
 
     /// A focus event of one read, as the detector marks it with no kept
@@ -1053,19 +1083,20 @@ impl PasswordGate {
     #[cfg(test)]
     pub(crate) fn focus_read_at(&self, at: u32, read: FocusRead, gecko: bool) {
         let key = state_of(read, false);
-        self.shared.field(at, key, content_of(read, gecko, key));
+        self.shared
+            .field(at, key, content_of(read, gecko, key), None);
     }
 
     #[cfg(test)]
     pub(crate) fn switch_desktop_at(&self, at: u32) {
-        self.shared.desktop_switched(at);
+        self.shared.desktop_switched(at, None);
     }
 
     #[cfg(test)]
     pub(crate) fn read_at(&self, began: u32, state: FieldState, moved: Moved) {
         let content = self.content_reading();
         self.shared
-            .read_seen(began, began, (state, content), moved, None);
+            .read_seen(began, began, (state, content, None), moved, None);
     }
 
     #[cfg(test)]
@@ -1312,18 +1343,28 @@ mod detector {
             let at = tick();
             self.shared.started(at);
             self.clicks_lost(at);
-            let wake = Arc::new(Event::new()?);
+            let writer = self.shared.open_writer();
+            let wake = match Event::new() {
+                Ok(wake) => Arc::new(wake),
+                Err(error) => {
+                    self.shared.lock().give_up_the_writer();
+                    return Err(error);
+                }
+            };
             let (ready, started) = std::sync::mpsc::channel();
             let shared = Arc::clone(&self.shared);
             let thread_wake = Arc::clone(&wake);
             let removals = self.removals;
             let join = std::thread::Builder::new()
                 .name("halvo-password-detector".to_string())
-                .spawn(move || run(&shared, &thread_wake, removals, ready))
-                .map_err(|e| CaptureError::Os {
-                    stage: "spawn the password detector thread",
-                    domain: "io",
-                    code: i64::from(e.raw_os_error().unwrap_or(0)),
+                .spawn(move || run(&shared, &thread_wake, (removals, writer), ready))
+                .map_err(|e| {
+                    self.shared.lock().give_up_the_writer();
+                    CaptureError::Os {
+                        stage: "spawn the password detector thread",
+                        domain: "io",
+                        code: i64::from(e.raw_os_error().unwrap_or(0)),
+                    }
                 })?;
             let deadline = crate::windows::INPUT_STOP_DEADLINE;
             #[cfg(test)]
@@ -1342,11 +1383,16 @@ mod detector {
                     Ok(())
                 }
                 Ok(Err(error)) => {
+                    self.shared.lock().give_up_the_writer();
                     let _ = join.join();
                     Err(error)
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    self.shared.lock().stopping = true;
+                    {
+                        let mut marks = self.shared.lock();
+                        marks.stopping = true;
+                        marks.give_up_the_writer();
+                    }
                     wake.set();
                     *self
                         .stale
@@ -1358,6 +1404,7 @@ mod detector {
                     })
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    self.shared.lock().give_up_the_writer();
                     let _ = join.join();
                     Err(CaptureError::ThreadEnded)
                 }
@@ -1399,7 +1446,11 @@ mod detector {
             let Some(mut running) = taken else {
                 return Ok(());
             };
-            self.shared.lock().stopping = true;
+            {
+                let mut marks = self.shared.lock();
+                marks.stopping = true;
+                marks.give_up_the_writer();
+            }
             running.wake.set();
             let began = std::time::Instant::now();
             let Some(join) = running.join.take() else {
@@ -1744,6 +1795,7 @@ mod detector {
         shared: Arc<Shared>,
         reader: Arc<Reader>,
         wake: Arc<Event>,
+        writer: Option<u64>,
     }
 
     static HANDLER_VTABLE: IUIAutomationFocusChangedEventHandler_Vtbl =
@@ -1833,9 +1885,12 @@ mod detector {
                 hook();
             }
         });
-        handler
-            .shared
-            .field_seen(tick(), state, content, handler.reader.seen());
+        handler.shared.field_seen(
+            tick(),
+            state,
+            (content, handler.writer),
+            handler.reader.seen(),
+        );
         handler.wake.set();
         #[cfg(feature = "test-seam")]
         crate::windows::input::seam::handler_ended();
@@ -1849,7 +1904,7 @@ mod detector {
     }
 
     thread_local! {
-        static DESKTOP_GATE: std::cell::RefCell<Option<Arc<Shared>>> =
+        static DESKTOP_GATE: std::cell::RefCell<Option<(Arc<Shared>, Option<u64>)>> =
             const { std::cell::RefCell::new(None) };
     }
 
@@ -1863,8 +1918,8 @@ mod detector {
         time: u32,
     ) {
         DESKTOP_GATE.with(|cell| {
-            if let Some(shared) = cell.borrow().as_ref() {
-                shared.desktop_switched(time);
+            if let Some((shared, writer)) = cell.borrow().as_ref() {
+                shared.desktop_switched(time, *writer);
             }
         });
     }
@@ -1915,6 +1970,7 @@ mod detector {
     fn start(
         shared: &Arc<Shared>,
         wake: &Arc<Event>,
+        writer: u64,
     ) -> Result<(Arc<Reader>, IUIAutomationFocusChangedEventHandler), CaptureError> {
         let reader = Arc::new(new_reader()?);
         let handler = FocusHandler {
@@ -1923,6 +1979,7 @@ mod detector {
             shared: Arc::clone(shared),
             reader: Arc::clone(&reader),
             wake: Arc::clone(wake),
+            writer: Some(writer),
         }
         .into_interface();
         // SAFETY: the cache request and the handler are live COM objects.
@@ -1935,7 +1992,7 @@ mod detector {
         Ok((reader, handler))
     }
 
-    fn own_read(shared: &Shared, reader: &Reader) {
+    fn own_read(shared: &Shared, reader: &Reader, writer: Option<u64>) {
         let began = tick();
         #[cfg(feature = "test-seam")]
         crate::windows::input::seam::own_read_began(began);
@@ -1943,8 +2000,14 @@ mod detector {
             let marks = shared.lock();
             (marks.moves, marks.events_in_flight > 0)
         };
-        let (state, moved) = reader.own(moves, events_in_flight);
-        shared.read_seen(began, tick(), state, moved, reader.seen());
+        let ((state, content), moved) = reader.own(moves, events_in_flight);
+        shared.read_seen(
+            began,
+            tick(),
+            (state, content, writer),
+            moved,
+            reader.seen(),
+        );
         #[cfg(feature = "test-seam")]
         crate::windows::input::seam::own_read_ended();
     }
@@ -1968,7 +2031,7 @@ mod detector {
     fn run(
         shared: &Arc<Shared>,
         wake: &Arc<Event>,
-        removals: Removals,
+        (removals, writer): (Removals, u64),
         ready: std::sync::mpsc::Sender<Result<(), CaptureError>>,
     ) -> Result<(), CaptureError> {
         // SAFETY: CoInitializeEx joins this new thread to the process's MTA.
@@ -1978,14 +2041,14 @@ mod detector {
             return Ok(());
         }
         let _com = Com;
-        let (reader, handler) = match start(shared, wake) {
+        let (reader, handler) = match start(shared, wake, writer) {
             Ok(started) => started,
             Err(error) => {
                 let _ = ready.send(Err(error));
                 return Ok(());
             }
         };
-        DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some(Arc::clone(shared)));
+        DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some((Arc::clone(shared), Some(writer))));
         #[cfg(test)]
         let desktop = (removals.set_desktop_hook)();
         #[cfg(not(test))]
@@ -2002,7 +2065,7 @@ mod detector {
         }
         #[cfg(test)]
         (removals.before_first_read)();
-        own_read(shared, &reader);
+        own_read(shared, &reader, Some(writer));
         let _ = ready.send(Ok(()));
         let mut msg = MSG::default();
         loop {
@@ -2028,7 +2091,7 @@ mod detector {
             if wait == 0 {
                 #[cfg(test)]
                 (removals.before_read)();
-                own_read(shared, &reader);
+                own_read(shared, &reader, Some(writer));
                 continue;
             }
             // SAFETY: the slice holds the live wake event, which outlives the
@@ -2304,7 +2367,7 @@ mod detector {
             let gate = PasswordGate::new();
             gate.read_at(1_000, FieldState::Clear, Moved::NotCompared);
             let before = gate.hold(2_000, false, 0);
-            DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some(Arc::clone(&gate.shared)));
+            DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some((Arc::clone(&gate.shared), None)));
             // SAFETY: the callback reads its thread's gate and no argument but
             // the time.
             unsafe {
@@ -2532,6 +2595,7 @@ mod detector {
                 shared: Arc::clone(&gate.shared),
                 reader: Arc::clone(&reader),
                 wake: Arc::new(Event::new().expect("an event")),
+                writer: None,
             }
             .into_interface();
             let start = tick();
@@ -3003,6 +3067,7 @@ mod detector {
                 shared: Arc::clone(&gate.shared),
                 reader: Arc::clone(reader),
                 wake: Arc::new(Event::new().expect("an event")),
+                writer: None,
             }
             .into_interface()
         }
@@ -3055,7 +3120,7 @@ mod detector {
             std::thread::sleep(Duration::from_millis(50));
             let key = gate.hold(tick(), false, 0);
             std::thread::sleep(Duration::from_millis(150));
-            own_read(&gate.shared, &reader);
+            own_read(&gate.shared, &reader, None);
             let at_the_own_read = gate.field_now();
             let decided = gate
                 .decide(&key, key.tick.wrapping_add(200), 0, false)
@@ -3121,7 +3186,7 @@ mod detector {
                 IN_FLIGHT.with(|hook| {
                     *hook.borrow_mut() = Some(Box::new(move || {
                         shared.latch(tick(), super::super::LatchFrom::TheInputThread);
-                        own_read(&shared, &reader);
+                        own_read(&shared, &reader, None);
                         let read =
                             shared
                                 .lock()
@@ -3796,7 +3861,7 @@ mod tests {
     fn a_desktop_switch_reads_unknown_and_closes_the_gate() {
         let gate = plain();
         let before = key(&gate, 2_000);
-        gate.shared.desktop_switched(2_010);
+        gate.shared.desktop_switched(2_010, None);
         let after = key(&gate, 2_020);
         assert_eq!(reading(&gate, &before, 2_200), Some(Err(Withheld::Unknown)));
         assert_eq!(gate.field_now(), FieldState::Unknown);
@@ -4268,7 +4333,7 @@ mod tests {
         let gate = PasswordGate::new();
         let kept = gate.shared.begin_event();
         gate.shared
-            .field_seen(2_000, Password, ContentReading::Password, None);
+            .field_seen(2_000, Password, (ContentReading::Password, None), None);
         let read_move = gate.shared.lock().moves;
         assert!(!lets_go(kept, read_move, false));
         assert_eq!(
@@ -4330,7 +4395,7 @@ mod tests {
     #[test]
     fn after_a_desktop_switch_a_clear_own_read_opens_nothing_without_a_move() {
         let gate = plain();
-        gate.shared.desktop_switched(1_900);
+        gate.shared.desktop_switched(1_900, None);
         gate.read_at(2_000, FieldState::Clear, Moved::Same);
         let letter = key(&gate, 2_010);
         gate.read_at(2_130, FieldState::Clear, Moved::Same);
