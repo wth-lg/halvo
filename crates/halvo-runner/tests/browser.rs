@@ -836,85 +836,139 @@ fn the_browser_takes_the_profile_after_a_quoted_single_argument() {
     );
 }
 
-/// r3 U5.2e, on the hosted macos job alone (the coordinator's lines 14401 and 14450): a run whose data directory lies
-/// under the hosted runner's own `Library/Application Support`, in a folder whose name the test makes and no other
-/// program uses, loads a fixture page and completes with a clean stop. After the stop nothing of the run stands under
-/// the runner's `Library/Caches` below that folder's name, where the browser's own rule puts the cache of a profile
-/// under `Library/Application Support` when its start names no other cache place: no folder of the run's id, and no
-/// file at any depth. It prints every entry that it finds there, with its kind and size. Its limits: one browser of
-/// one version (`HALVO_BROWSER`, the runner's Google Chrome) on one system; and at its end it removes, by its own code
-/// (`Made`), both folders that it made under the runner's `Library`, with all that they hold, also when it fails; a
-/// hosted runner is thrown away after the job.
+/// The two browsers of a hosted Mac that the runner finds, in its own order (src/find.rs): Google Chrome, then
+/// Microsoft Edge.
+const MAC_BROWSERS: [&str; 2] = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+];
+
+/// r3 U5.2e, on the hosted macos job alone (the coordinator's lines 14401, 14450 and 14668): with each of the two
+/// browsers of a hosted Mac (`MAC_BROWSERS`), a run whose data directory lies under the hosted runner's own
+/// `Library/Application Support`, in a folder of its own whose name the test makes and no other program uses, loads a
+/// fixture page and completes with a clean stop. After the stop nothing of the run stands under the runner's
+/// `Library/Caches` below that folder's name, where the browser's own rule puts the cache of a profile under
+/// `Library/Application Support` when its start names no other cache place: no folder of the run's id, and no file at
+/// any depth. For each browser it prints the entries that it finds there (at most `MOST_LINES`, then how many more),
+/// each line with the browser's path, its kind and its size. A browser that the hosted Mac does not have fails the case
+/// before any run. Its limits: one version of each browser on one system; and at the end of each browser's run it
+/// removes, by its own code (`Made`), both folders that it made under the runner's `Library`, with all that they hold,
+/// also when it fails; a hosted runner is thrown away after the job.
 #[test]
 fn a_run_under_the_persons_library_leaves_no_cache_outside_its_profile() {
     const TEST: &str = "a_run_under_the_persons_library_leaves_no_cache_outside_its_profile";
-    let Some(browser) = hosted_on_mac(TEST) else {
+    if hosted_on_mac(TEST).is_none() {
         return;
-    };
+    }
+    for browser in MAC_BROWSERS {
+        assert!(
+            std::path::Path::new(browser).is_file(),
+            "{TEST}: the hosted Mac has no {browser}; the case runs with Google Chrome and with Microsoft Edge"
+        );
+    }
     let home = std::path::PathBuf::from(std::env::var_os("HOME").expect("HOME is set"));
     let made_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("the clock")
         .as_nanos();
-    let name = format!("halvo-u52e-cache-place-{}-{made_at}", std::process::id());
-    let data = home.join("Library/Application Support").join(&name);
-    let caches = home.join("Library/Caches").join(&name);
-    assert!(
-        std::fs::symlink_metadata(&data).is_err() && std::fs::symlink_metadata(&caches).is_err(),
-        "the folder {name} stands before the run"
-    );
+    let mut faults = Vec::new();
+    for (n, browser) in [(251, MAC_BROWSERS[0]), (252, MAC_BROWSERS[1])] {
+        let name = format!(
+            "halvo-u52e-cache-place-{}-{made_at}-{n}",
+            std::process::id()
+        );
+        faults.extend(cache_case(TEST, &home, &name, n, browser));
+    }
+    assert!(faults.is_empty(), "{faults:#?}");
+}
+
+/// One run of the cache case with `browser`, in the folder `name` under the runner's `Library/Application Support`
+/// and with the run number `n`: what fails, each fault named by the browser's path. Both folders that it made under
+/// the runner's `Library` are removed when it returns.
+fn cache_case(
+    test: &'static str,
+    home: &std::path::Path,
+    name: &str,
+    n: u8,
+    browser: &str,
+) -> Vec<String> {
+    let data = home.join("Library/Application Support").join(name);
+    let caches = home.join("Library/Caches").join(name);
+    if std::fs::symlink_metadata(&data).is_ok() || std::fs::symlink_metadata(&caches).is_ok() {
+        return vec![format!(
+            "{browser}: the folder {name} stands before the run"
+        )];
+    }
     let _made = Made {
-        test: TEST,
+        test,
         dirs: vec![data.clone(), caches.clone()],
     };
     std::fs::create_dir(&data).expect("make the data directory");
     let fixture = Fixture::start(&[("/read", READ)]);
-    let mut sup = web_agent(251, &fixture);
+    let mut sup = web_agent(n, &fixture);
     sup.steps = vec![
         navigate(1, &fixture.url("/read")),
         extract_amount(2, "amount"),
     ];
-    let seen = serve_in(&sup, &browser, &data, reply_to_browser, LONG);
+    let seen = serve_in(
+        &sup,
+        std::path::Path::new(browser),
+        &data,
+        reply_to_browser,
+        LONG,
+    );
     let entries = entries_below(&caches);
-    print_entries(TEST, &format!("Library/Caches/{name}"), &entries);
+    print_entries(test, &format!("{browser}: Library/Caches/{name}"), &entries);
     let run_folder = caches
         .join("agents")
         .join("profiles")
         .join(sup.run.as_str());
-    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
-    assert_eq!(
-        rows(&seen),
-        [
-            (LogEvent::StepOk, Some(1), None),
-            (LogEvent::StepOk, Some(2), None)
-        ]
-    );
     let (run_dir, _) = profile_of(&seen, &sup.run);
-    assert!(!run_dir.exists(), "{} is left", run_dir.display());
-    assert!(
-        fixture
-            .requests()
-            .iter()
-            .any(|r| r.method == "GET" && r.path == "/read"),
-        "the page was not loaded"
-    );
     let files: Vec<&str> = entries
         .iter()
         .filter(|e| !e.dir)
         .map(|e| e.rel.as_str())
         .collect();
-    assert!(
-        files.is_empty(),
-        "files of the run stand under Library/Caches/{name}: {files:?}"
-    );
-    assert!(
-        std::fs::symlink_metadata(&run_folder).is_err(),
-        "the run's folder stands under Library/Caches: {}",
-        run_folder.display()
-    );
-    assert!(
-        seen.stderr.contains("run browser=stopped removed=yes"),
-        "{}",
-        seen.stderr
-    );
+    let checks = [
+        (
+            seen.done() == Some(Outcome::Completed),
+            format!("the run did not complete: {}", seen.stderr),
+        ),
+        (
+            rows(&seen)
+                == [
+                    (LogEvent::StepOk, Some(1), None),
+                    (LogEvent::StepOk, Some(2), None),
+                ],
+            format!("the rows are {:?}", rows(&seen)),
+        ),
+        (!run_dir.exists(), format!("{} is left", run_dir.display())),
+        (
+            fixture
+                .requests()
+                .iter()
+                .any(|r| r.method == "GET" && r.path == "/read"),
+            "the page was not loaded".to_string(),
+        ),
+        (
+            files.is_empty(),
+            format!("files of the run stand under Library/Caches/{name}: {files:?}"),
+        ),
+        (
+            std::fs::symlink_metadata(&run_folder).is_err(),
+            format!(
+                "the run's folder stands under Library/Caches: {}",
+                run_folder.display()
+            ),
+        ),
+        (
+            seen.stderr.contains("run browser=stopped removed=yes"),
+            format!("the stop did not say removed=yes: {}", seen.stderr),
+        ),
+    ];
+    checks
+        .into_iter()
+        .filter(|(held, _)| !held)
+        .map(|(_, fault)| format!("{browser}: {fault}"))
+        .collect()
 }
