@@ -405,60 +405,6 @@ fn is_tap_disabled(etype: CGEventType) -> bool {
     )
 }
 
-/// The device-independent masks of the modifier keys in an event's flags: caps
-/// lock, shift, control, option, command, help and fn; not the numeric pad.
-const MODIFIER_KEY_MASKS: u64 = 0x00DF_0000;
-
-/// The device-dependent bits of the left and right modifier keys in an event's
-/// flags.
-const MODIFIER_SIDE_BITS: u64 = 0x0000_207F;
-
-/// The modifier keys by their virtual key code, each with the device-dependent
-/// bit that an event's own flags hold while that key is down (0 where the key
-/// has none) and the device-independent mask of its family: left and right
-/// shift, left and right control, left and right option, left and right
-/// command, caps lock and fn.
-const MODIFIER_KEYS: [(i64, u64, u64); 10] = [
-    (0x38, 0x0000_0002, 0x0002_0000),
-    (0x3C, 0x0000_0004, 0x0002_0000),
-    (0x3B, 0x0000_0001, 0x0004_0000),
-    (0x3E, 0x0000_2000, 0x0004_0000),
-    (0x3A, 0x0000_0020, 0x0008_0000),
-    (0x3D, 0x0000_0040, 0x0008_0000),
-    (0x37, 0x0000_0008, 0x0010_0000),
-    (0x36, 0x0000_0010, 0x0010_0000),
-    (0x39, 0, 0x0001_0000),
-    (0x3F, 0, 0x0080_0000),
-];
-
-const _: () = {
-    let mut at = 0;
-    while at < MODIFIER_KEYS.len() {
-        let (_, side, family) = MODIFIER_KEYS[at];
-        assert!(side & !MODIFIER_SIDE_BITS == 0 && family & !MODIFIER_KEY_MASKS == 0);
-        at += 1;
-    }
-};
-
-const CAPS_LOCK: i64 = 0x39;
-
-fn modifier_pressed(key_code: Option<i64>, flags: u64) -> bool {
-    if key_code == Some(CAPS_LOCK) {
-        return true;
-    }
-    let Some(&(_, side, family)) = MODIFIER_KEYS
-        .iter()
-        .find(|&&(code, _, _)| Some(code) == key_code)
-    else {
-        return false;
-    };
-    if side == 0 {
-        flags & family != 0
-    } else {
-        flags & side != 0
-    }
-}
-
 const CHORD_MASKS: u64 = 0x001C_0000;
 
 fn key_class(key_code: Option<i64>, flags: u64) -> KeyClass {
@@ -501,9 +447,6 @@ fn kind_of(etype: CGEventType, key_code: Option<i64>, flags: u64, autorepeat: bo
     match etype {
         CGEventType::KeyDown if autorepeat => Kind::Reading,
         CGEventType::KeyDown => Kind::Key(key_class(key_code, flags)),
-        CGEventType::FlagsChanged if modifier_pressed(key_code, flags) => {
-            Kind::Key(KeyClass::Other)
-        }
         CGEventType::KeyUp | CGEventType::FlagsChanged => Kind::Reading,
         CGEventType::LeftMouseDown => Kind::Click(Button::Primary),
         CGEventType::RightMouseDown => Kind::Click(Button::Secondary),
@@ -3443,7 +3386,7 @@ mod tests {
     }
 
     #[test]
-    fn a_modifier_change_after_a_doubt_is_read_from_its_own_key_code_and_flag_bit() {
+    fn a_modifier_change_after_a_doubt_holds_no_key() {
         let rows: [DoubtRow; 7] = [
             ("a tap notice", |held| {
                 on_tap_event(&held.ctx, event(CGEventType::TapDisabledByTimeout));
@@ -3486,7 +3429,7 @@ mod tests {
         for (what, clear) in rows {
             assert_eq!(
                 held_after_a_shift_change_that_follows(clear, shift | LEFT_SHIFT_BIT),
-                1,
+                0,
                 "a press after {what}"
             );
             assert_eq!(
@@ -3497,8 +3440,8 @@ mod tests {
         }
         assert_eq!(
             held_after_a_shift_change_that_follows(|_| {}, shift | LEFT_SHIFT_BIT),
-            1,
-            "the control: a press with nothing before it"
+            0,
+            "a press with nothing before it"
         );
     }
 
@@ -3873,31 +3816,38 @@ mod tests {
     }
 
     #[test]
-    fn a_modifier_press_through_the_events_own_fields_is_read_from_its_key_code() {
+    fn a_modifier_press_through_the_events_own_fields_holds_no_key_and_the_next_key_keeps_its_class(
+    ) {
         let held = held(100);
-        let shift = CGEventFlags::CGEventFlagShift.bits();
-        let press = event_object(CGEventType::FlagsChanged, shift | LEFT_SHIFT_BIT);
-        press.set_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE, LEFT_SHIFT);
-        advance(1);
-        set_stamp(&press, now_uptime());
-        on_tap_event(
-            &held.ctx,
-            tap_event(&held.ctx, CGEventType::FlagsChanged, &press),
-        );
+        let feed = |etype: CGEventType, code: i64, flags: u64| {
+            let object = event_object(etype, flags);
+            object.set_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE, code);
+            advance(1);
+            set_stamp(&object, now_uptime());
+            on_tap_event(&held.ctx, tap_event(&held.ctx, etype, &object));
+        };
+        let shift = CGEventFlags::CGEventFlagShift.bits() | LEFT_SHIFT_BIT;
+        let (left_control, left_control_bit) = (0x3B, 0x1);
+        let control = CGEventFlags::CGEventFlagControl.bits() | left_control_bit;
+        feed(CGEventType::FlagsChanged, LEFT_SHIFT, shift);
         assert_eq!(
             held_now(&held.ctx),
-            1,
-            "the press of the left shift is held"
+            0,
+            "the press of the left shift is a reading alone"
         );
-        let release = event_object(CGEventType::FlagsChanged, 0);
-        release.set_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE, LEFT_SHIFT);
-        advance(1);
-        set_stamp(&release, now_uptime());
-        on_tap_event(
-            &held.ctx,
-            tap_event(&held.ctx, CGEventType::FlagsChanged, &release),
+        feed(CGEventType::KeyDown, 0x00, shift);
+        feed(CGEventType::KeyUp, 0x00, shift);
+        feed(CGEventType::FlagsChanged, LEFT_SHIFT, 0);
+        feed(CGEventType::FlagsChanged, left_control, control);
+        feed(CGEventType::KeyDown, 0x00, control);
+        feed(CGEventType::KeyUp, 0x00, control);
+        feed(CGEventType::FlagsChanged, left_control, 0);
+        ticks(&held.ctx, 200);
+        assert_eq!(
+            keystroke_classes(&held.writer),
+            [KeyClass::Printable, KeyClass::Shortcut],
+            "shift and then a letter is one printable record, control and then a letter one shortcut"
         );
-        assert_eq!(held_now(&held.ctx), 1, "its release is a reading alone");
     }
 
     #[test]
@@ -4619,7 +4569,7 @@ mod tests {
     }
 
     #[test]
-    fn the_source_holds_a_key_down_and_a_modifier_press_and_nothing_else_of_the_keys() {
+    fn the_source_holds_a_key_down_and_no_modifier_press_and_nothing_else_of_the_keys() {
         let shift = CGEventFlags::CGEventFlagShift.bits();
         let command = CGEventFlags::CGEventFlagCommand.bits();
         let left_command = 0x8;
@@ -4638,67 +4588,46 @@ mod tests {
             "a flags change whose key code was not read"
         );
         let rows = [
-            (
-                LEFT_SHIFT,
-                shift | LEFT_SHIFT_BIT,
-                Kind::Key(KeyClass::Other),
-                "a shift press",
-            ),
+            (LEFT_SHIFT, shift | LEFT_SHIFT_BIT, "a shift press"),
             (
                 LEFT_COMMAND,
                 command | left_command | shift | LEFT_SHIFT_BIT,
-                Kind::Key(KeyClass::Other),
                 "a command press while shift is down",
             ),
-            (LEFT_SHIFT, 0, Kind::Reading, "a shift release"),
+            (LEFT_SHIFT, 0, "a shift release"),
             (
                 LEFT_COMMAND,
                 shift | LEFT_SHIFT_BIT,
-                Kind::Reading,
                 "a command release while shift stays down",
             ),
             (
                 RIGHT_SHIFT,
                 shift | LEFT_SHIFT_BIT | RIGHT_SHIFT_BIT,
-                Kind::Key(KeyClass::Other),
                 "the right shift pressed while the left one is down",
             ),
             (
                 LEFT_SHIFT,
                 shift | RIGHT_SHIFT_BIT,
-                Kind::Reading,
                 "the left shift released while the right one stays down",
             ),
             (
                 LEFT_SHIFT,
                 shift,
-                Kind::Reading,
-                "a posted shift press, with no device bits, is a reading alone (ruling MA-30 M1)",
+                "a posted shift press, with no device bits",
             ),
-            (LEFT_SHIFT, 0x100, Kind::Reading, "a posted shift release"),
-            (
-                0x39,
-                0x1_0000,
-                Kind::Key(KeyClass::Other),
-                "caps lock turned on",
-            ),
-            (
-                0x39,
-                0,
-                Kind::Key(KeyClass::Other),
-                "caps lock turned off is a press too",
-            ),
-            (0x3F, 0x80_0000, Kind::Key(KeyClass::Other), "a fn press"),
-            (0x3F, 0, Kind::Reading, "a fn release"),
-            (
-                0,
-                shift | LEFT_SHIFT_BIT,
-                Kind::Reading,
-                "a key code that is no modifier",
-            ),
+            (LEFT_SHIFT, 0x100, "a posted shift release"),
+            (0x39, 0x1_0000, "caps lock turned on"),
+            (0x39, 0, "caps lock turned off"),
+            (0x3F, 0x80_0000, "a fn press"),
+            (0x3F, 0, "a fn release"),
+            (0, shift | LEFT_SHIFT_BIT, "a key code that is no modifier"),
         ];
-        for (key_code, bits, kind, what) in rows {
-            assert_eq!(kind_of(flags, Some(key_code), bits, false), kind, "{what}");
+        for (key_code, bits, what) in rows {
+            assert_eq!(
+                kind_of(flags, Some(key_code), bits, false),
+                Kind::Reading,
+                "{what}"
+            );
         }
     }
 
@@ -4758,7 +4687,7 @@ mod tests {
     }
 
     #[test]
-    fn every_modifier_key_reads_its_press_and_release_by_its_own_bit() {
+    fn every_modifier_key_reads_its_press_and_release_as_a_reading_alone() {
         let iokit: [(i64, u64, u64); 10] = [
             (0x38, 0x0000_0002, 0x0002_0000),
             (0x3C, 0x0000_0004, 0x0002_0000),
@@ -4771,59 +4700,24 @@ mod tests {
             (0x39, 0, 0x0001_0000),
             (0x3F, 0, 0x0080_0000),
         ];
-        assert_eq!(
-            MODIFIER_KEYS.map(|(code, _, _)| code),
-            iokit.map(|(code, _, _)| code),
-            "the ten keys of the table, in its order"
-        );
+        let sides = iokit.iter().fold(0, |all, &(_, side, _)| all | side);
         let flags = CGEventType::FlagsChanged;
-        let mut checked = 0;
-        for &(code, side, family) in iokit.iter().filter(|row| row.0 != CAPS_LOCK) {
-            assert_eq!(
-                kind_of(flags, Some(code), 0, false),
-                Kind::Reading,
-                "{code:#x} released"
-            );
-            if side == 0 {
+        for &(code, side, family) in &iokit {
+            for (bits, what) in [
+                (0, "released"),
+                (family, "on by its family bit"),
+                (family | side, "pressed with its device bit"),
+                (family | (sides & !side), "with the other device bits set"),
+                (family | 0x100, "posted with its family bit alone"),
+                (0x100, "posted release"),
+            ] {
                 assert_eq!(
-                    kind_of(flags, Some(code), family, false),
-                    Kind::Key(KeyClass::Other),
-                    "{code:#x} on by its family bit"
-                );
-                assert_eq!(
-                    kind_of(flags, Some(code), 0x100, false),
+                    kind_of(flags, Some(code), bits, false),
                     Kind::Reading,
-                    "{code:#x} off"
-                );
-            } else {
-                assert_eq!(
-                    kind_of(flags, Some(code), family | side, false),
-                    Kind::Key(KeyClass::Other),
-                    "{code:#x} pressed with its device bit"
-                );
-                let others = MODIFIER_SIDE_BITS & !side;
-                assert_eq!(
-                    kind_of(flags, Some(code), family | others, false),
-                    Kind::Reading,
-                    "{code:#x} released while the other device bits stay set"
-                );
-                assert_eq!(
-                    kind_of(flags, Some(code), family | 0x100, false),
-                    Kind::Reading,
-                    "{code:#x} posted with its family bit alone"
-                );
-                assert_eq!(
-                    kind_of(flags, Some(code), 0x100, false),
-                    Kind::Reading,
-                    "{code:#x} posted release"
+                    "{code:#x} {what}"
                 );
             }
-            checked += 1;
         }
-        assert_eq!(
-            checked, 9,
-            "the nine keys but caps lock, which its own test reads"
-        );
     }
 
     #[test]
@@ -4946,7 +4840,7 @@ mod tests {
                 shift | LEFT_SHIFT_BIT,
                 false
             ),
-            Kind::Key(KeyClass::Other),
+            Kind::Reading,
             "shift pressed alone"
         );
         assert_eq!(
@@ -4956,8 +4850,8 @@ mod tests {
                 command | 0x8 | control | 0x1,
                 false
             ),
-            Kind::Key(KeyClass::Other),
-            "command pressed while control is held is a modifier's key down, not a shortcut"
+            Kind::Reading,
+            "command pressed while control is held is no key and no shortcut"
         );
     }
 
@@ -4996,11 +4890,11 @@ mod tests {
     }
 
     #[test]
-    fn caps_lock_is_a_press_each_time_that_it_toggles() {
+    fn caps_lock_is_no_press_when_it_toggles() {
         for flags in [0x1_0000, 0, 0x100] {
             assert_eq!(
                 kind_of(CGEventType::FlagsChanged, Some(0x39), flags, false),
-                Kind::Key(KeyClass::Other),
+                Kind::Reading,
                 "flags {flags:#x}"
             );
         }
@@ -5035,16 +4929,12 @@ mod tests {
     }
 
     fn modifier_row(modifier: cases::Modifier) -> (i64, u64, u64) {
-        let code = match modifier {
-            cases::Modifier::Shift => 0x38,
-            cases::Modifier::Control => 0x3B,
-            cases::Modifier::OptionOrAlt => 0x3A,
-            cases::Modifier::CommandOrWindows => 0x37,
-        };
-        *MODIFIER_KEYS
-            .iter()
-            .find(|row| row.0 == code)
-            .expect("a modifier of the table")
+        match modifier {
+            cases::Modifier::Shift => (0x38, 0x0000_0002, 0x0002_0000),
+            cases::Modifier::Control => (0x3B, 0x0000_0001, 0x0004_0000),
+            cases::Modifier::OptionOrAlt => (0x3A, 0x0000_0020, 0x0008_0000),
+            cases::Modifier::CommandOrWindows => (0x37, 0x0000_0008, 0x0010_0000),
+        }
     }
 
     fn button_type(button: Button, down: bool) -> CGEventType {
@@ -5069,10 +4959,7 @@ mod tests {
                 }
                 Input::KeyUp(cases::Key::Modifier(modifier)) => {
                     let (code, side, family) = modifier_row(modifier);
-                    self.flags &= !side;
-                    if self.flags & MODIFIER_SIDE_BITS & !side == 0 {
-                        self.flags &= !family;
-                    }
+                    self.flags &= !(side | family);
                     (CGEventType::FlagsChanged, code, false)
                 }
                 Input::KeyDown(key) => (CGEventType::KeyDown, code_of(key), false),
@@ -5267,7 +5154,7 @@ mod tests {
     }
 
     #[test]
-    fn a_modifier_press_read_off_is_held_and_recorded_at_the_bound() {
+    fn a_modifier_press_read_off_is_not_held_and_never_recorded() {
         let held = held(1_000);
         let shift = CGEventFlags::CGEventFlagShift.bits();
         on_tap_event(&held.ctx, with_flags(CGEventType::KeyUp, 0));
@@ -5280,9 +5167,9 @@ mod tests {
                 shift | LEFT_SHIFT_BIT,
             ),
         );
-        assert_eq!(held_now(&held.ctx), 1);
+        assert_eq!(held_now(&held.ctx), 0);
         ticks(&held.ctx, 1_010);
-        assert_eq!(keystrokes(&held.writer), 1);
+        assert_eq!(keystrokes(&held.writer), 0);
     }
 
     fn figures_but_withheld(counters: &InputCounters) -> SourceCounters {
@@ -7729,8 +7616,8 @@ mod tests {
         ticks(&held.ctx, 200);
         assert_eq!(
             keystroke_classes(&held.writer),
-            [KeyClass::Enter, KeyClass::Shortcut, KeyClass::Other],
-            "a key up, a repeat and a released modifier are no record"
+            [KeyClass::Enter, KeyClass::Shortcut],
+            "a key up, a repeat and a modifier's press and release are no record"
         );
     }
 
@@ -10038,8 +9925,8 @@ mod secure_input_invariant {
         on_tap_event(&ctx, event(CGEventType::LeftMouseDown, 0));
         assert_eq!(
             ctx.counters.suppressed_keys(),
-            2,
-            "a key down and a shift press, each read from its own event (ruling MA-22 (d)); the release is no press"
+            1,
+            "a key down, read from its own event (ruling MA-22 (d)); a shift press and its release are no key"
         );
         drop(ctx);
         assert_eq!(
