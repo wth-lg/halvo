@@ -6,13 +6,17 @@ use std::time::{Duration, Instant};
 use halvo_control::client::{ClientError, Connector, DeleteOutcome, NoTransport};
 use halvo_control::model::{StorageCap, StoreId};
 use halvo_control::onboarding::{Permission, RequestOutcome};
-use halvo_control::proto::{CapSet, DaemonStatus, ErrorCode, ErrorReply, InventoryReply};
+use halvo_control::proto::{
+    CapSet, DaemonStatus, ErrorCode, ErrorReply, InventoryReply, Platform, StoreState,
+};
+use halvo_control::testing::sample_status;
 use halvo_schema_core::request::{decode, Decoded, Read};
 use halvo_schema_core::{Decision, WorkflowId};
 use serde_json::{json, Value};
 
 use super::control::{Control, Gated, Made, Places, MAX_CALLS_IN_FLIGHT, REPLY_BYTES_IN_FLIGHT};
-use super::workflows::{decide, proposals, read, Listed, Row, WorkflowsView};
+use super::workflows::{answer, decide, proposals, read, Listed, Row, WorkflowsView};
+use crate::poller::{PollAnswer, Views};
 
 const STEP_TIMEOUT: Duration = Duration::from_secs(20);
 const ABSENT_STEP_WAIT: Duration = Duration::from_millis(300);
@@ -528,6 +532,29 @@ fn each_answer_without_a_list_gives_its_state() {
             "{case}"
         );
         assert_eq!(control.requests().len(), 1, "{case}");
+    }
+}
+
+#[test]
+fn a_busy_refusal_answers_delete_unfinished_where_the_apps_view_of_the_store_holds_the_field() {
+    for (unfinished, reply) in [
+        (true, json!({"state": "delete_unfinished"})),
+        (false, json!({"state": "deleting"})),
+    ] {
+        let mut f = sample_status(Platform::Macos).into_fields();
+        f.store = StoreState::Deleting;
+        f.store_id = None;
+        f.store_delete_unfinished = unfinished;
+        let status = DaemonStatus::new(f).expect("a status that holds");
+        let views = Views::default();
+        assert_eq!(views.take_poll(0, &Ok(status)), PollAnswer::Stands);
+        let control = Relayed::answering(vec![daemon_refuses(ErrorCode::Busy)]);
+        assert_eq!(
+            as_the_page_gets_it(answer(&control, &views, &no_name)),
+            reply,
+            "{unfinished}"
+        );
+        assert_eq!(control.requests().len(), 1, "{unfinished}");
     }
 }
 

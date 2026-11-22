@@ -296,6 +296,7 @@
         start.textContent = w.DELETE_EVERYTHING;
         confirm.disabled = false;
         renderOffer();
+        return Halvo.readWorkflows();
       });
   }
 
