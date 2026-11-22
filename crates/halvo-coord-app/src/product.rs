@@ -51,8 +51,8 @@ use halvo_coord::types::{
     BindResult, Body, BoundField, BoundFrom, Category, CheckAnswer, Class, Cleared, ConfigView,
     ConfirmAsk, Decision, DecisionEntry, Defers, Digest, DismissedWorkflow, DoneAnswer,
     EffectAnswer, EffectId, Event, FullWorkflow, HandbackAsk, HandbackReason, HandbackResult,
-    HoldSetCause, ItemId, ItemKind, Kept, LapseCause, Lapsed, LinkAnswer, Name, Origin, OtherLapse,
-    Outcome, PastEffect, PastRun, Progress, Raised, ReadyAnswer, Reply, ReplyRow,
+    HoldSetCause, ItemId, ItemKind, Kept, LapseCause, Lapsed, LastCause, LinkAnswer, Name, Origin,
+    OtherLapse, Outcome, PastEffect, PastRun, Progress, Raised, ReadyAnswer, Reply, ReplyRow,
     RunEnd as CoordRunEnd, RunEvent, RunHistory, RunId, RunSpec, SetupAnswer, SignInAnswer, Slot,
     Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState, WorkflowTrigger,
 };
@@ -1120,7 +1120,9 @@ fn past_run(record: &Value) -> Option<PastRun> {
 }
 
 /// One entry of the reply of `list_agents`; its `refused_run` is read as `last` is: null gives none, and any other
-/// value is a run id or the entry is not read (I6.1; ruling RD-73 4.5).
+/// value is a run id or the entry is not read (I6.1; ruling RD-73 4.5). Its `last_cause` is a name of the core's list
+/// `LastCause` or none: null, a missing key and any other value, a name of the store's longer list among them, give
+/// none and never stop the read of the entry (the ruling of 2026-11-22 on `last_cause`).
 fn agent_of(entry: &Value) -> Option<Agent<AgentConfig>> {
     let config = AgentConfig::parse(&entry["config"].to_string())?;
     let last = match &entry["last"] {
@@ -1157,6 +1159,9 @@ fn agent_of(entry: &Value) -> Option<Agent<AgentConfig>> {
         last,
         unknown,
         refused_run,
+        last_cause: entry["last_cause"]
+            .as_str()
+            .and_then(|cause| LastCause::parse(cause).ok()),
         config,
     })
 }
@@ -1782,6 +1787,29 @@ mod tests {
             .map(event_of)
             .collect();
         assert_eq!(read, events.into_iter().map(Some).collect::<Vec<_>>());
+    }
+
+    /// `list_agents` takes `last_cause` of an entry: a name of the core's list as its cause, null as none, and a name
+    /// of the store's list that the core's lacks as none too, with the entry still read (I6.1).
+    #[test]
+    fn the_reader_takes_the_last_cause_and_reads_a_cause_that_the_core_lacks_as_none() {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let entry = |cause: &str| -> Value {
+            serde_json::from_str(&format!(
+                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":null,"reply_unknown":"no","refused_slots":[],"last_cause":{cause}}}"#
+            ))
+            .unwrap()
+        };
+        assert_eq!(
+            agent_of(&entry(r#""no_browser""#)).map(|a| a.last_cause),
+            Some(Some(LastCause::NoBrowser))
+        );
+        assert_eq!(agent_of(&entry("null")).map(|a| a.last_cause), Some(None));
+        assert_eq!(
+            agent_of(&entry(r#""wall""#)).map(|a| a.last_cause),
+            Some(None)
+        );
     }
 
     /// A dialog that is never on screen and answers `reject`: no native confirmation is answered.

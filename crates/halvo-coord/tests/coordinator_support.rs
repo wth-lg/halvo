@@ -417,6 +417,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
             last: Some(record),
             unknown: Vec::new(),
             refused_run: None,
+            last_cause: None,
         });
     }
     Both {

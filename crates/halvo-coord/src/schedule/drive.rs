@@ -231,6 +231,7 @@ fn refresh<C: Clone>(member: &mut Member<C>, entry: Option<&Agent<C>>, history: 
     if let Some(a) = entry {
         facts.take_unknown(&a.unknown);
         facts.refused.clone_from(&a.refused_run);
+        facts.last_cause = a.last_cause;
     }
 }
 
@@ -1958,6 +1959,7 @@ where
                 runs: a.last.clone().into_iter().collect(),
                 unknown: Vec::new(),
                 refused: a.refused_run.clone(),
+                last_cause: a.last_cause,
                 events: Vec::new(),
                 store_ended: true,
                 replies: crate::types::Replies::NotAsked,

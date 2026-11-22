@@ -20,6 +20,7 @@ use chromiumoxide::cdp::browser_protocol::page::{
     AddScriptToEvaluateOnNewDocumentParams, CreateIsolatedWorldParams, EnableParams as PageEnable,
     FrameId, FrameTree, GetFrameTreeParams, NavigateParams,
 };
+use chromiumoxide::cdp::browser_protocol::storage::ClearDataForOriginParams;
 use chromiumoxide::cdp::browser_protocol::target::{
     CloseTargetParams, CreateTargetParams, GetTargetsParams,
 };
@@ -189,6 +190,35 @@ pub enum Mode {
     /// `Executor::paused`, until `let_through` or `fail` answers it or a new arm, the stop or the
     /// drop of the executor fails it.
     Hold,
+    /// The handback's mode of U5.1 (A6.4, A11.1): every request that a page of the browser makes,
+    /// of every origin and method, is let through, while the interception stays armed; a request
+    /// for which the browser names no frame, the browser's own, and the script of a service worker
+    /// are failed.
+    Handback,
+}
+
+/// The kind of sign by which a control is a credential field (A8.2), from which the runner takes
+/// the reason of a handback (A6.4): a place inside a challenge block, a field that takes a one-time
+/// code, or any other sign. A later kind is the stronger: a reading gives the strongest that the
+/// page shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Sign {
+    Secret,
+    Code,
+    Challenge,
+}
+
+impl Sign {
+    /// The sign of `CREDENTIAL_FN`'s reply: `secret`, `code` or `challenge`; none for every other
+    /// reply, the empty text of a control that shows no sign among them.
+    fn of(reply: &serde_json::Value) -> Option<Sign> {
+        match reply.as_str()? {
+            "secret" => Some(Sign::Secret),
+            "code" => Some(Sign::Code),
+            "challenge" => Some(Sign::Challenge),
+            _ => None,
+        }
+    }
 }
 
 /// A held state-changing request (CP-176 A1 (a)): the executor's own id, its method, origin, path
@@ -1078,9 +1108,13 @@ impl Executor {
         Ok(r.result.value.unwrap_or(serde_json::Value::Null))
     }
 
-    async fn is_credential(&self, place: &Place, node: &BackendNodeId) -> Res<bool> {
-        let v = self.call_on(place, node, CREDENTIAL_FN, Vec::new()).await?;
-        Ok(v == serde_json::Value::Bool(true))
+    /// The sign by which the node is a credential field (`CREDENTIAL_FN`), with `name`, the
+    /// accessible name that the page's tree gives it, as one of the names that the rule reads.
+    async fn sign_of(&self, place: &Place, node: &BackendNodeId, name: &str) -> Res<Option<Sign>> {
+        let v = self
+            .call_on(place, node, CREDENTIAL_FN, vec![serde_json::json!(name)])
+            .await?;
+        Ok(Sign::of(&v))
     }
 
     async fn child_frame_of(&self, place: &Place, owner: &BackendNodeId) -> Res<FrameId> {
@@ -1102,8 +1136,21 @@ impl Executor {
         self.refs.new_snapshot();
         let main = self.main_frame().await?;
         let mut lines = Vec::new();
-        self.snapshot_frame(&main, None, &mut lines).await?;
+        self.snapshot_frame(&main, None, &mut lines, None).await?;
         Ok(lines)
+    }
+
+    /// The reading of A6.4: the page read as `snapshot` reads it, the top document and every frame
+    /// in it, and in each of those documents the sweep of every shown field by what it is (`sweep_fn`);
+    /// the strongest sign of a credential field that it shows (A8.2), none where it shows none.
+    /// Every earlier ref is stale from here (`RefTable`).
+    pub async fn sign(&mut self) -> Res<Option<Sign>> {
+        self.refs.new_snapshot();
+        let main = self.main_frame().await?;
+        let mut signs = Vec::new();
+        self.snapshot_frame(&main, None, &mut Vec::new(), Some(&mut signs))
+            .await?;
+        Ok(signs.into_iter().max())
     }
 
     pub async fn table(&mut self, name: &str) -> Res<Vec<SnapshotLine>> {
@@ -1123,7 +1170,7 @@ impl Executor {
             _ => return Err(Fault::new("resolve", "many")),
         };
         let mut lines = Vec::new();
-        self.lines_under(&main, &nodes, root, None, &mut lines)
+        self.lines_under(&main, &nodes, root, None, &mut lines, None)
             .await?;
         Ok(lines)
     }
@@ -1137,13 +1184,19 @@ impl Executor {
         frame: &FrameId,
         label: Option<String>,
         lines: &mut Vec<SnapshotLine>,
+        mut signs: Option<&mut Vec<Sign>>,
     ) -> Res<()> {
         let nodes = self.ax_tree(frame).await?;
         let root = nodes
             .iter()
             .position(|n| n.parent_id.is_none())
             .ok_or_else(|| Fault::new("snapshot", "no root"))?;
-        self.lines_under(frame, &nodes, root, label, lines).await
+        self.lines_under(frame, &nodes, root, label, lines, signs.as_deref_mut())
+            .await?;
+        if let Some(signs) = signs {
+            signs.extend(Sign::of(&self.eval_value(frame, &sweep_fn()).await?));
+        }
+        Ok(())
     }
 
     async fn lines_under(
@@ -1153,6 +1206,7 @@ impl Executor {
         root: usize,
         label: Option<String>,
         lines: &mut Vec<SnapshotLine>,
+        mut signs: Option<&mut Vec<Sign>>,
     ) -> Res<()> {
         let place = self.place_of(frame);
         let index: HashMap<String, usize> = nodes
@@ -1206,11 +1260,15 @@ impl Executor {
                         push_children(&mut stack, true);
                         continue;
                     };
-                    let credential = if CONTROL_ROLES.contains(&role) {
-                        self.is_credential(&place, &b).await?
+                    let sign = if CONTROL_ROLES.contains(&role) {
+                        self.sign_of(&place, &b, &name).await?
                     } else {
-                        false
+                        None
                     };
+                    if let Some(signs) = signs.as_deref_mut() {
+                        signs.extend(sign);
+                    }
+                    let credential = sign.is_some();
                     let value = line_value(credential, role, &ax_text(&node.value));
                     let r = self.add_ref(Target {
                         frame: frame.clone(),
@@ -1229,7 +1287,13 @@ impl Executor {
                         let child = self.child_frame_of(&place, &b).await?;
                         self.enter_frame(&child, &place, b);
                         let origin = self.frame_origin(&child).await?;
-                        Box::pin(self.snapshot_frame(&child, Some(origin), lines)).await?;
+                        Box::pin(self.snapshot_frame(
+                            &child,
+                            Some(origin),
+                            lines,
+                            signs.as_deref_mut(),
+                        ))
+                        .await?;
                     } else {
                         push_children(&mut stack, true);
                     }
@@ -1694,6 +1758,54 @@ impl Executor {
         self.wire.requests()
     }
 
+    /// Closes every page of the browser but the executor's own: the pages that the page opened, a
+    /// pop-up among them (A6.4, A11.1), before a handback opens and when it ends.
+    pub async fn close_other_pages(&self) -> Res<()> {
+        let home = self.wire.home();
+        let r = self
+            .wire
+            .call(None, GetTargetsParams::default())
+            .await
+            .map_err(|f| Fault::new("targets", f.1))?;
+        for t in r.target_infos {
+            if t.r#type == "page" && home.as_deref() != Some(t.target_id.inner().as_str()) {
+                self.wire
+                    .call(None, CloseTargetParams::new(t.target_id))
+                    .await
+                    .map_err(|f| Fault::new("close", f.1))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Clears, for each of `origins`, what a page can keep for later (`KEPT_FOR_LATER`: the stores
+    /// that scripts write, the workers and their caches) and keeps its cookies (A6.4). The call goes
+    /// on the session of the executor's page, whose storage partition is the run's.
+    pub async fn clear_stores(&self, origins: &[String]) -> Res<()> {
+        for origin in origins {
+            self.exec(
+                &Place::Page,
+                "clear",
+                ClearDataForOriginParams::new(origin.clone(), KEPT_FOR_LATER),
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
+    /// Loads the top document's address again by a GET navigation (`open`), never a reload that
+    /// sends a body again (A6.4), its fragment left out so that the document loads again; a page
+    /// whose address is not of http or https is left as it is.
+    pub async fn load_again(&mut self) -> Res<()> {
+        let frame = self.main_frame().await?;
+        let address = self.frame_url(&frame).await?;
+        let address = address.split('#').next().unwrap_or_default().to_string();
+        if !openable(&address) {
+            return Ok(());
+        }
+        self.open(&address).await
+    }
+
     pub async fn add_recorder(&mut self) -> Res<()> {
         self.exec(
             &Place::Page,
@@ -1712,6 +1824,277 @@ impl Executor {
 
     pub fn recorded(&self) -> Vec<String> {
         self.wire.binding_calls(RECORD_BINDING)
+    }
+}
+
+/// A control as `Executor::control` reads it (A4.3's fresh report of a target, U4.1w part 1):
+/// whether it is a credential field, whether it is enabled, and its text and its value with white
+/// space squeezed. Of a credential field the read holds the mark alone: it is not enabled and its
+/// text and value are empty, for none of them was read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Control {
+    pub credential: bool,
+    pub enabled: bool,
+    pub text: String,
+    pub value: String,
+}
+
+/// The one function of `Executor::control`, called on the node: it decides the mark by
+/// `CREDENTIAL_FN`, the rule of a snapshot line's mark, and returns `[true]` for a credential
+/// before it reads anything more; for every other control `[false, enabled, text, value]`.
+fn control_fn() -> String {
+    format!(
+        "function () {{
+  if (({CREDENTIAL_FN}).call(this)) return [true];
+  const enabled = typeof this.matches !== 'function' || (!this.matches(':disabled') && this.getAttribute('aria-disabled') !== 'true');
+  const value = typeof this.value === 'string' ? this.value : '';
+  return [false, enabled, String(this.innerText || this.textContent || ''), value];
+}}"
+    )
+}
+
+/// The control of `control_fn`'s reply: the mark alone for `[true]`; enabled, text and value for
+/// `[false, enabled, text, value]`. Every other reply is refused, a reply that marks a credential
+/// and carries more than its mark among them.
+fn control_of(reply: &serde_json::Value) -> Res<Control> {
+    use serde_json::Value as V;
+    match reply.as_array().map(Vec::as_slice) {
+        Some([V::Bool(true)]) => Ok(Control {
+            credential: true,
+            enabled: false,
+            text: String::new(),
+            value: String::new(),
+        }),
+        Some([V::Bool(false), V::Bool(enabled), V::String(text), V::String(value)]) => {
+            Ok(Control {
+                credential: false,
+                enabled: *enabled,
+                text: squeeze(text),
+                value: squeeze(value),
+            })
+        }
+        _ => Err(Fault::new("read", "not a control")),
+    }
+}
+
+/// The one function on the element that holds the focus: `[kind, credential]`, whether the
+/// element is of a kind that is typed into, known by the browser's own interface (an input, a
+/// textarea, a select, or an HTML element editable by its own `contenteditable` attribute, the
+/// empty word, `true` or `plaintext-only`; never the body or the root), and its credential mark by
+/// `CREDENTIAL_FN`. No tag name's text is read.
+fn typed_into_fn() -> String {
+    format!(
+        "function () {{
+  const own = this.getAttribute('contenteditable');
+  const editable = this instanceof HTMLElement && own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase());
+  const whole = this instanceof HTMLInputElement || this instanceof HTMLTextAreaElement || this instanceof HTMLSelectElement;
+  const none = this instanceof HTMLBodyElement || this instanceof HTMLHtmlElement;
+  return [(whole || editable) && !none, Boolean(({CREDENTIAL_FN}).call(this))];
+}}"
+    )
+}
+
+/// Whether a text or a key may reach the element whose `typed_into_fn` reply is `reply`: one of
+/// the kinds that are typed into whose mark reads no credential. None for a reply of another
+/// form, which the caller reads as credential.
+fn typed_into_of(reply: &serde_json::Value) -> Option<bool> {
+    use serde_json::Value as V;
+    let Some([V::Bool(kind), V::Bool(credential)]) = reply.as_array().map(Vec::as_slice) else {
+        return None;
+    };
+    Some(*kind && !credential)
+}
+
+impl Executor {
+    /// The control of the ref, read fresh in one call on its node (`control_fn`): a credential
+    /// field gives its mark alone, so that no text and no value of it reaches this process.
+    pub async fn control(&self, reference: &str) -> Res<Control> {
+        let t = self.target(reference)?;
+        let reply = self
+            .call_on(&t.place, &t.node, &control_fn(), Vec::new())
+            .await?;
+        control_of(&reply)
+    }
+
+    /// How many nodes the first of `locators` to find any finds in the frame of `frame_path`, as
+    /// `resolve` tries them; 0 where none finds one.
+    pub async fn count(&mut self, locators: &[Locator], frame_path: &[&str]) -> Res<usize> {
+        let frame = match self.frame_by_path(frame_path).await? {
+            Ok(frame) => frame,
+            Err(_) => return Err(Fault::new("resolve", "frame")),
+        };
+        for locator in locators {
+            let found = match locator {
+                Locator::TestId(id) => self.by_test_id(&frame, id).await?,
+                Locator::Role(role, name) => self.by_role(&frame, role, name).await?,
+            };
+            if !found.is_empty() {
+                return Ok(found.len());
+            }
+        }
+        Ok(0)
+    }
+
+    /// `fill` that sends no text to a credential field: it focuses the ref and selects its text as
+    /// `fill` does, then reads the mark of the element that holds the focus, the one that the text
+    /// will reach (`focus_is_credential`), and sends the text as one insert only where that
+    /// element reads no credential; refused with the cause `credential` otherwise.
+    pub async fn fill_unless_credential(&self, reference: &str, text: &str) -> Res<()> {
+        let t = self.target(reference)?;
+        self.focus(&t).await?;
+        self.call_on(
+            &t.place,
+            &t.node,
+            "function () { if (this.select) this.select(); }",
+            Vec::new(),
+        )
+        .await?;
+        if self.focus_is_credential(&t.place).await? {
+            return Err(Fault::new("credential", "the focus is a credential field"));
+        }
+        self.exec(&t.place, "fill", InsertTextParams::new(text))
+            .await?;
+        Ok(())
+    }
+
+    /// `press` that sends no key to a credential field: it focuses the ref, then reads the mark of
+    /// the element that holds the focus (`focus_is_credential`) and sends the key, down and up,
+    /// only where that element reads no credential; refused with the cause `credential` otherwise.
+    pub async fn press_unless_credential(&self, reference: &str, key: &str) -> Res<()> {
+        let t = self.target(reference)?;
+        self.focus(&t).await?;
+        let (code, text) = match key {
+            "Enter" => (13, "\r"),
+            "Tab" => (9, ""),
+            "Escape" => (27, ""),
+            _ => return Err(Fault::new("press", "key")),
+        };
+        if self.focus_is_credential(&t.place).await? {
+            return Err(Fault::new("credential", "the focus is a credential field"));
+        }
+        for kind in [DispatchKeyEventType::KeyDown, DispatchKeyEventType::KeyUp] {
+            let mut b = DispatchKeyEventParams::builder()
+                .r#type(kind.clone())
+                .key(key)
+                .code(key)
+                .windows_virtual_key_code(code);
+            if kind == DispatchKeyEventType::KeyDown && !text.is_empty() {
+                b = b.text(text);
+            }
+            let params = b.build().map_err(|e| Fault::new("press", e))?;
+            self.exec(&t.place, "press", params).await?;
+        }
+        Ok(())
+    }
+
+    /// Whether a text or a key must not reach the element that holds the focus in the document of
+    /// `place` (the ruling of the list of what is typed into): it may reach that element only where
+    /// it is one of four kinds that the top document's own read sees whole, known by the browser's
+    /// own interface and never by a tag name's text (`typed_into_fn`): an input, a textarea, a
+    /// select, or an element editable by its own `contenteditable` attribute, that carries no frame
+    /// id and no document of its own, has no shadow root other than the browser's own, and reads no
+    /// credential mark (`CREDENTIAL_FN`, the mark alone). Every other holder of the focus reads
+    /// credential: none, the body, a frame of any kind, a host of a shadow root, and any other
+    /// element.
+    async fn focus_is_credential(&self, place: &Place) -> Res<bool> {
+        let active = EvaluateParams::builder()
+            .expression("document.activeElement")
+            .return_by_value(false)
+            .build()
+            .map_err(|e| Fault::new("focus", e))?;
+        let r = self.exec(place, "focus", active).await?;
+        let Some(object) = r.result.object_id.filter(|_| r.exception_details.is_none()) else {
+            return Ok(true);
+        };
+        let node = self
+            .exec(
+                place,
+                "focus",
+                DescribeNodeParams::builder()
+                    .object_id(object)
+                    .depth(1)
+                    .pierce(true)
+                    .build(),
+            )
+            .await?
+            .node;
+        let framed = node.frame_id.is_some() || node.content_document.is_some();
+        let hosts = node.shadow_roots.iter().flatten().any(|root| {
+            root.shadow_root_type
+                != Some(chromiumoxide::cdp::browser_protocol::dom::ShadowRootType::UserAgent)
+        });
+        if framed || hosts {
+            return Ok(true);
+        }
+        let read = self
+            .call_on(place, &node.backend_node_id, &typed_into_fn(), Vec::new())
+            .await?;
+        Ok(typed_into_of(&read) != Some(true))
+    }
+}
+
+#[cfg(test)]
+mod control_tests {
+    use super::*;
+
+    /// The coordinator's ruling of log line 14188, beside the hosted case 246: the rule reads `secret` for an object
+    /// that is no element of the world in which the call runs, before it reads any attribute of it, and the sweep
+    /// counts such an element the same way before its test of a field; the reply `secret` parses as `Sign::Secret`.
+    /// The function itself runs in a real browser alone.
+    #[test]
+    fn a_foreign_element_reads_credential() {
+        let foreign = CREDENTIAL_FN
+            .find("if (!(this instanceof Element)) return 'secret';")
+            .expect("the line of a foreign element");
+        let first_read = CREDENTIAL_FN.find("const attr").expect("the first read");
+        assert!(foreign < first_read, "{CREDENTIAL_FN}");
+        let sweep = sweep_fn();
+        let counted = sweep
+            .find("if (!(el instanceof Element))")
+            .expect("the sweep's line of a foreign element");
+        let field = sweep
+            .find("el.getAttribute('contenteditable')")
+            .expect("the sweep's test of a field");
+        assert!(counted < field, "{sweep}");
+        assert_eq!(Sign::of(&serde_json::json!("secret")), Some(Sign::Secret));
+    }
+
+    /// U4.1w part 1, the condition on the read: a password field with a value is read as its mark
+    /// alone. The reply `[true]` gives a credential with no text and no value; a reply that marks a
+    /// credential and carries a text and a value is refused, not read; and the function returns
+    /// the mark before it touches the node's value or text. The function itself runs in a real
+    /// browser alone, which no test of this crate starts.
+    #[test]
+    fn a_credential_control_is_read_as_its_mark_alone() {
+        let credential = Control {
+            credential: true,
+            enabled: false,
+            text: String::new(),
+            value: String::new(),
+        };
+        assert_eq!(control_of(&serde_json::json!([true])), Ok(credential));
+        assert_eq!(
+            control_of(&serde_json::json!([true, true, "hunter2", "hunter2"])),
+            Err(Fault::new("read", "not a control"))
+        );
+        assert_eq!(
+            control_of(&serde_json::json!([false, true, " Your  name ", "Ada"])),
+            Ok(Control {
+                credential: false,
+                enabled: true,
+                text: "Your name".to_string(),
+                value: "Ada".to_string(),
+            })
+        );
+        let function = control_fn();
+        let mark = function.find("return [true];").expect("the mark's return");
+        for read in ["this.value", "innerText", "textContent"] {
+            assert!(
+                function.find(read).is_some_and(|at| at > mark),
+                "{read} is read after the mark's return"
+            );
+        }
+        assert!(!CREDENTIAL_FN.contains("this.value") && !CREDENTIAL_FN.contains("innerText"));
     }
 }
 
@@ -1791,14 +2174,77 @@ const CONTENT_CORNER_FN: &str = "function () {
   return [r.left + this.clientLeft + parseFloat(s.paddingLeft), r.top + this.clientTop + parseFloat(s.paddingTop)];
 }";
 
-const CREDENTIAL_FN: &str = "function () {
-  const type = (this.getAttribute('type') || '').toLowerCase();
-  const auto = (this.getAttribute('autocomplete') || '').toLowerCase().split(/\\s+/);
-  const secret = ['current-password', 'new-password', 'one-time-code'].some((t) => auto.includes(t));
-  const input = this.tagName === 'INPUT' && (type === 'password' || secret);
-  const captcha = this.parentElement !== null && this.parentElement.closest('[data-halvo-captcha]') !== null;
-  return input || captcha;
+/// The rule of a credential field (A8.2), called on a node with the accessible name that the
+/// page's tree gives it, where the caller has one: the kind of its sign, `challenge` for a place
+/// inside an element with `data-halvo-captcha`, `code` for an `autocomplete` that holds
+/// `one-time-code`, `secret` for an input of the type `password`, an `autocomplete` that holds
+/// `current-password`, `new-password` or `cc-csc`, or, on a field alone (an input that takes text,
+/// a textarea, a select, an element editable by its own attribute; never a link or a button), a
+/// `name` attribute or a name of the field (the given accessible name, which the page's tree makes
+/// from its labels and `aria-labelledby` too, `aria-label`, `title`, `placeholder`) that holds
+/// `password`, `passwd`, `pwd` or `passcode` in lower case; the empty text for no sign. An element
+/// is known by the browser's own interface, never by its tag name, and an input's type and
+/// `autocomplete` are read from its own properties beside its attributes; an element that the
+/// world in which the call runs does not know as one of its own (made in another document's world
+/// and moved in) reads `secret`: fail closed (the coordinator's ruling of log line 14188). A control that showed a
+/// sign keeps it on its node for the life of the node, in the script world in which the call runs,
+/// so that a toggle that sets `type` to `text` does not unmark it. It reads no value and no text of
+/// the control itself.
+const CREDENTIAL_FN: &str = "function (named) {
+  if (typeof this.__halvoSign === 'string') return this.__halvoSign;
+  if (typeof this.getAttribute !== 'function') return '';
+  if (!(this instanceof Element)) return 'secret';
+  const attr = (n) => this.getAttribute(n) || '';
+  const input = this instanceof HTMLInputElement;
+  const type = input ? [String(this.type), attr('type')].map((t) => t.toLowerCase()) : [];
+  const auto = [input ? String(this.autocomplete || '') : '', attr('autocomplete')].join(' ').toLowerCase().split(/\\s+/);
+  const says = (t) => ['password', 'passwd', 'pwd', 'passcode'].some((w) => String(t).toLowerCase().includes(w));
+  const names = [typeof named === 'string' ? named : '', attr('aria-label'), attr('title'), attr('placeholder')];
+  const own = this.getAttribute('contenteditable');
+  const field = (input && !type.some((t) => ['button', 'submit', 'reset', 'image', 'checkbox', 'radio', 'hidden', 'file', 'range', 'color'].includes(t)))
+    || this instanceof HTMLTextAreaElement || this instanceof HTMLSelectElement
+    || (own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase()));
+  let sign = '';
+  if (this.parentElement !== null && this.parentElement.closest('[data-halvo-captcha]') !== null) sign = 'challenge';
+  else if (auto.includes('one-time-code')) sign = 'code';
+  else if ((input && type.includes('password'))
+    || ['current-password', 'new-password', 'cc-csc'].some((t) => auto.includes(t))
+    || (field && (says(attr('name')) || names.some(says)))) sign = 'secret';
+  if (sign !== '') this.__halvoSign = sign;
+  return sign;
 }";
+
+/// The sweep of the reading in one document (the coordinator's ruling of log line 14127 (F)):
+/// `CREDENTIAL_FN` on every input, textarea, select and element editable by its own attribute of
+/// the document, each found by what the browser says it is and whatever its role in the page's
+/// tree, and `secret` for an element that the world does not know as one of its own; an element that
+/// the browser itself says is not shown (`checkVisibility`, also for `visibility: hidden`) counts for
+/// nothing (the coordinator's ruling of log line 14244); the strongest sign, or the empty text. It
+/// enters no frame and no shadow root.
+fn sweep_fn() -> String {
+    format!(
+        "(() => {{
+  const sign = {CREDENTIAL_FN};
+  const rank = {{ '': 0, secret: 1, code: 2, challenge: 3 }};
+  let best = '';
+  for (const el of document.querySelectorAll('*')) {{
+    if (typeof el.checkVisibility === 'function'
+      && !el.checkVisibility({{ checkVisibilityCSS: true, visibilityProperty: true }})) continue;
+    if (!(el instanceof Element)) {{
+      if (rank.secret > rank[best]) best = 'secret';
+      continue;
+    }}
+    const own = el.getAttribute('contenteditable');
+    const field = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement
+      || (own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase()));
+    if (!field) continue;
+    const found = sign.call(el, '');
+    if ((rank[found] || 0) > rank[best]) best = found;
+  }}
+  return best;
+}})()"
+    )
+}
 
 const SELECT_FN: &str = "function (label) {
   const option = Array.from(this.options || []).find((o) => o.text.trim() === label);
@@ -1810,9 +2256,13 @@ const SELECT_FN: &str = "function (label) {
 }";
 
 const READ_FN: &str = "function () {
-  if (this.tagName === 'INPUT' || this.tagName === 'SELECT' || this.tagName === 'TEXTAREA') return String(this.value);
+  if (this instanceof HTMLInputElement || this instanceof HTMLSelectElement || this instanceof HTMLTextAreaElement) return String(this.value);
   return String(this.innerText || this.textContent || '');
 }";
+
+/// The storage types of `Executor::clear_stores`: every type that the protocol names but the
+/// cookies.
+const KEPT_FOR_LATER: &str = "file_systems,indexeddb,local_storage,shader_cache,service_workers,cache_storage,interest_groups,shared_storage,storage_buckets";
 
 pub const RECORD_BINDING: &str = "halvoRecord";
 
