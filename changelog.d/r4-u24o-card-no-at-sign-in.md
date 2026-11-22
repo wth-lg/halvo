@@ -1,0 +1,1 @@
+- Changed: An agent's card says "You said no, so it stopped." for a run in which the person did not allow a site at the sign-in question, where it said only "It stopped before the task was done."
