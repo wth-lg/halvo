@@ -1713,10 +1713,11 @@ mod tests {
     /// a step on the top document is, and so is a condition on such a target: the extract of the amount with a
     /// condition `present` on it, the select of the payment method, and a click in a frame inside the frame. The page
     /// is read first, as before each act, and the extract keeps its amount. A step of an effect class whose target
-    /// names a frame, whose amount is the value read in the frame, or whose condition's arg is a text read in the
-    /// frame, and a `fill`, a `press` and an `upload` whose target names a frame, each answer `step_failed`, and the
-    /// stand-in page sees no read and no act of them (the coordinator's words on this unit: no effect in a frame is
-    /// built, no effect step takes anything read in a frame, and no text, key or file goes into a frame).
+    /// names a frame, whose amount is the value read in the frame, whose condition's target names the frame, or whose
+    /// condition's arg is a text read in the frame, and a `fill`, a `press` and an `upload` whose target names a
+    /// frame, each answer `step_failed`, and the stand-in page sees no read and no act of them (the coordinator's words
+    /// on this unit: no effect in a frame is built, no web step of an effect class takes anything read in a frame, and
+    /// no text, key or file goes into a frame).
     #[test]
     fn a_step_acts_on_a_target_inside_the_frame_that_its_step_names() {
         let amount = framed(r#"{"by":"test_id","value":"amount","name":null}"#, &[PAY]);
@@ -1842,6 +1843,10 @@ mod tests {
             framed(pay_now, &[]),
             framed(r#"{"by":"test_id","value":"payee","name":null}"#, &[])
         );
+        let judged_in_the_frame = format!(
+            r#"{{"v":1,"n":4,"kind":"web","verb":"click","target":{},"args":[{{"name":"payee","from":"const","value":"p","key":null}},{{"name":"amount","from":"const","value":"12.34","key":null}},{{"name":"instrument","from":"const","value":"i","key":null}},{{"name":"origin","from":"const","value":"{PAY}","key":null}}],"pre":[{{"check":"present","target":{payee},"arg":null}}],"post":[],"effect":"request","class":"payment"}}"#,
+            framed(pay_now, &[])
+        );
         let typed = |verb: &str, arg: &str| {
             format!(
                 r#"{{"v":1,"n":5,"kind":"web","verb":"{verb}","target":{},"args":[{arg}],"pre":[],"post":[],"effect":"none","class":"prepare"}}"#,
@@ -1864,6 +1869,7 @@ mod tests {
             &in_the_frame,
             &read_in_the_frame,
             &judged_by_the_frame,
+            &judged_in_the_frame,
             &fill,
             &press,
             &upload,
