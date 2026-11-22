@@ -6,7 +6,11 @@
 //! without an `approved` row, whatever the policy clears. After `allow_once` the request leaves once; after
 //! `reject_once`, and at every other end of the confirm path, the held request is failed and nothing leaves. Where
 //! the act holds no request, or more than one, every held request is failed, no card is shown and the step answers
-//! `step_failed`. When the confirm path has ended the rule is armed in `Mode::Fail` again.
+//! `step_failed`. When the confirm path has ended the rule is armed in `Mode::Fail` again. The values of the page that
+//! the card shows (a field from an extract) the maker reads once, right before the act, while the page is idle: the
+//! executor's read of a control fails while the page's navigation is held, so the maker reads no value of the page
+//! while its request is held, and a change of the page after the act is not seen before the `begin`; the slots of its
+//! class it reads again at each load.
 //!
 //! What the maker reads as made: the HTTP status of the response of the request that left, as the rule paused it,
 //! 200 alone; every other status is answered, and no response within `STEP_TIMEOUT` is no reply, both of which leave
@@ -58,11 +62,13 @@ pub(crate) fn amounts_named(text: &str) -> Vec<u64> {
 }
 
 /// Where a bound field of the step comes from: the const of its arg, the slot that its arg names, or the value that
-/// an earlier `extract` kept, read again with that extract's target and parse.
+/// an earlier `extract` kept, read again with that extract's target and parse right before the act (`Read`, with the
+/// origin of the page).
 enum From {
     Const(String),
     Slot(String),
     Extract { target: WebTarget, parse: String },
+    Read { value: String, origin: WebOrigin },
 }
 
 /// The one held request of a web step of an effect class, paused: dropped before it is let through, it is failed.
@@ -78,34 +84,32 @@ struct Held {
     left: bool,
 }
 
-impl Held {
-    /// The value of an extract read again on the page with its target, as its parse keeps it (the text, or the
-    /// amount in the form `<units>.<two decimals>`), and the origin of the page that holds it.
-    fn read_again(&self, target: &WebTarget, parse: &str) -> Result<(String, WebOrigin), Cause> {
-        let failed = |part: &str| {
-            crate::line(&format!("run effect=failed at=read_again part={part}"));
-            Cause::StepFailed
-        };
-        let mut guard = lock(&self.web);
-        let web = guard.as_mut().ok_or_else(|| failed("browser"))?;
-        let text = web
-            .0
-            .carry_out(&[], &Act::Extract(target), &[])
-            .ok()
-            .flatten()
-            .ok_or_else(|| failed("extract"))?;
-        let value = match parse {
-            "text" => text,
-            "amount" => {
-                let minor = halvo_web::extract_amount(&text).ok_or_else(|| failed("amount"))?;
-                format!("{}.{:02}", minor / 100, minor % 100)
-            }
-            _ => return Err(failed("parse")),
-        };
-        let address = web.0.address().map_err(|()| failed("address"))?;
-        let origin = WebOrigin::of_address(&address).map_err(|_| failed("origin"))?;
-        Ok((value, origin))
-    }
+/// The value of an extract read again on the page with its target, as its parse keeps it (the text, or the amount in
+/// the form `<units>.<two decimals>`), and the origin of the page that holds it; one line on standard error that names
+/// the part that failed. The maker reads it right before the act, while the page is idle: the executor's read of a
+/// control fails while the page's navigation is held (the hosted macos job of run 45025948760).
+fn read_again(web: &mut Web, target: &WebTarget, parse: &str) -> Result<(String, WebOrigin), ()> {
+    let failed = |part: &str| crate::line(&format!("run effect=failed at=read_again part={part}"));
+    let text = web
+        .0
+        .carry_out(&[], &Act::Extract(target), &[])
+        .ok()
+        .flatten()
+        .ok_or_else(|| failed("extract"))?;
+    let value = match parse {
+        "text" => text,
+        "amount" => {
+            let minor = halvo_web::extract_amount(&text).ok_or_else(|| failed("amount"))?;
+            format!("{}.{:02}", minor / 100, minor % 100)
+        }
+        _ => {
+            failed("parse");
+            return Err(());
+        }
+    };
+    let address = web.0.address().map_err(|()| failed("address"))?;
+    let origin = WebOrigin::of_address(&address).map_err(|_| failed("origin"))?;
+    Ok((value, origin))
 }
 
 impl Paused for Held {
@@ -114,8 +118,9 @@ impl Paused for Held {
     }
 
     /// Each field from its source: a const as the step holds it, a slot from `slots`, the slots of the class in the
-    /// newest load (`changed` where one is gone), and an extract read again on the page while the request is held,
-    /// with the origin of the page.
+    /// newest load (`changed` where one is gone), and the value of an extract as the maker read it again on the page
+    /// right before the act, with the origin of the page. While the request is held the maker reads no value of the
+    /// page.
     fn bound(&mut self, slots: &[Slot]) -> Result<Bound, Cause> {
         let mut fields = Vec::with_capacity(self.fields.len());
         let mut seen = Vec::new();
@@ -131,10 +136,10 @@ impl Paused for Held {
                     seen.push((key.clone(), value.clone()));
                     (Source::Slot, None, value)
                 }
-                From::Extract { target, parse } => {
-                    let (value, origin) = self.read_again(target, parse)?;
-                    (Source::Extract, Some(origin), value)
+                From::Read { value, origin } => {
+                    (Source::Extract, Some(origin.clone()), value.clone())
                 }
+                From::Extract { .. } => return Err(Cause::StepFailed),
             };
             fields.push(BoundField {
                 name: *name,
@@ -335,6 +340,17 @@ impl Runner {
         read?;
         let origins = self.run_origins(loaded);
         let web = self.web.as_mut().ok_or_else(failed)?;
+        let mut fields = Vec::with_capacity(sources.len());
+        for (name, from) in sources {
+            fields.push(match from {
+                From::Extract { target, parse } => {
+                    let (value, origin) =
+                        read_again(web, &target, &parse).map_err(|()| failed())?;
+                    (name, From::Read { value, origin })
+                }
+                other => (name, other),
+            });
+        }
         if web.0.arm_hold(&origins).is_err() {
             let _ = web.0.arm(&origins);
             return Err(failed());
@@ -374,7 +390,7 @@ impl Runner {
             origin,
             class,
             step: step.n,
-            fields: sources,
+            fields,
             seen: Vec::new(),
             left: false,
         };
