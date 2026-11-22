@@ -1025,4 +1025,108 @@ mod tests {
             }
         }
     }
+
+    /// Starts the screen source of the service set once, on the computer that
+    /// runs the test.
+    #[cfg(windows)]
+    #[test]
+    fn the_status_of_a_windows_run_reads_the_screen_running_only_while_it_runs() {
+        use halvo_control::model::{StorageCap, UtcSecond};
+        use halvo_control::proto::SourceName;
+
+        use crate::daemon::sources::{starting, RunKind, RunningSources};
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::source::{SourceContext, Started};
+        use crate::windows::sources::ServiceSet;
+
+        let _serial = crate::windows::tests::serial();
+        let switches = |on| {
+            let mut switches = Switches::default();
+            switches.set(Switch::ScreenActivity, on);
+            switches
+        };
+        let asked = |on| {
+            starting(Platform::Windows, RunKind::Service, switches(on))
+                .into_iter()
+                .filter(|name| *name == SourceName::Screen)
+                .collect::<Vec<_>>()
+        };
+        let (sink, _writer) = crate::sink::channel(64);
+        let ctx = |on| {
+            SourceContext::with_floor(
+                sink.clone(),
+                FloorHandle::new(None, Arc::new(NoLineage), switches(on)),
+            )
+        };
+        let line = |sources: &RunningSources, on| {
+            let mut board = Board::new(Platform::Windows);
+            for (name, state, unstopped) in sources.states() {
+                board.set_source(name, state, unstopped);
+            }
+            board.enabled = asked(on);
+            board.capture = board.capture_of(&asked(on));
+            let parts = StatusParts {
+                board,
+                desired: Desired::Running,
+                lease: proto::Lease::Fresh,
+                slot: Slot::Opening,
+                obstructed: None,
+                health: StateHealth::Ok,
+                cap: StateCap::Known(StorageCap::DEFAULT),
+                switches: switches(on),
+                once_granted: Vec::new(),
+                asked: Vec::new(),
+                input_keys: false,
+                held: false,
+            };
+            let facts = RunFacts {
+                started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+                parent: proto::Parent::None,
+                last_stop: proto::LastStop::None,
+                rss_peak_bytes: 0,
+            };
+            let status = status_of(&parts, &facts).unwrap();
+            halvo_control::ctl_text::status_text(&status)
+                .lines()
+                .find(|line| line.starts_with("source name=screen "))
+                .unwrap_or_default()
+                .to_string()
+        };
+        let mut set = ServiceSet::new();
+        let mut sources = RunningSources::new(Platform::Windows);
+        let mut lines = Vec::new();
+        let off = sources.start(&mut set, &ctx(false), &asked(false));
+        sources.read_health();
+        lines.push(line(&sources, false));
+        let first = sources.start(&mut set, &ctx(true), &asked(true));
+        sources.read_health();
+        lines.push(line(&sources, true));
+        let first_stop = sources.stop_one(SourceName::Screen);
+        lines.push(line(&sources, true));
+        let second = sources.start(&mut set, &ctx(true), &asked(true));
+        lines.push(line(&sources, true));
+        sources.read_health();
+        lines.push(line(&sources, true));
+        let second_stop = sources.stop_one(SourceName::Screen);
+        lines.push(line(&sources, true));
+        assert!(off.is_empty(), "{off:?}");
+        assert_eq!(first, [(SourceName::Screen, Ok(Started::Running))]);
+        assert_eq!(first_stop, Some(Ok(())));
+        assert_eq!(second, [(SourceName::Screen, Ok(Started::Off))]);
+        assert_eq!(second_stop, Some(Ok(())));
+        let state = |word: &str| format!("source name=screen state={word}");
+        assert_eq!(
+            lines,
+            [
+                state("off"),
+                state("running"),
+                state("stopped"),
+                state("off"),
+                state("stopped"),
+                state("stopped"),
+            ],
+            "the screen line with the switch off, while the source runs, behind its stop, \
+             at the start behind it, at the health read behind that start, behind the second stop"
+        );
+    }
 }
