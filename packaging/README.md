@@ -118,6 +118,11 @@ daemon with no consent, and starts the copy's `halvo` with `--background` and
 `--data-dir` on it. It requires exactly one `halvo-capture` of the copy with that
 app as its parent, a status that reads the store open, a `ctl stop` that exits 0
 with no second child after it, and no process of the copy after the app's end.
+The app counts the daemon as its own child only after one of its polls, which
+come every `POLL_MS` of `crates/halvo-control/src/lib.rs`, has read the daemon's
+pid, and it starts a child again after the end of a daemon that it does not count
+as its own; so the check sends `ctl stop` two poll periods and one second after
+the daemon's first answer.
 It ends only the app that it started, by its pid.
 
 ## Not yet here

@@ -1,11 +1,12 @@
 #!/bin/sh
 # jobs: macos
-# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin or signingIdentity, makes Halvo.app under release/bundle/macos of the target directory with Contents/Info.plist, whose CFBundleIdentifier is the identifier of src-tauri/tauri.conf.json and whose CFBundleShortVersionString and CFBundleVersion are what 61-version.sh --print prints, with halvo and each helper that packaging/helpers.d names as an executable file in Contents/MacOS and no other entry there, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, no import of the call that holds secure input, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started); the same build leaves exactly one disk image in release/bundle/dmg, newer than the start of the build, which the check attaches read-only and unbrowsed under its scratch directory, copies Halvo.app out of with ditto and detaches, also when it fails; the copy's Info.plist names as LSMinimumSystemVersion the bundle.macOS.minimumSystemVersion of src-tauri/tauri.macos.conf.json, whose major is the MACOS_FLOOR_MAJOR of crates/halvo-control/src/onboarding.rs; codesign --verify --deep --strict passes on the copy and codesign -dv names Signature=adhoc and a bound Info.plist; the copy's halvo, started with --background on a scratch data directory that holds a state file, has within 60 s exactly one process whose path, as ps names it, is the copy's halvo-capture, with that app as its parent, whose status by the copy's ctl reads its pid and store=open, which ctl stop ends with exit 0, after which no halvo-capture of the copy runs for 5 s, and within 60 s of the app's end, by TERM from the check, which ends nothing else, no process whose path lies in the copy runs.
+# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin or signingIdentity, makes Halvo.app under release/bundle/macos of the target directory with Contents/Info.plist, whose CFBundleIdentifier is the identifier of src-tauri/tauri.conf.json and whose CFBundleShortVersionString and CFBundleVersion are what 61-version.sh --print prints, with halvo and each helper that packaging/helpers.d names as an executable file in Contents/MacOS and no other entry there, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, no import of the call that holds secure input, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started); the same build leaves exactly one disk image in release/bundle/dmg, newer than the start of the build, which the check attaches read-only and unbrowsed under its scratch directory, copies Halvo.app out of with ditto and detaches, also when it fails; the copy's Info.plist names as LSMinimumSystemVersion the bundle.macOS.minimumSystemVersion of src-tauri/tauri.macos.conf.json, whose major is the MACOS_FLOOR_MAJOR of crates/halvo-control/src/onboarding.rs; codesign --verify --deep --strict passes on the copy and codesign -dv names Signature=adhoc and a bound Info.plist; the copy's halvo, started with --background on a scratch data directory that holds a state file, has within 60 s exactly one process whose path, as ps names it, is the copy's halvo-capture, with that app as its parent, whose status by the copy's ctl reads its pid and store=open, which ctl stop, sent two of the app's poll periods (POLL_MS of crates/halvo-control/src/lib.rs) and one second after that status, ends with exit 0, after which no halvo-capture of the copy runs for 5 s, and within 60 s of the app's end, by TERM from the check, which ends nothing else, no process whose path lies in the copy runs.
 set -u
 name=70-package-macos
 config_keys='externalBin signingIdentity'
 macos_config=src-tauri/tauri.macos.conf.json
 floor_source=crates/halvo-control/src/onboarding.rs
+poll_source=crates/halvo-control/src/lib.rs
 wait_s=60
 settle_s=5
 
@@ -227,8 +228,8 @@ cleanup() {
 
 # The copy out of the image runs: its halvo, started hidden on a data directory that holds a
 # state file, starts exactly one halvo-capture of the copy, whose status reads the store open; ctl
-# stop ends it with exit 0, no second child starts, and after the app's end by TERM no process of
-# the copy is left.
+# stop, once the app has polled the daemon as its own child, ends it with exit 0, no second child
+# starts, and after the app's end by TERM no process of the copy is left.
 run_copy() {
   copy=$1 data_dir=$2
   mkdir -m 700 "$data_dir" || fail "mkdir could not make the data directory"
@@ -249,6 +250,16 @@ run_copy() {
   printf 'daemon: pid %s, the app %s its parent, %s s after the start\n' "$daemon_pid" "$app_pid" "$spent"
   until_ok "$wait_s" store_open "$copy" "$data_dir" "$daemon_pid" || fail "$answer $spent s after the daemon's start"
   printf 'status: pid=%s store=open, %s s after the daemon was found\n' "$daemon_pid" "$spent"
+  # The app counts the daemon as its own child only once one of its own polls, which come every
+  # POLL_MS of crates/halvo-control/src/lib.rs, has read the daemon's pid; a stop before that
+  # poll reads as the end of another starter's daemon, after which the app starts a child again
+  # (contracts.md C14 item 4). The app prints no sign of that poll, so the stop waits two of its
+  # poll periods and one second after the daemon's first answer. The lease line shows fresh once
+  # the app's poll has claimed the indicator, which it does when its tray item stands.
+  sleep "$own_wait_s"
+  text=$("$copy/Contents/MacOS/halvo-capture" ctl --data-dir "$data_dir" status 2>&1) || fail "ctl status failed after the wait for the app's poll"
+  lease=$(printf '%s\n' "$text" | grep -m 1 '^lease=') || lease='no lease line'
+  printf 'own child: ctl stop after %s s, two polls of the app of %s ms and 1 s; the status reads %s\n' "$own_wait_s" "$poll_ms" "$lease"
   "$copy/Contents/MacOS/halvo-capture" ctl --data-dir "$data_dir" stop >"$CI_D_ARTIFACTS/stop.txt" 2>&1
   code=$?
   [ "$code" -eq 0 ] || fail "ctl stop exited $code; see stop.txt"
@@ -306,6 +317,9 @@ measure() {
   floor=$(plutil -extract bundle.macOS.minimumSystemVersion raw -o - "$macos_config") || fail "plutil could not read the bundle.macOS.minimumSystemVersion of $macos_config"
   floor_major=$(sed -n 's/^pub const MACOS_FLOOR_MAJOR: u32 = \([0-9][0-9]*\);$/\1/p' "$floor_source")
   [ -n "$floor_major" ] || fail "$floor_source holds no line pub const MACOS_FLOOR_MAJOR: u32 = <number>;"
+  poll_ms=$(sed -n 's/^pub const POLL_MS: u64 = \([0-9_]*\);$/\1/p' "$poll_source" | tr -d _)
+  [ -n "$poll_ms" ] || fail "$poll_source holds no line pub const POLL_MS: u64 = <number>;"
+  own_wait_s=$(((2 * poll_ms + 999) / 1000 + 1))
   image=$(image_of "$bundle_dir/dmg" "$work/build-started") || fail "$image"
   bytes=$(wc -c <"$image" | tr -d ' ')
   printf 'disk image: %s, bytes: %s\n' "${image##*/}" "$bytes"
