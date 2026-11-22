@@ -1498,6 +1498,13 @@ impl Executor {
         Ok(Ok(frame))
     }
 
+    /// The frame that `origins` name, from the top document inward (`walk_origins`, on the
+    /// executor's own reads of the page).
+    async fn frame_by_origins(&self, origins: &[&str]) -> Res<Result<FrameId, Resolved>> {
+        let top = self.main_frame().await?;
+        walk_origins(self, top, origins).await
+    }
+
     async fn by_test_id(&self, frame: &FrameId, id: &str) -> Res<Vec<BackendNodeId>> {
         let place = self.place_of(frame);
         let ctx = self.world(frame).await?;
@@ -1554,6 +1561,34 @@ impl Executor {
             Ok(frame) => frame,
             Err(unresolved) => return Ok(unresolved),
         };
+        self.resolve_at(&frame, locators).await
+    }
+
+    /// `resolve` in the document of the frame that the frame origins `origins` name, from the top
+    /// document inward (`frame_by_origins`), with no origin in the top document; refused with the
+    /// cause `resolve` and `frame` where they do not name one frame, so that no read of a condition
+    /// takes a frame that the page does not hold once for one that holds no control.
+    pub async fn resolve_in(&mut self, locators: &[Locator], origins: &[&str]) -> Res<Resolved> {
+        let frame = match self.frame_by_origins(origins).await? {
+            Ok(frame) => frame,
+            Err(_) => return Err(Fault::new("resolve", "frame")),
+        };
+        self.resolve_at(&frame, locators).await
+    }
+
+    /// `resolve_in` that gives the one ref, and the cause `resolve` with `none` or `many` otherwise.
+    pub async fn resolve_one_in(&mut self, locators: &[Locator], origins: &[&str]) -> Res<String> {
+        match self.resolve_in(locators, origins).await? {
+            Resolved::One { reference, .. } => Ok(reference),
+            Resolved::None => Err(Fault::new("resolve", "none")),
+            Resolved::Many { .. } => Err(Fault::new("resolve", "many")),
+        }
+    }
+
+    /// The ordered locators tried in the document of `frame`, the first that finds any node giving
+    /// the answer.
+    async fn resolve_at(&mut self, frame: &FrameId, locators: &[Locator]) -> Res<Resolved> {
+        let frame = frame.clone();
         let place = self.place_of(&frame);
         for (i, locator) in locators.iter().enumerate() {
             let found = match locator {
@@ -2081,6 +2116,76 @@ fn typed_into_of(reply: &serde_json::Value) -> Option<bool> {
     Some(*kind && !credential)
 }
 
+/// The two reads of the page that the walk by frame origins takes (`walk_origins`): the child
+/// frames of a frame, each with the origin of the document that it holds now, as the browser
+/// writes an origin, and whether a frame's document is loaded. The executor reads them from the
+/// browser; a unit test gives a stand-in.
+trait FrameReads {
+    async fn children(&self, frame: &FrameId) -> Res<Vec<(FrameId, String)>>;
+    async fn loaded(&self, frame: &FrameId) -> bool;
+}
+
+/// The frame that `origins` name, from the frame `top` inward (the coordinator's ruling of log
+/// line 15706, point 1): for each origin, the one child frame of the frame reached so far whose
+/// document has that origin; `Resolved::None` where no child frame has it or where its document is
+/// not loaded, and `Resolved::Many` where more than one has it, so that a step acts on nothing
+/// there. With no origin, `top`. A frame inside the last one that `origins` name is not entered.
+async fn walk_origins<R: FrameReads>(
+    reads: &R,
+    top: FrameId,
+    origins: &[&str],
+) -> Res<Result<FrameId, Resolved>> {
+    let mut frame = top;
+    for (i, origin) in origins.iter().enumerate() {
+        let mut found: Vec<FrameId> = reads
+            .children(&frame)
+            .await?
+            .into_iter()
+            .filter(|(_, of)| of == origin)
+            .map(|(child, _)| child)
+            .collect();
+        frame = match found.len() {
+            0 => return Ok(Err(Resolved::None)),
+            1 => found.remove(0),
+            _ => return Ok(Err(Resolved::Many { locator: i })),
+        };
+        if !reads.loaded(&frame).await {
+            return Ok(Err(Resolved::None));
+        }
+    }
+    Ok(Ok(frame))
+}
+
+impl FrameReads for Executor {
+    /// Each frame that the accessibility tree of the document of `frame` holds as a frame, the
+    /// owners that `frame_by_path` reads, entered as `snapshot_frame` enters one
+    /// (`child_frame_of`, `enter_frame`), with the origin of its document (`frame_origin`), read in
+    /// the frame's own session where it runs in a process of its own.
+    async fn children(&self, frame: &FrameId) -> Res<Vec<(FrameId, String)>> {
+        let place = self.place_of(frame);
+        let owners: Vec<BackendNodeId> = self
+            .ax_tree(frame)
+            .await?
+            .iter()
+            .filter(|n| !n.ignored)
+            .filter(|n| map_role(&ax_text(&n.role)) == Some("frame"))
+            .filter_map(|n| n.backend_dom_node_id)
+            .collect();
+        let mut children = Vec::with_capacity(owners.len());
+        for owner in owners {
+            let child = self.child_frame_of(&place, &owner).await?;
+            self.enter_frame(&child, &place, owner);
+            let origin = self.frame_origin(&child).await?;
+            children.push((child, origin));
+        }
+        Ok(children)
+    }
+
+    async fn loaded(&self, frame: &FrameId) -> bool {
+        self.ready(frame).await
+    }
+}
+
 impl Executor {
     /// The control of the ref, read fresh in one call on its node in the executor's own world
     /// (`control_fn`): a credential field gives its mark alone, so that no text and no value of it
@@ -2100,6 +2205,23 @@ impl Executor {
             Ok(frame) => frame,
             Err(_) => return Err(Fault::new("resolve", "frame")),
         };
+        self.count_at(&frame, locators).await
+    }
+
+    /// `count` in the document of the frame that the frame origins `origins` name, from the top
+    /// document inward (`frame_by_origins`); the cause `resolve` with `frame` where they do not name
+    /// one frame.
+    pub async fn count_in(&mut self, locators: &[Locator], origins: &[&str]) -> Res<usize> {
+        let frame = match self.frame_by_origins(origins).await? {
+            Ok(frame) => frame,
+            Err(_) => return Err(Fault::new("resolve", "frame")),
+        };
+        self.count_at(&frame, locators).await
+    }
+
+    /// How many nodes the first of `locators` to find any finds in the document of `frame`.
+    async fn count_at(&self, frame: &FrameId, locators: &[Locator]) -> Res<usize> {
+        let frame = frame.clone();
         for locator in locators {
             let found = match locator {
                 Locator::TestId(id) => self.by_test_id(&frame, id).await?,
@@ -3191,5 +3313,81 @@ pub(crate) mod tests {
             !mark.owns(&member, &|_| Some(read.clone())),
             "the form of make_dirs bears the given form's mark"
         );
+    }
+
+    /// The stand-in of the page's frames for `walk_origins`: each child frame with the frame that
+    /// holds it, its own id and the origin of its document, and the frames whose document is not
+    /// loaded.
+    struct Frames {
+        children: &'static [(&'static str, &'static str, &'static str)],
+        unloaded: &'static [&'static str],
+    }
+
+    impl FrameReads for Frames {
+        async fn children(&self, frame: &FrameId) -> Res<Vec<(FrameId, String)>> {
+            Ok(self
+                .children
+                .iter()
+                .filter(|(parent, _, _)| frame.inner() == parent)
+                .map(|(_, child, origin)| (FrameId::new(*child), origin.to_string()))
+                .collect())
+        }
+
+        async fn loaded(&self, frame: &FrameId) -> bool {
+            !self.unloaded.contains(&frame.inner().as_str())
+        }
+    }
+
+    /// The walk of `origins` on `page` from its top frame `top`.
+    async fn walk(page: &Frames, origins: &[&str]) -> Result<FrameId, Resolved> {
+        walk_origins(page, FrameId::new("top"), origins)
+            .await
+            .expect("the stand-in's reads")
+    }
+
+    /// U5.10-F (the coordinator's ruling of log line 15706, point 1): the walk finds the frame that a
+    /// step's frame origins name, from the top document inward; where the page does not hold a frame
+    /// of an origin once, none or two at any level, or holds it with no loaded document, it names no
+    /// frame, and `resolve_in` refuses with the cause `resolve` so that the step fails before any
+    /// act. A frame inside a frame is reached only by the origins of both.
+    #[tokio::test]
+    async fn a_frame_that_the_step_names_and_that_the_page_does_not_hold_once_fails_the_step() {
+        const PAY: &str = "http://127.0.0.1:8081";
+        const INNER: &str = "http://127.0.0.1:8082";
+        const AD: &str = "http://127.0.0.1:8083";
+        const EVIL: &str = "http://127.0.0.1:8084";
+        let page = Frames {
+            children: &[("top", "f1", PAY), ("top", "f2", AD), ("f1", "f3", INNER)],
+            unloaded: &[],
+        };
+        let frame = |id: &str| Ok(FrameId::new(id));
+        assert_eq!(walk(&page, &[]).await, frame("top"));
+        assert_eq!(walk(&page, &[PAY]).await, frame("f1"));
+        assert_eq!(walk(&page, &[PAY, INNER]).await, frame("f3"));
+        assert_eq!(walk(&page, &[EVIL]).await, Err(Resolved::None));
+        assert_eq!(walk(&page, &[INNER]).await, Err(Resolved::None));
+        assert_eq!(walk(&page, &[PAY, AD]).await, Err(Resolved::None));
+
+        let twice = Frames {
+            children: &[("top", "f1", PAY), ("top", "f4", PAY)],
+            unloaded: &[],
+        };
+        assert_eq!(
+            walk(&twice, &[PAY]).await,
+            Err(Resolved::Many { locator: 0 })
+        );
+        let twice_inside = Frames {
+            children: &[("top", "f1", PAY), ("f1", "f3", INNER), ("f1", "f5", INNER)],
+            unloaded: &[],
+        };
+        assert_eq!(
+            walk(&twice_inside, &[PAY, INNER]).await,
+            Err(Resolved::Many { locator: 1 })
+        );
+        let unloaded = Frames {
+            children: &[("top", "f1", PAY)],
+            unloaded: &["f1"],
+        };
+        assert_eq!(walk(&unloaded, &[PAY]).await, Err(Resolved::None));
     }
 }

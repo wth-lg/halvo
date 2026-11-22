@@ -215,14 +215,21 @@ fn locator(locator: &Locator) -> Option<cdp::Locator> {
     }
 }
 
-/// The executor's locators of a target of the top document; refused for a target inside a frame and for a target
+/// The executor's locators of a target, of the top document or inside a frame (`frame_origins`); refused for a target
 /// with no locator that the executor takes.
 fn locators(target: &WebTarget) -> Result<Vec<cdp::Locator>, Fault> {
     let locators: Vec<cdp::Locator> = target.locators.iter().filter_map(locator).collect();
-    if locators.is_empty() || !target.frame.is_empty() {
-        return Err(Fault::new("target", "no locator of the top document"));
+    if locators.is_empty() {
+        return Err(Fault::new("target", "no locator that the executor takes"));
     }
     Ok(locators)
+}
+
+/// The origins of the frames that hold the target, from the top document inward, each as the browser writes an
+/// origin (`rule_origin`), by which the executor finds the frame (the coordinator's ruling of log line 15706, point
+/// 1); none for a target of the top document.
+fn frame_origins(target: &WebTarget) -> Vec<String> {
+    target.frame.iter().map(rule_origin).collect()
 }
 
 /// Whether this build lets a web step act: its class, as halvo-policy's `class_of` gives it from the step's own
@@ -267,8 +274,8 @@ pub(crate) struct Control {
 }
 
 /// What the executor read, fresh, for one condition: the address of the top document for `url_is`; for every other
-/// check, how many controls of the top document the target's first locator to find any finds, and the one control
-/// where it finds one.
+/// check, how many controls of the target's document, the top one or that of the frame that its frame origins name,
+/// the target's first locator to find any finds, and the one control where it finds one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Read {
     Url(String),
@@ -337,8 +344,8 @@ impl Values<'_> {
         self.of(step.args.iter().find(|a| a.name.as_str() == name)?)
     }
 
-    /// Each condition with the text of its arg; none where an arg cannot be read or a target has no locator of the
-    /// top document that the executor takes.
+    /// Each condition with the text of its arg; none where an arg cannot be read or a target has no locator that the
+    /// executor takes.
     fn conditions<'s>(&self, conds: &'s [Cond]) -> Option<Vec<(&'s Cond, Option<String>)>> {
         conds
             .iter()
@@ -368,11 +375,19 @@ pub(crate) enum Act<'s> {
 }
 
 impl<'s> Act<'s> {
-    /// The act of `step`; none where its verb and target do not fit, its target has no locator of the top document
-    /// that the executor takes, or an arg cannot be read.
+    /// The act of `step`; none where its verb and target do not fit, its target has no locator that the executor
+    /// takes, or an arg cannot be read, and none for a `fill` or a `press` whose target names a frame (the
+    /// coordinator's ruling of log line 16133 on C2 of U5.10-F): the executor's check of the focus that a text or a
+    /// key reaches is shown in a frame by no run, so no text and no key goes into a frame, and the step answers
+    /// `step_failed` before the browser is asked anything for it.
     fn of(step: &'s ExecutableStep, values: &Values) -> Option<Act<'s>> {
         let target = match &step.target {
             Some(Target::Web(target)) if locators(target).is_err() => return None,
+            Some(Target::Web(target))
+                if !target.frame.is_empty() && matches!(step.verb, Verb::Fill | Verb::Press) =>
+            {
+                return None
+            }
             Some(Target::Web(target)) => Some(target),
             _ => None,
         };
@@ -414,10 +429,13 @@ impl<'s> Act<'s> {
     }
 }
 
-/// The ref of the one control of the top document that the target's first locator to find any finds; refused
-/// where the executor's fresh read marks it a credential field.
+/// The ref of the one control that the target's first locator to find any finds, in the top document or in the
+/// document of the frame that the target's frame origins name; refused where the executor's fresh read marks it a
+/// credential field, a read in the executor's own world of that document.
 async fn one_control(executor: &mut Executor, target: &WebTarget) -> cdp::Res<String> {
-    let reference = executor.resolve_one(&locators(target)?, &[]).await?;
+    let origins = frame_origins(target);
+    let frame: Vec<&str> = origins.iter().map(String::as_str).collect();
+    let reference = executor.resolve_one_in(&locators(target)?, &frame).await?;
     if executor.control(&reference).await?.credential {
         return Err(Fault::new("credential", "a credential field"));
     }
@@ -432,13 +450,15 @@ async fn read_for(executor: &mut Executor, cond: &Cond) -> cdp::Res<Read> {
         return Ok(Read::Url(executor.frame_url(&frame).await?));
     };
     let locators = locators(target)?;
-    match executor.resolve(&locators, &[]).await? {
+    let origins = frame_origins(target);
+    let frame: Vec<&str> = origins.iter().map(String::as_str).collect();
+    match executor.resolve_in(&locators, &frame).await? {
         Resolved::None => Ok(Read::Controls {
             count: 0,
             one: None,
         }),
         Resolved::Many { .. } => Ok(Read::Controls {
-            count: executor.count(&locators, &[]).await?,
+            count: executor.count_in(&locators, &frame).await?,
             one: None,
         }),
         Resolved::One { reference, .. } => {
@@ -920,12 +940,14 @@ impl Runner {
     /// ended in a bind; a step of the verb `handback` is done where the page shows no credential field or no browser
     /// runs; every other such step answers `step_failed`. Every other step that does not act (`acts`) answers
     /// `step_failed` before any browser starts, and so does one whose args or targets, or those of its conditions,
-    /// cannot be read or have no locator of the top document that the executor takes. The browser starts at the
-    /// first step that acts, and the runner reads the page before each act, which goes on only after a handback that
-    /// ended in a bind, or where the page shows no credential field. After an act that failed, with no failed request
-    /// of the page in the rule's record, it reads the page again, so that a field that turned into a credential field
-    /// at the act's own focus, which the executor refuses, opens a handback; after one that ended in a bind the step
-    /// is done.
+    /// cannot be read or have no locator that the executor takes. A target, of the step or of a condition, inside a
+    /// frame is found in the document of the frame that its frame origins name (`frame_origins`), and a step of an
+    /// effect class that reaches into a frame answers `step_failed` before any act (`reaches_a_frame`). The browser
+    /// starts at the first step that acts, and the runner reads the page before each act, which goes on only after a
+    /// handback that ended in a bind, or where the page shows no credential field. After an act that failed, with no
+    /// failed request of the page in the rule's record, it reads the page again, so that a field that turned into a
+    /// credential field at the act's own focus, which the executor refuses, opens a handback; after one that ended in
+    /// a bind the step is done.
     /// A condition of `pre` that does not hold acts on nothing; a control that the locators do not find, an act that
     /// fails and a condition of `post` that does not hold fail the step with `step_failed`. At the step's end a
     /// request of the run's page that the rule failed ends the run `refused` with the cause `origin` (A9.2,
@@ -957,6 +979,9 @@ impl Runner {
             };
         }
         if of_an_effect_class(loaded.config.category, step) {
+            if self.reaches_a_frame(step) {
+                return Err(failed());
+            }
             #[cfg(feature = "loopback")]
             return self.effect_step(step, loaded);
             #[cfg(not(feature = "loopback"))]
@@ -1011,6 +1036,28 @@ impl Runner {
             self.kept.insert(name, vec![vec![value]]);
         }
         Ok(())
+    }
+
+    /// Whether the step reaches into a frame: its target or the target of one of its conditions names a frame, or one
+    /// of its args takes a value that an `extract` of this run read in a frame (`extracts`). A web step of an effect
+    /// class that does answers `step_failed` before any act (the coordinator's ruling of log line 15706, NOT BUILT):
+    /// this build makes no effect in a frame, and the browser's maker, which reads such a value again right before its
+    /// act, records the top document's address as the origin of that read (crate::web::maker, `read_again`).
+    fn reaches_a_frame(&self, step: &ExecutableStep) -> bool {
+        let framed = |target: &WebTarget| !target.frame.is_empty();
+        matches!(&step.target, Some(Target::Web(target)) if framed(target))
+            || step
+                .pre
+                .iter()
+                .chain(&step.post)
+                .filter_map(|cond| cond.target.as_ref())
+                .any(framed)
+            || step
+                .args
+                .iter()
+                .filter(|arg| matches!(arg.from, Source::Extract))
+                .filter_map(|arg| self.extracts.get(arg.key.as_ref()?.as_str()))
+                .any(|(target, _)| framed(target))
     }
 
     /// The run's browser, started at the first call: the frame `browser` once it runs, its `browser_reply`, the
@@ -1543,6 +1590,254 @@ mod tests {
             assert!(
                 !line.contains(part) && !failed_line(&page).contains(part),
                 "{part}"
+            );
+        }
+    }
+
+    /// The stand-in of the executor of `a_step_acts_on_a_target_inside_the_frame_that_its_step_names`: its reading
+    /// shows no credential field, each condition and each act is one line of the log with the frame origins of its
+    /// target, every condition holds, and an extract reads `12.34`.
+    struct FramePage(Arc<Mutex<Vec<String>>>);
+
+    /// The frame origins of a target, as one text.
+    fn frame_text(target: &WebTarget) -> String {
+        let origins: Vec<&str> = target.frame.iter().map(WebOrigin::as_str).collect();
+        format!("[{}]", origins.join(" "))
+    }
+
+    impl Page for FramePage {
+        fn frame(&self) -> Option<FromRunner> {
+            None
+        }
+
+        fn arm(&mut self, _: &[WebOrigin]) -> Result<(), ()> {
+            Ok(())
+        }
+
+        fn carry_out(
+            &mut self,
+            pre: &[(&Cond, Option<String>)],
+            act: &Act<'_>,
+            post: &[(&Cond, Option<String>)],
+        ) -> Result<Option<String>, ()> {
+            let mut log = self.0.lock().expect("the log");
+            for (word, conds) in [("pre", pre), ("post", post)] {
+                for (cond, _) in conds {
+                    let frame = cond.target.as_ref().map_or("none".to_string(), frame_text);
+                    log.push(format!("{word} {} in {frame}", cond.check.as_str()));
+                }
+            }
+            let target = match act {
+                Act::Extract(t) | Act::Click(t) | Act::Fill(t, _) | Act::Select(t, _) => Some(*t),
+                Act::Press(t, _) | Act::Upload(t, _) => Some(*t),
+                Act::Open(_) | Act::Wait(_) => None,
+            };
+            let frame = target.map_or("none".to_string(), frame_text);
+            log.push(format!("act {} in {frame}", act.verb()));
+            Ok(matches!(act, Act::Extract(_)).then(|| "12.34".to_string()))
+        }
+
+        fn record(&mut self) -> Vec<PausedRequest> {
+            Vec::new()
+        }
+
+        fn stop(self: Box<Self>) -> bool {
+            true
+        }
+
+        fn sign(&mut self) -> Result<Option<Sign>, ()> {
+            self.0.lock().expect("the log").push("read".to_string());
+            Ok(None)
+        }
+
+        fn fail_held(&mut self) -> Result<(), ()> {
+            Ok(())
+        }
+
+        fn close_others(&mut self) -> Result<(), ()> {
+            Ok(())
+        }
+
+        fn clear_stores(&mut self) -> Result<(), ()> {
+            Ok(())
+        }
+
+        fn load_again(&mut self) -> Result<(), ()> {
+            Ok(())
+        }
+
+        fn pass_all(&mut self) -> Result<(), ()> {
+            Ok(())
+        }
+
+        fn address(&mut self) -> Result<String, ()> {
+            Ok("http://127.0.0.1:8080/pay".to_string())
+        }
+
+        fn export(&mut self, _: &WebOrigin) -> Result<SessionState, ()> {
+            Err(())
+        }
+
+        fn import(&mut self, _: &SessionState) -> Result<(), ()> {
+            Err(())
+        }
+    }
+
+    /// The top document's origin and the two frame origins of the frame tests.
+    const TOP: &str = "http://127.0.0.1:8080";
+    const PAY: &str = "http://127.0.0.1:8081";
+    const INNER: &str = "http://127.0.0.1:8082";
+
+    /// The JSON of a web target found by the one locator `locator` inside the frames of the origins `frame`, the
+    /// outermost first.
+    fn framed(locator: &str, frame: &[&str]) -> String {
+        let origins: Vec<String> = frame.iter().map(|o| format!("\"{o}\"")).collect();
+        format!(
+            r#"{{"desc":"d","frame":[{}],"credential":"no","locators":[{locator}]}}"#,
+            origins.join(",")
+        )
+    }
+
+    /// U5.10-F (the coordinator's ruling of log line 15706, points 1 and 2): a web step whose target names the frame
+    /// that holds it by the frame's origins, from the top document inward, is carried to the page with that target, as
+    /// a step on the top document is, and so is a condition on such a target: the extract of the amount with a
+    /// condition `present` on it, the select of the payment method, and a click in a frame inside the frame. The page
+    /// is read first, as before each act, and the extract keeps its amount. A step of an effect class whose target
+    /// names a frame, or whose amount is the value read in the frame, and a `fill` and a `press` whose target names a
+    /// frame, each answer `step_failed`, and the stand-in page sees no read and no act of them (the coordinator's
+    /// words on C3 and C2 of this unit: no effect in a frame is built, and no text or key goes into a frame).
+    #[test]
+    fn a_step_acts_on_a_target_inside_the_frame_that_its_step_names() {
+        let amount = framed(r#"{"by":"test_id","value":"amount","name":null}"#, &[PAY]);
+        let extract = format!(
+            r#"{{"v":1,"n":1,"kind":"web","verb":"extract","target":{amount},"args":[{{"name":"as","from":"const","value":"amount","key":null}},{{"name":"parse","from":"const","value":"amount","key":null}}],"pre":[{{"check":"present","target":{amount},"arg":null}}],"post":[],"effect":"none","class":"read"}}"#
+        );
+        let select = format!(
+            r#"{{"v":1,"n":2,"kind":"web","verb":"select","target":{},"args":[{{"name":"option","from":"const","value":"Card ending 4242","key":null}}],"pre":[],"post":[],"effect":"none","class":"prepare"}}"#,
+            framed(
+                r#"{"by":"role","value":"combobox","name":"Payment method"}"#,
+                &[PAY]
+            )
+        );
+        let click = format!(
+            r#"{{"v":1,"n":3,"kind":"web","verb":"click","target":{},"args":[],"pre":[],"post":[],"effect":"none","class":"prepare"}}"#,
+            framed(
+                r#"{"by":"role","value":"button","name":"Show terms"}"#,
+                &[PAY, INNER]
+            )
+        );
+        let (workflow, agent) = (
+            WorkflowId::from_random([7; 16]),
+            AgentId::from_random([6; 16]),
+        );
+        let config = preset(
+            Category::UtilityBillPayment,
+            workflow.clone(),
+            agent.clone(),
+        )
+        .expect("a preset");
+        let origins = [TOP, PAY, INNER].map(|o| WebOrigin::parse(o).expect("an origin"));
+        let loaded = LoadReply {
+            config,
+            playbook: None,
+            next_playbook: NonZeroU32::MIN,
+            bindings: Some(LoadedBindings {
+                rev: NonZeroU32::MIN,
+                origins: origins.to_vec(),
+                slots: Vec::new(),
+            }),
+            sessions: Vec::new(),
+            start: None,
+        };
+        let run = "0e".repeat(16);
+        let words = [
+            "--run",
+            &run,
+            "--agent",
+            agent.as_str(),
+            "--workflow",
+            workflow.as_str(),
+            "--mode",
+            "replay",
+            "--browser",
+            "none",
+            "--utc-offset",
+            "0",
+        ];
+        let words: Vec<OsString> = words.iter().map(OsString::from).collect();
+        let args = crate::args::parse(&words).expect("the arguments");
+        let out = Arc::new(Mutex::new(Vec::new()));
+        let link = Link::start(
+            Box::new(std::io::empty()),
+            Box::new(Out(Arc::clone(&out))),
+            Box::new(|| {}),
+        );
+        let mut runner = Runner::new(args, link);
+        let page_log = Arc::new(Mutex::new(Vec::new()));
+        runner.web = Some(Web(Box::new(FramePage(Arc::clone(&page_log)))));
+        for json in [&extract, &select, &click] {
+            let step = ExecutableStep::parse(json.as_bytes()).expect("a step");
+            let got = runner.web_step(&step, &loaded);
+            assert!(
+                got.is_ok(),
+                "step {}: {got:?}, log {:?}",
+                step.n,
+                page_log.lock().expect("the log")
+            );
+        }
+        let log = page_log.lock().expect("the log").clone();
+        assert_eq!(
+            log,
+            [
+                "read".to_string(),
+                format!("pre present in [{PAY}]"),
+                format!("act extract in [{PAY}]"),
+                "read".to_string(),
+                format!("act select in [{PAY}]"),
+                "read".to_string(),
+                format!("act click in [{PAY} {INNER}]"),
+            ]
+        );
+        assert_eq!(
+            runner.kept.get("amount"),
+            Some(&vec![vec![Value::Number(12.34)]])
+        );
+
+        let pay = |target: &str, amount: &str| {
+            format!(
+                r#"{{"v":1,"n":4,"kind":"web","verb":"click","target":{target},"args":[{{"name":"payee","from":"const","value":"p","key":null}},{amount},{{"name":"instrument","from":"const","value":"i","key":null}},{{"name":"origin","from":"const","value":"{PAY}","key":null}}],"pre":[],"post":[],"effect":"request","class":"payment"}}"#
+            )
+        };
+        let pay_now = r#"{"by":"test_id","value":"pay-now","name":null}"#;
+        let in_the_frame = pay(
+            &framed(pay_now, &[PAY]),
+            r#"{"name":"amount","from":"const","value":"12.34","key":null}"#,
+        );
+        let read_in_the_frame = pay(
+            &framed(pay_now, &[]),
+            r#"{"name":"amount","from":"extract","value":null,"key":"amount"}"#,
+        );
+        let typed = |verb: &str, arg: &str| {
+            format!(
+                r#"{{"v":1,"n":5,"kind":"web","verb":"{verb}","target":{},"args":[{arg}],"pre":[],"post":[],"effect":"none","class":"prepare"}}"#,
+                framed(r#"{"by":"test_id","value":"note","name":null}"#, &[PAY])
+            )
+        };
+        let fill = typed(
+            "fill",
+            r#"{"name":"text","from":"const","value":"Ada","key":null}"#,
+        );
+        let press = typed(
+            "press",
+            r#"{"name":"key","from":"const","value":"Enter","key":null}"#,
+        );
+        for json in [&in_the_frame, &read_in_the_frame, &fill, &press] {
+            let step = ExecutableStep::parse(json.as_bytes()).expect("a step");
+            let got = runner.web_step(&step, &loaded);
+            let now = page_log.lock().expect("the log").clone();
+            assert!(
+                matches!(got, Err(Failure::Step(Cause::StepFailed))) && now == log,
+                "a step that this build makes no act of in a frame fails before any act: {got:?}, {now:?}, {json}"
             );
         }
     }
