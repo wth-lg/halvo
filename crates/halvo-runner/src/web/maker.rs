@@ -27,10 +27,11 @@
 //! `payment` or a `purchase`, right after the read of the rule's record and the count of the one held request that
 //! follow the act, and before any card, the maker reads what the wire read of the request's body
 //! (`HeldRequest::form`): the values of the form fields whose names name an amount, and no other byte of the body. A
-//! body that names another amount than the card's (`amounts_named`, the reading of the page after the reply) fails
-//! the held request, no card is shown and no effect row stands, and the step answers `amount_differs`; a body that
-//! the wire could not read, or a listed value that names no amount that reads, answers `step_failed` the same way; a
-//! request with no body, and a form that names no amount, go on to the card. A `submit` and a `sign` go on as before.
+//! listed value is read whole by `extract_amount`, the reading of the card's own amount (log line 16399). A body
+//! that names another amount than the card's fails the held request, no card is shown and no effect row stands, and
+//! the step answers `amount_differs`; a body that the wire could not read, or a listed value that is not one amount
+//! (digits, one point and two decimals), answers `step_failed` the same way; a navigation with no body, and a form
+//! that names no amount, go on to the card. A `submit` and a `sign` go on as before.
 //!
 //! A binary that holds the maker holds its marker text (`MAKER_MARKER`), which the scan of check 62-build
 //! (scripts/r1/ci.d/62-build.sh) refuses in every shipped file.
@@ -76,8 +77,11 @@ fn lock(web: &Shared) -> MutexGuard<'_, Option<Web>> {
     web.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Every amount that `text` names in the form that `extract_amount` reads (digits, one `.` and two decimals), each
-/// run of digits, `.` and `,` with the `,` taken out and a `.` or `,` at either end left off, in minor units.
+/// Every amount that `text`, the text of a page, names in the form that `extract_amount` reads (digits, one `.` and
+/// two decimals), each run of digits, `.` and `,` with the `,` taken out and a `.` or `,` at either end left off, in
+/// minor units; a run that does not read is dropped. It reads the page after the reply; a listed value of a held
+/// request's body is not read by it but whole (`body_holds_the_card`), since a run cut out of `12.34e2`, `-12.34` or
+/// `1,2.34` reads as the card's amount where a server reads another number.
 pub(crate) fn amounts_named(text: &str) -> Vec<u64> {
     text.split(|c: char| !(c.is_ascii_digit() || c == '.' || c == ','))
         .map(|run| run.trim_matches(|c| c == '.' || c == ',').replace(',', ""))
@@ -107,12 +111,14 @@ fn card_amount(fields: &[(FieldName, From)], loaded: &LoadReply) -> Option<u64> 
 }
 
 /// Whether the body of the one held request of a `payment` or a `purchase` holds the card's amount `card`, read at the
-/// act, before the card (r3 U5.10-C; the coordinator's ruling of log line 16208): a request with no body holds it, as
-/// does a form that names no amount, or whose every amount is the card's, each value of a field of the closed list
-/// (`HeldForm::Named`) read by `amounts_named`, the one reading of the page after the reply. A form that names
-/// another amount gives `amount_differs`; a body that the wire could not read, and a listed value from which
-/// `amounts_named` reads no amount, give `step_failed`. One line on standard error names the reason word, never a
-/// value of the body.
+/// act, before the card (r3 U5.10-C; the coordinator's rulings of log lines 16208 and 16399): a navigation with no
+/// body holds it, as does a form that names no amount, or whose every amount is the card's. Each value of a field of
+/// the closed list (`HeldForm::Named`) is read WHOLE, with the spaces at its ends left off, by `extract_amount`, the
+/// reading of the card's own amount: it must be ONE amount, digits, one point and two decimals within a u64, and
+/// nothing else. A form that names another amount gives `amount_differs`; a body that the wire could not read, and a
+/// listed value that is not one such amount (an exponent, a sign, a digit that is not ASCII, a comma, a currency
+/// word, a second number), give `step_failed`. One line on standard error names the reason word, never a value of
+/// the body.
 fn body_holds_the_card(form: &HeldForm, card: Option<u64>) -> Result<(), Cause> {
     let values = match form {
         HeldForm::NoBody => return Ok(()),
@@ -127,12 +133,11 @@ fn body_holds_the_card(form: &HeldForm, card: Option<u64>) -> Result<(), Cause> 
     };
     let mut named = Vec::new();
     for value in values {
-        let amounts = amounts_named(value);
-        if amounts.is_empty() {
+        let Some(amount) = halvo_web::extract_amount(value.trim_matches(' ')) else {
             crate::line("run effect=failed at=body reason=amount_unreadable");
             return Err(Cause::StepFailed);
-        }
-        named.extend(amounts);
+        };
+        named.push(amount);
     }
     if named.iter().any(|n| Some(*n) != card) {
         crate::line(&format!(
@@ -1259,7 +1264,8 @@ mod tests {
     /// fields, the card's amount being `12.34`: a body that names another amount than the card never leaves: the held
     /// request is failed, no card is shown, no effect row stands, the step's row says `step_failed` with
     /// `amount_differs` and no row holds a `page_amount`, and the run ends `failed`; an amount field whose value names
-    /// no amount that `amounts_named` reads, and a body that the wire could not read, end the same way with
+    /// no one amount, read whole (an exponent, a sign, a digit that is not ASCII, a comma inside, a number that fits
+    /// no u64 beside the card's), and a body that the wire could not read, end the same way with
     /// `step_failed`; a body that names the card's amount, and one that names no amount, leave once. In every case no
     /// frame that the runner wrote to its supervisor holds a byte of the token's value or of the body's other amount.
     #[test]
@@ -1281,7 +1287,9 @@ mod tests {
             );
             (lines(&log), record)
         };
-        for (body, cause) in [
+        // Round 1 (the coordinator's ruling of log line 16399): a listed value that holds the card's amount beside an
+        // exponent, a sign, a digit that is not ASCII, a comma inside, or a number that fits no u64, is no amount.
+        let refused: Vec<(String, Cause, Vec<String>, Record)> = [
             (
                 format!("token={TOKEN}&amount={OTHER}"),
                 Cause::AmountDiffers,
@@ -1295,18 +1303,38 @@ mod tests {
                 format!("amount=12.34&token={TOKEN}&x=%zz"),
                 Cause::StepFailed,
             ),
-        ] {
+            (format!("token={TOKEN}&amount=12.34e2"), Cause::StepFailed),
+            (format!("token={TOKEN}&amount=-12.34"), Cause::StepFailed),
+            (
+                format!("token={TOKEN}&amount=%D9%A112.34"),
+                Cause::StepFailed,
+            ),
+            (format!("token={TOKEN}&amount=1%2C2.34"), Cause::StepFailed),
+            (
+                format!("token={TOKEN}&amount=12.34+99999999999999999999.99"),
+                Cause::StepFailed,
+            ),
+        ]
+        .into_iter()
+        .map(|(body, cause)| {
             let (log, record) = run(&body);
-            assert!(
-                !log.iter().any(|l| l.starts_with("let through")),
-                "{body}: {log:?}"
-            );
+            (body, cause, log, record)
+        })
+        .collect();
+        let left: Vec<&str> = refused
+            .iter()
+            .filter(|(_, _, log, _)| log.iter().any(|l| l.starts_with("let through")))
+            .map(|(body, ..)| body.as_str())
+            .collect();
+        assert!(left.is_empty(), "these bodies left: {left:?}");
+        for (body, cause, log, record) in &refused {
+            let cause = *cause;
             assert!(log.iter().any(|l| l == "fail held 1"), "{body}: {log:?}");
             assert_eq!(log.last(), Some(&format!("arm fail [{BOUND}]")), "{body}");
             assert!(record.confirms().is_empty(), "no card: {body}");
             assert!(record.states().is_empty(), "no effect row: {body}");
             assert_eq!(
-                rows(&record),
+                rows(record),
                 [
                     (LogEvent::StepFailed, Some(3), Some(cause)),
                     (LogEvent::Stopped, None, Some(cause)),
