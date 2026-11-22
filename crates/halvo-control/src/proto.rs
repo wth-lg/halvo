@@ -400,6 +400,7 @@ const REPLY_LISTS: &[UnknownSpellingOf] = &[
     unknown_spelling_of::<SwitchName>,
     unknown_spelling_of::<OnOff>,
     unknown_spelling_of::<PasswordGuard>,
+    unknown_spelling_of::<TypingGate>,
     unknown_spelling_of::<Custody>,
     unknown_spelling_of::<Modality>,
     unknown_spelling_of::<Permission>,
@@ -1548,6 +1549,22 @@ pub enum PasswordGuard {
 
 one_spelling!(PasswordGuard, "password guard", [Os => "os", Halvo => "halvo", None => "none"]);
 
+/// The Windows keyboard source's reading of whether typing is being noted right now
+/// (contracts.md C2.3, `typing_gate`; ruling W3-15 B4). It never says that a password field
+/// has the focus, nor for how long.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TypingGate {
+    /// The gate decides each key, at a clear field and at a password field alike.
+    Ok,
+    /// The gate's newest state reads Unknown: no key is noted.
+    FieldUnknown,
+    /// A latch behind Tab, Enter, Escape, a Windows key or a button-down is still open: no
+    /// key is noted.
+    LatchOpen,
+}
+
+one_spelling!(TypingGate, "typing gate", [Ok => "ok", FieldUnknown => "field_unknown", LatchOpen => "latch_open"]);
+
 /// The key custody of the running build (contracts.md C20).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Custody {
@@ -1625,6 +1642,11 @@ pub struct StatusFields {
     pub typing: Option<bool>,
     /// Whether the keyboard source withheld a key, on both systems; never a count (RD-32).
     pub keys_withheld: bool,
+    /// Windows alone, and only while a keyboard source runs: whether typing is being noted
+    /// right now. Optional, so that a status of a daemon that sends none still reads; the
+    /// protocol number does not move for it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub typing_gate: Option<TypingGate>,
     pub title_read_errors: u64,
     #[serde(deserialize_with = "required")]
     pub last_flush_at: Option<UtcSecond>,
@@ -1720,6 +1742,9 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
         Platform::Macos => {
             if f.secure_input_keystrokes.is_none() {
                 return fail("macOS reports secure_input_keystrokes as a yes or no");
+            }
+            if f.typing_gate.is_some() {
+                return fail("macOS reports no typing_gate");
             }
             let names: Vec<Permission> = f.permissions.iter().map(|p| p.name).collect();
             if names != Permission::R1_MACOS {
@@ -3227,6 +3252,49 @@ stopped/kind body
             Err(StatusError("Windows reports no resolved data folder"))
         );
         assert!(serde_json::from_value::<DaemonStatus>(json).is_err());
+    }
+
+    #[test]
+    fn typing_gate_is_windows_alone_optional_on_the_wire_and_never_a_count() {
+        let absent =
+            serde_json::from_value::<DaemonStatus>(status_json(Platform::Windows)).unwrap();
+        assert_eq!(absent.fields().typing_gate, None);
+        assert!(serde_json::to_value(&absent)
+            .unwrap()
+            .get("typing_gate")
+            .is_none());
+        for (word, gate) in [
+            ("ok", TypingGate::Ok),
+            ("field_unknown", TypingGate::FieldUnknown),
+            ("latch_open", TypingGate::LatchOpen),
+        ] {
+            let mut json = status_json(Platform::Windows);
+            json["typing_gate"] = word.into();
+            let read = serde_json::from_value::<DaemonStatus>(json).unwrap();
+            assert_eq!(read.fields().typing_gate, Some(gate), "{word}");
+            assert_eq!(serde_json::to_value(&read).unwrap()["typing_gate"], word);
+        }
+        for refused in [
+            serde_json::json!(1),
+            serde_json::json!(0),
+            "password".into(),
+            true.into(),
+        ] {
+            let mut json = status_json(Platform::Windows);
+            json["typing_gate"] = refused.clone();
+            assert!(
+                serde_json::from_value::<DaemonStatus>(json).is_err(),
+                "{refused}"
+            );
+        }
+        let mut mac = sample_status(Platform::Macos).into_fields();
+        mac.typing_gate = Some(TypingGate::Ok);
+        assert_eq!(
+            DaemonStatus::new(mac),
+            Err(StatusError("macOS reports no typing_gate"))
+        );
+        let words: Vec<&str> = TypingGate::ALL.iter().map(|g| g.as_str()).collect();
+        assert_eq!(words, ["ok", "field_unknown", "latch_open"]);
     }
 
     #[test]

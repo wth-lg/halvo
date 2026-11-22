@@ -212,6 +212,9 @@ pub fn status_text(status: &DaemonStatus) -> String {
         line(format!("typing={}", if typing { "on" } else { "off" }));
     }
     line(format!("keys_withheld={}", yes_no(f.keys_withheld)));
+    if let Some(gate) = f.typing_gate {
+        line(format!("typing_gate={}", gate.as_str()));
+    }
     line(format!("title_read_errors={}", f.title_read_errors));
     line(format!("last_flush_at={}", or_dash(f.last_flush_at)));
     line(format!("expiry={}", f.expiry.as_str()));
@@ -775,6 +778,46 @@ mod tests {
         ("resume", "running", "no_indicator"),
     ];
 
+    #[test]
+    fn typing_gate_prints_one_line_behind_keys_withheld_and_none_when_it_is_absent() {
+        use crate::proto::{Platform, TypingGate};
+        let line_after = |gate: Option<TypingGate>| -> Option<String> {
+            let mut f = sample_status(Platform::Windows).into_fields();
+            f.typing_gate = gate;
+            let text = status_text(&DaemonStatus::new(f).unwrap());
+            let lines: Vec<&str> = text.lines().collect();
+            let at = lines.iter().position(|l| l.starts_with("keys_withheld="))?;
+            let typing: Vec<&&str> = lines
+                .iter()
+                .filter(|l| l.starts_with("typing_gate"))
+                .collect();
+            assert!(typing.len() <= 1, "{typing:?}");
+            lines
+                .get(at + 1)
+                .filter(|next| next.starts_with("typing_gate"))
+                .map(|next| next.to_string())
+                .or_else(|| {
+                    typing
+                        .first()
+                        .map(|l| format!("not behind keys_withheld: {l}"))
+                })
+        };
+        assert_eq!(line_after(None), None);
+        assert_eq!(
+            line_after(Some(TypingGate::Ok)).as_deref(),
+            Some("typing_gate=ok")
+        );
+        assert_eq!(
+            line_after(Some(TypingGate::FieldUnknown)).as_deref(),
+            Some("typing_gate=field_unknown")
+        );
+        assert_eq!(
+            line_after(Some(TypingGate::LatchOpen)).as_deref(),
+            Some("typing_gate=latch_open")
+        );
+        let mac = status_text(&sample_status(Platform::Macos));
+        assert!(!mac.contains("typing_gate"), "{mac}");
+    }
     #[test]
     fn pause_and_resume_exit_0_only_when_the_reply_reaches_the_verb_s_end_and_the_state_file_was_written(
     ) {
