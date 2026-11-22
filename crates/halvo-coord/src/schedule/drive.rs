@@ -1,6 +1,6 @@
 use super::{
-    clean, current_slot, held_by_events, holds, kept_off, refusal_unstored, slot_open, start_step,
-    switch_on_state, tick_plan, tick_step, wants_active, wants_paused, Around, Ask, Board, Dying,
+    clean, current_slot, held_by_events, holds, kept_off, refusal_unstored, refused_runs,
+    slot_open, start_step, switch_on_state, tick_plan, tick_step, wants_active, wants_paused, Around, Ask, Board, Dying,
     Go, Hold, LiveRun, Member, Owed, Owing, StartStep, Stop, Verdict, Waiting,
 };
 use crate::items::drive::{alone, class_of, Alone, Class};
@@ -932,6 +932,24 @@ where
     served(Ok(Answer::Ok), Some(run))
 }
 
+/// The `hold_cleared` events of a start by the person that ends holds (I5.4; ruling RD-73 4.3):
+/// one of the cause `sign_in_refused` for each run that `refused_runs` names, then one of the
+/// cause `failures` where that hold stands.
+fn ended_by_start<C: ConfigView>(facts: &Facts<C>) -> Vec<What> {
+    let failures = holds(facts)
+        .contains(&Hold::Failures)
+        .then_some(What::HoldCleared {
+            cause: Cleared::Failures,
+        });
+    refused_runs(facts)
+        .into_iter()
+        .map(|run| What::HoldCleared {
+            cause: Cleared::SignInRefused { run },
+        })
+        .chain(failures)
+        .collect()
+}
+
 /// A start of the agent `i` (I5.5). A start acts on no verdict that is older than its newest
 /// read of the owner's events (ruling RD-52 (a)): after the store of `hold_cleared` that ends the
 /// hold `failures`, and after a store of its path whose refusal `seq` caused a read, it decides
@@ -1043,10 +1061,8 @@ where
                 };
             }
         }
-        let cleared = What::HoldCleared {
-            cause: Cleared::Failures,
-        };
-        if let Err(e) = store(cx, board, i, vec![cleared]) {
+        let cleared = ended_by_start(&board.members[i].facts);
+        if let Err(e) = store(cx, board, i, cleared) {
             return served(Err(port_cause(&e)));
         }
         step = steps(&mut board.members[i].facts);

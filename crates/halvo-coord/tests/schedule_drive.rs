@@ -4531,3 +4531,77 @@ fn one_end_of_a_run_whose_sign_in_was_refused_holds_the_agent_with_one_hold_set(
     );
     assert_eq!(holds(w.facts(0)), vec![Hold::SignInRefused]);
 }
+
+/// U2.4h, sentence 2 (ruling RD-73 4.3; I5.4, the row `hold_start` of I5.11): while the hold of a
+/// refused sign-in stands the scheduler starts nothing; ONE start by the person sends the state
+/// first, stores one `hold_cleared` that names the refused run and starts its run once; the next
+/// refusal sets the hold again with the new run.
+#[test]
+fn under_a_refused_sign_in_the_scheduler_starts_nothing_and_one_start_by_the_person_runs_once() {
+    let mut w = world(&[AUTO]);
+    let first = ok_run(&w.start(0));
+    w.owner_agent(0, |a| a.refused_run = Some(first.clone()));
+    w.end(&first, Some(Outcome::Failed));
+    w.clock(T0 + 1_000, DAY + 2);
+    w.forget();
+    assert_eq!(
+        w.tick().started,
+        Vec::<Served>::new(),
+        "the tick at the agent's next slot starts nothing"
+    );
+    assert_eq!(w.starts(), 0);
+    let by_scheduler = start_step(
+        w.facts(0),
+        Trigger::Schedule,
+        &w.limits,
+        &Around {
+            listed: true,
+            live: 0,
+            model_held: false,
+            queued: 0,
+            session: true,
+            from_queue: false,
+            owed: false,
+        },
+    );
+    assert_eq!(by_scheduler.verdict, Verdict::Refused(Cause::Hold));
+    w.forget();
+    let second = ok_run(&w.start(0));
+    assert_eq!(
+        w.calls(),
+        vec![
+            "set_state active".to_string(),
+            "log hold_cleared sign_in_refused".into(),
+            "defer".into(),
+            "log run_started".into(),
+            "start_run".into(),
+            format!("start {}", agent(0)),
+        ],
+        "one press: the state first, one hold_cleared, one start"
+    );
+    let cleared: Vec<Cleared> = w
+        .stored()
+        .into_iter()
+        .filter_map(|e| match e.what {
+            What::HoldCleared { cause } => Some(cause),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        cleared,
+        vec![Cleared::SignInRefused { run: first.clone() }]
+    );
+    w.owner_agent(0, |a| a.refused_run = Some(second.clone()));
+    w.end(&second, Some(Outcome::Failed));
+    assert_eq!(
+        holds_set(&w, 0),
+        vec![
+            HoldSetCause::SignInRefused { run: first },
+            HoldSetCause::SignInRefused { run: second }
+        ],
+        "the next refusal sets the hold again with the new run"
+    );
+    w.forget();
+    w.tick();
+    assert_eq!(w.starts(), 0, "and the next tick starts nothing");
+}
