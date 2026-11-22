@@ -3387,6 +3387,49 @@ mod tests {
             ) -> Result<RequestOutcome, ClientError> {
                 unreachable!("no permission here")
             }
+
+            fn status_of_a_pass(
+                &self,
+                made: Made,
+                claim: bool,
+                hold: &Hold,
+            ) -> Result<DaemonStatus, ClientError> {
+                self.status(made, claim && !hold.stands())
+            }
+
+            fn relay(&self, _: Made, _: &[u8]) -> Result<Vec<u8>, ClientError> {
+                Err(ClientError::Unsupported)
+            }
+
+            fn acknowledge_lost_permission(
+                &self,
+                _: Made,
+                _: Permission,
+            ) -> Result<DaemonStatus, ClientError> {
+                Err(ClientError::Unsupported)
+            }
+
+            #[cfg(target_os = "macos")]
+            fn owner_stream(
+                &self,
+                _: Made,
+            ) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
+                Err(ClientError::Unsupported)
+            }
+
+            #[cfg(target_os = "macos")]
+            fn run_mark(
+                &self,
+                _: Made,
+                _: halvo_control::r2::RunEdge,
+            ) -> Result<halvo_control::r2::RunMarked, ClientError> {
+                Err(ClientError::Unsupported)
+            }
+
+            #[cfg(target_os = "macos")]
+            fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
+                Err(ClientError::Unsupported)
+            }
         }
 
         let record = Record::default();
