@@ -642,6 +642,12 @@ mod tests {
     /// category `email`.
     const SUBMIT: &str = r#"{"v":1,"n":2,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"send","name":null}]},"args":[{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null},{"name":"fields","from":"const","value":"note=hello","key":null}],"pre":[],"post":[],"effect":"request","class":"submit"}"#;
 
+    /// `PAY` with its target in the frame of the bound origin (r3 U5.10-B part two).
+    const FRAMED_PAY: &str = r#"{"v":1,"n":3,"kind":"web","verb":"click","target":{"desc":"d","frame":["http://127.0.0.1:8080"],"credential":"no","locators":[{"by":"test_id","value":"pay-now","name":null}]},"args":[{"name":"payee","from":"slot","value":null,"key":"payee"},{"name":"amount","from":"extract","value":null,"key":"amount"},{"name":"instrument","from":"slot","value":null,"key":"instrument"},{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null}],"pre":[],"post":[],"effect":"request","class":"payment"}"#;
+
+    /// `EXTRACT` with its target in the frame of the bound origin (r3 U5.10-B part two).
+    const FRAMED_EXTRACT: &str = r#"{"v":1,"n":2,"kind":"web","verb":"extract","target":{"desc":"the amount","frame":["http://127.0.0.1:8080"],"credential":"no","locators":[{"by":"test_id","value":"amount","name":null}]},"args":[{"name":"as","from":"const","value":"amount","key":null},{"name":"parse","from":"const","value":"amount","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}"#;
+
     /// The step `extract` that kept the amount.
     const EXTRACT: &str = r#"{"v":1,"n":2,"kind":"web","verb":"extract","target":{"desc":"the amount","frame":[],"credential":"no","locators":[{"by":"test_id","value":"amount","name":null}]},"args":[{"name":"as","from":"const","value":"amount","key":null},{"name":"parse","from":"const","value":"amount","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}"#;
 
@@ -670,8 +676,8 @@ mod tests {
     /// it names the amounts that the test gave, the rule's record holds the requests that the test gave in `before`
     /// until the arm of the hold mode empties it, as the executor's arm does, those of `waited` from its second read
     /// after that arm on (the first is the read right after the act), and those of `after` once a request left; the
-    /// held requests gain the test's `second` from their third read on (the act's two reads come first); and every call
-    /// is one line of the log.
+    /// held requests gain the test's `second` from their third read on (the act's two reads come first); the top page's
+    /// address is `top`; and every call is one line of the log.
     struct StandIn {
         log: Log,
         holds: Vec<HeldRequest>,
@@ -686,6 +692,7 @@ mod tests {
         second: Option<HeldRequest>,
         held_reads: usize,
         post_fails: bool,
+        top: String,
     }
 
     impl StandIn {
@@ -704,6 +711,7 @@ mod tests {
                 second: None,
                 held_reads: 0,
                 post_fails: false,
+                top: format!("{BOUND}/pay"),
             }
         }
     }
@@ -812,7 +820,7 @@ mod tests {
         }
 
         fn address(&mut self) -> Result<String, ()> {
-            Ok(format!("{BOUND}/pay"))
+            Ok(self.top.clone())
         }
 
         fn export(&mut self, _: &WebOrigin) -> Result<SessionState, ()> {
@@ -864,7 +872,12 @@ mod tests {
 
     /// The values and the extract that the step `extract` of the amount left: `12.34` as `amount`.
     fn kept_amount() -> (Kept, Extracts) {
-        let Some(Target::Web(target)) = step(EXTRACT).target else {
+        kept_of(EXTRACT)
+    }
+
+    /// The values and the extract that the extract step `json` of the amount left: `12.34` as `amount`.
+    fn kept_of(json: &str) -> (Kept, Extracts) {
+        let Some(Target::Web(target)) = step(json).target else {
             panic!("a web target")
         };
         (
@@ -888,7 +901,17 @@ mod tests {
 
     /// The payment step `json` run on `stand_in`, answered as `plan` says.
     fn pay_step(stand_in: StandIn, json: &str, plan: Plan) -> Record {
-        let (kept, extracts) = kept_amount();
+        pay_with(stand_in, json, kept_amount(), plan)
+    }
+
+    /// The payment step `json` run on `stand_in` with the values and the extracts `(kept, extracts)`, answered as
+    /// `plan` says.
+    fn pay_with(
+        stand_in: StandIn,
+        json: &str,
+        (kept, extracts): (Kept, Extracts),
+        plan: Plan,
+    ) -> Record {
         run_web_step(
             Category::UtilityBillPayment,
             (
@@ -1409,5 +1432,34 @@ mod tests {
             );
             assert_eq!(record.done(), Some(Outcome::Completed), "{body}");
         }
+    }
+
+    /// r3 U5.10-B part two, the coordinator's point (5) of log line 16745, on the stand-in: a payment whose target and
+    /// amount stand in a frame of a bound origin, under a top page of an origin outside the bindings, fails before any
+    /// act: no arm of the hold mode, no click, no card and no effect row; the step answers `step_failed`, so that a
+    /// foreign page cannot carry a bound site's frame into a payment.
+    #[test]
+    fn on_the_stand_in_a_framed_payment_under_a_foreign_top_page_fails_before_any_act() {
+        let log: Log = Arc::default();
+        let mut stand_in = StandIn::new(&log, vec![held(7)]);
+        stand_in.top = "http://127.0.0.1:9090/pay".to_string();
+        let record = pay_with(stand_in, FRAMED_PAY, kept_of(FRAMED_EXTRACT), Plan::plain());
+        let log = lines(&log);
+        assert!(
+            !log.iter()
+                .any(|l| l.starts_with("arm hold") || l == "act click"),
+            "{log:?}"
+        );
+        assert!(record.confirms().is_empty(), "no card: {log:?}");
+        assert!(record.states().is_empty(), "no effect row: {log:?}");
+        assert_eq!(
+            rows(&record),
+            [
+                (LogEvent::StepFailed, Some(3), Some(Cause::StepFailed)),
+                (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+            ],
+            "{log:?}"
+        );
+        assert_eq!(record.done(), Some(Outcome::Failed), "{log:?}");
     }
 }
