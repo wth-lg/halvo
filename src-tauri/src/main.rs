@@ -194,6 +194,10 @@ fn run(background: bool, given: Option<PathBuf>) {
     let start_dir = data_dir.clone();
     #[cfg_attr(not(any(target_os = "macos", windows)), allow(unused_mut))]
     let mut state = commands::capture::AppState::with_control(control, data_dir, open_pane);
+    #[cfg(windows)]
+    if let Some(folder) = &crash_reports {
+        let _ = state.crash_reports.set(folder.clone());
+    }
     #[cfg(target_os = "macos")]
     {
         state.login_item = login_item::at_the_click(given.is_some(), the_login_item);

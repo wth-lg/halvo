@@ -124,10 +124,6 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 #[cfg(windows)]
                 parts.webview_environment,
             );
-            #[cfg(windows)]
-            if let Ok(window) = &window {
-                keep_the_crash_report_folder(window, &app.state::<AppState>().crash_reports);
-            }
             match window {
                 Ok(window) => match engine_site(app.handle(), parts.engine_rules_dir) {
                     Ok(site) => (parts.guard)(&window, site, sender),
@@ -373,42 +369,6 @@ pub(crate) fn main_window<R: Runtime>(
         None => builder,
     };
     builder.build()
-}
-
-/// Keeps the folder in which the web view of `window` writes its crash reports, as its
-/// environment names it (ICoreWebView2Environment11::FailureReportFolderPath), in `folder`, for
-/// the end of a whole Delete everything; where it cannot be read the cell stays empty.
-#[cfg(windows)]
-fn keep_the_crash_report_folder<R: Runtime>(
-    window: &tauri::WebviewWindow<R>,
-    folder: &Arc<std::sync::OnceLock<PathBuf>>,
-) {
-    use webview2_com::Microsoft::Web::WebView2::Win32::{
-        ICoreWebView2Environment11, ICoreWebView2_2,
-    };
-    use windows_core::{Interface, PWSTR};
-    let folder = Arc::clone(folder);
-    let _ = window.with_webview(move |webview| {
-        let read = || -> windows_core::Result<PathBuf> {
-            // SAFETY: wry keeps the controller alive as long as the web view, and with_webview
-            // hands it to this closure on the thread that created it, the one thread WebView2 lets
-            // call it; each returned interface holds its own reference.
-            let core = unsafe { webview.controller().CoreWebView2() }?;
-            // SAFETY: as above, on the window's thread; the environment comes back with a
-            // reference of its own.
-            let environment = unsafe { core.cast::<ICoreWebView2_2>()?.Environment() }?;
-            let environment: ICoreWebView2Environment11 = environment.cast()?;
-            let mut path = PWSTR::null();
-            // SAFETY: on the window's thread; on success the call writes a string allocated with
-            // CoTaskMemAlloc that this caller owns, and take_pwstr frees it once with
-            // CoTaskMemFree; on an error `path` stays null and is not read.
-            unsafe { environment.FailureReportFolderPath(&mut path) }?;
-            Ok(PathBuf::from(webview2_com::take_pwstr(path)))
-        };
-        if let Ok(path) = read() {
-            let _ = folder.set(path);
-        }
-    });
 }
 
 #[cfg(windows)]
