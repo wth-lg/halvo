@@ -1788,6 +1788,56 @@ fn a_session_end_that_does_not_fit_leaves_the_marker_and_the_next_start_reads_un
     let_go(&third);
 }
 
+#[test]
+fn a_start_that_does_not_bind_leaves_the_marker_that_it_found_and_the_next_start_reads_unclean() {
+    use halvo_control::proto::LastStop;
+    let (dir, _marks) = running_dir(false);
+    let named = data_dir(&dir);
+    let (found, _) = super::run_marker::begin(&named);
+    assert_eq!(
+        found,
+        LastStop::None,
+        "a life that ended unclean left its marker"
+    );
+
+    let socket =
+        halvo_control::paths::socket_path(&named, &halvo_control::paths::SystemAccount).unwrap();
+    std::fs::create_dir_all(&socket).unwrap();
+    let stop = AtomicBool::new(true);
+    let mut err = Vec::new();
+    let status = serve_held(
+        InstanceLock::take(&named).unwrap().unwrap(),
+        &named,
+        Box::new(TestWrite::default()),
+        SleepLoop(Instant::now()),
+        &stop,
+        Arc::new(Recorded),
+        &mut err,
+    );
+    let err = String::from_utf8(err).unwrap();
+    assert_eq!(status, 1, "{err}");
+    assert!(
+        err.contains("halvo-capture: the control channel could not be bound: "),
+        "{err}"
+    );
+    assert!(
+        named.run_marker().exists(),
+        "the start that did not bind took the marker that it found away: {err}"
+    );
+    std::fs::remove_dir(&socket).unwrap();
+
+    let next = a_life_that_the_session_ends(&dir, Duration::ZERO);
+    assert_eq!(
+        next.first_status.fields().last_stop,
+        LastStop::Unclean,
+        "{}",
+        next.err
+    );
+    wait_until(READY_WITHIN, "the life's owner let its store go", || {
+        next.store_let_go.load(Ordering::SeqCst)
+    });
+}
+
 const LIFE_DIR: &str = "HALVO_LIFE_DIR";
 const LIFE_MARKS: &str = "HALVO_LIFE_MARKS";
 const LIFE: &str = "HALVO_LIFE";

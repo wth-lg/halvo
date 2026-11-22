@@ -2460,7 +2460,13 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 "halvo-capture: the control channel could not be bound: {}",
                 error.kind()
             );
-            let _ = run_marker::end(dir);
+            // Where the start found the marker of a life that did not end in
+            // order, the marker that `begin` wrote in its place stays, so
+            // that the next start reads unclean too: a start that cannot bind
+            // hides no lost batch.
+            if last_stop != halvo_control::proto::LastStop::Unclean {
+                let _ = run_marker::end(dir);
+            }
             return halvo_control::exit::ERROR;
         }
     };
