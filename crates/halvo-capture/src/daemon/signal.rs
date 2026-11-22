@@ -1,15 +1,48 @@
 #![deny(clippy::undocumented_unsafe_blocks)]
 
 use std::io;
-#[cfg(target_os = "macos")]
-use std::sync::atomic::AtomicBool;
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 static SIGNALLED: AtomicBool = AtomicBool::new(false);
 
-#[cfg(target_os = "macos")]
+#[cfg(all(windows, debug_assertions))]
+static SESSION_ENDING: AtomicBool = AtomicBool::new(false);
+
+/// The stop flag of a run: on macOS SIGINT and SIGTERM set it, and on
+/// Windows the session window and a console's Ctrl-C and Ctrl-Break do.
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 pub fn flag() -> &'static AtomicBool {
     &SIGNALLED
+}
+
+/// Ends the run through its one shutdown entry, as a stop request does: the
+/// session window's WM_CLOSE sets the stop flag.
+#[cfg(all(windows, debug_assertions))]
+pub fn end_on_request() {
+    SIGNALLED.store(true, Ordering::SeqCst);
+}
+
+/// Ends the run for a session's end: the mark that gives the shutdown entry
+/// the session's budget, then the stop flag. The session window's
+/// WM_QUERYENDSESSION and WM_ENDSESSION call it, however often.
+#[cfg(all(windows, debug_assertions))]
+pub fn end_for_the_session() {
+    SESSION_ENDING.store(true, Ordering::SeqCst);
+    SIGNALLED.store(true, Ordering::SeqCst);
+}
+
+/// The budget of the shutdown entry at a session's end, SESSION_END_BUDGET_MS
+/// once the session window marked one (contracts.md C14 item 6), and none on
+/// every other run, every test of the library among them.
+pub fn session_end_budget() -> Option<Duration> {
+    #[cfg(all(windows, debug_assertions))]
+    if SESSION_ENDING.load(Ordering::SeqCst) {
+        return Some(Duration::from_millis(halvo_control::SESSION_END_BUDGET_MS));
+    }
+    None
 }
 
 pub fn prepare() -> io::Result<()> {
@@ -34,7 +67,7 @@ pub fn prepare() -> io::Result<()> {
 
 #[cfg(target_os = "macos")]
 extern "C" fn on_signal(_signal: libc::c_int) {
-    SIGNALLED.store(true, std::sync::atomic::Ordering::SeqCst);
+    SIGNALLED.store(true, Ordering::SeqCst);
 }
 
 /// The process's own peak of resident memory in bytes, from `getrusage` for

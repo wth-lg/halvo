@@ -243,3 +243,69 @@ fn a_fresh_windows_store_keeps_its_root_under_the_data_directory_and_its_key_und
         "{roots:?} for the root id {root_id}"
     );
 }
+
+#[test]
+fn a_windows_run_ends_inside_the_budget_when_the_session_ends() {
+    use halvo_capture::windows::session::CLASS_NAME;
+    use windows::core::{HSTRING, PCWSTR};
+    use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        FindWindowExW, GetWindowThreadProcessId, PostMessageW, WM_ENDSESSION, WM_QUERYENDSESSION,
+    };
+    let dir = scratch_data_dir("session");
+    let mut daemon = start(&dir);
+    first_status(&dir, &daemon, |status| {
+        status.lines().any(|line| line == "store=open")
+    });
+    let class = HSTRING::from(CLASS_NAME);
+    let pid = daemon.child.id();
+    let window = until(START_WAIT, || {
+        let mut after: Option<HWND> = None;
+        loop {
+            // SAFETY: the class name is a live wide string; the call reads the
+            // top-level windows after `after` and takes no other pointer.
+            let found = unsafe { FindWindowExW(None, after, &class, PCWSTR::null()) }.ok()?;
+            let mut owner = 0_u32;
+            // SAFETY: `owner` is a live u32 that the call fills.
+            unsafe { GetWindowThreadProcessId(found, Some(&mut owner)) };
+            if owner == pid {
+                return Some(found);
+            }
+            after = Some(found);
+        }
+    })
+    .unwrap_or_else(|| {
+        panic!(
+            "no window of the class {CLASS_NAME} for the run {pid}; its stderr:\n{}",
+            daemon.stderr()
+        )
+    });
+    // SAFETY: the call takes the window and two plain values.
+    unsafe { PostMessageW(Some(window), WM_QUERYENDSESSION, WPARAM(0), LPARAM(0)) }.unwrap();
+    let posted = Instant::now();
+    // SAFETY: as above; a WPARAM of 1 says that the session ends.
+    unsafe { PostMessageW(Some(window), WM_ENDSESSION, WPARAM(1), LPARAM(0)) }.unwrap();
+    let budget = Duration::from_millis(halvo_control::SESSION_END_BUDGET_MS);
+    let ended = loop {
+        if let Some(status) = daemon.child.try_wait().unwrap() {
+            break Some((status, posted.elapsed()));
+        }
+        if posted.elapsed() > budget {
+            break None;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    let (status, took) = ended.unwrap_or_else(|| {
+        panic!(
+            "the run still ran {budget:?} after the session's messages; its stderr:\n{}",
+            daemon.stderr()
+        )
+    });
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "the run's end after {took:?}; its stderr:\n{}",
+        daemon.stderr()
+    );
+    assert!(took <= budget, "the run took {took:?}");
+}

@@ -2094,20 +2094,32 @@ impl main_loop::MainLoop for ServiceLoop {
     }
 }
 
+/// The service run on Windows: the session window first, whose messages of
+/// a session's end and WM_CLOSE set the stop flag, then the run of `dir`,
+/// which ends through its one shutdown entry once that flag reads true, the
+/// lifeline reads ended or a Stop request comes. A session window that does
+/// not start is a line on standard error, and the run goes on without it.
 #[cfg(all(windows, debug_assertions))]
 fn serve_windows(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
     lifeline: Option<Lifeline>,
 ) -> i32 {
-    static NO_STOP_FLAG: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    use std::io::Write as _;
+    if let Err(error) = crate::windows::session::start() {
+        let _ = writeln!(
+            std::io::stderr(),
+            "halvo-capture: the session window did not start: {}",
+            error.kind()
+        );
+    }
     serve_on(
         dir,
         writer,
         WindowsLoop {
             started: std::time::Instant::now(),
         },
-        &NO_STOP_FLAG,
+        signal::flag(),
         std::sync::Arc::new(main_loop::ExitNow),
         &mut std::io::stderr(),
         ServiceParts {

@@ -7,6 +7,8 @@ pub mod exclusion;
 pub mod foreground;
 pub mod input;
 pub mod screen;
+#[cfg(all(windows, debug_assertions))]
+pub mod session;
 pub mod sources;
 pub mod window_title;
 
