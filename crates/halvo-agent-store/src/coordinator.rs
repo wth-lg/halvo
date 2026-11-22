@@ -122,18 +122,19 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 ///   whose stored cause is no name of the list reads with the cause null, so it gives `last_cause` null and does not
 ///   refuse the roster; every other `agent_log` row that the typed reader refuses refuses it with `store`. `window`
 ///   is `no` where the agent's next run needs no browser window: the run of the agent's newest start row, as
-///   `refused_run` finds it, has its `agent_run` record with the outcome `completed`, no `stopped` row of that run
-///   holds the cause `session_size`, and `session` reads `yes` or the agent's newest bindings of that workflow hold
-///   no origin and `load` lists no revision of the agent; else `yes`, also where no start row stands; a yes or a no
-///   alone, never a site or a count (r3 U5.15). Each key reads the agent's own rows alone and holds no slot's value.
-///   Named limits of the contract: a newer start of the agent ends the sign of `refused_run`, also a run that ended
-///   before any request to the service, and the sign leaves with its log row after 93 days; a newer start of the
-///   agent ends `last_cause` too, also where that run will meet the same cause, and the cause leaves with its
-///   `stopped` row after 93 days; `window` reads `no` where a site begins to ask for a sign-in, where a site no
-///   longer takes its kept sign-in, and where a site at which the newest run signed in was not stored while another
-///   site's sign-in is listed, so that the next run meets a credential field with no window; it reads `yes` at every
-///   run while the bindings hold an origin at which nobody signed in and no revision is listed, because the bindings
-///   keep no way, and once the agent's start rows leave the read after 93 days. A page holds whole entries
+///   `refused_run` finds it, has its `agent_run` record with the outcome `completed`, and either no `handback` row of
+///   that run stands, or `session` reads `yes` and no `stopped` row of that run holds the cause `session_size`; else
+///   `yes`, also where no start row stands; a yes or a no alone, never a site or a count (r3 U5.15). Each key reads
+///   the agent's own rows alone and holds no slot's value. Named limits of the contract: a newer start of the agent
+///   ends the sign of `refused_run`, also a run that ended before any request to the service, and the sign leaves
+///   with its log row after 93 days; a newer start of the agent ends `last_cause` too, also where that run will meet
+///   the same cause, and the cause leaves with its `stopped` row after 93 days; `window` reads `no` after a completed
+///   run that opened no hand-back also where nothing is kept, so the next run meets a credential field with no window
+///   where a site begins to ask for a sign-in, where the kept sign-ins were removed by `drop_sessions` after such a
+///   run, and where a site no longer takes its kept sign-in, and so does a run after one that signed in at a site
+///   whose state it could not store while another site's sign-in is listed, and a hand-back whose log row the store
+///   refused reads as none; it reads `yes` after every run that did not complete, also with a kept sign-in, and once
+///   the agent's start rows leave the read after 93 days. A page holds whole entries
 ///   while the writer takes it, and `next` names its last agent where agents are left; `length` where the first
 ///   entry of the page alone does not fit.
 /// - `agent_history`: `no_workflow`; `binding`. It stores nothing and changes no state. Of the agent's runs, only
@@ -276,14 +277,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
         let refused_run = refused_run(&logs, &starts, &agent);
         let reply_unknown = reply_unknown(&replies, last.as_ref());
         let last_cause = last_cause(&logs, &starts, &runs, &agent);
-        let unbound = newest_bindings.is_none_or(|r| r.origins.is_empty()) && listed.is_empty();
-        let window = window(
-            &logs,
-            &starts,
-            &runs,
-            &agent,
-            session == YesNo::Yes || unbound,
-        );
+        let window = window(&logs, &starts, &runs, &agent, session);
         entries.push(ListedAgent {
             config,
             state,
@@ -402,17 +396,17 @@ fn refused_run(logs: &[AgentLog], starts: &[AgentLog], agent: &AgentId) -> Optio
         .then(|| newest.run.clone())
 }
 
-/// `window` of `list_agents`: `no` where the run of the agent's newest start row, of the greatest `at` and then run
-/// id, has its `agent_run` record of the agent with the outcome `completed`, no `stopped` row of that run and the
-/// agent holds the cause `session_size`, and `kept` holds: `session` reads `yes`, or the agent's newest bindings hold
-/// no origin and `load` lists no revision of the agent. Else `yes`, also where no start row of the agent stands. It
-/// reads no row of another agent.
+/// `window` of `list_agents` (the coordinator's ruling of its log line 16446): `no` where the run of the agent's
+/// newest start row, of the greatest `at` and then run id, has its `agent_run` record of the agent with the outcome
+/// `completed`, and either no `handback` row of that run and the agent stands, or `session` reads `yes` and no
+/// `stopped` row of that run and the agent holds the cause `session_size`. Else `yes`, also where no start row of the
+/// agent stands. It reads no row of another agent.
 fn window(
     logs: &[AgentLog],
     starts: &[AgentLog],
     runs: &[AgentRun],
     agent: &AgentId,
-    kept: bool,
+    session: YesNo,
 ) -> YesNo {
     let Some(newest) = newest_start(starts, agent) else {
         return YesNo::Yes;
@@ -420,13 +414,16 @@ fn window(
     let completed = runs
         .iter()
         .any(|r| &r.agent == agent && r.run == newest.run && r.outcome == Outcome::Completed);
-    let over_limit = logs.iter().any(|l| {
-        &l.agent == agent
-            && l.run == newest.run
-            && l.event == LogEvent::Stopped
-            && l.cause == Some(Cause::SessionSize)
-    });
-    if completed && !over_limit && kept {
+    let of_the_run = |l: &&AgentLog| &l.agent == agent && l.run == newest.run;
+    let handed_back = logs
+        .iter()
+        .filter(of_the_run)
+        .any(|l| l.event == LogEvent::Handback);
+    let over_limit = logs
+        .iter()
+        .filter(of_the_run)
+        .any(|l| l.event == LogEvent::Stopped && l.cause == Some(Cause::SessionSize));
+    if completed && (!handed_back || (session == YesNo::Yes && !over_limit)) {
         YesNo::No
     } else {
         YesNo::Yes
