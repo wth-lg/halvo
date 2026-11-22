@@ -66,10 +66,16 @@ mod mac {
         if args.first().map(String::as_str) == Some("--run") {
             std::process::exit(runner(&args));
         }
-        let tests: [(&str, fn()); 1] = [(
-            "a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record",
-            a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record,
-        )];
+        let tests: [(&str, fn()); 2] = [
+            (
+                "a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record",
+                a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record,
+            ),
+            (
+                "after_a_run_the_snapshot_holds_the_agents_row_with_that_run_as_last_and_no_note",
+                after_a_run_the_snapshot_holds_the_agents_row_with_that_run_as_last_and_no_note,
+            ),
+        ];
         let exact = args.iter().any(|a| a == "--exact");
         let filters: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
         let chosen: Vec<_> = tests
@@ -604,5 +610,44 @@ mod mac {
         assert_eq!(runs[0]["run"]["outcome"], "completed");
         assert_eq!(runs[0]["run"]["mode"], "replay");
         assert_eq!(runs[0]["run"]["agent"], agent.as_str());
+    }
+
+    /// The row of `agent` in the reply of `agents_snapshot`, and the reply.
+    fn row_of(hub: &ProductHub, agent: &str) -> (Option<Value>, Value) {
+        let snapshot = serde_json::to_value(hub.call("agents_snapshot", Some(&json!({})))).unwrap();
+        let row = snapshot["rows"]
+            .as_array()
+            .and_then(|rows| rows.iter().find(|r| r["agent"] == agent).cloned());
+        (row, snapshot)
+    }
+
+    /// U5.4a sentence 2: the agents view shows each stored agent and what it last did: after the run of sentence 1
+    /// the reply of `agents_snapshot` holds the agent's row with that run as its last, and no note.
+    fn after_a_run_the_snapshot_holds_the_agents_row_with_that_run_as_last_and_no_note() {
+        let mut world = World::new("snapshot");
+        let (workflow, agent) = world.agent();
+        let hub = world.hub();
+        product::start(&hub);
+        run_now(&hub, &agent);
+        until("the run's record in the store", || {
+            Core::tick(&*hub);
+            !world.runs(&workflow, &agent).is_empty()
+        });
+        let done = halvo_coord::words::text("line.all_set.done", &[]).unwrap();
+        until("the agent's row with its last run done", || {
+            Core::tick(&*hub);
+            row_of(&hub, &agent)
+                .0
+                .is_some_and(|row| row["line"] == done.as_str())
+        });
+        let (row, snapshot) = row_of(&hub, &agent);
+        let row = row.unwrap();
+        assert_eq!(row["workflow"], workflow.as_str());
+        assert_eq!(row["status"], "all_set");
+        assert_eq!(snapshot["note"], Value::Null, "{snapshot}");
+        assert!(
+            snapshot["seq"].as_u64().is_some_and(|s| s > 0),
+            "{snapshot}"
+        );
     }
 }
