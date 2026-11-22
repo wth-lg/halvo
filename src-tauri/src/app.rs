@@ -718,18 +718,30 @@ mod tests {
 
     use super::*;
 
-    /// A new folder of this test binary under target/tmp, by the test's `name` and this process.
-    /// This module is compiled again by tests/page_guard.rs, which has no `crate::tests`.
+    /// A new, empty folder under target/tmp, by the test's `name`, the test binary's own name and
+    /// this process. This module is compiled again by tests/page_guard.rs, which has no
+    /// `crate::tests` and runs in the same job as the bin's tests; Windows gives a process id out
+    /// again at once, so the binary's name keeps the two targets apart, and a folder of that name
+    /// that an earlier process left goes first, as tests.rs's scratch_dir does.
     fn scratch(name: &str) -> PathBuf {
-        let target = std::env::current_exe()
-            .expect("the test binary has a path")
+        let exe = std::env::current_exe().expect("the test binary has a path");
+        let binary = exe
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .and_then(|stem| stem.split('-').next())
+            .expect("the test binary has a name")
+            .to_string();
+        let target = exe
             .ancestors()
             .nth(3)
             .expect("the test binary sits under target/<profile>/deps")
             .to_path_buf();
         let dir = target
             .join("tmp")
-            .join(format!("halvo-app-{name}-{}", std::process::id()));
+            .join(format!("halvo-app-{name}-{binary}-{}", std::process::id()));
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).expect("an old scratch folder can be removed");
+        }
         std::fs::create_dir_all(&dir).expect("the scratch folder can be made");
         dir
     }
