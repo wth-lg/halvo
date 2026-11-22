@@ -3396,8 +3396,9 @@ mod tests {
         assert_eq!(
             rows,
             [
+                "Halvo records which app is in front, each time that changes.",
                 "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private.",
-                "Halvo records a class for each click or scroll, never its position.",
+                "Halvo records each click and which button you pressed, and how many times you scroll, drag or move the pointer each second, never where on the screen.",
                 "Halvo does not record what you type.",
                 "Screen activity is not recorded.",
             ],

@@ -756,7 +756,7 @@ pub fn texts_shown(status: &DaemonStatus) -> Texts {
     if !typing_shown(status) {
         shown
             .recorded
-            .retain(|row| row.switch != SwitchName::KeyClass);
+            .retain(|row| row.switch != Some(SwitchName::KeyClass));
         shown.passwords = "";
         shown.typed_ahead = None;
     }
