@@ -100,7 +100,9 @@ use crate::{bind, bindings, checkpoint, day, end, runner};
 ///   stored, names another agent, or is stored in the dismissed shape (S-69 (d)). Each entry holds: the
 ///   configuration with `playbook` the newest number of `finished`, or null (CP-182); `state`, the stored state of
 ///   that workflow; `slots`, the slot names of the agent's newest bindings of that workflow, in their order, or none;
-///   `session`, `yes` where a session revision of the agent is stored whole, as `load` lists it; `last`, the agent's
+///   `session`, `yes` where a session revision of the agent is stored whole, as `load` lists it, and no origin's
+///   revision that `load` lists is in the drop form of `drop_session`, so that the interface starts a run with a
+///   window while a dropped sign-in is not kept again; `last`, the agent's
 ///   run record of the greatest day, then of the latest start row, then of the greatest run id; `unknown`, each
 ///   effect of the agent whose newest row by seq is `unknown`, in ascending order of effect id, with the run, the
 ///   day, the class and the kept fields of that row, whatever a record's count says; `refused_run`, the run of the
@@ -184,7 +186,8 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
             .filter(|s| s.agent == agent)
             .cloned()
             .collect();
-        let session = if runner::newest_sessions(&own).is_empty() {
+        let listed = runner::newest_sessions(&own);
+        let session = if listed.is_empty() || listed.iter().any(|s| runner::dropped(&own, s)) {
             YesNo::No
         } else {
             YesNo::Yes

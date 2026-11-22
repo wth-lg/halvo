@@ -2832,6 +2832,9 @@ pub(crate) mod tests {
         let opts = options_with(browser, profile.clone(), relay.handle());
         let ex = Executor::start(&opts).await.expect("the stand-in starts");
         let resolved = std::fs::canonicalize(&real).unwrap().join("p");
+        let mode = std::os::unix::fs::PermissionsExt::mode(
+            &std::fs::metadata(&resolved).unwrap().permissions(),
+        );
         let args = crate::checks::command_args(ex.root().pid).unwrap_or_default();
         let held = ex.profile().map(Path::to_path_buf);
         let stopped = ex.stop_and_remove().await;
@@ -2850,6 +2853,7 @@ pub(crate) mod tests {
         );
         assert_eq!(held, Some(resolved.clone()));
         assert_eq!(before, resolved);
+        assert_eq!(mode & 0o777, 0o700, "the profile is the person's alone");
         assert!(stopped.removed);
         assert!(left.is_empty());
     }

@@ -1528,6 +1528,18 @@ fn an_entry_names_state_slots_session_and_the_last_run() {
         Ok(stored(1))
     );
     assert_eq!(entry(&mut store)["session"], json!("yes"), "stored whole");
+    let other = json!({"op": "put_session", "agent": agent(1), "run": run(1), "origin": "http://other.test:18091", "rev": 1, "part": 1, "of": 1, "data": ["QUJD"]});
+    assert_eq!(runner(&mut store, other), Ok(stored(1)));
+    let dropped = json!({"op": "drop_session", "agent": agent(1), "run": run(1), "origin": "http://utility.test:18090"});
+    assert_eq!(runner(&mut store, dropped), Ok(stored(1)));
+    assert_eq!(
+        entry(&mut store)["session"],
+        json!("no"),
+        "one origin dropped, another kept"
+    );
+    let again = json!({"op": "put_session", "agent": agent(1), "run": run(1), "origin": "http://utility.test:18090", "rev": 3, "part": 1, "of": 1, "data": ["QUJD"]});
+    assert_eq!(runner(&mut store, again), Ok(stored(1)));
+    assert_eq!(entry(&mut store)["session"], json!("yes"), "kept again");
 
     assert_eq!(
         set_state(&mut store, 1, "paused"),

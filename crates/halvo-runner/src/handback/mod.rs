@@ -28,6 +28,8 @@
 #[cfg(test)]
 mod tests;
 
+use std::num::NonZeroU32;
+
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::frame::{Bind, BindReply};
 use halvo_schema::executable::names::{HandbackOutcome, HandbackReason, YesNo};
@@ -59,17 +61,23 @@ impl Runner {
     /// The reading of the page before a web step acts: false where the page shows no credential field; true after
     /// a handback that ended in a bind with `bound=yes`; every other end of a handback stops the run. A reading that
     /// fails, a read of the address before the opening that fails, or a step of the opening that fails, fails the
-    /// step with `step_failed` before the handback opens.
+    /// step with `step_failed` before the handback opens. In a run with no window that imported a kept sign-in
+    /// (crate::session), a credential field opens no handback: the step `step` ends the run (`Runner::no_window`).
     pub(crate) fn read_page(
         &mut self,
         page: &mut dyn Page,
         loaded: &LoadReply,
+        step: NonZeroU32,
     ) -> Result<bool, Failure> {
         let failed = |()| Failure::Step(Cause::StepFailed);
         let Some(sign) = page.sign().map_err(failed)? else {
             return Ok(false);
         };
         let top = WebOrigin::of_address(&page.address().map_err(failed)?).ok();
+        self.sessions.at_field = top.clone();
+        if self.sessions.imported && !self.args.headed {
+            return Err(self.no_window(step, top).into());
+        }
         page.fail_held().map_err(failed)?;
         page.close_others().map_err(failed)?;
         page.clear_stores().map_err(failed)?;
@@ -83,6 +91,7 @@ impl Runner {
             .and_then(|origin| self.bind(origin))
         {
             Ok((origin, YesNo::Yes)) => {
+                self.sessions.at_field = None;
                 if !self.bound.contains(&origin) {
                     self.bound.push(origin);
                 }

@@ -110,6 +110,7 @@ draft
 draft_and_confirm
 drafted
 drag
+drop_session
 earlier_page
 edit
 editing

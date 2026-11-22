@@ -1877,6 +1877,7 @@ dependencies = [
 name = "halvo-runner"
 version = "0.0.0"
 dependencies = [
+ "base64 0.22.1",
  "halvo-checkpoint",
  "halvo-connect",
  "halvo-control",
