@@ -12,8 +12,9 @@ use halvo_coord::run::{recover, recover_step, Act, Earlier, StopBy};
 use halvo_coord::schedule::{Answer, Hold};
 use halvo_coord::types::{
     Agent, AgentId, Answered, Body, Cause, Class, Decision, DecisionEntry, Digest, EffectAnswer,
-    EffectId, Event, HandbackResult, HoldSetCause, ItemId, LapseCause, Lapsed, Limits, OtherLapse, Outcome,
-    PastRun, Raised, ReadyAnswer, Reply, RunEnd, RunId, RunSpec, Trigger, Unknown, What, Workflow,
+    EffectId, Event, HandbackResult, HoldSetCause, ItemId, LapseCause, Lapsed, Limits, OtherLapse,
+    Outcome, PastRun, Raised, ReadyAnswer, Reply, RunEnd, RunId, RunSpec, Trigger, Unknown, What,
+    Workflow,
 };
 use std::num::NonZeroU32;
 use support::{agent, flow, world, world_with, World, A, DAY, MANUAL, T0};

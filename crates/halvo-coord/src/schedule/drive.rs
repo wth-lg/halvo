@@ -1,7 +1,8 @@
 use super::{
     clean, current_slot, held_by_events, holds, kept_off, refusal_unstored, refused_runs,
-    slot_open, start_step, switch_on_state, tick_plan, tick_step, wants_active, wants_paused, Around, Ask, Board, Dying,
-    Go, Hold, LiveRun, Member, Owed, Owing, StartStep, Stop, Verdict, Waiting,
+    slot_open, start_step, switch_on_state, tick_plan, tick_step, wants_active, wants_paused,
+    Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing, StartStep, Stop, Verdict,
+    Waiting,
 };
 use crate::items::drive::{alone, class_of, Alone, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Shared, Stamp};
@@ -2217,9 +2218,13 @@ where
                     cause: Cleared::Person,
                 });
             }
-            whats.extend(refused_runs(facts).into_iter().map(|run| What::HoldCleared {
-                cause: Cleared::SignInRefused { run },
-            }));
+            whats.extend(
+                refused_runs(facts)
+                    .into_iter()
+                    .map(|run| What::HoldCleared {
+                        cause: Cleared::SignInRefused { run },
+                    }),
+            );
             if standing.contains(&Hold::Failures) {
                 whats.push(What::HoldCleared {
                     cause: Cleared::Failures,

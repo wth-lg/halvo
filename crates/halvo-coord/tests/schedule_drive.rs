@@ -4587,10 +4587,7 @@ fn under_a_refused_sign_in_the_scheduler_starts_nothing_and_one_start_by_the_per
             _ => None,
         })
         .collect();
-    assert_eq!(
-        cleared,
-        vec![Cleared::SignInRefused { run: first.clone() }]
-    );
+    assert_eq!(cleared, vec![Cleared::SignInRefused { run: first.clone() }]);
     w.owner_agent(0, |a| a.refused_run = Some(second.clone()));
     w.end(&second, Some(Outcome::Failed));
     assert_eq!(
