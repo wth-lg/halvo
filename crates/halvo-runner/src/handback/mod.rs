@@ -36,6 +36,11 @@
 //! bind with `bound=yes` the act that failed is asked once more, and a second failure fails the step as before, with
 //! no second reading (crate::web, the coordinator's ruling of log line 16106 (3)). A step that does not fail makes no
 //! second reading.
+//!
+//! A run in which no person can answer opens no handback at a sign-in (r3 U5.15r, the coordinator's ruling of log line
+//! 16634): a run with no window, given no `--headed`, ends at a credential field whether it imported a kept sign-in or
+//! not (`Runner::no_window`), and makes no second reading at a failed step. Only a build of the tests, with the switch
+//! `--stand-in-person` (crate::args), runs with no window and a stand-in person who answers.
 
 #[cfg(test)]
 mod tests;
@@ -74,9 +79,9 @@ impl Runner {
     /// a handback that ended in a bind with `bound=yes`; every other end of a handback stops the run. A reading that
     /// fails, a read of the address before the opening that fails, or a step of the opening that fails, fails the
     /// step with `step_failed` before the handback opens; a link that broke while the opening stores the kept sites
-    /// stops the run, and no other fault of that store keeps the handback from opening. In a run with no window that
-    /// imported a kept sign-in (crate::session), a credential field opens no handback: the step `step` ends the run
-    /// (`Runner::no_window`).
+    /// stops the run, and no other fault of that store keeps the handback from opening. In a run with no window, where
+    /// no person can answer (crate::args), a credential field opens no handback: the step `step` ends the run
+    /// (`Runner::no_window`), whether the run imported a kept sign-in or not (r3 U5.15r).
     pub(crate) fn read_page(
         &mut self,
         page: &mut dyn Page,
@@ -103,7 +108,7 @@ impl Runner {
         let failed = |()| Failure::Step(Cause::StepFailed);
         let top = WebOrigin::of_address(&page.address().map_err(failed)?).ok();
         self.sessions.at_field = top.clone();
-        if self.sessions.imported && !self.args.headed {
+        if !self.args.person {
             return Err(self.no_window(step, top).into());
         }
         page.fail_held().map_err(failed)?;
