@@ -168,8 +168,9 @@ impl TitleWhy {
 }
 
 /// The title of the focused window of the app in front, read on a change of
-/// app or of title; none while secure input is active. The site is kept only
-/// while the switch `site_read` is on.
+/// app or of title. On macOS there is none unless secure input is known to be
+/// off; on Windows there is none while it is known to be on. The site is kept
+/// only while the switch `site_read` is on.
 pub struct Title {
     pub(crate) text: CapturedText,
     pub(crate) why: TitleWhy,
