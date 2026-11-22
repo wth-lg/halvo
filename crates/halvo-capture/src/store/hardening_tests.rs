@@ -9971,6 +9971,7 @@ fn a_delete_report_and_its_roots_left_print_each_root_id_in_its_one_text_form() 
         database_left: false,
         files_left: 0,
         not_followed: 0,
+        lock_file_kept: false,
     };
     let printed = format!("{report:?} {:?} {:?}", report.roots, left);
     println!("REPORT-DEBUG {printed}");

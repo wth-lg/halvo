@@ -3152,6 +3152,7 @@ impl EncryptedStore {
             database_left: true,
             files_left: 0,
             not_followed: 0,
+            lock_file_kept: false,
         }
     }
 
@@ -3373,7 +3374,7 @@ impl EncryptedStore {
                 drop(lock);
                 report
             }
-            None => not_opened(reading, roots),
+            None => as_the_store_files_stand(store, reading, roots),
         };
         #[cfg(windows)]
         if report.key_file_gone
@@ -3477,6 +3478,7 @@ fn nothing_of_a_store(root: RootReading, roots: RootsLeft) -> DeleteReport {
         database_left: false,
         files_left: 0,
         not_followed: 0,
+        lock_file_kept: false,
     }
 }
 
@@ -3519,6 +3521,45 @@ fn not_opened(root: RootReading, roots: RootsLeft) -> DeleteReport {
         database_left: true,
         files_left: 1,
         not_followed: 0,
+        lock_file_kept: false,
+    }
+}
+
+/// The report of a tail that opened the store directory and could not take
+/// its lock for a reason other than a holder: the root step as it went, and
+/// the store's files read by their names as they stand, none removed.
+/// `files_left` counts the entries of the segments tree, the pending mark and
+/// its temporary file and, on Windows, the lock file, read by the store's one
+/// reader of that name. On Windows `lock_file_kept` says whether the lock file
+/// stands marked for removal while another handle keeps it open, which is
+/// what refuses the take there behind a delete that marked it.
+fn as_the_store_files_stand(store: &Dir, root: RootReading, roots: RootsLeft) -> DeleteReport {
+    let stands = |name: &str| !matches!(store.entry(OsStr::new(name)), Err(e) if e.kind() == ErrorKind::NotFound);
+    let database_left = [DATABASE_FILE]
+        .into_iter()
+        .chain(DATABASE_SIDE_FILES.map(|(file, _)| file))
+        .any(stands);
+    let pending_left = [CREATE_PENDING, CREATE_PENDING_TEMP]
+        .into_iter()
+        .filter(|name| stands(name))
+        .count() as u64;
+    let files_left = segment::entries_of_the_segments_tree(store) + pending_left;
+    #[cfg(windows)]
+    let files_left = files_left + u64::from(DirLock::file_stands_in(store));
+    #[cfg(windows)]
+    let lock_file_kept = DirLock::file_marked_and_kept_in(store);
+    #[cfg(not(windows))]
+    let lock_file_kept = false;
+    DeleteReport {
+        keyed_segments: None,
+        root,
+        roots,
+        root_not_handled: None,
+        key_file_gone: !stands(KEY_FILE),
+        database_left,
+        files_left,
+        not_followed: 0,
+        lock_file_kept,
     }
 }
 
@@ -3559,6 +3600,7 @@ fn remove_the_store_files(
         database_left: database.left,
         files_left: segments.entries_left + pending_left,
         not_followed: key_file.not_followed + database.not_followed + segments.links_or_others_met,
+        lock_file_kept: false,
     }
 }
 

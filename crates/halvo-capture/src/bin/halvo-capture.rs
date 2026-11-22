@@ -677,7 +677,7 @@ mod tests {
         );
         assert_eq!(
             err,
-            "halvo-capture: the delete is not finished: this call did not destroy the store's root; the folder roots could not be listed; store.key stays; a database file stays; 1 other files of the store stay\n"
+            "halvo-capture: the delete is not finished: this call did not destroy the store's root; the folder roots could not be listed; store.key stays; a database file stays; other files of the store that stay: 1\n"
         );
         assert_eq!(
             files_under(&dir)
@@ -753,7 +753,7 @@ mod tests {
         );
         assert_eq!(
             err,
-            "halvo-capture: the delete is not finished: store.key stays; a database file stays; 1 other files of the store stay\n"
+            "halvo-capture: the delete is not finished: store.key stays; a database file stays; other files of the store that stay: 1\n"
         );
         assert!(dir.join("store.key").exists() && dir.join("create.pending").exists());
         assert_eq!(root_files(&dir), Vec::<String>::new());

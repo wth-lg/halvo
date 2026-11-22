@@ -385,6 +385,9 @@ const fn opens_no_store(recorded: Option<Custody>) -> Selection {
 struct Walked {
     removed: u64,
     left: u64,
+    /// Of `left`, the store's own rows, left while the store's delete is not
+    /// finished.
+    store_rows_left: u64,
     removed_an_entry: bool,
     marks_passed: u64,
 }
@@ -584,10 +587,16 @@ pub fn steps_of_the_delete(
             stays => format!("halvo-capture: the delete is not finished: {stays}"),
         });
     }
-    if finished.walked.left > 0 {
+    let store_rows_left = finished.walked.store_rows_left;
+    if store_rows_left > 0 {
         causes.push(format!(
-            "halvo-capture: {} registered entries stay; a process that a pid file or a run's mark names did not end, or their files could not be removed",
-            finished.walked.left
+            "halvo-capture: registered entries of the store that stay until the delete of the store finishes: {store_rows_left}"
+        ));
+    }
+    let other_rows_left = finished.walked.left - store_rows_left;
+    if other_rows_left > 0 {
+        causes.push(format!(
+            "halvo-capture: {other_rows_left} registered entries stay; a process that a pid file or a run's mark names did not end, or their files could not be removed"
         ));
     }
     if !finished.whole() && stands(&path.join(INTENT_FILE)) {
@@ -656,8 +665,9 @@ fn open_for_the_delete(
 /// segments and the root that the handle named, comes from the handle's
 /// report. On Windows a finished delete of the handle marked the store's
 /// lock file, which goes when the handle closes; where its name still stands
-/// behind the close, the delete is not finished, with that file counted as
-/// left, and no tail runs behind it.
+/// behind the close, read by the store's one reader of that name, the delete
+/// is not finished, with that file counted as left, and no tail runs behind
+/// it.
 fn delete_the_store(host: &DataDirStore, handle: Option<Handle>) -> TailAnswer {
     let Some(mut handle) = handle else {
         return host.delete();
@@ -666,7 +676,7 @@ fn delete_the_store(host: &DataDirStore, handle: Option<Handle>) -> TailAnswer {
     drop(handle);
     #[cfg(windows)]
     if let TailAnswer::Finished(report) = &by_the_handle {
-        if stands(&host.store_dir().join("writer.lock")) {
+        if host.lock_file_stands() {
             let mut report = report.clone();
             report.files_left += 1;
             return TailAnswer::NotFinished(report);
@@ -884,6 +894,9 @@ fn walk(dir: &Path, rows: &[Row], store_done: bool, hands: &dyn Hands) -> Walked
             walked.removed += 1;
         } else {
             walked.left += 1;
+            if STORE_ROWS.contains(&row.name) {
+                walked.store_rows_left += 1;
+            }
         }
     }
     walked
