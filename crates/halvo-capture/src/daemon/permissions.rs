@@ -18,6 +18,9 @@ pub const PROBE_DEADLINE: Duration = Duration::from_secs(5);
 /// How long the request child may run before its starter ends it.
 pub const REQUEST_DEADLINE: Duration = Duration::from_secs(60);
 
+/// The binary whose two permission modes the daemon starts as its children.
+pub const PROGRAM: &str = "halvo-capture";
+
 /// The lines of `--probe-permissions`: `permission name=<P> grant=<G>` for each
 /// permission of `permissions`, in their order, and a check of no other.
 pub fn probe_lines(probe: &dyn PermissionProbe, permissions: &[Permission]) -> String {
@@ -89,6 +92,11 @@ pub trait ProbeRunner {
 
     /// What the probe answered since its start.
     fn poll(&mut self) -> Probed;
+
+    /// The program that the probe starts as its child, if it starts one.
+    fn program(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// The probe child: `halvo-capture --probe-permissions P...` started from the
@@ -135,6 +143,73 @@ impl ProbeRunner for ChildProbe {
             } => Probed::Answered(read_probe_lines(&out)),
             Ended::Exited { .. } | Ended::Deadline => Probed::Failed,
         }
+    }
+
+    fn program(&self) -> Option<&str> {
+        Some(&self.program)
+    }
+}
+
+/// Starts the request child of `--request-permission P` for the daemon and
+/// tells whether it still runs.
+pub trait RequestStarter {
+    /// Starts `program` with `args`, to be ended at `deadline`.
+    fn start(&mut self, program: &str, args: &[&str], deadline: Duration) -> std::io::Result<()>;
+
+    /// Whether the child of the last start still runs; a child that has
+    /// ended is let go.
+    fn running(&mut self) -> bool;
+}
+
+/// The arguments of the request child that asks the system for
+/// `permission`.
+pub fn request_args(permission: Permission) -> [&'static str; 2] {
+    ["--request-permission", permission.as_str()]
+}
+
+/// The request children of the daemon, each started through the one child
+/// starter from the daemon's own directory; a child that still runs when
+/// this is dropped is ended.
+pub struct ChildRequests {
+    dir: PathBuf,
+    running: Option<children::Child>,
+}
+
+impl ChildRequests {
+    /// The request children of the binaries in `dir`.
+    pub fn new(dir: PathBuf) -> ChildRequests {
+        ChildRequests { dir, running: None }
+    }
+}
+
+impl RequestStarter for ChildRequests {
+    fn start(&mut self, program: &str, args: &[&str], deadline: Duration) -> std::io::Result<()> {
+        self.running = Some(children::start(&self.dir, program, args, deadline)?);
+        Ok(())
+    }
+
+    fn running(&mut self) -> bool {
+        let Some(child) = self.running.as_mut() else {
+            return false;
+        };
+        if child.poll().is_some() {
+            self.running = None;
+            return false;
+        }
+        true
+    }
+}
+
+/// The probe of a daemon that cannot name its own directory: it starts
+/// nothing and every poll answers [`Probed::Failed`], so no answer ever reads
+/// a grant.
+pub struct Unanswered;
+
+impl ProbeRunner for Unanswered {
+    fn start(&mut self, _permissions: &[Permission]) {}
+
+    fn poll(&mut self) -> Probed {
+        Probed::Failed
     }
 }
 

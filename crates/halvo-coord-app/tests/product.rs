@@ -36,8 +36,9 @@ mod mac {
     use halvo_control::proto::{decode_request, Decoded};
     use halvo_control::r2::{dispatch_unknown, mark_request, OwnerChannel, RunEdge, RunMarked};
     use halvo_control::wire::{read_frame, write_frame, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
+    use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::product::{self, Calls, Places, ProductHub};
-    use halvo_coord_app::{Core, Native, Present, Reply};
+    use halvo_coord_app::{Card, Core, Dialog, Reply};
     use halvo_schema_core::category::SeedCategory;
     use halvo_schema_core::ids::{Position, RequestId, StoreId, SummaryId};
     use halvo_schema_core::record::{
@@ -460,7 +461,7 @@ mod mac {
                 browser: exe,
                 model: None,
             };
-            product::hub(self.calls(), places, Box::new(|_| {}), Box::new(Drops))
+            product::hub(self.calls(), places, Box::new(|_| {}), Arc::new(Unseen))
         }
 
         /// A link of the test's own over an owner stream of the stand-in server.
@@ -565,11 +566,13 @@ mod mac {
         }
     }
 
-    /// A presenter that drops each dialog.
-    struct Drops;
+    /// A dialog that is never on screen and answers `reject`: no native confirmation is answered.
+    struct Unseen;
 
-    impl Present for Drops {
-        fn present(&self, _dialog: Native) {}
+    impl Dialog for Unseen {
+        fn show(&self, _: &Card, _: Duration, _: &dyn Fn()) -> ConfirmAnswer {
+            ConfirmAnswer::Reject
+        }
     }
 
     fn now_ns() -> i64 {

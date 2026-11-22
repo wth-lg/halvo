@@ -1,15 +1,18 @@
 # Packaging
 
 This directory holds what the packaging of the app reads. One command builds the
-Mac app bundle, unsigned, with the capture daemon inside it:
+Mac app bundle, unsigned, with three helpers inside it: the capture daemon
+`halvo-capture`, the owner of the derived store `halvo-owner` and the analysis
+worker `halvo-analysis`:
 
 ```sh
 npm run tauri build -- -- --locked
 ```
 
-It writes `target/release/bundle/macos/Halvo.app`. The daemon's binary lies at
-`Halvo.app/Contents/MacOS/halvo-capture`, beside the app's binary `halvo`, as an
-external binary of the Tauri bundler. The check
+It writes `target/release/bundle/macos/Halvo.app`. Each helper's binary lies in
+`Halvo.app/Contents/MacOS/`, beside the app's binary `halvo`, as an external
+binary of the Tauri bundler. The daemon starts `halvo-owner` and `halvo-analysis`
+from the directory of its own binary, so they ship beside it. The check
 `scripts/r1/ci.d/70-package-macos.sh` builds the bundle by that command and reads
 it. Nobody installs this bundle yet.
 
@@ -24,14 +27,26 @@ bin=<the binary of that package>
 manifest=<the package's Cargo.toml, from the repository root>
 ```
 
+The file of a helper that has no `--version` argument holds a fourth line:
+
+```text
+version=none
+```
+
+`sh scripts/r1/ci.d/62-build.sh --files`, by which check 70 reads what it built,
+starts each file with `--version`. It reads a helper with that fourth line for
+the markers and the imports as every other file, and does not start it. The
+files of `halvo-owner` and `halvo-analysis` hold the line.
+
 For `build` and `bundle`, and for no other command of the Tauri CLI,
 `scripts/tauri.js` does this in order:
 
 1. It runs `sh scripts/r1/ci.d/54-tag-needs-store4.sh` and stops when that fails.
 2. For each helper it runs, at the repository root,
    `cargo build --release --locked --manifest-path <manifest> -p <package> --bin <bin>`,
-   with no feature and no test target. This is the same build as the second call
-   of `scripts/r1/ci.d/62-build.sh`, so cargo builds the dependencies once for both.
+   with no feature and no test target. These are the same builds as the second,
+   third and fourth call of `scripts/r1/ci.d/62-build.sh`, so cargo builds the
+   dependencies once for both.
 3. It copies the built binary to `target/helpers/<name>-<triple>`, with `.exe` at
    the end on Windows. The triple is the `host:` line of `rustc -vV`. It copies
    only when the bytes differ.
