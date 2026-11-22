@@ -16,7 +16,7 @@ use serde_json::value::RawValue;
 /// The family of the rows that the two handlers read and store.
 pub(crate) const FAMILY: &str = "agent";
 
-/// The `op` names of `CoordinatorCall`, all twelve, which the handler of `coordinator_write` takes. A thirteenth
+/// The `op` names of `CoordinatorCall`, all thirteen, which the handler of `coordinator_write` takes. A fourteenth
 /// `op` is answered `unsupported` by the store until it is named here.
 pub(crate) const OPS: &[&str] = &[
     "create_agent",
@@ -31,6 +31,7 @@ pub(crate) const OPS: &[&str] = &[
     "list_agents",
     "agent_history",
     "drop_sessions",
+    "list_replies",
 ];
 
 /// The body that a handler answers.

@@ -101,6 +101,7 @@ names! {
         TakeBack = "take_back",
         SwitchOff = "switch_off",
         SwitchOn = "switch_on",
+        StopSignIn = "stop_sign_in",
         Delete = "delete",
     }
 }
@@ -113,6 +114,7 @@ names! {
         TakeBack = "take_back",
         SwitchOff = "switch_off",
         SwitchOn = "switch_on",
+        StopSignIn = "stop_sign_in",
     }
 }
 

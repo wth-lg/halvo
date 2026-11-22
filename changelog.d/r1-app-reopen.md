@@ -1,0 +1,1 @@
+- Fixed: On macOS, with Halvo's window closed, a click on Halvo in the Dock, or opening Halvo again while it runs, now shows the window and brings it to the front, as Open Halvo in the menu bar does; before, the window came back only through the menu bar.

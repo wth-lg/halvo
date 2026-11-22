@@ -21,7 +21,7 @@
 # is here when it took about 6 s or more in one of the two jobs.
 # The groups: A the tests of the store (the slice mon); B the test targets of the agent and
 # coordinator packages, the target formal_traces and the unit tests of five packages (tue); C the name
-# parts of halvo-capture's unit tests and the doc-tests (sun in the macos job, fri in the windows job);
+# parts of halvo-capture's unit tests and the doc-tests (fri in the macos job, fri in the windows job);
 # D the test targets of seven more packages and two targets by name (sat); E the one target
 # macos_stall_fixture (wed in the macos job, before 51-macos-stall, which reads from 12-test's list
 # that the launch-path test of that target ran; no windows slice runs it, where every test of it is

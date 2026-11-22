@@ -65,10 +65,7 @@ on the PATH of the shell. Every command that this file documents and that runs c
 puts `~/.cargo/bin` on its own PATH, so none of them needs that. To run `cargo` yourself, add
 `~/.cargo/bin` to PATH.
 
-Supported systems: macOS 14 or later on Apple silicon (arm64), with no build for Intel
-Macs, and Windows on x86_64. The macOS floor is a plan that the app bundle does not
-yet declare: `src-tauri/tauri.conf.json` sets no minimum system version, so the
-bundle carries Tauri's default until the packaging work sets 14.
+Supported systems: macOS 14.0 or later on Apple silicon (arm64), with no build for Intel Macs, and Windows on x86_64. The app bundle declares the macOS floor: src-tauri/tauri.macos.conf.json sets its minimum system version to 14.0.
 
 ## Build
 

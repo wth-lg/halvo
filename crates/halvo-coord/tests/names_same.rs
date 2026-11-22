@@ -16,7 +16,7 @@ fn names<T: Copy>(all: &[T], name: fn(T) -> &'static str) -> Vec<&'static str> {
 }
 
 #[test]
-fn cause_names_are_the_thirteen_of_i8_1() {
+fn cause_names_are_the_fourteen_of_i8_1() {
     assert_eq!(
         names(Cause::ALL, Cause::name),
         [
@@ -33,6 +33,7 @@ fn cause_names_are_the_thirteen_of_i8_1() {
             "unknown_agent",
             "malformed",
             "overlap",
+            "day",
         ]
     );
 }
@@ -91,7 +92,7 @@ fn choice_names_are_those_of_i3_1_and_present_of_i3_4() {
 }
 
 #[test]
-fn control_names_are_the_six_of_i2_5() {
+fn control_names_are_the_seven_of_i2_5() {
     assert_eq!(
         names(Control::ALL, Control::name),
         [
@@ -100,16 +101,24 @@ fn control_names_are_the_six_of_i2_5() {
             "take_back",
             "switch_off",
             "switch_on",
+            "stop_sign_in",
             "delete"
         ]
     );
 }
 
 #[test]
-fn action_names_are_the_five_of_agents_control_in_i8_1() {
+fn action_names_are_the_six_of_agents_control_in_i8_1() {
     assert_eq!(
         names(Action::ALL, Action::name),
-        ["run_now", "stop", "take_back", "switch_off", "switch_on"]
+        [
+            "run_now",
+            "stop",
+            "take_back",
+            "switch_off",
+            "switch_on",
+            "stop_sign_in"
+        ]
     );
 }
 

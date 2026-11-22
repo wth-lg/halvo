@@ -8,7 +8,12 @@
 //! start of Edge four files of 4,923 bytes; after a crash the singleton directory stays in the
 //! system's temporary directory. The stop removes the profile and the temporary directory
 //! that its start made and nothing else (A11.1), so nothing in this crate removes those files, and
-//! no text of this run says who does. On Windows the same readings left none.
+//! no text of this run says who does. On Windows the same readings left none. The cache of the
+//! browser's pages lies in the profile (`CACHE_PLACE`, r3 U5.2e); the empty folders that the
+//! browser makes at every start under the person's `Library/Caches` for a profile under
+//! `Library/Application Support` are removed by the stop where they are empty (`cdp::cache_chain`),
+//! and after a hard end that empty chain of folders, with the run's id in its names, stays there;
+//! no file is in it.
 //!
 //! The named limits of the mark and the guard that U2.6b leaves (the coordinator's rulings CP-231
 //! (5) and CP-233, the planner's object of U2.6b), each held by reading and by no test:
@@ -204,6 +209,28 @@ pub const CRASH_MEANS: [&str; 2] = [
     "--disable-breakpad",
     "--breakpad-dump-location={profile}/Crashpad",
 ];
+
+/// The browser's cache place (r3 U5.2e), a flag of the executor's own in every start, the crash
+/// row's control among them, `{profile}` standing for the run's profile directory: the cache of
+/// the browser's pages lies in the profile, which the stop removes. Without it the browser's rule
+/// on macOS puts the cache of a profile that lies under the person's `Library/Application Support`
+/// at the same path under `Library/Caches` (Chromium's `GetUserCacheDirectory`,
+/// chrome/common/chrome_paths_mac.mm), outside the data folder; on Windows the rule gives the
+/// profile itself (chrome/common/chrome_paths_win.cc). The switch is mapped to the browser's
+/// setting `kDiskCacheDir` (chrome/browser/prefs/chrome_command_line_pref_store.cc), which it takes
+/// when the value is absolute and names no parent (chrome/browser/net/disk_cache_dir_util.cc), and
+/// the HTTP cache (`<value>/Default/Cache`, chrome/browser/net/profile_network_context_service.cc)
+/// and the code cache (`<value>/Default/Code Cache`, `GetGeneratedCodeCacheSettings` in
+/// chrome/browser/chrome_content_browser_client.cc) follow it; Chromium's source as read at its
+/// main of 2026-11-22. What else the browser keeps by the profile's path, each read in that source:
+/// the GPU caches lie below the profile by their own rule (`GetGpuDiskCacheSubdir` below the
+/// storage partition's path, content/browser/renderer_host/render_process_host_impl.cc), the shader
+/// caches below the profile (`GetShaderDiskCacheDirectory` and its siblings, below the user data
+/// directory), and a crash's dump by `CRASH_MEANS`. One thing the flag does not move: at every start
+/// the browser makes the directory of the old cache place, empty, with every folder above it
+/// (`CreateProfileDirectory` in chrome/browser/profiles/profile_impl.cc); the stop removes the run's
+/// part of it where it is empty (`cdp::cache_chain`).
+pub const CACHE_PLACE: &str = "--disk-cache-dir={profile}/DiskCache";
 
 /// The further candidates of the crash row (CP-167 E2), a closed list, each added after the
 /// product's means by `cdp::CrashMeans::Candidate`; each switch name stands in the browser's own

@@ -240,6 +240,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("control.take_back", "Cancel this start"),
     ("control.switch_off", "Switch off"),
     ("control.switch_on", "Switch on"),
+    ("control.stop_sign_in", "Stop using its sign-in"),
     ("control.delete", "Delete"),
     ("item.sign_in.title", "Sign in for “{name}”"),
     (
@@ -404,6 +405,14 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "item.sign_in.site",
         "Sign in to {origin} in its own window, then choose Done.",
+    ),
+    (
+        "item.sign_in.site_kept",
+        "Sign in to {origin} in its own window, then choose Done. Halvo keeps this agent signed in to {origin} on this computer, so that it does not ask you each time. It removes the sign-in at the latest 35 days after this agent last finished a run, or when you delete everything.",
+    ),
+    (
+        "item.sign_in.text_kept",
+        "Sign in to the site in its own window, then choose Done. Halvo keeps this agent signed in to the site on this computer, so that it does not ask you each time. It removes the sign-in at the latest 35 days after this agent last finished a run, or when you delete everything.",
     ),
     (
         "choice.sign_in.bind_decline",
@@ -624,6 +633,19 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     ("ask.delete.keep", "Keep it"),
     (
+        "ask.stop_sign_in.title",
+        "Stop using the sign-in of “{name}”?",
+    ),
+    (
+        "ask.stop_sign_in.stops",
+        "Halvo will stop using the sign-in that it keeps for this agent, and removes it within 35 days.",
+    ),
+    (
+        "ask.stop_sign_in.next",
+        "The next time the agent runs, it asks you to sign in again.",
+    ),
+    ("ask.stop_sign_in.keep", "Keep the sign-in"),
+    (
         "ask.effect.payment",
         "Halvo does not know whether it made this payment.",
     ),
@@ -730,6 +752,10 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "refused.overlap_more",
         "“{name}” already answers mail from {senders} on this mailbox, and other agents answer some of these people too. A message that one agent answered can still look unread to another, so this agent stays off. Switch the other agents off or delete them, then switch this one on.",
+    ),
+    (
+        "refused.day",
+        "Halvo cannot do that today because this computer's clock was changed. Try again in a day or two.",
     ),
     (
         "refused.switch_not_saved",

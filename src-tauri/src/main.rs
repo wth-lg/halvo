@@ -221,6 +221,13 @@ fn run(background: bool, given: Option<PathBuf>) {
     );
     #[cfg(target_os = "macos")]
     start_the_login_item(login_dir, given.is_some(), login_views);
+    #[cfg(target_os = "macos")]
+    app.run(|app, event| {
+        if let tauri::RunEvent::Reopen { .. } = event {
+            tray::show_main_window(app);
+        }
+    });
+    #[cfg(not(target_os = "macos"))]
     app.run(|_, _| {});
 }
 

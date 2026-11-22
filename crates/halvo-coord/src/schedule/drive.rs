@@ -600,6 +600,24 @@ pub fn pause_owed<P: Owner, C>(ports: &P, board: &mut Board<C>) {
     }
 }
 
+/// The person's `stop_sign_in` (r4 U2.4y): sends ONE body `drop_sessions` with the workflow and
+/// the agent of member `i` through `Owner::send`; at the owner's success, whatever count it
+/// answers, the member holds no session, so that its row offers the control no more until a read
+/// of the roster gives a session again; at any other answer the member stays as it was.
+pub fn drop_sessions<P: Owner, C>(
+    ports: &P,
+    board: &mut Board<C>,
+    i: usize,
+) -> Result<(), PortError> {
+    let member = &mut board.members[i];
+    ports.send(&Body::DropSessions {
+        workflow: member.facts.workflow.id.clone(),
+        agent: member.facts.agent.clone(),
+    })?;
+    member.session = false;
+    Ok(())
+}
+
 /// Sends `set_state` and reads its answer: the owner's acknowledgement, `{"state":"<state>"}`
 /// with the state sent, writes that state into the agent's facts, so that every later step of the
 /// move reads it (ruling RD-67 1.3 (a); I5.1); any other reply is no acknowledgement and answers
