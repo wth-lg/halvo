@@ -126,8 +126,8 @@ pub enum DropReason {
     UnknownLineage,
     /// A title of a window that the source told as private.
     PrivateWindow,
-    /// A title or a frame while the secure-input reading is active, or on
-    /// macOS while it is unknown.
+    /// A title or a frame while the secure-input reading is active or
+    /// unknown.
     SecureInput,
 }
 
@@ -236,9 +236,9 @@ impl FloorHandle {
 
     /// The decision for one event of kind `K` about `subject`. `window` counts
     /// for a window_title event only. `probe` is read for a window_title or a
-    /// screen_frame event only: an active reading drops it, and an unknown
-    /// reading drops it on macOS and keeps it on Windows (contracts.md C13.8).
-    /// So on macOS such an event is kept only while the reading is inactive.
+    /// screen_frame event only: an active or an unknown reading drops it
+    /// (contracts.md C13.8), so such an event is kept only while the reading
+    /// is inactive.
     /// The verdict holds for the instant of this call: the caller decides, and
     /// checks a key's clearance, right before each build, because a held
     /// verdict or clearance outlives a change of the reading.
@@ -291,20 +291,11 @@ fn decide(
         return Err(DropReason::PrivateWindow);
     }
     let content = matches!(kind, Modality::WindowTitle | Modality::ScreenFrame);
-    if content {
-        let dropped = match reading() {
-            SecureInputReading::Active => true,
-            SecureInputReading::Unknown => CONTENT_DROPPED_AT_UNKNOWN,
-            SecureInputReading::Inactive => false,
-        };
-        if dropped {
-            return Err(DropReason::SecureInput);
-        }
+    if content && reading() != SecureInputReading::Inactive {
+        return Err(DropReason::SecureInput);
     }
     Ok(())
 }
-
-const CONTENT_DROPPED_AT_UNKNOWN: bool = cfg!(target_os = "macos");
 
 fn is_listed(app: &AppIdentity) -> bool {
     app.is_listed(LISTED_BUNDLE_IDS, LISTED_EXECUTABLES)
@@ -568,20 +559,15 @@ mod tests {
     }
 
     #[test]
-    fn a_title_and_a_frame_are_kept_only_at_inactive_on_macos_and_also_at_unknown_on_windows() {
+    fn a_title_and_a_frame_are_kept_only_at_inactive() {
         let mut on = Switches::default();
         on.set(Switch::ScreenActivity, true);
         let floor = handle(None, on);
         let unknown = PrivateWindow::Unknown;
-        let at_unknown = if cfg!(target_os = "macos") {
-            Some(DropReason::SecureInput)
-        } else {
-            None
-        };
         for (reading, expected) in [
             (SecureInputReading::Active, Some(DropReason::SecureInput)),
             (SecureInputReading::Inactive, None),
-            (SecureInputReading::Unknown, at_unknown),
+            (SecureInputReading::Unknown, Some(DropReason::SecureInput)),
         ] {
             let probe = FixedProbe(reading);
             let title = floor.decide::<kind::WindowTitle>(subject(200), unknown, &probe);

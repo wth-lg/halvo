@@ -519,7 +519,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_title_leaves_no_event_while_the_gate_reads_password_and_one_while_it_reads_unknown() {
+    fn a_title_leaves_no_event_while_the_gate_reads_password_or_unknown_and_one_while_it_reads_clear(
+    ) {
         use crate::floor::exclude::FloorHandle;
         use crate::secure_input::windows::{FocusRead, Kind};
         let drops = Arc::new(DropCounts::default());
@@ -539,8 +540,8 @@ mod tests {
             )
             .is_some()
         };
-        assert!(title(None), "a title with no keyboard source");
-        assert!(title(Some(&gate)), "a title while the gate reads Unknown");
+        assert!(!title(None), "a title with no gate");
+        assert!(!title(Some(&gate)), "a title while the gate reads Unknown");
         let read = |is_password| FocusRead::Answered {
             is_password,
             protected: false,
@@ -550,7 +551,7 @@ mod tests {
         assert!(!title(Some(&gate)), "a title while the gate reads Password");
         gate.focus_read_at(super::super::now_tick(), read(false), false);
         assert!(title(Some(&gate)), "a title while the gate reads Clear");
-        assert_eq!(drops.read().secure_input, 1);
+        assert_eq!(drops.read().secure_input, 3);
         let private = title_event(
             &floor,
             None,
