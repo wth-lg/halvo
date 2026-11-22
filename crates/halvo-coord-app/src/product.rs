@@ -11,8 +11,12 @@
 //! - `Clock` reads the system clock and the zone of the Mac, `Rng` the system's generator, `Policy` the table of
 //!   halvo-policy (`decide_row`) and `Senders` the schema's reader of `reply_senders`.
 //!
-//! The library's calls back (`MarkSink`, `Human`) reach the coordinator through one thread of their own, so that no
-//! thread of a run ever waits for the coordinator's lock. Each run of this life ends through `MarkSink::end`; a run
+//! The library's calls back (`MarkSink`, `Human`, `Confirmer`) reach the coordinator through one thread of their own,
+//! so that no thread of a run ever waits for the coordinator's lock: a confirmation and the second step of a sign-in
+//! wait for the person's answer, which `Runs::answer_confirm` and `Runs::answer_bind` hand them, or for the run's
+//! cancel or kill, which rejects and declines. The supervisor's link puts each effect row that a runner stores to the
+//! core's guard first (`Coordinator::check_record`, which asks `Policy`), answers a refused one `approval` without
+//! sending it, and reports each one that the owner acknowledged (`Coordinator::stored`). Each run of this life ends through `MarkSink::end`; a run
 //! of an earlier life that the start's reap answers is ended by the core's recovery, and the start sends the one
 //! mark `run_end` for it itself, because the library's reap calls no `MarkSink`.
 #![cfg(target_os = "macos")]
@@ -22,33 +26,33 @@ use std::io::Read;
 use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use halvo_agent_client::link::product::ClientEnds;
 use halvo_agent_client::link::StreamLink;
 use halvo_agent_client::{
-    Confirmer, Human, IssueRefused, MarkSink, OriginAnswer, OwnerLink, Parts, ReapAnswer, RunEnd,
-    Secrets, Supervisor,
+    Confirmer, Human, IssueRefused, LinkError, MarkSink, OriginAnswer, OwnerLink, Parts,
+    ReapAnswer, RunEnd, Secrets, Supervisor,
 };
 use halvo_control::client::ClientError;
 use halvo_control::r2::{OwnerStreamEnd, RunEdge, RunMarked};
-use halvo_coord::guard::{EffectState, Policy};
+use halvo_coord::guard::{EffectRecord, EffectState, Policy};
 use halvo_coord::items::drive::log_text;
 use halvo_coord::ports::{
     Analysis, Clock, Overlap, Overlaps, Owner, PortError, Reading, Reaped, Refused, Rng, Runs,
     Senders,
 };
 use halvo_coord::types::{
-    Agent, AgentId, AgentState, Answer, Answered, ApprovalId, BindAnswer, BindResult, Body,
-    Category, CheckAnswer, Class, Cleared, ConfigView, Decision, DecisionEntry, Defers, Digest,
-    DismissedWorkflow, DoneAnswer, EffectAnswer, EffectId, Event, FullWorkflow, HandbackAsk,
-    HandbackReason, HandbackResult, HoldSetCause, ItemId, ItemKind, Kept, LapseCause, Lapsed,
-    LinkAnswer, Name, Origin, OtherLapse, Outcome, PastEffect, PastRun, Progress, Raised,
-    ReadyAnswer, Reply, ReplyRow, RunEnd as CoordRunEnd, RunEvent, RunHistory, RunId, RunSpec,
-    SetupAnswer, SignInAnswer, Slot, Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState,
-    WorkflowTrigger,
+    Agent, AgentId, AgentState, Answer, Answered, ApprovalId, AskedEffect, BindAnswer, BindAsk,
+    BindResult, Body, BoundField, BoundFrom, Category, CheckAnswer, Class, Cleared, ConfigView,
+    ConfirmAsk, Decision, DecisionEntry, Defers, Digest, DismissedWorkflow, DoneAnswer,
+    EffectAnswer, EffectId, Event, FullWorkflow, HandbackAsk, HandbackReason, HandbackResult,
+    HoldSetCause, ItemId, ItemKind, Kept, LapseCause, Lapsed, LinkAnswer, Name, Origin, OtherLapse,
+    Outcome, PastEffect, PastRun, Progress, Raised, ReadyAnswer, Reply, ReplyRow,
+    RunEnd as CoordRunEnd, RunEvent, RunHistory, RunId, RunSpec, SetupAnswer, SignInAnswer, Slot,
+    Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState, WorkflowTrigger,
 };
 use halvo_coord::types::{Autonomy, Budget, Limits, Permission, Reasoning, Runtime, Tier};
 use halvo_schema::executable::frame::{
@@ -315,11 +319,40 @@ impl MarkSink for Sink {
     }
 }
 
-/// The library's `Human`: a handback and a progress go to the coordinator; the second step of a sign-in is
-/// declined (a named limit of the unit: the step reaches no person yet).
+/// The calls of the library that wait for the person, by run: a confirmation's answers, the decision of the answers
+/// that `Runs::answer_confirm` sent, with its record's verdict, and the answer of the second step of a sign-in. A
+/// dropped sender ends the wait with reject and decline.
+#[derive(Default)]
+struct Waits {
+    confirms: Mutex<HashMap<RunId, Sender<Replies>>>,
+    issues: Mutex<HashMap<RunId, Issue>>,
+    binds: Mutex<HashMap<RunId, Sender<BindResult>>>,
+}
+
+/// The library's answers to a confirmation: one per effect, in the request's order.
+type Replies = Vec<(WireEffect, EffectReply)>;
+
+/// The library's decision of the answers sent, for `Runs::answer_confirm`, and its record's verdict back.
+type Issue = (Sender<ConfirmDecision>, Receiver<bool>);
+
+impl Waits {
+    /// Ends every wait of `run`: a confirmation rejects each effect and a sign-in declines.
+    fn release(&self, run: &RunId) {
+        lock(&self.confirms).remove(run);
+        lock(&self.issues).remove(run);
+        lock(&self.binds).remove(run);
+    }
+}
+
+/// How long `Runs::answer_confirm` waits for the library's decision of the answers that it sent.
+const ISSUE_WAIT: Duration = Duration::from_secs(10);
+
+/// The library's `Human`: a handback, the second step of a sign-in and a progress go to the coordinator; the second
+/// step waits for `Runs::answer_bind`.
 struct Person {
     events: Arc<Events>,
     runs: RunsOf,
+    waits: Arc<Waits>,
 }
 
 impl Human for Person {
@@ -353,10 +386,32 @@ impl Human for Person {
 
     fn allow_origin(
         &self,
-        _run: &halvo_schema::executable::text::RunId,
-        _origin: &WebOrigin,
+        run: &halvo_schema::executable::text::RunId,
+        origin: &WebOrigin,
     ) -> OriginAnswer {
-        OriginAnswer::Decline
+        let (Ok(run), Ok(origin)) = (RunId::parse(run.as_str()), Origin::parse(origin.as_str()))
+        else {
+            return OriginAnswer::Decline;
+        };
+        let Some((_, agent)) = lock(&self.runs).get(&run).cloned() else {
+            return OriginAnswer::Decline;
+        };
+        let (to, answer) = mpsc::channel();
+        lock(&self.waits.binds).insert(run.clone(), to);
+        self.events.send(
+            run.clone(),
+            RunEvent::Bind(BindAsk {
+                run: run.clone(),
+                agent,
+                origin,
+            }),
+        );
+        let given = answer.recv();
+        lock(&self.waits.binds).remove(&run);
+        match given {
+            Ok(BindResult::Allow) => OriginAnswer::Allow,
+            _ => OriginAnswer::Decline,
+        }
     }
 
     fn progress(
@@ -375,29 +430,162 @@ impl Human for Person {
     }
 }
 
-/// The library's `Confirmer`: it rejects each effect once and asks nobody (a named limit of the unit: no effect
-/// that needs a yes is done before the confirmation reaches the person).
-struct RejectAll;
+/// The library's `Confirmer`: a confirmation goes to the coordinator with the comparison of I4.4 (each effect's
+/// digest computed again from its bound fields) and waits for `Runs::answer_confirm`; a confirmation that cannot be
+/// put to the coordinator, or whose wait ends by the run's cancel or kill, rejects each effect once. The decision
+/// that the library makes of the answers is issued only when the coordinator's record of it succeeded.
+struct Asks {
+    events: Arc<Events>,
+    runs: RunsOf,
+    waits: Arc<Waits>,
+}
 
-impl Confirmer for RejectAll {
+/// The confirmation of the frame as the coordinator takes it.
+fn confirm_ask(run: &RunId, agent: &AgentId, request: &ConfirmRequest) -> Option<ConfirmAsk> {
+    let effects = request
+        .effects
+        .iter()
+        .map(|e| {
+            let fields = e
+                .bound
+                .fields()
+                .iter()
+                .map(|f| {
+                    Some(BoundField {
+                        name: Name::parse(f.name.as_str()).ok()?,
+                        from: BoundFrom::parse(f.from.as_str()).ok()?,
+                        value: f.value.pieces().to_vec(),
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some(AskedEffect {
+                effect: EffectId::parse(e.effect.as_str()).ok()?,
+                class: Class::parse(e.class.as_str()).ok()?,
+                digest: Digest::parse(e.digest.as_str()).ok()?,
+                digest_ok: halvo_policy::digest(&e.bound).is_ok_and(|d| d == e.digest),
+                fields,
+                new_origin: match &e.new_origin {
+                    Some(o) => Some(Origin::parse(o.as_str()).ok()?),
+                    None => None,
+                },
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    ConfirmAsk::new(run.clone(), agent.clone(), effects).ok()
+}
+
+/// The coordinator's decision of the library's decision.
+fn decision_of(decision: &ConfirmDecision) -> Option<Decision> {
+    let entries = decision
+        .approvals
+        .iter()
+        .map(|a| {
+            Some(DecisionEntry {
+                approval: ApprovalId::parse(a.approval.as_str()).ok()?,
+                effect: EffectId::parse(a.effect.as_str()).ok()?,
+                digest: Digest::parse(a.digest.as_str()).ok()?,
+                answer: EffectAnswer::parse(a.answer.as_str()).ok()?,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Decision::new(entries).ok()
+}
+
+impl Confirmer for Asks {
     fn answers(
         &self,
-        _run: &halvo_schema::executable::text::RunId,
+        run: &halvo_schema::executable::text::RunId,
         request: &ConfirmRequest,
     ) -> Vec<(WireEffect, EffectReply)> {
-        request
-            .effects
-            .iter()
-            .map(|e| (e.effect.clone(), EffectReply::RejectOnce))
-            .collect()
+        let reject = || {
+            request
+                .effects
+                .iter()
+                .map(|e| (e.effect.clone(), EffectReply::RejectOnce))
+                .collect()
+        };
+        let Ok(run) = RunId::parse(run.as_str()) else {
+            return reject();
+        };
+        let Some((_, agent)) = lock(&self.runs).get(&run).cloned() else {
+            return reject();
+        };
+        let Some(ask) = confirm_ask(&run, &agent, request) else {
+            return reject();
+        };
+        let (to, answers) = mpsc::channel();
+        lock(&self.waits.confirms).insert(run.clone(), to);
+        self.events.send(run.clone(), RunEvent::Confirm(ask));
+        let given = answers.recv();
+        lock(&self.waits.confirms).remove(&run);
+        given.unwrap_or_else(|_| reject())
     }
 
     fn issued(
         &self,
-        _run: &halvo_schema::executable::text::RunId,
-        _decision: &ConfirmDecision,
+        run: &halvo_schema::executable::text::RunId,
+        decision: &ConfirmDecision,
     ) -> Result<(), IssueRefused> {
-        Ok(())
+        let run = RunId::parse(run.as_str()).map_err(|_| IssueRefused)?;
+        let Some((to, verdict)) = lock(&self.waits.issues).remove(&run) else {
+            return Err(IssueRefused);
+        };
+        to.send(decision.clone()).map_err(|_| IssueRefused)?;
+        match verdict.recv() {
+            Ok(true) => Ok(()),
+            _ => Err(IssueRefused),
+        }
+    }
+}
+
+/// The supervisor's link with the core's guard: each effect row that a runner stores is put to
+/// `Coordinator::check_record` first, a refused one is answered with the refusal's name and never sent, and each one
+/// that the owner acknowledged is reported with `Coordinator::stored`, never one that the guard alone passed.
+struct Guarded {
+    link: Arc<dyn OwnerLink>,
+    hub: Arc<OnceLock<Weak<ProductHub>>>,
+}
+
+/// The effect record of a runner's `effect` request, with the request's id.
+fn effect_of(request: &[u8]) -> Option<(EffectRecord, String)> {
+    let v: Value = serde_json::from_slice(request).ok()?;
+    if v["request"] != "runner" || v["body"]["op"] != "effect" {
+        return None;
+    }
+    let r = &v["body"]["record"];
+    let record = EffectRecord {
+        run: RunId::parse(r["run"].as_str()?).ok()?,
+        agent: AgentId::parse(r["agent"].as_str()?).ok()?,
+        effect: EffectId::parse(r["effect"].as_str()?).ok()?,
+        state: EffectState::parse(r["state"].as_str()?).ok()?,
+        class: Class::parse(r["class"].as_str()?).ok()?,
+        digest: Digest::parse(r["digest"].as_str()?).ok()?,
+        approval: match &r["approval"] {
+            Value::Null => None,
+            a => Some(ApprovalId::parse(a.as_str()?).ok()?),
+        },
+    };
+    Some((record, v["id"].as_str()?.to_owned()))
+}
+
+impl OwnerLink for Guarded {
+    fn request(&self, request: &[u8]) -> Result<Vec<u8>, LinkError> {
+        let hub = self.hub.get().and_then(Weak::upgrade);
+        let effect = effect_of(request);
+        if let (Some(hub), Some((record, id))) = (&hub, &effect) {
+            if let Err(refusal) = hub.coordinator().check_record(record) {
+                return Ok(
+                    format!(r#"{{"v":1,"id":"{id}","error":"{}"}}"#, refusal.name()).into_bytes(),
+                );
+            }
+        }
+        let reply = self.link.request(request)?;
+        if let (Some(hub), Some((record, _))) = (&hub, &effect) {
+            if decode_reply(&reply).is_ok_and(|r| r.outcome.is_ok()) {
+                hub.coordinator().stored(record);
+            }
+        }
+        Ok(reply)
     }
 }
 
@@ -418,6 +606,7 @@ pub struct Product {
     places: Places,
     marks: Arc<Marks>,
     runs: RunsOf,
+    waits: Arc<Waits>,
     agents: Mutex<HashMap<AgentId, WorkflowId>>,
     reaped: Mutex<Option<Vec<ReapAnswer>>>,
     checkpoints: AtomicBool,
@@ -439,12 +628,21 @@ impl Product {
             owed: Mutex::new(None),
             sending: AtomicBool::new(false),
         });
+        let waits = Arc::new(Waits::default());
         let parts = Parts {
-            link: link_of(&calls),
-            confirmer: Arc::new(RejectAll),
+            link: Arc::new(Guarded {
+                link: link_of(&calls),
+                hub: Arc::clone(&events.hub),
+            }),
+            confirmer: Arc::new(Asks {
+                events: Arc::clone(&events),
+                runs: Arc::clone(&runs),
+                waits: Arc::clone(&waits),
+            }),
             human: Arc::new(Person {
                 events: Arc::clone(&events),
                 runs: Arc::clone(&runs),
+                waits: Arc::clone(&waits),
             }),
             secrets: Arc::new(NoSecrets),
             marks: Arc::new(Sink {
@@ -466,6 +664,7 @@ impl Product {
             places,
             marks,
             runs,
+            waits,
             agents: Mutex::new(HashMap::new()),
             reaped: Mutex::new(None),
             checkpoints: AtomicBool::new(false),
@@ -1112,15 +1311,53 @@ impl Runs for Product {
             .map_err(|e| call_error(e.call_error()))
     }
 
-    /// No confirmation reaches the person yet: the library's `Confirmer` has rejected each effect once, so no
-    /// waiting call takes an answer (a named limit of the unit).
+    /// Hands the answers to the confirmation that waits, takes the decision that the library makes of them with its
+    /// approval ids, and lets the library issue it only when `record` accepted it; else the library rejects each
+    /// effect and the error of `record` comes back. `ended` where no confirmation of the run waits.
     fn answer_confirm(
         &self,
-        _run: &RunId,
-        _answers: &[Answer],
-        _record: &mut dyn FnMut(&Decision) -> Result<(), PortError>,
+        run: &RunId,
+        answers: &[Answer],
+        record: &mut dyn FnMut(&Decision) -> Result<(), PortError>,
     ) -> Result<(), PortError> {
-        Err(PortError::Refused(name("ended")))
+        let wire = answers
+            .iter()
+            .map(|a| {
+                Some((
+                    WireEffect::parse(a.effect.as_str()).ok()?,
+                    EffectReply::parse(a.answer.name()).ok()?,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or(PortError::NoService)?;
+        let Some(to) = lock(&self.waits.confirms).remove(run) else {
+            return Err(PortError::Refused(name("ended")));
+        };
+        let (decided, decision) = mpsc::channel();
+        let (verdict, issued) = mpsc::channel();
+        lock(&self.waits.issues).insert(run.clone(), (decided, issued));
+        if to.send(wire).is_err() {
+            lock(&self.waits.issues).remove(run);
+            return Err(PortError::Refused(name("ended")));
+        }
+        let Ok(made) = decision.recv_timeout(ISSUE_WAIT) else {
+            lock(&self.waits.issues).remove(run);
+            return Err(PortError::NoService);
+        };
+        let Some(made) = decision_of(&made) else {
+            let _ = verdict.send(false);
+            return Err(PortError::NoService);
+        };
+        match record(&made) {
+            Ok(()) => {
+                let _ = verdict.send(true);
+                Ok(())
+            }
+            Err(e) => {
+                let _ = verdict.send(false);
+                Err(e)
+            }
+        }
     }
 
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
@@ -1132,17 +1369,25 @@ impl Runs for Product {
             .map_err(call_error)
     }
 
-    /// The library's `Human::allow_origin` has declined the origin already (a named limit of the unit), so no
-    /// waiting call takes an answer.
-    fn answer_bind(&self, _run: &RunId, _result: BindResult) -> Result<(), PortError> {
-        Err(PortError::Refused(name("ended")))
+    /// Hands the answer to the second step of a sign-in that waits; `ended` where none of the run waits, so that an
+    /// error other than `ended` never follows an answer that the call took.
+    fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
+        let Some(to) = lock(&self.waits.binds).remove(run) else {
+            return Err(PortError::Refused(name("ended")));
+        };
+        to.send(result)
+            .map_err(|_| PortError::Refused(name("ended")))
     }
 
+    /// The frame `cancel`, after the run's waits are ended with reject and decline.
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
+        self.waits.release(run);
         self.supervisor.cancel(&wire_run(run)?).map_err(call_error)
     }
 
+    /// The end of the run's tree, after the run's waits are ended with reject and decline.
     fn kill(&self, run: &RunId) -> Result<(), PortError> {
+        self.waits.release(run);
         self.supervisor.kill(&wire_run(run)?).map_err(call_error)
     }
 

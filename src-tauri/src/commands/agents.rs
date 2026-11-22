@@ -101,8 +101,9 @@ fn product_hub(
     halvo_coord_app::product::hub(calls, places, tray, Box::new(NoDialog))
 }
 
-/// The presenter of the product's hub: no confirmation reaches a native dialog yet, because the
-/// product's library rejects each effect that needs a yes (a named limit of U5.4a).
+/// The presenter of the product's hub, which shows no native dialog: a confirmation reaches the
+/// person in the page alone, and one that only a native dialog answers (I4.5) lapses at its wait
+/// limit with its effects rejected (a named limit of U5.4a).
 #[cfg(target_os = "macos")]
 struct NoDialog;
 
