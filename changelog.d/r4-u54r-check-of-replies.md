@@ -1,0 +1,1 @@
+- Fixed: An email agent whose last run has ended no longer waits forever for that run to be closed: the app reads the run's reply states from the agent store.

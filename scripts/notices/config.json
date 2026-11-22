@@ -1,0 +1,18 @@
+{
+  "app": "src-tauri/Cargo.toml",
+  "compiled": [
+    {
+      "crate": "sqlcipher-src",
+      "by": "halvo-sqlcipher",
+      "texts": [
+        { "file": "sqlcipher/LICENSE-sqlcipher" },
+        { "file": "sqlcipher/LICENSE-libtomcrypt" },
+        { "file": "sqlcipher/sqlcipher.c", "from": "The author disclaims copyright to this source code.", "through": "May you share freely, never taking more than you give." }
+      ]
+    }
+  ],
+  "tracked": [
+    { "name": "Public Suffix List", "licence": "MPL-2.0", "in": "halvo-schema-core", "texts": [{ "path": "crates/halvo-schema-core/NOTICE" }] },
+    { "name": "gitleaks", "licence": "MIT", "in": "halvo-redact", "texts": [{ "path": "crates/halvo-redact/LICENSE-gitleaks" }] }
+  ]
+}

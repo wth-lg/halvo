@@ -770,6 +770,68 @@ fn a_finish_whose_intent_cannot_be_removed_is_not_whole() {
     );
 }
 
+#[test]
+fn an_offline_delete_whose_folder_is_not_flushed_exits_1_and_keeps_the_intent() {
+    /// The product's hands, which take the read permission from the folder
+    /// roots once the walk has removed an entry, so that the flush after the
+    /// walk cannot open that folder.
+    struct ClosingRoots(PathBuf);
+    impl Hands for ClosingRoots {
+        fn end_owner(&self, owner: Owner) -> bool {
+            SystemHands.end_owner(owner)
+        }
+
+        fn destroy_key_file(&self, data_dir: &Path, file: &str) -> bool {
+            SystemHands.destroy_key_file(data_dir, file)
+        }
+
+        fn remove_entry(&self, data_dir: &Path, name: &str) -> u64 {
+            let left = SystemHands.remove_entry(data_dir, name);
+            std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o000)).unwrap();
+            left
+        }
+    }
+    /// Gives the folder its mode back when the test ends, also after a panic.
+    struct ModeBack(PathBuf, u32);
+    impl Drop for ModeBack {
+        fn drop(&mut self) {
+            let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(self.1));
+        }
+    }
+    let dir = kept_dir("delete-all-not-flushed-");
+    a_store_with_a_segment(&dir);
+    std::fs::create_dir(dir.join("derived")).unwrap();
+    std::fs::write(dir.join("derived/derived.db"), b"derived rows").unwrap();
+    let roots = dir.join("roots");
+    let mode = std::fs::metadata(&roots).unwrap().permissions().mode() & 0o7777;
+    let mode_back = ModeBack(roots.clone(), mode);
+    let table = rows();
+    let hands = ClosingRoots(roots);
+    let how = Offline {
+        rows: &table,
+        select: custody_policy::of_this_build,
+        hands: &hands,
+    };
+
+    let (status, out, err) = offline_run(&dir, &how);
+    drop(mode_back);
+
+    assert_eq!(status, 1, "out: {out} err: {err}");
+    let deleted = out.lines().nth(1).unwrap_or_default();
+    assert!(
+        deleted.starts_with("deleted ") && deleted.contains(" entries_left=0 "),
+        "{out}"
+    );
+    assert_eq!(
+        err,
+        "halvo-capture: the folder roots was not flushed to the drive; the intent stays, and the next start finishes the delete\n"
+    );
+    assert!(dir.join("delete-all.intent").exists());
+    assert!(!dir.join("store/store.key").exists());
+    assert!(root_files(&dir).is_empty(), "{:?}", root_files(&dir));
+    assert!(!dir.join("derived").exists());
+}
+
 /// A plain child of the test in a runner's or a browser's place: /bin/cat, which lives until the end of its
 /// standard input, which the test holds. A thread reaps it and hands its exit status over; dropped, the stand
 /// closes that input, so the test itself ends no process by its pid.

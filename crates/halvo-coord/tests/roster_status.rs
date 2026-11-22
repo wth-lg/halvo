@@ -208,6 +208,31 @@ fn a_failed_last_run_whose_cause_has_a_sentence_gives_that_sentence_in_place_of_
 }
 
 #[test]
+fn a_failed_last_run_whose_browser_did_not_start_or_did_not_answer_gives_that_sentence() {
+    for (name, sentence) in [
+        (
+            "browser_start",
+            "The browser did not start, so this agent could not open web pages. Run the agent again.",
+        ),
+        (
+            "no_channel",
+            "The browser started but did not answer, so this agent could not open web pages. Run the agent again.",
+        ),
+    ] {
+        let mut f = utility();
+        ended(&mut f, 1, TODAY, RunEnd::from(Failure::Failed));
+        f.last_cause = LastCause::parse(name).ok();
+        let said = line(&f);
+        assert_eq!(said.key(), format!("line.problem.{name}"));
+        assert_eq!(said.status(), Status::Problem);
+        assert_eq!(
+            halvo_coord::words::text(&said.key(), &[]).unwrap(),
+            sentence
+        );
+    }
+}
+
+#[test]
 fn a_day_with_starts_per_day_starts_gives_tried_today() {
     let mut f = utility();
     let limits = Limits::PRODUCT;

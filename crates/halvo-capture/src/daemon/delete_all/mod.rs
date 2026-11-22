@@ -105,6 +105,8 @@ impl Hands for SystemHands {
             Ok(_) => std::fs::remove_file(&path),
             Err(_) => Ok(()),
         };
+        #[cfg(windows)]
+        held::try_again(&path);
         entries_under(&path)
     }
 }
@@ -120,6 +122,97 @@ fn entries_under(path: &Path) -> u64 {
                     .map(|entry| entries_under(&entry.path()))
                     .sum()
             })
+        }
+    }
+}
+
+/// How long the walk tries again, on Windows, the removal of an entry that
+/// stays, counted from the start of the walk: past it the entry stays, and
+/// its row with it. A start of the service runs the same walk, so the bound
+/// is well under the 10 s for which the app waits for an answer after a start.
+#[cfg(windows)]
+const HELD_BOUND: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// The wait between two tries of a removal under [`HELD_BOUND`].
+#[cfg(windows)]
+const HELD_TRY_EVERY: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// The bound of the remover on Windows. There a folder or a file that another
+/// process holds without sharing its deletion, such as a scanner or a program
+/// that has not let go of it yet, refuses its removal for a moment: with a
+/// sharing violation, a denied access or a folder that is not empty, by
+/// turns. A walk sets one end for the tries of all its rows at its start, so
+/// a held row late in the walk gets what remains of the bound.
+#[cfg(windows)]
+mod held {
+    use std::cell::Cell;
+    use std::path::Path;
+    use std::time::{Duration, Instant};
+
+    thread_local! {
+        /// The length of the bound on this thread, and the end of the bound
+        /// of the walk that runs on it, none outside a walk.
+        static SEAT: Cell<(Duration, Option<Instant>)> =
+            const { Cell::new((super::HELD_BOUND, None)) };
+    }
+
+    /// The bound of the walk that runs on this thread, from its start to the
+    /// drop of this value.
+    pub(super) struct Walk(());
+
+    impl Walk {
+        pub(super) fn start() -> Walk {
+            SEAT.with(|seat| {
+                let (length, _) = seat.get();
+                seat.set((length, Instant::now().checked_add(length)));
+            });
+            Walk(())
+        }
+    }
+
+    impl Drop for Walk {
+        fn drop(&mut self) {
+            SEAT.with(|seat| seat.set((seat.get().0, None)));
+        }
+    }
+
+    /// After a removal of `path` that left an entry at its name: the same
+    /// removal again, whatever its error, every [`super::HELD_TRY_EVERY`],
+    /// until no entry stands there or the end of the walk's bound has
+    /// passed. Outside a walk the bound starts at this call.
+    pub(super) fn try_again(path: &Path) {
+        let (length, end) = SEAT.with(Cell::get);
+        let Some(end) = end.or_else(|| Instant::now().checked_add(length)) else {
+            return;
+        };
+        while super::stands(path) {
+            let left = end.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return;
+            }
+            std::thread::sleep(left.min(super::HELD_TRY_EVERY));
+            let _ = match std::fs::symlink_metadata(path) {
+                Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(path),
+                Ok(_) => std::fs::remove_file(path),
+                Err(_) => Ok(()),
+            };
+        }
+    }
+
+    /// Sets the length of the bound on this thread to `length` for the life
+    /// of the answer, whose drop gives the length before back.
+    #[cfg(test)]
+    pub(super) fn length_on_this_thread(length: Duration) -> Length {
+        Length(SEAT.with(|seat| seat.replace((length, seat.get().1)).0))
+    }
+
+    #[cfg(test)]
+    pub(super) struct Length(Duration);
+
+    #[cfg(test)]
+    impl Drop for Length {
+        fn drop(&mut self) {
+            SEAT.with(|seat| seat.set((self.0, seat.get().1)));
         }
     }
 }
@@ -212,6 +305,7 @@ pub struct Offline<'a> {
 
 /// The offline form of contracts.md C3.3 with the product's rows, selection
 /// and hands, as the binary runs it.
+#[cfg(not(windows))]
 pub fn offline(dir: &DataDir, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let rows = rows();
     run(
@@ -224,6 +318,64 @@ pub fn offline(dir: &DataDir, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
         out,
         err,
     )
+}
+
+/// The offline form of contracts.md C3.3 on Windows, behind the first step
+/// of every Windows run: once that step has taken the program out of Windows
+/// Error Reporting, the delete of [`run`] with the product's rows, selection
+/// and hands. Where the step is refused, a line says so on `err`, and the
+/// same delete runs with a selection that opens no store: the store goes by
+/// the keyless tail on the directory, so no root is unprotected and no key
+/// is unwrapped in a process that a fault report could carry.
+#[cfg(windows)]
+pub fn offline(dir: &DataDir, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let rows = rows();
+    let how = |select: fn(Option<Custody>) -> Selection| Offline {
+        rows: &rows,
+        select,
+        hands: &SystemHands,
+    };
+    let with_the_store = how(super::custody_policy::of_this_build);
+    match the_first_step(|| run(dir, &with_the_store, out, err)) {
+        Ok(status) => status,
+        Err(refused) => {
+            let _ = writeln!(
+                err,
+                "halvo-capture: {} answered {:#010x}: the delete is not out of Windows Error Reporting, so it opens no store and deletes by the directory alone",
+                refused.call, refused.code
+            );
+            run(dir, &how(opens_no_store), out, err)
+        }
+    }
+}
+
+/// The variable that, in a build of the crate's own tests alone, makes the
+/// offline form's first step answer refused without its call.
+#[cfg(all(windows, debug_assertions, feature = "test-seam"))]
+pub const REFUSE_THE_EXCLUSION: &str = "HALVO_DELETE_ALL_REFUSE_THE_EXCLUSION";
+
+/// The first step of a Windows run for the offline form,
+/// [`crate::windows::start_a_run`].
+#[cfg(windows)]
+fn the_first_step<T>(run: impl FnOnce() -> T) -> Result<T, crate::windows::FaultReportsOn> {
+    #[cfg(all(debug_assertions, feature = "test-seam"))]
+    if std::env::var_os(REFUSE_THE_EXCLUSION).is_some() {
+        return Err(crate::windows::FaultReportsOn {
+            call: "WerAddExcludedApplication",
+            code: 0x8007_0005,
+        });
+    }
+    crate::windows::start_a_run(run)
+}
+
+/// The selection of a delete that opens no store: the store of a key file of
+/// any custody is refused, and where no key file stands nothing is made.
+#[cfg(windows)]
+const fn opens_no_store(recorded: Option<Custody>) -> Selection {
+    match recorded {
+        Some(_) => Selection::Open(OpenAs::Refused),
+        None => Selection::Create(None),
+    }
 }
 
 /// What the walk over the rows did: the rows handled and left, whether it
@@ -270,10 +422,11 @@ const BUSY_LINE: &str =
 /// The offline delete of `dir` with `how` (contracts.md C3.3): it prints
 /// `data_dir=` and then `no_store`, or the `deleted` line of C2.6 without
 /// `store_id=`, on `out`, and on `err` what stays. It takes the instance
-/// lock first. It answers 0 once the root and store.key are gone and every
-/// row was handled, 75 when another process holds the directory's instance
-/// lock or its store, which this request then leaves as it found it, and 1
-/// when something stays or the directory cannot be used.
+/// lock first. It answers 0 once the root and store.key are gone, every row
+/// was handled and every folder that the steps flush reached the drive, 75
+/// when another process holds the directory's instance lock or its store,
+/// which this request then leaves as it found it, and 1 when something
+/// stays, a folder was not flushed or the directory cannot be used.
 pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let path = dir.path();
     let mut text = format!("data_dir={}\n", one_line(&path.to_string_lossy()));
@@ -312,7 +465,11 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
     if let Some(line) = &ran.line {
         text.push_str(line);
     }
-    let status = if ran.whole { exit::CLEAN } else { exit::ERROR };
+    let status = if ran.whole && ran.synced {
+        exit::CLEAN
+    } else {
+        exit::ERROR
+    };
     let causes = (!ran.causes.is_empty()).then(|| ran.causes.join("\n"));
     print(out, err, &text, causes, status)
 }
@@ -341,8 +498,9 @@ pub struct Ran {
     /// What stays, a line each for standard error; no line holds a path of
     /// the store.
     pub causes: Vec<String>,
-    /// The offline form's exit 0: the store's delete finished, no row stays
-    /// and no intent was kept by a failed removal.
+    /// The store's delete finished, no row stays and no intent was kept by a
+    /// failed removal. The offline form's exit 0, as the service's own
+    /// delete, needs this and [`Ran::synced`].
     pub whole: bool,
     /// Whether every folder that the steps flush reached the drive, which a
     /// whole finish needs before its intent goes.
@@ -699,6 +857,8 @@ fn steps_3_to_5(dir: &Path, rows: &[Row], hands: &dyn Hands, store: TailAnswer) 
 /// rows are the store's delete, which ran first; the kept rows keep their
 /// files.
 fn walk(dir: &Path, rows: &[Row], store_done: bool, hands: &dyn Hands) -> Walked {
+    #[cfg(windows)]
+    let _bound = held::Walk::start();
     let mut walked = Walked::default();
     for row in rows {
         let handled = if STORE_ROWS.contains(&row.name) {
