@@ -1,41 +1,42 @@
 # Sign-in in the browser's memory alone
 
-Unit U5.12 of the agent-setup run reads one question before any unit changes the start: can a run
-keep a person's kept sign-in in a browser context that the browser keeps in memory, so that none of
-it lies in the run's profile on disk. This file is that reading; no code of the product changed.
+U5.12 of the agent-setup run asks, before any unit changes the start: can a run keep a person's kept
+sign-in in a browser context that the browser keeps in memory alone, so that none of it lies in the
+run's profile on disk? No code of the product changed.
 
-What ran. One hosted run of a scratch branch that is never merged: the program `r3-memory-probe`
-of `tools/r3-trials/memory` at bdf226a5 on macos-15, with Google Chrome 158.0.8127.37
+What ran. One hosted run, from a scratch branch never merged: the program `r3-memory-probe` of
+`tools/r3-trials/memory` at bdf226a5 on macos-15, with Google Chrome 158.0.8127.37
 (`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`) and Microsoft Edge 157.0.4341.60
-(`/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge`), each once with a window and
-once without. Each browser started as the executor starts it: the product's flags, agent settings,
-relay and debugging pipe (`cdp::launch_args`, `start::start_on_pipe`), its profile at
+(`/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge`), each with a window and without,
+started as the executor starts it (`cdp::launch_args`, `start::start_on_pipe`), its profile at
 `Library/Application Support/<folder>/agents/profiles/<cell>/profile`. Over that pipe the probe made
-contexts with `Target.createBrowserContext`. It signed in at its own fixture on 127.0.0.1 in context
-a: a 30-day cookie and one localStorage item, with markers that the probe made. Then it exported,
-imported into context b with the product's `cookie_param` and `SessionState` form, opened the bill
-page there, and made one more target in b with its address. A control signed in, with markers of
-its own, in the profile's own context, which the product uses today. The probe searched every file
-below the profile, its temporary directory, the run's folders under `Library/Caches` and the
-browser's own new entry of the system's temporary directory: 40 s after the control's sign-in while
-the browser lived, and again after the probe's own hard kill of the browser.
+contexts with `Target.createBrowserContext`, signed in at its own fixture on 127.0.0.1 in context a
+(a 30-day cookie and a localStorage item, with its own markers), exported, imported into context b
+in the product's `cookie_param` and `SessionState` form, opened the bill page there and made one
+more target in b with its address. A control signed in, with markers of its own, in the profile's
+own context. The probe searched every file below the profile, its temporary directory and the run's
+folders under `Library/Caches` 40 s after the control's sign-in while the browser lived, and again
+after its own hard kill of the browser, that time with the browser's own new entry of the system's
+temporary directory too.
 
 Choices. The probe does not call `Executor::start` and starts no guard: the executor has no public
-call that sends a protocol command, and the reading changes nothing of the crate. Its client arms
-each target as the product's wire does: auto-attach with the wait for the debugger, `Fetch.enable`
-for every address, then the resume. The search counts the cookie's value and name and the storage
-item's key and value, in UTF-8 and UTF-16LE. The browser keeps a cookie's value encrypted, so the
-cookie's name is what shows a written cookie, as the control shows. The four cells share one
-fixture, so the counts on the `rule` lines run over the whole run: each cell adds five requests at
-the fixture, and one of them was not let through by a pause of the rule.
+call that sends a protocol command. The search counts the cookie's value and name and the storage
+item's key and value, in UTF-8 and UTF-16LE; a cookie's value is kept encrypted, so its name shows a
+written cookie, as the control shows. The cells share one fixture, so the `rule` lines count over
+the whole run: each cell adds five requests at the fixture, one of them not paused by the rule.
 
-What the lines cannot show. One run of each cell, one version of each browser, one hosted image. The
-search reads raw bytes and cannot see a marker in compressed bytes. Whether a target that the
-profile's own context makes with its address misses the rule the same way was not read. Of other
-programs' files the probe read names, kinds and sizes alone, and it did not read which program
-wrote a changed file. The block leaves out 88 `library_new` lines of paths of Apple's services that
-appeared during the headed cells and 443 `library_changed` lines; the job's log holds them, and for
-Edge the probe listed 300 changed files and counted 50 more. The window pictures are told in words.
+What the lines cannot show. During the one headed start of Edge with the product's flags,
+Microsoft's updater appeared under the account's Library with a LaunchAgent, which outlives the run;
+nothing ties it to the memory context. In the cell it wrote a log and a history, and it has a cache
+and an HTTP storage under its own name: signs that it ran and sent requests by the system's own
+loader, past the relay. No line reads a connection, so this is a sign and not a reading. Not read:
+whether a start flag keeps the updater out, and what a first headed Chrome start does on an account
+under which Chrome never ran. One run of each cell, one version of each browser, one hosted image;
+the search cannot see a marker in compressed bytes; whether the profile's own context lets a target
+made with its address pass the rule the same way was not read. Of other programs' files it read
+names, kinds and sizes alone, not which program wrote one. The block leaves out 88 `library_new`
+lines of Apple's services and the 394 `library_changed` lines (93 paths for Chrome, 300 for Edge,
+and one line that counts 50 more Edge files: 443 changed files); the job's log holds them.
 
 ```text
 hosted machine=hosted-mac run=45039366892 sha=bdf226a5080d60abb0de507b712f3a4d54c89f3c
@@ -229,9 +230,9 @@ cleanup path=Library/Application Support/halvo-u512-memory-1310-1795361952960790
 cleanup path=Library/Caches/halvo-u512-memory-1310-1795361952960790000 removed
 probe end code=0
 point 1 a_import=yes b_rule=partly c_export=yes_with_the_context_id: in all four cells context b took the kept sign-in in the product's cookie and storage form and its bill page opened signed in (import ... signed_in=yes storage_had=yes); every page target of the contexts was attached while it waited for the debugger and armed before its resume (page_targets=5 armed=5), a request to an origin outside the rule failed and reached nothing (blocked_failed=3 blocked_reached=0), and the relay was the contexts' route with no proxy named (relay_tunnels_added=4 proxy=inherited); but the target made in context b with its address sent its first request before the rule stood, in every cell (new_target_paused_first=no; unpaused_at_fixture rises by one a cell); the cookie and the item came back at the run's end by Storage.getCookies with the context's id and a storage page in the context (with_context_id_cookie=yes with_context_id_storage=yes), while the product's export call as written names no context and finds nothing of it (without_context_id_cookie=no)
-point 2 memory_markers_on_disk=0: in all four cells, while the browser lived and after its hard end, no marker of the memory context stood in any file below the profile, its temporary directory, the run's cache folders or the browser's own temporary entry (m_cookie_name=0 m_cookie_value=0 m_storage_key=0 m_storage_value=0), nor in the browser's own files that a headed run made or changed under Library (when=library_outside_profile); the same search found the control's sign-in of the profile's own context in every cell, its cookie's name in profile/Default/Cookies and its storage item in profile/Default/Local Storage/leveldb/000003.log (c_cookie_name=2 c_storage_key=1 c_storage_value=1)
+point 2 memory_markers_on_disk=0: in all four cells, while the browser lived and after its hard end, no marker of the memory context stood in any file below the profile, its temporary directory or the run's cache folders (m_cookie_name=0 m_cookie_value=0 m_storage_key=0 m_storage_value=0), nor, after the hard end, in the browser's own new entry of the system's temporary directory, which the search while the browser lived did not read (new_temp_entries=0 live, 1 after the hard end), nor in the browser's own files that a headed run made or changed under Library (when=library_outside_profile); the same search found the control's sign-in of the profile's own context in every cell, its cookie's name in profile/Default/Cookies and its storage item in profile/Default/Local Storage/leveldb/000003.log (c_cookie_name=2 c_storage_key=1 c_storage_value=1)
 point 3 in plain words, from the system's list of the browser's windows and one picture of each of its two windows: the memory context opens in a window of its own beside the profile's window; it looks like any window of the browser, light, with no dark theme, no word Incognito or InPrivate and no private-window badge; the title that the system reads for it is the page's title alone (Bill); beside the profile's window it lacks the profile button at the right of the toolbar (Chrome: the person icon; Edge: the profile picture, and the Chat button too); both show the site's address and Not Secure for the fixture's plain http; nobody here decides what a person makes of it
-point 4 behind a hard end of a headed run, outside the run's profile: Chrome left the empty chain of six folders Library/Caches/<folder>/agents/profiles/chrome-headed/profile/Default with no file, Library/Application Support/Google/RLZ with RlzStore.plist (181 bytes) and flockfile (0 bytes), Library/Preferences/com.google.Chrome.plist (103 bytes) and Library/Preferences/com.google.Keystone.Agent.plist (65 bytes), and in that time Library/Keychains/login.keychain-db, Library/Preferences/com.apple.dock.plist and Library/Preferences/com.apple.ncprefs.plist changed, by a writer that the probe did not read; Edge left the chain's three folders of its cell, Microsoft's updater installed for the account (Library/Application Support/Microsoft/EdgeUpdater with EdgeUpdater.app 147.0.3893.0, about 19.7 MB in 22 entries, Library/LaunchAgents/com.microsoft.EdgeUpdater.wake.plist of 872 bytes, and com.microsoft.EdgeUpdater under Library/Caches and Library/HTTPStorages), Library/Preferences/com.microsoft.edgemac.plist (142 bytes), the empty folder Library/Application Support/Microsoft Edge, and the folders of UBF8T346G9.com.microsoft.edgemac.widgets under Library/Group Containers and Library/Application Scripts; both headed runs saw a new saved-state folder in a daemon's container, whose owner the probe did not read; no marker stood in any of the browser's files among them
+point 4 behind a hard end of a headed run, outside the run's profile: Chrome left the empty chain of six folders Library/Caches/<folder>/agents/profiles/chrome-headed/profile/Default with no file, Library/Application Support/Google/RLZ with RlzStore.plist (181 bytes) and flockfile (0 bytes), Library/Preferences/com.google.Chrome.plist (103 bytes) and Library/Preferences/com.google.Keystone.Agent.plist (65 bytes), and in that time three files of the system's own changed, by a writer that the probe did not read; Edge left the chain's three folders of its cell, and during the headed Edge cell Microsoft's updater appeared under the account's Library with a LaunchAgent, by a writer that the probe did not read (Library/Application Support/Microsoft/EdgeUpdater with EdgeUpdater.app 147.0.3893.0, about 19.7 MB in 22 entries, Library/LaunchAgents/com.microsoft.EdgeUpdater.wake.plist of 872 bytes, and com.microsoft.EdgeUpdater under Library/Caches and Library/HTTPStorages), Library/Preferences/com.microsoft.edgemac.plist (142 bytes), the empty folder Library/Application Support/Microsoft Edge, and the folders of UBF8T346G9.com.microsoft.edgemac.widgets under Library/Group Containers and Library/Application Scripts; both headed runs saw a new saved-state folder in a daemon's container, whose owner the probe did not read; no marker stood in any of the browser's files among them
 point 5 Library/Preferences/com.google.Chrome.plist did not stand before the first Chrome run (when=start stands=no); behind the headed Chrome run it stood with one key name, LastRunAppBundlePath, added and none removed, and at the probe's end, after the headless Chrome run too, the same one key
 verdict memory=partly open=b_target_made_with_its_address browsers=chrome,edge modes=headed,headless
 ```
