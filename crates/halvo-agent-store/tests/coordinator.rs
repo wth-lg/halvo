@@ -1596,6 +1596,150 @@ fn the_roster_names_each_effect_whose_newest_row_is_unknown() {
     );
 }
 
+/// The runner's `log` of one `step_failed` line with the cause, step 1 of the run `r` of the agent `a` of the
+/// workflow `w`.
+fn step_failed(store: &mut MemoryStore, w: u32, a: u32, r: u32, cause: &str) {
+    let line = json!({
+        "v": 1, "workflow": wf(w), "agent": agent(a), "run": run(r), "seq": 2, "day": TODAY,
+        "at": NOW.at.0, "event": "step_failed", "step": 1, "cause": cause, "model": null, "ms": null,
+        "tokens_in": null, "tokens_out": null,
+    });
+    let body = json!({"op": "log", "agent": agent(a), "run": run(r), "records": [line]});
+    assert_eq!(runner(store, body), Ok(stored(1)), "{cause}");
+}
+
+#[test]
+fn the_roster_names_the_newest_started_run_that_a_site_refused() {
+    let mut store = store_with("email");
+    store.put_workflow(workflow(&wf(2), "email", "approved", None));
+    assert_eq!(create(&mut store, 2, 2), Ok(rev(1)));
+    start_at(&mut store, NOW, 2, 2, 2).expect("start_run of the second agent");
+    step_failed(&mut store, 1, 1, 1, "timeout");
+    step_failed(&mut store, 2, 2, 2, "unauthorized");
+    let refused = |store: &mut MemoryStore| -> Vec<Value> {
+        let agents = roster(store)["agents"].clone();
+        let agents = agents.as_array().expect("the entries").clone();
+        agents.iter().map(|a| a["refused_run"].clone()).collect()
+    };
+    assert!(rows(&store, "agent_run").is_empty(), "no run ended");
+    assert_eq!(
+        refused(&mut store),
+        [Value::Null, json!(run(2))],
+        "the second agent's newest started run, with no record; the first agent's line of another cause"
+    );
+
+    let later = at(NOW.at.0 + 1_000_000_000);
+    start_at(&mut store, later, 2, 2, 3).expect("a newer start of the second agent");
+    assert_eq!(
+        refused(&mut store),
+        [Value::Null, Value::Null],
+        "a newer start ends the sign"
+    );
+}
+
+/// The runner's `reply_row` of the agent's first message, `drafted` and then `begun`, in the run `r`.
+fn begun_reply(store: &mut MemoryStore, r: u32) {
+    for (seq, effect_n, state) in [(1, None, "drafted"), (2, Some(1), "begun")] {
+        let row = json!({
+            "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(r), "seq": seq, "day": ROW_DAY,
+            "at": ROW_AT, "message": "m1", "draft": "d1", "effect": effect_n.map(effect), "state": state,
+        });
+        let body = json!({"op": "reply_row", "agent": agent(1), "run": run(r), "record": row});
+        assert_eq!(runner(store, body), Ok(stored(1)), "{state}");
+    }
+}
+
+#[test]
+fn the_roster_says_reply_unknown_for_the_run_of_last_alone() {
+    let mut store = store_with("email");
+    let entry = |store: &mut MemoryStore| roster(store)["agents"][0].clone();
+    let said = |entry: &Value| [entry["last"]["run"].clone(), entry["reply_unknown"].clone()];
+    assert_eq!(
+        said(&entry(&mut store)),
+        [Value::Null, json!("no")],
+        "last null"
+    );
+
+    begun_reply(&mut store, 1);
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    assert!(
+        rows(&store, "agent_reply")
+            .iter()
+            .any(|r| r.contains(r#""state":"unknown""#)),
+        "the run's end left the begun row unknown"
+    );
+    assert_eq!(said(&entry(&mut store)), [json!(run(1)), json!("yes")]);
+
+    let later = at(NOW.at.0 + 1_000_000_000);
+    start_at(&mut store, later, 1, 1, 2).expect("start_run of the second run");
+    assert_eq!(end_run(&mut store, 2), Ok(accepted()));
+    assert_eq!(
+        said(&entry(&mut store)),
+        [json!(run(2)), json!("no")],
+        "an older run holds the row, the run of last none"
+    );
+}
+
+#[test]
+fn the_roster_names_the_stored_slots_that_their_reader_refuses() {
+    let mut store = store_with("email");
+    let named = |store: &mut MemoryStore| {
+        let entry = roster(store)["agents"][0].clone();
+        [entry["slots"].clone(), entry["refused_slots"].clone()]
+    };
+    let refused_senders = json!([
+        slot("account_address", ME),
+        slot("reply_senders", "bob@people.test."),
+        slot("payee", "Northwind Power"),
+    ]);
+    assert_eq!(set_bindings(&mut store, 1, refused_senders), Ok(rev(1)));
+    assert_eq!(
+        named(&mut store),
+        [
+            json!(["account_address", "reply_senders", "payee"]),
+            json!(["reply_senders"])
+        ],
+        "a list that its reader refuses; slots with no reader are not named"
+    );
+
+    let taken = json!([slot("reply_senders", "ann@people.test, bob@people.test")]);
+    assert_eq!(set_bindings(&mut store, 1, taken), Ok(rev(2)));
+    assert_eq!(
+        named(&mut store),
+        [
+            json!(["account_address", "reply_senders", "payee"]),
+            json!([])
+        ],
+        "a list that its reader takes"
+    );
+
+    let relative = slot("workbook", "books/bills.xlsx");
+    assert_eq!(
+        set_bindings(&mut store, 1, json!([relative.clone()])),
+        Err(declared("binding")),
+        "set_bindings refuses the workbook, so its row is put as stored"
+    );
+    put_bindings(
+        &mut store,
+        1,
+        1,
+        3,
+        json!([
+            relative,
+            slot("payee", "Northwind Power"),
+            slot("reply_senders", "bob@people.test.")
+        ]),
+    );
+    assert_eq!(
+        named(&mut store),
+        [
+            json!(["workbook", "payee", "reply_senders"]),
+            json!(["workbook", "reply_senders"])
+        ],
+        "of the newest bindings, in stored order"
+    );
+}
+
 /// The reply of `agent_history` of the first agent for `runs` runs, as its JSON.
 fn history(store: &mut MemoryStore, runs: u32) -> Value {
     let body = json!({"op": "agent_history", "workflow": wf(1), "agent": agent(1), "runs": runs});
