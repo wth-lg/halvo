@@ -922,7 +922,6 @@ impl Shared {
         note_mark("landing", Some(state), None, Some(at), at, None);
         let mut marks = self.lock();
         marks.push(Some(at), at, Mark::Landing { state });
-        marks.ask_read(at.wrapping_add(ms(KEY_HOLD)));
     }
 
     fn latch(&self, tick: u32, from: LatchFrom) {

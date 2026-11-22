@@ -6127,7 +6127,7 @@ fn one_key_of_each_class_gives_a_record_only_for_the_keys_that_change_text() {
                     == usize::from(changed_text.contains(class))
             }) && classes.len() == changed_text.len(),
             format!(
-                "TF classes keystroke_records_with_a_class={} the_keys_that_changed_text_alone_are_noted",
+                "TF classes keystroke_records_with_a_class={}",
                 classes.len()
             )
         );
