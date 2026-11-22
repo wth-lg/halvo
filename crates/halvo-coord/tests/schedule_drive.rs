@@ -126,6 +126,7 @@ fn member(world: &World, n: usize) -> Member<Config> {
             replies: halvo_coord::types::Replies::NotAsked,
             unknown: Vec::new(),
             refused: None,
+            last_cause: None,
             runs: last.into_iter().collect(),
             events,
             today: world.board.day,
@@ -159,6 +160,7 @@ fn world_with(spec: &[A], limits: Limits) -> World {
             }),
             unknown: vec![],
             refused_run: None,
+            last_cause: None,
         });
         if a.finished {
             let run = RunId::parse(&format!("{:032x}", 0x900 + n)).unwrap();
@@ -1568,6 +1570,7 @@ fn listed_agent(w: &World, n: usize, made: &AgentId, a: &A) {
         last: None,
         unknown: vec![],
         refused_run: None,
+        last_cause: None,
     });
 }
 
