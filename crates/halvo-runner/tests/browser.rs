@@ -416,6 +416,11 @@ const INTO: &str = r#"<!doctype html><title>typed</title><input data-testid="nam
 /// page's tree gives the role `spinbutton`.
 const CODE: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="number" data-testid="code" aria-label="Code" autocomplete="one-time-code" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
 
+/// A page whose script makes a password field in the document of a frame of its own and moves it into itself, so that
+/// the page's world does not know the field as one of its own, and a button that asks its own origin for `/typed`
+/// when it is clicked.
+const FOREIGN: &str = r#"<!doctype html><title>typed</title><iframe></iframe><button type="button" data-testid="go" onclick="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">Go</button><script>var made = document.querySelector('iframe').contentDocument.createElement('input'); made.type = 'password'; made.setAttribute('data-testid', 'moved'); made.setAttribute('aria-label', 'Secret'); document.body.appendChild(made);</script>"#;
+
 /// U4.1w part 1 (3), U5.1: a step whose `post` fails after it acted, a step whose locator finds no control and a
 /// step whose `pre` fails, on a page with no password field, each log one `step_failed` row with the cause
 /// `step_failed`, never `timeout`, and the run is handed back. A step stored with `credential` `no` whose locator
@@ -431,7 +436,10 @@ const CODE: &str = r#"<!doctype html><title>typed</title><input data-testid="nam
 /// meets the reading's sweep of every field, which opens a handback of the reason `second_factor`; and a fill of the
 /// password field of a page served as XHTML meets the reading before the act, which knows the field by the browser's
 /// own interface and not by the lower-case tag name that the browser gives it there: a handback of the reason
-/// `sign_in`, declined. No step that would reach a password field types a byte, the one with the failing `post`
+/// `sign_in`, declined; and a click whose `pre` reads the value of a password field that the page's script made in a
+/// frame's document and moved into itself meets the reading, which takes an element that the page's world does not
+/// know as one of its own for a credential field: a handback of the reason `sign_in`, declined, no click and no value
+/// read. No step that would reach a password field types a byte, the one with the failing `post`
 /// acted, and no frame and no line of the runner holds a password field's value.
 #[test]
 fn a_post_condition_that_fails_logs_step_failed() {
@@ -518,6 +526,18 @@ fn a_post_condition_that_fails_logs_step_failed() {
             step(2, "fill", Some("name"), &[konst("text", "Ada")], &[], &[]),
             false,
         ),
+        (
+            246,
+            step(
+                2,
+                "click",
+                Some("go"),
+                &[],
+                &[cond("value_is", Some("moved"), Some("x"))],
+                &[],
+            ),
+            false,
+        ),
     ];
     for (n, second, acted) in cases {
         let page = match n {
@@ -526,13 +546,18 @@ fn a_post_condition_that_fails_logs_step_failed() {
             250 => HANDS,
             249 => INTO,
             247 => CODE,
+            246 => FOREIGN,
             _ => NAMED,
         };
         let fixture = Fixture::start(&[("/typed-form", page), ("/inner", INNER)]);
         let mut sup = web_agent(n, &fixture);
         sup.steps = vec![navigate(1, &fixture.url("/typed-form")), second];
         let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
-        if n == 247 {
+        if n == 246 {
+            assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+            assert_eq!(rows(&seen), declined, "run {n}");
+            assert_eq!(seen.handbacks(), [HandbackReason::SignIn], "run {n}");
+        } else if n == 247 {
             assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
             assert_eq!(rows(&seen), declined, "run {n}");
             assert_eq!(seen.handbacks(), [HandbackReason::SecondFactor], "run {n}");

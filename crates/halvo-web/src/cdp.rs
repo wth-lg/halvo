@@ -2037,6 +2037,28 @@ impl Executor {
 mod control_tests {
     use super::*;
 
+    /// The coordinator's ruling of log line 14188, beside the hosted case 246: the rule reads `secret` for an object
+    /// that is no element of the world in which the call runs, before it reads any attribute of it, and the sweep
+    /// counts such an element the same way before its test of a field; the reply `secret` parses as `Sign::Secret`.
+    /// The function itself runs in a real browser alone.
+    #[test]
+    fn a_foreign_element_reads_credential() {
+        let foreign = CREDENTIAL_FN
+            .find("if (!(this instanceof Element)) return 'secret';")
+            .expect("the line of a foreign element");
+        let first_read = CREDENTIAL_FN.find("const attr").expect("the first read");
+        assert!(foreign < first_read, "{CREDENTIAL_FN}");
+        let sweep = sweep_fn();
+        let counted = sweep
+            .find("if (!(el instanceof Element))")
+            .expect("the sweep's line of a foreign element");
+        let field = sweep
+            .find("el.getAttribute('contenteditable')")
+            .expect("the sweep's test of a field");
+        assert!(counted < field, "{sweep}");
+        assert_eq!(Sign::of(&serde_json::json!("secret")), Some(Sign::Secret));
+    }
+
     /// U4.1w part 1, the condition on the read: a password field with a value is read as its mark
     /// alone. The reply `[true]` gives a credential with no text and no value; a reply that marks a
     /// credential and carries a text and a value is refused, not read; and the function returns
@@ -2162,13 +2184,16 @@ const CONTENT_CORNER_FN: &str = "function () {
 /// from its labels and `aria-labelledby` too, `aria-label`, `title`, `placeholder`) that holds
 /// `password`, `passwd`, `pwd` or `passcode` in lower case; the empty text for no sign. An element
 /// is known by the browser's own interface, never by its tag name, and an input's type and
-/// `autocomplete` are read from its own properties beside its attributes. A control that showed a
+/// `autocomplete` are read from its own properties beside its attributes; an element that the
+/// world in which the call runs does not know as one of its own (made in another document's world
+/// and moved in) reads `secret`: fail closed (the coordinator's ruling of log line 14188). A control that showed a
 /// sign keeps it on its node for the life of the node, in the script world in which the call runs,
 /// so that a toggle that sets `type` to `text` does not unmark it. It reads no value and no text of
 /// the control itself.
 const CREDENTIAL_FN: &str = "function (named) {
   if (typeof this.__halvoSign === 'string') return this.__halvoSign;
   if (typeof this.getAttribute !== 'function') return '';
+  if (!(this instanceof Element)) return 'secret';
   const attr = (n) => this.getAttribute(n) || '';
   const input = this instanceof HTMLInputElement;
   const type = input ? [String(this.type), attr('type')].map((t) => t.toLowerCase()) : [];
@@ -2192,7 +2217,8 @@ const CREDENTIAL_FN: &str = "function (named) {
 /// The sweep of the reading in one document (the coordinator's ruling of log line 14127 (F)):
 /// `CREDENTIAL_FN` on every input, textarea, select and element editable by its own attribute of
 /// the document, each found by what the browser says it is and whatever its role in the page's
-/// tree; the strongest sign, or the empty text. It enters no frame and no shadow root.
+/// tree, and `secret` for an element that the world does not know as one of its own; the strongest
+/// sign, or the empty text. It enters no frame and no shadow root.
 fn sweep_fn() -> String {
     format!(
         "(() => {{
@@ -2200,6 +2226,10 @@ fn sweep_fn() -> String {
   const rank = {{ '': 0, secret: 1, code: 2, challenge: 3 }};
   let best = '';
   for (const el of document.querySelectorAll('*')) {{
+    if (!(el instanceof Element)) {{
+      if (rank.secret > rank[best]) best = 'secret';
+      continue;
+    }}
     const own = el.getAttribute('contenteditable');
     const field = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement
       || (own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase()));
