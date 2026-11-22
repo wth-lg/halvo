@@ -1,0 +1,1 @@
+- Fixed: The step parser refuses a step that carries an effect and marks a credential, and the runner fails such a step before any act, so no payment or other effect is counted done behind a sign-in.
