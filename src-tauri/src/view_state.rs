@@ -8,7 +8,7 @@ use halvo_control::proto::{
     Platform, RootDestroyed, Section, SourceName, SourceStateName, StateFile, StopKind,
     StoreErrorKind, StoreState, SwitchName,
 };
-use halvo_control::texts::{first_run, texts, Texts};
+use halvo_control::texts::{first_run, texts, Recorded, Texts};
 use serde::{Deserialize, Serialize};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
@@ -137,6 +137,9 @@ pub struct RunningView {
     pub login_item_written: Option<bool>,
     pub data_folder: Option<String>,
     pub state_file: Option<SettingsUnread>,
+    /// The first run's rows of what a start records, which the question of a reset of the
+    /// settings shows: on a settings file that cannot be read alone.
+    pub reset_recorded: Option<Vec<Recorded>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -580,6 +583,8 @@ struct WireView<'a> {
     data_folder: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     state_file: Option<SettingsUnread>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reset_recorded: Option<&'a [Recorded]>,
 }
 
 impl Serialize for StatusView {
@@ -612,6 +617,7 @@ impl Serialize for StatusView {
                 ext: Some(&view.ext),
                 data_folder: view.data_folder.as_deref(),
                 state_file: view.state_file,
+                reset_recorded: view.reset_recorded.as_deref(),
             },
             StatusView::NoStatus(view) => WireView {
                 service: view.word(),
@@ -643,6 +649,7 @@ impl Serialize for StatusView {
                 ext: None,
                 data_folder: view.data_folder.as_deref(),
                 state_file: None,
+                reset_recorded: None,
             },
         };
         wire.serialize(serializer)
@@ -782,6 +789,8 @@ impl StatusView {
                 StateFile::NewerVersion => Some(SettingsUnread::NewerVersion),
                 StateFile::Ok | StateFile::WriteFailed => None,
             },
+            reset_recorded: (f.state_file == StateFile::Corrupt)
+                .then(|| first_run(f.platform).recorded),
             login_item_written: None,
         }))
     }

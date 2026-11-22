@@ -1,0 +1,2 @@
+- Fixed: A site whose kept sign-in a fault cut between its parts is stored anew at the next run, under a number past the stray parts, so the agent no longer stays on the older kept sign-in, or asks its person to sign in at every run, for up to 35 days.
+- Changed: The store refuses a part of a kept sign-in whose revision is more than one above the newest stored revision of its site.

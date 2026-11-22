@@ -197,6 +197,23 @@ fn unread() -> DaemonState {
     }
 }
 
+/// The cap that a reset of the settings stores: a number out of range, which
+/// reads as a cap that is not known, so that nothing is evicted until a cap is
+/// set.
+pub const RESET_CAP_BYTES: u64 = 0;
+
+/// The state that a reset of the settings writes: the defaults, desired
+/// paused among them, with the cap not set, so that nothing is evicted, and
+/// the mark `store_made` set, so that the next life makes no store where no
+/// key file stands, as a life on the file that did not load makes none.
+pub fn after_a_reset() -> DaemonState {
+    DaemonState {
+        storage_cap: Cap::OutOfRange(RESET_CAP_BYTES),
+        store_made: true,
+        ..DaemonState::default()
+    }
+}
+
 /// How the state file stands: it loaded or was written, or an entry stands at
 /// its name that does not load, or the last write failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -235,6 +252,17 @@ pub enum StateError {
         kind: io::ErrorKind,
         read: io::ErrorKind,
     },
+}
+
+/// Why a reset of the settings wrote nothing. The text names the file.
+#[derive(Debug, thiserror::Error)]
+pub enum ResetRefused {
+    #[error("the state file {} loads, so the settings were not reset", .file.display())]
+    Loads { file: PathBuf },
+    #[error("the state file {} is of version {version}, newer than this build, so the settings were not reset", .file.display())]
+    Newer { file: PathBuf, version: u64 },
+    #[error("the state file {} was not reset: {kind}", .file.display())]
+    NotWritten { file: PathBuf, kind: io::ErrorKind },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -377,6 +405,41 @@ impl StateFile {
     pub fn reset(&mut self) -> io::Result<()> {
         let fresh = DaemonState::default();
         self.save(&fresh)?;
+        self.state = fresh;
+        self.loaded = Loaded::Readable;
+        self.last_write = None;
+        Ok(())
+    }
+
+    /// Writes [`after_a_reset`] over a state file that this life read as not
+    /// loading, and over no other, and takes it into memory once the write
+    /// succeeded: the person's reset of the settings alone, which keeps the
+    /// store. A file that the life read as loading, also one whose last write
+    /// failed, and one that it read as of a newer version are left as they
+    /// are, and a failed write leaves memory as it was. The file is not read
+    /// again: one that reads on the disk under a life that read it as not
+    /// loading is written over.
+    pub fn reset_settings(&mut self) -> Result<(), ResetRefused> {
+        match self.loaded {
+            Loaded::Corrupt => {}
+            Loaded::Readable => {
+                return Err(ResetRefused::Loads {
+                    file: self.dir.file_for_words(),
+                })
+            }
+            Loaded::NewerVersion(version) => {
+                return Err(ResetRefused::Newer {
+                    file: self.dir.file_for_words(),
+                    version,
+                })
+            }
+        }
+        let fresh = after_a_reset();
+        self.save(&fresh)
+            .map_err(|error| ResetRefused::NotWritten {
+                file: self.dir.file_for_words(),
+                kind: error.kind(),
+            })?;
         self.state = fresh;
         self.loaded = Loaded::Readable;
         self.last_write = None;
