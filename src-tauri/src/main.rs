@@ -12,7 +12,7 @@ mod daemon_child;
 mod engine;
 mod instance;
 mod launch;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows, test))]
 mod login_item;
 mod poller;
 #[cfg(any(target_os = "macos", windows, test))]
@@ -158,11 +158,19 @@ fn run(background: bool, given: Option<PathBuf>) {
     let login_dir = data_dir.clone();
     #[cfg(target_os = "macos")]
     let offline_dir = data_dir.clone();
-    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
+    #[cfg_attr(not(any(target_os = "macos", windows)), allow(unused_mut))]
     let mut state = commands::capture::AppState::with_control(control, data_dir, open_pane);
     #[cfg(target_os = "macos")]
     {
         state.login_item = login_item::at_the_click(given.is_some(), the_login_item);
+    }
+    #[cfg(windows)]
+    {
+        state.login_item = login_item::run_value::at_the_click(
+            given.is_some(),
+            the_start_value,
+            Arc::new(login_item::run_value::Registry),
+        );
     }
     #[cfg(any(target_os = "macos", windows, test))]
     let views = Arc::clone(&state.views);
@@ -250,6 +258,12 @@ fn the_login_item() -> Option<login_item::LoginItem> {
         None,
     )
     .ok()
+}
+
+/// The Run value of the app's own path; none where that path cannot be read or makes no value.
+#[cfg(windows)]
+fn the_start_value() -> Option<halvo_control::service::StartValueSpec> {
+    halvo_control::service::StartValueSpec::new(&std::env::current_exe().ok()?).ok()
 }
 
 #[cfg(target_os = "macos")]

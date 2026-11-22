@@ -38,7 +38,8 @@ pub struct AppState {
     pub open_pane: fn(Permission) -> Result<(), String>,
     pub tray_installed: AtomicBool,
     pub last_delete: Mutex<LastDelete>,
-    /// The login item that the consent click writes: none with --data-dir and off macOS.
+    /// The login item that the consent click writes, the plist on macOS and the Run value on
+    /// Windows: none with --data-dir and on other systems.
     pub login_item: Option<LoginItemWriter>,
     /// What the offline delete runs, set once the app has started the supervisor of its child;
     /// main holds the same cell from before the state moves into the app, so that it sets it

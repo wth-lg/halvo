@@ -1,29 +1,39 @@
+#[cfg(target_os = "macos")]
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "macos")]
 use halvo_control::paths::{AccountLookup, DataDir, LoginItemDir, PathError, ScratchDir};
+#[cfg(target_os = "macos")]
 use halvo_control::service::{
     install_login_item, login_item_path, login_item_state, InstallOutcome, LoginItemSpec,
     LoginItemState, SpecError, LOGIN_ITEM_LABEL,
 };
 
+#[cfg(target_os = "macos")]
 use crate::commands::capture::LoginItemWriter;
+#[cfg(target_os = "macos")]
 use crate::launch::Exit;
+#[cfg(target_os = "macos")]
 use crate::poller::Views;
 
+#[cfg(target_os = "macos")]
 /// The sentence that a person reads where Halvo runs under an AppTranslocation path, and so
 /// writes no login item.
 pub const MOVE_TO_APPLICATIONS: &str = "Halvo cannot start at login while macOS runs it from a temporary location. Move Halvo to your Applications folder, open it from there, and try again.";
 
+#[cfg(target_os = "macos")]
 /// The exit status with which the system's service manager answers a print of a label that
 /// launchd does not hold.
 pub const NOT_LOADED: i32 = 113;
 
+#[cfg(target_os = "macos")]
 /// Runs the system's service manager with the arguments that the manager builds and answers its
 /// exit status alone: none where it did not start, ended by a signal or outlived its wait.
 pub trait Runner {
     fn status(&self, args: &[String]) -> Option<i32>;
 }
 
+#[cfg(target_os = "macos")]
 /// Why the manager writes no login item for a program.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Refusal {
@@ -31,6 +41,7 @@ pub enum Refusal {
     Spec(SpecError),
 }
 
+#[cfg(target_os = "macos")]
 impl std::fmt::Display for Refusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -40,6 +51,7 @@ impl std::fmt::Display for Refusal {
     }
 }
 
+#[cfg(target_os = "macos")]
 /// The app's one manager of its login item. It takes the label, the program, the login item's
 /// directory and, for a scratch run, the data directory as values that main resolves, and
 /// writes through the one writer of halvo-control; a write starts no process.
@@ -49,6 +61,7 @@ pub struct LoginItem {
     dir: LoginItemDir,
 }
 
+#[cfg(target_os = "macos")]
 impl LoginItem {
     /// Refuses a program under an AppTranslocation path, before any read or write of the login
     /// item.
@@ -92,6 +105,7 @@ impl LoginItem {
     }
 }
 
+#[cfg(target_os = "macos")]
 /// The scratch form `--write-login-item --login-label LABEL --data-dir DIR`: writes DIR/LABEL.plist
 /// through the manager, with the label and the data directory replaced, and answers the exit of
 /// the launch: 0 for a plist written or already standing; 64 for the real label, for a label that
@@ -149,6 +163,7 @@ pub fn write_scratch(
     }
 }
 
+#[cfg(target_os = "macos")]
 /// What a start of `run` does with the login item: with --data-dir (`given`), or on a data
 /// directory that does not read provisioned, nothing. Otherwise the manager that `item` makes for
 /// the app's own path reads the plist's state, and writes it again where it reads Stale; Absent
@@ -175,6 +190,7 @@ pub fn at_start(
     }
 }
 
+#[cfg(target_os = "macos")]
 /// The login item that the consent click writes (contracts.md C14 item 7): none with
 /// --data-dir (`given`); otherwise a writer that writes the plist through the manager that
 /// `item` makes for the app's own path and answers whether it stands written, false where the
@@ -191,6 +207,7 @@ pub fn at_the_click(
     }))
 }
 
+#[cfg(target_os = "macos")]
 fn refused_dir(error: PathError) -> Exit {
     match error {
         PathError::InsideDataDir
@@ -207,7 +224,148 @@ fn refused_dir(error: PathError) -> Exit {
     }
 }
 
-#[cfg(test)]
+/// The Windows half (ADR 0007): the value Halvo under the Run key of the person's own registry
+/// starts the app with --background at each logon. Its calls reach the registry through
+/// `RunValue`: halvo-control's calls on Windows, a stand-in in the tests, so that no test
+/// writes a registry.
+#[cfg(any(windows, test))]
+pub mod run_value {
+    use std::sync::Arc;
+
+    use halvo_control::service::{InstallOutcome, StartValueSpec};
+
+    use crate::commands::capture::LoginItemWriter;
+
+    /// The calls of the Run value.
+    pub trait RunValue: Send + Sync {
+        /// Writes the value of `spec` where it does not stand as `spec` makes it.
+        fn write(&self, spec: &StartValueSpec) -> std::io::Result<InstallOutcome>;
+    }
+
+    /// The person's own registry, through halvo-control's calls.
+    #[cfg(windows)]
+    pub struct Registry;
+
+    #[cfg(windows)]
+    impl RunValue for Registry {
+        fn write(&self, spec: &StartValueSpec) -> std::io::Result<InstallOutcome> {
+            halvo_control::service::write_start_value(spec)
+        }
+    }
+
+    /// The writer that the press on Start calls first (contracts.md C14 item 7): none with
+    /// --data-dir (`given`); otherwise one that writes the value for the app's own path, which
+    /// `spec` reads at the press, through `values`, and answers whether it stands written: false
+    /// where the path makes no value or the write fails. Nothing is read or written before that
+    /// press.
+    pub fn at_the_click(
+        given: bool,
+        spec: impl Fn() -> Option<StartValueSpec> + Send + Sync + 'static,
+        values: Arc<dyn RunValue>,
+    ) -> Option<LoginItemWriter> {
+        if given {
+            return None;
+        }
+        Some(Arc::new(move || {
+            spec().is_some_and(|spec| values.write(&spec).is_ok())
+        }))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use std::io::ErrorKind;
+        use std::path::Path;
+        use std::sync::Mutex;
+
+        const PROGRAM: &str = r"C:\Users\a b\AppData\Local\Halvo\halvo.exe";
+
+        /// A call of the stand-in, with the key, the value's name and the data of its spec.
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        enum Call {
+            Write(String, String, String),
+        }
+
+        /// The calls of the Run value, recorded, each with the test's own answer.
+        #[derive(Default)]
+        struct StandIn {
+            calls: Mutex<Vec<Call>>,
+            write: Option<ErrorKind>,
+        }
+
+        impl StandIn {
+            fn calls(&self) -> Vec<Call> {
+                self.calls.lock().expect("the record").clone()
+            }
+
+            fn record(&self, call: Call) {
+                self.calls.lock().expect("the record").push(call);
+            }
+        }
+
+        fn named(spec: &StartValueSpec) -> (String, String, String) {
+            (
+                spec.key().to_owned(),
+                spec.value_name().to_owned(),
+                spec.data(),
+            )
+        }
+
+        fn answer<T>(refused: Option<ErrorKind>, done: T) -> std::io::Result<T> {
+            refused.map_or(Ok(done), |kind| Err(kind.into()))
+        }
+
+        impl RunValue for StandIn {
+            fn write(&self, spec: &StartValueSpec) -> std::io::Result<InstallOutcome> {
+                let (key, name, data) = named(spec);
+                self.record(Call::Write(key, name, data));
+                answer(self.write, InstallOutcome::Written)
+            }
+        }
+
+        fn the_app() -> Option<StartValueSpec> {
+            StartValueSpec::new(Path::new(PROGRAM)).ok()
+        }
+
+        fn written() -> Call {
+            Call::Write(
+                r"Software\Microsoft\Windows\CurrentVersion\Run".to_owned(),
+                "Halvo".to_owned(),
+                format!("\"{PROGRAM}\" --background"),
+            )
+        }
+
+        #[test]
+        fn the_run_value_is_written_at_the_press_alone_and_never_for_a_given_directory() {
+            let values = Arc::new(StandIn::default());
+            let writer = at_the_click(false, the_app, values.clone()).expect("a writer");
+            assert_eq!(
+                values.calls(),
+                Vec::<Call>::new(),
+                "nothing before the press"
+            );
+            assert!(writer(), "the value stands written");
+            assert_eq!(values.calls(), vec![written()], "one write at the press");
+
+            let refused = Arc::new(StandIn {
+                write: Some(ErrorKind::PermissionDenied),
+                ..StandIn::default()
+            });
+            let writer = at_the_click(false, the_app, refused.clone()).expect("a writer");
+            assert!(!writer(), "a refused write answers not written");
+            assert_eq!(refused.calls(), vec![written()]);
+
+            let given = Arc::new(StandIn::default());
+            assert!(
+                at_the_click(true, the_app, given.clone()).is_none(),
+                "no writer with --data-dir"
+            );
+            assert_eq!(given.calls(), Vec::<Call>::new(), "nothing with --data-dir");
+        }
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::*;
     use crate::launch::{parse, Launch};
