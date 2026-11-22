@@ -56,6 +56,75 @@ impl Drop for EndsItsOwnChild<'_> {
     }
 }
 
+/// SeDebugPrivilege taken out of this thread's token for the guard's life, as
+/// a person's process holds no such privilege, so that the system checks an
+/// open against the process's own list; the thread takes its process's token
+/// back at the drop.
+struct WithoutDebugPrivilege;
+
+impl WithoutDebugPrivilege {
+    fn on_this_thread() -> WithoutDebugPrivilege {
+        use windows::core::PCWSTR;
+        use windows::Win32::Foundation::{CloseHandle, HANDLE, LUID};
+        use windows::Win32::Security::{
+            AdjustTokenPrivileges, ImpersonateSelf, LookupPrivilegeValueW, SecurityImpersonation,
+            LUID_AND_ATTRIBUTES, SE_DEBUG_NAME, SE_PRIVILEGE_REMOVED, TOKEN_ADJUST_PRIVILEGES,
+            TOKEN_PRIVILEGES, TOKEN_QUERY,
+        };
+        use windows::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
+        // SAFETY: ImpersonateSelf takes a plain value and gives this thread a
+        // copy of its process's token.
+        unsafe { ImpersonateSelf(SecurityImpersonation) }.unwrap();
+        let guard = WithoutDebugPrivilege;
+        let mut token = HANDLE::default();
+        // SAFETY: the thread is this one, and `token` is a live HANDLE that the
+        // call fills.
+        unsafe {
+            OpenThreadToken(
+                GetCurrentThread(),
+                TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+                true,
+                &mut token,
+            )
+        }
+        .unwrap();
+        let mut luid = LUID::default();
+        // SAFETY: the name is a static wide string, and `luid` is a live LUID
+        // that the call fills.
+        unsafe { LookupPrivilegeValueW(PCWSTR::null(), SE_DEBUG_NAME, &mut luid) }.unwrap();
+        let removed = TOKEN_PRIVILEGES {
+            PrivilegeCount: 1,
+            Privileges: [LUID_AND_ATTRIBUTES {
+                Luid: luid,
+                Attributes: SE_PRIVILEGE_REMOVED,
+            }],
+        };
+        // SAFETY: the token is open with the right to adjust it, and `removed`
+        // lives across the call.
+        let adjusted = unsafe {
+            AdjustTokenPrivileges(
+                token,
+                false,
+                Some(std::ptr::from_ref(&removed)),
+                0,
+                None,
+                None,
+            )
+        };
+        // SAFETY: the token is open and owned here alone.
+        let _ = unsafe { CloseHandle(token) };
+        adjusted.unwrap();
+        guard
+    }
+}
+
+impl Drop for WithoutDebugPrivilege {
+    fn drop(&mut self) {
+        // SAFETY: RevertToSelf takes no argument.
+        let _ = unsafe { windows::Win32::Security::RevertToSelf() };
+    }
+}
+
 fn a_derived_row(dir: &Path, pid: u32, started: u64) {
     let derived = dir.join("derived");
     std::fs::create_dir_all(&derived).unwrap();
@@ -170,6 +239,7 @@ fn the_delete_walk_leaves_the_row_of_an_owner_that_it_may_not_open() {
         )
     };
     assert_eq!(set, ERROR_SUCCESS, "the child's list was not set");
+    let _without = WithoutDebugPrivilege::on_this_thread();
     // SAFETY: OpenProcess takes plain values; a handle that it gives is
     // closed below.
     let opened = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) };
