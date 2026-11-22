@@ -598,6 +598,60 @@ pub(crate) fn after_the_reports_go<T>(
     make()
 }
 
+/// The launch form `--remove-crash-reports` on `folder`, the folder of the crash reports of the web
+/// view of Halvo's own window, with no window and no web view: every file under it goes by
+/// `remove`, folders kept. Its one line, `crash_reports folder=<path> removed=<n> left=<n>`, and
+/// its end: 0 where nothing was there or every file went, 1 where one stays. `left` counts the
+/// files that stand under the folder after the walk; a folder or an entry that cannot be read
+/// counts as one.
+#[cfg(any(windows, test))]
+pub fn crash_reports_form(
+    folder: &std::path::Path,
+    remove: &dyn Fn(&std::path::Path) -> std::io::Result<()>,
+) -> (String, Exit) {
+    let removed = std::cell::Cell::new(0u64);
+    let every_file_went = crate::commands::capture::every_file_goes(folder, &|file| {
+        let gone = remove(file);
+        if gone.is_ok() {
+            removed.set(removed.get() + 1);
+        }
+        gone
+    });
+    let left = match files_under(folder) {
+        0 if !every_file_went => 1,
+        left => left,
+    };
+    let line = format!(
+        "crash_reports folder={} removed={} left={left}",
+        halvo_control::paths::one_line(&folder.to_string_lossy()),
+        removed.get()
+    );
+    (
+        line,
+        Exit::ReportsRemoved {
+            one_stays: left > 0,
+        },
+    )
+}
+
+/// The files that stand under `dir`, in every folder below it, folders not counted; a folder
+/// that stands and cannot be read, and an entry that cannot be read, count as one each.
+#[cfg(any(windows, test))]
+fn files_under(dir: &std::path::Path) -> u64 {
+    match std::fs::read_dir(dir) {
+        Ok(entries) => entries
+            .map(
+                |entry| match entry.and_then(|e| Ok((e.path(), e.file_type()?))) {
+                    Ok((path, kind)) if kind.is_dir() => files_under(&path),
+                    _ => 1,
+                },
+            )
+            .sum(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0,
+        Err(_) => 1,
+    }
+}
+
 fn engine_site<R: Runtime>(
     app: &AppHandle<R>,
     given: Option<PathBuf>,
@@ -744,6 +798,54 @@ mod tests {
             "files under the folder when the maker of the window is called"
         );
         assert!(folder.join("below").is_dir(), "the folders stay");
+    }
+
+    /// Test 3 of win-crash-reports: the form `--remove-crash-reports`, given alone, on a stand-in
+    /// folder: its one line and its end where nothing is there, where every file goes, and where
+    /// a file stays.
+    #[test]
+    fn the_form_tells_in_one_line_what_went_and_what_stays_and_ends_with_0_or_1() {
+        use crate::launch::{parse, Launch, Usage};
+        let args = |list: &[&str]| -> Vec<std::ffi::OsString> {
+            list.iter().map(std::ffi::OsString::from).collect()
+        };
+        assert_eq!(
+            parse(args(&["--remove-crash-reports"])),
+            Ok(Launch::RemoveCrashReports)
+        );
+        assert_eq!(
+            parse(args(&["--remove-crash-reports", "--background"])),
+            Err(Usage::Extra("--remove-crash-reports".into()))
+        );
+        let folder = scratch("form-crash-reports").join("reports");
+        let shown = halvo_control::paths::one_line(&folder.to_string_lossy());
+        let line = |removed: u64, left: u64| {
+            format!("crash_reports folder={shown} removed={removed} left={left}")
+        };
+        let remove = |file: &Path| std::fs::remove_file(file);
+        let (said, exit) = crash_reports_form(&folder, &remove);
+        assert_eq!((said, exit.code()), (line(0, 0), 0), "nothing there");
+        std::fs::create_dir_all(folder.join("below")).expect("a folder below");
+        let report = |name: &str| {
+            let file = folder.join(name);
+            std::fs::write(&file, b"a dump of the window").expect("a report");
+            file
+        };
+        report("a.dmp");
+        report("below/b.dmp");
+        let (said, exit) = crash_reports_form(&folder, &remove);
+        assert_eq!((said, exit.code()), (line(2, 0), 0), "every file went");
+        let (a, b) = (report("a.dmp"), report("b.dmp"));
+        let refuses_b = |file: &Path| {
+            if file == b.as_path() {
+                Err(std::io::Error::other("held by the web view"))
+            } else {
+                std::fs::remove_file(file)
+            }
+        };
+        let (said, exit) = crash_reports_form(&folder, &refuses_b);
+        assert_eq!((said, exit.code()), (line(1, 1), 1), "one stays");
+        assert!(!a.exists() && b.exists());
     }
 
     /// What the web view's environment answers as the folder of its crash reports
