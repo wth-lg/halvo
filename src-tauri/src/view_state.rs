@@ -1226,23 +1226,12 @@ impl DeleteView {
     /// and a no_store end the row; any other answer leaves the count as it stands.
     pub fn count_unfinished(&mut self, in_a_row: &std::sync::atomic::AtomicU32) {
         use std::sync::atomic::Ordering;
+        let finished = self.finished();
         match self {
             DeleteView::Deleted {
-                root_destroyed,
-                not_followed,
-                files_left,
-                database_left,
-                entries_left,
                 unfinished_in_a_row,
-                not_whole,
                 ..
             } => {
-                let finished = !*not_whole
-                    && *root_destroyed == RootDestroyed::Yes
-                    && *not_followed == 0
-                    && *files_left == 0
-                    && !*database_left
-                    && *entries_left == 0;
                 if finished {
                     in_a_row.store(0, Ordering::SeqCst);
                 } else {
@@ -1255,6 +1244,33 @@ impl DeleteView {
                 in_a_row.store(0, Ordering::SeqCst);
             }
             DeleteView::DeleteRefused => {}
+        }
+    }
+
+    /// Whether this is a deleted answer that finished: its run ended as whole, and it left no
+    /// key, no file, no database and no entry of Halvo's own; an entry that Halvo does not know
+    /// does not count.
+    pub fn finished(&self) -> bool {
+        match self {
+            DeleteView::Deleted {
+                root_destroyed,
+                not_followed,
+                files_left,
+                database_left,
+                entries_left,
+                not_whole,
+                ..
+            } => {
+                !*not_whole
+                    && *root_destroyed == RootDestroyed::Yes
+                    && *not_followed == 0
+                    && *files_left == 0
+                    && !*database_left
+                    && *entries_left == 0
+            }
+            DeleteView::AlreadyDeleted { .. }
+            | DeleteView::NoStore { .. }
+            | DeleteView::DeleteRefused => false,
         }
     }
 

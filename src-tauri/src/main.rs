@@ -17,6 +17,8 @@ mod login_item;
 mod poller;
 #[cfg(any(target_os = "macos", test))]
 mod quit;
+#[cfg(target_os = "macos")]
+mod remove;
 mod tray;
 mod view_state;
 
