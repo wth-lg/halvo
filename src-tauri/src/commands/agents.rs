@@ -135,20 +135,21 @@ pub fn hold_by_the_view<R: Runtime>(app: &AppHandle<R>, view: &crate::view_state
 /// first tick.
 pub type Start = Box<dyn FnOnce() + Send>;
 
-/// The one place where the app makes its `Core`, and the steps of its start. On a Mac with a data
-/// directory it is the hub over the product's ports (`halvo_coord_app::product`), whose count of
-/// agents that need the person goes to `tray` and whose confirmations that only a native dialog
-/// answers are shown in the system's dialog of `app` (`halvo_coord_app::System`): its owner
-/// streams, relay and run marks go through `control`, its runs live under the data directory,
-/// and its start's steps are `halvo_coord_app::product::start`. Elsewhere, and on Windows until
-/// the capture run's win-5 cut 2, it is `NoService`, and nothing calls `tray`.
+/// The one place where the app makes its `Core`, and the steps of its start. On a Mac and on
+/// Windows with a data directory it is the hub over the product's ports
+/// (`halvo_coord_app::product`), whose count of agents that need the person goes to `tray` and
+/// whose confirmations that only a native dialog answers are shown in the system's dialog of `app`
+/// (`halvo_coord_app::System`: the alert on a Mac, the task dialog on Windows): its owner
+/// streams, relay, run marks and defer go through `control`, its runs live under the data
+/// directory, and its start's steps are `halvo_coord_app::product::start`. Elsewhere, and with no
+/// data directory, it is `NoService`, and nothing calls `tray`.
 pub fn core<R: Runtime>(
     app: &AppHandle<R>,
     tray: Box<dyn Fn(u32) + Send + Sync>,
     control: &Arc<dyn Control>,
     data_dir: Option<&DataDir>,
 ) -> (Agents, Start) {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     if let Some(dir) = data_dir {
         let hub = product_hub(app, tray, control, dir);
         let started = Arc::clone(&hub);
@@ -161,10 +162,21 @@ pub fn core<R: Runtime>(
     (Agents(Arc::new(NoService)), Box::new(|| {}))
 }
 
+/// The runner of the app: the file halvo-runner with the system's suffix of an executable
+/// (halvo-runner.exe on Windows) beside the app's own executable, absolute, as the supervisor
+/// library takes it, or in `dir` where the app's path cannot be read.
+#[cfg(any(target_os = "macos", windows))]
+pub fn runner(dir: &DataDir) -> std::path::PathBuf {
+    let beside = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(std::path::Path::to_path_buf))
+        .unwrap_or_else(|| dir.path().to_path_buf());
+    beside.join(format!("halvo-runner{}", std::env::consts::EXE_SUFFIX))
+}
+
 /// The hub over the product's ports, whose native confirmations are shown in the system's dialog
-/// of `app`: the runner stands beside the app's own executable, absolute, as the supervisor
-/// library takes it.
-#[cfg(target_os = "macos")]
+/// of `app`, and whose runner is `runner`.
+#[cfg(any(target_os = "macos", windows))]
 fn product_hub<R: Runtime>(
     app: &AppHandle<R>,
     tray: Box<dyn Fn(u32) + Send + Sync>,
@@ -172,13 +184,9 @@ fn product_hub<R: Runtime>(
     dir: &DataDir,
 ) -> Arc<halvo_coord_app::product::ProductHub> {
     use halvo_coord_app::product::{Calls, Places};
-    let beside = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(std::path::Path::to_path_buf))
-        .unwrap_or_else(|| dir.path().to_path_buf());
     let places = Places {
         data_dir: dir.path().to_path_buf(),
-        runner: beside.join("halvo-runner"),
+        runner: runner(dir),
         model: None,
     };
     let (streams, relayed, marked, deferred) = (
