@@ -5,7 +5,9 @@
 //! `Runner::release` as a [`Paused`] of this maker, which names itself in `always_asks`: no request of it leaves
 //! without an `approved` row, whatever the policy clears. After `allow_once` the request leaves once, unless the rule's
 //! record, read right before the let-through, holds a request of the page that the rule failed: then the held request
-//! is failed, nothing leaves and the run ends `refused` with `origin` (log line 15895); after
+//! is failed, nothing leaves and the run ends `refused` with `origin` (log line 15895), and unless the rule then holds
+//! a second request beside it: every held request is failed, nothing leaves and the run ends `failed` with
+//! `step_failed` (log line 15974); after
 //! `reject_once`, and at every other end of the confirm path, the held request is failed and nothing leaves. Where
 //! the act holds no request, or more than one, every held request is failed, no card is shown and the step answers
 //! `step_failed`. When the confirm path has ended the rule is armed in `Mode::Fail` again. The values of the page that
@@ -176,9 +178,12 @@ impl Paused for Held {
         }
     }
 
-    /// Reads the rule's record right before the let-through, under the same lock (the coordinator's ruling of log line
-    /// 15895): where it holds a request of the page that the rule failed, also one failed while the card waited, the
-    /// held request is failed and nothing leaves (`Withheld`); else the held request leaves once.
+    /// Reads the rule's record and its held requests right before the let-through, under the same lock (the
+    /// coordinator's rulings of log lines 15895 and 15974): where the record holds a request of the page that the rule
+    /// failed, also one failed while the card waited, every held request is failed and nothing leaves
+    /// (`Replied::Withheld`); where the rule holds another request than this one, a second that the page sent while
+    /// the card waited, every held request is failed and nothing leaves (`Replied::NotOne`, the rule of exactly ONE held
+    /// request, log line 14717 (5)); else the held request leaves once.
     fn release(mut self: Box<Self>) -> Box<dyn Left> {
         self.left = true;
         let mut web = lock(&self.web);
@@ -190,7 +195,15 @@ impl Paused for Held {
             if let Some(web) = web.as_mut() {
                 let _ = web.0.fail_held();
             }
-            return Box::new(Withheld);
+            return Box::new(Withheld(Replied::Withheld));
+        }
+        let held = web.as_mut().map_or_else(Vec::new, |web| web.0.held());
+        if held.iter().any(|h| h.id != self.id) {
+            crate::line(&format!("run effect=withheld held={}", held.len()));
+            if let Some(web) = web.as_mut() {
+                let _ = web.0.fail_held();
+            }
+            return Box::new(Withheld(Replied::NotOne));
         }
         let went = web
             .as_mut()
@@ -237,13 +250,14 @@ impl Drop for Held {
     }
 }
 
-/// A held request that the maker failed at its let-through, because the rule's record held a request of the page that
-/// the rule had failed: nothing left.
-struct Withheld;
+/// A held request that the maker failed at its let-through, with the reply that says why: the rule's record held a
+/// request of the page that the rule had failed (`Replied::Withheld`), or the rule held another request beside it
+/// (`Replied::NotOne`). Nothing left.
+struct Withheld(Replied);
 
 impl Left for Withheld {
     fn reply(self: Box<Self>) -> Replied {
-        Replied::Withheld
+        self.0
     }
 }
 
@@ -391,7 +405,9 @@ impl Runner {
     /// A web step of an effect class (the module's text): its act and conditions as a web step that acts takes them,
     /// the page read first for a credential field (crate::handback), the rule armed in `Mode::Hold` with the run's
     /// origins for the act, the one held request given to `release`, and the rule armed in `Mode::Fail` again. A
-    /// request of the page that the rule failed ends the run `refused` with the cause `origin` (`end_of_step`). Its
+    /// request of the page that the rule failed ends the run `refused` with the cause `origin` (`end_of_step`), the
+    /// record read also right before the arm of the hold mode, which empties it, so that no card is shown behind such a
+    /// request (log line 15974). Its
     /// conditions `pre` are read before the act; its conditions `post` are not read at the act, while the request is
     /// held, but on the page after a reply read as made (`page_after`, r3 U5.10-B).
     pub(crate) fn effect_step(
@@ -431,6 +447,11 @@ impl Runner {
                 }
                 other => (name, other),
             });
+        }
+        let before = web.0.record();
+        if refused_by_the_page(&before) {
+            crate::line("run effect=failed at=arm refused=yes");
+            return end_of_step(Err(()), &before);
         }
         if web.0.arm_hold(&origins).is_err() {
             let _ = web.0.arm(&origins);
@@ -552,9 +573,11 @@ mod tests {
 
     /// The stand-in of the executor: an arm in `Mode::Fail` fails what it holds, a click holds the requests that the
     /// test gave, an extract reads `12.34`, a release of a held id gives the status that the test gave, the page after
-    /// it names the amounts that the test gave, the rule's record holds the requests that the test gave in `waited`
-    /// from its second read on (the first is the read right after the act) and those of `after` once a request left,
-    /// and every call is one line of the log.
+    /// it names the amounts that the test gave, the rule's record holds the requests that the test gave in `before`
+    /// until the arm of the hold mode empties it, as the executor's arm does, those of `waited` from its second read
+    /// after that arm on (the first is the read right after the act), and those of `after` once a request left; the
+    /// held requests gain the test's `second` from their third read on (the act's two reads come first); and every call
+    /// is one line of the log.
     struct StandIn {
         log: Log,
         holds: Vec<HeldRequest>,
@@ -562,9 +585,12 @@ mod tests {
         status: Option<i64>,
         released: bool,
         amounts: Result<Vec<u64>, ()>,
+        before: Vec<PausedRequest>,
         waited: Vec<PausedRequest>,
         after: Vec<PausedRequest>,
         reads: usize,
+        second: Option<HeldRequest>,
+        held_reads: usize,
         post_fails: bool,
     }
 
@@ -577,9 +603,12 @@ mod tests {
                 status: Some(200),
                 released: false,
                 amounts: Ok(vec![1234]),
+                before: Vec::new(),
                 waited: Vec::new(),
                 after: Vec::new(),
                 reads: 0,
+                second: None,
+                held_reads: 0,
                 post_fails: false,
             }
         }
@@ -643,7 +672,7 @@ mod tests {
 
         fn record(&mut self) -> Vec<PausedRequest> {
             self.reads += 1;
-            let mut record = Vec::new();
+            let mut record = self.before.clone();
             if self.reads > 1 {
                 record.extend(self.waited.clone());
             }
@@ -702,10 +731,16 @@ mod tests {
 
         fn arm_hold(&mut self, origins: &[WebOrigin]) -> Result<(), ()> {
             note(&self.log, format!("arm hold [{}]", named(origins)));
+            self.before.clear();
+            self.reads = 0;
             Ok(())
         }
 
         fn held(&mut self) -> Vec<HeldRequest> {
+            self.held_reads += 1;
+            if self.held_reads == 3 {
+                self.holds.extend(self.second.take());
+            }
             self.holds.clone()
         }
 
@@ -1055,5 +1090,60 @@ mod tests {
             "{log:?}"
         );
         assert_eq!(record.done(), Some(Outcome::Refused), "{log:?}");
+    }
+
+    /// r3 U5.10-B, the last round of log line 15974 (N1), on the stand-in: a request of the page that the rule failed
+    /// before the arm of the hold mode, which that arm would empty unread, is read right before the arm: nothing is
+    /// armed, no card is shown, nothing leaves, no effect row stands, and the run ends `refused` with the cause `origin`.
+    #[test]
+    fn on_the_stand_in_a_request_failed_before_the_arm_of_the_hold_ends_the_step_with_no_card() {
+        let log: Log = Arc::default();
+        let mut stand_in = StandIn::new(&log, vec![held(7)]);
+        stand_in.before = vec![failed_of_the_page()];
+        let record = pay_on(stand_in, Plan::plain());
+        let log = lines(&log);
+        assert!(!log.iter().any(|l| l.starts_with("let through")), "{log:?}");
+        assert!(!log.iter().any(|l| l.starts_with("arm hold")), "{log:?}");
+        assert!(record.confirms().is_empty(), "no card: {log:?}");
+        assert!(record.states().is_empty(), "no effect row: {log:?}");
+        assert_eq!(
+            rows(&record).last(),
+            Some(&(LogEvent::Stopped, None, Some(Cause::Origin))),
+            "{log:?}"
+        );
+        assert_eq!(record.done(), Some(Outcome::Refused), "{log:?}");
+    }
+
+    /// r3 U5.10-B, the last round of log line 15974 (N2), on the stand-in: a second state-changing request that the
+    /// page sends while the card waits is held too; the held requests are counted again at the let-through, and two
+    /// fail them all with nothing sent, as the rule of exactly one held request ends a step at the card (log line
+    /// 14717 (5)): the effect's row says `not_made` with `not_sent`, the step's row `step_failed`, and the run ends
+    /// `failed` with `step_failed`.
+    #[test]
+    fn on_the_stand_in_a_second_held_request_at_the_let_through_fails_them_all() {
+        let log: Log = Arc::default();
+        let mut stand_in = StandIn::new(&log, vec![held(7)]);
+        stand_in.second = Some(held(8));
+        let record = pay_on(stand_in, Plan::plain());
+        let log = lines(&log);
+        assert!(!log.iter().any(|l| l.starts_with("let through")), "{log:?}");
+        assert!(log.iter().any(|l| l == "fail held 2"), "{log:?}");
+        assert_eq!(record.confirms().len(), 1, "one card: {log:?}");
+        let last = record.effects().last().cloned().expect("an effect row");
+        assert_eq!(
+            (last.state, last.cause),
+            (EffectState::NotMade, Some(Cause::NotSent)),
+            "{log:?}"
+        );
+        assert_eq!(
+            rows(&record),
+            [
+                (LogEvent::Confirm, None, None),
+                (LogEvent::StepFailed, Some(3), Some(Cause::StepFailed)),
+                (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+            ],
+            "{log:?}"
+        );
+        assert_eq!(record.done(), Some(Outcome::Failed), "{log:?}");
     }
 }

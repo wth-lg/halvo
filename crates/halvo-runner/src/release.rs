@@ -189,6 +189,10 @@ pub(crate) enum Replied {
     /// the rule had failed, so the maker failed the paused request (crate::web::maker; the coordinator's ruling of log
     /// line 15895).
     Withheld,
+    /// The maker let nothing leave: right before the let-through the rule held another request of the page beside the
+    /// one of the card, so the maker failed them all (crate::web::maker; the rule of exactly ONE held request, log lines
+    /// 14717 (5) and 15974).
+    NotOne,
 }
 
 /// The end of a run whose effect `decide` refuses: `refused`, with the cause `autonomy` under `observe`.
@@ -335,7 +339,8 @@ impl Runner {
     /// it so at once (CP-226 item 8). A request with no reply, or with an answer read as neither made nor not made,
     /// leaves its effect `releasing`, and the run ends `effect_unknown`. A request that the maker withheld at its
     /// let-through (`Replied::Withheld`) makes the move `not_made` with the cause `not_sent`, and the run ends `refused`
-    /// with `origin`.
+    /// with `origin`; one that it withheld because the rule held another request beside it (`Replied::NotOne`) makes the
+    /// same move, the step's row `step_failed`, and the run ends `failed` with `step_failed`.
     ///
     /// A request that always asks in this release (`always_asks`: a send or a delete of an event) goes to its `begin`
     /// only from an `approved` row whose digest the runner has read again; a `cleared` one is ended and the run ends
@@ -616,6 +621,17 @@ impl Runner {
                         self.advance(one.at, not_sent)?;
                         self.reply_moved(one.at, reply.as_ref(), ReplyState::Drafted)?;
                         Err(Stop::End(Outcome::Refused, Some(Cause::Origin)))
+                    }
+                    Replied::NotOne => {
+                        let not_sent = EffectMove::NotMade {
+                            cause: Cause::NotSent,
+                        };
+                        self.advance(one.at, not_sent)?;
+                        self.reply_moved(one.at, reply.as_ref(), ReplyState::Drafted)?;
+                        if let Some(step) = step {
+                            self.log(LogEvent::StepFailed, Some(step), Some(Cause::StepFailed))?;
+                        }
+                        Err(failed(Cause::StepFailed))
                     }
                     Replied::Answered | Replied::NoReply => {
                         Err(Stop::End(Outcome::EffectUnknown, Some(Cause::Unknown)))
