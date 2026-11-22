@@ -22,7 +22,7 @@ use windows::Win32::System::Pipes::{
 };
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcess, PROCESS_DUP_HANDLE};
 
-use super::owner_stream::{cannot, judge, OwnerStreamEnd, OwnerStreamReady};
+use super::owner_stream::{cannot, judge, stream_frame, OwnerStreamEnd, OwnerStreamReady};
 use crate::client::Transport;
 use crate::proto::ErrorReply;
 use crate::wire::{read_frame, write_frame, FrameError, REPLY_MAX_BYTES};
@@ -182,8 +182,7 @@ pub(super) fn serve(
     let (owners, clients) =
         new_stream().map_err(|_| cannot("the stream to the owner cannot be made"))?;
     let answer = give(owner.owner_process(), owners).and_then(|[reads, writes]| {
-        let frame = format!(r#"{{"stream":{{"handles":[{reads},{writes}]}}}}"#);
-        owner.send_stream(frame.as_bytes())?;
+        owner.send_stream(&stream_frame(Some([reads, writes])))?;
         owner.answer(answer_by.saturating_duration_since(Instant::now()))
     });
     if let Err(refusal) = judge(answer) {

@@ -9,7 +9,7 @@ use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
 use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 
-use super::owner_stream::{cannot, judge, OwnerStreamEnd, OwnerStreamReady};
+use super::owner_stream::{cannot, judge, stream_frame, OwnerStreamEnd, OwnerStreamReady};
 use crate::client::Transport;
 use crate::proto::ErrorReply;
 use crate::wire::{write_frame, FrameError, REPLY_MAX_BYTES};
@@ -51,9 +51,6 @@ pub trait OwnerChannel {
 /// How long the handler waits, after the reply that carried the client's end, for the end of the client's request
 /// before it closes its own copy of that end.
 pub const CLIENT_END_WAIT: Duration = Duration::from_secs(1);
-
-/// The frame `stream` on macOS: the end comes beside it.
-const STREAM_BESIDE: &[u8] = br#"{"stream":{"handles":null}}"#;
 
 /// The bytes of the data of a control message that carries `n` descriptors.
 const fn descriptor_bytes(n: u32) -> u32 {
@@ -183,7 +180,7 @@ pub(super) fn serve(
     let (owners, clients) =
         new_stream().map_err(|_| cannot("the stream to the owner cannot be made"))?;
     let answer = owner
-        .send_stream(STREAM_BESIDE, owners.as_fd())
+        .send_stream(&stream_frame(None), owners.as_fd())
         .and_then(|()| owner.answer(answer_by.saturating_duration_since(Instant::now())));
     drop(owners);
     if let Err(refusal) = judge(answer) {
@@ -330,7 +327,7 @@ mod tests {
 
     impl OwnerChannel for Scripted {
         fn send_stream(&mut self, frame: &[u8], _: BorrowedFd<'_>) -> io::Result<()> {
-            assert_eq!(frame, STREAM_BESIDE);
+            assert_eq!(frame, br#"{"stream":{"handles":null}}"#);
             Ok(())
         }
 

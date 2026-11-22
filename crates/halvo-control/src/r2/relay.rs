@@ -6,14 +6,16 @@
 //! ```
 //!
 //! The request is `{"v":2,"body":{"op":"relay","request":{..}}}` and the reply
-//! `{"v":2,"body":{"kind":"relayed","reply":{..}}}`; the request names no role. The handler decides by nothing inside
-//! the object of `request`: it sends the object to the owner as one frame on the owner's channel, and the owner decodes
-//! it strictly and takes the role from that channel, which admits the role interface alone. A refusal is an error reply
-//! of v1: `invalid_argument` for a body with a key beside `op` and `request`, for a `request` that is no JSON object,
-//! and for an object whose frame to the owner would hold more than 4,096 bytes; `store_unavailable` at the end of the
-//! owner's channel, at the write or at the answer; and `internal` when the owner does not answer within 4 s of the
-//! handler's start, when its frame is no JSON object or would not fit the reply frame, and for any other failure of
-//! the channel.
+//! `{"v":2,"body":{"kind":"relayed","reply":{..}}}`; the request names no role. The handler reads one name inside the
+//! object of `request` and nothing else of it: the key of the daemon's own frame `stream` on the owner's channel,
+//! `STREAM_KEY` of owner_stream.rs, which the owner reads before its request decoder. Any other object it sends to the
+//! owner as one frame on the owner's channel, and the owner decodes it strictly and takes the role from that channel,
+//! which admits the role interface alone. A refusal is an error reply of v1: `invalid_argument` for a body with a key
+//! beside `op` and `request`, for a `request` that is no JSON object, for an object that holds the key of the frame
+//! `stream` at its top level, and for an object whose frame to the owner would hold more than 4,096 bytes;
+//! `store_unavailable` at the end of the owner's channel, at the write or at the answer; and `internal` when the owner
+//! does not answer within 4 s of the handler's start, when its frame is no JSON object or would not fit the reply
+//! frame, and for any other failure of the channel.
 
 use std::io::ErrorKind;
 use std::time::Instant;
@@ -21,7 +23,7 @@ use std::time::Instant;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
-use super::owner_stream::{v1_answer, CLIENT_DEADLINE, OWNER_ANSWER_WAIT};
+use super::owner_stream::{v1_answer, CLIENT_DEADLINE, OWNER_ANSWER_WAIT, STREAM_KEY};
 use super::{Connection, OwnerChannel};
 use crate::client::{is_timeout, read_reply, Client, ClientError, Connector, Timed};
 use crate::proto::{encode_reply, ErrorCode, ErrorReply, Reply, UnknownRequest};
@@ -106,8 +108,9 @@ impl Relay {
 
     /// The frame that the handler hands to the owner for a body that the server decoded as unknown: the object of
     /// `request` as serde_json writes it again, since the server keeps the decoded body and not the client's bytes. A
-    /// body with a key beside `op` and `request`, a `request` that is no JSON object, and an object whose frame would
-    /// hold more than 4,096 bytes are refused with `invalid_argument`.
+    /// body with a key beside `op` and `request`, a `request` that is no JSON object, an object that holds the key of
+    /// the daemon's own frame `stream` at its top level, which the owner would read as that frame, and an object whose
+    /// frame would hold more than 4,096 bytes are refused with `invalid_argument`.
     pub fn from_request(request: &UnknownRequest) -> Result<Vec<u8>, ErrorReply> {
         let body = request.body();
         let object = match body.get("request") {
@@ -120,6 +123,11 @@ impl Relay {
                 ))
             }
         };
+        if object.contains_key(STREAM_KEY) {
+            return Err(invalid_argument(
+                "the relayed request holds the key of the daemon's own frame stream",
+            ));
+        }
         let frame = serde_json::to_vec(object).expect("a map of JSON values always serializes");
         if frame.len() > REQUEST_MAX_BYTES {
             return Err(invalid_argument(
@@ -352,9 +360,9 @@ mod tests {
         (answered, owner, reply)
     }
 
-    /// Ruling 1: one spelling of the request and of the reply; a body with a third key, a `request` that is a string
-    /// and an object that the handler would write above 4,096 bytes are `invalid_argument`, and the owner gets no
-    /// frame.
+    /// Ruling 1: one spelling of the request and of the reply; a body with a third key, a `request` that is a string,
+    /// an object that the handler would write above 4,096 bytes and an object that holds the key of the daemon's own
+    /// frame `stream` are `invalid_argument`, and the owner gets no frame.
     #[test]
     fn relay_has_one_spelling() {
         let read = br#"{"v":1,"id":null,"request":"interface_read","body":{"read":"workflows"}}"#;
@@ -381,11 +389,27 @@ mod tests {
                 Relay::encode(floats.as_bytes()).unwrap(),
                 "an object written again above 4,096 bytes",
             ),
+            (
+                Relay::encode(br#"{"stream":{"handles":[3,4]}}"#).unwrap(),
+                "the frame stream with two handles",
+            ),
+            (
+                Relay::encode(br#"{"stream":"taken"}"#).unwrap(),
+                "the answer taken",
+            ),
+            (
+                Relay::encode(br#"{"v":1,"stream":{"handles":null}}"#).unwrap(),
+                "the key stream beside another key",
+            ),
         ] {
             let mut owner = Channel::answering(Ok(Some(b"{}".to_vec())));
-            let refusal = reply_to(&unknown(&frame), &mut owner, answer_by()).unwrap_err();
-            assert_eq!(refusal.code(), ErrorCode::InvalidArgument, "{why}");
+            let answer = reply_to(&unknown(&frame), &mut owner, answer_by());
             assert!(owner.sent.is_empty(), "{why}: the owner got a frame");
+            assert_eq!(
+                answer.unwrap_err().code(),
+                ErrorCode::InvalidArgument,
+                "{why}"
+            );
         }
     }
 
