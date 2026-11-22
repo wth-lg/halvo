@@ -1,4 +1,5 @@
 use crate::items::params;
+use crate::roster::said_no_at_sign_in;
 use crate::types::{
     Category, Cause, Cleared, ConfigView, Doing, Facts, HoldSetCause, OwnItemKind, Raised, RunId,
     Runtime, What, WorkflowState,
@@ -13,6 +14,9 @@ pub enum Hold {
     Off,
     /// `sign_in_refused`: the hold after a refused sign-in (ruling RD-73 4.2).
     SignInRefused,
+    /// `site_declined`: the hold after the person's no at the question that allows a site (the
+    /// coordinator's way (a), r4 U2.4a), which stands by the facts alone (`site_declined`).
+    SiteDeclined,
     /// `failures`.
     Failures,
     /// `check`.
@@ -27,6 +31,7 @@ impl Hold {
         Hold::NotYet,
         Hold::Off,
         Hold::SignInRefused,
+        Hold::SiteDeclined,
         Hold::Failures,
         Hold::Check,
         Hold::Setup,
@@ -38,6 +43,7 @@ impl Hold {
             Hold::NotYet => "not_yet",
             Hold::Off => "off",
             Hold::SignInRefused => "sign_in_refused",
+            Hold::SiteDeclined => "site_declined",
             Hold::Failures => "failures",
             Hold::Check => "check",
             Hold::Setup => "setup",
@@ -144,6 +150,23 @@ pub fn kept_off<C>(facts: &Facts<C>) -> bool {
     !facts.stand_in && (listed_paused || facts.active_refused) && !held_by_events(facts)
 }
 
+/// Whether the hold `site_declined` stands (I5.4; the coordinator's way (a), r4 U2.4a): the
+/// agent store has ended the agent's newest started run, the run of the newest `run_started` of
+/// its events, as for the hold `check`, so that a run that is still stopping shows its phase; and
+/// that run holds the person's stored `decline` of the second step of a sign-in item, the
+/// question that allows a site, as `said_no_at_sign_in` reads it for a run. The core stores that
+/// answer before it sends it, so the next life reads it too. Nothing is stored for the hold: only
+/// a newer `run_started`, which a start of the person makes, ends it. Named limit: the rows that
+/// it reads are handed out for 93 days (I7.1), after which the hold is gone and the schedule asks
+/// once more.
+fn site_declined<C>(facts: &Facts<C>) -> bool {
+    let newest = facts.events.iter().rev().find_map(|e| match &e.what {
+        What::RunStarted { run, .. } => Some(run),
+        _ => None,
+    });
+    facts.store_ended && newest.is_some_and(|run| said_no_at_sign_in(&facts.events, run))
+}
+
 fn check<C>(facts: &Facts<C>) -> bool {
     let Some(newest) = facts.runs.first().filter(|_| facts.store_ended) else {
         return false;
@@ -177,7 +200,8 @@ fn check<C>(facts: &Facts<C>) -> bool {
 /// until a later `hold_cleared` event with the cause `person`, or by the derived hold of
 /// `kept_off`, the one test that reads the state of the workflow (ruling RD-67 1.2, which
 /// replaces ruling H-1 in that part); `sign_in_refused` while `refused_runs` names a run (ruling
-/// RD-73 4.2); `failures` from a `hold_set` event with the cause `failures` until a later
+/// RD-73 4.2); `site_declined` while the newest started run holds the person's no at the question
+/// that allows a site; `failures` from a `hold_set` event with the cause `failures` until a later
 /// `hold_cleared` event with the cause `failures`; `check` while the agent store has ended its
 /// newest run and no `hold_cleared` event of the cause `check` names that run, and that run's
 /// record has `unknown` above 0, the roster's key `unknown` of the same read names an effect of
@@ -201,6 +225,9 @@ pub fn holds<C: ConfigView>(facts: &Facts<C>) -> Vec<Hold> {
     }
     if !refused_runs(facts).is_empty() {
         out.push(Hold::SignInRefused);
+    }
+    if site_declined(facts) {
+        out.push(Hold::SiteDeclined);
     }
     if stands(facts, HoldSetCause::Failures) {
         out.push(Hold::Failures);

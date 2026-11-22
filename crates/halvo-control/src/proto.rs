@@ -1582,6 +1582,11 @@ pub struct StatusFields {
     pub store_error: Option<StoreErrorKind>,
     #[serde(deserialize_with = "required")]
     pub store_retry_in_s: Option<u64>,
+    /// Beside store=deleting: the last delete of everything ended not whole, nothing runs, and a
+    /// second delete is taken. It crosses the wire only while it stands, so that a status of a
+    /// daemon that sends none reads false; the protocol number does not move for it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub store_delete_unfinished: bool,
     #[serde(deserialize_with = "required")]
     pub store_bytes: Option<u64>,
     #[serde(deserialize_with = "required")]
@@ -1970,16 +1975,19 @@ fn may_yet_show_an_id(store: StoreState) -> bool {
 /// The delete rule of contracts.md C2.6, in its order. In a life that is ending the delete
 /// answers the busy of an ending life, and while capture reads pausing it answers busy, before
 /// the store and the ids are read (ruling PL-17 (b)). Then a deleting store or a locked one is
-/// busy, before any id is read. An armed id that is the shown id is accepted; two ids that
-/// differ are already deleted, with the shown id; an armed id with no shown id, or no armed id
-/// with a shown id, is refused. With neither, an open store or one with no release custody is
-/// refused, an opening store is busy, and any other store is accepted. The rule reads the life,
-/// capture, the store's state, its cause and the two ids, and no other field of a status.
+/// busy, before any id is read, except a deleting store whose last delete ended not whole
+/// (`unfinished`, the status's `store_delete_unfinished`). An armed id that is the shown id is
+/// accepted; two ids that differ are already deleted, with the shown id; an armed id with no
+/// shown id, or no armed id with a shown id, is refused. With neither, an open store or one with
+/// no release custody is refused, an opening store is busy, and any other store is accepted. The
+/// rule reads the life, capture, the store's state, its cause, whether its last delete ended not
+/// whole and the two ids, and no other field of a status.
 pub fn delete_decision(
     life: Life,
     capture: Capture,
     store: StoreState,
     cause: Option<StoreErrorKind>,
+    unfinished: bool,
     shown: Option<StoreId>,
     armed: Option<StoreId>,
 ) -> DeleteDecision {
@@ -1989,7 +1997,7 @@ pub fn delete_decision(
     if capture == Capture::Pausing {
         return DeleteDecision::Busy;
     }
-    if store == StoreState::Deleting || cause == Some(StoreErrorKind::Locked) {
+    if (store == StoreState::Deleting && !unfinished) || cause == Some(StoreErrorKind::Locked) {
         return DeleteDecision::Busy;
     }
     match (armed, shown) {
@@ -4261,6 +4269,7 @@ stopped/kind body
                         Capture::Running,
                         f.store,
                         f.store_error,
+                        f.store_delete_unfinished,
                         Some(current),
                         Some(current)
                     ),
@@ -4317,7 +4326,15 @@ stopped/kind body
             ),
         ] {
             assert_eq!(
-                delete_decision(Life::Going, Capture::Running, store, cause, shown, armed),
+                delete_decision(
+                    Life::Going,
+                    Capture::Running,
+                    store,
+                    cause,
+                    false,
+                    shown,
+                    armed
+                ),
                 want,
                 "{store:?} {cause:?} shown {shown:?} armed {armed:?}"
             );
@@ -4331,6 +4348,7 @@ stopped/kind body
             f.capture,
             f.store,
             f.store_error,
+            f.store_delete_unfinished,
             f.store_id,
             armed,
         )
@@ -4455,10 +4473,24 @@ stopped/kind body
             for cause in [None, Some(StoreErrorKind::Locked), Some(StoreErrorKind::Io)] {
                 for (armed, shown) in [(shown, shown), (None, None), (shown, None), (None, shown)] {
                     for &capture in Capture::ALL {
-                        let going =
-                            delete_decision(Life::Going, capture, store, cause, shown, armed);
-                        let ending =
-                            delete_decision(Life::Ending, capture, store, cause, shown, armed);
+                        let going = delete_decision(
+                            Life::Going,
+                            capture,
+                            store,
+                            cause,
+                            false,
+                            shown,
+                            armed,
+                        );
+                        let ending = delete_decision(
+                            Life::Ending,
+                            capture,
+                            store,
+                            cause,
+                            false,
+                            shown,
+                            armed,
+                        );
                         let at = format!("{capture:?} {store:?} {cause:?} {shown:?} {armed:?}");
                         assert_eq!(ending, DeleteDecision::Ending, "{at}");
                         if capture == Capture::Pausing {
@@ -4471,6 +4503,7 @@ stopped/kind body
                                     Capture::Running,
                                     store,
                                     cause,
+                                    false,
                                     shown,
                                     armed
                                 ),

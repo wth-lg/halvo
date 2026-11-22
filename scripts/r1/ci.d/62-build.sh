@@ -239,6 +239,13 @@ build_root_for() {
   fi
 }
 
+# The wrapper's line of a second call of the Tauri CLI after hdiutil's busy answer stands in the
+# build's output, which goes to the artifacts alone; this prints it into the job's log.
+second_calls() {
+  grep -E '^scripts/tauri\.js: the Tauri CLI exited [0-9]+ after ' "$1"
+  return 0
+}
+
 run_call() {
   # shellcheck disable=SC2086
   set -- $1
@@ -366,14 +373,17 @@ EOF
   found=$(tauri_source_defect "$work/metadata.json") || fail "$found"
   before=$(git status --porcelain --untracked-files=all) || fail "git status failed"
   : >"$CI_D_ARTIFACTS/build.txt"
+  built=0
   while IFS= read -r call; do
-    if ! run_call "$call"; then
-      cause=$(grep -m 1 -E '^(error|Error)' "$CI_D_ARTIFACTS/build.txt")
-      fail "the build call failed: ${cause:-see build.txt in the artifacts}"
-    fi
+    run_call "$call" || { built=1; break; }
   done <<EOF
 $calls
 EOF
+  second_calls "$CI_D_ARTIFACTS/build.txt"
+  if [ "$built" -ne 0 ]; then
+    cause=$(grep -m 1 -E '^(error|Error)' "$CI_D_ARTIFACTS/build.txt")
+    fail "the build call failed: ${cause:-see build.txt in the artifacts}"
+  fi
   after=$(git status --porcelain --untracked-files=all) || fail "git status failed"
   [ "$before" = "$after" ] || fail "the build changed a file of the checkout"
   case $CI_D_JOB in
