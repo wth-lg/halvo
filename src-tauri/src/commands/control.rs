@@ -307,17 +307,128 @@ impl Connector for Unresolved {
     }
 }
 
-/// The pid of the app's own daemon child of the moment, 0 while it has none: the connector of
-/// `control_of_child` expects that process as the server at each connect.
+/// The pid of the app's own daemon child of the moment, none while it has none: the connector
+/// of `control_of_child` expects that process as the server at each connect. Beside it, what the
+/// app's control read in its answers, for the supervisor of the child.
 #[derive(Debug, Default)]
-pub struct ChildPid(pub AtomicU32);
+pub struct ChildPid {
+    pid: AtomicU32,
+    #[cfg(any(target_os = "macos", test))]
+    read: Mutex<Read>,
+}
+
+#[cfg(any(target_os = "macos", test))]
+#[derive(Debug, Default)]
+struct Read {
+    answers: u64,
+    no_daemon: bool,
+}
 
 impl ChildPid {
     pub fn get(&self) -> Option<u32> {
-        match self.0.load(Ordering::SeqCst) {
+        match self.pid.load(Ordering::SeqCst) {
             0 => None,
             pid => Some(pid),
         }
+    }
+
+    /// Names `pid` as the app's child of the moment, 0 for none.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn set(&self, pid: u32) {
+        self.pid.store(pid, Ordering::SeqCst);
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    fn read(&self) -> std::sync::MutexGuard<'_, Read> {
+        self.read.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// How many answers the app's control has taken.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn answers(&self) -> u64 {
+        self.read().answers
+    }
+
+    /// Whether an answer came after the first `answers` ones and the newest answer reads that no
+    /// daemon answers.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn no_daemon_after(&self, answers: u64) -> bool {
+        let read = self.read();
+        read.answers > answers && read.no_daemon
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    fn took(&self, error: Option<&ClientError>) {
+        let mut read = self.read();
+        read.answers += 1;
+        read.no_daemon = matches!(error, Some(ClientError::Unreachable { .. }));
+    }
+}
+
+/// The app's control of its child: each answer of the control inside tells `pid` what it read.
+#[cfg(any(target_os = "macos", test))]
+pub struct Watching<C> {
+    inner: C,
+    pid: Arc<ChildPid>,
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl<C> Watching<C> {
+    pub fn new(inner: C, pid: Arc<ChildPid>) -> Self {
+        Watching { inner, pid }
+    }
+
+    fn took<T>(&self, answer: Result<T, ClientError>) -> Result<T, ClientError> {
+        self.pid.took(answer.as_ref().err());
+        answer
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl<C: Control> Control for Watching<C> {
+    fn places(&self) -> &Arc<Places> {
+        self.inner.places()
+    }
+
+    fn status(&self, made: Made, claim: bool) -> Result<DaemonStatus, ClientError> {
+        self.took(self.inner.status(made, claim))
+    }
+
+    fn status_of_a_pass(
+        &self,
+        made: Made,
+        claim: bool,
+        hold: &Hold,
+    ) -> Result<DaemonStatus, ClientError> {
+        self.took(self.inner.status_of_a_pass(made, claim, hold))
+    }
+
+    fn inventory(&self, made: Made) -> Result<InventoryReply, ClientError> {
+        self.took(self.inner.inventory(made))
+    }
+
+    fn pause(&self, made: Made) -> Result<DaemonStatus, ClientError> {
+        self.took(self.inner.pause(made))
+    }
+
+    fn resume(&self, made: Made) -> Result<DaemonStatus, ClientError> {
+        self.took(self.inner.resume(made))
+    }
+
+    fn delete_all(&self, made: Made, armed: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
+        self.took(self.inner.delete_all(made, armed))
+    }
+
+    fn set_storage_cap(&self, made: Made, cap: StorageCap) -> Result<CapSet, ClientError> {
+        self.took(self.inner.set_storage_cap(made, cap))
+    }
+
+    fn request_permission(
+        &self,
+        made: Made,
+        permission: Permission,
+    ) -> Result<RequestOutcome, ClientError> {
+        self.took(self.inner.request_permission(made, permission))
     }
 }
 
@@ -370,7 +481,24 @@ pub fn control_of_child<E>(
         return (Arc::new(Gated::new(Unresolved)), None);
     };
     match halvo_control::client::system_connector(&dir) {
-        Ok(connector) => (Arc::new(Gated::new(ToChild { connector, pid })), Some(dir)),
+        Ok(connector) => {
+            let control = Gated::new(ToChild {
+                connector,
+                pid: Arc::clone(&pid),
+            });
+            (watched(control, pid), Some(dir))
+        }
         Err(_) => (Arc::new(Gated::new(Unresolved)), Some(dir)),
     }
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn watched<C: Control + 'static>(control: C, pid: Arc<ChildPid>) -> Arc<dyn Control> {
+    Arc::new(Watching::new(control, pid))
+}
+
+#[cfg(not(any(target_os = "macos", test)))]
+fn watched<C: Control + 'static>(control: C, pid: Arc<ChildPid>) -> Arc<dyn Control> {
+    let _ = pid;
+    Arc::new(control)
 }

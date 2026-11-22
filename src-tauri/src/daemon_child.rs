@@ -3,7 +3,6 @@ use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -71,8 +70,9 @@ pub enum Ending {
 /// What the supervisor does after the child of the moment has ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Next {
-    /// No start again: where a daemon then answers, another daemon holds the directory, and
-    /// the app talks to it with no expected pid and no descriptor.
+    /// No start again while a daemon answers or holds the directory: another daemon holds it,
+    /// and the app talks to it with no expected pid and no descriptor; once no daemon answers,
+    /// a start again from a fresh count.
     Attach,
     StartNow,
     StartAfter(Duration),
@@ -438,9 +438,10 @@ fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold
     }
 }
 
-/// Starts the child and starts it again by the rule of `next`; hands the spawner back after
-/// the third end with 5 in a row, and none otherwise. After each end it draws the views, so
-/// that the set of the hold reaches the tray's menu at once.
+/// Starts the child and starts it again by the rule of `next`, after a 0 once the other daemon
+/// is gone; hands the spawner back after the third end with 5 in a row, and none otherwise.
+/// After each end it draws the views, so that the set of the hold reaches the tray's menu at
+/// once.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
@@ -459,7 +460,7 @@ fn supervise<S: Spawner, K: Clock>(
                 if state.quitting {
                     return None;
                 }
-                pid.0.store(child.pid(), Ordering::SeqCst);
+                pid.set(child.pid());
                 state.child = Some(child);
                 drop(state);
                 hold.child_started();
@@ -470,7 +471,7 @@ fn supervise<S: Spawner, K: Clock>(
                 Ending::NotStarted
             }
         };
-        pid.0.store(0, Ordering::SeqCst);
+        pid.set(0);
         hold.child_ended(match ending {
             Ending::Status(status) => Some(status),
             Ending::Signal | Ending::NotStarted => None,
@@ -484,7 +485,11 @@ fn supervise<S: Spawner, K: Clock>(
         );
         restarts = after;
         match step {
-            Next::Attach => return None,
+            Next::Attach => {
+                if waited_for_no_daemon(shared, pid, clock) {
+                    return None;
+                }
+            }
             Next::NoMoreChild => {
                 hold.no_more_child();
                 views.draw_now();
@@ -512,6 +517,23 @@ fn waited_into_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, period: Durati
             return false;
         }
         state = clock.wait(&shared.changed, state, left);
+    }
+}
+
+fn waited_for_no_daemon<C, K: Clock>(shared: &Shared<C>, pid: &ChildPid, clock: &K) -> bool {
+    let after = pid.answers();
+    if waited_into_a_quit(shared, clock, BACKOFF_FIRST) {
+        return true;
+    }
+    let mut state = shared.lock();
+    loop {
+        if state.quitting {
+            return true;
+        }
+        if pid.no_daemon_after(after) {
+            return false;
+        }
+        state = clock.wait(&shared.changed, state, CHILD_POLL);
     }
 }
 
@@ -878,6 +900,12 @@ mod tests {
     #[cfg(unix)]
     const STUB: &str = "daemon_child::tests::stub_child";
     type Row = (&'static str, Vec<(Ending, u64)>, usize, Vec<Duration>);
+    type Row3 = (
+        &'static str,
+        Vec<Result<DaemonStatus, ClientError>>,
+        Option<bool>,
+        Vec<String>,
+    );
     #[cfg(unix)]
     const WITHIN: Duration = Duration::from_secs(60);
 
@@ -1220,17 +1248,323 @@ mod tests {
         assert_eq!(hold.view().map(|view| view.press), Some(Press::Start));
     }
 
+    struct Scripted {
+        places: Arc<Places>,
+        record: Record,
+        statuses: Mutex<std::collections::VecDeque<Result<DaemonStatus, ClientError>>>,
+        pauses: Mutex<std::collections::VecDeque<Result<DaemonStatus, ClientError>>>,
+    }
+
+    impl Scripted {
+        fn new(
+            record: &Record,
+            statuses: Vec<Result<DaemonStatus, ClientError>>,
+            pauses: Vec<Result<DaemonStatus, ClientError>>,
+        ) -> Self {
+            Scripted {
+                places: Arc::default(),
+                record: Arc::clone(record),
+                statuses: Mutex::new(statuses.into()),
+                pauses: Mutex::new(pauses.into()),
+            }
+        }
+    }
+
+    impl Control for Scripted {
+        fn places(&self) -> &Arc<Places> {
+            &self.places
+        }
+
+        fn status(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+            note(&self.record, "status");
+            self.statuses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap_or_else(|| {
+                    Err(ClientError::Unreachable {
+                        endpoint: String::new(),
+                    })
+                })
+        }
+
+        fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
+            unreachable!("no inventory here")
+        }
+
+        fn pause(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            note(&self.record, "pause");
+            let next = self.pauses.lock().unwrap().pop_front();
+            next.expect("one Pause for each press")
+        }
+
+        fn resume(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            unreachable!("no Resume here")
+        }
+
+        fn delete_all(&self, _: Made, _: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
+            unreachable!("no delete here")
+        }
+
+        fn set_storage_cap(&self, _: Made, _: StorageCap) -> Result<CapSet, ClientError> {
+            unreachable!("no cap here")
+        }
+
+        fn request_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<RequestOutcome, ClientError> {
+            unreachable!("no permission here")
+        }
+    }
+
+    fn looked_again(clock: &StandInClock) {
+        let seen = clock.waits().len();
+        until("the supervisor looks again", || {
+            clock.waits().len() > seen + 2
+        });
+    }
+
+    #[test]
+    fn after_a_0_the_child_starts_again_once_the_other_daemon_is_gone_and_a_second_quit_exits() {
+        use crate::commands::control::Watching;
+        use crate::quit::{
+            quit_and_pause, Presses, Quit, CAPTURE_GOES_ON, CAPTURE_MAY_GO_ON, NOT_ANSWERED,
+            NOT_PAUSED,
+        };
+        use halvo_control::client::PeerRejection;
+        use halvo_control::proto::{ErrorCode, ErrorReply};
+
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let spawner = StandInSpawner {
+            children: [
+                StandInChild {
+                    ending: Some(Ending::Status(0)),
+                    ..StandInChild::new(1000, &clock, &record)
+                },
+                StandInChild {
+                    ends_at_close: true,
+                    ..StandInChild::new(1001, &clock, &record)
+                },
+            ]
+            .into_iter()
+            .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let other = sample_status(Platform::Macos);
+        let in_use = ClientError::DataDirInUse {
+            endpoint: String::new(),
+        };
+        let control = Watching::new(
+            Scripted::new(&record, vec![Ok(other), Err(in_use)], Vec::new()),
+            Arc::clone(&pid),
+        );
+        let tray = crate::tray::installed_for_tests();
+        until("the supervisor waits after the 0", || {
+            clock.waits().len() > 2
+        });
+        assert_eq!(
+            clock.waits()[0],
+            BACKOFF_FIRST,
+            "never faster than the backoff of status 1"
+        );
+        for what in ["answers", "holds the directory"] {
+            pass(&control, &views, Some(&tray));
+            looked_again(&clock);
+            assert_eq!(pid.get(), None, "no child while the other daemon {what}");
+        }
+        pass(&control, &views, Some(&tray));
+        until("a child once no daemon answers", || pid.get() == Some(1001));
+        drop(supervisor.close());
+        assert_eq!(
+            *record.lock().unwrap(),
+            [
+                "start 1000",
+                "status",
+                "status",
+                "status",
+                "start 1001",
+                "closed descriptor"
+            ]
+        );
+
+        let lease_s = halvo_control::INDICATOR_LEASE_MS.div_ceil(1000);
+        assert_eq!(
+            *CAPTURE_GOES_ON,
+            format!(
+                "Halvo did not quit, because it could not confirm that capture has stopped. Choose Quit again to quit anyway: capture then goes on for up to {lease_s} seconds, and it begins again when you open Halvo."
+            ),
+            "the sentence names the seconds of the lease's own constant"
+        );
+        let lines = |line: &[&str]| line.iter().map(|word| word.to_string()).collect::<Vec<_>>();
+        let goes_on_and_exit = lines(&["pause", "stay, goes on", "pause", "exit 0"]);
+        let may_go_on_and_exit = lines(&["pause", "stay, cannot tell", "pause", "exit 0"]);
+        let may_go_on_and_exit_ending_the_child = lines(&[
+            "pause",
+            "stay, cannot tell",
+            "pause",
+            "closed descriptor",
+            "exit 0",
+        ]);
+        let stays = lines(&["pause", "stay, not paused", "pause", "stay, not paused"]);
+        let no_daemon = || {
+            Err(ClientError::Unreachable {
+                endpoint: String::new(),
+            })
+        };
+        let rows: Vec<Row3> = vec![
+            (
+                "a passed deadline while no child of the app lives",
+                vec![
+                    Err(ClientError::Deadline { seconds: 10 }),
+                    Err(ClientError::Deadline { seconds: 10 }),
+                ],
+                None,
+                goes_on_and_exit.clone(),
+            ),
+            (
+                "a held directory while no child of the app lives",
+                vec![
+                    Err(ClientError::DataDirInUse {
+                        endpoint: String::new(),
+                    }),
+                    no_daemon(),
+                ],
+                None,
+                goes_on_and_exit.clone(),
+            ),
+            (
+                "a broken exchange while no child of the app lives",
+                vec![
+                    Err(ClientError::Io(io::Error::from(io::ErrorKind::BrokenPipe))),
+                    no_daemon(),
+                ],
+                None,
+                goes_on_and_exit,
+            ),
+            (
+                "another version of a daemon that is no child of the app",
+                vec![
+                    Err(ClientError::ReplyOfAnotherVersion { version: 2 }),
+                    no_daemon(),
+                ],
+                None,
+                may_go_on_and_exit,
+            ),
+            (
+                "a server of another user",
+                vec![
+                    Err(ClientError::PeerRejected(
+                        PeerRejection::ServerOfAnotherUser,
+                    )),
+                    no_daemon(),
+                ],
+                Some(true),
+                may_go_on_and_exit_ending_the_child.clone(),
+            ),
+            (
+                "a server that is not the app's child",
+                vec![
+                    Err(ClientError::PeerRejected(
+                        PeerRejection::NotTheExpectedServer,
+                    )),
+                    Err(ClientError::PeerRejected(
+                        PeerRejection::NotTheExpectedServer,
+                    )),
+                ],
+                Some(true),
+                may_go_on_and_exit_ending_the_child,
+            ),
+            (
+                "busy: a later press can pause it",
+                vec![
+                    Err(ClientError::Daemon(ErrorReply::new(
+                        ErrorCode::Busy,
+                        "busy",
+                    ))),
+                    Err(ClientError::Daemon(ErrorReply::new(
+                        ErrorCode::Busy,
+                        "busy",
+                    ))),
+                ],
+                Some(true),
+                stays.clone(),
+            ),
+            (
+                "an error reply",
+                vec![
+                    Err(ClientError::Daemon(ErrorReply::new(
+                        ErrorCode::Internal,
+                        "internal",
+                    ))),
+                    Ok(sample_status(Platform::Macos)),
+                ],
+                Some(true),
+                stays,
+            ),
+            (
+                "the app's own child answers in another version and does not end: one press",
+                vec![Err(ClientError::ReplyOfAnotherVersion { version: 2 })],
+                Some(false),
+                lines(&["pause", "closed descriptor", "kill after 20 s", "exit 0"]),
+            ),
+        ];
+        for (name, answers, child, expected) in rows {
+            let record = Record::default();
+            let clock = Arc::new(StandInClock::default());
+            let pid = Arc::<ChildPid>::default();
+            let spawner = StandInSpawner {
+                children: child
+                    .map(|ends_at_close| StandInChild {
+                        ends_at_close,
+                        ..StandInChild::new(7, &clock, &record)
+                    })
+                    .into_iter()
+                    .collect(),
+                record: Arc::clone(&record),
+            };
+            let supervisor = Supervisor::start(spawner, Arc::clone(&pid), Arc::clone(&clock));
+            if child.is_some() {
+                until(name, || pid.get() == Some(7));
+            }
+            record.lock().unwrap().clear();
+            let control = Scripted::new(&record, Vec::new(), answers);
+            let presses = Presses::default();
+            for _ in 0..2 {
+                match quit_and_pause(&control, Some(&supervisor), &presses) {
+                    Quit::Exit(status) => {
+                        note(&record, format!("exit {status}"));
+                        break;
+                    }
+                    Quit::Stay(s) if s == CAPTURE_GOES_ON.as_str() => {
+                        note(&record, "stay, goes on")
+                    }
+                    Quit::Stay(CAPTURE_MAY_GO_ON) => note(&record, "stay, cannot tell"),
+                    Quit::Stay(NOT_PAUSED) => note(&record, "stay, not paused"),
+                    Quit::Stay(NOT_ANSWERED) => note(&record, "stay, not answered"),
+                    Quit::Stay(other) => panic!("{name}: a stay with {other}"),
+                }
+            }
+            assert_eq!(*record.lock().unwrap(), expected, "{name}");
+            crate::quit::Children::end(&supervisor);
+        }
+    }
+
     #[test]
     fn the_child_is_started_again_by_its_exit_status() {
         let s = Duration::from_secs;
         let status = Ending::Status;
         let rows: Vec<Row> = vec![
-            (
-                "0: no start again",
-                vec![(status(0), 0), (status(1), 0)],
-                1,
-                vec![],
-            ),
             (
                 "1: the backoff from 1 s to 60 s",
                 vec![(status(1), 0); 8],

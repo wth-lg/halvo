@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, PoisonError};
+use std::sync::{Arc, LazyLock, PoisonError};
 
 use halvo_control::client::{ClientError, PeerRejection};
 use halvo_control::proto::{Capture, DaemonStatus};
@@ -10,6 +10,7 @@ use crate::commands::capture::AppState;
 use crate::commands::control::Control;
 use crate::launch::Exit;
 use crate::tray::{QuitNotice, QuitWith};
+use crate::view_state::{read_error, NoStatusService};
 
 /// The app's daemon child as a quit ends it.
 pub trait Children: Send + Sync {
@@ -42,6 +43,45 @@ pub const NOT_PAUSED: &str =
 /// gave no reply within the Pause's deadline: the app ended that child, and the next Quit exits.
 pub const NOT_ANSWERED: &str =
     "Halvo's capture service did not answer the pause, so Halvo ended it. Choose Quit again to quit.";
+
+/// The sentence of a quit that did not exit, because a daemon that is no child of the app gave
+/// no reply to the pause, where the app's lease ends that capture (contracts.md C14 item 3):
+/// the next Quit exits, and capture goes on until the lease of INDICATOR_LEASE_MS ends.
+pub static CAPTURE_GOES_ON: LazyLock<String> = LazyLock::new(|| {
+    format!(
+        "Halvo did not quit, because it could not confirm that capture has stopped. Choose Quit again to quit anyway: capture then goes on for up to {} seconds, and it begins again when you open Halvo.",
+        halvo_control::INDICATOR_LEASE_MS.div_ceil(1000)
+    )
+});
+
+/// The sentence of a quit that did not exit, because the server is not the app's own or a
+/// daemon that is no child of the app answered in another version, where nothing shows that
+/// the app's lease ends that capture: the next Quit exits.
+pub const CAPTURE_MAY_GO_ON: &str =
+    "Halvo did not quit, because it could not confirm that capture has stopped. Choose Quit again to quit anyway. Halvo cannot tell whether capture goes on after that.";
+
+/// What one press of the app's quit leaves for the next: whether it stayed for a capture service
+/// that the app did not start, after which the next press exits.
+#[derive(Debug, Default)]
+pub struct Presses {
+    stayed_for_another: AtomicBool,
+}
+
+impl Presses {
+    pub const fn new() -> Self {
+        Presses {
+            stayed_for_another: AtomicBool::new(false),
+        }
+    }
+
+    fn stayed_for_another(&self) -> bool {
+        self.stayed_for_another.load(Ordering::SeqCst)
+    }
+
+    fn stay_for_another(&self) {
+        self.stayed_for_another.store(true, Ordering::SeqCst);
+    }
+}
 
 /// The id of the app menu's Quit.
 pub const APP_QUIT_ID: &str = "app-quit";
@@ -121,9 +161,14 @@ pub enum Reached {
     /// A daemon holds the directory and took no connection, gave no reply within the
     /// deadline, or broke the connection before its reply.
     NoReply,
-    /// A daemon answered otherwise, or the server is not the app's own: busy, an error reply,
-    /// a status that reads neither paused nor pausing, a reply that cannot be read, a server
-    /// of another user or another process than the app's child.
+    /// The server is not the app's own: a server of another user, or another process than the
+    /// app's child.
+    NotTheApps,
+    /// A daemon answered in another version: an error that `read_error` reads as another
+    /// version, such as a reply of another protocol version.
+    AnotherVersion,
+    /// A daemon answered otherwise: busy, an error reply, a status that reads neither paused
+    /// nor pausing, a reply that cannot be read.
     Answered,
 }
 
@@ -142,30 +187,53 @@ pub fn reached(answer: &Result<DaemonStatus, ClientError>) -> Reached {
             | PeerRejection::NotASocket
             | PeerRejection::SocketOfAnotherUser,
         )) => Reached::NoDaemon,
+        Err(ClientError::PeerRejected(
+            PeerRejection::ServerOfAnotherUser | PeerRejection::NotTheExpectedServer,
+        )) => Reached::NotTheApps,
         Err(
             ClientError::Io(_) | ClientError::Deadline { .. } | ClientError::DataDirInUse { .. },
         ) => Reached::NoReply,
+        Err(error) if read_error(error).service == NoStatusService::AnotherVersion => {
+            Reached::AnotherVersion
+        }
         Err(_) => Reached::Answered,
     }
 }
 
 /// The steps of the app's one quit (contracts.md C14 item 5): Pause with the client's Pause
-/// deadline. On paused or pausing, where no daemon is reached, and at a press after the app has
-/// ended its own child, it ends the child and exits with status 0. Where the app's own child
-/// took no connection or gave no reply, it ends that child and stays with `NOT_ANSWERED`, so
-/// that the next press exits. On any other answer it stays with `NOT_PAUSED`.
-pub fn quit_and_pause(control: &dyn Control, children: Option<&dyn Children>) -> Quit {
-    let ended_before = children.is_some_and(|children| children.ended());
+/// deadline. On paused or pausing, where no daemon is reached, where the app's own child
+/// answered in another version, and at a press after the app has ended its own child or stayed
+/// for a daemon that it did not start, it ends the child and exits with status 0. Where the
+/// app's own child took no connection or gave no reply, it ends that child and stays with
+/// `NOT_ANSWERED`. Where no child of the app lives and the daemon gave no reply, it stays with
+/// `CAPTURE_GOES_ON`; where the server is not the app's own, or a daemon that is no child of the
+/// app answered in another version, with `CAPTURE_MAY_GO_ON`. In each of these the next press
+/// exits. On any other answer it stays with `NOT_PAUSED`, at every press.
+pub fn quit_and_pause(
+    control: &dyn Control,
+    children: Option<&dyn Children>,
+    presses: &Presses,
+) -> Quit {
+    let ended_before =
+        children.is_some_and(|children| children.ended()) || presses.stayed_for_another();
     let answer = control.pause(control.places().make());
     let own_child = children.filter(|children| children.lives());
     match (reached(&answer), own_child) {
         _ if ended_before => {}
-        (Reached::Paused | Reached::NoDaemon, _) => {}
+        (Reached::Paused | Reached::NoDaemon, _) | (Reached::AnotherVersion, Some(_)) => {}
         (Reached::NoReply, Some(child)) => {
             child.end();
             return Quit::Stay(NOT_ANSWERED);
         }
-        (Reached::NoReply | Reached::Answered, _) => return Quit::Stay(NOT_PAUSED),
+        (Reached::NoReply, None) => {
+            presses.stay_for_another();
+            return Quit::Stay(CAPTURE_GOES_ON.as_str());
+        }
+        (Reached::NotTheApps | Reached::AnotherVersion, _) => {
+            presses.stay_for_another();
+            return Quit::Stay(CAPTURE_MAY_GO_ON);
+        }
+        (Reached::Answered, _) => return Quit::Stay(NOT_PAUSED),
     }
     if let Some(children) = children {
         children.end();
@@ -174,6 +242,8 @@ pub fn quit_and_pause(control: &dyn Control, children: Option<&dyn Children>) ->
 }
 
 static QUITTING: AtomicBool = AtomicBool::new(false);
+
+static PRESSES: Presses = Presses::new();
 
 /// The app's one quit, for the tray's Quit and the app menu's Quit: `quit_and_pause` on a
 /// thread of its own; a stay shows its sentence in the tray's status line and on standard
@@ -190,7 +260,7 @@ pub fn quit<R: Runtime>(app: &AppHandle<R>) {
             let state = app.state::<AppState>();
             let children = app.try_state::<AppChildren>();
             let children = children.as_ref().and_then(|held| held.0.as_deref());
-            match quit_and_pause(state.control.as_ref(), children) {
+            match quit_and_pause(state.control.as_ref(), children, &PRESSES) {
                 Quit::Exit(status) => app.exit(status),
                 Quit::Stay(sentence) => {
                     eprintln!("halvo: {sentence}");
@@ -391,7 +461,7 @@ mod tests {
                 "a passed deadline of a daemon that is not the app's child",
                 vec![Err(ClientError::Deadline { seconds: 10 })],
                 None,
-                exit(&["pause", "stay, not paused"]),
+                exit(&["pause", "stay, goes on"]),
             ),
             (
                 "neither paused nor pausing",
@@ -449,14 +519,18 @@ mod tests {
                 answers: Mutex::new(answers),
                 record: Arc::clone(&record),
             };
+            let pressed = Presses::default();
             for _ in 0..presses {
-                match quit_and_pause(&control, Some(&supervisor)) {
+                match quit_and_pause(&control, Some(&supervisor), &pressed) {
                     Quit::Exit(status) => {
                         note(&record, format!("exit {status}"));
                         break;
                     }
                     Quit::Stay(NOT_PAUSED) => note(&record, "stay, not paused"),
                     Quit::Stay(NOT_ANSWERED) => note(&record, "stay, not answered"),
+                    Quit::Stay(s) if s == CAPTURE_GOES_ON.as_str() => {
+                        note(&record, "stay, goes on")
+                    }
                     Quit::Stay(other) => panic!("{name}: a stay with {other}"),
                 }
             }
