@@ -13,7 +13,9 @@ use crate::proto::{
 /// its row on typing.
 pub const TYPING_ON_MAC: bool = false;
 
-/// The row of the first-run text on a Mac whose build takes no typing ([`TYPING_ON_MAC`]).
+/// The row on typing where no typing is recorded: on a Mac whose build takes no typing
+/// ([`TYPING_ON_MAC`]) in the first-run text, and on Windows while the keyboard source line
+/// reads off.
 pub const TYPING_NOT_RECORDED: &str = "Halvo does not record what you type.";
 
 /// The sentence of the first-run text on the search for repeated tasks, which the consent
@@ -23,11 +25,8 @@ pub const REPEATED_TASKS: &str =
 
 pub const SCREEN_ACTIVITY_NOT_RECORDED: &str = "Screen activity is not recorded.";
 
-pub const TYPING_NOT_OBSERVED_ON_WINDOWS: &str =
-    "Typing is not observed on Windows in this version.";
-
-/// In place of [`TYPING_NOT_OBSERVED_ON_WINDOWS`] while the Windows keyboard source line runs
-/// (reads running or impaired).
+/// In place of [`TYPING_NOT_RECORDED`] while the Windows keyboard source line runs (reads
+/// running or impaired).
 pub const TYPING_BEING_OBSERVED: &str = "Typing is being observed. Pause capture to stop it.";
 
 /// In place of [`SCREEN_ACTIVITY_NOT_RECORDED`] while the screen source line runs (reads running
@@ -35,8 +34,8 @@ pub const TYPING_BEING_OBSERVED: &str = "Typing is being observed. Pause capture
 pub const SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF: &str =
     "Screen activity is being recorded although the setting is off. Pause capture to stop it.";
 
-/// In place of [`TYPING_NOT_OBSERVED_ON_WINDOWS`] while the Windows keyboard source line reads
-/// failed, carries the mark `unstopped` beside stopped or off, or is missing.
+/// In place of [`TYPING_NOT_RECORDED`] while the Windows keyboard source line reads failed,
+/// carries the mark `unstopped` beside stopped or off, or is missing.
 pub const TYPING_MAY_BE_OBSERVED: &str = "Typing may still be observed: Halvo's capture service reports a fault in that part. To be sure it is off, pause capture or quit Halvo.";
 
 /// In place of [`SCREEN_ACTIVITY_NOT_RECORDED`] while screen_activity is off and the screen source
@@ -54,7 +53,10 @@ pub const KEYS_WITHHELD_ON_A_MAC: &str = "Halvo did not save part of what you ty
 
 const PASSWORDS_WITH_SECURE_INPUT: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
 
-const PASSWORDS_WITH_NO_TYPING_ON_WINDOWS: &str = "Halvo observes no typing on Windows in this version, so it records nothing that you type into a password field.";
+/// The passwords row on Windows while the keyboard source line reads off, in the coordinator's
+/// words: the gate of the Windows service set holds window titles and screen activity back
+/// while a password field has the focus.
+const PASSWORDS_BY_THE_GATE_ON_WINDOWS: &str = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
 
 const PASSWORDS_WITH_HALVO_S_DETECTOR: &str = "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
 
@@ -127,7 +129,7 @@ fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine])
         let text = match (platform, line.name, on) {
             (Platform::Windows, SwitchName::KeyClass, _) => {
                 match class_of(sources, SourceName::Keyboard) {
-                    SourceClass::Off => Some(TYPING_NOT_OBSERVED_ON_WINDOWS),
+                    SourceClass::Off => Some(TYPING_NOT_RECORDED),
                     SourceClass::Runs => Some(TYPING_BEING_OBSERVED),
                     SourceClass::Stopped => None,
                     SourceClass::MayRun => Some(TYPING_MAY_BE_OBSERVED),
@@ -160,7 +162,7 @@ fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine])
 
 fn passwords(platform: Platform, guard: PasswordGuard, typing: SourceClass) -> &'static str {
     match (platform, guard, typing) {
-        (Platform::Windows, _, SourceClass::Off) => PASSWORDS_WITH_NO_TYPING_ON_WINDOWS,
+        (Platform::Windows, _, SourceClass::Off) => PASSWORDS_BY_THE_GATE_ON_WINDOWS,
         (Platform::Macos, PasswordGuard::Os, _) => PASSWORDS_WITH_SECURE_INPUT,
         (Platform::Windows, PasswordGuard::Halvo, _) => PASSWORDS_WITH_HALVO_S_DETECTOR,
         _ => PASSWORDS_NOT_CONFIRMED,
@@ -453,7 +455,7 @@ mod tests {
             told.contains(&SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF),
             "{told:?}"
         );
-        assert!(!told.contains(&TYPING_NOT_OBSERVED_ON_WINDOWS), "{told:?}");
+        assert!(!told.contains(&TYPING_NOT_RECORDED), "{told:?}");
         assert!(!told.contains(&SCREEN_ACTIVITY_NOT_RECORDED), "{told:?}");
     }
 
@@ -475,7 +477,7 @@ mod tests {
         ];
         let status = DaemonStatus::new(f).unwrap();
         let told = texts_of(&texts(&status).recorded);
-        assert!(!told.contains(&TYPING_NOT_OBSERVED_ON_WINDOWS), "{told:?}");
+        assert!(!told.contains(&TYPING_NOT_RECORDED), "{told:?}");
         assert!(
             told.contains(&"Typing is being observed. Pause capture to stop it."),
             "{told:?}"
@@ -492,10 +494,7 @@ mod tests {
             SCREEN_ACTIVITY_NOT_RECORDED,
             "Screen activity is not recorded."
         );
-        assert_eq!(
-            TYPING_NOT_OBSERVED_ON_WINDOWS,
-            "Typing is not observed on Windows in this version."
-        );
+        assert_eq!(TYPING_NOT_RECORDED, "Halvo does not record what you type.");
         assert_eq!(
             UNSIGNED_BUILD_CUSTODY,
             "This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account."
@@ -599,7 +598,7 @@ mod tests {
             texts_of(&recorded),
             [
                 recorded_when_on(SwitchName::TitleText),
-                TYPING_NOT_OBSERVED_ON_WINDOWS,
+                TYPING_NOT_RECORDED,
                 recorded_when_on(SwitchName::PointerClass),
                 SCREEN_ACTIVITY_NOT_RECORDED,
             ]
@@ -617,7 +616,7 @@ mod tests {
         assert_eq!(
             texts_of(&on),
             [
-                TYPING_NOT_OBSERVED_ON_WINDOWS,
+                TYPING_NOT_RECORDED,
                 recorded_when_on(SwitchName::ScreenActivity),
                 WINDOWS_CAPTURE_BORDER
             ]
@@ -644,7 +643,7 @@ mod tests {
             .collect();
         sentences.extend([
             SCREEN_ACTIVITY_NOT_RECORDED,
-            TYPING_NOT_OBSERVED_ON_WINDOWS,
+            TYPING_NOT_RECORDED,
             TYPING_BEING_OBSERVED,
             TYPING_MAY_BE_OBSERVED,
             SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF,
@@ -699,7 +698,7 @@ mod tests {
         );
         assert_eq!(
             passwords(Platform::Windows, PasswordGuard::None, SourceClass::Off),
-            "Halvo observes no typing on Windows in this version, so it records nothing that you type into a password field."
+            "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser."
         );
         assert_eq!(
             passwords(Platform::Windows, PasswordGuard::Halvo, SourceClass::Runs),
@@ -808,20 +807,20 @@ mod tests {
         assert_eq!(json["recorded"][0]["switch"], serde_json::Value::Null);
         assert_eq!(json["recorded"][0]["text"], APP_IN_FRONT);
         assert_eq!(json["recorded"][2]["switch"], "key_class");
-        assert_eq!(json["recorded"][2]["text"], TYPING_NOT_OBSERVED_ON_WINDOWS);
+        assert_eq!(json["recorded"][2]["text"], TYPING_NOT_RECORDED);
         let mac = serde_json::to_value(texts(&sample_status(Platform::Macos))).unwrap();
         assert_eq!(mac["backup_limit"], serde_json::Value::Null);
         assert_eq!(mac["custody"], UNSIGNED_BUILD_CUSTODY);
     }
 
-    const K0: &str = "Typing is not observed on Windows in this version.";
+    const K0: &str = "Halvo does not record what you type.";
     const K1: &str = "Typing is being observed. Pause capture to stop it.";
     const K2: &str = "Typing may still be observed: Halvo's capture service reports a fault in that part. To be sure it is off, pause capture or quit Halvo.";
     const S0: &str = "Screen activity is not recorded.";
     const S1: &str =
         "Screen activity is being recorded although the setting is off. Pause capture to stop it.";
     const S2: &str = "Screen activity may still be recorded although the setting is off: Halvo's capture service reports a fault in that part. To be sure it is off, pause capture or quit Halvo.";
-    const P0: &str = "Halvo observes no typing on Windows in this version, so it records nothing that you type into a password field.";
+    const P0: &str = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
     const PM: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
     const PH: &str = "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
     const PW: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field, never which key. Pause capture before you type a password.";
@@ -1538,5 +1537,20 @@ mod tests {
             first_run_with(Platform::Macos, TYPING_ON_MAC),
             "the first-run text reads the one constant"
         );
+    }
+
+    #[test]
+    fn app_4a_on_windows_while_no_typing_is_observed_the_passwords_row_names_the_gate_of_a_password_field(
+    ) {
+        let sentence = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
+        for &guard in PasswordGuard::ALL {
+            assert_eq!(
+                passwords(Platform::Windows, guard, SourceClass::Off),
+                sentence,
+                "{guard:?}"
+            );
+        }
+        assert_eq!(texts(&sample_status(Platform::Windows)).passwords, sentence);
+        assert_eq!(first_run(Platform::Windows).passwords, sentence);
     }
 }

@@ -458,7 +458,7 @@ impl Hold {
     }
 
     /// After the third end with 5 in a row no further child starts until a Start.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn no_more_child(&self) {
         self.state().no_more_child = true;
         self.changed.notify_all();
@@ -466,7 +466,7 @@ impl Hold {
 
     /// Takes the ask of a Start or of the consent, if one waits: the press then asked for the
     /// next child.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn take_start(&self) -> bool {
         let mut state = self.state();
         let asked = state.start_asked;
@@ -480,7 +480,7 @@ impl Hold {
     }
 
     /// The supervisor starts a child: an ask of a Start between two children is taken by it.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn take_the_ask(&self) {
         let mut state = self.state();
         state.start_asked = false;
@@ -491,7 +491,7 @@ impl Hold {
 
     /// The supervisor's spawner reads the data directory not provisioned: no child starts before
     /// the person's click on Start, the consent (contracts.md C10.7).
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn awaits_consent(&self) {
         self.state().awaits_consent = true;
         self.changed.notify_all();
@@ -499,7 +499,7 @@ impl Hold {
 
     /// The supervisor's spawner reads the data directory's own cause (ruling ST-36 (e)): no child
     /// starts and no consent is offered.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn data_dir_unusable(&self) {
         self.state().data_dir_unusable = true;
         self.changed.notify_all();
@@ -507,13 +507,13 @@ impl Hold {
 
     /// The app leaves its own child that reads another daemon_version after the one restart of
     /// the launch: views read another_version until a child starts again.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn another_version_left(&self) {
         self.state().another_version = true;
     }
 
     /// A child of the app started.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn child_started(&self) {
         let mut state = self.state();
         state.lives += 1;
@@ -526,7 +526,7 @@ impl Hold {
 
     /// The child of the moment ended, with its exit status where it has one; an end with 5
     /// sets the hold.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn child_ended(&self, status: Option<i32>) {
         let mut state = self.state();
         if state.child_lives {
