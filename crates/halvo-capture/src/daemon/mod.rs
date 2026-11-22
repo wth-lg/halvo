@@ -184,7 +184,7 @@ pub enum Mode {
     },
     /// `--delete-all --data-dir DIR`, the offline delete of a data directory
     /// (contracts.md C3.3), with DIR absolute. A macOS build runs it; a build
-    /// of another system, Windows among them, answers it with usage, exit 64.
+    /// of another system, Windows among them, exits 64 and prints no text.
     #[cfg(any(debug_assertions, target_os = "macos", windows))]
     DeleteAllOfADataDir {
         data_dir: halvo_control::paths::DataDir,
