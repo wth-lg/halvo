@@ -458,6 +458,7 @@ struct State<C> {
     child: Option<C>,
     version_restarted: bool,
     held_for_a_run: bool,
+    held_until_a_press: bool,
     start_owed: bool,
 }
 
@@ -512,6 +513,7 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
                 child: None,
                 version_restarted: false,
                 held_for_a_run: false,
+                held_until_a_press: false,
                 start_owed: false,
             }),
             changed: Condvar::new(),
@@ -542,12 +544,12 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
         })
     }
 
-    /// The hold of the supervision for a run (contracts.md C10.5): from the call on no child
-    /// starts; the child of the moment, if any, gets its descriptor closed, STOP_WAIT for its end
-    /// and a kill after that, as a quit ends it, and no request; then `run` runs, and after it
-    /// the supervisor goes on by its rule. The app did not ask for that end in order to restart:
-    /// an end with 0 of a child that answered as the app's own is followed by no start until a
-    /// person's press.
+    /// The hold of the supervision for a run (contracts.md C10.5), Remove Halvo's door: from the
+    /// call on no child starts; the child of the moment, if any, gets its descriptor closed,
+    /// STOP_WAIT for its end and a kill after that, as a quit ends it, and no request; then `run`
+    /// runs. After a run that returns no child starts by itself, whatever the end of that child,
+    /// a kill and an end before its first answer among them, until a person's press on Start or
+    /// the next launch of the app; after a run that unwinds the supervisor goes on by its rule.
     pub fn without_the_child<T>(&self, run: impl FnOnce() -> T) -> T {
         self.hold_for_a_run(false, run)
     }
@@ -582,8 +584,13 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
 }
 
 /// The hold of the supervision for a run, lifted when it is dropped: on every path out of the
-/// run, an unwind among them, so that the supervisor goes on by its rule.
-struct HeldForARun<'a, C>(&'a Shared<C>);
+/// run, an unwind among them. Behind a run of Remove Halvo's door that returned, the drop sets
+/// the mark of a wait for a press under the same lock, so that no start passes the gate before
+/// the mark stands; behind a run that unwound the supervisor goes on by its rule.
+struct HeldForARun<'a, C> {
+    shared: &'a Shared<C>,
+    until_a_press: bool,
+}
 
 impl<'a, C> HeldForARun<'a, C> {
     fn mark(shared: &'a Shared<C>, owed: bool) -> Self {
@@ -593,14 +600,22 @@ impl<'a, C> HeldForARun<'a, C> {
             state.owe_a_start();
         }
         drop(state);
-        HeldForARun(shared)
+        HeldForARun {
+            shared,
+            until_a_press: !owed,
+        }
     }
 }
 
 impl<C> Drop for HeldForARun<'_, C> {
     fn drop(&mut self) {
-        self.0.lock().held_for_a_run = false;
-        self.0.changed.notify_all();
+        let mut state = self.shared.lock();
+        state.held_for_a_run = false;
+        if self.until_a_press && !std::thread::panicking() {
+            state.held_until_a_press = true;
+        }
+        drop(state);
+        self.shared.changed.notify_all();
     }
 }
 
@@ -653,10 +668,11 @@ enum Waits {
 }
 
 /// The supervisor's thread: after the third end with 5 in a row, after an end with 0 of its own
-/// child that it did not ask for, and before the first child on a data directory that is not
-/// provisioned, it starts no child until a person's press on Start asks for one, and then
-/// supervises again with the count of 5s at zero; a quit ends the wait. After the consent its
-/// spawner starts on a directory that is not provisioned yet.
+/// child that it did not ask for, behind a run of Remove Halvo's door that returned, and before
+/// the first child on a data directory that is not provisioned, it starts no child until a
+/// person's press on Start asks for one, which takes the mark of that door, and then supervises
+/// again with the count of 5s at zero; a quit ends the wait. After the consent its spawner
+/// starts on a directory that is not provisioned yet.
 fn supervise_and_start_again<S: Spawner, K: Clock>(
     spawner: S,
     shared: &Shared<S::Child>,
@@ -683,6 +699,7 @@ fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold
             return false;
         }
         if hold.take_start() {
+            state.held_until_a_press = false;
             return true;
         }
         state = clock.wait(&shared.changed, state, CHILD_POLL);
@@ -697,7 +714,8 @@ fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold
 /// the third end with 5 in a row and where it awaits the consent too, and none otherwise. After
 /// each end it draws the views, so that the set of the hold reaches the tray's menu at once.
 /// Each start waits while a run holds the supervision, and starts under the lock that the hold
-/// takes, so that no child starts while the run goes on.
+/// takes, so that no child starts while the run goes on; behind a run of Remove Halvo's door
+/// that returned it hands the spawner back, and no child starts until a press.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
@@ -708,7 +726,11 @@ fn supervise<S: Spawner, K: Clock>(
     let hold = views.hold();
     let mut restarts = Restarts::default();
     loop {
-        let gate = held_before_a_start(shared, clock, hold)?;
+        let gate = match held_before_a_start(shared, clock, hold) {
+            Gate::Open(state) => state,
+            Gate::UntilAPress => return Some((spawner, Waits::Start)),
+            Gate::Quit => return None,
+        };
         let began = clock.now();
         let by_the_rule = |ending: Ending, owed: bool| {
             let (step, after) = next(
@@ -785,22 +807,34 @@ fn supervise<S: Spawner, K: Clock>(
     }
 }
 
-/// Before a start: waits while the offline delete holds the supervision, and then takes the ask
-/// of a Start between two children; it answers the lock under which the child starts, and none at
-/// a quit.
+/// What the gate before a start answers.
+enum Gate<'a, C> {
+    /// The lock under which the child starts.
+    Open(MutexGuard<'a, State<C>>),
+    /// The mark of Remove Halvo's door stands: no child starts until a person's press.
+    UntilAPress,
+    Quit,
+}
+
+/// Before a start: waits while a run holds the supervision; then, where the mark of Remove
+/// Halvo's door stands, it answers the wait for a press, and otherwise it takes the ask of a
+/// Start between two children and answers the lock under which the child starts.
 fn held_before_a_start<'a, C, K: Clock>(
     shared: &'a Shared<C>,
     clock: &K,
     hold: &Hold,
-) -> Option<MutexGuard<'a, State<C>>> {
+) -> Gate<'a, C> {
     let mut state = shared.lock();
     loop {
         if state.quitting {
-            return None;
+            return Gate::Quit;
         }
         if !state.held_for_a_run {
+            if state.held_until_a_press {
+                return Gate::UntilAPress;
+            }
             hold.take_the_ask();
-            return Some(state);
+            return Gate::Open(state);
         }
         state = clock.wait(&shared.changed, state, CHILD_POLL);
     }
@@ -2164,6 +2198,83 @@ mod tests {
     }
 
     #[test]
+    fn after_a_removal_that_stopped_starts_no_child_until_one_press_brings_one() {
+        use crate::commands::control::Watching;
+        for (name, ends_at_close) in [
+            ("a child that the door kills after its wait", false),
+            (
+                "a child that has not answered and ends with 0 at the close",
+                true,
+            ),
+        ] {
+            let record = Record::default();
+            let clock = Arc::new(StandInClock::default());
+            let spawner = StandInSpawner {
+                children: [
+                    StandInChild {
+                        ends_at_close,
+                        ..StandInChild::new(1000, &clock, &record)
+                    },
+                    StandInChild::new(1001, &clock, &record),
+                ]
+                .into_iter()
+                .collect(),
+                record: Arc::clone(&record),
+            };
+            let views = Arc::new(Views::default());
+            let pid = Arc::<ChildPid>::default();
+            let supervisor = Supervisor::start_holding(
+                spawner,
+                Arc::clone(&pid),
+                Arc::clone(&clock),
+                Arc::clone(&views),
+            );
+            let no_daemon = Watching::new(Recording::new(&record, None), Arc::clone(&pid));
+            let starts = || {
+                record
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .filter(|line| line.starts_with("start"))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            };
+            until(name, || pid.get() == Some(1000));
+            supervisor.without_the_child(|| note(&record, "run"));
+            let ran_at = clock.now();
+            while clock.now().saturating_duration_since(ran_at) <= BACKOFF_MAX {
+                pass(&no_daemon, &views, None);
+                looked_again(&clock);
+                assert_eq!(
+                    starts(),
+                    ["start 1000"],
+                    "{name}: no child starts by itself behind a removal that stopped"
+                );
+            }
+            assert_eq!(pid.get(), None, "{name}: no child lives before the press");
+            let answering = Recording::new(&record, Some(held_child_status()));
+            let (answer, _) = press(
+                &answering,
+                &views,
+                answering.places().make(),
+                CaptureChange::Resume,
+                START_ANSWER_WAIT,
+            );
+            assert!(
+                answer.is_ok(),
+                "{name}: the press's Resume reaches the child that it asked for"
+            );
+            looked_again(&clock);
+            drop(supervisor.close());
+            assert_eq!(
+                starts(),
+                ["start 1000", "start 1001"],
+                "{name}: one child for one press"
+            );
+        }
+    }
+
+    #[test]
     fn an_offline_delete_that_ends_the_child_with_0_starts_one_child_after_its_run_and_none_in_it()
     {
         use crate::commands::capture::{run_offline, Before, Offline, OfflineRun, WithoutTheChild};
@@ -3369,6 +3480,7 @@ mod tests {
                     child: None,
                     version_restarted: false,
                     held_for_a_run: false,
+                    held_until_a_press: false,
                     start_owed: false,
                 }),
                 changed: Condvar::new(),
