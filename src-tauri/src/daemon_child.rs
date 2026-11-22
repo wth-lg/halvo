@@ -3972,14 +3972,15 @@ mod tests {
                 },
                 &NoRunner(Arc::clone(&record)),
             );
-            until("the agents core's start asks its owner stream", || {
-                record
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .any(|line| line == "owner_stream")
-            });
         }
+        #[cfg(any(target_os = "macos", windows))]
+        until("the agents core's start asks its owner stream", || {
+            record
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|line| line == "owner_stream")
+        });
 
         test.poll();
         until("the view reads not_started", || {
