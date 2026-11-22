@@ -586,6 +586,7 @@ fn open<R: Runtime>(app: &AppHandle<R>, opening: Opening, visible: bool) {
         }
         Opening::End(refusal) => {
             eprintln!("{}", not_opened_line(&refusal.reason));
+            crate::stop_hook::stopped();
             app.exit(Exit::GuardNotInstalled.code());
         }
     }
