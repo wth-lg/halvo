@@ -1198,6 +1198,10 @@ fn history_of(run: &Value) -> Option<RunHistory> {
 /// `call`, which sends one coordinator body and gives its result: from `after` null, then with the message id that
 /// the reply's `next` names, to `next` null. Each entry of `run` gives its state, in the reply's order: a name of
 /// `ReplyState` is `ReplyRow::Read` of it and any other is `ReplyRow::Unreadable`; an entry of another run is dropped.
+/// A refusal of the owner passes under its own name. A reply that the reader cannot trust is `no_service`, with no row
+/// of the pages before it: one whose `replies` is no list, an entry whose run is no run id or whose state is no text,
+/// and a `next` that is neither null nor a message id greater by its bytes than the `after` sent, since the reply
+/// ascends by message id; so a store that names the same page again ends the read.
 fn list_replies(
     mut call: impl FnMut(&str) -> Result<Value, PortError>,
     workflow: &WorkflowId,
@@ -1214,18 +1218,24 @@ fn list_replies(
             after.as_deref().map_or("null".to_owned(), json_str)
         ))?;
         for entry in reply["replies"].as_array().ok_or(PortError::NoService)? {
-            if entry["run"].as_str() == Some(run.as_str()) {
+            let of = entry["run"].as_str().and_then(|r| RunId::parse(r).ok());
+            let state = entry["state"].as_str();
+            let (Some(of), Some(state)) = (of, state) else {
+                return Err(PortError::NoService);
+            };
+            if of == *run {
                 rows.push(
-                    entry["state"]
-                        .as_str()
-                        .and_then(|s| halvo_coord::types::ReplyState::parse(s).ok())
+                    halvo_coord::types::ReplyState::parse(state)
                         .map_or(ReplyRow::Unreadable, ReplyRow::Read),
                 );
             }
         }
-        match reply["next"].as_str() {
-            Some(next) => after = Some(next.to_owned()),
-            None => return Ok(rows),
+        match reply.get("next") {
+            Some(Value::Null) => return Ok(rows),
+            Some(Value::String(next)) if after.as_ref().is_none_or(|before| next > before) => {
+                after = Some(next.clone());
+            }
+            _ => return Err(PortError::NoService),
         }
     }
 }
@@ -1871,6 +1881,56 @@ mod tests {
                 ReplyRow::Read(halvo_coord::types::ReplyState::Unknown),
                 ReplyRow::Unreadable,
             ])
+        );
+    }
+
+    /// r4 U5.4r, sentence 2: no answer is never an empty list. The owner's refusal passes under its own name after one
+    /// call, a call that fails is `no_service`, and so is a reply that the reader cannot trust: one with no list
+    /// `replies`, and a `next` that is not greater than the `after` sent, which answers no row of the page before it.
+    #[test]
+    fn the_read_of_replies_passes_a_refusal_and_answers_no_service_for_a_reply_that_it_cannot_trust(
+    ) {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let run = RunId::parse(&"d1".repeat(16)).unwrap();
+        let read = |answers: Vec<Result<Value, PortError>>| {
+            let mut answers = std::collections::VecDeque::from(answers);
+            let mut calls = 0;
+            let rows = list_replies(
+                |_| {
+                    calls += 1;
+                    answers.pop_front().unwrap_or(Err(PortError::NoService))
+                },
+                &workflow,
+                &agent,
+                &run,
+            );
+            (rows, calls)
+        };
+        let page =
+            |text: &str| -> Result<Value, PortError> { Ok(serde_json::from_str(text).unwrap()) };
+        assert_eq!(
+            read(vec![Err(PortError::Refused(name("no_workflow")))]),
+            (Err(PortError::Refused(name("no_workflow"))), 1)
+        );
+        assert_eq!(
+            read(vec![Err(PortError::Refused(name("binding")))]),
+            (Err(PortError::Refused(name("binding"))), 1)
+        );
+        assert_eq!(
+            read(vec![Err(PortError::NoService)]),
+            (Err(PortError::NoService), 1)
+        );
+        assert_eq!(
+            read(vec![page(r#"{"next":null}"#)]),
+            (Err(PortError::NoService), 1)
+        );
+        let first = format!(
+            r#"{{"replies":[{{"message":"m1","run":"{run}","state":"committed"}},{{"message":"m2","run":"{run}","state":"lost"}}],"next":"m2"}}"#
+        );
+        assert_eq!(
+            read(vec![page(&first), page(r#"{"replies":[],"next":"m2"}"#)]),
+            (Err(PortError::NoService), 2)
         );
     }
 
