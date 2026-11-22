@@ -10,6 +10,7 @@
   var failed;
   var drain;
   var expiry;
+  var loginLine;
   var action = null;
   var pending = null;
   var shown = null;
@@ -125,6 +126,7 @@
     var x = s.expiry;
     expiry.textContent =
       x && x.state === "failing" ? w.EXPIRY_FAILING + " " + (EXPIRY[x.error] || w.CAUSE_IO) + (x.last_at ? " " + w.EXPIRY_SINCE + " " + x.last_at + "." : "") : "";
+    loginLine.textContent = s.login_item_loaded === false ? w.LOGIN_ITEM_OFF : "";
   }
 
   function refresh() {
@@ -179,11 +181,13 @@
       failed = Halvo.el("ul", { id: "failed-sources", class: "hidden" });
       drain = Halvo.el("p", { id: "drain-line" });
       expiry = Halvo.el("p", { id: "expiry-line" });
+      loginLine = Halvo.el("p", { id: "login-line" });
       el.append(
         Halvo.el("div", { class: "row status-row" }, [dot, Halvo.el("p", { class: "state-line" }, [state, " ", reason]), toggle]),
         failed,
         drain,
         expiry,
+        loginLine,
       );
       status.on(function (s) {
         last = s;
