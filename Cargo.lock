@@ -1871,7 +1871,9 @@ dependencies = [
  "halvo-schema",
  "halvo-sheet",
  "halvo-test-dir",
+ "halvo-web",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
