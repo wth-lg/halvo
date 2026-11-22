@@ -178,6 +178,11 @@ red job, which uploads that build as an artifact.
 Pushing the commit and the tag, a GitHub release, signing and publishing are the
 owner's own steps.
 
+Between releases, the Releases page of the repository carries development snapshots
+of `main`: pre-releases named `dev-<UTC date>.<n>` with notes alone. A snapshot has
+no installer, sets no version and adds no commit, and its tag starts one run of the
+merge gate.
+
 Both forms take an optional bump level after the flag: `patch` (default), `minor` or
 `major`. `CHANGELOG.md` follows Keep a Changelog. A pull request records its changes
 in one new file under `changelog.d/`, named after its branch, with one line for each
