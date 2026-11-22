@@ -44,7 +44,7 @@ targets halvo-coord B 40 test targets: 17 s macos, 11 s windows
 targets halvo-coord-app B 13 test targets: 21 s macos, 16 s windows
 targets halvo-coord-store B 8 test targets: under 1 s in each job
 targets halvo-policy B 10 test targets: under 1 s in each job
-targets halvo-runner B 10 test targets: 9 s macos, 9 s windows
+targets halvo-runner B 13 test targets: no seconds read for the 13; the 10 of the run 44877874023 took 9 s macos, 9 s windows
 targets halvo-sample D 9 test targets: 8 s macos, 5 s windows
 targets halvo-schema A 43 test targets: 78 s macos, 56 s windows
 targets halvo-schema-core A 1 test target: under 1 s in each job
