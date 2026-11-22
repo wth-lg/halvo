@@ -987,7 +987,9 @@ fn a_payment_leaves_once_after_the_yes() {
     assert_eq!(
         charges.iter().map(|r| r.path.as_str()).collect::<Vec<_>>(),
         ["/charge"],
-        "one payment: {}",
+        "one payment: rows {:?}, states {:?}, stderr {}",
+        rows(&seen),
+        seen.states(),
         seen.stderr
     );
     assert!(charges[0]

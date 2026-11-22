@@ -82,24 +82,28 @@ impl Held {
     /// The value of an extract read again on the page with its target, as its parse keeps it (the text, or the
     /// amount in the form `<units>.<two decimals>`), and the origin of the page that holds it.
     fn read_again(&self, target: &WebTarget, parse: &str) -> Result<(String, WebOrigin), Cause> {
+        let failed = |part: &str| {
+            crate::line(&format!("run effect=failed at=read_again part={part}"));
+            Cause::StepFailed
+        };
         let mut guard = lock(&self.web);
-        let web = guard.as_mut().ok_or(Cause::StepFailed)?;
+        let web = guard.as_mut().ok_or_else(|| failed("browser"))?;
         let text = web
             .0
             .carry_out(&[], &Act::Extract(target), &[])
             .ok()
             .flatten()
-            .ok_or(Cause::StepFailed)?;
+            .ok_or_else(|| failed("extract"))?;
         let value = match parse {
             "text" => text,
             "amount" => {
-                let minor = halvo_web::extract_amount(&text).ok_or(Cause::StepFailed)?;
+                let minor = halvo_web::extract_amount(&text).ok_or_else(|| failed("amount"))?;
                 format!("{}.{:02}", minor / 100, minor % 100)
             }
-            _ => return Err(Cause::StepFailed),
+            _ => return Err(failed("parse")),
         };
-        let address = web.0.address().map_err(|()| Cause::StepFailed)?;
-        let origin = WebOrigin::of_address(&address).map_err(|_| Cause::StepFailed)?;
+        let address = web.0.address().map_err(|()| failed("address"))?;
+        let origin = WebOrigin::of_address(&address).map_err(|_| failed("origin"))?;
         Ok((value, origin))
     }
 }
@@ -349,6 +353,16 @@ impl Runner {
             _ => None,
         };
         let Some((id, origin)) = one else {
+            crate::line(&format!(
+                "run effect=failed at=act act={} held={} refused={}",
+                if done.is_ok() { "done" } else { "failed" },
+                held.len(),
+                if refused_by_the_page(&record) {
+                    "yes"
+                } else {
+                    "no"
+                }
+            ));
             let _ = web.0.fail_held();
             let _ = web.0.arm(&origins);
             return end_of_step(Err(()), &record);
@@ -365,6 +379,13 @@ impl Runner {
             left: false,
         };
         let end = self.release(vec![Box::new(request)]);
+        if let Err(crate::run::Stop::End(outcome, cause)) = &end {
+            crate::line(&format!(
+                "run effect=ended outcome={} cause={}",
+                outcome.as_str(),
+                cause.map_or("none", |c| c.as_str())
+            ));
+        }
         self.web = lock(&shared).take();
         let rearmed = self.web.as_mut().map_or(Err(()), |web| web.0.arm(&origins));
         end?;
