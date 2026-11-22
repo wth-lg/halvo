@@ -1831,6 +1831,27 @@ mod tests {
         );
     }
 
+    /// `list_agents` takes `browser_start` and `no_channel` of an entry's `last_cause` as the causes of those names
+    /// (I6.1).
+    #[test]
+    fn the_reader_takes_browser_start_and_no_channel_as_causes_of_their_names() {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let entry = |cause: &str| -> Value {
+            serde_json::from_str(&format!(
+                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":null,"reply_unknown":"no","refused_slots":[],"last_cause":"{cause}"}}"#
+            ))
+            .unwrap()
+        };
+        for name in ["browser_start", "no_channel"] {
+            assert_eq!(
+                agent_of(&entry(name)).map(|a| a.last_cause.map(LastCause::name)),
+                Some(Some(name)),
+                "{name}"
+            );
+        }
+    }
+
     /// A dialog that is never on screen and answers `reject`: no native confirmation is answered.
     struct Unseen;
 
