@@ -34,16 +34,16 @@ fn note(log: &Log, line: impl Into<String>) {
 const BOUND: &str = "http://127.0.0.1:8080";
 
 /// The stand-in of the executor: each reading gives the next sign that the test queued (none once the queue is
-/// empty), the address is the one that the test gave, an act fails where the test says so, as the executor refuses
-/// an act on a field that turns into a credential field at the act's own focus, and every call is one line of the
-/// log.
+/// empty), the address is the one that the test gave, the first `act_fails` acts fail, as the executor refuses an
+/// act on a field that turns into a credential field at the act's own focus, and every call is one line of the log.
 struct StandIn {
     log: Log,
     signs: VecDeque<Option<Sign>>,
     /// The addresses that the reads give first, in order, before `address`.
     addresses: VecDeque<String>,
     address: String,
-    act_fails: bool,
+    /// How many of the acts that come fail, the first ones.
+    act_fails: usize,
     /// The links and buttons that the page shows, each by its role and its accessible name, which the second reading
     /// reads by halvo-web's own rule (`asks_to_sign_in`), as the executor reads the lines of its snapshot.
     controls: Vec<(&'static str, &'static str)>,
@@ -67,7 +67,8 @@ impl Page for StandIn {
         _: &[(&Cond, Option<String>)],
     ) -> Result<Option<String>, ()> {
         note(&self.log, format!("act {}", act.verb()));
-        if self.act_fails {
+        if self.act_fails > 0 {
+            self.act_fails -= 1;
             return Err(());
         }
         Ok(None)
@@ -280,15 +281,17 @@ impl Bench {
         act_fails: bool,
         addresses: &[&str],
     ) -> Bench {
+        let act_fails = if act_fails { usize::MAX } else { 0 };
         Bench::on_page(signs, address, answers, act_fails, addresses, &[])
     }
 
-    /// `with`, on a page that shows the links and buttons `controls`.
+    /// `with`, with a stand-in whose first `act_fails` acts fail, on a page that shows the links and buttons
+    /// `controls`.
     fn on_page(
         signs: &[Option<Sign>],
         address: &str,
         answers: &[&'static str],
-        act_fails: bool,
+        act_fails: usize,
         addresses: &[&str],
         controls: &[(&'static str, &'static str)],
     ) -> Bench {
@@ -803,11 +806,13 @@ fn after_bound_no_nothing_leaves() {
 /// credential field. A click whose act fails reads the page for a field, then reads it a second time, then opens the
 /// handback in the order of a credential field's, and the request names the page's origin; so does a fill of a target
 /// marked `credential`, which fails where the page shows no credential field. Declined, the run ends `declined`. A
-/// click that does not fail on such a page acts, and makes no second reading.
+/// click that does not fail on such a page acts, and makes no second reading. Behind the person's `done` and the bind
+/// the click's act is asked once more (the coordinator's ruling of log line 16106 (3)): end (i), it acts and the step
+/// is done; end (ii), it fails again and the step fails as before, with one handback at that step.
 #[test]
 fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
     let page = |link: &'static str| vec![("button", "Pay bill"), ("link", link)];
-    let mut bench = Bench::on_page(&[], BOUND, &[], false, &[], &page("Sign in"));
+    let mut bench = Bench::on_page(&[], BOUND, &[], 0, &[], &page("Sign in"));
     assert!(bench.step(&click()).is_ok(), "{:?}", bench.log());
     assert_eq!(bench.log(), ["read", "act click"]);
 
@@ -827,7 +832,7 @@ fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
         (credential_fill(), "Sign in"),
     ];
     for (step, link) in cases {
-        let mut bench = Bench::on_page(&[], BOUND, &[DECLINED], true, &[], &page(link));
+        let mut bench = Bench::on_page(&[], BOUND, &[DECLINED], usize::MAX, &[], &page(link));
         let got = stop_of(bench.step(&step));
         let log = bench.log();
         assert_eq!(
@@ -856,6 +861,45 @@ fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
             requests[0]
         );
     }
+
+    // The coordinator's ruling of log line 16106 (3): behind the person's `done` and the bind, the act that failed is
+    // asked once more, after the reading of the fields before an act. End (i): the act acts, and the step goes on with
+    // what it gives. End (ii): the act fails again, and the step fails as before this unit: the reading of the fields
+    // after a failed act, no second reading, and no second handback at that step.
+    for again in [false, true] {
+        let fails = if again { 2 } else { 1 };
+        let answers = [DONE, BOUND_YES];
+        let mut bench = Bench::on_page(&[], BOUND, &answers, fails, &[], &page("Sign in"));
+        let got = bench.step(&click());
+        let log = bench.log();
+        if again {
+            assert!(
+                matches!(got, Err(Failure::Step(Cause::StepFailed))),
+                "{log:?}"
+            );
+        } else {
+            assert!(got.is_ok(), "{log:?}");
+        }
+        let replied = at(&log, "bind_reply yes");
+        let after: Vec<&str> = log[replied + 1..]
+            .iter()
+            .filter(|l| !l.starts_with("frame store"))
+            .map(String::as_str)
+            .collect();
+        let mut want = vec![
+            "arm fail [http://127.0.0.1:8080]",
+            "close others",
+            "read",
+            "act click",
+        ];
+        if again {
+            want.push("read");
+        }
+        assert_eq!(after, want, "{log:?}");
+        assert_eq!(count(&log, "act click"), 2, "{log:?}");
+        assert_eq!(count(&log, "read sign-in"), 1, "{log:?}");
+        assert_eq!(count(&log, "frame handback sign_in"), 1, "{log:?}");
+    }
 }
 
 /// r3 U5.14: on a page that shows no credential field and no link or button that asks for a sign-in by its name, a web
@@ -879,7 +923,7 @@ fn a_failed_step_on_a_page_with_no_such_sign_fails_as_before() {
     ];
     for page in pages {
         for step in [click(), credential_fill()] {
-            let mut bench = Bench::on_page(&[], BOUND, &[DECLINED], true, &[], page);
+            let mut bench = Bench::on_page(&[], BOUND, &[DECLINED], usize::MAX, &[], page);
             let got = bench.step(&step);
             let log = bench.log();
             assert!(
