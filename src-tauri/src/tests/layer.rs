@@ -72,9 +72,14 @@ fn the_app_state_of_a_failing_resolver_builds_and_its_set_up_returns_ok() {
     );
 }
 
+/// The app's state over this system's connector builds and the set-up returns ok. Its data
+/// directory is one of the test's own, never the account's: the set-up runs the hub's start over
+/// the data directory, whose reap ends the runs that its marks name and whose first tick asks the
+/// service of that directory for an owner stream.
 #[test]
 fn the_app_state_of_this_systems_environment_builds_and_its_set_up_returns_ok() {
-    let state = AppState::new(DataDir::for_current_user, no_pane);
+    let data = scratch_dir("environment-data");
+    let state = AppState::new(move || DataDir::from_flag(data), no_pane);
     let connector = ScriptedConnector::new(macos_fixture_daemon());
     let test = test_app_from(
         test_parts(scratch_dir("environment"), state),
@@ -509,12 +514,12 @@ impl Control for Fake {
         Err(ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
         Err(ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn run_mark(
         &self,
         _: Made,
@@ -523,7 +528,7 @@ impl Control for Fake {
         Err(ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
         Err(ClientError::Unsupported)
     }
@@ -890,12 +895,12 @@ impl Control for RecordingControl {
         Err(ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
         Err(ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn run_mark(
         &self,
         _: Made,
@@ -904,7 +909,7 @@ impl Control for RecordingControl {
         Err(ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
         Err(ClientError::Unsupported)
     }

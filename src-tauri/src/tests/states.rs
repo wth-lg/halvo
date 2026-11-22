@@ -273,6 +273,14 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
             })),
         ),
         (
+            "store-deleting-unfinished",
+            of(status_with(mac, |f| {
+                store(f, StoreState::Deleting, None, None);
+                f.store_id = None;
+                f.store_delete_unfinished = true;
+            })),
+        ),
+        (
             "store-sealed",
             of(status_with(mac, |f| {
                 store(
@@ -859,7 +867,7 @@ impl crate::commands::control::Control for Claims {
         Err(halvo_control::client::ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn owner_stream(
         &self,
         _: crate::commands::control::Made,
@@ -867,7 +875,7 @@ impl crate::commands::control::Control for Claims {
         Err(halvo_control::client::ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn run_mark(
         &self,
         _: crate::commands::control::Made,
@@ -876,7 +884,7 @@ impl crate::commands::control::Control for Claims {
         Err(halvo_control::client::ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn defer(
         &self,
         _: crate::commands::control::Made,
