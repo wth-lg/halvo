@@ -1,0 +1,1 @@
+- Added: On a Mac a confirmation of a payment, an order or a signature is shown in the system's dialog with the card that Halvo composes for it, and a press there answers that confirmation alone.

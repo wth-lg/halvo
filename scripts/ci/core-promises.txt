@@ -90,6 +90,7 @@ billing target halvo-route/prices_rules gate
 billing target halvo-route/refusal_spend gate
 billing target halvo-route/formal_traces scheduled tue the group B; 15 s in the macos job, 10 s in the windows job
 billing units halvo-route-gate scheduled tue the group B; 13 s in the macos job, 9 s in the windows job
+billing units halvo-coord-app::present::tests::native_hub gate
 billing check 40-r6-policy gate
 billing check 21-r7-backend-test gate macos job, which alone has the check, 72 s there in the push run 44895970784; the ledger and the metering tests of the backend
 billing check 24-r7-wall gate
