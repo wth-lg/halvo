@@ -2071,6 +2071,150 @@ fn a_delete_goes_on_past_a_source_that_does_not_stop_and_the_life_ends_with_5() 
 }
 
 #[test]
+fn a_delete_that_ends_not_whole_reads_deleting_with_the_field_and_a_second_delete_runs_again() {
+    use halvo_control::proto::{Reply, Request, StatusFields, StoreState};
+    struct Immutable(std::ffi::CString);
+    impl Drop for Immutable {
+        fn drop(&mut self) {
+            unsafe { libc::chflags(self.0.as_ptr(), 0) };
+        }
+    }
+    let (dir, marks) = running_dir(false);
+    let mut stopping = life(&dir, &marks, "stopping");
+    wait_until(READY_WITHIN, "the life's source began", || {
+        begun(&marks) == 1
+    });
+    let status = |when: &str| -> StatusFields {
+        match ask(&dir, &Request::Status { indicator: false }) {
+            Ok(Reply::Status(status)) => status.into_fields(),
+            other => panic!("the status {when}: {other:?}"),
+        }
+    };
+    let shown = status("before the delete").store_id;
+    assert!(shown.is_some(), "a store stands before the delete");
+    let derived = dir.join("derived");
+    std::fs::create_dir(&derived).unwrap();
+    let kept = derived.join("kept");
+    std::fs::write(&kept, b"").unwrap();
+    let flagged = Immutable(std::ffi::CString::new(kept.to_str().unwrap()).unwrap());
+    assert_eq!(
+        unsafe { libc::chflags(flagged.0.as_ptr(), libc::UF_IMMUTABLE) },
+        0
+    );
+
+    let first = ask(&dir, &Request::DeleteAll { store: shown });
+    let Ok(Reply::Deleted(first)) = first else {
+        panic!("the first delete: {first:?}");
+    };
+    assert_ne!(first.report.fields().entries_left, 0, "{first:?}");
+    assert_eq!(first.store, None, "{first:?}");
+    let after = status("after a delete that ended not whole");
+    assert_eq!(
+        (after.store, after.store_delete_unfinished, after.store_id),
+        (StoreState::Deleting, true, None)
+    );
+    assert_eq!(stopping.0.try_wait().unwrap(), None, "the life goes on");
+
+    drop(flagged);
+    let second = ask(&dir, &Request::DeleteAll { store: None });
+    let Ok(Reply::Deleted(second)) = second else {
+        panic!("the second delete: {second:?}");
+    };
+    assert_eq!(second.report.fields().entries_left, 0, "{second:?}");
+    let made = second.store.expect("the second delete made a store");
+    assert_ne!(Some(made), shown);
+    assert!(!derived.exists());
+    wait_until(READY_WITHIN, "the new store opened", || {
+        let now = status("after the second delete");
+        now.store == StoreState::Open && now.store_id == Some(made) && !now.store_delete_unfinished
+    });
+    assert_eq!(terminate(stopping), Some(0));
+}
+
+#[test]
+fn the_turn_that_starts_the_opener_after_the_check_leaves_the_unfinished_state_until_the_retry_ends(
+) {
+    use super::delete_all::AtStart;
+    use super::slot::Slot;
+    use halvo_control::proto::{delete_decision, DeleteDecision, Life, StoreState};
+    type Turn = super::supervisor::Supervisor<super::NoSources, SleepLoop>;
+    fn read_the_rule(supervisor: &Turn) -> (StoreState, bool, DeleteDecision) {
+        let facts = super::server::RunFacts {
+            started_at: halvo_control::model::UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+            parent: halvo_control::proto::Parent::None,
+            last_stop: halvo_control::proto::LastStop::None,
+            rss_peak_bytes: 0,
+        };
+        let status = super::server::status_of(&supervisor.status_parts(None), &facts).unwrap();
+        let f = status.fields();
+        let decision = delete_decision(
+            Life::Going,
+            f.capture,
+            f.store,
+            f.store_error,
+            f.store_delete_unfinished,
+            f.store_id,
+            None,
+        );
+        (f.store, f.store_delete_unfinished, decision)
+    }
+    let mut supervisor: Turn = super::supervisor::Supervisor::new(
+        halvo_control::proto::Platform::Macos,
+        super::NoSources,
+        SleepLoop(Instant::now()),
+    );
+    supervisor.set_slot(Slot::DeleteUnfinished, None);
+    assert_eq!(
+        read_the_rule(&supervisor),
+        (StoreState::Deleting, true, DeleteDecision::Accept),
+        "a delete in a data directory that failed its check ended not whole"
+    );
+    let (began, begun) = std::sync::mpsc::channel();
+    let (open, gate) = std::sync::mpsc::channel::<()>();
+    let at_start: super::owner::open::AtStartCall = Box::new(move |_, deleting| {
+        deleting();
+        began.send(()).unwrap();
+        let _ = gate.recv();
+        AtStart::Finished { whole: false }
+    });
+    let dir = kept_dir("check-passes-");
+    let opener = super::open_after_the_check(&mut supervisor, || {
+        super::owner::open::Opener::start_with(
+            at_start,
+            Box::new(DataDirStore::at(&dir)),
+            super::custody_policy::of_this_build,
+            CreateRule::FirstRun,
+        )
+        .ok()
+    })
+    .expect("the opener started");
+    begun.recv_timeout(Duration::from_secs(60)).unwrap();
+    assert_eq!(
+        read_the_rule(&supervisor),
+        (StoreState::Opening, false, DeleteDecision::Busy),
+        "the turn that starts the opener after the check"
+    );
+    supervisor.set_slot(opener.slot(), None);
+    assert_eq!(
+        read_the_rule(&supervisor),
+        (StoreState::Deleting, false, DeleteDecision::Busy),
+        "the opener's retry of the delete runs"
+    );
+    open.send(()).unwrap();
+    wait_until(Duration::from_secs(60), "the retry ended not whole", || {
+        opener.slot() == Slot::DeleteUnfinished
+    });
+    supervisor.set_slot(opener.slot(), None);
+    assert_eq!(
+        read_the_rule(&supervisor),
+        (StoreState::Deleting, true, DeleteDecision::Accept),
+        "the field comes back by the opener's own arm"
+    );
+    opener.stop();
+    assert!(opener.wait_for_its_call(Duration::from_secs(60)));
+}
+
+#[test]
 fn a_pause_in_an_ending_life_is_answered_and_the_next_start_reads_paused() {
     use halvo_control::proto::{Reply, Request};
     let (dir, marks) = running_dir(true);

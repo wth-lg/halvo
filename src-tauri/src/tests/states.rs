@@ -273,6 +273,14 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
             })),
         ),
         (
+            "store-deleting-unfinished",
+            of(status_with(mac, |f| {
+                store(f, StoreState::Deleting, None, None);
+                f.store_id = None;
+                f.store_delete_unfinished = true;
+            })),
+        ),
+        (
             "store-sealed",
             of(status_with(mac, |f| {
                 store(

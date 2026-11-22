@@ -638,6 +638,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         store_id,
         store_error,
         store_retry_in_s,
+        store_delete_unfinished: store == StoreState::Deleting && parts.slot.delete_unfinished(),
         store_bytes: snapshot.and_then(|snapshot| snapshot.disk_bytes),
         store_logical_bytes: None,
         cap_bytes: match parts.cap {
@@ -780,6 +781,7 @@ fn store_of(
         | Slot::OlderFormat
         | Slot::NewerFormat
         | Slot::Deleting
+        | Slot::DeleteUnfinished
         | Slot::Empty { .. } => None,
     };
     (
