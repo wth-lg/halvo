@@ -536,9 +536,9 @@ impl ChildPid {
         self.read.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// How many answers the app's control has taken, beside each answer of a request that named
-    /// a child of the app which had ended by the time the answer came: such an answer, the late
-    /// answer of that child among them, tells nothing of a service that holds the directory.
+    /// How many answers the app's control has taken, not counting any answer of a request that
+    /// named a child of the app which had ended by the time the answer came: such an answer, the
+    /// late answer of that child among them, tells nothing of a service that holds the directory.
     #[cfg(any(target_os = "macos", windows, test))]
     pub fn answers(&self) -> u64 {
         self.read().answers

@@ -555,13 +555,11 @@ pub fn account_hook() -> (Outcome, Detail) {
 /// (`agents::RunsHold`), and takes the mark off: after a list that stopped, and where a step
 /// unwinds. After a whole list the list keeps the guard (`keep` marks it kept, and its drop then
 /// ends nothing), so the runs stay held and the mark stands to the end of the app, and the
-/// child's supervisor ends as at a
-/// quit, so that no child starts after it; after a list that stopped, or one that unwound, no
-/// child starts by itself until a person's press on Start or the next launch of the app
-/// (`Supervisor::without_the_child`). The account step is `account`; the delete is the offline
-/// delete of `offline` after
-/// `before`, and it is done only where it deleted and left nothing of the store, or found no
-/// store.
+/// child's supervisor ends as at a quit, so that no child starts after it; after a list that
+/// stopped, or one that unwound, no child starts by itself until a person's press on Start
+/// behind the list or the next launch of the app (`Supervisor::without_the_child`). The account
+/// step is `account`; the delete is the offline delete of `offline` after `before`, and it is
+/// done only where it deleted and left nothing of the store, or found no store.
 pub fn remove_halvo(
     places: Result<Places, Refused>,
     children: Option<&dyn TheChild>,

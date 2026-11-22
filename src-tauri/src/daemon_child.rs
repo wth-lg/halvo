@@ -71,12 +71,13 @@ pub enum Ending {
 /// What the supervisor does after the child of the moment has ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Next {
-    /// The first answer that the app reads behind the end decides. Where no daemon answers, no
-    /// service held the directory: the end was a stop that was asked, and no child starts until
-    /// a person's press or the next launch. Where a service answers, the child ended at the
-    /// instance lock, which another starter's daemon holds: no start again while a daemon
-    /// answers or holds the directory, the app talks to that daemon with no expected pid and no
-    /// descriptor, and once no daemon answers, a start again from a fresh count.
+    /// The answers that the app reads behind the end decide (`waited_for_no_daemon`). Where the
+    /// first that it reads says that no daemon answers, no service held the directory: the end
+    /// was a stop that was asked, and no child starts until a person's press or the next launch.
+    /// Where any other answer comes first, the child ended at the instance lock, which another
+    /// starter's daemon holds: no start again while a daemon answers or holds the directory, the
+    /// app talks to that daemon with no expected pid and no descriptor, and once no daemon
+    /// answers, a start again from a fresh count.
     Attach,
     /// No start in this life of the stop: the app's own child ended with 0 and the app did not
     /// ask for the stop in order to restart. The app talks to a daemon that answers, and a child
@@ -558,7 +559,7 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
     /// STOP_WAIT for its end and a kill after that, as a quit ends it, and no request; then `run`
     /// runs. After the run, one that returns or one that unwinds, no child starts by itself,
     /// whatever the end of that child, a kill and an end before its first answer among them,
-    /// until a person's press on Start or the next launch of the app.
+    /// until a person's press on Start behind the run or the next launch of the app.
     pub fn without_the_child<T>(&self, run: impl FnOnce() -> T) -> T {
         self.hold_for_a_run(false, run)
     }
@@ -683,11 +684,11 @@ enum Waits {
 
 /// The supervisor's thread: after the third end with 5 in a row, after an end with 0 of its own
 /// child that it did not ask for, also one that it had not read where no service answers behind
-/// it, behind a run of Remove Halvo's door, and before the first
-/// child on a data directory that is not provisioned, it starts no child until a
-/// person's press on Start asks for one, which takes the mark of that door, and then supervises
-/// again with the count of 5s at zero; a quit ends the wait. After the consent its spawner
-/// starts on a directory that is not provisioned yet.
+/// it, behind a run of Remove Halvo's door, and before the first child on a data directory that
+/// is not provisioned, it starts no child until a person's press on Start asks for one, which
+/// takes the mark of that door, and then supervises again with the count of 5s at zero; a quit
+/// ends the wait. After the consent its spawner starts on a directory that is not provisioned
+/// yet.
 fn supervise_and_start_again<S: Spawner, K: Clock>(
     spawner: S,
     shared: &Shared<S::Child>,
@@ -730,12 +731,12 @@ fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold
 /// child starts until a press; of a child that never answered as the app's own, where the first
 /// answer behind the end reads no daemon, the spawner back as well, and where a service
 /// answered, the other starter's at the instance lock, a start once that daemon is gone. It
-/// hands the spawner back after
-/// the third end with 5 in a row and where it awaits the consent too, and none otherwise. After
-/// each end it draws the views, so that the set of the hold reaches the tray's menu at once.
+/// hands the spawner back after the third end with 5 in a row and where it awaits the consent
+/// too, and none otherwise. After each end it draws the views, so that the set of the hold
+/// reaches the tray's menu at once.
 /// Each start waits while a run holds the supervision, and starts under the lock that the hold
 /// takes, so that no child starts while the run goes on; behind a run of Remove Halvo's door it
-/// hands the spawner back, and no child starts until a press.
+/// hands the spawner back, and no child starts until a press behind the run.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
@@ -831,7 +832,8 @@ fn supervise<S: Spawner, K: Clock>(
 enum Gate<'a, C> {
     /// The lock under which the child starts.
     Open(MutexGuard<'a, State<C>>),
-    /// The mark of Remove Halvo's door stands: no child starts until a person's press.
+    /// The mark of Remove Halvo's door stands: no child starts until a person's press behind the
+    /// run.
     UntilAPress,
     Quit,
 }
@@ -878,19 +880,23 @@ fn waited_into_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, period: Durati
 /// What the attach behind an end with 0 of a child that the app had not read saw.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Attached {
-    /// The first answer that the app read behind the end said that no daemon answers: no
-    /// service held the directory, so the end was a stop that was asked.
+    /// The first answer that the attach read behind the end said that no daemon answers: no
+    /// service held the directory, so the end was a stop that was asked. On Windows a service
+    /// that holds the instance lock and has no pipe yet reads so too.
     NoService,
-    /// A service answered first, the one of another starter that held the directory, and no
-    /// daemon answers now.
+    /// Another counted answer came first, which reads as a service: another starter's status, a
+    /// held directory, a refused peer or an error of the exchange; and no daemon answers now.
     ServiceGone,
     Quit,
 }
 
-/// The attach behind an end with 0 of a child that the app had not read: after BACKOFF_FIRST,
-/// the answers that the app reads behind the end decide, with no clock of its own. The
-/// answer of a request that named a child of the app that has ended by then does not count
-/// (`ChildPid::answers`), so the late answer of the ended child is no service.
+/// The attach behind an end with 0 of a child that the app had not read, with no clock of its
+/// own: it looks first after BACKOFF_FIRST and then each CHILD_POLL, and at each look reads the
+/// newest answer that `ChildPid::answers` counts behind the end, so where two answers come
+/// between two looks the newer decides. Every counted answer other than one that says that no
+/// daemon answers reads as a service. The answer of a request that named a child of the app
+/// that has ended by then is not counted, so the ended child's late answer to a request that
+/// named it is no service.
 fn waited_for_no_daemon<C, K: Clock>(shared: &Shared<C>, pid: &ChildPid, clock: &K) -> Attached {
     let after = pid.answers();
     if waited_into_a_quit(shared, clock, BACKOFF_FIRST) {
