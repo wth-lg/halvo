@@ -5,6 +5,7 @@
   "drain": null,
   "expiry": null,
   "ext": null,
+  "hold": null,
   "last_exit": null,
   "lease": null,
   "loss": null,

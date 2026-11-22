@@ -239,7 +239,7 @@ pub trait SystemSources: SourceFactory {
 
 /// The answer of a client's request for the system's question about one
 /// permission (contracts.md C2.1, form A).
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 #[derive(Debug)]
 pub(crate) enum AskAnswer {
     /// The newest probe answer reads the permission granted: nothing was
@@ -459,7 +459,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     stopped_for_drain: bool,
     probe: Option<Box<dyn ProbeRunner>>,
     requests: Option<Box<dyn RequestStarter>>,
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     request_for: Option<Permission>,
     probe_last: Option<Duration>,
     probe_retry_at: Option<Duration>,
@@ -506,7 +506,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             stopped_for_drain: false,
             probe: None,
             requests: None,
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
             request_for: None,
             probe_last: None,
             probe_retry_at: None,
@@ -589,7 +589,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// newest probe answer, the request child that still runs, then the
     /// record in `permissions_asked` through the state file's one writer and
     /// ONE request child with [`super::permissions::REQUEST_DEADLINE`].
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn request_permission(&mut self, permission: Permission) -> AskAnswer {
         if self
             .board
@@ -685,7 +685,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// What a status of a service run reads of this supervisor, with the
     /// time left before the next check of a data directory that failed its
     /// check, if one did.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn status_parts(&self, obstructed: Option<Duration>) -> super::server::StatusParts {
         let desired = self.desired();
         let file = self.state_file();
@@ -720,7 +720,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// the marker's clear succeeded too. `reply` gets the Board of an end routine, as
     /// [`Self::follow_the_run_condition`] gives it. The answer is the write's,
     /// `None` with no state file.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn set_desired(
         &mut self,
         desired: Desired,
@@ -756,7 +756,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     /// `write` on the state file that the supervisor holds, for a write of a
     /// client's request.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn with_state_file<T>(
         &mut self,
         write: impl FnOnce(&mut StateFile) -> T,
@@ -764,7 +764,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.state_file().map(|mut state| write(&mut state))
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn update_state(
         &mut self,
         change: impl FnOnce(&mut super::state::DaemonState),
@@ -788,7 +788,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     /// A client's Status without the indicator claim: for
     /// [`CLIENT_POLL_WINDOW`] from now a client counts as one that polls.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn client_polled(&mut self) {
         self.polled_until = Some(self.main_loop.now() + CLIENT_POLL_WINDOW);
     }
@@ -841,7 +841,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     }
 
     /// The slot of the store as the supervisor holds it.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn slot(&self) -> &Slot {
         &self.slot
     }
@@ -857,7 +857,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// Board of an end routine, as [`Self::follow_the_run_condition`] gives
     /// it, when the stop that the slot asks for meets a source that does not
     /// stop.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn set_slot_answering(
         &mut self,
         slot: Slot,
@@ -875,7 +875,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// Status with `indicator: true` asks (contracts.md C14 item 3), and reads
     /// the run condition at once, so that a claim with desired running and
     /// the store open starts the sources.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn renew_lease(&mut self, owner: Option<&dyn OwnerLink>) {
         self.lease = Lease::renewed_at(self.main_loop.now());
         self.read_the_condition(owner);
@@ -1602,7 +1602,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// with the owner's figures as they stood at its close; with none, the
     /// last, after step 5, which holds no count, time or id of before the
     /// barrier. `final_figures` says which one it is.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn record_the_delete(&mut self, figures: Option<&Snapshot>, final_figures: bool) {
         self.write_record(StopKind::DeleteAll, final_figures, figures.map(Figures::of));
     }
@@ -1816,6 +1816,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             _ => None,
         };
         let stops = self.stop_every_source();
+        #[cfg(feature = "r2")]
+        super::r2::service::stop();
         let unstopped = asked_before || stops.iter().any(|(_, answer)| !is_a_stop(answer));
         if unstopped {
             if let Some(Ok(pending)) = owner.map(|owner| owner.ask(Command::Settle)) {
@@ -1890,7 +1892,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             self.board.capture_of(&self.wanted)
         };
         self.board.figures = self.factory.figures();
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
         if let Some(life) = &self.life {
             life.publish(self.status_parts(None));
         }

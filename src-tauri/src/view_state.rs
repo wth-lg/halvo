@@ -8,6 +8,8 @@ use halvo_control::proto::{
 };
 use halvo_control::texts::{texts, Texts};
 use serde::{Deserialize, Serialize};
+use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -113,6 +115,7 @@ pub struct RunningView {
     pub screen_filter_excludes_app: Option<bool>,
     pub texts: Texts,
     pub ext: Vec<Section>,
+    pub hold: Option<HoldView>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,6 +124,179 @@ pub struct NoStatusView {
     pub platform: Platform,
     pub window: ObservationWindow,
     pub last_exit: Option<i32>,
+    pub hold: Option<HoldView>,
+}
+
+/// Why the app holds capture off: a child of the app ended itself with status 5, because a
+/// source did not stop (contracts.md C14 item 4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HoldCause {
+    SourceNotStopped,
+}
+
+/// The press that ends the hold: Resume while the app starts its children, Start after the
+/// third end with 5 in a row, when no further child starts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Press {
+    Resume,
+    Start,
+}
+
+/// What a view says of the app's hold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct HoldView {
+    pub cause: HoldCause,
+    pub press: Press,
+}
+
+#[derive(Debug, Default)]
+struct HoldState {
+    held: bool,
+    last_exit: Option<i32>,
+    child_lives: bool,
+    no_more_child: bool,
+    start_asked: bool,
+}
+
+/// The app's hold on capture after a child of the app ended itself with status 5 (contracts.md
+/// C14 item 4), and beside it what the supervisor of the children tells the view: the status of
+/// the last end while no child lives, whether no further child starts, and a Start that waits
+/// for the supervisor. An end with 5 sets the hold, and only a Resume of a person's press that
+/// reached its end clears it, by [`Hold::release`].
+#[derive(Debug, Default)]
+pub struct Hold {
+    state: Mutex<HoldState>,
+    changed: Condvar,
+}
+
+impl Hold {
+    fn state(&self) -> MutexGuard<'_, HoldState> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Whether the hold stands.
+    pub fn stands(&self) -> bool {
+        self.state().held
+    }
+
+    /// The hold as a view says it, none while it does not stand.
+    pub fn view(&self) -> Option<HoldView> {
+        let state = self.state();
+        state.held.then_some(HoldView {
+            cause: HoldCause::SourceNotStopped,
+            press: if state.no_more_child {
+                Press::Start
+            } else {
+                Press::Resume
+            },
+        })
+    }
+
+    /// `view` with the hold, and on `not_running` the status of the last end while no child of
+    /// the app lives.
+    pub fn mark(&self, view: StatusView) -> StatusView {
+        let hold = self.view();
+        let last_exit = self.state().last_exit;
+        match view {
+            StatusView::Running(mut view) => {
+                view.hold = hold;
+                StatusView::Running(view)
+            }
+            StatusView::NoStatus(mut view) => {
+                view.hold = hold;
+                if view.service == NoStatusService::NotRunning {
+                    view.last_exit = last_exit;
+                }
+                StatusView::NoStatus(view)
+            }
+        }
+    }
+
+    /// Ends the hold: called only for a Resume of a person's press that reached its end.
+    pub fn release(&self) {
+        self.state().held = false;
+        self.changed.notify_all();
+    }
+
+    /// A person's press asks the supervisor for one child where the hold reads Start, that is
+    /// where it stands and no further child starts; the read and the ask stand under one lock,
+    /// so that no ask is left standing once the supervisor has taken one. Answers whether it
+    /// asked.
+    pub fn ask_start(&self) -> bool {
+        let mut state = self.state();
+        let start = state.held && state.no_more_child;
+        if start {
+            state.start_asked = true;
+            drop(state);
+            self.changed.notify_all();
+        }
+        start
+    }
+
+    /// Waits until `until` for the child that a Start asked for: true once the supervisor took
+    /// the ask and a child lives.
+    pub fn wait_for_the_asked_child(&self, until: Instant) -> bool {
+        let mut state = self.state();
+        loop {
+            if !state.start_asked && state.child_lives {
+                return true;
+            }
+            let left = until.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return false;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+    }
+
+    /// After the third end with 5 in a row no further child starts until a Start.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn no_more_child(&self) {
+        self.state().no_more_child = true;
+        self.changed.notify_all();
+    }
+
+    /// Takes the ask of a Start, if one waits: the press then asked for the next child.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn take_start(&self) -> bool {
+        let mut state = self.state();
+        let asked = state.start_asked;
+        if asked {
+            state.start_asked = false;
+            state.no_more_child = false;
+        }
+        asked
+    }
+
+    /// A child of the app started.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn child_started(&self) {
+        let mut state = self.state();
+        state.child_lives = true;
+        state.last_exit = None;
+        drop(state);
+        self.changed.notify_all();
+    }
+
+    /// The child of the moment ended, with its exit status where it has one; an end with 5
+    /// sets the hold.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn child_ended(&self, status: Option<i32>) {
+        let mut state = self.state();
+        state.child_lives = false;
+        state.last_exit = status;
+        if status == Some(halvo_control::exit::SOURCE_NOT_STOPPED) {
+            state.held = true;
+        }
+        drop(state);
+        self.changed.notify_all();
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -133,6 +309,7 @@ pub enum StatusView {
 struct WireView<'a> {
     service: Service,
     last_exit: Option<i32>,
+    hold: Option<HoldView>,
     platform: Platform,
     desired: Option<CaptureState>,
     capture: Option<Capture>,
@@ -160,6 +337,7 @@ impl Serialize for StatusView {
             StatusView::Running(view) => WireView {
                 service: Service::Running,
                 last_exit: None,
+                hold: view.hold,
                 platform: view.platform,
                 desired: Some(view.desired),
                 capture: Some(view.capture),
@@ -183,6 +361,7 @@ impl Serialize for StatusView {
             StatusView::NoStatus(view) => WireView {
                 service: view.service.word(),
                 last_exit: view.last_exit,
+                hold: view.hold,
                 platform: view.platform,
                 desired: None,
                 capture: None,
@@ -223,11 +402,20 @@ impl StatusView {
             platform,
             window: ObservationWindow::r1(),
             last_exit: None,
+            hold: None,
         })
     }
 
     pub fn without_status(service: NoStatusService) -> Self {
         StatusView::no_status(service, APP_PLATFORM)
+    }
+
+    /// The app's hold as this view says it.
+    pub fn hold(&self) -> Option<HoldView> {
+        match self {
+            StatusView::Running(view) => view.hold,
+            StatusView::NoStatus(view) => view.hold,
+        }
     }
 
     #[cfg(test)]
@@ -300,6 +488,7 @@ impl StatusView {
             screen_filter_excludes_app: f.screen_filter_excludes_app,
             texts: texts(status),
             ext: f.ext.clone(),
+            hold: None,
         }))
     }
 }

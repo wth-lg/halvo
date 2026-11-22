@@ -40,6 +40,15 @@ pub fn decode_sections(reply: Reply) -> Result<Reply, ClientError> {
     Ok(reply)
 }
 
+/// Whether this module serves `request`: a body of version 2 whose op is a request of this module, which is
+/// `owner_stream` alone. The server asks it before it takes a lock or starts the owner for a request, and for every
+/// request that it answers false for, [`dispatch_unknown`] writes nothing and returns false. A further request adds
+/// its op here.
+#[cfg(any(target_os = "macos", windows))]
+pub fn serves(request: &crate::proto::UnknownRequest) -> bool {
+    request.version() == VERSION && matches!(request.op(), Some(OwnerStream::OP))
+}
+
 /// The server's one call for a request that the v1 table does not hold. It gets the decoded request, the accepted
 /// connection, borrowed for the length of the call, and the owner's channel, and returns whether it answered the
 /// request on the connection itself. For a version other than 2, or an op that is no request of this module, it

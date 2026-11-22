@@ -2,15 +2,15 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Mutex, PoisonError};
 
 use halvo_control::model::CaptureState;
-use halvo_control::proto::Capture;
+use halvo_control::proto::{Capture, CaptureChange};
 use halvo_coord_app::{Agents, Attention};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::commands::capture::AppState;
-use crate::view_state::{NoStatusService, StatusView};
+use crate::commands::capture::{press, sort_change_answer, AppState, START_ANSWER_WAIT};
+use crate::view_state::{NoStatusService, Press, StatusView};
 
 const TRAY_ID: &str = "halvo-status";
 const TOGGLE_ID: &str = "toggle-capture";
@@ -25,6 +25,56 @@ pub struct TrayHandles<R: Runtime> {
     status_item: MenuItem<R>,
     toggle_item: MenuItem<R>,
     open_item: MenuItem<R>,
+    drawn: DrawnMenu,
+}
+
+/// The labels that the tray's menu shows since its last draw, so that a press on the toggle
+/// does what its item said.
+#[derive(Debug, Default)]
+pub struct DrawnMenu(std::sync::Mutex<Option<TrayLabels>>);
+
+/// What a press on the tray's toggle does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TogglePress {
+    /// The change that the drawn item named.
+    Send(CaptureChange),
+    /// The drawn item was not enabled.
+    Nothing,
+    /// The view or the hold changed since the draw: nothing is sent, and the menu is drawn anew,
+    /// so that the person reads the new line before a second press.
+    DrawAnew,
+}
+
+impl DrawnMenu {
+    fn drawn(&self) -> std::sync::MutexGuard<'_, Option<TrayLabels>> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// The menu now shows `labels`.
+    pub fn drew(&self, labels: TrayLabels) {
+        *self.drawn() = Some(labels);
+    }
+
+    /// The labels of the last draw.
+    #[cfg(test)]
+    pub fn last(&self) -> Option<TrayLabels> {
+        *self.drawn()
+    }
+
+    /// What a press does for `view`, the view of the moment, whose labels are `now`: the change
+    /// that the drawn item named where the drawn labels are those of the moment, so that a
+    /// Resume that ends the hold leaves only where the drawn status line named the cause;
+    /// otherwise nothing is sent and the menu is drawn anew (contracts.md C14 item 4).
+    pub fn press(&self, view: &StatusView, now: &TrayLabels) -> TogglePress {
+        match *self.drawn() {
+            Some(drawn) if drawn == *now => {
+                toggled(view, now).map_or(TogglePress::Nothing, TogglePress::Send)
+            }
+            _ => TogglePress::DrawAnew,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +88,21 @@ pub struct TrayLabels {
 }
 
 pub const NOT_RUNNING: &str = "Capture service not running";
+
+/// The tray's status line while the app holds capture off after its child ended itself with
+/// status 5: it names the cause, and a Resume of the toggle ends the hold only beside it.
+pub const HELD: &str = "Capture off: one part did not stop in time";
+
+/// The tray's status line and tooltip after a person's Pause whose answer does not read paused,
+/// until the next answer of a Pause or a Resume: the page's words for it.
+pub const PAUSE_NOT_DONE: &str =
+    "Capture was not paused. Try again, or quit Halvo to stop capture.";
+
+const PAUSED_TITLE: &str = "Halvo ❚❚";
+
+/// The tray's tooltip while the app holds capture off.
+pub const HELD_TOOLTIP: &str =
+    "Halvo shut its capture service down because one part of capture did not stop in time";
 
 pub const WINDOW_MISSING: &str = "Halvo's window is not available. Quit Halvo and start it again.";
 
@@ -82,25 +147,66 @@ pub type QuitWith<R> = fn(&AppHandle<R>);
 pub struct QuitNotice(pub std::sync::Mutex<Option<&'static str>>);
 
 pub fn shown<R: Runtime>(app: &AppHandle<R>, view: &StatusView) -> TrayLabels {
-    let labels = if let Some(missing) = app.try_state::<crate::app::WindowMissing>() {
-        without_window(labels(view), missing.restart_cures)
-    } else {
-        labels(view)
-    };
+    let window_missing = app
+        .try_state::<crate::app::WindowMissing>()
+        .map(|missing| missing.restart_cures);
     let notice = app.try_state::<QuitNotice>().and_then(|notice| {
         *notice
             .0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     });
-    match notice {
-        Some(sentence) => TrayLabels {
+    let pause_missed = app
+        .try_state::<AppState>()
+        .is_some_and(|state| state.views.pause_missed());
+    labels_with(view, window_missing, pause_missed, notice)
+}
+
+/// The tray's labels for `view`: where the window cannot open its line, unless the hold stands,
+/// whose line names its cause; after a Pause that did not happen its sentence, unless the hold
+/// stands, and never the paused title; a quit's notice over every line; and while the hold
+/// stands a toggle only where the status line names the cause (contracts.md C14 item 4).
+pub fn labels_with(
+    view: &StatusView,
+    window_missing: Option<bool>,
+    pause_missed: bool,
+    quit_notice: Option<&'static str>,
+) -> TrayLabels {
+    let held = view.hold().is_some();
+    let mut labels = labels(view);
+    if let Some(restart_cures) = window_missing {
+        labels = if held {
+            TrayLabels {
+                open_enabled: false,
+                ..labels
+            }
+        } else {
+            without_window(labels, restart_cures)
+        };
+    }
+    if pause_missed && !held {
+        labels = TrayLabels {
+            title: if labels.title == PAUSED_TITLE {
+                "Halvo"
+            } else {
+                labels.title
+            },
+            status_text: PAUSE_NOT_DONE,
+            tooltip: PAUSE_NOT_DONE,
+            ..labels
+        };
+    }
+    if let Some(sentence) = quit_notice {
+        labels = TrayLabels {
             status_text: sentence,
             tooltip: sentence,
             ..labels
-        },
-        None => labels,
+        };
     }
+    if held && labels.status_text != HELD {
+        labels.toggle_enabled = false;
+    }
+    labels
 }
 
 pub fn labels(view: &StatusView) -> TrayLabels {
@@ -142,7 +248,7 @@ pub fn labels(view: &StatusView) -> TrayLabels {
             ),
             Capture::Starting => line("Halvo", "Starting", "Halvo's capture is starting"),
             Capture::Pausing => line("Halvo", "Stopping capture", "Halvo's capture is stopping"),
-            Capture::Paused => line("Halvo ❚❚", "Paused", "Halvo capture is paused"),
+            Capture::Paused => line(PAUSED_TITLE, "Paused", "Halvo capture is paused"),
             Capture::NoIndicator => line(
                 "Halvo",
                 "Not capturing",
@@ -171,6 +277,22 @@ pub fn labels(view: &StatusView) -> TrayLabels {
                 labels.toggle_enabled = true;
             }
         }
+    }
+    if let Some(hold) = view.hold() {
+        labels = TrayLabels {
+            title: "Halvo",
+            tooltip: HELD_TOOLTIP,
+            status_text: HELD,
+            toggle_text: match hold.press {
+                Press::Resume => "Resume capture",
+                Press::Start => "Start capture",
+            },
+            toggle_enabled: match hold.press {
+                Press::Resume => matches!(view, StatusView::Running(_)),
+                Press::Start => true,
+            },
+            ..labels
+        };
     }
     labels
 }
@@ -216,11 +338,14 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayInstalled> {
     }
     let tray = builder.build(app)?;
 
+    let drawn = DrawnMenu::default();
+    drawn.drew(initial);
     app.manage(TrayHandles {
         tray,
         status_item,
         toggle_item,
         open_item,
+        drawn,
     });
     Ok(TrayInstalled(()))
 }
@@ -237,6 +362,7 @@ pub fn refresh<R: Runtime>(app: &AppHandle<R>, view: &StatusView) {
     let _ = handles.toggle_item.set_text(texts.toggle_text);
     let _ = handles.toggle_item.set_enabled(texts.toggle_enabled);
     let _ = handles.open_item.set_enabled(texts.open_enabled);
+    handles.drawn.drew(texts);
 }
 
 /// The count of agents that need the person, as the tray last took it (I10.3).
@@ -334,25 +460,46 @@ fn with_dot(icon: &Image<'_>) -> Image<'static> {
 
 fn toggle<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<AppState>();
-    let StatusView::Running(view) = state.views.view() else {
+    let Some(handles) = app.try_state::<TrayHandles<R>>() else {
         return;
     };
-    let next = match view.desired {
-        CaptureState::Running => CaptureState::Paused,
-        CaptureState::Paused => CaptureState::Running,
+    let view = state.views.view();
+    let views = std::sync::Arc::clone(&state.views);
+    let change = match handles.drawn.press(&view, &shown(app, &view)) {
+        TogglePress::Send(change) => change,
+        TogglePress::Nothing => return,
+        TogglePress::DrawAnew => {
+            std::thread::spawn(move || views.draw_now());
+            return;
+        }
     };
     let made = state.control.places().make();
-    let call = made.number();
     let control = std::sync::Arc::clone(&state.control);
-    let views = std::sync::Arc::clone(&state.views);
     std::thread::spawn(move || {
-        let answer = match next {
-            CaptureState::Paused => control.pause(made),
-            CaptureState::Running => control.resume(made),
-        };
+        let (answer, call) = press(control.as_ref(), &views, made, change, START_ANSWER_WAIT);
+        sort_change_answer(&views, change, &answer);
         take_toggle_answer(&views, call, control.places().next_number(), &answer);
         views.draw_now();
     });
+}
+
+/// The change that a press on the tray's toggle sends for `view` beside the labels `shown`:
+/// none where the toggle is not enabled; while the hold stands the Resume, which the toggle is
+/// enabled for only where its status line names the cause.
+fn toggled(view: &StatusView, shown: &TrayLabels) -> Option<CaptureChange> {
+    if !shown.toggle_enabled {
+        return None;
+    }
+    if view.hold().is_some() {
+        return Some(CaptureChange::Resume);
+    }
+    let StatusView::Running(view) = view else {
+        return None;
+    };
+    Some(match view.desired {
+        CaptureState::Running => CaptureChange::Pause,
+        CaptureState::Paused => CaptureChange::Resume,
+    })
 }
 
 /// The answer of the tray's own Pause or Resume, as the commands take theirs: an Ok status or a
@@ -500,6 +647,104 @@ mod tests {
             assert!(!labels(&StatusView::no_status(service, Platform::Macos))
                 .status_text
                 .contains("not running"));
+        }
+    }
+
+    fn answered(capture: Capture, desired: CaptureState) -> halvo_control::proto::DaemonStatus {
+        let mut f = sample_status(Platform::Macos).into_fields();
+        f.capture = capture;
+        f.desired = desired;
+        if capture == Capture::Paused {
+            for line in f.sources.iter_mut() {
+                if matches!(
+                    line.name,
+                    halvo_control::proto::SourceName::Foreground
+                        | halvo_control::proto::SourceName::Input
+                ) {
+                    line.state = halvo_control::proto::SourceState::Stopped { by_user: false };
+                }
+            }
+        }
+        halvo_control::proto::DaemonStatus::new(f).expect("the status holds together")
+    }
+
+    #[test]
+    fn a_pause_with_no_answer_reads_not_paused_in_the_command_and_in_the_tray() {
+        use crate::commands::capture::{capture_set, sort_change_answer};
+        use crate::poller::Views;
+        use halvo_control::client::ClientError;
+        use halvo_control::proto::{DaemonStatus, ErrorCode, ErrorReply};
+        use std::io::{Error, ErrorKind};
+        let rows = || -> Vec<(&str, Result<DaemonStatus, ClientError>)> {
+            vec![
+                (
+                    "no reply inside the deadline",
+                    Err(ClientError::Deadline { seconds: 10 }),
+                ),
+                (
+                    "a broken exchange",
+                    Err(ClientError::Io(Error::from(ErrorKind::ConnectionReset))),
+                ),
+                (
+                    "a reply that cannot be read",
+                    Err(ClientError::Protocol("a cut frame".to_owned())),
+                ),
+                (
+                    "a child that ended before its reply",
+                    Err(ClientError::Io(Error::from(ErrorKind::UnexpectedEof))),
+                ),
+                (
+                    "the typed busy of a life that is ending",
+                    Err(ClientError::ServiceEnding(
+                        ErrorReply::busy_of_an_ending_life(),
+                    )),
+                ),
+                (
+                    "the plain busy",
+                    Err(ClientError::Daemon(ErrorReply::new(
+                        ErrorCode::Busy,
+                        "busy",
+                    ))),
+                ),
+                (
+                    "a view with no status",
+                    Err(ClientError::Unreachable {
+                        endpoint: String::new(),
+                    }),
+                ),
+                (
+                    "a status that reads pausing",
+                    Ok(answered(Capture::Pausing, CaptureState::Paused)),
+                ),
+            ]
+        };
+        let pause = CaptureChange::Pause;
+        let (command, toggle) = (Views::default(), Views::default());
+        for (n, ((name, by_command), (_, by_toggle))) in rows().into_iter().zip(rows()).enumerate()
+        {
+            let call = 2 * n as u64;
+            if let Ok(set) = capture_set(&command, call, call + 1, pause, by_command) {
+                assert!(!set.reached, "{name}: the command's reached");
+            }
+            assert!(!sort_change_answer(&toggle, pause, &by_toggle), "{name}");
+            take_toggle_answer(&toggle, call, call + 1, &by_toggle);
+            for views in [&command, &toggle] {
+                let shown = labels_with(&views.view(), None, views.pause_missed(), None);
+                assert_eq!(shown.status_text, PAUSE_NOT_DONE, "{name}");
+                assert_eq!(shown.tooltip, PAUSE_NOT_DONE, "{name}");
+                assert_ne!(shown.title, PAUSED_TITLE, "{name}");
+            }
+        }
+        let paused = || Ok(answered(Capture::Paused, CaptureState::Paused));
+        let set = capture_set(&command, 100, 101, pause, paused()).expect("a status");
+        assert!(set.reached, "a Pause that happened");
+        assert!(sort_change_answer(&toggle, pause, &paused()));
+        for views in [&command, &toggle] {
+            let shown = labels_with(&views.view(), None, views.pause_missed(), None);
+            assert_ne!(
+                shown.status_text, PAUSE_NOT_DONE,
+                "the next answer ends the line"
+            );
         }
     }
 
