@@ -1013,7 +1013,7 @@ const DATA_DIR_MAKER: &str = "for_current_user";
 const ACCOUNT_MAKER: &str = "for_account";
 const SYSTEM_ACCOUNT: &str = "SystemAccount";
 
-const MAKER_USES: [(&str, usize, &str); 4] = [
+const MAKER_USES: [(&str, usize, &str); 5] = [
     (
         "crates/halvo-agent-gate/src/task.rs",
         1,
@@ -1033,6 +1033,11 @@ const MAKER_USES: [(&str, usize, &str); 4] = [
         "src-tauri/src/main.rs",
         2,
         "the app's data directory and login item without --data-dir",
+    ),
+    (
+        "src-tauri/tests/run_value_logon.rs",
+        1,
+        "the helper of check 36 runs as the standard account that the check makes on a hosted runner, and it stops unless the folder's path holds that account's name",
     ),
 ];
 

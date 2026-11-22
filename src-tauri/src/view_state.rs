@@ -380,8 +380,9 @@ impl Hold {
         self.state().removing = stands;
     }
 
-    /// What the consent click read of its write of the login item: whether the plist stands
-    /// written; every view says it from then on.
+    /// Whether the login item stands written: what the consent click read of its write, the
+    /// plist on macOS and the Run value on Windows, and on Windows false also where a start's
+    /// read or write of the value failed; every view says it from then on.
     pub fn login_item_written(&self, written: bool) {
         self.state().login_item_written = Some(written);
     }

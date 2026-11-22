@@ -32,3 +32,12 @@ block2 = "0.6.2"
 tauri = { version = "2", features = ["test", "unstable"] }
 halvo-control = { path = "../crates/halvo-control", features = ["test-support"] }
 halvo-test-dir = { path = "../crates/halvo-test-dir" }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }

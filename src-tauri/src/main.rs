@@ -13,7 +13,7 @@ mod daemon_child;
 mod engine;
 mod instance;
 mod launch;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows, test))]
 mod login_item;
 mod poller;
 #[cfg(any(target_os = "macos", windows, test))]
@@ -161,12 +161,24 @@ fn run(background: bool, given: Option<PathBuf>) {
     let login_dir = data_dir.clone();
     #[cfg(target_os = "macos")]
     let offline_dir = data_dir.clone();
-    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
+    #[cfg(windows)]
+    let start_dir = data_dir.clone();
+    #[cfg_attr(not(any(target_os = "macos", windows)), allow(unused_mut))]
     let mut state = commands::capture::AppState::with_control(control, data_dir, open_pane);
     #[cfg(target_os = "macos")]
     {
         state.login_item = login_item::at_the_click(given.is_some(), the_login_item);
     }
+    #[cfg(windows)]
+    {
+        state.login_item = login_item::run_value::at_the_click(
+            given.is_some(),
+            the_start_value,
+            Arc::new(login_item::run_value::Registry),
+        );
+    }
+    #[cfg(windows)]
+    start_the_run_value(start_dir.as_ref(), given.is_some(), &state.views);
     #[cfg(any(target_os = "macos", windows, test))]
     let views = Arc::clone(&state.views);
     #[cfg(target_os = "macos")]
@@ -256,6 +268,25 @@ fn the_login_item() -> Option<login_item::LoginItem> {
         None,
     )
     .ok()
+}
+
+/// The start step of the Run value, on main's thread before the app is built, so that no press
+/// on Start meets it; a call that failed is one line on the standard error.
+#[cfg(windows)]
+fn start_the_run_value(data_dir: Option<&DataDir>, given: bool, views: &poller::Views) {
+    use login_item::run_value::{at_start, AtStart, Registry};
+    let Some(data_dir) = data_dir else {
+        return;
+    };
+    if let AtStart::Failed(failed) = at_start(views, data_dir, given, the_start_value, &Registry) {
+        eprintln!("halvo: {failed}");
+    }
+}
+
+/// The Run value of the app's own path; none where that path cannot be read or makes no value.
+#[cfg(windows)]
+fn the_start_value() -> Option<halvo_control::service::StartValueSpec> {
+    halvo_control::service::StartValueSpec::new(&std::env::current_exe().ok()?).ok()
 }
 
 #[cfg(target_os = "macos")]
