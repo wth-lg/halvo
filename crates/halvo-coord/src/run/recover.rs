@@ -590,6 +590,7 @@ where
             Member {
                 facts,
                 session: f.agent.session,
+                window: f.agent.window,
             }
         })
         .collect();

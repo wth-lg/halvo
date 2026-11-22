@@ -129,6 +129,7 @@ pub fn world_with(spec: &[A], limits: Limits) -> World {
             state: AgentState::Active,
             slots: Vec::new(),
             session: true,
+            window: false,
             last: Some(record.clone()),
             unknown: Vec::new(),
             refused_run: None,
@@ -153,6 +154,7 @@ pub fn world_with(spec: &[A], limits: Limits) -> World {
                 active_refused: false,
             },
             session: true,
+            window: false,
         });
     }
     let seen = ports.tried.borrow().len();

@@ -1126,7 +1126,8 @@ fn past_run(record: &Value) -> Option<PastRun> {
 /// One entry of the reply of `list_agents`; its `refused_run` is read as `last` is: null gives none, and any other
 /// value is a run id or the entry is not read (I6.1; ruling RD-73 4.5). Its `last_cause` is a name of the core's list
 /// `LastCause` or none: null, a missing key and any other value, a name of the store's longer list among them, give
-/// none and never stop the read of the entry (the ruling of 2026-11-22 on `last_cause`).
+/// none and never stop the read of the entry (the ruling of 2026-11-22 on `last_cause`). Its `window` is read as
+/// `session` is: `yes` as yes, any other text as no, and an entry without it is not read (r3 U5.15).
 fn agent_of(entry: &Value) -> Option<Agent<AgentConfig>> {
     let config = AgentConfig::parse(&entry["config"].to_string())?;
     let last = match &entry["last"] {
@@ -1160,6 +1161,7 @@ fn agent_of(entry: &Value) -> Option<Agent<AgentConfig>> {
             .map(|s| Name::parse(s.as_str()?).ok())
             .collect::<Option<_>>()?,
         session: entry["session"].as_str()? == "yes",
+        window: entry["window"].as_str()? == "yes",
         last,
         unknown,
         refused_run,

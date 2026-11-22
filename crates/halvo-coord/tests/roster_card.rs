@@ -77,6 +77,7 @@ fn owner() -> (Ports<Config>, WorkflowId, AgentId) {
         state: AgentState::Active,
         slots: f.slots.clone(),
         session: false,
+        window: false,
         last: f.runs.first().cloned(),
         unknown: vec![],
         refused_run: None,
