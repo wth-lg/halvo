@@ -324,19 +324,20 @@ fn a_run_fills_a_form_and_reads_it_back() {
     assert!(!profile_of(&seen, &sup.run).0.exists());
 }
 
-/// A name field and a password field that holds `SECRET`, each of which, at each input, asks its own origin for
-/// `/typed` by a synchronous GET, a request that changes no state and that the rule lets through to a bound origin,
-/// so that the fixture sees each act on a field.
-const TYPED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" value="halvo-runner-secret-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+/// A name field, a password field that holds `SECRET`, and a field that becomes a password field when it is
+/// focused, each of which, at each input, asks its own origin for `/typed` by a synchronous GET, a request that
+/// changes no state and that the rule lets through to a bound origin, so that the fixture sees each act on a field.
+const TYPED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" value="halvo-runner-secret-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="turns" aria-label="Code" onfocus="this.type = 'password'" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
 
 /// The value of the password field of `TYPED`.
 const SECRET: &str = "halvo-runner-secret-marker";
 
 /// U4.1w part 1 (3): a step whose `post` fails after it acted, a step whose locator finds no control, a step whose
-/// `pre` fails, and a step stored with `credential` `no` whose locator finds a password field each log one
-/// `step_failed` row with the cause `step_failed`, never `timeout`, and the run is handed back; the step with the
-/// failing `pre` and the one on the password field act on nothing, the one with the failing `post` acted, and no
-/// frame and no line of the runner holds the password field's value (A4.3: the fresh read marks it credential).
+/// `pre` fails, a step stored with `credential` `no` whose locator finds a password field, and one whose field
+/// becomes a password field at the focus that the fill makes each log one `step_failed` row with the cause
+/// `step_failed`, never `timeout`, and the run is handed back; the step with the failing `pre` and the two on a
+/// password field act on nothing, the one with the failing `post` acted, and no frame and no line of the runner
+/// holds the password field's value (A4.3: the fresh read marks it credential, before the act and after its focus).
 #[test]
 fn a_post_condition_that_fails_logs_step_failed() {
     let Some(browser) = hosted("a_post_condition_that_fails_logs_step_failed") else {
@@ -395,6 +396,11 @@ fn a_post_condition_that_fails_logs_step_failed() {
         (
             254,
             step(2, "fill", Some("secret"), &[konst("text", "Ada")], &[], &[]),
+            false,
+        ),
+        (
+            255,
+            step(2, "fill", Some("turns"), &[konst("text", "Ada")], &[], &[]),
             false,
         ),
     ];

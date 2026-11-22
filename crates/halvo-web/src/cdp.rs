@@ -1794,6 +1794,35 @@ impl Executor {
         }
         Ok(0)
     }
+
+    /// `fill` of a control that is no credential field after the focus that the fill makes: the
+    /// ref is focused, its mark read again (`focus_unless_credential`), and only then filled, so
+    /// that a field that becomes a password field when it is focused gets no text.
+    pub async fn fill_unless_credential(&self, reference: &str, text: &str) -> Res<()> {
+        self.focus_unless_credential(reference).await?;
+        self.fill(reference, text).await
+    }
+
+    /// `press` of a control that is no credential field after the focus that the press makes, read
+    /// as `fill_unless_credential` reads it.
+    pub async fn press_unless_credential(&self, reference: &str, key: &str) -> Res<()> {
+        self.focus_unless_credential(reference).await?;
+        self.press(reference, key).await
+    }
+
+    /// Focuses the ref and reads its credential mark after the focus, the mark alone
+    /// (`CREDENTIAL_FN`); refused with the cause `credential` where it reads credential now.
+    async fn focus_unless_credential(&self, reference: &str) -> Res<()> {
+        let t = self.target(reference)?;
+        self.focus(&t).await?;
+        if self.is_credential(&t.place, &t.node).await? {
+            return Err(Fault::new(
+                "credential",
+                "a credential field after its focus",
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -305,6 +305,18 @@ async fn read_for(executor: &mut Executor, cond: &Cond) -> cdp::Res<Read> {
     }
 }
 
+/// The value that `extract` keeps of the text that it read: the text for `parse` `text`, the amount for `amount`;
+/// a fault for a text that is no amount and for another word.
+fn parsed(parse: &str, text: String) -> Result<Value, ()> {
+    match parse {
+        "text" => Ok(Value::Text(text)),
+        "amount" => halvo_web::extract_amount(&text)
+            .map(|minor| Value::Number(minor as f64 / 100.0))
+            .ok_or(()),
+        _ => Err(()),
+    }
+}
+
 /// Reads each condition fresh, in order, and refuses at the first that does not hold.
 async fn hold(executor: &mut Executor, conds: &[(&Cond, Option<String>)]) -> cdp::Res<()> {
     for (cond, arg) in conds {
@@ -316,7 +328,9 @@ async fn hold(executor: &mut Executor, conds: &[(&Cond, Option<String>)]) -> cdp
     Ok(())
 }
 
-/// Carries out the act on the page; the text of the control that `extract` reads.
+/// Carries out the act on the page; the text of the control that `extract` reads. `fill` and `press`, which focus
+/// the control before they send, read its mark again after that focus and send nothing to a control that reads
+/// credential then (`Executor::fill_unless_credential`, `Executor::press_unless_credential`).
 async fn carry(executor: &mut Executor, act: &Act<'_>) -> cdp::Res<Option<String>> {
     match act {
         Act::Open(url) => executor.open(url).await?,
@@ -331,7 +345,7 @@ async fn carry(executor: &mut Executor, act: &Act<'_>) -> cdp::Res<Option<String
         }
         Act::Fill(target, text) => {
             let reference = one_control(executor, target).await?;
-            executor.fill(&reference, text).await?;
+            executor.fill_unless_credential(&reference, text).await?;
         }
         Act::Select(target, option) => {
             let reference = one_control(executor, target).await?;
@@ -339,7 +353,7 @@ async fn carry(executor: &mut Executor, act: &Act<'_>) -> cdp::Res<Option<String
         }
         Act::Press(target, key) => {
             let reference = one_control(executor, target).await?;
-            executor.press(&reference, key).await?;
+            executor.press_unless_credential(&reference, key).await?;
         }
         Act::Upload(target, file) => {
             let reference = one_control(executor, target).await?;
@@ -576,21 +590,18 @@ impl Runner {
             _ => None,
         };
         let web = self.browser(loaded)?;
-        let done = web.carry_out(&pre, &act, &post);
+        let done = web
+            .carry_out(&pre, &act, &post)
+            .and_then(|read| match (&as_parsed, read) {
+                (Some((_, parse)), Some(text)) => parsed(parse, text).map(Some),
+                _ => Ok(None),
+            });
         let record = if done.is_err() || act.on_a_control() {
             web.record_after_a_fault()
         } else {
             web.record()
         };
-        let read = end_of_step(done, &record)?;
-        if let (Some((name, parse)), Some(text)) = (as_parsed, read) {
-            let value = match parse.as_str() {
-                "text" => Value::Text(text),
-                "amount" => halvo_web::extract_amount(&text)
-                    .map(|minor| Value::Number(minor as f64 / 100.0))
-                    .ok_or_else(failed)?,
-                _ => return Err(failed()),
-            };
+        if let (Some((name, _)), Some(value)) = (as_parsed, end_of_step(done, &record)?) {
             self.kept.insert(name, vec![vec![value]]);
         }
         Ok(())
