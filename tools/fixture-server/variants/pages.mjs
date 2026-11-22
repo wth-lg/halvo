@@ -210,7 +210,12 @@ ${button(label, opts, 'frame', base)}
   );
 }
 
-export function charged(kind, opts) {
+// The page after a charge names the amount charged, alone in its element, unless the variant
+// charged_no_amount is on (r3 U4.1w-2: the runner reads the page after the reply).
+export function charged(kind, amount, opts) {
   const heading = kind === 'bill' ? 'Payment received' : 'Order placed';
-  return doc(heading, `<h1>${heading}</h1>`);
+  const named = opts.variants.includes('charged_no_amount')
+    ? ''
+    : `\n<p>Amount charged <span data-testid="amount-charged">${money(amount)}</span></p>`;
+  return doc(heading, `<h1>${heading}</h1>${named}`);
 }

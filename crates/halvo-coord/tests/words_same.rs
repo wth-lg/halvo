@@ -296,6 +296,8 @@ fn expected_keys() -> BTreeSet<String> {
         "line.run.answer_lost",
         "line.problem.sign_in_refused",
         "line.problem.no_browser",
+        "line.problem.browser_start",
+        "line.problem.no_channel",
     ] {
         k.insert(key.to_owned());
     }
@@ -462,7 +464,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 328);
+    assert_eq!(seen.len(), 330);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
