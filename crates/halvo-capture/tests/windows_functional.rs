@@ -6749,13 +6749,19 @@ fn form_lines(test: &str, run: &str, output: &FormOutput) -> BTreeMap<String, St
         {
             say(test, format!("form run={run} {line}"));
         } else {
-            say(test, format!("form run={run} standard_account_line=withheld"));
+            say(
+                test,
+                format!("form run={run} standard_account_line=withheld"),
+            );
         }
     }
     if output.stdout.lines().any(|line| line.starts_with("FAIL ")) {
         say(test, format!("form run={run} refused=yes"));
     }
-    say(test, format!("form run={run} exit={}", code_text(output.code)));
+    say(
+        test,
+        format!("form run={run} exit={}", code_text(output.code)),
+    );
     let prefix = format!("TF {SECOND_ACCOUNT_TAG} ");
     output
         .stdout
@@ -6768,7 +6774,10 @@ fn form_lines(test: &str, run: &str, output: &FormOutput) -> BTreeMap<String, St
 }
 
 fn got(fields: &BTreeMap<String, String>, key: &str) -> String {
-    fields.get(key).cloned().unwrap_or_else(|| "none".to_string())
+    fields
+        .get(key)
+        .cloned()
+        .unwrap_or_else(|| "none".to_string())
 }
 
 fn held_name_stands(name: &str, holder: &mut FormRun) -> bool {
@@ -6816,7 +6825,10 @@ fn daemon_refuses_a_second_account() {
     let stamp = format!("{}-{}", std::process::id(), unix_millis(SystemTime::now()));
     let dir = base.join(["halvo-wf-second-account-", &stamp].concat());
     let held_dir = base.join(["halvo-wf-second-account-held-", &stamp].concat());
-    let dir_text = dir.to_str().expect("a data directory that is valid text").to_string();
+    let dir_text = dir
+        .to_str()
+        .expect("a data directory that is valid text")
+        .to_string();
 
     let mut daemon = ServiceRun::start(&dir);
     let Some(status) = status_with_store_open(&dir) else {
@@ -6835,15 +6847,17 @@ fn daemon_refuses_a_second_account() {
     );
     check(&mut faults, platform_windows, "control");
 
-    let root_files: Vec<(std::path::PathBuf, String)> =
-        must(std::fs::read_dir(dir.join("roots")), "the listing of the roots by the runner")
-            .filter_map(Result::ok)
-            .filter_map(|entry| {
-                let name = entry.file_name().into_string().ok()?;
-                let id = name.strip_suffix(".root")?.to_string();
-                Some((entry.path(), id))
-            })
-            .collect();
+    let root_files: Vec<(std::path::PathBuf, String)> = must(
+        std::fs::read_dir(dir.join("roots")),
+        "the listing of the roots by the runner",
+    )
+    .filter_map(Result::ok)
+    .filter_map(|entry| {
+        let name = entry.file_name().into_string().ok()?;
+        let id = name.strip_suffix(".root")?.to_string();
+        Some((entry.path(), id))
+    })
+    .collect();
     assert!(
         root_files.len() == 1,
         "the roots of the data directory hold {} root files and not one",
@@ -6865,9 +6879,18 @@ fn daemon_refuses_a_second_account() {
         ),
         "the copy of the test binary",
     );
-    must(std::fs::copy(SERVICE_RUN_BIN, &ctl_exe), "the copy of the daemon");
-    must(std::fs::copy(&root_file, &root_copy), "the copy of the root file");
-    let copy_bytes = must(std::fs::read(&root_copy), "the read of the root copy by the runner");
+    must(
+        std::fs::copy(SERVICE_RUN_BIN, &ctl_exe),
+        "the copy of the daemon",
+    );
+    must(
+        std::fs::copy(&root_file, &root_copy),
+        "the copy of the root file",
+    );
+    let copy_bytes = must(
+        std::fs::read(&root_copy),
+        "the read of the root copy by the runner",
+    );
     let runner_unprotects = unprotected_len(&copy_bytes, root_id.as_bytes());
     say(
         test,
@@ -6900,15 +6923,24 @@ fn daemon_refuses_a_second_account() {
             ("runner_pipe", &runner_pipe),
             ("default_pipe", &default_pipe),
             ("runner_user", &runner_user),
-            ("ctl", ctl_exe.to_str().expect("a copy path that is valid text")),
-            ("root_copy", root_copy.to_str().expect("a copy path that is valid text")),
+            (
+                "ctl",
+                ctl_exe.to_str().expect("a copy path that is valid text"),
+            ),
+            (
+                "root_copy",
+                root_copy.to_str().expect("a copy path that is valid text"),
+            ),
             ("root_id", &root_id_text),
         ],
     );
     let granted = grant_to_users(shared.path());
     say(
         test,
-        format!("shared_folder copies=3 read_and_execute_granted={}", yes_no(granted)),
+        format!(
+            "shared_folder copies=3 read_and_execute_granted={}",
+            yes_no(granted)
+        ),
     );
     check(&mut faults, granted, "grant");
 
@@ -7022,9 +7054,15 @@ fn daemon_refuses_a_second_account() {
         "probe_4_control",
     );
 
-    must(std::fs::create_dir_all(&held_dir), "the make of the second data directory");
+    must(
+        std::fs::create_dir_all(&held_dir),
+        "the make of the second data directory",
+    );
     let held_pipe = runner_pipe_name(&held_dir);
-    write_request(shared.path(), &[("mode", "hold"), ("runner_pipe", &held_pipe)]);
+    write_request(
+        shared.path(),
+        &[("mode", "hold"), ("runner_pipe", &held_pipe)],
+    );
     let mut holder = FormRun::helper(&probe_exe);
     let stands = held_name_stands(&held_pipe, &mut holder);
     say(test, format!("probe=5 held_name_stands={}", yes_no(stands)));
@@ -7115,7 +7153,11 @@ fn daemon_refuses_a_second_account() {
             && ended == Some(halvo_control::exit::CLEAN),
         "stop",
     );
-    assert!(faults.is_empty(), "these parts failed: {}", faults.join(" "));
+    assert!(
+        faults.is_empty(),
+        "these parts failed: {}",
+        faults.join(" ")
+    );
 }
 
 #[test]
@@ -7176,8 +7218,7 @@ fn administrators_member() -> &'static str {
 fn open_pipe(name: &str, access: u32) -> Result<(), u32> {
     use windows::Win32::Foundation::{CloseHandle, ERROR_PIPE_BUSY};
     use windows::Win32::Storage::FileSystem::{
-        CreateFileW, FILE_SHARE_NONE, OPEN_EXISTING, SECURITY_IDENTIFICATION,
-        SECURITY_SQOS_PRESENT,
+        CreateFileW, FILE_SHARE_NONE, OPEN_EXISTING, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
     };
     let name = wide_nul(name);
     let end = Instant::now() + Duration::from_secs(10);
@@ -7271,8 +7312,7 @@ fn second_account_probes(request: &BTreeMap<String, String>) {
         ),
     }
 
-    let Some(root_id) = halvo_capture::custody::RootId::parse(requested(request, "root_id"))
-    else {
+    let Some(root_id) = halvo_capture::custody::RootId::parse(requested(request, "root_id")) else {
         panic!("the request of the second account names no root id");
     };
     match std::fs::read(requested(request, "root_copy")) {
@@ -7312,8 +7352,7 @@ fn default_descriptor_pipe(name: &str) -> Result<std::os::windows::io::OwnedHand
     use std::os::windows::io::{FromRawHandle, OwnedHandle};
     use windows::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
     use windows::Win32::System::Pipes::{
-        CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE,
-        PIPE_WAIT,
+        CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
     };
     let name = wide_nul(name);
     // SAFETY: `name` ends in a NUL and outlives the call; no security
@@ -7348,8 +7387,7 @@ fn hold_pipe(name: &str) -> Result<std::os::windows::io::OwnedHandle, u32> {
     use windows::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
     use windows::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
     use windows::Win32::System::Pipes::{
-        CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE,
-        PIPE_WAIT,
+        CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
     };
     let sddl = wide_nul("D:(A;;GA;;;WD)");
     let mut descriptor = PSECURITY_DESCRIPTOR::default();
