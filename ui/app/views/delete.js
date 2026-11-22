@@ -60,7 +60,7 @@
     if (s && s.service === "not_running") return true;
     if (!s || s.service !== "running" || !s.store) return false;
     var store = s.store;
-    if (store.state === "deleting") return false;
+    if (store.state === "deleting" && store.delete_unfinished !== true) return false;
     if (store.error === "locked") return false;
     if (store.state === "opening" && !store.id) return false;
     return true;

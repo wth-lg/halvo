@@ -137,6 +137,214 @@ fn stop(dir: &Path, daemon: &mut Daemon) {
     );
 }
 
+fn store_open(status: &str) -> bool {
+    status.lines().any(|line| line == "store=open")
+}
+
+fn offline_delete(dir: &Path) -> Command {
+    let mut command = Command::new(BIN);
+    command.args(["--delete-all", "--data-dir"]).arg(dir);
+    command
+}
+
+/// The root id that store.key of `dir` names, a key file under DPAPI.
+fn root_id_of(dir: &Path) -> String {
+    let key_file = dir.join("store").join("store.key");
+    let key: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(&key_file).unwrap_or_else(|e| panic!("{}: {e}", key_file.display())),
+    )
+    .unwrap();
+    assert_eq!(key["custody_kind"], "dpapi", "{key}");
+    key["root_id"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{key}"))
+        .to_owned()
+}
+
+fn files_under(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+    for entry in entries.map(Result::unwrap) {
+        if entry.file_type().unwrap().is_dir() {
+            found.extend(files_under(&entry.path()));
+        } else {
+            found.push(entry.path());
+        }
+    }
+    found
+}
+
+/// The store that a service run made in `dir` and left when it stopped, with
+/// a file in each of the two rows that the delete's walk removes, derived and
+/// agents; answers the store's root id.
+fn a_store_that_a_service_run_left(dir: &Path) -> String {
+    let mut daemon = start(dir);
+    first_status(dir, &daemon, store_open);
+    std::fs::create_dir_all(dir.join("derived")).unwrap();
+    std::fs::write(dir.join("derived").join("master.key"), [7_u8; 64]).unwrap();
+    std::fs::create_dir_all(dir.join("agents")).unwrap();
+    std::fs::write(dir.join("agents").join("kept.txt"), b"what an agent kept").unwrap();
+    stop(dir, &mut daemon);
+    root_id_of(dir)
+}
+
+/// What stands in `dir` of the store, its key, its root, the intent and the
+/// rows that the delete removes. The store's writer lock on Windows, an empty
+/// file that stays after a delete, is not counted while it is empty.
+fn what_stays_of_the_store(dir: &Path) -> Vec<PathBuf> {
+    let lock = dir.join("store").join("writer.lock");
+    let mut stays: Vec<PathBuf> = files_under(&dir.join("store"))
+        .into_iter()
+        .filter(|file| *file != lock || std::fs::metadata(file).map_or(true, |m| m.len() > 0))
+        .collect();
+    stays.extend(files_under(&dir.join("roots")));
+    for name in ["derived", "agents", "delete-all.intent"] {
+        if std::fs::symlink_metadata(dir.join(name)).is_ok() {
+            stays.push(dir.join(name));
+        }
+    }
+    stays
+}
+
+/// The two lines of a whole offline delete, as on a Mac: `data_dir=` and the
+/// `deleted` line, which begins with `begins` and leaves no entry and the
+/// intent written.
+fn a_whole_delete(dir: &Path, output: &Output, begins: &str) {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut lines = stdout.lines();
+    let shown = halvo_control::paths::one_line(&dir.to_string_lossy());
+    assert_eq!(
+        lines.next(),
+        Some(format!("data_dir={shown}").as_str()),
+        "{}",
+        text(output)
+    );
+    let deleted = lines.next().unwrap_or_else(|| panic!("{}", text(output)));
+    assert!(deleted.starts_with(begins), "{}", text(output));
+    for part in [
+        " root_destroyed=yes ",
+        " files_left=0 database_left=no not_followed=0 ",
+        " entries_left=0 ",
+    ] {
+        assert!(deleted.contains(part), "{part}: {}", text(output));
+    }
+    assert!(deleted.ends_with(" intent=written"), "{}", text(output));
+    assert_eq!(lines.next(), None, "{}", text(output));
+}
+
+#[test]
+fn the_offline_delete_on_windows_leaves_nothing_of_the_store_its_key_and_the_rows() {
+    let dir = scratch_data_dir("offline");
+    let old_root = a_store_that_a_service_run_left(&dir);
+
+    let deleted = offline_delete(&dir)
+        .output()
+        .expect("the offline delete runs");
+    assert_eq!(deleted.status.code(), Some(0), "{}", text(&deleted));
+    assert!(deleted.stderr.is_empty(), "{}", text(&deleted));
+    a_whole_delete(&dir, &deleted, "deleted segments_shredded=");
+    let opened = String::from_utf8_lossy(&deleted.stdout)
+        .lines()
+        .nth(1)
+        .and_then(|line| line.strip_prefix("deleted segments_shredded="))
+        .and_then(|rest| rest.split(' ').next())
+        .is_some_and(|count| count.parse::<u64>().is_ok());
+    assert!(
+        opened,
+        "the store did not open under DPAPI for the delete: {}",
+        text(&deleted)
+    );
+    assert_eq!(what_stays_of_the_store(&dir), Vec::<PathBuf>::new());
+
+    let mut daemon = start(&dir);
+    first_status(&dir, &daemon, store_open);
+    stop(&dir, &mut daemon);
+    let new_root = root_id_of(&dir);
+    assert_ne!(new_root, old_root);
+    let roots = files_under(&dir.join("roots"));
+    assert_eq!(roots.len(), 1, "{roots:?}");
+    assert!(
+        roots[0]
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with(&new_root)),
+        "{roots:?} for the root id {new_root}"
+    );
+}
+
+#[test]
+fn the_offline_delete_on_windows_deletes_nothing_while_a_service_holds_the_directory() {
+    let dir = scratch_data_dir("held");
+    let mut daemon = start(&dir);
+    first_status(&dir, &daemon, store_open);
+    std::fs::create_dir_all(dir.join("derived")).unwrap();
+    std::fs::write(dir.join("derived").join("master.key"), [7_u8; 64]).unwrap();
+
+    let refused = offline_delete(&dir)
+        .output()
+        .expect("the offline delete runs");
+    assert_eq!(refused.status.code(), Some(75), "{}", text(&refused));
+    let shown = halvo_control::paths::one_line(&dir.to_string_lossy());
+    assert_eq!(
+        String::from_utf8_lossy(&refused.stdout),
+        format!("data_dir={shown}\n"),
+        "{}",
+        text(&refused)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&refused.stderr),
+        "halvo-capture: another process holds the data directory or its store; this request deleted nothing\n",
+        "{}",
+        text(&refused)
+    );
+    first_status(&dir, &daemon, store_open);
+    stop(&dir, &mut daemon);
+
+    let root = root_id_of(&dir);
+    let roots = files_under(&dir.join("roots"));
+    assert_eq!(roots.len(), 1, "{roots:?}");
+    assert!(
+        roots[0]
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with(&root)),
+        "{roots:?} for the root id {root}"
+    );
+    assert_eq!(
+        std::fs::read(dir.join("derived").join("master.key")).unwrap(),
+        [7_u8; 64]
+    );
+    assert!(!dir.join("delete-all.intent").exists());
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn where_the_exclusion_is_refused_the_offline_delete_opens_no_store_and_leaves_nothing() {
+    use halvo_capture::daemon::delete_all::REFUSE_THE_EXCLUSION;
+    let dir = scratch_data_dir("refused");
+    a_store_that_a_service_run_left(&dir);
+
+    let deleted = offline_delete(&dir)
+        .env(REFUSE_THE_EXCLUSION, "1")
+        .output()
+        .expect("the offline delete runs");
+    assert_eq!(deleted.status.code(), Some(0), "{}", text(&deleted));
+    assert_eq!(
+        String::from_utf8_lossy(&deleted.stderr),
+        "halvo-capture: WerAddExcludedApplication answered 0x80070005: the delete is not out of Windows Error Reporting, so it opens no store and deletes by the directory alone\n",
+        "{}",
+        text(&deleted)
+    );
+    a_whole_delete(
+        &dir,
+        &deleted,
+        "deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=yes ",
+    );
+    assert_eq!(what_stays_of_the_store(&dir), Vec::<PathBuf>::new());
+}
+
 #[test]
 fn a_service_run_on_windows_answers_status_over_its_pipe_and_stops_on_request() {
     let dir = scratch_data_dir("status");
@@ -327,7 +535,6 @@ fn a_release_build_on_windows_answers_the_gate_modes_with_usage() {
         ][..],
         &["--verify-deletion", "--store-dir", s][..],
         &["--delete-all", "--store-dir", s][..],
-        &["--delete-all", "--data-dir", d][..],
         &["--self-check", "run-loop"][..],
         &["--service-run", "--data-dir", d, "--scripted-sources"][..],
     ] {

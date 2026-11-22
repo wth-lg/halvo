@@ -6,17 +6,17 @@ use crate::guard::EffectState;
 use crate::items::ConfirmState;
 use crate::schedule::{finished, holds, needs_person, next_slot, slot_due, Hold};
 use crate::types::{
-    Answered, Card, CardEffect, CardLine, CardRun, Cause, Cleared, ConfigView, Control,
+    Answered, BindResult, Card, CardEffect, CardLine, CardRun, Cause, Cleared, ConfigView, Control,
     ControlText, Doing, EffectAnswer, Event, Facts, FullWorkflow, HoldSetCause, ItemId, ItemKind,
     Limits, LineKey, LivePhase, PastEffect, PastRun, Permission, Raised, Row, RunEnd, RunHistory,
-    RunId, Runtime, StatusLine, System, Tier, Trigger, What,
+    RunId, Runtime, SignInAnswer, StatusLine, System, Tier, Trigger, What,
 };
 use crate::types::{Ask, AskAct, AskControl, AskEffect, AskKind, Class, Kept};
 use crate::words;
 
 /// The status of the agent of `facts` with the case of its line (I1.3): the first row that fits
 /// of an open item that waits for the person, the holds `not_yet`, `off`, `sign_in_refused`
-/// (ruling RD-73 4.3) and `failures`, a live
+/// (ruling RD-73 4.3), `site_declined` (r4 U2.4a) and `failures`, a live
 /// run with its phase, a queued start, a newest run that the agent store has not ended, a last
 /// run that ended with a cause of the failure class, said by the sentence of the facts'
 /// `last_cause` where they hold one, a day with `starts_per_day` starts, and the
@@ -60,6 +60,7 @@ pub fn status_of<C: ConfigView>(
         (Hold::NotYet, StatusLine::NotYet),
         (Hold::Off, StatusLine::Off),
         (Hold::SignInRefused, StatusLine::SignInRefused),
+        (Hold::SiteDeclined, StatusLine::SiteDeclined),
         (Hold::Failures, StatusLine::Failures),
         (Hold::Check, StatusLine::NeedsYou(ItemKind::Check)),
     ] {
@@ -202,8 +203,8 @@ pub fn names<C>(
 }
 
 /// The controls of a row (I2.5), in the order of `Control`: `run_now` while no hold but
-/// `failures` and `sign_in_refused` stands and no run is live or queued; `stop` exactly while a
-/// run is live;
+/// `failures`, `sign_in_refused` and `site_declined` stands and no run is live or queued; `stop`
+/// exactly while a run is live;
 /// `take_back` while the agent's start that waits in the queue, whose trigger `waiting` gives,
 /// does not come back without the person once taken back: a start of the person, whatever hold
 /// stands, unless the agent does not ask first, has a finished run and has a slot due by
@@ -222,7 +223,7 @@ pub fn controls<C: ConfigView>(
     if idle
         && standing
             .iter()
-            .all(|h| matches!(h, Hold::Failures | Hold::SignInRefused))
+            .all(|h| matches!(h, Hold::Failures | Hold::SignInRefused | Hold::SiteDeclined))
     {
         out.push(Control::RunNow);
     }
@@ -663,6 +664,30 @@ fn said_no(events: &[Event], run: &RunId, effect: &PastEffect) -> bool {
     })
 }
 
+/// Whether the person said no at the sign-in question of `run` (I2.6, ruling RD-85 item 3
+/// widened by the coordinator's way A): the ledger `events` holds an `item_answered` row with
+/// the second step's `decline` in an item whose `item_raised` row of the kind `sign_in` names
+/// `run`. The first step's `decline` stops this time and answers no question, and a lapse is no
+/// answer: neither is a no here. The hold `site_declined` of the schedule reads it too (r4 U2.4a).
+pub(crate) fn said_no_at_sign_in(events: &[Event], run: &RunId) -> bool {
+    let items: Vec<&ItemId> = events
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: Raised::SignIn(r),
+            } if r == run => Some(item),
+            _ => None,
+        })
+        .collect();
+    events.iter().any(|e| {
+        matches!(&e.what, What::ItemAnswered {
+            item,
+            answer: Answered::SignIn(SignInAnswer::Second(bind)),
+        } if bind.answer == BindResult::Decline && items.contains(&item))
+    })
+}
+
 /// The end that a run's line says (I2.6, rulings RD-48 (c), RD-65 (e), RD-85 item 3): the cause
 /// of the coordinator's own newest `run_ended` row of the run where that cause is one that only
 /// the coordinator gives, and the agent store's outcome otherwise; a run that ended `lapsed`
@@ -709,7 +734,8 @@ fn shown_end(events: &[Event], run: &PastRun) -> RunEnd {
 
 /// One run of a card (I2.6): its day; its line, the sentence of `line.run.<end>` for the end
 /// that `shown_end` gives, except that a `declined` run with no effect that the person refused
-/// has the neutral `line.run.stopped` (ruling RD-85 item 3); and, in the order of the reply, one
+/// and no no at its sign-in question (`said_no_at_sign_in`) has the neutral `line.run.stopped`
+/// (ruling RD-85 item 3); and, in the order of the reply, one
 /// entry for each committed effect, by `CardEffect::committed` or, where that refuses it,
 /// `CardEffect::unshown`, for each effect whose last row is `rejected` with a null cause, by
 /// `CardEffect::not_done`, and for each effect whose last state is `unknown`, whatever its
@@ -731,7 +757,11 @@ fn card_run(events: &[Event], h: &RunHistory) -> Result<CardRun, Cause> {
         }
     }
     let key = match shown_end(events, &h.run) {
-        RunEnd::Declined if !h.effects.iter().any(refused) => "line.run.stopped".to_owned(),
+        RunEnd::Declined
+            if !h.effects.iter().any(refused) && !said_no_at_sign_in(events, &h.run.run) =>
+        {
+            "line.run.stopped".to_owned()
+        }
         end => format!("line.run.{}", end.name()),
     };
     Ok(CardRun {

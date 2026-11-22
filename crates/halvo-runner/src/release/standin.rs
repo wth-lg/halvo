@@ -2,12 +2,15 @@
 //! ruling CP-142 (3)), and the two refusal tests of A5.4 that run the port's suite with it.
 
 use std::net::TcpStream;
+use std::num::NonZeroU32;
 use std::time::Duration;
 
-use halvo_schema::executable::names::{FieldName, Source};
+use halvo_schema::executable::names::{FieldName, LogEvent, Source};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::OwnValue;
-use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, WebOrigin};
+use halvo_schema::executable::{
+    ActionClass, Bound, BoundField, Cause, EffectState, Outcome, WebOrigin,
+};
 use halvo_schema::Category;
 
 use super::suite::{
@@ -17,10 +20,11 @@ use super::suite::{
     an_approved_effect_that_a_later_load_refuses_holds_no_approval, answer_of, changed_on_page,
     commit_without_reply, http, origins_that_keep_the_pay_origin_let_the_request_leave,
     pay_origin_gone_at_the_load_before_the_begin, payee_changed_at_the_load_before_the_begin,
-    request_bytes, send_bytes, slot, slot_changed_at_the_load_before_the_begin,
-    stopped_between_begin_and_commit, Case, Fixture, Maker,
+    request_bytes, run_path, send_bytes, slot, slot_changed_at_the_load_before_the_begin,
+    stopped_between_begin_and_commit, Case, Fixture, Maker, Plan, Record,
 };
-use super::{Left, MakerFacts, Paused, Replied};
+use super::{Left, MakerFacts, Paused, ReadPage, Replied};
+use crate::web::amounts_named;
 
 /// How long the stand-in waits for the reply of a request that left.
 const REPLY_WAIT: Duration = Duration::from_millis(2000);
@@ -63,7 +67,19 @@ fn replied(success: u16, status: Option<u16>) -> Replied {
 
 impl Left for Sent {
     fn reply(self: Box<Self>) -> Replied {
-        replied(self.1, answer_of(self.0, REPLY_WAIT).map(|a| a.status))
+        self.reply_and_page().0
+    }
+
+    /// The reply as `replied` reads its status, and for a reply read as made the read of its page: every amount
+    /// that the body names (`amounts_named`).
+    fn reply_and_page(self: Box<Self>) -> (Replied, Option<ReadPage>) {
+        let answer = answer_of(self.0, REPLY_WAIT);
+        let made = replied(self.1, answer.as_ref().map(|a| a.status));
+        let page: Option<ReadPage> = match (made, answer) {
+            (Replied::Made, Some(answer)) => Some(Box::new(move || amounts_named(&answer.body))),
+            _ => None,
+        };
+        (made, page)
     }
 }
 
@@ -178,6 +194,11 @@ impl Paused for Pay {
             form.as_bytes(),
         );
         Box::new(Sent(send_bytes(self.port, &bytes), PAY_MADE))
+    }
+
+    /// The payment stands in for a web step of an effect class, the step 1 of its run.
+    fn step(&self) -> Option<NonZeroU32> {
+        Some(NonZeroU32::MIN)
     }
 
     fn renew(self: Box<Self>, slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
@@ -369,6 +390,113 @@ fn a_rebind_then_a_reject_stores_no_approval_in_the_rejected_row() {
 #[test]
 fn an_approved_effect_that_a_later_load_refuses_stores_no_approval() {
     an_approved_effect_that_a_later_load_refuses_holds_no_approval(&mut Standin);
+}
+
+/// The log rows of a record by event, step and cause.
+fn rows(record: &Record) -> Vec<(LogEvent, Option<u32>, Option<Cause>)> {
+    record
+        .logs()
+        .iter()
+        .map(|l| (l.event, l.step.map(NonZeroU32::get), l.cause))
+        .collect()
+}
+
+/// r3 U4.1w-2 (5): the fixture charges another amount than the person was shown (the variant `amount_changes`, whose
+/// `/change` the supervisor sends when it reads the `begin` row, after the runner read the amount again) and its page
+/// after the reply names that amount: the effect stays `committed`, the step's `stopped` row holds `amount_differs`,
+/// and the run ends `failed` with that cause in its `stopped` row with no step, the row that the roster's
+/// `last_cause` reads; one payment stands in the fixture, with the other amount.
+#[test]
+fn a_page_that_names_another_amount_ends_the_run() {
+    let fixture = Fixture::start();
+    fixture.reset(&["amount_changes"]);
+    let mut maker = Standin;
+    let request = maker.paused(&fixture, Case::AmountChanges);
+    let port = fixture.port();
+    let record = run_path(
+        maker.category(Case::AmountChanges),
+        maker.bindings(&fixture, Case::AmountChanges),
+        request,
+        Plan {
+            on_begin: Some(Box::new(move || {
+                let changed = http(port, "POST", "control.agent.test", "/change", &[], b"");
+                assert_eq!(
+                    changed.status, 200,
+                    "the amount changes after the begin row"
+                );
+            })),
+            ..Plan::plain()
+        },
+    );
+    let due = fixture.seed()["utility"]["amount_due"]
+        .as_u64()
+        .expect("the amount due");
+    let paid: Vec<u64> = fixture.state()["utility"]["payments"]
+        .as_array()
+        .expect("the payments")
+        .iter()
+        .map(|p| p["amount"].as_u64().expect("an amount"))
+        .collect();
+    assert_eq!(paid, [due + 100], "one payment, of another amount");
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Releasing,
+            EffectState::Committed
+        ]
+    );
+    let effect = record.effects()[0].effect.clone();
+    assert_eq!(record.after_end.get(&effect), Some(&EffectState::Committed));
+    assert_eq!(
+        rows(&record),
+        [
+            (LogEvent::Confirm, None, None),
+            (LogEvent::Stopped, Some(1), Some(Cause::AmountDiffers)),
+            (LogEvent::Stopped, None, Some(Cause::AmountDiffers)),
+        ]
+    );
+    assert_eq!(record.done(), Some(Outcome::Failed));
+    assert_eq!(record.finish().map(|f| f.outcome), Some(Outcome::Failed));
+}
+
+/// r3 U4.1w-2 (6): the page after the reply names no amount (the variant `charged_no_amount`): the effect is
+/// `committed`, the step's `stopped` row holds `amount_unread`, and the run goes on to its end `completed`, with no
+/// `stopped` row of an end.
+#[test]
+fn a_page_that_names_no_amount_is_logged_and_the_run_goes_on() {
+    let fixture = Fixture::start();
+    fixture.reset(&["charged_no_amount"]);
+    let mut maker = Standin;
+    let request = maker.paused(&fixture, Case::AmountChanges);
+    let record = run_path(
+        maker.category(Case::AmountChanges),
+        maker.bindings(&fixture, Case::AmountChanges),
+        request,
+        Plan::plain(),
+    );
+    assert_eq!(
+        fixture.state()["utility"]["payments"]
+            .as_array()
+            .expect("the payments")
+            .len(),
+        1
+    );
+    assert_eq!(
+        record.states().last(),
+        Some(&EffectState::Committed),
+        "{:?}",
+        record.states()
+    );
+    assert_eq!(
+        rows(&record),
+        [
+            (LogEvent::Confirm, None, None),
+            (LogEvent::Stopped, Some(1), Some(Cause::AmountUnread)),
+        ]
+    );
+    assert_eq!(record.done(), Some(Outcome::Completed));
 }
 
 /// CP-166 E5: the stand-in reads as made 200 for its payment and 204 for its delete, each for its own request
