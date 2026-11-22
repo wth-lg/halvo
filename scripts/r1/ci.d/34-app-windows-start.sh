@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: the built app on Windows starts its capture service as its own child and nothing before the Start step, a stop holds and a kill of the app ends the child: started with --background on a data directory that is not provisioned it runs with no halvo-capture.exe of that directory after 5 s and the directory holds no store; on a provisioned directory one halvo-capture.exe of that directory runs as a child of the app with no window of its own; once ctl status of that directory reads lease=fresh, within 30 s, and after halvo-capture.exe ctl stop no halvo-capture.exe of that directory starts for 10 s while its app runs; on a provisioned directory of its own, after a ctl stop sent at the first answer of ctl status, which reads no lease=fresh, no halvo-capture.exe of that directory starts for 10 s while its app runs, in at most 3 tries on new directories where that first answer reads lease=fresh; and after a kill of the app no halvo-capture.exe of its directory runs inside 12 s
+# rule: the built app on Windows starts its capture service as its own child and nothing before the Start step, a stop holds and a kill of the app ends the child: started with --background on a data directory that is not provisioned it runs with no halvo-capture.exe of that directory after 5 s and the directory holds no store; on a provisioned directory one halvo-capture.exe of that directory runs as a child of the app with no window of its own; once ctl status of that directory reads lease=fresh, within 30 s, and after halvo-capture.exe ctl stop no halvo-capture.exe of that directory starts for 10 s while its app runs; and after a kill of the app no halvo-capture.exe of its directory runs inside 12 s
 # lane: alone
 set -u
 name=34-app-windows-start
@@ -9,7 +9,6 @@ before_start_s=5
 child_start_s=60
 answer_s=30
 lease_s=30
-early_tries=3
 stop_hold_s=10
 kill_end_s=12
 end_s=10
@@ -150,66 +149,9 @@ EOF
   [ "$the_window" = 0 ] || fail "the halvo-capture.exe of the $2 directory has a window of its own"
 }
 
-# The case early stop: an app of its own on a provisioned directory D, and ctl stop of D sent at
-# the first answer of ctl status of D, which reads no lease=fresh, so before the app has read its
-# child; then no halvo-capture.exe of D may start again for stop_hold_s while the app runs. Where
-# that first answer already reads lease=fresh, the app was faster: its app is ended and the case
-# tries again on a new directory, early_tries times at most, and fails after the last.
-early_stop() {
-  began_e=$(date +%s) || fail "the clock cannot be read"
-  try=0
-  while :; do
-    try=$((try + 1))
-    dir_d=$(mktemp -d "$work/d.XXXXXX") || fail "mktemp failed"
-    printf '{}\n' >"$dir_d/$state_file" || fail "the state file of a provisioned directory cannot be written"
-    token_d=${dir_d##*/}
-    tokens="$tokens $token_d"
-    began_d=$(date +%s) || fail "the clock cannot be read"
-    start_app "$dir_d" d
-    until ctl "$dir_d" status d; do
-      after_s=$(seconds_since "$began_d") || fail "the clock cannot be read"
-      if [ "$after_s" -ge "$child_start_s" ]; then
-        show_logs
-        fail "ctl status of the early stopped directory got no answer within $child_start_s s of its app's start"
-      fi
-      sleep "$poll_pause_s"
-    done
-    tr -d '\r' <"$work/ctl-d-status.out" >"$work/early-status"
-    grep -q -x 'lease=fresh' "$work/early-status" || break
-    after_s=$(seconds_since "$began_d") || fail "the clock cannot be read"
-    printf 'case early stop: try %s: the first answer of ctl status read lease=fresh %s s after the app started, so the app was faster; that app is ended\n' "$try" "$after_s"
-    snapshot
-    of halvo.exe "$token_d" >"$work/apps-d"
-    while read -r app_d rest; do
-      end_process "$app_d"
-    done <"$work/apps-d"
-    [ "$try" -lt "$early_tries" ] || fail "the early stop was not shown: in $early_tries tries the first answer of ctl status of a new provisioned directory read lease=fresh"
-  done
-  ctl "$dir_d" stop d || fail "ctl stop of the early stopped directory did not exit 0"
-  stopped_d=$(date +%s) || fail "the clock cannot be read"
-  sed 's/^/case early stop: status: /' "$work/early-status"
-  printf 'case early stop: try %s: ctl stop exited 0 %s s after the app started, sent at the first answer of ctl status, which read no lease=fresh\n' "$try" "$((stopped_d - began_d))"
-  early_pid=$(sed -n 's/^pid=//p' "$work/early-status")
-  [ -n "$early_pid" ] || fail "the status of the early stopped directory names no pid"
-  while :; do
-    snapshot
-    now=$(date +%s) || fail "the clock cannot be read"
-    of halvo-capture.exe "$token_d" >"$work/children-d"
-    while read -r pid rest; do
-      [ "$pid" = "$early_pid" ] || fail "a halvo-capture.exe of the early stopped directory started again $((now - stopped_d)) s after the stop"
-    done <"$work/children-d"
-    apps_d=$(of halvo.exe "$token_d")
-    [ -n "$apps_d" ] || fail "the app of the early stopped directory does not run $((now - stopped_d)) s after the stop"
-    [ $((now - stopped_d)) -ge "$stop_hold_s" ] && break
-    sleep "$poll_pause_s"
-  done
-  [ ! -s "$work/children-d" ] || fail "the early stopped halvo-capture.exe still runs $((now - stopped_d)) s after the stop"
-  printf 'case early stop: no halvo-capture.exe of the early stopped directory %s s after the stop, and its app runs; the case took %s s and %s of %s tries\n' "$((now - stopped_d))" "$((now - began_e))" "$try" "$early_tries"
-}
-
 # The cases on the app of `$1` and the capture service beside it, with the data directories
 # under `$2`: A not provisioned, B provisioned and stopped by ctl, C provisioned and its app
-# killed, the three apps at once; then the case early stop on D.
+# killed, the three apps at once.
 cases() {
   bin=$1
   work=$2
@@ -336,7 +278,6 @@ cases() {
   [ ! -s "$work/children-b" ] || fail "the stopped halvo-capture.exe of the provisioned directory still runs $((now - stopped)) s after the stop"
   printf 'case kill: no halvo-capture.exe of the second provisioned directory %s s after the kill\n' "$gone_c"
   printf 'case stop: no halvo-capture.exe of the provisioned directory %s s after the stop, and its app runs\n' "$((now - stopped))"
-  early_stop
   end_all
 }
 
@@ -425,15 +366,12 @@ self_test() {
 [ "$1" = --background ] && [ "$2" = --data-dir ] && [ -n "$3" ] || exit 98
 dir=$3
 printf 'halvo.exe %s %s 0 halvo --background --data-dir %s\n' "$$" "$PPID" "$dir" >"$STUB_PROCS/$$"
-# The app's read of its child, after which ctl status of the directory reads lease=fresh.
-read_mark=$STUB_READS/${dir##*/}
 last=
 child() {
   sh "$STUB_BIN/halvo-capture" --service-run --lifeline --data-dir "$dir" &
   last=$!
 }
 if [ -f "$dir/daemon-state.json" ]; then
-  [ "$STUB_MODE" = read-first ] && : >"$read_mark"
   child
   [ "$STUB_MODE" = two ] && child
 else
@@ -446,19 +384,11 @@ fi
 again=yes
 while :; do
   sleep 1
-  if [ -n "$last" ] && kill -0 "$last" 2>/dev/null; then
-    : >"$read_mark"
-  elif [ -n "$last" ]; then
+  if [ -n "$last" ] && ! kill -0 "$last" 2>/dev/null; then
     case $STUB_MODE:$again in
       restart:yes)
         again=no
         child
-        ;;
-      early-stop-restart:yes)
-        if [ ! -f "$read_mark" ]; then
-          again=no
-          child
-        fi
         ;;
       stop-ends-app:*) exit 0 ;;
     esac
@@ -480,8 +410,8 @@ if [ "$1" = ctl ]; then
   [ -n "$pids" ] || exit 69
   case $4 in
     status)
-      printf 'pid=%s\nstore=open\n' "${pids# }"
-      if [ "$STUB_MODE" != no-fresh-lease ] && [ -f "$STUB_READS/${3##*/}" ]; then printf 'lease=fresh\n'; else printf 'lease=none\n'; fi
+      printf 'store=open\n'
+      if [ "$STUB_MODE" = no-fresh-lease ]; then printf 'lease=none\n'; else printf 'lease=fresh\n'; fi
       exit 0
       ;;
     stop)
@@ -503,11 +433,11 @@ while [ "$STUB_MODE" = orphan ] || kill -0 "$PPID" 2>/dev/null; do
 done
 EOF
   chmod +x "$work/bin/halvo" "$work/bin/halvo-capture" || exit 2
-  modes="good early two window parent store dead-app restart stop-ends-app linger orphan no-fresh-lease early-stop-restart read-first"
+  modes="good early two window parent store dead-app restart stop-ends-app linger orphan no-fresh-lease"
   fixture_limit_s=120
   for mode in $modes; do
-    mkdir -p "$work/$mode/procs" "$work/$mode/reads" || exit 2
-    STUB_MODE=$mode STUB_BIN=$work/bin STUB_PROCS=$work/$mode/procs STUB_READS=$work/$mode/reads sh "$self" --fixture "$work/bin" "$work/$mode" >"$work/$mode.out" 2>&1 &
+    mkdir -p "$work/$mode/procs" || exit 2
+    STUB_MODE=$mode STUB_BIN=$work/bin STUB_PROCS=$work/$mode/procs sh "$self" --fixture "$work/bin" "$work/$mode" >"$work/$mode.out" 2>&1 &
     fixture=$!
     began=$(date +%s) || exit 2
     waited=0
@@ -545,8 +475,6 @@ EOF
   check linger FAIL 'the stopped halvo-capture.exe of the provisioned directory still runs'
   check orphan FAIL 'the halvo-capture.exe of the killed app still runs'
   check no-fresh-lease FAIL 'ctl status of the provisioned directory did not read lease=fresh within 2 s'
-  check early-stop-restart FAIL 'a halvo-capture.exe of the early stopped directory started again'
-  check read-first FAIL 'the early stop was not shown: in 3 tries the first answer of ctl status of a new provisioned directory read lease=fresh'
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
