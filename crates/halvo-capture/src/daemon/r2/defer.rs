@@ -10,14 +10,11 @@
 //!   nobody renews lapses by itself, and a step of the wall clock after the request changes nothing.
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::Instant;
-#[cfg(any(test, target_os = "macos"))]
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::daemon::r2::worker_slot::MayRun;
 
 /// The longest hold of one request: 300 s.
-#[cfg(any(test, target_os = "macos"))]
 pub(super) const DEFER_CAP: Duration = Duration::from_secs(300);
 
 /// The deadline in force: the `Instant` at which the hold ends, none where none holds.
@@ -34,7 +31,6 @@ impl Deferral {
 
     /// The set of a request with the deadline `until`, in nanoseconds since 1970, at the clocks' readings of this
     /// call: the deadline in force that the reply holds.
-    #[cfg(target_os = "macos")]
     pub(super) fn set(&self, until: i64) -> Option<i64> {
         self.set_at(until, SystemTime::now(), Instant::now())
     }
@@ -42,7 +38,6 @@ impl Deferral {
     /// The set of a request with the deadline `until` at the wall reading `wall` and the reading `at` of `Instant`:
     /// none, with the mark cleared, for a deadline at or before `wall`; else the mark holds for the time up to
     /// `until`, at most [`DEFER_CAP`], from `at`, and the answer is `wall` plus that length.
-    #[cfg(any(test, target_os = "macos"))]
     fn set_at(&self, until: i64, wall: SystemTime, at: Instant) -> Option<i64> {
         let wall = nanos_since_1970(wall);
         let mut end = self.end();
@@ -72,7 +67,6 @@ impl Deferral {
 }
 
 /// The wall reading in nanoseconds since 1970, held to the range of 64 bits.
-#[cfg(any(test, target_os = "macos"))]
 fn nanos_since_1970(wall: SystemTime) -> i64 {
     match wall.duration_since(UNIX_EPOCH) {
         Ok(after) => i64::try_from(after.as_nanos()).unwrap_or(i64::MAX),

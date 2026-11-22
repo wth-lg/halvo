@@ -66,7 +66,7 @@ pub fn user_of_process(pid: u32) -> io::Result<String> {
     user_of_token_of(HANDLE(owned.as_raw_handle()))
 }
 
-fn user_of_token_of(process: HANDLE) -> io::Result<String> {
+pub(crate) fn user_of_token_of(process: HANDLE) -> io::Result<String> {
     let mut token = HANDLE::default();
     // SAFETY: `process` is open for the call, and `token` is a live local that receives a new
     // handle.
