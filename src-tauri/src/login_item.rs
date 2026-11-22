@@ -232,12 +232,17 @@ fn refused_dir(error: PathError) -> Exit {
 pub mod run_value {
     use std::sync::Arc;
 
+    use halvo_control::paths::DataDir;
     use halvo_control::service::{InstallOutcome, StartValueSpec};
 
     use crate::commands::capture::LoginItemWriter;
+    use crate::poller::Views;
 
     /// The calls of the Run value.
     pub trait RunValue: Send + Sync {
+        /// Reads the value of `spec`: none where it does not stand.
+        fn read(&self, spec: &StartValueSpec) -> std::io::Result<Option<String>>;
+
         /// Writes the value of `spec` where it does not stand as `spec` makes it.
         fn write(&self, spec: &StartValueSpec) -> std::io::Result<InstallOutcome>;
     }
@@ -246,10 +251,97 @@ pub mod run_value {
     #[cfg(windows)]
     pub struct Registry;
 
+    /// The code with which the registry refuses to read a value of another type as a string.
+    #[cfg(windows)]
+    const ERROR_UNSUPPORTED_TYPE: i32 = 1630;
+
     #[cfg(windows)]
     impl RunValue for Registry {
+        /// A value of another type is no value that the app's path makes: it reads as one that
+        /// differs, so that the start writes the string over it, as `write_start_value` does.
+        fn read(&self, spec: &StartValueSpec) -> std::io::Result<Option<String>> {
+            match halvo_control::service::read_start_value(spec) {
+                Err(e) if e.raw_os_error() == Some(ERROR_UNSUPPORTED_TYPE) => {
+                    Ok(Some(String::new()))
+                }
+                read => read,
+            }
+        }
+
         fn write(&self, spec: &StartValueSpec) -> std::io::Result<InstallOutcome> {
             halvo_control::service::write_start_value(spec)
+        }
+    }
+
+    /// What the start step did with the value.
+    #[derive(Debug)]
+    pub enum AtStart {
+        /// With --data-dir, or on a data directory that does not read consented: nothing read
+        /// or written.
+        Nothing,
+        /// A consented app whose value stood as its own path makes it.
+        Kept,
+        /// A consented app whose value differed or stood not: written again.
+        Written,
+        /// A call that failed.
+        Failed(Failed),
+    }
+
+    /// A call of the start step that failed. Every view of a consented app then says that the
+    /// login item is not written, and never that it is not registered.
+    #[derive(Debug)]
+    pub enum Failed {
+        /// The app's own path cannot be read or makes no value.
+        NoPath,
+        Read(std::io::Error),
+        Write(std::io::Error),
+    }
+
+    impl std::fmt::Display for Failed {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Failed::NoPath => f.write_str("the start value Halvo has no path of the app"),
+                Failed::Read(e) => write!(f, "the start value Halvo could not be read: {e}"),
+                Failed::Write(e) => write!(f, "the start value Halvo could not be written: {e}"),
+            }
+        }
+    }
+
+    /// The start step of `run` on Windows, which main runs before the app is built, so that no
+    /// press on Start meets it: with --data-dir (`given`), or on a data directory that does not
+    /// read consented (provisioned), nothing. A consented app reads the value of its own path,
+    /// which `spec` makes, and writes it where it differs or stands not; where a call fails, the
+    /// step answers that error and every view of `views` says that the login item is not
+    /// written.
+    pub fn at_start(
+        views: &Views,
+        data_dir: &DataDir,
+        given: bool,
+        spec: impl FnOnce() -> Option<StartValueSpec>,
+        values: &dyn RunValue,
+    ) -> AtStart {
+        if given || !matches!(data_dir.is_provisioned(), Ok(true)) {
+            return AtStart::Nothing;
+        }
+        let answer = rewrite(spec(), values);
+        if let AtStart::Failed(_) = answer {
+            views.hold().login_item_written(false);
+        }
+        answer
+    }
+
+    /// Reads the value of `spec` and writes it where it differs or stands not.
+    fn rewrite(spec: Option<StartValueSpec>, values: &dyn RunValue) -> AtStart {
+        let Some(spec) = spec else {
+            return AtStart::Failed(Failed::NoPath);
+        };
+        match values.read(&spec) {
+            Err(e) => AtStart::Failed(Failed::Read(e)),
+            Ok(Some(stored)) if stored == spec.data() => AtStart::Kept,
+            Ok(_) => match values.write(&spec) {
+                Ok(_) => AtStart::Written,
+                Err(e) => AtStart::Failed(Failed::Write(e)),
+            },
         }
     }
 
@@ -283,13 +375,17 @@ pub mod run_value {
         /// A call of the stand-in, with the key, the value's name and the data of its spec.
         #[derive(Debug, Clone, PartialEq, Eq)]
         enum Call {
+            Read(String, String, String),
             Write(String, String, String),
         }
 
-        /// The calls of the Run value, recorded, each with the test's own answer.
+        /// The calls of the Run value, recorded, each with the test's own answer; `stored` is
+        /// the value that a read finds.
         #[derive(Default)]
         struct StandIn {
             calls: Mutex<Vec<Call>>,
+            stored: Option<String>,
+            read: Option<ErrorKind>,
             write: Option<ErrorKind>,
         }
 
@@ -316,6 +412,12 @@ pub mod run_value {
         }
 
         impl RunValue for StandIn {
+            fn read(&self, spec: &StartValueSpec) -> std::io::Result<Option<String>> {
+                let (key, name, data) = named(spec);
+                self.record(Call::Read(key, name, data));
+                answer(self.read, self.stored.clone())
+            }
+
             fn write(&self, spec: &StartValueSpec) -> std::io::Result<InstallOutcome> {
                 let (key, name, data) = named(spec);
                 self.record(Call::Write(key, name, data));
@@ -333,6 +435,32 @@ pub mod run_value {
                 "Halvo".to_owned(),
                 format!("\"{PROGRAM}\" --background"),
             )
+        }
+
+        fn read() -> Call {
+            let Call::Write(key, name, data) = written() else {
+                unreachable!("written is a write")
+            };
+            Call::Read(key, name, data)
+        }
+
+        fn data_dir(name: &str, consented: bool) -> DataDir {
+            let base = std::env::current_exe()
+                .expect("the test binary has a path")
+                .ancestors()
+                .nth(3)
+                .expect("the test binary sits under target/<profile>/deps")
+                .join("tmp");
+            let dir = DataDir::from_flag(halvo_test_dir::make(&base, name).expect("a scratch"))
+                .expect("an absolute directory");
+            if consented {
+                std::fs::write(dir.state_file(), b"{}").expect("a state file");
+            }
+            dir
+        }
+
+        fn shown(views: &Views, key: &str) -> serde_json::Value {
+            serde_json::to_value(views.view()).expect("the view writes")[key].clone()
         }
 
         #[test]
@@ -360,6 +488,84 @@ pub mod run_value {
                 at_the_click(true, the_app, given.clone()).is_none(),
                 "no writer with --data-dir"
             );
+            assert_eq!(given.calls(), Vec::<Call>::new(), "nothing with --data-dir");
+        }
+
+        #[test]
+        fn a_consented_start_writes_a_value_that_differs_again_and_a_refused_read_is_an_error() {
+            let consented = data_dir("run-value-consented", true);
+            let own = format!("\"{PROGRAM}\" --background");
+            let other = r#""D:\Halvo\halvo.exe" --background"#.to_owned();
+            let refused = Some(ErrorKind::PermissionDenied);
+            for (row, values, calls, written_shown) in [
+                (
+                    "a value that differs",
+                    StandIn {
+                        stored: Some(other.clone()),
+                        ..StandIn::default()
+                    },
+                    vec![read(), written()],
+                    serde_json::Value::Null,
+                ),
+                (
+                    "no value",
+                    StandIn::default(),
+                    vec![read(), written()],
+                    serde_json::Value::Null,
+                ),
+                (
+                    "the app's own value",
+                    StandIn {
+                        stored: Some(own.clone()),
+                        ..StandIn::default()
+                    },
+                    vec![read()],
+                    serde_json::Value::Null,
+                ),
+                (
+                    "a refused read",
+                    StandIn {
+                        read: refused,
+                        ..StandIn::default()
+                    },
+                    vec![read()],
+                    serde_json::Value::Bool(false),
+                ),
+                (
+                    "a refused write",
+                    StandIn {
+                        stored: Some(other.clone()),
+                        write: refused,
+                        ..StandIn::default()
+                    },
+                    vec![read(), written()],
+                    serde_json::Value::Bool(false),
+                ),
+            ] {
+                let views = Views::default();
+                let answer = at_start(&views, &consented, false, the_app, &values);
+                let expected = match row {
+                    "a value that differs" | "no value" => matches!(answer, AtStart::Written),
+                    "the app's own value" => matches!(answer, AtStart::Kept),
+                    "a refused read" => matches!(answer, AtStart::Failed(Failed::Read(_))),
+                    _ => matches!(answer, AtStart::Failed(Failed::Write(_))),
+                };
+                assert!(expected, "{row}: {answer:?}");
+                assert_eq!(values.calls(), calls, "{row}");
+                assert_eq!(shown(&views, "login_item_written"), written_shown, "{row}");
+                assert_eq!(
+                    shown(&views, "login_item_loaded"),
+                    serde_json::Value::Null,
+                    "{row}: never not registered"
+                );
+            }
+
+            let given = StandIn {
+                stored: Some(other),
+                ..StandIn::default()
+            };
+            let answer = at_start(&Views::default(), &consented, true, the_app, &given);
+            assert!(matches!(answer, AtStart::Nothing), "--data-dir: {answer:?}");
             assert_eq!(given.calls(), Vec::<Call>::new(), "nothing with --data-dir");
         }
     }
