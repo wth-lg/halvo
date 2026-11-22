@@ -105,7 +105,8 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
             "no_channel",
             "browser_start",
             "senders_unread",
-            "reproposed"
+            "reproposed",
+            "no_browser"
         ]
     );
     assert_eq!(

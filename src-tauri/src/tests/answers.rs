@@ -45,6 +45,14 @@ impl Control for AtTheMutation {
     fn status(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
         Ok(sample_status(Platform::Macos))
     }
+    fn status_of_a_pass(
+        &self,
+        made: Made,
+        claim: bool,
+        hold: &crate::view_state::Hold,
+    ) -> Result<DaemonStatus, ClientError> {
+        self.status(made, claim && !hold.stands())
+    }
     fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
         Err((self.answer)())
     }
@@ -62,6 +70,32 @@ impl Control for AtTheMutation {
     }
     fn request_permission(&self, _: Made, _: Permission) -> Result<RequestOutcome, ClientError> {
         Err((self.answer)())
+    }
+    fn relay(&self, _: Made, _: &[u8]) -> Result<Vec<u8>, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+    #[cfg(target_os = "macos")]
+    fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+    #[cfg(target_os = "macos")]
+    fn run_mark(
+        &self,
+        _: Made,
+        _: halvo_control::r2::RunEdge,
+    ) -> Result<halvo_control::r2::RunMarked, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+    #[cfg(target_os = "macos")]
+    fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+    fn acknowledge_lost_permission(
+        &self,
+        _: Made,
+        _: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
     }
 }
 
@@ -533,6 +567,18 @@ fn g6_a_delete_whose_reply_was_not_read_as_an_outcome_reads_connecting_and_says_
             json!(!nothing_removed),
             "{name}: {reply}"
         );
+        let own_kind = match name {
+            "the busy of a life that is ending" => Some("service_ending"),
+            "an already_deleted that answers no request of this call" => Some("nothing_removed"),
+            _ => None,
+        };
+        if let Some(kind) = own_kind {
+            assert_eq!(
+                reply,
+                json!({ "error": kind, "outcome_not_known": false }),
+                "{name}"
+            );
+        }
         let read = call(&test, "capture_status", json!({})).expect("a status");
         if nothing_removed {
             assert_ne!(read["service"], json!("connecting"), "{name}");
@@ -573,6 +619,14 @@ impl Control for Reading {
     fn status(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
         Ok(sample_status(Platform::Macos))
     }
+    fn status_of_a_pass(
+        &self,
+        made: Made,
+        claim: bool,
+        hold: &crate::view_state::Hold,
+    ) -> Result<DaemonStatus, ClientError> {
+        self.status(made, claim && !hold.stands())
+    }
     fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
         Err(gone())
     }
@@ -601,6 +655,32 @@ impl Control for Reading {
     }
     fn request_permission(&self, _: Made, _: Permission) -> Result<RequestOutcome, ClientError> {
         Err(gone())
+    }
+    fn relay(&self, _: Made, _: &[u8]) -> Result<Vec<u8>, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+    #[cfg(target_os = "macos")]
+    fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+    #[cfg(target_os = "macos")]
+    fn run_mark(
+        &self,
+        _: Made,
+        _: halvo_control::r2::RunEdge,
+    ) -> Result<halvo_control::r2::RunMarked, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+    #[cfg(target_os = "macos")]
+    fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+    fn acknowledge_lost_permission(
+        &self,
+        _: Made,
+        _: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
     }
 }
 
@@ -969,11 +1049,13 @@ enum CapEnd {
     NoStatus,
 }
 
-/// AP-19 H3: one list of the errors after which an outcome is not known serves the delete and
-/// the cap Save: a cap Save that ends in any of them carries outcome_not_known, so that the page
-/// shows its error words and then I-114 point 18; the errors that remove nothing change nothing.
+/// AP-19 H3, as the unit file of app-3a turns it at its line 200: `removes_nothing` names the
+/// errors after which a cap Save changed nothing; every other error leaves its outcome not known,
+/// an already_deleted that the client does not take for the Save among them, so that the page
+/// shows its error words and then I-114 point 18. A delete reads that already_deleted by
+/// `a_delete_removed_nothing`.
 #[test]
-fn h3_a_cap_save_takes_the_outcome_from_the_same_list_as_the_delete() {
+fn h3_a_cap_save_takes_the_outcome_from_removes_nothing() {
     let rows: [(&str, Answer, CapEnd); 20] = [
         (
             "deadline",
@@ -1074,7 +1156,7 @@ fn h3_a_cap_save_takes_the_outcome_from_the_same_list_as_the_delete() {
                     current: FIXTURE_STORE_ID,
                 })
             },
-            CapEnd::NothingChanged,
+            CapEnd::NotKnown,
         ),
     ];
     let gb = 1024 * 1024 * 1024u64;
@@ -1098,7 +1180,7 @@ fn h3_a_cap_save_takes_the_outcome_from_the_same_list_as_the_delete() {
                 assert_eq!(
                     removes_nothing,
                     end == CapEnd::NothingChanged,
-                    "{name}: the one list"
+                    "{name}: removes_nothing"
                 );
             }
         }

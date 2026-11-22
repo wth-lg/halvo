@@ -40,6 +40,19 @@ pub fn hosted(test: &str) -> Option<PathBuf> {
     Some(browser)
 }
 
+/// Whether the test of the browser that the runner finds by itself runs here: on a hosted macOS runner alone. Off one,
+/// and on Windows, false after one line that says so.
+pub fn hosted_mac(test: &str) -> bool {
+    if !cfg!(target_os = "macos") || std::env::var("GITHUB_ACTIONS").as_deref() != Ok("true") {
+        say(
+            test,
+            "not run: it starts the browser that the runner finds, on a hosted macOS runner alone",
+        );
+        return false;
+    }
+    true
+}
+
 /// One connection that the fixture accepted: the request's method and path, empty where none came, and every byte
 /// that it read.
 #[derive(Clone, Debug)]
@@ -174,7 +187,7 @@ pub fn extract_amount(n: u32, id: &str) -> ExecutableStep {
 pub fn serve_with(
     sup: &Supervisor,
     browser: &Path,
-    mut rule: impl FnMut(&FromRunner, &[FromRunner]) -> Act,
+    rule: impl FnMut(&FromRunner, &[FromRunner]) -> Act,
     limit: Duration,
 ) -> Seen {
     let mut args = sup.args();
@@ -184,7 +197,38 @@ pub fn serve_with(
         .expect("the key --browser")
         + 1;
     args[at] = browser.to_string_lossy().into_owned();
-    let mut runner = Runner::start(&args);
+    serve_runner(sup, Runner::start(&args), rule, limit)
+}
+
+/// `Supervisor::serve` with no `--browser`, for the test `test`, which `Runner::start_finding_its_browser` lets
+/// start on a hosted macOS runner alone: the runner finds the browser of the machine by itself.
+pub fn serve_finding(
+    sup: &Supervisor,
+    test: &str,
+    rule: impl FnMut(&FromRunner, &[FromRunner]) -> Act,
+    limit: Duration,
+) -> Seen {
+    let mut args = sup.args();
+    let at = args
+        .iter()
+        .position(|a| a == "--browser")
+        .expect("the key --browser");
+    args.drain(at..at + 2);
+    serve_runner(
+        sup,
+        Runner::start_finding_its_browser(test, &args),
+        rule,
+        limit,
+    )
+}
+
+/// Serves `runner` until its end, as `Supervisor::serve` does.
+fn serve_runner(
+    sup: &Supervisor,
+    mut runner: Runner,
+    mut rule: impl FnMut(&FromRunner, &[FromRunner]) -> Act,
+    limit: Duration,
+) -> Seen {
     let mut frames: Vec<FromRunner> = Vec::new();
     let mut closed_at: Option<Instant> = None;
     let start = Instant::now();
@@ -204,6 +248,12 @@ pub fn serve_with(
         runner.kill();
     }
     let stderr = runner.stderr();
+    for line in stderr
+        .lines()
+        .filter(|l| l.starts_with("run request=failed"))
+    {
+        say("runner", line);
+    }
     Seen {
         data_dir: runner.data_dir.clone(),
         line: runner.line.clone(),

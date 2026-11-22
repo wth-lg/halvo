@@ -80,6 +80,7 @@ fn ports(agents: &[(WorkflowState, &str, &[&str], &[HoldSetCause])]) -> Ports<Co
             session: true,
             last: None,
             unknown: vec![],
+            refused_run: None,
         });
         p.send(&Body::SetBindings {
             workflow: flow(n),
@@ -99,7 +100,9 @@ fn ports(agents: &[(WorkflowState, &str, &[&str], &[HoldSetCause])]) -> Ports<Co
                 seq: NonZeroU32::new(k as u32 + 1).unwrap(),
                 day: DAY - 1,
                 at: 0,
-                what: What::HoldSet { cause: *cause },
+                what: What::HoldSet {
+                    cause: cause.clone(),
+                },
             })
             .collect();
         if !events.is_empty() {

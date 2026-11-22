@@ -416,6 +416,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
             session: true,
             last: Some(record),
             unknown: Vec::new(),
+            refused_run: None,
         });
     }
     Both {

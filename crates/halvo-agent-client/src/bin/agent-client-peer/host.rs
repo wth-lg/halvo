@@ -303,7 +303,7 @@ pub fn run(args: &[String]) {
         agent: AgentId::from_random(id16(2)),
         workflow: WorkflowId::from_random(id16(3)),
         mode: Mode::Replay,
-        browser: PathBuf::from(script),
+        browser: Some(PathBuf::from(script)),
         model: None,
         headed: false,
         utc_offset_s: 0,

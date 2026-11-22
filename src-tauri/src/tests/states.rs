@@ -789,6 +789,15 @@ impl crate::commands::control::Control for Claims {
         Ok(status_with(Platform::Macos, |_| {}))
     }
 
+    fn status_of_a_pass(
+        &self,
+        made: crate::commands::control::Made,
+        claim: bool,
+        hold: &crate::view_state::Hold,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        self.status(made, claim && !hold.stands())
+    }
+
     fn inventory(
         &self,
         _: crate::commands::control::Made,
@@ -831,6 +840,48 @@ impl crate::commands::control::Control for Claims {
         _: crate::commands::control::Made,
         _: Permission,
     ) -> Result<halvo_control::onboarding::RequestOutcome, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn relay(
+        &self,
+        _: crate::commands::control::Made,
+        _: &[u8],
+    ) -> Result<Vec<u8>, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn acknowledge_lost_permission(
+        &self,
+        _: crate::commands::control::Made,
+        _: Permission,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn owner_stream(
+        &self,
+        _: crate::commands::control::Made,
+    ) -> Result<halvo_control::r2::OwnerStreamEnd, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn run_mark(
+        &self,
+        _: crate::commands::control::Made,
+        _: halvo_control::r2::RunEdge,
+    ) -> Result<halvo_control::r2::RunMarked, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn defer(
+        &self,
+        _: crate::commands::control::Made,
+        _: i64,
+    ) -> Result<Option<i64>, halvo_control::client::ClientError> {
         Err(halvo_control::client::ClientError::Unsupported)
     }
 }

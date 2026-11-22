@@ -94,12 +94,11 @@ pub struct Calls {
 }
 
 /// Where the product's runs live: the absolute data directory and the absolute paths that a start hands the
-/// runner.
+/// runner. A start hands it no browser: the runner finds the person's browser itself.
 #[derive(Clone, Debug)]
 pub struct Places {
     pub data_dir: PathBuf,
     pub runner: PathBuf,
-    pub browser: PathBuf,
     pub model: Option<PathBuf>,
 }
 
@@ -1019,7 +1018,12 @@ fn event_of(r: &Value) -> Option<Event> {
             entry: entry()?,
         },
         "hold_set" => What::HoldSet {
-            cause: HoldSetCause::parse(s("cause")?).ok()?,
+            cause: match s("cause")? {
+                "person" => HoldSetCause::Person,
+                "failures" => HoldSetCause::Failures,
+                "sign_in_refused" => HoldSetCause::SignInRefused { run: run()? },
+                _ => return None,
+            },
         },
         "hold_cleared" => What::HoldCleared {
             cause: match s("cause")? {
@@ -1029,6 +1033,7 @@ fn event_of(r: &Value) -> Option<Event> {
                     run: run()?,
                     answer: CheckAnswer::parse(s("answer")?).ok()?,
                 },
+                "sign_in_refused" => Cleared::SignInRefused { run: run()? },
                 _ => return None,
             },
         },
@@ -1114,12 +1119,17 @@ fn past_run(record: &Value) -> Option<PastRun> {
     })
 }
 
-/// One entry of the reply of `list_agents`.
+/// One entry of the reply of `list_agents`; its `refused_run` is read as `last` is: null gives none, and any other
+/// value is a run id or the entry is not read (I6.1; ruling RD-73 4.5).
 fn agent_of(entry: &Value) -> Option<Agent<AgentConfig>> {
     let config = AgentConfig::parse(&entry["config"].to_string())?;
     let last = match &entry["last"] {
         Value::Null => None,
         record => Some(past_run(record)?),
+    };
+    let refused_run = match &entry["refused_run"] {
+        Value::Null => None,
+        run => Some(RunId::parse(run.as_str()?).ok()?),
     };
     let unknown = entry["unknown"]
         .as_array()?
@@ -1146,6 +1156,7 @@ fn agent_of(entry: &Value) -> Option<Agent<AgentConfig>> {
         session: entry["session"].as_str()? == "yes",
         last,
         unknown,
+        refused_run,
         config,
     })
 }
@@ -1370,7 +1381,7 @@ impl Runs for Product {
                 .map_err(|_| PortError::NoService)?,
             mode: halvo_schema::executable::names::Mode::parse(spec.mode.name())
                 .map_err(|_| PortError::NoService)?,
-            browser: self.places.browser.clone(),
+            browser: None,
             model: self.places.model.clone(),
             headed: spec.headed,
             utc_offset_s: zone_offset_s(SystemTime::now()).ok_or(PortError::NoService)?,
@@ -1647,7 +1658,6 @@ mod tests {
         let places = Places {
             data_dir: PathBuf::from("/nowhere/halvo-u54a"),
             runner: PathBuf::from("/nowhere/halvo-runner"),
-            browser: PathBuf::from("/nowhere/halvo-browser"),
             model: None,
         };
         let hub = hub(fails, places, Box::new(|_| {}), Arc::new(Unseen));
@@ -1672,7 +1682,6 @@ mod tests {
         let places = Places {
             data_dir: PathBuf::from("/nowhere/halvo-u54c"),
             runner: PathBuf::from("/nowhere/halvo-runner"),
-            browser: PathBuf::from("/nowhere/halvo-browser"),
             model: None,
         };
         hub(calls, places, Box::new(|_| {}), Arc::new(Unseen))
@@ -1722,6 +1731,57 @@ mod tests {
         assert_eq!(ports.defer(1_800_000_003_000), Err(PortError::NoService));
         assert_eq!(ports.defer(1_800_000_006_000), Err(PortError::NoService));
         assert_eq!(calls.load(Ordering::SeqCst), 3);
+    }
+
+    /// U2.4h, sentence 5 (I6.1 with its revision of 2026-11-22, I7.1; ruling RD-73 4.5): the reader of
+    /// `list_agents` takes `refused_run` of an entry, null as none, and the reader of stored events reads back the
+    /// `hold_set` and the `hold_cleared` of `sign_in_refused` that `log_text` writes, each with its run.
+    #[test]
+    fn the_readers_take_the_refused_run_and_read_back_the_hold_of_a_refused_sign_in() {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let run = RunId::parse(&"d1".repeat(16)).unwrap();
+        let entry = |refused: &str| -> Value {
+            serde_json::from_str(&format!(
+                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":{refused},"reply_unknown":"no","refused_slots":[]}}"#
+            ))
+            .unwrap()
+        };
+        assert_eq!(
+            agent_of(&entry(&format!(r#""{run}""#))).map(|a| a.refused_run),
+            Some(Some(run.clone()))
+        );
+        assert_eq!(agent_of(&entry("null")).map(|a| a.refused_run), Some(None));
+        let event = |seq: u32, what: What| Event {
+            workflow: workflow.clone(),
+            agent: agent.clone(),
+            seq: NonZeroU32::new(seq).unwrap(),
+            day: 20_778,
+            at: 1,
+            what,
+        };
+        let events = vec![
+            event(
+                1,
+                What::HoldSet {
+                    cause: HoldSetCause::SignInRefused { run: run.clone() },
+                },
+            ),
+            event(
+                2,
+                What::HoldCleared {
+                    cause: Cleared::SignInRefused { run: run.clone() },
+                },
+            ),
+        ];
+        let body: Value = serde_json::from_str(&log_text(&workflow, &agent, &events)).unwrap();
+        let read: Vec<Option<Event>> = body["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(event_of)
+            .collect();
+        assert_eq!(read, events.into_iter().map(Some).collect::<Vec<_>>());
     }
 
     /// A dialog that is never on screen and answers `reject`: no native confirmation is answered.

@@ -131,6 +131,7 @@ pub fn world_with(spec: &[A], limits: Limits) -> World {
             session: true,
             last: Some(record.clone()),
             unknown: Vec::new(),
+            refused_run: None,
         });
         members.push(Member {
             facts: Facts {
@@ -143,6 +144,7 @@ pub fn world_with(spec: &[A], limits: Limits) -> World {
                 store_ended: true,
                 replies: halvo_coord::types::Replies::NotAsked,
                 unknown: Vec::new(),
+                refused: None,
                 today: DAY,
                 doing: Doing::Idle(None),
                 stand_in: false,

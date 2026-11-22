@@ -17,7 +17,14 @@ const SHORT: Duration = Duration::from_secs(15);
 #[cfg(target_os = "macos")]
 const LIST: &[&str] = &["HOME", "TMPDIR"];
 #[cfg(windows)]
-const LIST: &[&str] = &["LOCALAPPDATA", "SystemRoot", "TEMP", "TMP"];
+const LIST: &[&str] = &[
+    "LOCALAPPDATA",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "SystemRoot",
+    "TEMP",
+    "TMP",
+];
 
 #[cfg(target_os = "macos")]
 const FROM_THE_LIBRARY: &str = "HOME";
