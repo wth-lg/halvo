@@ -25,6 +25,24 @@ use halvo_schema::{AgentId, Category, WorkflowId};
 
 pub const RUNNER: &str = env!("CARGO_BIN_EXE_halvo-runner");
 
+/// Fails a test before its runner starts when the binary at `RUNNER` lacks the marker of the loopback route. Cargo
+/// builds that binary for these tests with the feature `loopback` (the package's dev-dependency on itself), so a
+/// binary without the marker is one that another target built again at this path, and its runner would refuse the
+/// `http` origin of a fixture server before any request. The file is read once a test binary.
+fn assert_loopback_runner() {
+    static HAS_MARKER: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let has_marker = *HAS_MARKER.get_or_init(|| {
+        let binary = std::fs::read(RUNNER).expect("the runner's binary reads");
+        let marker = halvo_connect::LOOPBACK_MARKER.as_bytes();
+        binary.windows(marker.len()).any(|bytes| bytes == marker)
+    });
+    assert!(
+        has_marker,
+        "the runner at {RUNNER} was built without the feature loopback: another target replaced it \
+         (a nested cargo build of halvo-runner into this target directory without --features loopback)"
+    );
+}
+
 /// The instant now on the system's clock, in nanoseconds since 1970-01-01T00:00:00Z.
 pub fn now_nanos() -> i64 {
     let since = std::time::SystemTime::now()
@@ -358,6 +376,7 @@ impl Runner {
     }
 
     fn spawn(line: Vec<String>, data_dir: PathBuf) -> Runner {
+        assert_loopback_runner();
         let mut command = Command::new(RUNNER);
         command
             .args(&line)
