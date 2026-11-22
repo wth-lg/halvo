@@ -96,6 +96,12 @@ pub(crate) trait Page: Send {
     fn stop(self: Box<Self>) -> bool;
     /// The reading of A6.4: the strongest sign of a credential field that the page shows (A8.2), none for none.
     fn sign(&mut self) -> Result<Option<Sign>, ()>;
+    /// The second reading (r3 U5.14), made after a web step that failed alone: whether the page shows a link or a
+    /// button that asks for a sign-in by its name (halvo-web's `Executor::asks_for_a_sign_in`). The stand-ins of the
+    /// unit tests of crate::session and crate::web::maker take the default, a page that asks for none.
+    fn asks_for_a_sign_in(&mut self) -> Result<bool, ()> {
+        Ok(false)
+    }
     /// Fails every request that the rule holds paused.
     fn fail_held(&mut self) -> Result<(), ()>;
     /// Closes every page of the run but the top one.
@@ -816,6 +822,14 @@ impl Page for Live {
     fn sign(&mut self) -> Result<Option<Sign>, ()> {
         let executor = &mut self.executor;
         told("sign", self.runtime.block_on(executor.sign()))
+    }
+
+    fn asks_for_a_sign_in(&mut self) -> Result<bool, ()> {
+        let executor = &mut self.executor;
+        told(
+            "asks_for_a_sign_in",
+            self.runtime.block_on(executor.asks_for_a_sign_in()),
+        )
     }
 
     fn fail_held(&mut self) -> Result<(), ()> {

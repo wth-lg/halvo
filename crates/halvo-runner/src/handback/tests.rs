@@ -12,12 +12,13 @@ use std::time::Duration;
 
 use halvo_policy::preset;
 use halvo_schema::executable::body::{LoadReply, LoadedBindings};
+use halvo_schema::executable::names::Verb;
 use halvo_schema::executable::step::Cond;
 use halvo_schema::executable::{
     Cause, ExecutableStep, FromRunner, Outcome, RunnerCall, ToRunner, WebOrigin,
 };
 use halvo_schema::{AgentId, Category, WorkflowId};
-use halvo_web::cdp::{PausedRequest, SessionState, Sign};
+use halvo_web::cdp::{asks_to_sign_in, PausedRequest, SessionState, Sign};
 
 use crate::link::{encode, Link};
 use crate::run::{Failure, Runner, Stop};
@@ -43,6 +44,9 @@ struct StandIn {
     addresses: VecDeque<String>,
     address: String,
     act_fails: bool,
+    /// The links and buttons that the page shows, each by its role and its accessible name, which the second reading
+    /// reads by halvo-web's own rule (`asks_to_sign_in`), as the executor reads the lines of its snapshot.
+    controls: Vec<(&'static str, &'static str)>,
 }
 
 impl Page for StandIn {
@@ -85,6 +89,14 @@ impl Page for StandIn {
     fn sign(&mut self) -> Result<Option<Sign>, ()> {
         note(&self.log, "read");
         Ok(self.signs.pop_front().flatten())
+    }
+
+    fn asks_for_a_sign_in(&mut self) -> Result<bool, ()> {
+        note(&self.log, "read sign-in");
+        Ok(self
+            .controls
+            .iter()
+            .any(|(role, name)| asks_to_sign_in(role, name)))
     }
 
     fn fail_held(&mut self) -> Result<(), ()> {
@@ -268,6 +280,18 @@ impl Bench {
         act_fails: bool,
         addresses: &[&str],
     ) -> Bench {
+        Bench::on_page(signs, address, answers, act_fails, addresses, &[])
+    }
+
+    /// `with`, on a page that shows the links and buttons `controls`.
+    fn on_page(
+        signs: &[Option<Sign>],
+        address: &str,
+        answers: &[&'static str],
+        act_fails: bool,
+        addresses: &[&str],
+        controls: &[(&'static str, &'static str)],
+    ) -> Bench {
         let log: Log = Arc::default();
         let requests: Log = Arc::default();
         let (to_runner, from) = mpsc::channel();
@@ -312,6 +336,7 @@ impl Bench {
             addresses: addresses.iter().map(|a| a.to_string()).collect(),
             address: address.to_string(),
             act_fails,
+            controls: controls.to_vec(),
         })));
         let config = preset(Category::UtilityBillPayment, workflow, agent).expect("a preset");
         let loaded = LoadReply {
@@ -378,6 +403,14 @@ fn click() -> ExecutableStep {
 fn fill() -> ExecutableStep {
     web_step(
         r#"{"v":1,"n":2,"kind":"web","verb":"fill","target":{"desc":"the name field","frame":[],"credential":"no","locators":[{"by":"test_id","value":"name","name":null}]},"args":[{"name":"text","from":"const","value":"Ada","key":null}],"pre":[],"post":[],"effect":"none","class":"prepare"}"#,
+    )
+}
+
+/// A fill of a target marked `credential`: a step that acts on nothing, and fails where the page shows no credential
+/// field.
+fn credential_fill() -> ExecutableStep {
+    web_step(
+        r#"{"v":1,"n":2,"kind":"web","verb":"fill","target":{"desc":"the password field","frame":[],"credential":"yes","locators":[{"by":"test_id","value":"password","name":null}]},"args":[{"name":"text","from":"const","value":"x","key":null}],"pre":[],"post":[],"effect":"none","class":"credential"}"#,
     )
 }
 
@@ -763,4 +796,102 @@ fn after_bound_no_nothing_leaves() {
         ],
         "{log:?}"
     );
+}
+
+/// r3 U5.14 (the coordinator's ruling of log line 14127 (1)): on a page that shows no credential field and asks for a
+/// sign-in by a link alone, a web step that fails hands back with the reason `sign_in` in place of its failure, as at a
+/// credential field. A click whose act fails reads the page for a field, then reads it a second time, then opens the
+/// handback in the order of a credential field's, and the request names the page's origin; so does a fill of a target
+/// marked `credential`, which fails where the page shows no credential field. Declined, the run ends `declined`. A
+/// click that does not fail on such a page acts, and makes no second reading.
+#[test]
+fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
+    let page = |link: &'static str| vec![("button", "Pay bill"), ("link", link)];
+    let mut bench = Bench::on_page(&[], BOUND, &[], false, &[], &page("Sign in"));
+    assert!(bench.step(&click()).is_ok(), "{:?}", bench.log());
+    assert_eq!(bench.log(), ["read", "act click"]);
+
+    let opening = [
+        "address",
+        "fail held",
+        "close others",
+        "clear stores",
+        "load again",
+        "pass all",
+    ];
+    let cases = [
+        (click(), "Sign in"),
+        (click(), "Log in"),
+        (click(), "Sign-in with Google"),
+        (click(), "Customer LOGIN"),
+        (credential_fill(), "Sign in"),
+    ];
+    for (step, link) in cases {
+        let mut bench = Bench::on_page(&[], BOUND, &[DECLINED], true, &[], &page(link));
+        let got = stop_of(bench.step(&step));
+        let log = bench.log();
+        assert_eq!(
+            got,
+            Some((Outcome::Declined, Some(Cause::Declined))),
+            "{link}: {log:?}"
+        );
+        let mut want = if step.verb == Verb::Click {
+            vec!["read", "act click", "read", "read sign-in"]
+        } else {
+            vec!["read", "read sign-in"]
+        };
+        want.extend(opening);
+        let request = at(&log, "frame handback sign_in");
+        let before: Vec<&str> = log[..request]
+            .iter()
+            .filter(|l| !l.starts_with("frame store"))
+            .map(String::as_str)
+            .collect();
+        assert_eq!(before, want, "{link}: {log:?}");
+        assert_eq!(count(&log, "frame handback sign_in"), 1, "{link}: {log:?}");
+        let requests = bench.requests();
+        assert!(
+            requests[0].contains(r#""origin":"http://127.0.0.1:8080""#),
+            "{link}: {}",
+            requests[0]
+        );
+    }
+}
+
+/// r3 U5.14: on a page that shows no credential field and no link or button that asks for a sign-in by its name, a web
+/// step that fails fails as before, with `step_failed` and no handback, after the second reading. The pages: a link
+/// that names a password alone; a link that names a login and a password; buttons and a link that ask for a new
+/// account; a link to sign out; the words of a sign-in on a heading and in the name of a field; and a page with none.
+/// Each with a click whose act fails and with a fill of a target marked `credential`.
+#[test]
+fn a_failed_step_on_a_page_with_no_such_sign_fails_as_before() {
+    let pages: [&[(&'static str, &'static str)]; 6] = [
+        &[("link", "Change password")],
+        &[("link", "Forgot your login password?")],
+        &[
+            ("button", "Sign up"),
+            ("link", "Register"),
+            ("button", "Create account"),
+        ],
+        &[("link", "Sign out")],
+        &[("heading", "Log in"), ("textbox", "Login")],
+        &[],
+    ];
+    for page in pages {
+        for step in [click(), credential_fill()] {
+            let mut bench = Bench::on_page(&[], BOUND, &[DECLINED], true, &[], page);
+            let got = bench.step(&step);
+            let log = bench.log();
+            assert!(
+                matches!(got, Err(Failure::Step(Cause::StepFailed))),
+                "{page:?}: {log:?}"
+            );
+            let want = if step.verb == Verb::Click {
+                &["read", "act click", "read", "read sign-in"][..]
+            } else {
+                &["read", "read sign-in"][..]
+            };
+            assert_eq!(log, want, "{page:?}");
+        }
+    }
 }
