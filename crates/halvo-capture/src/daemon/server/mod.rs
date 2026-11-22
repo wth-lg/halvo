@@ -1027,7 +1027,8 @@ mod tests {
     }
 
     /// Starts the screen source of the service set once, on the computer that
-    /// runs the test.
+    /// runs the test. The board holds a running foreground line, as the board
+    /// of a run does, for the foreground source that the test does not start.
     #[cfg(windows)]
     #[test]
     fn the_status_of_a_windows_run_reads_the_screen_running_only_while_it_runs() {
@@ -1063,8 +1064,15 @@ mod tests {
             for (name, state, unstopped) in sources.states() {
                 board.set_source(name, state, unstopped);
             }
-            board.enabled = asked(on);
-            board.capture = board.capture_of(&asked(on));
+            board.set_source(
+                SourceName::Foreground,
+                &crate::source::SourceState::Running,
+                false,
+            );
+            let mut wanted = vec![SourceName::Foreground];
+            wanted.extend(asked(on));
+            board.capture = board.capture_of(&wanted);
+            board.enabled = wanted;
             let parts = StatusParts {
                 board,
                 desired: Desired::Running,
@@ -1086,11 +1094,14 @@ mod tests {
                 rss_peak_bytes: 0,
             };
             let status = status_of(&parts, &facts).unwrap();
-            halvo_control::ctl_text::status_text(&status)
-                .lines()
-                .find(|line| line.starts_with("source name=screen "))
-                .unwrap_or_default()
-                .to_string()
+            let text = halvo_control::ctl_text::status_text(&status);
+            let of = |start: &str| {
+                text.lines()
+                    .find(|line| line.starts_with(start))
+                    .unwrap_or_default()
+                    .to_string()
+            };
+            (of("source name=screen "), of("capture="))
         };
         let mut set = ServiceSet::new();
         let mut sources = RunningSources::new(Platform::Windows);
@@ -1114,19 +1125,25 @@ mod tests {
         assert_eq!(first_stop, Some(Ok(())));
         assert_eq!(second, [(SourceName::Screen, Ok(Started::Off))]);
         assert_eq!(second_stop, Some(Ok(())));
-        let state = |word: &str| format!("source name=screen state={word}");
+        let read = |screen: &str, capture: &str| {
+            (
+                format!("source name=screen state={screen}"),
+                format!("capture={capture}"),
+            )
+        };
         assert_eq!(
             lines,
             [
-                state("off"),
-                state("running"),
-                state("stopped"),
-                state("off"),
-                state("stopped"),
-                state("stopped"),
+                read("off", "running"),
+                read("running", "running"),
+                read("stopped", "partial"),
+                read("off", "running"),
+                read("stopped", "partial"),
+                read("stopped", "partial"),
             ],
-            "the screen line with the switch off, while the source runs, behind its stop, \
-             at the start behind it, at the health read behind that start, behind the second stop"
+            "the screen and capture lines with the switch off, while the source runs, behind \
+             its stop, at the start behind it, at the health read behind that start, behind \
+             the second stop"
         );
     }
 }
