@@ -254,3 +254,159 @@ impl Core for NoService {
         Err(Cause::NoService)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Condvar, Mutex, PoisonError};
+    use std::time::Duration;
+
+    use halvo_control::paths::DataDir;
+    use halvo_control::proto::{DaemonStatus, Platform, StoreState};
+    use halvo_control::testing::sample_status;
+    use halvo_coord::items::ConfirmAnswer;
+    use halvo_coord::types::{AgentId, Cause, ItemId, RunId};
+    use halvo_coord_app::{Agents, Core, Reply};
+    use serde_json::Value;
+    use tauri::test::{mock_builder, MockRuntime};
+    use tauri::{App, Manager};
+
+    use super::hold_by_the_view;
+    use crate::commands::capture::{AppState, Before};
+
+    /// A core that records every `hold_runs` that reaches it.
+    #[derive(Default)]
+    struct Told {
+        holds: Mutex<Vec<bool>>,
+        told: Condvar,
+    }
+
+    impl Told {
+        fn holds(&self) -> Vec<bool> {
+            self.holds
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone()
+        }
+
+        fn wait_for(&self, count: usize) -> Vec<bool> {
+            let holds = self.holds.lock().unwrap_or_else(PoisonError::into_inner);
+            self.told
+                .wait_timeout_while(holds, Duration::from_secs(30), |holds| {
+                    holds.len() < count
+                })
+                .unwrap_or_else(PoisonError::into_inner)
+                .0
+                .clone()
+        }
+    }
+
+    impl Core for Told {
+        fn call(&self, _: &str, _: Option<&Value>) -> Reply {
+            Reply::Closed
+        }
+
+        fn shown(&self) {}
+
+        fn hidden(&self) {}
+
+        fn destroyed(&self) {}
+
+        fn tick(&self) {}
+
+        fn quit(&self, _: Option<Duration>) -> Vec<(AgentId, RunId)> {
+            Vec::new()
+        }
+
+        fn hold_runs(&self, held: bool) -> Vec<(AgentId, RunId)> {
+            self.holds
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(held);
+            self.told.notify_all();
+            Vec::new()
+        }
+
+        fn on_screen(&self, _: &ItemId) {}
+
+        fn answer_native(&self, _: &ItemId, _: ConfirmAnswer) -> Result<(), Cause> {
+            Err(Cause::NoService)
+        }
+    }
+
+    /// The app's state and `core` on the mock runtime, with no set-up and so no poller.
+    fn app_of(core: &Arc<Told>) -> App<MockRuntime> {
+        let core: Arc<dyn Core> = Arc::clone(core) as Arc<dyn Core>;
+        mock_builder()
+            .manage(AppState::new(|| Err::<DataDir, ()>(()), |_| Ok(())))
+            .manage(Agents(core))
+            .build(crate::app::context())
+            .expect("the app builds on the mock runtime")
+    }
+
+    /// A delete of everything at the service's door that begins and ends with no poll between,
+    /// whose answer is then taken and drawn.
+    fn a_delete_answered_and_drawn(app: &App<MockRuntime>) {
+        let state = app.state::<AppState>();
+        let before = Before::of(app.handle(), &state);
+        let call = state.control.places().make().number();
+        drop(before.tell());
+        let next = state.control.places().next_number();
+        state.views.take_delete(call, next);
+        hold_by_the_view(app.handle(), &state.views.view());
+    }
+
+    /// A poll made at this moment, answered with `status`, then drawn.
+    fn a_poll_drawn(app: &App<MockRuntime>, status: DaemonStatus) {
+        let state = app.state::<AppState>();
+        let number = state.control.places().make().number();
+        state.views.take_poll(number, &Ok(status));
+        hold_by_the_view(app.handle(), &state.views.view());
+    }
+
+    fn deleting_with_the_field() -> DaemonStatus {
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        fields.store = StoreState::Deleting;
+        fields.store_id = None;
+        fields.store_delete_unfinished = true;
+        DaemonStatus::new(fields).expect("a status that holds")
+    }
+
+    #[test]
+    fn behind_a_deletes_answer_the_runs_stay_held_until_a_poll_made_after_it_reads_the_store_open()
+    {
+        let core = Arc::new(Told::default());
+        let app = app_of(&core);
+        let state = app.state::<AppState>();
+        a_delete_answered_and_drawn(&app);
+        assert!(
+            state.runs.stands(),
+            "the hold stands behind the delete's answer, drawn as Connecting"
+        );
+        assert_eq!(core.holds(), [true], "no lift reaches the core behind the answer");
+        a_poll_drawn(&app, sample_status(Platform::Macos));
+        assert_eq!(
+            core.wait_for(2),
+            [true, false],
+            "the view of a poll made after the answer, which reads the store open, lifts the hold once"
+        );
+        assert!(!state.runs.stands(), "the hold is lifted");
+    }
+
+    #[test]
+    fn behind_a_deletes_answer_the_runs_stay_held_where_that_poll_reads_deleting_with_the_field() {
+        let core = Arc::new(Told::default());
+        let app = app_of(&core);
+        let state = app.state::<AppState>();
+        a_delete_answered_and_drawn(&app);
+        a_poll_drawn(&app, deleting_with_the_field());
+        assert_eq!(
+            core.holds(),
+            [true],
+            "no lift reaches the core from the delete's begin to the view of a poll that reads deleting"
+        );
+        assert!(
+            state.runs.stands(),
+            "the hold stands on while that view reads deleting with the field"
+        );
+    }
+}
