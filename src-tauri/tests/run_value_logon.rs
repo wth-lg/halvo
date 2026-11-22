@@ -158,8 +158,24 @@ fn helper_run_value() {
     assert_eq!(children.len(), 1, "the children {DAEMON} of the app");
     say("children=1");
     let visible = visible_windows(pid);
-    assert_eq!(visible, 0, "the app started by the value shows a window");
-    say("visible_windows=0");
+    for window in &visible {
+        say(&format!("window {window}"));
+    }
+    let shown: Vec<&Window> = visible
+        .iter()
+        .filter(|window| window.has_an_area())
+        .collect();
+    let names: Vec<String> = shown.iter().map(|window| window.to_string()).collect();
+    assert!(
+        shown.is_empty(),
+        "the app started by the value shows {} window(s) with an area: {}",
+        shown.len(),
+        names.join("; ")
+    );
+    say(&format!(
+        "visible_windows=0 with an area, of {} visible",
+        visible.len()
+    ));
     let elevated = token_elevated(process).expect("the app's token reads");
     assert!(!elevated, "the app started by the value runs elevated");
     say("token_elevated=false");
@@ -322,10 +338,56 @@ fn children_named(parent: u32, name: &str) -> Vec<u32> {
     found
 }
 
-/// The count of visible top-level windows of the process `pid`.
-fn visible_windows(pid: u32) -> usize {
+/// What the helper reads of a visible top-level window of the app.
+struct Window {
+    class: String,
+    title: String,
+    style: u32,
+    extended: u32,
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+}
+
+impl Window {
+    /// The case counts as shown a visible window whose rectangle has an area, and no other: a
+    /// window with an area is one that a person can see, a tool window among them, and a window
+    /// of no area is not. The windowing crate of the app keeps one top-level window of 0 by 0 in
+    /// the visible state, so that it receives paint messages (tao, the event target window of
+    /// its Windows event loop); it falls out by its size, and any other window that the app shows
+    /// at a hidden start fails the case by its name and size.
+    fn has_an_area(&self) -> bool {
+        self.right > self.left && self.bottom > self.top
+    }
+}
+
+impl std::fmt::Display for Window {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "class={:?} title={:?} style=0x{:08x} exstyle=0x{:08x} rect={},{},{},{} size={}x{}",
+            self.class,
+            self.title,
+            self.style,
+            self.extended,
+            self.left,
+            self.top,
+            self.right,
+            self.bottom,
+            self.right - self.left,
+            self.bottom - self.top
+        )
+    }
+}
+
+/// The visible top-level windows of the process `pid`, each with its class name, title, style,
+/// extended style and rectangle.
+fn visible_windows(pid: u32) -> Vec<Window> {
+    use windows::Win32::Foundation::RECT;
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowThreadProcessId, IsWindowVisible,
+        EnumWindows, GetClassNameW, GetWindowLongW, GetWindowRect, GetWindowTextW,
+        GetWindowThreadProcessId, IsWindowVisible, GWL_EXSTYLE, GWL_STYLE,
     };
     unsafe extern "system" fn each(hwnd: HWND, found: LPARAM) -> BOOL {
         // SAFETY: `found` is the address of the vector that the caller holds across the
@@ -347,7 +409,43 @@ fn visible_windows(pid: u32) -> usize {
             // SAFETY: IsWindowVisible reads a handle value.
             owner == pid && unsafe { IsWindowVisible(*hwnd) }.as_bool()
         })
-        .count()
+        .map(|hwnd| {
+            let mut class = [0u16; 256];
+            let mut title = [0u16; 256];
+            // SAFETY: each call reads a window handle and writes at most the length of the live
+            // local buffer that it is given.
+            let (class_len, title_len) = unsafe {
+                (
+                    GetClassNameW(hwnd, &mut class),
+                    GetWindowTextW(hwnd, &mut title),
+                )
+            };
+            let text = |units: &[u16], len: i32| {
+                let len = usize::try_from(len).unwrap_or(0).min(units.len());
+                String::from_utf16_lossy(&units[..len])
+            };
+            // SAFETY: each call reads a window handle and an index of the window's longs.
+            let (style, extended) = unsafe {
+                (
+                    GetWindowLongW(hwnd, GWL_STYLE),
+                    GetWindowLongW(hwnd, GWL_EXSTYLE),
+                )
+            };
+            let mut rect = RECT::default();
+            // SAFETY: the call reads a window handle and writes the live local `rect`.
+            let _ = unsafe { GetWindowRect(hwnd, &mut rect) };
+            Window {
+                class: text(&class, class_len),
+                title: text(&title, title_len),
+                style: u32::from_ne_bytes(style.to_ne_bytes()),
+                extended: u32::from_ne_bytes(extended.to_ne_bytes()),
+                left: rect.left,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+            }
+        })
+        .collect()
 }
 
 /// Whether the token of `process` is elevated.
