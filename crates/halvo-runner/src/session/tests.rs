@@ -255,8 +255,37 @@ struct Seen {
     stores: Vec<String>,
 }
 
+/// Stores one part in `parts` as the store's `put_session` does, and answers whether it holds it: no, with nothing
+/// stored, where the revision is more than one above the newest stored revision of its origin, where a stored part of
+/// the revision names another count of parts, and where the place holds a part with other data.
+fn put_as_the_store(
+    parts: &mut Parts,
+    (origin, rev, part): (String, u32, u32),
+    of: u32,
+    pieces: Vec<String>,
+) -> bool {
+    let newest = parts
+        .keys()
+        .filter(|(o, _, _)| *o == origin)
+        .map(|(_, r, _)| u64::from(*r))
+        .max()
+        .unwrap_or(0);
+    let refused = u64::from(rev) > newest + 1
+        || parts
+            .iter()
+            .any(|((o, r, _), (n, _))| *o == origin && *r == rev && *n != of)
+        || parts
+            .get(&(origin.clone(), rev, part))
+            .is_some_and(|(_, held)| *held != pieces);
+    if !refused {
+        parts.insert((origin, rev, part), (of, pieces));
+    }
+    !refused
+}
+
 /// The supervisor and the store, on the runner's standard output: it answers each `store` frame at once from `parts`,
-/// `browser` with its reply, and each handback request and each `bind` by the next answer that the test queued.
+/// a `put_session` as the store does (`put_as_the_store`), `browser` with its reply, and each handback request and each
+/// `bind` by the next answer that the test queued.
 struct Supervisor {
     log: Log,
     seen: Arc<Mutex<Seen>>,
@@ -316,10 +345,21 @@ impl Supervisor {
                         );
                         let key = (b.origin.as_str().to_string(), b.rev.get(), b.part.get());
                         let pieces = b.data.pieces().to_vec();
-                        self.parts
-                            .lock()
-                            .expect("parts")
-                            .insert(key, (b.of.get(), pieces));
+                        let held = put_as_the_store(
+                            &mut self.parts.lock().expect("parts"),
+                            key,
+                            b.of.get(),
+                            pieces,
+                        );
+                        if !held {
+                            self.send(
+                                format!(
+                                    r#"{{"t":"store_reply","reply":{{"v":1,"id":"{id}","error":"binding"}}}}"#
+                                ),
+                                true,
+                            );
+                            return;
+                        }
                         r#"{"stored":1}"#.to_string()
                     }
                     RunnerCall::Log(b) => {
@@ -1320,4 +1360,67 @@ fn two_sign_ins_in_one_run_are_both_kept() {
         next.log
     );
     assert_eq!(next.seen.finish, Some(Outcome::Completed), "{}", next.end);
+}
+
+/// U5.11 (1), the inbox's line of 2026-11-22T11:00:45Z: the store holds a whole revision 1 of site A and part 1 of 2 of
+/// revision 2, which a fault cut between its parts. A run that imports revision 1 and binds the site at a handback
+/// ends completed; the store refuses its part 1 at revision 2, where a part with other data stands, and the runner
+/// takes the next number. The load then lists a whole revision newer than 1, which holds the browser's state of the
+/// site at the run's end, and the stray part stays as it was.
+#[test]
+fn a_run_numbers_its_revision_past_a_part_that_a_fault_left() {
+    let world = World::default();
+    world.store(A, 1, &export_of(&signed_in(), A));
+    let long = "t".repeat(60_000);
+    let cut = parts_of(&export_of(
+        &jar(
+            &[cookie("sid", "a-cut", "a.test")],
+            &[(A, &[("cache", &long)])],
+        ),
+        A,
+    ))
+    .expect("a state within the limit");
+    assert_eq!(cut.len(), 2);
+    world
+        .parts
+        .lock()
+        .expect("parts")
+        .insert((A.to_string(), 2, 1), (2, cut[0].pieces().to_vec()));
+    let mut binding = Run::new(SessionState::default(), &[A]);
+    binding.headed = true;
+    binding.signs = &[Some(Sign::Secret), None];
+    binding.answers = &[DONE, BOUND_YES];
+    binding.person = Some(jar(
+        &[cookie("sid", "a-new", "a.test")],
+        &[(A, &[("token", "a-new")])],
+    ));
+    let ran = world.run(&binding, &[click()]);
+    assert_eq!(ran.seen.finish, Some(Outcome::Completed), "{}", ran.end);
+    assert_eq!(
+        lines(&ran.log, "frame bind"),
+        ["frame bind http://a.test:8080"]
+    );
+    let listed: Vec<(String, u32)> = world
+        .listed()
+        .iter()
+        .map(|s| (s.origin.as_str().to_string(), s.rev.get()))
+        .collect();
+    assert!(
+        listed.len() == 1 && listed[0].0 == A && listed[0].1 > 1,
+        "a whole revision newer than 1: {listed:?} {:?}",
+        ran.log
+    );
+    assert_eq!(world.stored(A, listed[0].1), Some(export_of(&ran.jar, A)));
+    assert_eq!(
+        lines(&ran.log, "frame store put_session"),
+        [
+            "frame store put_session http://a.test:8080 2 1 1",
+            "frame store put_session http://a.test:8080 3 1 1"
+        ]
+    );
+    assert_eq!(
+        world.revisions(A),
+        [(1, 1, 1), (2, 1, 2), (3, 1, 1)],
+        "the stray part stays"
+    );
 }
