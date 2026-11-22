@@ -963,8 +963,9 @@ pub fn start_a_run<T>(run: impl FnOnce() -> T) -> Result<T, FaultReportsOn> {
 /// a service run's set, by the names of Windows, run for the window on a
 /// scratch store in the run's store directory, whose root is destroyed at
 /// the end. A console's Ctrl-C or Ctrl-Break ends the window early, and the
-/// run reports and exits 2. The set makes no keyboard source and no screen
-/// source, and the parse refuses the switches that would ask for them.
+/// run reports and exits 2. The set makes no keyboard source, and the parse
+/// refuses the switch that would ask for it; with `screen_activity` on, the
+/// set's screen source reads the set's password gate.
 #[cfg(all(windows, debug_assertions))]
 pub(crate) fn timed_run(
     run: &crate::daemon::TimedRun,
