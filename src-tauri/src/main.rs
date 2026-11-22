@@ -11,6 +11,8 @@ mod commands;
 mod daemon_child;
 mod engine;
 mod launch;
+#[cfg(all(target_os = "macos", test))]
+mod login_item;
 mod poller;
 #[cfg(any(target_os = "macos", test))]
 mod quit;
