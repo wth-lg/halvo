@@ -616,7 +616,11 @@ fn a_row_names_the_app_that_the_system_names_and_no_app_id_and_no_day() {
 #[test]
 fn an_apps_names_are_read_only_where_it_lies_under_applications_or_system() {
     let read = |place: &str| super::workflows::names_readable_at(std::path::Path::new(place));
-    for place in ["/Applications/Safari.app", "/System/Applications/Mail.app"] {
+    for place in [
+        "/Applications/Safari.app",
+        "/System/Applications/Mail.app",
+        "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app",
+    ] {
         assert!(read(place), "{place} is not read");
     }
     for place in [
@@ -626,6 +630,9 @@ fn an_apps_names_are_read_only_where_it_lies_under_applications_or_system() {
         "/Users/someone/Applications/Tool.app",
         "/Volumes/Disk/Tool.app",
         "/Applications/../Users/someone/Downloads/Tool.app",
+        "/System/Volumes/Data/Users/someone/Downloads/Tool.app",
+        "/System/Volumes/Data/Users/someone/Applications/Tool.app",
+        "/System/Volumes/Data/Applications/Tool.app",
     ] {
         assert!(!read(place), "{place} is read");
     }

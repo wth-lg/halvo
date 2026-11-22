@@ -380,21 +380,39 @@ fn system_app_name(app: &str) -> Option<String> {
 }
 
 /// Whether the names of an app's bundle may be read at the place that the system gives for the
-/// app: only where the place is absolute, lies under /Applications or under /System, and holds
-/// no step up, as macOS protects no folder of the person's there. At any other place, the
-/// person's own Applications folder among them, a read could make macOS ask the person for
-/// access to a folder of theirs, and Halvo never does that for the sake of a name.
+/// app: only where the place is absolute, holds no step up, and lies under /Applications or
+/// under /System but not under /System/Volumes/Data. That is the data volume's own place, where
+/// the person's home folders stand by a second spelling (/Users is
+/// /System/Volumes/Data/Users), so its two last names are compared without case, as the volume
+/// folds case. At any other place, the person's own Applications folder among them, a read
+/// could make macOS ask the person for access to a folder of theirs, and Halvo never does that
+/// for the sake of a name.
 #[cfg(target_os = "macos")]
 pub(super) fn names_readable_at(place: &std::path::Path) -> bool {
     use std::path::Component;
 
     let mut parts = place.components();
-    parts.next() == Some(Component::RootDir)
-        && matches!(
-            parts.next(),
-            Some(Component::Normal(top)) if top == "Applications" || top == "System"
-        )
-        && parts.all(|part| matches!(part, Component::Normal(_)))
+    if parts.next() != Some(Component::RootDir) {
+        return false;
+    }
+    let names: Option<Vec<_>> = parts
+        .map(|part| match part {
+            Component::Normal(name) => Some(name),
+            _ => None,
+        })
+        .collect();
+    match names.as_deref() {
+        Some([top, ..]) if *top == "Applications" => true,
+        Some([top, volumes, data, ..])
+            if *top == "System"
+                && volumes.eq_ignore_ascii_case("Volumes")
+                && data.eq_ignore_ascii_case("Data") =>
+        {
+            false
+        }
+        Some([top, ..]) => *top == "System",
+        _ => false,
+    }
 }
 
 /// No system but the Mac is asked for a name, so every row leaves the app out.
