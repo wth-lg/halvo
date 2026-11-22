@@ -431,10 +431,12 @@ const BUSY_LINE: &str =
 /// which this request then leaves as it found it, 66 when the directory
 /// cannot be used, before any removal: [`DataDir::is_provisioned`] answers
 /// a cause, or the instance lock cannot be opened for any cause but a
-/// holder; `data_dir=` then stands alone. It answers 1 when something stays
-/// or a folder was not flushed. Where the store's delete answered no report,
-/// the `deleted` line still stands: what only that report holds reads
-/// `unknown`, and `files_left` and `database_left` are read from what stands
+/// holder; `data_dir=` then stands alone. It answers 1 when something stays,
+/// a folder was not flushed, or the write of its own lines failed. Where the
+/// store's delete answered no report, the walk still ran behind it and the
+/// `deleted` line still stands: the counts of segments and keys and
+/// `root_destroyed` read `unknown`, `root_id` reads `-` and `not_followed`
+/// reads 0, and `files_left` and `database_left` are read from what stands
 /// of the store after the steps.
 pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let path = dir.path();
