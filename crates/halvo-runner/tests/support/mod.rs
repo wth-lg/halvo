@@ -12,7 +12,8 @@ use std::time::{Duration, Instant};
 
 use halvo_policy::preset;
 use halvo_schema::executable::body::{
-    LoadReply, LoadedBindings, RunnerCall, RunnerReply, StepsReply, Stored,
+    LoadReply, LoadedBindings, LoadedSession, PutSession, RunnerCall, RunnerReply, SessionReply,
+    StepsReply, Stored,
 };
 use halvo_schema::executable::frame::{HandbackReply, SecretReply, StoreReply, StoreReplyFrame};
 use halvo_schema::executable::names::{HandbackOutcome, HandbackReason};
@@ -576,6 +577,9 @@ pub struct Supervisor {
     pub data_dir: bool,
     /// Whether the runner gets `--headed`; false unless a test sets it.
     pub headed: bool,
+    /// The session parts that a run before stored, which `load` lists and `load_session` answers; none unless a
+    /// test gives them.
+    pub kept: Vec<PutSession>,
 }
 
 impl Supervisor {
@@ -594,6 +598,7 @@ impl Supervisor {
             utc_offset_s: 0,
             data_dir: true,
             headed: false,
+            kept: Vec::new(),
         }
     }
 
@@ -635,9 +640,24 @@ impl Supervisor {
                     origins: self.origins.clone(),
                     slots: self.slots.clone(),
                 }),
-                sessions: Vec::new(),
+                sessions: self.listed(),
                 start: None,
             }),
+            RunnerCall::LoadSession(b) => {
+                let part = self
+                    .kept
+                    .iter()
+                    .find(|p| (&p.origin, p.rev, p.part) == (&b.origin, b.rev, b.part))
+                    .expect("a kept part");
+                RunnerReply::Session(SessionReply {
+                    agent: self.config.agent.clone(),
+                    origin: part.origin.clone(),
+                    rev: part.rev,
+                    part: part.part,
+                    of: part.of,
+                    data: part.data.clone(),
+                })
+            }
             RunnerCall::LoadSteps(b) => {
                 let from = b.from.get() as usize;
                 RunnerReply::Steps(StepsReply {
@@ -650,6 +670,28 @@ impl Supervisor {
             }),
             _ => RunnerReply::Stored(Stored { stored: 1 }),
         }
+    }
+
+    /// For each origin of `kept`, its newest revision whose parts are all there, as the store's `load` lists it.
+    fn listed(&self) -> Vec<LoadedSession> {
+        let mut listed: Vec<LoadedSession> = Vec::new();
+        for p in &self.kept {
+            let whole = (1..=p.of.get()).all(|n| {
+                self.kept
+                    .iter()
+                    .any(|q| (&q.origin, q.rev, q.part.get()) == (&p.origin, p.rev, n))
+            });
+            match listed.iter_mut().find(|l| l.origin == p.origin) {
+                Some(l) if whole && l.rev < p.rev => (l.rev, l.parts) = (p.rev, p.of),
+                None if whole => listed.push(LoadedSession {
+                    origin: p.origin.clone(),
+                    rev: p.rev,
+                    parts: p.of,
+                }),
+                _ => {}
+            }
+        }
+        listed
     }
 
     /// The default answer to a frame: the store's for `store`, and none for a frame that takes no reply.

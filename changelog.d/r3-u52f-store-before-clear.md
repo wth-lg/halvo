@@ -1,0 +1,1 @@
+- Fixed: When the person signs in at two sites in one run of an agent, Halvo keeps both sign-ins, so the next run asks at neither; before, it kept the last one alone.

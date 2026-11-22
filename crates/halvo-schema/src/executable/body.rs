@@ -283,6 +283,19 @@ object_type! {
 }
 
 object_type! {
+    /// `drop_session`: the end of the use of the kept sign-in of one origin. The store keeps one more revision of
+    /// that origin, of one part in the drop form (`SessionData::dropped`), which `load` lists as that origin's newest
+    /// revision and from which a runner imports nothing.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct DropSession [op = "drop_session"] {
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub origin: WebOrigin = "origin" => from_json,
+    }
+    rules(_b) { Ok(()) }
+}
+
+object_type! {
     /// `effect`: one row of an effect of the body's agent and run.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct PutEffect [op = "effect"] {
@@ -388,6 +401,7 @@ op_enum! {
         Checkpoint(PutCheckpoint) = "checkpoint",
         ReplyRow(PutReplyRow) = "reply_row",
         LoadReplies(LoadReplies) = "load_replies",
+        DropSession(DropSession) = "drop_session",
     }
 }
 
@@ -406,6 +420,7 @@ impl RunnerCall {
             RunnerCall::Checkpoint(b) => &b.agent,
             RunnerCall::ReplyRow(b) => &b.agent,
             RunnerCall::LoadReplies(b) => &b.agent,
+            RunnerCall::DropSession(b) => &b.agent,
         }
     }
 
@@ -423,6 +438,7 @@ impl RunnerCall {
             RunnerCall::Checkpoint(b) => &b.run,
             RunnerCall::ReplyRow(b) => &b.run,
             RunnerCall::LoadReplies(b) => &b.run,
+            RunnerCall::DropSession(b) => &b.run,
         }
     }
 }
@@ -532,8 +548,9 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of the runner bodies `put_playbook`, `put_session`, `effect`, `log`, `finish`, `checkpoint` and
-    /// `reply_row`, and of the coordinator body `mark_checkpoint`: the count stored.
+    /// The reply of the runner bodies `put_playbook`, `put_session`, `effect`, `log`, `finish`, `checkpoint`,
+    /// `reply_row` and `drop_session`, and of the coordinator bodies `mark_checkpoint` and `drop_sessions`: the count
+    /// stored.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Stored {
         pub stored: u32 = "stored" => from_json,
@@ -657,6 +674,7 @@ impl RunnerReply {
                         | RunnerCall::Finish(_)
                         | RunnerCall::Checkpoint(_)
                         | RunnerCall::ReplyRow(_)
+                        | RunnerCall::DropSession(_)
                 )
             ),
         }
@@ -733,6 +751,19 @@ object_type! {
     rules(_b) { Ok(()) }
 }
 
+object_type! {
+    /// `drop_sessions`: the end of the use of every kept sign-in of the agent, with no run of the agent open. The
+    /// store keeps, for each origin of a kept sign-in of the agent, one more revision in the drop form, as
+    /// `drop_session` keeps it for one origin, and answers the count stored; Halvo stops using those sign-ins, and
+    /// what was kept stays under the store's key until its own day.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct DropSessions [op = "drop_sessions"] {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+    }
+    rules(_b) { Ok(()) }
+}
+
 op_enum! {
     /// The coordinator bodies of this run (`CoordinatorCall`): each holds `op` first, then `workflow` and `agent`,
     /// then its keys.
@@ -748,6 +779,7 @@ op_enum! {
         ListOverlaps(ListOverlaps) = "list_overlaps",
         ListAgents(ListAgents) = "list_agents",
         AgentHistory(AgentHistory) = "agent_history",
+        DropSessions(DropSessions) = "drop_sessions",
     }
 }
 
@@ -1221,8 +1253,8 @@ reply_enum! {
 impl CoordinatorReply {
     /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
     /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints`, `list_agents` and
-    /// `agent_history` by their lists, `mark_checkpoint` by `stored` 0 or 1, and `list_overlaps` by its list only as
-    /// `OverlapsReply::answers` says.
+    /// `agent_history` by their lists, `mark_checkpoint` by `stored` 0 or 1, `drop_sessions` by any count stored, and
+    /// `list_overlaps` by its list only as `OverlapsReply::answers` says.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
         match (self, call) {
             (CoordinatorReply::Overlaps(r), CoordinatorCall::ListOverlaps(b)) => {
@@ -1238,6 +1270,7 @@ impl CoordinatorReply {
             | (CoordinatorReply::Checkpoints(_), CoordinatorCall::ListCheckpoints(_))
             | (CoordinatorReply::Agents(_), CoordinatorCall::ListAgents(_))
             | (CoordinatorReply::History(_), CoordinatorCall::AgentHistory(_))
+            | (CoordinatorReply::Stored(_), CoordinatorCall::DropSessions(_))
             | (
                 CoordinatorReply::Accepted(_),
                 CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_),
