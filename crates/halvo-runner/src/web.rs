@@ -376,15 +376,17 @@ pub(crate) enum Act<'s> {
 
 impl<'s> Act<'s> {
     /// The act of `step`; none where its verb and target do not fit, its target has no locator that the executor
-    /// takes, or an arg cannot be read, and none for a `fill` or a `press` whose target names a frame (the
-    /// coordinator's ruling of log line 16133 on C2 of U5.10-F): the executor's check of the focus that a text or a
-    /// key reaches is shown in a frame by no run, so no text and no key goes into a frame, and the step answers
-    /// `step_failed` before the browser is asked anything for it.
+    /// takes, or an arg cannot be read, and none for a `fill`, a `press` or an `upload` whose target names a frame (the
+    /// coordinator's rulings of log lines 16133 and 16181 on U5.10-F): the executor's check of the focus that a text
+    /// or a key reaches is shown in a frame by no run, and a file set in a frame is one that the frame's script can
+    /// read, so no text, no key and no file goes into a frame, and the step answers `step_failed` before the browser
+    /// is asked anything for it.
     fn of(step: &'s ExecutableStep, values: &Values) -> Option<Act<'s>> {
         let target = match &step.target {
             Some(Target::Web(target)) if locators(target).is_err() => return None,
             Some(Target::Web(target))
-                if !target.frame.is_empty() && matches!(step.verb, Verb::Fill | Verb::Press) =>
+                if !target.frame.is_empty()
+                    && matches!(step.verb, Verb::Fill | Verb::Press | Verb::Upload) =>
             {
                 return None
             }
@@ -941,8 +943,9 @@ impl Runner {
     /// runs; every other such step answers `step_failed`. Every other step that does not act (`acts`) answers
     /// `step_failed` before any browser starts, and so does one whose args or targets, or those of its conditions,
     /// cannot be read or have no locator that the executor takes. A target, of the step or of a condition, inside a
-    /// frame is found in the document of the frame that its frame origins name (`frame_origins`), and a step of an
-    /// effect class that reaches into a frame answers `step_failed` before any act (`reaches_a_frame`). The browser
+    /// frame is found in the document of the frame that its frame origins name (`frame_origins`); a `fill`, a `press`
+    /// or an `upload` whose target names a frame (`Act::of`) and a step of an effect class that reaches into a frame
+    /// (`reaches_a_frame`) answer `step_failed` before any act. The browser
     /// starts at the first step that acts, and the runner reads the page before each act, which goes on only after a
     /// handback that ended in a bind, or where the page shows no credential field. After an act that failed, with no
     /// failed request of the page in the rule's record, it reads the page again, so that a field that turned into a
@@ -1703,9 +1706,9 @@ mod tests {
     /// a step on the top document is, and so is a condition on such a target: the extract of the amount with a
     /// condition `present` on it, the select of the payment method, and a click in a frame inside the frame. The page
     /// is read first, as before each act, and the extract keeps its amount. A step of an effect class whose target
-    /// names a frame, or whose amount is the value read in the frame, and a `fill` and a `press` whose target names a
-    /// frame, each answer `step_failed`, and the stand-in page sees no read and no act of them (the coordinator's
-    /// words on C3 and C2 of this unit: no effect in a frame is built, and no text or key goes into a frame).
+    /// names a frame, or whose amount is the value read in the frame, and a `fill`, a `press` and an `upload` whose
+    /// target names a frame, each answer `step_failed`, and the stand-in page sees no read and no act of them (the
+    /// coordinator's words on this unit: no effect in a frame is built, and no text, key or file goes into a frame).
     #[test]
     fn a_step_acts_on_a_target_inside_the_frame_that_its_step_names() {
         let amount = framed(r#"{"by":"test_id","value":"amount","name":null}"#, &[PAY]);
@@ -1744,7 +1747,10 @@ mod tests {
             bindings: Some(LoadedBindings {
                 rev: NonZeroU32::MIN,
                 origins: origins.to_vec(),
-                slots: Vec::new(),
+                slots: vec![halvo_schema::executable::record::Slot {
+                    name: halvo_schema::executable::text::Name::parse("document").expect("a name"),
+                    value: halvo_schema::executable::text::OwnValue::new("meter.jpg"),
+                }],
             }),
             sessions: Vec::new(),
             start: None,
@@ -1831,7 +1837,11 @@ mod tests {
             "press",
             r#"{"name":"key","from":"const","value":"Enter","key":null}"#,
         );
-        for json in [&in_the_frame, &read_in_the_frame, &fill, &press] {
+        let upload = typed(
+            "upload",
+            r#"{"name":"file","from":"slot","value":null,"key":"document"}"#,
+        );
+        for json in [&in_the_frame, &read_in_the_frame, &fill, &press, &upload] {
             let step = ExecutableStep::parse(json.as_bytes()).expect("a step");
             let got = runner.web_step(&step, &loaded);
             let now = page_log.lock().expect("the log").clone();
