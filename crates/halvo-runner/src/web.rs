@@ -36,7 +36,8 @@ use halvo_schema::executable::{
 use halvo_schema::SeedCategory;
 use halvo_sheet::Value;
 use halvo_web::cdp::{
-    self, CrashMeans, Executor, Fault, Mode, PausedRequest, Resolved, Sign, StartOptions,
+    self, CrashMeans, Executor, Fault, Mode, PausedRequest, Resolved, SessionState, Sign,
+    StartOptions,
 };
 use halvo_web::guard::GuardProgram;
 use halvo_web::relay::{Entry, List, Names, Relay};
@@ -100,6 +101,10 @@ pub(crate) trait Page: Send {
     fn pass_all(&mut self) -> Result<(), ()>;
     /// The address that the top page holds now.
     fn address(&mut self) -> Result<String, ()>;
+    /// The browser's cookies of the host of `origin` and of its parent domains, and the origin's localStorage (A8.3).
+    fn export(&mut self, origin: &WebOrigin) -> Result<SessionState, ()>;
+    /// Sets the cookies of `state` and the localStorage of each of its origins.
+    fn import(&mut self, state: &SessionState) -> Result<(), ()>;
 }
 
 /// The run's browser: the browser of a run, or in a unit test a stand-in of the executor.
@@ -719,6 +724,25 @@ impl Page for Live {
         });
         told("address", done)
     }
+
+    /// The executor's export of the origin as the browser writes it, so that the page that reads its storage is the
+    /// origin's own.
+    fn export(&mut self, origin: &WebOrigin) -> Result<SessionState, ()> {
+        let origins = [rule_origin(origin)];
+        let executor = &self.executor;
+        told(
+            "export",
+            self.runtime.block_on(executor.export_state(&origins)),
+        )
+    }
+
+    fn import(&mut self, state: &SessionState) -> Result<(), ()> {
+        let executor = &self.executor;
+        told(
+            "import",
+            self.runtime.block_on(executor.import_state(state)),
+        )
+    }
 }
 
 impl Web {
@@ -759,7 +783,7 @@ impl Runner {
         if handback || marks_a_credential(step) {
             let handed = match self.web.take() {
                 Some(mut web) => {
-                    let read = self.read_page(&mut *web.0, loaded);
+                    let read = self.read_page(&mut *web.0, loaded, step.n);
                     self.web = Some(web);
                     read?
                 }
@@ -790,7 +814,7 @@ impl Runner {
         };
         self.browser(loaded)?;
         let mut web = self.web.take().ok_or_else(failed)?;
-        let read = self.read_page(&mut *web.0, loaded);
+        let read = self.read_page(&mut *web.0, loaded, step.n);
         self.web = Some(web);
         read?;
         let web = &mut self.web.as_mut().ok_or_else(failed)?.0;
@@ -807,7 +831,7 @@ impl Runner {
         };
         if done.is_err() && !refused_by_the_page(&record) {
             let mut web = self.web.take().ok_or_else(failed)?;
-            let read = self.read_page(&mut *web.0, loaded);
+            let read = self.read_page(&mut *web.0, loaded, step.n);
             self.web = Some(web);
             if read? {
                 return Ok(());
@@ -819,8 +843,9 @@ impl Runner {
         Ok(())
     }
 
-    /// The run's browser, started at the first call: the frame `browser` once it runs, its `browser_reply`, and
-    /// the rule armed with the origins of the bindings. A start that fails ends the run `failed` with the start's
+    /// The run's browser, started at the first call: the frame `browser` once it runs, its `browser_reply`, the
+    /// rule armed with the origins of the bindings, and the kept sign-ins of those origins imported (crate::session).
+    /// A start that fails ends the run `failed` with the start's
     /// cause, and a runner without `--data-dir` has no place for a profile and fails the step. The program is the
     /// one of `--browser`; given none, the one that `find` finds under the runner's roots, read after the data
     /// directory, and where it finds none the run ends `failed` with the cause `no_browser` before anything is made.
@@ -829,14 +854,15 @@ impl Runner {
             let data_dir = self
                 .args
                 .data_dir
-                .as_ref()
+                .clone()
                 .ok_or(Failure::Step(Cause::StepFailed))?;
             let program = match &self.args.browser {
                 Some(given) => given.clone(),
                 None => crate::find::find(&self.roots)
                     .ok_or(Stop::End(Outcome::Failed, Some(Cause::NoBrowser)))?,
             };
-            let web = Web::start(&program, self.args.headed, data_dir, &self.args.run)
+            let web = self
+                .start_web(&program, &data_dir)
                 .map_err(|cause| Stop::End(Outcome::Failed, Some(cause)))?;
             let frame = web.0.frame();
             self.web = Some(web);
@@ -851,8 +877,19 @@ impl Runner {
             web.0
                 .arm(origins)
                 .map_err(|()| Failure::Step(Cause::StepFailed))?;
+            self.import_sessions(loaded)?;
         }
         self.web.as_mut().ok_or(Failure::Step(Cause::StepFailed))
+    }
+
+    /// The start of the run's browser by `Web::start`; in a unit test, the stand-in that the test gave, where it gave
+    /// one.
+    fn start_web(&mut self, program: &Path, data_dir: &DataDir) -> Result<Web, Cause> {
+        #[cfg(test)]
+        if let Some(web) = self.stand_in.take() {
+            return Ok(web);
+        }
+        Web::start(program, self.args.headed, data_dir, &self.args.run)
     }
 
     /// Stops the run's browser, when it started one, and removes its profile; one line on standard error says

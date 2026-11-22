@@ -11,23 +11,36 @@ use super::screen::ScreenSource;
 use super::window_title::WindowTitleSource;
 use crate::daemon::sources::SourceFactory;
 use crate::secure_input::windows::{Attached, PasswordGate};
-use crate::source::{CaptureError, CaptureSource, SourceContext, SourceHealth, Started};
+use crate::source::{
+    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
+    StopCause,
+};
 
 /// The factory of a Windows service run: the foreground source, the pointer
-/// source of Raw Input and the window_title source. It makes no keyboard
-/// source, no screen source and no system_audio source for any name, whatever
-/// the state file's switches say: no service run takes typing (contracts.md
-/// C13.8), and the screen source waits for the cut that brings its second
-/// session. The supervisor holds at most one source of a name, so the run has
+/// source of Raw Input, the window_title source and the screen source, which
+/// the run asks for only while the switch `screen_activity` is on. It makes
+/// no keyboard source and no system_audio source for any name, whatever the
+/// state file's switches say: no service run takes typing (contracts.md
+/// C13.8). The supervisor holds at most one source of a name, so the run has
 /// one Raw Input registrant for the pointer and none for the keyboard.
 ///
 /// The set holds one password gate. Its detector runs on a thread of its own,
 /// with no keyboard source, from the begin of the set's first content source
-/// to the stop of its last one.
+/// to the stop of its last one. The window_title and screen sources read it.
+///
+/// The set makes one screen source, at its first make of the name; every make
+/// behind it gives a spent source that starts nothing, so that a process
+/// holds at most one screen session (form B of contracts.md C14.3). The spent
+/// source reads stopped, or failed with the first source's error where that
+/// source's begin failed. A run makes one set.
 #[derive(Default)]
 pub struct ServiceSet {
     last_app: Arc<Mutex<Option<String>>>,
     hold: Arc<GateHold>,
+    screen_made: bool,
+    screen_failed: Arc<Mutex<Option<CaptureError>>>,
+    #[cfg(test)]
+    first_screen: Option<Box<dyn CaptureSource>>,
 }
 
 impl ServiceSet {
@@ -47,6 +60,16 @@ impl ServiceSet {
         }
     }
 
+    /// The set whose first screen source is `first` in place of the gated
+    /// one.
+    #[cfg(test)]
+    pub(crate) fn with_first_screen(first: Box<dyn CaptureSource>) -> ServiceSet {
+        ServiceSet {
+            first_screen: Some(first),
+            ..ServiceSet::default()
+        }
+    }
+
     /// The set's one password gate.
     pub fn password_gate(&self) -> Arc<PasswordGate> {
         Arc::clone(&self.hold.gate)
@@ -58,9 +81,32 @@ impl ServiceSet {
     }
 
     /// A screen source that reads the set's gate and holds it while it runs.
-    /// The set itself makes no screen source.
     pub fn gated_screen(&self, source: ScreenSource) -> Gated<ScreenSource> {
         self.gated(source.with_password_gate(self.password_gate()))
+    }
+
+    /// The set's screen source: the gated one at the first call, the spent
+    /// one at every call behind it.
+    fn screen(&mut self) -> Box<dyn CaptureSource> {
+        if std::mem::replace(&mut self.screen_made, true) {
+            let failed = self
+                .screen_failed
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            return Box::new(SpentScreen { failed });
+        }
+        #[cfg(test)]
+        if let Some(source) = self.first_screen.take() {
+            return Box::new(FirstScreen {
+                source,
+                failed: Arc::clone(&self.screen_failed),
+            });
+        }
+        Box::new(FirstScreen {
+            source: Box::new(self.gated_screen(ScreenSource::new(Arc::clone(&self.last_app)))),
+            failed: Arc::clone(&self.screen_failed),
+        })
     }
 
     fn gated<S: CaptureSource>(&self, source: S) -> Gated<S> {
@@ -173,6 +219,62 @@ impl<S> Drop for Gated<S> {
     }
 }
 
+/// The set's one screen source: it keeps the error of its begin for the
+/// spent sources behind it.
+struct FirstScreen {
+    source: Box<dyn CaptureSource>,
+    failed: Arc<Mutex<Option<CaptureError>>>,
+}
+
+impl CaptureSource for FirstScreen {
+    fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        let begun = self.source.begin(ctx);
+        if let Err(error) = &begun {
+            *self.failed.lock().unwrap_or_else(PoisonError::into_inner) = Some(error.clone());
+        }
+        begun
+    }
+
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        self.source.shutdown()
+    }
+
+    fn health(&self) -> SourceHealth {
+        self.source.health()
+    }
+}
+
+/// What the set gives for the screen behind its one screen source: a source
+/// that starts nothing and takes no gate. It reads stopped, and answers its
+/// begin with the first source's error where that source's begin failed.
+struct SpentScreen {
+    failed: Option<CaptureError>,
+}
+
+impl CaptureSource for SpentScreen {
+    fn begin(&mut self, _ctx: SourceContext) -> Result<Started, CaptureError> {
+        match &self.failed {
+            Some(error) => Err(error.clone()),
+            None => Ok(Started::Off),
+        }
+    }
+
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        Ok(())
+    }
+
+    fn health(&self) -> SourceHealth {
+        let state = match &self.failed {
+            Some(error) => crate::daemon::sources::failure(error.clone()),
+            None => SourceState::Stopped(StopCause::Request),
+        };
+        SourceHealth {
+            state,
+            counters: SourceCounters::default(),
+        }
+    }
+}
+
 impl SourceFactory for ServiceSet {
     fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>> {
         match name {
@@ -181,8 +283,8 @@ impl SourceFactory for ServiceSet {
                 &self.last_app,
             )))),
             SourceName::WindowTitle => Some(Box::new(self.gated_title(WindowTitleSource::new()))),
+            SourceName::Screen => Some(self.screen()),
             SourceName::Keyboard
-            | SourceName::Screen
             | SourceName::SystemAudio
             | SourceName::Input
             | SourceName::Microphone => None,
@@ -244,7 +346,7 @@ mod tests {
             (Ok(Started::Running), Ok(Started::Running))
         );
         assert_eq!((first_stopped, second_stopped), (Ok(()), Ok(())));
-        for name in [SourceName::Keyboard, SourceName::Input, SourceName::Screen] {
+        for name in [SourceName::Keyboard, SourceName::Input] {
             assert!(set.make(name).is_none(), "{name:?}");
         }
 
@@ -436,6 +538,7 @@ mod tests {
         }
         let made_by_the_set = [
             SourceName::Foreground,
+            SourceName::Screen,
             SourceName::Pointer,
             SourceName::WindowTitle,
         ];
@@ -458,5 +561,73 @@ mod tests {
             .filter(|name| set.make(*name).is_some())
             .collect();
         assert_eq!(started, made_by_the_set);
+    }
+
+    /// Begins the screen source with the switch off in its context, so that
+    /// it answers off before any call of the system.
+    #[test]
+    fn the_windows_service_set_makes_the_screen_once_through_the_gate() {
+        use std::sync::atomic::Ordering;
+
+        use crate::source::StopCause;
+
+        let _serial = crate::windows::tests::serial();
+        let asked = |on| {
+            let mut switches = Switches::default();
+            switches.set(Switch::ScreenActivity, on);
+            starting(Platform::Windows, RunKind::Service, switches)
+                .into_iter()
+                .filter(|name| *name == SourceName::Screen)
+                .collect::<Vec<_>>()
+        };
+        let mut set = ServiceSet::with_gate(PasswordGate::whose_attach_fails());
+        let with_the_switch_off: Vec<_> = asked(false)
+            .into_iter()
+            .filter_map(|name| set.make(name))
+            .collect();
+        let mut with_it_on: Vec<_> = asked(true)
+            .into_iter()
+            .filter_map(|name| set.make(name))
+            .collect();
+        let fresh: Vec<SourceState> = with_it_on
+            .iter()
+            .map(|source| source.health().state)
+            .collect();
+        let (sink, _writer) = crate::sink::channel(4);
+        let ctx = SourceContext::new(sink);
+        let begun: Vec<_> = with_it_on
+            .iter_mut()
+            .map(|source| source.begin(ctx.clone()))
+            .collect();
+        let gate_lines = set.hold.lines_said.load(Ordering::Relaxed);
+        let stopped: Vec<_> = with_it_on
+            .iter_mut()
+            .map(|source| source.shutdown())
+            .collect();
+        drop(with_it_on);
+        let behind_the_stop: Vec<_> = (0..2)
+            .map(|_| {
+                let mut source = set.make(SourceName::Screen).expect("a make of the screen");
+                let before = source.health().state;
+                let begun = source.begin(ctx.clone());
+                let after = source.health().state;
+                (before, begun, after, source.shutdown())
+            })
+            .collect();
+        assert!(with_the_switch_off.is_empty(), "made with the switch off");
+        assert_eq!(fresh, [SourceState::NotReported], "made with the switch on");
+        assert_eq!(begun, [Ok(Started::Off)]);
+        assert_eq!(
+            gate_lines, 1,
+            "the screen source began without the set's gate"
+        );
+        assert_eq!(stopped, [Ok(())]);
+        let spent = (
+            SourceState::Stopped(StopCause::Request),
+            Ok(Started::Off),
+            SourceState::Stopped(StopCause::Request),
+            Ok(()),
+        );
+        assert_eq!(behind_the_stop, [spent.clone(), spent]);
     }
 }

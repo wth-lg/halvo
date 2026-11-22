@@ -3,11 +3,12 @@ use std::num::NonZeroU32;
 
 use halvo_policy::check_playbook;
 use halvo_schema::executable::body::{
-    Load, LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, PutLog,
-    PutPlaybook, PutSession, SessionReply, StepsReply, Stored, STEPS_PER_REQUEST_MAX,
+    DropSession, Load, LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook,
+    LoadedSession, PutLog, PutPlaybook, PutSession, SessionReply, StepsReply, Stored,
+    STEPS_PER_REQUEST_MAX,
 };
 use halvo_schema::executable::names::{Cause, LogEvent};
-use halvo_schema::executable::text::V1;
+use halvo_schema::executable::text::{SessionData, V1};
 use halvo_schema::executable::{
     AgentPlaybook, AgentSession, ExecutableStep, RunnerCall, RunnerReply, WebOrigin,
 };
@@ -47,6 +48,10 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   cause. It stores each step that is not stored and answers the count of the body's steps.
 /// - `put_session`: `binding` where the place of the part (origin, revision, part) holds a part with another `of`
 ///   or other data; else it stores the part, with the request's day, unless it is stored, and answers 1.
+/// - `drop_session`: it stores, with the request's day, one more revision of the origin, numbered after every
+///   stored revision of that origin, of one part in the drop form (`SessionData::dropped`), unless the newest whole
+///   revision of that origin is in that form already, and answers 1. `load` lists that revision as the origin's
+///   newest; the parts before it stay stored until their own bound.
 /// - `log`: `effect` for a body with a record of the event `start_accepted` or of `seq` 1, the start row's place;
 ///   else it stores each record that is not stored and answers the count of the body's records.
 /// - `effect`: `binding` where a stored row of the effect id names another workflow, agent or run. A row equal to
@@ -121,6 +126,7 @@ pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply,
         RunnerCall::Checkpoint(b) => checkpoint::put(host, now, &b),
         RunnerCall::ReplyRow(b) => reply::put(host, now, &b),
         RunnerCall::LoadReplies(b) => reply::load(&*host, now, &b),
+        RunnerCall::DropSession(b) => drop_session(host, now, &b),
     }
 }
 
@@ -242,6 +248,17 @@ pub(crate) fn newest_sessions(rows: &[AgentSession]) -> Vec<LoadedSession> {
             parts,
         })
         .collect()
+}
+
+/// Whether the revision `listed` of `rows` is in the drop form: one part whose data is `SessionData::dropped`.
+pub(crate) fn dropped(rows: &[AgentSession], listed: &LoadedSession) -> bool {
+    listed.parts == NonZeroU32::MIN
+        && rows.iter().any(|r| {
+            r.origin == listed.origin
+                && r.rev == listed.rev
+                && r.part == NonZeroU32::MIN
+                && r.data.is_dropped()
+        })
 }
 
 fn complete(parts: &[&AgentSession]) -> Option<NonZeroU32> {
@@ -374,6 +391,39 @@ fn put_session(host: &mut dyn Host, now: Now, b: &PutSession) -> Result<RunnerRe
             day::commit(host, now, vec![record(rows::AGENT_SESSION, row.to_json())?])?;
         }
     }
+    Ok(stored(1))
+}
+
+fn drop_session(host: &mut dyn Host, now: Now, b: &DropSession) -> Result<RunnerReply, ErrorName> {
+    let (_, workflow) = bind::runner_agent(&*host, &b.agent)?;
+    bind::own_run(&*host, now, &b.run, &b.agent)?;
+    bind::open_run(&*host, &b.run)?;
+    let held: Vec<AgentSession> = own_sessions(&*host, &b.agent)?
+        .into_iter()
+        .filter(|s| s.origin == b.origin)
+        .collect();
+    if newest_sessions(&held)
+        .first()
+        .is_some_and(|newest| dropped(&held, newest))
+    {
+        return Ok(stored(1));
+    }
+    let rev = match held.iter().map(|s| s.rev).max() {
+        Some(newest) => newest.checked_add(1).ok_or(Own::Length)?,
+        None => NonZeroU32::MIN,
+    };
+    let row = AgentSession {
+        v: V1,
+        workflow: workflow.id,
+        agent: b.agent.clone(),
+        origin: b.origin.clone(),
+        rev,
+        part: NonZeroU32::MIN,
+        of: NonZeroU32::MIN,
+        day: day::of(&*host, now),
+        data: SessionData::dropped(),
+    };
+    day::commit(host, now, vec![record(rows::AGENT_SESSION, row.to_json())?])?;
     Ok(stored(1))
 }
 

@@ -1528,6 +1528,18 @@ fn an_entry_names_state_slots_session_and_the_last_run() {
         Ok(stored(1))
     );
     assert_eq!(entry(&mut store)["session"], json!("yes"), "stored whole");
+    let other = json!({"op": "put_session", "agent": agent(1), "run": run(1), "origin": "http://other.test:18091", "rev": 1, "part": 1, "of": 1, "data": ["QUJD"]});
+    assert_eq!(runner(&mut store, other), Ok(stored(1)));
+    let dropped = json!({"op": "drop_session", "agent": agent(1), "run": run(1), "origin": "http://utility.test:18090"});
+    assert_eq!(runner(&mut store, dropped), Ok(stored(1)));
+    assert_eq!(
+        entry(&mut store)["session"],
+        json!("no"),
+        "one origin dropped, another kept"
+    );
+    let again = json!({"op": "put_session", "agent": agent(1), "run": run(1), "origin": "http://utility.test:18090", "rev": 3, "part": 1, "of": 1, "data": ["QUJD"]});
+    assert_eq!(runner(&mut store, again), Ok(stored(1)));
+    assert_eq!(entry(&mut store)["session"], json!("yes"), "kept again");
 
     assert_eq!(
         set_state(&mut store, 1, "paused"),
@@ -1751,6 +1763,43 @@ fn the_roster_names_no_cause_of_a_step_after_which_the_run_went_on() {
         causes(&mut store),
         [Some(Value::Null)],
         "the run ended completed"
+    );
+}
+
+/// verifier-100's case of r3 U5.2: the runner's `stopped` row of a state over the limit (no step, the cause
+/// `session_size`, written by the run's end before its own end row) is no row of the run's end: a run that then ends
+/// `completed` reads `last_cause` null, and a run that ends with a cause after that row reads its own cause.
+#[test]
+fn a_completed_run_whose_state_was_over_the_limit_reads_no_cause() {
+    let mut store = store_with("email");
+    log_line(
+        &mut store,
+        1,
+        1,
+        stopped_line(1, 1, 1, None, "session_size"),
+    );
+    finish_of(&mut store, 1, 1, 1, "completed");
+    assert_eq!(
+        causes(&mut store),
+        [Some(Value::Null)],
+        "the run ended completed"
+    );
+
+    let mut store = store_with("email");
+    log_line(
+        &mut store,
+        1,
+        1,
+        stopped_line(1, 1, 1, None, "session_size"),
+    );
+    let mut end = stopped_line(1, 1, 1, None, "step_failed");
+    end["seq"] = json!(3);
+    log_line(&mut store, 1, 1, end);
+    finish_of(&mut store, 1, 1, 1, "failed");
+    assert_eq!(
+        causes(&mut store),
+        [Some(json!("step_failed"))],
+        "the run's own end row"
     );
 }
 

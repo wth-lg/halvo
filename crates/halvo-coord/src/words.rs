@@ -402,6 +402,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "This agent will now work on {origin}. Allow this site only if you know it.",
     ),
     (
+        "item.sign_in.site",
+        "Sign in to {origin} in its own window, then choose Done.",
+    ),
+    (
         "choice.sign_in.bind_decline",
         "Don't allow this site, and end this task",
     ),

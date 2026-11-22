@@ -786,6 +786,102 @@ fn a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind() {
     assert!(!profile_of(&seen, &sup.run).0.exists());
 }
 
+/// A sign-in page that keeps its sign-in in a cookie `signed` and the localStorage item `token`: where both stand at
+/// its load, its script takes the password field out at once and the page reads `in`. Else, at a load with no cookie
+/// `seen` it sets that cookie, and at a load that finds it (the handback's load by GET) it sets both 2 s later, as a
+/// person's sign-in does, and takes the password field out.
+const KEEPS: &str = r#"<!doctype html><title>sign in</title><form onsubmit="return false"><input data-testid="user" aria-label="Email"><input type="password" data-testid="password" aria-label="Password"></form><p data-testid="state">out</p><script>function signedIn() { var p = document.querySelector('[data-testid=password]'); if (p) { p.parentNode.removeChild(p); } document.querySelector('[data-testid=state]').textContent = 'in'; } if (document.cookie.indexOf('signed=1') >= 0 && localStorage.getItem('token') === 'kept-u52') { signedIn(); } else if (document.cookie.indexOf('seen=1') < 0) { document.cookie = 'seen=1; path=/'; } else { setTimeout(function () { document.cookie = 'signed=1; path=/; max-age=3600'; localStorage.setItem('token', 'kept-u52'); signedIn(); }, 2000); }</script>"#;
+
+/// U5.2 (7), A8.3, on a hosted runner alone, headless, two runs: run 1 hands back at the sign-in page, the page signs
+/// in by its own script while the handback is open, and after `bound=yes` the run ends `completed` and stores the
+/// fixture origin's state by `put_session`. Run 2 gets those parts from its load, imports them when its browser starts,
+/// and finds the page signed in: no handback, no `step_failed`, and the run ends `completed`.
+#[test]
+fn what_run_one_signed_in_serves_run_two() {
+    let Some(browser) = hosted("what_run_one_signed_in_serves_run_two") else {
+        return;
+    };
+    let fixture = Fixture::start(&[("/sign-in", KEEPS), ("/read", READ)]);
+    let steps = |fixture: &Fixture| {
+        vec![
+            navigate(1, &fixture.url("/sign-in")),
+            handback(2),
+            navigate(3, &fixture.url("/read")),
+            extract_amount(4, "amount"),
+        ]
+    };
+    let mut one = web_agent(251, &fixture);
+    one.steps = steps(&fixture);
+    let done = ToRunner::parse(
+        br#"{"t":"handback_reply","result":{"v":1,"outcome":"done","secret":null}}"#,
+    )
+    .expect("a handback_reply");
+    let bound = ToRunner::parse(br#"{"t":"bind_reply","bound":"yes"}"#).expect("a bind_reply");
+    let first = serve_with(
+        &one,
+        &browser,
+        |frame, _| match frame {
+            FromRunner::Browser(_) => Act::With(browser_reply()),
+            FromRunner::Handback(_) => {
+                Act::After(Duration::from_secs(8), Box::new(Act::With(done.clone())))
+            }
+            FromRunner::Bind(_) => Act::With(bound.clone()),
+            _ => Act::Answer,
+        },
+        Duration::from_secs(120),
+    );
+    assert_eq!(first.done(), Some(Outcome::Completed), "{}", first.stderr);
+    assert_eq!(first.handbacks(), [HandbackReason::SignIn]);
+    let kept: Vec<_> = first
+        .calls()
+        .into_iter()
+        .filter_map(|c| match c {
+            RunnerCall::PutSession(p) => Some(p),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        !kept.is_empty() && kept.iter().all(|p| p.origin == fixture.origin()),
+        "run 1 keeps the fixture's sign-in: {}",
+        first.stderr
+    );
+
+    let mut two = web_agent(252, &fixture);
+    two.agent = one.agent.clone();
+    two.workflow = one.workflow.clone();
+    two.config = one.config.clone();
+    two.steps = steps(&fixture);
+    two.kept = kept;
+    let before = fixture.requests().len();
+    let second = serve_with(&two, &browser, reply_to_browser, Duration::from_secs(120));
+    let loads = second
+        .calls()
+        .into_iter()
+        .filter(|c| matches!(c, RunnerCall::LoadSession(_)))
+        .count();
+    assert!(loads >= 1, "run 2 loads the kept parts: {}", second.stderr);
+    assert_eq!(second.done(), Some(Outcome::Completed), "{}", second.stderr);
+    assert!(second.handbacks().is_empty(), "no handback in run 2");
+    assert!(
+        rows(&second)
+            .iter()
+            .all(|(event, _, _)| *event == LogEvent::StepOk),
+        "{:?}",
+        rows(&second)
+    );
+    let got: Vec<String> = fixture.requests()[before..]
+        .iter()
+        .map(|r| format!("{} {}", r.method, r.path))
+        .collect();
+    assert_eq!(
+        got.iter().filter(|r| *r == "GET /sign-in").count(),
+        1,
+        "run 2 loads the sign-in page once: {got:?}"
+    );
+    assert!(!profile_of(&first, &one.run).0.exists());
+    assert!(!profile_of(&second, &two.run).0.exists());
+}
+
 /// U4.1w (5), the row `win_single_argument_inside_quotes` of `terminator_table` (crates/halvo-web/src/checks.rs):
 /// a browser started with the one argument `--app=x --single-argument`, which the system writes in quotes, before
 /// the profile's switch takes that profile directory: the directory exists and holds an entry. The browser gets TMP

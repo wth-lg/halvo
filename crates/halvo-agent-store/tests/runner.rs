@@ -195,6 +195,28 @@ fn load_gives_the_newest_session_revision_whose_parts_are_all_stored() {
     put_session(&mut store, origin, 3, 2, 2, vec!["QUJD".into()]).expect("rev 3 part 2");
     let reply = load(&mut store, 1).expect("load");
     assert_eq!(reply.sessions[0].rev.get(), 2);
+
+    let dropped = json!({"op": "drop_session", "agent": agent(1), "run": run(1), "origin": origin});
+    assert_eq!(runner(&mut store, dropped.clone()), Ok(stored(1)));
+    let reply = load(&mut store, 1).expect("load");
+    assert_eq!(
+        (reply.sessions[0].rev.get(), reply.sessions[0].parts.get()),
+        (4, 1),
+        "the drop is the revision after every stored one"
+    );
+    let Ok(RunnerReply::Session(part)) = load_session(&mut store, origin, 4, 1) else {
+        panic!("the drop's part");
+    };
+    assert!(part.data.is_dropped());
+    let held = session_rows(&store).len();
+    assert_eq!(runner(&mut store, dropped), Ok(stored(1)));
+    assert_eq!(
+        session_rows(&store).len(),
+        held,
+        "a second drop stores nothing"
+    );
+    put_session(&mut store, origin, 5, 1, 1, vec!["QUJD".into()]).expect("rev 5");
+    assert_eq!(load(&mut store, 1).expect("load").sessions[0].rev.get(), 5);
 }
 
 #[test]
@@ -423,6 +445,7 @@ fn runner_bodies(r: u32) -> Vec<Value> {
         json!({"op": "load_session", "agent": agent(1), "run": run(r), "origin": origin, "rev": 1, "part": 1}),
         json!({"op": "put_playbook", "agent": agent(1), "run": run(r), "number": 1, "steps": navs(1, 1)}),
         json!({"op": "put_session", "agent": agent(1), "run": run(r), "origin": origin, "rev": 1, "part": 1, "of": 1, "data": ["QUJD"]}),
+        json!({"op": "drop_session", "agent": agent(1), "run": run(r), "origin": origin}),
         json!({"op": "log", "agent": agent(1), "run": run(r), "records": [line]}),
         json!({"op": "effect", "agent": agent(1), "run": run(r), "record": effect_row}),
         json!({"op": "finish", "agent": agent(1), "run": run(r), "record": run_record(r, Some("replay"), "failed")}),
