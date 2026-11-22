@@ -135,10 +135,11 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 ///   field with no window where a site begins to ask for a sign-in, and where the agent's last sign-in at a hand-back
 ///   lies more than 93 days back when its kept sign-in goes, by `drop_sessions` or by its 35 days; with a sign-in kept
 ///   it reads `no` where a site no longer takes it, and after a run that signed in at a site whose state it could not
-///   store while another site's sign-in is kept; a hand-back whose own row the store refused reads as none, and a
-///   failed step's item whose `step_failed` row the store refused reads as a sign-in's; it reads `yes` after every run
-///   that did not complete, also with a sign-in kept, and once the agent's start rows leave the read after 93 days. A
-///   page holds whole entries
+///   store while another site's sign-in is kept; a hand-back whose own row the store refused reads as none, a failed
+///   step's item whose `step_failed` row the store refused reads as a sign-in's, and a sign-in's row that is the last
+///   hand-back row of a run that ended `effect_unknown`, because the store refused that run's item row, reads as the
+///   item; it reads `yes` after every run that did not complete, also with a sign-in kept, and once the agent's start
+///   rows leave the read after 93 days. A page holds whole entries
 ///   while the writer takes it, and `next` names its last agent where agents are left; `length` where the first
 ///   entry of the page alone does not fit.
 /// - `agent_history`: `no_workflow`; `binding`. It stores nothing and changes no state. Of the agent's runs, only
