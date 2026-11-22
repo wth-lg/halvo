@@ -14,12 +14,22 @@ tauri = { version = "=2.12.5", default-features = false }
 [dev-dependencies]
 tauri = { version = "=2.12.5", default-features = false, features = ["test"] }
 
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+halvo-owner = { path = "../halvo-owner" }
+halvo-test-dir = { path = "../halvo-test-dir" }
+libc = "0.2"
+
 [features]
 scripted = []
 
 [target.'cfg(target_os = "macos")'.dependencies]
+halvo-agent-client = { path = "../halvo-agent-client" }
+halvo-control = { path = "../halvo-control", features = ["r2"] }
+halvo-policy = { path = "../halvo-policy" }
+halvo-schema = { path = "../halvo-schema" }
+halvo-schema-core = { path = "../halvo-schema-core" }
 objc2 = "=0.6.5"
-objc2-foundation = { version = "=0.3.2", features = ["NSDate", "NSGeometry", "NSNotification", "NSObjCRuntime", "NSRunLoop", "NSString", "NSTimer"] }
+objc2-foundation = { version = "=0.3.2", features = ["NSDate", "NSGeometry", "NSNotification", "NSObjCRuntime", "NSRunLoop", "NSString", "NSTimer", "NSTimeZone"] }
 objc2-app-kit = { version = "=0.3.2", features = ["NSAlert", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow", "NSApplication", "NSRunningApplication"] }
 
 [target.'cfg(windows)'.dependencies]
@@ -33,4 +43,9 @@ harness = false
 [[test]]
 name = "guard_hosted"
 path = "tests/guard_hosted.rs"
+harness = false
+
+[[test]]
+name = "product"
+path = "tests/product.rs"
 harness = false

@@ -9,6 +9,7 @@ use halvo_control::client::{
 use halvo_control::model::{StorageCap, StoreId};
 use halvo_control::onboarding::{Permission, RequestOutcome};
 use halvo_control::proto::{CapSet, DaemonStatus, InventoryReply, Request};
+use halvo_control::r2::OwnerStreamEnd;
 
 pub const MAX_CALLS_IN_FLIGHT: usize = 4;
 
@@ -152,6 +153,26 @@ pub trait Control: Send + Sync {
     fn relay(&self, _made: Made, _request: &[u8]) -> Result<Vec<u8>, ClientError> {
         Err(ClientError::Unsupported)
     }
+
+    /// Asks the daemon for one end of a new owner stream (the workflows run's W-C24.13), on which the coordinator's
+    /// requests reach the owner of the derived store. A control with no stream call answers
+    /// `ClientError::Unsupported`.
+    fn owner_stream(&self, _made: Made) -> Result<OwnerStreamEnd, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+}
+
+/// How long a stream call waits for its place in the line and for the daemon, from the call on.
+const CALL_DEADLINE: Duration = Duration::from_secs(5);
+
+/// The call of a new owner stream on the system's connector of this account.
+#[derive(Clone)]
+struct Streams(Arc<dyn Fn() -> Result<OwnerStreamEnd, ClientError> + Send + Sync>);
+
+impl std::fmt::Debug for Streams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Streams")
+    }
 }
 
 fn the_same_for_each_request(left: Duration) -> Deadlines {
@@ -171,6 +192,7 @@ fn the_same_for_each_request(left: Duration) -> Deadlines {
 pub struct Gated<C> {
     connector: C,
     places: Arc<Places>,
+    streams: Option<Streams>,
 }
 
 impl<C: Connector + Clone> Gated<C> {
@@ -178,6 +200,24 @@ impl<C: Connector + Clone> Gated<C> {
         Gated {
             connector,
             places: Arc::default(),
+            streams: None,
+        }
+    }
+
+    /// The control of `connector` whose `owner_stream` asks the daemon for an end of a new owner stream; every
+    /// other call is that of `new`.
+    #[cfg(target_os = "macos")]
+    pub fn streaming(connector: C) -> Self
+    where
+        C: Send + Sync + 'static,
+        C::Transport: halvo_control::r2::CarriesEnds,
+    {
+        let call = connector.clone();
+        Gated {
+            streams: Some(Streams(Arc::new(move || {
+                Client::new(call.clone()).owner_stream()
+            }))),
+            ..Gated::new(connector)
         }
     }
 
@@ -258,6 +298,21 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
             client.request_permission(permission)
         })
     }
+
+    /// The stream call of `streaming`, in its place in the line; a control made by `new` answers
+    /// `ClientError::Unsupported`.
+    fn owner_stream(&self, made: Made) -> Result<OwnerStreamEnd, ClientError> {
+        let Some(Streams(call)) = &self.streams else {
+            return Err(ClientError::Unsupported);
+        };
+        let until = made.deadline_from + CALL_DEADLINE;
+        let place = made.enter(until).ok_or(ClientError::Deadline {
+            seconds: CALL_DEADLINE.as_secs(),
+        })?;
+        let end = call();
+        drop(place);
+        end
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -313,6 +368,17 @@ impl Connector for ToChild {
     }
 }
 
+/// The app's control of the system's connector: on macOS one that also asks for owner streams.
+#[cfg(target_os = "macos")]
+fn streaming(connector: ToChild) -> Gated<ToChild> {
+    Gated::streaming(connector)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn streaming(connector: ToChild) -> Gated<ToChild> {
+    Gated::new(connector)
+}
+
 #[cfg(target_os = "macos")]
 fn expecting(connector: SystemConnector, pid: u32) -> SystemConnector {
     connector.expecting_pid(pid)
@@ -340,7 +406,7 @@ pub fn control_of_child<E>(
         return (Arc::new(Gated::new(Unresolved)), None);
     };
     match halvo_control::client::system_connector(&dir) {
-        Ok(connector) => (Arc::new(Gated::new(ToChild { connector, pid })), Some(dir)),
+        Ok(connector) => (Arc::new(streaming(ToChild { connector, pid })), Some(dir)),
         Err(_) => (Arc::new(Gated::new(Unresolved)), Some(dir)),
     }
 }

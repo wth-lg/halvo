@@ -1,0 +1,608 @@
+//! The product's ports of the app on a Mac (unit U5.4a) against the owner of the derived store, with no built app and
+//! no capture daemon. This test binary takes one of three roles by its arguments (`harness = false`):
+//!
+//! - with the owner's arguments (`--data-dir=..`) it is the owner, `halvo_owner::run()`;
+//! - with the runner's arguments of the supervisor library (`--run ..`) it is a stand-in runner, which says `hello`,
+//!   loads its run, finishes it with a record and says `done`;
+//! - else it runs its tests, each in its own scratch data directory under the target's tmp directory, the ones
+//!   whose names hold an argument (all of them with none; `--exact` asks for whole names).
+//!
+//! A stand-in of the daemon's server serves each control connection as the daemon does: a run mark by
+//! `mark_request`, which it counts, and any other request by `dispatch_unknown` with the owner's channel. The relay
+//! of the role `interface` is a request on the owner's channel, as the daemon's relay will send it.
+
+fn main() {
+    #[cfg(target_os = "macos")]
+    mac::main();
+}
+
+#[cfg(target_os = "macos")]
+mod mac {
+    use std::io::{PipeReader, PipeWriter, Write};
+    use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd};
+    use std::os::unix::net::UnixStream;
+    use std::path::{Path, PathBuf};
+    use std::process::{Child, Command, Stdio};
+    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+    use std::sync::{Arc, Mutex, MutexGuard};
+    use std::time::{Duration, Instant as Mono, SystemTime, UNIX_EPOCH};
+
+    use halvo_agent_client::link::product::ClientEnds;
+    use halvo_agent_client::link::StreamLink;
+    use halvo_agent_client::OwnerLink;
+    use halvo_control::client::{Client, ClientError, Connector};
+    use halvo_control::proto::{decode_request, Decoded};
+    use halvo_control::r2::{dispatch_unknown, OwnerChannel};
+    use halvo_control::wire::{read_frame, write_frame, REQUEST_MAX_BYTES};
+    use halvo_coord_app::product::{self, Calls, Places, ProductHub};
+    use halvo_coord_app::{Core, Native, Present, Reply};
+    use halvo_schema_core::category::SeedCategory;
+    use halvo_schema_core::ids::{Position, RequestId, StoreId, SummaryId};
+    use halvo_schema_core::record::{
+        Episode, FloorLayer, Instant, ObservedStep, Ordinal, Part, Tagged, Text,
+    };
+    use halvo_schema_core::request::{
+        decode_reply, AnalysisRole, AnalysisWrite, InterfaceDecision, InterfaceRead, InterfaceRole,
+        ReplyResult,
+    };
+    use halvo_schema_core::site::AppId;
+    use serde_json::{json, Value};
+
+    const KEY: [u8; 32] = [7; 32];
+    const DAY_NS: i64 = 86_400_000_000_000;
+    const FRAME_MAX: usize = 262_144;
+    const WAIT: Duration = Duration::from_secs(30);
+
+    fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+        m.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub fn main() {
+        let args: Vec<String> = std::env::args().skip(1).collect();
+        if args.first().is_some_and(|a| a.starts_with("--data-dir=")) {
+            std::process::exit(halvo_owner::run());
+        }
+        if args.first().map(String::as_str) == Some("--run") {
+            std::process::exit(runner(&args));
+        }
+        let tests: [(&str, fn()); 1] = [(
+            "a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record",
+            a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record,
+        )];
+        let exact = args.iter().any(|a| a == "--exact");
+        let filters: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
+        let chosen: Vec<_> = tests
+            .iter()
+            .filter(|(name, _)| {
+                filters.is_empty()
+                    || filters.iter().any(|f| {
+                        if exact {
+                            *name == f.as_str()
+                        } else {
+                            name.contains(f.as_str())
+                        }
+                    })
+            })
+            .collect();
+        println!(
+            "\nrunning {} test{}",
+            chosen.len(),
+            if chosen.len() == 1 { "" } else { "s" }
+        );
+        let mut failed = Vec::new();
+        for (name, test) in &chosen {
+            let ok = std::panic::catch_unwind(test).is_ok();
+            println!("test {name} ... {}", if ok { "ok" } else { "FAILED" });
+            if !ok {
+                failed.push(*name);
+            }
+        }
+        println!(
+            "\ntest result: {}. {} passed; {} failed",
+            if failed.is_empty() { "ok" } else { "FAILED" },
+            chosen.len() - failed.len(),
+            failed.len()
+        );
+        if !failed.is_empty() {
+            std::process::exit(101);
+        }
+    }
+
+    /// The stand-in runner: `hello`, `load`, `finish` with a record of the outcome `completed` on the local day of
+    /// its `--utc-offset`, and `done`. A store reply that is no success makes it say `done` with `failed`.
+    fn runner(args: &[String]) -> i32 {
+        let arg = |name: &str| {
+            args.iter()
+                .position(|a| a == name)
+                .and_then(|i| args.get(i + 1))
+                .cloned()
+                .unwrap_or_default()
+        };
+        let (run, agent, workflow, mode) = (
+            arg("--run"),
+            arg("--agent"),
+            arg("--workflow"),
+            arg("--mode"),
+        );
+        let offset: i64 = arg("--utc-offset").parse().unwrap_or(0);
+        let mut input = std::io::stdin().lock();
+        let mut output = std::io::stdout().lock();
+        let mut send =
+            |json: String| halvo_agent_client::wire::write_frame(&mut output, &json).is_ok();
+        if !send(format!(
+            r#"{{"t":"hello","run":"{run}","agent":"{agent}","v":1}}"#
+        )) {
+            return 1;
+        }
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let day = (i64::try_from(now).unwrap() + offset).div_euclid(86_400);
+        let record = json!({
+            "v": 1, "workflow": workflow, "agent": agent, "run": run, "day": day,
+            "mode": mode, "outcome": "completed", "playbook": null,
+            "steps": 0, "prompts": 0, "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0,
+            "model_calls": 0, "tokens_in": 0, "tokens_out": 0, "wall_s": 1, "model": null,
+            "before_start": null, "cut": null, "no_key": null, "not_to_account": null,
+            "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
+            "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
+        });
+        let bodies = [
+            format!(r#"{{"op":"load","agent":"{agent}","run":"{run}"}}"#),
+            format!(r#"{{"op":"finish","agent":"{agent}","run":"{run}","record":{record}}}"#),
+        ];
+        let mut outcome = "completed";
+        for (n, body) in bodies.iter().enumerate() {
+            let frame = format!(
+                r#"{{"t":"store","request":{{"v":1,"id":"{:032x}","request":"runner","body":{body}}}}}"#,
+                n + 1
+            );
+            if !send(frame) {
+                return 1;
+            }
+            let reply = halvo_agent_client::wire::read_frame(&mut input)
+                .ok()
+                .flatten()
+                .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok());
+            let stored =
+                reply.is_some_and(|r| r["t"] == "store_reply" && r["reply"].get("ok").is_some());
+            if !stored {
+                outcome = "failed";
+                break;
+            }
+        }
+        if !send(format!(r#"{{"t":"done","outcome":"{outcome}"}}"#)) {
+            return 1;
+        }
+        0
+    }
+
+    /// The test's ends of the owner's channel: the end that it writes and every frame that the owner writes.
+    struct Channel {
+        writes: UnixStream,
+        frames: Receiver<Vec<u8>>,
+    }
+
+    fn is_report(frame: &[u8]) -> bool {
+        serde_json::from_slice::<Value>(frame)
+            .ok()
+            .and_then(|v| {
+                v.as_object()
+                    .map(|o| o.len() == 1 && o.contains_key("report"))
+            })
+            .unwrap_or(false)
+    }
+
+    impl Channel {
+        /// The next frame that is no report, within `within`.
+        fn next(&mut self, within: Duration) -> Result<Vec<u8>, RecvTimeoutError> {
+            let deadline = Mono::now() + within;
+            loop {
+                let frame = self
+                    .frames
+                    .recv_timeout(deadline.saturating_duration_since(Mono::now()))?;
+                if !is_report(&frame) {
+                    return Ok(frame);
+                }
+            }
+        }
+
+        /// One request of the role `interface` on the channel, and the owner's reply.
+        fn relay(&mut self, request: &[u8]) -> Vec<u8> {
+            write_frame(&mut self.writes, request, REQUEST_MAX_BYTES).unwrap();
+            self.next(WAIT)
+                .expect("the owner answers no request of the role interface")
+        }
+    }
+
+    /// The starter of the daemon's handler of `owner_stream`, over the owner's channel.
+    struct Starter<'a>(&'a mut Channel);
+
+    impl OwnerChannel for Starter<'_> {
+        fn send_stream(&mut self, frame: &[u8], end: BorrowedFd<'_>) -> std::io::Result<()> {
+            halvo_control::r2::send_with_end(self.0.writes.as_fd(), frame, end)
+        }
+
+        fn answer(&mut self, within: Duration) -> std::io::Result<Option<Vec<u8>>> {
+            match self.0.next(within) {
+                Ok(frame) => Ok(Some(frame)),
+                Err(RecvTimeoutError::Timeout) => Err(std::io::ErrorKind::TimedOut.into()),
+                Err(RecvTimeoutError::Disconnected) => Ok(None),
+            }
+        }
+    }
+
+    /// The test's connector: each connect hands the stand-in server the other end of a new socket pair.
+    #[derive(Clone)]
+    struct ToServer(Arc<Mutex<Sender<UnixStream>>>);
+
+    impl Connector for ToServer {
+        type Transport = UnixStream;
+
+        fn endpoint(&self) -> String {
+            "the stand-in server".to_owned()
+        }
+
+        fn connect(&self, _: Duration) -> Result<UnixStream, ClientError> {
+            let (client, server) = UnixStream::pair().map_err(ClientError::Io)?;
+            lock(&self.0)
+                .send(server)
+                .map_err(|_| ClientError::Io(std::io::ErrorKind::NotConnected.into()))?;
+            Ok(client)
+        }
+    }
+
+    /// Serves one control connection as the daemon's server does.
+    fn serve_one(stream: UnixStream, channel: &Mutex<Channel>) {
+        let Ok(frame) = read_frame(&mut &stream, REQUEST_MAX_BYTES) else {
+            return;
+        };
+        let Ok(Decoded::Unknown(request)) = decode_request(&frame) else {
+            return;
+        };
+        let mut channel = lock(channel);
+        dispatch_unknown(&request, &stream, &mut Starter(&mut channel));
+    }
+
+    /// A running owner of a scratch data directory, its channel, its worker's pipes and the stand-in server.
+    struct World {
+        dir: PathBuf,
+        child: Child,
+        channel: Arc<Mutex<Channel>>,
+        worker: PipeWriter,
+        worker_frames: Receiver<Vec<u8>>,
+        to: ToServer,
+        sent: AtomicU8,
+    }
+
+    /// Hands each frame read from `from` to the receiver until the end of the stream.
+    fn frames(mut from: impl std::io::Read + Send + 'static) -> Receiver<Vec<u8>> {
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            while let Ok(frame) = read_frame(&mut from, FRAME_MAX) {
+                if tx.send(frame).is_err() {
+                    return;
+                }
+            }
+        });
+        rx
+    }
+
+    /// Starts this test binary as the owner of `dir`, with `ends` at the descriptors 3 and 4, then 5 and 6, and its
+    /// key on standard input.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the test starts the owner of the derived store, this binary in the owner's role, in the place of the daemon"
+    )]
+    fn launch(dir: &Path, ends: Vec<(OwnedFd, OwnedFd)>) -> Child {
+        use std::os::unix::process::CommandExt;
+        let mut cmd = Command::new(std::env::current_exe().unwrap());
+        cmd.arg(format!("--data-dir={}", dir.display()))
+            .arg("--first-live=1")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit());
+        let mut places = Vec::new();
+        for (n, (reads, writes)) in ends.iter().enumerate() {
+            let r = 3 + 2 * i32::try_from(n).unwrap();
+            let name = if n == 0 { "channel" } else { "worker" };
+            cmd.arg(format!("--{name}={r},{}", r + 1));
+            places.push((reads.as_raw_fd(), r));
+            places.push((writes.as_raw_fd(), r + 1));
+        }
+        // SAFETY: the closure runs in the child between fork and exec and calls fcntl and dup2 alone, which are
+        // async-signal-safe; it first copies each end above 9, so that no dup2 writes over an end before it is copied.
+        unsafe {
+            cmd.pre_exec(move || {
+                let mut high = [0; 4];
+                for (at, (from, _)) in places.iter().enumerate() {
+                    high[at] = libc::fcntl(*from, libc::F_DUPFD_CLOEXEC, 10);
+                    if high[at] < 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                }
+                for (at, (_, to)) in places.iter().enumerate() {
+                    if libc::dup2(high[at], *to) < 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                }
+                Ok(())
+            });
+        }
+        let mut child = cmd.spawn().unwrap();
+        drop(ends);
+        let mut stdin = child.stdin.take().unwrap();
+        stdin.write_all(&KEY).unwrap();
+        drop(stdin);
+        child
+    }
+
+    impl World {
+        fn new(name: &str) -> World {
+            let parent = Path::new(env!("CARGO_TARGET_TMPDIR")).join("u54a-product");
+            std::fs::create_dir_all(&parent).unwrap();
+            let dir = halvo_test_dir::make(&parent, name).unwrap();
+            let (owner, test) = UnixStream::pair().unwrap();
+            let channel_ends = (
+                OwnedFd::from(owner.try_clone().unwrap()),
+                OwnedFd::from(owner),
+            );
+            let (owner_reads, worker): (PipeReader, PipeWriter) = std::io::pipe().unwrap();
+            let (worker_reads, owner_writes): (PipeReader, PipeWriter) = std::io::pipe().unwrap();
+            let child = launch(
+                &dir,
+                vec![
+                    channel_ends,
+                    (OwnedFd::from(owner_reads), OwnedFd::from(owner_writes)),
+                ],
+            );
+            let channel = Arc::new(Mutex::new(Channel {
+                frames: frames(test.try_clone().unwrap()),
+                writes: test,
+            }));
+            let (tx, conns) = mpsc::channel::<UnixStream>();
+            let served = Arc::clone(&channel);
+            std::thread::spawn(move || {
+                for stream in conns {
+                    let channel = Arc::clone(&served);
+                    std::thread::spawn(move || serve_one(stream, &channel));
+                }
+            });
+            World {
+                dir,
+                child,
+                channel,
+                worker,
+                worker_frames: frames(worker_reads),
+                to: ToServer(Arc::new(Mutex::new(tx))),
+                sent: AtomicU8::new(0),
+            }
+        }
+
+        fn request_id(&self) -> RequestId {
+            RequestId::from_random([self.sent.fetch_add(1, Ordering::SeqCst).wrapping_add(1); 16])
+        }
+
+        /// The app's client calls, over the stand-in server and the owner's channel.
+        fn calls(&self) -> Calls {
+            let (streams, relayed) = (self.to.clone(), Arc::clone(&self.channel));
+            Calls {
+                owner_stream: Arc::new(move || Client::new(streams.clone()).owner_stream()),
+                relay: Arc::new(move |request: &[u8]| Ok(lock(&relayed).relay(request))),
+            }
+        }
+
+        /// The hub over the product's ports of this world, whose runner is this test binary.
+        fn hub(&self) -> Arc<ProductHub> {
+            let exe = std::env::current_exe().unwrap();
+            let places = Places {
+                data_dir: self.dir.clone(),
+                runner: exe.clone(),
+                browser: exe,
+                model: None,
+            };
+            product::hub(self.calls(), places, Box::new(|_| {}), Box::new(Drops))
+        }
+
+        /// A link of the test's own over an owner stream of the stand-in server.
+        fn link(&self) -> StreamLink<impl halvo_agent_client::link::Ends> {
+            let to = self.to.clone();
+            StreamLink::new(ClientEnds::new(move || {
+                Client::new(to.clone()).owner_stream()
+            }))
+        }
+
+        /// The reply's result of one request of `name` with `body` on `link`.
+        fn ask(&self, link: &dyn OwnerLink, name: &str, body: &str) -> Value {
+            let id = self.request_id();
+            let request = format!(
+                r#"{{"v":1,"id":"{}","request":"{name}","body":{body}}}"#,
+                id.as_str()
+            );
+            let reply = decode_reply(&link.request(request.as_bytes()).unwrap()).unwrap();
+            match reply.outcome {
+                Ok(ReplyResult::Raw(raw)) => serde_json::from_str(raw.get()).unwrap(),
+                Ok(ReplyResult::Null) => Value::Null,
+                other => panic!("{name} {body}: {other:?}"),
+            }
+        }
+
+        /// A workflow of the category `calendar_cleanup`, which needs no parameter, proposed for three summaries of
+        /// one day two days back by the analysis, so that it has no period and no schedule, and approved by the person, and its agent created and switched on, as an earlier life of the
+        /// app leaves them: the workflow and the agent.
+        fn agent(&mut self) -> (String, String) {
+            let day = u32::try_from(now_ns().div_euclid(DAY_NS)).unwrap() - 2;
+            let episodes = (1u8..=3).map(|n| episode(n, day)).collect();
+            let write = analysis_write(self.request_id(), episodes, Position { seg: 4, idx: 0 });
+            write_frame(&mut self.worker, &write, REQUEST_MAX_BYTES).unwrap();
+            let reply = self.worker_frames.recv_timeout(WAIT).unwrap();
+            assert!(
+                decode_reply(&reply).unwrap().outcome.is_ok(),
+                "the analysis write is refused"
+            );
+            let read = InterfaceRead::workflows(&InterfaceRole::claim(), self.request_id(), None)
+                .to_bytes()
+                .unwrap();
+            let workflow = match decode_reply(&lock(&self.channel).relay(&read))
+                .unwrap()
+                .outcome
+            {
+                Ok(ReplyResult::Workflows(page)) => {
+                    assert_eq!(page.workflows.len(), 1, "one workflow is proposed");
+                    page.workflows[0].workflow.id().clone()
+                }
+                other => panic!("the read of the workflows answers {other:?}"),
+            };
+            let approve = InterfaceDecision::approve(
+                &InterfaceRole::claim(),
+                self.request_id(),
+                workflow.clone(),
+            )
+            .to_bytes()
+            .unwrap();
+            let approved = decode_reply(&lock(&self.channel).relay(&approve)).unwrap();
+            assert!(
+                approved.outcome.is_ok(),
+                "the approval: {:?}",
+                approved.outcome
+            );
+            let agent = format!("{:032x}", 0xa1);
+            let link = self.link();
+            let head = format!(r#""workflow":"{}","agent":"{agent}""#, workflow.as_str());
+            assert_eq!(
+                self.ask(
+                    &link,
+                    "coordinator_write",
+                    &format!(r#"{{"op":"create_agent",{head}}}"#)
+                ),
+                json!({"rev": 1})
+            );
+            self.ask(
+                &link,
+                "coordinator_write",
+                &format!(r#"{{"op":"set_state",{head},"state":"active"}}"#),
+            );
+            (workflow.as_str().to_owned(), agent)
+        }
+
+        /// The agent's runs that hold a stored record, newest first, as `agent_history` gives them.
+        fn runs(&self, workflow: &str, agent: &str) -> Vec<Value> {
+            let body = format!(
+                r#"{{"op":"agent_history","workflow":"{workflow}","agent":"{agent}","runs":8}}"#
+            );
+            self.ask(&self.link(), "coordinator_write", &body)["runs"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+        }
+    }
+
+    impl Drop for World {
+        fn drop(&mut self) {
+            if self.child.try_wait().ok().flatten().is_none() {
+                let _ = self.child.kill();
+                let _ = self.child.wait();
+            }
+        }
+    }
+
+    /// A presenter that drops each dialog.
+    struct Drops;
+
+    impl Present for Drops {
+        fn present(&self, _dialog: Native) {}
+    }
+
+    fn now_ns() -> i64 {
+        i64::try_from(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+        )
+        .unwrap()
+    }
+
+    fn analysis_write(id: RequestId, episodes: Vec<Episode>, commit: Position) -> Vec<u8> {
+        let store = StoreId::parse(&"1".repeat(32)).unwrap();
+        let mut write = AnalysisWrite::new(&AnalysisRole::claim(), id, store);
+        for episode in episodes {
+            write.push(episode).unwrap();
+        }
+        write.commit(commit);
+        write.to_bytes().unwrap()
+    }
+
+    /// An episode of the segment `n` of the category `calendar_cleanup`, of one key for every `n`.
+    fn episode(n: u8, day: u32) -> Episode {
+        let start = i64::from(day) * DAY_NS + 43_200_000_000_000 + i64::from(n);
+        Episode {
+            id: SummaryId::from_random([n; 16]),
+            category: SeedCategory::CalendarCleanup,
+            site: None,
+            app: AppId::parse("com.example.calendar").unwrap(),
+            day,
+            part: Part::Afternoon,
+            minutes: 5,
+            keys: None,
+            pointer: None,
+            segments: vec![Ordinal::new(u64::from(n)).unwrap()],
+            expires: Instant(9_000_000_000_000_000_000),
+            start: Instant(start),
+            end: Instant(start + 1_000),
+            steps: vec![ObservedStep {
+                app: None,
+                title: Some(Tagged {
+                    value: Text::parse("Tidy calendar").unwrap(),
+                    layer: FloorLayer::Floor,
+                }),
+                input: None,
+                site: None,
+                text: None,
+            }],
+        }
+    }
+
+    /// Waits until `done` holds, calling it at most every 50 ms within `WAIT`.
+    fn until(what: &str, mut done: impl FnMut() -> bool) {
+        let deadline = Mono::now() + WAIT;
+        while !done() {
+            assert!(Mono::now() < deadline, "{what} within {} s", WAIT.as_secs());
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    fn run_now(hub: &ProductHub, agent: &str) {
+        let reply = hub.call(
+            "agents_control",
+            Some(&json!({"agent": agent, "action": "run_now"})),
+        );
+        assert_eq!(reply, Reply::Ok, "Run now");
+    }
+
+    /// U5.4a sentence 1: on a Mac a Run now of a switched-on agent starts its runner through the supervisor library,
+    /// and the run's record reaches the owner's store through an owner stream of the app's own.
+    fn a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record() {
+        let mut world = World::new("run-now");
+        let (workflow, agent) = world.agent();
+        let hub = world.hub();
+        product::start(&hub);
+        assert!(
+            world.runs(&workflow, &agent).is_empty(),
+            "no run before the Run now"
+        );
+
+        run_now(&hub, &agent);
+        until("the run's record in the store", || {
+            Core::tick(&*hub);
+            !world.runs(&workflow, &agent).is_empty()
+        });
+        let runs = world.runs(&workflow, &agent);
+        assert_eq!(runs.len(), 1, "{runs:?}");
+        assert_eq!(runs[0]["run"]["outcome"], "completed");
+        assert_eq!(runs[0]["run"]["mode"], "replay");
+        assert_eq!(runs[0]["run"]["agent"], agent.as_str());
+    }
+}

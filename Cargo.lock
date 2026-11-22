@@ -1710,7 +1710,15 @@ dependencies = [
 name = "halvo-coord-app"
 version = "0.0.0"
 dependencies = [
+ "halvo-agent-client",
+ "halvo-control",
  "halvo-coord",
+ "halvo-owner",
+ "halvo-policy",
+ "halvo-schema",
+ "halvo-schema-core",
+ "halvo-test-dir",
+ "libc",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
