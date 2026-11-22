@@ -57,8 +57,8 @@ impl SummaryRead for NoSummaries {
 /// The store in memory behind the handler calls (A7.6's `memory-store`): the workflows that a test host puts, the
 /// rows of the family `agent`, and the host's steps. Its typed commit is the commit of a handler; `after_batch`
 /// runs the steps as the derived store does after a committed batch, and refuses a record of origin own that a step
-/// returns. It removes no row. Its local calendar is UTC shifted by a fixed offset, 0 unless `with_utc_offset` sets
-/// one.
+/// returns. It removes rows by `Host::remove_under` alone. Its local calendar is UTC shifted by a fixed offset, 0
+/// unless `with_utc_offset` sets one.
 #[derive(Default)]
 pub struct MemoryStore {
     workflows: BTreeMap<WorkflowId, Workflow>,
@@ -193,6 +193,37 @@ impl RowRead for MemoryStore {
 impl Host for MemoryStore {
     fn commit(&mut self, records: Vec<TypedRecord>) -> Result<(), ErrorName> {
         self.typed_commit(records).map_err(|_| ErrorName::Store)
+    }
+
+    /// Answers `store` for a kind that is not one of `AGENT_KINDS` and for a record that the typed commit refuses, and
+    /// then changes nothing; else it removes every row of the kind whose key `workflow` holds `workflow`, stores the
+    /// records and answers how many rows it removed. It does not know the request's role, so it removes under the body
+    /// of a runner as well; the derived store refuses there.
+    fn remove_under(
+        &mut self,
+        kind: &str,
+        workflow: &WorkflowId,
+        records: Vec<TypedRecord>,
+    ) -> Result<u64, ErrorName> {
+        let &(kind, _) = AGENT_KINDS
+            .iter()
+            .find(|(name, _)| *name == kind)
+            .ok_or(ErrorName::Store)?;
+        let mut checked = Vec::with_capacity(records.len());
+        for record in records {
+            let into = self
+                .check(Caller::Handler, &record)
+                .map_err(|_| ErrorName::Store)?;
+            checked.push((into, record.json));
+        }
+        let rows = self.rows.entry(kind).or_default();
+        let before = rows.len();
+        rows.retain(|row| workflow_of(row).as_ref() != Some(workflow));
+        let removed = u64::try_from(before - rows.len()).unwrap_or(u64::MAX);
+        for (into, json) in checked {
+            self.rows.entry(into).or_default().push(json);
+        }
+        Ok(removed)
     }
 
     fn set_state(

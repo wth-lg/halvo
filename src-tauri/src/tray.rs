@@ -2,7 +2,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Mutex, PoisonError};
 
 use halvo_control::model::CaptureState;
-use halvo_control::proto::{Capture, CaptureChange};
+use halvo_control::proto::{Capture, CaptureChange, Platform};
 use halvo_coord_app::{Agents, Attention};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
@@ -88,6 +88,10 @@ pub struct TrayLabels {
 }
 
 pub const NOT_RUNNING: &str = "Capture service not running";
+
+/// The tray's status line on Windows where no capture service runs: one sentence for one fact,
+/// as the page says it there.
+pub const NOT_RECORDING: &str = "Halvo is not recording";
 
 /// The tray's status line while the app holds capture off after its child ended itself with
 /// status 5: it names the cause, and a Resume of the toggle ends the hold only beside it.
@@ -221,7 +225,10 @@ pub fn labels(view: &StatusView) -> TrayLabels {
                 "Connecting",
                 "Halvo is connecting to its capture service",
             ),
-            NoStatusService::NotRunning => line("Halvo", NOT_RUNNING, NOT_RUNNING),
+            NoStatusService::NotRunning | NoStatusService::Unsupported => match view.platform {
+                Platform::Windows => line("Halvo", NOT_RECORDING, NOT_RECORDING),
+                Platform::Macos => line("Halvo", NOT_RUNNING, NOT_RUNNING),
+            },
             NoStatusService::HeldUnreachable => line(
                 "Halvo",
                 "Capture service not answering",
@@ -236,11 +243,6 @@ pub fn labels(view: &StatusView) -> TrayLabels {
                 "Halvo",
                 "Update Halvo",
                 "Halvo's capture service is of another version",
-            ),
-            NoStatusService::Unsupported => line(
-                "Halvo",
-                "Capture not available on Windows yet",
-                "Capture is not available on Windows in this version",
             ),
         },
         StatusView::Running(view) => match view.capture {
@@ -645,6 +647,14 @@ mod tests {
             ))
             .status_text,
             "Capture service not running"
+        );
+        assert_eq!(
+            labels(&StatusView::no_status(
+                NoStatusService::NotRunning,
+                Platform::Windows
+            ))
+            .status_text,
+            "Halvo is not recording"
         );
         for service in [
             NoStatusService::HeldUnreachable,
