@@ -152,6 +152,7 @@ catalogue! {
     SUPPORT_REMOVE = "SELECT id, family FROM rows WHERE kind = 'support' AND workflow = ?1";
     REMOVE_NAMING = "SELECT id, family FROM rows WHERE workflow = ?1";
     REMOVE_OF_KIND_UNDER = "SELECT id, family FROM rows WHERE kind = ?1 AND workflow = ?2";
+    REMOVE_OF_KIND = "SELECT id, family FROM rows WHERE kind = ?1";
     KEY_SUMMARIES = "SELECT summary FROM rows WHERE wkey = ?1 AND kind = 'summary'";
     REMOVE_OF_SUMMARY = "SELECT id, family FROM rows WHERE summary = ?1";
     ROWS_READ = concat!(

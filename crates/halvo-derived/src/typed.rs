@@ -30,6 +30,16 @@ impl Writer {
         matches!(self, Writer::Runner | Writer::Coordinator)
     }
 
+    /// Whether this writer stores a record of a kind of the origin: of origin capture every writer, of origin own a
+    /// `runner` request and a `coordinator_write`, of origin person a `coordinator_write` alone.
+    pub(crate) fn may_write(self, origin: Origin) -> bool {
+        match origin {
+            Origin::Capture => true,
+            Origin::Own => self.may_write_own(),
+            Origin::Person => self == Writer::Coordinator,
+        }
+    }
+
     /// A handler's commit refuses a bounded record whose day the store will not keep; a step's drops and counts it,
     /// as `commit_batch` does an episode, so that one late record does not hold back the rest.
     pub(crate) fn refuses_day(self) -> bool {
@@ -80,8 +90,8 @@ fn rule_keys(entry: &KindEntry, json: &str) -> Option<RuleKeys> {
 ///
 /// It refuses the whole list when a record names a kind that the store was not opened with (`UnknownKind`), one of
 /// the four kinds of the workflow run (`WorkflowRun`), a kind of another family than the caller's own
-/// (`OtherFamily`), or a kind of origin own while the call is a step's or that of a handler of a further role
-/// (`OwnOrigin`); when `kinds::check_record` refuses a record (`Record`, with that function's error, which names the
+/// (`OtherFamily`), a kind of origin own while the call is a step's or that of a handler of a further role, or a kind
+/// of origin person while the call is no `coordinator_write` (`OwnOrigin`); when `kinds::check_record` refuses a record (`Record`, with that function's error, which names the
 /// kind, the key and the rule and never a value); and when a record's workflow key names a workflow that is not
 /// stored (`NoWorkflow`). In the commit of a handler (a `runner` request, a `coordinator_write` or a request of a
 /// further role) it also refuses the whole list for a record of a bounded kind whose day lies after the clock's day
@@ -125,7 +135,7 @@ pub(crate) fn store_records(
         if entry.family != family {
             return Err(refuse(Cause::OtherFamily));
         }
-        if entry.origin == Origin::Own && !writer.may_write_own() {
+        if !writer.may_write(entry.origin) {
             return Err(refuse(Cause::OwnOrigin));
         }
         kinds::check_record(entry, &record.json).map_err(|e| refuse(Cause::Record(e)))?;

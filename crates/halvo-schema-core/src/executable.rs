@@ -10,7 +10,11 @@ pub const ERROR_NAMES: &[&str] = &[
 /// kept, `agent_effect` and `agent_log`, bounded at 93 days, `agent_session`, bounded at 35 days, `agent_checkpoint`,
 /// bounded at 93 days, `agent_reply`, kept by default until the owner answers O4, with its `day` and `at`, and
 /// `agent_start`, kept by default until the owner answers the entry on the start instant, one row for an agent, and
-/// `agent_finished`, kept, one row for each playbook number that a compile finished (CP-182).
+/// `agent_finished`, kept, one row for each playbook number that a compile finished (CP-182). One kind more names no
+/// workflow: `model_key`, of origin person (`kinds::PERSON_KINDS`), kept, ONE row for the person and none for an
+/// agent, which holds the person's key for a model's host under `key` (r3 U7.6). That row outlives every workflow's
+/// delete, and it goes with its own drop (`drop_model_key`), with the delete of everything, which destroys the custody
+/// root first so that it no longer decrypts, and with the removal of the data folder.
 pub const KINDS: &[KindEntry] = &[
     KindEntry {
         name: "agent_config",
@@ -259,5 +263,14 @@ pub const KINDS: &[KindEntry] = &[
             ("run", FieldType::Id),
         ],
         example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","number":1,"steps":2,"run":"50505050505050505050505050505050"}"#,
+    },
+    KindEntry {
+        name: "model_key",
+        class: RetentionClass::Kept,
+        origin: Origin::Person,
+        family: "agent",
+        workflow_key: None,
+        fields: &[("v", FieldType::Version), ("key", FieldType::OwnText)],
+        example: r#"{"v":1,"key":"test-value-not-a-model-key"}"#,
     },
 ];
