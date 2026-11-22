@@ -6,9 +6,10 @@ edition = "2021"
 publish = false
 
 [features]
-default = ["r2"]
-r2 = []
-test-support = []
+default = ["client", "r2"]
+client = []
+r2 = ["client"]
+test-support = ["client"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

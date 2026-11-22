@@ -609,6 +609,7 @@ impl<C> Board<C> {
             slots: agent.slots,
             runs: agent.last.into_iter().collect(),
             unknown: Vec::new(),
+            refused: agent.refused_run,
             events,
             store_ended: false,
             replies: crate::types::Replies::NotAsked,

@@ -91,6 +91,7 @@ fn the_cause_list_holds_unauthorized_not_selected_and_no_start_in_the_order_of_t
             "browser_start",
             "senders_unread",
             "reproposed",
+            "no_browser",
         ]
     );
     for cause in Cause::ALL {

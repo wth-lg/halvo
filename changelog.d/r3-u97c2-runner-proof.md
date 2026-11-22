@@ -1,0 +1,2 @@
+- Added: Check 21 fails when the tree of halvo-runner, read with features, holds halvo-control's feature client; a test holds the closed list of record kinds that a runner body answers, and docs/privacy-limits.md says what an agent's request can hold.
+- Changed: halvo-control's client of the capture service stands behind a feature client, on by default, and halvo-runner takes the crate without it, so an agent's program cannot pause the capture or delete everything.

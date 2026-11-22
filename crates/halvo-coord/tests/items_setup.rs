@@ -108,6 +108,7 @@ fn facts(category: Category, runtime: &str, state: WorkflowState) -> Facts<Confi
         store_ended: true,
         replies: halvo_coord::types::Replies::NotAsked,
         unknown: Vec::new(),
+        refused: None,
         today: TODAY,
         doing: Doing::Idle(Some(OwnItem {
             item: item_id(1),
@@ -133,6 +134,7 @@ fn ports(f: &Facts<Config>) -> Ports<Config> {
         session: false,
         last: None,
         unknown: vec![],
+        refused_run: None,
     });
     p
 }

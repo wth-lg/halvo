@@ -8,6 +8,7 @@ mod clock;
 mod connect;
 mod effect;
 mod file;
+mod find;
 mod handback;
 mod link;
 mod playbook;

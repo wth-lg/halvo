@@ -324,6 +324,22 @@ pub struct Runner {
 /// hang.
 pub const DEADLINE: Duration = Duration::from_secs(90);
 
+/// The made-up program of `--browser` that the start of a runner gives where its test gave none: a relative path,
+/// which the executor's start refuses, so that no runner of a test finds the browser of the machine that runs it.
+pub const NO_BROWSER: &str = "no-browser-in-this-build";
+
+/// The one test whose runner is given no `--browser` and finds the browser of a hosted macOS runner by itself
+/// (`Runner::start_finding_its_browser`).
+pub const FINDS_ITS_BROWSER: &str = "a_run_given_no_browser_starts_the_one_it_finds";
+
+/// Whether a runner's line holds the test's own `--browser` or none, for the one test that lets it find one.
+enum Browser {
+    /// The line's own `--browser`, or `NO_BROWSER` where it has none.
+    Given,
+    /// No `--browser`: the runner finds the browser of the machine.
+    Found,
+}
+
 /// Ends the process `pid` unless `reaped` is set by then; the process is the test's own child and is not reaped
 /// before `reaped` is set, so its number names no other process.
 fn end_at_deadline(pid: u32, reaped: Arc<AtomicBool>) {
@@ -351,6 +367,28 @@ impl Runner {
     /// `args`, so that no runner of a test locks under this account's real data directory
     /// (CP-134); it refuses before the child starts a line without the argument.
     pub fn start(args: &[String]) -> Runner {
+        Runner::start_with_data_dir(args, Browser::Given)
+    }
+
+    /// Starts the runner as `start` does, with no `--browser`, so that it finds the browser of the machine by
+    /// itself: for the test `FINDS_ITS_BROWSER` alone, on a hosted macOS runner alone.
+    pub fn start_finding_its_browser(test: &str, args: &[String]) -> Runner {
+        assert_eq!(
+            test, FINDS_ITS_BROWSER,
+            "a runner of another test is given --browser"
+        );
+        assert!(
+            cfg!(target_os = "macos") && std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true"),
+            "{test}: a runner that finds its browser starts on a hosted macOS runner alone"
+        );
+        assert!(
+            !args.iter().any(|a| a == "--browser"),
+            "{test}: a start with no --browser"
+        );
+        Runner::start_with_data_dir(args, Browser::Found)
+    }
+
+    fn start_with_data_dir(args: &[String], browser: Browser) -> Runner {
         let data_dir = scratch("data");
         let mut line = vec![
             "--data-dir".to_string(),
@@ -362,7 +400,7 @@ impl Runner {
                 .any(|pair| pair[0] == "--data-dir" && !pair[1].is_empty()),
             "a runner of a test starts with --data-dir and a directory of its own"
         );
-        Runner::spawn(line, data_dir)
+        Runner::spawn(line, data_dir, browser)
     }
 
     /// Starts the runner with `args` alone and no `--data-dir` (U4.7), its data directory in `Seen` empty. Its file
@@ -373,11 +411,16 @@ impl Runner {
             !args.iter().any(|a| a == "--data-dir"),
             "a start with no --data-dir"
         );
-        Runner::spawn(args.to_vec(), PathBuf::new())
+        Runner::spawn(args.to_vec(), PathBuf::new(), Browser::Given)
     }
 
-    fn spawn(line: Vec<String>, data_dir: PathBuf) -> Runner {
+    /// The one start of every runner of a test. A line with no `--browser` gets `--browser NO_BROWSER` in front,
+    /// unless the start is `start_finding_its_browser`'s.
+    fn spawn(mut line: Vec<String>, data_dir: PathBuf, browser: Browser) -> Runner {
         assert_loopback_runner();
+        if matches!(browser, Browser::Given) && !line.iter().any(|a| a == "--browser") {
+            line.splice(0..0, ["--browser".to_string(), NO_BROWSER.to_string()]);
+        }
         let mut command = Command::new(RUNNER);
         command
             .args(&line)

@@ -1,0 +1,1 @@
+- Fixed: The two tests that start the built app and its capture service on a hosted Mac now run one after the other, never at the same time, so that one start can no longer break the other's.

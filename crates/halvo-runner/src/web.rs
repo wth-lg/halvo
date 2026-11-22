@@ -412,9 +412,10 @@ async fn hold(executor: &mut Executor, conds: &[(&Cond, Option<String>)]) -> cdp
     Ok(())
 }
 
-/// Carries out the act on the page; the text of the control that `extract` reads. `fill` and `press` read the mark
-/// of the element that holds the focus immediately before their one insert or their key, the element that the text
-/// reaches, and send nothing where it reads credential or cannot be read (`Executor::fill_unless_credential`,
+/// Carries out the act on the page; the text of the control that `extract` reads. `fill` and `press` read the
+/// element that holds the focus immediately before their one insert or their key, the element that the text
+/// reaches, and send nothing unless it is an input, a textarea, a select or an element editable by its own
+/// attribute that reads no credential mark (`Executor::fill_unless_credential`,
 /// `Executor::press_unless_credential`).
 async fn carry(executor: &mut Executor, act: &Act<'_>) -> cdp::Res<Option<String>> {
     match act {
@@ -820,7 +821,9 @@ impl Runner {
 
     /// The run's browser, started at the first call: the frame `browser` once it runs, its `browser_reply`, and
     /// the rule armed with the origins of the bindings. A start that fails ends the run `failed` with the start's
-    /// cause, and a runner without `--data-dir` has no place for a profile and fails the step.
+    /// cause, and a runner without `--data-dir` has no place for a profile and fails the step. The program is the
+    /// one of `--browser`; given none, the one that `find` finds under the runner's roots, read after the data
+    /// directory, and where it finds none the run ends `failed` with the cause `no_browser` before anything is made.
     fn browser(&mut self, loaded: &LoadReply) -> Result<&mut Web, Failure> {
         if self.web.is_none() {
             let data_dir = self
@@ -828,13 +831,13 @@ impl Runner {
                 .data_dir
                 .as_ref()
                 .ok_or(Failure::Step(Cause::StepFailed))?;
-            let web = Web::start(
-                &self.args.browser,
-                self.args.headed,
-                data_dir,
-                &self.args.run,
-            )
-            .map_err(|cause| Stop::End(Outcome::Failed, Some(cause)))?;
+            let program = match &self.args.browser {
+                Some(given) => given.clone(),
+                None => crate::find::find(&self.roots)
+                    .ok_or(Stop::End(Outcome::Failed, Some(Cause::NoBrowser)))?,
+            };
+            let web = Web::start(&program, self.args.headed, data_dir, &self.args.run)
+                .map_err(|cause| Stop::End(Outcome::Failed, Some(cause)))?;
             let frame = web.0.frame();
             self.web = Some(web);
             let frame = frame.ok_or(Stop::End(Outcome::Failed, Some(Cause::BrowserStart)))?;
@@ -869,14 +872,194 @@ impl Runner {
 mod tests {
     use super::*;
     use std::ffi::OsString;
-    use std::io::Write;
+    use std::io::{Read, Write};
+    use std::num::NonZeroU32;
     use std::sync::{Arc, Mutex};
 
     use halvo_policy::preset;
+    use halvo_schema::executable::body::{LoadedBindings, LoadedPlaybook, StepsReply, Stored};
+    use halvo_schema::executable::frame::{StoreReply, StoreReplyFrame};
+    use halvo_schema::executable::names::LogEvent;
+    use halvo_schema::executable::{RunnerCall, RunnerReply};
     use halvo_schema::{AgentId, Category, WorkflowId};
-    use halvo_web::cdp::Outcome as Answered;
 
-    use crate::link::Link;
+    use crate::find::Roots;
+    use crate::link::{encode, Link};
+
+    const NAVIGATE: &str = r#"{"v":1,"n":1,"kind":"web","verb":"navigate","target":null,"args":[{"name":"url","from":"const","value":"http://127.0.0.1:9/","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}"#;
+
+    /// The in-memory supervisor and store of a web agent whose stored playbook is one step `navigate`: it answers
+    /// every `store` frame and records every frame until the end of the runner's output, and it closes the link at
+    /// the first frame that waits for a reply other than the store's, such as `browser` or `handback`.
+    fn supervise(
+        mut from_runner: impl Read,
+        mut to_runner: impl Write,
+        agent: AgentId,
+        workflow: WorkflowId,
+    ) -> Vec<FromRunner> {
+        let config = halvo_policy::preset(Category::UtilityBillPayment, workflow, agent.clone())
+            .expect("a preset");
+        let step = ExecutableStep::parse(NAVIGATE.as_bytes()).expect("a navigate step");
+        let mut frames = Vec::new();
+        loop {
+            let mut head = [0u8; 4];
+            if from_runner.read_exact(&mut head).is_err() {
+                break;
+            }
+            let mut body = vec![0u8; u32::from_be_bytes(head) as usize];
+            if from_runner.read_exact(&mut body).is_err() {
+                break;
+            }
+            let frame = FromRunner::parse(&body).expect("the runner writes frames that parse");
+            let s = match &frame {
+                FromRunner::Store(s) => s,
+                FromRunner::Hello(_) | FromRunner::Progress(_) | FromRunner::Done(_) => {
+                    frames.push(frame);
+                    continue;
+                }
+                _ => {
+                    frames.push(frame);
+                    break;
+                }
+            };
+            let answer = match s.request.body() {
+                RunnerCall::Load(_) => RunnerReply::Load(LoadReply {
+                    config: config.clone(),
+                    playbook: Some(LoadedPlaybook {
+                        number: NonZeroU32::MIN,
+                        steps: NonZeroU32::MIN,
+                    }),
+                    next_playbook: NonZeroU32::MIN.saturating_add(1),
+                    bindings: Some(LoadedBindings {
+                        rev: NonZeroU32::MIN,
+                        origins: Vec::new(),
+                        slots: Vec::new(),
+                    }),
+                    sessions: Vec::new(),
+                    start: None,
+                }),
+                RunnerCall::LoadSteps(_) => RunnerReply::Steps(StepsReply {
+                    agent: agent.clone(),
+                    steps: vec![step.clone()],
+                }),
+                RunnerCall::Log(b) => RunnerReply::Stored(Stored {
+                    stored: b.records.len() as u32,
+                }),
+                _ => RunnerReply::Stored(Stored { stored: 1 }),
+            };
+            let reply = ToRunner::StoreReply(StoreReplyFrame {
+                reply: StoreReply {
+                    id: Some(s.request.id().clone()),
+                    outcome: Ok(answer),
+                },
+            });
+            frames.push(frame);
+            let json = reply.to_json().expect("a frame");
+            if to_runner.write_all(&encode(&json)).is_err() {
+                break;
+            }
+        }
+        frames
+    }
+
+    /// U9.10 (3): a run given no `--browser` whose roots hold no browser ends `failed`: its one log row is `stopped`
+    /// with the cause `no_browser`, its record and its `done` say `failed`, no frame `browser` is written and no
+    /// profile directory is made. The run is carried out in this process over an empty root.
+    #[test]
+    fn a_run_that_finds_no_browser_ends_with_no_browser() {
+        let exe = std::env::current_exe().expect("the test binary");
+        let target = exe
+            .ancestors()
+            .nth(3)
+            .expect("the target directory above deps");
+        let dir = halvo_test_dir::make(&target.join("tmp").join("halvo-runner-unit"), "no-browser")
+            .expect("make the scratch directory");
+        let empty = halvo_test_dir::make(&dir, "roots").expect("make the empty root");
+        let data = halvo_test_dir::make(&dir, "data").expect("make the data directory");
+        let run = RunId::from_random([0x71; 16]);
+        let agent = AgentId::from_random([0x72; 16]);
+        let workflow = WorkflowId::from_random([0x73; 16]);
+        let data_text = data.to_string_lossy().into_owned();
+        let words = [
+            "--run",
+            run.as_str(),
+            "--agent",
+            agent.as_str(),
+            "--workflow",
+            workflow.as_str(),
+            "--mode",
+            "replay",
+            "--data-dir",
+            data_text.as_str(),
+            "--utc-offset",
+            "0",
+        ]
+        .map(OsString::from);
+        let args = crate::args::parse(&words).expect("the arguments");
+        assert!(args.browser.is_none(), "no --browser");
+        let (to_runner_read, to_runner) = std::io::pipe().expect("a pipe");
+        let (from_runner, from_runner_write) = std::io::pipe().expect("a pipe");
+        let link = Link::start(
+            Box::new(to_runner_read),
+            Box::new(from_runner_write),
+            Box::new(|| {}),
+        );
+        let supervisor =
+            std::thread::spawn(move || supervise(from_runner, to_runner, agent, workflow));
+        let mut runner = Runner::new(args, link);
+        runner.roots = Roots {
+            applications: Some(empty.clone()),
+            program_files_x86: Some(empty.clone()),
+            program_files: Some(empty.clone()),
+            local_app_data: Some(empty.clone()),
+        };
+        let status = runner.run();
+        let frames = supervisor.join().expect("the supervisor");
+
+        let rows: Vec<(LogEvent, Option<u32>, Option<Cause>)> = frames
+            .iter()
+            .filter_map(|frame| match frame {
+                FromRunner::Store(s) => match s.request.body() {
+                    RunnerCall::Log(b) => Some(b.records.clone()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .flatten()
+            .map(|l| (l.event, l.step.map(|s| s.get()), l.cause))
+            .collect();
+        assert_eq!(rows, [(LogEvent::Stopped, None, Some(Cause::NoBrowser))]);
+        let finish = frames.iter().find_map(|frame| match frame {
+            FromRunner::Store(s) => match s.request.body() {
+                RunnerCall::Finish(f) => Some(f.record.outcome),
+                _ => None,
+            },
+            _ => None,
+        });
+        assert_eq!(finish, Some(Outcome::Failed), "the run's record");
+        let done = frames.iter().find_map(|frame| match frame {
+            FromRunner::Done(d) => Some(d.outcome),
+            _ => None,
+        });
+        assert_eq!(done, Some(Outcome::Failed), "the frame done");
+        assert_eq!(status, 0, "the record was stored and done written");
+        assert!(
+            !frames.iter().any(|f| matches!(f, FromRunner::Browser(_))),
+            "no frame browser"
+        );
+        assert!(
+            !data.join("agents").join("profiles").exists(),
+            "a profile directory was made under {}",
+            data.display()
+        );
+        assert_eq!(
+            std::fs::read_dir(&empty).expect("the root").count(),
+            0,
+            "the root stays empty"
+        );
+    }
+
+    use halvo_web::cdp::Outcome as Answered;
 
     struct Out(Arc<Mutex<Vec<u8>>>);
 
@@ -895,6 +1078,7 @@ mod tests {
     /// read of another kind than the check's holds nothing.
     #[test]
     fn each_check_holds_or_fails_on_what_was_read() {
+        use super::Read;
         let url = Read::Url("http://127.0.0.1:8080/form?step=2".to_string());
         let one = |text: &str, value: &str, enabled: bool| Read::Controls {
             count: 1,
@@ -960,7 +1144,6 @@ mod tests {
     const CLICK: &str = r#"{"v":1,"n":1,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"agree","name":null}]},"args":[],"pre":[],"post":[],"effect":"none","class":"prepare"}"#;
     const FILL: &str = r#"{"v":1,"n":1,"kind":"web","verb":"fill","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"name","name":null}]},"args":[{"name":"text","from":"const","value":"Ada","key":null}],"pre":[],"post":[{"check":"value_is","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"name","name":null}]},"arg":{"name":"text","from":"const","value":"Ada","key":null}}],"effect":"none","class":"prepare"}"#;
     const WAIT: &str = r#"{"v":1,"n":1,"kind":"web","verb":"wait","target":null,"args":[{"name":"ms","from":"const","value":"100","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}"#;
-    const NAVIGATE: &str = r#"{"v":1,"n":1,"kind":"web","verb":"navigate","target":null,"args":[{"name":"url","from":"const","value":"http://127.0.0.1:8080/","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}"#;
     const CREDENTIAL_FILL: &str = r#"{"v":1,"n":1,"kind":"web","verb":"fill","target":{"desc":"d","frame":[],"credential":"yes","locators":[{"by":"test_id","value":"password","name":null}]},"args":[{"name":"text","from":"const","value":"x","key":null}],"pre":[],"post":[],"effect":"none","class":"credential"}"#;
     const CREDENTIAL_CONDITION: &str = r#"{"v":1,"n":1,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"agree","name":null}]},"args":[],"pre":[{"check":"value_is","target":{"desc":"d","frame":[],"credential":"yes","locators":[{"by":"test_id","value":"password","name":null}]},"arg":{"name":"text","from":"const","value":"x","key":null}}],"post":[],"effect":"none","class":"prepare"}"#;
     const REQUEST: &str = r#"{"v":1,"n":1,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"pay","name":null}]},"args":[{"name":"payee","from":"const","value":"p","key":null},{"name":"amount","from":"const","value":"1.00","key":null},{"name":"instrument","from":"const","value":"i","key":null},{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null}],"pre":[],"post":[],"effect":"request","class":"payment"}"#;

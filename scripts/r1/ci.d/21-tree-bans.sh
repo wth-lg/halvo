@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No package of the workspace links openssl-sys, and halvo, halvo-control, halvo-capture, halvo-agent-client, which relays a run, halvo-owner, which opens the derived store, halvo-analysis, which reads the capture records, and halvo-learn-store, which keeps what the agents learn, link no network client on the shipped targets; the feature test-seam stands in crates/halvo-capture/Cargo.toml alone, on its features line and on the crate's dev-dependency on itself, and in no other manifest (ruling W3-8 (b) (2)). halvo-runner, the program that runs a person's agents, reaches a closed list (its supervisor's frames; HTTPS to the origins of its agent's bindings through halvo-connect; the browser that it starts), and its tree on each shipped target holds no store crate (halvo-sqlcipher, halvo-capture, halvo-derived, halvo-owner, halvo-agent-store, halvo-coord-store and halvo-learn-store, the packages of the workspace that open a store, on disk or in memory, or keep its rows, one of which every other package that opens a store takes into its tree) and no network client (a crate of the list clients of this script) beyond those that the trees of halvo-connect and halvo-web hold on that target, by name and version.
+# rule: No package of the workspace links openssl-sys, and halvo, halvo-control, halvo-capture, halvo-agent-client, which relays a run, halvo-owner, which opens the derived store, halvo-analysis, which reads the capture records, and halvo-learn-store, which keeps what the agents learn, link no network client on the shipped targets; the feature test-seam stands in crates/halvo-capture/Cargo.toml alone, on its features line and on the crate's dev-dependency on itself, and in no other manifest (ruling W3-8 (b) (2)). halvo-runner, the program that runs a person's agents, reaches a closed list (its supervisor's frames; HTTPS to the origins of its agent's bindings through halvo-connect; the browser that it starts), and its tree on each shipped target holds no store crate (halvo-sqlcipher, halvo-capture, halvo-derived, halvo-owner, halvo-agent-store, halvo-coord-store and halvo-learn-store, the packages of the workspace that open a store, on disk or in memory, or keep its rows, one of which every other package that opens a store takes into its tree) and no network client (a crate of the list clients of this script) beyond those that the trees of halvo-connect and halvo-web hold on that target, by name and version. The tree of halvo-runner's package alone, read with features on each shipped target, holds no feature client of halvo-control: the client of the capture service, which can pause the capture and delete everything (a build of the runner with another member, such as --workspace, joins their features and compiles the client in).
 set -u
 name=21-tree-bans
 clients='reqwest hyper ureq rustls ring aws-lc-rs native-tls openssl-sys'
@@ -44,6 +44,15 @@ client_beyond() {
 $held
 EOF
   done
+}
+
+client_tree() {
+  tree=$(cargo tree -p halvo-runner -e features --all-features --target "$1" --prefix none --locked) ||
+    fail "cargo tree with features failed for halvo-runner on $1"
+  judge "halvo-runner with features on $1" "halvo-runner-features-$1" halvo-runner ''
+  if line=$(printf '%s\n' "$tree" | grep '^halvo-control feature "client"'); then
+    fail "halvo-runner on $1: its tree, read with features, holds the control client: $(printf '%s\n' "$line" | sed 1q)"
+  fi
 }
 
 seam_manifests() {
@@ -100,6 +109,7 @@ measure() {
     package_tree halvo-runner "$triple" "$stores"
     beyond=$(client_beyond "$tree" "$allowed") ||
       fail "halvo-runner on $triple: a network client beyond the trees of halvo-connect and halvo-web: $beyond"
+    client_tree "$triple"
   done
   printf 'PASS %s\n' "$name"
 }
@@ -181,6 +191,8 @@ case $* in
     if [ $# -eq 11 ] && [ "$1 $2 $4 $5 $6 $7 $9 ${10} ${11}" = 'tree -p -e normal --all-features --target --prefix none --locked' ]; then
       [ "$3-$8" != "$STUB_BROKEN" ] || exit 101
       cat "$STUB_TREES/$3-$8.txt"
+    elif [ $# -eq 11 ] && [ "$1 $2 $4 $5 $6 $7 $9 ${10} ${11}" = 'tree -p -e features --all-features --target --prefix none --locked' ]; then
+      cat "$STUB_TREES/$3-features-$8.txt"
     else
       printf 'stub cargo: got the arguments: %s\n' "$*"
       exit 97
@@ -206,6 +218,7 @@ EOF
     printf 'halvo-connect v0.0.0 (/w/crates/halvo-connect)\nreqwest v0.13.5\nhyper v1.12.0\nrustls v0.23.46\nring v0.17.14\n' >"$work/main/halvo-connect-$triple.txt"
     printf 'halvo-web v0.0.0 (/w/crates/halvo-web)\nchromiumoxide v0.9.1\ntungstenite v0.28.0\n' >"$work/main/halvo-web-$triple.txt"
     printf 'halvo-runner v0.0.0 (/w/crates/halvo-runner)\nhalvo-connect v0.0.0 (/w/crates/halvo-connect)\nreqwest v0.13.5\nhyper v1.12.0 (*)\nrustls v0.23.46\nring v0.17.14 (*)\nhalvo-web v0.0.0 (/w/crates/halvo-web)\nchromiumoxide v0.9.1\ntungstenite v0.28.0\nhalvo-sheet v0.0.0 (/w/crates/halvo-sheet)\n' >"$work/main/halvo-runner-$triple.txt"
+    printf 'halvo-runner v0.0.0 (/w/crates/halvo-runner)\nhalvo-control v0.0.0 (/w/crates/halvo-control)\nhalvo-connect feature "loopback"\nhalvo-connect v0.0.0 (/w/crates/halvo-connect)\nhalvo-runner feature "default" (command-line)\n' >"$work/main/halvo-runner-features-$triple.txt"
   done
   rejected=0
   wrong=
@@ -292,6 +305,9 @@ EOF
   trees runner-links-another-client
   printf 'ureq v3.1.2\n' >>"$work/runner-links-another-client/halvo-runner-aarch64-apple-darwin.txt"
   check runner-links-another-client FAIL 'halvo-runner on aarch64-apple-darwin: a network client beyond the trees of halvo-connect and halvo-web: ureq v3.1.2)'
+  trees runner-links-the-control-client
+  printf 'halvo-control feature "client"\nhalvo-control v0.0.0 (/w/crates/halvo-control) (*)\n' >>"$work/runner-links-the-control-client/halvo-runner-features-aarch64-apple-darwin.txt"
+  check runner-links-the-control-client FAIL 'halvo-runner on aarch64-apple-darwin: its tree, read with features, holds the control client: halvo-control feature "client")'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

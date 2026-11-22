@@ -1,7 +1,9 @@
 use super::check::{raise_checks, read_replies};
 use crate::items::drive::{class_of, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs, Stamp};
-use crate::schedule::{item_closed, resync, seq_refusal, Board, Ended, Member, Owed, Owing};
+use crate::schedule::{
+    hold_refusals_at, item_closed, resync, seq_refusal, Board, Ended, Member, Owed, Owing,
+};
 use crate::types::{
     Agent, AgentId, Body, Cause, ConfigView, Doing, Event, Facts, FullWorkflow, ItemId, LapseCause,
     Lapsed, Limits, OtherLapse, PastRun, Raised, RunEnd, RunId, What, Workflow, WorkflowState,
@@ -248,6 +250,7 @@ where
         slots: agent.slots,
         runs: agent.last.into_iter().collect(),
         unknown: Vec::new(),
+        refused: agent.refused_run,
         events,
         store_ended,
         replies: crate::types::Replies::NotAsked,
@@ -401,7 +404,9 @@ impl<C> Found<C> {
 /// `run_ended` and its `item_lapsed` entries, and an `end_run` that it does not acknowledge, are
 /// owed on the board, which the schedule's tick sends again (XB-32). The board takes the facts so read, with the day of the clock, an idle agent
 /// with no item, an empty queue and no live run, and keeps the runs for which `reap` answered
-/// `alive` (`Board::alive_at_reap`; ruling RD-147 (5)(i)); then recovery raises the item `check` where
+/// `alive` (`Board::alive_at_reap`; ruling RD-147 (5)(i)); then recovery stores the one `hold_set`
+/// of the cause `sign_in_refused`, with `set_state` `paused`, for each agent whose refused sign-in
+/// its read of the roster shows and no event names (ruling RD-73 4.2); then it raises the item `check` where
 /// `check_due` holds, since it read the store's records, and that raise lapses with the cause
 /// `check` each `ready` item whose `app_ended` lapse is owed (ruling RD-96).
 /// Where `reap` answered `alive` for a run, recovery also reads the history of each agent whose
@@ -569,6 +574,7 @@ where
                 slots: f.agent.slots,
                 runs,
                 unknown: Vec::new(),
+                refused: f.agent.refused_run.clone(),
                 events: f.events,
                 store_ended,
                 replies: crate::types::Replies::NotAsked,
@@ -607,6 +613,8 @@ where
         board.keep_unread(agent);
     }
     board.note_list(&workflows);
+    let listed: Vec<_> = workflows.iter().map(|w| w.id().clone()).collect();
+    hold_refusals_at(ports, &mut board, limits, stamp, &listed);
     let checked = raise_checks(ports, &mut board, limits, None, stamp);
     Ok(Life {
         board,

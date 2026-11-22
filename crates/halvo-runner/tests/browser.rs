@@ -1,6 +1,8 @@
 //! The tests of the run's real browser (U4.1w, first cut): each starts the headless browser that `HALVO_BROWSER`
 //! names, on a hosted runner alone, against fixture servers of its own on 127.0.0.1, and returns at its first line
-//! off a hosted runner (`support::browser::hosted`).
+//! off a hosted runner (`support::browser::hosted`). The one test of U9.10 gives no `--browser`, so that the runner
+//! starts the browser that it finds itself, and returns at its first line off a hosted macOS runner
+//! (`support::browser::hosted_mac`).
 
 mod support;
 
@@ -11,10 +13,10 @@ use halvo_schema::executable::names::{HandbackReason, LogEvent};
 use halvo_schema::executable::{Cause, FromRunner, Outcome, RunnerCall, ToRunner};
 use halvo_schema::Category;
 use support::browser::{
-    bearing, cond, extract_amount, from_slot, handback, hosted, hosted_mac, konst, navigate,
-    own_start_us, profile_of, serve_with, step, Fixture,
+    bearing, cond, extract_amount, from_slot, handback, hosted, hosted_headed, hosted_mac, konst,
+    navigate, own_start_us, profile_of, say, serve_finding, serve_with, step, Fixture,
 };
-use support::{slot, tag, Act, Seen, Supervisor, LONG};
+use support::{slot, tag, Act, Seen, Supervisor, FINDS_ITS_BROWSER, LONG};
 
 /// A page whose one control with the test id `amount` reads `12.34`.
 const READ: &str = r#"<!doctype html><title>read</title><p data-testid="amount">12.34</p>"#;
@@ -117,6 +119,57 @@ fn a_run_reads_a_page_after_the_frame_browser() {
         "{}",
         seen.stderr
     );
+}
+
+/// U9.10 (5): a runner given no `--browser` on a hosted macOS runner starts the browser that it finds at the fixed
+/// places of a Mac, opens the page of its bound origin and reads the control's amount; the run completes and the
+/// profile is gone. The test names which of the two places holds a file.
+#[test]
+fn a_run_given_no_browser_starts_the_one_it_finds() {
+    if !hosted_mac("a_run_given_no_browser_starts_the_one_it_finds") {
+        return;
+    }
+    for place in [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    ] {
+        let file = std::path::Path::new(place).is_file();
+        say(
+            FINDS_ITS_BROWSER,
+            &format!("{place}: {}", if file { "a file" } else { "none" }),
+        );
+    }
+    let fixture = Fixture::start(&[("/read", READ)]);
+    let mut sup = web_agent(241, &fixture);
+    sup.steps = vec![
+        navigate(1, &fixture.url("/read")),
+        extract_amount(2, "amount"),
+    ];
+    let seen = serve_finding(&sup, FINDS_ITS_BROWSER, reply_to_browser, LONG);
+    assert!(
+        !seen.line.iter().any(|a| a == "--browser"),
+        "{:?}",
+        seen.line
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(
+        rows(&seen),
+        [
+            (LogEvent::StepOk, Some(1), None),
+            (LogEvent::StepOk, Some(2), None)
+        ]
+    );
+    let got: Vec<(String, String)> = fixture
+        .requests()
+        .into_iter()
+        .map(|r| (r.method, r.path))
+        .collect();
+    assert!(
+        got.contains(&("GET".to_string(), "/read".to_string())),
+        "{got:?}"
+    );
+    let (run_dir, _) = profile_of(&seen, &sup.run);
+    assert!(!run_dir.exists(), "{} is left", run_dir.display());
 }
 
 /// U4.1w (3): with the bindings' origins armed in `Mode::Fail`, a load of an origin outside them fails and ends the
@@ -327,8 +380,12 @@ fn a_run_fills_a_form_and_reads_it_back() {
 /// A name field, a password field that holds `SECRET`, a field that becomes a password field when it is focused,
 /// and a field whose focus hands the focus on to the password field, each of which, at each input, asks its own
 /// origin for `/typed` by a synchronous GET, a request that changes no state and that the rule lets through to a
-/// bound origin, so that the fixture sees each act on a field.
-const TYPED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" value="halvo-runner-secret-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="turns" aria-label="Code" onfocus="this.type = 'password'" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="hands" aria-label="Pin" onfocus="document.querySelector('[data-testid=secret]').focus()" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+/// bound origin, so that the fixture sees each act on a field; and a field with no input of its own whose focus
+/// hands the focus on into the password field of `INNER`, which an object element shows.
+const TYPED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" value="halvo-runner-secret-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="turns" aria-label="Code" onfocus="this.type = 'password'" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="hands" aria-label="Pin" onfocus="document.querySelector('[data-testid=secret]').focus()" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="into" aria-label="Note" onfocus="document.querySelector('object').contentDocument.querySelector('input').focus()"><object data="/inner" type="text/html"></object>"#;
+
+/// The document of the object element of `TYPED`: a password field that asks `/typed` at each input.
+const INNER: &str = r#"<!doctype html><title>inner</title><input type="password" aria-label="Password" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
 
 /// `TYPED` with its name field alone.
 const NAMED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
@@ -343,17 +400,23 @@ const TURNS: &str = r#"<!doctype html><title>typed</title><input data-testid="na
 /// password field before that focus.
 const HANDS: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="hands" aria-label="Pin" onfocus="var p = document.createElement('input'); p.type = 'password'; p.setAttribute('aria-label', 'Password'); p.oninput = function () { var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {} }; document.body.appendChild(p); p.focus();" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
 
+/// `TYPED` with its name field, its field with no input of its own whose focus hands the focus on into the password
+/// field of `INNER`, and the object element that shows `INNER`, and no password field of its own.
+const INTO: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="into" aria-label="Note" onfocus="document.querySelector('object').contentDocument.querySelector('input').focus()"><object data="/inner" type="text/html"></object>"#;
+
 /// U4.1w part 1 (3), U5.1: a step whose `post` fails after it acted, a step whose locator finds no control and a
 /// step whose `pre` fails, on a page with no password field, each log one `step_failed` row with the cause
 /// `step_failed`, never `timeout`, and the run is handed back. A step stored with `credential` `no` whose locator
 /// finds a password field meets the runner's reading of the page before the act; a fill of a field that becomes a
 /// password field at the focus that the fill makes, and a fill of a field whose focus hands the focus on to a
-/// password field, each on a page with no password field before that focus, are refused at the read of the element
-/// that holds the focus and meet the runner's reading after the refused act: each opens a handback of the reason
-/// `sign_in`, and the supervisor's `declined` ends the run `declined`. The step with the failing `pre` and the three
-/// that would reach a password field act on nothing, the one with the failing `post` acted, and no frame and no line
-/// of the runner holds the password field's value (A4.3: the fresh read marks the target credential before the act,
-/// and the element that holds the focus before the insert).
+/// password field, each on a page with no password field before that focus, are refused because the runner types
+/// only into an element that holds the focus of the four kinds that it reads whole, and meet the runner's reading
+/// after the refused act: each opens a handback of the reason `sign_in`, and the supervisor's `declined` ends the run
+/// `declined`. A fill of a field whose focus hands the focus on into an object's document, on a page with no password
+/// field of its own, is refused the same way and ends either way: handed back with `step_failed` where the reading
+/// does not see the object's password field, or a `sign_in` handback that is declined where it does; the test prints
+/// which. No step that would reach a password field types a byte, the one with the failing `post` acted, and no frame
+/// and no line of the runner holds the password field's value.
 #[test]
 fn a_post_condition_that_fails_logs_step_failed() {
     let Some(browser) = hosted("a_post_condition_that_fails_logs_step_failed") else {
@@ -429,19 +492,41 @@ fn a_post_condition_that_fails_logs_step_failed() {
             step(2, "fill", Some("hands"), &[konst("text", "Ada")], &[], &[]),
             false,
         ),
+        (
+            249,
+            step(2, "fill", Some("into"), &[konst("text", "Ada")], &[], &[]),
+            false,
+        ),
     ];
     for (n, second, acted) in cases {
         let page = match n {
             254 => TYPED,
             255 => TURNS,
             250 => HANDS,
+            249 => INTO,
             _ => NAMED,
         };
-        let fixture = Fixture::start(&[("/typed-form", page)]);
+        let fixture = Fixture::start(&[("/typed-form", page), ("/inner", INNER)]);
         let mut sup = web_agent(n, &fixture);
         sup.steps = vec![navigate(1, &fixture.url("/typed-form")), second];
         let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
-        if matches!(n, 250 | 254 | 255) {
+        if n == 249 {
+            let done = seen.done();
+            say(
+                "a_post_condition_that_fails_logs_step_failed",
+                &format!("run 249, the object's password field: {done:?}"),
+            );
+            match done {
+                Some(Outcome::Declined) => {
+                    assert_eq!(rows(&seen), declined, "run {n}");
+                    assert_eq!(seen.handbacks(), [HandbackReason::SignIn], "run {n}");
+                }
+                _ => {
+                    assert_eq!(done, Some(Outcome::HandedBack), "{}", seen.stderr);
+                    assert_eq!(rows(&seen), failed, "run {n}");
+                }
+            }
+        } else if matches!(n, 250 | 254 | 255) {
             assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
             assert_eq!(rows(&seen), declined, "run {n}");
             assert_eq!(seen.handbacks(), [HandbackReason::SignIn], "run {n}");
@@ -523,7 +608,7 @@ const SIGN_IN: &str = r#"<!doctype html><title>sign in</title><form onsubmit="re
 #[test]
 fn a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind() {
     let Some(browser) =
-        hosted_mac("a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind")
+        hosted_headed("a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind")
     else {
         return;
     };

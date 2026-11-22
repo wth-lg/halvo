@@ -1,0 +1,3 @@
+- Added: The runner finds the person's browser when it is given no `--browser`: on a Mac Google Chrome, then Microsoft Edge, in /Applications; on Windows Microsoft Edge, then Google Chrome, under ProgramFiles(x86), ProgramFiles and LOCALAPPDATA. A run that finds none ends failed with the new cause `no_browser`.
+- Changed: `--browser` of halvo-runner is optional and `RunSpec::browser` of halvo-agent-client is an `Option`; on Windows the library hands the runner ProgramFiles and ProgramFiles(x86).
+- Fixed: The app no longer hands the runner a browser program that no package builds, so a run started from the app on a Mac takes the person's Google Chrome or Microsoft Edge.

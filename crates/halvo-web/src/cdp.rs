@@ -1107,11 +1107,6 @@ impl Executor {
         Ok(r.result.value.unwrap_or(serde_json::Value::Null))
     }
 
-    /// Whether the node is a credential field (`CREDENTIAL_FN`), with no accessible name given.
-    async fn is_credential(&self, place: &Place, node: &BackendNodeId) -> Res<bool> {
-        Ok(self.sign_of(place, node, "").await?.is_some())
-    }
-
     /// The sign by which the node is a credential field (`CREDENTIAL_FN`), with `name`, the
     /// accessible name that the page's tree gives it, as one of the names that the rule reads.
     async fn sign_of(&self, place: &Place, node: &BackendNodeId, name: &str) -> Res<Option<Sign>> {
@@ -1869,6 +1864,37 @@ fn control_of(reply: &serde_json::Value) -> Res<Control> {
     }
 }
 
+/// The one function on the element that holds the focus: `[editable, credential]`, whether the
+/// element is editable by its own `contenteditable` attribute (the empty word, `true` or
+/// `plaintext-only`), and its credential mark by `CREDENTIAL_FN`.
+fn typed_into_fn() -> String {
+    format!(
+        "function () {{
+  const own = this.getAttribute('contenteditable');
+  const editable = own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase());
+  return [editable, Boolean(({CREDENTIAL_FN}).call(this))];
+}}"
+    )
+}
+
+/// Whether a text or a key may reach an element named `name` (as the browser names a node) whose
+/// `typed_into_fn` reply is `reply`: an INPUT, a TEXTAREA, a SELECT or an element editable by its
+/// own attribute, other than the BODY and the HTML, whose mark reads no credential. None for a
+/// reply of another form, which the caller reads as credential.
+fn typed_into_of(name: &str, reply: &serde_json::Value) -> Option<bool> {
+    use serde_json::Value as V;
+    let Some([V::Bool(editable), V::Bool(credential)]) = reply.as_array().map(Vec::as_slice) else {
+        return None;
+    };
+    let name = name.to_ascii_uppercase();
+    let kind = match name.as_str() {
+        "INPUT" | "TEXTAREA" | "SELECT" => true,
+        "BODY" | "HTML" => false,
+        _ => *editable,
+    };
+    Some(kind && !credential)
+}
+
 impl Executor {
     /// The control of the ref, read fresh in one call on its node (`control_fn`): a credential
     /// field gives its mark alone, so that no text and no value of it reaches this process.
@@ -1951,11 +1977,14 @@ impl Executor {
         Ok(())
     }
 
-    /// Whether the element that holds the focus in the document of `place`, the one that a text or
-    /// a key reaches, is a credential field by `CREDENTIAL_FN`, the mark alone. Where that element
-    /// cannot be read it reads credential: no element holds the focus (the body or none), the
-    /// focus stands in a frame, or the element has a shadow root other than the browser's own,
-    /// which the executor does not enter.
+    /// Whether a text or a key must not reach the element that holds the focus in the document of
+    /// `place` (the ruling of the list of what is typed into): it may reach that element only where
+    /// it is one of four kinds that the top document's own read sees whole, an input, a textarea, a
+    /// select, or an element editable by its own `contenteditable` attribute, that carries no frame
+    /// id and no document of its own, has no shadow root other than the browser's own, and reads no
+    /// credential mark (`CREDENTIAL_FN`, the mark alone). Every other holder of the focus reads
+    /// credential: none, the body, a frame of any kind, a host of a shadow root, and any other
+    /// element.
     async fn focus_is_credential(&self, place: &Place) -> Res<bool> {
         let active = EvaluateParams::builder()
             .expression("document.activeElement")
@@ -1978,17 +2007,18 @@ impl Executor {
             )
             .await?
             .node;
-        let unread = matches!(
-            node.node_name.to_ascii_uppercase().as_str(),
-            "BODY" | "HTML" | "IFRAME" | "FRAME"
-        ) || node.shadow_roots.iter().flatten().any(|root| {
+        let framed = node.frame_id.is_some() || node.content_document.is_some();
+        let hosts = node.shadow_roots.iter().flatten().any(|root| {
             root.shadow_root_type
                 != Some(chromiumoxide::cdp::browser_protocol::dom::ShadowRootType::UserAgent)
         });
-        if unread {
+        if framed || hosts {
             return Ok(true);
         }
-        self.is_credential(place, &node.backend_node_id).await
+        let read = self
+            .call_on(place, &node.backend_node_id, &typed_into_fn(), Vec::new())
+            .await?;
+        Ok(typed_into_of(&node.node_name, &read) != Some(true))
     }
 }
 
