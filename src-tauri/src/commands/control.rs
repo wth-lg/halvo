@@ -407,10 +407,11 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
     /// that the daemon names, or the error of the call.
     #[cfg(target_os = "macos")]
     fn defer(&self, made: Made, until: i64) -> Result<Option<i64>, ClientError> {
+        let by = made.deadline_from + CALL_DEADLINE;
         let late = ClientError::Deadline {
             seconds: CALL_DEADLINE.as_secs(),
         };
-        let place = made.enter(made.deadline_from + CALL_DEADLINE).ok_or(late)?;
+        let place = made.enter(by).ok_or(late)?;
         let answer = Client::new(self.connector.clone()).defer(until);
         drop(place);
         answer
