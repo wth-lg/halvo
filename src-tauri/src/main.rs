@@ -62,8 +62,11 @@ fn run(background: bool, given: Option<PathBuf>) {
     );
     #[cfg(any(target_os = "macos", test))]
     let child_dir = data_dir.clone();
+    let state = commands::capture::AppState::with_control(control, data_dir, open_pane);
+    #[cfg(any(target_os = "macos", test))]
+    let views = Arc::clone(&state.views);
     let parts = app::Parts {
-        state: commands::capture::AppState::with_control(control, data_dir, open_pane),
+        state,
         tray: Some(tray::install),
         guard: engine::guard,
         poll: true,
@@ -85,7 +88,7 @@ fn run(background: bool, given: Option<PathBuf>) {
     #[cfg(any(target_os = "macos", test))]
     tauri::Manager::manage(
         &app,
-        quit::AppChildren(start_the_daemon(child_dir, given.is_some(), pid)),
+        quit::AppChildren(start_the_daemon(child_dir, given.is_some(), pid, views)),
     );
     app.run(|_, _| {});
 }
@@ -104,6 +107,7 @@ fn start_the_daemon(
     data_dir: Option<DataDir>,
     given: bool,
     pid: Arc<ChildPid>,
+    views: Arc<poller::Views>,
 ) -> Option<Arc<dyn quit::Children>> {
     let plan = daemon_child::Plan {
         program: daemon_child::Program {
@@ -113,9 +117,10 @@ fn start_the_daemon(
         data_dir: data_dir?,
         given,
     };
-    Some(Arc::new(daemon_child::Supervisor::start(
+    Some(Arc::new(daemon_child::Supervisor::start_holding(
         plan,
         pid,
         Arc::new(daemon_child::SystemClock),
+        views,
     )))
 }

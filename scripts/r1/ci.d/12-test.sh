@@ -52,6 +52,7 @@ fast_plan() {
   group_doc=
   group_unit_names=
   kept_parts=
+  kept_lines=
   kept_packages=' '
   kept_count=0
   cr=$(printf '\r')
@@ -81,7 +82,12 @@ fast_plan() {
         case $line_group in
           '' | *[!A-Za-z0-9_:]*) fail "$slow_list line $line_number: after its package a kept line names a part of a test name in letters, digits, _ and :" ;;
         esac
+        kept_job=both
+        case $line_package in
+          macos | windows) kept_job=$line_package ;;
+        esac
         kept_parts="$kept_parts$word=$line_group "
+        kept_lines="$kept_lines$word=$line_group=$kept_job "
         kept_count=$((kept_count + 1))
         case $kept_packages in
           *" $word "*) ;;
@@ -280,6 +286,31 @@ kept_cargo() {
   done
 }
 
+kept_counts() {
+  [ -n "${CI_D_MERGE_GATE:-}" ] || return 0
+  zero_package=
+  zero_part=
+  for kept_line in $kept_lines; do
+    package=${kept_line%%=*}
+    job=${kept_line##*=}
+    part=${kept_line#*=}
+    part=${part%=*}
+    if [ "$job" != both ] && [ "$job" != "$CI_D_JOB" ]; then
+      printf 'kept_not_counted package=%s part=%s (%s runs the part in the %s job alone)\n' "$package" "$part" "$slow_list" "$job"
+      continue
+    fi
+    count=$(tr -d '\r' <"$output/cargo-test.txt" | awk -v package="$package" -v part="$part" '$1 == "kept:" { inside = ($6 == package); next } inside && $1 == "test" && $3 == "..." && $4 == "ok" && index($2, part) { count++ } END { print count + 0 }') ||
+      fail "awk exited $? on the output of the kept calls"
+    printf 'kept_count package=%s part=%s count=%s\n' "$package" "$part" "$count"
+    [ "$count" -gt 0 ] || [ -n "$zero_package" ] || {
+      zero_package=$package
+      zero_part=$part
+    }
+  done
+  [ -z "$zero_package" ] ||
+    fail "$slow_list keeps the unit tests of $zero_package whose name holds $zero_part, and no such test ran in the $CI_D_JOB job; correct the part, write after it the one job that has such tests (macos or windows), or take the kept line out"
+}
+
 group_cargo() {
   group_step=$1
   group_names=
@@ -378,6 +409,7 @@ measure() {
   tr -d '\r' <"$output/cargo-test.txt" | grep -E '^ *(Running|Doc-tests) |^test .* \.\.\. (ok|FAILED|ignored)' >"$CI_D_ARTIFACTS/tests.txt" ||
     fail "the list of the tests that cargo test ran cannot be written to its artifacts directory"
   [ "$code" = 0 ] || fail "cargo test exited ${code:-without a status}"
+  kept_counts
 
   left=$(ls -A "$scratch") || fail "the temp directory of the test run cannot be listed"
   total=0
@@ -412,8 +444,12 @@ check() {
     CI_D_JOB=macos
     CI_D_ARTIFACTS=$work/artifacts/$1
     RUNNER_TEMP=$work/runner-temp
-    export PATH CI_D_REPO CI_D_JOB CI_D_ARTIFACTS RUNNER_TEMP STUB_CALLS STUB_BUILD_EXIT STUB_TEST_EXIT STUB_LEAVES STUB_MOVES STUB_KILLS_PARENT
+    export PATH CI_D_REPO CI_D_JOB CI_D_ARTIFACTS RUNNER_TEMP STUB_CALLS STUB_BUILD_EXIT STUB_TEST_EXIT STUB_LEAVES STUB_MOVES STUB_KILLS_PARENT STUB_KEPT_RUNS
     unset CI_D_MERGE_GATE CI_D_TEST_GROUP
+    if [ "$STUB_MERGE_GATE" = yes ]; then
+      CI_D_MERGE_GATE=1
+      export CI_D_MERGE_GATE
+    fi
     sh "$0" 2>&1
   )
   code=$?
@@ -443,6 +479,8 @@ check() {
   STUB_LEAVES=
   STUB_MOVES=no
   STUB_KILLS_PARENT=no
+  STUB_MERGE_GATE=no
+  STUB_KEPT_RUNS=yes
 }
 
 self_test() {
@@ -455,6 +493,20 @@ printf '%s\n' "$*" >>"$STUB_CALLS"
 case $* in
   'test --workspace --locked --no-run') exit "$STUB_BUILD_EXIT" ;;
   'test --workspace --locked') ;;
+  'metadata --no-deps --format-version 1 --locked')
+    printf '%s\n' '{"packages":[{"name":"pkg-a","version":"0.1.0","targets":[{"kind":["lib"],"crate_types":["lib"],"name":"pkg_a"},{"kind":["test"],"crate_types":["bin"],"name":"t1"}]}]}'
+    exit 0
+    ;;
+  'test --workspace --exclude pkg-a --locked --lib --bins --no-run' | 'test --workspace --locked --test t1 --no-run' | 'test --locked -p pkg-a --lib --bins --no-run') exit 0 ;;
+  'test --workspace --exclude pkg-a --locked --lib --bins --' | 'test --workspace --locked --test t1 --')
+    printf '\nrunning 1 test\ntest tests::kept::elsewhere ... ok\r\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n\n'
+    exit 0
+    ;;
+  'test --locked -p pkg-a --lib --bins -- tests::kept _windows::tests::')
+    [ "$STUB_KEPT_RUNS" = no ] || printf 'test tests::kept::one ... ok\r\n'
+    printf 'test tests::kept::two ... ignored, needs a window\r\n'
+    exit 0
+    ;;
   *)
     printf 'stub cargo: got the arguments: %s\n' "$*"
     exit 97
@@ -511,6 +563,11 @@ EOF
   STUB_LEAVES=
   STUB_MOVES=no
   STUB_KILLS_PARENT=no
+  STUB_MERGE_GATE=no
+  STUB_KEPT_RUNS=yes
+  mkdir -p "$work/merge-gate/scripts/ci"
+  : >"$work/merge-gate/fixture-root"
+  printf '%s\n' 'units pkg-a A every unit test' 'kept pkg-a tests::kept the tests of both jobs' 'kept pkg-a _windows::tests:: windows the tests of the windows job alone' 'doc-tests A' >"$work/merge-gate/scripts/ci/slow-tests.txt"
 
   nl='
 '
@@ -544,6 +601,12 @@ EOF
   repo=$work/literal-gone
   STUB_LEAVES='halvo-consent-test-7-0 halvo-consent-test-7-1'
   check consent-directories-after-the-literal-is-gone FAIL 'the tests left 2 entries in their temp directory: halvo-consent-test-7-0 halvo-consent-test-7-1)'
+  repo=$work/merge-gate
+  STUB_MERGE_GATE=yes
+  check kept-parts-counted PASS "kept_count package=pkg-a part=tests::kept count=1${nl}kept_not_counted package=pkg-a part=_windows::tests:: (scripts/ci/slow-tests.txt runs the part in the windows job alone)${nl}"
+  STUB_MERGE_GATE=yes
+  STUB_KEPT_RUNS=no
+  check kept-part-runs-no-test FAIL "kept_count package=pkg-a part=tests::kept count=0${nl}kept_not_counted package=pkg-a part=_windows::tests:: (scripts/ci/slow-tests.txt runs the part in the windows job alone)${nl}FAIL $name (scripts/ci/slow-tests.txt keeps the unit tests of pkg-a whose name holds tests::kept, and no such test ran in the macos job; correct the part, write after it the one job that has such tests (macos or windows), or take the kept line out)"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

@@ -130,9 +130,25 @@ impl Fixture {
             .collect()
     }
 
+    /// The ids of the events that the calendar host deleted, in order.
+    pub fn deleted(&self) -> Vec<String> {
+        self.state()["calendar"]["deleted"]
+            .as_array()
+            .expect("a list")
+            .iter()
+            .map(|id| id.as_str().expect("a text").to_owned())
+            .collect()
+    }
+
     /// Has the next request to a Graph host answered 429 with `Retry-After: <seconds>`.
     pub fn throttle(&self, seconds: u32) {
         self.control("POST", &format!("/throttle?seconds={seconds}"));
+    }
+
+    /// Ends the server now, so that its port takes no connection; no call of the fixture can follow.
+    pub fn stop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
     }
 
     fn control(&self, method: &str, path: &str) -> Value {
@@ -373,6 +389,16 @@ pub fn bound_to(bound: &Bound) -> String {
         .find(|f| f.name == FieldName::To)
         .map(|f| f.value.joined())
         .expect("a field to")
+}
+
+/// The value of the bound field `items` of `bound`.
+pub fn bound_items(bound: &Bound) -> String {
+    bound
+        .fields()
+        .iter()
+        .find(|f| f.name == FieldName::Items)
+        .map(|f| f.value.joined())
+        .expect("a field items")
 }
 
 /// How long `serve_run_holding` keeps the link open after the frame that it does not answer.

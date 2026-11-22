@@ -1,0 +1,1 @@
+- Added: In test builds alone, an agent's calendar clean-up deletes the events that it found only after the person allows them on one card, refuses a delete that the policy cleared without asking, and records a delete that was not made with its cause.

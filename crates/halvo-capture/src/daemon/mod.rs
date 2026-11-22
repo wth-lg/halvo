@@ -2543,6 +2543,13 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                         listening
                             .admitting()
                             .hold_owner(Some(owner.watched.handle.clone()));
+                        #[cfg(feature = "r2")]
+                        r2::service::open(
+                            dir.path(),
+                            children::own_dir(),
+                            r2::when::SystemReadings,
+                            Box::new(std::io::stderr()),
+                        );
                         let store = HeldStore::Capture(Box::new(owner));
                         supervisor.set_slot(slot::Slot::Open { id }, store.link());
                         store
@@ -2707,6 +2714,8 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     store: &HeldStore,
 ) {
     use halvo_control::proto::{ErrorCode, ErrorReply, Reply, Request};
+    #[cfg(feature = "r2")]
+    r2::service::seen(&asked.request);
     if asked.request.claims_the_indicator() {
         supervisor.renew_lease(store.link());
     }
@@ -2857,6 +2866,8 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     };
     #[cfg(feature = "r2")]
     r2::marks::handler().drop_held();
+    #[cfg(feature = "r2")]
+    r2::service::delete();
     match delete_all::steps_of_the_delete(dir.path(), &how, &mut after_the_intent, &mut clear) {
         delete_all::Steps::Busy => {
             let line = "another process holds the store; this request deleted nothing";
