@@ -1027,8 +1027,10 @@ mod tests {
     }
 
     /// Starts the screen source of the service set once, on the computer that
-    /// runs the test. The board holds a running foreground line, as the board
-    /// of a run does, for the foreground source that the test does not start.
+    /// runs the test, then reads a second set whose first screen source is a
+    /// stand-in that fails its begin. The board holds a running foreground
+    /// line, as the board of a run does, for the foreground source that the
+    /// test does not start.
     #[cfg(windows)]
     #[test]
     fn the_status_of_a_windows_run_reads_the_screen_running_only_while_it_runs() {
@@ -1037,8 +1039,20 @@ mod tests {
 
         use crate::daemon::sources::{starting, RunKind, RunningSources};
         use crate::floor::exclude::{FloorHandle, NoLineage};
-        use crate::source::{SourceContext, Started};
+        use crate::source::{CaptureError, CaptureSource, SourceContext, Started};
         use crate::windows::sources::ServiceSet;
+
+        struct FailsItsBegin(CaptureError);
+
+        impl CaptureSource for FailsItsBegin {
+            fn begin(&mut self, _ctx: SourceContext) -> Result<Started, CaptureError> {
+                Err(self.0.clone())
+            }
+
+            fn shutdown(&mut self) -> Result<(), CaptureError> {
+                Ok(())
+            }
+        }
 
         let _serial = crate::windows::tests::serial();
         let switches = |on| {
@@ -1120,6 +1134,15 @@ mod tests {
         lines.push(line(&sources, true));
         let second_stop = sources.stop_one(SourceName::Screen);
         lines.push(line(&sources, true));
+        let error = CaptureError::Start("the screen capture could not start".to_string());
+        let mut failing = ServiceSet::with_first_screen(Box::new(FailsItsBegin(error.clone())));
+        let mut held = RunningSources::new(Platform::Windows);
+        let failed_start = held.start(&mut failing, &ctx(true), &asked(true));
+        held.read_health();
+        let at_the_failed_start = line(&held, true);
+        let restarted = held.start_one(&mut failing, &ctx(true), SourceName::Screen);
+        held.read_health();
+        let behind_the_restart = line(&held, true);
         assert!(off.is_empty(), "{off:?}");
         assert_eq!(first, [(SourceName::Screen, Ok(Started::Running))]);
         assert_eq!(first_stop, Some(Ok(())));
@@ -1144,6 +1167,15 @@ mod tests {
             "the screen and capture lines with the switch off, while the source runs, behind \
              its stop, at the start behind it, at the health read behind that start, behind \
              the second stop"
+        );
+        assert_eq!(failed_start, [(SourceName::Screen, Err(error.clone()))]);
+        assert_eq!(restarted, Some(Err(error)));
+        let failed = read("failed reason=os_error", "partial");
+        assert_eq!(
+            (at_the_failed_start, behind_the_restart),
+            (failed.clone(), failed),
+            "the screen and capture lines at a first start that failed and behind the \
+             restart's make"
         );
     }
 }

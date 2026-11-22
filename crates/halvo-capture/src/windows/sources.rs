@@ -29,14 +29,18 @@ use crate::source::{
 /// to the stop of its last one. The window_title and screen sources read it.
 ///
 /// The set makes one screen source, at its first make of the name; every make
-/// behind it gives a spent source that starts nothing and reads stopped, so
-/// that a process holds at most one screen session (form B of contracts.md
-/// C14.3). A run makes one set.
+/// behind it gives a spent source that starts nothing, so that a process
+/// holds at most one screen session (form B of contracts.md C14.3). The spent
+/// source reads stopped, or failed with the first source's error where that
+/// source's begin failed. A run makes one set.
 #[derive(Default)]
 pub struct ServiceSet {
     last_app: Arc<Mutex<Option<String>>>,
     hold: Arc<GateHold>,
     screen_made: bool,
+    screen_failed: Arc<Mutex<Option<CaptureError>>>,
+    #[cfg(test)]
+    first_screen: Option<Box<dyn CaptureSource>>,
 }
 
 impl ServiceSet {
@@ -52,6 +56,16 @@ impl ServiceSet {
                 gate: Arc::new(gate),
                 ..GateHold::default()
             }),
+            ..ServiceSet::default()
+        }
+    }
+
+    /// The set whose first screen source is `first` in place of the gated
+    /// one.
+    #[cfg(test)]
+    pub(crate) fn with_first_screen(first: Box<dyn CaptureSource>) -> ServiceSet {
+        ServiceSet {
+            first_screen: Some(first),
             ..ServiceSet::default()
         }
     }
@@ -75,9 +89,24 @@ impl ServiceSet {
     /// one at every call behind it.
     fn screen(&mut self) -> Box<dyn CaptureSource> {
         if std::mem::replace(&mut self.screen_made, true) {
-            return Box::new(SpentScreen);
+            let failed = self
+                .screen_failed
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            return Box::new(SpentScreen { failed });
         }
-        Box::new(self.gated_screen(ScreenSource::new(Arc::clone(&self.last_app))))
+        #[cfg(test)]
+        if let Some(source) = self.first_screen.take() {
+            return Box::new(FirstScreen {
+                source,
+                failed: Arc::clone(&self.screen_failed),
+            });
+        }
+        Box::new(FirstScreen {
+            source: Box::new(self.gated_screen(ScreenSource::new(Arc::clone(&self.last_app)))),
+            failed: Arc::clone(&self.screen_failed),
+        })
     }
 
     fn gated<S: CaptureSource>(&self, source: S) -> Gated<S> {
@@ -190,13 +219,44 @@ impl<S> Drop for Gated<S> {
     }
 }
 
+/// The set's one screen source: it keeps the error of its begin for the
+/// spent sources behind it.
+struct FirstScreen {
+    source: Box<dyn CaptureSource>,
+    failed: Arc<Mutex<Option<CaptureError>>>,
+}
+
+impl CaptureSource for FirstScreen {
+    fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        let begun = self.source.begin(ctx);
+        if let Err(error) = &begun {
+            *self.failed.lock().unwrap_or_else(PoisonError::into_inner) = Some(error.clone());
+        }
+        begun
+    }
+
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        self.source.shutdown()
+    }
+
+    fn health(&self) -> SourceHealth {
+        self.source.health()
+    }
+}
+
 /// What the set gives for the screen behind its one screen source: a source
-/// that starts nothing, takes no gate and reads stopped.
-struct SpentScreen;
+/// that starts nothing and takes no gate. It reads stopped, and answers its
+/// begin with the first source's error where that source's begin failed.
+struct SpentScreen {
+    failed: Option<CaptureError>,
+}
 
 impl CaptureSource for SpentScreen {
     fn begin(&mut self, _ctx: SourceContext) -> Result<Started, CaptureError> {
-        Ok(Started::Off)
+        match &self.failed {
+            Some(error) => Err(error.clone()),
+            None => Ok(Started::Off),
+        }
     }
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
@@ -204,8 +264,12 @@ impl CaptureSource for SpentScreen {
     }
 
     fn health(&self) -> SourceHealth {
+        let state = match &self.failed {
+            Some(error) => crate::daemon::sources::failure(error.clone()),
+            None => SourceState::Stopped(StopCause::Request),
+        };
         SourceHealth {
-            state: SourceState::Stopped(StopCause::Request),
+            state,
             counters: SourceCounters::default(),
         }
     }
