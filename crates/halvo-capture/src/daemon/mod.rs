@@ -4000,7 +4000,7 @@ mod tests {
                 "--store-dir",
                 d,
                 "--switch",
-                "screen_activity=on",
+                "site_read=on",
                 "--switch",
                 "key_class=off",
             ],
@@ -4009,10 +4009,10 @@ mod tests {
         };
         assert_eq!(
             run.switches.set_by_flags(),
-            [(Switch::ScreenActivity, true), (Switch::KeyClass, false)]
+            [(Switch::SiteRead, true), (Switch::KeyClass, false)]
         );
         let switches = run.switches.applied();
-        assert!(switches.is_on(Switch::ScreenActivity));
+        assert!(switches.is_on(Switch::SiteRead));
         assert!(!switches.is_on(Switch::KeyClass));
         assert!(switches.is_on(Switch::TitleText));
         assert_eq!(run.window, Duration::from_secs(3));
