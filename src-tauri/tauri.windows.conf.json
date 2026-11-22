@@ -7,7 +7,11 @@
         "type": "skip"
       },
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "installerHooks": "./windows/hooks.nsh",
+        "customLanguageFiles": {
+          "English": "./windows/English.nsh"
+        }
       }
     }
   }
