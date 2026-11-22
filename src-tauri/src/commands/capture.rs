@@ -839,8 +839,7 @@ impl Drop for OfflineRuns {
 }
 
 /// The fourteenth command: the offline delete of contracts.md C10.5, which takes no id. One runs
-/// at a time: a second press while one runs answers busy and runs nothing. On Windows it runs
-/// nothing and answers unsupported_op.
+/// at a time: a second press while one runs answers busy and runs nothing.
 #[tauri::command]
 pub async fn delete_offline<R: Runtime>(
     app: AppHandle<R>,
@@ -850,9 +849,6 @@ pub async fn delete_offline<R: Runtime>(
         error,
         outcome_not_known: false,
     };
-    if cfg!(windows) {
-        return Err(refused(ActionError::UnsupportedOp));
-    }
     let Some(running) = OfflineRuns::take(&state.offline_running) else {
         return Err(refused(ActionError::Busy));
     };

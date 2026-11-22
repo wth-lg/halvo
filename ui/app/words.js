@@ -152,6 +152,7 @@
     REMOVE_NOT_STARTED: "Halvo could not start its removal and removed nothing.",
     REMOVE_BUSY: "Halvo is already removing itself.",
     REMOVE_BY_HAND: "To remove what is left yourself, quit Halvo, open that folder in the Finder, move what you do not want to keep to the Trash, and empty the Trash.",
+    REMOVE_BY_HAND_WINDOWS: "To remove what is left yourself, quit Halvo, open that folder in File Explorer, delete what you do not want to keep, and empty the Recycle Bin.",
     REMOVE_DONE: "Halvo has removed what it kept on this Mac and quits in a few seconds.",
     REMOVE_CANNOT_REMOVE: "Halvo cannot remove the app itself: move Halvo from your Applications folder to the Trash. Copies that Halvo made next to your own files stay, and Halvo cannot reach a copy or a backup of its data folder, such as one in Time Machine. Halvo's entries under Privacy & Security in System Settings stay too. Remove those yourself if you want them gone.",
     STORAGE_CAP: "Storage cap",

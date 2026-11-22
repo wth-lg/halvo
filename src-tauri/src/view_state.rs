@@ -329,7 +329,7 @@ impl Hold {
 
     /// Names the data folder, as resolved, that every view gives the page for the questions of
     /// the offline delete (contracts.md C10.5).
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     pub fn set_folder(&self, folder: String) {
         self.state().folder = Some(folder);
     }
@@ -1410,8 +1410,20 @@ pub fn delete_view(
 /// its standard output.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OfflineEnd {
-    Exited { code: i32, out: String },
-    Signal { out: String },
+    Exited {
+        code: i32,
+        out: String,
+    },
+    #[cfg_attr(
+        windows,
+        allow(
+            dead_code,
+            reason = "Windows has no end by a signal: an end reads as its exit code"
+        )
+    )]
+    Signal {
+        out: String,
+    },
     NotStarted,
     NoEnd,
 }

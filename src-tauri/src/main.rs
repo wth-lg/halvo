@@ -156,7 +156,7 @@ fn run(background: bool, given: Option<PathBuf>) {
     let child_dir = data_dir.clone();
     #[cfg(target_os = "macos")]
     let login_dir = data_dir.clone();
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     let offline_dir = data_dir.clone();
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
     let mut state = commands::capture::AppState::with_control(control, data_dir, open_pane);
@@ -168,7 +168,7 @@ fn run(background: bool, given: Option<PathBuf>) {
     let views = Arc::clone(&state.views);
     #[cfg(target_os = "macos")]
     let login_views = Arc::clone(&state.views);
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     let (offline, offline_views) = (Arc::clone(&state.offline), Arc::clone(&state.views));
     #[cfg(target_os = "macos")]
     let (removal, removal_views) = (Arc::clone(&state.removal), Arc::clone(&state.views));
@@ -198,7 +198,7 @@ fn run(background: bool, given: Option<PathBuf>) {
     }
     #[cfg(any(target_os = "macos", windows, test))]
     let supervisor = start_the_daemon(child_dir, given.is_some(), pid, views);
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     set_the_offline_delete(&offline, &offline_views, supervisor.clone(), offline_dir);
     #[cfg(target_os = "macos")]
     {
@@ -300,6 +300,7 @@ const OFFLINE_POLL: std::time::Duration = std::time::Duration::from_millis(50);
 /// input from the null device, standard output read whole, standard error the app's own, and
 /// every other descriptor closed at its exec; after `within` it kills the program and answers
 /// that it had no end.
+#[cfg(not(windows))]
 fn run_to_its_end(
     program: &Path,
     args: &[std::ffi::OsString],
@@ -349,6 +350,90 @@ fn run_to_its_end(
     }
 }
 
+/// `run_to_its_end` on Windows, through halvo-control's one start of a child with its handles
+/// named (`start_with_handles`): no console window; standard input from the null device,
+/// standard output the write end of a pipe that the app reads whole, standard error the app's
+/// own where it has one and the null device where it has none, as in a release build, and no
+/// other handle. After `within` it ends the program and answers that it had no end. Windows has
+/// no end by a signal: an end reads as its exit code.
+#[cfg(windows)]
+fn run_to_its_end(
+    program: &Path,
+    args: &[std::ffi::OsString],
+    within: std::time::Duration,
+) -> view_state::OfflineEnd {
+    use halvo_control::child_windows::{start_with_handles, StdHandles};
+    use std::io::Read;
+    use std::os::windows::io::{AsHandle, AsRawHandle};
+    use std::time::Instant;
+    use view_state::OfflineEnd;
+    let Ok(null) = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("NUL")
+    else {
+        return OfflineEnd::NotStarted;
+    };
+    let Ok((mut reads, writes)) = std::io::pipe() else {
+        return OfflineEnd::NotStarted;
+    };
+    let own = std::io::stderr();
+    let raw = own.as_raw_handle();
+    let error = if raw.is_null() || raw as isize == -1 {
+        null.as_handle()
+    } else {
+        own.as_handle()
+    };
+    let args: Vec<&std::ffi::OsStr> = args.iter().map(std::ffi::OsString::as_os_str).collect();
+    let standard = StdHandles {
+        input: null.as_handle(),
+        output: writes.as_handle(),
+        error,
+    };
+    let started = start_with_handles(program, &args, standard, &[]);
+    drop(writes);
+    let Ok(child) = started else {
+        return OfflineEnd::NotStarted;
+    };
+    let reader = std::thread::spawn(move || {
+        let mut text = Vec::new();
+        let _ = reads.read_to_end(&mut text);
+        String::from_utf8_lossy(&text).into_owned()
+    });
+    let until = Instant::now() + within;
+    let code = loop {
+        match child.wait(OFFLINE_POLL) {
+            Ok(Some(code)) => break Some(code),
+            Ok(None) if Instant::now() < until => {}
+            Ok(None) | Err(_) => break None,
+        }
+    };
+    let Some(code) = code else {
+        end_the_offline_program(&child);
+        let _ = reader.join();
+        return OfflineEnd::NoEnd;
+    };
+    let out = reader.join().unwrap_or_default();
+    OfflineEnd::Exited {
+        code: code as i32,
+        out,
+    }
+}
+
+/// Ends the offline delete's program that ran past its wait, and waits for its end.
+#[cfg(windows)]
+fn end_the_offline_program(child: &halvo_control::child_windows::Child) {
+    use std::os::windows::io::{AsHandle, AsRawHandle};
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn TerminateProcess(process: *mut std::ffi::c_void, code: u32) -> i32;
+    }
+    // SAFETY: the handle is the open process handle that `child` owns for the call's whole
+    // length; the call takes no pointer of this process's memory.
+    let _ = unsafe { TerminateProcess(child.as_handle().as_raw_handle(), 1) };
+    let _ = child.wait(std::time::Duration::from_secs(5));
+}
+
 /// The daemon's program: the file halvo-capture beside the app's own executable (contracts.md
 /// C8 item 1), with the system's suffix of an executable.
 fn daemon_program() -> Option<PathBuf> {
@@ -365,7 +450,7 @@ type AppSupervisor = daemon_child::Supervisor<daemon_child::Running, daemon_chil
 /// executable on the app's data directory, held by the app's supervisor; every view names that
 /// folder as resolved. It takes the state's cell and views from before the state moves into the
 /// app, and reads no managed state, which the setup hook manages only inside `run`.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn set_the_offline_delete(
     offline: &std::sync::OnceLock<commands::capture::Offline>,
     views: &poller::Views,
