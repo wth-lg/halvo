@@ -1032,6 +1032,10 @@ pub enum DeleteView {
         /// where this one did not.
         #[serde(skip_serializing_if = "Option::is_none")]
         unfinished_in_a_row: Option<u32>,
+        /// The run that gave this answer ended as one that is not whole, whatever its fields
+        /// read: the offline delete's end with 1 (contracts.md C3.3).
+        #[serde(skip)]
+        not_whole: bool,
     },
     AlreadyDeleted {
         current_store_id: StoreId,
@@ -1078,6 +1082,7 @@ impl DeleteView {
         new_store_id: Option<StoreId>,
         roots_dir: Option<&std::path::Path>,
         looked_in: Option<String>,
+        not_whole: bool,
     ) -> Self {
         DeleteView::Deleted {
             segments_shredded: f.segments_shredded,
@@ -1094,15 +1099,16 @@ impl DeleteView {
                 _ => None,
             },
             looked_in,
-            nothing_left: left_nothing(f),
+            nothing_left: !not_whole && left_nothing(f),
             unfinished_in_a_row: None,
+            not_whole,
         }
     }
 
     /// Counts this answer into the deletes in a row that did not finish, at either door: a
-    /// deleted answer that left a key, a file, a database or an entry of Halvo's own adds one
-    /// and carries the count; one that left none, an already_deleted and a no_store end the row;
-    /// any other answer leaves the count as it stands.
+    /// deleted answer that left a key, a file, a database or an entry of Halvo's own, or whose run
+    /// ended as not whole, adds one and carries the count; one that left none, an already_deleted
+    /// and a no_store end the row; any other answer leaves the count as it stands.
     pub fn count_unfinished(&mut self, in_a_row: &std::sync::atomic::AtomicU32) {
         use std::sync::atomic::Ordering;
         match self {
@@ -1113,9 +1119,11 @@ impl DeleteView {
                 database_left,
                 entries_left,
                 unfinished_in_a_row,
+                not_whole,
                 ..
             } => {
-                let finished = *root_destroyed == RootDestroyed::Yes
+                let finished = !*not_whole
+                    && *root_destroyed == RootDestroyed::Yes
                     && *not_followed == 0
                     && *files_left == 0
                     && !*database_left
@@ -1137,9 +1145,13 @@ impl DeleteView {
 
     pub fn of(outcome: &DeleteOutcome, roots_dir: Option<&std::path::Path>) -> Self {
         match outcome {
-            DeleteOutcome::Deleted(deleted) => {
-                DeleteView::deleted(deleted.report.fields(), deleted.store, roots_dir, None)
-            }
+            DeleteOutcome::Deleted(deleted) => DeleteView::deleted(
+                deleted.report.fields(),
+                deleted.store,
+                roots_dir,
+                None,
+                false,
+            ),
             DeleteOutcome::AlreadyDeleted(already) => DeleteView::AlreadyDeleted {
                 current_store_id: already.current,
             },
@@ -1183,8 +1195,9 @@ enum Printed {
 
 /// The answer of the offline delete by how its program ended and what it printed (contracts.md
 /// C3.3 and C10.5): `looked_in` is its `data_dir=`. An end with 0 and `no_store`, and an end with
-/// 0 or 1 and the `deleted` line, are its outcome; an end with 75, and an end with 1 that printed
-/// no `deleted` line, deleted nothing; any other end tells nothing of what was removed.
+/// 0 or 1 and the `deleted` line, are its outcome, and an end with 1 is never a whole delete,
+/// whatever the line reads; an end with 75, and an end with 1 that printed no `deleted` line,
+/// deleted nothing; any other end tells nothing of what was removed.
 pub fn offline_view(
     end: &OfflineEnd,
     roots_dir: Option<&std::path::Path>,
@@ -1217,6 +1230,7 @@ pub fn offline_view(
             None,
             roots_dir,
             Some(looked_in),
+            code == exit::ERROR,
         )),
         (exit::ERROR, Printed::Nothing) => {
             removed_nothing(ActionError::DeleteNotUsable { looked_in })

@@ -3226,4 +3226,54 @@ mod tests {
             "no run starts while the store reads deleting or locked"
         );
     }
+
+    #[test]
+    fn an_offline_end_with_1_and_a_clean_deleted_line_is_no_whole_delete() {
+        use crate::view_state::{offline_view, OfflineEnd};
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        let out = "data_dir=/stand-in/halvo\ndeleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=yes root_id=- files_left=0 database_left=no not_followed=0 entries_removed=3 entries_left=0 unknown_entries=0 intent=written\n";
+        let in_a_row = AtomicU32::new(1);
+        let mut left = offline_view(
+            &OfflineEnd::Exited {
+                code: 1,
+                out: out.to_owned(),
+            },
+            None,
+        )
+        .expect("an end with 1 and the deleted line is a deleted answer");
+        left.count_unfinished(&in_a_row);
+        let read = serde_json::to_value(&left).expect("JSON");
+        assert_eq!(read["outcome"], "deleted");
+        assert_eq!(
+            read["nothing_left"], false,
+            "an end with 1 is never a whole delete: {read}"
+        );
+        assert_eq!(
+            read["unfinished_in_a_row"], 2,
+            "the count goes on one higher, and the page shows the not-finished words by it: {read}"
+        );
+        assert_eq!(in_a_row.load(Ordering::SeqCst), 2);
+
+        let mut whole = offline_view(
+            &OfflineEnd::Exited {
+                code: 0,
+                out: out.to_owned(),
+            },
+            None,
+        )
+        .expect("an end with 0 and the deleted line is a deleted answer");
+        whole.count_unfinished(&in_a_row);
+        let read = serde_json::to_value(&whole).expect("JSON");
+        assert_eq!(
+            read["nothing_left"], true,
+            "the same line with 0 is whole: {read}"
+        );
+        assert!(read.get("unfinished_in_a_row").is_none(), "{read}");
+        assert_eq!(
+            in_a_row.load(Ordering::SeqCst),
+            0,
+            "a whole delete ends the row"
+        );
+    }
 }

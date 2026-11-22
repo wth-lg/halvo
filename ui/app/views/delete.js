@@ -153,9 +153,9 @@
   function deletedWords(r) {
     var inARow = Number(r.unfinished_in_a_row) || 0;
     var unfinished = inARow >= 2 ? [withFolder(w.DELETE_NOT_FINISHED_AGAIN, r.looked_in)] : inARow === 1 ? [w.DELETE_NOT_FINISHED] : [];
-    return lineWords(r)
-      .concat(unfinished)
-      .concat(typeof r.looked_in === "string" ? [withFolder(w.DELETE_LOOKED_IN, r.looked_in)] : []);
+    var lines = lineWords(r).concat(unfinished);
+    if (lines.length === 0) lines = [w.DELETE_RESULT_UNREADABLE];
+    return lines.concat(typeof r.looked_in === "string" ? [withFolder(w.DELETE_LOOKED_IN, r.looked_in)] : []);
   }
 
   function lineWords(r) {
@@ -172,7 +172,7 @@
     if (r.database_left === true) lines.push(keysDestroyed ? w.DELETE_DATABASE_LEFT : w.DELETE_DATABASE_ALONE);
     if (r.entries_left > 0) lines.push(counted(w.DELETE_ENTRIES_LEFT, r.entries_left));
     if (r.unknown_entries > 0) lines.push(counted(w.DELETE_UNKNOWN_ENTRIES, r.unknown_entries));
-    return lines.length > 0 ? lines : [w.DELETE_RESULT_UNREADABLE];
+    return lines;
   }
 
   function answerLost(e) {
