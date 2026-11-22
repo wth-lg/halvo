@@ -116,7 +116,8 @@ pub const WINDOW_MISSING: &str = "Halvo's window is not available. Quit Halvo an
 
 pub const WINDOW_CANNOT_OPEN_ON_THIS_MAC: &str = "Halvo's window cannot open on this Mac right now. You can still pause or resume here. Quit Halvo and start it again; if the window still does not open, a newer Halvo is needed to see or delete what Halvo has stored.";
 
-/// The tray's line on Windows while the window cannot open and a restart may not cure it.
+/// The tray's line on Windows while the window cannot open for a cause that a restart is not
+/// known to cure; it still asks for a restart, the one step that the tray can name.
 pub const WINDOW_CANNOT_OPEN_HERE: &str =
     "Halvo's window cannot open right now. You can still pause or resume here. Quit Halvo and start it again.";
 

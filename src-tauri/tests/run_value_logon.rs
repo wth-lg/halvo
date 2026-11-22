@@ -99,7 +99,7 @@ fn the_run_value_starts_a_hidden_app_with_one_child_under_a_standard_account() {
 }
 
 #[test]
-#[ignore = "helper: does nothing unless the_run_value_starts_a_hidden_app_with_one_child_under_a_standard_account starts it as the standard account"]
+#[ignore = "helper: check 36-app-windows-logon starts it through the_run_value_starts_a_hidden_app_with_one_child_under_a_standard_account as the standard account; alone it does nothing"]
 fn helper_run_value() {
     let Some(app) = requested_app() else {
         return;

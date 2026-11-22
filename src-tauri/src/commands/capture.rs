@@ -26,9 +26,9 @@ use crate::view_state::{
     Hold, InventoryView, LastDelete, OfflineEnd, OutcomeError, StatusView,
 };
 
-/// What the consent click calls first to write the login item through the manager of
-/// login_item.rs: whether the plist stands written, false where the manager refused the program
-/// or the write failed.
+/// What the consent click calls first to write the login item through login_item.rs, the plist
+/// on macOS and the Run value on Windows: whether it stands written, false where the app's own
+/// path makes none or the write failed.
 pub type LoginItemWriter = Arc<dyn Fn() -> bool + Send + Sync>;
 
 pub struct AppState {
