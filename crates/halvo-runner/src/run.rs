@@ -106,6 +106,11 @@ pub(crate) struct Runner {
     pub(crate) web: Option<crate::web::Web>,
     /// Every origin that a `bind_reply` with `bound=yes` bound in this run (crate::handback), in order.
     pub(crate) bound: Vec<WebOrigin>,
+    /// What the run knows of the kept sign-ins of its origins (crate::session).
+    pub(crate) sessions: crate::session::Sessions,
+    /// The stand-in that a unit test gives in the place of the browser's start.
+    #[cfg(test)]
+    pub(crate) stand_in: Option<crate::web::Web>,
     /// The roots under which a run given no `--browser` finds the person's browser (crate::find): this system's, and
     /// none in a unit test unless the test gives some.
     pub(crate) roots: crate::find::Roots,
@@ -113,7 +118,8 @@ pub(crate) struct Runner {
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
 /// `finish`, 1 when the link closed or the `finish` was not stored, 2 for a frame that breaks the form of A6.2. The
-/// run's browser is stopped and its profile removed before the run's end is written, on every way out.
+/// run's browser is stopped and its profile removed before the run's end is written, on every way out; before that,
+/// where the link holds, the sign-ins of its origins are stored (crate::session).
 pub(crate) fn run(args: Args, link: Link) -> i32 {
     Runner::new(args, link).run()
 }
@@ -122,6 +128,15 @@ impl Runner {
     /// Carries out the run of this runner and returns the exit status, as `run` does.
     pub(crate) fn run(mut self) -> i32 {
         let end = self.carry_out();
+        self.end(end)
+    }
+
+    /// Ends the run after `end`: the sign-ins of its origins stored where the link holds, the browser stopped, then
+    /// the run's end written.
+    pub(crate) fn end(mut self, end: Result<Outcome, Stop>) -> i32 {
+        if !matches!(end, Err(Stop::Link(_))) {
+            self.keep_sessions();
+        }
         self.stop_browser();
         self.close(end)
     }
@@ -150,6 +165,9 @@ impl Runner {
             lists: Lists::default(),
             web: None,
             bound: Vec::new(),
+            sessions: crate::session::Sessions::default(),
+            #[cfg(test)]
+            stand_in: None,
             #[cfg(not(test))]
             roots: crate::find::Roots::of_this_system(),
             #[cfg(test)]

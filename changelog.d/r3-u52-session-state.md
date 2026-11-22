@@ -1,0 +1,3 @@
+- Added: An agent keeps a person's sign-in to a site from one run to the next: where the person signed in for the agent, or a kept sign-in was used, Halvo stores the site's cookies and local storage in its encrypted store at the end of the run, and the next run's browser starts with them.
+- Changed: A run with no window that used a kept sign-in and meets a sign-in field now ends at once and Halvo stops using the kept sign-in of that site; the agent is held until the person starts it, and that run opens a window.
+- Security: The browser profile of an agent's run is readable by the person's own account alone (mode 0700 on macOS).

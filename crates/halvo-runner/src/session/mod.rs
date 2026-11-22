@@ -1,0 +1,251 @@
+//! The sign-in that a run keeps for the agent's next run (A8.3, A7.4).
+//!
+//! When the run's browser has started, the frame `browser` has its reply and the rule is armed, and before a step
+//! acts, the runner loads every part of the newest stored revision of each origin of the bindings that the load
+//! lists, and of no other (`load_session`), and imports the state into the browser.
+//!
+//! A run stores a site's state anew ONLY where it imported that site's kept sign-in whole at its start, or bound the
+//! site at a handback in this run, and no handback cleared it since (the coordinator's ruling of log line 14366): the
+//! opening of every handback clears what the pages keep for later, so after it the run stores anew only a site bound
+//! at a handback after it. In every other case the listed revision stays as it is and nothing new is stored for that
+//! site, so Halvo keeps no cookies of a site at which nobody signed in for that agent. Before `finish`, also after a
+//! run that failed, a run whose browser lives exports, for each such site but the one at whose sign-in field the run
+//! ended, the browser's cookies of that site's host and of its parent domains and the site's localStorage, and stores
+//! them by `put_session` as the next revision of that site: the listed revision plus 1, else 1. The state is stored as
+//! its JSON form in base64 text, cut into pieces of 1,024 bytes and parts of 48 pieces; a state of more than 64 parts
+//! is not stored, and the run's log gets one `stopped` line with the cause `session_size`, and the run's outcome
+//! stays.
+//!
+//! The state passes in the frames `store` and `store_reply` alone: the runner writes no byte of it in a line, an
+//! error or another frame.
+
+#[cfg(test)]
+mod tests;
+
+use std::num::NonZeroU32;
+
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
+use halvo_schema::executable::body::{
+    DropSession, LoadReply, LoadSession, LoadedSession, PutSession,
+};
+use halvo_schema::executable::names::LogEvent;
+use halvo_schema::executable::record::SESSION_PARTS_MAX;
+use halvo_schema::executable::text::{SessionData, OWN_TEXT_MAX, SESSION_PIECES_MAX};
+use halvo_schema::executable::{Cause, Outcome, RunnerCall, RunnerReply, WebOrigin};
+use halvo_web::cdp::SessionState;
+
+use crate::link::Broken;
+use crate::run::{cause_of, Failure, Runner, Stop};
+
+/// What the run knows of the sign-ins of its origins.
+#[derive(Debug, Default)]
+pub(crate) struct Sessions {
+    /// The sites whose state the run stores anew at its end: each whose kept sign-in it imported whole and each that it
+    /// bound at a handback, until the opening of a handback after it clears them.
+    keep: Vec<WebOrigin>,
+    /// The newest revision of each origin that the load listed.
+    listed: Vec<(WebOrigin, NonZeroU32)>,
+    /// Whether the run imported the state of an origin.
+    pub(crate) imported: bool,
+    /// The origin of the page on which the reading found a credential field, until a handback of it ended in a bind.
+    pub(crate) at_field: Option<WebOrigin>,
+}
+
+impl Sessions {
+    /// Notes that the run stores `origin` anew at its end.
+    pub(crate) fn keep(&mut self, origin: &WebOrigin) {
+        if !self.keep.contains(origin) {
+            self.keep.push(origin.clone());
+        }
+    }
+
+    /// Notes that a handback's opening cleared what the pages of the run keep for later: no site is stored anew unless a
+    /// handback after it binds it.
+    pub(crate) fn cleared(&mut self) {
+        self.keep.clear();
+    }
+
+    /// The revision that the run stores for `origin`: the listed one plus 1, else 1.
+    fn next(&self, origin: &WebOrigin) -> Option<NonZeroU32> {
+        match self.listed.iter().find(|(o, _)| o == origin) {
+            Some((_, rev)) => rev.checked_add(1),
+            None => Some(NonZeroU32::MIN),
+        }
+    }
+}
+
+/// A state whose parts would be more than 64.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct TooLarge;
+
+/// The parts of `state` as `put_session` stores them: its JSON form in base64 text, cut into pieces of 1,024 bytes,
+/// 48 pieces a part; `TooLarge` for more than 64 parts.
+pub(crate) fn parts_of(state: &SessionState) -> Result<Vec<SessionData>, TooLarge> {
+    let text = STANDARD.encode(state.to_json());
+    let pieces: Vec<String> = text
+        .as_bytes()
+        .chunks(OWN_TEXT_MAX)
+        .map(|piece| piece.iter().map(|&b| char::from(b)).collect())
+        .collect();
+    if pieces.len().div_ceil(SESSION_PIECES_MAX) > SESSION_PARTS_MAX as usize {
+        return Err(TooLarge);
+    }
+    pieces
+        .chunks(SESSION_PIECES_MAX)
+        .map(|part| SessionData::new(part.to_vec()).map_err(|_| TooLarge))
+        .collect()
+}
+
+/// The state of the joined pieces of a revision, none where the text is not the form of `parts_of`.
+fn state_of(text: &str) -> Option<SessionState> {
+    let bytes = STANDARD.decode(text).ok()?;
+    SessionState::from_json(std::str::from_utf8(&bytes).ok()?).ok()
+}
+
+impl Runner {
+    /// Loads and imports, once the run's browser runs, the newest revision of each origin of the bindings of
+    /// `loaded` that the load lists, and of no other, and notes each origin imported whole as one to store anew. A
+    /// store's refusal of a part ends the run as a refused load does; a revision whose text does not read is imported
+    /// nothing of; a fault of the executor fails the step, and no origin from it on is stored anew.
+    pub(crate) fn import_sessions(&mut self, loaded: &LoadReply) -> Result<(), Failure> {
+        let origins = loaded
+            .bindings
+            .as_ref()
+            .map_or_else(Vec::new, |b| b.origins.clone());
+        self.sessions.listed = loaded
+            .sessions
+            .iter()
+            .map(|s| (s.origin.clone(), s.rev))
+            .collect();
+        for listed in loaded
+            .sessions
+            .iter()
+            .filter(|s| origins.contains(&s.origin))
+        {
+            let Some(state) = self.load_revision(listed)?.as_deref().and_then(state_of) else {
+                continue;
+            };
+            let web = self.web.as_mut().ok_or(Failure::Step(Cause::StepFailed))?;
+            web.0
+                .import(&state)
+                .map_err(|()| Failure::Step(Cause::StepFailed))?;
+            self.sessions.imported = true;
+            self.sessions.keep(&listed.origin);
+        }
+        Ok(())
+    }
+
+    /// The joined pieces of every part of the revision `listed`, none where a reply names another part.
+    fn load_revision(&mut self, listed: &LoadedSession) -> Result<Option<String>, Stop> {
+        let mut text = String::new();
+        for part in 1..=listed.parts.get() {
+            let part = NonZeroU32::new(part).unwrap_or(NonZeroU32::MIN);
+            let call = RunnerCall::LoadSession(LoadSession {
+                agent: self.args.agent.clone(),
+                run: self.args.run.clone(),
+                origin: listed.origin.clone(),
+                rev: listed.rev,
+                part,
+            });
+            match self.store(call)? {
+                Ok(RunnerReply::Session(reply)) => {
+                    if reply.origin != listed.origin
+                        || reply.rev != listed.rev
+                        || reply.part != part
+                        || reply.of != listed.parts
+                    {
+                        return Ok(None);
+                    }
+                    if reply.data.is_dropped() {
+                        return Ok(None);
+                    }
+                    reply.data.pieces().iter().for_each(|p| text.push_str(p));
+                }
+                Ok(_) => return Err(Broken::Frame("not_the_answer").into()),
+                Err(error) => return Err(Stop::End(Outcome::Failed, Some(cause_of(error)))),
+            }
+        }
+        Ok(Some(text))
+    }
+
+    /// The end of a run with no window whose reading met a credential field after the run imported a kept sign-in:
+    /// the step's `step_failed` line with the cause `unauthorized`, which the roster's `refused_run` reads, then
+    /// `drop_session` for the origin of the page, where it has one, so that the store serves that origin's kept
+    /// sign-in no more and the roster's `session` reads `no`; the run ends `failed` with the cause `step_failed`. No
+    /// handback opens and no browser starts again. A store's refusal of the line or of the drop changes nothing of it.
+    pub(crate) fn no_window(&mut self, step: NonZeroU32, origin: Option<WebOrigin>) -> Stop {
+        if let Err(Stop::Link(broken)) =
+            self.log(LogEvent::StepFailed, Some(step), Some(Cause::Unauthorized))
+        {
+            return Stop::Link(broken);
+        }
+        if let Some(origin) = origin {
+            let call = RunnerCall::DropSession(DropSession {
+                agent: self.args.agent.clone(),
+                run: self.args.run.clone(),
+                origin,
+            });
+            if let Err(broken) = self.store(call) {
+                return Stop::Link(broken);
+            }
+        }
+        Stop::End(Outcome::Failed, Some(Cause::StepFailed))
+    }
+
+    /// Stores, when the run's browser lives, the state of each site that the run stores anew (`Sessions::keep`) but the
+    /// one at whose credential field the run ended, as the next revision of that site; every other site's listed
+    /// revision stays as it is. An export that fails and a part that the store refuses store nothing more of that site;
+    /// a state over the limit is not stored, and the run's log gets one `stopped` line with the cause `session_size`. A
+    /// link that broke stops it.
+    pub(crate) fn keep_sessions(&mut self) {
+        let Some(mut web) = self.web.take() else {
+            return;
+        };
+        let mut origins = self.sessions.keep.clone();
+        origins.retain(|o| self.sessions.at_field.as_ref() != Some(o));
+        let mut too_large = false;
+        let mut kept = Ok(());
+        for origin in &origins {
+            let Ok(state) = web.0.export(origin) else {
+                continue;
+            };
+            match parts_of(&state) {
+                Ok(parts) => kept = self.put_revision(origin, parts),
+                Err(TooLarge) => too_large = true,
+            }
+            if kept.is_err() {
+                break;
+            }
+        }
+        self.web = Some(web);
+        if too_large && kept.is_ok() {
+            let _ = self.log(LogEvent::Stopped, None, Some(Cause::SessionSize));
+        }
+    }
+
+    /// Stores `parts` as the next revision of `origin`, part by part, until the store refuses one.
+    fn put_revision(&mut self, origin: &WebOrigin, parts: Vec<SessionData>) -> Result<(), Broken> {
+        let (Some(rev), Some(of)) = (
+            self.sessions.next(origin),
+            u32::try_from(parts.len()).ok().and_then(NonZeroU32::new),
+        ) else {
+            return Ok(());
+        };
+        for (part, data) in (1..).filter_map(NonZeroU32::new).zip(parts) {
+            let call = RunnerCall::PutSession(PutSession {
+                agent: self.args.agent.clone(),
+                run: self.args.run.clone(),
+                origin: origin.clone(),
+                rev,
+                part,
+                of,
+                data,
+            });
+            if self.store(call)?.is_err() {
+                break;
+            }
+        }
+        Ok(())
+    }
+}

@@ -17,7 +17,7 @@ use halvo_schema::executable::{
     Cause, ExecutableStep, FromRunner, Outcome, RunnerCall, ToRunner, WebOrigin,
 };
 use halvo_schema::{AgentId, Category, WorkflowId};
-use halvo_web::cdp::{PausedRequest, Sign};
+use halvo_web::cdp::{PausedRequest, SessionState, Sign};
 
 use crate::link::{encode, Link};
 use crate::run::{Failure, Runner, Stop};
@@ -118,6 +118,14 @@ impl Page for StandIn {
             .addresses
             .pop_front()
             .unwrap_or_else(|| self.address.clone()))
+    }
+
+    fn export(&mut self, _: &WebOrigin) -> Result<SessionState, ()> {
+        Err(())
+    }
+
+    fn import(&mut self, _: &SessionState) -> Result<(), ()> {
+        Err(())
     }
 }
 
