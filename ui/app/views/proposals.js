@@ -87,6 +87,8 @@
       })
       .catch(Halvo.showError);
   }
+  /** The delete view reads the list again behind an answer of a delete that is not a finished one. */
+  Halvo.readWorkflows = read;
 
   /** After a decision that succeeded the view reads again; after one that failed the row stays. */
   function decide(command, id, buttons) {
