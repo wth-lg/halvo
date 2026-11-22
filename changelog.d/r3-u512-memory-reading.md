@@ -1,0 +1,1 @@
+- Added: The reading of whether an agent's run can keep its sign-in in the browser's memory alone, with its verdict memory=partly (docs/r3/trials/memory-sign-in.md).

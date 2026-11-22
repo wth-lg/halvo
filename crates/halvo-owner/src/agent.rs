@@ -1,12 +1,12 @@
 //! The handlers of the agent-setup run in the owner's host (contract A7.5, the workflow run's C25.7): an adapter that
-//! gives `halvo_agent_store::runner` and `halvo_agent_store::coordinator` the five calls of `halvo_agent_store::Host`
+//! gives `halvo_agent_store::runner` and `halvo_agent_store::coordinator` the six calls of `halvo_agent_store::Host`
 //! from the `HandlerCx` of the request and from the host's clock.
 
 use std::cell::Cell;
 use std::rc::Rc;
 
 use halvo_agent_store::{Host, Now};
-use halvo_derived::{Clock, Error, Handler, HandlerCx, MoveTo};
+use halvo_derived::{Clock, Error, Handler, HandlerCx, MoveTo, RemoveRefusal};
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::{
     AgentId, ErrorName, Instant, RawRequest, RowRead, TypedRecord, WorkflowId, WorkflowItem,
@@ -94,7 +94,7 @@ impl Handler for Agent {
     }
 }
 
-/// The five calls of `halvo_agent_store::Host` for one request.
+/// The six calls of `halvo_agent_store::Host` for one request.
 struct Cx<'c, 'x> {
     cx: &'c mut HandlerCx<'x>,
     clock: &'c dyn Clock,
@@ -109,6 +109,21 @@ impl Host for Cx<'_, '_> {
             .commit(&records)
             .map(|_| ())
             .map_err(|_| ErrorName::Store)
+    }
+
+    /// `HandlerCx::remove_under`: `role` under a request that is no `coordinator_write`, and every other refusal, a
+    /// fault among them, as `store`, as `commit` answers it.
+    fn remove_under(
+        &mut self,
+        kind: &str,
+        workflow: &WorkflowId,
+        records: Vec<TypedRecord>,
+    ) -> Result<u64, ErrorName> {
+        match self.cx.remove_under(kind, workflow, &records) {
+            Ok(done) => Ok(done.removed),
+            Err(RemoveRefusal::Role) => Err(ErrorName::Role),
+            Err(_) => Err(ErrorName::Store),
+        }
     }
 
     /// `HandlerCx::state`: its refusal by name, and a fault as `store`.

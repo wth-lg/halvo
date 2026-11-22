@@ -35,11 +35,15 @@ fn web_ready<C: ConfigView>(facts: &Facts<C>) -> bool {
 /// The state that the control `switch_on` sends, before it stores anything (ruling RD-67 1.3
 /// (a)): `active` where the rule of `active` gives it once the holds `off`, `sign_in_refused` and
 /// `failures` that the switch-on ends are gone, the derived `off` among them, and `approved`
-/// otherwise (ruling RD-73 4.3).
+/// otherwise (ruling RD-73 4.3). The hold `site_declined`, which the switch-on does not end,
+/// changes no state that it sends (r4 U2.4a).
 pub fn switch_on_state<C: ConfigView>(facts: &Facts<C>) -> AgentState {
-    let others = holds(facts)
-        .iter()
-        .all(|h| matches!(h, Hold::Off | Hold::SignInRefused | Hold::Failures));
+    let others = holds(facts).iter().all(|h| {
+        matches!(
+            h,
+            Hold::Off | Hold::SignInRefused | Hold::Failures | Hold::SiteDeclined
+        )
+    });
     if others && web_ready(facts) {
         AgentState::Active
     } else {
