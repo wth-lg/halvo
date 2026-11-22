@@ -170,9 +170,13 @@
       x && x.state === "failing" ? w.EXPIRY_FAILING + " " + (EXPIRY[x.error] || w.CAUSE_IO) + (x.last_at ? " " + w.EXPIRY_SINCE + " " + x.last_at + "." : "") : "";
     loginLine.textContent = s.login_item_written === false ? w.LOGIN_ITEM_NOT_WRITTEN : s.login_item_loaded === false ? w.LOGIN_ITEM_OFF : "";
     settingsLine.textContent = SETTINGS[s.state_file] || "";
-    settingsReset.classList.toggle("hidden", s.state_file !== "corrupt");
+    settingsReset.classList.toggle("hidden", !resetOffered(s));
     settingsDelete.classList.toggle("hidden", s.state_file !== "newer_version");
     renderFirstRun(s);
+  }
+
+  function resetOffered(s) {
+    return s.state_file === "corrupt" && !(s.store && s.store.state === "deleting");
   }
 
   function boxOf(control) {
@@ -191,7 +195,7 @@
 
   function armReset(event) {
     var guard = Halvo.pressGuard;
-    if (asked.armedAt !== null || resetting || last.state_file !== "corrupt") return;
+    if (asked.armedAt !== null || resetting || !resetOffered(last)) return;
     var rows = Array.isArray(last.reset_recorded) ? last.reset_recorded : [];
     resetRecorded.replaceChildren.apply(
       resetRecorded,

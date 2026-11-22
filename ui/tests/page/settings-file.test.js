@@ -87,3 +87,31 @@ test("a settings file that cannot be read offers Reset settings, which asks firs
   assert.equal(read.visible("settings-reset"), false, "no reset where the reply has no key");
   assert.equal(read.visible("settings-delete"), false, "no delete there either");
 });
+
+test("no reset is offered while the store reads deleting, with the field of an unfinished delete and without it; at any other store state a settings file that cannot be read offers it", async () => {
+  const rows = fixture("capture_status-not-started").texts.recorded;
+  const unread = (name) => ({ ...fixture(name), state_file: "corrupt", reset_recorded: rows });
+  for (const name of ["capture_status-store-deleting", "capture_status-store-deleting-unfinished"]) {
+    const page = await pageWith(unread(name));
+    assert.equal(page.text("settings-line"), UNREADABLE, `${name}: the sentence stays`);
+    assert.equal(page.visible("settings-reset"), false, `${name}: no reset is offered`);
+    await page.click("settings-reset", { detail: 1, clientX: 5, clientY: 5 });
+    assert.equal(page.visible("settings-reset-row"), false, `${name}: the question does not open`);
+    await page.clock.advance(600);
+    await page.press("confirm-settings-reset", BELOW);
+    assert.equal(page.calls("reset_settings").length, 0, `${name}: nothing is sent`);
+  }
+  for (const name of [
+    "capture_status-paused",
+    "capture_status-store-opening",
+    "capture_status-store-sealed",
+    "capture_status-store-unavailable-io",
+    "capture_status-store-newer",
+    "capture_status-store-no-release-custody",
+  ]) {
+    const page = await pageWith(unread(name));
+    assert.equal(page.visible("settings-reset"), true, `${name}: the reset is offered`);
+    await page.click("settings-reset", { detail: 1, clientX: 5, clientY: 5 });
+    assert.equal(page.visible("settings-reset-row"), true, `${name}: the question opens`);
+  }
+});
