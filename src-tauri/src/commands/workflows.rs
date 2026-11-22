@@ -8,7 +8,7 @@ use std::hash::{BuildHasher, Hasher};
 use std::sync::Arc;
 
 use halvo_control::client::ClientError;
-use halvo_control::proto::ErrorCode;
+use halvo_control::proto::{ErrorCode, StoreState};
 use halvo_schema_core::request::{
     decode_reply, ErrorName, InterfaceDecision, InterfaceRead, InterfaceRole, ReplyResult,
 };
@@ -23,7 +23,8 @@ use super::capture::AppState;
 use super::control::Control;
 use super::names::{Names, WORKFLOWS};
 use super::Registration;
-use crate::view_state::{read_error, ActionError};
+use crate::poller::Views;
+use crate::view_state::{read_error, ActionError, StatusView};
 
 /// The ten seed categories by id, each with the text that a person reads, in the order of
 /// `SeedCategory` in halvo-schema-core: the order in which the proposals list breaks a tie of
@@ -181,6 +182,8 @@ pub enum WorkflowsView {
     StoreUnavailable,
     /// Halvo is deleting everything.
     Deleting,
+    /// The last delete of everything did not finish and waits for a press of Delete everything.
+    DeleteUnfinished,
     /// The proposals list and every stored workflow in any state.
     Running {
         proposals: Vec<Row>,
@@ -297,6 +300,24 @@ pub fn read(control: &dyn Control) -> Result<WorkflowsView, ActionError> {
     }
 }
 
+/// The reply of the command `workflows`: the read, where the service refuses it as busy, in the
+/// light of the app's own view of the store as its last status wrote it. Where that view reads
+/// deleting with `delete_unfinished`, the reply is the state of the delete that did not finish;
+/// the service is asked nothing more for it.
+pub fn answer(control: &dyn Control, views: &Views) -> Result<WorkflowsView, ActionError> {
+    match read(control)? {
+        WorkflowsView::Deleting if delete_unfinished(&views.view()) => {
+            Ok(WorkflowsView::DeleteUnfinished)
+        }
+        view => Ok(view),
+    }
+}
+
+fn delete_unfinished(view: &StatusView) -> bool {
+    matches!(view, StatusView::Running(running)
+        if running.store.state == StoreState::Deleting && running.store.delete_unfinished)
+}
+
 /// Sends one decision, which holds the workflow id and nothing else.
 pub fn decide(
     control: &dyn Control,
@@ -363,7 +384,8 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
 #[tauri::command]
 pub async fn workflows(state: State<'_, AppState>) -> Result<WorkflowsView, ActionError> {
     let control = Arc::clone(&state.control);
-    tauri::async_runtime::spawn_blocking(move || read(control.as_ref()))
+    let views = Arc::clone(&state.views);
+    tauri::async_runtime::spawn_blocking(move || answer(control.as_ref(), &views))
         .await
         .map_err(|_| ActionError::Internal)?
 }
