@@ -1673,6 +1673,56 @@ mod tests {
         }
     }
 
+    struct SlowDelete {
+        places: Arc<Places>,
+        record: Record,
+        statuses: Mutex<std::collections::VecDeque<Result<DaemonStatus, ClientError>>>,
+        deletes: Mutex<std::sync::mpsc::Receiver<Result<DeleteOutcome, ClientError>>>,
+    }
+
+    impl Control for SlowDelete {
+        fn places(&self) -> &Arc<Places> {
+            &self.places
+        }
+
+        fn status(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+            note(&self.record, "status");
+            let next = self.statuses.lock().unwrap().pop_front();
+            next.expect("one answer for each Status")
+        }
+
+        fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
+            unreachable!("no inventory here")
+        }
+
+        fn pause(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            unreachable!("no Pause here")
+        }
+
+        fn resume(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            unreachable!("no Resume here")
+        }
+
+        fn delete_all(&self, _: Made, _: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
+            note(&self.record, "delete begins");
+            let answer = self.deletes.lock().unwrap().recv();
+            note(&self.record, "delete answers");
+            answer.expect("the test gives the delete its answer")
+        }
+
+        fn set_storage_cap(&self, _: Made, _: StorageCap) -> Result<CapSet, ClientError> {
+            unreachable!("no cap here")
+        }
+
+        fn request_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<RequestOutcome, ClientError> {
+            unreachable!("no permission here")
+        }
+    }
+
     struct EachItsOwn {
         places: Arc<Places>,
     }
@@ -1989,6 +2039,111 @@ mod tests {
         assert_eq!(
             seen, every,
             "every method of Control comes back through the wrapper as the control inside answered it"
+        );
+
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let spawner = StandInSpawner {
+            children: [(1000, false), (1001, true)]
+                .into_iter()
+                .map(|(pid, ends_at_close)| StandInChild {
+                    ends_at_close,
+                    ..StandInChild::new(pid, &clock, &record)
+                })
+                .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let (give, deletes) = std::sync::mpsc::channel();
+        let control = Arc::new(Watching::new(
+            SlowDelete {
+                places: Arc::default(),
+                record: Arc::clone(&record),
+                statuses: Mutex::new(vec![deadline(), deadline()].into()),
+                deletes: Mutex::new(deletes),
+            },
+            Arc::clone(&pid),
+        ));
+        let delete = |control: &Arc<Watching<SlowDelete>>| {
+            let control = Arc::clone(control);
+            std::thread::spawn(move || control.delete_all(control.places().make(), None))
+        };
+        let lines = || record.lock().unwrap().clone();
+        let name = "a delete of the app in flight";
+        until(name, || pid.get() == Some(1000));
+        let deleting = delete(&control);
+        until(name, || lines().contains(&"delete begins".to_owned()));
+        pass(control.as_ref(), &views, Some(&tray));
+        looked_again(&clock);
+        assert_eq!(
+            lines(),
+            ["start 1000", "delete begins", "status"],
+            "{name}: a Status that passes its deadline stops nothing"
+        );
+        assert_eq!(
+            views.view().service(),
+            Service::HeldUnreachable,
+            "{name}: the view of the moment reads that the service does not answer"
+        );
+        give.send(Ok(DeleteOutcome::Deleted(halvo_control::proto::Deleted {
+            report: halvo_control::testing::sample_delete_report(),
+            store: None,
+        })))
+        .unwrap();
+        let answer = deleting.join().unwrap();
+        assert!(
+            matches!(
+                crate::view_state::delete_view(answer, None),
+                Ok(crate::view_state::DeleteView::Deleted { .. })
+            ),
+            "{name}: the page reads the delete as done"
+        );
+        looked_again(&clock);
+        assert_eq!(pid.get(), Some(1000), "{name}: the child lives");
+        pass(control.as_ref(), &views, Some(&tray));
+        until(name, || lines().contains(&"start 1001".to_owned()));
+        let deleting = delete(&control);
+        until(name, || {
+            lines()
+                .iter()
+                .filter(|line| *line == "delete begins")
+                .count()
+                == 2
+        });
+        give.send(Err(ClientError::Deadline { seconds: 120 }))
+            .unwrap();
+        assert!(deleting.join().unwrap().is_err());
+        until(name, || {
+            lines()
+                .iter()
+                .filter(|line| *line == "closed descriptor")
+                .count()
+                == 2
+        });
+        drop(supervisor.close());
+        assert_eq!(
+            lines(),
+            [
+                "start 1000",
+                "delete begins",
+                "status",
+                "delete answers",
+                "status",
+                "closed descriptor",
+                "kill after 20 s",
+                "start 1001",
+                "delete begins",
+                "delete answers",
+                "closed descriptor",
+            ],
+            "{name}: after its answer a passed deadline is a sight again, and so is the delete's own"
         );
     }
 

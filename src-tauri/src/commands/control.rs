@@ -428,6 +428,7 @@ struct Read {
     answers: u64,
     no_daemon: bool,
     sight: Option<(u32, Sight)>,
+    deleting: Vec<u32>,
 }
 
 /// What an answer of the app's own child showed of that child (contracts.md C14 item 4).
@@ -442,7 +443,8 @@ pub enum Sight {
     /// unsupported_version; never unsupported_op, which a daemon of the app's own version gives
     /// for an op that its build does not serve.
     AnotherVersion,
-    /// The request's deadline passed with no reply.
+    /// The request's deadline passed with no reply, while no delete_all of the app was in
+    /// flight against that child; the passed deadline of the delete_all itself is one.
     NoReply,
 }
 
@@ -489,6 +491,29 @@ impl ChildPid {
     }
 
     #[cfg(any(target_os = "macos", test))]
+    fn delete_began(&self, child: Option<u32>) {
+        let Some(child) = child else {
+            return;
+        };
+        let mut read = self.read();
+        read.deleting.push(child);
+        if read.sight == Some((child, Sight::NoReply)) {
+            read.sight = None;
+        }
+    }
+
+    #[cfg(any(target_os = "macos", test))]
+    fn delete_ended(&self, child: Option<u32>) {
+        let Some(child) = child else {
+            return;
+        };
+        let mut read = self.read();
+        if let Some(at) = read.deleting.iter().position(|of| *of == child) {
+            read.deleting.remove(at);
+        }
+    }
+
+    #[cfg(any(target_os = "macos", test))]
     fn took(
         &self,
         before: Option<u32>,
@@ -505,7 +530,9 @@ impl ChildPid {
             (Some(status), _) if status.fields().pid != child => None,
             (Some(status), _) if source_not_stopped(status) => Some(Sight::SourceNotStopped),
             (Some(status), _) if another_daemon_version(status) => Some(Sight::AnotherVersion),
-            (_, Some(ClientError::Deadline { .. })) => Some(Sight::NoReply),
+            (_, Some(ClientError::Deadline { .. })) if !read.deleting.contains(&child) => {
+                Some(Sight::NoReply)
+            }
             (_, Some(error)) if of_another_protocol(error) => Some(Sight::AnotherVersion),
             _ => None,
         };
@@ -523,6 +550,27 @@ impl ChildPid {
         if let Some(sight) = kept {
             read.sight = Some((child, sight));
         }
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+struct Deleting<'a> {
+    pid: &'a ChildPid,
+    child: Option<u32>,
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl<'a> Deleting<'a> {
+    fn began(pid: &'a ChildPid, child: Option<u32>) -> Self {
+        pid.delete_began(child);
+        Deleting { pid, child }
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl Drop for Deleting<'_> {
+    fn drop(&mut self) {
+        self.pid.delete_ended(self.child);
     }
 }
 
@@ -628,7 +676,10 @@ impl<C: Control> Control for Watching<C> {
 
     fn delete_all(&self, made: Made, armed: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
         let before = self.pid.get();
-        self.took(before, self.inner.delete_all(made, armed))
+        let deleting = Deleting::began(&self.pid, before);
+        let answer = self.inner.delete_all(made, armed);
+        drop(deleting);
+        self.took(before, answer)
     }
 
     fn set_storage_cap(&self, made: Made, cap: StorageCap) -> Result<CapSet, ClientError> {
