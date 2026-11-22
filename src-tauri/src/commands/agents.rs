@@ -658,10 +658,16 @@ mod tests {
         );
     }
 
-    /// The offline delete of a stand-in program that finds no store, with no child to end; no
-    /// file is touched.
+    /// The offline delete of a stand-in program that finds no store, with no child to end: its
+    /// data folder is absolute on each system, a drive and a name on Windows, a root and a name
+    /// elsewhere, and no file is touched.
     fn an_offline_run() -> Offline {
-        let dir = DataDir::from_flag("/stand-in/data").expect("an absolute directory");
+        let folder = if cfg!(windows) {
+            r"C:\stand-in\data"
+        } else {
+            "/stand-in/data"
+        };
+        let dir = DataDir::from_flag(folder).expect("an absolute directory");
         let printed = format!("data_dir={}\nno_store\n", dir.path().display());
         Offline {
             program: PathBuf::from("/stand-in/halvo-capture"),
