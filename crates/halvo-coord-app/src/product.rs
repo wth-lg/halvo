@@ -1519,6 +1519,7 @@ impl Analysis for Product {
 }
 
 /// The offset of the Mac's zone from UTC at `at`, in whole seconds east of UTC, as the system's zone gives it.
+#[cfg(target_os = "macos")]
 pub fn zone_offset_s(at: SystemTime) -> Option<i32> {
     use objc2_foundation::{NSDate, NSTimeZone};
     let seconds = at.duration_since(UNIX_EPOCH).ok()?.as_secs_f64();
@@ -1526,6 +1527,68 @@ pub fn zone_offset_s(at: SystemTime) -> Option<i32> {
     let zone = NSTimeZone::localTimeZone();
     let date = NSDate::dateWithTimeIntervalSince1970(seconds);
     i32::try_from(zone.secondsFromGMTForDate(&date)).ok()
+}
+
+/// The offset of the Windows zone from UTC at `at`, in whole seconds east of UTC: the local time that the system
+/// gives for the instant in the zone in force, less the instant's time in UTC.
+#[cfg(windows)]
+pub fn zone_offset_s(at: SystemTime) -> Option<i32> {
+    use windows::Win32::Foundation::{FILETIME, SYSTEMTIME};
+    use windows::Win32::System::Time::{FileTimeToSystemTime, SystemTimeToTzSpecificLocalTime};
+    const FROM_1601_TO_1970_S: u64 = 11_644_473_600;
+    let ticks = at
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_secs()
+        .checked_add(FROM_1601_TO_1970_S)?
+        .checked_mul(10_000_000)?;
+    let file = FILETIME {
+        dwLowDateTime: u32::try_from(ticks & u64::from(u32::MAX)).ok()?,
+        dwHighDateTime: u32::try_from(ticks >> 32).ok()?,
+    };
+    let mut utc = SYSTEMTIME::default();
+    let mut local = SYSTEMTIME::default();
+    // SAFETY: both pointers come from references to values on this stack that live for the call.
+    unsafe { FileTimeToSystemTime(&file, &mut utc) }.ok()?;
+    // SAFETY: no zone is given, so the system takes the one in force; both pointers come from references to
+    // values on this stack that live for the call.
+    unsafe { SystemTimeToTzSpecificLocalTime(None, &utc, &mut local) }.ok()?;
+    let wall = |t: SYSTEMTIME| Wall {
+        year: t.wYear,
+        month: t.wMonth,
+        day: t.wDay,
+        hour: t.wHour,
+        minute: t.wMinute,
+        second: t.wSecond,
+    };
+    Some(offset_between(wall(utc), wall(local)))
+}
+
+/// A calendar date and a time of day to the second, as a `SYSTEMTIME` of Windows holds them.
+#[cfg(any(test, windows))]
+#[derive(Clone, Copy, Debug)]
+struct Wall {
+    year: u16,
+    month: u16,
+    day: u16,
+    hour: u16,
+    minute: u16,
+    second: u16,
+}
+
+/// The offset of a zone from UTC in whole seconds east of UTC, from the time in UTC and the local time of one
+/// instant: the two dates differ by one day at most.
+#[cfg(any(test, windows))]
+fn offset_between(utc: Wall, local: Wall) -> i32 {
+    let date = |w: Wall| (w.year, w.month, w.day);
+    let of_day =
+        |w: Wall| i32::from(w.hour) * 3_600 + i32::from(w.minute) * 60 + i32::from(w.second);
+    let days = match date(local).cmp(&date(utc)) {
+        std::cmp::Ordering::Less => -1,
+        std::cmp::Ordering::Equal => 0,
+        std::cmp::Ordering::Greater => 1,
+    };
+    days * 86_400 + of_day(local) - of_day(utc)
 }
 
 impl Clock for Product {
@@ -1828,6 +1891,28 @@ mod tests {
         assert_eq!(
             agent_of(&entry(r#""wall""#)).map(|a| a.last_cause),
             Some(None)
+        );
+    }
+
+    /// U5.4w, sentence 3: the Windows zone's offset is the local time of an instant less its time in UTC, in whole
+    /// seconds east of UTC, also where the local date is the day before the date in UTC.
+    #[test]
+    fn the_offset_of_the_windows_zone_is_the_local_time_less_the_time_in_utc() {
+        let at = |year, month, day, hour, minute| Wall {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second: 0,
+        };
+        let noon = at(2026, 11, 22, 12, 0);
+        assert_eq!(offset_between(noon, at(2026, 11, 22, 13, 0)), 3_600);
+        assert_eq!(offset_between(noon, at(2026, 11, 22, 7, 0)), -18_000);
+        assert_eq!(offset_between(noon, at(2026, 11, 22, 17, 30)), 19_800);
+        assert_eq!(
+            offset_between(at(2026, 1, 1, 2, 0), at(2025, 12, 31, 21, 0)),
+            -18_000
         );
     }
 
