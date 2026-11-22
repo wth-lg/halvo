@@ -1073,6 +1073,60 @@ fn a_link_account_item_shows_its_origin_and_its_answer_stores_it() {
     )));
 }
 
+fn handback_at(run: &RunId, n: usize, reason: HandbackReason, origin: Option<&str>) -> RunEvent {
+    RunEvent::Handback(HandbackAsk {
+        run: run.clone(),
+        agent: agent(n),
+        reason,
+        origin: origin.map(|o| halvo_coord::types::Origin::parse(o).unwrap()),
+    })
+}
+
+fn sign_in_site(site: &str) -> String {
+    words::text("item.sign_in.site", &[("origin", site)]).unwrap()
+}
+
+#[test]
+fn a_sign_in_item_names_the_site_of_its_hand_back() {
+    let shown = |reason: HandbackReason, origin: Option<&str>| {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        c.on_run(&run, handback_at(&run, 0, reason, origin))
+            .unwrap();
+        let s = c.snapshot();
+        assert_eq!(s.items.len(), 1, "{s:?}");
+        assert_eq!(s.items[0].kind(), ItemKind::SignIn);
+        s.items[0].text().to_owned()
+    };
+    for reason in [
+        HandbackReason::SignIn,
+        HandbackReason::SecondFactor,
+        HandbackReason::Captcha,
+    ] {
+        let text = shown(reason, Some("https://shop.site1.example:443"));
+        assert_eq!(text, sign_in_site("shop.site1.example"), "{reason:?}");
+        assert_eq!(
+            text,
+            "Sign in to shop.site1.example in its own window, then choose Done."
+        );
+    }
+    assert_eq!(
+        shown(
+            HandbackReason::SignIn,
+            Some("https://shop.site1.example:8443")
+        ),
+        sign_in_site("shop.site1.example:8443")
+    );
+    assert_eq!(
+        shown(HandbackReason::SignIn, None),
+        text("item.sign_in.text")
+    );
+    assert_eq!(
+        shown(HandbackReason::SignIn, Some("http://pay.site1.example:80")),
+        "Sign in to http://pay.site1.example in its own window, then choose Done."
+    );
+}
+
 /// The run ends with `end` as every stop: one `cancel` since `m`, the row says that it stops, and
 /// at the first tick after `cancel_grace_s` it is killed and its `run_ended` holds `end`.
 fn ends_with(c: &Coordinator<Both>, m: usize, run: &RunId, end: RunEnd, now: u64) {
