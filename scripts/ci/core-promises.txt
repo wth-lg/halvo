@@ -47,10 +47,10 @@ secure-input check 51-macos-stall scheduled wed 197 s in the macos job
 secure-input check 30-core-boundary-proofs scheduled wed 104 s in the macos job, which holds every proof; the windows job no longer runs it
 
 store units halvo-capture::store gate but for the four lines below
-store units halvo-capture::store::formal_tests scheduled sun in the macos job and fri in the windows job, the group C; 37 s for its 16 tests
-store units halvo-capture::store::hardening_tests::a_shredded_wrapped_key_is_gone_from_the_raw_database_pages scheduled sun in the macos job and fri in the windows job, the group C; 9 s
-store units halvo-capture::store::hardening_tests::a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind scheduled sun in the macos job and fri in the windows job, the group C; 5 s
-store units halvo-capture::store::hardening_tests::page_gap_probe scheduled sun in the macos job and fri in the windows job, the group C; 26 s in the windows job, 2 s in the macos job
+store units halvo-capture::store::formal_tests scheduled fri in the macos job and fri in the windows job, the group C; 37 s for its 16 tests
+store units halvo-capture::store::hardening_tests::a_shredded_wrapped_key_is_gone_from_the_raw_database_pages scheduled fri in the macos job and fri in the windows job, the group C; 9 s
+store units halvo-capture::store::hardening_tests::a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind scheduled fri in the macos job and fri in the windows job, the group C; 5 s
+store units halvo-capture::store::hardening_tests::page_gap_probe scheduled fri in the macos job and fri in the windows job, the group C; 26 s in the windows job, 2 s in the macos job
 store units halvo-capture::custody gate
 store units halvo-capture::daemon::delete_all::process_tests gate macos job
 store units halvo-sqlcipher scheduled mon the group A; 27 s in the macos job, 32 s in the windows job
@@ -100,10 +100,10 @@ billing check 10-r7-account scheduled sat the macos job, 55 s there
 billing check 10-r7-account scheduled mon the windows job, 38 s there
 
 egress check 60-r6-egress gate macos job, 69 s there in the push run 44895970784
-egress check 60-r6-egress scheduled sun the windows job, 123 s there as a check of the merge gate in the push run 44893237714
+egress check 60-r6-egress scheduled wed the windows job, 123 s there as a check of the merge gate in the push run 44893237714
 egress check 21-tree-bans gate
 egress check 10-egress scheduled thu the macos job, 33 s there in the push run 44895970784
-egress check 10-egress scheduled sun the windows job, 206 s there in the run 44930942501
+egress check 10-egress scheduled thu the windows job, 206 s there in the run 44930942501
 egress check 80-r6-absent scheduled thu the macos job, 20 s there in the push run 44895970784
 egress check 80-r6-absent scheduled sat the windows job, 22 s there
 egress check 38-app-engine-routes scheduled thu the macos job, 127 s there; the engine of the window opens no connection
