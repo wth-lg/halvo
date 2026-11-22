@@ -488,7 +488,24 @@ fn judge_marks(m: &Marks, key: &HeldKey, now: u32) -> Judgment {
     let landing = m
         .entries
         .iter()
-        .find(|entry| entry.mark.landed().is_some() && made_after_key(entry));
+        .find(|entry| entry.mark.landed().is_some() && made_after_key(entry))
+        .filter(|landing| {
+            let made = landing.at.unwrap_or(landing.began);
+            !m.entries.iter().any(|entry| {
+                let tick = entry.at.unwrap_or(entry.began);
+                let changes_the_focus = match entry.mark {
+                    Mark::Field(_) | Mark::Started => true,
+                    Mark::Read { moved, .. } => moved != Moved::Same,
+                    Mark::Latch { .. } | Mark::Landing { .. } => false,
+                };
+                let latch_between = matches!(entry.mark, Mark::Latch { at, .. }
+                    if (0..=bound).contains(&offset(at, key.tick)) && offset(made, at) >= 0);
+                latch_between
+                    || (changes_the_focus
+                        && after_key(entry)
+                        && (entry.seq < landing.seq || offset(made, tick) >= 0))
+            })
+        });
     let before_first_read = |entry: &Entry| {
         m.started.is_some_and(|started| entry.seq > started)
             && m.first_read.is_none_or(|read| entry.seq < read)
@@ -3842,6 +3859,44 @@ mod tests {
     }
 
     #[test]
+    fn a_landing_after_a_focus_event_or_a_move_is_no_landing_of_a_key_before_it() {
+        for change in 0..3 {
+            let gate = plain();
+            let key = key(&gate, 2_000);
+            match change {
+                0 => gate.field_at(2_020, FieldState::Clear),
+                1 => gate.read_at(2_020, FieldState::Clear, Moved::Another),
+                _ => gate.read_at(2_020, FieldState::Clear, Moved::NotCompared),
+            }
+            gate.landing_at(2_030, FieldState::Clear);
+            gate.read_at(2_160, FieldState::Clear, Moved::Same);
+            assert_eq!(reading(&gate, &key, 2_240), None, "change {change}");
+            assert_eq!(
+                reading(&gate, &key, 2_251),
+                Some(Err(Withheld::Unknown)),
+                "change {change}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_landing_made_after_a_later_focus_key_is_no_landing_of_the_key_before_it() {
+        let gate = plain();
+        let letter = key(&gate, 2_000);
+        gate.latch(2_040);
+        gate.landing_at(2_050, FieldState::Clear);
+        gate.read_at(2_200, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_210), None);
+        assert_eq!(reading(&gate, &letter, 2_251), Some(Err(Withheld::Unknown)));
+        let gate = plain();
+        let letter = key(&gate, 2_000);
+        gate.latch(2_040);
+        gate.landing_at(2_030, FieldState::Clear);
+        gate.read_at(2_200, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &letter, 2_210), Some(Ok(())));
+    }
+
+    #[test]
     fn a_landing_in_a_password_field_withholds_the_keys_before_it() {
         let gate = plain();
         let first = key(&gate, 2_000);
@@ -4058,7 +4113,8 @@ mod tests {
         gate.read_at(2_309, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &letter, 2_240), None);
         gate.read_at(2_310, FieldState::Clear, Moved::Same);
-        assert_eq!(reading(&gate, &letter, 2_240), Some(Err(Withheld::Unknown)));
+        assert_eq!(reading(&gate, &letter, 2_240), None);
+        assert_eq!(reading(&gate, &letter, 2_252), Some(Err(Withheld::Unknown)));
     }
 
     #[test]
@@ -4239,7 +4295,8 @@ mod tests {
         gate.read_at(1_149, FieldState::Clear, Moved::Same);
         assert_eq!(reading(&gate, &key, 1_200), None);
         gate.read_at(1_150, FieldState::Clear, Moved::Same);
-        assert_eq!(reading(&gate, &key, 1_200), Some(Err(Withheld::Unknown)));
+        assert_eq!(reading(&gate, &key, 1_200), None);
+        assert_eq!(reading(&gate, &key, 1_256), Some(Err(Withheld::Unknown)));
     }
 
     fn c5(armed: Moved, after_the_hold: Moved) -> (PasswordGate, HeldKey, HeldKey) {
@@ -4248,7 +4305,6 @@ mod tests {
         let letter = key(&gate, 2_000);
         gate.landing_at(2_000, FieldState::Clear);
         let tab = key(&gate, 2_050);
-        gate.landing_at(2_050, FieldState::Clear);
         gate.latch(2_050);
         gate.field_at(2_060, FieldState::Clear);
         gate.read_at(2_065, FieldState::Clear, armed);
@@ -4270,7 +4326,7 @@ mod tests {
                 "letter {armed:?} {after_the_hold:?}"
             );
             assert_eq!(
-                reading(&gate, &tab, 2_210),
+                reading(&gate, &tab, 2_301),
                 Some(Err(Withheld::Unknown)),
                 "tab {armed:?} {after_the_hold:?}"
             );
@@ -4281,7 +4337,8 @@ mod tests {
     fn a_read_that_shows_a_move_withholds_the_key_by_a_rule_of_its_own() {
         let (gate, letter, tab) = c5(Moved::Another, Moved::Same);
         assert_eq!(rule(&gate, &letter, 2_210), Some(Rule::ElementNotTheSame));
-        assert_eq!(rule(&gate, &tab, 2_210), Some(Rule::ElementNotTheSame));
+        assert_eq!(rule(&gate, &tab, 2_210), None);
+        assert_eq!(rule(&gate, &tab, 2_301), Some(Rule::NotClearedInTime));
     }
 
     #[test]
@@ -4292,8 +4349,9 @@ mod tests {
         let letter = key(&gate, 2_000);
         gate.landing_at(2_000, FieldState::Clear);
         gate.read_at(2_125, FieldState::Clear, Moved::Same);
-        assert_eq!(reading(&gate, &letter, 2_130), Some(Err(Withheld::Unknown)));
-        assert_eq!(rule(&gate, &letter, 2_130), Some(Rule::ElementNotTheSame));
+        assert_eq!(reading(&gate, &letter, 2_130), None);
+        assert_eq!(reading(&gate, &letter, 2_251), Some(Err(Withheld::Unknown)));
+        assert_eq!(rule(&gate, &letter, 2_251), Some(Rule::NotClearedInTime));
     }
 
     #[test]
@@ -4333,7 +4391,7 @@ mod tests {
             gate.read_at(2_250, FieldState::Clear, Moved::Same);
             gate.read_at(2_260, FieldState::Clear, Moved::Same);
             assert_eq!(
-                reading(&gate, &letter, 2_250),
+                reading(&gate, &letter, 2_251),
                 Some(Err(Withheld::Unknown)),
                 "click={click}"
             );
@@ -5028,7 +5086,8 @@ mod tests {
         gate.landing_at(2_000, FieldState::Clear);
         gate.read_at(2_120, FieldState::Clear, Moved::Same);
         gate.read_at(2_150, FieldState::Clear, Moved::Same);
-        assert_eq!(reading(&gate, &letter, 2_160), Some(Err(Withheld::Unknown)));
+        assert_eq!(reading(&gate, &letter, 2_160), None);
+        assert_eq!(reading(&gate, &letter, 2_251), Some(Err(Withheld::Unknown)));
     }
 
     #[test]
