@@ -1,0 +1,1 @@
+- Added: The coordinator body `list_replies` lists the newest state of each reply of one agent (the message id, the run and the state alone) in pages, and the owner hands it to the agent store.

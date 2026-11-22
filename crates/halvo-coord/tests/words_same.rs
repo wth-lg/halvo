@@ -160,6 +160,8 @@ fn expected_keys() -> BTreeSet<String> {
         "item.link_account.origin",
         "item.sign_in.bind",
         "item.sign_in.site",
+        "item.sign_in.site_kept",
+        "item.sign_in.text_kept",
         "choice.sign_in.bind_decline",
         "choice.sign_in.bind_allow",
         "item.setup.not_taken",
@@ -460,7 +462,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 326);
+    assert_eq!(seen.len(), 328);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -495,6 +497,7 @@ fn placeholders_are_the_ones_that_the_contract_names() {
     }
     want.insert("item.sign_in.bind".into(), vec!["origin"]);
     want.insert("item.sign_in.site".into(), vec!["origin"]);
+    want.insert("item.sign_in.site_kept".into(), vec!["origin"]);
     want.insert("say.item.new".into(), vec!["name"]);
     want.insert("say.item.gone".into(), vec!["name"]);
     want.insert("confirm.asked_by".into(), vec!["name"]);

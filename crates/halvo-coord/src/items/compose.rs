@@ -9,8 +9,8 @@ use super::{ConfirmState, Confirmation};
 use crate::guard::Table;
 use crate::types::{
     AgentId, AskedEffect, BindResult, BoundField, BoundFrom, Candidate, CandidateFrom, CardEffect,
-    Cause, Choice, ChoiceText, Class, ConfirmAsk, Field, FieldFrom, Item, ItemId, ItemKind, Limits,
-    Origin, Param, ParamEntry, Presenter, Unknown, YesNo,
+    Cause, Choice, ChoiceText, Class, ConfirmAsk, Field, FieldFrom, HandbackAsk, HandbackReason,
+    Item, ItemId, ItemKind, Limits, Origin, Param, ParamEntry, Presenter, Unknown, YesNo,
 };
 
 const PIECE_MAX: usize = 1024;
@@ -544,34 +544,48 @@ pub fn compose_plain(
     .said_by(name)
 }
 
-/// The item of the first step of a `sign_in` item whose hand-back names `origin` (I3.1, I3.4):
-/// the title `item.sign_in.title` with the agent's name, the text `item.sign_in.site` with the
-/// site's name of `origin`, and the kind's two choices, the safe one first. Where `origin` is
-/// `insecure`, an `http` site outside 127.0.0.0/8 that takes a sign-in over a connection that is
-/// not protected, its scheme stands before the site's name, as that is the one case where the
-/// scheme is the thing to see: the origin's own text, without its port where the site's name has
-/// none. With no `origin` it is the item of `compose_plain`, which names no site.
+/// The item of the first step of a `sign_in` item whose hand-back `ask` the coordinator keeps
+/// beside it (I3.1, I3.4): the title `item.sign_in.title` with the agent's name, the text, and
+/// the kind's two choices, the safe one first. Where the ask names an origin, the text is
+/// `item.sign_in.site` with the site's name of that origin; where the origin is `insecure`, an
+/// `http` site outside 127.0.0.0/8 that takes a sign-in over a connection that is not protected,
+/// its scheme stands before the site's name, as that is the one case where the scheme is the
+/// thing to see: the origin's own text, without its port where the site's name has none. Where
+/// the ask's reason is `sign_in`, the text is instead `item.sign_in.site_kept` with that name in
+/// both places, or `item.sign_in.text_kept` where the ask names no origin: the same sentence and
+/// behind it the two that say that Halvo keeps this agent signed in to the site on this computer
+/// and when it removes the sign-in, one whole entry each (I1.1). With no ask, or an ask of
+/// another reason that names no origin, it is the item of `compose_plain`, which names no site.
 pub fn compose_sign_in(
     item: &ItemId,
     agent: &AgentId,
     name: &str,
-    origin: Option<&Origin>,
+    ask: Option<&HandbackAsk>,
 ) -> Result<Item, Cause> {
-    let Some(origin) = origin else {
-        return compose_plain(item, agent, Plain::SignIn, name);
-    };
-    let full = origin.as_str();
-    let site = if !origin.insecure() {
-        site_name(origin)
-    } else if site_name(origin).contains(':') {
-        full.to_owned()
-    } else {
-        full.rsplit_once(':')
-            .map_or(full, |(no_port, _)| no_port)
-            .to_owned()
+    let kept = ask.is_some_and(|a| a.reason == HandbackReason::SignIn);
+    let text = match ask.and_then(|a| a.origin.as_ref()) {
+        None if !kept => return compose_plain(item, agent, Plain::SignIn, name),
+        None => say("item.sign_in.text_kept")?,
+        Some(origin) => {
+            let full = origin.as_str();
+            let site = if !origin.insecure() {
+                site_name(origin)
+            } else if site_name(origin).contains(':') {
+                full.to_owned()
+            } else {
+                full.rsplit_once(':')
+                    .map_or(full, |(no_port, _)| no_port)
+                    .to_owned()
+            };
+            let key = if kept {
+                "item.sign_in.site_kept"
+            } else {
+                "item.sign_in.site"
+            };
+            Key::parse(key)?.text(&[("origin", &site)])?
+        }
     };
     let title = Key::parse("item.sign_in.title")?.text(&[("name", name)])?;
-    let text = Key::parse("item.sign_in.site")?.text(&[("origin", &site)])?;
     let choices = two_choices(ItemKind::SignIn)?;
     Item::sign_in(item.clone(), agent.clone(), title, text, choices).said_by(name)
 }
