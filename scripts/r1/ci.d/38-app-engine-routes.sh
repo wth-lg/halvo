@@ -588,7 +588,12 @@ case "$tool:$*" in
     if [ "${FIXTURE_COPIES:-}" = fail ]; then exit 1; fi
     if [ "${FIXTURE_COPIES:-}" = keeps-layer ] && [ "$2" = engine-alone ]; then exit 0; fi
     sed '/on_navigation/d;/initialization_script_for_all_frames/d' src-tauri/src/app.rs > src-tauri/src/app.rs.new && mv src-tauri/src/app.rs.new src-tauri/src/app.rs
-    if [ "$2" = no-layer ]; then echo HALVO_MEASURE_NEVER_SET >> src-tauri/src/engine.rs; fi
+    if [ "$2" = no-layer ]; then
+      echo HALVO_MEASURE_NEVER_SET >> src-tauri/src/engine.rs
+      handed='/additional_browser_args(ENGINE_ARGS)/d;/set_additional_browser_arguments(ENGINE_ARGS/d'
+      if [ "${FIXTURE_COPIES:-}" = keeps-args ]; then handed='/additional_browser_args(ENGINE_ARGS)/d'; fi
+      sed "$handed" src-tauri/src/app.rs > src-tauri/src/app.rs.new && mv src-tauri/src/app.rs.new src-tauri/src/app.rs
+    fi
     ;;
   python*:*measure.py\ plan*)
     if [ "${FIXTURE_PLAN:-}" = fail ]; then printf 'interface en0 8863<UP,BROADCAST> inet6 fe80::1%%en0\r\n'; exit 1; fi
@@ -624,7 +629,7 @@ run_cases() {
   stubs="$work/stubs"
   write_stubs "$stubs"
   mkdir -p "$work/repo" "$work/tree/src-tauri/src" || exit 2
-  printf '        .on_navigation(|url| may_navigate(url.as_str()))\n        .initialization_script_for_all_frames(NO_PEER_SCRIPT)\n' > "$work/tree/src-tauri/src/app.rs"
+  printf '        .on_navigation(|url| may_navigate(url.as_str()))\n        .initialization_script_for_all_frames(NO_PEER_SCRIPT)\n    let builder = builder.additional_browser_args(ENGINE_ARGS);\npub const ENGINE_ARGS: &str = "--proxy-server=http://255.255.255.255:9";\n        options.set_additional_browser_arguments(ENGINE_ARGS.to_string());\n' > "$work/tree/src-tauri/src/app.rs"
   printf 'pub fn guard<R: Runtime>(window: &WebviewWindow<R>, site: EngineSite, answer: Sender<GuardAnswer>) {\n' > "$work/tree/src-tauri/src/engine.rs"
   good > "$work/judged-good.txt"
   run_fixture() {
@@ -713,6 +718,17 @@ run_cases() {
     is "$last" "FAIL $name ($reason)" ran
     report "$label" "$got"
   done
+  label=no-layer-hands-the-arguments-to-the-options
+  run_fixture "$label" true windows FIXTURE_COPIES=keeps-args
+  got=refused
+  put_back_holds "$label"
+  code=$(cat "$work/$label.code")
+  is "$code" 1 ran
+  builds=$(calls_of "$label" 'cargo ')
+  is "$builds" 1 ran
+  last=$(tail -n 1 "$work/$label.out")
+  is "$last" "FAIL $name (the copy no-layer does not hold the change that it names)" ran
+  report "$label" "$got"
   run_fixture stopped-during-a-launch true windows FIXTURE_LAUNCH=stop
   got=refused
   put_back_holds stopped-during-a-launch
@@ -869,7 +885,12 @@ copy_made() {
   off=$(grep -c 'HALVO_MEASURE_NEVER_SET' "$engine")
   want=0
   [ "$1" = no-layer ] && want=1
-  [ "$navigation" = 0 ] && [ "$script" = 0 ] && [ "$off" = "$want" ]
+  [ "$navigation" = 0 ] && [ "$script" = 0 ] && [ "$off" = "$want" ] || return 1
+  [ "$1" = no-layer ] || return 0
+  # app.rs hands the start arguments at the builder and at the options of the web view's environment.
+  named=$(grep -c 'ENGINE_ARGS' "$app")
+  defined=$(grep -c '^pub const ENGINE_ARGS: &str = ' "$app")
+  [ "$named" = 1 ] && [ "$defined" = 1 ]
 }
 
 firewall_take() {
@@ -1905,9 +1926,9 @@ copy = sys.argv[1]
 assert copy in COPIES, copy
 
 
-def sub(path, old, new):
+def sub(path, old, new, place=None):
     text = open(path, encoding="utf-8").read()
-    assert text.count(old) == 1, (path, old, text.count(old))
+    assert text.count(old) == 1, (path, old, text.count(old)) if place is None else (place, path, old, text.count(old))
     open(path, "w", encoding="utf-8", newline="\n").write(text.replace(old, new))
 
 
@@ -2068,8 +2089,26 @@ def guard_head(text):
     return head
 
 
+WRY_DEFAULT_ARGS = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"
+
+
 def args_out():
-    sub("src-tauri/src/app.rs", "    let builder = builder.additional_browser_args(ENGINE_ARGS);\n", "    let builder = builder;\n")
+    """Takes the engine's start arguments out at both places where app.rs hands them: the builder's,
+    which wry 0.57.1 reads only in an environment of its own (src/webview2/mod.rs lines 139 to 142
+    and 308), and the options of the environment that app.rs makes, which get wry's own default
+    alone (lines 308 to 312)."""
+    sub(
+        "src-tauri/src/app.rs",
+        "    let builder = builder.additional_browser_args(ENGINE_ARGS);\n",
+        "    let builder = builder;\n",
+        "args_out: the builder's start arguments",
+    )
+    sub(
+        "src-tauri/src/app.rs",
+        "        options.set_additional_browser_arguments(ENGINE_ARGS.to_string());\n",
+        '        options.set_additional_browser_arguments("' + WRY_DEFAULT_ARGS + '".to_string());\n',
+        "args_out: the start arguments of the environment's options",
+    )
 
 
 def config_out():
