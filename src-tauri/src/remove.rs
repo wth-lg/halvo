@@ -254,7 +254,11 @@ fn check(home: &Path, path: &Path, held: &[&Path]) -> Result<(), Refused> {
     if kept(home, path) {
         return Err(Refused::Kept);
     }
-    if held.iter().any(|data| data.starts_with(path)) {
+    let real = std::fs::canonicalize(path).ok();
+    let holds = |data: &&Path| {
+        data.starts_with(path) || real.as_deref().is_some_and(|real| data.starts_with(real))
+    };
+    if held.iter().any(holds) {
         return Err(Refused::HoldsTheDataFolder);
     }
     Ok(())
