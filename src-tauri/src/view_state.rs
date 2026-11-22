@@ -1545,3 +1545,42 @@ impl Removal {
         self.whole().then(|| crate::launch::Exit::Quit.code())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The output of the offline delete where Windows refused the setting that keeps the program
+    /// out of its error reports, byte for byte as halvo-capture prints it on its standard output
+    /// (its tests of the form: crates/halvo-capture/tests/cli_windows.rs): a deleted answer whose
+    /// two counts are none, which names the folder that the delete ran in; the page's words of
+    /// that answer stand in ui/tests/page/delete-unfinished.test.js.
+    #[test]
+    fn a_deleted_line_with_unknown_counts_reads_as_deleted_with_no_count_and_names_its_folder() {
+        let folder = r"D:\halvo-data";
+        let out = format!(
+            "data_dir={folder}\ndeleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=yes root_id=- files_left=0 database_left=no not_followed=0 entries_removed=4 entries_left=0 unknown_entries=0 intent=written\n"
+        );
+        let view = offline_view(&OfflineEnd::Exited { code: 0, out }, None)
+            .expect("an end with 0 and a deleted line is an answer");
+        let DeleteView::Deleted {
+            segments_shredded,
+            keys_destroyed,
+            looked_in,
+            nothing_left,
+            ..
+        } = &view
+        else {
+            panic!("not a deleted answer: {view:?}");
+        };
+        assert_eq!((*segments_shredded, *keys_destroyed), (None, None));
+        assert_eq!(looked_in.as_deref(), Some(folder));
+        assert!(*nothing_left, "{view:?}");
+        assert!(view.finished(), "{view:?}");
+        let sent = serde_json::to_value(&view).expect("the answer is JSON");
+        assert_eq!(sent["outcome"], "deleted");
+        assert_eq!(sent["segments_shredded"], serde_json::Value::Null);
+        assert_eq!(sent["keys_destroyed"], serde_json::Value::Null);
+        assert_eq!(sent["looked_in"], folder);
+    }
+}

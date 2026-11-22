@@ -105,3 +105,25 @@ test("behind the running service a delete that did not finish offers Delete ever
   assert.equal(deleting.byId("delete").disabled, true, "a delete runs, so Delete everything cannot be pressed");
   assert.equal(deleting.text("store-state"), "Halvo is deleting everything.");
 });
+
+test("an offline delete whose two counts read unknown says that it deleted, names the folder and gives no count", async () => {
+  const unknownCounts = {
+    ...fixture("delete_all-deleted"),
+    segments_shredded: null,
+    keys_destroyed: null,
+    new_store_id: null,
+    looked_in: FOLDER,
+  };
+  const app = appKeeping([unknownCounts]);
+  const page = await openPage({ replies: app.replies });
+  const { pressed } = await confirmDelete(page);
+  assert.equal(page.calls("delete_offline").length, 1, "the confirmed press sends the offline delete");
+  app.release();
+  await pressed;
+  await page.settle();
+  const next = await page.reopen();
+  const shown = next.text("delete-result");
+  const w = next.window.Halvo.words;
+  assert.ok(shown.endsWith([w.DELETE_DONE, w.DELETE_COPIES, `The delete ran in Halvo's data folder, ${FOLDER}.`].join(" ")), shown);
+  assert.doesNotMatch(shown.replace(/^At \d\d:\d\d: /, "").replace(FOLDER, ""), /\d/, "no count");
+});
