@@ -630,6 +630,84 @@ fn u24o_a_no_at_the_sign_in_question_of_this_run_says_you_said_no_and_the_row_st
 }
 
 #[test]
+fn u24a_a_no_at_the_site_question_of_the_newest_run_holds_the_row_and_the_rest_stay_plain() {
+    use halvo_coord::roster::{controls, status_of};
+    use halvo_coord::types::{
+        BindAnswer, BindResult, Control, DoneAnswer, Origin, OtherLapse, SignInAnswer, StatusLine,
+        Trigger,
+    };
+    let item = ItemId::parse(&format!("{:032x}", 0x61)).unwrap();
+    let after = |last: What| {
+        let mut f = facts(State::Card).remove(0);
+        let (run, trigger) = (run_of(2), Trigger::Person);
+        row(
+            &mut f,
+            What::RunStarted {
+                run,
+                trigger,
+                slot: None,
+            },
+        );
+        let raised = Raised::SignIn(run_of(2));
+        let item = item.clone();
+        row(&mut f, What::ItemRaised { item, raised });
+        row(&mut f, last);
+        let (run, cause) = (run_of(2), RunEnd::Declined);
+        row(
+            &mut f,
+            What::RunEnded {
+                run,
+                cause,
+                defers: None,
+            },
+        );
+        f
+    };
+    let second = |answer: BindResult| What::ItemAnswered {
+        item: item.clone(),
+        answer: Answered::SignIn(SignInAnswer::Second(BindAnswer {
+            answer,
+            origin: Origin::parse("https://site1.example:443").unwrap(),
+        })),
+    };
+    let limits = Limits::PRODUCT;
+    let said_no = after(second(BindResult::Decline));
+    let held = status_of(&said_no, &limits, None, false);
+    assert_eq!(held.key(), "line.problem.site_declined");
+    assert_eq!(
+        line(&held.key()),
+        "You did not allow a site, so this agent waits. Start it when it should ask again."
+    );
+    assert_eq!(
+        controls(&said_no, None, &limits),
+        vec![Control::RunNow, Control::SwitchOff, Control::Delete]
+    );
+    let first = Answered::SignIn(SignInAnswer::First(DoneAnswer::Decline));
+    let lapsed = Lapsed::SignIn(OtherLapse::WaitLimit);
+    for (case, last) in [
+        (
+            "the first step's decline",
+            What::ItemAnswered {
+                item: item.clone(),
+                answer: first,
+            },
+        ),
+        (
+            "a lapse",
+            What::ItemLapsed {
+                item: item.clone(),
+                lapsed,
+            },
+        ),
+        ("allow", second(BindResult::Allow)),
+    ] {
+        let f = after(last);
+        let plain = status_of(&f, &limits, None, false);
+        assert_eq!(plain, StatusLine::StoppedEarly, "{case}");
+    }
+}
+
+#[test]
 fn rd85_two_cards_in_one_run_a_no_on_the_first_and_a_lapse_of_the_second() {
     let mut f = facts(State::Card).remove(0);
     raised(&mut f, 0x51, &run_of(2));

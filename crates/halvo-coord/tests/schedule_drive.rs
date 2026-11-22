@@ -4775,5 +4775,9 @@ fn one_start_by_the_person_passes_the_hold_of_a_no_and_a_second_no_holds_again()
     w.clock(T0 + 3_000, DAY + 6);
     w.forget();
     w.tick();
-    assert_eq!(w.starts(), 1, "after a yes the tick at the next slot starts a run");
+    assert_eq!(
+        w.starts(),
+        1,
+        "after a yes the tick at the next slot starts a run"
+    );
 }
