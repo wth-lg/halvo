@@ -12,7 +12,7 @@ const NEEDS = '/app/views/needs.js';
 const CONFIRM = '/app/views/confirm.js';
 const ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
 const ACTING = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on'];
-const DRAWN = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on', 'delete'];
+const DRAWN = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on', 'stop_sign_in', 'delete'];
 
 const { serve, open, act, check, settled } = await import(pathToFileURL(join(REPO, 'tools', 'r4-page', 'index.mjs')).href);
 
@@ -968,7 +968,7 @@ function questionWanted(row) {
 }
 
 const STATUSES = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
-const CONTROLS = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on', 'delete'];
+const CONTROLS = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on', 'stop_sign_in', 'delete'];
 
 function outsideTheClosedLists(snapshot) {
   const out = [];
@@ -1037,6 +1037,61 @@ if (want('ten')) {
       const sent = await bootCalls(h);
       const ok = same(sent, [{ call: 'agents_delete', args: { agent: A.agent } }]) && same(afters, [ten.seq, 0]) && answered && same(model, expectedModel(gone, null));
       return [ok, { sent, afters, answered }];
+    });
+  });
+
+  await test('u24y_a_press_on_stop_sign_in_opens_its_question_the_safe_control_sends_nothing_and_the_other_sends_agents_control_once', async () => {
+    const question = {
+      kind: 'stop_sign_in',
+      title: 'Stop using the sign-in of “' + A.name + '”?',
+      text: [
+        'Halvo will stop using the sign-in that it keeps for this agent, and removes it within 35 days.',
+        'The next time the agent runs, it asks you to sign in again.',
+      ],
+      effects: [],
+      record: null,
+      controls: [
+        { act: 'reject', text: 'Keep the sign-in' },
+        { act: 'allow', text: 'Stop using its sign-in' },
+      ],
+    };
+    const at = A.controls.findIndex((c) => c.control === 'delete');
+    const control = { control: 'stop_sign_in', text: 'Stop using its sign-in' };
+    const kept = { ...A, controls: [...A.controls.slice(0, at), control, ...A.controls.slice(at)], ask_stop_sign_in: question };
+    const state = { ...ten, rows: ten.rows.map((r) => (r.agent === A.agent ? kept : r)) };
+    const after = { ...ten, seq: ten.seq + 1 };
+    return withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [AGENTS_SRC], state, ['agents_control']);
+      await settleCalls(h);
+      await press(h, 'stop_sign_in', A.agent);
+      const q = await questionOf(h);
+      const wantQ = { title: question.title, text: question.text, controls: question.controls.map((c) => ({ act: c.act, param: A.agent, text: c.text })) };
+      const asked = q.open && q.dialogs === 1 && same({ title: q.title, text: q.text, controls: q.controls }, wantQ);
+      const atPress = await bootCalls(h);
+      await pressIn(h, 'reject');
+      const safe = await questionOf(h);
+      const atSafe = await bootCalls(h);
+      await press(h, 'stop_sign_in', A.agent);
+      await h.page.focus('[role="alertdialog"] [data-act="allow"]');
+      await h.page.keyboard.press('Enter');
+      await h.page.keyboard.press('Enter');
+      await settleCalls(h);
+      const afters = await nextsOf(h);
+      const answered = await answerFirst(h, 'agents_next', { after: 0 }, after);
+      await settleCalls(h);
+      const model = await h.page.evaluate(MODEL);
+      const sent = await bootCalls(h);
+      const ok =
+        asked &&
+        same(atPress, []) &&
+        !safe.open &&
+        safe.dialogs === 0 &&
+        same(atSafe, []) &&
+        same(sent, [callOf(A, 'stop_sign_in')]) &&
+        same(afters, [ten.seq, 0]) &&
+        answered &&
+        same(model, expectedModel(after, null));
+      return [ok, { q, wantQ, atPress, safe, atSafe, sent, afters, answered }];
     });
   });
 
