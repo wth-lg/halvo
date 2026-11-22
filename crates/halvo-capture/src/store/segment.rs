@@ -207,6 +207,30 @@ fn remove_entry_below(parent: &Dir, name: &OsStr, depth: u32, removal: &mut Segm
     let _ = parent.sync();
 }
 
+/// The entries of the segments tree of `store_dir` as they stand, the tree's
+/// own folder among them, each counted once and none removed; a folder that
+/// cannot be listed counts as one, and a link is not followed.
+pub(crate) fn entries_of_the_segments_tree(store_dir: &Dir) -> u64 {
+    entries_from(store_dir, OsStr::new(SEGMENTS))
+}
+
+fn entries_from(parent: &Dir, name: &OsStr) -> u64 {
+    match parent.entry(name) {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => 0,
+        Ok(entry) if entry.kind == EntryKind::Dir => {
+            let below = parent.open_dir(name).and_then(|below| {
+                Ok(below
+                    .entries()?
+                    .iter()
+                    .map(|child| entries_from(&below, &child.name))
+                    .sum::<u64>())
+            });
+            1 + below.unwrap_or(0)
+        }
+        _ => 1,
+    }
+}
+
 pub(crate) fn refuse_a_linked_segments_root(store_dir: &Dir) -> StoreResult<()> {
     match store_dir.entry(OsStr::new(SEGMENTS)) {
         Ok(entry) if entry.kind == EntryKind::Link => Err(StoreError::Obstructed {
