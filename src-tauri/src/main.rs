@@ -153,6 +153,9 @@ fn run(background: bool, given: Option<PathBuf>) {
     if let (None, Ok(dir)) = (&given, &resolved) {
         remove::old_consent_at_start(&halvo_control::paths::SystemAccount, dir);
     }
+    let context = app::context();
+    #[cfg(windows)]
+    let crash_reports = app::crash_report_folder(context.config());
     let pid = Arc::<ChildPid>::default();
     let (control, data_dir) = control_of_child(|| resolved, Arc::clone(&pid));
     #[cfg(any(target_os = "macos", windows, test))]
@@ -202,7 +205,13 @@ fn run(background: bool, given: Option<PathBuf>) {
     let builder = tauri::Builder::default().manage(tray::QuitNotice::default());
     #[cfg(any(target_os = "macos", windows, test))]
     let builder = quit::installed(builder);
-    let app = match app::build(builder, parts).build(app::context()) {
+    #[cfg(windows)]
+    let built = app::after_the_reports_go(crash_reports.as_deref(), || {
+        app::build(builder, parts).build(context)
+    });
+    #[cfg(not(windows))]
+    let built = app::build(builder, parts).build(context);
+    let app = match built {
         Ok(app) => app,
         Err(e) => {
             eprintln!("halvo: the app did not start: {e}");

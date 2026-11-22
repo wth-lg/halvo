@@ -582,6 +582,22 @@ pub fn app_url() -> Url {
     Url::parse(&format!("{scheme}://{host}/index.html")).expect("the app's address is an address")
 }
 
+/// The step of a start before the app and its window are built: every file under `folder`, the
+/// folder of the crash reports of the web view of Halvo's own window, goes by app-4b's
+/// `every_file_goes`, folders kept, and only then `make` builds the app, whose setup makes the
+/// window. With no folder nothing is removed.
+#[cfg(any(windows, test))]
+pub(crate) fn after_the_reports_go<T>(
+    folder: Option<&std::path::Path>,
+    make: impl FnOnce() -> T,
+) -> T {
+    if let Some(folder) = folder {
+        let _ =
+            crate::commands::capture::every_file_goes(folder, &|file| std::fs::remove_file(file));
+    }
+    make()
+}
+
 fn engine_site<R: Runtime>(
     app: &AppHandle<R>,
     given: Option<PathBuf>,
@@ -677,9 +693,8 @@ fn load<R: Runtime>(app: &AppHandle<R>, visible: bool) -> tauri::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
-    #[cfg(windows)]
     use super::*;
 
     /// A new folder of this test binary under target/tmp, by the test's `name` and this process.
@@ -696,6 +711,39 @@ mod tests {
             .join(format!("halvo-app-{name}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("the scratch folder can be made");
         dir
+    }
+
+    /// The files under `dir`, in every folder below it; folders are not listed.
+    fn files_in(dir: &Path) -> Vec<PathBuf> {
+        let mut files = Vec::new();
+        for entry in std::fs::read_dir(dir).expect("the folder reads") {
+            let path = entry.expect("an entry reads").path();
+            if path.is_dir() {
+                files.extend(files_in(&path));
+            } else {
+                files.push(path);
+            }
+        }
+        files
+    }
+
+    /// Test 1 of win-crash-reports: at a start, the crash reports of an earlier session go before
+    /// the window is made. When the maker of the window is called, no file stands under the
+    /// folder, also in a folder below it, and the folders stay.
+    #[test]
+    fn every_crash_report_of_an_earlier_session_is_gone_before_the_maker_of_the_window_is_called() {
+        let folder = scratch("start-crash-reports");
+        std::fs::create_dir_all(folder.join("below")).expect("a folder below");
+        for file in ["a.dmp", "below/b.dmp"] {
+            std::fs::write(folder.join(file), b"a dump of the window").expect("a report");
+        }
+        let at_the_maker = after_the_reports_go(Some(&folder), || files_in(&folder));
+        assert_eq!(
+            at_the_maker,
+            Vec::<PathBuf>::new(),
+            "files under the folder when the maker of the window is called"
+        );
+        assert!(folder.join("below").is_dir(), "the folders stay");
     }
 
     /// What the web view's environment answers as the folder of its crash reports

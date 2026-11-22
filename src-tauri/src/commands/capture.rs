@@ -1201,7 +1201,7 @@ pub fn remove_the_crash_reports(
 
 /// Removes every file under `dir` by `remove`, folders kept: whether none stayed. A folder that
 /// does not stand holds none.
-fn every_file_goes(dir: &Path, remove: &dyn Fn(&Path) -> std::io::Result<()>) -> bool {
+pub(crate) fn every_file_goes(dir: &Path, remove: &dyn Fn(&Path) -> std::io::Result<()>) -> bool {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(error) => return error.kind() == std::io::ErrorKind::NotFound,
