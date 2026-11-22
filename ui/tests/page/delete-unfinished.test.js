@@ -85,5 +85,6 @@ test("a second unfinished delete says that something is left", async () => {
   await first.settle();
   const second = await first.reopen();
   assert.ok(second.text("delete-result").includes(AGAIN), "the next in a row");
+  assert.ok(second.text("delete-result").includes(second.window.Halvo.words.REMOVE_BY_HAND), "and what a person does by hand with that folder");
   assert.ok(!second.text("delete-result").includes(NOT_FINISHED));
 });
