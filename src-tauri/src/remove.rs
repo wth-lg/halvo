@@ -539,10 +539,12 @@ pub fn account_hook() -> (Outcome, Detail) {
 
 /// Remove Halvo (contracts.md C10.7 and item 8 of C17): the steps of `STEPS` in their order,
 /// each answered, up to the first that fails. Where `places` was refused it runs nothing. The
-/// app's child is ended first, with no request, and every start is held to the end of the list
-/// (`WithoutTheChild`); after a whole list `hold` is marked removed, so that no press writes the
-/// login item or asks for a child, and the child's supervisor ends as at a quit, so that no child
-/// starts after it; after a list that stopped it goes on by its rule. The account step
+/// app's child is ended first, with no request, and every start is held to the end of the list:
+/// the child's by `WithoutTheChild`, the agents' runs by the hold of `before`, taken before the
+/// account step. After a whole list `hold` is marked removed, so that no press writes the login
+/// item or asks for a child, the child's supervisor ends as at a quit, so that no child starts
+/// after it, and the agents' runs stay held to the end of the app; after a list that stopped the
+/// runs' hold is lifted and the supervisor goes on by its rule. The account step
 /// is `account`; the delete is the offline delete of `offline` after `before`, and it is done
 /// only where it deleted and left nothing of the store, or found no store.
 pub fn remove_halvo(
@@ -562,12 +564,15 @@ pub fn remove_halvo(
     };
     let mut removal = Removal::default();
     let mut run = || {
+        before.runs.delete_begins(before.core.as_deref());
         removal.steps = steps_of(&places, account, offline, before);
         if removal.whole() {
             hold.removed();
             if let Some(children) = children {
                 children.end();
             }
+        } else {
+            before.runs.delete_ends(before.core.as_deref());
         }
     };
     match children {
@@ -697,6 +702,10 @@ mod tests {
     use halvo_control::paths::{DarwinUserTempDir, PathError};
 
     use super::*;
+    use halvo_coord::items::ConfirmAnswer;
+    use halvo_coord::types::{AgentId, Cause, ItemId, RunId};
+
+    use crate::commands::agents::NoService;
     use crate::commands::capture::consent;
     use crate::commands::control::{ChildPid, Gated, Unresolved};
     use crate::daemon_child::stand_in::{note, Record, StandInChild, StandInClock, StandInSpawner};
@@ -1134,6 +1143,44 @@ mod tests {
         );
     }
 
+    struct HoldingCore(Record);
+
+    impl halvo_coord_app::Core for HoldingCore {
+        fn call(&self, command: &str, args: Option<&serde_json::Value>) -> halvo_coord_app::Reply {
+            NoService.call(command, args)
+        }
+
+        fn shown(&self) {}
+
+        fn hidden(&self) {}
+
+        fn destroyed(&self) {}
+
+        fn tick(&self) {}
+
+        fn quit(&self, budget: Option<Duration>) -> Vec<(AgentId, RunId)> {
+            NoService.quit(budget)
+        }
+
+        fn hold_runs(&self, held: bool) -> Vec<(AgentId, RunId)> {
+            note(
+                &self.0,
+                if held {
+                    "hold the runs"
+                } else {
+                    "lift the runs"
+                },
+            );
+            Vec::new()
+        }
+
+        fn on_screen(&self, _item: &ItemId) {}
+
+        fn answer_native(&self, item: &ItemId, answer: ConfirmAnswer) -> Result<(), Cause> {
+            NoService.answer_native(item, answer)
+        }
+    }
+
     fn noted(record: &Record) -> Vec<String> {
         record.lock().unwrap().clone()
     }
@@ -1181,13 +1228,17 @@ mod tests {
                     out: deleted(&looked_in, root, root_id, left),
                 },
             );
+            let held = Before {
+                core: Some(Arc::new(HoldingCore(Arc::clone(&record)))),
+                ..before()
+            };
             let removal = remove_halvo(
                 Places::new(&home, ID, &data, false),
                 Some(&supervisor),
                 views.hold(),
                 &account_hook,
                 Some(&stand_in),
-                &before(),
+                &held,
             );
             if let Some(code) = removal.exit() {
                 note(&record, format!("exit {code}"));
@@ -1212,6 +1263,7 @@ mod tests {
             let mut expected = vec![
                 "closed descriptor".to_owned(),
                 "kill after 20 s".to_owned(),
+                "hold the runs".to_owned(),
                 ran,
             ];
             if whole {
@@ -1232,6 +1284,7 @@ mod tests {
                     );
                     std::thread::sleep(Duration::from_millis(5));
                 }
+                expected.push("lift the runs".to_owned());
                 expected.push("start 8".to_owned());
                 assert_eq!(
                     noted(&record),
