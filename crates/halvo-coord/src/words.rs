@@ -415,6 +415,14 @@ pub const KEYS: &[(&str, &str)] = &[
         "Sign in to {origin} in its own window, then choose Done.",
     ),
     (
+        "item.sign_in.site_kept",
+        "Sign in to {origin} in its own window, then choose Done. Halvo keeps this agent signed in to {origin} on this computer, so that it does not ask you each time. It removes the sign-in at the latest 35 days after this agent last finished a run, or when you delete everything.",
+    ),
+    (
+        "item.sign_in.text_kept",
+        "Sign in to the site in its own window, then choose Done. Halvo keeps this agent signed in to the site on this computer, so that it does not ask you each time. It removes the sign-in at the latest 35 days after this agent last finished a run, or when you delete everything.",
+    ),
+    (
         "choice.sign_in.bind_decline",
         "Don't allow this site, and end this task",
     ),

@@ -13,7 +13,7 @@ use super::frame::FRAME_JSON_MAX;
 use super::json::{self, each_once, from_json, list, object_type, opt};
 use super::names::{
     ActionClass, AgentState, Cause, CheckpointState, EffectState, LeftReason, ListedState,
-    MarkState, Mode, Way, YesNo,
+    MarkState, Mode, ReplyState, Way, YesNo,
 };
 use super::record::{
     checkpoint_copy, origins_and_slots, part_of, slot_names_once, AgentCheckpoint, AgentEffect,
@@ -764,6 +764,19 @@ object_type! {
     rules(_b) { Ok(()) }
 }
 
+object_type! {
+    /// `list_replies`: the newest state of each reply of the agent, one entry for each message that has an
+    /// `agent_reply` row of the agent, for the messages after the message id `after` in ascending order, or from the
+    /// first. It stores nothing and changes nothing.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ListReplies [op = "list_replies"] {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub after: Option<ProviderId> = "after" => opt(from_json),
+    }
+    rules(_b) { Ok(()) }
+}
+
 op_enum! {
     /// The coordinator bodies of this run (`CoordinatorCall`): each holds `op` first, then `workflow` and `agent`,
     /// then its keys.
@@ -780,6 +793,7 @@ op_enum! {
         ListAgents(ListAgents) = "list_agents",
         AgentHistory(AgentHistory) = "agent_history",
         DropSessions(DropSessions) = "drop_sessions",
+        ListReplies(ListReplies) = "list_replies",
     }
 }
 
@@ -1207,6 +1221,43 @@ object_type! {
 }
 
 object_type! {
+    /// One entry of the reply of `list_replies`, from the agent's newest `agent_reply` row of one message: the
+    /// provider's id of the message, the run and the state of that row alone. It holds no draft, effect, seq, day or
+    /// instant, and no row holds an address, a subject or a text.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ListedReply {
+        pub message: ProviderId = "message" => from_json,
+        pub run: RunId = "run" => from_json,
+        pub state: ReplyState = "state" => from_json,
+    }
+    rules(_r) { Ok(()) }
+}
+
+object_type! {
+    /// The reply of `list_replies`: the entries in ascending order of message id, by the bytes of the id, each
+    /// message once, and the message id to ask after for the next page, or null. Its bound, `CHECKPOINTS_REPLY_MAX`,
+    /// counts the bytes given to `parse` and to `CoordinatorReply::parse`, and the compact text that the writer
+    /// writes, as for every reply of a coordinator body.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ListRepliesReply {
+        pub replies: Vec<ListedReply> = "replies" => list(ListedReply::from_raw),
+        pub next: Option<ProviderId> = "next" => opt(from_json),
+    }
+    rules(r) {
+        if r
+            .replies
+            .windows(2)
+            .any(|w| w[1].message.as_str() <= w[0].message.as_str())
+        {
+            return Err(Refusal::malformed("ListRepliesReply", "message_order").at("replies"));
+        }
+        Ok(())
+    }
+    max_len(CHECKPOINTS_REPLY_MAX)
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
+}
+
+object_type! {
     /// The reply of `create_agent`, `set_bindings` and `add_origin`: the revision stored, or for an `add_origin`
     /// that stored nothing the newest.
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1247,14 +1298,15 @@ reply_enum! {
         Overlaps(OverlapsReply) = "overlaps",
         Agents(AgentsReply) = "agents",
         History(HistoryReply) = "runs",
+        Replies(ListRepliesReply) = "replies",
     }
 }
 
 impl CoordinatorReply {
     /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
-    /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints`, `list_agents` and
-    /// `agent_history` by their lists, `mark_checkpoint` by `stored` 0 or 1, `drop_sessions` by any count stored, and
-    /// `list_overlaps` by its list only as `OverlapsReply::answers` says.
+    /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints`, `list_agents`,
+    /// `agent_history` and `list_replies` by their lists, `mark_checkpoint` by `stored` 0 or 1, `drop_sessions` by any
+    /// count stored, and `list_overlaps` by its list only as `OverlapsReply::answers` says.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
         match (self, call) {
             (CoordinatorReply::Overlaps(r), CoordinatorCall::ListOverlaps(b)) => {
@@ -1271,6 +1323,7 @@ impl CoordinatorReply {
             | (CoordinatorReply::Agents(_), CoordinatorCall::ListAgents(_))
             | (CoordinatorReply::History(_), CoordinatorCall::AgentHistory(_))
             | (CoordinatorReply::Stored(_), CoordinatorCall::DropSessions(_))
+            | (CoordinatorReply::Replies(_), CoordinatorCall::ListReplies(_))
             | (
                 CoordinatorReply::Accepted(_),
                 CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_),

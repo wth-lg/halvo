@@ -2,7 +2,7 @@ mod common;
 
 use common::*;
 use halvo_agent_store::MemoryStore;
-use halvo_schema::executable::body::LoadRepliesReply;
+use halvo_schema::executable::body::{LoadRepliesReply, CHECKPOINTS_REPLY_MAX};
 use halvo_schema::executable::{AgentReply, RunnerReply};
 use halvo_schema::{ErrorName, TypedRecord, WorkflowId};
 use serde_json::{json, Value};
@@ -1263,4 +1263,126 @@ fn a_repeat_of_a_begun_row_a_day_later_with_the_day_of_its_at_is_answered_as_the
     again["day"] = json!(ROW_DAY + 1);
     assert_eq!(put_reply(&mut store, again), Ok(stored(1)));
     assert_eq!(rows(&store, "agent_reply"), before);
+}
+
+/// The text of the reply of `list_replies` of agent `a` in workflow `w`, after the message `after` or from the first.
+fn list_replies(
+    store: &mut MemoryStore,
+    w: u32,
+    a: u32,
+    after: Option<&str>,
+) -> Result<String, ErrorName> {
+    let body = json!({"op": "list_replies", "workflow": wf(w), "agent": agent(a), "after": after});
+    coordinator(store, body).map(|reply| reply.to_json().expect("the reply's text"))
+}
+
+fn listed(store: &mut MemoryStore, w: u32, a: u32, after: Option<&str>) -> Value {
+    let text = list_replies(store, w, a, after).expect("the reply of list_replies");
+    serde_json::from_str(&text).expect("json")
+}
+
+#[test]
+fn list_replies_answers_the_newest_row_of_each_message_of_the_agent_alone() {
+    let mut store = two_agents();
+    plant(
+        &mut store,
+        vec![
+            reply(1, 1, 1, "m3", Some("d1"), None, "drafted"),
+            reply(1, 1, 2, "m3", None, None, "lost"),
+            reply(1, 3, 3, "m3", Some("d3"), None, "drafted"),
+            reply(2, 2, 1, "m1", Some("dz"), None, "drafted"),
+            reply(2, 2, 2, "m1", Some("dz"), Some(9), "begun"),
+            reply(2, 2, 3, "m1", Some("dz"), Some(9), "committed"),
+            reply(2, 2, 1, "m0", Some("dz"), None, "drafted"),
+            reply(2, 2, 2, "m0", Some("dz"), None, "withheld"),
+            reply(1, 1, 1, "m1", Some("d1"), None, "drafted"),
+            reply(1, 1, 3, "m2", Some("d1"), Some(1), "unknown"),
+            reply(1, 1, 2, "m2", Some("d1"), Some(1), "begun"),
+            reply(1, 1, 1, "m2", Some("d1"), None, "drafted"),
+        ],
+    );
+    let before = rows(&store, "agent_reply");
+    let entry = |message: &str, r: u32, state: &str| json!({"message": message, "run": run(r), "state": state});
+    let all = [
+        entry("m1", 1, "drafted"),
+        entry("m2", 1, "unknown"),
+        entry("m3", 3, "drafted"),
+    ];
+    assert_eq!(
+        listed(&mut store, 1, 1, None),
+        json!({"replies": all, "next": null})
+    );
+    assert_eq!(
+        listed(&mut store, 1, 1, Some("m0")),
+        json!({"replies": all, "next": null})
+    );
+    assert_eq!(
+        listed(&mut store, 1, 1, Some("m1")),
+        json!({"replies": all[1..], "next": null})
+    );
+    assert_eq!(
+        listed(&mut store, 1, 1, Some("m3")),
+        json!({"replies": [], "next": null})
+    );
+    assert_eq!(
+        listed(&mut store, 2, 2, None),
+        json!({"replies": [entry("m0", 2, "withheld"), entry("m1", 2, "committed")], "next": null})
+    );
+    assert_eq!(
+        list_replies(&mut store, 9, 1, None),
+        Err(ErrorName::NoWorkflow)
+    );
+    assert_eq!(
+        list_replies(&mut store, 2, 1, None),
+        Err(declared("binding"))
+    );
+    assert_eq!(rows(&store, "agent_reply"), before);
+}
+
+#[test]
+fn a_page_of_list_replies_stays_under_the_reply_bound_and_names_the_next() {
+    let mut store = two_agents();
+    let ids: Vec<String> = (0..600)
+        .map(|n| format!("{n:04}{}", "m".repeat(1020)))
+        .collect();
+    assert!(ids.iter().all(|id| id.len() == 1024));
+    plant(
+        &mut store,
+        ids.iter()
+            .rev()
+            .map(|id| reply(1, 1, 1, id, Some("d1"), None, "drafted"))
+            .collect(),
+    );
+    let mut all: Vec<String> = Vec::new();
+    let mut after: Option<String> = None;
+    let mut pages = 0;
+    loop {
+        let text = list_replies(&mut store, 1, 1, after.as_deref()).expect("a page");
+        assert!(text.len() <= CHECKPOINTS_REPLY_MAX, "{}", text.len());
+        let page: Value = serde_json::from_str(&text).expect("json");
+        let messages: Vec<String> = page["replies"]
+            .as_array()
+            .expect("the list")
+            .iter()
+            .map(|e| e["message"].as_str().expect("a message id").to_owned())
+            .collect();
+        assert!(!messages.is_empty(), "page {pages}");
+        pages += 1;
+        all.extend(messages.iter().cloned());
+        let Some(next) = page["next"].as_str() else {
+            break;
+        };
+        assert_eq!(Some(next), messages.last().map(String::as_str));
+        let following =
+            json!({"message": ids[all.len()], "run": run(1), "state": "drafted"}).to_string();
+        assert!(
+            text.len() + 1 + following.len() > CHECKPOINTS_REPLY_MAX,
+            "page {pages} of {} bytes leaves out an entry of {} bytes that fits",
+            text.len(),
+            following.len()
+        );
+        after = Some(next.to_owned());
+    }
+    assert_eq!(all, ids);
+    assert!(pages >= 3, "{pages}");
 }
