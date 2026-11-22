@@ -2663,10 +2663,15 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         supervisor.renew_lease(store.link());
     }
     let reply = match asked.request {
-        Request::Status { .. } => status_reply(supervisor, serving).map_or_else(
-            |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
-            Reply::Status,
-        ),
+        Request::Status { indicator } => {
+            if !indicator {
+                supervisor.client_polled();
+            }
+            status_reply(supervisor, serving).map_or_else(
+                |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+                Reply::Status,
+            )
+        }
         Request::Inventory => inventory_reply(supervisor, store),
         Request::SetStorageCap { bytes } => cap_set_reply(bytes, supervisor, serving, store),
         Request::AcknowledgeLostPermission { permission } => {

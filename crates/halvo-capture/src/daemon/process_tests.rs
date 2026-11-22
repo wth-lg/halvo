@@ -2010,10 +2010,19 @@ fn status_until(
     what: &str,
     done: impl Fn(&halvo_control::proto::DaemonStatus) -> bool,
 ) -> halvo_control::proto::DaemonStatus {
+    asked_status_until(dir, false, what, done)
+}
+
+fn asked_status_until(
+    dir: &Path,
+    indicator: bool,
+    what: &str,
+    done: impl Fn(&halvo_control::proto::DaemonStatus) -> bool,
+) -> halvo_control::proto::DaemonStatus {
     use halvo_control::proto::{Reply, Request};
     let started = Instant::now();
     loop {
-        if let Ok(Reply::Status(status)) = ask(dir, &Request::Status { indicator: false }) {
+        if let Ok(Reply::Status(status)) = ask(dir, &Request::Status { indicator }) {
             if done(&status) {
                 return status;
             }
@@ -2075,6 +2084,9 @@ fn a_service_run_reads_the_grants_from_its_probe_and_ends_with_4_at_a_new_grant(
         );
         std::thread::spawn(move || {
             let _stop = StopOnPanic(stop);
+            wait_until(READY_WITHIN, "the foreground source began", || {
+                !calls.of("begin foreground").is_empty()
+            });
             wait_until(READY_WITHIN, "the probe was started", || {
                 !probe.asked().is_empty()
             });
@@ -2307,6 +2319,9 @@ fn an_ask_records_the_permission_starts_one_request_child_and_answers_requested(
         );
         std::thread::spawn(move || {
             let _stop = StopOnPanic(stop.clone());
+            status_until(&dir, "the store is open", |status| {
+                status.fields().store == halvo_control::proto::StoreState::Open
+            });
             wait_until(READY_WITHIN, "the probe was started", || {
                 !probe.asked().is_empty()
             });
@@ -2412,4 +2427,115 @@ fn an_ask_records_the_permission_starts_one_request_child_and_answers_requested(
     );
     assert_eq!(state_bytes(&corrupt), b"{\"v\":");
     assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+}
+
+#[test]
+fn a_paused_service_reads_the_grants_of_its_switches_and_ends_with_4_at_a_new_grant() {
+    use halvo_control::proto::{Capture, Request};
+    let screen = Permission::ScreenAndSystemAudioRecording;
+    let input = Permission::InputMonitoring;
+    let both =
+        move |on_screen, on_input| Probed::Answered(vec![(screen, on_screen), (input, on_input)]);
+    let (dir, _) = running_dir(true);
+    StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    )
+    .update(|state| state.desired = super::state::Desired::Paused)
+    .unwrap();
+    let life = Probing::new();
+    let queue = life.probe.answers.clone();
+    queue
+        .lock()
+        .unwrap()
+        .push_back(both(GrantState::NotGranted, GrantState::NotGranted));
+    let asking = {
+        let (dir, probe, jump, stop) = (
+            dir.clone(),
+            life.probe.clone(),
+            life.jump.clone(),
+            life.stop.clone(),
+        );
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop);
+            let jump_by = |by: Duration| *jump.lock().unwrap() += by;
+            let page = || ask(&dir, &Request::Status { indicator: false });
+            let a_few_ticks = || std::thread::sleep(Duration::from_millis(400));
+            asked_status_until(&dir, true, "the rows read the first answer", |status| {
+                status.fields().capture == Capture::Paused
+                    && grant_row(status, screen).grant == GrantState::NotGranted
+                    && grant_row(status, input).grant == GrantState::NotGranted
+            });
+            let first = probe.asked();
+            assert!(
+                first.len() == 1
+                    && first[0].len() == 2
+                    && first[0].contains(&screen)
+                    && first[0].contains(&input),
+                "what a paused service asks first: {first:?}"
+            );
+
+            jump_by(Duration::from_secs(4));
+            a_few_ticks();
+            let _ = asked_status_until(&dir, true, "a claim", |_| true);
+            a_few_ticks();
+            assert_eq!(
+                probe.asked().len(),
+                1,
+                "a probe within 60 s with claims alone"
+            );
+
+            queue
+                .lock()
+                .unwrap()
+                .push_back(both(GrantState::NotGranted, GrantState::NotGranted));
+            let _ = page();
+            jump_by(Duration::from_secs(4));
+            wait_until(READY_WITHIN, "a probe 3 s after the page's Status", || {
+                probe.asked().len() == 2
+            });
+            wait_until(READY_WITHIN, "the second answer was read", || {
+                queue.lock().unwrap().is_empty()
+            });
+
+            jump_by(super::supervisor::CLIENT_POLL_WINDOW + Duration::from_secs(1));
+            a_few_ticks();
+            let _ = asked_status_until(&dir, true, "a claim", |_| true);
+            a_few_ticks();
+            assert_eq!(
+                probe.asked().len(),
+                2,
+                "a probe within 60 s once the window had passed"
+            );
+
+            queue
+                .lock()
+                .unwrap()
+                .push_back(both(GrantState::Granted, GrantState::NotGranted));
+            let _ = page();
+            jump_by(Duration::from_secs(4));
+            probe.asked()
+        })
+    };
+    let (status, err) = life.serve(&dir, super::sources::tests::Factory::new());
+    let asked = asking.join().unwrap();
+    assert!(
+        asked
+            .iter()
+            .all(|named| !named.contains(&Permission::Accessibility)),
+        "{asked:?}"
+    );
+    assert_eq!(status, halvo_control::exit::RESTART, "{err}");
+    let state = StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    );
+    assert_eq!(
+        (
+            state.state().desired,
+            state.state().permissions_once_granted.clone()
+        ),
+        (super::state::Desired::Paused, Vec::new()),
+        "the life that ended at the new grant left the state file as it is"
+    );
 }

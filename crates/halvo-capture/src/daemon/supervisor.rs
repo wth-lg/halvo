@@ -77,6 +77,10 @@ pub const PROBE_INTERVAL: Duration = Duration::from_secs(60);
 /// and a client polls.
 pub const PROBE_INTERVAL_MISSING: Duration = Duration::from_secs(3);
 
+/// How long a client's Status without the indicator claim counts as a client
+/// that polls, for the cadence of [`PROBE_INTERVAL_MISSING`].
+pub const CLIENT_POLL_WINDOW: Duration = Duration::from_secs(10);
+
 /// The secure-input line of an input source with a hold plan whose stop did
 /// not answer a stop (ruling MA-9 part (5)).
 pub fn hold_stays_line(pid: u32) -> String {
@@ -462,6 +466,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     probe_missing: bool,
     probe_asked: bool,
     client_polls: bool,
+    polled_until: Option<Duration>,
     ending: Option<Ending>,
     entered: bool,
     err: Box<dyn Write + Send>,
@@ -508,6 +513,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             probe_missing: false,
             probe_asked: false,
             client_polls: false,
+            polled_until: None,
             ending: None,
             entered: false,
             err: Box::new(std::io::stderr()),
@@ -778,6 +784,13 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// while a required permission is not granted.
     pub fn set_client_polls(&mut self, polls: bool) {
         self.client_polls = polls;
+    }
+
+    /// A client's Status without the indicator claim: for
+    /// [`CLIENT_POLL_WINDOW`] from now a client counts as one that polls.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn client_polled(&mut self) {
+        self.polled_until = Some(self.main_loop.now() + CLIENT_POLL_WINDOW);
     }
 
     /// The start sequence's second half, after the owner's acknowledgement of
@@ -1190,8 +1203,20 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     }
 
     fn required(&self) -> Vec<Permission> {
+        let idle = if self.wanted.is_empty() && self.life.is_some() {
+            self.state_file().map_or_else(Vec::new, |state| {
+                super::sources::starting(
+                    self.platform,
+                    super::sources::RunKind::Service,
+                    state.state().switches,
+                )
+            })
+        } else {
+            Vec::new()
+        };
         self.wanted
             .iter()
+            .chain(&idle)
             .filter_map(|name| required_permission(self.platform, *name))
             .collect()
     }
@@ -1202,7 +1227,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if required.is_empty() {
             return None;
         }
-        let interval = if self.probe_missing && self.client_polls {
+        let polls = self.client_polls || self.polled_until.is_some_and(|until| now < until);
+        let interval = if self.probe_missing && polls {
             PROBE_INTERVAL_MISSING
         } else {
             PROBE_INTERVAL
