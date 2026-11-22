@@ -800,9 +800,9 @@ pub async fn delete_all<R: Runtime>(
 /// The supervisor of the app's daemon child, as a run that must not meet the child holds it.
 pub trait WithoutTheChild: Send + Sync {
     /// Ends the app's child of the moment by its descriptor, starts no child while `run` runs,
-    /// and then lets the supervisor go on by its rule. The app did not ask for that end in order
-    /// to restart: an end with 0 of a child that answered as the app's own is followed by no
-    /// start until a person's press.
+    /// and after `run`, one that returns or one that unwinds, starts no child by itself, whatever
+    /// the end of that child, until a person's press on Start behind the run or the next launch
+    /// of the app.
     #[cfg_attr(
         not(target_os = "macos"),
         allow(dead_code, reason = "Remove Halvo, the door's caller, is macOS code")

@@ -536,14 +536,16 @@ impl ChildPid {
         self.read.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// How many answers the app's control has taken.
+    /// How many answers the app's control has taken, not counting any answer of a request that
+    /// named a child of the app which had ended by the time the answer came: such an answer, the
+    /// late answer of that child among them, tells nothing of a service that holds the directory.
     #[cfg(any(target_os = "macos", windows, test))]
     pub fn answers(&self) -> u64 {
         self.read().answers
     }
 
-    /// Whether an answer came after the first `answers` ones and the newest answer reads that no
-    /// daemon answers.
+    /// Whether an answer that `answers` counts came after the first `answers` ones and the newest
+    /// such answer reads that no daemon answers.
     #[cfg(any(target_os = "macos", windows, test))]
     pub fn no_daemon_after(&self, answers: u64) -> bool {
         let read = self.read();
@@ -590,9 +592,12 @@ impl ChildPid {
         status: Option<&DaemonStatus>,
     ) {
         let mut read = self.read();
+        if before.is_some_and(|child| self.get() != Some(child)) {
+            return;
+        }
         read.answers += 1;
         read.no_daemon = matches!(error, Some(ClientError::Unreachable { .. }));
-        let Some(child) = before.filter(|child| self.get() == Some(*child)) else {
+        let Some(child) = before else {
             return;
         };
         if status.is_some_and(|status| status.fields().pid == child) {
