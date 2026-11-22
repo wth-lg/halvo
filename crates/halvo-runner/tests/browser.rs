@@ -767,7 +767,9 @@ fn a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind() {
 
 /// U4.1w (5), the row `win_single_argument_inside_quotes` of `terminator_table` (crates/halvo-web/src/checks.rs):
 /// a browser started with the one argument `--app=x --single-argument`, which the system writes in quotes, before
-/// the profile's switch takes that profile directory: the directory exists and holds an entry.
+/// the profile's switch takes that profile directory: the directory exists and holds an entry. The browser gets TMP
+/// and TEMP of its own in a scratch directory of the test, in place of the temporary directory of the tests (the
+/// coordinator's line 14089).
 #[cfg(windows)]
 #[test]
 fn the_browser_takes_the_profile_after_a_quoted_single_argument() {
@@ -776,7 +778,9 @@ fn the_browser_takes_the_profile_after_a_quoted_single_argument() {
         return;
     };
     let profile = support::scratch("single-argument").join("profile");
+    let temp = support::scratch("single-argument-tmp");
     let mut child = std::process::Command::new(&browser)
+        .envs([("TMP", &temp), ("TEMP", &temp)])
         .arg("--app=x --single-argument")
         .arg(format!("--user-data-dir={}", profile.display()))
         .args([
