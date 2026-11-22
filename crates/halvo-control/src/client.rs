@@ -440,7 +440,10 @@ impl Connector for UnsupportedConnector {
 #[cfg(target_os = "macos")]
 pub type SystemConnector = crate::client_unix::UnixConnector;
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(windows)]
+pub type SystemConnector = crate::client_windows::PipeConnector;
+
+#[cfg(not(any(target_os = "macos", windows)))]
 pub type SystemConnector = UnsupportedConnector;
 
 /// The connector to the daemon of `data_dir` on this system.
@@ -449,8 +452,15 @@ pub fn system_connector(data_dir: &crate::paths::DataDir) -> Result<SystemConnec
     crate::client_unix::UnixConnector::for_data_dir(data_dir, &crate::paths::SystemAccount)
 }
 
-/// The connector to the daemon of `data_dir` on this system.
-#[cfg(not(target_os = "macos"))]
+/// The connector to the daemon of `data_dir` on this system: on Windows the named pipe of the
+/// data directory.
+#[cfg(windows)]
+pub fn system_connector(data_dir: &crate::paths::DataDir) -> Result<SystemConnector, ClientError> {
+    crate::client_windows::PipeConnector::for_data_dir(data_dir)
+}
+
+/// The connector to the daemon of `data_dir` on a system that has no control channel.
+#[cfg(not(any(target_os = "macos", windows)))]
 pub fn system_connector(data_dir: &crate::paths::DataDir) -> Result<SystemConnector, ClientError> {
     let _ = data_dir;
     Ok(UnsupportedConnector)
@@ -463,16 +473,16 @@ pub type CtlConnector = crate::client_windows::PipeConnector;
 pub type CtlConnector = SystemConnector;
 
 /// The connector that `ctl` takes to the daemon of `data_dir`: on Windows the named pipe of the
-/// data directory, which [`system_connector`], the app's, does not give until a daemon runs on
-/// Windows; elsewhere the connector of [`system_connector`].
+/// data directory, as [`system_connector`], the app's, gives it; elsewhere the connector of
+/// [`system_connector`].
 #[cfg(windows)]
 pub fn ctl_connector(data_dir: &crate::paths::DataDir) -> Result<CtlConnector, ClientError> {
     crate::client_windows::PipeConnector::for_data_dir(data_dir)
 }
 
 /// The connector that `ctl` takes to the daemon of `data_dir`: on Windows the named pipe of the
-/// data directory, which [`system_connector`], the app's, does not give until a daemon runs on
-/// Windows; elsewhere the connector of [`system_connector`].
+/// data directory, as [`system_connector`], the app's, gives it; elsewhere the connector of
+/// [`system_connector`].
 #[cfg(not(windows))]
 pub fn ctl_connector(data_dir: &crate::paths::DataDir) -> Result<CtlConnector, ClientError> {
     system_connector(data_dir)
@@ -2237,17 +2247,23 @@ mod tests {
         assert_eq!(connector.ended_requests(), 1);
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
     #[test]
-    fn on_this_system_the_client_has_no_channel_yet_and_says_unsupported() {
-        let dir = crate::paths::DataDir::from_flag(if cfg!(windows) {
-            r"C:\halvo-data"
-        } else {
-            "/halvo-data"
-        })
+    fn on_windows_the_apps_connector_is_the_pipe_of_the_data_directory() {
+        let dir = crate::paths::DataDir::from_flag(format!(
+            r"C:\halvo-data-with-no-service-{}",
+            std::process::id()
+        ))
         .unwrap();
-        let client = Client::new(system_connector(&dir).unwrap());
-        assert!(matches!(client.status(), Err(ClientError::Unsupported)));
-        assert!(matches!(client.stop(), Err(ClientError::Unsupported)));
+        let pipe = ctl_connector(&dir).unwrap().endpoint();
+        let connector = system_connector(&dir).unwrap();
+        assert_eq!(connector.endpoint(), pipe);
+        let client = Client::new(connector);
+        for answer in [client.status().map(|_| ()), client.stop().map(|_| ())] {
+            assert!(
+                matches!(&answer, Err(ClientError::Unreachable { endpoint }) if *endpoint == pipe),
+                "{answer:?}"
+            );
+        }
     }
 }
