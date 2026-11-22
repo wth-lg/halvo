@@ -231,6 +231,29 @@ impl Views {
                 latest.status = None;
             }
         }
+        self.wake_the_poller();
+    }
+
+    /// The view of this moment, with the app's hold, and the number of the poll that gave it
+    /// where that poll's call was made at or after the newest answer of a mutation taken, that
+    /// is where its number is at or past the mark. No number goes with a view that an answer
+    /// gave, Connecting behind a delete's answer among them, nor with the view of a poll made
+    /// before that answer, also where it stands on behind a refusal.
+    pub fn reading(&self) -> (StatusView, Option<u64>) {
+        let (view, poll) = {
+            let latest = self.latest();
+            (
+                latest.view.clone(),
+                latest
+                    .poll_number
+                    .filter(|number| *number >= latest.mutation_mark),
+            )
+        };
+        (self.marked(view), poll)
+    }
+
+    /// Wakes the poller for a poll at once.
+    pub fn wake_the_poller(&self) {
         *self.woken.lock().unwrap_or_else(|e| e.into_inner()) = true;
         self.wake.notify_all();
     }

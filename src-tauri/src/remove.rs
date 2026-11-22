@@ -1329,12 +1329,19 @@ mod tests {
                     );
                     std::thread::sleep(Duration::from_millis(5));
                 }
-                expected.push("lift the runs".to_owned());
+                let calls = Arc::<crate::commands::control::Places>::default();
+                held.runs.drawn(held.core.as_deref(), &views, &calls);
+                views.take_poll(
+                    calls.make().number(),
+                    &Err(halvo_control::client::ClientError::Unsupported),
+                );
+                held.runs.drawn(held.core.as_deref(), &views, &calls);
                 expected.push("start 8".to_owned());
+                expected.push("lift the runs".to_owned());
                 assert_eq!(
                     noted(&record),
                     expected,
-                    "the child ended first, a press while the list ran did nothing, and a list that stopped has no exit"
+                    "the child ended first, a press while the list ran did nothing, a list that stopped has no exit, and the lift comes at the first poll read behind the list"
                 );
                 let _ = consent(
                     &Gated::new(Unresolved),
@@ -1376,10 +1383,17 @@ mod tests {
             )
         }));
         assert!(unwound.is_err(), "the step unwinds through the list");
+        let calls = Arc::<crate::commands::control::Places>::default();
+        held.runs.drawn(held.core.as_deref(), &views, &calls);
+        views.take_poll(
+            calls.make().number(),
+            &Err(halvo_control::client::ClientError::Unsupported),
+        );
+        held.runs.drawn(held.core.as_deref(), &views, &calls);
         assert_eq!(
             noted(&record),
             vec!["hold the runs".to_owned(), "lift the runs".to_owned()],
-            "the core was told to hold once and to lift once"
+            "the core was told to hold once and to lift once, at the first poll read behind the unwind"
         );
         assert!(
             views.hold().begin_consent().is_some(),

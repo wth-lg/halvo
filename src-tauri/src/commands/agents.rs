@@ -2,7 +2,7 @@
 //! `halvo_coord::types::commands::LIST`, which the handler of halvo-coord-app answers for the
 //! page of the window main alone, through the `Agents` that the app manages.
 
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use halvo_coord::items::ConfirmAnswer;
@@ -14,9 +14,10 @@ use serde_json::Value;
 use tauri::ipc::Invoke;
 use tauri::{AppHandle, Manager, Runtime};
 
-use super::control::Control;
+use super::control::{Control, Places};
 use super::names::{Names, AGENTS};
 use super::Registration;
+use crate::poller::Views;
 use halvo_control::paths::DataDir;
 
 pub struct Module;
@@ -42,30 +43,85 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
 }
 
 /// The app's hold on the agents' runs (the coordinator's lines 12397 and 12465 of the capture
-/// run): it stands while a delete of everything runs at either door and while the view's store
-/// reads deleting or error locked, and is lifted once neither stands. The core's `hold_runs`
-/// refuses every start while it stands, the person's, the queue's and a tick's, and stops the
-/// runs at work; calls to the core go one at a time, each with what is wanted at its turn.
+/// run): it stands while a delete of everything runs at any door, behind the end of such a
+/// delete until the view of a poll made after that end is drawn (`Owed`), and while the view's
+/// store reads deleting or error locked, and is lifted once none of these stands. The core's
+/// `hold_runs` refuses every start while it stands, the person's, the queue's and a tick's, and
+/// stops the runs at work; calls to the core go one at a time, each with what is wanted at its
+/// turn.
 #[derive(Debug, Default)]
 pub struct RunsHold {
-    wanted: Mutex<(usize, bool)>,
+    wanted: Mutex<Wanted>,
     applied: Mutex<bool>,
 }
 
+/// What the hold wants at a moment: it stands while a delete runs, while the newest view drawn
+/// bars, or while a reading is owed.
+#[derive(Debug, Default)]
+struct Wanted {
+    deletes: usize,
+    barred: bool,
+    owed: Owed,
+}
+
+impl Wanted {
+    fn held(&self) -> bool {
+        self.deletes > 0 || self.barred || self.owed != Owed::Nothing
+    }
+}
+
+/// The reading that the end of a delete of everything owes the hold, in three steps.
+///
+/// 1. The end: `delete_ends`, from the drop of a door's guard (`HeldForADelete` at the service's
+///    door and the offline door, the guard of Remove Halvo's list), which comes after the
+///    delete's answer and before the door takes that answer into the views; from then on the
+///    hold stands while the reading is owed.
+/// 2. The fence: the first draw after that end sets it at the next call number of the app's
+///    places, read under the hold's lock, and wakes the poller. Every poll at or past the fence
+///    was made after the end, and so after the answer. No view that a draw reads before a poll
+///    at or past the fence lifts the hold: the view of a poll made before the end, Connecting
+///    behind a delete's answer, and the view of before drawn again behind a refusal.
+/// 3. The reading: the first draw whose views hold the view of a poll at or past the fence
+///    clears it, and the hold lifts there unless that view bars.
+///
+/// It cannot stand for good while the poller runs: the door draws behind its answer and each
+/// round of the poller draws, so the fence comes at the first of these draws; the woken
+/// poller's next poll is made after it, and its answer is taken as a view, a status or any
+/// error, no service among them. Two answers are not taken. One is a poll made before a newer
+/// answer of a mutation, and the poller's next poll follows it. The other is a deadline while a
+/// delete of the app is in flight, and that delete's own end owes a new reading. Where no
+/// poller runs, as in the launch form `--delete-all` and in a test app, nothing clears it, and
+/// at a quit the process may end first: there the hold stands until the process ends.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum Owed {
+    /// No reading is owed.
+    #[default]
+    Nothing,
+    /// A delete ended, and no draw has set the fence since.
+    Unfenced,
+    /// The view of a poll whose call has this number or a later one.
+    From(u64),
+}
+
 impl RunsHold {
+    fn wanted(&self) -> MutexGuard<'_, Wanted> {
+        self.wanted.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     /// A delete of everything begins: the runs are held, and the call returns once the core has
     /// stopped them, within its grace.
     pub fn delete_begins(&self, core: Option<&dyn Core>) {
-        self.wanted.lock().unwrap_or_else(PoisonError::into_inner).0 += 1;
+        self.wanted().deletes += 1;
         self.apply(core);
     }
 
-    /// A delete of everything ended: the hold is lifted unless another delete runs or the view
-    /// still reads deleting or locked.
+    /// A delete of everything ended: a reading is owed (`Owed`), and the hold stands on until
+    /// it is drawn, and longer while another delete runs or the view bars.
     pub fn delete_ends(&self, core: Option<&dyn Core>) {
         {
-            let mut wanted = self.wanted.lock().unwrap_or_else(PoisonError::into_inner);
-            wanted.0 = wanted.0.saturating_sub(1);
+            let mut wanted = self.wanted();
+            wanted.deletes = wanted.deletes.saturating_sub(1);
+            wanted.owed = Owed::Unfenced;
         }
         self.apply(core);
     }
@@ -81,14 +137,42 @@ impl RunsHold {
         }
     }
 
-    /// What the newest view reads, `bars` of it: the hold stands while it bars.
-    pub fn view_reads(&self, core: Option<&dyn Core>, barred: bool) {
-        self.wanted.lock().unwrap_or_else(PoisonError::into_inner).1 = barred;
-        self.apply(core);
+    /// What a draw tells the hold, from `views` at that moment: whether their view bars, and,
+    /// behind a delete's end, the fence at the next call number of `places` or the reading
+    /// (`Owed`). Returns whether what is wanted changed, for `apply`.
+    fn told_by_a_draw(&self, views: &Views, places: &Places) -> bool {
+        let (view, poll) = views.reading();
+        let mut wanted = self.wanted();
+        let held = wanted.held();
+        wanted.barred = Self::bars(&view);
+        match wanted.owed {
+            Owed::Unfenced => {
+                wanted.owed = Owed::From(places.next_number());
+                views.wake_the_poller();
+            }
+            Owed::From(fence) if poll.is_some_and(|number| number >= fence) => {
+                wanted.owed = Owed::Nothing;
+            }
+            Owed::Nothing | Owed::From(_) => {}
+        }
+        wanted.held() != held
     }
 
-    fn barred_by_the_view(&self) -> bool {
-        self.wanted.lock().unwrap_or_else(PoisonError::into_inner).1
+    /// A draw of `views`, as `hold_by_the_view` makes it, with the core told at once and not
+    /// on a thread of its own.
+    #[cfg(test)]
+    pub fn drawn(&self, core: Option<&dyn Core>, views: &Views, places: &Places) {
+        if self.told_by_a_draw(views, places) {
+            self.apply(core);
+        }
+    }
+
+    /// What the newest view reads, `bars` of it, told with no views: the hold stands while it
+    /// bars.
+    #[cfg(test)]
+    pub fn view_reads(&self, core: Option<&dyn Core>, barred: bool) {
+        self.wanted().barred = barred;
+        self.apply(core);
     }
 
     /// Whether the hold stands as last told to the core.
@@ -99,10 +183,7 @@ impl RunsHold {
 
     fn apply(&self, core: Option<&dyn Core>) {
         let mut applied = self.applied.lock().unwrap_or_else(PoisonError::into_inner);
-        let held = {
-            let wanted = self.wanted.lock().unwrap_or_else(PoisonError::into_inner);
-            wanted.0 > 0 || wanted.1
-        };
+        let held = self.wanted().held();
         if held != *applied {
             *applied = held;
             if let Some(core) = core {
@@ -113,13 +194,17 @@ impl RunsHold {
 }
 
 /// What a draw of the app's view tells the agents' hold, from the drawer of `app::build`: the
-/// store of the view, read with the app's own state and core.
-pub fn hold_by_the_view<R: Runtime>(app: &AppHandle<R>, view: &crate::view_state::StatusView) {
+/// views and the places of the app's own state, read by the hold under its lock in the order of
+/// the draws, and a change of what is wanted goes to the core on a thread of its own. The view
+/// of the draw is not read: the views may hold a newer one, taken while the draw ran.
+pub fn hold_by_the_view<R: Runtime>(app: &AppHandle<R>, _view: &crate::view_state::StatusView) {
     let Some(state) = app.try_state::<super::capture::AppState>() else {
         return;
     };
-    let barred = RunsHold::bars(view);
-    if state.runs.barred_by_the_view() == barred {
+    if !state
+        .runs
+        .told_by_a_draw(&state.views, state.control.places())
+    {
         return;
     }
     let core = app
@@ -128,7 +213,7 @@ pub fn hold_by_the_view<R: Runtime>(app: &AppHandle<R>, view: &crate::view_state
     let runs = Arc::clone(&state.runs);
     let _ = std::thread::Builder::new()
         .name("halvo-runs-hold".to_owned())
-        .spawn(move || runs.view_reads(core.as_deref(), barred));
+        .spawn(move || runs.apply(core.as_deref()));
 }
 
 /// The steps of the app's start that go with its `Core`, which the app takes on the thread of its
@@ -291,9 +376,7 @@ mod tests {
         fn wait_for(&self, count: usize) -> Vec<bool> {
             let holds = self.holds.lock().unwrap_or_else(PoisonError::into_inner);
             self.told
-                .wait_timeout_while(holds, Duration::from_secs(30), |holds| {
-                    holds.len() < count
-                })
+                .wait_timeout_while(holds, Duration::from_secs(30), |holds| holds.len() < count)
                 .unwrap_or_else(PoisonError::into_inner)
                 .0
                 .clone()
@@ -382,7 +465,11 @@ mod tests {
             state.runs.stands(),
             "the hold stands behind the delete's answer, drawn as Connecting"
         );
-        assert_eq!(core.holds(), [true], "no lift reaches the core behind the answer");
+        assert_eq!(
+            core.holds(),
+            [true],
+            "no lift reaches the core behind the answer"
+        );
         a_poll_drawn(&app, sample_status(Platform::Macos));
         assert_eq!(
             core.wait_for(2),
