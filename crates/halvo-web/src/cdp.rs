@@ -1795,33 +1795,96 @@ impl Executor {
         Ok(0)
     }
 
-    /// `fill` of a control that is no credential field after the focus that the fill makes: the
-    /// ref is focused, its mark read again (`focus_unless_credential`), and only then filled, so
-    /// that a field that becomes a password field when it is focused gets no text.
+    /// `fill` that sends no text to a credential field: it focuses the ref and selects its text as
+    /// `fill` does, then reads the mark of the element that holds the focus, the one that the text
+    /// will reach (`focus_is_credential`), and sends the text as one insert only where that
+    /// element reads no credential; refused with the cause `credential` otherwise.
     pub async fn fill_unless_credential(&self, reference: &str, text: &str) -> Res<()> {
-        self.focus_unless_credential(reference).await?;
-        self.fill(reference, text).await
-    }
-
-    /// `press` of a control that is no credential field after the focus that the press makes, read
-    /// as `fill_unless_credential` reads it.
-    pub async fn press_unless_credential(&self, reference: &str, key: &str) -> Res<()> {
-        self.focus_unless_credential(reference).await?;
-        self.press(reference, key).await
-    }
-
-    /// Focuses the ref and reads its credential mark after the focus, the mark alone
-    /// (`CREDENTIAL_FN`); refused with the cause `credential` where it reads credential now.
-    async fn focus_unless_credential(&self, reference: &str) -> Res<()> {
         let t = self.target(reference)?;
         self.focus(&t).await?;
-        if self.is_credential(&t.place, &t.node).await? {
-            return Err(Fault::new(
-                "credential",
-                "a credential field after its focus",
-            ));
+        self.call_on(
+            &t.place,
+            &t.node,
+            "function () { if (this.select) this.select(); }",
+            Vec::new(),
+        )
+        .await?;
+        if self.focus_is_credential(&t.place).await? {
+            return Err(Fault::new("credential", "the focus is a credential field"));
+        }
+        self.exec(&t.place, "fill", InsertTextParams::new(text))
+            .await?;
+        Ok(())
+    }
+
+    /// `press` that sends no key to a credential field: it focuses the ref, then reads the mark of
+    /// the element that holds the focus (`focus_is_credential`) and sends the key, down and up,
+    /// only where that element reads no credential; refused with the cause `credential` otherwise.
+    pub async fn press_unless_credential(&self, reference: &str, key: &str) -> Res<()> {
+        let t = self.target(reference)?;
+        self.focus(&t).await?;
+        let (code, text) = match key {
+            "Enter" => (13, "\r"),
+            "Tab" => (9, ""),
+            "Escape" => (27, ""),
+            _ => return Err(Fault::new("press", "key")),
+        };
+        if self.focus_is_credential(&t.place).await? {
+            return Err(Fault::new("credential", "the focus is a credential field"));
+        }
+        for kind in [DispatchKeyEventType::KeyDown, DispatchKeyEventType::KeyUp] {
+            let mut b = DispatchKeyEventParams::builder()
+                .r#type(kind.clone())
+                .key(key)
+                .code(key)
+                .windows_virtual_key_code(code);
+            if kind == DispatchKeyEventType::KeyDown && !text.is_empty() {
+                b = b.text(text);
+            }
+            let params = b.build().map_err(|e| Fault::new("press", e))?;
+            self.exec(&t.place, "press", params).await?;
         }
         Ok(())
+    }
+
+    /// Whether the element that holds the focus in the document of `place`, the one that a text or
+    /// a key reaches, is a credential field by `CREDENTIAL_FN`, the mark alone. Where that element
+    /// cannot be read it reads credential: no element holds the focus (the body or none), the
+    /// focus stands in a frame, or the element has a shadow root other than the browser's own,
+    /// which the executor does not enter.
+    async fn focus_is_credential(&self, place: &Place) -> Res<bool> {
+        let active = EvaluateParams::builder()
+            .expression("document.activeElement")
+            .return_by_value(false)
+            .build()
+            .map_err(|e| Fault::new("focus", e))?;
+        let r = self.exec(place, "focus", active).await?;
+        let Some(object) = r.result.object_id.filter(|_| r.exception_details.is_none()) else {
+            return Ok(true);
+        };
+        let node = self
+            .exec(
+                place,
+                "focus",
+                DescribeNodeParams::builder()
+                    .object_id(object)
+                    .depth(1)
+                    .pierce(true)
+                    .build(),
+            )
+            .await?
+            .node;
+        let unread = matches!(
+            node.node_name.to_ascii_uppercase().as_str(),
+            "BODY" | "HTML" | "IFRAME" | "FRAME"
+        ) || node.shadow_roots.iter().flatten().any(|root| {
+            root.shadow_root_type
+                != Some(chromiumoxide::cdp::browser_protocol::dom::ShadowRootType::UserAgent)
+        });
+        if unread {
+            return Ok(true);
+        }
+        self.is_credential(place, &node.backend_node_id).await
     }
 }
 
