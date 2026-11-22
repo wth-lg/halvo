@@ -539,13 +539,17 @@ pub fn account_hook() -> (Outcome, Detail) {
 /// Remove Halvo (contracts.md C10.7 and item 8 of C17): the steps of `STEPS` in their order,
 /// each answered, up to the first that fails. Where `places` was refused it runs nothing. The
 /// app's child is ended first, with no request, and every start is held to the end of the list:
-/// the child's by `WithoutTheChild`, the agents' runs by the hold of `before`, taken before the
-/// account step. After a whole list `hold` is marked removed, so that no press writes the login
-/// item or asks for a child, the child's supervisor ends as at a quit, so that no child starts
-/// after it, and the agents' runs stay held to the end of the app; after a list that stopped the
-/// runs' hold is lifted and the supervisor goes on by its rule. The account step
-/// is `account`; the delete is the offline delete of `offline` after `before`, and it is done
-/// only where it deleted and left nothing of the store, or found no store.
+/// the child's by `WithoutTheChild`, and from the child's end on, before the account step, the
+/// agents' runs by a guard of the list, which also sets the mark of a removal on `hold`, so that
+/// no press writes the login item or asks for a child while the list runs. The guard is made
+/// before its hold begins, as the delete's own is, and its drop lifts the runs' hold once and
+/// takes the mark off: after a list that stopped, and where a step unwinds. After a whole list
+/// the list keeps the guard (`keep` marks it kept, and its drop then lifts nothing), so the runs
+/// stay held and the mark stands to the end of the app, and the child's supervisor ends as at a
+/// quit, so that no child starts after it; after a list that stopped the supervisor goes on by
+/// its rule. The account step is `account`; the delete is the offline delete of `offline` after
+/// `before`, and it is done only where it deleted and left nothing of the store, or found no
+/// store.
 pub fn remove_halvo(
     places: Result<Places, Refused>,
     children: Option<&dyn TheChild>,
@@ -563,15 +567,13 @@ pub fn remove_halvo(
     };
     let mut removal = Removal::default();
     let mut run = || {
-        before.runs.delete_begins(before.core.as_deref());
+        let held = HeldForTheList::take(before, hold);
         removal.steps = steps_of(&places, account, offline, before);
         if removal.whole() {
-            hold.removed();
+            held.keep();
             if let Some(children) = children {
                 children.end();
             }
-        } else {
-            before.runs.delete_ends(before.core.as_deref());
         }
     };
     match children {
@@ -579,6 +581,38 @@ pub fn remove_halvo(
         None => run(),
     }
     removal
+}
+
+struct HeldForTheList<'a> {
+    before: &'a Before,
+    hold: &'a Hold,
+    kept: bool,
+}
+
+impl<'a> HeldForTheList<'a> {
+    fn take(before: &'a Before, hold: &'a Hold) -> Self {
+        let held = HeldForTheList {
+            before,
+            hold,
+            kept: false,
+        };
+        hold.removal(true);
+        before.runs.delete_begins(before.core.as_deref());
+        held
+    }
+
+    fn keep(mut self) {
+        self.kept = true;
+    }
+}
+
+impl Drop for HeldForTheList<'_> {
+    fn drop(&mut self) {
+        if !self.kept {
+            self.hold.removal(false);
+            self.before.runs.delete_ends(self.before.core.as_deref());
+        }
+    }
 }
 
 fn steps_of(
@@ -1231,20 +1265,32 @@ mod tests {
                 core: Some(Arc::new(HoldingCore(Arc::clone(&record)))),
                 ..before()
             };
+            let written = || {
+                note(&record, "login item written");
+                true
+            };
+            let pressed_while_it_runs = || {
+                let _ = consent(
+                    &Gated::new(Unresolved),
+                    &views,
+                    Some(&written),
+                    Duration::ZERO,
+                );
+                if views.hold().ask_start() {
+                    note(&record, "start asked");
+                }
+                account_hook()
+            };
             let removal = remove_halvo(
                 Places::new(&home, ID, &data, false),
                 Some(&supervisor),
                 views.hold(),
-                &account_hook,
+                &pressed_while_it_runs,
                 Some(&stand_in),
                 &held,
             );
             if let Some(code) = removal.exit() {
                 note(&record, format!("exit {code}"));
-                let written = || {
-                    note(&record, "login item written");
-                    true
-                };
                 let clicked = consent(
                     &Gated::new(Unresolved),
                     &views,
@@ -1253,7 +1299,7 @@ mod tests {
                 );
                 assert!(
                     !noted(&record).contains(&"login item written".to_owned()),
-                    "a press on Start after a whole removal writes no login item: {:?}",
+                    "a press on Start while the list runs or after a whole removal writes no login item: {:?}",
                     noted(&record)
                 );
                 assert!(clicked.is_ok(), "and does nothing: {clicked:?}");
@@ -1288,10 +1334,56 @@ mod tests {
                 assert_eq!(
                     noted(&record),
                     expected,
-                    "the child ended first, and a list that stopped has no exit"
+                    "the child ended first, a press while the list ran did nothing, and a list that stopped has no exit"
+                );
+                let _ = consent(
+                    &Gated::new(Unresolved),
+                    &views,
+                    Some(&written),
+                    Duration::ZERO,
+                );
+                assert_eq!(
+                    noted(&record).last().map(String::as_str),
+                    Some("login item written"),
+                    "after a list that stopped a click works again"
                 );
             }
             supervisor.end();
         }
+    }
+
+    #[test]
+    fn an_unwind_in_a_step_of_remove_halvo_lifts_the_hold_of_the_runs_once() {
+        let home = scratch_dir("remove-unwind").join("home");
+        let data = halvos_data(&home);
+        halvos_places(&home);
+        let record = Record::default();
+        let views = Arc::<Views>::default();
+        let held = Before {
+            core: Some(Arc::new(HoldingCore(Arc::clone(&record)))),
+            ..before()
+        };
+        let stand_in = offline(&data, &record, OfflineEnd::NoEnd);
+        let unwinds = || -> (Outcome, Detail) { panic!("a step of the list unwinds") };
+        let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            remove_halvo(
+                Places::new(&home, ID, &data, false),
+                None,
+                views.hold(),
+                &unwinds,
+                Some(&stand_in),
+                &held,
+            )
+        }));
+        assert!(unwound.is_err(), "the step unwinds through the list");
+        assert_eq!(
+            noted(&record),
+            vec!["hold the runs".to_owned(), "lift the runs".to_owned()],
+            "the core was told to hold once and to lift once"
+        );
+        assert!(
+            views.hold().begin_consent().is_some(),
+            "and after the unwind a consent click begins again"
+        );
     }
 }

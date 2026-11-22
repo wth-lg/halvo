@@ -209,7 +209,7 @@ struct HoldState {
     data_dir_unusable: bool,
     consenting: bool,
     login_item_written: Option<bool>,
-    removed: bool,
+    removing: bool,
 }
 
 /// A consent click in flight, from `Hold::begin_consent` to its drop.
@@ -329,7 +329,7 @@ impl Hold {
     /// supervisor has taken one. Answers whether it asked.
     pub fn ask_start(&self) -> bool {
         let mut state = self.state();
-        let start = !state.removed
+        let start = !state.removing
             && ((state.held && state.no_more_child) || (state.between && !state.child_lives));
         if start {
             state.start_asked = true;
@@ -355,22 +355,23 @@ impl Hold {
 
     /// Begins a consent click: none while the hold stands, whose press is then the hold's and
     /// never a new consent, while the data directory reads its own cause, while another consent
-    /// click is in flight, and after a whole removal of Halvo.
+    /// click is in flight, and while the mark of a removal of Halvo stands.
     pub fn begin_consent(&self) -> Option<Consenting<'_>> {
         let mut state = self.state();
-        if state.held || state.data_dir_unusable || state.consenting || state.removed {
+        if state.held || state.data_dir_unusable || state.consenting || state.removing {
             return None;
         }
         state.consenting = true;
         Some(Consenting(self))
     }
 
-    /// Marks a whole removal of Halvo: from then on, to the end of the app, no consent click
-    /// begins and no Start is asked, so that no press writes the login item again or asks for a
-    /// child.
+    /// Sets the mark of a removal of Halvo (`stands`), from the begin of its list, or takes it
+    /// off where the list stopped or unwound: while it stands no consent click begins and no
+    /// Start is asked, so that no press writes the login item again or asks for a child; after
+    /// a whole list it stands to the end of the app.
     #[cfg(target_os = "macos")]
-    pub fn removed(&self) {
-        self.state().removed = true;
+    pub fn removal(&self, stands: bool) {
+        self.state().removing = stands;
     }
 
     /// What the consent click read of its write of the login item: whether the plist stands
