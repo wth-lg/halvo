@@ -125,6 +125,7 @@ fn member(world: &World, n: usize) -> Member<Config> {
             store_ended: newest.is_none_or(|r| last.as_ref().is_some_and(|l| l.run == r)),
             replies: halvo_coord::types::Replies::NotAsked,
             unknown: Vec::new(),
+            refused: None,
             runs: last.into_iter().collect(),
             events,
             today: world.board.day,
@@ -157,6 +158,7 @@ fn world_with(spec: &[A], limits: Limits) -> World {
                 unknown: 0,
             }),
             unknown: vec![],
+            refused_run: None,
         });
         if a.finished {
             let run = RunId::parse(&format!("{:032x}", 0x900 + n)).unwrap();
@@ -372,6 +374,7 @@ fn what_name(w: &What) -> String {
             Cleared::Person => "hold_cleared person".into(),
             Cleared::Failures => "hold_cleared failures".into(),
             Cleared::Check { answer, .. } => format!("hold_cleared check {answer}"),
+            Cleared::SignInRefused { .. } => "hold_cleared sign_in_refused".into(),
         },
         What::SlotSkipped { slot } => format!(
             "slot_skipped {}",
@@ -1564,6 +1567,7 @@ fn listed_agent(w: &World, n: usize, made: &AgentId, a: &A) {
         session: false,
         last: None,
         unknown: vec![],
+        refused_run: None,
     });
 }
 
@@ -4478,4 +4482,52 @@ fn rd73_the_row_of_an_agent_whose_rows_have_left_says_not_yet_or_not_for_a_long_
             "the {life} life"
         );
     }
+}
+
+/// The events `hold_set` of the agent `n` that the owner stores, in their order.
+fn holds_set(w: &World, n: usize) -> Vec<HoldSetCause> {
+    w.stored()
+        .into_iter()
+        .filter(|e| e.agent == agent(n))
+        .filter_map(|e| match e.what {
+            What::HoldSet { cause } => Some(cause),
+            _ => None,
+        })
+        .collect()
+}
+
+/// U2.4h, sentence 1 (ruling RD-73 4.2; I5.4, I7.1): after ONE end of a run that the roster's key
+/// `refused_run` names, the agent is held by `sign_in_refused`, not after three; the end stores
+/// one `hold_set` that names the run and sends `paused` once, and a later read of the same sign
+/// stores nothing.
+#[test]
+fn one_end_of_a_run_whose_sign_in_was_refused_holds_the_agent_with_one_hold_set() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.owner_agent(0, |a| a.refused_run = Some(run.clone()));
+    w.forget();
+    w.end(&run, Some(Outcome::Failed));
+    assert_eq!(
+        holds_set(&w, 0),
+        vec![HoldSetCause::SignInRefused { run: run.clone() }],
+        "one hold_set that names the run"
+    );
+    assert_eq!(
+        w.calls()
+            .iter()
+            .filter(|c| *c == "set_state paused")
+            .count(),
+        1,
+        "{:?}",
+        w.calls()
+    );
+    assert_eq!(holds(w.facts(0)), vec![Hold::SignInRefused]);
+    w.forget();
+    w.tick();
+    assert_eq!(
+        holds_set(&w, 0).len(),
+        1,
+        "a tick after it stores no second hold_set"
+    );
+    assert_eq!(holds(w.facts(0)), vec![Hold::SignInRefused]);
 }

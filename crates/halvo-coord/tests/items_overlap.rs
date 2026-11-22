@@ -57,6 +57,7 @@ fn facts() -> Facts<Config> {
         store_ended: true,
         replies: halvo_coord::types::Replies::NotAsked,
         unknown: Vec::new(),
+        refused: None,
         today: DAY,
         doing: Doing::Idle(Some(OwnItem {
             item: item(),
@@ -79,6 +80,7 @@ fn ports() -> Ports<Config> {
         session: true,
         last: None,
         unknown: vec![],
+        refused_run: None,
     });
     p
 }

@@ -539,6 +539,12 @@ pub enum Cleared {
         /// `answer`: `try_again` or `went_through`.
         answer: CheckAnswer,
     },
+    /// `sign_in_refused`: the hold after a refused sign-in ended, with the run whose sign it
+    /// answered (ruling RD-73 4.2).
+    SignInRefused {
+        /// `run`.
+        run: RunId,
+    },
 }
 
 /// A coordinator body of A-A7.2 that `Owner::send` carries (I5.10).

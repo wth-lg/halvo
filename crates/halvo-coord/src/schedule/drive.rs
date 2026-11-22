@@ -1,7 +1,7 @@
 use super::{
-    clean, current_slot, held_by_events, holds, kept_off, slot_open, start_step, switch_on_state,
-    tick_plan, tick_step, wants_active, wants_paused, Around, Ask, Board, Dying, Go, Hold, LiveRun,
-    Member, Owed, Owing, StartStep, Stop, Verdict, Waiting,
+    clean, current_slot, held_by_events, holds, kept_off, refusal_unstored, slot_open, start_step,
+    switch_on_state, tick_plan, tick_step, wants_active, wants_paused, Around, Ask, Board, Dying,
+    Go, Hold, LiveRun, Member, Owed, Owing, StartStep, Stop, Verdict, Waiting,
 };
 use crate::items::drive::{alone, class_of, Alone, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Shared, Stamp};
@@ -229,6 +229,7 @@ fn refresh<C: Clone>(member: &mut Member<C>, entry: Option<&Agent<C>>, history: 
     }
     if let Some(a) = entry {
         facts.take_unknown(&a.unknown);
+        facts.refused.clone_from(&a.refused_run);
     }
 }
 
@@ -757,6 +758,51 @@ where
     Ok(())
 }
 
+/// Stores the one `hold_set` of the cause `sign_in_refused` for the run whose refused sign-in the
+/// facts of member `i` show and no event of that cause names (`refusal_unstored`), and once it is
+/// stored sends `set_state` `paused`, where the facts do not show the workflow `paused` already
+/// (I5.4; ruling RD-73 4.2): whether it stored one. A store that fails stores nothing, and the
+/// next move that reads the sign stores it, the hold standing by the facts meanwhile.
+fn hold_refused<P: Owner, C: ConfigView>(
+    cx: &MoveContext<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+) -> bool {
+    let Some(run) = refusal_unstored(&board.members[i].facts) else {
+        return false;
+    };
+    let set = What::HoldSet {
+        cause: HoldSetCause::SignInRefused { run },
+    };
+    if store(cx, board, i, vec![set]).is_err() {
+        return false;
+    }
+    if board.members[i].facts.workflow.state != WorkflowState::Paused {
+        let _ = send_state(cx, &mut board.members[i].facts, AgentState::Paused);
+    }
+    true
+}
+
+/// `hold_refused` for each agent of a workflow of `listed` whose place the board does not hold,
+/// which a move that read the roster makes before it serves the queue or starts anything: the
+/// end of a run and the tick (I5.4; ruling RD-73 4.2).
+fn hold_refusals<P: Owner, C: ConfigView>(
+    cx: &MoveContext<'_, P>,
+    board: &mut Board<C>,
+    listed: &[WorkflowId],
+) {
+    for i in 0..board.members.len() {
+        let facts = &board.members[i].facts;
+        let agent = facts.agent.clone();
+        if listed.contains(&facts.workflow.id)
+            && !board.place_held(&agent)
+            && !board.dismissed_unread(&agent)
+        {
+            hold_refused(cx, board, i);
+        }
+    }
+}
+
 /// Steps 5 to 8 of a start that passed steps 0 to 4 (I5.5): the request to defer, the store of
 /// the open `ready` item's answer `start` and of `run_started`, also of an item that the read
 /// after a refusal `seq` left open (`log_or_reread_once`, ruling RD-98), the body `start_run` and
@@ -961,6 +1007,15 @@ where
         StartStep { clear: Some(_), .. } => Some(Cause::Hold),
         StartStep { .. } => None,
     };
+    if around.listed && unread.is_none() && refusal_unstored(&board.members[i].facts).is_some() {
+        hold_refused(cx, board, i);
+        return Served {
+            agent,
+            answer: Err(Cause::Hold),
+            run: None,
+            shared: None,
+        };
+    }
     let mut step = steps(&mut board.members[i].facts);
     let served = |answer| Served {
         agent: agent.clone(),
@@ -1109,6 +1164,7 @@ where
             }
         }
     }
+    hold_refusals(cx, board, listed);
     Ended {
         run: run.clone(),
         cause,
@@ -1571,6 +1627,7 @@ fn read_again<P, C>(
     member.facts.events = events;
     member.facts.runs.clear();
     member.facts.unknown.clear();
+    member.facts.refused = None;
     let entry = agents.iter().find(|a| &a.agent == agent);
     refresh(member, entry, cx.limits.history_runs as usize);
     crate::run::read_replies(cx.ports, &mut member.facts);
@@ -1673,6 +1730,9 @@ where
     recover_aside(cx, board, &listed);
     board.reread_gone(cx.ports, cx.move_stamp.day());
     pay_owed(cx, board);
+    if starts {
+        hold_refusals(cx, board, &listed);
+    }
     for i in 0..board.members.len() {
         let facts = &board.members[i].facts;
         if listed.contains(&facts.workflow.id) && owes_paused(board, i) {
@@ -1860,6 +1920,7 @@ where
                 slots: a.slots.clone(),
                 runs: a.last.clone().into_iter().collect(),
                 unknown: Vec::new(),
+                refused: a.refused_run.clone(),
                 events: Vec::new(),
                 store_ended: true,
                 replies: crate::types::Replies::NotAsked,
@@ -2284,7 +2345,11 @@ fn stop_live<P: Owner + Runs, C: ConfigView>(
 /// `Runs::start` and answers `state`. The end of a run stores `run_ended`
 /// unless its workflow is gone, with `hold_set` of `failures` and `set_state` `paused` when the
 /// last `fails_to_pause` ends each have a cause of the failure class, which no end can find
-/// while that hold stands, and then takes one start from the queue; a failed start takes none. After what is owed
+/// while that hold stands, and then takes one start from the queue; a failed start takes none.
+/// Before it takes that start, the end stores the one `hold_set` of the cause `sign_in_refused`
+/// with `set_state` `paused` for each agent whose refused sign-in the roster shows and no event
+/// of that cause names (`hold_refused`; ruling RD-73 4.2), as a tick does after what is owed and
+/// a start does before its steps, where a start that stores it so answers `hold`. After what is owed
 /// and before any start, a tick sends `set_state` `paused` for each agent of a listed workflow
 /// that the board owes it (`owes_paused`: the rule over the facts of ruling RD-67 1.3 (b), or the
 /// mark of an `active` refused with `overlap`, RD-67 4.3), writing each acknowledged state into

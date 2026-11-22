@@ -1019,7 +1019,11 @@ fn event_of(r: &Value) -> Option<Event> {
             entry: entry()?,
         },
         "hold_set" => What::HoldSet {
-            cause: HoldSetCause::parse(s("cause")?).ok()?,
+            cause: match s("cause")? {
+                "person" => HoldSetCause::Person,
+                "failures" => HoldSetCause::Failures,
+                _ => return None,
+            },
         },
         "hold_cleared" => What::HoldCleared {
             cause: match s("cause")? {
@@ -1146,6 +1150,7 @@ fn agent_of(entry: &Value) -> Option<Agent<AgentConfig>> {
         session: entry["session"].as_str()? == "yes",
         last,
         unknown,
+        refused_run: None,
         config,
     })
 }

@@ -37,6 +37,9 @@ pub enum StatusLine {
     /// events (ruling RD-67 1.3 (c)). `all` does not list it until its fixture state of I8.3 is
     /// written.
     Kept,
+    /// `problem.sign_in_refused`: the hold `sign_in_refused` (ruling RD-73 4.3). `all` does not
+    /// list it until its fixture state of I8.3 is written.
+    SignInRefused,
     /// `problem.failures`: the hold `failures`.
     Failures,
     /// `working.starting`: a live run in the phase `starting`.
@@ -111,7 +114,10 @@ impl StatusLine {
             StatusLine::NotYet => Status::NotYet,
             StatusLine::Off => Status::Off,
             StatusLine::Kept => Status::Off,
-            StatusLine::Failures | StatusLine::Problem(_) | StatusLine::Record => Status::Problem,
+            StatusLine::SignInRefused
+            | StatusLine::Failures
+            | StatusLine::Problem(_)
+            | StatusLine::Record => Status::Problem,
             StatusLine::Starting
             | StatusLine::Working
             | StatusLine::Stopping
@@ -133,6 +139,7 @@ impl StatusLine {
             StatusLine::NotYet => "category",
             StatusLine::Off => "person",
             StatusLine::Kept => "kept",
+            StatusLine::SignInRefused => "sign_in_refused",
             StatusLine::Failures => "failures",
             StatusLine::Starting => "starting",
             StatusLine::Working => "working",
