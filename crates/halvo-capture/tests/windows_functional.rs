@@ -4187,9 +4187,9 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
         let gate = set.password_gate();
         let session = |label: &str| {
             let (sink, events) = capture(256);
+            let before = gate.readings();
             let mut screen = set.gated_screen(ScreenSource::new(Arc::new(Mutex::new(None))));
             let start = screen.begin(screen_on(sink.clone()));
-            let (gate_read_clear, _) = wait_for_clear(&gate, GATE_CLEAR_WAIT);
             let mut frames = 0;
             let began = Instant::now();
             while began.elapsed() < Duration::from_secs(3) {
@@ -4197,15 +4197,23 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
                 frames += screen_frames_within(&events, Duration::from_millis(50));
             }
             let stop = stop_counted(&mut screen, "screen");
+            frames += screen_frames_within(&events, Duration::from_millis(300));
+            let lost = screen.source().handoff_counts().lost;
+            let after = gate.readings();
+            let gate_clear = after.clear() - before.clear();
+            let gate_unknown = after.unknown() - before.unknown();
+            let gate_password_field = after.password_field - before.password_field;
+            let kept_frames = frames as u64 + lost;
             say(
                 "c8b",
                 format!(
-                    "capture={label} start={} gate_read_clear={gate_read_clear} frames={frames} stop={}",
+                    "capture={label} start={} gate_clear={gate_clear} gate_unknown={gate_unknown} \
+                     gate_password_field={gate_password_field} frames={frames} lost={lost} stop={}",
                     show(&start),
                     show(&stop)
                 ),
             );
-            start.is_ok() && stop.is_ok() && frames > 0 && gate_read_clear
+            (start.is_ok() && stop.is_ok(), kept_frames, gate_clear)
         };
         let first = session("first");
         let excluded = exclude_from_capture(popup.hwnd);
@@ -4223,9 +4231,16 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
             excluded.is_ok(),
             "the window must take the display affinity"
         );
+        assert!(first.0 && second.0, "each session must start and stop");
         assert!(
-            first && second,
-            "each session must start, read Clear, deliver a frame and stop"
+            first.2 + second.2 > 0,
+            "INCONCLUSIVE: no session read Clear, so no session showed that a running detector keeps frames"
+        );
+        assert_eq!(
+            (first.1, second.1),
+            (first.2, second.2),
+            "the frames that each session kept (first, second) are not its Clear readings: \
+             a frame left with no Clear reading, or a Clear reading kept no frame"
         );
     });
 }
