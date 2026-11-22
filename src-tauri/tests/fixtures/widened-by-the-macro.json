@@ -16,6 +16,7 @@
     "allow-last-delete",
     "allow-acknowledge-lost-permission",
     "allow-start-capture",
+    "allow-delete-offline",
     "allow-agents-snapshot",
     "allow-agents-next",
     "allow-agents-card",
