@@ -1,0 +1,1 @@
+- Fixed: On macOS, where the capture service keeps capture off until you resume it, the page now shows Resume and the tray Resume capture, and one press turns capture back on; before, both showed Pause, and capture came back only after Pause and then Resume.

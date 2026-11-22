@@ -10,7 +10,7 @@ use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::commands::capture::{press, sort_change_answer, AppState, START_ANSWER_WAIT};
-use crate::view_state::{NoStatusService, Press, StatusView};
+use crate::view_state::{NoStatusService, Press, RunningView, StatusView};
 
 const TRAY_ID: &str = "halvo-status";
 const TOGGLE_ID: &str = "toggle-capture";
@@ -267,16 +267,11 @@ pub fn labels(view: &StatusView) -> TrayLabels {
         },
     };
     if let StatusView::Running(view) = view {
-        match view.desired {
-            CaptureState::Running => {
-                labels.toggle_text = "Pause capture";
-                labels.toggle_enabled = true;
-            }
-            CaptureState::Paused => {
-                labels.toggle_text = "Resume capture";
-                labels.toggle_enabled = true;
-            }
-        }
+        labels.toggle_text = match toggle_change(view) {
+            CaptureChange::Pause => "Pause capture",
+            CaptureChange::Resume => "Resume capture",
+        };
+        labels.toggle_enabled = true;
     }
     if let Some(hold) = view.hold() {
         labels = TrayLabels {
@@ -496,10 +491,14 @@ fn toggled(view: &StatusView, shown: &TrayLabels) -> Option<CaptureChange> {
     let StatusView::Running(view) = view else {
         return None;
     };
-    Some(match view.desired {
-        CaptureState::Running => CaptureChange::Pause,
-        CaptureState::Paused => CaptureChange::Resume,
-    })
+    Some(toggle_change(view))
+}
+
+fn toggle_change(view: &RunningView) -> CaptureChange {
+    match (view.capture, view.desired) {
+        (Capture::AwaitingResume, _) | (_, CaptureState::Paused) => CaptureChange::Resume,
+        (_, CaptureState::Running) => CaptureChange::Pause,
+    }
 }
 
 /// The answer of the tray's own Pause or Resume, as the commands take theirs: an Ok status or a
@@ -765,5 +764,21 @@ mod tests {
             let texts = labels(&running_with(capture, CaptureState::Running));
             assert!(!texts.status_text.contains("Paused"), "{capture:?}");
         }
+    }
+
+    #[test]
+    fn at_awaiting_resume_the_toggle_reads_resume_and_its_press_sends_the_resume() {
+        let view = running_with(Capture::AwaitingResume, CaptureState::Running);
+        let shown = labels(&view);
+        assert_eq!(
+            (shown.status_text, shown.toggle_text, shown.toggle_enabled),
+            ("Capture off until you resume", "Resume capture", true)
+        );
+        let menu = DrawnMenu::default();
+        menu.drew(shown);
+        assert_eq!(
+            menu.press(&view, &shown),
+            TogglePress::Send(CaptureChange::Resume)
+        );
     }
 }
