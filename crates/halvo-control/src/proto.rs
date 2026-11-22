@@ -600,6 +600,12 @@ pub struct Deleted {
     pub report: DeleteReport,
     #[serde(deserialize_with = "required")]
     pub store: Option<StoreId>,
+    /// The run of this delete ended not whole, whatever its report reads: a flush that did not
+    /// reach the drive, or an intent that a failed removal kept. It crosses the wire only while
+    /// it stands, so that a reply of a service that sends none reads false; the protocol number
+    /// does not move for it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unfinished: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1614,6 +1620,12 @@ pub struct StatusFields {
     #[serde(deserialize_with = "required")]
     pub store_logical_bytes: Option<u64>,
     pub cap_bytes: Cap,
+    /// Beside cap_bytes unknown: the stored cap is the one that a reset of the settings writes,
+    /// a cap that is not set, and not one that could not be read. It crosses the wire only while
+    /// it stands, so that a status of a daemon that sends none reads false; the protocol number
+    /// does not move for it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cap_not_set: bool,
     pub drain: Health,
     #[serde(deserialize_with = "required")]
     pub drain_error: Option<DrainError>,
@@ -1810,6 +1822,9 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     }
     if f.store_error == Some(StoreErrorKind::KeyFile) && f.store_id.is_some() {
         return fail("a store whose key file does not parse has no id");
+    }
+    if f.cap_not_set && f.cap_bytes != Cap::Unknown {
+        return fail("a cap that is not set reads unknown");
     }
     let order = |name: &SourceName| SourceName::of(f.platform).iter().position(|s| s == name);
     let mut at = None;
@@ -2132,6 +2147,7 @@ mod tests {
             })
             .unwrap(),
             store,
+            unfinished: false,
         })
     }
 
@@ -2769,6 +2785,21 @@ stopped/kind body
         );
         let without = br#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#;
         assert!(decode_reply(without).is_err());
+    }
+
+    #[test]
+    fn a_deleted_reply_carries_unfinished_only_while_it_stands() {
+        let not_whole = br#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"not_followed":0,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null,"unfinished":true}}"#;
+        let whole = br#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"not_followed":0,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#;
+        for (frame, run) in [
+            (&not_whole[..], "a run that was not whole"),
+            (&whole[..], "a whole run"),
+        ] {
+            let reply = decode_reply(frame).expect(run);
+            let sent: serde_json::Value = serde_json::from_slice(frame).unwrap();
+            let again: serde_json::Value = serde_json::from_slice(&encode_reply(&reply)).unwrap();
+            assert_eq!(again, sent, "{run}");
+        }
     }
 
     #[test]
@@ -4199,6 +4230,37 @@ stopped/kind body
         for bad in ["\"Unknown\"", "null", "5", "\"5\""] {
             assert!(serde_json::from_str::<Cap>(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn a_status_carries_cap_not_set_only_while_it_stands_and_the_control_text_stays() {
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        fields.cap_bytes = Cap::Unknown;
+        let unknown = DaemonStatus::new(fields.clone()).unwrap();
+        fields.cap_not_set = true;
+        let not_set = DaemonStatus::new(fields.clone()).unwrap();
+        let sent = encode_reply(&Reply::Status(not_set.clone()));
+        let frame: serde_json::Value = serde_json::from_slice(&sent).unwrap();
+        assert_eq!(frame["v"], 1);
+        assert_eq!(frame["body"]["cap_not_set"], true);
+        assert_eq!(frame["body"]["cap_bytes"], "unknown");
+        assert_eq!(decode_reply(&sent).unwrap(), Reply::Status(not_set.clone()));
+        let without = encode_reply(&Reply::Status(unknown.clone()));
+        let frame: serde_json::Value = serde_json::from_slice(&without).unwrap();
+        assert_eq!(frame["body"].get("cap_not_set"), None, "{frame}");
+        assert_eq!(
+            decode_reply(&without).unwrap(),
+            Reply::Status(unknown.clone())
+        );
+        assert_eq!(
+            crate::ctl_text::status_text(&not_set),
+            crate::ctl_text::status_text(&unknown)
+        );
+        fields.cap_bytes = Cap::Known(StorageCap::DEFAULT);
+        assert_eq!(
+            DaemonStatus::new(fields).unwrap_err().rule(),
+            "a cap that is not set reads unknown"
+        );
     }
 
     #[test]

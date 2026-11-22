@@ -550,14 +550,16 @@ pub fn account_hook() -> (Outcome, Detail) {
 /// the child's by `WithoutTheChild`, and from the child's end on, before the account step, the
 /// agents' runs by a guard of the list, which also sets the mark of a removal on `hold`, so that
 /// no press writes the login item or asks for a child while the list runs. The guard is made
-/// before its hold begins, as the delete's own is, and its drop lifts the runs' hold once and
-/// takes the mark off: after a list that stopped, and where a step unwinds. After a whole list
-/// the list keeps the guard (`keep` marks it kept, and its drop then lifts nothing), so the runs
-/// stay held and the mark stands to the end of the app, and the child's supervisor ends as at a
-/// quit, so that no child starts after it; after a list that stopped the supervisor goes on by
-/// its rule. The account step is `account`; the delete is the offline delete of `offline` after
-/// `before`, and it is done only where it deleted and left nothing of the store, or found no
-/// store.
+/// before its hold begins, as the delete's own is, and its drop ends the list's delete in the
+/// runs' hold, which stands on until the view of a poll made after that end is drawn
+/// (`agents::RunsHold`), and takes the mark off: after a list that stopped, and where a step
+/// unwinds. After a whole list the list keeps the guard (`keep` marks it kept, and its drop then
+/// ends nothing), so the runs stay held and the mark stands to the end of the app, and the
+/// child's supervisor ends as at a quit, so that no child starts after it; after a list that
+/// stopped, or one that unwound, no child starts by itself until a person's press on Start
+/// behind the list or the next launch of the app (`Supervisor::without_the_child`). The account
+/// step is `account`; the delete is the offline delete of `offline` after `before`, and it is
+/// done only where it deleted and left nothing of the store, or found no store.
 pub fn remove_halvo(
     places: Result<Places, Refused>,
     children: Option<&dyn TheChild>,
@@ -1351,21 +1353,36 @@ mod tests {
                     "the child ended first, no start after it, and exit 0"
                 );
             } else {
+                use crate::daemon_child::Clock;
+                let behind = clock.now();
                 let until = Instant::now() + Duration::from_secs(10);
-                while !noted(&record).contains(&"start 8".to_owned()) {
+                while clock.now().saturating_duration_since(behind)
+                    <= crate::daemon_child::BACKOFF_MAX
+                {
                     assert!(
                         Instant::now() < until,
-                        "after a list that stopped the supervisor goes on: {:?}",
+                        "behind a list that stopped the supervisor's clock passes the longest backoff: {:?}",
                         noted(&record)
                     );
                     std::thread::sleep(Duration::from_millis(5));
                 }
-                expected.push("lift the runs".to_owned());
-                expected.push("start 8".to_owned());
                 assert_eq!(
                     noted(&record),
                     expected,
-                    "the child ended first, a press while the list ran did nothing, and a list that stopped has no exit"
+                    "the child ended first, a press while the list ran did nothing, and a list that stopped has no exit, no start by itself and no lift at its end"
+                );
+                let calls = Arc::<crate::commands::control::Places>::default();
+                held.runs.drawn(held.core.as_deref(), &views, &calls);
+                views.take_poll(
+                    calls.make().number(),
+                    &Err(halvo_control::client::ClientError::Unsupported),
+                );
+                held.runs.drawn(held.core.as_deref(), &views, &calls);
+                expected.push("lift the runs".to_owned());
+                assert_eq!(
+                    noted(&record),
+                    expected,
+                    "the lift comes at the first poll read behind the list"
                 );
                 let _ = consent(
                     &Gated::new(Unresolved),
@@ -1378,6 +1395,19 @@ mod tests {
                     Some("login item written"),
                     "after a list that stopped a click works again"
                 );
+                assert!(
+                    views.hold().ask_start(),
+                    "behind a list that stopped a press on Start asks for a child"
+                );
+                let until = Instant::now() + Duration::from_secs(10);
+                while !noted(&record).contains(&"start 8".to_owned()) {
+                    assert!(
+                        Instant::now() < until,
+                        "the press on Start brings one child: {:?}",
+                        noted(&record)
+                    );
+                    std::thread::sleep(Duration::from_millis(5));
+                }
             }
             supervisor.end();
         }
@@ -1407,10 +1437,17 @@ mod tests {
             )
         }));
         assert!(unwound.is_err(), "the step unwinds through the list");
+        let calls = Arc::<crate::commands::control::Places>::default();
+        held.runs.drawn(held.core.as_deref(), &views, &calls);
+        views.take_poll(
+            calls.make().number(),
+            &Err(halvo_control::client::ClientError::Unsupported),
+        );
+        held.runs.drawn(held.core.as_deref(), &views, &calls);
         assert_eq!(
             noted(&record),
             vec!["hold the runs".to_owned(), "lift the runs".to_owned()],
-            "the core was told to hold once and to lift once"
+            "the core was told to hold once and to lift once, at the latest at the first poll read behind the unwind"
         );
         assert!(
             views.hold().begin_consent().is_some(),

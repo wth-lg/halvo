@@ -121,6 +121,7 @@ pub const USAGE: &str = "usage: halvo-capture --version
        halvo-capture --verify-deletion --store-dir DIR
        halvo-capture --delete-all --store-dir DIR
        halvo-capture --delete-all --data-dir DIR
+       halvo-capture --default-data-dir
        halvo-capture --service-run [--lifeline] [--data-dir DIR]
        halvo-capture ctl [--data-dir DIR] VERB";
 
@@ -191,6 +192,14 @@ pub enum Mode {
     DeleteAllOfADataDir {
         data_dir: halvo_control::paths::DataDir,
     },
+    /// `--default-data-dir`: the data directory that `--service-run` takes
+    /// without `--data-dir`, which the binary prints on one line, so that the
+    /// Windows uninstaller names it by the program and holds no copy of the
+    /// rule of the paths.
+    #[cfg(any(debug_assertions, target_os = "macos", windows))]
+    DefaultDataDir {
+        data_dir: halvo_control::paths::DataDir,
+    },
     /// `ctl [--data-dir DIR] VERB` (contracts.md C2.2 to C2.7): one request
     /// to the service run of the data directory, through halvo-control's
     /// client and its text.
@@ -257,6 +266,11 @@ pub fn prepare_signals(mode: &Mode) -> std::io::Result<()> {
 #[error("halvo-capture: {0}\n{USAGE}")]
 pub struct Usage(pub &'static str);
 
+/// The stem of the line of an account that gives no data directory, which a
+/// service run and `--default-data-dir` without `--data-dir` print before the
+/// cause, on standard error with exit 1.
+pub const NO_DATA_DIR: &str = "halvo-capture: the account gives no data directory";
+
 /// Why a command line is not run: a refused line, which exits 64, or an
 /// account that gives no data directory to check a store directory against,
 /// which is no fault of the line and exits 1.
@@ -281,8 +295,8 @@ pub enum Refusal {
     )]
     DataDirUnread(String),
     /// A service run with no `--data-dir` whose account gives no data
-    /// directory; it exits 1.
-    #[error("halvo-capture: the account gives no data directory: {0}")]
+    /// directory, and so `--default-data-dir` too; it exits 1.
+    #[error("{NO_DATA_DIR}: {0}")]
     NoServiceDir(PathError),
     /// A refused line of `ctl`, with the reason and ctl's own usage; it exits
     /// 64.
@@ -727,6 +741,13 @@ pub fn parse(
                 _ => Err(Usage("--delete-all --data-dir takes DIR and no other flag").into()),
             }
         }
+        #[cfg(any(debug_assertions, target_os = "macos", windows))]
+        Some("--default-data-dir") => match &args[1..] {
+            [] => Ok(Mode::DefaultDataDir {
+                data_dir: service_dir(&[], account)?,
+            }),
+            _ => Err(Usage("--default-data-dir takes no other word").into()),
+        },
         #[cfg(debug_assertions)]
         Some("--delete-all") => {
             let flags = gate::Flags::read(&args[1..], &["--store-dir"])?;
@@ -758,6 +779,29 @@ pub fn parse(
             data_dir: service_dir(&args[1..], account)?,
         }),
         _ => Err(Usage("no mode of this build").into()),
+    }
+}
+
+/// The answer of `--default-data-dir`: the path of `data_dir` and a newline
+/// on `out`, exit 0. A path that holds a control character is no one line, so
+/// it is refused on `err` with exit 1, as an account that names no directory.
+#[cfg(any(debug_assertions, target_os = "macos", windows))]
+pub fn default_data_dir_answer(
+    data_dir: &halvo_control::paths::DataDir,
+    out: &mut dyn std::io::Write,
+    err: &mut dyn std::io::Write,
+) -> i32 {
+    let text = data_dir.path().to_string_lossy();
+    if text.chars().any(char::is_control) {
+        let _ = writeln!(err, "{NO_DATA_DIR}: the path holds a control character");
+        return halvo_control::exit::ERROR;
+    }
+    match writeln!(out, "{text}").and_then(|()| out.flush()) {
+        Ok(()) => halvo_control::exit::CLEAN,
+        Err(error) => {
+            let _ = writeln!(err, "halvo-capture: the path was not written: {error}");
+            halvo_control::exit::ERROR
+        }
     }
 }
 
@@ -2648,7 +2692,13 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                             }
                             Some(report) if !whole => {
                                 delete_written =
-                                    answer_the_delete(&mut Some((asked, report)), None);
+                                    Some(asked.answer(halvo_control::proto::Reply::Deleted(
+                                        halvo_control::proto::Deleted {
+                                            report,
+                                            store: None,
+                                            unfinished: true,
+                                        },
+                                    )));
                             }
                             Some(report) => {
                                 rule = owner::open::CreateRule::of(
@@ -3009,12 +3059,13 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         }
     };
     let fields = status.fields();
+    let (store_read, unfinished) = the_store_that_the_rule_reads(fields, opener.as_ref());
     let refused = match halvo_control::proto::delete_decision(
         serving.listening.admitting().life(),
         fields.capture,
-        fields.store,
+        store_read,
         fields.store_error,
-        fields.store_delete_unfinished,
+        unfinished,
         fields.store_id,
         armed,
     ) {
@@ -3127,6 +3178,26 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     }
 }
 
+/// The store's state and its `store_delete_unfinished` that the delete rule reads: the
+/// status's, except while an opener runs whose slot reads opening or deleting, whose own call
+/// may yet begin or still runs the finish of a standing delete, also in a data directory that
+/// failed its check, whose status reads unavailable: then its slot's, so that the rule answers
+/// busy and no second walk begins beside that call. Whether it runs is read before its slot,
+/// and its thread leaves those two slots only once that call has returned.
+#[cfg(any(target_os = "macos", windows))]
+fn the_store_that_the_rule_reads(
+    fields: &halvo_control::proto::StatusFields,
+    opener: Option<&owner::open::Opener>,
+) -> (halvo_control::proto::StoreState, bool) {
+    match opener
+        .filter(|opener| opener.is_running())
+        .map(owner::open::Opener::slot)
+    {
+        Some(slot @ (slot::Slot::Opening | slot::Slot::Deleting)) => (slot.state(), false),
+        _ => (fields.store, fields.store_delete_unfinished),
+    }
+}
+
 #[cfg(any(target_os = "macos", windows))]
 fn delete_report(
     ran: &delete_all::Ran,
@@ -3173,6 +3244,7 @@ fn answer_the_delete(
         halvo_control::proto::Deleted {
             report,
             store: store.map(|id| halvo_control::model::StoreId::from_bytes(*id.as_bytes())),
+            unfinished: false,
         },
     )))
 }
@@ -5020,6 +5092,57 @@ mod tests {
         fn user_temp_dir(&self) -> Result<Option<DarwinUserTempDir>, PathError> {
             Ok(None)
         }
+    }
+
+    #[cfg(any(debug_assertions, target_os = "macos", windows))]
+    #[test]
+    fn the_default_data_dir_form_prints_the_directory_of_a_service_run_without_data_dir() {
+        let dirs = dirs();
+        let Ok(Mode::ServiceRun { data_dir: service }) =
+            parse(args(&["--service-run"]), &dirs.account)
+        else {
+            panic!("--service-run did not parse as a service run");
+        };
+        let parsed = parse(args(&["--default-data-dir"]), &dirs.account);
+        let Ok(Mode::DefaultDataDir { data_dir }) = parsed else {
+            panic!("--default-data-dir parsed as {parsed:?}");
+        };
+        assert_eq!(data_dir, service);
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = default_data_dir_answer(&data_dir, &mut out, &mut err);
+        assert_eq!(
+            (
+                status,
+                String::from_utf8(out).unwrap(),
+                String::from_utf8(err).unwrap()
+            ),
+            (
+                exit::CLEAN,
+                format!("{}\n", dirs.data.display()),
+                String::new()
+            )
+        );
+
+        let refused = parse(args(&["--default-data-dir", "x"]), &dirs.account).unwrap_err();
+        let mut err = Vec::new();
+        assert_eq!(usage_answer(&refused, &mut err), exit::USAGE);
+        assert!(String::from_utf8(err)
+            .unwrap()
+            .starts_with("halvo-capture: --default-data-dir takes no other word\n"));
+        let refused = parse(args(&["--default-data-dir"]), &FailedLookup(Ok(None))).unwrap_err();
+        let mut err = Vec::new();
+        assert_eq!(usage_answer(&refused, &mut err), exit::ERROR);
+        assert!(String::from_utf8(err)
+            .unwrap()
+            .starts_with("halvo-capture: the account gives no data directory: "));
+        let line = DataDir::from_flag(dirs.data.join("a\nb")).unwrap();
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = default_data_dir_answer(&line, &mut out, &mut err);
+        assert_eq!((status, out.len()), (exit::ERROR, 0));
+        assert_eq!(
+            String::from_utf8(err).unwrap(),
+            "halvo-capture: the account gives no data directory: the path holds a control character\n"
+        );
     }
 
     #[cfg(debug_assertions)]

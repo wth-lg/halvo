@@ -1,0 +1,1 @@
+- Changed: Stop using its sign-in now says that Halvo removes the sign-in from this computer, and when a fault of the store stops that, it says "Halvo could not finish this. If this agent still shows Stop using its sign-in, choose it again." instead of saying that nothing happened (interface run, U3.16).

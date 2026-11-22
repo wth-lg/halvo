@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Read from the commit at their paths as regular files reached through trees alone, with no link, no twin in another letter case and no name outside ASCII at those places, the ruling file is the one line ruling=none and no row of the policy or of the recorded table names a hosted tier, the lines of cargo tree for the normal dependencies of the run's three crates name none of a closed list of 11 packages, the egress lists hold no entry, cargo test of halvo-route prints the ok lines of no_grant_in_release and pinned_files_hold_their_hashes under the target tests/no_grant_in_release.rs in the debug and the release profile, a program of another crate built with --cfg test set from outside stops with E0624 where it names Ruling::test_hosted while its control compiles and answers ruling, and no cargo command leaves the tree changed; 40-r6-policy holds this script by the blob id of its content, and the check holds none of these: code that runs in the job before it and writes what it reads (SG-30), a network package outside the list such as tungstenite, or std::net, a build or a development dependency, a forged ok line in the release profile with the pin test switched off (30-r6-table refuses it in the debug profile alone), a data file that release.rs reads from another path, a tracked cargo configuration (40-r6-policy refuses it), and the pair's text, which the blob id and the real path hold because the self-test compiles nothing; a job that turns warnings into errors fails it.
+# rule: Read from the commit at their paths as regular files reached through trees alone, with no link, no twin in another letter case and no name outside ASCII at those places, the ruling file is the one line ruling=none, the table of hosts crates/halvo-route/data/hosts.tsv is its header line alone, and no row of the policy or of the recorded table names a hosted tier, the lines of cargo tree for the normal dependencies of the run's three crates name none of a closed list of 11 packages, the egress lists hold no entry, cargo test of halvo-route prints the ok lines of no_grant_in_release and pinned_files_hold_their_hashes under the target tests/no_grant_in_release.rs in the debug and the release profile, a program of another crate built with --cfg test set from outside stops with E0624 where it names Ruling::read_with_table, the reader of a ruling line with a table, which is private to the crate, while its control compiles and answers ruling for both hosted tiers under the release data and a third program prints the one origin http://127.0.0.1:4040 of the value of Ruling::loopback_for_tests(4040, ...), and no cargo command leaves the tree changed; 40-r6-policy holds this script by the blob id of its content, and the check holds none of these: code that runs in the job before it and writes what it reads (SG-30), a network package outside the list such as tungstenite, or std::net, a build or a development dependency, a forged ok line in the release profile with the pin test switched off (30-r6-table refuses it in the debug profile alone), a data file that release.rs reads from another path, a call of Ruling::loopback_for_tests in product code (the maker stands in every build, the product's too, and the closed list of the tree rule in crates/halvo-route/tests/no_grant_in_release.rs alone holds it out of product code), the origin that the maker makes for another port, a tracked cargo configuration (40-r6-policy refuses it), and the pair's text, which the blob id and the real path hold because the self-test compiles nothing; a job that turns warnings into errors fails it.
 set -u
 name=80-r6-absent
 case $0 in
@@ -10,13 +10,14 @@ esac
 tab=$(printf '\t')
 entry_path=$PATH
 policy_header="category${tab}kind${tab}pick${tab}level${tab}basis${tab}k${tab}n"
+hosts_header="tier${tab}origin${tab}model${tab}adapter${tab}source${tab}date"
 recorded_header="task${tab}category${tab}kind${tab}tier${tab}model${tab}machine${tab}seed${tab}split${tab}attempt${tab}pass${tab}steps${tab}wall_s${tab}tokens_in${tab}tokens_out${tab}level${tab}source"
 net_packages='reqwest hyper ureq rustls ring aws-lc-rs native-tls openssl-sys tokio socket2 mio'
 probe_source='use halvo_route::ruling::Ruling;
 
 fn main() {
-    let ruling = Ruling::test_hosted(&["127.0.0.1:1"]);
-    println!("probe origins={}", ruling.origins().len());
+    let ruling = Ruling::read_with_table("ruling=hosted", "tier\torigin\tmodel\tadapter\tsource\tdate\nfrontier\thttps://top.invalid\tm\ta\tfixture:probe\t2026-11-22\n");
+    println!("probe rows={}", ruling.rows().len());
 }'
 control_source='use halvo_route::leave::{grant, Consent, PartKind};
 use halvo_route::tier::Tier;
@@ -35,6 +36,18 @@ fn main() {
 control_want='control tier=low_cost_hosted answer=ruling
 control tier=frontier answer=ruling
 control cfg_test=yes'
+loopback_source='use halvo_route::ruling::Ruling;
+
+fn main() {
+    let ruling = Ruling::loopback_for_tests(4040, "model", "adapter");
+    let mut origins: Vec<&str> = ruling.rows().iter().map(|row| row.origin()).collect();
+    origins.sort_unstable();
+    origins.dedup();
+    for origin in origins {
+        println!("loopback origin={origin}");
+    }
+}'
+loopback_want='loopback origin=http://127.0.0.1:4040'
 
 setup_fail() {
   printf 'FAIL %s (setup)\n' "$name"
@@ -111,11 +124,12 @@ data_plan() {
     BEGIN {
       subject["crates/halvo-route/data/ruling.txt"] = "ruling"
       subject["crates/halvo-route/data/policy.tsv"] = "picks"
+      subject["crates/halvo-route/data/hosts.tsv"] = "hosts"
       subject["docs/r6/outcomes/recorded.tsv"] = "rows"
-      step["crates"] = step["crates/halvo-route"] = step["crates/halvo-route/data"] = "ruling picks"
+      step["crates"] = step["crates/halvo-route"] = step["crates/halvo-route/data"] = "ruling picks hosts"
       step["docs"] = step["docs/r6"] = step["docs/r6/outcomes"] = "rows"
       step["scripts"] = step["scripts/r6"] = step["scripts/r6/egress"] = "entries"
-      watched[""] = "ruling picks rows entries"
+      watched[""] = "ruling picks hosts rows entries"
       for (place in step) watched[place] = step[place]
       egress = "scripts/r6/egress/"
     }
@@ -166,10 +180,12 @@ count_data() {
   git -c core.quotepath=on ls-tree -r "$commit" >"$scratch/listing.txt" 2>/dev/null || commit_unreadable
   data_plan "$scratch/listing.txt" >"$scratch/plan.txt" || setup_fail
   ruling_odd=0
+  hosts_odd=0
   picks_odd=0
   rows_odd=0
   entries_odd=0
   ruling_blob=
+  hosts_blob=
   picks_blob=
   rows_blob=
   listed=0
@@ -180,9 +196,11 @@ count_data() {
         git cat-file blob "$data_object" >"$committed/egress/$listed" 2>/dev/null || commit_unreadable
         ;;
       ruling:blob) ruling_blob=$data_object ;;
+      hosts:blob) hosts_blob=$data_object ;;
       picks:blob) picks_blob=$data_object ;;
       rows:blob) rows_blob=$data_object ;;
       ruling:*) ruling_odd=1 ;;
+      hosts:*) hosts_odd=1 ;;
       picks:*) picks_odd=1 ;;
       rows:*) rows_odd=1 ;;
       entries:*) entries_odd=$((entries_odd + 1)) ;;
@@ -192,6 +210,11 @@ count_data() {
   if [ -n "$ruling_blob" ]; then
     git cat-file blob "$ruling_blob" >"$committed/ruling.txt" 2>/dev/null || commit_unreadable
     [ "$ruling_odd" = 1 ] || ruling=$(ruling_of "$committed/ruling.txt")
+  fi
+  hosts=other
+  if [ -n "$hosts_blob" ]; then
+    git cat-file blob "$hosts_blob" >"$committed/hosts.tsv" 2>/dev/null || commit_unreadable
+    [ "$hosts_odd" = 1 ] || hosts=$(hosts_of "$committed/hosts.tsv")
   fi
   picks=1
   if [ -n "$picks_blob" ]; then
@@ -224,6 +247,15 @@ ruling_of() {
   printf 'ruling=none\n' >"$scratch/ruling-none"
   if cmp -s "$1" "$scratch/ruling-none"; then
     printf 'none\n'
+  else
+    printf 'other\n'
+  fi
+}
+
+hosts_of() {
+  printf '%s\n' "$hosts_header" >"$scratch/hosts-header"
+  if cmp -s "$1" "$scratch/hosts-header"; then
+    printf 'header\n'
   else
     printf 'other\n'
   fi
@@ -372,6 +404,7 @@ write_pair() {
     "$route" >"$pair/Cargo.toml" || return 1
   printf '%s\n' "$probe_source" >"$pair/src/bin/probe.rs" || return 1
   printf '%s\n' "$control_source" >"$pair/src/bin/control.rs" || return 1
+  printf '%s\n' "$loopback_source" >"$pair/src/bin/loopback.rs" || return 1
 }
 
 build_pair() {
@@ -391,6 +424,9 @@ build_pair() {
   cargo run --locked --offline --manifest-path "$pair/Cargo.toml" --target-dir "$scratch/pair-target" --bin control "$@" \
     >"$artifacts/control.out" 2>"$artifacts/control.err" </dev/null
   printf '%s\n' "$?" >"$scratch/control.code"
+  cargo run --locked --offline --manifest-path "$pair/Cargo.toml" --target-dir "$scratch/pair-target" --bin loopback "$@" \
+    >"$artifacts/loopback.out" 2>"$artifacts/loopback.err" </dev/null
+  printf '%s\n' "$?" >"$scratch/loopback.code"
   cargo build --locked --offline --manifest-path "$pair/Cargo.toml" --target-dir "$scratch/pair-target" --message-format short \
     --bin probe "$@" >"$artifacts/probe.txt" 2>&1 </dev/null
   printf '%s\n' "$?" >"$scratch/probe.code"
@@ -403,11 +439,14 @@ test_value() {
     (build_pair)
     probe_code=
     control_code=
+    loopback_code=
     { read -r probe_code <"$scratch/probe.code"; } 2>/dev/null
     { read -r control_code <"$scratch/control.code"; } 2>/dev/null
+    { read -r loopback_code <"$scratch/loopback.code"; } 2>/dev/null
   else
     probe_code=
     control_code=
+    loopback_code=
   fi
   tree_same after-pair test_value
   judge_pair
@@ -420,7 +459,7 @@ judge_pair() {
   while IFS= read -r source_line; do
     number=$((number + 1))
     case $source_line in
-      *test_hosted*)
+      *read_with_table*)
         probe_line=$number
         break
         ;;
@@ -433,6 +472,10 @@ EOF
   fi
   printf '%s\n' "$control_want" >"$scratch/control.want"
   if [ "$control_code" != 0 ] || ! cmp -s "$artifacts/control.out" "$scratch/control.want"; then
+    misses=$((misses + 1))
+  fi
+  printf '%s\n' "$loopback_want" >"$scratch/loopback.want"
+  if [ "$loopback_code" != 0 ] || ! cmp -s "$artifacts/loopback.out" "$scratch/loopback.want"; then
     misses=$((misses + 1))
   fi
   value_count=$misses
@@ -484,10 +527,11 @@ measure() {
   grants
   test_value
 
-  printf 'absent ruling=%s hosted_picks=%s hosted_rows=%s net_crates=%s entries=%s grants=%s test_value=%s\n' \
-    "$ruling" "$picks" "$rows" "$crates" "$entries" "$grant_count" "$value_count"
+  printf 'absent ruling=%s hosts=%s hosted_picks=%s hosted_rows=%s net_crates=%s entries=%s grants=%s test_value=%s\n' \
+    "$ruling" "$hosts" "$picks" "$rows" "$crates" "$entries" "$grant_count" "$value_count"
   cause=
   [ "$ruling" = none ] || cause=ruling
+  [ "$hosts" = header ] || cause=${cause:-hosts}
   [ "$picks" = 0 ] || cause=${cause:-picks}
   [ "$rows" = 0 ] || cause=${cause:-rows}
   [ "$crates" = 0 ] || cause=${cause:-crates}
@@ -526,6 +570,8 @@ reset_stubs() {
   STUB_PROBE_EXIT=101
   STUB_CONTROL_OUT=$work/stub/control.out
   STUB_CONTROL_EXIT=0
+  STUB_LOOPBACK_OUT=$work/stub/loopback.out
+  STUB_LOOPBACK_EXIT=0
   STUB_JOB_FLAG=
   STUB_GITLINK=
   CASE_RUSTFLAGS=
@@ -545,7 +591,7 @@ check() {
     STUB_TREE=$work/tree
     export CI_D_REPO CI_D_ARTIFACTS STUB_TREE STUB_COMMIT STUB_NO_COMMIT STUB_CHANGE_AT STUB_CHANGE_LINE STUB_CHANGE_FILE
     export STUB_TREE_OUT STUB_TREE_EXIT STUB_DEBUG_OUT STUB_DEBUG_EXIT STUB_RELEASE_OUT STUB_RELEASE_EXIT
-    export STUB_PROBE_OUT STUB_PROBE_EXIT STUB_CONTROL_OUT STUB_CONTROL_EXIT STUB_JOB_FLAG STUB_GITLINK
+    export STUB_PROBE_OUT STUB_PROBE_EXIT STUB_CONTROL_OUT STUB_CONTROL_EXIT STUB_LOOPBACK_OUT STUB_LOOPBACK_EXIT STUB_JOB_FLAG STUB_GITLINK
     unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
     if [ -n "$CASE_RUSTFLAGS" ]; then
       RUSTFLAGS=$CASE_RUSTFLAGS
@@ -662,6 +708,7 @@ case $* in
   'test --locked -p halvo-route --release') kind=release ;;
   'generate-lockfile --offline --manifest-path '*'/pair/Cargo.toml') kind=lock ;;
   'run --locked --offline --manifest-path '*'/pair/Cargo.toml --target-dir '*' --bin control'*) kind=control ;;
+  'run --locked --offline --manifest-path '*'/pair/Cargo.toml --target-dir '*' --bin loopback'*) kind=loopback ;;
   'build --locked --offline --manifest-path '*'/pair/Cargo.toml --target-dir '*' --message-format short --bin probe'*) kind=probe ;;
 esac
 if [ -n "$STUB_CHANGE_AT" ] && [ "$kind" = "$STUB_CHANGE_AT" ]; then
@@ -682,6 +729,10 @@ case $kind in
     exit "$STUB_RELEASE_EXIT"
     ;;
   lock) exit 0 ;;
+  loopback)
+    put "$STUB_LOOPBACK_OUT"
+    exit "$STUB_LOOPBACK_EXIT"
+    ;;
   probe | control)
     if [ "${CARGO_ENCODED_RUSTFLAGS+set}" = set ]; then
       flags=$(printf '%s' "$CARGO_ENCODED_RUSTFLAGS" | tr '\037' ' ')
@@ -705,10 +756,6 @@ case $kind in
       esac
     fi
     if [ "$kind" = probe ]; then
-      if [ "$reached" = no ]; then
-        printf 'src/bin/probe.rs:4:26: error[E0599]: no function or associated item named test_hosted found for enum `Ruling`\n'
-        exit 101
-      fi
       put "$STUB_PROBE_OUT"
       exit "$STUB_PROBE_EXIT"
     fi
@@ -762,20 +809,25 @@ running 0 tests
 EOF
   sed 's|target/debug/|target/release/|; s|test profile \[unoptimized + debuginfo\]|release profile [optimized]|' "$stub/debug.out" >"$stub/release.out" || fixture_fail
   printf 'halvo-route v0.0.0 (crates/halvo-route)\n\nhalvo-route-wire v0.0.0 (crates/halvo-route-wire)\n\342\224\234\342\224\200\342\224\200 serde v1.0.229\n\342\224\224\342\224\200\342\224\200 serde_json v1.0.154\n' >"$stub/tree.out" || fixture_fail
-  printf '   Compiling r6-absent-pair v0.0.0 (pair)\nsrc/bin/probe.rs:4:26: error[E0624]: associated function test_hosted is private: private associated function\nerror: could not compile r6-absent-pair (bin "probe") due to 1 previous error\n' >"$stub/probe.out" || fixture_fail
+  printf '   Compiling r6-absent-pair v0.0.0 (pair)\nsrc/bin/probe.rs:4:26: error[E0624]: associated function read_with_table is private: private associated function\nerror: could not compile r6-absent-pair (bin "probe") due to 1 previous error\n' >"$stub/probe.out" || fixture_fail
   printf 'control tier=low_cost_hosted answer=ruling\ncontrol tier=frontier answer=ruling\ncontrol cfg_test=yes\n' >"$stub/control.out" || fixture_fail
   printf 'control tier=low_cost_hosted answer=ruling\ncontrol tier=frontier answer=grant\ncontrol cfg_test=yes\n' >"$stub/control-frontier-grant.out" || fixture_fail
   printf 'halvo-route-wire v0.0.0 (crates/halvo-route-wire)\n\342\224\224\342\224\200\342\224\200 reqwest v0.12.0\n' >"$stub/tree-reqwest.out" || fixture_fail
   awk '$0 != "test no_grant_in_release ... ok"' "$stub/debug.out" >"$stub/debug-no-grant.out" || fixture_fail
   awk '$0 != "test no_grant_in_release ... ok"' "$stub/release.out" >"$stub/release-no-grant.out" || fixture_fail
   printf '' >"$stub/empty.out" || fixture_fail
-  printf 'src/bin/probe.rs:4:26: error[E0624]: associated function test_hosted is private\n' >"$stub/probe-text.out" || fixture_fail
+  printf 'src/bin/probe.rs:4:26: error[E0624]: associated function read_with_table is private\n' >"$stub/probe-text.out" || fixture_fail
   printf 'control tier=low_cost_hosted answer=grant\ncontrol tier=frontier answer=grant\ncontrol cfg_test=yes\n' >"$stub/control-grant.out" || fixture_fail
+  printf 'loopback origin=http://127.0.0.1:4040\n' >"$stub/loopback.out" || fixture_fail
+  printf 'loopback origin=http://127.0.0.1:4041\n' >"$stub/loopback-other-port.out" || fixture_fail
+  printf 'loopback origin=http://127.0.0.1:4040\nloopback origin=https://top.invalid\n' >"$stub/loopback-two-origins.out" || fixture_fail
+  printf 'loopback origin=http://localhost:4040\n' >"$stub/loopback-localhost.out" || fixture_fail
 }
 
 make_commit() {
   mkdir -p "$1/crates/halvo-route/data" "$1/scripts/r6" "$1/docs/r6" || fixture_fail
   printf 'ruling=none\n' >"$1/crates/halvo-route/data/ruling.txt" || fixture_fail
+  printf '%s\n' "$hosts_header" >"$1/crates/halvo-route/data/hosts.tsv" || fixture_fail
   cp crates/halvo-route/data/policy.tsv "$1/crates/halvo-route/data/policy.tsv" || fixture_fail
 }
 
@@ -853,10 +905,11 @@ data_case() {
     esac
     cause=
     [ "$ruling" = none ] || cause=ruling
+    [ "$hosts" = header ] || cause=${cause:-hosts}
     [ "$picks" = 0 ] || cause=${cause:-picks}
     [ "$rows" = 0 ] || cause=${cause:-rows}
     [ "$entries" = 0 ] || cause=${cause:-entries}
-    printf 'data ruling=%s hosted_picks=%s hosted_rows=%s entries=%s\n' "$ruling" "$picks" "$rows" "$entries"
+    printf 'data ruling=%s hosts=%s hosted_picks=%s hosted_rows=%s entries=%s\n' "$ruling" "$hosts" "$picks" "$rows" "$entries"
     printf '%s\n' "${cause:-PASS}"
   )
   got=${out##*"$newline"}
@@ -910,17 +963,22 @@ EOF
   printf '../other' >"$d/other-link" || fixture_fail
   printf 'ruling=none' >"$d/ruling-link" || fixture_fail
   printf 'policy-target.tsv' >"$d/policy-link" || fixture_fail
+  printf '%s\n' "$hosts_header" >"$d/hosts" || fixture_fail
+  printf '%s\nfrontier\thttps://top.invalid\tm\ta\tfixture:test\t2026-11-22\n' "$hosts_header" >"$d/hosts-row" || fixture_fail
+  printf '%s' "$hosts_header" >"$d/hosts-link" || fixture_fail
   git -C "$data" hash-object -w "$d/ruling" "$d/policy" "$d/header" "$d/frontier" "$d/device" "$d/entry" "$d/headings" \
-    "$d/header-link" "$d/fixed-link" "$d/elsewhere-link" "$d/other-link" "$d/ruling-link" "$d/policy-link" >"$d/objects" || fixture_fail
+    "$d/header-link" "$d/fixed-link" "$d/elsewhere-link" "$d/other-link" "$d/ruling-link" "$d/policy-link" \
+    "$d/hosts" "$d/hosts-row" "$d/hosts-link" >"$d/objects" || fixture_fail
   {
     read -r o_ruling && read -r o_policy && read -r o_header && read -r o_frontier && read -r o_device && read -r o_entry &&
       read -r o_headings && read -r o_header_link && read -r o_fixed_link && read -r o_elsewhere_link && read -r o_other_link &&
-      read -r o_ruling_link && read -r o_policy_link
+      read -r o_ruling_link && read -r o_policy_link && read -r o_hosts && read -r o_hosts_row && read -r o_hosts_link
   } <"$d/objects" || fixture_fail
   t='\t'
   ruling_line="100644 $o_ruling${t}crates/halvo-route/data/ruling.txt"
   policy_line="100644 $o_policy${t}crates/halvo-route/data/policy.tsv"
-  base="$ruling_line\n$policy_line"
+  hosts_line="100644 $o_hosts${t}crates/halvo-route/data/hosts.tsv"
+  base="$ruling_line\n$hosts_line\n$policy_line"
   outcomes=docs/r6/outcomes
   egress_dir=scripts/r6/egress
   data_case base PASS "$base"
@@ -942,11 +1000,17 @@ EOF
   data_case quoted-e-headings-alone-under-a-quoted-name entries "$base\n100644 $o_headings${t}$egress_dir/list\"2.txt"
   data_case name-outside-ascii-in-outcomes rows "$base\n100644 $o_header${t}$outcomes/record\0303\0251d.tsv"
   data_case name-outside-ascii-beside-docs ruling "$base\n100644 $o_header${t}d\0303\0266cs/r6/outcomes/recorded.tsv"
-  data_case ruling-as-a-link ruling "120000 $o_ruling_link${t}crates/halvo-route/data/ruling.txt\n$policy_line"
+  data_case ruling-as-a-link ruling "120000 $o_ruling_link${t}crates/halvo-route/data/ruling.txt\n$hosts_line\n$policy_line"
   data_case ruling-twin-in-another-letter-case ruling "$base\n100644 $o_ruling${t}crates/halvo-route/data/Ruling.txt"
   data_case policy-twin-in-another-letter-case picks "$base\n100644 $o_policy${t}crates/halvo-route/data/Policy.tsv"
-  data_case policy-as-a-link picks "$ruling_line\n120000 $o_policy_link${t}crates/halvo-route/data/policy.tsv\n100644 $o_policy${t}crates/halvo-route/data/policy-target.tsv"
-  data_case no-policy picks "$ruling_line"
+  data_case policy-as-a-link picks "$ruling_line\n$hosts_line\n120000 $o_policy_link${t}crates/halvo-route/data/policy.tsv\n100644 $o_policy${t}crates/halvo-route/data/policy-target.tsv"
+  data_case no-policy picks "$ruling_line\n$hosts_line"
+  data_case hosts-with-a-row hosts "$ruling_line\n100644 $o_hosts_row${t}crates/halvo-route/data/hosts.tsv\n$policy_line"
+  data_case no-hosts hosts "$ruling_line\n$policy_line"
+  data_case hosts-as-a-link hosts "$ruling_line\n120000 $o_hosts_link${t}crates/halvo-route/data/hosts.tsv\n$policy_line"
+  data_case hosts-twin-in-another-letter-case hosts "$base\n100644 $o_hosts${t}crates/halvo-route/data/Hosts.tsv"
+  data_case hosts-path-as-a-tree hosts "$ruling_line\n100644 $o_hosts${t}crates/halvo-route/data/hosts.tsv/hosts.tsv\n$policy_line"
+  data_case hosts-read-fails setup "$base" "$o_hosts"
   data_case outcomes-as-a-submodule rows "$base\n160000 2222222222222222222222222222222222222222${t}$outcomes"
   data_case egress-as-a-file entries "$base\n100644 $o_headings${t}$egress_dir"
   data_case recorded-path-as-a-tree rows "$base\n100644 $o_device${t}$outcomes/recorded.tsv/rows.tsv"
@@ -970,6 +1034,22 @@ ruling_units() {
   unit ruling-directory other failing ruling_of "$u/ruling-directory"
   printf 'ruling=none\n' >"$u/ruling-none" || fixture_fail
   unit ruling-none none passing ruling_of "$u/ruling-none"
+}
+
+hosts_units() {
+  u=$work/u
+  for fixture in with-a-row:"$hosts_header\nfrontier\thttps://top.invalid\tm\ta\tfixture:test\t2026-11-22\n" \
+    without-its-lf:"$hosts_header" header-twice:"$hosts_header\n$hosts_header\n" carriage-return:"$hosts_header\r\n" \
+    blank-line:"$hosts_header\n\n" other-header:'tier\torigin\tmodel\tadapter\tsource\n'; do
+    printf '%b' "${fixture#*:}" >"$u/hosts-${fixture%%:*}" || fixture_fail
+    unit "hosts-${fixture%%:*}" other failing hosts_of "$u/hosts-${fixture%%:*}"
+  done
+  unit hosts-missing other failing hosts_of "$u/no-such-file"
+  mkdir "$u/hosts-directory" || fixture_fail
+  unit hosts-directory other failing hosts_of "$u/hosts-directory"
+  printf '%s\n' "$hosts_header" >"$u/hosts-header" || fixture_fail
+  unit hosts-header-alone header passing hosts_of "$u/hosts-header"
+  unit hosts-committed header passing hosts_of crates/halvo-route/data/hosts.tsv
 }
 
 row_units() {
@@ -1101,14 +1181,14 @@ probe_units() {
       verdict "probe-$1" "$2" holds-no-stop "$3"
     fi
   }
-  e0624='error[E0624]: associated function test_hosted is private'
+  e0624='error[E0624]: associated function read_with_table is private'
   printf '' >"$u/probe-no-error" || fixture_fail
-  printf 'src/bin/probe.rs:4:26: error[E0599]: no function or associated item named test_hosted found\n' >"$u/probe-e0599" || fixture_fail
+  printf 'src/bin/probe.rs:4:26: error[E0599]: no function or associated item named read_with_table found\n' >"$u/probe-e0599" || fixture_fail
   printf 'src/bin/probe.rs:5:26: %s\n' "$e0624" >"$u/probe-another-line" || fixture_fail
   printf 'src/bin/probe.rs:4:26: %s\ncrates/halvo-route/src/leave.rs:586:5: error[E0432]: unresolved import sha2\n' "$e0624" >"$u/probe-and-an-error-in-the-library" || fixture_fail
   printf 'src/bin/probe.rs:4:26: %s\nerror[E0432]: unresolved import sha2\n  --> crates/halvo-route/src/leave.rs:586:5\n' "$e0624" >"$u/probe-and-a-long-form-error" || fixture_fail
   printf 'other/src/bin/probe.rs:4:26: %s\n' "$e0624" >"$u/probe-another-file" || fixture_fail
-  printf 'src/bin/probe.rs:4:26: error: associated function test_hosted is private\n' >"$u/probe-error-without-a-code" || fixture_fail
+  printf 'src/bin/probe.rs:4:26: error: associated function read_with_table is private\n' >"$u/probe-error-without-a-code" || fixture_fail
   for fixture in no-error e0599 another-line and-an-error-in-the-library and-a-long-form-error another-file error-without-a-code; do
     probe_case "$fixture" holds-no-stop failing
   done
@@ -1125,8 +1205,10 @@ judge_case() {
   mkdir "$artifacts" || fixture_fail
   probe_code=$3
   control_code=$5
+  loopback_code=${7:-0}
   put_file "$work/stub/$4" "$artifacts/probe.txt"
   put_file "$work/stub/$6" "$artifacts/control.out"
+  put_file "$work/stub/${8:-loopback.out}" "$artifacts/loopback.out"
   judge_pair
   verdict "judge-$label" "$want" "$value_count" failing
 }
@@ -1142,6 +1224,12 @@ judge_units() {
   judge_case control-answers-grant 1 101 probe.out 0 control-grant.out
   judge_case control-exits-1 1 101 probe.out 1 control.out
   judge_case probe-and-control-miss 2 0 empty.out 101 control.out
+  judge_case probe-control-and-loopback-hold 0 101 probe.out 0 control.out 0 loopback.out
+  judge_case loopback-prints-another-port 1 101 probe.out 0 control.out 0 loopback-other-port.out
+  judge_case loopback-prints-two-origins 1 101 probe.out 0 control.out 0 loopback-two-origins.out
+  judge_case loopback-prints-localhost 1 101 probe.out 0 control.out 0 loopback-localhost.out
+  judge_case loopback-prints-nothing 1 101 probe.out 0 control.out 0 empty.out
+  judge_case loopback-exits-101 1 101 probe.out 0 control.out 101 loopback.out
   artifacts=$work/u/judge-tree-fails
   mkdir "$artifacts" || fixture_fail
   : >"$artifacts/tree.txt" || fixture_fail
@@ -1155,7 +1243,7 @@ judge_units() {
 }
 
 full_cases() {
-  check all-hold PASS 'absent ruling=none hosted_picks=0 hosted_rows=0 net_crates=0 entries=0 grants=0 test_value=0'
+  check all-hold PASS 'absent ruling=none hosts=header hosted_picks=0 hosted_rows=0 net_crates=0 entries=0 grants=0 test_value=0'
 
   for variant in ruling policy recorded egress; do
     mkdir "$work/commit-$variant" || fixture_fail
@@ -1163,7 +1251,7 @@ full_cases() {
   done
   printf 'ruling=hosted\n' >"$work/commit-ruling/crates/halvo-route/data/ruling.txt" || fixture_fail
   STUB_COMMIT=$work/commit-ruling
-  check ruling-file-with-another-line FAIL 'absent ruling=other hosted_picks=0 ' "FAIL $name (ruling)"
+  check ruling-file-with-another-line FAIL 'absent ruling=other hosts=header hosted_picks=0 ' "FAIL $name (ruling)"
   cp "$work/u/policy-frontier" "$work/commit-policy/crates/halvo-route/data/policy.tsv" || fixture_fail
   STUB_COMMIT=$work/commit-policy
   check policy-pick-raised-to-frontier FAIL ' hosted_picks=1 hosted_rows=0 ' "FAIL $name (picks)"
@@ -1198,7 +1286,17 @@ full_cases() {
   printf 'ruling=hosted\n' >"$work/commit-ruling-and-pick/crates/halvo-route/data/ruling.txt" || fixture_fail
   cp "$work/u/policy-frontier" "$work/commit-ruling-and-pick/crates/halvo-route/data/policy.tsv" || fixture_fail
   STUB_COMMIT=$work/commit-ruling-and-pick
-  check ruling-and-pick-name-the-ruling FAIL 'absent ruling=other hosted_picks=1 ' "FAIL $name (ruling)"
+  check ruling-and-pick-name-the-ruling FAIL 'absent ruling=other hosts=header hosted_picks=1 ' "FAIL $name (ruling)"
+  for variant in hosts-row no-hosts; do
+    mkdir "$work/commit-$variant" || fixture_fail
+    make_commit "$work/commit-$variant"
+  done
+  printf 'frontier\thttps://top.invalid\tm\ta\tfixture:test\t2026-11-22\n' >>"$work/commit-hosts-row/crates/halvo-route/data/hosts.tsv" || fixture_fail
+  STUB_COMMIT=$work/commit-hosts-row
+  check table-of-hosts-with-a-row FAIL 'absent ruling=none hosts=other hosted_picks=0 ' "FAIL $name (hosts)"
+  mv "$work/commit-no-hosts/crates/halvo-route/data/hosts.tsv" "$work/commit-no-hosts/hosts.away" || fixture_fail
+  STUB_COMMIT=$work/commit-no-hosts
+  check commit-without-a-table-of-hosts FAIL 'absent ruling=none hosts=other hosted_picks=0 ' "FAIL $name (hosts)"
 
   STUB_TREE_OUT=$work/stub/tree-reqwest.out
   check tree-names-a-network-package FAIL ' net_crates=1 entries=0 ' "FAIL $name (crates)"
@@ -1217,6 +1315,10 @@ full_cases() {
   check probe-compiles FAIL ' grants=0 test_value=1' "FAIL $name (test_value)"
   STUB_CONTROL_OUT=$work/stub/control-frontier-grant.out
   check control-answers-grant-for-frontier FAIL ' test_value=1' "FAIL $name (test_value)"
+  STUB_LOOPBACK_OUT=$work/stub/loopback-other-port.out
+  check loopback-prints-another-origin FAIL ' grants=0 test_value=1' "FAIL $name (test_value)"
+  STUB_LOOPBACK_EXIT=101
+  check loopback-run-fails FAIL ' grants=0 test_value=1' "FAIL $name (test_value)"
   CASE_RUSTFLAGS='--cfg r6_job'
   STUB_JOB_FLAG='--cfg r6_job'
   check job-rustflags-kept PASS ' test_value=0'
@@ -1226,11 +1328,11 @@ full_cases() {
   CASE_QUIET=true
   check job-sets-cargo-quiet PASS ' grants=0 test_value=0'
 
-  for kind in tree:crates debug:grants release:grants control:test_value probe:test_value; do
+  for kind in tree:crates debug:grants release:grants control:test_value loopback:test_value probe:test_value; do
     STUB_CHANGE_AT=${kind%%:*}
     STUB_CHANGE_LINE='? .cargo/config.toml'
     case ${kind%%:*} in
-      control | probe) when=pair ;;
+      control | loopback | probe) when=pair ;;
       *) when=${kind%%:*} ;;
     esac
     check "tree-changed-by-$STUB_CHANGE_AT" FAIL "tree changed=after-$when ? .cargo/config.toml" "FAIL $name (${kind#*:})"
@@ -1284,6 +1386,7 @@ self_test() {
   write_outputs
   reset_stubs
   ruling_units
+  hosts_units
   row_units
   entry_units
   crate_units

@@ -646,6 +646,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
             StateCap::Known(cap) => proto::Cap::Known(cap),
             StateCap::OutOfRange(_) | StateCap::Unread => proto::Cap::Unknown,
         },
+        cap_not_set: parts.cap.not_set(),
         drain: if failing {
             Health::Failing
         } else {
@@ -919,6 +920,56 @@ mod tests {
     }
 
     impl ServesUnknown for Recorded {}
+
+    #[test]
+    fn behind_a_settings_reset_the_status_says_the_cap_is_not_set_and_no_other_cap_does() {
+        use halvo_control::model::{StorageCap, UtcSecond};
+
+        let platform = if cfg!(windows) {
+            Platform::Windows
+        } else {
+            Platform::Macos
+        };
+        let shown = |cap: StateCap| {
+            let parts = StatusParts {
+                board: Board::new(platform),
+                desired: Desired::Paused,
+                lease: proto::Lease::Fresh,
+                slot: Slot::Opening,
+                obstructed: None,
+                health: StateHealth::Ok,
+                cap,
+                switches: Switches::default(),
+                once_granted: Vec::new(),
+                asked: Vec::new(),
+                input_keys: false,
+                held: false,
+            };
+            let facts = RunFacts {
+                started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+                parent: proto::Parent::None,
+                last_stop: proto::LastStop::None,
+                rss_peak_bytes: 0,
+            };
+            let status = status_of(&parts, &facts).unwrap();
+            (status.fields().cap_bytes, status.fields().cap_not_set)
+        };
+        let reset = super::super::state::after_a_reset().storage_cap;
+        assert_eq!(shown(reset), (proto::Cap::Unknown, true));
+        assert_eq!(super::super::cap_bound(reset), None);
+        for cap in [
+            StateCap::OutOfRange(1),
+            StateCap::OutOfRange(StorageCap::MIN.bytes() - 1),
+            StateCap::OutOfRange(StorageCap::MAX.bytes() + 1),
+            StateCap::OutOfRange(u64::MAX),
+            StateCap::Unread,
+        ] {
+            assert_eq!(shown(cap), (proto::Cap::Unknown, false), "{cap:?}");
+        }
+        let set = StateCap::Known(StorageCap::MIN);
+        assert_eq!(shown(set), (proto::Cap::Known(StorageCap::MIN), false));
+        assert!(super::super::cap_bound(set).is_some());
+    }
 
     #[test]
     fn the_server_refuses_a_peer_of_another_user() {

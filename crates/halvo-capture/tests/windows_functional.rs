@@ -6083,10 +6083,11 @@ fn one_key_of_each_class_gives_a_record_only_for_the_keys_that_change_text() {
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         let _ = events.drain_for(Duration::from_secs(1));
-        let presses: [&[VIRTUAL_KEY]; 5] = [
+        let presses: [&[VIRTUAL_KEY]; 6] = [
             &[VIRTUAL_KEY(0x41)],
             &[VIRTUAL_KEY(0x08)],
             &[VIRTUAL_KEY(0x25)],
+            &[VK_F15],
             &[VIRTUAL_KEY(0x11), VIRTUAL_KEY(0x41)],
             &[VIRTUAL_KEY(0x0D)],
         ];
@@ -6138,7 +6139,7 @@ fn one_key_of_each_class_gives_a_record_only_for_the_keys_that_change_text() {
             "INCONCLUSIVE: the child's window with its plain edit was not in front"
         );
         assert_eq!(
-            accepted, 14,
+            accepted, 16,
             "INCONCLUSIVE: SendInput did not insert every key"
         );
         let changed_text = [KeyClass::Printable, KeyClass::Editing];

@@ -163,8 +163,9 @@ fn watch<R: Runtime>(app: AppHandle<R>, started: Instant) {
 }
 
 /// The display affinity of the window main as Windows reads it (GetWindowDisplayAffinity): 17,
-/// WDA_EXCLUDEFROMCAPTURE, where the system keeps the window out of every capture; `-` where
-/// it cannot be read.
+/// WDA_EXCLUDEFROMCAPTURE, where the system keeps the window out of screenshots, screen shares
+/// and screen recordings that are made through Windows' own capture features, Halvo's own screen
+/// record among them; `-` where it cannot be read.
 #[cfg(windows)]
 fn display_affinity<R: Runtime>(window: &tauri::WebviewWindow<R>) -> String {
     #[link(name = "user32")]

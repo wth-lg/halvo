@@ -144,6 +144,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
         store_bytes: Some(1_048_576),
         store_logical_bytes: Some(524_288),
         cap_bytes: Cap::Known(StorageCap::DEFAULT),
+        cap_not_set: false,
         drain: Health::Healthy,
         drain_error: None,
         drain_since: None,
@@ -542,6 +543,7 @@ impl ScriptedDaemon {
                 Reply::Deleted(Deleted {
                     report: sample_delete_report(),
                     store: fresh,
+                    unfinished: false,
                 })
             }
         }

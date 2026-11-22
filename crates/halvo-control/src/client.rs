@@ -1763,10 +1763,11 @@ mod tests {
             RESTART,
             SOURCE_NOT_STOPPED,
             USAGE,
+            DATA_DIR_UNUSABLE,
             UNREACHABLE,
             BUSY,
         ];
-        assert_eq!(all, [0, 1, 2, 3, 4, 5, 64, 69, 75]);
+        assert_eq!(all, [0, 1, 2, 3, 4, 5, 64, 66, 69, 75]);
         assert_eq!(FINAL_FLUSH_FAILED, ERROR);
     }
 

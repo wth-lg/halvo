@@ -36,6 +36,9 @@ pub struct StoreView {
     /// The status's `store_delete_unfinished`, written for the page only while it stands.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub delete_unfinished: bool,
+    /// The status's `cap_not_set`, written for the page only while it stands.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub cap_not_set: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -569,6 +572,14 @@ impl Hold {
         self.changed.notify_all();
     }
 
+    /// A run of Remove Halvo's door ends: an ask of a Start that stands from before that end is
+    /// dropped, and the end of the last child stays read, so that only a press behind the run
+    /// asks for a child.
+    #[cfg(any(target_os = "macos", windows, test))]
+    pub fn drop_the_ask(&self) {
+        self.state().start_asked = false;
+    }
+
     /// The supervisor's spawner reads the data directory not provisioned: no child starts before
     /// the person's click on Start, the consent (contracts.md C10.7).
     #[cfg(any(target_os = "macos", windows, test))]
@@ -819,6 +830,7 @@ impl StatusView {
                 error: f.store_error,
                 retry_in_s: f.store_retry_in_s,
                 delete_unfinished: f.store_delete_unfinished,
+                cap_not_set: f.cap_not_set,
             },
             store_bytes: f.store_bytes,
             store_logical_bytes: f.store_logical_bytes,
@@ -978,8 +990,8 @@ pub enum ActionError {
     DeleteHeld {
         looked_in: String,
     },
-    /// The program of the offline delete did not start, or the app has none to start: nothing
-    /// was deleted.
+    /// The program of the offline delete did not start, the app has none to start, or it could
+    /// not use its data directory (exit 66): nothing was deleted.
     DeleteNotStarted,
     /// The offline delete ended in a way that tells nothing of what it removed: another exit
     /// status, a signal, lines that do not read, or no end within its wait.
@@ -1262,7 +1274,8 @@ pub enum DeleteView {
         #[serde(skip_serializing_if = "Option::is_none")]
         unfinished_in_a_row: Option<u32>,
         /// The run that gave this answer ended as one that is not whole, whatever its fields
-        /// read: the offline delete's end with 1 (contracts.md C3.3).
+        /// read: the offline delete's end with 1 (contracts.md C3.3), or a reply of the service
+        /// that carries `unfinished` (C2.1).
         #[serde(skip)]
         not_whole: bool,
         /// The folder of the crash reports of the web view of Halvo's own window, where one
@@ -1436,7 +1449,7 @@ impl DeleteView {
                 deleted.store,
                 roots_dir,
                 None,
-                false,
+                deleted.unfinished,
             ),
             DeleteOutcome::AlreadyDeleted(already) => DeleteView::AlreadyDeleted {
                 current_store_id: already.current,
@@ -1494,10 +1507,11 @@ enum Printed {
 /// The answer of the offline delete by how its program ended and what it printed (contracts.md
 /// C3.3 and C10.5): `looked_in` is its `data_dir=`. An end with 0 and `no_store`, and an end with
 /// 0 or 1 and the `deleted` line, are its outcome, and an end with 1 is never a whole delete,
-/// whatever the line reads; an end with 75 deleted nothing; any other end tells nothing of what
-/// was removed, an end with 1 that printed no `deleted` line among them, which halvo-capture
-/// gives both where it could not use the directory and where its walk removed entries before
-/// the store's own delete failed with no report.
+/// whatever the line reads; an end with 75 deleted nothing, and so did an end with 66 that
+/// printed `data_dir=` alone, which halvo-capture gives where it could not use the directory,
+/// before any removal; any other end tells nothing of what was removed, an end with 1 that
+/// printed no `deleted` line among them, which halvo-capture gives where the write of its own
+/// lines failed.
 pub fn offline_view(
     end: &OfflineEnd,
     roots_dir: Option<&std::path::Path>,
@@ -1533,6 +1547,9 @@ pub fn offline_view(
             code == exit::ERROR,
         )),
         (exit::BUSY, Printed::Nothing) => removed_nothing(ActionError::DeleteHeld { looked_in }),
+        (exit::DATA_DIR_UNUSABLE, Printed::Nothing) => {
+            removed_nothing(ActionError::DeleteNotStarted)
+        }
         _ => not_known(Some(looked_in)),
     }
 }

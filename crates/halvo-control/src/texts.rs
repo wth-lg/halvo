@@ -42,9 +42,9 @@ pub const TYPING_MAY_BE_OBSERVED: &str = "Typing may still be observed: Halvo's 
 /// line reads failed, carries the mark `unstopped` beside stopped or off, or is missing.
 pub const SCREEN_ACTIVITY_MAY_BE_RECORDED_WITH_THE_SETTING_OFF: &str = "Screen activity may still be recorded although the setting is off: Halvo's capture service reports a fault in that part. To be sure it is off, pause capture or quit Halvo.";
 
-pub const PASSWORDS_NOT_CONFIRMED: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field, never which key. Pause capture before you type a password.";
+pub const PASSWORDS_NOT_CONFIRMED: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field and what kind of key it is, never which letter, digit or sign. Pause capture before you type a password.";
 
-pub const KEY_TYPED_AHEAD_CAN_BE_NOTED: &str = "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password.";
+pub const KEY_TYPED_AHEAD_CAN_BE_NOTED: &str = "A key that you press before a program or page has moved to its password field, for example while it is frozen or still loading, can be noted: when it was pressed, in which app and what kind of key, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in.";
 
 /// What a Mac's page says while its status reads keys_withheld yes: an item and no warning
 /// (ruling PR-30 PR10), in the coordinator's words after three plain readers, the owner's to
@@ -71,7 +71,7 @@ pub const LIMITS: &str = "A copy of Halvo's data made earlier, such as a backup,
 pub const fn recorded_when_on(switch: SwitchName) -> &'static str {
     match switch {
         SwitchName::TitleText => "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private.",
-        SwitchName::KeyClass => "Halvo records a class for each key you press, never the character.",
+        SwitchName::KeyClass => "Halvo records each key you press, when and in which app, and what kind of key it is: a letter, digit or sign, a delete key, an arrow or page key, Return or Enter, Tab, a shortcut, or another key. It never records which letter, digit or sign.",
         SwitchName::PointerClass => "Halvo records each click and which button you pressed, and how many times you scroll, drag or move the pointer each second, never where on the screen.",
         SwitchName::ScreenActivity => "Halvo notes screen activity, a record that the screen changed, and stores no image.",
         SwitchName::SiteRead => "Halvo records the site of the page in front in a browser, never the page's address or content.",
@@ -187,8 +187,15 @@ pub const fn custody_text(custody: Custody) -> &'static str {
     }
 }
 
-/// The cap sentence, in GB of 1,073,741,824 bytes with at most one decimal.
-pub fn storage(cap: Cap) -> String {
+/// The cap sentence of a status whose `cap_not_set` stands: the cap that a reset of the settings
+/// stores, which is not set and not one that could not be read.
+pub const NO_STORAGE_LIMIT: &str =
+    "Halvo has no storage limit and removes nothing to make room until you set one.";
+
+/// The cap sentence, in GB of 1,073,741,824 bytes with at most one decimal; for an unknown cap,
+/// [`NO_STORAGE_LIMIT`] where `not_set` stands, and otherwise the sentence of a limit that could
+/// not be read.
+pub fn storage(cap: Cap, not_set: bool) -> String {
     match cap {
         Cap::Known(cap) => {
             let tenths = (cap.bytes() * 10 + StorageCap::GIB / 2) / StorageCap::GIB;
@@ -199,6 +206,7 @@ pub fn storage(cap: Cap) -> String {
             };
             format!("Halvo keeps at most {size} GB and removes the oldest days first when it reaches that.")
         }
+        Cap::Unknown if not_set => NO_STORAGE_LIMIT.to_string(),
         Cap::Unknown => "Halvo could not read its storage limit and removes nothing to make room until you set one.".to_string(),
     }
 }
@@ -244,7 +252,7 @@ pub fn texts(status: &DaemonStatus) -> Texts {
         backup_limit: backup_limit(f.platform),
         limits: LIMITS,
         custody: custody_text(f.custody),
-        storage: storage(f.cap_bytes),
+        storage: storage(f.cap_bytes, f.cap_not_set),
         repeated_tasks: None,
     }
 }
@@ -275,9 +283,11 @@ pub fn onboarding_rows(status: &DaemonStatus) -> Vec<PermissionStatus> {
 
 /// The table of the first-run text (contracts.md C10.6 and C10.7) before any status: the rows
 /// of the default switches (contracts.md C13.5) with every source off, on a Mac with the row on
-/// typing by [`TYPING_ON_MAC`] behind the row on clicks and with no sentence on passwords or on
-/// a key pressed early; the backup limit, the limits, the custody on which the platform's build
-/// captures, the storage of the default cap and the sentence on repeated tasks.
+/// typing by [`TYPING_ON_MAC`] behind the row on clicks; on a Mac with typing on also the
+/// sentence on secure input and [`KEY_TYPED_AHEAD_CAN_BE_NOTED`], since the press on Start is
+/// the consent to typing, and with typing off neither; the backup limit, the limits, the custody
+/// on which the platform's build captures, the storage of the default cap and the sentence on
+/// repeated tasks.
 pub fn first_run(platform: Platform) -> Texts {
     first_run_with(platform, TYPING_ON_MAC)
 }
@@ -317,13 +327,18 @@ fn first_run_with(platform: Platform, typing_on_mac: bool) -> Texts {
             .position(|row| row.switch == Some(SwitchName::PointerClass))
             .map_or(rows.len(), |at| at + 1);
         rows.insert(behind_the_clicks, typing);
-        passwords = "";
+        passwords = if typing_on_mac {
+            PASSWORDS_WITH_SECURE_INPUT
+        } else {
+            ""
+        };
     }
     rows.insert(0, APP_IN_FRONT_ROW);
     Texts {
         recorded: rows,
         passwords,
-        typed_ahead: None,
+        typed_ahead: (passwords == PASSWORDS_WITH_SECURE_INPUT)
+            .then_some(KEY_TYPED_AHEAD_CAN_BE_NOTED),
         keys_withheld: None,
         backup_limit: backup_limit(platform),
         limits: LIMITS,
@@ -331,7 +346,7 @@ fn first_run_with(platform: Platform, typing_on_mac: bool) -> Texts {
             Platform::Macos => Custody::RootFile,
             Platform::Windows => Custody::Dpapi,
         }),
-        storage: storage(Cap::Known(StorageCap::DEFAULT)),
+        storage: storage(Cap::Known(StorageCap::DEFAULT), false),
         repeated_tasks: Some(REPEATED_TASKS),
     }
 }
@@ -514,7 +529,7 @@ mod tests {
             ),
             (
                 SwitchName::KeyClass,
-                "Halvo records a class for each key you press, never the character.",
+                "Halvo records each key you press, when and in which app, and what kind of key it is: a letter, digit or sign, a delete key, an arrow or page key, Return or Enter, Tab, a shortcut, or another key. It never records which letter, digit or sign.",
             ),
             (
                 SwitchName::PointerClass,
@@ -706,11 +721,11 @@ mod tests {
         );
         assert_eq!(
             passwords(Platform::Windows, PasswordGuard::None, SourceClass::Runs),
-            "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field, never which key. Pause capture before you type a password."
+            "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field and what kind of key it is, never which letter, digit or sign. Pause capture before you type a password."
         );
         assert_eq!(
             KEY_TYPED_AHEAD_CAN_BE_NOTED,
-            "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password."
+            "A key that you press before a program or page has moved to its password field, for example while it is frozen or still loading, can be noted: when it was pressed, in which app and what kind of key, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in."
         );
         for platform in [Platform::Macos, Platform::Windows] {
             for &guard in PasswordGuard::ALL {
@@ -766,20 +781,27 @@ mod tests {
     #[test]
     fn the_storage_sentence_names_the_cap_or_says_it_is_unknown() {
         assert_eq!(
-            storage(Cap::Known(StorageCap::DEFAULT)),
+            storage(Cap::Known(StorageCap::DEFAULT), false),
             "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
         );
         assert_eq!(
-            storage(Cap::Known(StorageCap::MIN)),
+            storage(Cap::Known(StorageCap::MIN), false),
             "Halvo keeps at most 1 GB and removes the oldest days first when it reaches that."
         );
         assert_eq!(
-            storage(Cap::Known(StorageCap::from_bytes(1_610_612_736).unwrap())),
+            storage(
+                Cap::Known(StorageCap::from_bytes(1_610_612_736).unwrap()),
+                false
+            ),
             "Halvo keeps at most 1.5 GB and removes the oldest days first when it reaches that."
         );
         assert_eq!(
-            storage(Cap::Unknown),
+            storage(Cap::Unknown, false),
             "Halvo could not read its storage limit and removes nothing to make room until you set one."
+        );
+        assert_eq!(
+            storage(Cap::Unknown, true),
+            "Halvo has no storage limit and removes nothing to make room until you set one."
         );
     }
 
@@ -823,10 +845,10 @@ mod tests {
     const P0: &str = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
     const PM: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
     const PH: &str = "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
-    const PW: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field, never which key. Pause capture before you type a password.";
-    const TA: &str = "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password.";
+    const PW: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field and what kind of key it is, never which letter, digit or sign. Pause capture before you type a password.";
+    const TA: &str = "A key that you press before a program or page has moved to its password field, for example while it is frozen or still loading, can be noted: when it was pressed, in which app and what kind of key, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in.";
     const TITLE_ON: &str = "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private.";
-    const KEY_CLASS_ON: &str = "Halvo records a class for each key you press, never the character.";
+    const KEY_CLASS_ON: &str = "Halvo records each key you press, when and in which app, and what kind of key it is: a letter, digit or sign, a delete key, an arrow or page key, Return or Enter, Tab, a shortcut, or another key. It never records which letter, digit or sign.";
     const POINTER_ON: &str = "Halvo records each click and which button you pressed, and how many times you scroll, drag or move the pointer each second, never where on the screen.";
 
     struct LineRow {
@@ -1531,6 +1553,23 @@ mod tests {
                 screen
             ],
             "typing on: the standing row of key_class in its place"
+        );
+        let sentences = |typing_on_mac: bool| {
+            let t = first_run_with(Platform::Macos, typing_on_mac);
+            (t.passwords, t.typed_ahead)
+        };
+        assert_eq!(
+            sentences(false),
+            ("", None),
+            "typing off: no sentence on passwords and none on a key pressed early"
+        );
+        assert_eq!(
+            sentences(true),
+            (
+                "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.",
+                Some("A key that you press before a program or page has moved to its password field, for example while it is frozen or still loading, can be noted: when it was pressed, in which app and what kind of key, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in.")
+            ),
+            "typing on: the sentence on secure input and the sentence on a key pressed early"
         );
         assert_eq!(
             first_run(Platform::Macos),

@@ -157,6 +157,21 @@ test("X-app-ui-05: the totals on disk and of records are labelled apart, GB is d
   assert.equal(unknown.text("cap-storage"), "Halvo could not read its storage limit and removes nothing to make room until you set one.");
 });
 
+test("cap-not-set: behind a reset of the settings the cap line says that Halvo has no storage limit, and a cap that cannot be read keeps its own sentence", async () => {
+  const notSet = await page(fixture("capture_status-cap-not-set"));
+  assert.equal(notSet.text("cap-storage"), "Halvo has no storage limit and removes nothing to make room until you set one.");
+  assert.equal(notSet.byId("cap-gb").value, "");
+  const unknown = await page(fixture("capture_status-cap-unknown"));
+  assert.equal(unknown.text("cap-storage"), "Halvo could not read its storage limit and removes nothing to make room until you set one.");
+});
+
+test("cap-not-set: the Stored view says with no storage limit behind the size on disk for a limit that is not set, and keeps its line for a known cap and a cap that cannot be read", async () => {
+  const line = async (name) => (await page(fixture(name))).byId("total").parentNode.textContent;
+  assert.equal(await line("capture_status-cap-not-set"), "On disk: 1.0 MB with no storage limit. Recorded: 512 KB.");
+  assert.equal(await line("capture_status-cap-unknown"), "On disk: 1.0 MB of a cap of unknown. Recorded: 512 KB.");
+  assert.equal(await line("capture_status-running"), "On disk: 1.0 MB of a cap of 25 GB. Recorded: 512 KB.");
+});
+
 test("RR-app-ui-24: the page keeps no report sentence and draws what is recorded from texts.recorded", async () => {
   const p = await page(fixture("capture_status-running"));
   const text = visibleText(p.document.body);
@@ -222,4 +237,14 @@ test("control-2b: the sentence typed_ahead stands under the password sentence wh
   const offLimits = off.byId("keeps-limits").children.map((el) => el.textContent);
   assert.deepEqual([passwords, typed].filter((line) => offLimits.includes(line)), [], "a Mac view with typing off");
   assert.equal(off.byId("recorded").children.some((li) => /each key/.test(li.textContent)), false);
+});
+
+test("typing-words-mac: What Halvo keeps shows the sentence on withheld keys under typed_ahead when the status gives it, and not otherwise", async () => {
+  const withheld = "Halvo did not save part of what you typed, because it may have been a password. What Halvo leaves out this way is never saved. You do not need to do anything.";
+  const running = fixture("capture_status-running");
+  const mac = await page({ ...running, texts: { ...running.texts, keys_withheld: withheld } });
+  const limits = mac.byId("keeps-limits").children.map((el) => el.textContent);
+  assert.equal(limits.indexOf(withheld), limits.indexOf(running.texts.typed_ahead) + 1);
+  const none = await page(running);
+  assert.equal(none.byId("keeps-limits").children.some((el) => el.textContent === withheld), false);
 });
