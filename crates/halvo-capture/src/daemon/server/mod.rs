@@ -173,7 +173,7 @@ impl EndingLife {
                 parts.desired = Desired::Paused;
             }
         }
-        #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+        #[cfg(any(target_os = "macos", windows))]
         let facts = RunFacts {
             rss_peak_bytes: rss_peak_bytes(),
             ..facts

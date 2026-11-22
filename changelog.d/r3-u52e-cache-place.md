@@ -1,0 +1,2 @@
+- Fixed: On macOS the agent's browser keeps its cache (the pages it loaded, signed-in pages among them) inside the run's own profile, so the stop and Delete everything take it; before, a profile under Library/Application Support kept it under Library/Caches.
+- Changed: On macOS the browser's stop also removes the run's empty folders that the browser makes under Library/Caches, each only where it is empty, and reports removed=no when one stays.

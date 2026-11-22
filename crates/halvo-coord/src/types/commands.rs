@@ -107,7 +107,14 @@ const PARAMS: [&str; 9] = [
     "seller",
 ];
 
-const ACTIONS: [&str; 5] = ["run_now", "stop", "take_back", "switch_off", "switch_on"];
+const ACTIONS: [&str; 6] = [
+    "run_now",
+    "stop",
+    "take_back",
+    "switch_off",
+    "switch_on",
+    "stop_sign_in",
+];
 
 const fn arg(name: &'static str, kind: ArgType) -> Arg {
     Arg {
@@ -233,6 +240,7 @@ pub const LIST: [Command; 9] = [
             Cause::NoService,
             Cause::Busy,
             Cause::Overlap,
+            Cause::Day,
             Cause::Malformed,
         ],
     },

@@ -301,7 +301,7 @@ fn config(n: usize) -> Config {
 }
 
 /// The ports of a world of `agents` manual agents, each with one run that completed two days
-/// before the clock's day.
+/// before the clock's day and no kept sign-in, so that its row has the form of the fixtures'.
 pub fn world(agents: usize, limits: Limits) -> Shared {
     world_ending(&vec![RunEnd::Completed; agents], limits)
 }
@@ -356,7 +356,7 @@ pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
             config: config(n),
             state: AgentState::Active,
             slots: Vec::new(),
-            session: true,
+            session: false,
             last: Some(PastRun {
                 run,
                 day: DAY - 2,

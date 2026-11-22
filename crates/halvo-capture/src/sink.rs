@@ -439,10 +439,10 @@ impl SinkWriter {
     /// arrive on the channel: the run mark that the owner's entry appends.
     #[cfg(feature = "r2")]
     #[cfg_attr(
-        not(any(test, target_os = "macos", all(windows, debug_assertions))),
+        not(any(test, target_os = "macos", windows)),
         expect(
             dead_code,
-            reason = "Owner::append_run_mark, its one caller, is built in tests and in macOS debug builds alone"
+            reason = "Owner::append_run_mark, its one caller, is built in tests and in macOS and Windows builds alone"
         )
     )]
     pub(crate) fn number_next(&self) -> ArrivalNumber {

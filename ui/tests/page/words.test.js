@@ -133,7 +133,7 @@ const WORDS = {
   DELETE_LOOKED_IN: "The delete ran in Halvo's data folder, {folder}.",
   SETTINGS_UNREADABLE: "Halvo cannot read its settings file. Delete everything resets it, and it also deletes everything that Halvo has recorded.",
   SETTINGS_NEWER: "Halvo's settings file was saved by a newer version of Halvo. Update Halvo to read it, or use Delete everything, which resets it and also deletes everything that Halvo has recorded.",
-  DELETE_NOT_FINISHED: "The delete did not finish. Press Delete everything again to finish it.",
+  DELETE_NOT_FINISHED: "The delete did not finish. Press Delete everything again to finish it. If the button cannot be pressed, quit Halvo and open it again: Halvo then tries the delete again.",
   DELETE_NOT_FINISHED_AGAIN: "The delete did not finish a second time in a row. Something is still left in Halvo's data folder, {folder}.",
   REMOVE_HALVO: "Remove Halvo",
   REMOVE_QUESTION: "Remove Halvo from this Mac? Halvo first deletes everything that it has recorded, then removes its login item, its settings and its own files, and then quits. This cannot be undone.",
