@@ -9,7 +9,10 @@ attempts=3
 template_executables='uninstall.exe'
 
 fail() {
-  [ -z "${cycling:-}" ] || cleanup
+  if [ -n "${cycling:-}" ]; then
+    show_found
+    cleanup
+  fi
   printf 'FAIL %s (%s)\n' "$name" "$1"
   exit 1
 }
@@ -190,24 +193,105 @@ posix_path() {
   cygpath -u "$1"
 }
 
-# Every process whose executable lies in the directory $1 (native), one line each: its name, its
-# process id, the id of its parent and its command line.
-list_from() {
+# The processes of the machine as the system names them, read with the directory $1 (native), both
+# paths in one spelling, the long form that GetLongPathName gives: with $2 = in, every process
+# whose executable lies in $1, one line each with its name, its process id, the id of its parent
+# and its command line; with $2 = all, the long form of $1 and then every process whose name starts
+# with halvo, with its executable's path as the system gives it and in its long form.
+list_ps() {
   script=$work/list.ps1
   [ -f "$script" ] || cat >"$script" <<'EOF' || return 1
-param([string]$Dir)
+param([string]$Dir, [string]$Mode)
 $ErrorActionPreference = "Stop"
-$prefix = $Dir.TrimEnd('\') + '\'
+Add-Type -Namespace HalvoCheck -Name Paths -MemberDefinition '[DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern uint GetLongPathName(string shortPath, System.Text.StringBuilder longPath, uint size);'
+function Long([string]$Path) {
+  $buffer = New-Object System.Text.StringBuilder 32768
+  $n = [HalvoCheck.Paths]::GetLongPathName($Path, $buffer, 32768)
+  if ($n -gt 0 -and $n -lt 32768) { return $buffer.ToString() }
+  return $Path
+}
+$dirLong = (Long $Dir).TrimEnd('\')
+$prefix = $dirLong + '\'
+if ($Mode -eq 'all') { [Console]::Out.WriteLine(("dir given={0} long={1}" -f $Dir, $dirLong)) }
 foreach ($p in Get-CimInstance -ClassName Win32_Process) {
   $exe = $p.ExecutablePath
-  if ($exe -and $exe.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+  $long = ''
+  if ($exe) { $long = Long $exe }
+  if ($Mode -eq 'all') {
+    if ($p.Name -like 'halvo*') {
+      [Console]::Out.WriteLine(("{0} {1} {2} path={3} long={4}" -f $p.Name, $p.ProcessId, $p.ParentProcessId, $exe, $long))
+    }
+  } elseif ($long -and $long.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     [Console]::Out.WriteLine(("{0} {1} {2} {3}" -f $p.Name, $p.ProcessId, $p.ParentProcessId, $p.CommandLine))
   }
 }
 EOF
   native=$(native_path "$script") || return 1
-  powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$native" -Dir "$1" >"$work/list.raw" || return 1
+  powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$native" -Dir "$1" -Mode "$2" >"$work/list.raw" || return 1
   tr -d '\r' <"$work/list.raw"
+}
+
+list_from() {
+  list_ps "$1" in
+}
+
+list_all() {
+  list_ps "$1" all
+}
+
+# The Windows process id of the process $1 that this shell started, from MSYS's /proc.
+winpid_of() {
+  tries=0
+  while [ "$tries" -lt 20 ]; do
+    if [ -r "/proc/$1/winpid" ]; then
+      cat "/proc/$1/winpid"
+      return 0
+    fi
+    sleep 0.1
+    tries=$((tries + 1))
+  done
+  return 1
+}
+
+# Ends the process $1 with every process below it.
+end_tree() {
+  taskkill //F //T //PID "$1" >/dev/null 2>&1
+}
+
+# The shortcuts that an install makes for a person, where the uninstall takes them away.
+shortcuts() {
+  desktop=$(cygpath -D) || return 1
+  programs=$(cygpath -P) || return 1
+  printf '%s\n' "$desktop/Halvo.lnk" "$programs/Halvo.lnk"
+}
+
+# Where a stage fails: every process whose name starts with halvo, with its path as the system gives
+# it and in its long form, the install directory as this check spells it, and the end of each
+# app's standard error.
+show_found() {
+  printf 'found: the install directory as this check spells it: %s\n' "${native_install:-none}"
+  if list_all "${native_install:-.}" >"$work/found" 2>"$work/found.err"; then
+    sed 's/^/found: /' "$work/found"
+  else
+    cause=$(head -n 3 "$work/found.err" | tr '\n' ' ')
+    printf 'found: the list of processes could not be read: %s\n' "$cause"
+  fi
+  for label in app-1 app-2; do
+    [ -f "$work/$label.out" ] || continue
+    tail -n 20 "$work/$label.out" | tr -d '\r' | LC_ALL=C tr -c '[:print:]\n' '?' | sed "s/^/found: $label err: /"
+  done
+}
+
+# Ends each app that this check started, by its process id with the processes below it, where the
+# system still names that id halvo.exe.
+end_started() {
+  [ -n "${started:-}" ] || return 0
+  list_all "${native_install:-.}" >"$work/all" 2>/dev/null || return 1
+  for pid in $started; do
+    if awk -v p="$pid" '$1 == "halvo.exe" && $2 == p { found = 1 } END { exit !found }' "$work/all"; then
+      end_tree "$pid"
+    fi
+  done
 }
 
 end_process() {
@@ -308,7 +392,7 @@ wait_pair() {
     pair_of "$2"
     [ -n "$pair" ] && break
     now=$(date +%s) || fail "the clock cannot be read"
-    [ $((now - began)) -lt "$start_s" ] || fail "the installed app ($1) runs with $n_children halvo-capture.exe children from the install directory after $start_s s, not one"
+    [ $((now - began)) -lt "$start_s" ] || fail "the installed app ($1) runs with $n_children halvo-capture.exe children from the install directory after $start_s s, not one ($n_apps apps from there)"
     sleep "$poll_s"
   done
   printf 'cycle %s: the app %s runs with one halvo-capture.exe child %s from the install directory\n' "$1" "${pair% *}" "${pair#* }"
@@ -338,12 +422,15 @@ end_installed() {
   return 1
 }
 
-# Takes away what the cycle planted, also where it fails: its processes, the held file, the
-# values pv, the Run value with its own text, its install and the default data directory it made.
+# Takes away what the cycle planted, also where it fails: the apps it started, by their ids, and
+# every process from the install directory, the held file, the values pv, the Run value with its
+# own text, the uninstall entry, the shortcuts that its install made, its install and the default
+# data directory it made.
 cleanup() {
   trap - EXIT
   [ -n "${cycling:-}" ] || return 0
   cycling=
+  end_started || printf 'cycle: the apps that the check started could not be read\n'
   end_installed || printf 'cycle: a process from the install directory still runs at the end\n'
   release_file
   runtime_put_back || printf 'cycle: the values pv of the WebView2 runtime could not all be put back\n'
@@ -352,6 +439,11 @@ cleanup() {
   fi
   if [ -d "$install" ] && uninstall_entry HKCU; then
     uninstall_entry_drop
+  fi
+  if [ -f "$work/made-links" ]; then
+    while IFS= read -r link; do
+      [ -f "$link" ] && take_away "$link"
+    done <"$work/made-links"
   fi
   [ -n "${made_default:-}" ] && [ -d "$made_default" ] && take_away "$made_default"
   [ -n "${planted:-}" ] && [ -f "$planted" ] && take_away "$planted"
@@ -367,8 +459,14 @@ cycle() {
   planted_run=
   made_default=
   planted=
+  started=
   cycling=yes
   trap cleanup EXIT
+  shortcuts >"$work/links" || fail "the folders of the shortcuts cannot be named"
+  : >"$work/made-links" || fail "the list of the shortcuts cannot be written"
+  while IFS= read -r link; do
+    [ -e "$link" ] || printf '%s\n' "$link" >>"$work/made-links"
+  done <"$work/links"
   runtime_hide || fail "the values pv of the WebView2 runtime could not be moved aside"
   MSYS_NO_PATHCONV=1 "$installer" /S "/D=$native_install" >"$work/install.out" 2>&1
   code=$?
@@ -391,6 +489,7 @@ cycle() {
   printf '{}\n' >"$data/daemon-state.json" || fail "the state file of a provisioned directory cannot be written"
   native_data=$(native_path "$data") || fail "the data directory has no native path"
   "$install/halvo.exe" --background --data-dir "$native_data" >"$work/app-1.out" 2>&1 &
+  pid=$(winpid_of "$!") && started="$started $pid"
   wait_pair "--data-dir" "${data##*/}" "$native_data"
   stopped_child=${pair#* }
   "$install/halvo-capture.exe" ctl --data-dir "$native_data" stop >"$work/stop.out" 2>&1 || fail "ctl stop of the installed app exited $?"
@@ -438,6 +537,7 @@ cycle() {
   reg_put "$run_key" Halvo "$planted_run" || fail "the Run value Halvo cannot be planted"
   printf 'cycle default: %s made, a file planted in %s, the Run value planted\n' "$default_native" "${folder##*/}/EBWebView"
   "$install/halvo.exe" --background >"$work/app-2.out" 2>&1 &
+  pid=$(winpid_of "$!") && started="$started $pid"
   wait_pair "default" "halvo" ""
 
   MSYS_NO_PATHCONV=1 "$install/uninstall.exe" /S /DELETEALL "_?=$native_install" >"$work/uninstall.out" 2>&1
@@ -485,6 +585,31 @@ fixture() {
   end_process() {
     kill -9 "$1" 2>/dev/null
     return 0
+  }
+  if [ "$STUB_MODE" = listing-blind ]; then
+    list_from() {
+      return 0
+    }
+  fi
+  list_all() {
+    printf 'dir given=%s long=%s\n' "$1" "$1"
+    for file in "$STUB_DIR/procs"/*; do
+      [ -f "$file" ] || continue
+      kill -0 "${file##*/}" 2>/dev/null || continue
+      read -r kind pid ppid exe rest <"$file"
+      printf '%s %s %s path=%s long=%s\n' "$kind" "$pid" "$ppid" "$exe" "$exe"
+    done
+    return 0
+  }
+  winpid_of() {
+    printf '%s\n' "$1"
+  }
+  end_tree() {
+    kill -9 "$1" 2>/dev/null
+    return 0
+  }
+  shortcuts() {
+    printf '%s\n' "$STUB_DIR/Desktop/Halvo.lnk" "$STUB_DIR/Start Menu/Programs/Halvo.lnk"
   }
   take_away() {
     for path in "$@"; do
@@ -838,7 +963,7 @@ self_test() {
   stand_in_programs "$work/stand-in-bin"
   fixture_limit_s=120
   zoe=$(printf 'Zo\303\253')
-  for mode in good left delete-fails no-runtime-file run-value-left no-child install-goes-on; do
+  for mode in good left delete-fails no-runtime-file run-value-left no-child install-goes-on listing-blind; do
     mkdir -p "$work/cycle-$mode" || exit 2
     STUB_MODE=$mode STUB_DIR=$work/cycle-$mode STUB_BIN=$work/stand-in-bin STUB_DEFAULT="$work/cycle-$mode/home/$zoe Halvo/com.halvo.desktop/data" STUB_HELPERS=$helpers STUB_SENTENCE=$sentence_runtime sh "$self" --fixture "$work/cycle-$mode" >"$work/cycle-$mode.out" 2>&1 &
     fixture=$!
@@ -880,8 +1005,11 @@ self_test() {
   cycle_verdict delete-fails FAIL 'the uninstall went on while the default data directory stays'
   cycle_verdict no-runtime-file FAIL "the silent install with no WebView2 runtime wrote no $runtime_file into the install directory"
   cycle_verdict run-value-left FAIL 'the Run value Halvo stays after the uninstall'
-  cycle_verdict no-child FAIL 'the installed app (--data-dir) runs with 0 halvo-capture.exe children from the install directory after 10 s, not one'
+  cycle_verdict no-child FAIL 'the installed app (--data-dir) runs with 0 halvo-capture.exe children from the install directory after 10 s, not one (1 apps from there)'
   cycle_verdict install-goes-on FAIL 'the install over a copy of which halvo-owner.exe is held went on (exit 0)'
+  # A listing that sees nothing from the install directory, as the first hosted run's did: the
+  # stage fails, and the cleanup ends the apps that the check started by their ids all the same.
+  cycle_verdict listing-blind FAIL 'the installed app (--data-dir) runs with 0 halvo-capture.exe children from the install directory after 10 s, not one (0 apps from there)'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
