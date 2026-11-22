@@ -322,4 +322,5 @@ record::run_list! { names_with_run_list
     "agent_history",
     "runs",
     "drop_sessions",
+    "list_replies",
 }
