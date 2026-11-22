@@ -6050,9 +6050,9 @@ fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
             &[VIRTUAL_KEY(0x41)],
             &[VIRTUAL_KEY(0x08)],
             &[VIRTUAL_KEY(0x25)],
+            &[VK_F15],
             &[VIRTUAL_KEY(0x11), VIRTUAL_KEY(0x41)],
             &[VIRTUAL_KEY(0x0D)],
-            &[VK_F15],
         ];
         let mut accepted = 0;
         for keys in presses {
