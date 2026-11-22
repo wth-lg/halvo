@@ -289,7 +289,7 @@ impl Spawner for Plan {
 }
 
 fn daemon_err(dir: &DataDir) -> io::Result<File> {
-    match private_dir(&dir.logs_dir()) {
+    match crate::instance::private_dir(&dir.logs_dir()) {
         Err(e) if e.kind() != io::ErrorKind::AlreadyExists => return Err(e),
         _ => {}
     }
@@ -298,17 +298,6 @@ fn daemon_err(dir: &DataDir) -> io::Result<File> {
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut file, 0o600);
     file.open(dir.daemon_err())
-}
-
-#[cfg(unix)]
-fn private_dir(path: &Path) -> io::Result<()> {
-    use std::os::unix::fs::DirBuilderExt;
-    std::fs::DirBuilder::new().mode(0o700).create(path)
-}
-
-#[cfg(not(unix))]
-fn private_dir(path: &Path) -> io::Result<()> {
-    std::fs::create_dir(path)
 }
 
 #[derive(Debug)]

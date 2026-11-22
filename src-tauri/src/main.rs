@@ -10,6 +10,7 @@ mod commands;
 #[cfg(any(target_os = "macos", test))]
 mod daemon_child;
 mod engine;
+mod instance;
 mod launch;
 mod poller;
 #[cfg(any(target_os = "macos", test))]
@@ -52,14 +53,24 @@ fn main() {
 }
 
 fn run(background: bool, given: Option<PathBuf>) {
+    let resolved = match &given {
+        Some(dir) => DataDir::from_flag(dir.clone()),
+        None => DataDir::for_current_user(),
+    };
+    let _lock = match resolved.as_ref().map(instance::take) {
+        Ok(Ok(instance::Taken::First(lock))) => Some(lock),
+        Ok(Ok(instance::Taken::Second)) => return,
+        Ok(Err(e)) => {
+            eprintln!("halvo: this Halvo runs without its lock, which could not be taken: {e}");
+            None
+        }
+        Err(_) => {
+            eprintln!("halvo: this Halvo runs without its lock, because it has no data directory");
+            None
+        }
+    };
     let pid = Arc::<ChildPid>::default();
-    let (control, data_dir) = control_of_child(
-        || match &given {
-            Some(dir) => DataDir::from_flag(dir.clone()),
-            None => DataDir::for_current_user(),
-        },
-        Arc::clone(&pid),
-    );
+    let (control, data_dir) = control_of_child(|| resolved, Arc::clone(&pid));
     #[cfg(any(target_os = "macos", test))]
     let child_dir = data_dir.clone();
     let state = commands::capture::AppState::with_control(control, data_dir, open_pane);
