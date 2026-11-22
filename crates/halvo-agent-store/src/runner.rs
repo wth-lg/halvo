@@ -49,8 +49,10 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   stored step; where `check_playbook` refuses the steps of that number that would be held, `playbook` for its
 ///   cause `workbook`, a write to a file that is not the slot `workbook` (CP-218 (c)), and `class` for any other
 ///   cause. It stores each step that is not stored and answers the count of the body's steps.
-/// - `put_session`: `binding` where the place of the part (origin, revision, part) holds a part with another `of`
-///   or other data; else it stores the part, with the request's day, unless it is stored, and answers 1.
+/// - `put_session`: `binding` where a stored part of the revision (origin, revision) names another `of`, and where
+///   the place of the part (origin, revision, part) holds a part with other data; else it stores the part, with the
+///   request's day, unless it is stored, and answers 1. So no part joins a revision of another count, a drop row's
+///   among them, and the parts of one revision always agree on their count.
 /// - `drop_session`: it stores, with the request's day, one more revision of the origin, numbered after every
 ///   stored revision of that origin, of one part in the drop form (`SessionData::dropped`), unless the newest whole
 ///   revision of that origin is in that form already, and answers 1. `load` lists that revision as the origin's
@@ -385,6 +387,12 @@ fn put_session(host: &mut dyn Host, now: Now, b: &PutSession) -> Result<RunnerRe
     bind::own_run(&*host, now, &b.run, &b.agent)?;
     bind::open_run(&*host, &b.run)?;
     let held = own_sessions(&*host, &b.agent)?;
+    if held
+        .iter()
+        .any(|s| s.origin == b.origin && s.rev == b.rev && s.of != b.of)
+    {
+        return Err(Own::Binding.into());
+    }
     match held
         .iter()
         .find(|s| s.origin == b.origin && s.rev == b.rev && s.part == b.part)

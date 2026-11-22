@@ -1786,6 +1786,39 @@ fn after_a_drop_a_run_that_names_the_older_revision_by_its_number_is_refused() {
 }
 
 #[test]
+fn after_a_drop_a_part_under_the_drop_row_s_own_number_is_refused() {
+    const ORIGIN: &str = "http://utility.test:18090";
+    let mut store = store_with("utility_bill_payment");
+    assert_eq!(
+        runner(&mut store, session_part(1, 1, ORIGIN, 1, 1, 1)),
+        Ok(stored(1))
+    );
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    assert_eq!(
+        coordinator(&mut store, drop_sessions_of(1, 1)),
+        Ok(stored_reply(1))
+    );
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of a later run");
+    assert_eq!(
+        runner(&mut store, session_part(1, 2, ORIGIN, 2, 2, 2)),
+        Err(declared("binding")),
+        "part 2 of 2 under the drop row's revision, whose stored part names 1"
+    );
+    let load = runner(
+        &mut store,
+        json!({"op": "load", "agent": agent(1), "run": run(2)}),
+    )
+    .expect("the load of the later run");
+    let load: Value =
+        serde_json::from_str(&load.to_json().expect("the reply's JSON")).expect("the reply's text");
+    assert_eq!(
+        load["sessions"],
+        json!([{"origin": ORIGIN, "rev": 2, "parts": 1}]),
+        "the load lists the drop row, no kept revision"
+    );
+}
+
+#[test]
 fn the_roster_names_each_effect_whose_newest_row_is_unknown() {
     let mut store = store_with("utility_bill_payment");
     let unknown = |store: &mut MemoryStore| roster(store)["agents"][0]["unknown"].clone();
