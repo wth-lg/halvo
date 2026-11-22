@@ -1,7 +1,7 @@
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::{AgentId, ErrorName, Instant, RowRead, TypedRecord, WorkflowId, WorkflowItem};
 
-/// The calls that a store offers a handler while the handler answers one request (W-C25.5), and no other: the four
+/// The calls that a store offers a handler while the handler answers one request (W-C25.5), and no other: the five
 /// of the store and the day of the host's clock. The host calls a handler to its end before it passes it the next
 /// request, so no other request changes the rows between a handler's reads and its commits. Each commit is a
 /// transaction of its own: a handler that makes a commit and then a state call (`create_agent`) leaves the commit
@@ -10,6 +10,22 @@ pub trait Host {
     /// The typed commit (W-C25.3): every record of the list, each a kind of the family `agent` and its compact
     /// JSON, in one transaction, or none of them with the error of the refusal.
     fn commit(&mut self, records: Vec<TypedRecord>) -> Result<(), ErrorName>;
+
+    /// The removal call (`HandlerCx::remove_under` of the derived store): in one transaction with the typed commit of
+    /// `records`, it removes every stored row of the kind `kind` of the family `agent` that names the workflow
+    /// `workflow`, the rows that a read no longer hands out among them, stores the records after the removal, and
+    /// answers how many rows it removed. A refusal or a fault leaves every row and stores no record. The derived store
+    /// removes each row under its secure delete with the truncating checkpoint behind the commit, makes the call under
+    /// a `coordinator_write` alone and answers `role` under a runner's request. A host that does not hand the call on
+    /// keeps this body: it answers `unsupported` and removes nothing.
+    fn remove_under(
+        &mut self,
+        _kind: &str,
+        _workflow: &WorkflowId,
+        _records: Vec<TypedRecord>,
+    ) -> Result<u64, ErrorName> {
+        Err(ErrorName::Unsupported)
+    }
 
     /// The state call (W-C25.7): sets the stored workflow's state and its agent, or answers `no_workflow` for a
     /// workflow that is not stored and `state` for one that is `proposed` or `dismissed` and for a call that would
