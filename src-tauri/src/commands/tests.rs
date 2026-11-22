@@ -356,12 +356,12 @@ impl Control for Relayed {
             .unwrap_or(Err(ClientError::Unsupported))
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
         Err(ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn run_mark(
         &self,
         _: Made,
@@ -370,7 +370,7 @@ impl Control for Relayed {
         Err(ClientError::Unsupported)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
         Err(ClientError::Unsupported)
     }
@@ -703,4 +703,34 @@ fn the_gated_control_relays_one_request() {
         as_the_page_gets_it(read(&no_daemon)),
         json!({"state": "not_running"})
     );
+}
+
+/// U5.4w, sentence 2: on Windows as on a Mac, the gated control sends the request of a run mark's
+/// edge over its connector and gives the reply `run_marked`.
+#[cfg(any(target_os = "macos", windows))]
+#[test]
+fn the_gated_control_sends_the_run_mark_of_an_edge_and_gives_its_reply() {
+    use halvo_control::r2::{RunEdge, RunMarked};
+    let marked = RunMarked {
+        edge: RunEdge::Start,
+        stored: true,
+    };
+    let other_end = OtherEnd {
+        written: Arc::default(),
+        reply: marked.encode(),
+    };
+    let gated = Gated::new(other_end.clone());
+    let made = gated.places().make();
+    assert_eq!(
+        gated.run_mark(made, RunEdge::Start).expect("the reply"),
+        marked
+    );
+    let mut sent = Vec::new();
+    halvo_control::wire::write_frame(
+        &mut sent,
+        &RunEdge::Start.request(),
+        halvo_control::wire::REQUEST_MAX_BYTES,
+    )
+    .expect("the request fits a frame");
+    assert_eq!(*other_end.written.lock().expect("the written bytes"), sent);
 }

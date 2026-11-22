@@ -1174,13 +1174,13 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             note(&self.record, "owner_stream");
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn run_mark(
             &self,
             _: Made,
@@ -1189,7 +1189,7 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
             Err(ClientError::Unsupported)
         }
@@ -1741,12 +1741,12 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn run_mark(
             &self,
             _: Made,
@@ -1755,7 +1755,7 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
             Err(ClientError::Unsupported)
         }
@@ -2249,12 +2249,12 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn run_mark(
             &self,
             _: Made,
@@ -2263,7 +2263,7 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
             Err(ClientError::Unsupported)
         }
@@ -2360,12 +2360,12 @@ mod tests {
             own("reset_settings")
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             own("owner_stream")
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn run_mark(
             &self,
             _: Made,
@@ -2374,7 +2374,7 @@ mod tests {
             own("run_mark")
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
             own("defer")
         }
@@ -2943,12 +2943,12 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn run_mark(
             &self,
             _: Made,
@@ -2957,7 +2957,7 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
             Err(ClientError::Unsupported)
         }
@@ -3685,7 +3685,7 @@ mod tests {
                 Err(ClientError::Unsupported)
             }
 
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", windows))]
             fn owner_stream(
                 &self,
                 _: Made,
@@ -3693,7 +3693,7 @@ mod tests {
                 Err(ClientError::Unsupported)
             }
 
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", windows))]
             fn run_mark(
                 &self,
                 _: Made,
@@ -3702,7 +3702,7 @@ mod tests {
                 Err(ClientError::Unsupported)
             }
 
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", windows))]
             fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
                 Err(ClientError::Unsupported)
             }
@@ -4085,14 +4085,15 @@ mod tests {
                 },
                 &NoRunner(Arc::clone(&record)),
             );
-            until("the agents core's start asks its owner stream", || {
-                record
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .any(|line| line == "owner_stream")
-            });
         }
+        #[cfg(any(target_os = "macos", windows))]
+        until("the agents core's start asks its owner stream", || {
+            record
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|line| line == "owner_stream")
+        });
 
         test.poll();
         until("the view reads not_started", || {
@@ -4108,7 +4109,7 @@ mod tests {
             "the supervisor holds no child"
         );
         let seen = record.lock().unwrap().clone();
-        let expected: &[&str] = if cfg!(target_os = "macos") {
+        let expected: &[&str] = if cfg!(any(target_os = "macos", windows)) {
             &["owner_stream", "status"]
         } else {
             &["status"]

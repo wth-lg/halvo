@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 use halvo_control::client::Transport;
 use halvo_control::client::{
     Client, ClientError, Connector, Deadlines, DeleteOutcome, NoTransport, SystemConnector,
@@ -11,9 +11,9 @@ use halvo_control::client::{
 use halvo_control::model::{StorageCap, StoreId};
 use halvo_control::onboarding::{Permission, RequestOutcome};
 use halvo_control::proto::{CapSet, DaemonStatus, InventoryReply, Request};
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 use halvo_control::r2::{OwnerStreamEnd, RunEdge, RunMarked};
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 use halvo_control::wire::{read_frame, write_frame, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
 
 use crate::view_state::Hold;
@@ -188,29 +188,29 @@ pub trait Control: Send + Sync {
 
     /// Asks the daemon for one end of a new owner stream (the workflows run's W-C24.13), on which the coordinator's
     /// requests reach the owner of the derived store.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn owner_stream(&self, made: Made) -> Result<OwnerStreamEnd, ClientError>;
 
     /// Sends one run mark, `run_start` or `run_end` (the workflows run's C24.12), and gives the daemon's reply.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn run_mark(&self, made: Made, edge: RunEdge) -> Result<RunMarked, ClientError>;
 
     /// Asks the daemon to hold the search for repeated tasks off until `until`, in nanoseconds since 1970 (the
     /// workflows run's C24.5), and gives the deadline in force, none where none is.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn defer(&self, made: Made, until: i64) -> Result<Option<i64>, ClientError>;
 }
 
 /// How long a stream call or a mark waits for its place in the line and for the daemon, from the call on.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 const CALL_DEADLINE: Duration = Duration::from_secs(5);
 
 /// The call of a new owner stream on the system's connector of this account.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 #[derive(Clone)]
 struct Streams(Arc<dyn Fn() -> Result<OwnerStreamEnd, ClientError> + Send + Sync>);
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 impl std::fmt::Debug for Streams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("Streams")
@@ -234,7 +234,7 @@ fn the_same_for_each_request(left: Duration) -> Deadlines {
 pub struct Gated<C> {
     connector: C,
     places: Arc<Places>,
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     streams: Option<Streams>,
 }
 
@@ -243,14 +243,14 @@ impl<C: Connector + Clone> Gated<C> {
         Gated {
             connector,
             places: Arc::default(),
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", windows))]
             streams: None,
         }
     }
 
     /// The control of `connector` whose `owner_stream` asks the daemon for an end of a new owner stream; every
     /// other call is that of `new`.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     pub fn streaming(connector: C) -> Self
     where
         C: Send + Sync + 'static,
@@ -387,7 +387,7 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
 
     /// The stream call of `streaming`, in its place in the line; a control made by `new` answers
     /// `ClientError::Unsupported`.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn owner_stream(&self, made: Made) -> Result<OwnerStreamEnd, ClientError> {
         let Some(Streams(call)) = &self.streams else {
             return Err(ClientError::Unsupported);
@@ -403,7 +403,7 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
 
     /// The request of the edge, `{"v":1,"body":{"op":"run_start"}}` or `run_end`, in its place in the line: the
     /// reply `run_marked`, or the daemon's error reply.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn run_mark(&self, made: Made, edge: RunEdge) -> Result<RunMarked, ClientError> {
         let until = made.deadline_from + CALL_DEADLINE;
         let late = || ClientError::Deadline {
@@ -435,7 +435,7 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
     /// The request `defer` of `until` by `Client::defer`, once the call has its place in the line, for which it waits
     /// as long as a mark does; the client's call then waits up to 5 s for the daemon. It gives the deadline in force
     /// that the daemon names, or the error of the call.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn defer(&self, made: Made, until: i64) -> Result<Option<i64>, ClientError> {
         let by = made.deadline_from + CALL_DEADLINE;
         let late = ClientError::Deadline {
@@ -789,17 +789,17 @@ impl<C: Control> Control for Watching<C> {
         self.took_status(before, self.inner.reset_settings(made))
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn owner_stream(&self, made: Made) -> Result<OwnerStreamEnd, ClientError> {
         self.inner.owner_stream(made)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn run_mark(&self, made: Made, edge: RunEdge) -> Result<RunMarked, ClientError> {
         self.inner.run_mark(made, edge)
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn defer(&self, made: Made, until: i64) -> Result<Option<i64>, ClientError> {
         self.inner.defer(made, until)
     }
@@ -827,13 +827,14 @@ impl Connector for ToChild {
     }
 }
 
-/// The app's control of the system's connector: on macOS one that also asks for owner streams.
-#[cfg(target_os = "macos")]
+/// The app's control of the system's connector: on macOS and on Windows one that also asks for
+/// owner streams.
+#[cfg(any(target_os = "macos", windows))]
 fn streaming(connector: ToChild) -> Gated<ToChild> {
     Gated::streaming(connector)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn streaming(connector: ToChild) -> Gated<ToChild> {
     Gated::new(connector)
 }
