@@ -64,6 +64,7 @@ deny_result_defect() {
   first_error=$(grep -m 1 '^error\[' "$2")
   [ "$1" -eq 0 ] && [ -z "$first_error" ] && return 0
   ids=$(grep -o -E 'RUSTSEC-[0-9]{4}-[0-9]{4}' "$2" | sort -u | tr '\n' ' ')
+  ids=${ids% }
   printf 'cargo deny exited %s: %s; advisories: %s\n' "$1" "${first_error:-no error line}" "${ids:-none named}"
   return 1
 }
