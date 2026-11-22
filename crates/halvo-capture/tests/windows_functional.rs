@@ -19,7 +19,7 @@ use halvo_capture::event::{CaptureStreamEvent, Modality};
 use halvo_capture::floor::exclude::{FloorHandle, Lineage, NoLineage, Parent, ProcessId};
 use halvo_capture::floor::payload::{Button, FoldClass, KeyClass};
 use halvo_capture::floor::{Switch, Switches};
-use halvo_capture::secure_input::windows::PasswordGate;
+use halvo_capture::secure_input::windows::{ContentReading, PasswordGate};
 use halvo_capture::sink::{channel, SinkHandle, SinkWriter};
 use halvo_capture::source::{CaptureError, CaptureSource, SourceContext};
 use halvo_capture::windows::apps::scan_installed;
@@ -27,6 +27,7 @@ use halvo_capture::windows::exclusion::ProcessLineage;
 use halvo_capture::windows::foreground::{current_foreground_app, ForegroundAppSource};
 use halvo_capture::windows::input::{seam, RawInputSource};
 use halvo_capture::windows::screen::{ScreenSource, DEFAULT_MIN_FRAME_INTERVAL};
+use halvo_capture::windows::sources::ServiceSet;
 use halvo_capture::windows::window_title::WindowTitleSource;
 
 use windows::core::{HSTRING, PCWSTR};
@@ -52,7 +53,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     UnregisterClassW, MSG, PM_REMOVE, SC_KEYMENU, SM_CMONITORS, SM_CXSCREEN, SM_CYSCREEN,
     SM_REMOTESESSION, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SW_MINIMIZE, SW_RESTORE, SW_SHOW,
     SYSTEM_METRICS_INDEX, WDA_EXCLUDEFROMCAPTURE, WINDOW_EX_STYLE, WINDOW_STYLE, WM_SYSCOMMAND,
-    WNDCLASSW, WS_CHILD, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
+    WNDCLASSW, WS_CHILD, WS_EX_NOACTIVATE, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_POPUP,
+    WS_VISIBLE,
 };
 
 #[link(name = "kernel32")]
@@ -373,6 +375,69 @@ macro_rules! flipped {
 
 fn say(test: &str, message: impl AsRef<str>) {
     println!("TF {test} {}", message.as_ref());
+}
+
+/// How long a test waits for the first Clear of a password gate's content
+/// reading.
+const GATE_CLEAR_WAIT: Duration = Duration::from_secs(10);
+
+/// Waits until the gate's content reading is Clear, up to `limit`, while this
+/// thread answers its messages: whether it read Clear, and the wait.
+fn wait_for_clear(gate: &PasswordGate, limit: Duration) -> (bool, Duration) {
+    let began = Instant::now();
+    let clear = |gate: &PasswordGate| matches!(gate.content_reading(), ContentReading::Clear(_));
+    while !clear(gate) && began.elapsed() < limit {
+        pump_thread(Duration::from_millis(20));
+    }
+    (clear(gate), began.elapsed())
+}
+
+/// [`wait_for_clear`] with its line.
+fn content_reads_clear(test: &str, gate: &PasswordGate, limit: Duration) -> bool {
+    let (gate_first_clear, waited) = wait_for_clear(gate, limit);
+    say(
+        test,
+        format!(
+            "gate_first_clear={gate_first_clear} waited_ms={} reading={:?}",
+            waited.as_millis(),
+            gate.content_reading()
+        ),
+    );
+    gate_first_clear
+}
+
+/// The count of the content readings that the sources asked of the gate:
+/// in all, Clear by the kind that answered, and Unknown by its cause.
+fn gate_readings(test: &str, gate: &PasswordGate) {
+    let readings = gate.readings();
+    say(
+        test,
+        format!(
+            "gate_readings clear={} password={} unknown={}",
+            readings.clear(),
+            readings.password,
+            readings.unknown()
+        ),
+    );
+    say(
+        test,
+        format!(
+            "gate_clear_by native_edit={} chrome={} edge={} other_kind={}",
+            readings.native_edit, readings.chrome, readings.edge, readings.other_kind
+        ),
+    );
+    say(
+        test,
+        format!(
+            "gate_unknown_by before_first_read={} firefox={} no_answer={} unreadable={} \
+             desktop_switch={}",
+            readings.before_first_read,
+            readings.firefox,
+            readings.no_answer,
+            readings.unreadable,
+            readings.desktop_switch
+        ),
+    );
 }
 
 fn show<T, E: std::fmt::Display>(result: &Result<T, E>) -> String {
@@ -1279,11 +1344,18 @@ fn helper_child_window() {
         180,
     ))
     .expect("second child window");
+    let first_edit = first
+        .child_control("EDIT", WINDOW_STYLE(0), 10)
+        .expect("the first window's edit");
+    let second_edit = second
+        .child_control("EDIT", WINDOW_STYLE(0), 10)
+        .expect("the second window's edit");
     pump_thread(Duration::from_millis(300));
     let (foreground, method) = first.activate();
+    let edit_focused = focus_on(first_edit);
     say(
         "child",
-        format!("first_window_foreground={foreground} method={method}"),
+        format!("first_window_foreground={foreground} method={method} edit_focused={edit_focused}"),
     );
 
     let deadline = Instant::now() + Duration::from_secs(secs);
@@ -1297,8 +1369,13 @@ fn helper_child_window() {
             .expect("set the child title");
         pump_thread(Duration::from_millis(250));
         if step.is_multiple_of(2) {
-            let target = if (step / 2) % 2 == 1 { &second } else { &first };
+            let (target, edit) = if (step / 2) % 2 == 1 {
+                (&second, second_edit)
+            } else {
+                (&first, first_edit)
+            };
             set_foreground(target.hwnd);
+            focus_on(edit);
             pump_thread(Duration::from_millis(50));
             switches += 1;
             if target.is_foreground() {
@@ -1344,8 +1421,12 @@ fn child_scope() {
         y: 300,
     })
     .expect("hidden window");
+    let edit = first
+        .child_control("EDIT", WINDOW_STYLE(0), 50)
+        .expect("the first window's edit");
     pump_thread(Duration::from_millis(300));
     let (foreground, method) = first.activate();
+    focus_on(edit);
     pump_thread(Duration::from_millis(500));
 
     first.set_title(&"f".repeat(30)).expect("foreground title");
@@ -1571,6 +1652,7 @@ fn spawn_child_as(mode: &str, secs: u64, exe_name: &str) -> ChildProcess {
 }
 
 struct WindowScenario {
+    gate_read_clear: bool,
     foreground_start: Result<(), String>,
     title_start: Result<(), String>,
     own_window_was_foreground: bool,
@@ -1587,7 +1669,9 @@ fn window_scenario(test: &'static str) -> WindowScenario {
     let (sink, events) = capture(8192);
     let mut foreground = ForegroundAppSource::new();
     let last_app = foreground.last_app();
-    let mut title = WindowTitleSource::new();
+    let set = ServiceSet::new();
+    let gate = set.password_gate();
+    let mut title = set.gated_title(WindowTitleSource::new());
     let foreground_start = foreground
         .begin(SourceContext::new(sink.clone()))
         .map(|_| ())
@@ -1638,6 +1722,7 @@ fn window_scenario(test: &'static str) -> WindowScenario {
 
     let mut child = spawn_child("cycle", 4);
     let child_pid = child.id();
+    let gate_read_clear = content_reads_clear(test, &gate, GATE_CLEAR_WAIT);
     let mut child_events = Vec::new();
     let mut child_was_foreground = false;
     let mut last_app_was_child = false;
@@ -1654,6 +1739,7 @@ fn window_scenario(test: &'static str) -> WindowScenario {
     child_events.extend(events.drain_for(Duration::from_secs(1)));
     let _ = stop_counted(&mut foreground, "foreground");
     let _ = stop_counted(&mut title, "window_title");
+    gate_readings(test, &gate);
     child.print_output();
     say(
         test,
@@ -1666,6 +1752,7 @@ fn window_scenario(test: &'static str) -> WindowScenario {
     summarize(test, "child-process-window", &child_events);
 
     WindowScenario {
+        gate_read_clear,
         foreground_start,
         title_start,
         own_window_was_foreground,
@@ -1773,8 +1860,11 @@ fn c2_screen_source_delivers_a_frame() {
     with_deadline("c2", Duration::from_secs(120), || {
         env_report("c2");
         source_built_by_test("c2", "screen");
+        let _fields = FieldWindow::open("c2_screen_source_delivers_a_frame", Field::Plain);
         let (sink, events) = capture(1024);
-        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut screen = set.gated_screen(ScreenSource::new(Arc::new(Mutex::new(None))));
         let started = Instant::now();
         let start = screen.begin(screen_on(sink.clone()));
         say(
@@ -1786,6 +1876,7 @@ fn c2_screen_source_delivers_a_frame() {
             ),
         );
         assert!(start.is_ok(), "the screen source must start");
+        let clear = content_reads_clear("c2", &gate, GATE_CLEAR_WAIT);
 
         let first = events.first_within(FIRST_FRAME_WAIT);
         say(
@@ -1801,8 +1892,11 @@ fn c2_screen_source_delivers_a_frame() {
         idle.extend(events.drain_for(Duration::from_secs(4)));
         summarize("c2", "unchanged-screen", &idle);
 
-        let window = TestWindow::create(&magenta_popup("HalvoVerifyFrames", "halvo-verify-frames"))
-            .expect("moving window");
+        let window = TestWindow::create(&WindowSpec {
+            ex_style: WS_EX_TOPMOST | WS_EX_NOACTIVATE,
+            ..magenta_popup("HalvoVerifyFrames", "halvo-verify-frames")
+        })
+        .expect("moving window");
         for step in 0..20 {
             window.move_to(100 + step * 20, 100 + step * 10);
             pump_thread(Duration::from_millis(250));
@@ -1833,6 +1927,8 @@ fn c2_screen_source_delivers_a_frame() {
                 sink.dropped_count(),
             ),
         );
+        gate_readings("c2", &gate);
+        assert!(clear, "the gate never read Clear");
         assert!(!frames.is_empty(), "no frame of the desktop in 15 seconds");
         assert!(
             frames.iter().all(|e| e.view.is_some()),
@@ -1927,6 +2023,7 @@ fn c4_window_title_source_reports_a_title_change() {
             "the window-title source must start"
         );
         assert!(seen.child_exit_ok, "the child process must finish");
+        assert!(seen.gate_read_clear, "the gate never read Clear");
         assert!(
             expected_sizes >= 1,
             "no window-title event for the child's title changes"
@@ -2412,14 +2509,18 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
         let (sink, events) = capture(8192);
         let mut foreground = ForegroundAppSource::new();
         let last_app = foreground.last_app();
-        let mut title = WindowTitleSource::new();
         let _fields = FieldWindow::open(
             "c9_peak_working_set_of_sources_1_to_4_for_60_seconds",
             Field::Plain,
         );
         let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
+        let gate = keyboard
+            .password_gate()
+            .expect("the keyboard source's gate");
+        let mut title = WindowTitleSource::new().with_password_gate(Arc::clone(&gate));
         let mut pointer = RawInputSource::pointer(Arc::clone(&last_app));
-        let mut screen = ScreenSource::new(Arc::clone(&last_app));
+        let mut screen =
+            ScreenSource::new(Arc::clone(&last_app)).with_password_gate(Arc::clone(&gate));
         let starts = [
             (
                 "foreground",
@@ -2441,6 +2542,7 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
         }
         let all_started = starts.iter().all(|(_, result)| result.is_ok());
         say("c9", memory_line("sources-started", &memory()));
+        let clear = content_reads_clear("c9", &gate, GATE_CLEAR_WAIT);
 
         let mut child = spawn_child("cycle", RUN.as_secs());
         let began = Instant::now();
@@ -2477,6 +2579,7 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
             *counts.entry(format!("{:?}", event.modality)).or_default() += 1;
         }
         say("c9", memory_line("sources-stopped", &memory()));
+        gate_readings("c9", &gate);
         say(
             "c9",
             format!(
@@ -2504,6 +2607,7 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
             all_started,
             "INCONCLUSIVE: not every source started, so the number is not for five sources"
         );
+        assert!(clear, "the gate never read Clear");
         let keys_decided = seam::take().len();
         say("c9", format!("keys_that_the_gate_decided={keys_decided}"));
         assert!(
@@ -3073,10 +3177,14 @@ fn x7_capture_border_on_the_screen() {
     with_deadline("x7", Duration::from_secs(60), || {
         env_report("x7");
         source_built_by_test("x7", "screen");
+        let _fields = FieldWindow::open("x7_capture_border_on_the_screen", Field::Plain);
         let before = yellow_edge_pixels();
         let (sink, events) = capture(256);
-        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut screen = set.gated_screen(ScreenSource::new(Arc::new(Mutex::new(None))));
         let start = screen.begin(screen_on(sink.clone()));
+        let clear = content_reads_clear("x7", &gate, GATE_CLEAR_WAIT);
         let first = events.first_within(FIRST_FRAME_WAIT);
         let frame_before_sampling = first
             .as_ref()
@@ -3099,7 +3207,9 @@ fn x7_capture_border_on_the_screen() {
                 show(&start)
             ),
         );
+        gate_readings("x7", &gate);
         assert!(start.is_ok(), "the screen source must start");
+        assert!(clear, "the gate never read Clear");
         assert!(
             frame_before_sampling,
             "INCONCLUSIVE: no frame before the edge was sampled"
@@ -3135,17 +3245,26 @@ fn x9_screen_source_across_a_display_mode_change() {
         } else {
             (1280, 720)
         };
+        let _fields = FieldWindow::open(
+            "x9_screen_source_across_a_display_mode_change",
+            Field::Plain,
+        );
         let (sink, events) = capture(1024);
-        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut screen = set.gated_screen(ScreenSource::new(Arc::new(Mutex::new(None))));
         let start = screen.begin(screen_on(sink.clone()));
+        let clear = content_reads_clear("x9", &gate, GATE_CLEAR_WAIT);
         let before = events.drain_for(Duration::from_secs(3));
         summarize("x9", "before-mode-change", &before);
 
         let changed = set_resolution(other_w, other_h);
         let (now_w, now_h) = screen_size();
-        let window =
-            TestWindow::create(&magenta_popup("HalvoVerifyModeChange", "halvo-verify-mode"))
-                .expect("moving window");
+        let window = TestWindow::create(&WindowSpec {
+            ex_style: WS_EX_TOPMOST | WS_EX_NOACTIVATE,
+            ..magenta_popup("HalvoVerifyModeChange", "halvo-verify-mode")
+        })
+        .expect("moving window");
         for step in 0..12 {
             window.move_to(100 + step * 20, 100 + step * 10);
             pump_thread(Duration::from_millis(250));
@@ -3167,7 +3286,9 @@ fn x9_screen_source_across_a_display_mode_change() {
                 frames_after,
             ),
         );
+        gate_readings("x9", &gate);
         assert!(start.is_ok(), "the screen source must start");
+        assert!(clear, "the gate never read Clear");
         assert!(
             changed && (now_w, now_h) == (other_w, other_h),
             "INCONCLUSIVE: the display mode did not change"
@@ -3182,14 +3303,24 @@ fn x13_frames_on_a_static_screen() {
     with_deadline("x13", Duration::from_secs(90), || {
         env_report("x13");
         source_built_by_test("x13", "screen");
+        let (sink, events) = capture(1024);
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut screen = set.gated_screen(ScreenSource::new(Arc::new(Mutex::new(None))));
+        let start = screen.begin(screen_on(sink.clone()));
         let cover = TestWindow::create(&magenta_popup("HalvoVerifyStatic", "halvo-verify-static"))
             .expect("covering window");
+        let edit_above_the_client_area = cover
+            .child_control("EDIT", WINDOW_STYLE(0), -100)
+            .expect("the cover's edit");
         cover.cover_screen();
         let (in_front, method) = cover.activate();
+        let cover_edit_focused = focus_on(edit_above_the_client_area);
+        let clear = content_reads_clear("x13", &gate, GATE_CLEAR_WAIT);
         pump_thread(Duration::from_secs(1));
-        let (sink, events) = capture(1024);
-        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let start = screen.begin(screen_on(sink.clone()));
+        cover.move_to(40, 0);
+        pump_thread(Duration::from_millis(150));
+        cover.move_to(0, 0);
         let mut first_frame = false;
         let began = Instant::now();
         while !first_frame && began.elapsed() < FIRST_FRAME_WAIT {
@@ -3199,6 +3330,16 @@ fn x13_frames_on_a_static_screen() {
                 Modality::ScreenFrame,
             ) > 0;
         }
+        let mut quiet_interval_found = false;
+        let quiet_began = Instant::now();
+        while !quiet_interval_found && quiet_began.elapsed() < Duration::from_secs(10) {
+            pump_thread(DEFAULT_MIN_FRAME_INTERVAL);
+            quiet_interval_found = count(
+                &events.drain_for(Duration::from_millis(100)),
+                Modality::ScreenFrame,
+            ) == 0;
+        }
+        let quiet_wait_ms = quiet_began.elapsed().as_millis();
         let mut records_while_static = 0;
         let began = Instant::now();
         while began.elapsed() < Duration::from_secs(8) {
@@ -3220,11 +3361,19 @@ fn x13_frames_on_a_static_screen() {
             );
         }
         drop(cover);
-        let frames = screen.frame_counts();
+        let frames = screen.source().frame_counts();
         let _ = stop_counted(&mut screen, "screen");
         let every_frame_changed =
             frames.delivered > 0 && frames.with_changed_region == frames.delivered;
         let by_the_time_filter = 8_000 / DEFAULT_MIN_FRAME_INTERVAL.as_millis() as usize + 1;
+        say(
+            "x13",
+            format!(
+                "cover_edit_focused={cover_edit_focused} quiet_interval_found={quiet_interval_found} \
+                 quiet_wait_ms={quiet_wait_ms}"
+            ),
+        );
+        gate_readings("x13", &gate);
         say(
             "x13",
             format!(
@@ -3243,6 +3392,7 @@ fn x13_frames_on_a_static_screen() {
             ),
         );
         assert!(start.is_ok(), "the screen source must start");
+        assert!(clear, "the gate never read Clear");
         assert!(first_frame, "INCONCLUSIVE: no first frame");
         assert!(
             covered,
@@ -3252,18 +3402,11 @@ fn x13_frames_on_a_static_screen() {
             records_while_moving >= 1,
             "no screen record while a window moved"
         );
-        if every_frame_changed && records_while_static > 1 {
-            assert!(
-                records_while_static <= by_the_time_filter,
-                "more screen records on a static screen than one for each interval of the time filter"
-            );
-        } else {
-            flipped!(
-                "VWF-10",
-                records_while_static <= 1,
-                format!("TF x13 records_while_static={records_while_static}")
-            );
-        }
+        flipped!(
+            "VWF-10",
+            records_while_static <= 1,
+            format!("TF x13 records_while_static={records_while_static}")
+        );
     });
 }
 
@@ -3946,15 +4089,21 @@ fn x5_screen_source_stop_and_start_again() {
     with_deadline("x5", Duration::from_secs(90), || {
         env_report("x5");
         source_built_by_test("x5", "screen");
+        let _fields = FieldWindow::open("x5_screen_source_stop_and_start_again", Field::Plain);
         let (sink, events) = capture(256);
-        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut screen = set.gated_screen(ScreenSource::new(Arc::new(Mutex::new(None))));
         let first = screen.begin(screen_on(sink.clone()));
+        let first_clear = content_reads_clear("x5", &gate, GATE_CLEAR_WAIT);
         let first_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
         let first_stop = stop_counted(&mut screen, "screen");
         let _ = events.drain_for(Duration::from_millis(500));
         let second = screen.begin(screen_on(sink.clone()));
+        let second_clear = content_reads_clear("x5", &gate, GATE_CLEAR_WAIT);
         let second_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
         let second_stop = stop_counted(&mut screen, "screen");
+        gate_readings("x5", &gate);
         say(
             "x5",
             format!(
@@ -3967,6 +4116,7 @@ fn x5_screen_source_stop_and_start_again() {
             ),
         );
         assert!(first.is_ok() && second.is_ok(), "both starts must succeed");
+        assert!(first_clear && second_clear, "the gate never read Clear");
         assert!(
             first_frame && second_frame,
             "each session must deliver a frame"
@@ -3986,15 +4136,23 @@ fn x12_screen_source_fifteen_start_stop_cycles() {
     with_deadline("x12", Duration::from_secs(180), || {
         env_report("x12");
         source_built_by_test("x12", "screen");
+        let _fields =
+            FieldWindow::open("x12_screen_source_fifteen_start_stop_cycles", Field::Plain);
         let last_app = Arc::new(Mutex::new(None));
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
         let mut started = 0;
         let mut stopped = 0;
         let mut frames = 0;
+        let mut cycles_read_clear = 0;
         for _ in 0..CYCLES {
             let (sink, events) = capture(256);
-            let mut screen = ScreenSource::new(Arc::clone(&last_app));
+            let mut screen = set.gated_screen(ScreenSource::new(Arc::clone(&last_app)));
             if screen.begin(screen_on(sink.clone())).is_ok() {
                 started += 1;
+            }
+            if wait_for_clear(&gate, GATE_CLEAR_WAIT).0 {
+                cycles_read_clear += 1;
             }
             frames += screen_frames_within(&events, Duration::from_millis(700));
             if stop_counted(&mut screen, "screen").is_ok() {
@@ -4006,10 +4164,15 @@ fn x12_screen_source_fifteen_start_stop_cycles() {
             "x12",
             format!(
                 "cycles={CYCLES} started={started} stopped={stopped} frames_total={frames} \
-                 idle_3s_after=true"
+                 cycles_read_clear={cycles_read_clear} idle_3s_after=true"
             ),
         );
+        gate_readings("x12", &gate);
         assert_eq!(started, CYCLES, "every cycle must start");
+        assert_eq!(
+            cycles_read_clear, CYCLES,
+            "the gate never read Clear in a cycle"
+        );
         assert_eq!(stopped, CYCLES, "every cycle must stop");
         assert!(frames >= 1, "no frame in fifteen cycles");
     });
@@ -4025,10 +4188,17 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
         let popup = TestWindow::create(&magenta_popup("HalvoVerifyC8b", "halvo-verify-c8b"))
             .expect("the window");
         pump_thread(Duration::from_millis(500));
+        let _fields = FieldWindow::open(
+            "c8b_window_destroyed_after_the_last_capture_session",
+            Field::Plain,
+        );
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
         let session = |label: &str| {
             let (sink, events) = capture(256);
-            let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+            let mut screen = set.gated_screen(ScreenSource::new(Arc::new(Mutex::new(None))));
             let start = screen.begin(screen_on(sink.clone()));
+            let (gate_read_clear, _) = wait_for_clear(&gate, GATE_CLEAR_WAIT);
             let mut frames = 0;
             let began = Instant::now();
             while began.elapsed() < Duration::from_secs(3) {
@@ -4039,17 +4209,18 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
             say(
                 "c8b",
                 format!(
-                    "capture={label} start={} frames={frames} stop={}",
+                    "capture={label} start={} gate_read_clear={gate_read_clear} frames={frames} stop={}",
                     show(&start),
                     show(&stop)
                 ),
             );
-            start.is_ok() && stop.is_ok() && frames > 0
+            start.is_ok() && stop.is_ok() && frames > 0 && gate_read_clear
         };
         let first = session("first");
         let excluded = exclude_from_capture(popup.hwnd);
         pump_thread(Duration::from_millis(500));
         let second = session("second");
+        gate_readings("c8b", &gate);
         drop(popup);
         say(
             "c8b",
@@ -4063,7 +4234,7 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
         );
         assert!(
             first && second,
-            "each session must start, deliver a frame and stop"
+            "each session must start, read Clear, deliver a frame and stop"
         );
     });
 }
@@ -4455,9 +4626,12 @@ fn x2_window_title_events_for_other_windows_and_controls() {
     with_deadline("x2", Duration::from_secs(90), || {
         env_report("x2");
         let (sink, events) = capture(8192);
-        let mut title = WindowTitleSource::new();
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut title = set.gated_title(WindowTitleSource::new());
         let start = title.begin(SourceContext::new(sink.clone()));
         let mut child = spawn_child("scope", 0);
+        let clear = content_reads_clear("x2", &gate, GATE_CLEAR_WAIT);
         let mut seen = Vec::new();
         let exit = loop {
             seen.extend(events.drain_for(Duration::from_millis(100)));
@@ -4467,6 +4641,7 @@ fn x2_window_title_events_for_other_windows_and_controls() {
         };
         seen.extend(events.drain_for(Duration::from_secs(1)));
         let _ = stop_counted(&mut title, "window_title");
+        gate_readings("x2", &gate);
         child.print_output();
         summarize("x2", "scope", &seen);
         let with_size = |len: u64| {
@@ -4491,6 +4666,7 @@ fn x2_window_title_events_for_other_windows_and_controls() {
         );
         assert!(start.is_ok(), "the window-title source must start");
         assert!(exit.success(), "the child process must finish");
+        assert!(clear, "the gate never read Clear");
         assert!(
             with_size(30) >= 1,
             "INCONCLUSIVE: no event for the foreground window's own title, so the other counts say nothing"
@@ -4516,10 +4692,13 @@ fn title_event_on_a_switch_to_a_window_with_a_fixed_title() {
     with_deadline("fixed-title", Duration::from_secs(90), || {
         env_report("fixed-title");
         let (sink, events) = capture(8192);
-        let mut title = WindowTitleSource::new();
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut title = set.gated_title(WindowTitleSource::new());
         let start = title.begin(SourceContext::new(sink.clone()));
         let mut child = spawn_child("cycle", 4);
         let child_pid = child.id();
+        let clear = content_reads_clear("fixed-title", &gate, GATE_CLEAR_WAIT);
         let fixed_len = FIXED_TITLE.len() as i32;
         let mut seen = Vec::new();
         let mut fixed_window_was_foreground = false;
@@ -4534,6 +4713,7 @@ fn title_event_on_a_switch_to_a_window_with_a_fixed_title() {
         };
         seen.extend(events.drain_for(Duration::from_secs(1)));
         let _ = stop_counted(&mut title, "window_title");
+        gate_readings("fixed-title", &gate);
         child.print_output();
         summarize("fixed-title", "cycle", &seen);
         let titles_of = |wanted: &dyn Fn(u64) -> bool| {
@@ -4559,6 +4739,7 @@ fn title_event_on_a_switch_to_a_window_with_a_fixed_title() {
         );
         assert!(start.is_ok(), "the window-title source must start");
         assert!(exit.success(), "the child process must finish");
+        assert!(clear, "the gate never read Clear");
         assert!(
             fixed_window_was_foreground,
             "INCONCLUSIVE: the window with the fixed title never came to the front"
