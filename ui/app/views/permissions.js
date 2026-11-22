@@ -3,7 +3,7 @@
   var w = Halvo.words;
   var onboarding = Halvo.feed("onboarding");
   var SOURCE_OF = { input_monitoring: ["input"], accessibility: ["foreground"], screen_and_system_audio_recording: ["screen"] };
-  var ASK_ERRORS = { busy: w.ASK_BUSY, unsupported_op: w.ASK_UNSUPPORTED };
+  var ASK_ERRORS = { unsupported_op: w.ASK_UNSUPPORTED };
   var sources = [];
   var shown = null;
   var kept = {};

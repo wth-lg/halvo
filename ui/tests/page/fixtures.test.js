@@ -218,7 +218,7 @@ test("the walk asks by the asked record and again while a row reads not_determin
   assert.equal(page.calls("request_permission").length, 2);
   assert.equal(page.text("ask-outcome"), String(w.ASK_ALREADY_ON).replace("{pane}", "Accessibility"));
   for (const [kind, words] of [
-    ["busy", w.ASK_BUSY],
+    ["busy", w.ERROR_BUSY],
     ["unsupported_op", w.ASK_UNSUPPORTED],
     ["state_file", w.ERROR_STATE_FILE],
     ["internal", w.ERROR_INTERNAL],

@@ -136,7 +136,6 @@ const WORDS = {
   ASK_NOW: "Ask now",
   ASK_REQUESTED: "Halvo asked macOS for the {pane} permission. If a message from macOS appears, answer it there. Your choice then shows here.",
   ASK_ALREADY_ON: "The {pane} permission is already on.",
-  ASK_BUSY: "Halvo is already asking macOS for a permission. Try again in a moment.",
   ASK_UNSUPPORTED: "Halvo's capture service cannot ask macOS for this permission right now. Quit Halvo, open it again, and try once more.",
   LEAVE_OFF: "Leave it off",
   PERMISSIONS_HEADING: "Permissions",
