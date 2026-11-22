@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: the built app on Windows starts its capture service as its own child and nothing before the Start step, a stop holds and a kill of the app ends the child: started with --background on a data directory that is not provisioned it runs with no halvo-capture.exe of that directory after 5 s and the directory holds no store; on a provisioned directory one halvo-capture.exe of that directory runs as a child of the app with no window of its own; after halvo-capture.exe ctl stop no halvo-capture.exe of that directory starts for 10 s while its app runs; and after a kill of the app no halvo-capture.exe of its directory runs inside 12 s
+# rule: the built app on Windows starts its capture service as its own child and nothing before the Start step, a stop holds and a kill of the app ends the child: started with --background on a data directory that is not provisioned it runs with no halvo-capture.exe of that directory after 5 s and the directory holds no store; on a provisioned directory one halvo-capture.exe of that directory runs as a child of the app with no window of its own; once ctl status of that directory reads lease=fresh, within 30 s, and after halvo-capture.exe ctl stop no halvo-capture.exe of that directory starts for 10 s while its app runs; and after a kill of the app no halvo-capture.exe of its directory runs inside 12 s
 # lane: alone
 set -u
 name=34-app-windows-start
@@ -8,7 +8,7 @@ state_file='daemon-state.json'
 before_start_s=5
 child_start_s=60
 answer_s=30
-own_answer_s=4
+lease_s=30
 stop_hold_s=10
 kill_end_s=12
 end_s=10
@@ -212,7 +212,22 @@ cases() {
   killed=$(date +%s) || fail "the clock cannot be read"
   printf 'case kill: the app %s of the second provisioned directory is ended\n' "$the_app"
 
-  sleep "$own_answer_s"
+  # The stop waits until the app has read its child: ctl status reads lease=fresh once the app's
+  # claimed Status has reached the service.
+  waited_from=$(date +%s) || fail "the clock cannot be read"
+  while :; do
+    ctl "$dir_b" status b
+    code=$?
+    tr -d '\r' <"$work/ctl-b-status.out" | grep -q -x 'lease=fresh' && break
+    now=$(date +%s) || fail "the clock cannot be read"
+    if [ $((now - waited_from)) -ge "$lease_s" ]; then
+      tr -d '\r' <"$work/ctl-b-status.out" | sed 's/^/case stop: status: /'
+      fail "ctl status of the provisioned directory did not read lease=fresh within $lease_s s; its last answer exited $code"
+    fi
+    sleep "$poll_pause_s"
+  done
+  now=$(date +%s) || fail "the clock cannot be read"
+  printf 'case stop: ctl status of the provisioned directory read lease=fresh after %s s of the wait\n' "$((now - waited_from))"
   ctl "$dir_b" stop b || fail "ctl stop of the provisioned directory did not exit 0"
   stopped=$(date +%s) || fail "the clock cannot be read"
   printf 'case stop: ctl stop of the provisioned directory exited 0\n'
@@ -292,7 +307,7 @@ fixture() {
   before_start_s=1
   child_start_s=10
   answer_s=10
-  own_answer_s=1
+  lease_s=2
   stop_hold_s=3
   kill_end_s=4
   end_s=3
