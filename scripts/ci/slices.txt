@@ -20,6 +20,7 @@ mon windows tests A
 mon windows check 24-hook-imports
 mon windows check 20-app-links-no-store
 mon windows check 10-r7-account
+mon windows check 35-app-windows-memory
 
 tue macos tests B
 tue macos check 25-advisories
