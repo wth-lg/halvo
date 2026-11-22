@@ -435,12 +435,26 @@ fn engine_folder<R: Runtime>(
 /// The system's maker of the web view's environment, on the main thread as the runtime's own:
 /// the folder is made as tauri makes it, and an environment that cannot be made fails the window,
 /// with no fall-back to the runtime's own environment.
+///
+/// It first initializes COM for the main thread, apartment threaded, as wry 0.57.1 does as the
+/// first line of making its web view (src/webview2/mod.rs line 121): the setup hook, which calls
+/// this, runs before wry makes any web view and before tao 0.37.2 calls OleInitialize when it
+/// makes a window (src/platform_impl/windows/window.rs line 1140), so nothing has initialized COM
+/// on that thread yet, and WebView2 refuses the environment with CO_E_NOTINITIALIZED. Its answer
+/// is not read as a failure (S_FALSE where COM was initialized before), and COM stays
+/// initialized for the thread, as wry leaves it.
 #[cfg(windows)]
 pub fn system_environment(
     options: webview2_com::CoreWebView2EnvironmentOptions,
     folder: &std::path::Path,
 ) -> Result<Option<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment>, String>
 {
+    windows_core::link!("ole32.dll" "system" fn CoInitializeEx(reserved: *const core::ffi::c_void, model: u32) -> i32);
+    const COINIT_APARTMENTTHREADED: u32 = 0x2;
+    // SAFETY: CoInitializeEx takes a null reserved pointer and the threading model by value.
+    unsafe {
+        CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED);
+    }
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         CreateCoreWebView2EnvironmentWithOptions, ICoreWebView2EnvironmentOptions,
     };
