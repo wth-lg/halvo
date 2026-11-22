@@ -431,7 +431,7 @@ impl<'c, H: PlayHost> Play<'c, H> {
                 json!({
                     "v": 1, "workflow": workflow, "agent": agent, "run": run, "seq": seq,
                     "day": self.host.request_day(), "at": self.host.now().at.0, "event": event, "step": step,
-                    "cause": cause, "model": null, "ms": null, "tokens_in": null, "tokens_out": null,
+                    "cause": cause, "model": null, "ms": null, "tokens_in": null, "tokens_out": null, "page_amount": null,
                 })
             })
             .collect();

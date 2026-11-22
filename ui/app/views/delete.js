@@ -19,6 +19,7 @@
   var cleanup;
   var cleanupNote;
   var current = null;
+  var keptAnswer = null;
   var armed = null;
   var busy = false;
   var loading = false;
@@ -168,12 +169,19 @@
     return text.replace("{count}", String(count));
   }
 
+  function onWindows(s) {
+    return Boolean(s) && s.platform === "windows";
+  }
+
   function deletedWords(r) {
     var inARow = Number(r.unfinished_in_a_row) || 0;
-    var unfinished = inARow >= 2 ? [withFolder(w.DELETE_NOT_FINISHED_AGAIN, r.looked_in), w.REMOVE_BY_HAND] : inARow === 1 ? [w.DELETE_NOT_FINISHED] : [];
+    var byHand = onWindows(current) ? w.REMOVE_BY_HAND_WINDOWS : w.REMOVE_BY_HAND;
+    var unfinished = inARow >= 2 ? [withFolder(w.DELETE_NOT_FINISHED_AGAIN, r.looked_in), byHand] : inARow === 1 ? [w.DELETE_NOT_FINISHED] : [];
     var lines = lineWords(r).concat(unfinished);
     if (lines.length === 0) lines = [w.DELETE_RESULT_UNREADABLE];
-    return lines.concat(typeof r.looked_in === "string" ? [withFolder(w.DELETE_LOOKED_IN, r.looked_in)] : []);
+    var folder = typeof r.looked_in === "string" ? [withFolder(w.DELETE_LOOKED_IN, r.looked_in)] : [];
+    var report = typeof r.crash_reports_left === "string" && r.crash_reports_left !== "" ? [w.CRASH_REPORT_LEFT.replace("{folder}", r.crash_reports_left)] : [];
+    return lines.concat(folder, report);
   }
 
   function lineWords(r) {
@@ -210,6 +218,7 @@
   }
 
   function showKept(kept, afterDelete) {
+    keptAnswer = kept;
     keptInFlight = Boolean(kept) && kept.state === "in_flight";
     var answer = kept && kept.state === "answered" ? kept.answer : null;
     if (answer && (answer.outcome === "deleted" || answer.outcome === "already_deleted" || answer.outcome === "no_store")) {
@@ -492,8 +501,10 @@
       removeButton.disabled = true;
       var afterDelete = Halvo.takeLoadMark() === AFTER_DELETE;
       Halvo.feed("status").on(function (s) {
+        var system = onWindows(current);
         current = s;
         if (keptInFlight) readKept(false);
+        else if (keptAnswer !== null && onWindows(s) !== system) showKept(keptAnswer, false);
         renderOffer();
       });
       readKept(afterDelete);

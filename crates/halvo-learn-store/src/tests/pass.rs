@@ -37,7 +37,7 @@ fn bodies() -> Vec<(&'static str, Value)> {
     let line = json!({
         "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(1), "seq": 2, "day": 20_771,
         "at": 1_794_500_000_000_000_000_i64, "event": "step_ok", "step": 1, "cause": null,
-        "model": null, "ms": null, "tokens_in": null, "tokens_out": null,
+        "model": null, "ms": null, "tokens_in": null, "tokens_out": null, "page_amount": null,
     });
     vec![
         (

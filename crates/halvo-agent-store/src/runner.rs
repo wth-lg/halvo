@@ -443,8 +443,9 @@ fn drop_session(host: &mut dyn Host, now: Now, b: &DropSession) -> Result<Runner
     Ok(stored(1))
 }
 
-/// The one writer of the drop row, which `drop_session` and the coordinator body `drop_sessions` call after their
-/// own checks: for each origin, named once, one more revision of the agent's session of that origin, numbered after
+/// The one writer of the drop row, which the runner's body `drop_session` alone calls after its own checks (the
+/// coordinator body `drop_sessions` removes the rows instead, r3 U9.12): for each origin, named once, one more
+/// revision of the agent's session of that origin, numbered after
 /// every stored revision of it, of one part in the drop form (`SessionData::dropped`), with the workflow and the
 /// request's day, unless the newest whole revision of that origin is in that form already; every row in one commit.
 /// It answers the count of rows stored. `load` lists such a revision as the origin's newest, so Halvo stops using
