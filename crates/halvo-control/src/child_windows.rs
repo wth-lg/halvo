@@ -13,12 +13,13 @@ use windows::Win32::Foundation::{
     GetHandleInformation, SetHandleInformation, HANDLE, HANDLE_FLAGS, HANDLE_FLAG_INHERIT,
     WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
+use windows::Win32::System::Pipes::CreatePipe;
 use windows::Win32::System::Threading::{
     CreateProcessW, DeleteProcThreadAttributeList, GetExitCodeProcess,
-    InitializeProcThreadAttributeList, UpdateProcThreadAttribute, WaitForSingleObject,
-    CREATE_NO_WINDOW, EXTENDED_STARTUPINFO_PRESENT, INFINITE, LPPROC_THREAD_ATTRIBUTE_LIST,
-    PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, STARTF_USESTDHANDLES, STARTUPINFOEXW,
-    STARTUPINFOW,
+    InitializeProcThreadAttributeList, TerminateProcess, UpdateProcThreadAttribute,
+    WaitForSingleObject, CREATE_NO_WINDOW, EXTENDED_STARTUPINFO_PRESENT, INFINITE,
+    LPPROC_THREAD_ATTRIBUTE_LIST, PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+    STARTF_USESTDHANDLES, STARTUPINFOEXW, STARTUPINFOW,
 };
 
 use crate::client_windows::os_error;
@@ -69,6 +70,86 @@ impl AsHandle for Child {
     fn as_handle(&self) -> BorrowedHandle<'_> {
         self.process.as_handle()
     }
+}
+
+/// A child that [`start_with_lifeline`] started, and the write end of the pipe on its standard
+/// input, which this process alone holds while the child lives.
+#[derive(Debug)]
+pub struct Lifelined {
+    child: Child,
+    lifeline: Option<std::fs::File>,
+}
+
+impl Lifelined {
+    /// The process id of the child.
+    pub fn id(&self) -> u32 {
+        self.child.id()
+    }
+
+    /// The child's exit code once it has ended, none while it runs; it does not wait.
+    pub fn ended(&self) -> io::Result<Option<u32>> {
+        self.child.wait(Duration::ZERO)
+    }
+
+    /// Closes the write end of the pipe, so that the child reads the end of its standard input.
+    pub fn close_lifeline(&mut self) {
+        self.lifeline = None;
+    }
+
+    /// Ends the child and waits for its end; a child that has ended already is left as it is.
+    pub fn kill(&mut self) -> io::Result<()> {
+        if self.ended()?.is_some() {
+            return Ok(());
+        }
+        // SAFETY: the process handle is open and names this process's own child; the call takes
+        // no pointer.
+        let ended = unsafe { TerminateProcess(HANDLE(self.child.as_handle().as_raw_handle()), 1) };
+        if let Err(error) = ended {
+            if self.ended()?.is_none() {
+                return Err(os_error(error));
+            }
+        }
+        self.child.wait(Duration::MAX).map(|_| ())
+    }
+}
+
+/// A new anonymous pipe, its read end first; neither end is inheritable.
+fn new_pipe() -> io::Result<(std::fs::File, std::fs::File)> {
+    let mut reads = HANDLE::default();
+    let mut writes = HANDLE::default();
+    // SAFETY: the call writes two new handles, not inheritable, into the live locals.
+    unsafe { CreatePipe(&mut reads, &mut writes, None, 0) }.map_err(os_error)?;
+    // SAFETY: each handle is new, and each File owns its own once.
+    unsafe {
+        Ok((
+            std::fs::File::from_raw_handle(reads.0),
+            std::fs::File::from_raw_handle(writes.0),
+        ))
+    }
+}
+
+/// Starts `program` with the arguments `args` through [`start_with_handles`], with no console
+/// window: its standard input is the read end of a new pipe, its standard output the null
+/// device and its standard error `error`, and it inherits these three handles and no other.
+/// The write end of the pipe, which no child inherits, is handed back with the child, and this
+/// process keeps no copy of the read end.
+pub fn start_with_lifeline(
+    program: &Path,
+    args: &[&OsStr],
+    error: BorrowedHandle<'_>,
+) -> io::Result<Lifelined> {
+    let (reads, writes) = new_pipe()?;
+    let null = std::fs::OpenOptions::new().write(true).open("NUL")?;
+    let standard = StdHandles {
+        input: reads.as_handle(),
+        output: null.as_handle(),
+        error,
+    };
+    let child = start_with_handles(program, args, standard, &[])?;
+    Ok(Lifelined {
+        child,
+        lifeline: Some(writes),
+    })
 }
 
 /// Starts `program` with the arguments `args`, the standard handles `standard` and no console

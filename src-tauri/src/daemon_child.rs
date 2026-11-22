@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
@@ -258,12 +259,21 @@ impl Clock for SystemClock {
 
 /// A child that the app started: the process and the write end of the pipe on its standard
 /// input, which the app alone holds while the child lives.
+#[cfg(unix)]
 #[derive(Debug)]
 pub struct Running {
     child: Child,
     lifeline: Option<ChildStdin>,
 }
 
+/// A child that the app started on Windows, through halvo-control's one start of a child with
+/// its handles named: the process and the write end of the pipe on its standard input, which
+/// the app alone holds while the child lives.
+#[cfg(windows)]
+#[derive(Debug)]
+pub struct Running(halvo_control::child_windows::Lifelined);
+
+#[cfg(unix)]
 impl Watched for Running {
     fn pid(&self) -> u32 {
         self.child.id()
@@ -286,10 +296,31 @@ impl Watched for Running {
     }
 }
 
+/// A Windows child has no end by a signal: an end, a kill among them, reads as its exit code.
+#[cfg(windows)]
+impl Watched for Running {
+    fn pid(&self) -> u32 {
+        self.0.id()
+    }
+
+    fn ended(&mut self) -> io::Result<Option<Ending>> {
+        Ok(self.0.ended()?.map(|code| Ending::Status(code as i32)))
+    }
+
+    fn close_lifeline(&mut self) {
+        self.0.close_lifeline();
+    }
+
+    fn kill(&mut self) -> io::Result<()> {
+        self.0.kill()
+    }
+}
+
 /// The one start of a child of the app: `program` with `args`; standard input is the read end
 /// of a pipe whose write end the returned value holds, standard output is the null device,
 /// standard error is `err`, and every other descriptor is closed in the child at its exec,
 /// also one that lacks close-on-exec.
+#[cfg(unix)]
 pub fn start_child(program: &Program, args: &[OsString], err: File) -> io::Result<Running> {
     let mut command = Command::new(&program.path);
     command
@@ -302,6 +333,23 @@ pub fn start_child(program: &Program, args: &[OsString], err: File) -> io::Resul
     let mut child = command.spawn()?;
     let lifeline = child.stdin.take();
     Ok(Running { child, lifeline })
+}
+
+/// The one start of a child of the app on Windows: `program` with `args`, with no console
+/// window; standard input is the read end of a pipe whose write end the returned value holds,
+/// standard output is the null device, standard error is `err`, and the child inherits these
+/// three handles and no other (halvo-control's `start_with_lifeline`).
+#[cfg(windows)]
+pub fn start_child(program: &Program, args: &[OsString], err: File) -> io::Result<Running> {
+    use std::os::windows::io::AsHandle;
+    let args: Vec<&std::ffi::OsStr> = program
+        .leading
+        .iter()
+        .chain(args)
+        .map(OsString::as_os_str)
+        .collect();
+    halvo_control::child_windows::start_with_lifeline(&program.path, &args, err.as_handle())
+        .map(Running)
 }
 
 /// Closes every descriptor but the standard streams in the child of `command` at its exec, also
@@ -321,11 +369,6 @@ pub fn only_the_standard_streams(command: &mut Command) {
             Ok(())
         });
     }
-}
-
-#[cfg(not(unix))]
-fn only_the_standard_streams(command: &mut Command) {
-    let _ = command;
 }
 
 #[cfg(unix)]
