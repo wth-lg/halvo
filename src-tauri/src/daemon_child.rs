@@ -493,6 +493,7 @@ impl<C> Shared<C> {
 pub struct Supervisor<C, K> {
     shared: Arc<Shared<C>>,
     clock: Arc<K>,
+    views: Arc<Views>,
 }
 
 impl<C: Watched, K: Clock> Supervisor<C, K> {
@@ -522,16 +523,20 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
             }),
             changed: Condvar::new(),
         });
-        let (watched, time) = (Arc::clone(&shared), Arc::clone(&clock));
+        let (watched, time, drawn) = (Arc::clone(&shared), Arc::clone(&clock), Arc::clone(&views));
         let started = std::thread::Builder::new()
             .name("halvo-daemon-child".to_owned())
             .spawn(move || {
-                supervise_and_start_again(spawner, &watched, &pid, time.as_ref(), &views)
+                supervise_and_start_again(spawner, &watched, &pid, time.as_ref(), &drawn)
             });
         if let Err(e) = started {
             eprintln!("halvo: the capture service is not started: {e}");
         }
-        Supervisor { shared, clock }
+        Supervisor {
+            shared,
+            clock,
+            views,
+        }
     }
 
     /// Ends the supervision: no child starts after it, and the child of the moment, if any, is
@@ -567,7 +572,7 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
 
     fn hold_for_a_run<T>(&self, owed: bool, run: impl FnOnce() -> T) -> T {
         let until = self.clock.now() + STOP_WAIT;
-        let _lifted = HeldForARun::mark(&self.shared, owed);
+        let _lifted = HeldForARun::mark(&self.shared, self.views.hold(), owed);
         let mut state = self.shared.lock();
         while let Some(child) = state.child.as_mut() {
             child.close_lifeline();
@@ -589,15 +594,18 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
 
 /// The hold of the supervision for a run, lifted when it is dropped: on every path out of the
 /// run, an unwind among them. Behind a run of Remove Halvo's door, one that returned or one that
-/// unwound, the drop sets the mark of a wait for a press under the same lock, so that no start
-/// passes the gate before the mark stands.
+/// unwound, the drop sets the mark of a wait for a press and drops the hold's ask of a Start
+/// that stands from before, both under the one hold of the state lock in which it lifts the
+/// hold, so that no start passes the gate before the mark stands and only a press behind the run
+/// lifts it.
 struct HeldForARun<'a, C> {
     shared: &'a Shared<C>,
+    hold: &'a Hold,
     until_a_press: bool,
 }
 
 impl<'a, C> HeldForARun<'a, C> {
-    fn mark(shared: &'a Shared<C>, owed: bool) -> Self {
+    fn mark(shared: &'a Shared<C>, hold: &'a Hold, owed: bool) -> Self {
         let mut state = shared.lock();
         state.held_for_a_run = true;
         if owed {
@@ -606,6 +614,7 @@ impl<'a, C> HeldForARun<'a, C> {
         drop(state);
         HeldForARun {
             shared,
+            hold,
             until_a_press: !owed,
         }
     }
@@ -617,6 +626,7 @@ impl<C> Drop for HeldForARun<'_, C> {
         state.held_for_a_run = false;
         if self.until_a_press {
             state.held_until_a_press = true;
+            self.hold.drop_the_ask();
         }
         drop(state);
         self.shared.changed.notify_all();
@@ -697,13 +707,16 @@ fn supervise_and_start_again<S: Spawner, K: Clock>(
     }
 }
 
+/// The wait for a press: it takes no ask while a run holds the supervision, so that an ask
+/// from before the end of a run of Remove Halvo's door is dropped there and the end of the last
+/// child stays read for a press behind the run; the press that it takes lifts the mark.
 fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold: &Hold) -> bool {
     let mut state = shared.lock();
     loop {
         if state.quitting {
             return false;
         }
-        if hold.take_start() {
+        if !state.held_for_a_run && hold.take_start() {
             state.held_until_a_press = false;
             return true;
         }
@@ -1014,12 +1027,15 @@ pub mod stand_in {
             .push(line.into());
     }
 
-    /// A clock whose time moves only by its waits, which it records.
+    /// A clock whose time moves only by its waits, which it records. While `long_waits_held`
+    /// reads true, a wait longer than CHILD_POLL, the backoff's or the attach's first, holds in
+    /// real time with the lock given back, until the test sets it false.
     #[derive(Debug)]
     pub struct StandInClock {
         base: Instant,
         at: Mutex<Duration>,
         pub waits: Mutex<Vec<Duration>>,
+        pub long_waits_held: Mutex<bool>,
     }
 
     impl Default for StandInClock {
@@ -1028,6 +1044,7 @@ pub mod stand_in {
                 base: Instant::now(),
                 at: Mutex::new(Duration::ZERO),
                 waits: Mutex::new(Vec::new()),
+                long_waits_held: Mutex::new(false),
             }
         }
     }
@@ -1065,6 +1082,18 @@ pub mod stand_in {
                 .unwrap_or_else(PoisonError::into_inner)
                 .push(period);
             self.advance(period);
+            let mut held = held;
+            while period > CHILD_POLL
+                && *self
+                    .long_waits_held
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+            {
+                held = changed
+                    .wait_timeout(held, Duration::from_millis(5))
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .0;
+            }
             let real = if period <= STOP_POLL {
                 Duration::ZERO
             } else {
@@ -2416,6 +2445,144 @@ mod tests {
                 starts(),
                 ["start 1000", "start 1001"],
                 "{name}: one child for one press"
+            );
+        }
+    }
+
+    #[test]
+    fn a_start_asked_before_a_removal_starts_no_child_behind_it_until_one_press_brings_one() {
+        use crate::commands::control::Watching;
+        #[derive(Clone, Copy, PartialEq)]
+        enum Asked {
+            InTheBackoff,
+            AtTheAttachWhileAServiceAnswers,
+            AtTheAttachBeforeAnyAnswer,
+        }
+        for (name, asked) in [
+            (
+                "a Start asked in the backoff's wait before the door",
+                Asked::InTheBackoff,
+            ),
+            (
+                "a Start asked at the attach before the door, while another service answers",
+                Asked::AtTheAttachWhileAServiceAnswers,
+            ),
+            (
+                "a Start asked at the attach before the door, with no answer before the run",
+                Asked::AtTheAttachBeforeAnyAnswer,
+            ),
+        ] {
+            let record = Record::default();
+            let clock = Arc::new(StandInClock::default());
+            let first_ends = Later::default();
+            let first = match asked {
+                Asked::InTheBackoff => StandInChild {
+                    later: Some(Arc::clone(&first_ends)),
+                    ..StandInChild::new(1000, &clock, &record)
+                },
+                _ => StandInChild {
+                    ending: Some(Ending::Status(0)),
+                    ..StandInChild::new(1000, &clock, &record)
+                },
+            };
+            let spawner = StandInSpawner {
+                children: [first, StandInChild::new(1001, &clock, &record)]
+                    .into_iter()
+                    .collect(),
+                record: Arc::clone(&record),
+            };
+            let views = Arc::new(Views::default());
+            let pid = Arc::<ChildPid>::default();
+            let supervisor = Supervisor::start_holding(
+                spawner,
+                Arc::clone(&pid),
+                Arc::clone(&clock),
+                Arc::clone(&views),
+            );
+            let other = sample_status(Platform::Macos);
+            let answers = match asked {
+                Asked::AtTheAttachWhileAServiceAnswers => vec![Ok(other.clone()), Ok(other)],
+                _ => Vec::new(),
+            };
+            let control = Watching::new(
+                Scripted::new(&record, answers, Vec::new()),
+                Arc::clone(&pid),
+            );
+            let starts = || {
+                record
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .filter(|line| line.starts_with("start"))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            };
+            match asked {
+                Asked::InTheBackoff => {
+                    until(name, || pid.get() == Some(1000));
+                    *clock.long_waits_held.lock().unwrap() = true;
+                    *first_ends.lock().unwrap() = Some(Ending::Status(1));
+                    until("the supervisor waits in the backoff", || {
+                        clock.waits().contains(&BACKOFF_FIRST)
+                    });
+                }
+                Asked::AtTheAttachWhileAServiceAnswers => {
+                    until("the attach looks for answers", || clock.waits().len() > 2);
+                    pass(&control, &views, None);
+                    looked_again(&clock);
+                }
+                Asked::AtTheAttachBeforeAnyAnswer => {
+                    until("the attach looks for answers", || clock.waits().len() > 2);
+                }
+            }
+            assert!(
+                views.hold().ask_start(),
+                "{name}: the hold takes the ask of a press on Start"
+            );
+            if asked != Asked::InTheBackoff {
+                looked_again(&clock);
+                assert_eq!(
+                    starts(),
+                    ["start 1000"],
+                    "{name}: the attach does not serve the ask"
+                );
+            }
+            supervisor.without_the_child(|| {
+                note(&record, "run");
+                if asked == Asked::AtTheAttachBeforeAnyAnswer {
+                    pass(&control, &views, None);
+                    looked_again(&clock);
+                }
+            });
+            *clock.long_waits_held.lock().unwrap() = false;
+            let ran_at = clock.now();
+            while clock.now().saturating_duration_since(ran_at) <= BACKOFF_MAX {
+                pass(&control, &views, None);
+                looked_again(&clock);
+                assert_eq!(
+                    starts(),
+                    ["start 1000"],
+                    "{name}: nobody presses behind the run: no child starts by itself behind a removal that stopped"
+                );
+            }
+            let answering = Recording::new(&record, Some(held_child_status()));
+            let (answer, _) = press(
+                &answering,
+                &views,
+                answering.places().make(),
+                CaptureChange::Resume,
+                START_ANSWER_WAIT,
+            );
+            assert!(
+                answer.is_ok(),
+                "{name}: the press's Resume reaches the child that it asked for"
+            );
+            looked_again(&clock);
+            drop(supervisor.close());
+            assert_eq!(
+                starts(),
+                ["start 1000", "start 1001"],
+                "{name}: one press behind the run brings one child"
             );
         }
     }
