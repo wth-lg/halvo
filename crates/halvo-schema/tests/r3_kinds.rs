@@ -180,6 +180,7 @@ fn the_fields_of_each_entry_are_the_keys_of_its_record_with_their_types() {
                 ("ms", Count),
                 ("tokens_in", Count),
                 ("tokens_out", Count),
+                ("page_amount", Count),
             ],
         ),
         (

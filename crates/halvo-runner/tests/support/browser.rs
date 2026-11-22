@@ -305,6 +305,39 @@ impl Fixture {
     }
 }
 
+impl Fixture {
+    /// `Fixture::start` with one path more, `switch`, whose answer is the word that the test last set in the
+    /// switch that comes back, `off` before the first: a page that asks it acts when the test says so, at a frame of
+    /// the run that the test chooses, and not after a time of its own.
+    pub fn start_switched(pages: &[(&str, &str)], switch: &str) -> (Fixture, Arc<Mutex<String>>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind the fixture");
+        let port = listener.local_addr().expect("the fixture's port").port();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let stop = Arc::new(AtomicBool::new(false));
+        let word = Arc::new(Mutex::new("off".to_string()));
+        let pages: Vec<(String, String)> = pages
+            .iter()
+            .map(|(path, page)| (path.to_string(), page.to_string()))
+            .collect();
+        let switch = switch.to_string();
+        let (record, stopped, set) = (Arc::clone(&seen), Arc::clone(&stop), Arc::clone(&word));
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                if stopped.load(Ordering::SeqCst) {
+                    return;
+                }
+                if let Ok(stream) = stream {
+                    let mut now = pages.clone();
+                    now.push((switch.clone(), set.lock().expect("the word").clone()));
+                    let request = answer(stream, &now);
+                    record.lock().expect("the record").push(request);
+                }
+            }
+        });
+        (Fixture { port, seen, stop }, word)
+    }
+}
+
 impl Drop for Fixture {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::SeqCst);
@@ -589,4 +622,278 @@ pub fn own_start_us() -> u64 {
     halvo_web::procs::own()
         .expect("this process's row")
         .started_us
+}
+
+/// The JSON of a web target found by the test id `id` inside the frames of the origins `frame`, the outermost first.
+pub fn framed_target(id: &str, frame: &[&WebOrigin]) -> String {
+    let origins: Vec<String> = frame.iter().map(|o| format!("\"{o}\"")).collect();
+    format!(
+        r#"{{"desc":"the control {id}","frame":[{}],"credential":"no","locators":[{{"by":"test_id","value":"{id}","name":null}}]}}"#,
+        origins.join(",")
+    )
+}
+
+/// The JSON of a condition `check` on the control with the test id `id` inside the frames `frame`, with the const
+/// `arg` where one is given and no arg otherwise.
+pub fn framed_cond(check: &str, id: &str, frame: &[&WebOrigin], arg: Option<&str>) -> String {
+    format!(
+        r#"{{"check":"{check}","target":{},"arg":{}}}"#,
+        framed_target(id, frame),
+        arg.map_or("null".to_string(), |a| konst("arg", a))
+    )
+}
+
+/// A web step `n` of `verb` with the effect `none` on the control with the test id `id` inside the frames `frame`,
+/// with its args and its conditions `post`; of the class `read` for `extract` and `prepare` for every other verb.
+pub fn framed_step(
+    n: u32,
+    verb: &str,
+    id: &str,
+    frame: &[&WebOrigin],
+    args: &[String],
+    post: &[String],
+) -> ExecutableStep {
+    let class = if verb == "extract" { "read" } else { "prepare" };
+    let json = format!(
+        r#"{{"v":1,"n":{n},"kind":"web","verb":"{verb}","target":{},"args":[{}],"pre":[],"post":[{}],"effect":"none","class":"{class}"}}"#,
+        framed_target(id, frame),
+        args.join(","),
+        post.join(",")
+    );
+    ExecutableStep::parse(json.as_bytes()).expect("a web step in a frame")
+}
+
+/// Seed 1 of the variants fixture server (tools/fixture-server/variants/data).
+pub const SEED_1: &str = include_str!("../../../../tools/fixture-server/variants/data/seed-1.json");
+
+/// The cookie `halvo_fx_session=<id>` of a sign-in of seed 1's credentials at the utility site of the fixture server
+/// on `port`, made by the fixture's own `POST /signin` from this process.
+pub fn fixture_sign_in(port: u16) -> String {
+    let seed: serde_json::Value = serde_json::from_str(SEED_1).expect("seed 1");
+    let field = |key: &str| {
+        let value = seed["credentials"][key]
+            .as_str()
+            .expect("a credential of seed 1");
+        value
+            .bytes()
+            .map(|b| match b {
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' => {
+                    (b as char).to_string()
+                }
+                _ => format!("%{b:02X}"),
+            })
+            .collect::<String>()
+    };
+    let body = format!("email={}&password={}", field("user"), field("password"));
+    let mut stream = TcpStream::connect((Ipv4Addr::LOCALHOST, port))
+        .expect("the fixture server takes a connection");
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    write!(
+        stream,
+        "POST /signin HTTP/1.0\r\nHost: utility.agent.test:{port}\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{body}",
+        body.len()
+    )
+    .expect("the sign-in is written");
+    let mut answer = Vec::new();
+    let _ = stream.read_to_end(&mut answer);
+    let answer = String::from_utf8_lossy(&answer).into_owned();
+    let head = answer.split("\r\n\r\n").next().unwrap_or_default();
+    head.lines()
+        .filter_map(|line| line.split_once(':'))
+        .filter(|(key, _)| key.eq_ignore_ascii_case("set-cookie"))
+        .filter_map(|(_, value)| value.trim().split(';').next())
+        .find(|pair| pair.starts_with("halvo_fx_session="))
+        .unwrap_or_else(|| panic!("no session cookie in the answer to the sign-in: {head}"))
+        .to_string()
+}
+
+/// A forwarder on a loopback port of its own to the host `host` of the fixture server on `server`, by which a browser
+/// that reaches no name reaches that host: each connection's request goes to the server as HTTP/1.0 with its `Host`
+/// line set to `<host>:<server>` and, where `cookie` is given, its `Cookie` line set to it; the answer comes back with
+/// each `from` of its body replaced by `to`, where `rewrite` is given, its length set anew, and the connection closed.
+/// It records the method and path of each request. Dropping it stops it.
+pub struct Forwarder {
+    port: u16,
+    seen: Arc<Mutex<Vec<(String, String)>>>,
+    stop: Arc<AtomicBool>,
+}
+
+impl Forwarder {
+    pub fn start(
+        server: u16,
+        host: &str,
+        cookie: Option<String>,
+        rewrite: Option<(String, String)>,
+    ) -> Forwarder {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind the forwarder");
+        let port = listener.local_addr().expect("the forwarder's port").port();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (record, stopped) = (Arc::clone(&seen), Arc::clone(&stop));
+        let to_host = format!("{host}:{server}");
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                if stopped.load(Ordering::SeqCst) {
+                    return;
+                }
+                let Ok(stream) = stream else { continue };
+                let (record, to_host) = (Arc::clone(&record), to_host.clone());
+                let (cookie, rewrite) = (cookie.clone(), rewrite.clone());
+                std::thread::spawn(move || {
+                    forward(
+                        stream,
+                        server,
+                        &to_host,
+                        cookie.as_deref(),
+                        rewrite.as_ref(),
+                        &record,
+                    )
+                });
+            }
+        });
+        Forwarder { port, seen, stop }
+    }
+
+    pub fn origin(&self) -> WebOrigin {
+        WebOrigin::parse(&format!("http://127.0.0.1:{}", self.port)).expect("an origin")
+    }
+
+    pub fn url(&self, path: &str) -> String {
+        format!("http://127.0.0.1:{}{path}", self.port)
+    }
+
+    /// The method and path of each request that the forwarder took, in the order of their heads.
+    pub fn requests(&self) -> Vec<(String, String)> {
+        self.seen.lock().expect("the record").clone()
+    }
+}
+
+impl Drop for Forwarder {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        let _ = TcpStream::connect((Ipv4Addr::LOCALHOST, self.port));
+    }
+}
+
+/// One connection of a `Forwarder`: reads the request's head and the body of its `Content-Length`, sends it to the
+/// server as `Forwarder` says, reads the answer to its end and writes it back, rewritten.
+fn forward(
+    mut stream: TcpStream,
+    server: u16,
+    host: &str,
+    cookie: Option<&str>,
+    rewrite: Option<&(String, String)>,
+    record: &Mutex<Vec<(String, String)>>,
+) {
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    let mut bytes = Vec::new();
+    let mut chunk = [0u8; 4096];
+    let head_end = loop {
+        if let Some(at) = bytes.windows(4).position(|w| w == b"\r\n\r\n") {
+            break at + 4;
+        }
+        match stream.read(&mut chunk) {
+            Ok(0) | Err(_) => return,
+            Ok(n) => bytes.extend_from_slice(&chunk[..n]),
+        }
+    };
+    let head = String::from_utf8_lossy(&bytes[..head_end]).into_owned();
+    let mut lines = head.split("\r\n").filter(|l| !l.is_empty());
+    let first = lines.next().unwrap_or_default().to_string();
+    let mut words = first.split_whitespace();
+    let (method, path) = (
+        words.next().unwrap_or_default().to_string(),
+        words.next().unwrap_or_default().to_string(),
+    );
+    record
+        .lock()
+        .expect("the record")
+        .push((method.clone(), path.clone()));
+    let dropped = [
+        "host",
+        "connection",
+        "keep-alive",
+        "proxy-connection",
+        "cookie",
+    ];
+    let mut kept: Vec<String> = lines
+        .filter(|l| {
+            let key = l
+                .split(':')
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            !dropped.contains(&key.as_str())
+        })
+        .map(str::to_string)
+        .collect();
+    let length = kept
+        .iter()
+        .find_map(|l| {
+            let (key, value) = l.split_once(':')?;
+            key.trim()
+                .eq_ignore_ascii_case("content-length")
+                .then(|| value.trim().parse::<usize>().ok())?
+        })
+        .unwrap_or(0);
+    while bytes.len() < head_end + length {
+        match stream.read(&mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => bytes.extend_from_slice(&chunk[..n]),
+        }
+    }
+    kept.push(format!("Host: {host}"));
+    kept.push("Connection: close".to_string());
+    if let Some(cookie) = cookie {
+        kept.push(format!("Cookie: {cookie}"));
+    }
+    let mut request =
+        format!("{method} {path} HTTP/1.0\r\n{}\r\n\r\n", kept.join("\r\n")).into_bytes();
+    request.extend_from_slice(&bytes[head_end..]);
+    let Ok(mut upstream) = TcpStream::connect((Ipv4Addr::LOCALHOST, server)) else {
+        return;
+    };
+    let _ = upstream.set_read_timeout(Some(Duration::from_secs(10)));
+    if upstream.write_all(&request).is_err() {
+        return;
+    }
+    let mut answer = Vec::new();
+    let _ = upstream.read_to_end(&mut answer);
+    let Some(at) = answer.windows(4).position(|w| w == b"\r\n\r\n") else {
+        return;
+    };
+    let answer_head = String::from_utf8_lossy(&answer[..at]).into_owned();
+    let mut body = answer[at + 4..].to_vec();
+    if let Some((from, to)) = rewrite {
+        let text = String::from_utf8_lossy(&body).into_owned();
+        if text.contains(from.as_str()) {
+            body = text.replace(from.as_str(), to).into_bytes();
+        }
+    }
+    let answer_dropped = [
+        "content-length",
+        "connection",
+        "keep-alive",
+        "transfer-encoding",
+    ];
+    let mut out_head: Vec<String> = answer_head
+        .split("\r\n")
+        .enumerate()
+        .filter(|(i, l)| {
+            let key = l
+                .split(':')
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            *i == 0 || !answer_dropped.contains(&key.as_str())
+        })
+        .map(|(_, l)| l.to_string())
+        .collect();
+    out_head.push(format!("Content-Length: {}", body.len()));
+    out_head.push("Connection: close".to_string());
+    let mut out = format!("{}\r\n\r\n", out_head.join("\r\n")).into_bytes();
+    out.extend_from_slice(&body);
+    let _ = stream.write_all(&out);
 }

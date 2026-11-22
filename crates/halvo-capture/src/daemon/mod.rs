@@ -414,6 +414,9 @@ pub struct TailReport {
     pub database_left: bool,
     pub files_left: u64,
     pub not_followed: u64,
+    /// On Windows, the tail was refused the lock because the lock file stands
+    /// marked for removal while another handle keeps it open.
+    pub lock_file_kept: bool,
 }
 
 /// What the tail says of the store's root: destroyed by this call, left
@@ -455,7 +458,8 @@ impl TailReport {
     /// answered through its not-opened report for another cause: the root left
     /// with no id, and store.key, the database and one file read as not removed
     /// because the tail never looked. A removal that left exactly those three
-    /// and read no root id reads the same.
+    /// and read no root id reads the same, and so does a tail refused the lock
+    /// that read exactly those three standing and no root id.
     fn not_opened(&self) -> bool {
         self.root == TailRoot::Left(None)
             && !self.key_file_gone
@@ -486,10 +490,16 @@ impl TailReport {
         )
     }
 
-    /// What stays, for standard error: the root files and partial root files
-    /// by their names in the folder roots, every other entry there by kind.
+    /// What stays, for standard error: first, on Windows, a lock file that
+    /// another program keeps open behind its mark; the root files and partial
+    /// root files by their names in the folder roots, every other entry there
+    /// by kind; then the store's files, the count of its other files behind
+    /// its words.
     fn what_stays(&self) -> String {
         let mut stays = Vec::new();
+        if self.lock_file_kept {
+            stays.push("another program holds the store's lock file open".to_owned());
+        }
         if matches!(self.root, TailRoot::Left(_)) {
             stays.push("this call did not destroy the store's root".to_owned());
         }
@@ -521,7 +531,10 @@ impl TailReport {
             stays.push("a database file stays".to_owned());
         }
         if self.files_left > 0 {
-            stays.push(format!("{} other files of the store stay", self.files_left));
+            stays.push(format!(
+                "other files of the store that stay: {}",
+                self.files_left
+            ));
         }
         if self.not_followed > 0 {
             stays.push(format!(
@@ -2679,7 +2692,13 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                             }
                             Some(report) if !whole => {
                                 delete_written =
-                                    answer_the_delete(&mut Some((asked, report)), None);
+                                    Some(asked.answer(halvo_control::proto::Reply::Deleted(
+                                        halvo_control::proto::Deleted {
+                                            report,
+                                            store: None,
+                                            unfinished: true,
+                                        },
+                                    )));
                             }
                             Some(report) => {
                                 rule = owner::open::CreateRule::of(
@@ -3040,12 +3059,13 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         }
     };
     let fields = status.fields();
+    let (store_read, unfinished) = the_store_that_the_rule_reads(fields, opener.as_ref());
     let refused = match halvo_control::proto::delete_decision(
         serving.listening.admitting().life(),
         fields.capture,
-        fields.store,
+        store_read,
         fields.store_error,
-        fields.store_delete_unfinished,
+        unfinished,
         fields.store_id,
         armed,
     ) {
@@ -3158,6 +3178,26 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     }
 }
 
+/// The store's state and its `store_delete_unfinished` that the delete rule reads: the
+/// status's, except while an opener runs whose slot reads opening or deleting, whose own call
+/// may yet begin or still runs the finish of a standing delete, also in a data directory that
+/// failed its check, whose status reads unavailable: then its slot's, so that the rule answers
+/// busy and no second walk begins beside that call. Whether it runs is read before its slot,
+/// and its thread leaves those two slots only once that call has returned.
+#[cfg(any(target_os = "macos", windows))]
+fn the_store_that_the_rule_reads(
+    fields: &halvo_control::proto::StatusFields,
+    opener: Option<&owner::open::Opener>,
+) -> (halvo_control::proto::StoreState, bool) {
+    match opener
+        .filter(|opener| opener.is_running())
+        .map(owner::open::Opener::slot)
+    {
+        Some(slot @ (slot::Slot::Opening | slot::Slot::Deleting)) => (slot.state(), false),
+        _ => (fields.store, fields.store_delete_unfinished),
+    }
+}
+
 #[cfg(any(target_os = "macos", windows))]
 fn delete_report(
     ran: &delete_all::Ran,
@@ -3204,6 +3244,7 @@ fn answer_the_delete(
         halvo_control::proto::Deleted {
             report,
             store: store.map(|id| halvo_control::model::StoreId::from_bytes(*id.as_bytes())),
+            unfinished: false,
         },
     )))
 }
@@ -4740,7 +4781,7 @@ mod tests {
         assert!(out.contains(" root_destroyed=yes root_id=- "), "{out}");
         assert_eq!(
             err,
-            "halvo-capture: the delete is not finished: the folder roots could not be listed; the folder roots no longer stands at its path; store.key stays; a database file stays; 2 other files of the store stay; 2 names were a link or an entry of another kind and were not followed\n"
+            "halvo-capture: the delete is not finished: the folder roots could not be listed; the folder roots no longer stands at its path; store.key stays; a database file stays; other files of the store that stay: 2; 2 names were a link or an entry of another kind and were not followed\n"
         );
         let unnamed = TailReport {
             files_left: 1,
@@ -4752,7 +4793,7 @@ mod tests {
         assert!(out.contains(" root_destroyed=unknown root_id=- "), "{out}");
         assert_eq!(
             err,
-            "halvo-capture: the delete is not finished: 1 other files of the store stay\n"
+            "halvo-capture: the delete is not finished: other files of the store that stay: 1\n"
         );
     }
 
@@ -4839,7 +4880,7 @@ mod tests {
             let (_, _, err, _) = scratch_answer(Path::new("/s"), TailAnswer::NotFinished(other));
             assert!(
                 !err.contains("could not be opened")
-                    && err.contains("1 other files of the store stay"),
+                    && err.contains("other files of the store that stay: 1"),
                 "{what}: {err}"
             );
         }

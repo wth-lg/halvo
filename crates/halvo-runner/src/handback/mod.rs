@@ -28,6 +28,14 @@
 //! `declined`, as `bound=no` does; `timeout` ends it `handed_back` with the cause `timeout`; a credential field after
 //! the `IN_A_ROW`-th `done`, a reading that fails after a `done`, and an address that gives no origin end it
 //! `handed_back`.
+//!
+//! A web step that FAILED on a page that shows no credential field reads the page a second time (crate::web, r3 U5.14,
+//! the coordinator's ruling of log line 14127 (1)): where the page shows a link or a button that asks for a sign-in by
+//! its name (halvo-web's `asks_to_sign_in`), the runner opens a handback of the reason `sign_in` in place of the
+//! step's failure, by the same opening and with the same ends as at a credential field (`open_handback`); behind a
+//! bind with `bound=yes` the act that failed is asked once more, and a second failure fails the step as before, with
+//! no second reading (crate::web, the coordinator's ruling of log line 16106 (3)). A step that does not fail makes no
+//! second reading.
 
 #[cfg(test)]
 mod tests;
@@ -75,10 +83,24 @@ impl Runner {
         loaded: &LoadReply,
         step: NonZeroU32,
     ) -> Result<bool, Failure> {
-        let failed = |()| Failure::Step(Cause::StepFailed);
-        let Some(sign) = page.sign().map_err(failed)? else {
+        let Some(sign) = page.sign().map_err(|()| Failure::Step(Cause::StepFailed))? else {
             return Ok(false);
         };
+        self.open_handback(page, loaded, step, sign)
+    }
+
+    /// The opening of a handback of the reason of `sign` on the page that the reading before it read, and every end of
+    /// it, as `read_page` describes them: at a credential field that the reading found, and at a link or a button that
+    /// asks for a sign-in, which the second reading after a web step that failed found (crate::web, r3 U5.14), with
+    /// `Sign::Secret` and so the reason `sign_in`.
+    pub(crate) fn open_handback(
+        &mut self,
+        page: &mut dyn Page,
+        loaded: &LoadReply,
+        step: NonZeroU32,
+        sign: Sign,
+    ) -> Result<bool, Failure> {
+        let failed = |()| Failure::Step(Cause::StepFailed);
         let top = WebOrigin::of_address(&page.address().map_err(failed)?).ok();
         self.sessions.at_field = top.clone();
         if self.sessions.imported && !self.args.headed {

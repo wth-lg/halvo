@@ -2,6 +2,7 @@
 
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader};
+use std::os::windows::fs::OpenOptionsExt;
 use std::os::windows::io::AsHandle;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
@@ -412,6 +413,85 @@ fn the_services_own_delete_on_windows_leaves_no_file_of_the_old_store_in_the_sto
         Vec::<&PathBuf>::new(),
         "files of the old store stand after the delete; before: {before:?}; after: {after:?}"
     );
+}
+
+/// A handle on the store's lock file of `dir` that shares every access,
+/// deletion too, so that the delete's own take and its mark go through and
+/// the marked name stands until this handle closes.
+fn keep_the_lock_file(dir: &Path) -> std::fs::File {
+    const FILE_SHARE_READ_WRITE_DELETE: u32 = 0x1 | 0x2 | 0x4;
+    std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ_WRITE_DELETE)
+        .open(dir.join("store").join("writer.lock"))
+        .expect("the store's lock file opens beside the delete")
+}
+
+fn deleted_line_of(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .nth(1)
+        .unwrap_or_else(|| panic!("no deleted line: {}", text(output)))
+        .to_owned()
+}
+
+/// Sentence 2 of win-delete-answers: the store handle's delete marks the lock
+/// file while another handle keeps it open, so its name stands behind the
+/// store handle's close; the store's one reader of that name counts it, and
+/// the delete answers not finished.
+#[test]
+fn the_offline_delete_through_the_store_handle_counts_a_lock_file_that_another_handle_keeps() {
+    let dir = scratch_data_dir("kept-lock");
+    a_store_that_a_service_run_left(&dir);
+    let kept = keep_the_lock_file(&dir);
+    let deleted = offline_delete(&dir)
+        .output()
+        .expect("the offline delete runs");
+    drop(kept);
+    let line = deleted_line_of(&deleted);
+    let through_the_handle = line
+        .strip_prefix("deleted segments_shredded=")
+        .and_then(|rest| rest.split(' ').next())
+        .is_some_and(|count| count.parse::<u64>().is_ok());
+    assert!(through_the_handle, "{}", text(&deleted));
+    assert_eq!(deleted.status.code(), Some(1), "{}", text(&deleted));
+    for part in [" root_destroyed=yes ", " files_left=1 database_left=no "] {
+        assert!(line.contains(part), "{part}: {}", text(&deleted));
+    }
+}
+
+/// Sentence 3 of win-delete-answers: behind a delete that marked the lock file
+/// while another handle keeps it, a second press is refused the lock, removes
+/// nothing and says what stands: store.key and the database gone, one file,
+/// and the program that keeps the lock file open.
+#[test]
+fn a_second_press_while_another_handle_keeps_the_marked_lock_file_says_what_stands() {
+    let dir = scratch_data_dir("second-press");
+    a_store_that_a_service_run_left(&dir);
+    let kept = keep_the_lock_file(&dir);
+    let first = offline_delete(&dir).output().expect("the first press runs");
+    let second = offline_delete(&dir)
+        .output()
+        .expect("the second press runs");
+    drop(kept);
+    assert_eq!(first.status.code(), Some(1), "{}", text(&first));
+    assert_eq!(second.status.code(), Some(1), "{}", text(&second));
+    assert!(
+        deleted_line_of(&second).contains(" files_left=1 database_left=no "),
+        "{}",
+        text(&second)
+    );
+    let stderr = String::from_utf8_lossy(&second.stderr);
+    for expected in [
+        "halvo-capture: the delete is not finished: another program holds the store's lock file open; the folder roots could not be listed; other files of the store that stay: 1",
+        "halvo-capture: registered entries of the store that stay until the delete of the store finishes: 2",
+    ] {
+        assert!(
+            stderr.lines().any(|line| line == expected),
+            "{expected}: {}",
+            text(&second)
+        );
+    }
 }
 
 #[test]

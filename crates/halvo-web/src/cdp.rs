@@ -35,7 +35,7 @@ use crate::start;
 mod session;
 mod wire;
 pub use session::{cookie_param, domain_matches, host_of, OriginStorage, SessionState, Stopped};
-pub use wire::host_port;
+pub use wire::{form_of_paused, host_port, FormUnread, HeldForm, AMOUNT_FIELDS, MAX_FORM_BYTES};
 
 pub const STEP_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -166,8 +166,9 @@ pub enum Outcome {
 
 /// A request that the rule paused before it left: the executor's id when it was held, its method,
 /// origin and path, the id of the frame that made it, whether the rule let it through, and how the
-/// browser took the answer. The executor never reads, keeps or returns a request's body
-/// (CP-176 A1 (e)).
+/// browser took the answer. The record holds no byte of a request's body (CP-176 A1 (e)); of a
+/// held request the executor reads the body for the values of the form fields that name an amount
+/// alone (`HeldRequest::form`, r3 U5.10-C).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PausedRequest {
     pub id: Option<u64>,
@@ -222,7 +223,9 @@ impl Sign {
 }
 
 /// A held state-changing request (CP-176 A1 (a)): the executor's own id, its method, origin, path
-/// and frame, and nothing else.
+/// and frame, and what the wire read of its body and of its address's query (r3 U5.10-C): the
+/// values of the form fields that name an amount alone, or that it has no body, or why its body or
+/// query could not be read (`HeldForm`); no other byte of either.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HeldRequest {
     pub id: u64,
@@ -230,6 +233,7 @@ pub struct HeldRequest {
     pub origin: String,
     pub path: String,
     pub frame: String,
+    pub form: HeldForm,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -389,7 +393,13 @@ pub struct Executor {
     ended: Option<crate::checks::Ended>,
     places: Mutex<HashMap<String, Place>>,
     owners: Mutex<HashMap<String, (Place, BackendNodeId)>>,
+    /// The executor's own script world of each frame (`Executor::world`): by the frame's id, the loader of the
+    /// document for which it was made and its context id.
+    worlds: Mutex<HashMap<String, (LoaderId, ExecutionContextId)>>,
 }
+
+/// The name of the executor's own script world in every frame's document (`Executor::world`).
+const WORLD_NAME: &str = "halvo-executor";
 
 /// How long before the start a process that names the start's profile may have begun and still be
 /// counted as the start's own: the margin of the clock's reading against a process's creation time.
@@ -865,6 +875,7 @@ impl Executor {
             ended: None,
             places: Mutex::new(HashMap::new()),
             owners: Mutex::new(HashMap::new()),
+            worlds: Mutex::new(HashMap::new()),
         })
     }
 
@@ -1061,14 +1072,33 @@ impl Executor {
         Ok(self.frame_info(frame).await?.2)
     }
 
+    /// The executor's own script world of the document that `frame` holds now, an isolated world named `WORLD_NAME`:
+    /// made once for that document and held by the context id that the browser gave, kept with the document's loader,
+    /// so that every later call into the same document finds the same world, and a new document of the frame, which
+    /// has a loader of its own, gets a world of its own. No script of the page runs in it or reaches what it holds:
+    /// the mark of `CREDENTIAL_FN` lives there.
     async fn world(&self, frame: &FrameId) -> Res<ExecutionContextId> {
-        let r = self
-            .exec(
-                &self.place_of(frame),
-                "frame",
-                CreateIsolatedWorldParams::new(frame.clone()),
-            )
-            .await?;
+        let lost = || Fault::new("frame", "the executor's world");
+        let loader = self.loader(frame).await?;
+        let held = self
+            .worlds
+            .lock()
+            .map_err(|_| lost())?
+            .get(frame.inner())
+            .filter(|(made_for, _)| *made_for == loader)
+            .map(|(_, context)| *context);
+        if let Some(context) = held {
+            return Ok(context);
+        }
+        let params = CreateIsolatedWorldParams {
+            world_name: Some(WORLD_NAME.to_string()),
+            ..CreateIsolatedWorldParams::new(frame.clone())
+        };
+        let r = self.exec(&self.place_of(frame), "frame", params).await?;
+        self.worlds
+            .lock()
+            .map_err(|_| lost())?
+            .insert(frame.inner().clone(), (loader, r.execution_context_id));
         Ok(r.execution_context_id)
     }
 
@@ -1165,6 +1195,31 @@ impl Executor {
             .ok_or_else(|| Fault::new("node", "no object"))
     }
 
+    /// The object of the node in the executor's own world of the document of `frame` (`world`), where the mark of
+    /// `CREDENTIAL_FN` lives.
+    async fn object_in_world(
+        &self,
+        frame: &FrameId,
+        place: &Place,
+        node: &BackendNodeId,
+    ) -> Res<RemoteObjectId> {
+        let context = self.world(frame).await?;
+        let r = self
+            .exec(
+                place,
+                "node",
+                ResolveNodeParams::builder()
+                    .backend_node_id(*node)
+                    .execution_context_id(context)
+                    .build(),
+            )
+            .await?;
+        r.object
+            .object_id
+            .ok_or_else(|| Fault::new("node", "no object"))
+    }
+
+    /// `function` called on the node in the page's own world.
     async fn call_on(
         &self,
         place: &Place,
@@ -1173,6 +1228,30 @@ impl Executor {
         args: Vec<serde_json::Value>,
     ) -> Res<serde_json::Value> {
         let object = self.object_of(place, node).await?;
+        self.call_with(place, object, function, args).await
+    }
+
+    /// `function` called on the node in the executor's own world of the document of `frame` (`world`): every call
+    /// that reads the mark of `CREDENTIAL_FN`.
+    async fn call_in_world(
+        &self,
+        frame: &FrameId,
+        place: &Place,
+        node: &BackendNodeId,
+        function: &str,
+        args: Vec<serde_json::Value>,
+    ) -> Res<serde_json::Value> {
+        let object = self.object_in_world(frame, place, node).await?;
+        self.call_with(place, object, function, args).await
+    }
+
+    async fn call_with(
+        &self,
+        place: &Place,
+        object: RemoteObjectId,
+        function: &str,
+        args: Vec<serde_json::Value>,
+    ) -> Res<serde_json::Value> {
         let mut builder = CallFunctionOnParams::builder()
             .function_declaration(function)
             .object_id(object)
@@ -1188,11 +1267,24 @@ impl Executor {
         Ok(r.result.value.unwrap_or(serde_json::Value::Null))
     }
 
-    /// The sign by which the node is a credential field (`CREDENTIAL_FN`), with `name`, the
-    /// accessible name that the page's tree gives it, as one of the names that the rule reads.
-    async fn sign_of(&self, place: &Place, node: &BackendNodeId, name: &str) -> Res<Option<Sign>> {
+    /// The sign by which the node of the document of `frame` is a credential field (`CREDENTIAL_FN`, in the
+    /// executor's own world), with `name`, the accessible name that the page's tree gives it, as one of the names
+    /// that the rule reads.
+    async fn sign_of(
+        &self,
+        frame: &FrameId,
+        place: &Place,
+        node: &BackendNodeId,
+        name: &str,
+    ) -> Res<Option<Sign>> {
         let v = self
-            .call_on(place, node, CREDENTIAL_FN, vec![serde_json::json!(name)])
+            .call_in_world(
+                frame,
+                place,
+                node,
+                CREDENTIAL_FN,
+                vec![serde_json::json!(name)],
+            )
             .await?;
         Ok(Sign::of(&v))
     }
@@ -1231,6 +1323,20 @@ impl Executor {
         self.snapshot_frame(&main, None, &mut Vec::new(), Some(&mut signs))
             .await?;
         Ok(signs.into_iter().max())
+    }
+
+    /// The second reading of A6.4 (r3 U5.14, the coordinator's ruling of log line 14127 (1)), which
+    /// the runner makes after a web step that failed alone: whether the page, read as `snapshot`
+    /// reads it, the top document and every frame in it, shows a link or a button that asks for a
+    /// sign-in by its name (`asks_to_sign_in`). The role and the name of each control are the ones
+    /// that the browser's accessibility tree computes, never a tag's name and no script's reading,
+    /// and a node that the tree marks ignored, as it marks one that the page does not show, counts
+    /// for nothing. Every earlier ref is stale from here (`RefTable`).
+    pub async fn asks_for_a_sign_in(&mut self) -> Res<bool> {
+        let lines = self.snapshot().await?;
+        Ok(lines
+            .iter()
+            .any(|line| asks_to_sign_in(line.role, &line.name)))
     }
 
     pub async fn table(&mut self, name: &str) -> Res<Vec<SnapshotLine>> {
@@ -1341,7 +1447,7 @@ impl Executor {
                         continue;
                     };
                     let sign = if CONTROL_ROLES.contains(&role) {
-                        self.sign_of(&place, &b, &name).await?
+                        self.sign_of(frame, &place, &b, &name).await?
                     } else {
                         None
                     };
@@ -1410,6 +1516,13 @@ impl Executor {
         Ok(Ok(frame))
     }
 
+    /// The frame that `origins` name, from the top document inward, with the loader of the document
+    /// whose origin the walk read (`walk_origins`, on the executor's own reads of the page).
+    async fn frame_by_origins(&self, origins: &[&str]) -> Res<Result<Walked, Resolved>> {
+        let top = self.main_frame().await?;
+        walk_origins(self, top, origins).await
+    }
+
     async fn by_test_id(&self, frame: &FrameId, id: &str) -> Res<Vec<BackendNodeId>> {
         let place = self.place_of(frame);
         let ctx = self.world(frame).await?;
@@ -1466,6 +1579,38 @@ impl Executor {
             Ok(frame) => frame,
             Err(unresolved) => return Ok(unresolved),
         };
+        self.resolve_at(&frame, locators).await
+    }
+
+    /// `resolve` in the document of the frame that the frame origins `origins` name, from the top
+    /// document inward (`frame_by_origins`), with no origin in the top document; refused with the
+    /// cause `resolve` and `frame` where they do not name one frame, so that no read of a condition
+    /// takes a frame that the page does not hold once for one that holds no control; and refused
+    /// with the cause `resolve` and `document` where, after the locators, the frame holds another
+    /// document than the one whose origin the walk read (`same_document`).
+    pub async fn resolve_in(&mut self, locators: &[Locator], origins: &[&str]) -> Res<Resolved> {
+        let walked = match self.frame_by_origins(origins).await? {
+            Ok(walked) => walked,
+            Err(_) => return Err(Fault::new("resolve", "frame")),
+        };
+        let resolved = self.resolve_at(&walked.frame, locators).await?;
+        same_document(&*self, &walked).await?;
+        Ok(resolved)
+    }
+
+    /// `resolve_in` that gives the one ref, and the cause `resolve` with `none` or `many` otherwise.
+    pub async fn resolve_one_in(&mut self, locators: &[Locator], origins: &[&str]) -> Res<String> {
+        match self.resolve_in(locators, origins).await? {
+            Resolved::One { reference, .. } => Ok(reference),
+            Resolved::None => Err(Fault::new("resolve", "none")),
+            Resolved::Many { .. } => Err(Fault::new("resolve", "many")),
+        }
+    }
+
+    /// The ordered locators tried in the document of `frame`, the first that finds any node giving
+    /// the answer.
+    async fn resolve_at(&mut self, frame: &FrameId, locators: &[Locator]) -> Res<Resolved> {
+        let frame = frame.clone();
         let place = self.place_of(&frame);
         for (i, locator) in locators.iter().enumerate() {
             let found = match locator {
@@ -1993,13 +2138,120 @@ fn typed_into_of(reply: &serde_json::Value) -> Option<bool> {
     Some(*kind && !credential)
 }
 
+/// The reads of the page that the walk by frame origins takes (`walk_origins`, `same_document`):
+/// the child frames of a frame, each with the origin and the loader of the document that it holds
+/// now, read together, as the browser writes an origin; whether a frame's document is loaded; and
+/// the loader of the document that a frame holds now. The executor reads them from the browser; a
+/// unit test gives a stand-in.
+trait FrameReads {
+    async fn children(&self, frame: &FrameId) -> Res<Vec<(FrameId, String, LoaderId)>>;
+    async fn loaded(&self, frame: &FrameId) -> bool;
+    async fn document(&self, frame: &FrameId) -> Res<LoaderId>;
+}
+
+/// The frame that the walk named, and the loader of the document whose origin it read there; no
+/// loader for the top document, of which the walk reads no origin.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Walked {
+    frame: FrameId,
+    loader: Option<LoaderId>,
+}
+
+/// The frame that `origins` name, from the frame `top` inward (the coordinator's ruling of log
+/// line 15706, point 1): for each origin, the one child frame of the frame reached so far whose
+/// document has that origin, with that document's loader; `Resolved::None` where no child frame
+/// has it or where its document is not loaded, and `Resolved::Many` where more than one has it, so
+/// that a step acts on nothing there. With no origin, `top`. A frame inside the last one that
+/// `origins` name is not entered.
+async fn walk_origins<R: FrameReads>(
+    reads: &R,
+    top: FrameId,
+    origins: &[&str],
+) -> Res<Result<Walked, Resolved>> {
+    let mut walked = Walked {
+        frame: top,
+        loader: None,
+    };
+    for (i, origin) in origins.iter().enumerate() {
+        let mut found: Vec<(FrameId, LoaderId)> = reads
+            .children(&walked.frame)
+            .await?
+            .into_iter()
+            .filter(|(_, of, _)| of == origin)
+            .map(|(child, _, loader)| (child, loader))
+            .collect();
+        let (frame, loader) = match found.len() {
+            0 => return Ok(Err(Resolved::None)),
+            1 => found.remove(0),
+            _ => return Ok(Err(Resolved::Many { locator: i })),
+        };
+        walked = Walked {
+            frame,
+            loader: Some(loader),
+        };
+        if !reads.loaded(&walked.frame).await {
+            return Ok(Err(Resolved::None));
+        }
+    }
+    Ok(Ok(walked))
+}
+
+/// Refuses with the cause `resolve` and `document` where the frame that the walk named holds now
+/// another document than the one whose origin the walk read there (the coordinator's ruling of log
+/// line 16325, point 2): a document that is committed into that frame behind the walk takes no
+/// step. The top document, of which the walk reads no origin, is not compared.
+async fn same_document<R: FrameReads>(reads: &R, walked: &Walked) -> Res<()> {
+    match &walked.loader {
+        Some(read) if reads.document(&walked.frame).await? != *read => {
+            Err(Fault::new("resolve", "document"))
+        }
+        _ => Ok(()),
+    }
+}
+
+impl FrameReads for Executor {
+    /// Each frame that the accessibility tree of the document of `frame` holds as a frame, the
+    /// owners that `frame_by_path` reads, entered as `snapshot_frame` enters one
+    /// (`child_frame_of`, `enter_frame`), with the origin and the loader of its document, both of
+    /// one read of the frame tree (`frame_info`), in the frame's own session where it runs in a
+    /// process of its own.
+    async fn children(&self, frame: &FrameId) -> Res<Vec<(FrameId, String, LoaderId)>> {
+        let place = self.place_of(frame);
+        let owners: Vec<BackendNodeId> = self
+            .ax_tree(frame)
+            .await?
+            .iter()
+            .filter(|n| !n.ignored)
+            .filter(|n| map_role(&ax_text(&n.role)) == Some("frame"))
+            .filter_map(|n| n.backend_dom_node_id)
+            .collect();
+        let mut children = Vec::with_capacity(owners.len());
+        for owner in owners {
+            let child = self.child_frame_of(&place, &owner).await?;
+            self.enter_frame(&child, &place, owner);
+            let (loader, _, origin) = self.frame_info(&child).await?;
+            children.push((child, origin, loader));
+        }
+        Ok(children)
+    }
+
+    async fn loaded(&self, frame: &FrameId) -> bool {
+        self.ready(frame).await
+    }
+
+    async fn document(&self, frame: &FrameId) -> Res<LoaderId> {
+        self.loader(frame).await
+    }
+}
+
 impl Executor {
-    /// The control of the ref, read fresh in one call on its node (`control_fn`): a credential
-    /// field gives its mark alone, so that no text and no value of it reaches this process.
+    /// The control of the ref, read fresh in one call on its node in the executor's own world
+    /// (`control_fn`): a credential field gives its mark alone, so that no text and no value of it
+    /// reaches this process.
     pub async fn control(&self, reference: &str) -> Res<Control> {
         let t = self.target(reference)?;
         let reply = self
-            .call_on(&t.place, &t.node, &control_fn(), Vec::new())
+            .call_in_world(&t.frame, &t.place, &t.node, &control_fn(), Vec::new())
             .await?;
         control_of(&reply)
     }
@@ -2011,6 +2263,26 @@ impl Executor {
             Ok(frame) => frame,
             Err(_) => return Err(Fault::new("resolve", "frame")),
         };
+        self.count_at(&frame, locators).await
+    }
+
+    /// `count` in the document of the frame that the frame origins `origins` name, from the top
+    /// document inward (`frame_by_origins`); the cause `resolve` with `frame` where they do not name
+    /// one frame, and with `document` where, after the locators, the frame holds another document
+    /// than the one whose origin the walk read (`same_document`).
+    pub async fn count_in(&mut self, locators: &[Locator], origins: &[&str]) -> Res<usize> {
+        let walked = match self.frame_by_origins(origins).await? {
+            Ok(walked) => walked,
+            Err(_) => return Err(Fault::new("resolve", "frame")),
+        };
+        let count = self.count_at(&walked.frame, locators).await?;
+        same_document(&*self, &walked).await?;
+        Ok(count)
+    }
+
+    /// How many nodes the first of `locators` to find any finds in the document of `frame`.
+    async fn count_at(&self, frame: &FrameId, locators: &[Locator]) -> Res<usize> {
+        let frame = frame.clone();
         for locator in locators {
             let found = match locator {
                 Locator::TestId(id) => self.by_test_id(&frame, id).await?,
@@ -2083,10 +2355,13 @@ impl Executor {
     /// id and no document of its own, has no shadow root other than the browser's own, and reads no
     /// credential mark (`CREDENTIAL_FN`, the mark alone). Every other holder of the focus reads
     /// credential: none, the body, a frame of any kind, a host of a shadow root, and any other
-    /// element.
+    /// element. The element and its mark are read in the executor's own world of that document
+    /// (`world`).
     async fn focus_is_credential(&self, place: &Place) -> Res<bool> {
+        let top = self.frame_tree_at(place).await?.frame.id;
         let active = EvaluateParams::builder()
             .expression("document.activeElement")
+            .context_id(self.world(&top).await?)
             .return_by_value(false)
             .build()
             .map_err(|e| Fault::new("focus", e))?;
@@ -2115,7 +2390,13 @@ impl Executor {
             return Ok(true);
         }
         let read = self
-            .call_on(place, &node.backend_node_id, &typed_into_fn(), Vec::new())
+            .call_in_world(
+                &top,
+                place,
+                &node.backend_node_id,
+                &typed_into_fn(),
+                Vec::new(),
+            )
             .await?;
         Ok(typed_into_of(&read) != Some(true))
     }
@@ -2239,6 +2520,50 @@ pub fn map_role(raw: &str) -> Option<&'static str> {
 const CONTROL_ROLES: [&str; 7] = [
     "button", "link", "textbox", "checkbox", "radio", "combobox", "option",
 ];
+
+/// The closed list of the names by which a link or a button asks for a sign-in (r3 U5.14, the
+/// coordinator's ruling of log line 14127 (1)), in lower case, each as words in a row. A name that
+/// also holds one of `PASSWORD_WORDS` or of `SIGNED_IN_WORDS` asks for none. Left out: `log on` and
+/// `sign on`, which everyday names hold too; `sign up`, `register` and `create account`, which ask
+/// for a new account; `my account`, `continue` and `sign out`; every other language.
+pub const SIGN_IN_NAMES: [&str; 4] = ["sign in", "signin", "log in", "login"];
+
+/// The words of A8.2 by which a name is a password's: a name that holds one asks for no sign-in,
+/// whatever else it holds (`Change password`, `Forgot your login password?`).
+const PASSWORD_WORDS: [&str; 4] = ["password", "passwd", "pwd", "passcode"];
+
+/// The words by which a name is one of a page for a person who is signed in (the coordinator's
+/// ruling of log line 16283 (1)): a name that holds one asks for no sign-in, whatever else it holds
+/// (`Login & security`, `Login history`, `Sign-in options`, `Login settings`).
+const SIGNED_IN_WORDS: [&str; 4] = ["security", "history", "options", "settings"];
+
+/// Whether a control of the role `role`, as `map_role` gives it, with the accessible name `name`
+/// asks for a sign-in by itself (r3 U5.14): a link or a button whose name, in lower case and with
+/// each run of signs that are not letters or digits read as one space, holds the words of one of
+/// `SIGN_IN_NAMES` in a row, and holds none of `PASSWORD_WORDS` and none of `SIGNED_IN_WORDS`. Every
+/// other role, a field among them, asks for none: fields are the rule of a credential field's
+/// (A8.2).
+pub fn asks_to_sign_in(role: &str, name: &str) -> bool {
+    if !matches!(role, "link" | "button") {
+        return false;
+    }
+    let lower = name.to_lowercase();
+    if PASSWORD_WORDS.iter().any(|word| lower.contains(word)) {
+        return false;
+    }
+    if SIGNED_IN_WORDS.iter().any(|word| lower.contains(word)) {
+        return false;
+    }
+    let words: Vec<&str> = lower
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .collect();
+    SIGN_IN_NAMES.iter().any(|listed| {
+        let wanted: Vec<&str> = listed.split(' ').collect();
+        words.windows(wanted.len()).any(|row| row == wanted)
+    })
+}
+
 const VALUE_ROLES: [&str; 2] = ["textbox", "combobox"];
 const MAX_FRAME_DEPTH: usize = 8;
 const FRAME_CLICK_TRIES: usize = 3;
@@ -2273,11 +2598,14 @@ const CONTENT_CORNER_FN: &str = "function () {
 /// `password`, `passwd`, `pwd` or `passcode` in lower case; the empty text for no sign. An element
 /// is known by the browser's own interface, never by its tag name, and an input's type and
 /// `autocomplete` are read from its own properties beside its attributes; an element that the
-/// world in which the call runs does not know as one of its own (made in another document's world
-/// and moved in) reads `secret`: fail closed (the coordinator's ruling of log line 14188). A control that showed a
-/// sign keeps it on its node for the life of the node, in the script world in which the call runs,
-/// so that a toggle that sets `type` to `text` does not unmark it. It reads no value and no text of
-/// the control itself.
+/// world in which the call runs does not know as one of its own (an object of it that the world made
+/// with another document's constructors) reads `secret`: fail closed (the coordinator's ruling of log
+/// line 14188). It runs in the executor's own world of the node's document alone (`Executor::world`),
+/// never in the page's. A control that showed a sign keeps it on its node for the life of the node,
+/// as a property of the node's object in that world, which no script of the page reaches: a toggle
+/// that sets `type` to `text` does not unmark it, the page's script can neither take the mark off nor
+/// put one on (r3 U5.13, the coordinator's ruling of log line 14127 (2)). It reads no value and no
+/// text of the control itself.
 const CREDENTIAL_FN: &str = "function (named) {
   if (typeof this.__halvoSign === 'string') return this.__halvoSign;
   if (typeof this.getAttribute !== 'function') return '';
@@ -2308,7 +2636,8 @@ const CREDENTIAL_FN: &str = "function (named) {
 /// tree, and `secret` for an element that the world does not know as one of its own; an element that
 /// the browser itself says is not shown (`checkVisibility`, also for `visibility: hidden`) counts for
 /// nothing (the coordinator's ruling of log line 14244); the strongest sign, or the empty text. It
-/// enters no frame and no shadow root.
+/// enters no frame and no shadow root, and runs in the executor's own world of the document
+/// (`Executor::world`), where the marks of `CREDENTIAL_FN` live.
 fn sweep_fn() -> String {
     format!(
         "(() => {{
@@ -3089,5 +3418,144 @@ pub(crate) mod tests {
             !mark.owns(&member, &|_| Some(read.clone())),
             "the form of make_dirs bears the given form's mark"
         );
+    }
+
+    /// The stand-in of the page's frames for `walk_origins` and `same_document`: each child frame
+    /// with the frame that holds it, its own id and the origin of its document, whose loader at the
+    /// walk's read is `L-<id>`; the frames whose document is not loaded; and the frames that hold
+    /// another document, of the loader `L2-<id>`, at every later read.
+    struct Frames {
+        children: &'static [(&'static str, &'static str, &'static str)],
+        unloaded: &'static [&'static str],
+        replaced: &'static [&'static str],
+    }
+
+    impl FrameReads for Frames {
+        async fn children(&self, frame: &FrameId) -> Res<Vec<(FrameId, String, LoaderId)>> {
+            Ok(self
+                .children
+                .iter()
+                .filter(|(parent, _, _)| frame.inner() == parent)
+                .map(|(_, child, origin)| {
+                    let loader = LoaderId::new(format!("L-{child}"));
+                    (FrameId::new(*child), origin.to_string(), loader)
+                })
+                .collect())
+        }
+
+        async fn loaded(&self, frame: &FrameId) -> bool {
+            !self.unloaded.contains(&frame.inner().as_str())
+        }
+
+        async fn document(&self, frame: &FrameId) -> Res<LoaderId> {
+            let id = frame.inner();
+            Ok(if self.replaced.contains(&id.as_str()) {
+                LoaderId::new(format!("L2-{id}"))
+            } else {
+                LoaderId::new(format!("L-{id}"))
+            })
+        }
+    }
+
+    /// The frame that the walk of `origins` on `page` names, from its top frame `top`.
+    async fn walk(page: &Frames, origins: &[&str]) -> Result<FrameId, Resolved> {
+        walk_origins(page, FrameId::new("top"), origins)
+            .await
+            .expect("the stand-in's reads")
+            .map(|walked| walked.frame)
+    }
+
+    /// U5.10-F (the coordinator's ruling of log line 15706, point 1): the walk finds the frame that a
+    /// step's frame origins name, from the top document inward; where the page does not hold a frame
+    /// of an origin once, none or two at any level, or holds it with no loaded document, it names no
+    /// frame, and `resolve_in` refuses with the cause `resolve` so that the step fails before any
+    /// act. A frame inside a frame is reached only by the origins of both.
+    #[tokio::test]
+    async fn a_frame_that_the_step_names_and_that_the_page_does_not_hold_once_fails_the_step() {
+        const PAY: &str = "http://127.0.0.1:8081";
+        const INNER: &str = "http://127.0.0.1:8082";
+        const AD: &str = "http://127.0.0.1:8083";
+        const EVIL: &str = "http://127.0.0.1:8084";
+        let page = Frames {
+            children: &[("top", "f1", PAY), ("top", "f2", AD), ("f1", "f3", INNER)],
+            unloaded: &[],
+            replaced: &[],
+        };
+        let frame = |id: &str| Ok(FrameId::new(id));
+        assert_eq!(walk(&page, &[]).await, frame("top"));
+        assert_eq!(walk(&page, &[PAY]).await, frame("f1"));
+        assert_eq!(walk(&page, &[PAY, INNER]).await, frame("f3"));
+        assert_eq!(walk(&page, &[EVIL]).await, Err(Resolved::None));
+        assert_eq!(walk(&page, &[INNER]).await, Err(Resolved::None));
+        assert_eq!(walk(&page, &[PAY, AD]).await, Err(Resolved::None));
+
+        let twice = Frames {
+            children: &[("top", "f1", PAY), ("top", "f4", PAY)],
+            unloaded: &[],
+            replaced: &[],
+        };
+        assert_eq!(
+            walk(&twice, &[PAY]).await,
+            Err(Resolved::Many { locator: 0 })
+        );
+        let twice_inside = Frames {
+            children: &[("top", "f1", PAY), ("f1", "f3", INNER), ("f1", "f5", INNER)],
+            unloaded: &[],
+            replaced: &[],
+        };
+        assert_eq!(
+            walk(&twice_inside, &[PAY, INNER]).await,
+            Err(Resolved::Many { locator: 1 })
+        );
+        let unloaded = Frames {
+            children: &[("top", "f1", PAY)],
+            unloaded: &["f1"],
+            replaced: &[],
+        };
+        assert_eq!(walk(&unloaded, &[PAY]).await, Err(Resolved::None));
+    }
+
+    /// U5.10-F (the coordinator's ruling of log line 16325, point 2): the walk hands on the loader of
+    /// the document whose origin it read, and where the frame that it named holds another document
+    /// by the time the locators have run, `same_document` refuses with the cause `resolve` and
+    /// `document`, which `resolve_in` and `count_in` return, so that the step fails before any act.
+    /// The same frame with the same document passes, and the top document, of which the walk reads
+    /// no origin, is not compared.
+    #[tokio::test]
+    async fn a_frame_that_takes_a_new_document_after_its_origin_is_read_fails_the_step() {
+        const PAY: &str = "http://127.0.0.1:8081";
+        let named = |page: &'static Frames, origins: &'static [&'static str]| async move {
+            walk_origins(page, FrameId::new("top"), origins)
+                .await
+                .expect("the stand-in's reads")
+                .expect("the walk names a frame")
+        };
+        static REPLACED: Frames = Frames {
+            children: &[("top", "f1", PAY)],
+            unloaded: &[],
+            replaced: &["f1", "top"],
+        };
+        static KEPT: Frames = Frames {
+            children: &[("top", "f1", PAY)],
+            unloaded: &[],
+            replaced: &[],
+        };
+        let walked = named(&REPLACED, &[PAY]).await;
+        assert_eq!(
+            walked,
+            Walked {
+                frame: FrameId::new("f1"),
+                loader: Some(LoaderId::new("L-f1")),
+            }
+        );
+        assert_eq!(
+            same_document(&REPLACED, &walked).await,
+            Err(Fault::new("resolve", "document"))
+        );
+        let walked = named(&KEPT, &[PAY]).await;
+        assert_eq!(same_document(&KEPT, &walked).await, Ok(()));
+        let top = named(&REPLACED, &[]).await;
+        assert_eq!(top.loader, None);
+        assert_eq!(same_document(&REPLACED, &top).await, Ok(()));
     }
 }

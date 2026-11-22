@@ -72,6 +72,11 @@ pub mod exit {
     /// itself after it.
     pub const FAULT_REPORTS_ON: i32 = 6;
     pub const USAGE: i32 = 64;
+    /// The offline delete could not use its data directory, before any removal: an entry on its
+    /// path that leads nowhere or is no directory, the directory or a folder on its path that
+    /// cannot be read, or an instance lock that it could not open for any cause but a holder.
+    /// Standard output holds `data_dir=` alone and nothing was removed (contracts.md C3.3).
+    pub const DATA_DIR_UNUSABLE: i32 = 66;
     pub const UNREACHABLE: i32 = 69;
     pub const BUSY: i32 = 75;
 }

@@ -152,6 +152,10 @@ struct State<C> {
     marked: Vec<RunId>,
     held_off: Vec<AgentId>,
     refused_on: Vec<(AgentId, crate::ports::Shared)>,
+    /// Set by a `stop_sign_in` whose body `drop_sessions` the owner refused with `store`, and
+    /// taken by the `control_reply` of that same call, which answers it with
+    /// `Refusal::SignInNotFinished` (r4 U3.16).
+    sign_in_unfinished: bool,
     deleting: Vec<Deleting>,
     /// The agents that ask first whose queued start the person took back, each with the `ready`
     /// item that a later tick raised for it since, or none until then: that item's row says
@@ -501,6 +505,7 @@ where
                 marked: Vec::new(),
                 held_off: Vec::new(),
                 refused_on: Vec::new(),
+                sign_in_unfinished: false,
                 deleting: Vec::new(),
                 taken_back: Vec::new(),
                 checks: Vec::new(),
@@ -2740,7 +2745,9 @@ where
     /// whose state the owner refused with `overlap` is `Refusal::Overlap`, the cause `overlap`
     /// and not `no_service`, the cause of a lost call, with the sentence of what
     /// `switch_on_overlap` holds and the names of the rows of the state that the call publishes
-    /// (ruling RD-161 R4, WAY A; I3.5 (f)); every other refusal is its cause alone. A start of
+    /// (ruling RD-161 R4, WAY A; I3.5 (f)); a `stop_sign_in` whose body the owner refused with
+    /// `store` is `Refusal::SignInNotFinished`, the cause `no_service` with the sentence that
+    /// Halvo could not finish this (r4 U3.16); every other refusal is its cause alone. A start of
     /// the person that the owner refuses so keeps its cause.
     pub fn control_reply(
         &self,
@@ -2753,6 +2760,7 @@ where
         st.refused_on.retain(|(a, _)| a != agent);
         let kept = Self::still_on(&st, agent);
         let out = self.control_in(&mut st, agent, action);
+        let unfinished = std::mem::take(&mut st.sign_in_unfinished);
         let stopped = off && out.is_err() && !kept && Self::still_on(&st, agent);
         let shared = (matches!(action, Action::SwitchOn) && out.is_err())
             .then(|| Self::switch_on_shared(&st, agent))
@@ -2778,6 +2786,7 @@ where
         });
         out.map_err(|cause| match overlap {
             _ if stopped => crate::types::Refusal::SwitchNotSaved(cause),
+            _ if unfinished => crate::types::Refusal::SignInNotFinished(cause),
             Some(say) => crate::types::Refusal::Overlap(say),
             None => crate::types::Refusal::Cause(cause),
         })
@@ -3023,8 +3032,10 @@ where
     /// member holds no session, so the row that the call publishes offers the control no more.
     /// The store's refusal `state` (a run of the agent is open there) and its refusal `day` (a row
     /// of a later day stands, after this computer's clock was set back) answer those causes, so
-    /// that the person reads their sentences beside the control; every other refusal answers
-    /// what `cause_of` makes of it.
+    /// that the person reads their sentences beside the control; its refusal `store` (a fault of
+    /// the store, behind which the agent's kept sign-ins may be gone from every read or may all
+    /// stand) answers `no_service` and marks the call, so that its reply says that Halvo could
+    /// not finish this (r4 U3.16); every other refusal answers what `cause_of` makes of it.
     fn stop_sign_in(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
         if st.quitting {
             return Err(Cause::State);
@@ -3037,6 +3048,10 @@ where
             Ok(()) => Ok(()),
             Err(PortError::Refused(name)) if name.as_str() == "state" => Err(Cause::State),
             Err(PortError::Refused(name)) if name.as_str() == "day" => Err(Cause::Day),
+            Err(PortError::Refused(name)) if name.as_str() == "store" => {
+                st.sign_in_unfinished = true;
+                Err(Cause::NoService)
+            }
             Err(e) => Err(cause_of(&e)),
         }
     }

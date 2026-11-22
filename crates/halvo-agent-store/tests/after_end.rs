@@ -35,7 +35,7 @@ fn log(r: u32, seq: u32) -> Value {
         "model": null,
         "ms": null,
         "tokens_in": null,
-        "tokens_out": null,
+        "tokens_out": null, "page_amount": null,
     }]})
 }
 

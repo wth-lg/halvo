@@ -741,6 +741,7 @@ fn log_line() -> AgentLog {
         ms: Some(812),
         tokens_in: Some(900),
         tokens_out: Some(40),
+        page_amount: None,
     }
 }
 

@@ -783,7 +783,7 @@ mod tests {
             serde_json::json!({
                 "v": 1, "workflow": owner.workflow.as_str(), "agent": AGENT, "run": RUN_2, "seq": seq,
                 "day": DAY, "at": Noon.now().0, "event": event, "step": 2, "cause": null, "model": null,
-                "ms": null, "tokens_in": null, "tokens_out": null,
+                "ms": null, "tokens_in": null, "tokens_out": null, "page_amount": null,
             })
         };
         let records = Value::Array(vec![line(2, "recovered"), line(3, "step_ok")]);
@@ -951,7 +951,7 @@ mod tests {
             serde_json::json!({
                 "v": 1, "workflow": owner.workflow.as_str(), "agent": AGENT, "run": RUN_2, "seq": seq,
                 "day": DAY, "at": Noon.now().0, "event": event, "step": 2, "cause": null, "model": null,
-                "ms": null, "tokens_in": null, "tokens_out": null,
+                "ms": null, "tokens_in": null, "tokens_out": null, "page_amount": null,
             })
         };
         let records = Value::Array(vec![line(2, "recovered"), line(3, "step_ok")]);

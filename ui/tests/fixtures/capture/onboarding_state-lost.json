@@ -29,7 +29,7 @@
       "pane_name": "Input Monitoring",
       "permission": "input_monitoring",
       "settings_url": "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
-      "why": "lets Halvo record a class for each key you press, never the character, and pointer actions with no position"
+      "why": "lets Halvo record what kind of key you press, never which letter, digit or sign, and pointer actions with no position"
     }
   ],
   "walkback": [
