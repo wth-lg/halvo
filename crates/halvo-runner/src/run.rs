@@ -104,6 +104,8 @@ pub(crate) struct Runner {
     pub(crate) lists: Lists,
     /// The run's browser, once a web step started it (crate::web); stopped at every end of the run.
     pub(crate) web: Option<crate::web::Web>,
+    /// Every origin that a `bind_reply` with `bound=yes` bound in this run (crate::handback), in order.
+    pub(crate) bound: Vec<WebOrigin>,
     /// The roots under which a run given no `--browser` finds the person's browser (crate::find): this system's, and
     /// none in a unit test unless the test gives some.
     pub(crate) roots: crate::find::Roots,
@@ -147,6 +149,7 @@ impl Runner {
             checkpoints: HashMap::new(),
             lists: Lists::default(),
             web: None,
+            bound: Vec::new(),
             #[cfg(not(test))]
             roots: crate::find::Roots::of_this_system(),
             #[cfg(test)]

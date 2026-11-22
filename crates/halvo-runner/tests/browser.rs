@@ -9,12 +9,13 @@ mod support;
 use std::time::{Duration, Instant};
 
 use halvo_runner::LINK_END;
-use halvo_schema::executable::names::LogEvent;
+use halvo_schema::executable::names::{HandbackReason, LogEvent};
 use halvo_schema::executable::{Cause, FromRunner, Outcome, RunnerCall, ToRunner};
 use halvo_schema::Category;
 use support::browser::{
-    bearing, cond, extract_amount, from_slot, hosted, hosted_mac, konst, navigate, own_start_us,
-    profile_of, say, serve_finding, serve_with, step, Fixture,
+    bearing, cond, extract_amount, from_slot, handback, hosted, hosted_headed, hosted_mac, konst,
+    navigate, own_start_us, print_outside_the_profile, profile_of, say, serve_finding, serve_with,
+    step, Fixture,
 };
 use support::{slot, tag, Act, Seen, Supervisor, FINDS_ITS_BROWSER, LONG};
 
@@ -394,18 +395,56 @@ const XHTML_SECRET: &str = "halvo-runner-xhtml-marker";
 /// The document of the object element of `TYPED`: a password field that asks `/typed` at each input.
 const INNER: &str = r#"<!doctype html><title>inner</title><input type="password" aria-label="Password" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
 
+/// `TYPED` with its name field alone.
+const NAMED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+
 /// The value of the password field of `TYPED`.
 const SECRET: &str = "halvo-runner-secret-marker";
 
-/// U4.1w part 1 (3): a step whose `post` fails after it acted, a step whose locator finds no control, a step whose
-/// `pre` fails, a step stored with `credential` `no` whose locator finds a password field, one whose field becomes a
-/// password field at the focus that the fill makes, one whose field hands the focus on to the password field, one
-/// whose field hands it on into an object's document, and one on the password field of a page served as XHTML each
-/// log one `step_failed` row with the cause `step_failed`, never `timeout`, and the run is handed back; the step
-/// with the failing `pre` and the five that would reach a password field act on nothing, the one with the failing
-/// `post` acted, and no frame and no line of the runner holds a password field's value (A4.3: the fresh read marks
-/// the target credential before the act, and the runner types only into an element that holds the focus of the four
-/// kinds that it reads whole, each known by the browser's own interface).
+/// `TYPED` with its name field and its field that becomes a password field when it is focused, and no password field.
+const TURNS: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="turns" aria-label="Code" onfocus="this.type = 'password'" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+
+/// `TYPED` with its name field and a field whose focus makes a password field and hands the focus on to it, and no
+/// password field before that focus.
+const HANDS: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="hands" aria-label="Pin" onfocus="var p = document.createElement('input'); p.type = 'password'; p.setAttribute('aria-label', 'Password'); p.oninput = function () { var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {} }; document.body.appendChild(p); p.focus();" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+
+/// `TYPED` with its name field, its field with no input of its own whose focus hands the focus on into the password
+/// field of `INNER`, and the object element that shows `INNER`, and no password field of its own.
+const INTO: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="into" aria-label="Note" onfocus="document.querySelector('object').contentDocument.querySelector('input').focus()"><object data="/inner" type="text/html"></object>"#;
+
+/// `TYPED` with its name field and a code field of the type number whose `autocomplete` is `one-time-code`, which the
+/// page's tree gives the role `spinbutton`.
+const CODE: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="number" data-testid="code" aria-label="Code" autocomplete="one-time-code" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+
+/// `TYPED` with its name field and a password field that the page hides (`display: none`).
+const HIDDEN: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" style="display: none">"#;
+
+/// A page whose script makes a password field in the document of a frame of its own and moves it into itself, so that
+/// the page's world does not know the field as one of its own, and a button that asks its own origin for `/typed`
+/// when it is clicked.
+const FOREIGN: &str = r#"<!doctype html><title>typed</title><iframe></iframe><button type="button" data-testid="go" onclick="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">Go</button><script>var made = document.querySelector('iframe').contentDocument.createElement('input'); made.type = 'password'; made.setAttribute('data-testid', 'moved'); made.setAttribute('aria-label', 'Secret'); document.body.appendChild(made);</script>"#;
+
+/// U4.1w part 1 (3), U5.1: a step whose `post` fails after it acted, a step whose locator finds no control and a
+/// step whose `pre` fails, on a page with no password field, each log one `step_failed` row with the cause
+/// `step_failed`, never `timeout`, and the run is handed back. A step stored with `credential` `no` whose locator
+/// finds a password field meets the runner's reading of the page before the act; a fill of a field that becomes a
+/// password field at the focus that the fill makes, and a fill of a field whose focus hands the focus on to a
+/// password field, each on a page with no password field before that focus, are refused because the runner types
+/// only into an element that holds the focus of the four kinds that it reads whole, and meet the runner's reading
+/// after the refused act: each opens a handback of the reason `sign_in`, and the supervisor's `declined` ends the run
+/// `declined`. A fill of a field whose focus hands the focus on into an object's document, on a page with no password
+/// field of its own, is refused the same way and is handed back with `step_failed`: the reading enters the frames of
+/// the page's tree alone and not an object's document, so it does not see the object's password field (run
+/// 44998838561 read this end in both jobs). A fill of the name field on a page with a code field of the type number
+/// meets the reading's sweep of every field, which opens a handback of the reason `second_factor`; and a fill of the
+/// password field of a page served as XHTML meets the reading before the act, which knows the field by the browser's
+/// own interface and not by the lower-case tag name that the browser gives it there: a handback of the reason
+/// `sign_in`, declined; and a click whose `pre` reads the value of a password field that the page's script made in a
+/// frame's document and moved into itself meets the reading, which takes an element that the page's world does not
+/// know as one of its own for a credential field: a handback of the reason `sign_in`, declined, no click and no value
+/// read. A fill of the name field beside a password field that the page hides acts and opens no handback: the
+/// reading counts a field only where the browser says it is shown (the coordinator's ruling of log line 14244). No step that would reach a password field types a byte, the one with the failing `post`
+/// acted, and no frame and no line of the runner holds a password field's value.
 #[test]
 fn a_post_condition_that_fails_logs_step_failed() {
     let Some(browser) = hosted("a_post_condition_that_fails_logs_step_failed") else {
@@ -416,6 +455,11 @@ fn a_post_condition_that_fails_logs_step_failed() {
         (LogEvent::StepFailed, Some(2), Some(Cause::StepFailed)),
         (LogEvent::Handback, None, None),
         (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+    ];
+    let declined = [
+        (LogEvent::StepOk, Some(1), None),
+        (LogEvent::Handback, None, None),
+        (LogEvent::Stopped, None, Some(Cause::Declined)),
     ];
     let typed = |fixture: &Fixture| {
         fixture
@@ -481,14 +525,71 @@ fn a_post_condition_that_fails_logs_step_failed() {
             step(2, "fill", Some("into"), &[konst("text", "Ada")], &[], &[]),
             false,
         ),
+        (
+            247,
+            step(2, "fill", Some("name"), &[konst("text", "Ada")], &[], &[]),
+            false,
+        ),
+        (
+            244,
+            step(2, "fill", Some("name"), &[konst("text", "Ada")], &[], &[]),
+            true,
+        ),
+        (
+            246,
+            step(
+                2,
+                "click",
+                Some("go"),
+                &[],
+                &[cond("value_is", Some("moved"), Some("x"))],
+                &[],
+            ),
+            false,
+        ),
     ];
     for (n, second, acted) in cases {
-        let fixture = Fixture::start(&[("/typed-form", TYPED), ("/inner", INNER)]);
+        let page = match n {
+            254 => TYPED,
+            255 => TURNS,
+            250 => HANDS,
+            249 => INTO,
+            247 => CODE,
+            246 => FOREIGN,
+            244 => HIDDEN,
+            _ => NAMED,
+        };
+        let fixture = Fixture::start(&[("/typed-form", page), ("/inner", INNER)]);
         let mut sup = web_agent(n, &fixture);
         sup.steps = vec![navigate(1, &fixture.url("/typed-form")), second];
         let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
-        assert_eq!(seen.done(), Some(Outcome::HandedBack), "{}", seen.stderr);
-        assert_eq!(rows(&seen), failed, "run {n}");
+        if n == 244 {
+            assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+            assert_eq!(
+                rows(&seen),
+                [
+                    (LogEvent::StepOk, Some(1), None),
+                    (LogEvent::StepOk, Some(2), None)
+                ],
+                "run {n}"
+            );
+            assert!(seen.handbacks().is_empty(), "run {n}");
+        } else if n == 246 {
+            assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+            assert_eq!(rows(&seen), declined, "run {n}");
+            assert_eq!(seen.handbacks(), [HandbackReason::SignIn], "run {n}");
+        } else if n == 247 {
+            assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+            assert_eq!(rows(&seen), declined, "run {n}");
+            assert_eq!(seen.handbacks(), [HandbackReason::SecondFactor], "run {n}");
+        } else if matches!(n, 250 | 254 | 255) {
+            assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+            assert_eq!(rows(&seen), declined, "run {n}");
+            assert_eq!(seen.handbacks(), [HandbackReason::SignIn], "run {n}");
+        } else {
+            assert_eq!(seen.done(), Some(Outcome::HandedBack), "{}", seen.stderr);
+            assert_eq!(rows(&seen), failed, "run {n}");
+        }
         assert_eq!(typed(&fixture) > 0, acted, "run {n}: the act on the field");
         assert!(!seen.stderr.contains(SECRET), "run {n}: {}", seen.stderr);
         for frame in &seen.frames {
@@ -499,7 +600,8 @@ fn a_post_condition_that_fails_logs_step_failed() {
     }
 
     // Case 248: a password field of a page served as XHTML, known by the browser's own interface and not by the
-    // lower-case name that the browser gives it there: refused, typed into by nothing, its value read by nothing.
+    // lower-case name that the browser gives it there: the reading before the act opens a sign_in handback, which the
+    // supervisor declines; typed into by nothing, its value read by nothing.
     let fixture = Fixture::start(&[("/form.xhtml", XHTML)]);
     let mut sup = web_agent(248, &fixture);
     sup.steps = vec![
@@ -507,8 +609,9 @@ fn a_post_condition_that_fails_logs_step_failed() {
         step(2, "fill", Some("pw"), &[konst("text", "Ada")], &[], &[]),
     ];
     let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
-    assert_eq!(seen.done(), Some(Outcome::HandedBack), "{}", seen.stderr);
-    assert_eq!(rows(&seen), failed, "run 248");
+    assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+    assert_eq!(rows(&seen), declined, "run 248");
+    assert_eq!(seen.handbacks(), [HandbackReason::SignIn], "run 248");
     assert_eq!(typed(&fixture), 0, "run 248: the act on the field");
     assert!(
         !seen.stderr.contains(XHTML_SECRET),
@@ -574,9 +677,120 @@ fn a_click_that_posts_reaches_no_fixture() {
     assert!(!profile_of(&seen, &sup.run).0.exists());
 }
 
+/// A sign-in page: a name field and a password field. At a load with no cookie `seen` its script sets that cookie;
+/// at a load that finds it, its script sends a POST to `/signed-in` 2 s later, as a person's sign-in does, and takes
+/// the password field out of the page. The handback's opening keeps the cookies when it clears the origin's stores
+/// and loads the page again by GET, so the second load is the one that signs in.
+const SIGN_IN: &str = r#"<!doctype html><title>sign in</title><form onsubmit="return false"><input data-testid="user" aria-label="Email"><input type="password" data-testid="password" aria-label="Password"></form><p data-testid="state">out</p><script>if (document.cookie.indexOf('seen=1') < 0) { document.cookie = 'seen=1; path=/'; } else { setTimeout(function () { var x = new XMLHttpRequest(); try { x.open('POST', '/signed-in', false); x.send('in'); } catch (e) {} var p = document.querySelector('[data-testid=password]'); p.parentNode.removeChild(p); document.querySelector('[data-testid=state]').textContent = 'in'; }, 2000); }</script>"#;
+
+/// U5.1, A6.4, on the hosted macos job alone: a headed run opens the sign-in page, and its `handback` step reads a
+/// credential field there and opens a handback of the reason `sign_in` that names the fixture's origin, after it has
+/// loaded the page again by GET;
+/// while the handback is open the page's own POST reaches the fixture and its script takes the password field out;
+/// the test answers `done` 8 s after the request, the runner finds no credential field, sends `bind` with the
+/// fixture's origin, and after `bound=yes` the run goes on to a page of the bound origin and ends `completed`. After
+/// the browser's stop it prints what stands outside the profile for the browser's bundle id (names, sizes and whether
+/// each changed in the run; the coordinator's ruling of log line 14152), and asserts nothing of it.
+#[test]
+fn a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind() {
+    let Some(browser) =
+        hosted_headed("a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind")
+    else {
+        return;
+    };
+    let started = std::time::SystemTime::now();
+    let fixture = Fixture::start(&[("/sign-in", SIGN_IN), ("/read", READ)]);
+    let mut sup = web_agent(245, &fixture);
+    sup.headed = true;
+    sup.steps = vec![
+        navigate(1, &fixture.url("/sign-in")),
+        handback(2),
+        navigate(3, &fixture.url("/read")),
+        extract_amount(4, "amount"),
+    ];
+    let done = ToRunner::parse(
+        br#"{"t":"handback_reply","result":{"v":1,"outcome":"done","secret":null}}"#,
+    )
+    .expect("a handback_reply");
+    let bound = ToRunner::parse(br#"{"t":"bind_reply","bound":"yes"}"#).expect("a bind_reply");
+    let seen = serve_with(
+        &sup,
+        &browser,
+        |frame, _| match frame {
+            FromRunner::Browser(_) => Act::With(browser_reply()),
+            FromRunner::Handback(_) => {
+                Act::After(Duration::from_secs(8), Box::new(Act::With(done.clone())))
+            }
+            FromRunner::Bind(_) => Act::With(bound.clone()),
+            _ => Act::Answer,
+        },
+        Duration::from_secs(120),
+    );
+    print_outside_the_profile(
+        "a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind",
+        started,
+        std::time::SystemTime::now(),
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(seen.handbacks(), [HandbackReason::SignIn]);
+    let asked: Vec<Option<&str>> = seen
+        .frames
+        .iter()
+        .filter_map(|f| match f {
+            FromRunner::Handback(h) => Some(h.request.origin.as_ref().map(|o| o.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(asked, [Some(fixture.origin().as_str())]);
+    let binds: Vec<&str> = seen
+        .frames
+        .iter()
+        .filter_map(|f| match f {
+            FromRunner::Bind(b) => Some(b.origin.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(binds, [fixture.origin().as_str()]);
+    assert_eq!(
+        rows(&seen),
+        [
+            (LogEvent::StepOk, Some(1), None),
+            (LogEvent::Handback, None, None),
+            (LogEvent::StepOk, Some(2), None),
+            (LogEvent::StepOk, Some(3), None),
+            (LogEvent::StepOk, Some(4), None),
+        ]
+    );
+    let named: Vec<(String, String)> = fixture
+        .requests()
+        .into_iter()
+        .map(|r| (r.method, r.path))
+        .collect();
+    let times = |method: &str, path: &str| {
+        named
+            .iter()
+            .filter(|(m, p)| m == method && p == path)
+            .count()
+    };
+    assert_eq!(
+        times("GET", "/sign-in"),
+        2,
+        "loaded again by GET: {named:?}"
+    );
+    assert_eq!(
+        times("POST", "/signed-in"),
+        1,
+        "the page's POST in the handback: {named:?}"
+    );
+    assert_eq!(times("GET", "/read"), 1, "{named:?}");
+    assert!(!profile_of(&seen, &sup.run).0.exists());
+}
+
 /// U4.1w (5), the row `win_single_argument_inside_quotes` of `terminator_table` (crates/halvo-web/src/checks.rs):
 /// a browser started with the one argument `--app=x --single-argument`, which the system writes in quotes, before
-/// the profile's switch takes that profile directory: the directory exists and holds an entry.
+/// the profile's switch takes that profile directory: the directory exists and holds an entry. The browser gets TMP
+/// and TEMP of its own in a scratch directory of the test, in place of the temporary directory of the tests (the
+/// coordinator's line 14089).
 #[cfg(windows)]
 #[test]
 fn the_browser_takes_the_profile_after_a_quoted_single_argument() {
@@ -585,7 +799,9 @@ fn the_browser_takes_the_profile_after_a_quoted_single_argument() {
         return;
     };
     let profile = support::scratch("single-argument").join("profile");
+    let temp = support::scratch("single-argument-tmp");
     let mut child = std::process::Command::new(&browser)
+        .envs([("TMP", &temp), ("TEMP", &temp)])
         .arg("--app=x --single-argument")
         .arg(format!("--user-data-dir={}", profile.display()))
         .args([
