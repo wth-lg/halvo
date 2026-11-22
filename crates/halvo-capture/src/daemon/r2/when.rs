@@ -240,7 +240,7 @@ mod tests {
 
     use halvo_schema::{Position, StoreId};
 
-    use super::{app_seen, Driver, Liveness, Reading, Readings, Slot, Source};
+    use super::{Driver, Liveness, Reading, Readings, Slot, Source};
     use crate::daemon::r2::worker_slot::{Answer, MayRun, Origin};
 
     /// The watermark that the stand-in source gives.
@@ -334,9 +334,14 @@ mod tests {
         }
     }
 
+    /// A liveness of the test's own, not seen yet.
+    fn liveness() -> &'static Liveness {
+        Box::leak(Box::new(Liveness::new()))
+    }
+
     /// A driver over the stand-ins, with the app seen.
     fn seen_driver(shared: &Shared) -> Driver<Shared, Given, Shared> {
-        let app: &'static Liveness = Box::leak(Box::new(Liveness::new()));
+        let app = liveness();
         app.see();
         Driver::over(shared.clone(), Given, shared.clone(), app)
     }
@@ -403,14 +408,17 @@ mod tests {
     }
 
     /// Rule 4: with every reading good the answer is no until the app's first liveness signal, and yes after it.
-    /// This is the one test of the crate that makes the call.
+    /// The driver reads a liveness that the test owns, not the static that `Driver::new` reads: each status that claims
+    /// the indicator sets that static, and another test of this process may serve one first. halvo-analysis tests the
+    /// static's path in a process of its own (tests/worker_when.rs).
     #[test]
     fn no_yes_before_the_app_is_seen() {
         let shared = Shared::default();
-        let mut driver = Driver::new(shared.clone(), Given, shared.clone());
+        let app = liveness();
+        let mut driver = Driver::over(shared.clone(), Given, shared.clone(), app);
         shared.set(good(secs(600)));
         driver.turn(secs(600));
-        app_seen();
+        app.see();
         driver.turn(secs(601));
         assert_eq!(shared.answers(), [MayRun::No, YES]);
     }
