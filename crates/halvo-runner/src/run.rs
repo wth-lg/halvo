@@ -104,19 +104,26 @@ pub(crate) struct Runner {
     pub(crate) lists: Lists,
     /// The run's browser, once a web step started it (crate::web); stopped at every end of the run.
     pub(crate) web: Option<crate::web::Web>,
+    /// The roots under which a run given no `--browser` finds the person's browser (crate::find): this system's, and
+    /// none in a unit test unless the test gives some.
+    pub(crate) roots: crate::find::Roots,
 }
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
 /// `finish`, 1 when the link closed or the `finish` was not stored, 2 for a frame that breaks the form of A6.2. The
 /// run's browser is stopped and its profile removed before the run's end is written, on every way out.
 pub(crate) fn run(args: Args, link: Link) -> i32 {
-    let mut runner = Runner::new(args, link);
-    let end = runner.carry_out();
-    runner.stop_browser();
-    runner.close(end)
+    Runner::new(args, link).run()
 }
 
 impl Runner {
+    /// Carries out the run of this runner and returns the exit status, as `run` does.
+    pub(crate) fn run(mut self) -> i32 {
+        let end = self.carry_out();
+        self.stop_browser();
+        self.close(end)
+    }
+
     /// A runner of `args` on `link`, before its run.
     pub(crate) fn new(args: Args, link: Link) -> Runner {
         Runner {
@@ -140,6 +147,10 @@ impl Runner {
             checkpoints: HashMap::new(),
             lists: Lists::default(),
             web: None,
+            #[cfg(not(test))]
+            roots: crate::find::Roots::of_this_system(),
+            #[cfg(test)]
+            roots: crate::find::Roots::default(),
         }
     }
 

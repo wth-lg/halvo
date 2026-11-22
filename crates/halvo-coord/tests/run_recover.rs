@@ -12,8 +12,9 @@ use halvo_coord::run::{recover, recover_step, Act, Earlier, StopBy};
 use halvo_coord::schedule::{Answer, Hold};
 use halvo_coord::types::{
     Agent, AgentId, Answered, Body, Cause, Class, Decision, DecisionEntry, Digest, EffectAnswer,
-    EffectId, Event, HandbackResult, ItemId, LapseCause, Lapsed, Limits, OtherLapse, Outcome,
-    PastRun, Raised, ReadyAnswer, Reply, RunEnd, RunId, RunSpec, Trigger, Unknown, What, Workflow,
+    EffectId, Event, HandbackResult, HoldSetCause, ItemId, LapseCause, Lapsed, Limits, OtherLapse,
+    Outcome, PastRun, Raised, ReadyAnswer, Reply, RunEnd, RunId, RunSpec, Trigger, Unknown, What,
+    Workflow,
 };
 use std::num::NonZeroU32;
 use support::{agent, flow, world, world_with, World, A, DAY, MANUAL, T0};
@@ -2319,4 +2320,54 @@ fn u46d_the_row_shows_the_recorded_end_of_that_run_in_the_same_life_and_after_on
     after.tick();
     let row = after.snapshot().rows[0].clone();
     assert_eq!(row.line, done, "after one more start: {row:?}");
+}
+
+/// U2.4h, sentence 4 (ruling RD-73 4.2; I5.4, I5.8): when the app is gone before the end of a run
+/// whose sign-in the service refused, the next life ends the run `interrupted`, takes the sign
+/// from the roster and stores ONE `hold_set` that names the run, with `paused` sent, before any
+/// start; and a hold whose `hold_set` an earlier life stored stands in the next life by that
+/// event, whatever the roster then shows.
+#[test]
+fn a_new_life_holds_the_agent_whose_run_the_service_refused_and_keeps_the_hold_by_its_event() {
+    let mut w = world(&[A {
+        person: false,
+        slotted: true,
+    }]);
+    let run = started(&mut w, 0);
+    w.ports.agents.borrow_mut()[0].refused_run = Some(run.clone());
+    let ended = relife(&mut w, &[(run.clone(), Reaped::Gone)]);
+    assert_eq!(ended, vec![(run.clone(), RunEnd::Interrupted)]);
+    let held: Vec<What> = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(0) && matches!(e.what, What::HoldSet { .. }))
+        .map(|e| e.what.clone())
+        .collect();
+    assert_eq!(
+        held,
+        vec![What::HoldSet {
+            cause: HoldSetCause::SignInRefused { run: run.clone() }
+        }],
+        "one hold_set that names the run"
+    );
+    assert!(
+        w.calls().iter().any(|c| c == "set_state paused"),
+        "paused is sent"
+    );
+    assert_eq!(holds(&w, 0), vec![Hold::SignInRefused]);
+    w.set_clock(T0 + 10_000, DAY + 2);
+    w.act(Act::Tick);
+    assert!(
+        !w.calls().iter().any(|c| c == "start"),
+        "the first tick at the next slot starts no run"
+    );
+    w.ports.agents.borrow_mut()[0].refused_run = None;
+    relife(&mut w, &[]);
+    assert_eq!(
+        holds(&w, 0),
+        vec![Hold::SignInRefused],
+        "the stored hold_set holds the next life too"
+    );
 }

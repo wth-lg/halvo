@@ -152,15 +152,13 @@ pub trait Control: Send + Sync {
     /// The Status of a pass of the poller: it claims the indicator where `claim` holds and the
     /// app's hold does not stand, read once the call has its place, so that no claim leaves
     /// after a set of the hold that came while the call waited for it (contracts.md C14
-    /// item 4). A control with no gate reads the hold at the call.
+    /// item 4).
     fn status_of_a_pass(
         &self,
         made: Made,
         claim: bool,
         hold: &Hold,
-    ) -> Result<DaemonStatus, ClientError> {
-        self.status(made, claim && !hold.stands())
-    }
+    ) -> Result<DaemonStatus, ClientError>;
     fn inventory(&self, made: Made) -> Result<InventoryReply, ClientError>;
     fn pause(&self, made: Made) -> Result<DaemonStatus, ClientError>;
     fn resume(&self, made: Made) -> Result<DaemonStatus, ClientError>;
@@ -173,44 +171,30 @@ pub trait Control: Send + Sync {
     ) -> Result<RequestOutcome, ClientError>;
 
     /// Relays one serialized request of the role `interface` to the owner of the derived store
-    /// and returns the owner's reply as it wrote it. A control with no relay call answers
-    /// `ClientError::Unsupported`.
-    fn relay(&self, _made: Made, _request: &[u8]) -> Result<Vec<u8>, ClientError> {
-        Err(ClientError::Unsupported)
-    }
+    /// and returns the owner's reply as it wrote it.
+    fn relay(&self, made: Made, request: &[u8]) -> Result<Vec<u8>, ClientError>;
 
     /// Sends one acknowledge_lost_permission for `permission` and answers the status that comes
-    /// back. A control with no such call answers `ClientError::Unsupported`.
+    /// back.
     fn acknowledge_lost_permission(
         &self,
-        _made: Made,
-        _permission: Permission,
-    ) -> Result<DaemonStatus, ClientError> {
-        Err(ClientError::Unsupported)
-    }
+        made: Made,
+        permission: Permission,
+    ) -> Result<DaemonStatus, ClientError>;
 
     /// Asks the daemon for one end of a new owner stream (the workflows run's W-C24.13), on which the coordinator's
-    /// requests reach the owner of the derived store. A control with no stream call answers
-    /// `ClientError::Unsupported`.
+    /// requests reach the owner of the derived store.
     #[cfg(target_os = "macos")]
-    fn owner_stream(&self, _made: Made) -> Result<OwnerStreamEnd, ClientError> {
-        Err(ClientError::Unsupported)
-    }
+    fn owner_stream(&self, made: Made) -> Result<OwnerStreamEnd, ClientError>;
 
-    /// Sends one run mark, `run_start` or `run_end` (the workflows run's C24.12), and gives the daemon's reply. A
-    /// control with no mark call answers `ClientError::Unsupported`.
+    /// Sends one run mark, `run_start` or `run_end` (the workflows run's C24.12), and gives the daemon's reply.
     #[cfg(target_os = "macos")]
-    fn run_mark(&self, _made: Made, _edge: RunEdge) -> Result<RunMarked, ClientError> {
-        Err(ClientError::Unsupported)
-    }
+    fn run_mark(&self, made: Made, edge: RunEdge) -> Result<RunMarked, ClientError>;
 
     /// Asks the daemon to hold the search for repeated tasks off until `until`, in nanoseconds since 1970 (the
-    /// workflows run's C24.5), and gives the deadline in force, none where none is. A control with no defer call
-    /// answers `ClientError::Unsupported`.
+    /// workflows run's C24.5), and gives the deadline in force, none where none is.
     #[cfg(target_os = "macos")]
-    fn defer(&self, _made: Made, _until: i64) -> Result<Option<i64>, ClientError> {
-        Err(ClientError::Unsupported)
-    }
+    fn defer(&self, made: Made, until: i64) -> Result<Option<i64>, ClientError>;
 }
 
 /// How long a stream call or a mark waits for its place in the line and for the daemon, from the call on.
@@ -667,9 +651,9 @@ fn another_daemon_version(status: &DaemonStatus) -> bool {
 
 /// The app's control of its child: each answer of the control inside tells `pid` what it read,
 /// and what it showed of the child that `pid` named while the request ran. It hands every
-/// method of `Control` on to the control inside, those with a default body among them; a
-/// builder who adds a method to `Control` adds its forward here, and adds that method, with an
-/// answer of its own, to the stand-in `EachItsOwn` and to the last row of the test
+/// method of `Control` on to the control inside; a builder who adds a method to `Control` adds
+/// its forward here, and adds that method, with an answer of its own, to the stand-in
+/// `EachItsOwn` and to the last row of the test
 /// `another_daemon_version_restarts_the_own_child_once_and_a_child_seen_ending_is_killed`.
 #[cfg(any(target_os = "macos", test))]
 pub struct Watching<C> {

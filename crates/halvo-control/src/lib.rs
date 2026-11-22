@@ -1,42 +1,62 @@
+//! The feature `client`, on by default, holds the client of the capture service, which can pause the capture and
+//! delete everything, with every module and item that it speaks or names. Without it the crate holds `paths`, the
+//! data directory, and the four modules beside it that name no client (`model`, `service`, `marks` and
+//! `instance_lock`): the part that halvo-runner, the program of a person's agents, takes with
+//! `default-features = false`, so that its tree holds no control client (scripts/r1/ci.d/21-tree-bans.sh).
+
 #![deny(clippy::undocumented_unsafe_blocks)]
 
-#[cfg(windows)]
+#[cfg(all(windows, feature = "client"))]
 pub mod child_windows;
+#[cfg(feature = "client")]
 pub mod client;
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", feature = "client"))]
 pub mod client_unix;
-#[cfg(windows)]
+#[cfg(all(windows, feature = "client"))]
 pub mod client_windows;
+#[cfg(feature = "client")]
 pub mod ctl_text;
 #[cfg(target_os = "macos")]
 pub mod instance_lock;
 pub mod marks;
+// The macro `one_spelling` of `model` serves `onboarding` alone, which the feature `client` holds.
+#[cfg_attr(not(feature = "client"), allow(unused_macros, unused_imports))]
 pub mod model;
+#[cfg(feature = "client")]
 pub mod onboarding;
 pub mod paths;
+#[cfg(feature = "client")]
 pub mod proto;
-#[cfg(feature = "r2")]
+#[cfg(all(feature = "client", feature = "r2"))]
 #[rustfmt::skip]
 pub mod r2;
 pub mod service;
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(all(feature = "client", any(test, feature = "test-support")))]
 pub mod testing;
+#[cfg(feature = "client")]
 pub mod texts;
+#[cfg(feature = "client")]
 pub mod wire;
 
+#[cfg(feature = "client")]
 pub const POLL_MS: u64 = 3_000;
 
+#[cfg(feature = "client")]
 pub const INDICATOR_LEASE_MS: u64 = 10_000;
 
+#[cfg(feature = "client")]
 pub const STOP_WAIT_MS: u64 = 20_000;
 
+#[cfg(feature = "client")]
 pub const SESSION_END_BUDGET_MS: u64 = 3_000;
 
 /// How long the client waits after a whole reply frame for what follows it, and never past
 /// the request's deadline (ruling PL-8 part (1)(b)).
+#[cfg(feature = "client")]
 pub const REPLY_END_WAIT_MS: u64 = 250;
 
 /// The exit statuses of halvo-capture that a starter, ctl and the gate read (contracts.md 0.4).
+#[cfg(feature = "client")]
 pub mod exit {
     pub const CLEAN: i32 = 0;
     pub const ERROR: i32 = 1;

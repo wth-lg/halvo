@@ -92,7 +92,7 @@ fn a_start_whose_runner_browser_model_or_data_directory_is_relative_answers_not_
             let (answer, script, rig) = relative_start(
                 "relative-browser",
                 |_| {},
-                |s| s.browser = std::path::PathBuf::from("script"),
+                |s| s.browser = Some(std::path::PathBuf::from("script")),
             );
             ("browser", RelativePath::Browser, script, rig, answer)
         },
@@ -362,7 +362,7 @@ fn a_start_of_a_running_run_id_with_a_relative_path_answers_started_and_makes_no
     let run = spec.run.clone();
     rig.sup.start(spec.clone()).unwrap();
     let mut again = spec;
-    again.browser = std::path::PathBuf::from("script");
+    again.browser = Some(std::path::PathBuf::from("script"));
     assert_eq!(rig.sup.start(again), Err(StartError::Started));
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(script.logged("runner").len(), 1, "{}", script.log());
@@ -437,7 +437,7 @@ fn a_start_with_a_relative_browser_of_a_run_id_whose_mark_of_an_earlier_life_sta
         halvo_agent_client::marks::first_line(&spec.run),
     )
     .unwrap();
-    spec.browser = std::path::PathBuf::from("script");
+    spec.browser = Some(std::path::PathBuf::from("script"));
     assert_eq!(rig.sup.start(spec), Err(StartError::Started));
     std::thread::sleep(Duration::from_millis(300));
     assert!(
@@ -455,7 +455,7 @@ fn a_start_refused_for_a_relative_path_leaves_no_entry_and_the_same_run_id_then_
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     let mut relative = spec.clone();
-    relative.browser = std::path::PathBuf::from("script");
+    relative.browser = Some(std::path::PathBuf::from("script"));
     assert_eq!(
         rig.sup.start(relative),
         Err(StartError::NotStarted(NotStarted::Relative(

@@ -1,6 +1,8 @@
 //! The tests of the run's real browser (U4.1w, first cut): each starts the headless browser that `HALVO_BROWSER`
 //! names, on a hosted runner alone, against fixture servers of its own on 127.0.0.1, and returns at its first line
-//! off a hosted runner (`support::browser::hosted`).
+//! off a hosted runner (`support::browser::hosted`). The one test of U9.10 gives no `--browser`, so that the runner
+//! starts the browser that it finds itself, and returns at its first line off a hosted macOS runner
+//! (`support::browser::hosted_mac`).
 
 mod support;
 
@@ -11,10 +13,10 @@ use halvo_schema::executable::names::LogEvent;
 use halvo_schema::executable::{Cause, FromRunner, Outcome, RunnerCall, ToRunner};
 use halvo_schema::Category;
 use support::browser::{
-    bearing, cond, extract_amount, from_slot, hosted, konst, navigate, own_start_us, profile_of,
-    serve_with, step, Fixture,
+    bearing, cond, extract_amount, from_slot, hosted, hosted_mac, konst, navigate, own_start_us,
+    profile_of, say, serve_finding, serve_with, step, Fixture,
 };
-use support::{slot, tag, Act, Seen, Supervisor, LONG};
+use support::{slot, tag, Act, Seen, Supervisor, FINDS_ITS_BROWSER, LONG};
 
 /// A page whose one control with the test id `amount` reads `12.34`.
 const READ: &str = r#"<!doctype html><title>read</title><p data-testid="amount">12.34</p>"#;
@@ -117,6 +119,57 @@ fn a_run_reads_a_page_after_the_frame_browser() {
         "{}",
         seen.stderr
     );
+}
+
+/// U9.10 (5): a runner given no `--browser` on a hosted macOS runner starts the browser that it finds at the fixed
+/// places of a Mac, opens the page of its bound origin and reads the control's amount; the run completes and the
+/// profile is gone. The test names which of the two places holds a file.
+#[test]
+fn a_run_given_no_browser_starts_the_one_it_finds() {
+    if !hosted_mac("a_run_given_no_browser_starts_the_one_it_finds") {
+        return;
+    }
+    for place in [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    ] {
+        let file = std::path::Path::new(place).is_file();
+        say(
+            FINDS_ITS_BROWSER,
+            &format!("{place}: {}", if file { "a file" } else { "none" }),
+        );
+    }
+    let fixture = Fixture::start(&[("/read", READ)]);
+    let mut sup = web_agent(241, &fixture);
+    sup.steps = vec![
+        navigate(1, &fixture.url("/read")),
+        extract_amount(2, "amount"),
+    ];
+    let seen = serve_finding(&sup, FINDS_ITS_BROWSER, reply_to_browser, LONG);
+    assert!(
+        !seen.line.iter().any(|a| a == "--browser"),
+        "{:?}",
+        seen.line
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(
+        rows(&seen),
+        [
+            (LogEvent::StepOk, Some(1), None),
+            (LogEvent::StepOk, Some(2), None)
+        ]
+    );
+    let got: Vec<(String, String)> = fixture
+        .requests()
+        .into_iter()
+        .map(|r| (r.method, r.path))
+        .collect();
+    assert!(
+        got.contains(&("GET".to_string(), "/read".to_string())),
+        "{got:?}"
+    );
+    let (run_dir, _) = profile_of(&seen, &sup.run);
+    assert!(!run_dir.exists(), "{} is left", run_dir.display());
 }
 
 /// U4.1w (3): with the bindings' origins armed in `Mode::Fail`, a load of an origin outside them fails and ends the

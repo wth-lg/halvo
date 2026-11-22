@@ -50,8 +50,9 @@ pub struct Around {
     pub owed: bool,
 }
 
-/// The end of the hold `failures` by a start of the person (I5.4): its `hold_cleared` event,
-/// and the state to send when the hold `off` does not stand, else none.
+/// The end of the holds `failures` and `sign_in_refused` by a start of the person (I5.4; ruling
+/// RD-73 4.3): one `hold_cleared` event for each that stands, and the state to send when the hold
+/// `off` does not stand, else none.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Clear {
     /// The `set_state` to send, or none while the hold `off` stands.
@@ -88,7 +89,8 @@ pub enum Verdict {
 /// What `start_step` decides.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StartStep {
-    /// The end of the hold `failures`, made after step 0 passed and before step 1.
+    /// The end of the holds `failures` and `sign_in_refused`, made after step 0 passed and before
+    /// step 1.
     pub clear: Option<Clear>,
     /// The answer.
     pub verdict: Verdict,
@@ -96,7 +98,8 @@ pub struct StartStep {
 
 /// Steps 0 to 4 of a start (I5.5), the first that fails giving the answer: (0) the workflow is
 /// in the owner's list, else `state`; a start of the person that does not leave the queue then
-/// ends the hold `failures`; (1) no hold stands, else `hold`; (2) fewer than `starts_per_day`
+/// ends the holds `failures` and `sign_in_refused`; (1) no hold stands, else `hold`; (2) fewer
+/// than `starts_per_day`
 /// `run_started` events of the agent have the facts' day, else `budget`; (3) no run of the
 /// agent is live or queued, the agent store has ended its newest run and no `run_ended` of the
 /// agent is owed, else `state`; for a
@@ -118,13 +121,13 @@ pub fn start_step<C: ConfigView>(
         return refused(None, Cause::State);
     }
     let mut standing = holds(facts);
-    let clear =
-        (trigger == Trigger::Person && !around.from_queue && standing.contains(&Hold::Failures))
-            .then(|| Clear {
-                set_state: (!standing.contains(&Hold::Off)).then(|| active_state(&facts.config)),
-            });
+    let ends = |h: &Hold| matches!(h, Hold::Failures | Hold::SignInRefused);
+    let clear = (trigger == Trigger::Person && !around.from_queue && standing.iter().any(ends))
+        .then(|| Clear {
+            set_state: (!standing.contains(&Hold::Off)).then(|| active_state(&facts.config)),
+        });
     if clear.is_some() {
-        standing.retain(|h| *h != Hold::Failures);
+        standing.retain(|h| !ends(h));
     }
     if !standing.is_empty() {
         return refused(clear, Cause::Hold);

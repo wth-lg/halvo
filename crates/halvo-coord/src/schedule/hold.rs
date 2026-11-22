@@ -1,7 +1,7 @@
 use crate::items::params;
 use crate::types::{
-    Category, Cause, Cleared, ConfigView, Doing, Facts, HoldSetCause, OwnItemKind, Raised, Runtime,
-    What, WorkflowState,
+    Category, Cause, Cleared, ConfigView, Doing, Facts, HoldSetCause, OwnItemKind, Raised, RunId,
+    Runtime, What, WorkflowState,
 };
 
 /// The holds of I5.4, in their order: each stops every start of its agent.
@@ -11,6 +11,8 @@ pub enum Hold {
     NotYet,
     /// `off`.
     Off,
+    /// `sign_in_refused`: the hold after a refused sign-in (ruling RD-73 4.2).
+    SignInRefused,
     /// `failures`.
     Failures,
     /// `check`.
@@ -24,6 +26,7 @@ impl Hold {
     pub const ALL: &'static [Hold] = &[
         Hold::NotYet,
         Hold::Off,
+        Hold::SignInRefused,
         Hold::Failures,
         Hold::Check,
         Hold::Setup,
@@ -34,6 +37,7 @@ impl Hold {
         match self {
             Hold::NotYet => "not_yet",
             Hold::Off => "off",
+            Hold::SignInRefused => "sign_in_refused",
             Hold::Failures => "failures",
             Hold::Check => "check",
             Hold::Setup => "setup",
@@ -63,15 +67,73 @@ fn stands<C>(facts: &Facts<C>, hold: HoldSetCause) -> bool {
     })
 }
 
-/// Whether the hold `off` or the hold `failures` stands by the stored events (I5.4): from its
-/// `hold_set` event until a later `hold_cleared` event of the same cause.
+fn cleared_from<C>(facts: &Facts<C>, from: usize, run: &RunId) -> bool {
+    facts.events[from.min(facts.events.len())..].iter().any(|e| {
+        matches!(&e.what, What::HoldCleared { cause: Cleared::SignInRefused { run: r } } if r == run)
+    })
+}
+
+/// The runs whose refused sign-in holds the agent by the stored events (I5.4; ruling RD-73
+/// 4.2): each `hold_set` of the cause `sign_in_refused` with no later `hold_cleared` of that
+/// cause that names its run.
+fn refused_by_events<C>(facts: &Facts<C>) -> Vec<RunId> {
+    let mut out: Vec<RunId> = Vec::new();
+    for (k, e) in facts.events.iter().enumerate() {
+        if let What::HoldSet {
+            cause: HoldSetCause::SignInRefused { run },
+        } = &e.what
+        {
+            if !cleared_from(facts, k + 1, run) && !out.contains(run) {
+                out.push(run.clone());
+            }
+        }
+    }
+    out
+}
+
+/// The runs whose refused sign-in holds the agent by `sign_in_refused` (I5.4; ruling RD-73 4.2):
+/// by the stored events, from its `hold_set` until a `hold_cleared` of that cause names the run,
+/// whatever the roster then shows; and by the facts, the run that the roster's key `refused_run`
+/// names while no `hold_cleared` of that cause names it. Time ends none.
+pub fn refused_runs<C>(facts: &Facts<C>) -> Vec<RunId> {
+    let mut out = refused_by_events(facts);
+    if let Some(run) = &facts.refused {
+        if !cleared_from(facts, 0, run) && !out.contains(run) {
+            out.push(run.clone());
+        }
+    }
+    out
+}
+
+/// The run whose refused sign-in the roster shows while no event of the cause `sign_in_refused`
+/// names it: the move that reads it stores its one `hold_set` (I5.4; ruling RD-73 4.2).
+pub fn refusal_unstored<C>(facts: &Facts<C>) -> Option<RunId> {
+    let run = facts.refused.as_ref()?;
+    let named = facts.events.iter().any(|e| match &e.what {
+        What::HoldSet {
+            cause: HoldSetCause::SignInRefused { run: r },
+        }
+        | What::HoldCleared {
+            cause: Cleared::SignInRefused { run: r },
+        } => r == run,
+        _ => false,
+    });
+    (!named).then(|| run.clone())
+}
+
+/// Whether the hold `off`, the hold `sign_in_refused` or the hold `failures` stands by the stored
+/// events (I5.4): from its `hold_set` event until a later `hold_cleared` event of the same cause,
+/// for `sign_in_refused` one that names the same run.
 pub fn held_by_events<C>(facts: &Facts<C>) -> bool {
-    stands(facts, HoldSetCause::Person) || stands(facts, HoldSetCause::Failures)
+    stands(facts, HoldSetCause::Person)
+        || !refused_by_events(facts).is_empty()
+        || stands(facts, HoldSetCause::Failures)
 }
 
 /// The derived hold `off` of ruling RD-67 1.2 (I5.4): the owner's list holds the agent's workflow
-/// in the full shape with the state `paused` while neither the hold `off` nor the hold `failures`
-/// stands by the stored events, because only this coordinator's `set_state` writes `paused`; the
+/// in the full shape with the state `paused` while none of the holds `off`, `sign_in_refused` and
+/// `failures` stands by the stored events (`held_by_events`; ruling RD-73 4.3), because only this
+/// coordinator's `set_state` writes `paused`; the
 /// stand-in of a dismissed workflow (I5.8) is no entry of that list and gives none. It stands as
 /// well while this life's mark of an `active` refused with `overlap` stands
 /// (`Facts::active_refused`), whatever the list shows, so that no start passes while the
@@ -114,8 +176,8 @@ fn check<C>(facts: &Facts<C>) -> bool {
 /// `not_yet` while its runtime is `none`; `off` from a `hold_set` event with the cause `person`
 /// until a later `hold_cleared` event with the cause `person`, or by the derived hold of
 /// `kept_off`, the one test that reads the state of the workflow (ruling RD-67 1.2, which
-/// replaces ruling H-1 in that part); `failures` from a `hold_set` event with the cause `failures`
-/// until a later
+/// replaces ruling H-1 in that part); `sign_in_refused` while `refused_runs` names a run (ruling
+/// RD-73 4.2); `failures` from a `hold_set` event with the cause `failures` until a later
 /// `hold_cleared` event with the cause `failures`; `check` while the agent store has ended its
 /// newest run and no `hold_cleared` event of the cause `check` names that run, and that run's
 /// record has `unknown` above 0, the roster's key `unknown` of the same read names an effect of
@@ -136,6 +198,9 @@ pub fn holds<C: ConfigView>(facts: &Facts<C>) -> Vec<Hold> {
     }
     if stands(facts, HoldSetCause::Person) || kept_off(facts) {
         out.push(Hold::Off);
+    }
+    if !refused_runs(facts).is_empty() {
+        out.push(Hold::SignInRefused);
     }
     if stands(facts, HoldSetCause::Failures) {
         out.push(Hold::Failures);

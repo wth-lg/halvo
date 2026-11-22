@@ -61,6 +61,7 @@ fn facts(category: Category, runtime: &str, whats: Vec<(u32, What)>) -> Facts<Co
         store_ended: true,
         replies: halvo_coord::types::Replies::NotAsked,
         unknown: Vec::new(),
+        refused: None,
         today: 107,
         doing: Doing::Idle(None),
         stand_in: false,
@@ -393,7 +394,14 @@ fn holds_come_in_the_order_of_i5_4() {
     );
     assert_eq!(
         Hold::ALL.iter().map(|h| h.name()).collect::<Vec<_>>(),
-        ["not_yet", "off", "failures", "check", "setup"]
+        [
+            "not_yet",
+            "off",
+            "sign_in_refused",
+            "failures",
+            "check",
+            "setup"
+        ]
     );
 }
 

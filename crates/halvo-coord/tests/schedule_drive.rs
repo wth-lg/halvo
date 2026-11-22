@@ -125,6 +125,7 @@ fn member(world: &World, n: usize) -> Member<Config> {
             store_ended: newest.is_none_or(|r| last.as_ref().is_some_and(|l| l.run == r)),
             replies: halvo_coord::types::Replies::NotAsked,
             unknown: Vec::new(),
+            refused: None,
             runs: last.into_iter().collect(),
             events,
             today: world.board.day,
@@ -157,6 +158,7 @@ fn world_with(spec: &[A], limits: Limits) -> World {
                 unknown: 0,
             }),
             unknown: vec![],
+            refused_run: None,
         });
         if a.finished {
             let run = RunId::parse(&format!("{:032x}", 0x900 + n)).unwrap();
@@ -372,6 +374,7 @@ fn what_name(w: &What) -> String {
             Cleared::Person => "hold_cleared person".into(),
             Cleared::Failures => "hold_cleared failures".into(),
             Cleared::Check { answer, .. } => format!("hold_cleared check {answer}"),
+            Cleared::SignInRefused { .. } => "hold_cleared sign_in_refused".into(),
         },
         What::SlotSkipped { slot } => format!(
             "slot_skipped {}",
@@ -1564,6 +1567,7 @@ fn listed_agent(w: &World, n: usize, made: &AgentId, a: &A) {
         session: false,
         last: None,
         unknown: vec![],
+        refused_run: None,
     });
 }
 
@@ -4478,4 +4482,188 @@ fn rd73_the_row_of_an_agent_whose_rows_have_left_says_not_yet_or_not_for_a_long_
             "the {life} life"
         );
     }
+}
+
+/// The events `hold_set` of the agent `n` that the owner stores, in their order.
+fn holds_set(w: &World, n: usize) -> Vec<HoldSetCause> {
+    w.stored()
+        .into_iter()
+        .filter(|e| e.agent == agent(n))
+        .filter_map(|e| match e.what {
+            What::HoldSet { cause } => Some(cause),
+            _ => None,
+        })
+        .collect()
+}
+
+/// U2.4h, sentence 1 (ruling RD-73 4.2; I5.4, I7.1): after ONE end of a run that the roster's key
+/// `refused_run` names, the agent is held by `sign_in_refused`, not after three; the end stores
+/// one `hold_set` that names the run and sends `paused` once, and a later read of the same sign
+/// stores nothing.
+#[test]
+fn one_end_of_a_run_whose_sign_in_was_refused_holds_the_agent_with_one_hold_set() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.owner_agent(0, |a| a.refused_run = Some(run.clone()));
+    w.forget();
+    w.end(&run, Some(Outcome::Failed));
+    assert_eq!(
+        holds_set(&w, 0),
+        vec![HoldSetCause::SignInRefused { run: run.clone() }],
+        "one hold_set that names the run"
+    );
+    assert_eq!(
+        w.calls()
+            .iter()
+            .filter(|c| *c == "set_state paused")
+            .count(),
+        1,
+        "{:?}",
+        w.calls()
+    );
+    assert_eq!(holds(w.facts(0)), vec![Hold::SignInRefused]);
+    w.forget();
+    w.tick();
+    assert_eq!(
+        holds_set(&w, 0).len(),
+        1,
+        "a tick after it stores no second hold_set"
+    );
+    assert_eq!(holds(w.facts(0)), vec![Hold::SignInRefused]);
+}
+
+/// U2.4h, sentence 2 (ruling RD-73 4.3; I5.4, the row `hold_start` of I5.11): while the hold of a
+/// refused sign-in stands the scheduler starts nothing; ONE start by the person sends the state
+/// first, stores one `hold_cleared` that names the refused run and starts its run once; the next
+/// refusal sets the hold again with the new run.
+#[test]
+fn under_a_refused_sign_in_the_scheduler_starts_nothing_and_one_start_by_the_person_runs_once() {
+    let mut w = world(&[AUTO]);
+    let first = ok_run(&w.start(0));
+    w.owner_agent(0, |a| a.refused_run = Some(first.clone()));
+    w.end(&first, Some(Outcome::Failed));
+    w.clock(T0 + 1_000, DAY + 2);
+    w.forget();
+    assert_eq!(
+        w.tick().started,
+        Vec::<Served>::new(),
+        "the tick at the agent's next slot starts nothing"
+    );
+    assert_eq!(w.starts(), 0);
+    let by_scheduler = start_step(
+        w.facts(0),
+        Trigger::Schedule,
+        &w.limits,
+        &Around {
+            listed: true,
+            live: 0,
+            model_held: false,
+            queued: 0,
+            session: true,
+            from_queue: false,
+            owed: false,
+        },
+    );
+    assert_eq!(by_scheduler.verdict, Verdict::Refused(Cause::Hold));
+    w.forget();
+    let second = ok_run(&w.start(0));
+    assert_eq!(
+        w.calls(),
+        vec![
+            "set_state active".to_string(),
+            "log hold_cleared sign_in_refused".into(),
+            "defer".into(),
+            "log run_started".into(),
+            "start_run".into(),
+            format!("start {}", agent(0)),
+        ],
+        "one press: the state first, one hold_cleared, one start"
+    );
+    let cleared: Vec<Cleared> = w
+        .stored()
+        .into_iter()
+        .filter_map(|e| match e.what {
+            What::HoldCleared { cause } => Some(cause),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(cleared, vec![Cleared::SignInRefused { run: first.clone() }]);
+    w.owner_agent(0, |a| a.refused_run = Some(second.clone()));
+    w.end(&second, Some(Outcome::Failed));
+    assert_eq!(
+        holds_set(&w, 0),
+        vec![
+            HoldSetCause::SignInRefused { run: first },
+            HoldSetCause::SignInRefused { run: second }
+        ],
+        "the next refusal sets the hold again with the new run"
+    );
+    w.forget();
+    w.tick();
+    assert_eq!(w.starts(), 0, "and the next tick starts nothing");
+}
+
+/// U2.4h, sentence 3 (ruling RD-73 4.3, 4.7; I1.3, I2.5): while the hold of a refused sign-in
+/// stands beside `failures`, the row says that the site did not let it sign in and offers Start
+/// now, Switch on and Delete; one Switch on sends the state first and ends both holds with one
+/// `hold_cleared` each, the one of `sign_in_refused` naming the run.
+#[test]
+fn the_row_of_a_refused_sign_in_stands_before_failures_and_one_switch_on_ends_both() {
+    use halvo_coord::roster::{controls, status_of};
+    use halvo_coord::types::Control;
+    let mut w = world_with(
+        &[manual()],
+        Limits {
+            fails_to_pause: 1,
+            ..Limits::PRODUCT
+        },
+    );
+    let run = ok_run(&w.start(0));
+    w.owner_agent(0, |a| a.refused_run = Some(run.clone()));
+    w.end(&run, Some(Outcome::Failed));
+    let line = status_of(w.facts(0), &w.limits, None, false);
+    assert_eq!(line.key(), "line.problem.sign_in_refused");
+    assert_eq!(
+        halvo_coord::words::text(&line.key(), &[]).as_deref(),
+        Ok("The site did not let it sign in.")
+    );
+    assert_eq!(
+        holds(w.facts(0)),
+        vec![Hold::SignInRefused, Hold::Failures],
+        "both holds stand by their stored hold_set"
+    );
+    assert_eq!(
+        controls(w.facts(0), None, &w.limits),
+        vec![Control::RunNow, Control::SwitchOn, Control::Delete]
+    );
+    w.forget();
+    assert_eq!(
+        w.go(Move::SwitchOn { agent: agent(0) }).answer,
+        Ok(Answer::Ok)
+    );
+    assert_eq!(
+        w.calls(),
+        vec![
+            "set_state active".to_string(),
+            "log hold_cleared sign_in_refused, hold_cleared failures".into()
+        ],
+        "the state first, then one hold_cleared of each cause"
+    );
+    let cleared: Vec<Cleared> = w
+        .stored()
+        .into_iter()
+        .filter_map(|e| match e.what {
+            What::HoldCleared { cause } => Some(cause),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        cleared,
+        vec![Cleared::SignInRefused { run }, Cleared::Failures]
+    );
+    assert_eq!(holds(w.facts(0)), Vec::<Hold>::new());
+    assert_eq!(
+        controls(w.facts(0), None, &w.limits),
+        vec![Control::RunNow, Control::SwitchOff, Control::Delete]
+    );
 }

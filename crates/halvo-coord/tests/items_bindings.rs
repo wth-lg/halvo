@@ -36,6 +36,7 @@ fn the_memory_owner_merges_the_slots_of_set_bindings_by_name() {
         session: false,
         last: None,
         unknown: vec![],
+        refused_run: None,
     });
     let first = Body::SetBindings {
         workflow: w.clone(),

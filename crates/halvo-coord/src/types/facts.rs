@@ -1,5 +1,7 @@
 use super::names::names;
-use super::{AgentId, Event, FullWorkflow, ItemId, ItemKind, LivePhase, Name, PastRun, Unknown};
+use super::{
+    AgentId, Event, FullWorkflow, ItemId, ItemKind, LivePhase, Name, PastRun, RunId, Unknown,
+};
 
 /// What the coordinator knows of one agent (I5.1), which `holds`, `start_step`, `status` and
 /// `fixtures::facts` share.
@@ -19,6 +21,10 @@ pub struct Facts<C> {
     /// of that run whose outcome the agent store does not know, taken from the entry of
     /// `Owner::agents` where its `last` is taken (I5.1; ruling RD-81 8.1).
     pub unknown: Vec<Unknown>,
+    /// The roster's key `refused_run` of the agent: its newest started run whose step the
+    /// service refused with `unauthorized`, or none, taken from the entry of `Owner::agents`
+    /// where its `last` is taken (I5.4; ruling RD-73 4.2).
+    pub refused: Option<RunId>,
     /// Its ledger events in ascending `seq` (I7.1).
     pub events: Vec<Event>,
     /// Whether the agent store has ended the agent's newest run: no run of the agent was

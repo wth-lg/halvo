@@ -20,6 +20,7 @@
   var busy = false;
   var loading = false;
   var keptInFlight = false;
+  var refusedInARow = 0;
   var AFTER_DELETE = "after-delete";
 
   function hasPoint(event) {
@@ -139,6 +140,15 @@
     return Boolean(e) && typeof e === "object" && e.outcome_not_known === true;
   }
 
+  function ownWords(e) {
+    var code = e && typeof e === "object" ? e.error : null;
+    if (code === "busy") return w.DELETE_BUSY;
+    if (code === "service_ending") return w.DELETE_SERVICE_ENDING;
+    if (code === "nothing_removed") return w.DELETE_NOTHING_REMOVED;
+    if (code === "service_not_back") return answerLost(e) ? w.DELETE_SERVICE_NOT_BACK + " " + w.DELETE_UNKNOWN_OUTCOME : w.DELETE_SERVICE_NOT_BACK;
+    return null;
+  }
+
   function showKept(kept, afterDelete) {
     keptInFlight = Boolean(kept) && kept.state === "in_flight";
     var answer = kept && kept.state === "answered" ? kept.answer : null;
@@ -195,20 +205,25 @@
       .then(function (r) {
         Halvo.markAnswer();
         if (r.outcome === "deleted" || r.outcome === "already_deleted") {
+          refusedInARow = 0;
           loading = true;
           Halvo.loadAgain(AFTER_DELETE);
           return null;
         } else if (r.outcome === "delete_refused") {
-          result.textContent = w.DELETE_REFUSED;
+          refusedInARow += 1;
+          result.textContent = refusedInARow >= 2 ? w.DELETE_REFUSED + " " + w.DELETE_REFUSED_TWICE : w.DELETE_REFUSED;
         } else {
+          refusedInARow = 0;
           result.textContent = "";
           Halvo.showError(w.ERROR_BROKEN);
         }
         return refreshAll();
       })
       .catch(function (e) {
-        if (e && typeof e === "object" && e.error === "busy") {
-          result.textContent = w.DELETE_BUSY;
+        refusedInARow = 0;
+        var own = ownWords(e);
+        if (own !== null) {
+          result.textContent = own;
           return;
         }
         result.textContent = answerLost(e) ? w.DELETE_UNKNOWN_OUTCOME : "";
