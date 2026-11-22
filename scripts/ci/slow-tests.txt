@@ -22,7 +22,7 @@
 # The groups: A the tests of the store (the slice mon); B the test targets of the agent and
 # coordinator packages, the target formal_traces and the unit tests of five packages (tue); C the name
 # parts of halvo-capture's unit tests and the doc-tests (fri in the macos job, fri in the windows job);
-# D the test targets of seven more packages and two targets by name (sat); E the one target
+# D the test targets of seven more packages and three targets by name (sat); E the one target
 # macos_stall_fixture (wed in the macos job, before 51-macos-stall, which reads from 12-test's list
 # that the launch-path test of that target ran; no windows slice runs it, where every test of it is
 # ignored). B and D were one group,
@@ -58,6 +58,7 @@ target page_gap_check A halvo-derived: 6 s macos, 4 s windows
 target formal_traces B halvo-route: 15 s macos, 10 s windows
 target derive_rules D halvo-route-gate: 12 s macos, 8 s windows
 target drift_cli D halvo-learn-gate: 9 s macos, 5 s windows
+target app_start_windows D halvo: no test on macos, 18 s windows; its waits behind a stop and before Start are spans of seconds, beside check 34
 target macos_stall_fixture E halvo-capture: 10 s macos, every test ignored on windows
 units halvo-learn-gate B 42 s macos, 24 s windows
 kept halvo-learn-gate tests::privacy the deletion of learned rows: the module tests::privacy of the package's unit tests, and the four tests of its module privacy::tests whose own name begins with privacy; ten tests, about 3 s on a Mac

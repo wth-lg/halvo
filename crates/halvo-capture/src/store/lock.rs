@@ -74,6 +74,31 @@ impl DirLock {
             Err(e) if e.kind() == ErrorKind::NotFound
         )
     }
+
+    /// Whether the lock file stands in `dir` marked for removal while a
+    /// handle keeps it open. Windows then refuses every open of the name, also
+    /// one that asks no right, with STATUS_DELETE_PENDING, which the thread's
+    /// last status holds right behind the refused open; every other answer, a
+    /// refusal by the file's rights among them, reads as not so.
+    pub(crate) fn file_marked_and_kept_in(dir: &Dir) -> bool {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+        const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+        const ERROR_ACCESS_DENIED: i32 = 5;
+        const STATUS_DELETE_PENDING: u32 = 0xC000_0056;
+        #[link(name = "ntdll")]
+        extern "system" {
+            fn RtlGetLastNtStatus() -> u32;
+        }
+        let refused = std::fs::OpenOptions::new()
+            .access_mode(0)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(dir.entry_path(std::ffi::OsStr::new(WRITER_LOCK)))
+            .is_err_and(|e| e.raw_os_error() == Some(ERROR_ACCESS_DENIED));
+        // SAFETY: the call takes no argument and reads the calling thread's own
+        // last status, which the refused open above set.
+        refused && unsafe { RtlGetLastNtStatus() } == STATUS_DELETE_PENDING
+    }
 }
 
 #[cfg(windows)]

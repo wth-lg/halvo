@@ -105,3 +105,69 @@ test("behind the running service a delete that did not finish offers Delete ever
   assert.equal(deleting.byId("delete").disabled, true, "a delete runs, so Delete everything cannot be pressed");
   assert.equal(deleting.text("store-state"), "Halvo is deleting everything.");
 });
+
+test("an offline delete whose two counts read unknown says that it deleted, names the folder and gives no count", async () => {
+  const unknownCounts = {
+    ...fixture("delete_all-deleted"),
+    segments_shredded: null,
+    keys_destroyed: null,
+    new_store_id: null,
+    looked_in: FOLDER,
+  };
+  const app = appKeeping([unknownCounts]);
+  const page = await openPage({ replies: app.replies });
+  const { pressed } = await confirmDelete(page);
+  assert.equal(page.calls("delete_offline").length, 1, "the confirmed press sends the offline delete");
+  app.release();
+  await pressed;
+  await page.settle();
+  const next = await page.reopen();
+  const shown = next.text("delete-result");
+  const w = next.window.Halvo.words;
+  assert.ok(shown.endsWith([w.DELETE_DONE, w.DELETE_COPIES, `The delete ran in Halvo's data folder, ${FOLDER}.`].join(" ")), shown);
+  assert.doesNotMatch(shown.replace(/^At \d\d:\d\d: /, "").replace(FOLDER, ""), /\d/, "no count");
+});
+
+test("on Windows a second unfinished delete says what a person does by hand in File Explorer, and a Mac keeps the Finder", async () => {
+  const BY_HAND_WINDOWS =
+    "To remove what is left yourself, quit Halvo, open that folder in File Explorer, delete what you do not want to keep, and empty the Recycle Bin.";
+  const app = appKeeping([leftSomething(2)]);
+  app.replies.capture_status = () => ({ ...notRunning(), platform: "windows" });
+  const page = await openPage({ replies: app.replies });
+  const { pressed } = await confirmDelete(page);
+  app.release();
+  await pressed;
+  await page.settle();
+  const next = await page.reopen();
+  await next.settle();
+  const shown = next.text("delete-result");
+  assert.ok(shown.includes(AGAIN), shown);
+  assert.ok(shown.includes(BY_HAND_WINDOWS), shown);
+  assert.ok(!shown.includes(next.window.Halvo.words.REMOVE_BY_HAND), shown);
+  const mac = appKeeping([leftSomething(2)]);
+  const onMac = await openPage({ replies: mac.replies });
+  const macPress = await confirmDelete(onMac);
+  mac.release();
+  await macPress.pressed;
+  await onMac.settle();
+  const macShown = (await onMac.reopen()).text("delete-result");
+  assert.ok(macShown.includes(onMac.window.Halvo.words.REMOVE_BY_HAND), macShown);
+  assert.ok(!macShown.includes(BY_HAND_WINDOWS), macShown);
+});
+
+test("a crash report of Halvo's own window that stayed at the end of a whole delete is said with its folder, beside the delete's own words", async () => {
+  const REPORTS = "D:\\halvo-webview\\Crashpad\\reports";
+  const whole = { ...fixture("delete_all-deleted"), new_store_id: null, looked_in: FOLDER };
+  const app = appKeeping([{ ...whole, crash_reports_left: REPORTS }]);
+  const page = await openPage({ replies: app.replies });
+  const { pressed } = await confirmDelete(page);
+  app.release();
+  await pressed;
+  await page.settle();
+  const next = await page.reopen();
+  const shown = next.text("delete-result");
+  const w = next.window.Halvo.words;
+  const own = [w.DELETE_DONE, w.DELETE_COPIES, `The delete ran in Halvo's data folder, ${FOLDER}.`].join(" ");
+  const said = `Halvo could not remove a crash report of its own window in ${REPORTS}. The report can hold what the window showed. Remove it yourself.`;
+  assert.ok(shown.endsWith(`${own} ${said}`), shown);
+});

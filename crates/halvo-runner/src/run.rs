@@ -363,6 +363,18 @@ impl Runner {
         step: Option<NonZeroU32>,
         cause: Option<Cause>,
     ) -> Result<(), Stop> {
+        self.log_amount(event, step, cause, None)
+    }
+
+    /// Stores one line of the run's log with `page_amount`, the amount that the page after a made payment or purchase
+    /// named other than the card's, which the line of `amount_differs` alone holds (r3 U5.10-B).
+    pub(crate) fn log_amount(
+        &mut self,
+        event: LogEvent,
+        step: Option<NonZeroU32>,
+        cause: Option<Cause>,
+        page_amount: Option<u32>,
+    ) -> Result<(), Stop> {
         self.log_seq += 1;
         let at = now();
         let record = AgentLog {
@@ -380,6 +392,7 @@ impl Runner {
             ms: None,
             tokens_in: None,
             tokens_out: None,
+            page_amount,
         };
         let call = RunnerCall::Log(PutLog {
             agent: self.args.agent.clone(),
@@ -479,6 +492,7 @@ impl Runner {
                 ms: None,
                 tokens_in: None,
                 tokens_out: None,
+                page_amount: None,
             };
             let call = RunnerCall::Log(PutLog {
                 agent: self.args.agent.clone(),
