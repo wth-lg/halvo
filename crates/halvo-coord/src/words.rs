@@ -92,6 +92,14 @@ pub const KEYS: &[(&str, &str)] = &[
         "This agent needs Google Chrome or Microsoft Edge to open web pages. Install one of them, then run the agent again.",
     ),
     (
+        "line.problem.browser_start",
+        "The browser did not start, so this agent could not open web pages. Run the agent again.",
+    ),
+    (
+        "line.problem.no_channel",
+        "The browser started but did not answer, so this agent could not open web pages. Run the agent again.",
+    ),
+    (
         "line.off.kept",
         "This task is switched off. To let it run again, choose Switch on.",
     ),

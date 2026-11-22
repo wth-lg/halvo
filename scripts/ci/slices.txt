@@ -31,6 +31,7 @@ wed macos check 30-core-boundary-proofs
 wed macos check 55-r6-formal
 wed macos check 25-advisories
 wed windows check 50-windows-functional
+wed windows check 60-r6-egress
 
 thu macos check 62-build
 thu macos check 32-app-check-page
@@ -41,12 +42,16 @@ thu macos check 20-r6-gateway
 thu macos check 80-r6-absent
 thu macos check 25-advisories
 thu windows check 52-windows-browser
+thu windows check 10-egress
 
 fri macos self-test 12-test
+fri macos self-test 17-workflow-lint
 fri macos self-test 18-hook-scan
 fri macos self-test 19-control-links-no-store
 fri macos self-test 20-app-links-no-store
 fri macos self-test 23-daemon-port-only
+fri macos self-test 23-licences
+fri macos self-test 25-advisories
 fri macos self-test 30-core-boundary-proofs
 fri macos self-test 31-app-page-layout
 fri macos self-test 31-store-full-volume
@@ -62,6 +67,7 @@ fri macos self-test 40-r6-policy
 fri macos self-test 55-r6-formal
 fri macos self-test 21-r7-backend-test
 fri macos self-test 27-r7-metering-self
+fri macos tests C
 fri macos check 25-advisories
 fri windows self-test 12-test
 fri windows self-test 19-control-links-no-store
@@ -92,9 +98,6 @@ sat windows tests D
 
 sun macos check 62-build
 sun macos check 70-package-macos
-sun macos tests C
 sun macos check 25-advisories
 sun windows check 62-build
 sun windows check 70-package-windows
-sun windows check 60-r6-egress
-sun windows check 10-egress
