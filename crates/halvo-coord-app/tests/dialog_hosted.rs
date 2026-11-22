@@ -19,6 +19,15 @@
 //! Windows a dialog that has not reported itself in 3 s is brought to the foreground once, with
 //! a line that says so.
 //!
+//! On Windows every case that shows a dialog, the bound cases among them, reads the display
+//! affinity of the dialog's window by the system's own GetWindowDisplayAffinity once the dialog
+//! has reported itself on screen and before the case acts, and fails on a number other than 17,
+//! WDA_EXCLUDEFROMCAPTURE, where the system keeps the window out of screenshots, screen shares and
+//! screen recordings that are made through Windows' own capture features. After the bound cases one
+//! line, `dialog_hosted capture:`, prints the readings, each once, and as the control of
+//! the read in the same run the affinity of a hidden top-level window of the target's own process
+//! that never got the call, which reads 0.
+//!
 //! After its cases it reads every bound of the native card on the screen (ruling RD-90 items 1
 //! and 9): a card of `CARD_LINES` lines, an empty line between two fields, each of `CARD_COLUMNS`
 //! columns filled with the widest letter, with wide characters and with letters that each carry a
@@ -1401,13 +1410,97 @@ mod cases {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, PoisonError};
     use std::time::Instant;
-    use windows::core::{HSTRING, PCWSTR};
-    use windows::Win32::Foundation::{LPARAM, RECT, WPARAM};
+    use windows::core::{w, HSTRING, PCWSTR};
+    use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, GetSystemMetrics, GetWindowRect, IsWindowVisible, PostMessageW, SendMessageW,
-        SetForegroundWindow, SystemParametersInfoW, SM_CXSCREEN, SM_CYSCREEN, SPI_GETWORKAREA,
-        SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WM_CLOSE, WM_USER,
+        CreateWindowExW, DestroyWindow, FindWindowW, GetSystemMetrics, GetWindowDisplayAffinity,
+        GetWindowRect, IsWindowVisible, PostMessageW, SendMessageW, SetForegroundWindow,
+        SystemParametersInfoW, SM_CXSCREEN, SM_CYSCREEN, SPI_GETWORKAREA,
+        SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WDA_EXCLUDEFROMCAPTURE, WINDOW_EX_STYLE, WM_CLOSE,
+        WM_USER, WS_POPUP,
     };
+
+    /// The display affinities that the cases of this run read of their dialogs' windows, one a
+    /// case, in the order of the reads.
+    static AFFINITIES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    /// The display affinity of `window` as the system reads it (GetWindowDisplayAffinity), or `-`
+    /// where it cannot be read.
+    fn affinity(window: HWND) -> String {
+        let mut affinity = 0u32;
+        // SAFETY: `window` is a window of this process or one that has gone, whose read fails;
+        // `affinity` is a live local that the call writes.
+        match unsafe { GetWindowDisplayAffinity(window, &mut affinity) } {
+            Ok(()) => affinity.to_string(),
+            Err(_) => "-".to_owned(),
+        }
+    }
+
+    /// Keeps the reading of a case's dialog for the run's line, and its failure: a reading other
+    /// than 17, WDA_EXCLUDEFROMCAPTURE, where the system keeps the window out of screenshots, screen
+    /// shares and screen recordings that are made through Windows' own capture features.
+    fn out_of_capture(read: Option<String>) -> Option<String> {
+        let read = read.unwrap_or_else(|| "none".to_owned());
+        AFFINITIES
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(read.clone());
+        (read != WDA_EXCLUDEFROMCAPTURE.0.to_string()).then(|| {
+            format!(
+                "the dialog's window read the display affinity {read}, not {}",
+                WDA_EXCLUDEFROMCAPTURE.0
+            )
+        })
+    }
+
+    /// The run's one line of the capture, in the form of the line of the app's check page: the
+    /// display affinities that the cases read of their dialogs, each once, and as the control of
+    /// the read, the affinity of a top-level window of this process that never got the call.
+    fn capture_line() {
+        // SAFETY: a hidden top-level window of the system's own class STATIC, made by this thread
+        // and never shown; the class and the title are static strings.
+        let made = unsafe {
+            CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                w!("STATIC"),
+                w!("dialog_hosted control"),
+                WS_POPUP,
+                0,
+                0,
+                0,
+                0,
+                None,
+                None,
+                None,
+                None,
+            )
+        };
+        let control = match made {
+            Ok(window) => {
+                let read = affinity(window);
+                // SAFETY: the window that this thread made above.
+                let _ = unsafe { DestroyWindow(window) };
+                read
+            }
+            Err(_) => "-".to_owned(),
+        };
+        let reads = AFFINITIES
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let mut each = reads.clone();
+        each.sort();
+        each.dedup();
+        println!(
+            "dialog_hosted capture: dialogs_read={} display_affinity={} control={control}",
+            reads.len(),
+            if each.is_empty() {
+                "none".to_owned()
+            } else {
+                each.join(",")
+            }
+        );
+    }
 
     pub const LIST: u32 = 5;
     const TDM_CLICK_BUTTON: u32 = WM_USER + 102;
@@ -1440,6 +1533,7 @@ mod cases {
                 let mut timing = String::from("no read");
                 let mut bound = false;
                 let mut brought = false;
+                let mut read = None;
                 while !done.load(Ordering::SeqCst) {
                     // SAFETY: the title is a string that lives for the call.
                     let found = unsafe { FindWindowW(PCWSTR::null(), &title) };
@@ -1466,6 +1560,7 @@ mod cases {
                         }
                         if at_act.is_none() {
                             at_act = Some(REPORTS.load(Ordering::SeqCst));
+                            read = Some(affinity(window));
                             let at = *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner);
                             timing = match at {
                                 Some(at) if visible => at.elapsed().as_millis().to_string(),
@@ -1496,7 +1591,7 @@ mod cases {
                     }
                     std::thread::sleep(std::time::Duration::from_millis(50));
                 }
-                (at_act, bound, timing)
+                (at_act, bound, timing, read)
             }
         });
         let answer = dialog.show(card, arm(), &|| {
@@ -1507,11 +1602,12 @@ mod cases {
                 .get_or_insert_with(Instant::now);
         });
         done.store(true, Ordering::SeqCst);
-        let (at_act, bound, timing) = poker
-            .join()
-            .unwrap_or((None, true, String::from("no read")));
+        let (at_act, bound, timing, read) =
+            poker
+                .join()
+                .unwrap_or((None, true, String::from("no read"), None));
         println!("dialog_hosted timing {name}: report_to_visible_ms={timing}");
-        let mut failures = Vec::new();
+        let mut failures: Vec<String> = out_of_capture(read).into_iter().collect();
         if bound {
             failures.push(format!(
                 "the case reached its bound of {} s",
@@ -1578,6 +1674,7 @@ mod cases {
             let done = done.clone();
             move || {
                 let mut read = None;
+                let mut capture = None;
                 while !done.load(Ordering::SeqCst) {
                     // SAFETY: the title is a string that lives for the call.
                     let found = unsafe { FindWindowW(PCWSTR::null(), &title) };
@@ -1590,6 +1687,7 @@ mod cases {
                             .unwrap_or_else(PoisonError::into_inner)
                             .is_some();
                         if read.is_none() && visible && reported {
+                            capture = Some(affinity(window));
                             let mut g = Geometry {
                                 window: RECT::default(),
                                 work: RECT::default(),
@@ -1624,7 +1722,7 @@ mod cases {
                     }
                     std::thread::sleep(std::time::Duration::from_millis(50));
                 }
-                read
+                (read, capture)
             }
         });
         let answer = dialog.show(card, arm(), &|| {
@@ -1635,14 +1733,14 @@ mod cases {
                 .get_or_insert_with(Instant::now);
         });
         done.store(true, Ordering::SeqCst);
-        let read = poker.join().unwrap_or(None);
+        let (read, capture) = poker.join().unwrap_or((None, None));
         let to_report = REPORT_AT
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .map_or("no report".to_owned(), |at| {
                 at.duration_since(shown).as_millis().to_string()
             });
-        let mut failures = Vec::new();
+        let mut failures: Vec<String> = out_of_capture(capture).into_iter().collect();
         if answer != ConfirmAnswer::Reject {
             failures.push(format!("the answer was {}, not reject", word(answer)));
         }
@@ -1696,6 +1794,7 @@ mod cases {
             }
         }
         let bounds = bounds_end(&failed, bounds.len(), BOUND_FILLS.len());
+        capture_line();
         text_size_try();
         end(&verdicts, CASES.len(), bounds);
     }

@@ -2742,6 +2742,7 @@ mod tests {
         give.send(Ok(DeleteOutcome::Deleted(halvo_control::proto::Deleted {
             report: halvo_control::testing::sample_delete_report(),
             store: None,
+            unfinished: false,
         })))
         .unwrap();
         let answer = deleting.join().unwrap();
@@ -2867,6 +2868,7 @@ mod tests {
         give.send(Ok(DeleteOutcome::Deleted(halvo_control::proto::Deleted {
             report: halvo_control::testing::sample_delete_report(),
             store: None,
+            unfinished: false,
         })))
         .unwrap();
         assert!(matches!(
@@ -3970,6 +3972,7 @@ mod tests {
                 &DeleteOutcome::Deleted(Deleted {
                     report,
                     store: None,
+                    unfinished: false,
                 }),
                 None,
             )
@@ -4556,6 +4559,7 @@ mod tests {
             Ok(DeleteOutcome::Deleted(halvo_control::proto::Deleted {
                 report: halvo_control::testing::sample_delete_report(),
                 store: None,
+                unfinished: false,
             }))
         }
 
