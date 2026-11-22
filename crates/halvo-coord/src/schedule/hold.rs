@@ -151,18 +151,20 @@ pub fn kept_off<C>(facts: &Facts<C>) -> bool {
 }
 
 /// Whether the hold `site_declined` stands (I5.4; the coordinator's way (a), r4 U2.4a): the
-/// agent's newest started run, the run of the newest `run_started` of its events, holds the
-/// person's stored `decline` of the second step of a sign-in item, the question that allows a
-/// site, as `said_no_at_sign_in` reads it for a run. The core stores that answer before it sends
-/// it, so the next life reads it too. Nothing is stored for the hold: only a newer `run_started`,
-/// which a start of the person makes, ends it. Named limit: the rows that it reads are handed
-/// out for 93 days (I7.1), after which the hold is gone and the schedule asks once more.
+/// agent store has ended the agent's newest started run, the run of the newest `run_started` of
+/// its events, as for the hold `check`, so that a run that is still stopping shows its phase; and
+/// that run holds the person's stored `decline` of the second step of a sign-in item, the
+/// question that allows a site, as `said_no_at_sign_in` reads it for a run. The core stores that
+/// answer before it sends it, so the next life reads it too. Nothing is stored for the hold: only
+/// a newer `run_started`, which a start of the person makes, ends it. Named limit: the rows that
+/// it reads are handed out for 93 days (I7.1), after which the hold is gone and the schedule asks
+/// once more.
 fn site_declined<C>(facts: &Facts<C>) -> bool {
     let newest = facts.events.iter().rev().find_map(|e| match &e.what {
         What::RunStarted { run, .. } => Some(run),
         _ => None,
     });
-    newest.is_some_and(|run| said_no_at_sign_in(&facts.events, run))
+    facts.store_ended && newest.is_some_and(|run| said_no_at_sign_in(&facts.events, run))
 }
 
 fn check<C>(facts: &Facts<C>) -> bool {

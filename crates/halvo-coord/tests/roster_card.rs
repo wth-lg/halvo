@@ -708,6 +708,63 @@ fn u24a_a_no_at_the_site_question_of_the_newest_run_holds_the_row_and_the_rest_s
 }
 
 #[test]
+fn u24a_while_the_declined_run_is_still_stopping_the_row_says_so_and_the_hold_comes_when_it_is_idle(
+) {
+    use halvo_coord::roster::{controls, status_of};
+    use halvo_coord::types::{
+        BindAnswer, BindResult, Control, Doing, Live, Origin, SignInAnswer, Trigger,
+    };
+    let item = ItemId::parse(&format!("{:032x}", 0x61)).unwrap();
+    let limits = Limits::PRODUCT;
+    let mut f = facts(State::Card).remove(0);
+    let (run, trigger) = (run_of(2), Trigger::Person);
+    row(
+        &mut f,
+        What::RunStarted {
+            run,
+            trigger,
+            slot: None,
+        },
+    );
+    let raised = Raised::SignIn(run_of(2));
+    row(
+        &mut f,
+        What::ItemRaised {
+            item: item.clone(),
+            raised,
+        },
+    );
+    let bind = BindAnswer {
+        answer: BindResult::Decline,
+        origin: Origin::parse("https://site1.example:443").unwrap(),
+    };
+    let answer = Answered::SignIn(SignInAnswer::Second(bind));
+    row(&mut f, What::ItemAnswered { item, answer });
+    f.doing = Doing::Live(Live::Stopping);
+    f.store_ended = false;
+    let stopping = status_of(&f, &limits, None, false);
+    assert_eq!(stopping.key(), "line.working.stopping");
+    assert_eq!(line(&stopping.key()), "It is stopping.");
+    let (run, cause) = (run_of(2), RunEnd::Declined);
+    row(
+        &mut f,
+        What::RunEnded {
+            run,
+            cause,
+            defers: None,
+        },
+    );
+    f.doing = Doing::Idle(None);
+    f.store_ended = true;
+    let idle = status_of(&f, &limits, None, false);
+    assert_eq!(idle.key(), "line.problem.site_declined");
+    assert_eq!(
+        controls(&f, None, &limits),
+        vec![Control::RunNow, Control::SwitchOff, Control::Delete]
+    );
+}
+
+#[test]
 fn rd85_two_cards_in_one_run_a_no_on_the_first_and_a_lapse_of_the_second() {
     let mut f = facts(State::Card).remove(0);
     raised(&mut f, 0x51, &run_of(2));
