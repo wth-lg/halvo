@@ -209,6 +209,7 @@ struct HoldState {
     data_dir_unusable: bool,
     consenting: bool,
     login_item_written: Option<bool>,
+    removing: bool,
 }
 
 /// A consent click in flight, from `Hold::begin_consent` to its drop.
@@ -328,7 +329,8 @@ impl Hold {
     /// supervisor has taken one. Answers whether it asked.
     pub fn ask_start(&self) -> bool {
         let mut state = self.state();
-        let start = (state.held && state.no_more_child) || (state.between && !state.child_lives);
+        let start = !state.removing
+            && ((state.held && state.no_more_child) || (state.between && !state.child_lives));
         if start {
             state.start_asked = true;
             drop(state);
@@ -352,15 +354,24 @@ impl Hold {
     }
 
     /// Begins a consent click: none while the hold stands, whose press is then the hold's and
-    /// never a new consent, while the data directory reads its own cause, and while another
-    /// consent click is in flight.
+    /// never a new consent, while the data directory reads its own cause, while another consent
+    /// click is in flight, and while the mark of a removal of Halvo stands.
     pub fn begin_consent(&self) -> Option<Consenting<'_>> {
         let mut state = self.state();
-        if state.held || state.data_dir_unusable || state.consenting {
+        if state.held || state.data_dir_unusable || state.consenting || state.removing {
             return None;
         }
         state.consenting = true;
         Some(Consenting(self))
+    }
+
+    /// Sets the mark of a removal of Halvo (`stands`), from the begin of its list, or takes it
+    /// off where the list stopped or unwound: while it stands no consent click begins and no
+    /// Start is asked, so that no press writes the login item again or asks for a child; after
+    /// a whole list it stands to the end of the app.
+    #[cfg(target_os = "macos")]
+    pub fn removal(&self, stands: bool) {
+        self.state().removing = stands;
     }
 
     /// What the consent click read of its write of the login item: whether the plist stands
@@ -1226,23 +1237,12 @@ impl DeleteView {
     /// and a no_store end the row; any other answer leaves the count as it stands.
     pub fn count_unfinished(&mut self, in_a_row: &std::sync::atomic::AtomicU32) {
         use std::sync::atomic::Ordering;
+        let finished = self.finished();
         match self {
             DeleteView::Deleted {
-                root_destroyed,
-                not_followed,
-                files_left,
-                database_left,
-                entries_left,
                 unfinished_in_a_row,
-                not_whole,
                 ..
             } => {
-                let finished = !*not_whole
-                    && *root_destroyed == RootDestroyed::Yes
-                    && *not_followed == 0
-                    && *files_left == 0
-                    && !*database_left
-                    && *entries_left == 0;
                 if finished {
                     in_a_row.store(0, Ordering::SeqCst);
                 } else {
@@ -1255,6 +1255,33 @@ impl DeleteView {
                 in_a_row.store(0, Ordering::SeqCst);
             }
             DeleteView::DeleteRefused => {}
+        }
+    }
+
+    /// Whether this is a deleted answer that finished: its run ended as whole, and it left no
+    /// key, no file, no database and no entry of Halvo's own; an entry that Halvo does not know
+    /// does not count.
+    pub fn finished(&self) -> bool {
+        match self {
+            DeleteView::Deleted {
+                root_destroyed,
+                not_followed,
+                files_left,
+                database_left,
+                entries_left,
+                not_whole,
+                ..
+            } => {
+                !*not_whole
+                    && *root_destroyed == RootDestroyed::Yes
+                    && *not_followed == 0
+                    && *files_left == 0
+                    && !*database_left
+                    && *entries_left == 0
+            }
+            DeleteView::AlreadyDeleted { .. }
+            | DeleteView::NoStore { .. }
+            | DeleteView::DeleteRefused => false,
         }
     }
 
@@ -1413,4 +1440,83 @@ fn deleted_fields(line: &str) -> Option<DeleteFields> {
         intent: text("intent")?.parse().ok()?,
     };
     DeleteReport::new(fields).ok().map(|_| fields)
+}
+
+/// A step of Remove Halvo (contracts.md C10.7).
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Step {
+    Account,
+    DeleteAll,
+    Keychain,
+    LoginItem,
+    AppFiles,
+    DataDir,
+}
+
+/// The steps of Remove Halvo in their order; a failed step ends the list.
+#[cfg(target_os = "macos")]
+pub const STEPS: [Step; 6] = [
+    Step::Account,
+    Step::DeleteAll,
+    Step::Keychain,
+    Step::LoginItem,
+    Step::AppFiles,
+    Step::DataDir,
+];
+
+/// How a step ended.
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Outcome {
+    Done,
+    Skipped,
+    Failed,
+}
+
+/// What a step tells beside its outcome: the folder that it names, a count, and the cause of a
+/// skip or a failure.
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct Detail {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub count: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cause: Option<String>,
+}
+
+/// One step of the answer.
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct StepResult {
+    pub step: Step,
+    pub result: Outcome,
+    pub detail: Detail,
+}
+
+/// The answer of `remove_halvo`: the steps that ran, in their order, up to a failed one; none
+/// where the list did not start.
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct Removal {
+    pub steps: Vec<StepResult>,
+}
+
+#[cfg(target_os = "macos")]
+impl Removal {
+    /// Whether the list ran to its end: every step, and none failed.
+    pub fn whole(&self) -> bool {
+        self.steps.len() == STEPS.len()
+            && self.steps.iter().all(|step| step.result != Outcome::Failed)
+    }
+
+    /// The exit of the app after this answer: 0 after a whole list, none after one that
+    /// stopped.
+    pub fn exit(&self) -> Option<i32> {
+        self.whole().then(|| crate::launch::Exit::Quit.code())
+    }
 }

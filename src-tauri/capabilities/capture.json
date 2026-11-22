@@ -17,6 +17,7 @@
     "allow-acknowledge-lost-permission",
     "allow-start-capture",
     "allow-delete-offline",
+    "allow-remove-halvo",
     "core:app:allow-version"
   ]
 }

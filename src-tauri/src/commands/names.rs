@@ -23,6 +23,7 @@ pub const CAPTURE: Names = Names {
         "acknowledge_lost_permission",
         "start_capture",
         "delete_offline",
+        "remove_halvo",
     ],
     reads: &[
         "capture_status",
