@@ -82,7 +82,8 @@ pub enum Next {
     WaitForAPress,
     StartNow,
     StartAfter(Duration),
-    /// No further child in this life of the app.
+    /// No child starts by itself, after the third end with 5 in a row and after an end with 6:
+    /// a person's press on Start starts one again, and a quit ends the wait.
     NoMoreChild,
 }
 
