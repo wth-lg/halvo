@@ -1355,22 +1355,24 @@ mod tests {
                     "the child ended first, no start after it, and exit 0"
                 );
             } else {
-                let looked_again_behind_the_backoff = || {
-                    let waits = clock.waits();
-                    waits
-                        .iter()
-                        .position(|wait| *wait == crate::daemon_child::BACKOFF_FIRST)
-                        .is_some_and(|at| waits.len() > at + 3)
-                };
+                use crate::daemon_child::Clock;
+                let behind = clock.now();
                 let until = Instant::now() + Duration::from_secs(10);
-                while !looked_again_behind_the_backoff() {
+                while clock.now().saturating_duration_since(behind)
+                    <= crate::daemon_child::BACKOFF_MAX
+                {
                     assert!(
                         Instant::now() < until,
-                        "after a list that stopped the supervisor passes the backoff's wait and looks again: {:?}",
+                        "behind a list that stopped the supervisor's clock passes the longest backoff: {:?}",
                         noted(&record)
                     );
                     std::thread::sleep(Duration::from_millis(5));
                 }
+                assert_eq!(
+                    noted(&record),
+                    expected,
+                    "the child ended first, a press while the list ran did nothing, and a list that stopped has no exit, no start by itself and no lift at its end"
+                );
                 let calls = Arc::<crate::commands::control::Places>::default();
                 held.runs.drawn(held.core.as_deref(), &views, &calls);
                 views.take_poll(
@@ -1382,7 +1384,7 @@ mod tests {
                 assert_eq!(
                     noted(&record),
                     expected,
-                    "the child ended first, a press while the list ran did nothing, a list that stopped has no exit and no start by itself, and the lift comes at the first poll read behind the list"
+                    "the lift comes at the first poll read behind the list"
                 );
                 let _ = consent(
                     &Gated::new(Unresolved),
