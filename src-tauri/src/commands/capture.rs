@@ -276,6 +276,9 @@ pub enum DeleteEnd {
     /// The life that the first request reached ended with status 5 and no later life answered
     /// within the wait, so no second request was sent: the first request's error.
     NoLifeAnswered(ClientError),
+    /// The first request read no reply and the second request's answer removed nothing by
+    /// itself, so what the first request did stays not known: the first request's error.
+    FirstNotKnown(ClientError),
 }
 
 /// What the flow of a person's delete ended with, the number of the call of the delete request
@@ -292,7 +295,8 @@ pub struct DeleteAsked {
 /// read a plain busy or no reply, a store id was armed and the child that it reached ended with
 /// status 5, the flow waits for a later child that answers a plain Status and asks once more with
 /// the same id; it sends no Status that claims the indicator and no Resume, and never a third
-/// request (contracts.md C2.1).
+/// request (contracts.md C2.1). Where the first request read no reply, a second answer that removes
+/// nothing by itself leaves what the first request did not known.
 pub fn ask_to_delete(
     control: &dyn Control,
     views: &Views,
@@ -302,30 +306,42 @@ pub fn ask_to_delete(
     let hold = views.hold();
     let life = hold.life();
     let (answer, call, next_number_at_answer) = ask_once(control, views, armed);
-    let first = DeleteAsked {
-        end: DeleteEnd::Answered(answer),
-        call,
-        next_number_at_answer,
+    let (life, first) = match (life, armed, answer) {
+        (Some(life), Some(_), Err(first)) if asks_again(&first) => (life, first),
+        (_, _, answer) => {
+            return DeleteAsked {
+                end: DeleteEnd::Answered(answer),
+                call,
+                next_number_at_answer,
+            }
+        }
     };
-    let (Some(life), Some(_), DeleteEnd::Answered(Err(error))) = (life, armed, &first.end) else {
-        return first;
-    };
-    if !asks_again(error) || !hold.ended_with_5(life, Instant::now() + waits.asked_life_end) {
-        return first;
+    if !hold.ended_with_5(life, Instant::now() + waits.asked_life_end) {
+        return DeleteAsked {
+            end: DeleteEnd::Answered(Err(first)),
+            call,
+            next_number_at_answer,
+        };
     }
     if !a_later_life_answers(control, hold, life, Instant::now() + waits.next_life) {
-        let DeleteEnd::Answered(Err(error)) = first.end else {
-            return first;
-        };
         return DeleteAsked {
-            end: DeleteEnd::NoLifeAnswered(error),
-            call: first.call,
+            end: DeleteEnd::NoLifeAnswered(first),
+            call,
             next_number_at_answer: control.places().next_number(),
         };
     }
     let (answer, call, next_number_at_answer) = ask_once(control, views, armed);
+    let end = match answer {
+        Err(second)
+            if matches!(first, ClientError::Deadline { .. })
+                && a_delete_removed_nothing(&second) =>
+        {
+            DeleteEnd::FirstNotKnown(first)
+        }
+        answer => DeleteEnd::Answered(answer),
+    };
     DeleteAsked {
-        end: DeleteEnd::Answered(answer),
+        end,
         call,
         next_number_at_answer,
     }
@@ -412,6 +428,7 @@ pub async fn delete_all(
             Err(ActionError::ServiceNotBack),
             a_delete_removed_nothing(&first),
         ),
+        DeleteEnd::FirstNotKnown(first) => (delete_view(Err(first), roots.as_deref()), false),
     };
     match &view {
         Ok(DeleteView::Deleted { .. } | DeleteView::AlreadyDeleted { .. }) => {

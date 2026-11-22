@@ -2546,6 +2546,98 @@ mod tests {
     }
 
     #[test]
+    fn after_a_first_no_reply_a_second_ask_that_removes_nothing_leaves_the_outcome_not_known() {
+        use crate::commands::capture::AppState;
+        use crate::commands::control::Watching;
+        use crate::tests::{
+            invoke, macos_fixture_daemon, main_window, scratch_dir, test_app_from, test_parts,
+            APP_URL,
+        };
+        use halvo_control::proto::ErrorReply;
+        fn no_pane(_: Permission) -> Result<(), String> {
+            Ok(())
+        }
+        let id: StoreId = "00000000000000000000000000000009".parse().unwrap();
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let first_ends = Later::default();
+        let spawner = StandInSpawner {
+            children: [
+                StandInChild {
+                    later: Some(Arc::clone(&first_ends)),
+                    ..StandInChild::new(1000, &clock, &record)
+                },
+                StandInChild::new(1001, &clock, &record),
+            ]
+            .into_iter()
+            .collect(),
+            record: Arc::clone(&record),
+        };
+        let pid = Arc::<ChildPid>::default();
+        let control = Watching::new(
+            Deletes {
+                places: Arc::default(),
+                record: Arc::clone(&record),
+                pid: Arc::clone(&pid),
+                answers: Mutex::new(
+                    [
+                        (
+                            Err(ClientError::Deadline { seconds: 120 }),
+                            Some(Arc::clone(&first_ends)),
+                        ),
+                        (
+                            Err(ClientError::ServiceEnding(
+                                ErrorReply::busy_of_an_ending_life(),
+                            )),
+                            None,
+                        ),
+                    ]
+                    .into(),
+                ),
+            },
+            Arc::clone(&pid),
+        );
+        let state = AppState::with_control(Arc::new(control), None, no_pane);
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&state.views),
+        );
+        let test = test_app_from(
+            test_parts(scratch_dir("delete-first-no-reply"), state),
+            crate::app::context(),
+            halvo_control::testing::ScriptedConnector::new(macos_fixture_daemon()),
+        );
+        until("the first child starts", || pid.get() == Some(1000));
+        let reply = invoke(
+            &main_window(&test.app),
+            APP_URL,
+            "delete_all",
+            serde_json::json!({ "storeId": id.to_string() }),
+        );
+        let seen = record.lock().unwrap().clone();
+        drop(supervisor.close());
+        let asked: Vec<&String> = seen
+            .iter()
+            .filter(|line| line.starts_with("delete"))
+            .collect();
+        assert_eq!(
+            asked,
+            [
+                &format!("delete {id} to 1000"),
+                &format!("delete {id} to 1001")
+            ],
+            "a first ask with no reply, an end with 5, and one second ask to the next child"
+        );
+        assert_eq!(
+            reply,
+            Err(serde_json::json!({ "error": "deadline", "seconds": 120, "outcome_not_known": true })),
+            "the typed busy of the second ask removed nothing by itself: what the first ask did stays not known, and the page draws DELETE_UNKNOWN_OUTCOME for it"
+        );
+    }
+
+    #[test]
     fn the_child_is_started_again_by_its_exit_status() {
         let s = Duration::from_secs;
         let status = Ending::Status;
