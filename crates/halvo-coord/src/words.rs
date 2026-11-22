@@ -650,7 +650,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "ask.stop_sign_in.stops",
-        "Halvo will stop using the sign-in that it keeps for this agent, and removes it within 35 days.",
+        "Halvo will stop using the sign-in that it keeps for this agent and remove it from this computer.",
     ),
     (
         "ask.stop_sign_in.next",
@@ -772,6 +772,10 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "refused.switch_not_saved",
         "Halvo is stopping the task but could not switch this agent off. It may start again: press Switch off again.",
+    ),
+    (
+        "refused.sign_in_not_finished",
+        "Halvo could not finish this. If this agent still shows Stop using its sign-in, choose it again.",
     ),
 ];
 

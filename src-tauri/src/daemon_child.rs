@@ -90,8 +90,8 @@ pub enum Next {
 /// Whose stop an end of the app's child with status 0 was (contracts.md C14 item 4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Clean {
-    /// A stop of the app's own that wants a start, which set the mark: the stops `Restart` and
-    /// `NoReply`, and the offline delete's.
+    /// A stop of the app's own that wants a start, which set the mark: the stops `Restart`,
+    /// `NoReply` and `Renew`, and the offline delete's.
     Asked,
     /// A stop that the app did not ask for, of a child that answered as the app's own and so had
     /// passed the instance lock.
@@ -111,8 +111,8 @@ impl Clean {
     }
 }
 
-/// Why the app ends its own child (contracts.md C14 item 4). `Restart` and `NoReply` want a
-/// start after the end, as the offline delete does: each sets the mark of a start that the app
+/// Why the app ends its own child (contracts.md C14 item 4). `Restart`, `NoReply` and `Renew`
+/// want a start after the end, as the offline delete does: each sets the mark of a start that the app
 /// wants, so that an end with 0 of that child is followed by a start at once.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stop {
@@ -127,6 +127,10 @@ pub enum Stop {
     /// A request of the app to the child passed its deadline with no reply: an end with 0 is
     /// followed by a start at once, any other end by the rule of `next`, and a kill sets no hold.
     NoReply,
+    /// A press asked for a new child to renew the screen that a Windows run holds spent, since
+    /// such a run makes one screen session (`Hold::ask_renewal`): as NoReply, an end with 0 is
+    /// followed by a start at once, any other end by the rule of `next`.
+    Renew,
 }
 
 /// What the rule keeps from one end of a child to the next: the last wait of the backoff and
@@ -855,6 +859,9 @@ fn watch<C: Watched, K: Clock>(
             let owed = state.ended();
             return Some(Seen::Ended(ending, owed));
         }
+        if views.hold().take_renewal() {
+            return Some(Seen::Stop(Stop::Renew));
+        }
         match pid.take_sight(child.pid()) {
             Some(Sight::SourceNotStopped) => return Some(Seen::Stop(Stop::SourceNotStopped)),
             Some(Sight::NoReply) => return Some(Seen::Stop(Stop::NoReply)),
@@ -886,7 +893,7 @@ fn stop_and_start<C: Watched, K: Clock>(
     let mut stop = stop;
     let until = clock.now() + STOP_WAIT;
     let mut state = shared.lock();
-    if matches!(stop, Stop::Restart | Stop::NoReply) {
+    if matches!(stop, Stop::Restart | Stop::NoReply | Stop::Renew) {
         state.owe_a_start();
     }
     state.child.as_mut()?.close_lifeline();
@@ -913,7 +920,7 @@ fn stop_and_start<C: Watched, K: Clock>(
     drop(state);
     let ending = match stop {
         Stop::SourceNotStopped => Ending::Status(exit::SOURCE_NOT_STOPPED),
-        Stop::Restart | Stop::NoReply => ended,
+        Stop::Restart | Stop::NoReply | Stop::Renew => ended,
     };
     if stop == Stop::Restart && ending != Ending::Status(exit::SOURCE_NOT_STOPPED) {
         return Some((ending, Next::StartNow, Restarts::default()));
@@ -3769,8 +3776,17 @@ mod tests {
             record: Arc::clone(&record),
         };
         let views = Views::default();
+        let read_behind_the_answer = || {
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+            pass(&control, &views, None);
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+        };
         let _ = delete_everything(&before, &control, &views, None, DELETE_WAITS);
-        pass(&control, &views, None);
+        read_behind_the_answer();
         let dir = DataDir::from_flag(crate::tests::scratch_dir("tell-first"))
             .expect("an absolute directory");
         let looked_in = dir.path().display().to_string();
@@ -3792,6 +3808,7 @@ mod tests {
             ask_offline(&views, 0, Some(&offline), &before),
             Ok(DeleteView::NoStore { looked_in })
         );
+        read_behind_the_answer();
         let seen = record.lock().unwrap().clone();
         assert_eq!(seen.len(), 10, "{seen:?}");
         for (door, part, request) in [
@@ -3808,7 +3825,7 @@ mod tests {
             assert_eq!(
                 part[2..],
                 ["stop", request, "lift"],
-                "{door}: the stop, then the request, then the lift"
+                "{door}: the stop, then the request, then the lift, at the latest at the first poll read behind the answer"
             );
         }
 
@@ -4468,6 +4485,441 @@ mod tests {
             wire,
             read_json(&fixtures_dir().join("capture_status-not-started.json")),
             "the page's fixture of the not-started view"
+        );
+    }
+
+    /// A control of a Windows run: a Resume and a delete each take the next status of `next`,
+    /// which a Status then answers; a delete answers deleted; a Pause answers the last status.
+    /// A Status runs `on_status` once, where one is set, before it answers. It records each
+    /// request.
+    struct WindowsRun {
+        places: Arc<Places>,
+        record: Record,
+        next: Mutex<std::collections::VecDeque<DaemonStatus>>,
+        last: Mutex<DaemonStatus>,
+        on_status: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+    }
+
+    impl WindowsRun {
+        fn take_next(&self) -> DaemonStatus {
+            let status = self
+                .next
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("a status for each Resume and each delete");
+            *self.last.lock().unwrap() = status.clone();
+            status
+        }
+    }
+
+    impl Control for WindowsRun {
+        fn places(&self) -> &Arc<Places> {
+            &self.places
+        }
+
+        fn status(&self, _: Made, claim: bool) -> Result<DaemonStatus, ClientError> {
+            note(&self.record, if claim { "status, claim" } else { "status" });
+            let hook = self.on_status.lock().unwrap().take();
+            if let Some(hook) = hook {
+                hook();
+            }
+            Ok(self.last.lock().unwrap().clone())
+        }
+
+        fn status_of_a_pass(
+            &self,
+            made: Made,
+            claim: bool,
+            hold: &Hold,
+        ) -> Result<DaemonStatus, ClientError> {
+            self.status(made, claim && !hold.stands())
+        }
+
+        fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
+            unreachable!("no inventory here")
+        }
+
+        fn pause(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            note(&self.record, "pause");
+            Ok(self.last.lock().unwrap().clone())
+        }
+
+        fn resume(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            note(&self.record, "resume");
+            Ok(self.take_next())
+        }
+
+        fn delete_all(&self, _: Made, _: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
+            note(&self.record, "delete");
+            self.take_next();
+            Ok(DeleteOutcome::Deleted(halvo_control::proto::Deleted {
+                report: halvo_control::testing::sample_delete_report(),
+                store: None,
+            }))
+        }
+
+        fn set_storage_cap(&self, _: Made, _: StorageCap) -> Result<CapSet, ClientError> {
+            unreachable!("no cap here")
+        }
+
+        fn request_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<RequestOutcome, ClientError> {
+            unreachable!("no permission here")
+        }
+
+        fn relay(&self, _: Made, _: &[u8]) -> Result<Vec<u8>, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(any(target_os = "macos", windows))]
+        fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(any(target_os = "macos", windows))]
+        fn run_mark(
+            &self,
+            _: Made,
+            _: halvo_control::r2::RunEdge,
+        ) -> Result<halvo_control::r2::RunMarked, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        #[cfg(any(target_os = "macos", windows))]
+        fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn acknowledge_lost_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+    }
+
+    /// A status of a Windows run with the switch screen_activity on and the screen source in
+    /// `screen`.
+    fn windows_screen(screen: SourceState) -> DaemonStatus {
+        use halvo_control::proto::{OnOff, SwitchName};
+        let mut f = sample_status(Platform::Windows).into_fields();
+        for switch in f.switches.iter_mut() {
+            if switch.name == SwitchName::ScreenActivity {
+                switch.value = OnOff::On;
+            }
+        }
+        for line in f.sources.iter_mut() {
+            if line.name == SourceName::Screen {
+                line.state = screen.clone();
+            }
+        }
+        f.capture = if screen == SourceState::Running {
+            Capture::Running
+        } else {
+            Capture::Partial
+        };
+        f.enabled_sources = f
+            .sources
+            .iter()
+            .filter(|line| line.state != SourceState::Off)
+            .map(|line| line.name)
+            .collect();
+        DaemonStatus::new(f).expect("the status holds together")
+    }
+
+    /// Test 3 of app-4b, the spent screen: a Windows run makes one screen session, so after a
+    /// Resume whose Status reads the screen stopped with the switch on, the app ends its own child
+    /// with the mark of a wanted start, the next child starts at once, and one Resume goes to it;
+    /// still spent, no second renewal for that press and the view says so; the next Resume renews
+    /// once again, and so does a delete behind which the screen reads spent.
+    #[test]
+    fn a_spent_windows_screen_restarts_the_own_child_once_for_each_resume_and_each_delete() {
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let child = |pid| StandInChild {
+            ends_at_close: true,
+            ..StandInChild::new(pid, &clock, &record)
+        };
+        let spawner = StandInSpawner {
+            children: (1000..1004).map(child).collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let spent = || windows_screen(SourceState::Stopped { by_user: false });
+        let renewed = || windows_screen(SourceState::Running);
+        let control = WindowsRun {
+            places: Arc::default(),
+            record: Arc::clone(&record),
+            next: Mutex::new(
+                [spent(), spent(), spent(), renewed(), spent(), renewed()]
+                    .into_iter()
+                    .collect(),
+            ),
+            last: Mutex::new(spent()),
+            on_status: Mutex::new(None),
+        };
+        let tray = crate::tray::installed_for_tests();
+        let lines = || record.lock().unwrap().clone();
+        let says_not_renewed =
+            || serde_json::to_value(views.view()).unwrap()["screen_not_renewed"] == true;
+        until("the first child starts", || pid.get() == Some(1000));
+
+        let (first, _) = press(
+            &control,
+            &views,
+            control.places().make(),
+            CaptureChange::Resume,
+            START_ANSWER_WAIT,
+        );
+        assert!(first.is_ok(), "{first:?}");
+        assert_eq!(pid.get(), Some(1001), "the renewal's child lives");
+        pass(&control, &views, Some(&tray));
+        assert!(says_not_renewed(), "still spent after its one renewal");
+        let after_the_first = lines().len();
+
+        let (second, _) = press(
+            &control,
+            &views,
+            control.places().make(),
+            CaptureChange::Resume,
+            START_ANSWER_WAIT,
+        );
+        assert!(second.is_ok(), "{second:?}");
+        assert_eq!(pid.get(), Some(1002));
+        pass(&control, &views, Some(&tray));
+        assert!(!says_not_renewed(), "the second press renewed the screen");
+        let after_the_second = lines().len();
+
+        let before = crate::commands::capture::Before {
+            modules: Vec::new(),
+            runs: Arc::default(),
+            core: None,
+        };
+        let deleted = crate::commands::capture::delete_everything(
+            &before,
+            &control,
+            &views,
+            None,
+            crate::commands::capture::DELETE_WAITS,
+        );
+        assert!(
+            matches!(
+                deleted.end,
+                crate::commands::capture::DeleteEnd::Answered(Ok(DeleteOutcome::Deleted(_)))
+            ),
+            "{:?}",
+            deleted.end
+        );
+        assert_eq!(pid.get(), Some(1003));
+        let seen = lines();
+        drop(supervisor.close());
+        assert_eq!(
+            seen[..after_the_first],
+            [
+                "start 1000",
+                "resume",
+                "closed descriptor",
+                "start 1001",
+                "status",
+                "resume",
+                "status, claim",
+            ],
+            "the first press: one renewal and one Resume to its child, none more"
+        );
+        assert_eq!(
+            seen[after_the_first..after_the_second],
+            [
+                "resume",
+                "closed descriptor",
+                "start 1002",
+                "status",
+                "resume",
+                "status, claim",
+            ],
+            "the next press: one renewal again"
+        );
+        assert_eq!(
+            seen[after_the_second..],
+            [
+                "delete",
+                "status",
+                "closed descriptor",
+                "start 1003",
+                "status",
+                "resume",
+            ],
+            "behind a delete: one renewal"
+        );
+    }
+
+    /// Arms `control` to press Pause from a second thread inside its next Status, and to wait for
+    /// that press's end before the Status answers.
+    fn a_pause_inside_the_next_status(control: &Arc<WindowsRun>, views: &Arc<Views>) {
+        let (pressing, on) = (Arc::clone(control), Arc::clone(views));
+        *control.on_status.lock().unwrap() = Some(Box::new(move || {
+            let (paused, _) = std::thread::spawn(move || {
+                let made = pressing.places().make();
+                press(
+                    pressing.as_ref(),
+                    &on,
+                    made,
+                    CaptureChange::Pause,
+                    START_ANSWER_WAIT,
+                )
+            })
+            .join()
+            .expect("the Pause press ends");
+            assert!(paused.is_ok(), "{paused:?}");
+        }));
+    }
+
+    /// N1 of app-4b's review: a Pause that a person presses while a renewal of a spent Windows
+    /// screen waits for its new child is not undone; the renewal sends a plain Status in place of
+    /// its Resume.
+    #[test]
+    fn a_pause_pressed_while_a_renewal_waits_for_its_child_sends_no_resume() {
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let child = |pid| StandInChild {
+            ends_at_close: true,
+            ..StandInChild::new(pid, &clock, &record)
+        };
+        let spawner = StandInSpawner {
+            children: (1000..1002).map(child).collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let spent = || windows_screen(SourceState::Stopped { by_user: false });
+        let control = Arc::new(WindowsRun {
+            places: Arc::default(),
+            record: Arc::clone(&record),
+            next: Mutex::new([spent(), spent()].into_iter().collect()),
+            last: Mutex::new(spent()),
+            on_status: Mutex::new(None),
+        });
+        until("the first child starts", || pid.get() == Some(1000));
+        a_pause_inside_the_next_status(&control, &views);
+
+        let (answer, _) = press(
+            control.as_ref(),
+            &views,
+            control.places().make(),
+            CaptureChange::Resume,
+            START_ANSWER_WAIT,
+        );
+        assert!(answer.is_ok(), "{answer:?}");
+        assert_eq!(pid.get(), Some(1001), "the renewal's child lives");
+        let seen = record.lock().unwrap().clone();
+        drop(supervisor.close());
+        assert_eq!(
+            seen,
+            [
+                "start 1000",
+                "resume",
+                "closed descriptor",
+                "start 1001",
+                "status",
+                "pause",
+                "status",
+            ],
+            "the Pause pressed in the renewal's wait stands: no Resume after it"
+        );
+    }
+
+    /// N1 of app-4b's review, the Mac's twin: a Pause that a person presses while the Start after
+    /// the third end with 5 waits for its child is not undone; the Start sends a plain Status in
+    /// place of its Resume.
+    #[test]
+    fn a_pause_pressed_while_a_start_waits_for_its_child_sends_no_resume() {
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let child = |pid, ending| StandInChild {
+            ending,
+            ends_at_close: true,
+            ..StandInChild::new(pid, &clock, &record)
+        };
+        let five = Some(Ending::Status(5));
+        let spawner = StandInSpawner {
+            children: [
+                child(1000, five),
+                child(1001, five),
+                child(1002, five),
+                child(1003, None),
+            ]
+            .into_iter()
+            .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        until("the hold reads Start after the third 5", || {
+            views
+                .hold()
+                .view()
+                .is_some_and(|hold| hold.press == Press::Start)
+        });
+        let running = || windows_screen(SourceState::Running);
+        let control = Arc::new(WindowsRun {
+            places: Arc::default(),
+            record: Arc::clone(&record),
+            next: Mutex::new([running()].into_iter().collect()),
+            last: Mutex::new(running()),
+            on_status: Mutex::new(None),
+        });
+        a_pause_inside_the_next_status(&control, &views);
+
+        let (answer, _) = press(
+            control.as_ref(),
+            &views,
+            control.places().make(),
+            CaptureChange::Resume,
+            START_ANSWER_WAIT,
+        );
+        assert!(answer.is_ok(), "{answer:?}");
+        assert_eq!(pid.get(), Some(1003), "the Start's child lives");
+        let seen = record.lock().unwrap().clone();
+        drop(supervisor.close());
+        assert_eq!(
+            seen,
+            [
+                "start 1000",
+                "start 1001",
+                "start 1002",
+                "start 1003",
+                "status",
+                "pause",
+                "status",
+            ],
+            "the Pause pressed in the Start's wait stands: no Resume after it"
         );
     }
 }
