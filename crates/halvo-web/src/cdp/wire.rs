@@ -186,6 +186,17 @@ pub(crate) fn form_of(ev: &EventRequestPaused) -> HeldForm {
     named_values(&body)
 }
 
+/// What the wire reads of the body of a paused request whose event the browser sent with
+/// `params`, the parameters of a `Fetch.requestPaused` message: `form_of` of the typed event, as
+/// the wire reads it; parameters that are no such event are `NotCarried`. A crate whose tests hold
+/// a held request (the runner's maker) makes its form with this reading.
+pub fn form_of_paused(params: &Value) -> HeldForm {
+    match serde_json::from_value::<EventRequestPaused>(params.clone()) {
+        Ok(ev) => form_of(&ev),
+        Err(_) => HeldForm::Unread(FormUnread::NotCarried),
+    }
+}
+
 /// Whether the request's `headers` name a form's own encoding as its content type: the media type
 /// `application/x-www-form-urlencoded`, the header's name and the media type read without regard
 /// to case; a charset among its parameters must be UTF-8 (`Encoding` otherwise); no content type,

@@ -35,7 +35,7 @@ use crate::start;
 mod session;
 mod wire;
 pub use session::{cookie_param, domain_matches, host_of, OriginStorage, SessionState, Stopped};
-pub use wire::{host_port, FormUnread, HeldForm, AMOUNT_FIELDS, MAX_FORM_BYTES};
+pub use wire::{form_of_paused, host_port, FormUnread, HeldForm, AMOUNT_FIELDS, MAX_FORM_BYTES};
 
 pub const STEP_TIMEOUT: Duration = Duration::from_secs(15);
 
