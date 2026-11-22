@@ -191,14 +191,10 @@ fn a_store_that_a_service_run_left(dir: &Path) -> String {
 }
 
 /// What stands in `dir` of the store, its key, its root, the intent and the
-/// rows that the delete removes. The store's writer lock on Windows, an empty
-/// file that stays after a delete, is not counted while it is empty.
+/// rows that the delete removes: every file under the store folder, its lock
+/// file among them, and under roots.
 fn what_stays_of_the_store(dir: &Path) -> Vec<PathBuf> {
-    let lock = dir.join("store").join("writer.lock");
-    let mut stays: Vec<PathBuf> = files_under(&dir.join("store"))
-        .into_iter()
-        .filter(|file| *file != lock || std::fs::metadata(file).map_or(true, |m| m.len() > 0))
-        .collect();
+    let mut stays = files_under(&dir.join("store"));
     stays.extend(files_under(&dir.join("roots")));
     for name in ["derived", "agents", "delete-all.intent"] {
         if std::fs::symlink_metadata(dir.join(name)).is_ok() {
@@ -343,6 +339,79 @@ fn where_the_exclusion_is_refused_the_offline_delete_opens_no_store_and_leaves_n
         "deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=yes ",
     );
     assert_eq!(what_stays_of_the_store(&dir), Vec::<PathBuf>::new());
+}
+
+/// The identity of each file under `dir`, the serial number of its volume
+/// and its file index, read through a handle opened with no access, which
+/// the sharing of no other handle refuses; a file that goes between the list
+/// and the open is passed.
+fn identities_under(dir: &Path) -> Vec<(PathBuf, (u32, u64))> {
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::io::AsRawHandle;
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::Storage::FileSystem::{
+        GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+    };
+    let mut found = Vec::new();
+    for file in files_under(dir) {
+        let handle = match std::fs::OpenOptions::new().access_mode(0).open(&file) {
+            Ok(handle) => handle,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => panic!("{}: {e}", file.display()),
+        };
+        let mut information = BY_HANDLE_FILE_INFORMATION::default();
+        // SAFETY: the handle is open while `handle` lives, and the pointer is
+        // to a live structure of the layout that the call writes.
+        unsafe { GetFileInformationByHandle(HANDLE(handle.as_raw_handle()), &mut information) }
+            .unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+        let index =
+            (u64::from(information.nFileIndexHigh) << 32) | u64::from(information.nFileIndexLow);
+        found.push((file, (information.dwVolumeSerialNumber, index)));
+    }
+    found
+}
+
+/// The service's own Delete everything over its pipe leaves no file of the
+/// store that stood before it in the store folder, its lock file among them.
+/// The service makes a fresh store behind a whole delete, so the folder is
+/// read by identity: every file in it after the reply is the fresh store's.
+#[test]
+fn the_services_own_delete_on_windows_leaves_no_file_of_the_old_store_in_the_store_folder() {
+    let dir = scratch_data_dir("service-delete");
+    let mut daemon = start(&dir);
+    let status = first_status(&dir, &daemon, store_open);
+    let old_id = status
+        .lines()
+        .find_map(|line| line.strip_prefix("store_id="))
+        .unwrap_or_else(|| panic!("no store_id line: {status}"))
+        .to_owned();
+    let before = identities_under(&dir.join("store"));
+    assert!(
+        before.iter().any(|(file, _)| file.ends_with("writer.lock")),
+        "no lock file in the store folder before the delete: {before:?}"
+    );
+
+    let deleted = ctl(&dir, &["delete-all", &old_id]);
+    assert_eq!(deleted.status.code(), Some(0), "{}", text(&deleted));
+    let line = String::from_utf8_lossy(&deleted.stdout);
+    assert!(
+        line.starts_with("deleted ")
+            && line.contains(" files_left=0 database_left=no not_followed=0 "),
+        "{}",
+        text(&deleted)
+    );
+    let after = identities_under(&dir.join("store"));
+    stop(&dir, &mut daemon);
+    let stayed: Vec<&PathBuf> = after
+        .iter()
+        .filter(|(_, identity)| before.iter().any(|(_, old)| old == identity))
+        .map(|(file, _)| file)
+        .collect();
+    assert_eq!(
+        stayed,
+        Vec::<&PathBuf>::new(),
+        "files of the old store stand after the delete; before: {before:?}; after: {after:?}"
+    );
 }
 
 #[test]
