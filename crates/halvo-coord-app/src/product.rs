@@ -24,6 +24,7 @@
 #![cfg(any(target_os = "macos", windows))]
 
 use std::collections::HashMap;
+#[cfg(target_os = "macos")]
 use std::io::Read;
 use std::num::NonZeroU32;
 use std::path::PathBuf;
@@ -1609,11 +1610,25 @@ impl Clock for Product {
 }
 
 impl Rng for Product {
+    /// Sixteen bytes of the system's generator: `/dev/urandom` on a Mac, the system's preferred generator of
+    /// `BCryptGenRandom` on Windows.
     fn bytes16(&self) -> Result<[u8; 16], PortError> {
         let mut bytes = [0u8; 16];
+        #[cfg(target_os = "macos")]
         std::fs::File::open("/dev/urandom")
             .and_then(|mut f| f.read_exact(&mut bytes))
             .map_err(|_| PortError::NoService)?;
+        #[cfg(windows)]
+        {
+            use windows::Win32::Security::Cryptography::{
+                BCryptGenRandom, BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+            };
+            // SAFETY: the buffer is a live slice that the call writes within its length; no algorithm handle is
+            // given, which the flag for the system's preferred generator asks.
+            unsafe { BCryptGenRandom(None, &mut bytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG) }
+                .ok()
+                .map_err(|_| PortError::NoService)?;
+        }
         Ok(bytes)
     }
 }

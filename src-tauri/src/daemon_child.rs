@@ -3995,7 +3995,7 @@ mod tests {
             "the supervisor holds no child"
         );
         let seen = record.lock().unwrap().clone();
-        let expected: &[&str] = if cfg!(target_os = "macos") {
+        let expected: &[&str] = if cfg!(any(target_os = "macos", windows)) {
             &["owner_stream", "status"]
         } else {
             &["status"]
