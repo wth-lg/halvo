@@ -2996,12 +2996,12 @@ mod tests {
         assert_eq!(
             answers[2],
             Err(OutcomeError {
-                error: ActionError::DeleteNotUsable {
-                    looked_in: looked_in.clone()
+                error: ActionError::DeleteNotKnown {
+                    looked_in: Some(looked_in.clone())
                 },
-                outcome_not_known: false,
+                outcome_not_known: true,
             }),
-            "an end with 1 and no deleted line deleted nothing"
+            "an end with 1 and no deleted line tells nothing of what was removed"
         );
         match &answers[3] {
             Ok(DeleteView::Deleted {

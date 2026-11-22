@@ -744,11 +744,6 @@ pub enum ActionError {
     DeleteHeld {
         looked_in: String,
     },
-    /// The offline delete ended with 1 and printed no deleted line: the data directory could not
-    /// be used, and it deleted nothing.
-    DeleteNotUsable {
-        looked_in: String,
-    },
     /// The program of the offline delete did not start, or the app has none to start: nothing
     /// was deleted.
     DeleteNotStarted,
@@ -1196,8 +1191,10 @@ enum Printed {
 /// The answer of the offline delete by how its program ended and what it printed (contracts.md
 /// C3.3 and C10.5): `looked_in` is its `data_dir=`. An end with 0 and `no_store`, and an end with
 /// 0 or 1 and the `deleted` line, are its outcome, and an end with 1 is never a whole delete,
-/// whatever the line reads; an end with 75, and an end with 1 that printed no `deleted` line,
-/// deleted nothing; any other end tells nothing of what was removed.
+/// whatever the line reads; an end with 75 deleted nothing; any other end tells nothing of what
+/// was removed, an end with 1 that printed no `deleted` line among them, which halvo-capture
+/// gives both where it could not use the directory and where its walk removed entries before
+/// the store's own delete failed with no report.
 pub fn offline_view(
     end: &OfflineEnd,
     roots_dir: Option<&std::path::Path>,
@@ -1232,9 +1229,6 @@ pub fn offline_view(
             Some(looked_in),
             code == exit::ERROR,
         )),
-        (exit::ERROR, Printed::Nothing) => {
-            removed_nothing(ActionError::DeleteNotUsable { looked_in })
-        }
         (exit::BUSY, Printed::Nothing) => removed_nothing(ActionError::DeleteHeld { looked_in }),
         _ => not_known(Some(looked_in)),
     }

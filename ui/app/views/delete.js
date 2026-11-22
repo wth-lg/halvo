@@ -186,7 +186,6 @@
     if (code === "nothing_removed") return w.DELETE_NOTHING_REMOVED;
     if (code === "service_not_back") return answerLost(e) ? w.DELETE_SERVICE_NOT_BACK + " " + w.DELETE_UNKNOWN_OUTCOME : w.DELETE_SERVICE_NOT_BACK;
     if (code === "delete_held") return withFolder(w.DELETE_HELD, e.looked_in);
-    if (code === "delete_not_usable") return withFolder(w.DELETE_NOT_USABLE, e.looked_in);
     if (code === "delete_not_started") return w.DELETE_NOT_STARTED;
     if (code === "delete_not_known") return w.DELETE_UNKNOWN_OUTCOME;
     return null;

@@ -129,7 +129,6 @@ const WORDS = {
   DELETE_STOP_QUESTION: "Stop Halvo's capture service and delete everything that Halvo has stored in its data folder, {folder}? This cannot be undone. Copies that Halvo made next to your own files stay. Halvo starts its capture service again after the delete.",
   DELETE_NO_STORE: "Nothing of what Halvo records was stored in its data folder, {folder}, so there was nothing to delete.",
   DELETE_HELD: "This press deleted nothing, because another program is using Halvo's data folder, {folder}. Quit any other copy of Halvo or restart this computer, then press Delete everything again.",
-  DELETE_NOT_USABLE: "This press deleted nothing, because Halvo could not use its data folder, {folder}.",
   DELETE_NOT_STARTED: "This press deleted nothing, because Halvo could not start its delete.",
   DELETE_LOOKED_IN: "The delete ran in Halvo's data folder, {folder}.",
   SETTINGS_UNREADABLE: "Halvo cannot read its settings file. Delete everything resets it, and it also deletes everything that Halvo has recorded.",
