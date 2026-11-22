@@ -555,7 +555,15 @@ fn the_poller_runs_a_fake_client_through_unreachable_starting_and_running_and_th
         .collect();
     assert_eq!(
         texts,
-        ["Capture service not running", "Starting", "Capturing"]
+        [
+            if cfg!(windows) {
+                tray::NOT_RECORDING
+            } else {
+                tray::NOT_RUNNING
+            },
+            "Starting",
+            "Capturing"
+        ]
     );
 }
 

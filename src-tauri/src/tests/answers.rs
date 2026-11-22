@@ -198,7 +198,11 @@ fn a_pause_or_a_cap_answered_not_running_is_followed_by_not_running_on_the_page_
         let view = test.app.state::<AppState>().views.view();
         assert_eq!(
             tray::labels(&view).status_text,
-            "Capture service not running",
+            if cfg!(windows) {
+                tray::NOT_RECORDING
+            } else {
+                tray::NOT_RUNNING
+            },
             "{command}"
         );
     }
@@ -214,7 +218,11 @@ fn the_trays_own_pause_answered_not_running_is_followed_by_not_running() {
     tray::take_toggle_answer(&views, 2, 3, &Err(gone()));
     assert_eq!(
         tray::labels(&views.view()).status_text,
-        "Capture service not running"
+        if cfg!(windows) {
+            tray::NOT_RECORDING
+        } else {
+            tray::NOT_RUNNING
+        }
     );
     assert_eq!(
         views.take_poll(2, &Ok(sample_status(Platform::Macos))),
