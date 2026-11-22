@@ -7,7 +7,7 @@ use halvo_control::proto::{
     RootDestroyed, Section, SourceName, SourceStateName, StopKind, StoreErrorKind, StoreState,
     SwitchName,
 };
-use halvo_control::texts::{texts, Texts};
+use halvo_control::texts::{first_run, texts, Texts};
 use serde::{Deserialize, Serialize};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
@@ -136,19 +136,19 @@ pub struct NoStatusView {
 }
 
 /// What a view without a status says before the app's first child (contracts.md C10.7): on a
-/// data directory that is not provisioned the not-started state, whose Start is the consent; on
-/// a directory whose name leads nowhere, is no directory or cannot be read its own cause, and
-/// never the consent.
+/// data directory that is not provisioned the not-started state, whose Start is the consent,
+/// with the first-run text of halvo-control's table; on a directory whose name leads nowhere,
+/// is no directory or cannot be read its own cause, and never the consent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FirstRun {
-    NotStarted,
+    NotStarted(Texts),
     DataDirUnusable,
 }
 
 impl NoStatusView {
     fn word(&self) -> Service {
         match self.first_run {
-            Some(FirstRun::NotStarted) => Service::NotStarted,
+            Some(FirstRun::NotStarted(_)) => Service::NotStarted,
             Some(FirstRun::DataDirUnusable) => Service::DataDirUnusable,
             None => self.service.word(),
         }
@@ -265,7 +265,7 @@ impl Hold {
             StatusView::NoStatus(mut view)
                 if awaits_consent && view.service == NoStatusService::NotRunning =>
             {
-                view.first_run = Some(FirstRun::NotStarted);
+                view.first_run = Some(FirstRun::NotStarted(first_run(view.platform)));
                 StatusView::NoStatus(view)
             }
             other => other,
@@ -517,7 +517,10 @@ impl Serialize for StatusView {
                 lost_grants: None,
                 password_guard: None,
                 screen_filter_excludes_app: None,
-                texts: None,
+                texts: match &view.first_run {
+                    Some(FirstRun::NotStarted(texts)) => Some(texts),
+                    Some(FirstRun::DataDirUnusable) | None => None,
+                },
                 ext: None,
             },
         };

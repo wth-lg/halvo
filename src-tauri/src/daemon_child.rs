@@ -2776,4 +2776,61 @@ mod tests {
             drop(supervisor.close());
         }
     }
+
+    #[test]
+    fn the_first_run_text_is_the_table_of_the_defaults_without_typing() {
+        use crate::view_state::{Hold, NoStatusService, StatusView};
+        let hold = Hold::default();
+        hold.awaits_consent();
+        let view = hold.mark(StatusView::no_status(
+            NoStatusService::NotRunning,
+            Platform::Macos,
+        ));
+        let wire = serde_json::to_value(&view).expect("the view writes");
+        assert_eq!(wire["service"], "not_started");
+        let texts = &wire["texts"];
+        let rows: Vec<&str> = texts["recorded"]
+            .as_array()
+            .expect("the table's rows")
+            .iter()
+            .map(|row| row["text"].as_str().expect("a sentence"))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private.",
+                "Halvo records a class for each click or scroll, never its position.",
+                "Halvo does not record what you type.",
+                "Screen activity is not recorded.",
+            ],
+            "the rows of the default switches on a Mac, word for word"
+        );
+        assert_eq!(texts["passwords"], "", "no sentence on passwords");
+        assert!(texts.get("typed_ahead").is_none(), "no key pressed early");
+        assert!(texts.get("keys_withheld").is_none());
+        assert_eq!(texts["backup_limit"], serde_json::Value::Null);
+        assert_eq!(
+            texts["custody"],
+            "This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account."
+        );
+        assert_eq!(
+            texts["storage"],
+            "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
+        );
+        assert_eq!(
+            texts["limits"],
+            "A copy of Halvo's data made earlier, such as a backup, keeps what it held: expiry does not reach it, and after a delete-all a copy of the whole data folder can still be read."
+        );
+        assert_eq!(
+            texts,
+            &serde_json::to_value(halvo_control::texts::first_run(Platform::Macos))
+                .expect("the table writes"),
+            "every sentence comes from halvo-control's one table"
+        );
+        assert_eq!(
+            wire,
+            read_json(&fixtures_dir().join("capture_status-not-started.json")),
+            "the page's fixture of the not-started view"
+        );
+    }
 }

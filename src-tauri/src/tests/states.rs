@@ -503,6 +503,7 @@ fn with_any_service_but_running_every_daemon_field_is_null() {
                     "login_item_loaded",
                 ]
                 .contains(&key.as_str())
+                    || (key == "texts" && view.service() == Service::NotStarted)
                 {
                     continue;
                 }

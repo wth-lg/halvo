@@ -7,6 +7,15 @@ use crate::proto::{
     SourceState, SwitchLine, SwitchName,
 };
 
+/// Typing on a Mac: whether a source that the product builds asks its tap for key events. Off
+/// until the owner answers item I-83 point 2, so a Mac build notes no typing. The capture
+/// crate's macOS input source reads it as its one switch of key events, and [`first_run`] as
+/// its row on typing.
+pub const TYPING_ON_MAC: bool = false;
+
+/// The row of the first-run text on a Mac whose build takes no typing ([`TYPING_ON_MAC`]).
+pub const TYPING_NOT_RECORDED: &str = "Halvo does not record what you type.";
+
 pub const SCREEN_ACTIVITY_NOT_RECORDED: &str = "Screen activity is not recorded.";
 
 pub const TYPING_NOT_OBSERVED_ON_WINDOWS: &str =
@@ -239,6 +248,67 @@ pub fn onboarding_rows(status: &DaemonStatus) -> Vec<PermissionStatus> {
             row
         })
         .collect()
+}
+
+/// The table of the first-run text (contracts.md C10.6 and C10.7) before any status: the rows
+/// of the default switches (contracts.md C13.5) with every source off, on a Mac with the row on
+/// typing by [`TYPING_ON_MAC`] behind the row on clicks and with no sentence on passwords or on
+/// a key pressed early; the backup limit, the limits, the custody on which the platform's build
+/// captures and the storage of the default cap.
+pub fn first_run(platform: Platform) -> Texts {
+    first_run_with(platform, TYPING_ON_MAC)
+}
+
+fn first_run_with(platform: Platform, typing_on_mac: bool) -> Texts {
+    let switches: Vec<SwitchLine> = SwitchName::ALL
+        .iter()
+        .map(|&name| SwitchLine {
+            name,
+            value: if name.default_on() {
+                OnOff::On
+            } else {
+                OnOff::Off
+            },
+        })
+        .collect();
+    let off = |name| SourceLine {
+        name,
+        state: SourceState::Off,
+        unstopped: false,
+    };
+    let sources = [off(SourceName::Keyboard), off(SourceName::Screen)];
+    let mut rows = recorded(platform, &switches, &sources);
+    let mut passwords = passwords(platform, PasswordGuard::None, SourceClass::Off);
+    if platform == Platform::Macos {
+        rows.retain(|row| row.switch != SwitchName::KeyClass);
+        let typing = Recorded {
+            switch: SwitchName::KeyClass,
+            text: if typing_on_mac {
+                recorded_when_on(SwitchName::KeyClass)
+            } else {
+                TYPING_NOT_RECORDED
+            },
+        };
+        let behind_the_clicks = rows
+            .iter()
+            .position(|row| row.switch == SwitchName::PointerClass)
+            .map_or(rows.len(), |at| at + 1);
+        rows.insert(behind_the_clicks, typing);
+        passwords = "";
+    }
+    Texts {
+        recorded: rows,
+        passwords,
+        typed_ahead: None,
+        keys_withheld: None,
+        backup_limit: backup_limit(platform),
+        limits: LIMITS,
+        custody: custody_text(match platform {
+            Platform::Macos => Custody::RootFile,
+            Platform::Windows => Custody::Dpapi,
+        }),
+        storage: storage(Cap::Known(StorageCap::DEFAULT)),
+    }
 }
 
 #[cfg(test)]
@@ -1383,6 +1453,51 @@ mod tests {
         assert_eq!(
             texts_of(&recorded(Platform::Macos, &switches(&[]), &[])),
             [S2]
+        );
+    }
+
+    #[test]
+    fn the_first_run_row_on_typing_follows_typing_on_mac() {
+        let rows = |typing_on_mac: bool| -> Vec<(SwitchName, &'static str)> {
+            first_run_with(Platform::Macos, typing_on_mac)
+                .recorded
+                .iter()
+                .map(|row| (row.switch, row.text))
+                .collect()
+        };
+        let title = (
+            SwitchName::TitleText,
+            recorded_when_on(SwitchName::TitleText),
+        );
+        let clicks = (
+            SwitchName::PointerClass,
+            recorded_when_on(SwitchName::PointerClass),
+        );
+        let screen = (SwitchName::ScreenActivity, SCREEN_ACTIVITY_NOT_RECORDED);
+        assert_eq!(
+            rows(false),
+            [
+                title,
+                clicks,
+                (SwitchName::KeyClass, TYPING_NOT_RECORDED),
+                screen
+            ],
+            "typing off: the row that no typing is recorded, behind the row on clicks"
+        );
+        assert_eq!(
+            rows(true),
+            [
+                title,
+                clicks,
+                (SwitchName::KeyClass, recorded_when_on(SwitchName::KeyClass)),
+                screen
+            ],
+            "typing on: the standing row of key_class in its place"
+        );
+        assert_eq!(
+            first_run(Platform::Macos),
+            first_run_with(Platform::Macos, TYPING_ON_MAC),
+            "the first-run text reads the one constant"
         );
     }
 }

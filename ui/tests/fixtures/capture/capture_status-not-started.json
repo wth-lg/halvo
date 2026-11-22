@@ -20,7 +20,31 @@
   "store_bytes": null,
   "store_cap_bytes": null,
   "store_logical_bytes": null,
-  "texts": null,
+  "texts": {
+    "backup_limit": null,
+    "custody": "This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.",
+    "limits": "A copy of Halvo's data made earlier, such as a backup, keeps what it held: expiry does not reach it, and after a delete-all a copy of the whole data folder can still be read.",
+    "passwords": "",
+    "recorded": [
+      {
+        "switch": "title_text",
+        "text": "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private."
+      },
+      {
+        "switch": "pointer_class",
+        "text": "Halvo records a class for each click or scroll, never its position."
+      },
+      {
+        "switch": "key_class",
+        "text": "Halvo does not record what you type."
+      },
+      {
+        "switch": "screen_activity",
+        "text": "Screen activity is not recorded."
+      }
+    ],
+    "storage": "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
+  },
   "window": {
     "first_report_day": 7,
     "rolling_days": 14
