@@ -783,9 +783,10 @@ fn hold_refused<P: Owner, C: ConfigView>(
     true
 }
 
-/// `hold_refused` for each agent of a workflow of `listed` whose place the board does not hold,
-/// which a move that read the roster makes before it serves the queue or starts anything: the
-/// end of a run and the tick (I5.4; ruling RD-73 4.2).
+/// `hold_refused` for each agent of a workflow of `listed` that the owner's list holds in the
+/// full shape and whose place the board does not hold, which a move that read the roster makes
+/// before it serves the queue or starts anything: the end of a run and the tick, and recovery
+/// once it has built the board (`hold_refusals_at`; I5.4, I5.8; ruling RD-73 4.2).
 fn hold_refusals<P: Owner, C: ConfigView>(
     cx: &MoveContext<'_, P>,
     board: &mut Board<C>,
@@ -795,12 +796,31 @@ fn hold_refusals<P: Owner, C: ConfigView>(
         let facts = &board.members[i].facts;
         let agent = facts.agent.clone();
         if listed.contains(&facts.workflow.id)
+            && !facts.stand_in
             && !board.place_held(&agent)
             && !board.dismissed_unread(&agent)
         {
             hold_refused(cx, board, i);
         }
     }
+}
+
+/// `hold_refusals` for recovery, whose rows its one read of the clock stamps (I5.8): the next
+/// life holds the agent whose run's sign-in was refused before any start, the run ended
+/// `interrupted` (ruling RD-73 4.2).
+pub(crate) fn hold_refusals_at<P: Owner, C: ConfigView>(
+    ports: &P,
+    board: &mut Board<C>,
+    limits: &crate::types::Limits,
+    stamp: Stamp,
+    listed: &[WorkflowId],
+) {
+    let cx = MoveContext {
+        ports,
+        limits,
+        move_stamp: stamp,
+    };
+    hold_refusals(&cx, board, listed);
 }
 
 /// Steps 5 to 8 of a start that passed steps 0 to 4 (I5.5): the request to defer, the store of
