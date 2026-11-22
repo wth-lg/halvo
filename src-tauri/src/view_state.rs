@@ -926,7 +926,9 @@ pub fn onboarding_shown(status: &DaemonStatus) -> OnboardingState {
 /// Input Monitoring: its line reads failed, whatever the reason, or reads off while the
 /// status's row of Input Monitoring holds no grant. Its one tap takes the keys and the pointer
 /// actions both, so neither is recorded then. A line that may still run (marked unstopped), a
-/// line that a pause stopped and a Windows status never read so.
+/// line that a pause stopped and a Windows status never read so. It does not read whether the
+/// source needs the grant (the switch key_class), so an off line beside a row that holds no
+/// grant reads so also where none is needed.
 pub fn input_fails_or_waits_for_its_grant(status: &DaemonStatus) -> bool {
     let f = status.fields();
     let ungranted = || {
@@ -950,7 +952,9 @@ pub fn input_fails_or_waits_for_its_grant(status: &DaemonStatus) -> bool {
 /// keys and the row of pointer actions on a Mac whose status shows typing ([`typing_shown`])
 /// and whose row of Input Monitoring does not read granted, or which holds no such row. A reset
 /// turns the switch of keys on, so the input source then waits for the grant and records
-/// neither; the rows follow the grant and not the input source's state of the moment.
+/// neither. The rows follow that row and not the input source's state of the moment; the row is
+/// as old as the probe's last answer, so before its first answer it reads no grant also where
+/// the grant is given.
 fn reset_rows(status: &DaemonStatus) -> Vec<Recorded> {
     let f = status.fields();
     let granted = f
