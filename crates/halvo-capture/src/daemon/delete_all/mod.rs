@@ -281,7 +281,7 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
         text.push_str("no_store\n");
         return print(out, err, &text, None, exit::CLEAN);
     }
-    let ran = match steps_of_the_delete(path, how, &mut || clear_the_mark(path)) {
+    let ran = match steps_of_the_delete(path, how, &mut || {}, &mut || clear_the_mark(path)) {
         Steps::Busy => return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY),
         Steps::Ran(ran) => ran,
     };
@@ -327,7 +327,10 @@ pub struct Ran {
 
 /// Steps 2 to 5 of contracts.md C17 item 3 in `path`, a data directory whose
 /// instance lock the caller holds, with the rows, selection and hands of
-/// `how`: the open of the store for the delete, the intent, the store's
+/// `how`: the open of the store for the delete, the intent, then
+/// `after_the_intent` before any removal (the service run writes there the
+/// first record of a delete that went on past a source that did not stop,
+/// ruling PL-3 part (3) item 5), the store's
 /// delete, then the clear of the mark `store_made` by `clear` (which answers
 /// a line when the clear failed) once that delete did not answer busy, so a
 /// delete that removed nothing leaves the mark as it was, the walk over the
@@ -340,6 +343,7 @@ pub struct Ran {
 pub fn steps_of_the_delete(
     path: &Path,
     how: &Offline<'_>,
+    after_the_intent: &mut dyn FnMut(),
     clear: &mut dyn FnMut() -> Option<String>,
 ) -> Steps {
     let host = DataDirStore::at(path);
@@ -350,6 +354,7 @@ pub fn steps_of_the_delete(
     };
     let intent_stood = stands(&path.join(INTENT_FILE));
     let intent = write_intent(path, how.rows, probe);
+    after_the_intent();
     let mut causes = Vec::new();
     let store = delete_the_store(&host, handle);
     if matches!(store, TailAnswer::Held) {

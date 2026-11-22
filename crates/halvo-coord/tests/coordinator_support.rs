@@ -57,6 +57,9 @@ pub struct Both {
     /// Each `set_state` `paused` that `paused_busy` answered so, as `set_state <agent> paused
     /// busy` with the last two digits of the agent.
     pub refused_paused: std::cell::RefCell<Vec<String>>,
+    /// Where set, what a read `Owner::overlaps` that the memory owner answers gives in place of
+    /// its own answer; a refused read stays refused.
+    pub overlaps_answer: std::cell::RefCell<Option<halvo_coord::ports::Overlaps>>,
 }
 
 pub type LostAckRow = fn(&halvo_coord::types::What) -> bool;
@@ -231,7 +234,11 @@ impl Owner for Both {
         agent: &halvo_coord::types::AgentId,
         slots: Option<&[halvo_coord::types::Slot]>,
     ) -> Result<halvo_coord::ports::Overlaps, PortError> {
-        self.ports.overlaps(workflow, agent, slots)
+        let read = self.ports.overlaps(workflow, agent, slots);
+        match (read, self.overlaps_answer.borrow().clone()) {
+            (Ok(_), Some(answer)) => Ok(answer),
+            (read, _) => read,
+        }
     }
 
     fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
@@ -430,6 +437,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         handbacks_at: std::cell::RefCell::new(Vec::new()),
         paused_busy: Cell::new(0),
         refused_paused: std::cell::RefCell::new(Vec::new()),
+        overlaps_answer: std::cell::RefCell::new(None),
     }
 }
 

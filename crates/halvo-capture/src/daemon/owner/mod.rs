@@ -72,6 +72,11 @@ pub enum Command {
     Settle,
     /// Settle, answer the snapshot and end the loop.
     Shutdown,
+    /// End the loop with no settle and answer the snapshot: the open batch
+    /// and what the sink holds are dropped unwritten (the close of a delete
+    /// whose stop met a source that did not stop, ruling PL-3 part (3) item
+    /// 5).
+    EndUnsettled,
     /// Answer the rows of the store's per-day rollup as they stand.
     Inventory,
     /// Evict to this bound from now on, or evict nothing with none: the bound

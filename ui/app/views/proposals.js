@@ -14,12 +14,20 @@
     daily_chart_check: w.CATEGORY_DAILY_CHART_CHECK,
   };
   var MAX_PROPOSALS = 4;
-  var notLooking;
+  /** The one text of each state that has no list. */
+  var withoutList = {
+    not_running: w.NOT_LOOKING,
+    store_unavailable: w.STORE_UNAVAILABLE,
+    deleting: w.STORE_DELETING,
+  };
+  var stateLine;
   var nothingFound;
+  var looksWhen;
   var list;
   var storedLine;
   var stored;
   var rowsMade = 0;
+  var reads = 0;
 
   function known(text) {
     return typeof text === "string" && text !== "" ? text : null;
@@ -67,18 +75,36 @@
     });
   }
 
+  /** Reads the workflows and draws the reply, unless a later read has started since. */
+  function read() {
+    reads += 1;
+    var mine = reads;
+    return Halvo.ipc
+      .call("workflows")
+      .then(function (reply) {
+        if (mine === reads) render(reply);
+      })
+      .catch(Halvo.showError);
+  }
+
+  /** After a decision that succeeded the view reads again; after one that failed the row stays. */
   function decide(command, id, buttons) {
     buttons.forEach(function (b) {
       b.disabled = true;
     });
     return Halvo.ipc
       .call(command, { workflow: id })
-      .catch(Halvo.showError)
+      .then(read, Halvo.showError)
       .then(function () {
         buttons.forEach(function (b) {
           b.disabled = false;
         });
       });
+  }
+
+  /** A delete that is held back while an agent uses the workflow has a sentence of its own. */
+  function notDeleted(e) {
+    Halvo.showError(e && e.error === "in_use" ? w.WORKFLOW_IN_USE : e);
   }
 
   function proposalRow(row) {
@@ -119,13 +145,13 @@
     };
     yes.onclick = function () {
       confirmRow.classList.add("hidden");
-      return Halvo.ipc.call("delete_workflow", { workflow: row.id }).catch(Halvo.showError);
+      return Halvo.ipc.call("delete_workflow", { workflow: row.id }).then(read, notDeleted);
     };
     return Halvo.el("div", { class: "stored-workflow" }, [Halvo.el("div", { class: "row" }, [seen, start]), confirmRow]);
   }
 
   function clear() {
-    [notLooking, nothingFound, storedLine].forEach(function (el) {
+    [stateLine, nothingFound, looksWhen, storedLine].forEach(function (el) {
       el.classList.add("hidden");
     });
     list.replaceChildren();
@@ -134,8 +160,9 @@
 
   function render(reply) {
     clear();
-    if (reply && reply.state === "not_running") {
-      notLooking.classList.remove("hidden");
+    if (reply && Object.prototype.hasOwnProperty.call(withoutList, reply.state)) {
+      stateLine.textContent = withoutList[reply.state];
+      stateLine.classList.remove("hidden");
       return;
     }
     if (!reply || reply.state !== "running" || !Array.isArray(reply.proposals) || !Array.isArray(reply.stored)) {
@@ -149,6 +176,7 @@
     });
     if (proposals.length === 0 && all.length === 0) {
       nothingFound.classList.remove("hidden");
+      looksWhen.classList.remove("hidden");
       return;
     }
     list.replaceChildren.apply(list, proposals.map(proposalRow));
@@ -161,16 +189,18 @@
     order: 40,
     heading: w.NOTICED_HEADING,
     mount: function (el) {
-      notLooking = Halvo.el("p", { id: "workflows-not-looking", class: "muted", text: w.NOT_LOOKING });
+      stateLine = Halvo.el("p", { id: "workflows-state", class: "muted" });
       nothingFound = Halvo.el("p", { id: "workflows-nothing-found", class: "muted", text: w.NOTHING_FOUND });
+      looksWhen = Halvo.el("p", { id: "workflows-looks-when", class: "muted", text: w.LOOKS_WHEN });
       list = Halvo.el("div", { id: "proposals-list" });
       storedLine = Halvo.el("p", { id: "stored-workflows-line", text: w.STORED_WORKFLOWS });
       stored = Halvo.el("div", { id: "stored-workflows" });
-      el.append(notLooking, nothingFound, list, storedLine, stored);
+      el.append(stateLine, nothingFound, looksWhen, list, storedLine, stored);
       clear();
-      Halvo.ipc.call("workflows").then(render).catch(Halvo.showError);
     },
-    show: function () {},
+    show: function () {
+      read();
+    },
     hide: function () {},
   });
 })();

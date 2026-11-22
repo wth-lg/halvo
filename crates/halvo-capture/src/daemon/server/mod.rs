@@ -16,7 +16,7 @@ pub use windows::Listening;
 use std::io::{ErrorKind, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use halvo_control::model::{CaptureState, Modality, UtcSecond};
@@ -33,7 +33,7 @@ use halvo_control::wire::{self, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
 
 use super::board::{Board, Capture as BoardCapture};
 use super::slot::Slot;
-use super::state::{Cap as StateCap, Desired, StateHealth};
+use super::state::{Cap as StateCap, Desired, SharedStateFile, StateHealth};
 use crate::floor::{Switch, Switches};
 
 /// How long the server waits for each read of a request (contracts.md C2.1).
@@ -55,12 +55,11 @@ pub fn serves_peer(peer: u32, own: u32) -> bool {
 }
 
 /// What the connections of one server share with the service run's loop: the
-/// mutation in flight and the fact that the life is ending (contracts.md
-/// C2.1, ruling PL-17), which the loop sets once it accepts a Stop.
+/// mutation in flight and the life (contracts.md C2.1, ruling PL-17).
 #[derive(Debug, Default)]
 pub struct Admitting {
     in_flight: AtomicBool,
-    ending: AtomicBool,
+    life: Arc<EndingLife>,
     #[cfg(feature = "r2")]
     owner: std::sync::Mutex<Option<super::owner::OwnerHandle>>,
 }
@@ -79,15 +78,111 @@ impl Admitting {
     /// Marks the life as ending: from now on every mutation but a Pause and a
     /// Resume answers the busy of an ending life.
     pub fn end_the_life(&self) {
-        self.ending.store(true, Ordering::SeqCst);
+        self.life.end_the_life();
     }
 
     pub(crate) fn life(&self) -> Life {
-        if self.ending.load(Ordering::SeqCst) {
+        if self.life.ending.load(Ordering::SeqCst) {
             Life::Ending
         } else {
             Life::Going
         }
+    }
+
+    /// The life that the loop and the supervisor share with the connections.
+    pub fn ending_life(&self) -> Arc<EndingLife> {
+        self.life.clone()
+    }
+}
+
+/// The life of a service run as its connections, its loop and its
+/// supervisor share it (ruling PL-17): whether it is ending, and what a
+/// connection answers from in a life that is ending, while the loop serves no
+/// request: the state file through its one writer, the facts of the run and
+/// the parts of the status as the supervisor last published them. There a
+/// Pause writes desired paused first, where desired is not paused yet, and
+/// answers `capture_changed` with the status as it stands; a Resume answers
+/// the status as it stands and writes nothing; a claim and a Status answer
+/// the status and start nothing.
+#[derive(Default)]
+pub struct EndingLife {
+    ending: AtomicBool,
+    state: Mutex<Option<SharedStateFile>>,
+    facts: Mutex<Option<RunFacts>>,
+    parts: Mutex<Option<StatusParts>>,
+}
+
+impl std::fmt::Debug for EndingLife {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EndingLife")
+            .field("ending", &self.ending)
+            .finish_non_exhaustive()
+    }
+}
+
+impl EndingLife {
+    /// Marks the life as ending.
+    pub fn end_the_life(&self) {
+        self.ending.store(true, Ordering::SeqCst);
+    }
+
+    /// The state file and the facts of the run, from which a connection of
+    /// an ending life answers.
+    pub fn serve_from(&self, state: Option<SharedStateFile>, facts: RunFacts) {
+        *self.state.lock().unwrap_or_else(PoisonError::into_inner) = state;
+        *self.facts.lock().unwrap_or_else(PoisonError::into_inner) = Some(facts);
+    }
+
+    /// The parts of the status as the supervisor publishes them.
+    pub fn publish(&self, parts: StatusParts) {
+        *self.parts.lock().unwrap_or_else(PoisonError::into_inner) = Some(parts);
+    }
+
+    /// The answer of an ending life to `request`, which the admission
+    /// answered `admission`: none when the life is not ending, when the
+    /// request is not a Pause, a Resume, a claim or a Status, or when the
+    /// loop has not given the life its state file and its facts yet.
+    pub fn answer(&self, admission: Admission, request: &Request) -> Option<Reply> {
+        if !self.ending.load(Ordering::SeqCst) {
+            return None;
+        }
+        let keeps_the_word = match (admission, request) {
+            (Admission::PauseKeepingTheWord, _) => true,
+            (Admission::StatusAsItStands | Admission::ClaimStartingNothing, _)
+            | (Admission::Serve, Request::Status { .. }) => false,
+            _ => return None,
+        };
+        let facts = (*self.facts.lock().unwrap_or_else(PoisonError::into_inner))?;
+        let state = self
+            .state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()?;
+        let mut parts = self
+            .parts
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()?;
+        {
+            let mut file = state.lock().unwrap_or_else(PoisonError::into_inner);
+            if keeps_the_word && file.state().desired != Desired::Paused {
+                let _ = file.update(|state| state.desired = Desired::Paused);
+            }
+            parts.health = file.health();
+            if keeps_the_word || file.state().desired == Desired::Paused {
+                parts.desired = Desired::Paused;
+            }
+        }
+        #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+        let facts = RunFacts {
+            rss_peak_bytes: rss_peak_bytes(),
+            ..facts
+        };
+        Some(match (status_of(&parts, &facts), request) {
+            (Err(broken), _) => error(ErrorCode::Internal, broken.rule()),
+            (Ok(status), Request::Status { .. }) => Reply::Status(status),
+            (Ok(status), _) => Reply::CaptureChanged(status),
+        })
     }
 }
 
@@ -186,8 +281,18 @@ pub fn serve_request<S: Read + Write>(
             return None;
         }
     };
-    if let Some(reply) = refusal(&request, admitting) {
+    let admission = match refusal(&request, admitting) {
+        Ok(admission) => admission,
+        Err(reply) => {
+            write_reply(stream, &reply);
+            return None;
+        }
+    };
+    if let Some(reply) = admitting.life.answer(admission, &request) {
         write_reply(stream, &reply);
+        if request.is_mutation() {
+            admitting.in_flight.store(false, Ordering::SeqCst);
+        }
         return None;
     }
     let (reply, answer) = mpsc::channel();
@@ -288,12 +393,12 @@ fn served_by_this_build(request: &Request) -> bool {
     )
 }
 
-fn refusal(request: &Request, admitting: &Admitting) -> Option<Reply> {
+fn refusal(request: &Request, admitting: &Admitting) -> Result<Admission, Box<Reply>> {
     if PERMISSION_FORM.serves(request) && !served_by_this_build(request) {
-        return Some(error(
+        return Err(Box::new(error(
             ErrorCode::UnsupportedOp,
             "this build of the capture service does not serve the op",
-        ));
+        )));
     }
     let mutation = request.is_mutation() && PERMISSION_FORM.serves(request);
     let claimed = mutation
@@ -301,12 +406,13 @@ fn refusal(request: &Request, admitting: &Admitting) -> Option<Reply> {
             .in_flight
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok();
-    let refused = match proto::admission(
+    let admission = proto::admission(
         request,
         PERMISSION_FORM,
         mutation && !claimed,
         admitting.life(),
-    ) {
+    );
+    let refused = match admission {
         Admission::OtherForm => Some(error(
             ErrorCode::UnsupportedOp,
             "this build of the capture service does not serve the op",
@@ -321,10 +427,15 @@ fn refusal(request: &Request, admitting: &Admitting) -> Option<Reply> {
         | Admission::ClaimStartingNothing
         | Admission::Serve => None,
     };
-    if refused.is_some() && claimed {
-        admitting.in_flight.store(false, Ordering::SeqCst);
+    match refused {
+        Some(reply) => {
+            if claimed {
+                admitting.in_flight.store(false, Ordering::SeqCst);
+            }
+            Err(Box::new(reply))
+        }
+        None => Ok(admission),
     }
-    refused
 }
 
 fn error(code: ErrorCode, message: &str) -> Reply {
@@ -360,6 +471,33 @@ pub const TYPING: Option<bool> = Some(crate::macos::input::TYPING_ON_MAC);
 #[cfg(not(target_os = "macos"))]
 pub const TYPING: Option<bool> = None;
 
+/// The peak of this process's memory in bytes, as a status reports it: on a
+/// Mac the peak resident size that getrusage reports, on Windows the peak
+/// working set that GetProcessMemoryInfo reports; 0 when the call fails.
+#[cfg(target_os = "macos")]
+pub fn rss_peak_bytes() -> u64 {
+    unix::rss_peak_bytes()
+}
+
+/// The peak of this process's memory in bytes, as a status reports it: on a
+/// Mac the peak resident size that getrusage reports, on Windows the peak
+/// working set that GetProcessMemoryInfo reports; 0 when the call fails.
+#[cfg(windows)]
+pub fn rss_peak_bytes() -> u64 {
+    use ::windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+    use ::windows::Win32::System::Threading::GetCurrentProcess;
+    let mut counters = PROCESS_MEMORY_COUNTERS::default();
+    let size = u32::try_from(std::mem::size_of::<PROCESS_MEMORY_COUNTERS>()).unwrap_or(0);
+    // SAFETY: GetCurrentProcess returns the pseudo handle of this process,
+    // and the call writes at most `size` bytes into `counters`, which is one
+    // PROCESS_MEMORY_COUNTERS that lives across the call.
+    let read = unsafe { GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, size) };
+    match read {
+        Ok(()) => u64::try_from(counters.PeakWorkingSetSize).unwrap_or(u64::MAX),
+        Err(_) => 0,
+    }
+}
+
 /// What a status reads of the life beside the supervisor: its start, whether a
 /// parent is watched, the reading of the run marker at its start and the peak
 /// of its resident memory.
@@ -384,6 +522,9 @@ pub struct StatusParts {
     pub switches: Switches,
     pub once_granted: Vec<Permission>,
     pub asked: Vec<Permission>,
+    /// Whether the hold of a record in the run marker stands (ruling PL-3
+    /// part (5)): capture reads `awaiting_resume` while desired is running.
+    pub held: bool,
 }
 
 /// The status of a service run (contracts.md C2.1, C2.3) on the system of
@@ -402,7 +543,16 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
     };
     let lines = board.source_lines();
     let fresh = parts.lease == proto::Lease::Fresh;
-    let (capture, capture_reason) = capture_of(board, &lines, desired, fresh);
+    let (capture, capture_reason) = match capture_of(board, &lines, desired, fresh) {
+        (capture, _)
+            if parts.held
+                && desired == CaptureState::Running
+                && capture != proto::Capture::Pausing =>
+        {
+            (proto::Capture::AwaitingResume, None)
+        }
+        read => read,
+    };
     let (store, store_id, store_error, store_retry_in_s) = store_of(parts);
     let failing = board.drain.failing || board.drain.hold;
     let enabled_sources = lines
@@ -774,6 +924,7 @@ mod tests {
             switches,
             once_granted: Vec::new(),
             asked: Vec::new(),
+            held: false,
         };
         let facts = RunFacts {
             started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),

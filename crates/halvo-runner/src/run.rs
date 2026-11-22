@@ -89,10 +89,10 @@ pub(crate) struct Runner {
     pub(crate) effects: Vec<Tracked>,
     /// The approval ids that a row of this run held.
     #[cfg_attr(
-        not(test),
+        not(any(test, feature = "loopback")),
         expect(
             dead_code,
-            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+            reason = "the confirm path has no request maker in a build without the feature loopback until the adapters and the browser are linked (CP-142)"
         )
     )]
     pub(crate) approvals: Vec<ApprovalId>,

@@ -40,10 +40,10 @@ pub(crate) struct Tracked {
 impl Tracked {
     /// The id of the effect.
     #[cfg_attr(
-        not(test),
+        not(any(test, feature = "loopback")),
         expect(
             dead_code,
-            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+            reason = "the confirm path has no request maker in a build without the feature loopback until the adapters and the browser are linked (CP-142)"
         )
     )]
     pub(crate) fn id(&self) -> &EffectId {
@@ -58,10 +58,10 @@ impl Tracked {
     /// The `new_origin` of the confirmation whose `allow_once` approved the effect last; none before an approval
     /// and after a `rebind`.
     #[cfg_attr(
-        not(test),
+        not(any(test, feature = "loopback")),
         expect(
             dead_code,
-            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+            reason = "the confirm path has no request maker in a build without the feature loopback until the adapters and the browser are linked (CP-142)"
         )
     )]
     pub(crate) fn allowed_origin(&self) -> Option<&WebOrigin> {
@@ -70,10 +70,10 @@ impl Tracked {
 
     /// The count of the effect's `rebind` rows.
     #[cfg_attr(
-        not(test),
+        not(any(test, feature = "loopback")),
         expect(
             dead_code,
-            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+            reason = "the confirm path has no request maker in a build without the feature loopback until the adapters and the browser are linked (CP-142)"
         )
     )]
     pub(crate) fn rebinds(&self) -> u32 {
@@ -249,10 +249,10 @@ impl Runner {
     /// counts as used when any row of this run held it before (A5.2; the store's handler decides `used` from every
     /// row of the family).
     #[cfg_attr(
-        not(test),
+        not(any(test, feature = "loopback")),
         expect(
             dead_code,
-            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+            reason = "the confirm path has no request maker in a build without the feature loopback until the adapters and the browser are linked (CP-142)"
         )
     )]
     pub(crate) fn approve(

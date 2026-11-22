@@ -1,0 +1,1 @@
+- Added: `agent-gate task fill --mode replay --seed N`, with `--link host` or no `--link`, plays the task fill with the real runner through the gate host and prints the line of A14.5 with `store=memory`; every other form of A14.5 is refused as `usage`.

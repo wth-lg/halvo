@@ -375,6 +375,7 @@ mod tests {
             switches: Switches::default(),
             once_granted: Vec::new(),
             asked: Vec::new(),
+            held: false,
         };
         let facts = RunFacts {
             started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
