@@ -394,7 +394,11 @@ if [ "$1" = ctl ]; then
   done
   [ -n "$pids" ] || exit 69
   case $4 in
-    status) exit 0 ;;
+    status)
+      printf 'store=open\n'
+      if [ "$STUB_MODE" = no-fresh-lease ]; then printf 'lease=none\n'; else printf 'lease=fresh\n'; fi
+      exit 0
+      ;;
     stop)
       kill $pids
       exit 0
@@ -414,7 +418,7 @@ while [ "$STUB_MODE" = orphan ] || kill -0 "$PPID" 2>/dev/null; do
 done
 EOF
   chmod +x "$work/bin/halvo" "$work/bin/halvo-capture" || exit 2
-  modes="good early two window parent store dead-app restart stop-ends-app linger orphan"
+  modes="good early two window parent store dead-app restart stop-ends-app linger orphan no-fresh-lease"
   fixture_limit_s=120
   for mode in $modes; do
     mkdir -p "$work/$mode/procs" || exit 2
@@ -455,6 +459,7 @@ EOF
   check stop-ends-app FAIL 'the app of the provisioned directory does not run'
   check linger FAIL 'the stopped halvo-capture.exe of the provisioned directory still runs'
   check orphan FAIL 'the halvo-capture.exe of the killed app still runs'
+  check no-fresh-lease FAIL 'ctl status of the provisioned directory did not read lease=fresh within 2 s'
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
