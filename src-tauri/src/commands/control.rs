@@ -742,6 +742,18 @@ impl<C: Control> Control for Watching<C> {
         self.inner.relay(made, request)
     }
 
+    fn acknowledge_lost_permission(
+        &self,
+        made: Made,
+        permission: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        let before = self.pid.get();
+        self.took_status(
+            before,
+            self.inner.acknowledge_lost_permission(made, permission),
+        )
+    }
+
     #[cfg(target_os = "macos")]
     fn owner_stream(&self, made: Made) -> Result<OwnerStreamEnd, ClientError> {
         self.inner.owner_stream(made)
