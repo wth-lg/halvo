@@ -387,12 +387,22 @@ fn no_onboarding() -> OnboardingState {
     }
 }
 
+/// The rows of the Permissions view, which the page asks every 3 s while it shows: each call
+/// sends one Status without the indicator claim, beside the poller's claiming pass, so that the
+/// service reads the grants every 3 s while the view is open; the view of the app stays the
+/// poller's. Without an answer the rows come from the poller's last status.
 #[tauri::command]
 pub async fn onboarding_state(state: State<'_, AppState>) -> Result<OnboardingState, ActionError> {
-    Ok(state
-        .views
-        .status()
-        .map_or_else(no_onboarding, |status| onboarding_shown(&status)))
+    let made = state.control.places().make();
+    let control = Arc::clone(&state.control);
+    let answer = off_the_main_thread(move || control.status(made, false)).await?;
+    Ok(match answer {
+        Ok(status) => onboarding_shown(&status),
+        Err(_) => state
+            .views
+            .status()
+            .map_or_else(no_onboarding, |status| onboarding_shown(&status)),
+    })
 }
 
 #[tauri::command]

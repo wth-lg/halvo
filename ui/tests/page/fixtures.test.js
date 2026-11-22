@@ -84,6 +84,9 @@ test("every permission granted shows every row as On and no steps", async () => 
   const badges = page.byId("permissions").querySelectorAll("span.badge").map((b) => b.textContent);
   assert.deepEqual(badges, ["On", "On"]);
   assert.equal(page.visible("walkback"), false);
+  const reads = page.calls("onboarding_state").length;
+  await page.clock.advance(3000);
+  assert.equal(page.calls("onboarding_state").length, reads + 1, "the open view asks its rows every 3 s");
 });
 
 test("a lost permission shows the banner that names its pane", async () => {

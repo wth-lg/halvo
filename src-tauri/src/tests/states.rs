@@ -740,6 +740,127 @@ fn an_acknowledged_lost_grant_reads_lost_no_more_on_the_row_and_the_tray() {
     assert_eq!(after, put_away, "the tray's line goes with the answer");
 }
 
+/// A control whose Status answers a Mac's status and records its claim; every other call
+/// answers Unsupported.
+#[derive(Default)]
+struct Claims {
+    places: std::sync::Arc<crate::commands::control::Places>,
+    seen: std::sync::Mutex<Vec<bool>>,
+}
+
+impl Claims {
+    fn taken(&self) -> Vec<bool> {
+        std::mem::take(&mut *self.seen.lock().expect("the claims"))
+    }
+}
+
+impl crate::commands::control::Control for Claims {
+    fn places(&self) -> &std::sync::Arc<crate::commands::control::Places> {
+        &self.places
+    }
+
+    fn status(
+        &self,
+        _: crate::commands::control::Made,
+        claim: bool,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        self.seen.lock().expect("the claims").push(claim);
+        Ok(status_with(Platform::Macos, |_| {}))
+    }
+
+    fn inventory(
+        &self,
+        _: crate::commands::control::Made,
+    ) -> Result<halvo_control::proto::InventoryReply, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn pause(
+        &self,
+        _: crate::commands::control::Made,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn resume(
+        &self,
+        _: crate::commands::control::Made,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn delete_all(
+        &self,
+        _: crate::commands::control::Made,
+        _: Option<halvo_control::model::StoreId>,
+    ) -> Result<halvo_control::client::DeleteOutcome, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn set_storage_cap(
+        &self,
+        _: crate::commands::control::Made,
+        _: halvo_control::model::StorageCap,
+    ) -> Result<halvo_control::proto::CapSet, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn request_permission(
+        &self,
+        _: crate::commands::control::Made,
+        _: Permission,
+    ) -> Result<halvo_control::onboarding::RequestOutcome, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+}
+
+#[test]
+fn the_open_view_asks_a_status_without_the_claim_and_the_poller_still_claims() {
+    use tauri::Manager;
+    let control = std::sync::Arc::new(Claims::default());
+    let state =
+        crate::commands::capture::AppState::with_control(control.clone(), None, super::no_pane);
+    let test = super::test_app_from(
+        super::test_parts(super::scratch_dir("open-view"), state),
+        crate::app::context(),
+        halvo_control::testing::ScriptedConnector::new(super::macos_fixture_daemon()),
+    );
+    let window = super::main_window(&test.app);
+    let state = test.app.state::<crate::commands::capture::AppState>();
+    let tray = crate::tray::installed_for_tests();
+    let pass = || crate::poller::pass(control.as_ref(), &state.views, Some(&tray));
+    let ask = |command: &str| {
+        super::invoke(&window, super::APP_URL, command, serde_json::json!({}))
+            .unwrap_or_else(|e| panic!("{command} answers {e}"))
+    };
+    control.taken();
+    for _ in 0..3 {
+        pass();
+        ask("capture_status");
+    }
+    assert_eq!(
+        control.taken(),
+        [true; 3],
+        "with the view closed every Status claims"
+    );
+    for _ in 0..3 {
+        pass();
+        let rows = ask("onboarding_state");
+        assert!(rows["permissions"].is_array(), "{rows}");
+    }
+    assert_eq!(
+        control.taken(),
+        [true, false, true, false, true, false],
+        "the open view's Status carries no claim, and each pass beside it claims"
+    );
+    pass();
+    assert_eq!(
+        control.taken(),
+        [true],
+        "closed again, none goes out without"
+    );
+}
+
 #[test]
 #[ignore = "prints the view of each state for a review of the fixtures"]
 fn print_the_views_of_the_states() {
