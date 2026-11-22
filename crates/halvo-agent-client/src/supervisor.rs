@@ -574,7 +574,8 @@ impl Supervisor {
     }
 }
 
-/// What the end of a run reports, and the sends of the two stores of its end that the library answered.
+/// What the end of a run reports, and the sends of the two stores of its end that the library answered after
+/// `bound=no` or a cancelled bind.
 #[derive(Default)]
 pub(crate) struct Ending {
     pub(crate) outcome: Option<Outcome>,
@@ -608,8 +609,8 @@ fn end_store(body: &RunnerCall) -> Option<EndStore> {
     }
 }
 
-/// The sends of one store of a run's end that the library answered: how many, the request id of the last, and
-/// whether its answer was ok, which stored it.
+/// The sends of one store of a run's end that the library answered after `bound=no` or a cancelled bind: how many,
+/// the request id of the last, and whether its answer was ok, which stored it.
 #[derive(Default)]
 struct Sends {
     count: u8,
@@ -805,11 +806,10 @@ impl Running<'_> {
     /// of the end row, a `log` body of one `stopped` line that names no step, and then the store of the `finish`,
     /// each until an ok answer stores it. A repeat of either is taken only under the request id of the send of it
     /// before and after an error answer to that send, `END_SENDS_MAX` sends at most; an end row after an ok answer
-    /// to an end row or after a `finish` frame is lost. A `finish` with no row before it is taken. The count holds
-    /// every end row and every `finish` that the library answered in the run, also before `bound=no`. After it wrote
-    /// `cancel` to a run whose bind is open,
-    /// it drops that bind and takes the same frames alone (ruling CP-193 item 3). A request while the runner waits
-    /// for a reply is lost too.
+    /// to an end row or after a `finish` frame is lost. A `finish` with no row before it is taken. The count starts
+    /// at `bound=no`: a row or a `finish` that the library answered before it is not counted. After it wrote `cancel`
+    /// to a run whose bind is open, it drops that bind and takes the same frames alone, counted from the cancel on
+    /// (ruling CP-193 item 3). A request while the runner waits for a reply is lost too.
     fn on_frame(&mut self, frame: FromRunner) -> Flow {
         let after_finish = matches!(
             frame,
@@ -907,7 +907,8 @@ impl Running<'_> {
                     .unwrap_or_else(|| refuse(ReplyError::Workflow(ErrorName::Internal))),
             }
         };
-        if let Some(store) = end_store(body) {
+        let at_end = self.acts.declined() || self.acts.cancelled_bind();
+        if let Some(store) = end_store(body).filter(|_| at_end) {
             self.ending.sends(store).answered(id, reply.outcome.is_ok());
         }
         match (body, &reply.outcome) {

@@ -1072,6 +1072,42 @@ fn after_bound_no_the_end_row_sent_again_after_a_store_fault_then_the_finish_and
     assert!(adds(&rig).is_empty());
 }
 
+#[test]
+fn a_session_size_row_stored_before_the_bind_does_not_count_against_the_end_after_bound_no() {
+    let rig = Rig::new("size-row-before-bind");
+    *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
+    let size_row = end_row(None)
+        .replace(r#""cause":"declined""#, r#""cause":"session_size""#)
+        .replace(&common::id(0x53), &common::id(0x54));
+    let row = end_row(None).replace(r#""seq":1"#, r#""seq":2"#);
+    let finish = common::ask_finish();
+    let script = rig.script(&[
+        "hello",
+        &size_row,
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        &row,
+        &finish,
+        r#"send {"t":"done","outcome":"declined"}"#,
+        "exit 1",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"no"}"#]);
+    assert_eq!(end.forced, None, "the run was lost: {}", script.log());
+    assert_eq!(end.outcome, Some(Outcome::Declined));
+    assert!(
+        end.finish.is_some(),
+        "the finish was not stored: {}",
+        script.log()
+    );
+    assert_eq!(rig.store.count(r#""op":"log""#), 2);
+    assert_eq!(rig.store.count(r#""op":"finish""#), 1);
+}
+
 fn cancelled_bind_script(rig: &Rig) -> (common::Script, std::path::PathBuf) {
     let go = rig.dir.join("go");
     let finish = common::ask_finish();
