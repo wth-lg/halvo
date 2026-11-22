@@ -223,3 +223,13 @@ test("control-2b: the sentence typed_ahead stands under the password sentence wh
   assert.deepEqual([passwords, typed].filter((line) => offLimits.includes(line)), [], "a Mac view with typing off");
   assert.equal(off.byId("recorded").children.some((li) => /each key/.test(li.textContent)), false);
 });
+
+test("typing-words-mac: What Halvo keeps shows the sentence on withheld keys under typed_ahead when the status gives it, and not otherwise", async () => {
+  const withheld = "Halvo did not save part of what you typed, because it may have been a password. What Halvo leaves out this way is never saved. You do not need to do anything.";
+  const running = fixture("capture_status-running");
+  const mac = await page({ ...running, texts: { ...running.texts, keys_withheld: withheld } });
+  const limits = mac.byId("keeps-limits").children.map((el) => el.textContent);
+  assert.equal(limits.indexOf(withheld), limits.indexOf(running.texts.typed_ahead) + 1);
+  const none = await page(running);
+  assert.equal(none.byId("keeps-limits").children.some((el) => el.textContent === withheld), false);
+});
