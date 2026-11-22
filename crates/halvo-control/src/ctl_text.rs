@@ -1056,6 +1056,7 @@ mod tests {
         let deleted = Deleted {
             report: sample_delete_report(),
             store: Some(FRESH),
+            unfinished: false,
         };
         assert_eq!(deleted_text(&deleted), deleted_fixture(DELETED));
         assert_eq!(
@@ -1252,6 +1253,7 @@ mod tests {
         let deleted = Deleted {
             report,
             store: None,
+            unfinished: false,
         };
         let printed = print(
             &Verb::DeleteAll(None),
@@ -1282,6 +1284,7 @@ mod tests {
             Ok(Reply::Deleted(Deleted {
                 report,
                 store: Some(FRESH),
+                unfinished: false,
             })),
             &data_dir(),
         );
@@ -1308,6 +1311,7 @@ mod tests {
             Ok(Reply::Deleted(Deleted {
                 report,
                 store: None,
+                unfinished: false,
             })),
             &data_dir(),
         );

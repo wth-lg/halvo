@@ -1321,6 +1321,20 @@ impl Executor {
         Ok(signs.into_iter().max())
     }
 
+    /// The second reading of A6.4 (r3 U5.14, the coordinator's ruling of log line 14127 (1)), which
+    /// the runner makes after a web step that failed alone: whether the page, read as `snapshot`
+    /// reads it, the top document and every frame in it, shows a link or a button that asks for a
+    /// sign-in by its name (`asks_to_sign_in`). The role and the name of each control are the ones
+    /// that the browser's accessibility tree computes, never a tag's name and no script's reading,
+    /// and a node that the tree marks ignored, as it marks one that the page does not show, counts
+    /// for nothing. Every earlier ref is stale from here (`RefTable`).
+    pub async fn asks_for_a_sign_in(&mut self) -> Res<bool> {
+        let lines = self.snapshot().await?;
+        Ok(lines
+            .iter()
+            .any(|line| asks_to_sign_in(line.role, &line.name)))
+    }
+
     pub async fn table(&mut self, name: &str) -> Res<Vec<SnapshotLine>> {
         let main = self.main_frame().await?;
         let nodes = self.ax_tree(&main).await?;
@@ -2337,6 +2351,50 @@ pub fn map_role(raw: &str) -> Option<&'static str> {
 const CONTROL_ROLES: [&str; 7] = [
     "button", "link", "textbox", "checkbox", "radio", "combobox", "option",
 ];
+
+/// The closed list of the names by which a link or a button asks for a sign-in (r3 U5.14, the
+/// coordinator's ruling of log line 14127 (1)), in lower case, each as words in a row. A name that
+/// also holds one of `PASSWORD_WORDS` or of `SIGNED_IN_WORDS` asks for none. Left out: `log on` and
+/// `sign on`, which everyday names hold too; `sign up`, `register` and `create account`, which ask
+/// for a new account; `my account`, `continue` and `sign out`; every other language.
+pub const SIGN_IN_NAMES: [&str; 4] = ["sign in", "signin", "log in", "login"];
+
+/// The words of A8.2 by which a name is a password's: a name that holds one asks for no sign-in,
+/// whatever else it holds (`Change password`, `Forgot your login password?`).
+const PASSWORD_WORDS: [&str; 4] = ["password", "passwd", "pwd", "passcode"];
+
+/// The words by which a name is one of a page for a person who is signed in (the coordinator's
+/// ruling of log line 16283 (1)): a name that holds one asks for no sign-in, whatever else it holds
+/// (`Login & security`, `Login history`, `Sign-in options`, `Login settings`).
+const SIGNED_IN_WORDS: [&str; 4] = ["security", "history", "options", "settings"];
+
+/// Whether a control of the role `role`, as `map_role` gives it, with the accessible name `name`
+/// asks for a sign-in by itself (r3 U5.14): a link or a button whose name, in lower case and with
+/// each run of signs that are not letters or digits read as one space, holds the words of one of
+/// `SIGN_IN_NAMES` in a row, and holds none of `PASSWORD_WORDS` and none of `SIGNED_IN_WORDS`. Every
+/// other role, a field among them, asks for none: fields are the rule of a credential field's
+/// (A8.2).
+pub fn asks_to_sign_in(role: &str, name: &str) -> bool {
+    if !matches!(role, "link" | "button") {
+        return false;
+    }
+    let lower = name.to_lowercase();
+    if PASSWORD_WORDS.iter().any(|word| lower.contains(word)) {
+        return false;
+    }
+    if SIGNED_IN_WORDS.iter().any(|word| lower.contains(word)) {
+        return false;
+    }
+    let words: Vec<&str> = lower
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .collect();
+    SIGN_IN_NAMES.iter().any(|listed| {
+        let wanted: Vec<&str> = listed.split(' ').collect();
+        words.windows(wanted.len()).any(|row| row == wanted)
+    })
+}
+
 const VALUE_ROLES: [&str; 2] = ["textbox", "combobox"];
 const MAX_FRAME_DEPTH: usize = 8;
 const FRAME_CLICK_TRIES: usize = 3;

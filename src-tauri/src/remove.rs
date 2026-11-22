@@ -550,10 +550,12 @@ pub fn account_hook() -> (Outcome, Detail) {
 /// the child's by `WithoutTheChild`, and from the child's end on, before the account step, the
 /// agents' runs by a guard of the list, which also sets the mark of a removal on `hold`, so that
 /// no press writes the login item or asks for a child while the list runs. The guard is made
-/// before its hold begins, as the delete's own is, and its drop lifts the runs' hold once and
-/// takes the mark off: after a list that stopped, and where a step unwinds. After a whole list
-/// the list keeps the guard (`keep` marks it kept, and its drop then lifts nothing), so the runs
-/// stay held and the mark stands to the end of the app, and the child's supervisor ends as at a
+/// before its hold begins, as the delete's own is, and its drop ends the list's delete in the
+/// runs' hold, which stands on until the view of a poll made after that end is drawn
+/// (`agents::RunsHold`), and takes the mark off: after a list that stopped, and where a step
+/// unwinds. After a whole list the list keeps the guard (`keep` marks it kept, and its drop then
+/// ends nothing), so the runs stay held and the mark stands to the end of the app, and the
+/// child's supervisor ends as at a
 /// quit, so that no child starts after it; after a list that stopped the supervisor goes on by
 /// its rule. The account step is `account`; the delete is the offline delete of `offline` after
 /// `before`, and it is done only where it deleted and left nothing of the store, or found no
@@ -1360,12 +1362,19 @@ mod tests {
                     );
                     std::thread::sleep(Duration::from_millis(5));
                 }
-                expected.push("lift the runs".to_owned());
+                let calls = Arc::<crate::commands::control::Places>::default();
+                held.runs.drawn(held.core.as_deref(), &views, &calls);
+                views.take_poll(
+                    calls.make().number(),
+                    &Err(halvo_control::client::ClientError::Unsupported),
+                );
+                held.runs.drawn(held.core.as_deref(), &views, &calls);
                 expected.push("start 8".to_owned());
+                expected.push("lift the runs".to_owned());
                 assert_eq!(
                     noted(&record),
                     expected,
-                    "the child ended first, a press while the list ran did nothing, and a list that stopped has no exit"
+                    "the child ended first, a press while the list ran did nothing, a list that stopped has no exit, and the lift comes at the first poll read behind the list"
                 );
                 let _ = consent(
                     &Gated::new(Unresolved),
@@ -1407,10 +1416,17 @@ mod tests {
             )
         }));
         assert!(unwound.is_err(), "the step unwinds through the list");
+        let calls = Arc::<crate::commands::control::Places>::default();
+        held.runs.drawn(held.core.as_deref(), &views, &calls);
+        views.take_poll(
+            calls.make().number(),
+            &Err(halvo_control::client::ClientError::Unsupported),
+        );
+        held.runs.drawn(held.core.as_deref(), &views, &calls);
         assert_eq!(
             noted(&record),
             vec!["hold the runs".to_owned(), "lift the runs".to_owned()],
-            "the core was told to hold once and to lift once"
+            "the core was told to hold once and to lift once, at the latest at the first poll read behind the unwind"
         );
         assert!(
             views.hold().begin_consent().is_some(),
