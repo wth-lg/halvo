@@ -1,10 +1,11 @@
 use halvo_control::client::{ClientError, DeleteOutcome};
 use halvo_control::model::{CaptureState, ObservationWindow, StorageCap, StoreId};
-use halvo_control::onboarding::Permission;
+use halvo_control::onboarding::{GrantState, OnboardingState, Permission};
 use halvo_control::proto::{
     Cap, Capture, CaptureReason, DaemonStatus, DeleteFields, DrainError, ErrorCode, ExpiryError,
-    Health, InventoryReply, LastStop, Lease, LostRecord, PasswordGuard, Platform, RootDestroyed,
-    Section, SourceName, SourceStateName, StopKind, StoreErrorKind, StoreState,
+    Health, InventoryReply, LastStop, Lease, LostRecord, OnOff, PasswordGuard, Platform,
+    RootDestroyed, Section, SourceName, SourceStateName, StopKind, StoreErrorKind, StoreState,
+    SwitchName,
 };
 use halvo_control::texts::{texts, Texts};
 use serde::{Deserialize, Serialize};
@@ -161,6 +162,8 @@ struct HoldState {
     no_more_child: bool,
     start_asked: bool,
     another_version: bool,
+    lives: u64,
+    ended: Option<(u64, Option<i32>)>,
 }
 
 /// The app's hold on capture after a child of the app ended itself with status 5 (contracts.md
@@ -248,6 +251,60 @@ impl Hold {
         start
     }
 
+    /// The number of the app's child that lives at this moment, counted from the first child of
+    /// this life of the app; none while no child lives.
+    pub fn life(&self) -> Option<u64> {
+        let state = self.state();
+        state.child_lives.then_some(state.lives)
+    }
+
+    /// Waits until `until` for the end of the child of number `life`: true where it ended with
+    /// status 5, false where it ended otherwise, where a later child ended first, and at `until`.
+    pub fn ended_with_5(&self, life: u64, until: Instant) -> bool {
+        let mut state = self.state();
+        loop {
+            match state.ended {
+                Some((of, status)) if of == life => {
+                    return status == Some(halvo_control::exit::SOURCE_NOT_STOPPED)
+                }
+                Some((of, _)) if of > life => return false,
+                _ => {}
+            }
+            let left = until.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return false;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+    }
+
+    /// Waits until `until` for a child after the child of number `life`: true once one lives,
+    /// false at `until` and once no further child starts.
+    pub fn wait_for_a_life_after(&self, life: u64, until: Instant) -> bool {
+        let mut state = self.state();
+        loop {
+            if state.child_lives && state.lives > life {
+                return true;
+            }
+            if state.no_more_child {
+                return false;
+            }
+            let left = until.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return false;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+    }
+
     /// Waits until `until` for the child that a Start asked for: true once the supervisor took
     /// the ask and a child lives.
     pub fn wait_for_the_asked_child(&self, until: Instant) -> bool {
@@ -298,6 +355,7 @@ impl Hold {
     #[cfg(any(target_os = "macos", test))]
     pub fn child_started(&self) {
         let mut state = self.state();
+        state.lives += 1;
         state.child_lives = true;
         state.last_exit = None;
         state.another_version = false;
@@ -310,6 +368,9 @@ impl Hold {
     #[cfg(any(target_os = "macos", test))]
     pub fn child_ended(&self, status: Option<i32>) {
         let mut state = self.state();
+        if state.child_lives {
+            state.ended = Some((state.lives, status));
+        }
         state.child_lives = false;
         state.last_exit = status;
         if status == Some(halvo_control::exit::SOURCE_NOT_STOPPED) {
@@ -512,16 +573,19 @@ impl StatusView {
                 .sources
                 .iter()
                 .map(|line| SourceView {
-                    name: line.name,
+                    name: match line.name {
+                        SourceName::Input if !typing_shown(status) => SourceName::Pointer,
+                        name => name,
+                    },
                     state: line.state.name(),
                     reason: line.state.reason(),
                     error: line.state.error().map(ToString::to_string),
                 })
                 .collect(),
-            lost_grants: f.onboarding.lost_grants.clone(),
+            lost_grants: onboarding_shown(status).lost_grants,
             password_guard: f.password_guard,
             screen_filter_excludes_app: f.screen_filter_excludes_app,
-            texts: texts(status),
+            texts: texts_shown(status),
             ext: f.ext.clone(),
             hold: None,
             login_item_loaded: None,
@@ -529,13 +593,69 @@ impl StatusView {
     }
 }
 
+/// The one switch of what a view says about typing on a Mac: whether the status's typing line
+/// reads on. A Mac status that reads it off or holds no such line shows none of what typing
+/// would record or need: the row of keys, the sentences on passwords and on a key pressed early,
+/// the card of Input Monitoring, and the input source's name for typing. A Windows status is
+/// shown as it is.
+pub fn typing_shown(status: &DaemonStatus) -> bool {
+    let f = status.fields();
+    f.platform == Platform::Windows || f.typing == Some(true)
+}
+
+/// The onboarding rows of `status` that a view shows: a row with its steps and its lost grant
+/// stays only for a permission that the app can use, Input Monitoring by [`typing_shown`] and
+/// Screen and System Audio Recording while the switch screen_activity reads on.
+pub fn onboarding_shown(status: &DaemonStatus) -> OnboardingState {
+    let f = status.fields();
+    let screen = f
+        .switches
+        .iter()
+        .any(|line| line.name == SwitchName::ScreenActivity && line.value == OnOff::On);
+    let shown = |permission: Permission| match permission {
+        Permission::InputMonitoring => typing_shown(status),
+        Permission::ScreenAndSystemAudioRecording => screen,
+        Permission::Accessibility => true,
+    };
+    let mut onboarding = f.onboarding.clone();
+    onboarding.permissions.retain(|row| shown(row.permission));
+    onboarding
+        .lost_grants
+        .retain(|&permission| shown(permission));
+    onboarding.walkback.retain(|step| shown(step.permission));
+    onboarding.all_granted = onboarding
+        .permissions
+        .iter()
+        .all(|row| row.grant == GrantState::Granted);
+    onboarding
+}
+
+/// The sentences of `status` that a view shows: by [`typing_shown`], without the row of keys,
+/// the sentence on passwords (left empty) and the sentence on a key pressed early.
+pub fn texts_shown(status: &DaemonStatus) -> Texts {
+    let mut shown = texts(status);
+    if !typing_shown(status) {
+        shown
+            .recorded
+            .retain(|row| row.switch != SwitchName::KeyClass);
+        shown.passwords = "";
+        shown.typed_ahead = None;
+    }
+    shown
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "error", rename_all = "snake_case")]
 pub enum ActionError {
     Busy,
-    Deadline { seconds: u64 },
+    Deadline {
+        seconds: u64,
+    },
     InvalidArgument,
-    CapOutOfRange { min_bytes: u64, max_bytes: u64 },
+    CapOutOfRange {
+        min_bytes: u64,
+        max_bytes: u64,
+    },
     BadStoreId,
     UpdateTheApp,
     StoreUnavailable,
@@ -545,7 +665,21 @@ pub enum ActionError {
     BrokenReply,
     ChannelFailed,
     PaneNotOpened,
-    NotAnswering { service: NoStatusService },
+    NotAnswering {
+        service: NoStatusService,
+    },
+    /// The busy of a life that is ending: the service took no request, and a delete removed
+    /// nothing.
+    ServiceEnding,
+    /// An already_deleted that answers no request of a person's delete: that press removed
+    /// nothing.
+    NothingRemoved,
+    /// The service ended with status 5 during a person's delete and no later life answered
+    /// within the wait, so the flow could not ask again.
+    ServiceNotBack,
+    /// The service does not serve a request of this kind; the page says it in its own words for
+    /// the request, never the message of the service's reply.
+    UnsupportedOp,
 }
 
 impl ActionError {
@@ -558,8 +692,10 @@ impl ActionError {
 }
 
 /// The error of a delete or of a cap Save as the page reads it: the error's own fields, and
-/// whether the outcome of the command is not known (rulings AP-17 G6 and AP-19 H3). Both commands
-/// take that from one list, `removes_nothing`.
+/// whether the outcome of the command is not known (rulings AP-17 G6 and AP-19 H3). A cap Save
+/// takes that from `removes_nothing`. A delete takes it from `a_delete_removed_nothing`, which adds
+/// an already_deleted that the client does not take for the delete, and it stays not known where
+/// the first request read no reply and the second answer removed nothing by itself.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OutcomeError {
     #[serde(flatten)]
@@ -571,9 +707,9 @@ pub struct OutcomeError {
 /// written, or the service gave it before anything is removed (contracts.md C2.1 line 52,
 /// unsupported_version read before the shape; line 61, unsupported_op; C2.6 lines 170 and 174,
 /// busy before the store's state and the ids are read, the busy of a life that is ending among
-/// them; line 173, an already_deleted that the client does not take for this request; C15
-/// item 3, peer_rejected by the client before it sends). Every other error leaves the outcome
-/// not known.
+/// them; C15 item 3, peer_rejected by the client before it sends). Every other error leaves the
+/// outcome not known, an already_deleted that answers no request of the call among them; a
+/// delete reads that one by `a_delete_removed_nothing`.
 #[deny(clippy::wildcard_enum_match_arm)]
 pub fn removes_nothing(error: &ClientError) -> bool {
     match error {
@@ -581,8 +717,7 @@ pub fn removes_nothing(error: &ClientError) -> bool {
         | ClientError::Unreachable { .. }
         | ClientError::DataDirInUse { .. }
         | ClientError::PeerRejected(_)
-        | ClientError::ServiceEnding(_)
-        | ClientError::AlreadyDeletedToThisRequest(_) => true,
+        | ClientError::ServiceEnding(_) => true,
         ClientError::Daemon(reply) => match reply.code() {
             ErrorCode::Busy | ErrorCode::UnsupportedVersion | ErrorCode::UnsupportedOp => true,
             ErrorCode::InvalidArgument
@@ -597,8 +732,16 @@ pub fn removes_nothing(error: &ClientError) -> bool {
         | ClientError::ValueUnknownToV1(_)
         | ClientError::StateDoesNotHoldTogether(_)
         | ClientError::UnexpectedReply { .. }
+        | ClientError::AlreadyDeletedToThisRequest(_)
         | ClientError::Io(_) => false,
     }
+}
+
+/// Whether a person's delete that ended in `error` removed nothing: the errors of
+/// `removes_nothing`, and an already_deleted that the client does not take for this delete
+/// (contracts.md C2.6 line 173).
+pub fn a_delete_removed_nothing(error: &ClientError) -> bool {
+    removes_nothing(error) || matches!(error, ClientError::AlreadyDeletedToThisRequest(_))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -613,11 +756,11 @@ pub fn read_error(error: &ClientError) -> Reading {
         ClientError::Unsupported => (NoStatusService::Unsupported, None),
         ClientError::Unreachable { .. } => (NoStatusService::NotRunning, None),
         ClientError::DataDirInUse { .. } => (NoStatusService::HeldUnreachable, None),
-        // The busy of a life that is ending, and an already_deleted that answers no request of
-        // this call: the service did not take the request, which ERROR_NOT_ANSWERING says. The
-        // words of I-82 point 5 for the first are not on the page yet (the join step after
-        // control-2c names them for the planner).
-        ClientError::ServiceEnding(_) | ClientError::AlreadyDeletedToThisRequest(_) => (
+        ClientError::ServiceEnding(_) => (
+            NoStatusService::StatusRefused,
+            Some(ActionError::ServiceEnding),
+        ),
+        ClientError::AlreadyDeletedToThisRequest(_) => (
             NoStatusService::StatusRefused,
             Some(ActionError::NotAnswering {
                 service: NoStatusService::StatusRefused,
@@ -881,6 +1024,7 @@ pub fn delete_view(
 ) -> Result<DeleteView, ActionError> {
     match answer {
         Ok(outcome) => Ok(DeleteView::of(&outcome, roots_dir)),
+        Err(ClientError::AlreadyDeletedToThisRequest(_)) => Err(ActionError::NothingRemoved),
         Err(error) => {
             let reading = read_error(&error);
             Err(reading.command_error.unwrap_or(ActionError::NotAnswering {

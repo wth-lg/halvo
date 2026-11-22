@@ -2,11 +2,11 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use halvo_control::client::ClientError;
+use halvo_control::client::{ClientError, DeleteOutcome};
 use halvo_control::model::{CaptureState, StorageCap, StoreId};
 use halvo_control::onboarding::{OnboardingState, Permission, RequestOutcome};
 use halvo_control::paths::DataDir;
-use halvo_control::proto::{reaches_the_end, CaptureChange, DaemonStatus, StateFile};
+use halvo_control::proto::{reaches_the_end, CaptureChange, DaemonStatus, ErrorCode, StateFile};
 use tauri::ipc::Invoke;
 use tauri::{Runtime, State};
 
@@ -15,8 +15,9 @@ use super::names::{Names, CAPTURE};
 use super::Registration;
 use crate::poller::{self, Views};
 use crate::view_state::{
-    command_view, delete_view, inventory_view, read_error, removes_nothing, ActionError,
-    CapSetView, CaptureSet, DeleteView, Hold, InventoryView, LastDelete, OutcomeError, StatusView,
+    a_delete_removed_nothing, command_view, delete_view, inventory_view, onboarding_shown,
+    read_error, removes_nothing, ActionError, CapSetView, CaptureSet, DeleteView, Hold,
+    InventoryView, LastDelete, OutcomeError, StatusView,
 };
 
 pub struct AppState {
@@ -84,6 +85,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         request_permission,
         open_permission_pane,
         last_delete,
+        acknowledge_lost_permission,
     ];
     handle(invoke)
 }
@@ -250,6 +252,140 @@ impl Drop for NotLeftInFlight<'_> {
     }
 }
 
+/// How long the flow of a delete waits before its second ask.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeleteWaits {
+    /// For the end of the life that the first ask reached, from the first answer.
+    pub asked_life_end: Duration,
+    /// For a later life to answer a plain Status, from the end of that life.
+    pub next_life: Duration,
+}
+
+/// The waits of a person's delete: the end of the asked life within STOP_WAIT_MS and 2 s, the
+/// time in which the app ends a child that it saw ending; a later life within the longest wait
+/// of the backoff and the wait of a Start.
+pub const DELETE_WAITS: DeleteWaits = DeleteWaits {
+    asked_life_end: Duration::from_millis(halvo_control::STOP_WAIT_MS + 2_000),
+    next_life: Duration::from_secs(70),
+};
+
+/// How the flow of a person's delete ended.
+#[derive(Debug)]
+pub enum DeleteEnd {
+    /// The answer of the last delete request that the flow sent.
+    Answered(Result<DeleteOutcome, ClientError>),
+    /// The life that the first request reached ended with status 5 and no later life answered
+    /// within the wait, so no second request was sent: the first request's error.
+    NoLifeAnswered(ClientError),
+    /// The first request read no reply and the second request's answer removed nothing by
+    /// itself, so what the first request did stays not known: the first request's error.
+    FirstNotKnown(ClientError),
+}
+
+/// What the flow of a person's delete ended with, the number of the call of the delete request
+/// of its end, and the next number of the line at that end.
+#[derive(Debug)]
+pub struct DeleteAsked {
+    pub end: DeleteEnd,
+    pub call: u64,
+    pub next_number_at_answer: u64,
+}
+
+/// The flow of a person's press of Delete everything, off the main thread: the delete request
+/// armed with `armed`, marked in `views` as the app's own delete while it is in flight. Where it
+/// read a plain busy or no reply, a store id was armed and the child that it reached ended with
+/// status 5, the flow waits for a later child that answers a plain Status and asks once more with
+/// the same id; it sends no Status that claims the indicator and no Resume, and never a third
+/// request (contracts.md C2.1). Where the first request read no reply, a second answer that removes
+/// nothing by itself leaves what the first request did not known.
+pub fn ask_to_delete(
+    control: &dyn Control,
+    views: &Views,
+    armed: Option<StoreId>,
+    waits: DeleteWaits,
+) -> DeleteAsked {
+    let hold = views.hold();
+    let life = hold.life();
+    let (answer, call, next_number_at_answer) = ask_once(control, views, armed);
+    let (life, first) = match (life, armed, answer) {
+        (Some(life), Some(_), Err(first)) if asks_again(&first) => (life, first),
+        (_, _, answer) => {
+            return DeleteAsked {
+                end: DeleteEnd::Answered(answer),
+                call,
+                next_number_at_answer,
+            }
+        }
+    };
+    if !hold.ended_with_5(life, Instant::now() + waits.asked_life_end) {
+        return DeleteAsked {
+            end: DeleteEnd::Answered(Err(first)),
+            call,
+            next_number_at_answer,
+        };
+    }
+    if !a_later_life_answers(control, hold, life, Instant::now() + waits.next_life) {
+        return DeleteAsked {
+            end: DeleteEnd::NoLifeAnswered(first),
+            call,
+            next_number_at_answer: control.places().next_number(),
+        };
+    }
+    let (answer, call, next_number_at_answer) = ask_once(control, views, armed);
+    let end = match answer {
+        Err(second)
+            if matches!(first, ClientError::Deadline { .. })
+                && a_delete_removed_nothing(&second) =>
+        {
+            DeleteEnd::FirstNotKnown(first)
+        }
+        answer => DeleteEnd::Answered(answer),
+    };
+    DeleteAsked {
+        end,
+        call,
+        next_number_at_answer,
+    }
+}
+
+fn asks_again(error: &ClientError) -> bool {
+    match error {
+        ClientError::Deadline { .. } => true,
+        ClientError::Daemon(reply) => reply.code() == ErrorCode::Busy,
+        _ => false,
+    }
+}
+
+fn a_later_life_answers(control: &dyn Control, hold: &Hold, life: u64, until: Instant) -> bool {
+    loop {
+        if !hold.wait_for_a_life_after(life, until) {
+            return false;
+        }
+        if control.status(control.places().make(), false).is_ok() {
+            return true;
+        }
+        let left = until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return false;
+        }
+        std::thread::sleep(left.min(START_STATUS_STEP));
+    }
+}
+
+fn ask_once(
+    control: &dyn Control,
+    views: &Views,
+    armed: Option<StoreId>,
+) -> (Result<DeleteOutcome, ClientError>, u64, u64) {
+    let made = control.places().make();
+    let call = made.number();
+    let answer = {
+        let _in_flight = views.own_delete();
+        control.delete_all(made, armed)
+    };
+    (answer, call, control.places().next_number())
+}
+
 #[tauri::command]
 pub async fn delete_all(
     state: State<'_, AppState>,
@@ -264,27 +400,37 @@ pub async fn delete_all(
     };
     state.keep_last_delete(LastDelete::InFlight);
     let _in_flight = NotLeftInFlight(state.inner());
-    let made = state.control.places().make();
-    let call = made.number();
     let control = Arc::clone(&state.control);
-    let ended = off_the_main_thread(move || {
-        let answer = control.delete_all(made, armed);
-        (answer, control.places().next_number())
-    })
-    .await;
-    let Ok((answer, next_number_at_answer)) = ended else {
-        state
-            .views
-            .take_delete(call, state.control.places().next_number());
+    let views = Arc::clone(&state.views);
+    let ended =
+        off_the_main_thread(move || ask_to_delete(control.as_ref(), &views, armed, DELETE_WAITS))
+            .await;
+    let Ok(DeleteAsked {
+        end,
+        call,
+        next_number_at_answer,
+    }) = ended
+    else {
+        let next = state.control.places().next_number();
+        state.views.take_delete(next, next);
         draw_off_the_main_thread(&state.views).await;
         return Err(OutcomeError {
             error: ActionError::Internal,
             outcome_not_known: true,
         });
     };
-    let nothing_removed = answer.as_ref().err().is_some_and(removes_nothing);
     let roots = state.data_dir.as_ref().map(DataDir::roots_dir);
-    let view = delete_view(answer, roots.as_deref());
+    let (view, nothing_removed) = match end {
+        DeleteEnd::Answered(answer) => {
+            let nothing_removed = answer.as_ref().err().is_some_and(a_delete_removed_nothing);
+            (delete_view(answer, roots.as_deref()), nothing_removed)
+        }
+        DeleteEnd::NoLifeAnswered(first) => (
+            Err(ActionError::ServiceNotBack),
+            a_delete_removed_nothing(&first),
+        ),
+        DeleteEnd::FirstNotKnown(first) => (delete_view(Err(first), roots.as_deref()), false),
+    };
     match &view {
         Ok(DeleteView::Deleted { .. } | DeleteView::AlreadyDeleted { .. }) => {
             state.views.take_delete(call, next_number_at_answer);
@@ -385,12 +531,22 @@ fn no_onboarding() -> OnboardingState {
     }
 }
 
+/// The rows of the Permissions view, which the page asks every 3 s while it shows: each call
+/// sends one Status without the indicator claim, beside the poller's claiming pass, so that the
+/// service reads the grants every 3 s while the view is open; the view of the app stays the
+/// poller's. Without an answer the rows come from the poller's last status.
 #[tauri::command]
 pub async fn onboarding_state(state: State<'_, AppState>) -> Result<OnboardingState, ActionError> {
-    Ok(state
-        .views
-        .status()
-        .map_or_else(no_onboarding, |status| status.fields().onboarding.clone()))
+    let made = state.control.places().make();
+    let control = Arc::clone(&state.control);
+    let answer = off_the_main_thread(move || control.status(made, false)).await?;
+    Ok(match answer {
+        Ok(status) => onboarding_shown(&status),
+        Err(_) => state
+            .views
+            .status()
+            .map_or_else(no_onboarding, |status| onboarding_shown(&status)),
+    })
 }
 
 #[tauri::command]
@@ -402,12 +558,43 @@ pub async fn request_permission(
     let control = Arc::clone(&state.control);
     off_the_main_thread(move || control.request_permission(made, permission))
         .await?
-        .map_err(|error| {
-            let reading = read_error(&error);
-            reading.command_error.unwrap_or(ActionError::NotAnswering {
-                service: reading.service,
-            })
+        .map_err(|error| match &error {
+            ClientError::Daemon(reply) if reply.code() == ErrorCode::UnsupportedOp => {
+                ActionError::UnsupportedOp
+            }
+            _ => not_taken(&error),
         })
+}
+
+/// Puts a lost grant away with one acknowledge_lost_permission request, takes the
+/// status that comes back into the view, so that the tray's line goes with it, and answers the
+/// onboarding rows of that status.
+#[tauri::command]
+pub async fn acknowledge_lost_permission(
+    state: State<'_, AppState>,
+    permission: Permission,
+) -> Result<OnboardingState, ActionError> {
+    let made = state.control.places().make();
+    let call = made.number();
+    let control = Arc::clone(&state.control);
+    let (answer, next_number_at_answer) = off_the_main_thread(move || {
+        let answer = control.acknowledge_lost_permission(made, permission);
+        (answer, control.places().next_number())
+    })
+    .await?;
+    let status = answer.map_err(|error| not_taken(&error))?;
+    state
+        .views
+        .take_mutation(call, next_number_at_answer, &status);
+    draw_off_the_main_thread(&state.views).await;
+    Ok(onboarding_shown(&status))
+}
+
+fn not_taken(error: &ClientError) -> ActionError {
+    let reading = read_error(error);
+    reading.command_error.unwrap_or(ActionError::NotAnswering {
+        service: reading.service,
+    })
 }
 
 #[tauri::command]

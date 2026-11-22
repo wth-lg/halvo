@@ -1,10 +1,12 @@
 #!/bin/sh
 # jobs: windows
-# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, each read for a number of bytes above zero before anything starts it, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started).
+# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, each read for a number of bytes above zero before anything starts it, and no other file in that directory whose name ends in .exe but the uninstall.exe of the installer template, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started).
 set -u
 name=70-package-windows
 config_keys='externalBin signCommand certificateThumbprint'
 attempts=3
+# The uninstaller that the NSIS template of the Tauri bundler writes; 7-Zip unpacks it beside halvo.exe.
+template_executables='uninstall.exe'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -84,6 +86,23 @@ content_defect() {
   fi
   for helper in "$@"; do
     [ -f "${apps%/*}/$helper.exe" ] || { printf 'the installer holds no %s.exe beside halvo.exe\n' "$helper"; return 1; }
+  done
+  # Every entry beside halvo.exe whose name ends in .exe in any case, of any type and with a dot name
+  # too, is halvo.exe, a helper with .exe or a file of the installer template.
+  for entry in "${apps%/*}"/* "${apps%/*}"/.[!.]* "${apps%/*}"/..?*; do
+    [ -e "$entry" ] || [ -L "$entry" ] || continue
+    case ${entry##*/} in
+      *.[eE][xX][eE]) ;;
+      *) continue ;;
+    esac
+    for executable in halvo "$@"; do
+      [ "${entry##*/}" = "$executable.exe" ] && continue 2
+    done
+    for executable in $template_executables; do
+      [ "${entry##*/}" = "$executable" ] && continue 2
+    done
+    printf 'the installer holds %s beside halvo.exe, which is neither halvo.exe, a helper of packaging/helpers.d with .exe nor a file of the installer template (%s)\n' "${entry##*/}" "$template_executables"
+    return 1
   done
   printf '%s\n' "${apps%/*}"
 }
@@ -210,6 +229,24 @@ self_test() {
   stand_in content-without-the-daemon/Halvo halvo.exe
   output=$(content_defect "$work/content-without-the-daemon" halvo-capture 2>"$work/content.err")
   answer installer-content-without-the-daemon $? "$output" 'the installer holds no halvo-capture.exe beside halvo.exe'
+
+  # The list of packaging/helpers.d as the tree holds it, and a content with every helper of it but the runner.
+  helpers=$(helper_names)
+  stand_in content-without-the-runner/Halvo halvo.exe
+  for helper in $(printf '%s\n' "$helpers" | grep -v -x -F halvo-runner); do
+    stand_in content-without-the-runner/Halvo "$helper.exe"
+  done
+  # shellcheck disable=SC2086
+  output=$(content_defect "$work/content-without-the-runner" $helpers 2>"$work/runner.err")
+  answer installer-content-without-the-runner $? "$output" 'the installer holds no halvo-runner.exe beside halvo.exe'
+
+  # The template's uninstall.exe stands there as in a real installer, and the one more file sorts after it.
+  for executable in halvo $helpers uninstall updater; do
+    stand_in content-with-one-more-executable/Halvo "$executable.exe"
+  done
+  # shellcheck disable=SC2086
+  output=$(content_defect "$work/content-with-one-more-executable" $helpers 2>"$work/more.err")
+  answer installer-content-with-one-more-executable $? "$output" 'the installer holds updater.exe beside halvo.exe, which is neither halvo.exe, a helper of packaging/helpers.d with .exe nor a file of the installer template (uninstall.exe)'
 
   stand_in daemon-with-the-test-seam halvo.exe
   stand_in daemon-with-the-test-seam halvo-capture.exe
