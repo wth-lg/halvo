@@ -1127,6 +1127,33 @@ fn a_sign_in_item_names_the_site_of_its_hand_back() {
     );
 }
 
+#[test]
+fn two_sign_in_items_each_name_the_site_of_their_own_hand_back() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let sites = ["shop.site1.example", "bank.site2.example"];
+    for (n, site) in sites.iter().enumerate() {
+        let run = start(&c, n);
+        let origin = format!("https://{site}:443");
+        c.on_run(
+            &run,
+            handback_at(&run, n, HandbackReason::SignIn, Some(&origin)),
+        )
+        .unwrap();
+    }
+    let s = c.snapshot();
+    assert_eq!(s.items.len(), 2, "{s:?}");
+    for (n, site) in sites.iter().enumerate() {
+        let item = s.items.iter().find(|i| *i.agent() == agent(n)).unwrap();
+        assert_eq!(item.kind(), ItemKind::SignIn);
+        assert_eq!(item.text(), sign_in_site(site), "agent {n}");
+        assert!(!item.text().contains(sites[1 - n]), "agent {n}");
+    }
+}
+
 /// The run ends with `end` as every stop: one `cancel` since `m`, the row says that it stops, and
 /// at the first tick after `cancel_grace_s` it is killed and its `run_ended` holds `end`.
 fn ends_with(c: &Coordinator<Both>, m: usize, run: &RunId, end: RunEnd, now: u64) {
