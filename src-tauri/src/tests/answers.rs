@@ -981,11 +981,13 @@ enum CapEnd {
     NoStatus,
 }
 
-/// AP-19 H3: one list of the errors after which an outcome is not known serves the delete and
-/// the cap Save: a cap Save that ends in any of them carries outcome_not_known, so that the page
-/// shows its error words and then I-114 point 18; the errors that remove nothing change nothing.
+/// AP-19 H3, as the unit file of app-3a turns it at its line 200: `removes_nothing` names the
+/// errors after which a cap Save changed nothing; every other error leaves its outcome not known,
+/// an already_deleted that the client does not take for the Save among them, so that the page
+/// shows its error words and then I-114 point 18. A delete reads that already_deleted by
+/// `a_delete_removed_nothing`.
 #[test]
-fn h3_a_cap_save_takes_the_outcome_from_the_same_list_as_the_delete() {
+fn h3_a_cap_save_takes_the_outcome_from_removes_nothing() {
     let rows: [(&str, Answer, CapEnd); 20] = [
         (
             "deadline",
@@ -1110,7 +1112,7 @@ fn h3_a_cap_save_takes_the_outcome_from_the_same_list_as_the_delete() {
                 assert_eq!(
                     removes_nothing,
                     end == CapEnd::NothingChanged,
-                    "{name}: the one list"
+                    "{name}: removes_nothing"
                 );
             }
         }

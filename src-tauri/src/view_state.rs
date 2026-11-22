@@ -617,8 +617,10 @@ impl ActionError {
 }
 
 /// The error of a delete or of a cap Save as the page reads it: the error's own fields, and
-/// whether the outcome of the command is not known (rulings AP-17 G6 and AP-19 H3). Both commands
-/// take that from one list, `removes_nothing`.
+/// whether the outcome of the command is not known (rulings AP-17 G6 and AP-19 H3). A cap Save
+/// takes that from `removes_nothing`. A delete takes it from `a_delete_removed_nothing`, which adds
+/// an already_deleted that the client does not take for the delete, and it stays not known where
+/// the first request read no reply and the second answer removed nothing by itself.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OutcomeError {
     #[serde(flatten)]

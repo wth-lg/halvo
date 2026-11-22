@@ -219,10 +219,6 @@
         return w.ERROR_NOT_ANSWERING;
       case "service_ending":
         return w.ERROR_NOT_ANSWERING;
-      case "nothing_removed":
-        return w.DELETE_NOTHING_REMOVED;
-      case "service_not_back":
-        return w.DELETE_SERVICE_NOT_BACK;
       default:
         return w.ERROR_OTHER;
     }

@@ -44,11 +44,7 @@ test("I-82 (5), rulings CT-13 (1) and AP-20: the error of a life that is ending 
   }
 
   const words = (await openPage()).window.Halvo;
-  for (const kind of ["service_ending", "nothing_removed", "service_not_back"]) {
-    const sentence = words.errorWords({ error: kind });
-    assert.notEqual(sentence, words.words.ERROR_BUSY, kind);
-    assert.notEqual(sentence, words.words.ERROR_OTHER, `${kind}: a sentence of its own kind`);
-  }
+  assert.notEqual(words.errorWords({ error: "service_ending" }), words.words.ERROR_BUSY, "service_ending");
   assert.equal(words.errorWords({ error: "service_ending" }), W.notAnswering);
 
   const resume = await openPage({
