@@ -411,12 +411,14 @@ impl StateFile {
         Ok(())
     }
 
-    /// Writes [`after_a_reset`] over a state file that does not load, and over
-    /// no other, and takes it into memory once the write succeeded: the
-    /// person's reset of the settings alone, which keeps the store. A file
-    /// that loads, also one whose last write failed, and one of a newer
-    /// version are left as they are, and a failed write leaves memory as it
-    /// was.
+    /// Writes [`after_a_reset`] over a state file that this life read as not
+    /// loading, and over no other, and takes it into memory once the write
+    /// succeeded: the person's reset of the settings alone, which keeps the
+    /// store. A file that the life read as loading, also one whose last write
+    /// failed, and one that it read as of a newer version are left as they
+    /// are, and a failed write leaves memory as it was. The file is not read
+    /// again: one that reads on the disk under a life that read it as not
+    /// loading is written over.
     pub fn reset_settings(&mut self) -> Result<(), ResetRefused> {
         match self.loaded {
             Loaded::Corrupt => {}
