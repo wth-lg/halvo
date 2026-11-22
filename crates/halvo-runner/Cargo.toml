@@ -23,6 +23,8 @@ halvo-control = { path = "../halvo-control" }
 halvo-policy = { path = "../halvo-policy" }
 halvo-schema = { path = "../halvo-schema" }
 halvo-sheet = { path = "../halvo-sheet" }
+halvo-web = { path = "../halvo-web" }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time"] }
 
 [dev-dependencies]
 halvo-runner = { path = ".", features = ["loopback"] }
