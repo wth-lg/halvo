@@ -1094,6 +1094,25 @@ mod detector {
             gate
         }
 
+        #[cfg(test)]
+        pub(crate) fn whose_attach_fails() -> PasswordGate {
+            fn no_desktop_hook() -> HWINEVENTHOOK {
+                HWINEVENTHOOK::default()
+            }
+            PasswordGate::with_removals(Removals {
+                set_desktop_hook: no_desktop_hook,
+                ..Removals::default()
+            })
+        }
+
+        #[cfg(test)]
+        pub(crate) fn is_attached(&self) -> bool {
+            self.detector
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_some()
+        }
+
         pub(crate) fn attach(&self) -> Result<(), CaptureError> {
             if self
                 .detector
