@@ -5,8 +5,9 @@ use halvo_coord::guard::EffectState;
 use halvo_coord::mem::Call;
 use halvo_coord::types::{
     Action, AskedEffect, BindAsk, BindResult, BoundField, BoundFrom, Choice, Class, ConfirmAsk,
-    Digest, EffectId, HandbackAsk, HandbackReason, HandbackResult, ItemId, ItemKind, Kept, Limits,
-    Name, Origin, Outcome, PastEffect, PastRun, RunEnd, RunEvent, RunHistory, RunId, What,
+    Digest, EffectId, HandbackAsk, HandbackReason, HandbackResult, ItemId, ItemKind, Kept,
+    LastCause, Limits, Name, Origin, Outcome, PastEffect, PastRun, RunEnd, RunEvent, RunHistory,
+    RunId, What,
 };
 use halvo_coord::{words, Coordinator};
 use support::{agent, calls_since, coordinator, mark, started, Both, DAY, MANUAL, T0};
@@ -875,4 +876,31 @@ fn rd116_r4_a_kill_refused_at_the_quit_shows_kill_stuck_on_the_gone_row() {
     assert_eq!(c.live(), 1, "the quit's kill was refused");
     let row = row_of(&c).expect("the row stays");
     assert_eq!(row.line, line(HOST_KILL_STUCK));
+}
+
+/// The memory owner's roster entry holds `last_cause` and the agent's run ends failed: the move
+/// after the end reads the entry through `Owner::agents` (`fresh`, then `refresh` of
+/// schedule/drive.rs) and the row says the browser sentence; with no cause it says the failed
+/// run's line.
+#[test]
+fn u24x_a_failed_run_whose_roster_entry_holds_no_browser_gives_the_browser_line() {
+    for (cause, key) in [
+        (Some(LastCause::NoBrowser), "line.problem.no_browser"),
+        (None, "line.problem.failed"),
+    ] {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        c.ports().ports.agents.borrow_mut()[0].last_cause = cause;
+        c.ports().ports.store_end(
+            &agent(0),
+            PastRun {
+                run: run.clone(),
+                day: DAY,
+                outcome: Outcome::Failed,
+                unknown: 0,
+            },
+        );
+        end(&c, &run, Outcome::Failed);
+        assert_eq!(row_of(&c).expect("the row").line, line(key), "{cause:?}");
+    }
 }

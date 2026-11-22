@@ -632,6 +632,7 @@ fn build(state: State) -> Vec<Built> {
             replies: crate::types::Replies::NotAsked,
             unknown: Vec::new(),
             refused: None,
+            last_cause: None,
             today: TODAY,
             doing,
             stand_in: false,

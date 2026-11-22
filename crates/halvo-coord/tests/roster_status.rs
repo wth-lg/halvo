@@ -3,8 +3,8 @@ use halvo_coord::mem::Config;
 use halvo_coord::roster::status;
 use halvo_coord::types::fixtures::{facts, State};
 use halvo_coord::types::{
-    Doing, Event, Facts, Failure, HoldSetCause, ItemId, ItemKind, Limits, Live, OwnItem,
-    OwnItemKind, RunEnd, RunId, RunItem, RunItemKind, StatusLine, Trigger, What,
+    Doing, Event, Facts, Failure, HoldSetCause, ItemId, ItemKind, LastCause, Limits, Live, OwnItem,
+    OwnItemKind, RunEnd, RunId, RunItem, RunItemKind, Status, StatusLine, Trigger, What,
 };
 use std::num::NonZeroU32;
 
@@ -179,6 +179,32 @@ fn a_last_run_of_the_failure_class_gives_problem_with_its_cause() {
         ended(&mut f, 2, TODAY, RunEnd::Completed);
         assert_eq!(line(&f), StatusLine::Done);
     }
+}
+
+#[test]
+fn a_failed_last_run_whose_cause_has_a_sentence_gives_that_sentence_in_place_of_the_failed_line() {
+    let mut f = utility();
+    ended(&mut f, 1, TODAY, RunEnd::from(Failure::Failed));
+    assert_eq!(line(&f), StatusLine::Problem(Failure::Failed));
+    let mut said = f.clone();
+    said.last_cause = Some(LastCause::NoBrowser);
+    let said_line = line(&said);
+    assert_eq!(said_line.key(), "line.problem.no_browser");
+    assert_eq!(said_line.status(), Status::Problem);
+    assert_eq!(
+        halvo_coord::words::text(&said_line.key(), &[]).unwrap(),
+        "This agent needs Google Chrome or Microsoft Edge to open web pages. Install one of them, then run the agent again."
+    );
+    let controls = |f: &Facts<Config>| halvo_coord::roster::controls(f, None, &Limits::PRODUCT);
+    assert_eq!(controls(&said), controls(&f));
+    push(
+        &mut said,
+        TODAY,
+        What::HoldSet {
+            cause: HoldSetCause::Failures,
+        },
+    );
+    assert_eq!(line(&said), StatusLine::Failures);
 }
 
 #[test]

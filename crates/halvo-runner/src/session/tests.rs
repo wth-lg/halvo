@@ -31,6 +31,14 @@ fn note(log: &Log, line: impl Into<String>) {
     log.lock().expect("the log").push(line.into());
 }
 
+/// The data directory of the runs of these tests, absolute on each system, as `--data-dir` wants it; the stand-in of
+/// the browser makes nothing in it.
+const DATA_DIR: &str = if cfg!(windows) {
+    r"C:\halvo-runner-session-test-data"
+} else {
+    "/halvo-runner-session-test-data"
+};
+
 const A: &str = "http://a.test:8080";
 const B: &str = "http://b.test:8081";
 const C: &str = "http://c.test:8082";
@@ -552,7 +560,7 @@ impl World {
             "--browser",
             "none",
             "--data-dir",
-            "/halvo-runner-session-test-data",
+            DATA_DIR,
             "--utc-offset",
             "0",
         ];

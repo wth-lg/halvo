@@ -88,6 +88,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "The site did not let it sign in.",
     ),
     (
+        "line.problem.no_browser",
+        "This agent needs Google Chrome or Microsoft Edge to open web pages. Install one of them, then run the agent again.",
+    ),
+    (
         "line.off.kept",
         "This task is switched off. To let it run again, choose Switch on.",
     ),
@@ -396,6 +400,10 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "item.sign_in.bind",
         "This agent will now work on {origin}. Allow this site only if you know it.",
+    ),
+    (
+        "item.sign_in.site",
+        "Sign in to {origin} in its own window, then choose Done.",
     ),
     (
         "choice.sign_in.bind_decline",

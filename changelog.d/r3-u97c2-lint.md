@@ -1,0 +1,1 @@
+- Fixed: Check 16-shell-lint failed on scripts/r1/ci.d/21-tree-bans.sh, where the failure text of check 21's rule on the control client held a command substitution that masked its return status (SC2312); the first line of the match now goes into a variable before the fail call.

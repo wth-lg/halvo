@@ -1,5 +1,7 @@
-use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use halvo_control::client::{ClientError, DeleteOutcome};
@@ -7,17 +9,19 @@ use halvo_control::model::{CaptureState, StorageCap, StoreId};
 use halvo_control::onboarding::{OnboardingState, Permission, RequestOutcome};
 use halvo_control::paths::DataDir;
 use halvo_control::proto::{reaches_the_end, CaptureChange, DaemonStatus, ErrorCode, StateFile};
+use halvo_control::service::DATA_DIR_ARG;
 use tauri::ipc::Invoke;
-use tauri::{Runtime, State};
+use tauri::{AppHandle, Manager, Runtime, State};
 
+use super::agents::RunsHold;
 use super::control::{control_of, Control, Made};
 use super::names::{Names, CAPTURE};
-use super::Registration;
+use super::{tell_before_delete_all, Registration};
 use crate::poller::{self, Views};
 use crate::view_state::{
-    a_delete_removed_nothing, command_view, delete_view, inventory_view, onboarding_shown,
-    read_error, removes_nothing, ActionError, CapSetView, CaptureSet, DeleteView, Hold,
-    InventoryView, LastDelete, OutcomeError, StatusView,
+    a_delete_removed_nothing, command_view, delete_view, inventory_view, offline_view,
+    onboarding_shown, read_error, removes_nothing, ActionError, CapSetView, CaptureSet, DeleteView,
+    Hold, InventoryView, LastDelete, OfflineEnd, OutcomeError, StatusView,
 };
 
 /// What the consent click calls first to write the login item through the manager of
@@ -34,6 +38,18 @@ pub struct AppState {
     pub last_delete: Mutex<LastDelete>,
     /// The login item that the consent click writes: none with --data-dir and off macOS.
     pub login_item: Option<LoginItemWriter>,
+    /// What the offline delete runs, set once the app has started the supervisor of its child;
+    /// main holds the same cell from before the state moves into the app, so that it sets it
+    /// with no read of the app's managed state.
+    pub offline: Arc<OnceLock<Offline>>,
+    /// The answers delete_refused of the service in a row, which open the offline delete's
+    /// second door at two (contracts.md C10.5).
+    pub refused_in_a_row: AtomicU32,
+    /// The deletes in a row, at either door, that did not finish (ruling DM-21).
+    pub unfinished_in_a_row: AtomicU32,
+    /// The app's hold on the agents' runs around a delete of everything.
+    pub runs: Arc<RunsHold>,
+    offline_running: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -69,6 +85,11 @@ impl AppState {
             tray_installed: AtomicBool::new(false),
             last_delete: Mutex::new(LastDelete::None),
             login_item: None,
+            offline: Arc::default(),
+            refused_in_a_row: AtomicU32::new(0),
+            unfinished_in_a_row: AtomicU32::new(0),
+            runs: Arc::default(),
+            offline_running: Arc::default(),
         }
     }
 }
@@ -95,6 +116,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         last_delete,
         acknowledge_lost_permission,
         start_capture,
+        delete_offline,
     ];
     handle(invoke)
 }
@@ -471,8 +493,69 @@ fn ask_once(
     (answer, call, control.places().next_number())
 }
 
+/// What the app does before a delete of everything goes out, at either door: every registered
+/// module is told (`Registration::before_delete_all`), and then the agents' runs are held, the
+/// runs at work stopped within the core's grace, until the delete has ended.
+#[derive(Clone)]
+pub struct Before {
+    pub modules: Vec<&'static dyn Registration>,
+    pub runs: Arc<RunsHold>,
+    pub core: Option<Arc<dyn halvo_coord_app::Core>>,
+}
+
+impl Before {
+    /// `Before` of the app of `app`: its modules, its hold and its agents' core.
+    pub fn of<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Before {
+        Before {
+            modules: super::table::<R>()
+                .iter()
+                .map(|module| module.registration)
+                .collect(),
+            runs: Arc::clone(&state.runs),
+            core: app
+                .try_state::<halvo_coord_app::Agents>()
+                .map(|agents| Arc::clone(&agents.0)),
+        }
+    }
+
+    /// Tells every module, waiting for them at most STOP_WAIT_MS, and holds the agents' runs;
+    /// the hold of this delete is lifted when the answer is dropped, also where the hold's own
+    /// call unwinds.
+    pub fn tell(&self) -> HeldForADelete {
+        tell_before_delete_all(
+            &self.modules,
+            Duration::from_millis(halvo_control::STOP_WAIT_MS),
+        );
+        let held = HeldForADelete(self.clone());
+        self.runs.delete_begins(self.core.as_deref());
+        held
+    }
+}
+
+/// The hold of the agents' runs for one delete of everything, until it is dropped.
+pub struct HeldForADelete(Before);
+
+impl Drop for HeldForADelete {
+    fn drop(&mut self) {
+        self.0.runs.delete_ends(self.0.core.as_deref());
+    }
+}
+
+/// The flow of a person's press at the service's door: `Before::tell`, then `ask_to_delete`.
+pub fn delete_everything(
+    before: &Before,
+    control: &dyn Control,
+    views: &Views,
+    armed: Option<StoreId>,
+    waits: DeleteWaits,
+) -> DeleteAsked {
+    let _held = before.tell();
+    ask_to_delete(control, views, armed, waits)
+}
+
 #[tauri::command]
-pub async fn delete_all(
+pub async fn delete_all<R: Runtime>(
+    app: AppHandle<R>,
     state: State<'_, AppState>,
     store_id: Option<String>,
 ) -> Result<DeleteView, OutcomeError> {
@@ -487,9 +570,11 @@ pub async fn delete_all(
     let _in_flight = NotLeftInFlight(state.inner());
     let control = Arc::clone(&state.control);
     let views = Arc::clone(&state.views);
-    let ended =
-        off_the_main_thread(move || ask_to_delete(control.as_ref(), &views, armed, DELETE_WAITS))
-            .await;
+    let before = Before::of(&app, state.inner());
+    let ended = off_the_main_thread(move || {
+        delete_everything(&before, control.as_ref(), &views, armed, DELETE_WAITS)
+    })
+    .await;
     let Ok(DeleteAsked {
         end,
         call,
@@ -505,7 +590,7 @@ pub async fn delete_all(
         });
     };
     let roots = state.data_dir.as_ref().map(DataDir::roots_dir);
-    let (view, nothing_removed) = match end {
+    let (mut view, nothing_removed) = match end {
         DeleteEnd::Answered(answer) => {
             let nothing_removed = answer.as_ref().err().is_some_and(a_delete_removed_nothing);
             (delete_view(answer, roots.as_deref()), nothing_removed)
@@ -516,8 +601,15 @@ pub async fn delete_all(
         ),
         DeleteEnd::FirstNotKnown(first) => (delete_view(Err(first), roots.as_deref()), false),
     };
+    if let Ok(answer) = &mut view {
+        answer.count_unfinished(&state.unfinished_in_a_row);
+    }
     match &view {
-        Ok(DeleteView::Deleted { .. } | DeleteView::AlreadyDeleted { .. }) => {
+        Ok(
+            DeleteView::Deleted { .. }
+            | DeleteView::AlreadyDeleted { .. }
+            | DeleteView::NoStore { .. },
+        ) => {
             state.views.take_delete(call, next_number_at_answer);
         }
         Ok(DeleteView::DeleteRefused) => state.views.take_refusal(next_number_at_answer),
@@ -525,6 +617,13 @@ pub async fn delete_all(
         Err(_) => state.views.take_delete(call, next_number_at_answer),
     }
     draw_off_the_main_thread(&state.views).await;
+    state.refused_in_a_row.store(
+        match &view {
+            Ok(DeleteView::DeleteRefused) => state.refused_in_a_row.load(Ordering::SeqCst) + 1,
+            _ => 0,
+        },
+        Ordering::SeqCst,
+    );
     state.keep_last_delete(match &view {
         Ok(answer) => LastDelete::Answered {
             at_ms: now_ms(),
@@ -536,6 +635,157 @@ pub async fn delete_all(
         error,
         outcome_not_known: !nothing_removed,
     })
+}
+
+/// The supervisor of the app's daemon child, as a run that must not meet the child holds it.
+pub trait WithoutTheChild: Send + Sync {
+    /// Ends the app's child of the moment by its descriptor, starts no child while `run` runs,
+    /// and then lets the supervisor go on by its rule. The app did not ask for that end in order
+    /// to restart: an end with 0 of a child that answered as the app's own is followed by no
+    /// start until a person's press.
+    #[allow(
+        dead_code,
+        reason = "Remove Halvo, a unit that lands on its own, is its caller"
+    )]
+    fn without_the_child(&self, run: &mut dyn FnMut());
+
+    /// `without_the_child` for the offline delete, which wants a start after its run: the end
+    /// of the child of the moment counts as a stop that the app asked for in order to restart,
+    /// so that its end with 0 is followed by one start once `run` has ended.
+    fn without_the_child_then_a_start(&self, run: &mut dyn FnMut());
+}
+
+/// How the app runs the program of the offline delete: the system's run in the app, a stand-in
+/// in the tests.
+pub type OfflineRun = Arc<dyn Fn(&Path, &[OsString]) -> OfflineEnd + Send + Sync>;
+
+/// What the offline delete of contracts.md C10.5 runs: halvo-capture beside the app's own
+/// executable, on the app's data directory, while the supervisor of the child holds every start.
+#[derive(Clone)]
+pub struct Offline {
+    pub program: PathBuf,
+    pub data_dir: DataDir,
+    pub children: Option<Arc<dyn WithoutTheChild>>,
+    pub run: OfflineRun,
+}
+
+/// How long the app waits for the offline delete: the client's own wait for a delete_all.
+pub const OFFLINE_WAIT: Duration = halvo_control::client::Deadlines::V1.delete_all;
+
+/// The arguments of the offline delete: `--delete-all --data-dir DIR`, the one form of a
+/// release build (contracts.md C3.3).
+pub fn offline_arguments(data_dir: &DataDir) -> Vec<OsString> {
+    vec![
+        OsString::from("--delete-all"),
+        OsString::from(DATA_DIR_ARG),
+        data_dir.path().as_os_str().to_owned(),
+    ]
+}
+
+/// The offline delete of a person's press, off the main thread (contracts.md C10.5): only where
+/// the view reads not_running, or after two answers delete_refused in a row, and otherwise
+/// delete_refused with nothing run (contracts.md C10.5, a delete armed at one door is never
+/// carried out at the other). It takes `Before::tell`, ends the app's child, runs the program
+/// and maps its lines, and the supervisor then goes on by its rule; with no program to run
+/// nothing is deleted.
+pub fn ask_offline(
+    views: &Views,
+    refused_in_a_row: u32,
+    offline: Option<&Offline>,
+    before: &Before,
+) -> Result<DeleteView, OutcomeError> {
+    if !views.view().reads_not_running() && refused_in_a_row < 2 {
+        return Ok(DeleteView::DeleteRefused);
+    }
+    let Some(offline) = offline else {
+        return Err(OutcomeError {
+            error: ActionError::DeleteNotStarted,
+            outcome_not_known: false,
+        });
+    };
+    run_offline(offline, before)
+}
+
+/// The run of the offline delete, the one entry of the command and of the launch form
+/// `--delete-all`: `Before::tell`, the app's child ended, the program run on the data directory,
+/// its lines mapped, and the supervisor then on by its rule.
+pub fn run_offline(offline: &Offline, before: &Before) -> Result<DeleteView, OutcomeError> {
+    let _held = before.tell();
+    let args = offline_arguments(&offline.data_dir);
+    let mut end = OfflineEnd::NotStarted;
+    let mut run = || end = (offline.run)(&offline.program, &args);
+    match &offline.children {
+        Some(children) => children.without_the_child_then_a_start(&mut run),
+        None => run(),
+    }
+    offline_view(&end, Some(&offline.data_dir.roots_dir()))
+}
+
+/// The mark of an offline delete that runs, until it is dropped.
+struct OfflineRuns(Arc<AtomicBool>);
+
+impl OfflineRuns {
+    fn take(running: &Arc<AtomicBool>) -> Option<Self> {
+        (!running.swap(true, Ordering::SeqCst)).then(|| OfflineRuns(Arc::clone(running)))
+    }
+}
+
+impl Drop for OfflineRuns {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+/// The fourteenth command: the offline delete of contracts.md C10.5, which takes no id. One runs
+/// at a time: a second press while one runs answers busy and runs nothing. On Windows it runs
+/// nothing and answers unsupported_op.
+#[tauri::command]
+pub async fn delete_offline<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<DeleteView, OutcomeError> {
+    let refused = |error| OutcomeError {
+        error,
+        outcome_not_known: false,
+    };
+    if cfg!(windows) {
+        return Err(refused(ActionError::UnsupportedOp));
+    }
+    let Some(running) = OfflineRuns::take(&state.offline_running) else {
+        return Err(refused(ActionError::Busy));
+    };
+    let refused_in_a_row = state.refused_in_a_row.load(Ordering::SeqCst);
+    let offline = state.offline.get().cloned();
+    let views = Arc::clone(&state.views);
+    let before = Before::of(&app, state.inner());
+    state.keep_last_delete(LastDelete::InFlight);
+    let _in_flight = NotLeftInFlight(state.inner());
+    let mut answer = off_the_main_thread(move || {
+        let _running = running;
+        ask_offline(&views, refused_in_a_row, offline.as_ref(), &before)
+    })
+    .await
+    .unwrap_or(Err(OutcomeError {
+        error: ActionError::Internal,
+        outcome_not_known: true,
+    }));
+    if let Ok(view) = &mut answer {
+        view.count_unfinished(&state.unfinished_in_a_row);
+    }
+    if answer != Ok(DeleteView::DeleteRefused) {
+        let next = state.control.places().next_number();
+        state.views.take_delete(next, next);
+        state.refused_in_a_row.store(0, Ordering::SeqCst);
+    }
+    draw_off_the_main_thread(&state.views).await;
+    state.keep_last_delete(match &answer {
+        Ok(view) => LastDelete::Answered {
+            at_ms: now_ms(),
+            answer: view.clone(),
+        },
+        Err(_) => LastDelete::None,
+    });
+    answer
 }
 
 fn now_ms() -> u64 {
