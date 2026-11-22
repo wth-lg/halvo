@@ -114,7 +114,7 @@ pub(crate) trait Page: Send {
     /// Sets the cookies of `state` and the localStorage of each of its origins.
     fn import(&mut self, state: &SessionState) -> Result<(), ()>;
     /// Arms the request rule in `Mode::Hold` with `origins`, as `arm` arms it in `Mode::Fail`: a state-changing
-    /// request to one of them stays held until `let_through` or `fail_held` (crate::web::maker). These five methods
+    /// request to one of them stays held until `let_through` or `fail_held` (crate::web::maker). These six methods
     /// stand in a build with the feature `loopback` alone; their defaults, which the stand-ins of the unit tests of
     /// crate::handback and crate::session take, hold nothing and let nothing leave.
     #[cfg(feature = "loopback")]
@@ -144,6 +144,12 @@ pub(crate) trait Page: Send {
     fn page_amounts(&mut self) -> Result<Vec<u64>, ()> {
         Err(())
     }
+    /// The executor's cause word of the newest `carry_out` that failed, none before one; the browser's maker writes
+    /// it on its line of a failed read.
+    #[cfg(feature = "loopback")]
+    fn last_fault(&mut self) -> Option<&'static str> {
+        None
+    }
 }
 
 /// The run's browser: the browser of a run, or in a unit test a stand-in of the executor.
@@ -166,6 +172,9 @@ struct Live {
     /// `page_amounts`.
     #[cfg(feature = "loopback")]
     after_release: Option<AfterRelease>,
+    /// The cause word of the newest `carry_out` that failed (`Page::last_fault`).
+    #[cfg(feature = "loopback")]
+    fault: Option<&'static str>,
 }
 
 /// The wait for the top document that replaces the one noted at `let_through`.
@@ -612,6 +621,8 @@ impl Live {
                 armed: Vec::new(),
                 #[cfg(feature = "loopback")]
                 after_release: None,
+                #[cfg(feature = "loopback")]
+                fault: None,
             }),
             Err(cause) => {
                 let _ = std::fs::remove_dir(&run_dir);
@@ -713,6 +724,11 @@ impl Page for Live {
         self.executor.released_status()
     }
 
+    #[cfg(feature = "loopback")]
+    fn last_fault(&mut self) -> Option<&'static str> {
+        self.fault
+    }
+
     /// The names and values of every line of the page's snapshot (the top document and every frame in it), each read
     /// by `maker::amounts_named`.
     #[cfg(feature = "loopback")]
@@ -750,7 +766,12 @@ impl Page for Live {
                 hold(executor, post).await?;
                 Ok(read)
             })
-            .map_err(|_: Fault| ())
+            .map_err(|_fault: Fault| {
+                #[cfg(feature = "loopback")]
+                {
+                    self.fault = Some(_fault.0);
+                }
+            })
     }
 
     /// The rule's record; one line on standard error (`failed_line`) for each request in it that the rule failed

@@ -90,12 +90,20 @@ struct Held {
 /// control fails while the page's navigation is held (the hosted macos job of run 45025948760).
 fn read_again(web: &mut Web, target: &WebTarget, parse: &str) -> Result<(String, WebOrigin), ()> {
     let failed = |part: &str| crate::line(&format!("run effect=failed at=read_again part={part}"));
-    let text = web
-        .0
-        .carry_out(&[], &Act::Extract(target), &[])
-        .ok()
-        .flatten()
-        .ok_or_else(|| failed("extract"))?;
+    let text = match web.0.carry_out(&[], &Act::Extract(target), &[]) {
+        Ok(Some(text)) => text,
+        Ok(None) => {
+            failed("extract");
+            return Err(());
+        }
+        Err(()) => {
+            let cause = web.0.last_fault().unwrap_or("none");
+            crate::line(&format!(
+                "run effect=failed at=read_again part=extract cause={cause}"
+            ));
+            return Err(());
+        }
+    };
     let value = match parse {
         "text" => text,
         "amount" => {
