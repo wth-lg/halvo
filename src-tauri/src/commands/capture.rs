@@ -653,6 +653,10 @@ pub trait WithoutTheChild: Send + Sync {
     /// and then lets the supervisor go on by its rule. The app did not ask for that end in order
     /// to restart: an end with 0 of a child that answered as the app's own is followed by no
     /// start until a person's press.
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(dead_code, reason = "Remove Halvo, the door's caller, is macOS code")
+    )]
     fn without_the_child(&self, run: &mut dyn FnMut());
 
     /// `without_the_child` for the offline delete, which wants a start after its run: the end
