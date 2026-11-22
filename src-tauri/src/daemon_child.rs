@@ -401,10 +401,7 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
         let until = self.clock.now() + STOP_WAIT;
         let mut state = self.shared.lock();
         state.held_for_a_run = true;
-        loop {
-            let Some(child) = state.child.as_mut() else {
-                break;
-            };
+        while let Some(child) = state.child.as_mut() {
             child.close_lifeline();
             if let Ok(Some(_)) = child.ended() {
                 break;
@@ -2870,7 +2867,7 @@ mod tests {
 
     #[test]
     fn the_offline_delete_ends_the_child_and_starts_it_again() {
-        use crate::commands::capture::{ask_offline, AppState, Offline, OfflineRun};
+        use crate::commands::capture::{ask_offline, AppState, Before, Offline, OfflineRun};
         use crate::view_state::{ActionError, DeleteView, OfflineEnd, OutcomeError};
         use halvo_control::paths::DataDir;
         use halvo_control::proto::RootDestroyed;
@@ -2961,6 +2958,11 @@ mod tests {
             })
         };
         let program = std::path::PathBuf::from("/stand-in/halvo-capture");
+        let no_module = Before {
+            modules: Vec::new(),
+            runs: Arc::default(),
+            core: None,
+        };
         assert!(state
             .offline
             .set(Offline {
@@ -2979,7 +2981,12 @@ mod tests {
             if life == 1000 {
                 seen.store(clock.waits().len(), std::sync::atomic::Ordering::SeqCst);
             }
-            answers.push(ask_offline(&state.views, 0, state.offline.get()));
+            answers.push(ask_offline(
+                &state.views,
+                0,
+                state.offline.get(),
+                &no_module,
+            ));
         }
         until("the fifth child lives", || pid.get() == Some(1004));
         let ran = format!(
@@ -3064,11 +3071,208 @@ mod tests {
             .is_ok());
         pass(running.as_ref(), &other.views, None);
         assert_eq!(
-            ask_offline(&other.views, 1, other.offline.get()),
+            ask_offline(&other.views, 1, other.offline.get(), &no_module),
             Ok(DeleteView::DeleteRefused),
             "a delete armed while the service answered is not carried out offline"
         );
         assert!(other_record.lock().unwrap().is_empty(), "nothing ran");
         crate::quit::Children::end(supervisor.as_ref());
+    }
+
+    #[test]
+    fn a_delete_tells_every_module_first_and_no_run_starts_meanwhile() {
+        use crate::commands::agents::RunsHold;
+        use crate::commands::capture::{
+            ask_offline, delete_everything, Before, Offline, DELETE_WAITS,
+        };
+        use crate::commands::names::{Names, CAPTURE};
+        use crate::commands::Registration;
+        use crate::view_state::{DeleteView, OfflineEnd, StatusView};
+        use halvo_control::paths::DataDir;
+        use halvo_control::proto::{StoreErrorKind, StoreState};
+        use halvo_coord::items::ConfirmAnswer;
+        use halvo_coord::types::{AgentId, Cause, ItemId, RunId};
+
+        struct Told(&'static str, Record);
+
+        impl Registration for Told {
+            fn names(&self) -> &'static Names {
+                &CAPTURE
+            }
+
+            fn before_delete_all(&self) {
+                note(&self.1, format!("before_delete_all {}", self.0));
+            }
+        }
+
+        struct HeldCore(Record);
+
+        impl halvo_coord_app::Core for HeldCore {
+            fn call(&self, _: &str, _: Option<&serde_json::Value>) -> halvo_coord_app::Reply {
+                halvo_coord_app::Reply::Closed
+            }
+
+            fn shown(&self) {}
+
+            fn hidden(&self) {}
+
+            fn destroyed(&self) {}
+
+            fn tick(&self) {}
+
+            fn quit(&self, _: Option<Duration>) -> Vec<(AgentId, RunId)> {
+                unreachable!("no quit here")
+            }
+
+            fn hold_runs(&self, held: bool) -> Vec<(AgentId, RunId)> {
+                note(&self.0, if held { "stop" } else { "lift" });
+                Vec::new()
+            }
+
+            fn on_screen(&self, _: &ItemId) {}
+
+            fn answer_native(&self, _: &ItemId, _: ConfirmAnswer) -> Result<(), Cause> {
+                Err(Cause::NoService)
+            }
+        }
+
+        struct Requests {
+            places: Arc<Places>,
+            record: Record,
+        }
+
+        impl Control for Requests {
+            fn places(&self) -> &Arc<Places> {
+                &self.places
+            }
+
+            fn status(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+                Err(ClientError::Unreachable {
+                    endpoint: String::new(),
+                })
+            }
+
+            fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
+                unreachable!("no inventory here")
+            }
+
+            fn pause(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+                unreachable!("no Pause here")
+            }
+
+            fn resume(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+                unreachable!("no Resume here")
+            }
+
+            fn delete_all(
+                &self,
+                _: Made,
+                _: Option<StoreId>,
+            ) -> Result<DeleteOutcome, ClientError> {
+                note(&self.record, "request");
+                Err(ClientError::Unreachable {
+                    endpoint: String::new(),
+                })
+            }
+
+            fn set_storage_cap(&self, _: Made, _: StorageCap) -> Result<CapSet, ClientError> {
+                unreachable!("no cap here")
+            }
+
+            fn request_permission(
+                &self,
+                _: Made,
+                _: Permission,
+            ) -> Result<RequestOutcome, ClientError> {
+                unreachable!("no permission here")
+            }
+        }
+
+        let record = Record::default();
+        let modules: Vec<&'static dyn Registration> = vec![
+            Box::leak(Box::new(Told("A", Arc::clone(&record)))),
+            Box::leak(Box::new(Told("B", Arc::clone(&record)))),
+        ];
+        let before = Before {
+            modules,
+            runs: Arc::default(),
+            core: Some(Arc::new(HeldCore(Arc::clone(&record)))),
+        };
+        let control = Requests {
+            places: Arc::default(),
+            record: Arc::clone(&record),
+        };
+        let views = Views::default();
+        let _ = delete_everything(&before, &control, &views, None, DELETE_WAITS);
+        pass(&control, &views, None);
+        let dir = DataDir::from_flag(crate::tests::scratch_dir("tell-first"))
+            .expect("an absolute directory");
+        let looked_in = dir.path().display().to_string();
+        let printed = format!("data_dir={looked_in}\nno_store\n");
+        let ran = Arc::clone(&record);
+        let offline = Offline {
+            program: std::path::PathBuf::from("/stand-in/halvo-capture"),
+            data_dir: dir,
+            children: None,
+            run: Arc::new(move |_, _| {
+                note(&ran, "program");
+                OfflineEnd::Exited {
+                    code: 0,
+                    out: printed.clone(),
+                }
+            }),
+        };
+        assert_eq!(
+            ask_offline(&views, 0, Some(&offline), &before),
+            Ok(DeleteView::NoStore { looked_in })
+        );
+        let seen = record.lock().unwrap().clone();
+        assert_eq!(seen.len(), 10, "{seen:?}");
+        for (door, part, request) in [
+            ("the service's door", &seen[..5], "request"),
+            ("the offline door", &seen[5..], "program"),
+        ] {
+            let mut told = part[..2].to_vec();
+            told.sort();
+            assert_eq!(
+                told,
+                ["before_delete_all A", "before_delete_all B"],
+                "{door}: every module first"
+            );
+            assert_eq!(
+                part[2..],
+                ["stop", request, "lift"],
+                "{door}: the stop, then the request, then the lift"
+            );
+        }
+
+        let held = Record::default();
+        let core = HeldCore(Arc::clone(&held));
+        let runs = RunsHold::default();
+        let store = |state: StoreState, error: Option<StoreErrorKind>| {
+            let mut view = StatusView::of(&sample_status(Platform::Macos));
+            if let StatusView::Running(running) = &mut view {
+                running.store.state = state;
+                running.store.error = error;
+            }
+            view
+        };
+        for (name, view, stands) in [
+            ("deleting", store(StoreState::Deleting, None), true),
+            (
+                "locked",
+                store(StoreState::Unavailable, Some(StoreErrorKind::Locked)),
+                true,
+            ),
+            ("open", store(StoreState::Open, None), false),
+        ] {
+            runs.view_reads(Some(&core), RunsHold::bars(&view));
+            assert_eq!(runs.stands(), stands, "{name}: the hold of the runs");
+        }
+        assert_eq!(
+            *held.lock().unwrap(),
+            ["stop", "lift"],
+            "no run starts while the store reads deleting or locked"
+        );
     }
 }

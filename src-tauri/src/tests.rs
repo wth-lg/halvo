@@ -1799,6 +1799,14 @@ impl halvo_coord_app::Core for Recorder {
         Vec::new()
     }
 
+    fn hold_runs(
+        &self,
+        held: bool,
+    ) -> Vec<(halvo_coord::types::AgentId, halvo_coord::types::RunId)> {
+        self.record(if held { "hold runs" } else { "lift runs" });
+        Vec::new()
+    }
+
     fn on_screen(&self, _item: &halvo_coord::types::ItemId) {
         self.record("on_screen");
     }

@@ -2,7 +2,7 @@
 //! `halvo_coord::types::commands::LIST`, which the handler of halvo-coord-app answers for the
 //! page of the window main alone, through the `Agents` that the app manages.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use halvo_coord::items::ConfirmAnswer;
@@ -39,6 +39,96 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         }
         _ => halvo_coord_app::handler::<R>()(invoke),
     }
+}
+
+/// The app's hold on the agents' runs (the coordinator's lines 12397 and 12465 of the capture
+/// run): it stands while a delete of everything runs at either door and while the view's store
+/// reads deleting or error locked, and is lifted once neither stands. The core's `hold_runs`
+/// refuses every start while it stands, the person's, the queue's and a tick's, and stops the
+/// runs at work; calls to the core go one at a time, each with what is wanted at its turn.
+#[derive(Debug, Default)]
+pub struct RunsHold {
+    wanted: Mutex<(usize, bool)>,
+    applied: Mutex<bool>,
+}
+
+impl RunsHold {
+    /// A delete of everything begins: the runs are held, and the call returns once the core has
+    /// stopped them, within its grace.
+    pub fn delete_begins(&self, core: Option<&dyn Core>) {
+        self.wanted.lock().unwrap_or_else(PoisonError::into_inner).0 += 1;
+        self.apply(core);
+    }
+
+    /// A delete of everything ended: the hold is lifted unless another delete runs or the view
+    /// still reads deleting or locked.
+    pub fn delete_ends(&self, core: Option<&dyn Core>) {
+        {
+            let mut wanted = self.wanted.lock().unwrap_or_else(PoisonError::into_inner);
+            wanted.0 = wanted.0.saturating_sub(1);
+        }
+        self.apply(core);
+    }
+
+    /// Whether `view` bars the agents' runs: its store reads deleting or error locked.
+    pub fn bars(view: &crate::view_state::StatusView) -> bool {
+        match view {
+            crate::view_state::StatusView::Running(running) => {
+                running.store.state == halvo_control::proto::StoreState::Deleting
+                    || running.store.error == Some(halvo_control::proto::StoreErrorKind::Locked)
+            }
+            crate::view_state::StatusView::NoStatus(_) => false,
+        }
+    }
+
+    /// What the newest view reads, `bars` of it: the hold stands while it bars.
+    pub fn view_reads(&self, core: Option<&dyn Core>, barred: bool) {
+        self.wanted.lock().unwrap_or_else(PoisonError::into_inner).1 = barred;
+        self.apply(core);
+    }
+
+    fn barred_by_the_view(&self) -> bool {
+        self.wanted.lock().unwrap_or_else(PoisonError::into_inner).1
+    }
+
+    /// Whether the hold stands as last told to the core.
+    #[cfg(test)]
+    pub fn stands(&self) -> bool {
+        *self.applied.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn apply(&self, core: Option<&dyn Core>) {
+        let mut applied = self.applied.lock().unwrap_or_else(PoisonError::into_inner);
+        let held = {
+            let wanted = self.wanted.lock().unwrap_or_else(PoisonError::into_inner);
+            wanted.0 > 0 || wanted.1
+        };
+        if held != *applied {
+            if let Some(core) = core {
+                core.hold_runs(held);
+            }
+            *applied = held;
+        }
+    }
+}
+
+/// What a draw of the app's view tells the agents' hold, from the drawer of `app::build`: the
+/// store of the view, read with the app's own state and core.
+pub fn hold_by_the_view<R: Runtime>(app: &AppHandle<R>, view: &crate::view_state::StatusView) {
+    let Some(state) = app.try_state::<super::capture::AppState>() else {
+        return;
+    };
+    let barred = RunsHold::bars(view);
+    if state.runs.barred_by_the_view() == barred {
+        return;
+    }
+    let core = app
+        .try_state::<Agents>()
+        .map(|agents| Arc::clone(&agents.0));
+    let runs = Arc::clone(&state.runs);
+    let _ = std::thread::Builder::new()
+        .name("halvo-runs-hold".to_owned())
+        .spawn(move || runs.view_reads(core.as_deref(), barred));
 }
 
 /// The steps of the app's start that go with its `Core`, which the app takes on the thread of its
@@ -144,6 +234,10 @@ impl Core for NoService {
     fn tick(&self) {}
 
     fn quit(&self, _budget: Option<Duration>) -> Vec<(AgentId, RunId)> {
+        Vec::new()
+    }
+
+    fn hold_runs(&self, _held: bool) -> Vec<(AgentId, RunId)> {
         Vec::new()
     }
 
