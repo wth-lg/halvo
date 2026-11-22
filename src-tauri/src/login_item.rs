@@ -1,7 +1,11 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use halvo_control::paths::{DataDir, LoginItemDir};
-use halvo_control::service::{install_login_item, InstallOutcome, LoginItemSpec, SpecError};
+use halvo_control::paths::{AccountLookup, DataDir, LoginItemDir, PathError, ScratchDir};
+use halvo_control::service::{
+    install_login_item, InstallOutcome, LoginItemSpec, SpecError, LOGIN_ITEM_LABEL,
+};
+
+use crate::launch::Exit;
 
 /// The sentence that a person reads where Halvo runs under an AppTranslocation path, and so
 /// writes no login item.
@@ -54,15 +58,88 @@ impl LoginItem {
     }
 }
 
+/// The scratch form `--write-login-item --login-label LABEL --data-dir DIR`: writes DIR/LABEL.plist
+/// through the manager, with the label and the data directory replaced, and answers the exit of
+/// the launch: 0 for a plist written or already standing; 64 for the real label, for a label that
+/// the writer refuses and for a DIR that a scratch run may not take, the default data directory
+/// among them; 1 where nothing was written for another cause. It prints a refusal to stderr.
+pub fn write_scratch(
+    label: &str,
+    data_dir: &Path,
+    program: std::io::Result<PathBuf>,
+    account: &dyn AccountLookup,
+) -> Exit {
+    if label.eq_ignore_ascii_case(LOGIN_ITEM_LABEL) {
+        eprintln!(
+            "halvo: the scratch form does not take the label {LOGIN_ITEM_LABEL} of the real login item"
+        );
+        return Exit::Usage;
+    }
+    let dirs = DataDir::from_flag(data_dir).and_then(|flag| {
+        let scratch = ScratchDir::new(data_dir, account)?;
+        Ok((flag, LoginItemDir::scratch_form(&scratch, account)?))
+    });
+    let (flag, dir) = match dirs {
+        Ok(dirs) => dirs,
+        Err(error) => {
+            eprintln!(
+                "halvo: the scratch form does not take {}: {error}",
+                data_dir.display()
+            );
+            return refused_dir(error);
+        }
+    };
+    let program = match program {
+        Ok(program) => program,
+        Err(error) => {
+            eprintln!("halvo: the app's own path cannot be read: {error}");
+            return Exit::LoginItemNotWritten;
+        }
+    };
+    let item = match LoginItem::new(label, &program, dir, Some(&flag)) {
+        Ok(item) => item,
+        Err(refusal) => {
+            eprintln!("halvo: {refusal}");
+            return match refusal {
+                Refusal::Spec(SpecError::Label) => Exit::Usage,
+                Refusal::Translocated | Refusal::Spec(_) => Exit::LoginItemNotWritten,
+            };
+        }
+    };
+    match item.write() {
+        Ok(_) => Exit::Quit,
+        Err(error) => {
+            eprintln!("halvo: the login item was not written: {error}");
+            Exit::LoginItemNotWritten
+        }
+    }
+}
+
+fn refused_dir(error: PathError) -> Exit {
+    match error {
+        PathError::InsideDataDir
+        | PathError::AboveDataDir
+        | PathError::InsideLaunchAgents
+        | PathError::Unresolved
+        | PathError::Relative
+        | PathError::NotNormal
+        | PathError::NotUtf8 => Exit::Usage,
+        PathError::Lookup(_)
+        | PathError::Unset
+        | PathError::Empty
+        | PathError::SocketPathTooLong => Exit::LoginItemNotWritten,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halvo_control::paths::{AccountLookup, DarwinUserTempDir, PathError};
-    use halvo_control::service::LOGIN_ITEM_LABEL;
+    use crate::launch::{parse, Launch};
+    use halvo_control::paths::DarwinUserTempDir;
     use std::ffi::OsString;
-    use std::path::PathBuf;
 
     const PROGRAM: &str = "/Applications/Halvo.app/Contents/MacOS/halvo";
+    const LABEL: &str = "dev.halvo.test.scratch";
     const TRANSLOCATED: &str =
         "/private/var/folders/zz/T/AppTranslocation/0A1B2C3D/d/Halvo.app/Contents/MacOS/halvo";
 
@@ -135,5 +212,65 @@ mod tests {
         assert_eq!(refused, Refusal::Translocated);
         assert_eq!(refused.to_string(), MOVE_TO_APPLICATIONS);
         assert_eq!(entries(&other), Vec::<PathBuf>::new());
+    }
+
+    fn scratch_form(label: &str, dir: &Path, account: &Home) -> Exit {
+        let args = [
+            "--write-login-item",
+            "--login-label",
+            label,
+            "--data-dir",
+            dir.to_str().expect("a UTF-8 path"),
+        ];
+        match parse(args.map(OsString::from)) {
+            Ok(Launch::WriteLoginItem { label, data_dir }) => {
+                write_scratch(&label, &data_dir, Ok(PathBuf::from(PROGRAM)), account)
+            }
+            other => panic!("parse reads the scratch form: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_scratch_form_writes_label_plist_and_exits_64_for_the_real_label_or_the_default_directory(
+    ) {
+        let home = scratch("login-item-scratch-home");
+        let account = Home(home.clone());
+        let dir = scratch("login-item-scratch-dir");
+        assert_eq!(scratch_form(LABEL, &dir, &account), Exit::Quit);
+        let dir_text = dir.to_str().expect("a UTF-8 path");
+        let expected = plist_of(PROGRAM)
+            .replace(
+                "<string>com.halvo.desktop</string>",
+                &format!("<string>{LABEL}</string>"),
+            )
+            .replace(
+                "\t\t<string>--background</string>\n",
+                &format!(
+                    "\t\t<string>--background</string>\n\t\t<string>--data-dir</string>\n\t\t<string>{dir_text}</string>\n"
+                ),
+            );
+        assert_eq!(
+            std::fs::read_to_string(dir.join(format!("{LABEL}.plist")))
+                .expect("DIR/LABEL.plist stands"),
+            expected
+        );
+        assert_eq!(entries(&dir), vec![dir.join(format!("{LABEL}.plist"))]);
+        assert_eq!(entries(&home), Vec::<PathBuf>::new());
+
+        let real = scratch("login-item-scratch-real");
+        assert_eq!(scratch_form(LOGIN_ITEM_LABEL, &real, &account), Exit::Usage);
+        assert_eq!(Exit::Usage.code(), 64);
+        assert_eq!(entries(&real), Vec::<PathBuf>::new());
+        let default = home.join("Library/Application Support/Halvo");
+        std::fs::create_dir_all(&default).expect("the scratch home's data directory");
+        assert_eq!(scratch_form(LABEL, &default, &account), Exit::Usage);
+        assert_eq!(
+            entries(&home),
+            vec![
+                home.join("Library"),
+                home.join("Library/Application Support"),
+                default
+            ]
+        );
     }
 }

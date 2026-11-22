@@ -11,7 +11,7 @@ mod commands;
 mod daemon_child;
 mod engine;
 mod launch;
-#[cfg(all(target_os = "macos", test))]
+#[cfg(target_os = "macos")]
 mod login_item;
 mod poller;
 #[cfg(any(target_os = "macos", test))]
@@ -22,7 +22,7 @@ mod view_state;
 #[cfg(test)]
 mod tests;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use commands::control::{control_of_child, ChildPid};
@@ -46,11 +46,33 @@ fn main() {
         Ok(launch::Launch::CheckPage { data_dir, within }) => {
             std::process::exit(check_page::run(data_dir, within, started))
         }
+        Ok(launch::Launch::WriteLoginItem { label, data_dir }) => {
+            std::process::exit(write_login_item(&label, &data_dir).code())
+        }
         Err(usage) => {
             eprintln!("halvo: {usage}\n{}", launch::USAGE);
             std::process::exit(launch::Exit::Usage.code());
         }
     }
+}
+
+#[cfg(target_os = "macos")]
+fn write_login_item(label: &str, data_dir: &Path) -> launch::Exit {
+    login_item::write_scratch(
+        label,
+        data_dir,
+        std::env::current_exe(),
+        &halvo_control::paths::SystemAccount,
+    )
+}
+
+#[cfg(not(target_os = "macos"))]
+fn write_login_item(label: &str, data_dir: &Path) -> launch::Exit {
+    eprintln!(
+        "halvo: --write-login-item writes a macOS login item ({label} into {}), and this system has none",
+        data_dir.display()
+    );
+    launch::Exit::LoginItemNotWritten
 }
 
 fn run(background: bool, given: Option<PathBuf>) {
