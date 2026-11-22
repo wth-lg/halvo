@@ -82,6 +82,7 @@
     var press = pressOf(s);
     if (press === "start") action = "running";
     else if (press === "resume") action = s.service === "running" ? "running" : null;
+    else if (s.capture === "awaiting_resume") action = "running";
     else action = s.desired === "running" ? "paused" : s.desired === "paused" ? "running" : null;
     if (pending !== null) {
       toggle.textContent = pending === "paused" ? w.PAUSING : w.STARTING;
@@ -89,7 +90,7 @@
       return;
     }
     if (press === "start") toggle.textContent = w.START;
-    else toggle.textContent = press === "resume" || s.desired === "paused" ? w.RESUME : w.PAUSE;
+    else toggle.textContent = press === "resume" || action === "running" ? w.RESUME : w.PAUSE;
     toggle.disabled = action === null;
   }
 

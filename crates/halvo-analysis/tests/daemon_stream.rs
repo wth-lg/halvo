@@ -28,7 +28,8 @@ use halvo_control::client::{Client, ClientError, Connector, Transport};
 use halvo_control::proto::{decode_reply, ErrorCode, Reply};
 use halvo_control::r2::OwnerStreamEnd;
 use halvo_control::wire::{read_frame, write_frame, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
-use halvo_schema_core::ids::{Position, StoreId};
+use halvo_schema_core::ids::{Position, RequestId, StoreId};
+use halvo_schema_core::request::{InterfaceRead, InterfaceRole, ReplyResult};
 
 /// The longest wait of a test's own read for a reply that the server owes at once.
 const WAIT: Duration = Duration::from_secs(30);
@@ -330,4 +331,33 @@ fn a_peer_of_another_user_gets_no_end() {
         ErrorCode::PeerRejected
     );
     assert!(!rig.owner_pid_stands(), "an owner started");
+}
+
+/// The relay through the server's line: the client's call `relay` sends one interface read of halvo-schema-core, the
+/// service hands it to the owner slot's turn, and the reply decodes as the owner's answer to that read, a page with
+/// no workflow for its request id; derived/owner.pid stands: the exchange started the owner.
+#[test]
+fn a_relayed_read_through_the_server_reaches_the_owner() {
+    let rig = Rig::new("stream-relay");
+    rig.open_with_a_read();
+    let id = RequestId::from_random([0x84; 16]);
+    let read = InterfaceRead::workflows(&InterfaceRole::claim(), id.clone(), None)
+        .to_bytes()
+        .unwrap();
+    let reply = connection(own_user(), |client| {
+        Client::new(Once(Mutex::new(Some(client)))).relay(&read)
+    })
+    .unwrap_or_else(|error| {
+        panic!(
+            "the relay answered no reply: {error:?}; the slot wrote: {:?}",
+            rig.lines.text()
+        )
+    });
+    let reply = halvo_schema_core::request::decode_reply(&reply).unwrap();
+    assert_eq!(reply.id, Some(id));
+    match reply.outcome {
+        Ok(ReplyResult::Workflows(page)) => assert!(page.workflows.is_empty()),
+        other => panic!("the owner answered {other:?}"),
+    }
+    assert!(rig.owner_pid_stands(), "no derived/owner.pid stands");
 }
