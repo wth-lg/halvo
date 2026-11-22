@@ -16,8 +16,8 @@ use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, V1};
 use halvo_schema::executable::{
     reply_senders, AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentReply, AgentRun,
-    AgentSession, AgentStart, CoordinatorCall, CoordinatorReply, EffectId, OwnText, Refusal, RunId,
-    Runtime,
+    AgentSession, AgentStart, CoordinatorCall, CoordinatorReply, EffectId, Outcome, OwnText,
+    Refusal, RunId, Runtime,
 };
 use halvo_schema::{AgentId, Category, ErrorName, Instant, Workflow, WorkflowState};
 use serde_json::Value;
@@ -120,11 +120,26 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 ///   sign-in over the limit that the run does not keep, at a handback's opening or before its end), else null; a
 ///   name of the closed list of causes alone, never a text of a page, of a site or of an error. A `stopped` row
 ///   whose stored cause is no name of the list reads with the cause null, so it gives `last_cause` null and does not
-///   refuse the roster; every other `agent_log` row that the typed reader refuses refuses it with `store`. Each key
-///   reads the agent's own rows alone and holds no slot's value. Named limits of the contract: a newer start of the
-///   agent ends the sign of `refused_run`, also a run that ended before any request to the service, and the sign
-///   leaves with its log row after 93 days; a newer start of the agent ends `last_cause` too, also where that run
-///   will meet the same cause, and the cause leaves with its `stopped` row after 93 days. A page holds whole entries
+///   refuse the roster; every other `agent_log` row that the typed reader refuses refuses it with `store`. `window` is
+///   `no` where the agent's next run needs no browser window: the run of the agent's newest start row, as `refused_run`
+///   finds it, has its `agent_run` record with the outcome `completed`, and either `session` reads `yes` and that run
+///   does not hold both a `handback` row and a `stopped` row with the cause `session_size`, or `session` reads `no` and
+///   no run of the agent among the rows that the read hands out opened a hand-back of a sign-in: a `handback` row that
+///   is neither a failed step's item, after its `step_failed` row, nor an unknown effect's, the last of a run that
+///   ended `effect_unknown`; else `yes`, also where no start row stands; a yes or a no alone, never a site or a count
+///   (r3 U5.15). Each key reads the agent's own rows alone and holds no slot's value. Named limits of the contract: a
+///   newer start of the agent ends the sign of `refused_run`, also a run that ended before any request to the service,
+///   and the sign leaves with its log row after 93 days; a newer start of the agent ends `last_cause` too, also where
+///   that run will meet the same cause, and the cause leaves with its `stopped` row after 93 days; with nothing kept
+///   `window` reads `no` where no run in the read's reach signed in at a hand-back, so the next run meets a credential
+///   field with no window where a site begins to ask for a sign-in, and where the agent's last sign-in at a hand-back
+///   lies more than 93 days back when its kept sign-in goes, by `drop_sessions` or by its 35 days; with a sign-in kept
+///   it reads `no` where a site no longer takes it, and after a run that signed in at a site whose state it could not
+///   store while another site's sign-in is kept; a hand-back whose own row the store refused reads as none, a failed
+///   step's item whose `step_failed` row the store refused reads as a sign-in's, and a sign-in's row that is the last
+///   hand-back row of a run that ended `effect_unknown`, because the store refused that run's item row, reads as the
+///   item; it reads `yes` after every run that did not complete, also with a sign-in kept, and once the agent's start
+///   rows leave the read after 93 days. A page holds whole entries
 ///   while the writer takes it, and `next` names its last agent where agents are left; `length` where the first
 ///   entry of the page alone does not fit.
 /// - `agent_history`: `no_workflow`; `binding`. It stores nothing and changes no state. Of the agent's runs, only
@@ -267,6 +282,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
         let refused_run = refused_run(&logs, &starts, &agent);
         let reply_unknown = reply_unknown(&replies, last.as_ref());
         let last_cause = last_cause(&logs, &starts, &runs, &agent);
+        let window = window(&logs, &starts, &runs, &agent, session);
         entries.push(ListedAgent {
             config,
             state,
@@ -278,6 +294,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
             reply_unknown,
             refused_slots,
             last_cause,
+            window,
         });
     }
     Ok(CoordinatorReply::Agents(page(entries)?))
@@ -382,6 +399,69 @@ fn refused_run(logs: &[AgentLog], starts: &[AgentLog], agent: &AgentId) -> Optio
                 && l.cause == Some(Cause::Unauthorized)
         })
         .then(|| newest.run.clone())
+}
+
+/// `window` of `list_agents` (the coordinator's rulings of its log lines 16446, 16516 and 16557): `no` where the run of
+/// the agent's newest start row, of the greatest `at` and then run id, has its `agent_run` record of the agent with
+/// the outcome `completed`, and either `session` reads `yes` and that run's rows of the agent do not hold both a
+/// `handback` row and a `stopped` row with the cause `session_size`, or `session` reads `no` and no run of the agent
+/// among the rows that the read hands out opened a hand-back of a sign-in (`signed_in_at_a_handback`). Else `yes`, also
+/// where no start row of the agent stands. It reads no row of another agent.
+fn window(
+    logs: &[AgentLog],
+    starts: &[AgentLog],
+    runs: &[AgentRun],
+    agent: &AgentId,
+    session: YesNo,
+) -> YesNo {
+    let Some(newest) = newest_start(starts, agent) else {
+        return YesNo::Yes;
+    };
+    let completed = runs
+        .iter()
+        .any(|r| &r.agent == agent && r.run == newest.run && r.outcome == Outcome::Completed);
+    let of_the_run = |l: &&AgentLog| &l.agent == agent && l.run == newest.run;
+    let handed_back = logs
+        .iter()
+        .filter(of_the_run)
+        .any(|l| l.event == LogEvent::Handback);
+    let over_limit = logs
+        .iter()
+        .filter(of_the_run)
+        .any(|l| l.event == LogEvent::Stopped && l.cause == Some(Cause::SessionSize));
+    let needs_none = completed
+        && match session {
+            YesNo::Yes => !(handed_back && over_limit),
+            YesNo::No => !signed_in_at_a_handback(logs, runs, agent),
+        };
+    if needs_none {
+        YesNo::No
+    } else {
+        YesNo::Yes
+    }
+}
+
+/// Whether a run of the agent among `logs` opened a hand-back at which a person was asked to sign in: a `handback` row
+/// of the agent that is neither the item of a failed step, whose run holds a `step_failed` row of the seq just before
+/// it (the runner's `failed_step` writes the two in a row), nor the item of an unknown effect, the last `handback` row
+/// of a run whose `agent_run` record of the agent has the outcome `effect_unknown` (the runner's `close`). Where the
+/// row before it is missing, because the store refused it, the row counts as a sign-in's.
+fn signed_in_at_a_handback(logs: &[AgentLog], runs: &[AgentRun], agent: &AgentId) -> bool {
+    let own: Vec<&AgentLog> = logs.iter().filter(|l| &l.agent == agent).collect();
+    own.iter()
+        .filter(|h| h.event == LogEvent::Handback)
+        .any(|h| {
+            let of_run = || own.iter().filter(|l| l.run == h.run);
+            let after_a_failed_step = of_run().any(|l| {
+                l.event == LogEvent::StepFailed && l.seq.get().checked_add(1) == Some(h.seq.get())
+            });
+            let last = !of_run().any(|l| l.event == LogEvent::Handback && l.seq > h.seq);
+            let unknown_effect = last
+                && runs.iter().any(|r| {
+                    &r.agent == agent && r.run == h.run && r.outcome == Outcome::EffectUnknown
+                });
+            !after_a_failed_step && !unknown_effect
+        })
 }
 
 /// `yes` where `last` is a record and a reply row of its agent and run is `unknown`, a state that no row follows.
