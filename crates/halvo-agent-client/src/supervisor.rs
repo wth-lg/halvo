@@ -378,7 +378,8 @@ impl Supervisor {
     }
 
     /// Ends every process of `run` that the library may end and waits for the runner to be gone; success also for a
-    /// run whose runner has ended.
+    /// run whose runner has ended. It answers when the runner is gone; the removal of the run's profile directory
+    /// follows in the run's own thread, in `finish_run`, before `MarkSink::end`.
     pub fn kill(&self, run: &RunId) -> Result<(), CallError> {
         let slot = self.slot(run)?;
         match slot.with_proc(RunProc::kill) {
@@ -790,7 +791,13 @@ impl Running<'_> {
 
 /// Closes the link, gives the runner `link_end` (`LINK_END` by default) to end by itself and then ends what is
 /// left, and reports the end. For a runner that outlived its stored `finish` this close comes `link_end` after the
-/// `finish`, so the library ends such a runner once twice `link_end` has passed since its `finish`.
+/// `finish`, so the library ends such a runner once twice `link_end` has passed since its `finish`. Every run of this
+/// life ends here, also after `Supervisor::kill`, and before `MarkSink::end` it removes the run's directory under
+/// `<data directory>/agents/profiles/` by `remove_profiles` when `RunProc::all_gone` says that every process of the
+/// run that the library can see is gone. Named limits: a tree that is not gone within that wait of at most 5 s, or a
+/// directory that cannot be removed, keeps its profile until the reap at the next start of the app, and such an end
+/// reaches `MarkSink::end` up to 5 s later; on macOS a process that left both the runner's group and the browser's
+/// is not seen, as in `Supervisor::reap`.
 fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
     slot.close_link();
     let deadline = Instant::now() + inner.config.link_end;
@@ -806,6 +813,9 @@ fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
                 break;
             }
         }
+    }
+    if slot.with_proc(|p| p.all_gone()) == Some(true) {
+        remove_profiles(&inner.config.data_dir, |run| run != &slot.spec.run, |_| {});
     }
     let end_run = if ending.finish.is_some() {
         EndRun::NotOwed

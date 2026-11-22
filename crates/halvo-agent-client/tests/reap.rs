@@ -727,6 +727,46 @@ fn reap_keeps_the_profile_of_a_run_of_this_life_that_runs_after_its_finish_remov
     rig.sup.kill(&run).unwrap();
 }
 
+#[test]
+fn the_profile_of_a_run_that_ends_hard_is_gone_at_its_end_with_no_reap() {
+    for end in ["kill", "exit 1"] {
+        let rig = Rig::new("end-profile");
+        let go = rig.dir.join("go");
+        let wait = format!("wait-for {}", go.display());
+        let last = if end == "kill" { "idle" } else { end };
+        let script = rig.script(&["hello", "browser child", "log ready", &wait, last]);
+        let spec = rig.spec(&script);
+        let run = spec.run.clone();
+        rig.sup.start(spec).unwrap();
+        assert!(script.wait_log("ready", SHORT), "{end}: {}", script.log());
+        let root = profiles(&rig);
+        let other = common::run_id();
+        profile_tree(&root.join(run.as_str()));
+        profile_tree(&root.join(other.as_str()));
+        if end == "kill" {
+            assert_eq!(rig.sup.kill(&run), Ok(()));
+        } else {
+            fs::write(&go, b"").unwrap();
+        }
+        assert!(
+            rig.rec.wait_end(&run, Duration::from_secs(30)).is_some(),
+            "{end}: no end was reported: {}",
+            script.log()
+        );
+        assert!(
+            !root.join(run.as_str()).exists(),
+            "{end}: the profile of the ended run stays"
+        );
+        assert!(
+            root.join(other.as_str())
+                .join("tmp")
+                .join("scratch")
+                .exists(),
+            "{end}: the profile of another run was removed"
+        );
+    }
+}
+
 fn hold_reap_at(
     rig: &Rig,
     at: ReapStep,
