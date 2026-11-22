@@ -57,7 +57,7 @@ fn run(background: bool, given: Option<PathBuf>) {
         Some(dir) => DataDir::from_flag(dir.clone()),
         None => DataDir::for_current_user(),
     };
-    let _lock = match resolved.as_ref().map(instance::take) {
+    let lock = match resolved.as_ref().map(|dir| instance::take(dir, background)) {
         Ok(Ok(instance::Taken::First(lock))) => Some(lock),
         Ok(Ok(instance::Taken::Second)) => return,
         Ok(Err(e)) => {
@@ -96,6 +96,10 @@ fn run(background: bool, given: Option<PathBuf>) {
             std::process::exit(1);
         }
     };
+    if let Some(lock) = &lock {
+        let handle = app.handle().clone();
+        lock.show_on_ask(move || tray::show_main_window(&handle));
+    }
     #[cfg(any(target_os = "macos", test))]
     tauri::Manager::manage(
         &app,
