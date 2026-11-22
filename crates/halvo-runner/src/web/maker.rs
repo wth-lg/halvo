@@ -16,6 +16,9 @@
 //! 200 alone; every other status is answered, and no response within `STEP_TIMEOUT` is no reply, both of which leave
 //! the effect not known. After a reply read as made the runner reads the page for a `payment` and a `purchase`
 //! (`page_amounts`, `amounts_named`). The maker reads no body of a request.
+//!
+//! A binary that holds the maker holds its marker text (`MAKER_MARKER`), which the scan of check 62-build
+//! (scripts/r1/ci.d/62-build.sh) refuses in every shipped file.
 
 use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -44,6 +47,12 @@ const POLL: Duration = Duration::from_millis(20);
 
 /// The one success status of a web request of an effect (the coordinator's ruling of log line 14732).
 const MADE: i64 = 200;
+
+/// The marker text of the maker (r3 U5.10 cut A): the use at the head of `Runner::effect_step`, the maker's one
+/// entry, keeps it in every binary that holds the maker, so that the scan of check 62-build finds such a build by
+/// the maker's own text and not only by the marker of halvo-connect's feature, which the feature `loopback` of this
+/// crate turns on.
+static MAKER_MARKER: &str = "halvo-runner:web-maker:this-build-has-it!";
 
 /// The run's browser, shared between the runner and the paused request of its maker while the confirm path runs.
 type Shared = Arc<Mutex<Option<Web>>>;
@@ -331,6 +340,7 @@ impl Runner {
         step: &ExecutableStep,
         loaded: &LoadReply,
     ) -> Result<(), Failure> {
+        std::hint::black_box(MAKER_MARKER.as_ptr());
         let failed = || Failure::Step(Cause::StepFailed);
         let class = class_of(loaded.config.category, step);
         let values = Values {

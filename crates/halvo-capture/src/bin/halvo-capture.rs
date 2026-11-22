@@ -334,9 +334,6 @@ mod tests {
             .iter()
             .map(|name| ((*name).to_owned(), u64::MAX))
             .collect();
-        if cfg!(windows) {
-            names.push(("writer.lock".to_owned(), 0));
-        }
         names.sort();
         names
     }
