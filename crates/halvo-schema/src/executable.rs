@@ -323,6 +323,7 @@ record::run_list! { names_with_run_list
     "reply_unknown",
     "refused_slots",
     "last_cause",
+    "window",
     "agent_history",
     "runs",
     "drop_sessions",

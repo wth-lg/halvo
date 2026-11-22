@@ -2353,3 +2353,92 @@ fn a_local_edit_names_its_checkpoint_made_and_then_gone() {
         "gone, at the instant of mark_checkpoint"
     );
 }
+
+/// The key `window` of each entry of the roster.
+fn windows(store: &mut MemoryStore) -> Vec<Value> {
+    let agents = roster(store)["agents"].clone();
+    let agents = agents.as_array().expect("the entries").clone();
+    agents.iter().map(|a| a["window"].clone()).collect()
+}
+
+/// r3 U5.15: the next run of an agent whose newest started run completed, at no site bound and with no sign-in kept,
+/// needs no window; the first run, a run after one that has not ended or did not complete, a run after a sign-in over
+/// the limit, and a run while a bound site's sign-in is not kept need one.
+#[test]
+fn the_roster_asks_for_no_window_after_a_run_that_completed_and_met_no_sign_in_field() {
+    const SITE: &str = "http://utility.test:18090";
+    let mut store = unstarted("utility_bill_payment");
+    assert_eq!(windows(&mut store), [json!("yes")], "the first run");
+    start_at(&mut store, NOW, 1, 1, 1).expect("start_run of run 1");
+    assert_eq!(
+        windows(&mut store),
+        [json!("yes")],
+        "a run that has not ended"
+    );
+    finish_of(&mut store, 1, 1, 1, "failed");
+    assert_eq!(
+        windows(&mut store),
+        [json!("yes")],
+        "a run that did not complete"
+    );
+
+    let second = |s: u32| at(NOW.at.0 + i64::from(s) * 1_000_000_000);
+    start_at(&mut store, second(1), 1, 1, 2).expect("start_run of run 2");
+    finish_of(&mut store, 1, 1, 2, "completed");
+    assert!(
+        rows(&store, "agent_session").is_empty() && bindings(&store).is_empty(),
+        "no sign-in kept and no site bound"
+    );
+    assert_eq!(roster(&mut store)["agents"][0]["session"], json!("no"));
+    assert_eq!(
+        windows(&mut store),
+        [json!("no")],
+        "a completed run that met no sign-in field"
+    );
+
+    start_at(&mut store, second(2), 1, 1, 3).expect("start_run of run 3");
+    log_line(
+        &mut store,
+        1,
+        3,
+        stopped_line(1, 1, 3, None, "session_size"),
+    );
+    finish_of(&mut store, 1, 1, 3, "completed");
+    assert_eq!(
+        windows(&mut store),
+        [json!("yes")],
+        "a sign-in over the limit, which the run did not keep"
+    );
+
+    start_at(&mut store, second(3), 1, 1, 4).expect("start_run of run 4");
+    let bind = json!({"op": "add_origin", "workflow": wf(1), "agent": agent(1), "run": run(4), "origin": SITE, "way": "sign_in"});
+    assert_eq!(coordinator(&mut store, bind), Ok(rev(1)));
+    finish_of(&mut store, 1, 1, 4, "completed");
+    assert_eq!(
+        windows(&mut store),
+        [json!("yes")],
+        "a site bound at a sign-in whose state the run did not keep"
+    );
+
+    start_at(&mut store, second(4), 1, 1, 5).expect("start_run of run 5");
+    assert_eq!(
+        runner(&mut store, session_part(1, 5, SITE, 1, 1, 1)),
+        Ok(stored(1))
+    );
+    finish_of(&mut store, 1, 1, 5, "completed");
+    assert_eq!(
+        windows(&mut store),
+        [json!("no")],
+        "the bound site's sign-in kept whole"
+    );
+
+    assert_eq!(
+        coordinator(&mut store, drop_sessions_of(1, 1)),
+        Ok(stored_reply(0))
+    );
+    assert_eq!(
+        windows(&mut store),
+        [json!("yes")],
+        "the kept sign-in removed at Stop using its sign-in"
+    );
+}

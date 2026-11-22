@@ -16,8 +16,8 @@ use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, V1};
 use halvo_schema::executable::{
     reply_senders, AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentReply, AgentRun,
-    AgentSession, AgentStart, CoordinatorCall, CoordinatorReply, EffectId, OwnText, Refusal, RunId,
-    Runtime,
+    AgentSession, AgentStart, CoordinatorCall, CoordinatorReply, EffectId, Outcome, OwnText,
+    Refusal, RunId, Runtime,
 };
 use halvo_schema::{AgentId, Category, ErrorName, Instant, Workflow, WorkflowState};
 use serde_json::Value;
@@ -120,11 +120,20 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 ///   sign-in over the limit that the run does not keep, at a handback's opening or before its end), else null; a
 ///   name of the closed list of causes alone, never a text of a page, of a site or of an error. A `stopped` row
 ///   whose stored cause is no name of the list reads with the cause null, so it gives `last_cause` null and does not
-///   refuse the roster; every other `agent_log` row that the typed reader refuses refuses it with `store`. Each key
-///   reads the agent's own rows alone and holds no slot's value. Named limits of the contract: a newer start of the
-///   agent ends the sign of `refused_run`, also a run that ended before any request to the service, and the sign
-///   leaves with its log row after 93 days; a newer start of the agent ends `last_cause` too, also where that run
-///   will meet the same cause, and the cause leaves with its `stopped` row after 93 days. A page holds whole entries
+///   refuse the roster; every other `agent_log` row that the typed reader refuses refuses it with `store`. `window`
+///   is `no` where the agent's next run needs no browser window: the run of the agent's newest start row, as
+///   `refused_run` finds it, has its `agent_run` record with the outcome `completed`, no `stopped` row of that run
+///   holds the cause `session_size`, and `session` reads `yes` or the agent's newest bindings of that workflow hold
+///   no origin and `load` lists no revision of the agent; else `yes`, also where no start row stands; a yes or a no
+///   alone, never a site or a count (r3 U5.15). Each key reads the agent's own rows alone and holds no slot's value.
+///   Named limits of the contract: a newer start of the agent ends the sign of `refused_run`, also a run that ended
+///   before any request to the service, and the sign leaves with its log row after 93 days; a newer start of the
+///   agent ends `last_cause` too, also where that run will meet the same cause, and the cause leaves with its
+///   `stopped` row after 93 days; `window` reads `no` where a site begins to ask for a sign-in, where a site no
+///   longer takes its kept sign-in, and where a site at which the newest run signed in was not stored while another
+///   site's sign-in is listed, so that the next run meets a credential field with no window; it reads `yes` at every
+///   run while the bindings hold an origin at which nobody signed in and no revision is listed, because the bindings
+///   keep no way, and once the agent's start rows leave the read after 93 days. A page holds whole entries
 ///   while the writer takes it, and `next` names its last agent where agents are left; `length` where the first
 ///   entry of the page alone does not fit.
 /// - `agent_history`: `no_workflow`; `binding`. It stores nothing and changes no state. Of the agent's runs, only
@@ -267,6 +276,14 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
         let refused_run = refused_run(&logs, &starts, &agent);
         let reply_unknown = reply_unknown(&replies, last.as_ref());
         let last_cause = last_cause(&logs, &starts, &runs, &agent);
+        let unbound = newest_bindings.is_none_or(|r| r.origins.is_empty()) && listed.is_empty();
+        let window = window(
+            &logs,
+            &starts,
+            &runs,
+            &agent,
+            session == YesNo::Yes || unbound,
+        );
         entries.push(ListedAgent {
             config,
             state,
@@ -278,6 +295,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
             reply_unknown,
             refused_slots,
             last_cause,
+            window,
         });
     }
     Ok(CoordinatorReply::Agents(page(entries)?))
@@ -382,6 +400,37 @@ fn refused_run(logs: &[AgentLog], starts: &[AgentLog], agent: &AgentId) -> Optio
                 && l.cause == Some(Cause::Unauthorized)
         })
         .then(|| newest.run.clone())
+}
+
+/// `window` of `list_agents`: `no` where the run of the agent's newest start row, of the greatest `at` and then run
+/// id, has its `agent_run` record of the agent with the outcome `completed`, no `stopped` row of that run and the
+/// agent holds the cause `session_size`, and `kept` holds: `session` reads `yes`, or the agent's newest bindings hold
+/// no origin and `load` lists no revision of the agent. Else `yes`, also where no start row of the agent stands. It
+/// reads no row of another agent.
+fn window(
+    logs: &[AgentLog],
+    starts: &[AgentLog],
+    runs: &[AgentRun],
+    agent: &AgentId,
+    kept: bool,
+) -> YesNo {
+    let Some(newest) = newest_start(starts, agent) else {
+        return YesNo::Yes;
+    };
+    let completed = runs
+        .iter()
+        .any(|r| &r.agent == agent && r.run == newest.run && r.outcome == Outcome::Completed);
+    let over_limit = logs.iter().any(|l| {
+        &l.agent == agent
+            && l.run == newest.run
+            && l.event == LogEvent::Stopped
+            && l.cause == Some(Cause::SessionSize)
+    });
+    if completed && !over_limit && kept {
+        YesNo::No
+    } else {
+        YesNo::Yes
+    }
 }
 
 /// `yes` where `last` is a record and a reply row of its agent and run is `unknown`, a state that no row follows.

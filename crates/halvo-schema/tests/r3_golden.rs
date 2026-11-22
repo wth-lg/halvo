@@ -964,8 +964,8 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
 }
 
 /// The agent of the bill's configuration with playbook 1 finished, its newest run record that left one effect
-/// `unknown`, and that effect; a site refused the sign-in of that run, the run left a reply `unknown`, and its
-/// `stopped` row holds the cause `unknown`.
+/// `unknown`, and that effect; a site refused the sign-in of that run, the run left a reply `unknown`, its
+/// `stopped` row holds the cause `unknown`, and the agent's next run needs a window.
 fn listed_agent() -> ListedAgent {
     let mut config = configs().remove(0);
     config.playbook = Some(n(1));
@@ -987,6 +987,7 @@ fn listed_agent() -> ListedAgent {
         reply_unknown: YesNo::Yes,
         refused_slots: Vec::new(),
         last_cause: Some(Cause::Unknown),
+        window: YesNo::Yes,
     }
 }
 

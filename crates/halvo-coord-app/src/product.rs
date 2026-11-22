@@ -1875,7 +1875,7 @@ mod tests {
         let run = RunId::parse(&"d1".repeat(16)).unwrap();
         let entry = |refused: &str| -> Value {
             serde_json::from_str(&format!(
-                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":{refused},"reply_unknown":"no","refused_slots":[]}}"#
+                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":{refused},"reply_unknown":"no","refused_slots":[],"window":"yes"}}"#
             ))
             .unwrap()
         };
@@ -2036,7 +2036,7 @@ mod tests {
         let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
         let entry = |cause: &str| -> Value {
             serde_json::from_str(&format!(
-                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":null,"reply_unknown":"no","refused_slots":[],"last_cause":{cause}}}"#
+                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":null,"reply_unknown":"no","refused_slots":[],"last_cause":{cause},"window":"yes"}}"#
             ))
             .unwrap()
         };
@@ -2059,7 +2059,7 @@ mod tests {
         let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
         let entry = |cause: &str| -> Value {
             serde_json::from_str(&format!(
-                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":null,"reply_unknown":"no","refused_slots":[],"last_cause":"{cause}"}}"#
+                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":null,"reply_unknown":"no","refused_slots":[],"last_cause":"{cause}","window":"yes"}}"#
             ))
             .unwrap()
         };
