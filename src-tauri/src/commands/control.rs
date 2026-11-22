@@ -332,8 +332,10 @@ pub enum Sight {
     /// A status that reads capture=pausing beside a source that carries the mark `unstopped`,
     /// a source that a stop did not end.
     SourceNotStopped,
-    /// A status of a daemon_version other than the app's, or an error that `read_error` reads
-    /// as another version.
+    /// A status of a daemon_version other than the app's, or a reply of another protocol
+    /// version: a reply of another version, a value unknown to v1, or the error
+    /// unsupported_version; never unsupported_op, which a daemon of the app's own version gives
+    /// for an op that its build does not serve.
     AnotherVersion,
     /// The request's deadline passed with no reply.
     NoReply,
@@ -399,12 +401,7 @@ impl ChildPid {
             (Some(status), _) if source_not_stopped(status) => Some(Sight::SourceNotStopped),
             (Some(status), _) if another_daemon_version(status) => Some(Sight::AnotherVersion),
             (_, Some(ClientError::Deadline { .. })) => Some(Sight::NoReply),
-            (_, Some(error))
-                if crate::view_state::read_error(error).service
-                    == crate::view_state::NoStatusService::AnotherVersion =>
-            {
-                Some(Sight::AnotherVersion)
-            }
+            (_, Some(error)) if of_another_protocol(error) => Some(Sight::AnotherVersion),
             _ => None,
         };
         let waiting = read.sight.is_some_and(|(of, _)| of == child);
@@ -419,6 +416,17 @@ fn source_not_stopped(status: &DaemonStatus) -> bool {
     let fields = status.fields();
     fields.capture == halvo_control::proto::Capture::Pausing
         && fields.sources.iter().any(|line| line.unstopped)
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn of_another_protocol(error: &ClientError) -> bool {
+    match error {
+        ClientError::ReplyOfAnotherVersion { .. } | ClientError::ValueUnknownToV1(_) => true,
+        ClientError::Daemon(reply) => {
+            reply.code() == halvo_control::proto::ErrorCode::UnsupportedVersion
+        }
+        _ => false,
+    }
 }
 
 #[cfg(any(target_os = "macos", test))]

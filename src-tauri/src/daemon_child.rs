@@ -1745,6 +1745,22 @@ mod tests {
                 ],
                 (false, true, None),
             ),
+            (
+                "an own child of the app's version that answers unsupported_op: no restart, no flag",
+                vec![
+                    (
+                        1000,
+                        Err(ClientError::Daemon(halvo_control::proto::ErrorReply::new(
+                            halvo_control::proto::ErrorCode::UnsupportedOp,
+                            "this build of the capture service does not serve the op",
+                        ))),
+                    ),
+                    (1000, Ok(status_of(1000, 0, false))),
+                ],
+                vec![(1000, true), (1001, true)],
+                vec!["start 1000", "status", "status"],
+                (false, false, Some(Service::Running)),
+            ),
         ];
         let tray = crate::tray::installed_for_tests();
         for (name, steps, children, expected, (held, backoff, service)) in rows {
