@@ -885,7 +885,12 @@ copy_made() {
   off=$(grep -c 'HALVO_MEASURE_NEVER_SET' "$engine")
   want=0
   [ "$1" = no-layer ] && want=1
-  [ "$navigation" = 0 ] && [ "$script" = 0 ] && [ "$off" = "$want" ]
+  [ "$navigation" = 0 ] && [ "$script" = 0 ] && [ "$off" = "$want" ] || return 1
+  [ "$1" = no-layer ] || return 0
+  # app.rs hands the start arguments at the builder and at the options of the web view's environment.
+  named=$(grep -c 'ENGINE_ARGS' "$app")
+  defined=$(grep -c '^pub const ENGINE_ARGS: &str = ' "$app")
+  [ "$named" = 1 ] && [ "$defined" = 1 ]
 }
 
 firewall_take() {
