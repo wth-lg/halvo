@@ -16,6 +16,11 @@ pub const TYPING_ON_MAC: bool = false;
 /// The row of the first-run text on a Mac whose build takes no typing ([`TYPING_ON_MAC`]).
 pub const TYPING_NOT_RECORDED: &str = "Halvo does not record what you type.";
 
+/// The sentence of the first-run text on the search for repeated tasks, which the consent
+/// says in one plain sentence.
+pub const REPEATED_TASKS: &str =
+    "Halvo looks through what it recorded for tasks that repeat, on this computer alone.";
+
 pub const SCREEN_ACTIVITY_NOT_RECORDED: &str = "Screen activity is not recorded.";
 
 pub const TYPING_NOT_OBSERVED_ON_WINDOWS: &str =
@@ -203,6 +208,9 @@ pub struct Texts {
     pub limits: &'static str,
     pub custody: &'static str,
     pub storage: String,
+    /// [`REPEATED_TASKS`] in the first-run text of [`first_run`], and no key elsewhere.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repeated_tasks: Option<&'static str>,
 }
 
 pub fn texts(status: &DaemonStatus) -> Texts {
@@ -223,6 +231,7 @@ pub fn texts(status: &DaemonStatus) -> Texts {
         limits: LIMITS,
         custody: custody_text(f.custody),
         storage: storage(f.cap_bytes),
+        repeated_tasks: None,
     }
 }
 
@@ -254,7 +263,7 @@ pub fn onboarding_rows(status: &DaemonStatus) -> Vec<PermissionStatus> {
 /// of the default switches (contracts.md C13.5) with every source off, on a Mac with the row on
 /// typing by [`TYPING_ON_MAC`] behind the row on clicks and with no sentence on passwords or on
 /// a key pressed early; the backup limit, the limits, the custody on which the platform's build
-/// captures and the storage of the default cap.
+/// captures, the storage of the default cap and the sentence on repeated tasks.
 pub fn first_run(platform: Platform) -> Texts {
     first_run_with(platform, TYPING_ON_MAC)
 }
@@ -308,6 +317,7 @@ fn first_run_with(platform: Platform, typing_on_mac: bool) -> Texts {
             Platform::Windows => Custody::Dpapi,
         }),
         storage: storage(Cap::Known(StorageCap::DEFAULT)),
+        repeated_tasks: Some(REPEATED_TASKS),
     }
 }
 

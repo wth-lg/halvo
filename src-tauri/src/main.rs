@@ -153,8 +153,6 @@ fn start_the_login_item(data_dir: Option<DataDir>, given: bool, views: Arc<polle
     });
 }
 
-/// The manager of the app's own login item, for its own path and the account's LaunchAgents
-/// directory; none where either cannot be read or the manager refuses the program.
 #[cfg(target_os = "macos")]
 fn the_login_item() -> Option<login_item::LoginItem> {
     login_item::LoginItem::new(

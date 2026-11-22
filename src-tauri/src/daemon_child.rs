@@ -467,13 +467,9 @@ fn end_child<C: Watched, K: Clock>(child: &mut C, clock: &K, wait: Duration) {
     }
 }
 
-/// Why the supervisor's thread waits for a person's press.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Waits {
-    /// After the third end with 5 in a row.
     Start,
-    /// Before the first child on a data directory that is not provisioned: the press is the
-    /// consent.
     Consent,
 }
 
@@ -2387,7 +2383,6 @@ mod tests {
         Ok(())
     }
 
-    /// Every entry under `dir`, by its path from `dir` with `/` between the parts, sorted.
     fn entries_under(dir: &Path) -> Vec<String> {
         let mut found = Vec::new();
         let mut open = vec![PathBuf::new()];
@@ -2591,8 +2586,6 @@ mod tests {
         }
     }
 
-    /// A spawner that awaits the consent until its `consent`, and then hands out the children of
-    /// `inner`.
     struct BeforeTheConsent {
         consented: bool,
         inner: StandInSpawner,
@@ -2614,7 +2607,6 @@ mod tests {
         }
     }
 
-    /// `held_child_status` with the Accessibility permission off, so that one step stays open.
     fn status_with_an_open_step() -> DaemonStatus {
         let mut f = held_child_status().into_fields();
         for line in f.permissions.iter_mut() {

@@ -203,8 +203,6 @@ fn start_and_resume(
     (control.resume(made), call)
 }
 
-/// Asks for a plain Status until one is answered or `until` has passed, the last Status keeping
-/// its own deadline of 2 s.
 fn status_until(control: &dyn Control, until: Instant) -> Option<DaemonStatus> {
     loop {
         if let Ok(status) = control.status(control.places().make(), false) {
@@ -223,10 +221,11 @@ fn status_until(control: &dyn Control, until: Instant) -> Option<DaemonStatus> {
 /// awaits the consent, none where a child lives, a daemon answers or another click is in
 /// flight; asks for a Status until one is answered or `within` has passed; reads the open
 /// steps from it through `onboarding_shown`; and sends one Resume only when no step is open.
-/// It answers the view: that of the Resume, of the Status with an open step, and the view of
-/// the moment with no Status. Where the hold stands after an end with 5 its press is the
-/// hold's, and the click, like one on a data directory that reads its own cause or one while
-/// another is in flight, does nothing and answers the view of the moment.
+/// It answers the view: that of the Resume, or of the Status with an open step; with no Status
+/// it answers the deadline of `within`, and no Resume goes out. Where the hold stands after an
+/// end with 5 its press is the hold's, and the click, like one on a data directory that reads
+/// its own cause or one while another is in flight, does nothing and answers the view of the
+/// moment.
 pub fn consent(
     control: &dyn Control,
     views: &Views,
@@ -251,7 +250,9 @@ pub fn consent(
         control.status(control.places().make(), false).ok()
     };
     let Some(status) = status else {
-        return Ok(views.view());
+        return Err(ActionError::Deadline {
+            seconds: within.as_secs(),
+        });
     };
     if !onboarding_shown(&status).walkback.is_empty() {
         return Ok(views.marked(StatusView::of(&status)));

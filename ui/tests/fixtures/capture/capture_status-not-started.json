@@ -43,6 +43,7 @@
         "text": "Screen activity is not recorded."
       }
     ],
+    "repeated_tasks": "Halvo looks through what it recorded for tasks that repeat, on this computer alone.",
     "storage": "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
   },
   "window": {
