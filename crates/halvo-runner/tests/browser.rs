@@ -416,6 +416,9 @@ const INTO: &str = r#"<!doctype html><title>typed</title><input data-testid="nam
 /// page's tree gives the role `spinbutton`.
 const CODE: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="number" data-testid="code" aria-label="Code" autocomplete="one-time-code" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
 
+/// `TYPED` with its name field and a password field that the page hides (`display: none`).
+const HIDDEN: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" style="display: none">"#;
+
 /// A page whose script makes a password field in the document of a frame of its own and moves it into itself, so that
 /// the page's world does not know the field as one of its own, and a button that asks its own origin for `/typed`
 /// when it is clicked.
@@ -439,7 +442,8 @@ const FOREIGN: &str = r#"<!doctype html><title>typed</title><iframe></iframe><bu
 /// `sign_in`, declined; and a click whose `pre` reads the value of a password field that the page's script made in a
 /// frame's document and moved into itself meets the reading, which takes an element that the page's world does not
 /// know as one of its own for a credential field: a handback of the reason `sign_in`, declined, no click and no value
-/// read. No step that would reach a password field types a byte, the one with the failing `post`
+/// read. A fill of the name field beside a password field that the page hides acts and opens no handback: the
+/// reading counts a field only where the browser says it is shown (the coordinator's ruling of log line 14244). No step that would reach a password field types a byte, the one with the failing `post`
 /// acted, and no frame and no line of the runner holds a password field's value.
 #[test]
 fn a_post_condition_that_fails_logs_step_failed() {
@@ -527,6 +531,11 @@ fn a_post_condition_that_fails_logs_step_failed() {
             false,
         ),
         (
+            244,
+            step(2, "fill", Some("name"), &[konst("text", "Ada")], &[], &[]),
+            true,
+        ),
+        (
             246,
             step(
                 2,
@@ -547,13 +556,25 @@ fn a_post_condition_that_fails_logs_step_failed() {
             249 => INTO,
             247 => CODE,
             246 => FOREIGN,
+            244 => HIDDEN,
             _ => NAMED,
         };
         let fixture = Fixture::start(&[("/typed-form", page), ("/inner", INNER)]);
         let mut sup = web_agent(n, &fixture);
         sup.steps = vec![navigate(1, &fixture.url("/typed-form")), second];
         let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
-        if n == 246 {
+        if n == 244 {
+            assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+            assert_eq!(
+                rows(&seen),
+                [
+                    (LogEvent::StepOk, Some(1), None),
+                    (LogEvent::StepOk, Some(2), None)
+                ],
+                "run {n}"
+            );
+            assert!(seen.handbacks().is_empty(), "run {n}");
+        } else if n == 246 {
             assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
             assert_eq!(rows(&seen), declined, "run {n}");
             assert_eq!(seen.handbacks(), [HandbackReason::SignIn], "run {n}");
@@ -863,7 +884,9 @@ fn what_run_one_signed_in_serves_run_two() {
 
 /// U4.1w (5), the row `win_single_argument_inside_quotes` of `terminator_table` (crates/halvo-web/src/checks.rs):
 /// a browser started with the one argument `--app=x --single-argument`, which the system writes in quotes, before
-/// the profile's switch takes that profile directory: the directory exists and holds an entry.
+/// the profile's switch takes that profile directory: the directory exists and holds an entry. The browser gets TMP
+/// and TEMP of its own in a scratch directory of the test, in place of the temporary directory of the tests (the
+/// coordinator's line 14089).
 #[cfg(windows)]
 #[test]
 fn the_browser_takes_the_profile_after_a_quoted_single_argument() {
@@ -872,7 +895,9 @@ fn the_browser_takes_the_profile_after_a_quoted_single_argument() {
         return;
     };
     let profile = support::scratch("single-argument").join("profile");
+    let temp = support::scratch("single-argument-tmp");
     let mut child = std::process::Command::new(&browser)
+        .envs([("TMP", &temp), ("TEMP", &temp)])
         .arg("--app=x --single-argument")
         .arg(format!("--user-data-dir={}", profile.display()))
         .args([

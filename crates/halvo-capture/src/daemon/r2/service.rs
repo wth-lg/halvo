@@ -41,9 +41,9 @@
 //!   makes the cell forget once more: a store owner that did not answer its shutdown in time can keep a read of the
 //!   store that goes after the delete's forget, and its last pass comes before the store's lock is given up, so
 //!   before the fresh store opens.
-//! - `serve`, on macOS, at a request of an accepted connection that the v1 table does not hold and that is no run
-//!   mark, on the connection's own thread and behind the server's peer check. A request `defer` is answered first
-//!   (`halvo_control::r2::serve_defer`), with no lock taken and no owner started, in every state of the form. A
+//! - `serve`, on macOS and on Windows, at a request of an accepted connection that the v1 table does not hold and that
+//!   is no run mark, on the connection's own thread and behind the server's peer check. A request `defer` is answered
+//!   first (`halvo_control::r2::serve_defer`), with no lock taken and no owner started, in every state of the form. A
 //!   request that the control crate's module of protocol v2 does not serve (`halvo_control::r2::serves`) is left to
 //!   the server, with no lock taken.
 //!   For any other the call takes the form's lock. While the mark of a delete stands the client gets the error
@@ -51,8 +51,8 @@
 //!   owner slot's turn (`OwnerSlot::turn`) goes out as it stands. Each is one error reply of v1, written after the
 //!   lock is given up. Otherwise `halvo_control::r2::dispatch_unknown` runs on the owner's channel for one
 //!   exchange, and the lock is held until it has returned and the turn is dropped: a start of the owner where none
-//!   runs, at most 4 s for the owner's answer, at most 1 s for the end of the client's request, and 2 s more where
-//!   the owner's channel ended.
+//!   runs, at most 4 s for the owner's answer, at most 1 s for the end of the client's request on macOS, and 2 s more
+//!   where the owner's channel ended.
 
 use std::fmt;
 use std::io::{self, Write};
@@ -118,7 +118,7 @@ impl Form {
     /// runs; or the refusal: `busy` while the mark of a delete stands, `store_unavailable` while the mark of a stop
     /// stands and with no slot, and else the refusal of the owner slot's turn as it stands. No owner starts for a
     /// refusal of a mark or of a missing slot.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn turn<'a>(
         &self,
         held: &'a mut Held,
@@ -239,7 +239,10 @@ pub fn open<R: Readings + 'static>(
     let program_dir = match program_dir {
         Ok(program_dir) => program_dir,
         Err(error) => {
-            lines.not_made("the directory of the daemon's programs cannot be read", &error);
+            lines.not_made(
+                "the directory of the daemon's programs cannot be read",
+                &error,
+            );
             return;
         }
     };
@@ -257,7 +260,11 @@ pub fn open<R: Readings + 'static>(
         data_dir: data_dir.to_path_buf(),
         idle_ms: None,
     };
-    let slot = WorkerSlot::new(place, Arc::clone(&caller) as Arc<dyn Caller>, Box::new(lines));
+    let slot = WorkerSlot::new(
+        place,
+        Arc::clone(&caller) as Arc<dyn Caller>,
+        Box::new(lines),
+    );
     drop(held.open.take());
     cell().forget();
     held.open = Some(Open { caller, slot });
@@ -293,6 +300,28 @@ pub fn delete() {
     cell().forget();
 }
 
+/// The accepted connection of the control server that [`serve`] takes: the Unix socket on macOS, the pipe's stream,
+/// opened for overlapped I/O, on Windows.
+#[cfg(target_os = "macos")]
+pub type Accepted<'a> = &'a std::os::unix::net::UnixStream;
+/// The accepted connection of the control server that [`serve`] takes: the Unix socket on macOS, the pipe's stream,
+/// opened for overlapped I/O, on Windows.
+#[cfg(windows)]
+pub type Accepted<'a> = &'a mut halvo_control::client_windows::PipeStream;
+
+/// The connection as the handlers of the control crate borrow it: the socket itself on macOS, its handle on Windows.
+#[cfg(target_os = "macos")]
+fn borrowed<'a>(connection: &'a Accepted<'_>) -> halvo_control::r2::Connection<'a> {
+    connection
+}
+
+/// The connection as the handlers of the control crate borrow it: the socket itself on macOS, its handle on Windows.
+#[cfg(windows)]
+fn borrowed<'a>(connection: &'a Accepted<'_>) -> halvo_control::r2::Connection<'a> {
+    use std::os::windows::io::AsHandle;
+    connection.as_handle()
+}
+
 /// Serves `request`, a request that the v1 table does not hold and that is no run mark, on `connection`, the accepted
 /// connection of the control server, whose peer the server has checked: true when the call answered the request on
 /// the connection, false when the server is to answer it as v1 does. The call adds no check of the peer.
@@ -301,16 +330,17 @@ pub fn delete() {
 /// and no owner started, in every state of the form. A request that the control crate's module of protocol v2 does
 /// not serve is false, with no lock taken and no owner started. For any other the call takes the form's lock: under a
 /// mark, with no slot, and where the owner slot refuses its turn, the client gets that one error reply of v1, with no
-/// end of a stream beside it, written after the lock is given up; otherwise `dispatch_unknown` runs on the owner's
-/// channel, and the lock is held until it has returned and the turn is dropped.
-#[cfg(target_os = "macos")]
-pub fn serve(
-    request: &halvo_control::proto::UnknownRequest,
-    connection: &std::os::unix::net::UnixStream,
-) -> bool {
+/// end of a stream beside it, written through `connection` after the lock is given up; otherwise `dispatch_unknown`
+/// runs on the owner's channel, and the lock is held until it has returned and the turn is dropped. On Windows the
+/// handlers get the handle of the pipe and write on it with their own overlapped writes, and the refusal goes through
+/// the stream, whose writes wait at most the timeout that the server set.
+#[cfg(any(target_os = "macos", windows))]
+pub fn serve(request: &halvo_control::proto::UnknownRequest, mut connection: Accepted<'_>) -> bool {
     use halvo_control::proto::{encode_reply, Reply};
     use halvo_control::wire::{write_frame, REPLY_MAX_BYTES};
-    if halvo_control::r2::serve_defer(request, connection, |until| FORM.deferred.set(until)) {
+    if halvo_control::r2::serve_defer(request, borrowed(&connection), |until| {
+        FORM.deferred.set(until)
+    }) {
         return true;
     }
     if !halvo_control::r2::serves(request) {
@@ -318,14 +348,15 @@ pub fn serve(
     }
     let mut held = FORM.held();
     let refusal = match FORM.turn(&mut held) {
-        Ok(mut turn) => return halvo_control::r2::dispatch_unknown(request, connection, &mut turn),
+        Ok(mut turn) => {
+            return halvo_control::r2::dispatch_unknown(request, borrowed(&connection), &mut turn)
+        }
         Err(refusal) => refusal,
     };
     drop(held);
-    let mut writer = connection;
     // The client reads no reply when this write fails, and no end was handed over.
     let _ = write_frame(
-        &mut writer,
+        &mut connection,
         &encode_reply(&Reply::Error(refusal)),
         REPLY_MAX_BYTES,
     );

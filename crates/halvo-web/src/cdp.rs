@@ -1141,7 +1141,7 @@ impl Executor {
     }
 
     /// The reading of A6.4: the page read as `snapshot` reads it, the top document and every frame
-    /// in it, and in each of those documents the sweep of every field by what it is (`sweep_fn`);
+    /// in it, and in each of those documents the sweep of every shown field by what it is (`sweep_fn`);
     /// the strongest sign of a credential field that it shows (A8.2), none where it shows none.
     /// Every earlier ref is stale from here (`RefTable`).
     pub async fn sign(&mut self) -> Res<Option<Sign>> {
@@ -2217,8 +2217,10 @@ const CREDENTIAL_FN: &str = "function (named) {
 /// The sweep of the reading in one document (the coordinator's ruling of log line 14127 (F)):
 /// `CREDENTIAL_FN` on every input, textarea, select and element editable by its own attribute of
 /// the document, each found by what the browser says it is and whatever its role in the page's
-/// tree, and `secret` for an element that the world does not know as one of its own; the strongest
-/// sign, or the empty text. It enters no frame and no shadow root.
+/// tree, and `secret` for an element that the world does not know as one of its own; an element that
+/// the browser itself says is not shown (`checkVisibility`, also for `visibility: hidden`) counts for
+/// nothing (the coordinator's ruling of log line 14244); the strongest sign, or the empty text. It
+/// enters no frame and no shadow root.
 fn sweep_fn() -> String {
     format!(
         "(() => {{
@@ -2226,6 +2228,8 @@ fn sweep_fn() -> String {
   const rank = {{ '': 0, secret: 1, code: 2, challenge: 3 }};
   let best = '';
   for (const el of document.querySelectorAll('*')) {{
+    if (typeof el.checkVisibility === 'function'
+      && !el.checkVisibility({{ checkVisibilityCSS: true, visibilityProperty: true }})) continue;
     if (!(el instanceof Element)) {{
       if (rank.secret > rank[best]) best = 'secret';
       continue;

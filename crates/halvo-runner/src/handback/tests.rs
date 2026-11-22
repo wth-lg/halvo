@@ -607,6 +607,25 @@ fn a_sign_in_ends_in_a_bind_and_the_run_goes_on() {
     assert_eq!(count(&log[result + 1..], "address"), 1);
 }
 
+/// The coordinator's ruling of log line 14244: a field that the page shows only later opens no handback while it is
+/// not shown and opens its handback at the web step that meets it shown: the first click reads no field and acts, the
+/// second reads the field, hands back and acts on nothing.
+#[test]
+fn a_field_shown_later_opens_its_handback_at_the_step_that_meets_it() {
+    let mut bench = Bench::new(&[None, Some(Sign::Secret)], BOUND, &[DECLINED]);
+    assert!(bench.step(&click()).is_ok(), "{:?}", bench.log());
+    let got = stop_of(bench.step(&click()));
+    let log = bench.log();
+    assert_eq!(
+        got,
+        Some((Outcome::Declined, Some(Cause::Declined))),
+        "{log:?}"
+    );
+    assert_eq!(&log[..3], ["read", "act click", "read"], "{log:?}");
+    assert_eq!(count(&log, "act click"), 1, "{log:?}");
+    assert_eq!(count(&log, "frame handback sign_in"), 1, "{log:?}");
+}
+
 /// The coordinator's ruling of log line 14127 (3): every origin that was bound in this run stays in the rule after a
 /// second bind, beside the origins of the bindings.
 #[test]

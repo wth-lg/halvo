@@ -1006,10 +1006,12 @@ object_type! {
     /// newest bindings, `session` (`yes` when a session of the agent is stored whole), its newest run record or
     /// null, its effects whose newest row is `unknown`, `refused_run` (the id of the agent's newest started run
     /// where that run's log holds `step_failed` with the cause `unauthorized`, or null), `reply_unknown` (`yes` when
-    /// the run of `last` left a reply in the state `unknown`) and `refused_slots` (the names of the slots of those
-    /// bindings that their one reader refuses). The three last keys hold a run id, a yes or no and slot names alone:
-    /// never a slot's value, no secret and no text. A run record of another agent is refused, and `reply_unknown`
-    /// `yes` beside `last` null.
+    /// the run of `last` left a reply in the state `unknown`), `refused_slots` (the names of the slots of those
+    /// bindings that their one reader refuses) and `last_cause` (the cause that the `stopped` row of the agent's
+    /// newest started run holds, or null where that run has not ended, ended with no cause or holds a cause that is no
+    /// name of the list). The four last keys hold a run id, a yes or no, slot names and a name of the closed list of
+    /// causes alone: never a slot's value, no secret and no text, of a page, of a site or of an error. A run record of
+    /// another agent is refused, and `reply_unknown` `yes` beside `last` null.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct ListedAgent {
         pub config: AgentConfig = "config" => AgentConfig::from_raw,
@@ -1021,6 +1023,7 @@ object_type! {
         pub refused_run: Option<RunId> = "refused_run" => opt(from_json),
         pub reply_unknown: YesNo = "reply_unknown" => from_json,
         pub refused_slots: Vec<Name> = "refused_slots" => list(from_json),
+        pub last_cause: Option<Cause> = "last_cause" => opt(from_json),
     }
     rules(a) {
         if a

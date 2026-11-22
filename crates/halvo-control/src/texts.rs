@@ -7,6 +7,20 @@ use crate::proto::{
     SourceState, SwitchLine, SwitchName,
 };
 
+/// Typing on a Mac: whether a source that the product builds asks its tap for key events. Off
+/// until the owner answers item I-83 point 2, so a Mac build notes no typing. The capture
+/// crate's macOS input source reads it as its one switch of key events, and [`first_run`] as
+/// its row on typing.
+pub const TYPING_ON_MAC: bool = false;
+
+/// The row of the first-run text on a Mac whose build takes no typing ([`TYPING_ON_MAC`]).
+pub const TYPING_NOT_RECORDED: &str = "Halvo does not record what you type.";
+
+/// The sentence of the first-run text on the search for repeated tasks, which the consent
+/// says in one plain sentence.
+pub const REPEATED_TASKS: &str =
+    "Halvo looks through what it recorded for tasks that repeat, on this computer alone.";
+
 pub const SCREEN_ACTIVITY_NOT_RECORDED: &str = "Screen activity is not recorded.";
 
 pub const TYPING_NOT_OBSERVED_ON_WINDOWS: &str =
@@ -56,18 +70,28 @@ pub const fn recorded_when_on(switch: SwitchName) -> &'static str {
     match switch {
         SwitchName::TitleText => "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private.",
         SwitchName::KeyClass => "Halvo records a class for each key you press, never the character.",
-        SwitchName::PointerClass => "Halvo records a class for each click or scroll, never its position.",
+        SwitchName::PointerClass => "Halvo records each click and which button you pressed, and how many times you scroll, drag or move the pointer each second, never where on the screen.",
         SwitchName::ScreenActivity => "Halvo notes screen activity, a record that the screen changed, and stores no image.",
         SwitchName::SiteRead => "Halvo records the site of the page in front in a browser, never the page's address or content.",
     }
 }
 
-/// One sentence of `recorded`, keyed by the switch that it is about.
+/// The first row of `recorded` on both systems: what Halvo records with no switch, the app in
+/// front at each change.
+pub const APP_IN_FRONT: &str = "Halvo records which app is in front, each time that changes.";
+
+/// One sentence of `recorded`, keyed by the switch that it is about; none for the row
+/// [`APP_IN_FRONT`], which no switch turns off.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct Recorded {
-    pub switch: SwitchName,
+    pub switch: Option<SwitchName>,
     pub text: &'static str,
 }
+
+const APP_IN_FRONT_ROW: Recorded = Recorded {
+    switch: None,
+    text: APP_IN_FRONT,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceClass {
@@ -120,13 +144,13 @@ fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine])
         };
         if let Some(text) = text {
             out.push(Recorded {
-                switch: line.name,
+                switch: Some(line.name),
                 text,
             });
         }
         if platform == Platform::Windows && line.name == SwitchName::ScreenActivity && on {
             out.push(Recorded {
-                switch: line.name,
+                switch: Some(line.name),
                 text: WINDOWS_CAPTURE_BORDER,
             });
         }
@@ -194,6 +218,9 @@ pub struct Texts {
     pub limits: &'static str,
     pub custody: &'static str,
     pub storage: String,
+    /// [`REPEATED_TASKS`] in the first-run text of [`first_run`], and no key elsewhere.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repeated_tasks: Option<&'static str>,
 }
 
 pub fn texts(status: &DaemonStatus) -> Texts {
@@ -204,7 +231,9 @@ pub fn texts(status: &DaemonStatus) -> Texts {
         });
     let passwords = passwords(f.platform, f.password_guard, typing);
     Texts {
-        recorded: recorded(f.platform, &f.switches, &f.sources),
+        recorded: std::iter::once(APP_IN_FRONT_ROW)
+            .chain(recorded(f.platform, &f.switches, &f.sources))
+            .collect(),
         passwords,
         typed_ahead: (passwords == PASSWORDS_WITH_SECURE_INPUT)
             .then_some(KEY_TYPED_AHEAD_CAN_BE_NOTED),
@@ -214,6 +243,7 @@ pub fn texts(status: &DaemonStatus) -> Texts {
         limits: LIMITS,
         custody: custody_text(f.custody),
         storage: storage(f.cap_bytes),
+        repeated_tasks: None,
     }
 }
 
@@ -239,6 +269,69 @@ pub fn onboarding_rows(status: &DaemonStatus) -> Vec<PermissionStatus> {
             row
         })
         .collect()
+}
+
+/// The table of the first-run text (contracts.md C10.6 and C10.7) before any status: the rows
+/// of the default switches (contracts.md C13.5) with every source off, on a Mac with the row on
+/// typing by [`TYPING_ON_MAC`] behind the row on clicks and with no sentence on passwords or on
+/// a key pressed early; the backup limit, the limits, the custody on which the platform's build
+/// captures, the storage of the default cap and the sentence on repeated tasks.
+pub fn first_run(platform: Platform) -> Texts {
+    first_run_with(platform, TYPING_ON_MAC)
+}
+
+fn first_run_with(platform: Platform, typing_on_mac: bool) -> Texts {
+    let switches: Vec<SwitchLine> = SwitchName::ALL
+        .iter()
+        .map(|&name| SwitchLine {
+            name,
+            value: if name.default_on() {
+                OnOff::On
+            } else {
+                OnOff::Off
+            },
+        })
+        .collect();
+    let off = |name| SourceLine {
+        name,
+        state: SourceState::Off,
+        unstopped: false,
+    };
+    let sources = [off(SourceName::Keyboard), off(SourceName::Screen)];
+    let mut rows = recorded(platform, &switches, &sources);
+    let mut passwords = passwords(platform, PasswordGuard::None, SourceClass::Off);
+    if platform == Platform::Macos {
+        rows.retain(|row| row.switch != Some(SwitchName::KeyClass));
+        let typing = Recorded {
+            switch: Some(SwitchName::KeyClass),
+            text: if typing_on_mac {
+                recorded_when_on(SwitchName::KeyClass)
+            } else {
+                TYPING_NOT_RECORDED
+            },
+        };
+        let behind_the_clicks = rows
+            .iter()
+            .position(|row| row.switch == Some(SwitchName::PointerClass))
+            .map_or(rows.len(), |at| at + 1);
+        rows.insert(behind_the_clicks, typing);
+        passwords = "";
+    }
+    rows.insert(0, APP_IN_FRONT_ROW);
+    Texts {
+        recorded: rows,
+        passwords,
+        typed_ahead: None,
+        keys_withheld: None,
+        backup_limit: backup_limit(platform),
+        limits: LIMITS,
+        custody: custody_text(match platform {
+            Platform::Macos => Custody::RootFile,
+            Platform::Windows => Custody::Dpapi,
+        }),
+        storage: storage(Cap::Known(StorageCap::DEFAULT)),
+        repeated_tasks: Some(REPEATED_TASKS),
+    }
 }
 
 #[cfg(test)]
@@ -426,7 +519,7 @@ mod tests {
             ),
             (
                 SwitchName::PointerClass,
-                "Halvo records a class for each click or scroll, never its position.",
+                "Halvo records each click and which button you pressed, and how many times you scroll, drag or move the pointer each second, never where on the screen.",
             ),
             (
                 SwitchName::ScreenActivity,
@@ -480,7 +573,10 @@ mod tests {
                 SCREEN_ACTIVITY_NOT_RECORDED,
             ]
         );
-        let keys: Vec<SwitchName> = recorded.iter().map(|r| r.switch).collect();
+        let keys: Vec<SwitchName> = recorded
+            .iter()
+            .map(|r| r.switch.expect("a row of a switch"))
+            .collect();
         assert_eq!(
             keys,
             [
@@ -709,8 +805,10 @@ mod tests {
         let mut got = keys.clone();
         got.sort_unstable();
         assert_eq!(got, want);
-        assert_eq!(json["recorded"][1]["switch"], "key_class");
-        assert_eq!(json["recorded"][1]["text"], TYPING_NOT_OBSERVED_ON_WINDOWS);
+        assert_eq!(json["recorded"][0]["switch"], serde_json::Value::Null);
+        assert_eq!(json["recorded"][0]["text"], APP_IN_FRONT);
+        assert_eq!(json["recorded"][2]["switch"], "key_class");
+        assert_eq!(json["recorded"][2]["text"], TYPING_NOT_OBSERVED_ON_WINDOWS);
         let mac = serde_json::to_value(texts(&sample_status(Platform::Macos))).unwrap();
         assert_eq!(mac["backup_limit"], serde_json::Value::Null);
         assert_eq!(mac["custody"], UNSIGNED_BUILD_CUSTODY);
@@ -730,7 +828,7 @@ mod tests {
     const TA: &str = "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password.";
     const TITLE_ON: &str = "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private.";
     const KEY_CLASS_ON: &str = "Halvo records a class for each key you press, never the character.";
-    const POINTER_ON: &str = "Halvo records a class for each click or scroll, never its position.";
+    const POINTER_ON: &str = "Halvo records each click and which button you pressed, and how many times you scroll, drag or move the pointer each second, never where on the screen.";
 
     struct LineRow {
         value: &'static str,
@@ -914,9 +1012,11 @@ mod tests {
     }
 
     fn list(entries: &[(SwitchName, &'static str)]) -> Vec<Recorded> {
-        entries
-            .iter()
-            .map(|&(switch, text)| Recorded { switch, text })
+        std::iter::once(APP_IN_FRONT_ROW)
+            .chain(entries.iter().map(|&(switch, text)| Recorded {
+                switch: Some(switch),
+                text,
+            }))
             .collect()
     }
 
@@ -1383,6 +1483,60 @@ mod tests {
         assert_eq!(
             texts_of(&recorded(Platform::Macos, &switches(&[]), &[])),
             [S2]
+        );
+    }
+
+    #[test]
+    fn the_first_run_row_on_typing_follows_typing_on_mac() {
+        let rows = |typing_on_mac: bool| -> Vec<(Option<SwitchName>, &'static str)> {
+            first_run_with(Platform::Macos, typing_on_mac)
+                .recorded
+                .iter()
+                .map(|row| (row.switch, row.text))
+                .collect()
+        };
+        let app = (None, APP_IN_FRONT);
+        let title = (
+            Some(SwitchName::TitleText),
+            recorded_when_on(SwitchName::TitleText),
+        );
+        let clicks = (
+            Some(SwitchName::PointerClass),
+            recorded_when_on(SwitchName::PointerClass),
+        );
+        let screen = (
+            Some(SwitchName::ScreenActivity),
+            SCREEN_ACTIVITY_NOT_RECORDED,
+        );
+        assert_eq!(
+            rows(false),
+            [
+                app,
+                title,
+                clicks,
+                (Some(SwitchName::KeyClass), TYPING_NOT_RECORDED),
+                screen
+            ],
+            "typing off: the row that no typing is recorded, behind the row on clicks"
+        );
+        assert_eq!(
+            rows(true),
+            [
+                app,
+                title,
+                clicks,
+                (
+                    Some(SwitchName::KeyClass),
+                    recorded_when_on(SwitchName::KeyClass)
+                ),
+                screen
+            ],
+            "typing on: the standing row of key_class in its place"
+        );
+        assert_eq!(
+            first_run(Platform::Macos),
+            first_run_with(Platform::Macos, TYPING_ON_MAC),
+            "the first-run text reads the one constant"
         );
     }
 }

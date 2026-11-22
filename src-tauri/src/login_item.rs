@@ -6,6 +6,7 @@ use halvo_control::service::{
     LoginItemState, SpecError, LOGIN_ITEM_LABEL,
 };
 
+use crate::commands::capture::LoginItemWriter;
 use crate::launch::Exit;
 use crate::poller::Views;
 
@@ -172,6 +173,22 @@ pub fn at_start(
     if let Some(loaded) = item.load(runner) {
         let _ = views.login_item_loaded.set(loaded);
     }
+}
+
+/// The login item that the consent click writes (contracts.md C14 item 7): none with
+/// --data-dir (`given`); otherwise a writer that writes the plist through the manager that
+/// `item` makes for the app's own path and answers whether it stands written, false where the
+/// manager refuses the program or the write fails. It runs no process.
+pub fn at_the_click(
+    given: bool,
+    item: impl Fn() -> Option<LoginItem> + Send + Sync + 'static,
+) -> Option<LoginItemWriter> {
+    if given {
+        return None;
+    }
+    Some(std::sync::Arc::new(move || {
+        item().is_some_and(|item| item.write().is_ok())
+    }))
 }
 
 fn refused_dir(error: PathError) -> Exit {

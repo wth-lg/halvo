@@ -99,6 +99,16 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
         ("status-refused", none(NoStatusService::StatusRefused)),
         ("unsupported", none(NoStatusService::Unsupported)),
         ("another-version", none(NoStatusService::AnotherVersion)),
+        ("not-started", {
+            let hold = crate::view_state::Hold::default();
+            hold.awaits_consent();
+            hold.mark(none(NoStatusService::NotRunning))
+        }),
+        ("data-dir-unusable", {
+            let hold = crate::view_state::Hold::default();
+            hold.data_dir_unusable();
+            hold.mark(none(NoStatusService::HeldUnreachable))
+        }),
         ("running", of(status_with(mac, |_| {}))),
         ("running-windows", of(sample_status(Platform::Windows))),
         (
@@ -392,7 +402,9 @@ fn every_service() -> Vec<Service> {
         Service::HeldUnreachable => Some(Service::StatusRefused),
         Service::StatusRefused => Some(Service::Unsupported),
         Service::Unsupported => Some(Service::AnotherVersion),
-        Service::AnotherVersion => None,
+        Service::AnotherVersion => Some(Service::NotStarted),
+        Service::NotStarted => Some(Service::DataDirUnusable),
+        Service::DataDirUnusable => None,
     };
     std::iter::successors(Some(Service::Connecting), |service| following(*service)).collect()
 }
@@ -491,6 +503,7 @@ fn with_any_service_but_running_every_daemon_field_is_null() {
                     "login_item_loaded",
                 ]
                 .contains(&key.as_str())
+                    || (key == "texts" && view.service() == Service::NotStarted)
                 {
                     continue;
                 }
