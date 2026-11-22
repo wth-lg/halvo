@@ -2610,6 +2610,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                         mark = Mark::NotYet;
                         opener = None;
                         delete_ends = ending;
+                        if report.is_none() || !whole {
+                            supervisor.set_slot(slot::Slot::DeleteUnfinished, None);
+                        }
                         match report {
                             None => {
                                 delete_written = Some(asked.answer(halvo_control::proto::Reply::Error(
@@ -2978,6 +2981,7 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         fields.capture,
         fields.store,
         fields.store_error,
+        fields.store_delete_unfinished,
         fields.store_id,
         armed,
     ) {
