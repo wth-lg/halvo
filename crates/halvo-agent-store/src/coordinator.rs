@@ -16,9 +16,11 @@ use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, V1};
 use halvo_schema::executable::{
     reply_senders, AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentReply, AgentRun,
-    AgentSession, AgentStart, CoordinatorCall, CoordinatorReply, EffectId, OwnText, RunId, Runtime,
+    AgentSession, AgentStart, CoordinatorCall, CoordinatorReply, EffectId, OwnText, Refusal, RunId,
+    Runtime,
 };
 use halvo_schema::{AgentId, Category, ErrorName, Instant, Workflow, WorkflowState};
+use serde_json::Value;
 
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
@@ -109,11 +111,17 @@ use crate::{bind, bindings, checkpoint, day, end, runner};
 ///   `reply_unknown`, `yes` where `last` is a record and an `agent_reply` row of the agent names its run in the state
 ///   `unknown`, else `no`; `refused_slots`, of the bindings that `slots` reads, the names in their order of the slots
 ///   that their one reader refuses: `workbook` by `workbook_path` in the form of `set_bindings` and `reply_senders` by
-///   `reply_senders`, a slot with no reader never. Each key reads the agent's own rows alone and holds no slot's
-///   value. Named limits of the contract: a newer start of the agent ends the sign of `refused_run`, also a run that
-///   ended before any request to the service, and the sign leaves with its log row after 93 days. A page holds whole
-///   entries while the writer takes it, and `next` names its last agent where agents are left; `length` where the
-///   first entry of the page alone does not fit.
+///   `reply_senders`, a slot with no reader never; `last_cause`, the cause that the `stopped` row of the agent's
+///   newest started run, as `refused_run` finds that run, holds (that of the greatest seq where two stand), else null:
+///   a name of the closed list of causes alone, never a text of a page, of a site or of an error. A `stopped` row
+///   whose stored cause is no name of the list reads with the cause null, so it gives `last_cause` null and does not
+///   refuse the roster; every other `agent_log` row that the typed reader refuses refuses it with `store`. Each key
+///   reads the agent's own rows alone and holds no slot's value. Named limits of the contract: a newer start of the
+///   agent ends the sign of `refused_run`, also a run that ended before any request to the service, and the sign
+///   leaves with its log row after 93 days; a newer start of the agent ends `last_cause` too, also where that run
+///   will meet the same cause, and the cause leaves with its `stopped` row after 93 days. A page holds whole entries
+///   while the writer takes it, and `next` names its last agent where agents are left; `length` where the first
+///   entry of the page alone does not fit.
 /// - `agent_history`: `no_workflow`; `binding`. It stores nothing and changes no state. Of the agent's runs, only
 ///   those whose `agent_run` record is stored count, in the order of `last` of `list_agents`, newest first, and it
 ///   gives the first `runs` of them: each with its record and the effects whose rows name the run, in ascending order
@@ -160,7 +168,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
     let sessions = rows::sessions(rows)?;
     let runs = rows::runs(rows)?;
     let effects = rows::effects(rows)?;
-    let logs = rows::logs(rows)?;
+    let logs = rows::parsed(rows, rows::AGENT_LOG, roster_log)?;
     let starts = start_rows(&logs);
     let replies = rows::replies(rows)?;
     let mut entries = Vec::new();
@@ -197,6 +205,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
         let unknown = unknown_of(&effects, &agent);
         let refused_run = refused_run(&logs, &starts, &agent);
         let reply_unknown = reply_unknown(&replies, last.as_ref());
+        let last_cause = last_cause(&logs, &starts, &agent);
         entries.push(ListedAgent {
             config,
             state,
@@ -207,6 +216,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
             refused_run,
             reply_unknown,
             refused_slots,
+            last_cause,
         });
     }
     Ok(CoordinatorReply::Agents(page(entries)?))
@@ -233,14 +243,50 @@ fn start_rows(logs: &[AgentLog]) -> Vec<AgentLog> {
         .collect()
 }
 
+/// One `agent_log` row as `list_agents` reads it: as `AgentLog::parse` reads it, but a `stopped` row whose cause is
+/// no name of the closed list reads with the cause null. Every other row that the parser refuses stays refused.
+fn roster_log(bytes: &[u8]) -> Result<AgentLog, Refusal> {
+    let refusal = match AgentLog::parse(bytes) {
+        Ok(line) => return Ok(line),
+        Err(refusal) => refusal,
+    };
+    if (refusal.key(), refusal.rule()) != (Some("cause"), "unknown_name") {
+        return Err(refusal);
+    }
+    let Ok(Value::Object(mut line)) = serde_json::from_slice::<Value>(bytes) else {
+        return Err(refusal);
+    };
+    if line.get("event").and_then(Value::as_str) != Some(LogEvent::Stopped.as_str()) {
+        return Err(refusal);
+    }
+    line.insert("cause".to_owned(), Value::Null);
+    AgentLog::parse(Value::Object(line).to_string().as_bytes()).map_err(|_| refusal)
+}
+
+/// The agent's newest start row: of the greatest `at`, then of the greatest run id.
+fn newest_start<'a>(starts: &'a [AgentLog], agent: &AgentId) -> Option<&'a AgentLog> {
+    starts
+        .iter()
+        .filter(|l| &l.agent == agent)
+        .max_by_key(|l| (l.at, &l.run))
+}
+
+/// The cause that the `stopped` row of the run of the agent's newest start row holds, that of the greatest seq where
+/// two stand; none where that run has no such row or its row holds none. It reads no run record and no row of another
+/// agent.
+fn last_cause(logs: &[AgentLog], starts: &[AgentLog], agent: &AgentId) -> Option<Cause> {
+    let newest = newest_start(starts, agent)?;
+    logs.iter()
+        .filter(|l| &l.agent == agent && l.run == newest.run && l.event == LogEvent::Stopped)
+        .max_by_key(|l| l.seq)?
+        .cause
+}
+
 /// The run of the agent's newest start row, of the greatest `at` and then run id, where a log row of that run and the
 /// agent holds `step_failed` with the cause `unauthorized`; else none. It reads no run record and no row of another
 /// agent.
 fn refused_run(logs: &[AgentLog], starts: &[AgentLog], agent: &AgentId) -> Option<RunId> {
-    let newest = starts
-        .iter()
-        .filter(|l| &l.agent == agent)
-        .max_by_key(|l| (l.at, &l.run))?;
+    let newest = newest_start(starts, agent)?;
     logs.iter()
         .any(|l| {
             &l.agent == agent

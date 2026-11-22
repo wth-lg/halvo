@@ -4,7 +4,7 @@ use common::*;
 use halvo_agent_store::{Host, MemoryStore, AGENT_KINDS};
 use halvo_policy::{preset, validate};
 use halvo_schema::executable::body::{AgentsReply, CHECKPOINTS_REPLY_MAX};
-use halvo_schema::executable::names::LogEvent;
+use halvo_schema::executable::names::{Cause, LogEvent};
 use halvo_schema::executable::{AgentLog, CoordinatorReply, RunnerReply};
 use halvo_schema::{
     AgentId, Category, ErrorName, SeedCategory, TypedRecord, Workflow, WorkflowId, WorkflowState,
@@ -1634,6 +1634,72 @@ fn the_roster_names_the_newest_started_run_that_a_site_refused() {
         refused(&mut store),
         [Value::Null, Value::Null],
         "a newer start ends the sign"
+    );
+}
+
+/// The `stopped` line of the run `r` of the agent `a` of the workflow `w`, with the cause and no step.
+fn stopped_line(w: u32, a: u32, r: u32, cause: &str) -> Value {
+    json!({
+        "v": 1, "workflow": wf(w), "agent": agent(a), "run": run(r), "seq": 2, "day": TODAY,
+        "at": NOW.at.0, "event": "stopped", "step": null, "cause": cause, "model": null, "ms": null,
+        "tokens_in": null, "tokens_out": null,
+    })
+}
+
+#[test]
+fn the_roster_names_the_cause_of_the_newest_started_run() {
+    let mut store = store_with("email");
+    store.put_workflow(workflow(&wf(2), "email", "approved", None));
+    assert_eq!(create(&mut store, 2, 2), Ok(rev(1)));
+    start_at(&mut store, NOW, 2, 2, 2).expect("start_run of the second agent");
+    let body = json!({"op": "log", "agent": agent(2), "run": run(2), "records": [stopped_line(2, 2, 2, "no_browser")]});
+    assert_eq!(runner(&mut store, body), Ok(stored(1)));
+    let causes = |store: &mut MemoryStore| -> Vec<Option<Value>> {
+        let agents = roster(store)["agents"].clone();
+        let agents = agents.as_array().expect("the entries").clone();
+        agents
+            .iter()
+            .map(|a| a.get("last_cause").cloned())
+            .collect()
+    };
+    assert_eq!(
+        causes(&mut store),
+        [Some(Value::Null), Some(json!("no_browser"))],
+        "the first agent's run has not ended; the second agent's run stopped with no_browser"
+    );
+
+    let later = at(NOW.at.0 + 1_000_000_000);
+    start_at(&mut store, later, 2, 2, 3).expect("a later start of the second agent");
+    let mut record = run_record(3, Some("replay"), "completed");
+    record["workflow"] = json!(wf(2));
+    record["agent"] = json!(agent(2));
+    assert_eq!(finish(&mut store, record), Ok(stored(1)));
+    assert_eq!(
+        causes(&mut store),
+        [Some(Value::Null), Some(Value::Null)],
+        "a later run that ended well"
+    );
+
+    let outside = "no_such_cause";
+    assert!(
+        Cause::parse(outside).is_err(),
+        "{outside} is a name of the list"
+    );
+    let latest = at(NOW.at.0 + 2_000_000_000);
+    start_at(&mut store, latest, 2, 2, 4).expect("the latest start of the second agent");
+    store
+        .commit(vec![TypedRecord {
+            kind: "agent_log",
+            json: stopped_line(2, 2, 4, outside).to_string(),
+        }])
+        .expect("the row is stored as the store holds it");
+    assert!(rows(&store, "agent_log")
+        .iter()
+        .any(|r| r.contains(outside)));
+    assert_eq!(
+        causes(&mut store),
+        [Some(Value::Null), Some(Value::Null)],
+        "a stored cause that is no name of the list"
     );
 }
 
