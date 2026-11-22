@@ -55,6 +55,9 @@ pub struct AppState {
     /// The app's hold on the agents' runs around a delete of everything.
     pub runs: Arc<RunsHold>,
     offline_running: Arc<AtomicBool>,
+    /// The folder of the crash reports of the web view of Halvo's own window, which the web
+    /// view's environment names on Windows; set once after the window's build, never on a Mac.
+    pub crash_reports: Arc<OnceLock<PathBuf>>,
     /// What Remove Halvo takes from main, set once the app has started the supervisor of its
     /// child, through the cell that main holds from before the state moves into the app; never
     /// set in a test app, whose remove_halvo so runs no step.
@@ -100,6 +103,7 @@ impl AppState {
             unfinished_in_a_row: AtomicU32::new(0),
             runs: Arc::default(),
             offline_running: Arc::default(),
+            crash_reports: Arc::default(),
             #[cfg(target_os = "macos")]
             removal: Arc::default(),
         }
@@ -705,6 +709,11 @@ pub async fn delete_all<R: Runtime>(
     };
     if let Ok(answer) = &mut view {
         answer.count_at_the_services_door(&state.unfinished_in_a_row, state.data_dir.as_ref());
+        remove_the_crash_reports(
+            answer,
+            state.crash_reports.get().map(PathBuf::as_path),
+            &|file| std::fs::remove_file(file),
+        );
     }
     match &view {
         Ok(
@@ -869,6 +878,11 @@ pub async fn delete_offline<R: Runtime>(
     }));
     if let Ok(view) = &mut answer {
         view.count_unfinished(&state.unfinished_in_a_row);
+        remove_the_crash_reports(
+            view,
+            state.crash_reports.get().map(PathBuf::as_path),
+            &|file| std::fs::remove_file(file),
+        );
     }
     if answer != Ok(DeleteView::DeleteRefused) {
         let next = state.control.places().next_number();
@@ -1106,4 +1120,122 @@ pub async fn open_permission_pane(
     off_the_main_thread(move || open(permission))
         .await?
         .map_err(|_| ActionError::PaneNotOpened)
+}
+
+/// The end of a whole Delete everything beside Halvo's data directory: where `view` finished and
+/// `folder`, the folder of the crash reports of the web view of Halvo's own window, is known,
+/// every file under it goes by `remove`; where one stays, the answer names the folder, and the
+/// delete of Halvo's data stays whole by it.
+pub fn remove_the_crash_reports(
+    view: &mut DeleteView,
+    folder: Option<&Path>,
+    remove: &dyn Fn(&Path) -> std::io::Result<()>,
+) {
+    let Some(folder) = folder else {
+        return;
+    };
+    if !view.finished() {
+        return;
+    }
+    if let DeleteView::Deleted {
+        crash_reports_left, ..
+    } = view
+    {
+        if !every_file_goes(folder, remove) {
+            *crash_reports_left = Some(halvo_control::paths::one_line(&folder.to_string_lossy()));
+        }
+    }
+}
+
+/// Removes every file under `dir` by `remove`, folders kept: whether none stayed. A folder that
+/// does not stand holds none.
+fn every_file_goes(dir: &Path, remove: &dyn Fn(&Path) -> std::io::Result<()>) -> bool {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) => return error.kind() == std::io::ErrorKind::NotFound,
+    };
+    let mut none_stayed = true;
+    for entry in entries {
+        let Ok(entry) = entry else {
+            none_stayed = false;
+            continue;
+        };
+        let path = entry.path();
+        let gone = match entry.file_type() {
+            Ok(kind) if kind.is_dir() => every_file_goes(&path, remove),
+            Ok(_) => remove(&path).is_ok(),
+            Err(_) => false,
+        };
+        none_stayed &= gone;
+    }
+    none_stayed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn deleted(code: i32, files_left: u64) -> DeleteView {
+        let out = format!(
+            "data_dir=/scratch/halvo-data\ndeleted segments_shredded=2 keys_destroyed=3 root_destroyed=yes root_id=- files_left={files_left} database_left=no not_followed=0 entries_removed=4 entries_left=0 unknown_entries=0 intent=written\n"
+        );
+        offline_view(&OfflineEnd::Exited { code, out }, None).expect("a deleted answer")
+    }
+
+    fn left(view: &DeleteView) -> Option<String> {
+        match view {
+            DeleteView::Deleted {
+                crash_reports_left, ..
+            } => crash_reports_left.clone(),
+            other => panic!("not a deleted answer: {other:?}"),
+        }
+    }
+
+    /// Test 7 of app-4b: at the end of a whole delete the crash reports of the window go; one that
+    /// a stand-in removal refuses stays, and the answer names its folder, the delete still whole;
+    /// a delete that did not finish removes none.
+    #[test]
+    fn a_crash_report_that_stays_at_a_whole_deletes_end_is_named_by_its_folder_and_the_delete_stays_whole(
+    ) {
+        let folder = std::env::current_exe()
+            .expect("the test binary has a path")
+            .ancestors()
+            .nth(3)
+            .expect("the test binary sits under target/<profile>/deps")
+            .join("tmp")
+            .join(format!("halvo-app-crash-reports-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).expect("the folder of the reports");
+        let shown = halvo_control::paths::one_line(&folder.to_string_lossy());
+        let report = |name: &str| {
+            let file = folder.join(name);
+            std::fs::write(&file, b"a dump of the window").expect("a report");
+            file
+        };
+        let (a, b) = (report("a.dmp"), report("b.dmp"));
+        let refuses_b = |file: &Path| {
+            if file == b.as_path() {
+                Err(std::io::Error::other("held by the web view"))
+            } else {
+                std::fs::remove_file(file)
+            }
+        };
+        let mut view = deleted(0, 0);
+        remove_the_crash_reports(&mut view, Some(&folder), &refuses_b);
+        assert_eq!(left(&view).as_deref(), Some(shown.as_str()));
+        assert!(view.finished(), "the delete of Halvo's data stays whole");
+        assert!(!a.exists() && b.exists());
+
+        let mut view = deleted(0, 0);
+        remove_the_crash_reports(&mut view, Some(&folder), &|file| std::fs::remove_file(file));
+        assert_eq!(left(&view), None);
+        assert!(!b.exists());
+
+        let c = report("c.dmp");
+        let mut unfinished = deleted(1, 1);
+        remove_the_crash_reports(&mut unfinished, Some(&folder), &|file| {
+            std::fs::remove_file(file)
+        });
+        assert_eq!(left(&unfinished), None);
+        assert!(c.exists(), "a delete that did not finish removes no report");
+    }
 }

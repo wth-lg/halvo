@@ -1229,6 +1229,11 @@ pub enum DeleteView {
         /// read: the offline delete's end with 1 (contracts.md C3.3).
         #[serde(skip)]
         not_whole: bool,
+        /// The folder of the crash reports of the web view of Halvo's own window, where one
+        /// stayed at the end of this whole delete on Windows; the delete of Halvo's data stays
+        /// whole by it.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        crash_reports_left: Option<String>,
     },
     AlreadyDeleted {
         current_store_id: StoreId,
@@ -1295,6 +1300,7 @@ impl DeleteView {
             nothing_left: !not_whole && left_nothing(f),
             unfinished_in_a_row: None,
             not_whole,
+            crash_reports_left: None,
         }
     }
 

@@ -154,3 +154,20 @@ test("on Windows a second unfinished delete says what a person does by hand in F
   assert.ok(macShown.includes(onMac.window.Halvo.words.REMOVE_BY_HAND), macShown);
   assert.ok(!macShown.includes(BY_HAND_WINDOWS), macShown);
 });
+
+test("a crash report of Halvo's own window that stayed at the end of a whole delete is said with its folder, beside the delete's own words", async () => {
+  const REPORTS = "D:\\halvo-webview\\Crashpad\\reports";
+  const whole = { ...fixture("delete_all-deleted"), new_store_id: null, looked_in: FOLDER };
+  const app = appKeeping([{ ...whole, crash_reports_left: REPORTS }]);
+  const page = await openPage({ replies: app.replies });
+  const { pressed } = await confirmDelete(page);
+  app.release();
+  await pressed;
+  await page.settle();
+  const next = await page.reopen();
+  const shown = next.text("delete-result");
+  const w = next.window.Halvo.words;
+  const own = [w.DELETE_DONE, w.DELETE_COPIES, `The delete ran in Halvo's data folder, ${FOLDER}.`].join(" ");
+  const said = `Halvo could not remove a crash report of its own window in ${REPORTS}. The report can hold what the window showed. Remove it yourself.`;
+  assert.ok(shown.endsWith(`${own} ${said}`), shown);
+});

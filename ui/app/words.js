@@ -129,6 +129,7 @@
     DELETE_HELD: "This press deleted nothing, because another program is using Halvo's data folder, {folder}. Quit any other copy of Halvo or restart this computer, then press Delete everything again.",
     DELETE_NOT_STARTED: "This press deleted nothing, because Halvo could not start its delete.",
     DELETE_LOOKED_IN: "The delete ran in Halvo's data folder, {folder}.",
+    CRASH_REPORT_LEFT: "Halvo could not remove a crash report of its own window in {folder}. The report can hold what the window showed. Remove it yourself.",
     SETTINGS_UNREADABLE: "Halvo cannot read its settings file. Delete everything resets it, and it also deletes everything that Halvo has recorded.",
     SETTINGS_NEWER: "Halvo's settings file was saved by a newer version of Halvo. Update Halvo to read it, or use Delete everything, which resets it and also deletes everything that Halvo has recorded.",
     DELETE_NOT_FINISHED: "The delete did not finish. Press Delete everything again to finish it.",

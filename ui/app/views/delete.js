@@ -177,7 +177,9 @@
     var unfinished = inARow >= 2 ? [withFolder(w.DELETE_NOT_FINISHED_AGAIN, r.looked_in), byHand] : inARow === 1 ? [w.DELETE_NOT_FINISHED] : [];
     var lines = lineWords(r).concat(unfinished);
     if (lines.length === 0) lines = [w.DELETE_RESULT_UNREADABLE];
-    return lines.concat(typeof r.looked_in === "string" ? [withFolder(w.DELETE_LOOKED_IN, r.looked_in)] : []);
+    var folder = typeof r.looked_in === "string" ? [withFolder(w.DELETE_LOOKED_IN, r.looked_in)] : [];
+    var report = typeof r.crash_reports_left === "string" && r.crash_reports_left !== "" ? [w.CRASH_REPORT_LEFT.replace("{folder}", r.crash_reports_left)] : [];
+    return lines.concat(folder, report);
   }
 
   function lineWords(r) {
