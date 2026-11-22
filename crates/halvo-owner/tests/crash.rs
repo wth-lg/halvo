@@ -625,6 +625,92 @@ fn a_delete_during_a_batch_leaves_nothing() {
     assert_eq!(status, 0, "{printed}");
 }
 
+/// On Windows, the delete of everything against the real owner and its key, as the app runs it: the real owner makes a
+/// derived row and the derived key on a real store and key, the test writes derived/owner.pid as the owner slot writes
+/// it, and then halvo-capture.exe, the program that the app runs, runs with `--delete-all --data-dir DIR`. It ends the
+/// owner by its pid and start time and leaves no entry under derived/, no store, no root and no intent; the next start
+/// makes a new key and an owner that reads no workflow. The store's writer lock, an empty file that stays after a delete
+/// on Windows until the unit win-delete-lock lands, is not counted while it is empty. The program stands beside the
+/// owner when the build that made this test also made halvo-capture's test targets, as the merge gate's test step does.
+#[cfg(windows)]
+#[test]
+fn on_windows_the_programs_offline_delete_ends_the_owner_and_leaves_no_derived_row_key_or_store() {
+    let _serial = serial();
+    let scratch = Scratch::new("crash-windows-delete");
+    let key = capture_store_and_key(&scratch.0);
+    let mut owner = start(&scratch.0, Some(key), 1, true);
+    owner.write(&analysis_write(three(two_days_ago()), at(4)));
+    assert_null(owner.worker_reply());
+    owner.send(&read_workflows());
+    assert_eq!(workflows(owner.reply()).len(), 1, "one derived row stands");
+    let derived = scratch.0.join("derived");
+    assert!(
+        derived.join("master.key").is_file(),
+        "the derived key stands"
+    );
+    let pid = owner.child.as_ref().unwrap().id();
+    let started =
+        halvo_capture::daemon::owner_pid::start_time_of(pid).expect("the owner's start time");
+    fs::write(
+        derived.join("owner.pid"),
+        format!("pid={pid} started={started}\n"),
+    )
+    .unwrap();
+
+    let program = Path::new(env!("CARGO_BIN_EXE_halvo-owner")).with_file_name("halvo-capture.exe");
+    assert!(
+        program.is_file(),
+        "{} is not built: the test step builds it with the test targets of halvo-capture",
+        program.display()
+    );
+    let deleted = Command::new(&program)
+        .args(["--delete-all", "--data-dir"])
+        .arg(&scratch.0)
+        .stdin(Stdio::null())
+        .output()
+        .expect("the program of the offline delete runs");
+    let printed = format!(
+        "exit {:?}, out: {}, err: {}",
+        deleted.status.code(),
+        String::from_utf8_lossy(&deleted.stdout),
+        String::from_utf8_lossy(&deleted.stderr)
+    );
+    assert_eq!(deleted.status.code(), Some(0), "{printed}");
+    let child = owner.child.as_mut().unwrap();
+    let deadline = Mono::now() + WAIT;
+    while child.try_wait().unwrap().is_none() {
+        assert!(Mono::now() < deadline, "the owner did not end: {printed}");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(entries_under(&derived), Vec::<PathBuf>::new(), "{printed}");
+    let lock = scratch.0.join("store").join("writer.lock");
+    let store: Vec<PathBuf> = files_under(&scratch.0.join("store"))
+        .into_iter()
+        .filter(|file| *file != lock || fs::metadata(file).map_or(true, |meta| meta.len() > 0))
+        .collect();
+    assert_eq!(store, Vec::<PathBuf>::new(), "{printed}");
+    assert_eq!(
+        files_under(&scratch.0.join("roots")),
+        Vec::<PathBuf>::new(),
+        "{printed}"
+    );
+    assert!(
+        !scratch.0.join(halvo_control::paths::INTENT_FILE).exists(),
+        "{printed}"
+    );
+    drop(owner);
+
+    let fresh = capture_store_and_key(&scratch.0);
+    assert_ne!(fresh, key, "the next start makes a new key");
+    let mut next = start(&scratch.0, Some(fresh), 1, false);
+    next.send(&read_workflows());
+    assert_eq!(
+        workflows(next.reply()),
+        Vec::<WorkflowId>::new(),
+        "the next start reads no workflow"
+    );
+}
+
 /// The step of the delete walk's row derived at which a run of `the_next_start_finishes_a_cut_delete` is cut.
 #[cfg(all(target_os = "macos", debug_assertions))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
