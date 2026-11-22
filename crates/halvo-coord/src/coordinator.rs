@@ -3656,13 +3656,21 @@ where
                     crate::types::StatusLine::Record
                         | crate::types::StatusLine::NeedsYou(ItemKind::Check)
                 );
+            let session = board
+                .members
+                .iter()
+                .any(|m| m.facts.agent == facts.agent && m.session);
             let row = if st.deleting.iter().any(|d| d.agent == facts.agent) {
                 roster::deleting_row(*facts, name)
             } else if quit_line {
                 let offered = roster::controls(*facts, waiting, &self.limits);
-                roster::quit_row(*facts, name, offered)
+                roster::quit_row(
+                    *facts,
+                    name,
+                    roster::with_stop_sign_in(*facts, session, offered),
+                )
             } else {
-                roster::row(*facts, line, name, waiting, &self.limits)
+                roster::row_with_session(*facts, session, line, name, waiting, &self.limits)
             };
             let Ok(mut row) = row else {
                 continue;

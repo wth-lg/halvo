@@ -240,6 +240,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("control.take_back", "Cancel this start"),
     ("control.switch_off", "Switch off"),
     ("control.switch_on", "Switch on"),
+    ("control.stop_sign_in", "Stop using its sign-in"),
     ("control.delete", "Delete"),
     ("item.sign_in.title", "Sign in for “{name}”"),
     (
@@ -619,6 +620,19 @@ pub const KEYS: &[(&str, &str)] = &[
         "Halvo keeps no record of this once the agent is removed.",
     ),
     ("ask.delete.keep", "Keep it"),
+    (
+        "ask.stop_sign_in.title",
+        "Stop using the sign-in of “{name}”?",
+    ),
+    (
+        "ask.stop_sign_in.stops",
+        "Halvo will stop using the sign-in that it keeps for this agent, and removes it within 35 days.",
+    ),
+    (
+        "ask.stop_sign_in.next",
+        "The next time the agent runs, it asks you to sign in again.",
+    ),
+    ("ask.stop_sign_in.keep", "Keep the sign-in"),
     (
         "ask.effect.payment",
         "Halvo does not know whether it made this payment.",
