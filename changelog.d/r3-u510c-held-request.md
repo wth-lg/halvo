@@ -1,0 +1,1 @@
+- Security: Under the runner's test feature loopback, a held web payment or purchase whose form body or address names, in an amount field of a closed list, another amount than its card, or whose body or address cannot be read, is failed before its card, and nothing leaves.

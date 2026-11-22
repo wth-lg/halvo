@@ -14,7 +14,8 @@ use halvo_schema::{AgentId, WorkflowId};
 /// as A6.1 writes it, and a file step or a web step of a runner without it fails with `step_failed`. It keeps
 /// `--browser` and `--headed`, which the start of the run's browser takes at its first web step (crate::web); a run
 /// given no `--browser` finds the person's browser there (crate::find, U9.10). This build starts no model, so it
-/// checks the form of `--model` and keeps it not.
+/// checks the form of `--model` and keeps it not. A build with the feature `loopback`, and the crate's unit tests, take
+/// one argument more, `--stand-in-person` (`STAND_IN_PERSON`); every other build refuses it as an unknown argument.
 #[derive(Debug)]
 pub(crate) struct Args {
     pub run: RunId,
@@ -33,6 +34,34 @@ pub(crate) struct Args {
     pub browser: Option<PathBuf>,
     /// Whether `--headed` was given: the browser then runs with a window.
     pub headed: bool,
+    /// Whether a person can answer a handback at a sign-in: `--headed` was given, or, in a build of the tests alone,
+    /// `--stand-in-person`. Where none can, a credential field ends the run (`Runner::no_window`, r3 U5.15r).
+    pub person: bool,
+}
+
+/// The switch of the tests' builds alone (r3 U5.15r, the coordinator's ruling of log line 16634 (1)): it says that a
+/// stand-in person of the tests answers a handback in a run with no window, where a product build ends the run at a
+/// credential field. It is compiled only with the feature `loopback`, which no shipped program turns on, and in the
+/// crate's unit tests; every other build refuses it as an unknown argument.
+#[cfg(any(test, feature = "loopback"))]
+pub(crate) const STAND_IN_PERSON: &str = "--stand-in-person";
+
+/// Whether `key` is `STAND_IN_PERSON`, which `given` then notes; a second one is refused.
+#[cfg(any(test, feature = "loopback"))]
+fn stand_in_person(key: &OsString, given: &mut bool) -> Result<bool, Usage> {
+    if key != STAND_IN_PERSON {
+        return Ok(false);
+    }
+    if std::mem::replace(given, true) {
+        return Err("--stand-in-person twice");
+    }
+    Ok(true)
+}
+
+/// Never: a build without the feature `loopback` knows no switch of the tests and holds no text of it.
+#[cfg(not(any(test, feature = "loopback")))]
+fn stand_in_person(_: &OsString, _: &mut bool) -> Result<bool, Usage> {
+    Ok(false)
 }
 
 /// The detail of a refusal with the cause `usage`.
@@ -100,6 +129,7 @@ pub(crate) fn asks_version(args: &[OsString]) -> bool {
 pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
     let mut values: [Option<&OsString>; 8] = [None; 8];
     let mut headed = false;
+    let mut stand_in = false;
     let mut at = args.iter();
     while let Some(key) = at.next() {
         if key == "--headed" {
@@ -107,6 +137,9 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
                 return Err("--headed twice");
             }
             headed = true;
+            continue;
+        }
+        if stand_in_person(key, &mut stand_in)? {
             continue;
         }
         let key = text(key, "an argument that is not UTF-8")?;
@@ -137,6 +170,7 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
         utc_offset_s: utc_offset(offset)?,
         browser: browser.map(PathBuf::from),
         headed,
+        person: headed || stand_in,
     })
 }
 

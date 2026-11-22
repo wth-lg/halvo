@@ -254,6 +254,13 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
             of(status_with(mac, |f| f.cap_bytes = Cap::Unknown)),
         ),
         (
+            "cap-not-set",
+            of(status_with(mac, |f| {
+                f.cap_bytes = Cap::Unknown;
+                f.cap_not_set = true;
+            })),
+        ),
+        (
             "custody-enclave",
             of(status_with(mac, |f| f.custody = Custody::SecureEnclave)),
         ),

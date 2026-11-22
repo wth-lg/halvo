@@ -1,5 +1,5 @@
-//! The compiled-in data of contract T1.6: the ruling, the policy table and the default cap, each of
-//! which fails closed when its file does not parse.
+//! The compiled-in data of contract T1.6: the ruling with its table of hosts, the policy table and
+//! the default cap, each of which fails closed when its file does not parse.
 
 use std::sync::OnceLock;
 
@@ -8,13 +8,15 @@ use crate::policy::Policy;
 use crate::ruling::Ruling;
 
 const RULING: &str = include_str!("../data/ruling.txt");
+const HOSTS: &str = include_str!("../data/hosts.tsv");
 const POLICY: &str = include_str!("../data/policy.tsv");
 const CAP: &str = include_str!("../data/cap.txt");
 
-/// The ruling of `crates/halvo-route/data/ruling.txt`, read without its last LF, or `Ruling::None`
-/// when that line does not parse.
+/// The ruling of `crates/halvo-route/data/ruling.txt`, read without its last LF with the table of
+/// hosts of `crates/halvo-route/data/hosts.tsv`, or `Ruling::None` when the line does not parse,
+/// when the table does not parse, when the table holds no row, and when the line is `ruling=none`.
 pub fn ruling() -> Ruling {
-    ruling_of(RULING)
+    ruling_of(RULING, HOSTS)
 }
 
 /// The table of `crates/halvo-route/data/policy.tsv`, read once by `Policy::parse_for` with the
@@ -30,10 +32,9 @@ pub fn cap() -> Option<DefaultCap> {
     cap_of(CAP)
 }
 
-fn ruling_of(text: &str) -> Ruling {
+fn ruling_of(text: &str, hosts: &str) -> Ruling {
     text.strip_suffix('\n')
-        .and_then(|line| Ruling::parse(line).ok())
-        .unwrap_or(Ruling::None)
+        .map_or(Ruling::None, |line| Ruling::read_with_table(line, hosts))
 }
 
 fn policy_of(text: &str, ruling: &Ruling) -> Policy {
@@ -59,25 +60,93 @@ mod tests {
 
     #[test]
     fn release_ruling_fails_closed() {
-        assert_eq!(ruling_of("ruling=none\n"), Ruling::None);
+        let header = "tier\torigin\tmodel\tadapter\tsource\tdate\n";
+        let row = "frontier\thttps://top.invalid\ttop-model\tadapter-b\tfixture:test\t2026-11-22\n";
+        let one = format!("{header}{row}");
+        assert_eq!(ruling_of("ruling=none\n", HOSTS), Ruling::None);
+        assert_eq!(ruling_of("ruling=hosted\n", HOSTS), Ruling::None);
+        assert_eq!(ruling_of("ruling=none\n", &one), Ruling::None);
+        let open = ruling_of("ruling=hosted\n", &one);
+        assert_eq!(open.allowed(), &[Tier::OnDevice, Tier::Frontier]);
+        assert_eq!(open.rows().len(), 1);
         for text in [
             "",
             "\n",
             "ruling=none",
+            "ruling=hosted",
             "ruling=none\n\n",
+            "ruling=hosted\n\n",
             "ruling=none\r\n",
+            "ruling=hosted\r\n",
             "ruling=none\r",
             "ruling=none\t",
             "ruling=none ",
             "ruling=none \n",
             "\u{feff}ruling=none\n",
-            "ruling=hosted\n",
+            "\u{feff}ruling=hosted\n",
             "ruling=test_hosted\n",
             "ruling=all\n",
         ] {
-            assert_eq!(ruling_of(text), Ruling::None, "{text:?}");
-            assert_eq!(ruling_of(text).allowed(), &[Tier::OnDevice]);
-            assert!(ruling_of(text).origins().is_empty());
+            for hosts in [HOSTS, one.as_str()] {
+                assert_eq!(ruling_of(text, hosts), Ruling::None, "{text:?}");
+                assert_eq!(ruling_of(text, hosts).allowed(), &[Tier::OnDevice]);
+                assert!(ruling_of(text, hosts).rows().is_empty());
+            }
+        }
+        let low = row.replacen("frontier", "low_cost_hosted", 1);
+        let mut tables = vec![
+            String::new(),
+            header.trim_end().to_owned(),
+            one.trim_end().to_owned(),
+            one.replace('\n', "\r\n"),
+            format!("{one}\n"),
+            format!("\u{feff}{one}"),
+            one.replacen("source\tdate", "date\tsource", 1),
+            format!("{header}{row}{row}"),
+            format!("{header}{low}{low}"),
+            one.replacen("\t2026-11-22", "\t2026-11-22\t", 1),
+            one.replacen("\tfixture:test", "", 1),
+        ];
+        for (from, to) in [
+            ("frontier\t", "on_device\t"),
+            ("frontier\t", "Frontier\t"),
+            ("frontier\t", "hand_back\t"),
+            ("https://top.invalid", "http://top.invalid"),
+            ("https://top.invalid", "https://top.invalid:443"),
+            ("https://top.invalid", "https://top.invalid/"),
+            ("https://top.invalid", "https://top.invalid/v1"),
+            ("https://top.invalid", "https://127.0.0.1"),
+            ("https://top.invalid", "https://10.0.0.1"),
+            ("https://top.invalid", "https://localhost"),
+            ("https://top.invalid", "https://top.localhost"),
+            ("https://top.invalid", "https://TOP.invalid"),
+            ("https://top.invalid", "https://top..invalid"),
+            ("https://top.invalid", "https://top.invalid."),
+            ("https://top.invalid", "https://[::1]"),
+            ("https://top.invalid", "https://user@top.invalid"),
+            ("https://top.invalid", "top.invalid"),
+            ("https://top.invalid", ""),
+            ("\ttop-model\t", "\ttop model\t"),
+            ("\ttop-model\t", "\t\t"),
+            ("\ttop-model\t", "\ttop/model\t"),
+            ("\tadapter-b\t", "\tadapter\"b\t"),
+            ("\tfixture:test\t", "\t-\t"),
+            ("\tfixture:test\t", "\t\t"),
+            ("\tfixture:test\t", "\tfixture test\t"),
+            ("\t2026-11-22", "\t2026-11-31"),
+            ("\t2026-11-22", "\t2026-02-29"),
+            ("\t2026-11-22", "\t26-11-22"),
+        ] {
+            tables.push(one.replacen(from, to, 1));
+        }
+        tables.push(one.replacen("top-model", &"m".repeat(65), 1));
+        for table in &tables {
+            assert_ne!(table, &one);
+            assert_eq!(
+                ruling_of("ruling=hosted\n", table),
+                Ruling::None,
+                "{table:?}"
+            );
         }
     }
 

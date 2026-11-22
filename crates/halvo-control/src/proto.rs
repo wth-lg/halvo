@@ -1603,6 +1603,12 @@ pub struct StatusFields {
     #[serde(deserialize_with = "required")]
     pub store_logical_bytes: Option<u64>,
     pub cap_bytes: Cap,
+    /// Beside cap_bytes unknown: the stored cap is the one that a reset of the settings writes,
+    /// a cap that is not set, and not one that could not be read. It crosses the wire only while
+    /// it stands, so that a status of a daemon that sends none reads false; the protocol number
+    /// does not move for it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cap_not_set: bool,
     pub drain: Health,
     #[serde(deserialize_with = "required")]
     pub drain_error: Option<DrainError>,
@@ -1791,6 +1797,9 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     }
     if f.store_error == Some(StoreErrorKind::KeyFile) && f.store_id.is_some() {
         return fail("a store whose key file does not parse has no id");
+    }
+    if f.cap_not_set && f.cap_bytes != Cap::Unknown {
+        return fail("a cap that is not set reads unknown");
     }
     let order = |name: &SourceName| SourceName::of(f.platform).iter().position(|s| s == name);
     let mut at = None;
@@ -4153,6 +4162,37 @@ stopped/kind body
         for bad in ["\"Unknown\"", "null", "5", "\"5\""] {
             assert!(serde_json::from_str::<Cap>(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn a_status_carries_cap_not_set_only_while_it_stands_and_the_control_text_stays() {
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        fields.cap_bytes = Cap::Unknown;
+        let unknown = DaemonStatus::new(fields.clone()).unwrap();
+        fields.cap_not_set = true;
+        let not_set = DaemonStatus::new(fields.clone()).unwrap();
+        let sent = encode_reply(&Reply::Status(not_set.clone()));
+        let frame: serde_json::Value = serde_json::from_slice(&sent).unwrap();
+        assert_eq!(frame["v"], 1);
+        assert_eq!(frame["body"]["cap_not_set"], true);
+        assert_eq!(frame["body"]["cap_bytes"], "unknown");
+        assert_eq!(decode_reply(&sent).unwrap(), Reply::Status(not_set.clone()));
+        let without = encode_reply(&Reply::Status(unknown.clone()));
+        let frame: serde_json::Value = serde_json::from_slice(&without).unwrap();
+        assert_eq!(frame["body"].get("cap_not_set"), None, "{frame}");
+        assert_eq!(
+            decode_reply(&without).unwrap(),
+            Reply::Status(unknown.clone())
+        );
+        assert_eq!(
+            crate::ctl_text::status_text(&not_set),
+            crate::ctl_text::status_text(&unknown)
+        );
+        fields.cap_bytes = Cap::Known(StorageCap::DEFAULT);
+        assert_eq!(
+            DaemonStatus::new(fields).unwrap_err().rule(),
+            "a cap that is not set reads unknown"
+        );
     }
 
     #[test]
