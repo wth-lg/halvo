@@ -1633,7 +1633,7 @@ mod tests {
             browser: PathBuf::from("/nowhere/halvo-browser"),
             model: None,
         };
-        let hub = hub(fails, places, Box::new(|_| {}), Box::new(Drops));
+        let hub = hub(fails, places, Box::new(|_| {}), Arc::new(Unseen));
         assert!(attached.set(Arc::downgrade(&hub)).is_ok());
         let unread = guarded.request(&effect(&record("no_such_class"))).unwrap();
         assert_eq!(error_of(&unread).as_deref(), Some("approval"));
@@ -1643,10 +1643,17 @@ mod tests {
         );
     }
 
-    /// A presenter that drops each dialog.
-    struct Drops;
+    /// A dialog that is never on screen and answers `reject`: no native confirmation is answered.
+    struct Unseen;
 
-    impl Present for Drops {
-        fn present(&self, _dialog: crate::hub::Native) {}
+    impl Dialog for Unseen {
+        fn show(
+            &self,
+            _: &crate::Card,
+            _: Duration,
+            _: &dyn Fn(),
+        ) -> halvo_coord::items::ConfirmAnswer {
+            halvo_coord::items::ConfirmAnswer::Reject
+        }
     }
 }
