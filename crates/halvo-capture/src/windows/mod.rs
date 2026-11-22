@@ -1104,29 +1104,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_content_probe_of_a_gate_reads_its_field_state() {
-        use crate::secure_input::windows::{FieldState, PasswordGate};
-        use crate::secure_input::{check, SecureInputReading, Withheld};
-        let reading = |gate: &PasswordGate| match check(&gate.content_probe(), None) {
-            Ok(_) => SecureInputReading::Inactive,
-            Err(Withheld::Active) => SecureInputReading::Active,
-            Err(Withheld::Unknown | Withheld::Late) => SecureInputReading::Unknown,
-        };
-        let gate = PasswordGate::new();
-        assert_eq!(reading(&gate), SecureInputReading::Unknown);
-        for (state, wanted) in [
-            (FieldState::Password, SecureInputReading::Active),
-            (FieldState::Clear, SecureInputReading::Inactive),
-            (FieldState::Unknown, SecureInputReading::Unknown),
-            (FieldState::Password, SecureInputReading::Active),
-        ] {
-            gate.field_at(now_tick(), state);
-            assert_eq!(gate.field_now(), state);
-            assert_eq!(reading(&gate), wanted, "{state:?}");
-        }
-    }
-
-    #[test]
     fn a_front_whose_process_cannot_be_read_gives_no_event_of_any_kind() {
         use crate::floor::exclude::{FloorHandle, NoLineage};
         use crate::floor::{kind, Switches};

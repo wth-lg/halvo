@@ -7,6 +7,7 @@ use halvo_control::proto::SourceName;
 
 use super::foreground::ForegroundAppSource;
 use super::input::RawInputSource;
+use super::screen::ScreenSource;
 use super::window_title::WindowTitleSource;
 use crate::daemon::sources::SourceFactory;
 use crate::secure_input::windows::PasswordGate;
@@ -49,6 +50,17 @@ impl ServiceSet {
     /// The set's one password gate.
     pub fn password_gate(&self) -> Arc<PasswordGate> {
         Arc::clone(&self.hold.gate)
+    }
+
+    /// A title source that reads the set's gate and holds it while it runs.
+    pub fn gated_title(&self, source: WindowTitleSource) -> Gated<WindowTitleSource> {
+        self.gated(source.with_password_gate(self.password_gate()))
+    }
+
+    /// A screen source that reads the set's gate and holds it while it runs.
+    /// The set itself makes no screen source.
+    pub fn gated_screen(&self, source: ScreenSource) -> Gated<ScreenSource> {
+        self.gated(source.with_password_gate(self.password_gate()))
     }
 
     fn gated<S: CaptureSource>(&self, source: S) -> Gated<S> {
@@ -159,7 +171,7 @@ impl SourceFactory for ServiceSet {
             SourceName::Pointer => Some(Box::new(RawInputSource::pointer(Arc::clone(
                 &self.last_app,
             )))),
-            SourceName::WindowTitle => Some(Box::new(self.gated(WindowTitleSource::new()))),
+            SourceName::WindowTitle => Some(Box::new(self.gated_title(WindowTitleSource::new()))),
             SourceName::Keyboard
             | SourceName::Screen
             | SourceName::SystemAudio
@@ -239,6 +251,172 @@ mod tests {
         assert!(!attached, "a failed attach left a detector");
         assert_eq!(reading, FieldState::Unknown);
         assert_eq!(failing.hold.lines_said.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn a_title_is_kept_where_the_element_answers_no_password_field_and_dropped_where_it_cannot() {
+        use std::sync::Arc;
+
+        use super::super::window_title::{title_event, WindowTitleSource};
+        use super::super::{now_tick, DropCounts, Floor, FrontApp, OsTick};
+        use crate::floor::exclude::{FloorHandle, PrivateWindow};
+        use crate::floor::payload::TitleWhy;
+        use crate::secure_input::windows::{
+            content_of, state_of, ClearBy, ContentReading, FocusRead, Kind, UnknownBy,
+        };
+        use crate::secure_input::{check, SecureInputReading, Withheld};
+        use ContentReading::{Clear, Password, Unknown};
+
+        let answered = |is_password, protected, kind| FocusRead::Answered {
+            is_password,
+            protected,
+            kind,
+        };
+        let no_answer = |protected| FocusRead::NoAnswer { protected };
+        let rows = [
+            (
+                "native-edit",
+                answered(false, false, Kind::NativeEdit),
+                false,
+                Clear(ClearBy::NativeEdit),
+                FieldState::Clear,
+            ),
+            (
+                "chrome",
+                answered(false, false, Kind::Chrome),
+                false,
+                Clear(ClearBy::Chrome),
+                FieldState::Clear,
+            ),
+            (
+                "edge",
+                answered(false, false, Kind::Edge),
+                false,
+                Clear(ClearBy::Edge),
+                FieldState::Clear,
+            ),
+            (
+                "other-kind",
+                answered(false, false, Kind::Other),
+                false,
+                Clear(ClearBy::OtherKind),
+                FieldState::Unknown,
+            ),
+            (
+                "firefox",
+                answered(false, false, Kind::Firefox),
+                false,
+                Unknown(UnknownBy::Firefox),
+                FieldState::Unknown,
+            ),
+            (
+                "gecko",
+                answered(false, false, Kind::Other),
+                true,
+                Unknown(UnknownBy::Firefox),
+                FieldState::Unknown,
+            ),
+            (
+                "no-answer",
+                no_answer(false),
+                false,
+                Unknown(UnknownBy::NoAnswer),
+                FieldState::Unknown,
+            ),
+            (
+                "unreadable",
+                FocusRead::Unreadable,
+                false,
+                Unknown(UnknownBy::Unreadable),
+                FieldState::Unknown,
+            ),
+            (
+                "password",
+                answered(true, false, Kind::Other),
+                false,
+                Password,
+                FieldState::Password,
+            ),
+            (
+                "protected",
+                answered(false, true, Kind::Chrome),
+                false,
+                Password,
+                FieldState::Password,
+            ),
+            (
+                "protected-no-answer",
+                no_answer(true),
+                false,
+                Password,
+                FieldState::Password,
+            ),
+        ];
+        let wrong: Vec<&str> = rows
+            .iter()
+            .filter(|(_, read, gecko, content, key)| {
+                state_of(*read, false) != *key || content_of(*read, *gecko, *key) != *content
+            })
+            .map(|(row, ..)| *row)
+            .collect();
+        assert!(wrong.is_empty(), "rows with another reading: {wrong:?}");
+        assert_eq!(
+            content_of(
+                answered(false, false, Kind::NativeEdit),
+                false,
+                FieldState::Password
+            ),
+            Password,
+            "a read of the key's kept password element"
+        );
+
+        let set = ServiceSet::new();
+        let title = set.gated_title(WindowTitleSource::new());
+        let gate = Arc::clone(title.source().password_gate().expect("the set's gate"));
+        assert!(Arc::ptr_eq(&gate, &set.password_gate()));
+        let probe = |gate: &PasswordGate| match check(&gate.content_probe(), None) {
+            Ok(_) => SecureInputReading::Inactive,
+            Err(Withheld::Active) => SecureInputReading::Active,
+            Err(Withheld::Unknown | Withheld::Late) => SecureInputReading::Unknown,
+        };
+        let before_the_first_read = (gate.content_reading(), probe(&gate));
+        gate.switch_desktop_at(now_tick());
+        let after_a_desktop_switch = gate.content_reading();
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(FloorHandle::default(), Arc::clone(&drops));
+        let front = FrontApp {
+            pid: 9,
+            path: Some("C:\\Apps\\mail.exe".to_string()),
+        };
+        let title_at = |read: FocusRead| {
+            gate.focus_read_at(now_tick(), read, false);
+            let kept = title_event(
+                &floor,
+                Some(&gate),
+                (&front, PrivateWindow::Unknown),
+                ("Inbox".to_string(), TitleWhy::TitleChange),
+                OsTick::new(now_tick()),
+            )
+            .is_some();
+            (kept, probe(&gate))
+        };
+        let at_password = title_at(answered(true, false, Kind::NativeEdit));
+        let at_clear = title_at(answered(false, false, Kind::Other));
+        assert_eq!(
+            before_the_first_read,
+            (
+                Unknown(UnknownBy::BeforeFirstRead),
+                SecureInputReading::Unknown
+            )
+        );
+        assert_eq!(after_a_desktop_switch, Unknown(UnknownBy::DesktopSwitch));
+        assert_eq!(
+            at_password,
+            (false, SecureInputReading::Active),
+            "at Password"
+        );
+        assert_eq!(at_clear, (true, SecureInputReading::Inactive), "at Clear");
+        assert_eq!(drops.read().secure_input, 1);
     }
 
     #[test]

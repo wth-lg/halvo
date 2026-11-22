@@ -299,11 +299,16 @@ impl WindowTitleSource {
         }
     }
 
-    /// A title source that reads the gate of a keyboard source: no title
-    /// leaves while the gate reads Password.
+    /// A title source that reads a password gate, the one of the service
+    /// set or of a keyboard source, by the gate's content reading.
     pub fn with_password_gate(mut self, gate: Arc<PasswordGate>) -> Self {
         self.gate = Some(gate);
         self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn password_gate(&self) -> Option<&Arc<PasswordGate>> {
+        self.gate.as_ref()
     }
 
     /// The events that this source dropped at the floor's decision.
@@ -516,7 +521,7 @@ mod tests {
     #[test]
     fn a_title_leaves_no_event_while_the_gate_reads_password_and_one_while_it_reads_unknown() {
         use crate::floor::exclude::FloorHandle;
-        use crate::secure_input::windows::FieldState;
+        use crate::secure_input::windows::{FocusRead, Kind};
         let drops = Arc::new(DropCounts::default());
         let floor = Floor::new(FloorHandle::default(), Arc::clone(&drops));
         let front = FrontApp {
@@ -536,9 +541,14 @@ mod tests {
         };
         assert!(title(None), "a title with no keyboard source");
         assert!(title(Some(&gate)), "a title while the gate reads Unknown");
-        gate.field_at(super::super::now_tick(), FieldState::Password);
+        let read = |is_password| FocusRead::Answered {
+            is_password,
+            protected: false,
+            kind: Kind::NativeEdit,
+        };
+        gate.focus_read_at(super::super::now_tick(), read(true), false);
         assert!(!title(Some(&gate)), "a title while the gate reads Password");
-        gate.field_at(super::super::now_tick(), FieldState::Clear);
+        gate.focus_read_at(super::super::now_tick(), read(false), false);
         assert!(title(Some(&gate)), "a title while the gate reads Clear");
         assert_eq!(drops.read().secure_input, 1);
         let private = title_event(

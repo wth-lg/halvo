@@ -326,8 +326,8 @@ impl ScreenSource {
         self.counts.read()
     }
 
-    /// A screen source that reads the gate of a keyboard source: no record
-    /// leaves while the gate reads Password.
+    /// A screen source that reads a password gate, the one of the service
+    /// set or of a keyboard source, by the gate's content reading.
     pub fn with_password_gate(mut self, gate: Arc<PasswordGate>) -> Self {
         self.gate = Some(gate);
         self

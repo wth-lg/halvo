@@ -74,6 +74,81 @@ pub(crate) fn state_of(read: FocusRead, still_the_last_password_element: bool) -
     }
 }
 
+/// The reading of a window title or a screen frame: its own reading of the
+/// same read of the focused element that the key's state comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentReading {
+    /// The element answered that it is no password field.
+    Clear(ClearBy),
+    /// The element is a password field, or the key's state of the same read
+    /// is Password.
+    Password,
+    /// No reading that a title or a frame may be kept by.
+    Unknown(UnknownBy),
+}
+
+impl Default for ContentReading {
+    fn default() -> Self {
+        ContentReading::Unknown(UnknownBy::BeforeFirstRead)
+    }
+}
+
+/// The kind of element whose answer made a content reading Clear.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClearBy {
+    /// A native Win32 edit control.
+    NativeEdit,
+    /// Chrome.
+    Chrome,
+    /// Edge.
+    Edge,
+    /// Any other kind that answered.
+    OtherKind,
+}
+
+/// Why a content reading is Unknown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnknownBy {
+    /// The detector has made no read since it started, or it is stopped.
+    BeforeFirstRead,
+    /// Firefox, by its file name or by its engine Gecko.
+    Firefox,
+    /// The element gave no answer.
+    NoAnswer,
+    /// No element could be read.
+    Unreadable,
+    /// The desktop switched.
+    DesktopSwitch,
+}
+
+/// The content reading of one read: `gecko` says whether the element's
+/// framework is Gecko, and `key` is the key's state of the same read, with
+/// the kept password element.
+pub(crate) fn content_of(read: FocusRead, gecko: bool, key: FieldState) -> ContentReading {
+    if key == FieldState::Password {
+        return ContentReading::Password;
+    }
+    match read {
+        FocusRead::Answered {
+            is_password: true, ..
+        }
+        | FocusRead::Answered {
+            protected: true, ..
+        }
+        | FocusRead::NoAnswer { protected: true } => ContentReading::Password,
+        FocusRead::Answered { kind, .. } => match kind {
+            Kind::Firefox => ContentReading::Unknown(UnknownBy::Firefox),
+            _ if gecko => ContentReading::Unknown(UnknownBy::Firefox),
+            Kind::NativeEdit => ContentReading::Clear(ClearBy::NativeEdit),
+            Kind::Chrome => ContentReading::Clear(ClearBy::Chrome),
+            Kind::Edge => ContentReading::Clear(ClearBy::Edge),
+            Kind::Other => ContentReading::Clear(ClearBy::OtherKind),
+        },
+        FocusRead::NoAnswer { protected: false } => ContentReading::Unknown(UnknownBy::NoAnswer),
+        FocusRead::Unreadable => ContentReading::Unknown(UnknownBy::Unreadable),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Kept {
     Leave,
@@ -477,6 +552,7 @@ struct Marks {
     pointer_owns: bool,
     pointer_since: Option<u32>,
     forwarded: Option<u32>,
+    content: ContentReading,
 }
 
 impl Marks {
@@ -594,9 +670,9 @@ impl Shared {
         self.marks.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn field(&self, at: u32, state: FieldState) {
+    fn field(&self, at: u32, state: FieldState, content: ContentReading) {
         let _ = self.begin_event();
-        self.field_seen(at, state, None);
+        self.field_seen(at, state, content, None);
     }
 
     fn begin_event(&self) -> u64 {
@@ -606,9 +682,16 @@ impl Shared {
         marks.moves
     }
 
-    fn field_seen(&self, at: u32, state: FieldState, seen: Option<String>) {
+    fn field_seen(
+        &self,
+        at: u32,
+        state: FieldState,
+        content: ContentReading,
+        seen: Option<String>,
+    ) {
         let mut marks = self.lock();
         marks.push(Some(at), at, Mark::Field(state));
+        marks.content = content;
         marks.events_in_flight = marks.events_in_flight.saturating_sub(1);
         marks.ask_read(at);
         note_mark("event", Some(state), None, Some(at), at, seen);
@@ -618,13 +701,14 @@ impl Shared {
         &self,
         began: u32,
         at: u32,
-        state: FieldState,
+        (state, content): (FieldState, ContentReading),
         moved: Moved,
         seen: Option<String>,
     ) {
         note_mark("read", Some(state), Some(moved), Some(at), began, seen);
         let mut marks = self.lock();
         marks.push(Some(at), began, Mark::Read { state, moved });
+        marks.content = content;
         if marks.settle_due.is_some_and(|due| not_after(due, began)) {
             marks.settle_due = None;
         }
@@ -666,7 +750,11 @@ impl Shared {
     }
 
     fn desktop_switched(&self, tick: u32) {
-        self.field(tick, FieldState::Unknown);
+        self.field(
+            tick,
+            FieldState::Unknown,
+            ContentReading::Unknown(UnknownBy::DesktopSwitch),
+        );
         self.latch(tick, LatchFrom::AnotherThread);
     }
 }
@@ -856,11 +944,16 @@ impl PasswordGate {
             .unwrap_or(FieldState::Unknown)
     }
 
+    /// The reading of a window title or a screen frame now.
+    pub fn content_reading(&self) -> ContentReading {
+        self.shared.lock().content
+    }
+
     pub(crate) fn content_probe(&self) -> PasswordFieldProbe {
-        PasswordFieldProbe(match self.field_now() {
-            FieldState::Password => SecureInputReading::Active,
-            FieldState::Clear => SecureInputReading::Inactive,
-            FieldState::Unknown => SecureInputReading::Unknown,
+        PasswordFieldProbe(match self.content_reading() {
+            ContentReading::Password => SecureInputReading::Active,
+            ContentReading::Clear(_) => SecureInputReading::Inactive,
+            ContentReading::Unknown(_) => SecureInputReading::Unknown,
         })
     }
 
@@ -876,12 +969,28 @@ impl PasswordGate {
 
     #[cfg(test)]
     pub(crate) fn field_at(&self, at: u32, state: FieldState) {
-        self.shared.field(at, state);
+        let content = self.content_reading();
+        self.shared.field(at, state, content);
+    }
+
+    /// A focus event of one read, as the detector marks it with no kept
+    /// password element: the key's state and the content reading of the read.
+    #[cfg(test)]
+    pub(crate) fn focus_read_at(&self, at: u32, read: FocusRead, gecko: bool) {
+        let key = state_of(read, false);
+        self.shared.field(at, key, content_of(read, gecko, key));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn switch_desktop_at(&self, at: u32) {
+        self.shared.desktop_switched(at);
     }
 
     #[cfg(test)]
     pub(crate) fn read_at(&self, began: u32, state: FieldState, moved: Moved) {
-        self.shared.read_seen(began, began, state, moved, None);
+        let content = self.content_reading();
+        self.shared
+            .read_seen(began, began, (state, content), moved, None);
     }
 
     #[cfg(test)]
@@ -1239,6 +1348,7 @@ mod detector {
             marks.stopping = false;
             let at = tick();
             marks.push(Some(at), at, super::Mark::Field(FieldState::Unknown));
+            marks.content = super::ContentReading::default();
             super::note_mark("stop", Some(FieldState::Unknown), None, Some(at), at, None);
             ended
         }
@@ -1387,7 +1497,7 @@ mod detector {
     }
 
     impl Reader {
-        fn read(&self, element: &IUIAutomationElement) -> FocusRead {
+        fn read(&self, element: &IUIAutomationElement) -> (FocusRead, bool) {
             // SAFETY: `element` is a live element whose cache holds the
             // properties that the cache request names.
             let is_password = unsafe {
@@ -1429,14 +1539,18 @@ mod detector {
                 u8::from(pid.is_some()),
                 _file_read.text(),
             ));
-            match is_password {
+            let gecko = framework
+                .as_deref()
+                .is_some_and(|id| id.eq_ignore_ascii_case("Gecko"));
+            let read = match is_password {
                 Some(is_password) => FocusRead::Answered {
                     is_password,
                     protected,
                     kind,
                 },
                 None => FocusRead::NoAnswer { protected },
-            }
+            };
+            (read, gecko)
         }
 
         #[cfg(feature = "test-seam")]
@@ -1457,11 +1571,14 @@ mod detector {
             by: super::ReadBy,
             moves: u64,
             events_in_flight: bool,
-        ) -> FieldState {
+        ) -> (FieldState, super::ContentReading) {
             let Some(element) = element else {
                 #[cfg(feature = "test-seam")]
                 self.saw("no_element".to_string());
-                return super::unreadable_state();
+                return (
+                    super::unreadable_state(),
+                    super::ContentReading::Unknown(super::UnknownBy::Unreadable),
+                );
             };
             let mut kept = self
                 .kept
@@ -1477,6 +1594,7 @@ mod detector {
             } else {
                 super::KeptElement::Other
             };
+            let mut focus = None;
             let read = if same {
                 #[cfg(feature = "test-seam")]
                 self.saw(
@@ -1485,7 +1603,9 @@ mod detector {
                 );
                 FieldState::Password
             } else {
-                super::state_of(self.read(element), false)
+                let (read, gecko) = self.read(element);
+                focus = Some((read, gecko));
+                super::state_of(read, false)
             };
             let (state, change) = super::with_kept(
                 kept.as_ref().map(|(_, at)| *at),
@@ -1500,10 +1620,17 @@ mod detector {
                 super::Kept::Set => *kept = Some((element.clone(), moves)),
                 super::Kept::Drop => *kept = None,
             }
-            state
+            let content = focus.map_or(super::ContentReading::Password, |(read, gecko)| {
+                super::content_of(read, gecko, state)
+            });
+            (state, content)
         }
 
-        fn own(&self, moves: u64, events_in_flight: bool) -> (FieldState, super::Moved) {
+        fn own(
+            &self,
+            moves: u64,
+            events_in_flight: bool,
+        ) -> ((FieldState, super::ContentReading), super::Moved) {
             // SAFETY: the cache request is live for the call.
             let element = unsafe { self.automation.GetFocusedElementBuildCache(&self.cache) }.ok();
             let mut last = self
@@ -1622,7 +1749,7 @@ mod detector {
             )
         };
         let moves = handler.shared.begin_event();
-        let state = handler
+        let (state, content) = handler
             .reader
             .state(element, super::ReadBy::Event, moves, false);
         #[cfg(test)]
@@ -1633,7 +1760,7 @@ mod detector {
         });
         handler
             .shared
-            .field_seen(tick(), state, handler.reader.seen());
+            .field_seen(tick(), state, content, handler.reader.seen());
         handler.wake.set();
         #[cfg(feature = "test-seam")]
         crate::windows::input::seam::handler_ended();
@@ -2081,12 +2208,16 @@ mod detector {
             assert!(joined.is_ok(), "{joined:?}");
             let _com = Com;
             let reader = new_reader().expect("the reader is made");
-            let own = reader.state(None, super::super::ReadBy::OwnRead, 0, false);
-            let event = reader.state(None, super::super::ReadBy::Event, 3, false);
+            let (own, content) = reader.state(None, super::super::ReadBy::OwnRead, 0, false);
+            let (event, _) = reader.state(None, super::super::ReadBy::Event, 3, false);
             let seen = reader.seen();
             drop(reader);
             assert_eq!(own, FieldState::Unknown);
             assert_eq!(event, FieldState::Unknown);
+            assert_eq!(
+                content,
+                super::super::ContentReading::Unknown(super::super::UnknownBy::Unreadable)
+            );
             #[cfg(feature = "test-seam")]
             assert_eq!(seen.as_deref(), Some("no_element"));
             #[cfg(not(feature = "test-seam"))]
@@ -2765,7 +2896,7 @@ mod detector {
                 );
             }
             let unmasked =
-                super::super::state_of(reader.read(&element_of(&reader, kept.hwnd)), false);
+                super::super::state_of(reader.read(&element_of(&reader, kept.hwnd)).0, false);
             // SAFETY: as above.
             let second_answer = unsafe { handler_focus(handler.as_raw(), other_element.as_raw()) };
             std::thread::sleep(Duration::from_millis(50));
@@ -3983,7 +4114,8 @@ mod tests {
         use ReadBy::OwnRead;
         let gate = PasswordGate::new();
         let kept = gate.shared.begin_event();
-        gate.shared.field_seen(2_000, Password, None);
+        gate.shared
+            .field_seen(2_000, Password, ContentReading::Password, None);
         let read_move = gate.shared.lock().moves;
         assert!(!lets_go(kept, read_move, false));
         assert_eq!(
