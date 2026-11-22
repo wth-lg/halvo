@@ -14,7 +14,7 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=46
+failing_fixtures=49
 form_test=stall::the_round_count_of_the_stall_tests
 prints_rule=scripts/r1/windows-prints-rule.sh
 prints_rule_line='^prints-rule [A-Za-z0-9_:]+ line=[0-9]+ length=[0-9]+ token=[0-9]+$'
@@ -546,8 +546,7 @@ launch() {
       export WF_TIMEOUT_TOOL
     fi
     if [ "$args_knob" = --as-standard-account ]; then
-      unset GITHUB_ACTIONS RUNNER_ENVIRONMENT RUNNER_OS
-      sh "$self_script" --as-standard-account -- standard-command >"$work/out-$1" 2>&1
+      form_call "$drop_knob" >"$work/out-$1" 2>&1
     elif [ -n "$args_knob" ]; then
       sh "$self_script" "$args_knob" >"$work/out-$1" 2>&1
     else
@@ -560,6 +559,15 @@ launch() {
     wait
     running=0
   fi
+}
+
+form_call() {
+  case $1 in
+    GITHUB_ACTIONS) env -u GITHUB_ACTIONS RUNNER_ENVIRONMENT=github-hosted RUNNER_OS=Windows sh "$self_script" --as-standard-account -- standard-command ;;
+    RUNNER_ENVIRONMENT) env -u RUNNER_ENVIRONMENT GITHUB_ACTIONS=true RUNNER_OS=Windows sh "$self_script" --as-standard-account -- standard-command ;;
+    RUNNER_OS) env -u RUNNER_OS GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted sh "$self_script" --as-standard-account -- standard-command ;;
+    *) env -u GITHUB_ACTIONS -u RUNNER_ENVIRONMENT -u RUNNER_OS sh "$self_script" --as-standard-account -- standard-command ;;
+  esac
 }
 
 check() {
@@ -619,6 +627,7 @@ reset_knobs() {
   repo_knob=
   group_knob=$group
   args_knob=
+  drop_knob=
 }
 
 write_stubs() {
@@ -1161,6 +1170,12 @@ fixtures() {
   check the-standard-account-form-refuses-outside-a-hosted-runner FAIL "$right" \
     "FAIL $name (--as-standard-account runs on a GitHub-hosted Windows runner alone, where GITHUB_ACTIONS is true, RUNNER_ENVIRONMENT is github-hosted and RUNNER_OS is Windows; it made and changed nothing here)" \
     "!STUB-POWERSHELL-RAN" "!STUB-STANDARD-COMMAND-RAN" "!standard_account"
+  for drop_knob in GITHUB_ACTIONS RUNNER_ENVIRONMENT RUNNER_OS; do
+    args_knob=--as-standard-account
+    check "the-standard-account-form-refuses-without-$drop_knob" FAIL "$right" \
+      "FAIL $name (--as-standard-account runs on a GitHub-hosted Windows runner alone, where GITHUB_ACTIONS is true, RUNNER_ENVIRONMENT is github-hosted and RUNNER_OS is Windows; it made and changed nothing here)" \
+      "!STUB-POWERSHELL-RAN" "!STUB-STANDARD-COMMAND-RAN" "!standard_account"
+  done
   check two-logs-that-break-the-prints-rule-are-not-printed FAIL "c1_raw_input|rule-break${nl}helper_child_window|rule-break${nl}known_defect::x1_password|defect|RR-windows-01" \
     "prints-rule c1_raw_input line=3 length=" "$name: c1_raw_input: wpr_check_log exited 1 with 1 lines that break the prints rule, so its log is not printed${nl}WF c1_raw_input result=FAIL${nl}" \
     "${nl}prints-rule helper_child_window line=3 length=" "${nl}prints_rule broken_lines=2 withheld_logs=2${nl}" \
