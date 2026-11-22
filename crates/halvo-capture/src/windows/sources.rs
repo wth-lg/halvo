@@ -10,7 +10,7 @@ use super::input::RawInputSource;
 use super::screen::ScreenSource;
 use super::window_title::WindowTitleSource;
 use crate::daemon::sources::SourceFactory;
-use crate::secure_input::windows::PasswordGate;
+use crate::secure_input::windows::{Attached, PasswordGate};
 use crate::source::{CaptureError, CaptureSource, SourceContext, SourceHealth, Started};
 
 /// The factory of a Windows service run: the foreground source, the pointer
@@ -86,14 +86,23 @@ impl GateHold {
     fn take(&self) {
         let mut holders = self.holders.lock().unwrap_or_else(PoisonError::into_inner);
         if *holders == 0 {
-            if let Err(error) = self.gate.attach() {
+            let line = match self.gate.attach_waiting() {
+                Ok(Attached::Read) => None,
+                Ok(Attached::Late) => Some(
+                    "halvo-capture: the password-field detector's first read is late; \
+                     window titles and screen frames are dropped until it lands"
+                        .to_string(),
+                ),
+                Err(error) => Some(format!(
+                    "halvo-capture: the password-field detector did not start ({error}); \
+                     window titles and screen frames are dropped"
+                )),
+            };
+            if let Some(line) = line {
                 if !self.said.swap(true, Ordering::Relaxed) {
                     #[cfg(test)]
                     self.lines_said.fetch_add(1, Ordering::Relaxed);
-                    eprintln!(
-                        "halvo-capture: the password-field detector did not start ({error}); \
-                         window titles and screen frames are dropped"
-                    );
+                    eprintln!("{line}");
                 }
             }
         }

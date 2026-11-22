@@ -866,6 +866,26 @@ pub(crate) fn unreadable_state() -> FieldState {
     state_of(FocusRead::Unreadable, false)
 }
 
+/// What an attach does when the detector's first read has not come by its
+/// deadline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AtTheDeadline {
+    /// The keyboard source: the attach gives the detector up.
+    GiveUp,
+    /// The service set: the attach keeps the detector, whose first read may
+    /// land late; the content reading stays Unknown until it does.
+    WaitForIt,
+}
+
+/// How an attach that did not fail ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Attached {
+    /// The detector made its first read before the attach returned.
+    Read,
+    /// The detector runs and its first read has not landed yet.
+    Late,
+}
+
 /// The gate of the Windows keyboard source and its password-field detector.
 #[derive(Debug, Default)]
 pub struct PasswordGate {
@@ -1329,13 +1349,26 @@ mod detector {
         }
 
         pub(crate) fn attach(&self) -> Result<(), CaptureError> {
+            self.attach_with(super::AtTheDeadline::GiveUp).map(|_| ())
+        }
+
+        /// The service set's attach: a detector whose first read has not come
+        /// by the deadline is kept, and the attach answers Late.
+        pub(crate) fn attach_waiting(&self) -> Result<super::Attached, CaptureError> {
+            self.attach_with(super::AtTheDeadline::WaitForIt)
+        }
+
+        fn attach_with(
+            &self,
+            at_the_deadline: super::AtTheDeadline,
+        ) -> Result<super::Attached, CaptureError> {
             if self
                 .detector
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .is_some()
             {
-                return Ok(());
+                return Ok(super::Attached::Read);
             }
             self.wait_for_the_stale_detector()?;
             #[cfg(feature = "test-seam")]
@@ -1380,7 +1413,19 @@ mod detector {
                         wake,
                         join: Some(join),
                     });
-                    Ok(())
+                    Ok(super::Attached::Read)
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+                    if at_the_deadline == super::AtTheDeadline::WaitForIt =>
+                {
+                    *self
+                        .detector
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Running {
+                        wake,
+                        join: Some(join),
+                    });
+                    Ok(super::Attached::Late)
                 }
                 Ok(Err(error)) => {
                     self.shared.lock().give_up_the_writer();
@@ -2972,6 +3017,75 @@ mod detector {
                 ],
                 [unknown; 4],
                 "after a late first read, a timed-out detach, a refused attach and the held read"
+            );
+        }
+
+        #[test]
+        fn a_first_read_that_lands_after_the_deadline_holds_and_nothing_is_kept_before_it() {
+            use super::super::{Attached, ClearBy, ContentReading, UnknownBy};
+            use crate::floor::exclude::{FloorHandle, PrivateWindow};
+            use crate::floor::payload::TitleWhy;
+            use crate::windows::window_title::title_event;
+            use crate::windows::{now_tick, Floor, FrontApp, OsTick};
+            use std::sync::atomic::Ordering;
+            let _serial = crate::windows::tests::serial();
+            let (edit, in_front) = EditInFront::open();
+            let floor = Floor::new(FloorHandle::default(), Arc::default());
+            let front = FrontApp {
+                pid: 9,
+                path: Some("C:\\Apps\\mail.exe".to_string()),
+            };
+            let kept = |gate: &PasswordGate| {
+                title_event(
+                    &floor,
+                    Some(gate),
+                    (&front, PrivateWindow::Unknown),
+                    ("Inbox".to_string(), TitleWhy::TitleChange),
+                    OsTick::new(now_tick()),
+                )
+                .is_some()
+            };
+            HOLD_FIRST_READ.store(false, Ordering::SeqCst);
+            let gate = PasswordGate::with_removals(Removals {
+                before_first_read: first_read_held,
+                attach_deadline: Some(Duration::from_millis(300)),
+                ..Removals::default()
+            });
+            let first_read = Hold::on(&HOLD_FIRST_READ);
+            let attached = gate.attach_waiting();
+            let running_while_late = gate.is_attached();
+            let before = (gate.content_reading(), kept(&gate));
+            drop(first_read);
+            let landed = std::time::Instant::now();
+            while !matches!(gate.content_reading(), ContentReading::Clear(_))
+                && landed.elapsed() < Duration::from_secs(10)
+            {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let after = (gate.content_reading(), kept(&gate));
+            let detached = gate.detach(UNTIMED);
+            let after_the_detach = gate.content_reading();
+            drop(edit);
+            assert!(
+                in_front,
+                "INCONCLUSIVE: the test's edit did not come to the front"
+            );
+            assert_eq!(attached, Ok(Attached::Late));
+            assert!(running_while_late, "the late detector was not kept");
+            assert_eq!(
+                before,
+                (ContentReading::Unknown(UnknownBy::BeforeFirstRead), false),
+                "before the first read lands: the reading and a title"
+            );
+            assert_eq!(
+                after,
+                (ContentReading::Clear(ClearBy::NativeEdit), true),
+                "after the first read lands: the reading and a title"
+            );
+            assert_eq!(detached, Ok(()));
+            assert_eq!(
+                after_the_detach,
+                ContentReading::Unknown(UnknownBy::BeforeFirstRead)
             );
         }
 
