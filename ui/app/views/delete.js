@@ -8,6 +8,9 @@
   var confirm;
   var cancel;
   var result;
+  var question;
+  var offerRow;
+  var offerButton;
   var armedAt = null;
   var disarmTimer = null;
   var keptBox = null;
@@ -39,6 +42,7 @@
   }
 
   function offered(s) {
+    if (s && s.service === "not_running") return true;
     if (!s || s.service !== "running" || !s.store) return false;
     var store = s.store;
     if (store.state === "deleting") return false;
@@ -49,6 +53,17 @@
 
   function renderOffer() {
     start.disabled = busy || loading || keptInFlight || armedAt !== null || !offered(current);
+    offerRow.classList.toggle("hidden", refusedInARow < 2);
+    offerButton.disabled = busy || loading || keptInFlight || armedAt !== null || refusedInARow < 2;
+  }
+
+  function withFolder(text, folder) {
+    return text.replace(", {folder}", typeof folder === "string" && folder !== "" ? ", " + folder : "");
+  }
+
+  function questionOf(asked, s) {
+    if (!asked.offline) return w.DELETE_QUESTION;
+    return withFolder(asked.stopFirst ? w.DELETE_STOP_QUESTION : w.DELETE_OFFLINE_QUESTION, s.data_folder);
   }
 
   function localOf(ms) {
@@ -90,15 +105,31 @@
   }
 
   function arm(event) {
-    if (armedAt !== null || busy || !offered(current)) return;
-    armed = { id: current.store.id || null, service: current.service };
-    var box = start.getBoundingClientRect();
+    armAt(event, start, false);
+  }
+
+  function armOffline(event) {
+    armAt(event, offerButton, true);
+  }
+
+  Halvo.armDelete = function (event, control) {
+    armAt(event, control || start, false);
+  };
+
+  function armAt(event, control, stopFirst) {
+    if (armedAt !== null || busy || !current) return;
+    if (stopFirst ? refusedInARow < 2 : !offered(current)) return;
+    var offline = stopFirst || current.service === "not_running";
+    armed = { id: offline ? null : current.store.id || null, service: current.service, offline: offline, stopFirst: stopFirst };
+    question.textContent = questionOf(armed, current);
+    var box = control.getBoundingClientRect();
     keptBox = { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
     keptPoint = hasPoint(event) ? { x: event.clientX, y: event.clientY } : null;
     pressed = false;
     Halvo.views.hold();
     armedAt = performance.now();
     start.disabled = true;
+    offerButton.disabled = true;
     confirmRow.classList.remove("hidden");
     result.textContent = "";
     showCleanup(null);
@@ -120,6 +151,14 @@
   }
 
   function deletedWords(r) {
+    var inARow = Number(r.unfinished_in_a_row) || 0;
+    var unfinished = inARow >= 2 ? [withFolder(w.DELETE_NOT_FINISHED_AGAIN, r.looked_in)] : inARow === 1 ? [w.DELETE_NOT_FINISHED] : [];
+    var lines = lineWords(r).concat(unfinished);
+    if (lines.length === 0) lines = [w.DELETE_RESULT_UNREADABLE];
+    return lines.concat(typeof r.looked_in === "string" ? [withFolder(w.DELETE_LOOKED_IN, r.looked_in)] : []);
+  }
+
+  function lineWords(r) {
     if (r.nothing_left === true && leftNothing(r)) return [w.DELETE_DONE, w.DELETE_COPIES];
     var lines = [];
     var keysDestroyed = r.root_destroyed === "yes";
@@ -133,7 +172,7 @@
     if (r.database_left === true) lines.push(keysDestroyed ? w.DELETE_DATABASE_LEFT : w.DELETE_DATABASE_ALONE);
     if (r.entries_left > 0) lines.push(counted(w.DELETE_ENTRIES_LEFT, r.entries_left));
     if (r.unknown_entries > 0) lines.push(counted(w.DELETE_UNKNOWN_ENTRIES, r.unknown_entries));
-    return lines.length > 0 ? lines : [w.DELETE_RESULT_UNREADABLE];
+    return lines;
   }
 
   function answerLost(e) {
@@ -146,14 +185,18 @@
     if (code === "service_ending") return w.DELETE_SERVICE_ENDING;
     if (code === "nothing_removed") return w.DELETE_NOTHING_REMOVED;
     if (code === "service_not_back") return answerLost(e) ? w.DELETE_SERVICE_NOT_BACK + " " + w.DELETE_UNKNOWN_OUTCOME : w.DELETE_SERVICE_NOT_BACK;
+    if (code === "delete_held") return withFolder(w.DELETE_HELD, e.looked_in);
+    if (code === "delete_not_started") return w.DELETE_NOT_STARTED;
+    if (code === "delete_not_known") return w.DELETE_UNKNOWN_OUTCOME;
     return null;
   }
 
   function showKept(kept, afterDelete) {
     keptInFlight = Boolean(kept) && kept.state === "in_flight";
     var answer = kept && kept.state === "answered" ? kept.answer : null;
-    if (answer && (answer.outcome === "deleted" || answer.outcome === "already_deleted")) {
-      var words = answer.outcome === "deleted" ? deletedWords(answer) : [w.ALREADY_DELETED];
+    if (answer && (answer.outcome === "deleted" || answer.outcome === "already_deleted" || answer.outcome === "no_store")) {
+      var words =
+        answer.outcome === "deleted" ? deletedWords(answer) : answer.outcome === "no_store" ? [withFolder(w.DELETE_NO_STORE, answer.looked_in)] : [w.ALREADY_DELETED];
       result.textContent = whenOf(kept.at_ms) + words.join(" ");
       showCleanup(answer.outcome === "deleted" && answer.root_destroyed === "no" ? answer.cleanup_command : null);
       if (afterDelete) {
@@ -200,15 +243,17 @@
     confirm.disabled = true;
     start.textContent = w.DELETING;
     Halvo.showError("");
-    return Halvo.ipc
-      .call("delete_all", { storeId: asked.id })
+    var sent = asked.offline ? Halvo.ipc.call("delete_offline") : Halvo.ipc.call("delete_all", { storeId: asked.id });
+    return sent
       .then(function (r) {
         Halvo.markAnswer();
-        if (r.outcome === "deleted" || r.outcome === "already_deleted") {
+        if (r.outcome === "deleted" || r.outcome === "already_deleted" || r.outcome === "no_store") {
           refusedInARow = 0;
           loading = true;
           Halvo.loadAgain(AFTER_DELETE);
           return null;
+        } else if (r.outcome === "delete_refused" && asked.offline) {
+          result.textContent = w.DELETE_REFUSED;
         } else if (r.outcome === "delete_refused") {
           refusedInARow += 1;
           result.textContent = refusedInARow >= 2 ? w.DELETE_REFUSED + " " + w.DELETE_REFUSED_TWICE : w.DELETE_REFUSED;
@@ -265,16 +310,18 @@
       confirm = Halvo.el("button", { id: "confirm-delete", class: "danger", text: w.DELETE_YES });
       cancel = Halvo.el("button", { id: "cancel-delete", text: w.CANCEL });
       result = Halvo.el("span", { id: "delete-result", class: "muted" });
+      offerButton = Halvo.el("button", { id: "delete-offline", class: "danger", text: w.DELETE_STOP_AND_DELETE });
+      offerRow = Halvo.el("div", { id: "delete-offer", class: "row" }, [Halvo.el("p", { id: "delete-offer-line", text: w.DELETE_OFFER_OFFLINE }), offerButton]);
+      offerRow.classList.add("hidden");
+      question = Halvo.el("p", {
+        id: "delete-question",
+        text: w.DELETE_QUESTION,
+      });
       cleanup = Halvo.el("code", { id: "delete-cleanup", class: "hidden" });
       cleanupNote = Halvo.el("p", { id: "delete-cleanup-note", class: "muted hidden", text: w.CLEANUP_NAMES_ACCOUNT });
-      confirmRow = Halvo.el("div", { id: "delete-confirm-row", class: "confirm-row hidden" }, [
-        Halvo.el("p", {
-          id: "delete-question",
-          text: w.DELETE_QUESTION,
-        }),
-        Halvo.el("div", { class: "row" }, [confirm, cancel]),
-      ]);
+      confirmRow = Halvo.el("div", { id: "delete-confirm-row", class: "confirm-row hidden" }, [question, Halvo.el("div", { class: "row" }, [confirm, cancel])]);
       start.onclick = arm;
+      offerButton.onclick = armOffline;
       cancel.onclick = disarm;
       confirm.onclick = onConfirm;
       confirm.addEventListener("pointerdown", onPress);
@@ -282,6 +329,7 @@
       el.append(
         Halvo.el("p", { class: "muted", text: w.DELETE_ABOUT }),
         Halvo.el("div", { class: "row" }, [start, result]),
+        offerRow,
         cleanup,
         cleanupNote,
         confirmRow,

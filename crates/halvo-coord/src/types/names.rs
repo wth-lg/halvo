@@ -317,6 +317,16 @@ names! {
 }
 
 names! {
+    /// The causes of the end of an agent's newest started run, of the roster's key `last_cause`
+    /// (I6.1), for which the roster has a sentence: a part of the agent store's closed list of
+    /// causes, whose other names the reader of the key takes as none (ruling of 2026-11-22
+    /// on `last_cause`).
+    LastCause {
+        NoBrowser = "no_browser",
+    }
+}
+
+names! {
     /// The phases of a live run (I5.6); `ended` is no phase of a live run.
     LivePhase {
         Starting = "starting",

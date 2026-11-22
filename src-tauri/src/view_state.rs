@@ -1,11 +1,12 @@
 use halvo_control::client::{ClientError, DeleteOutcome};
+use halvo_control::exit;
 use halvo_control::model::{CaptureState, ObservationWindow, StorageCap, StoreId};
 use halvo_control::onboarding::{GrantState, OnboardingState, Permission};
 use halvo_control::proto::{
-    Cap, Capture, CaptureReason, DaemonStatus, DeleteFields, DrainError, ErrorCode, ExpiryError,
-    Health, InventoryReply, LastStop, Lease, LostRecord, OnOff, PasswordGuard, Platform,
-    RootDestroyed, Section, SourceName, SourceStateName, StopKind, StoreErrorKind, StoreState,
-    SwitchName,
+    Cap, Capture, CaptureReason, DaemonStatus, DeleteFields, DeleteReport, DrainError, ErrorCode,
+    ExpiryError, Health, InventoryReply, LastStop, Lease, LostRecord, OnOff, PasswordGuard,
+    Platform, RootDestroyed, Section, SourceName, SourceStateName, StateFile, StopKind,
+    StoreErrorKind, StoreState, SwitchName,
 };
 use halvo_control::texts::{first_run, texts, Texts};
 use serde::{Deserialize, Serialize};
@@ -97,6 +98,16 @@ impl NoStatusService {
     }
 }
 
+/// Why the service's settings file did not load (contracts.md C3.7), as a view names it: the
+/// page then says so in one sentence and offers the reset that Delete everything gives. A file
+/// that loaded, and one whose last write failed, give no such word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SettingsUnread {
+    Corrupt,
+    NewerVersion,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunningView {
     pub platform: Platform,
@@ -121,6 +132,8 @@ pub struct RunningView {
     pub hold: Option<HoldView>,
     pub login_item_loaded: Option<bool>,
     pub login_item_written: Option<bool>,
+    pub data_folder: Option<String>,
+    pub state_file: Option<SettingsUnread>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -133,6 +146,7 @@ pub struct NoStatusView {
     pub login_item_loaded: Option<bool>,
     pub login_item_written: Option<bool>,
     pub first_run: Option<FirstRun>,
+    pub data_folder: Option<String>,
 }
 
 /// What a view without a status says before the app's first child (contracts.md C10.7): on a
@@ -189,6 +203,8 @@ struct HoldState {
     another_version: bool,
     lives: u64,
     ended: Option<(u64, Option<i32>)>,
+    between: bool,
+    folder: Option<String>,
     awaits_consent: bool,
     data_dir_unusable: bool,
     consenting: bool,
@@ -246,11 +262,12 @@ impl Hold {
     /// not_started while the supervisor awaits the consent.
     pub fn mark(&self, view: StatusView) -> StatusView {
         let hold = self.view();
-        let (last_exit, another_version, awaits_consent, data_dir_unusable, written) = {
+        let (last_exit, another_version, folder, awaits_consent, data_dir_unusable, written) = {
             let state = self.state();
             (
                 state.last_exit,
                 state.another_version,
+                state.folder.clone(),
                 state.awaits_consent,
                 state.data_dir_unusable,
                 state.login_item_written,
@@ -275,11 +292,13 @@ impl Hold {
         match view {
             StatusView::Running(mut view) => {
                 view.hold = hold;
+                view.data_folder = folder.clone();
                 view.login_item_written = written;
                 StatusView::Running(view)
             }
             StatusView::NoStatus(mut view) => {
                 view.hold = hold;
+                view.data_folder = folder;
                 view.login_item_written = written;
                 if view.service == NoStatusService::NotRunning {
                     view.last_exit = last_exit;
@@ -289,6 +308,13 @@ impl Hold {
         }
     }
 
+    /// Names the data folder, as resolved, that every view gives the page for the questions of
+    /// the offline delete (contracts.md C10.5).
+    #[cfg(target_os = "macos")]
+    pub fn set_folder(&self, folder: String) {
+        self.state().folder = Some(folder);
+    }
+
     /// Ends the hold: called only for a Resume of a person's press that reached its end.
     pub fn release(&self) {
         self.state().held = false;
@@ -296,12 +322,13 @@ impl Hold {
     }
 
     /// A person's press asks the supervisor for one child where the hold reads Start, that is
-    /// where it stands and no further child starts; the read and the ask stand under one lock,
-    /// so that no ask is left standing once the supervisor has taken one. Answers whether it
-    /// asked.
+    /// where it stands and no further child starts, and where no child of the app lives between
+    /// the end of one child and the start of the next, which the supervisor takes at that start;
+    /// the read and the ask stand under one lock, so that no ask is left standing once the
+    /// supervisor has taken one. Answers whether it asked.
     pub fn ask_start(&self) -> bool {
         let mut state = self.state();
-        let start = state.held && state.no_more_child;
+        let start = (state.held && state.no_more_child) || (state.between && !state.child_lives);
         if start {
             state.start_asked = true;
             drop(state);
@@ -432,9 +459,20 @@ impl Hold {
         if asked {
             state.start_asked = false;
             state.no_more_child = false;
+            state.between = false;
             state.awaits_consent = false;
         }
         asked
+    }
+
+    /// The supervisor starts a child: an ask of a Start between two children is taken by it.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn take_the_ask(&self) {
+        let mut state = self.state();
+        state.start_asked = false;
+        state.between = false;
+        drop(state);
+        self.changed.notify_all();
     }
 
     /// The supervisor's spawner reads the data directory not provisioned: no child starts before
@@ -481,6 +519,7 @@ impl Hold {
             state.ended = Some((state.lives, status));
         }
         state.child_lives = false;
+        state.between = true;
         state.last_exit = status;
         if status == Some(halvo_control::exit::SOURCE_NOT_STOPPED) {
             state.held = true;
@@ -523,6 +562,10 @@ struct WireView<'a> {
     screen_filter_excludes_app: Option<bool>,
     texts: Option<&'a Texts>,
     ext: Option<&'a [Section]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data_folder: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    state_file: Option<SettingsUnread>,
 }
 
 impl Serialize for StatusView {
@@ -553,6 +596,8 @@ impl Serialize for StatusView {
                 screen_filter_excludes_app: view.screen_filter_excludes_app,
                 texts: Some(&view.texts),
                 ext: Some(&view.ext),
+                data_folder: view.data_folder.as_deref(),
+                state_file: view.state_file,
             },
             StatusView::NoStatus(view) => WireView {
                 service: view.word(),
@@ -582,6 +627,8 @@ impl Serialize for StatusView {
                     Some(FirstRun::DataDirUnusable) | None => None,
                 },
                 ext: None,
+                data_folder: view.data_folder.as_deref(),
+                state_file: None,
             },
         };
         wire.serialize(serializer)
@@ -605,9 +652,16 @@ impl StatusView {
             last_exit: None,
             hold: None,
             login_item_loaded: None,
+            data_folder: None,
             login_item_written: None,
             first_run: None,
         })
+    }
+
+    /// Whether this view reads that no capture service runs: the one state in which the app
+    /// runs the offline delete (contracts.md C10.5).
+    pub fn reads_not_running(&self) -> bool {
+        matches!(self, StatusView::NoStatus(view) if view.service == NoStatusService::NotRunning)
     }
 
     pub fn without_status(service: NoStatusService) -> Self {
@@ -707,6 +761,12 @@ impl StatusView {
             ext: f.ext.clone(),
             hold: None,
             login_item_loaded: None,
+            data_folder: None,
+            state_file: match f.state_file {
+                StateFile::Corrupt => Some(SettingsUnread::Corrupt),
+                StateFile::NewerVersion => Some(SettingsUnread::NewerVersion),
+                StateFile::Ok | StateFile::WriteFailed => None,
+            },
             login_item_written: None,
         }))
     }
@@ -799,6 +859,19 @@ pub enum ActionError {
     /// The service does not serve a request of this kind; the page says it in its own words for
     /// the request, never the message of the service's reply.
     UnsupportedOp,
+    /// The offline delete ended with 75: another process holds the data directory or its store,
+    /// and it deleted nothing (contracts.md C3.3).
+    DeleteHeld {
+        looked_in: String,
+    },
+    /// The program of the offline delete did not start, or the app has none to start: nothing
+    /// was deleted.
+    DeleteNotStarted,
+    /// The offline delete ended in a way that tells nothing of what it removed: another exit
+    /// status, a signal, lines that do not read, or no end within its wait.
+    DeleteNotKnown {
+        looked_in: Option<String>,
+    },
 }
 
 impl ActionError {
@@ -1070,11 +1143,23 @@ pub enum DeleteView {
         cleanup_command: Option<String>,
         looked_in: Option<String>,
         nothing_left: bool,
+        /// How many deletes in a row, this one the last, did not finish (ruling DM-21): only
+        /// where this one did not.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        unfinished_in_a_row: Option<u32>,
+        /// The run that gave this answer ended as one that is not whole, whatever its fields
+        /// read: the offline delete's end with 1 (contracts.md C3.3).
+        #[serde(skip)]
+        not_whole: bool,
     },
     AlreadyDeleted {
         current_store_id: StoreId,
     },
     DeleteRefused,
+    /// The offline delete found nothing of a store in the directory that it looked in.
+    NoStore {
+        looked_in: String,
+    },
 }
 
 /// What the app keeps of the last delete, in memory alone: none, a delete in flight, or the
@@ -1107,28 +1192,81 @@ pub fn cleanup_command(roots_dir: &std::path::Path, root_id: StoreId) -> String 
 }
 
 impl DeleteView {
-    pub fn of(outcome: &DeleteOutcome, roots_dir: Option<&std::path::Path>) -> Self {
-        match outcome {
-            DeleteOutcome::Deleted(deleted) => {
-                let f = deleted.report.fields();
-                DeleteView::Deleted {
-                    segments_shredded: f.segments_shredded,
-                    keys_destroyed: f.keys_destroyed,
-                    root_destroyed: f.root_destroyed,
-                    files_left: f.files_left,
-                    database_left: f.database_left,
-                    not_followed: f.not_followed,
-                    entries_left: f.entries_left,
-                    unknown_entries: f.unknown_entries,
-                    new_store_id: deleted.store,
-                    cleanup_command: match (f.root_destroyed, f.root_id, roots_dir) {
-                        (RootDestroyed::No, Some(id), Some(dir)) => Some(cleanup_command(dir, id)),
-                        _ => None,
-                    },
-                    looked_in: None,
-                    nothing_left: left_nothing(f),
+    fn deleted(
+        f: &DeleteFields,
+        new_store_id: Option<StoreId>,
+        roots_dir: Option<&std::path::Path>,
+        looked_in: Option<String>,
+        not_whole: bool,
+    ) -> Self {
+        DeleteView::Deleted {
+            segments_shredded: f.segments_shredded,
+            keys_destroyed: f.keys_destroyed,
+            root_destroyed: f.root_destroyed,
+            files_left: f.files_left,
+            database_left: f.database_left,
+            not_followed: f.not_followed,
+            entries_left: f.entries_left,
+            unknown_entries: f.unknown_entries,
+            new_store_id,
+            cleanup_command: match (f.root_destroyed, f.root_id, roots_dir) {
+                (RootDestroyed::No, Some(id), Some(dir)) => Some(cleanup_command(dir, id)),
+                _ => None,
+            },
+            looked_in,
+            nothing_left: !not_whole && left_nothing(f),
+            unfinished_in_a_row: None,
+            not_whole,
+        }
+    }
+
+    /// Counts this answer into the deletes in a row that did not finish, at either door: a
+    /// deleted answer that left a key, a file, a database or an entry of Halvo's own, or whose run
+    /// ended as not whole, adds one and carries the count; one that left none, an already_deleted
+    /// and a no_store end the row; any other answer leaves the count as it stands.
+    pub fn count_unfinished(&mut self, in_a_row: &std::sync::atomic::AtomicU32) {
+        use std::sync::atomic::Ordering;
+        match self {
+            DeleteView::Deleted {
+                root_destroyed,
+                not_followed,
+                files_left,
+                database_left,
+                entries_left,
+                unfinished_in_a_row,
+                not_whole,
+                ..
+            } => {
+                let finished = !*not_whole
+                    && *root_destroyed == RootDestroyed::Yes
+                    && *not_followed == 0
+                    && *files_left == 0
+                    && !*database_left
+                    && *entries_left == 0;
+                if finished {
+                    in_a_row.store(0, Ordering::SeqCst);
+                } else {
+                    let count = in_a_row.load(Ordering::SeqCst).saturating_add(1);
+                    in_a_row.store(count, Ordering::SeqCst);
+                    *unfinished_in_a_row = Some(count);
                 }
             }
+            DeleteView::AlreadyDeleted { .. } | DeleteView::NoStore { .. } => {
+                in_a_row.store(0, Ordering::SeqCst);
+            }
+            DeleteView::DeleteRefused => {}
+        }
+    }
+
+    pub fn of(outcome: &DeleteOutcome, roots_dir: Option<&std::path::Path>) -> Self {
+        match outcome {
+            DeleteOutcome::Deleted(deleted) => DeleteView::deleted(
+                deleted.report.fields(),
+                deleted.store,
+                roots_dir,
+                None,
+                false,
+            ),
             DeleteOutcome::AlreadyDeleted(already) => DeleteView::AlreadyDeleted {
                 current_store_id: already.current,
             },
@@ -1151,4 +1289,128 @@ pub fn delete_view(
             }))
         }
     }
+}
+
+/// How the program of the offline delete ended (contracts.md C3.3), with what it printed on
+/// its standard output.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OfflineEnd {
+    Exited { code: i32, out: String },
+    Signal { out: String },
+    NotStarted,
+    NoEnd,
+}
+
+/// What the offline delete printed after its `data_dir=` line.
+enum Printed {
+    Nothing,
+    NoStore,
+    Deleted(DeleteFields),
+}
+
+/// The answer of the offline delete by how its program ended and what it printed (contracts.md
+/// C3.3 and C10.5): `looked_in` is its `data_dir=`. An end with 0 and `no_store`, and an end with
+/// 0 or 1 and the `deleted` line, are its outcome, and an end with 1 is never a whole delete,
+/// whatever the line reads; an end with 75 deleted nothing; any other end tells nothing of what
+/// was removed, an end with 1 that printed no `deleted` line among them, which halvo-capture
+/// gives both where it could not use the directory and where its walk removed entries before
+/// the store's own delete failed with no report.
+pub fn offline_view(
+    end: &OfflineEnd,
+    roots_dir: Option<&std::path::Path>,
+) -> Result<DeleteView, OutcomeError> {
+    let removed_nothing = |error| {
+        Err(OutcomeError {
+            error,
+            outcome_not_known: false,
+        })
+    };
+    let not_known = |looked_in| {
+        Err(OutcomeError {
+            error: ActionError::DeleteNotKnown { looked_in },
+            outcome_not_known: true,
+        })
+    };
+    let (code, out) = match end {
+        OfflineEnd::NotStarted => return removed_nothing(ActionError::DeleteNotStarted),
+        OfflineEnd::NoEnd => return not_known(None),
+        OfflineEnd::Signal { out } => return not_known(printed(out).map(|(dir, _)| dir)),
+        OfflineEnd::Exited { code, out } => (*code, out),
+    };
+    let Some((looked_in, printed)) = printed(out) else {
+        return not_known(None);
+    };
+    match (code, printed) {
+        (exit::CLEAN, Printed::NoStore) => Ok(DeleteView::NoStore { looked_in }),
+        (exit::CLEAN | exit::ERROR, Printed::Deleted(fields)) => Ok(DeleteView::deleted(
+            &fields,
+            None,
+            roots_dir,
+            Some(looked_in),
+            code == exit::ERROR,
+        )),
+        (exit::BUSY, Printed::Nothing) => removed_nothing(ActionError::DeleteHeld { looked_in }),
+        _ => not_known(Some(looked_in)),
+    }
+}
+
+fn printed(out: &str) -> Option<(String, Printed)> {
+    let mut lines = out
+        .lines()
+        .filter(|line| !line.starts_with("data_dir_resolved="));
+    let looked_in = lines.next()?.strip_prefix("data_dir=")?.to_owned();
+    let printed = match (lines.next(), lines.next()) {
+        (None, _) => Printed::Nothing,
+        (Some("no_store"), None) => Printed::NoStore,
+        (Some(line), None) => Printed::Deleted(deleted_fields(line)?),
+        (Some(_), Some(_)) => return None,
+    };
+    Some((looked_in, printed))
+}
+
+/// The fields of the offline form's `deleted` line: the keys of contracts.md C2.6 without
+/// `store_id=`, each once, in a report that holds together.
+fn deleted_fields(line: &str) -> Option<DeleteFields> {
+    let mut words = line.split(' ');
+    if words.next()? != "deleted" {
+        return None;
+    }
+    let mut values = std::collections::BTreeMap::new();
+    for word in words {
+        let (key, value) = word.split_once('=')?;
+        if values.insert(key, value).is_some() {
+            return None;
+        }
+    }
+    if values.len() != 11 {
+        return None;
+    }
+    let text = |key: &str| values.get(key).copied();
+    let count = |key: &str| text(key)?.parse::<u64>().ok();
+    let known = |key: &str| match text(key)? {
+        "unknown" => Some(None),
+        number => number.parse::<u64>().ok().map(Some),
+    };
+    let yes = |key: &str| match text(key)? {
+        "yes" => Some(true),
+        "no" => Some(false),
+        _ => None,
+    };
+    let fields = DeleteFields {
+        segments_shredded: known("segments_shredded")?,
+        keys_destroyed: known("keys_destroyed")?,
+        root_destroyed: text("root_destroyed")?.parse().ok()?,
+        root_id: match text("root_id")? {
+            "-" => None,
+            id => Some(id.parse().ok()?),
+        },
+        files_left: count("files_left")?,
+        database_left: yes("database_left")?,
+        not_followed: count("not_followed")?,
+        entries_removed: count("entries_removed")?,
+        entries_left: count("entries_left")?,
+        unknown_entries: count("unknown_entries")?,
+        intent: text("intent")?.parse().ok()?,
+    };
+    DeleteReport::new(fields).ok().map(|_| fields)
 }

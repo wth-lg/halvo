@@ -7,7 +7,7 @@ use std::net::{Ipv4Addr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use halvo_schema::executable::{ExecutableStep, FromRunner, RunId, WebOrigin};
 
@@ -53,6 +53,114 @@ pub fn hosted_mac(test: &str) -> bool {
     true
 }
 
+/// `hosted` on macOS alone: on Windows none, after one line that says so, for a test that starts a headed browser
+/// on the hosted macos job alone.
+pub fn hosted_headed(test: &str) -> Option<PathBuf> {
+    if cfg!(windows) {
+        say(
+            test,
+            "not run: it starts a headed browser, on the hosted macos job alone",
+        );
+        return None;
+    }
+    hosted(test)
+}
+
+/// The bundle id of the browser that the hosted macos job gives the headed test (`HALVO_BROWSER`, Google Chrome).
+const BUNDLE: &str = "com.google.Chrome";
+
+/// The most lines that `print_outside_the_profile` prints for one place.
+const MOST_LINES: usize = 60;
+
+/// Prints for `test`, after its run's browser stopped, what stands outside the run's profile on a Mac for the
+/// browser's bundle id (the coordinator's ruling of log line 14152): the saved state of the bundle id under the
+/// account's `Library/Saved Application State`, the account's caches of the bundle ids that begin with it, the
+/// preferences files of those bundle ids, and the entries of the system's temporary directory of that browser. Each
+/// entry below each of them comes with its name, its kind, its size and whether its time of change lies between
+/// `started` and `stopped`; a place that holds none says `none`. It opens no file and asserts nothing.
+pub fn print_outside_the_profile(test: &str, started: SystemTime, stopped: SystemTime) {
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        say(test, "outside the profile: no HOME");
+        return;
+    };
+    let library = home.join("Library");
+    let temp = std::process::Command::new("/usr/bin/getconf")
+        .arg("DARWIN_USER_TEMP_DIR")
+        .output()
+        .ok()
+        .map(|out| PathBuf::from(String::from_utf8_lossy(&out.stdout).trim()))
+        .filter(|dir| dir.is_absolute());
+    let places = [
+        ("saved state", Some(library.join("Saved Application State"))),
+        ("caches", Some(library.join("Caches"))),
+        ("preferences", Some(library.join("Preferences"))),
+        ("temp", temp),
+    ];
+    for (place, dir) in places {
+        let Some(dir) = dir else {
+            say(test, &format!("outside the profile: {place}: unread"));
+            continue;
+        };
+        let mut lines = Vec::new();
+        for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.trim_start_matches('.').starts_with(BUNDLE) {
+                walk(&entry.path(), &name, started, stopped, &mut lines);
+            }
+        }
+        if lines.is_empty() {
+            say(test, &format!("outside the profile: {place}: none"));
+        }
+        for line in lines.iter().take(MOST_LINES) {
+            say(test, &format!("outside the profile: {place}: {line}"));
+        }
+        if lines.len() > MOST_LINES {
+            say(
+                test,
+                &format!(
+                    "outside the profile: {place}: {} more",
+                    lines.len() - MOST_LINES
+                ),
+            );
+        }
+    }
+}
+
+/// One line for `path`, named `rel`, and one for each entry below it: its kind, its size and whether its time of
+/// change lies between `started` and `stopped`. A link is not followed.
+fn walk(path: &Path, rel: &str, started: SystemTime, stopped: SystemTime, lines: &mut Vec<String>) {
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return;
+    };
+    let inside = meta
+        .modified()
+        .is_ok_and(|at| at >= started && at <= stopped);
+    let kind = if meta.file_type().is_symlink() {
+        "link"
+    } else if meta.is_dir() {
+        "dir"
+    } else {
+        "file"
+    };
+    lines.push(format!(
+        "{rel} {kind} {} bytes, changed in the run: {}",
+        meta.len(),
+        if inside { "yes" } else { "no" }
+    ));
+    if meta.is_dir() {
+        for entry in std::fs::read_dir(path).into_iter().flatten().flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            walk(
+                &entry.path(),
+                &format!("{rel}/{name}"),
+                started,
+                stopped,
+                lines,
+            );
+        }
+    }
+}
+
 /// One connection that the fixture accepted: the request's method and path, empty where none came, and every byte
 /// that it read.
 #[derive(Clone, Debug)]
@@ -62,8 +170,9 @@ pub struct Request {
     pub bytes: Vec<u8>,
 }
 
-/// A fixture server on a loopback port of its own that answers each path of its pages with that page and every
-/// other path with 404, and records every connection. Dropping it stops it.
+/// A fixture server on a loopback port of its own that answers each path of its pages with that page, as XHTML for a
+/// path that ends in `.xhtml` and as HTML for every other, and every other path with 404, and records every
+/// connection. Dropping it stops it.
 pub struct Fixture {
     port: u16,
     seen: Arc<Mutex<Vec<Request>>>,
@@ -153,8 +262,13 @@ fn answer(mut stream: TcpStream, pages: &[(String, String)]) -> Request {
             Some(page) => ("200 OK", page.as_str()),
             None => ("404 Not Found", ""),
         };
+        let kind = if path.ends_with(".xhtml") {
+            "application/xhtml+xml"
+        } else {
+            "text/html"
+        };
         let reply = format!(
-            "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            "HTTP/1.1 {status}\r\nContent-Type: {kind}; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
             body.len()
         );
         let _ = stream.write_all(reply.as_bytes());
@@ -174,12 +288,69 @@ pub fn navigate(n: u32, url: &str) -> ExecutableStep {
     ExecutableStep::parse(json.as_bytes()).expect("a navigate step")
 }
 
+/// A step `handback`, number `n`.
+pub fn handback(n: u32) -> ExecutableStep {
+    let json = format!(
+        r#"{{"v":1,"n":{n},"kind":"web","verb":"handback","target":null,"args":[{{"name":"reason","from":"const","value":"sign_in","key":null}}],"pre":[],"post":[],"effect":"none","class":"credential"}}"#
+    );
+    ExecutableStep::parse(json.as_bytes()).expect("a handback step")
+}
+
 /// A step `extract` of the control with the test id `id`, parsed as an amount and kept as `amount`, number `n`.
 pub fn extract_amount(n: u32, id: &str) -> ExecutableStep {
     let json = format!(
         r#"{{"v":1,"n":{n},"kind":"web","verb":"extract","target":{{"desc":"the amount","frame":[],"credential":"no","locators":[{{"by":"test_id","value":"{id}","name":null}}]}},"args":[{{"name":"as","from":"const","value":"amount","key":null}},{{"name":"parse","from":"const","value":"amount","key":null}}],"pre":[],"post":[],"effect":"none","class":"read"}}"#
     );
     ExecutableStep::parse(json.as_bytes()).expect("an extract step")
+}
+
+/// The JSON of a web target of the top document found by the test id `id`.
+pub fn target(id: &str) -> String {
+    format!(
+        r#"{{"desc":"the control {id}","frame":[],"credential":"no","locators":[{{"by":"test_id","value":"{id}","name":null}}]}}"#
+    )
+}
+
+/// The JSON of an arg `name` with the const `value`.
+pub fn konst(name: &str, value: &str) -> String {
+    format!(r#"{{"name":"{name}","from":"const","value":"{value}","key":null}}"#)
+}
+
+/// The JSON of an arg `name` from the slot `key`.
+pub fn from_slot(name: &str, key: &str) -> String {
+    format!(r#"{{"name":"{name}","from":"slot","value":null,"key":"{key}"}}"#)
+}
+
+/// The JSON of a condition `check` on the control with the test id `id`, with the const `arg`.
+pub fn cond(check: &str, id: Option<&str>, arg: Option<&str>) -> String {
+    let target = id.map_or("null".to_string(), target);
+    let arg = arg.map_or("null".to_string(), |a| konst("arg", a));
+    format!(r#"{{"check":"{check}","target":{target},"arg":{arg}}}"#)
+}
+
+/// A web step `n` of `verb` with the effect `none`, on the control with the test id `id` (none for a step with no
+/// target), with its args and its conditions; of the class `read` for `navigate`, `extract` and `wait` and
+/// `prepare` for every other verb.
+pub fn step(
+    n: u32,
+    verb: &str,
+    id: Option<&str>,
+    args: &[String],
+    pre: &[String],
+    post: &[String],
+) -> ExecutableStep {
+    let class = match verb {
+        "navigate" | "extract" | "wait" => "read",
+        _ => "prepare",
+    };
+    let json = format!(
+        r#"{{"v":1,"n":{n},"kind":"web","verb":"{verb}","target":{},"args":[{}],"pre":[{}],"post":[{}],"effect":"none","class":"{class}"}}"#,
+        id.map_or("null".to_string(), target),
+        args.join(","),
+        pre.join(","),
+        post.join(",")
+    );
+    ExecutableStep::parse(json.as_bytes()).expect("a web step")
 }
 
 /// `Supervisor::serve` with `--browser` set to `browser`: starts the runner and serves it until its end, with `rule`

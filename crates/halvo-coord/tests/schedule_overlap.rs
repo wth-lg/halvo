@@ -81,6 +81,7 @@ fn ports(agents: &[(WorkflowState, &str, &[&str], &[HoldSetCause])]) -> Ports<Co
             last: None,
             unknown: vec![],
             refused_run: None,
+            last_cause: None,
         });
         p.send(&Body::SetBindings {
             workflow: flow(n),
