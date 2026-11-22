@@ -156,24 +156,36 @@ the uninstall or the install, before any file or value goes. Check 70 fails when
 Where the box is ticked, the uninstall first asks `halvo-capture.exe
 --default-data-dir` for the program's own default data directory, and runs
 `halvo-capture.exe --delete-all --data-dir` with the printed path as one
-argument; the hooks hold no rule of the paths. At exit 0 the uninstall goes on,
-and the template's own step removes the folder `%LOCALAPPDATA%\com.halvo.desktop`,
-which holds the web view's folder `EBWebView`; where that folder still stands,
-the hooks run that step again for at most 20 s, then name the folder. At exit 75,
-or at any other end, the uninstall stops before any file or value goes. A silent
-uninstall ticks the box by the switch `/DELETEALL`, and never without it:
+argument. No line of the hooks names the data directory or builds a path from
+the account's name. At exit 0 the uninstall goes on, and the template's own step
+removes the folder of the app's id, `%LOCALAPPDATA%\com.halvo.desktop`, which
+holds the web view's folder `EBWebView`. The hooks name that folder by the
+template's own expression, `$LOCALAPPDATA\${BUNDLEID}`, for two things alone:
+where the folder still stands, they run the template's step again for at most
+20 s, and then they name the folder in the sentence that asks the person to
+remove it. At exit 75, or at any other end, the uninstall stops before any file
+or value goes. A silent uninstall ticks the box by the switch `/DELETEALL`, and
+never without it, as check 70 calls it:
 
 ```sh
-uninstall.exe /S /DELETEALL
+uninstall.exe /S /DELETEALL _?=<the install folder>
 ```
+
+Only this form, with `_?=` and the install folder last, gives the caller a
+readable exit: 2 where the uninstall stopped. Without it the uninstaller starts
+a copy of itself and exits at once, so the caller reads 0 whatever the copy did.
+
+The box deletes what Halvo's own Delete everything deletes. Copies that Halvo
+made next to your own files stay, and the box does not say so.
 
 A silent uninstall without `/DELETEALL`, and an uninstall with the box not
 ticked, delete nothing that Halvo stored: Halvo's data folder and the web view's
 folder, with the reports of a crash of Halvo's window, stay on the computer. An
 uninstall for an update (`/UPDATE`) deletes nothing either. Every other uninstall
 takes the value `Halvo` away under `Software\Microsoft\Windows\CurrentVersion\Run`
-of the person's own registry, whatever its text; an uninstall by another account
-leaves the value of the first person.
+of the person's own registry, whatever its text. An uninstall under another
+account, with the box ticked, deletes that account's Halvo data alone; the first
+person's data and Run value stay.
 
 After an install, where none of the values that the template's own WebView2
 section reads is there, the installer says that the runtime is missing; a silent
