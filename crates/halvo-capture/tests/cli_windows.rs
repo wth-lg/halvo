@@ -1,6 +1,8 @@
 #![cfg(all(windows, debug_assertions))]
 
+use std::ffi::OsStr;
 use std::io::{BufRead, BufReader};
+use std::os::windows::io::AsHandle;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
 use std::sync::{Arc, Mutex};
@@ -52,7 +54,11 @@ fn start(dir: &Path) -> Daemon {
         .stderr(Stdio::piped())
         .spawn()
         .expect("the service run starts");
-    let pipe = child.stderr.take().unwrap();
+    let stderr = lines_of(child.stderr.take().unwrap());
+    Daemon { child, stderr }
+}
+
+fn lines_of(pipe: impl std::io::Read + Send + 'static) -> Arc<Mutex<Vec<String>>> {
     let stderr = Arc::new(Mutex::new(Vec::new()));
     let lines = stderr.clone();
     std::thread::spawn(move || {
@@ -60,7 +66,7 @@ fn start(dir: &Path) -> Daemon {
             lines.lock().unwrap().push(line);
         }
     });
-    Daemon { child, stderr }
+    stderr
 }
 
 fn ctl(dir: &Path, verb: &[&str]) -> Output {
@@ -96,6 +102,10 @@ fn until<T>(within: Duration, mut read: impl FnMut() -> Option<T>) -> Option<T> 
 }
 
 fn first_status(dir: &Path, daemon: &Daemon, holds: impl Fn(&str) -> bool) -> String {
+    status_of(dir, &daemon.stderr, holds)
+}
+
+fn status_of(dir: &Path, stderr: &Mutex<Vec<String>>, holds: impl Fn(&str) -> bool) -> String {
     until(START_WAIT, || {
         let output = ctl(dir, &["status"]);
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -105,7 +115,7 @@ fn first_status(dir: &Path, daemon: &Daemon, holds: impl Fn(&str) -> bool) -> St
         panic!(
             "no such status within {START_WAIT:?}; the last ctl status:\n{}\nthe run's stderr:\n{}",
             text(&ctl(dir, &["status"])),
-            daemon.stderr()
+            stderr.lock().unwrap().join("\n")
         )
     })
 }
@@ -143,23 +153,65 @@ fn a_service_run_on_windows_answers_status_over_its_pipe_and_stops_on_request() 
         .unwrap_or_else(|| panic!("no rss_peak_bytes line: {status}"));
     assert!(peak > 0, "{status}");
 
-    let lifeline = Command::new(BIN)
+    stop(&dir, &mut daemon);
+}
+
+#[test]
+fn a_lifeline_run_on_windows_ends_when_its_starter_closes_the_pipe() {
+    let dir = scratch_data_dir("lifeline");
+    let refused = Command::new(BIN)
         .args(["--service-run", "--lifeline", "--data-dir"])
         .arg(&dir)
         .stdin(Stdio::null())
         .output()
-        .expect("the lifeline form runs");
-    assert_eq!(lifeline.status.code(), Some(1), "{}", text(&lifeline));
+        .expect("a start with no pipe runs");
+    assert_eq!(refused.status.code(), Some(64), "{}", text(&refused));
     assert!(
-        String::from_utf8_lossy(&lifeline.stderr)
-            .contains("the lifeline mode is not built on this system"),
+        String::from_utf8_lossy(&refused.stderr)
+            .contains("--lifeline needs a pipe on standard input"),
         "{}",
-        text(&lifeline)
+        text(&refused)
     );
-    let again = ctl(&dir, &["status"]);
-    assert_eq!(again.status.code(), Some(0), "{}", text(&again));
+    assert!(!dir.exists(), "a start with no pipe made {}", dir.display());
 
-    stop(&dir, &mut daemon);
+    let (input, lifeline) = std::io::pipe().unwrap();
+    let (errors, error_end) = std::io::pipe().unwrap();
+    let null = std::fs::OpenOptions::new().write(true).open("NUL").unwrap();
+    let args = [
+        OsStr::new("--service-run"),
+        OsStr::new("--lifeline"),
+        OsStr::new("--data-dir"),
+        dir.as_os_str(),
+    ];
+    let child = halvo_control::child_windows::start_with_handles(
+        Path::new(BIN),
+        &args,
+        halvo_control::child_windows::StdHandles {
+            input: input.as_handle(),
+            output: null.as_handle(),
+            error: error_end.as_handle(),
+        },
+        &[],
+    )
+    .expect("the lifeline run starts");
+    drop((input, null, error_end));
+    let stderr = lines_of(errors);
+    let status = status_of(&dir, &stderr, |status| {
+        status.lines().any(|line| line == "store=open")
+    });
+    assert!(
+        status.lines().any(|line| line == "parent=watched"),
+        "{status}"
+    );
+
+    drop(lifeline);
+    let ended = until(STOP_WAIT, || child.wait(Duration::ZERO).unwrap());
+    assert_eq!(
+        ended,
+        Some(0),
+        "the run's end after its pipe closed; its stderr:\n{}",
+        stderr.lock().unwrap().join("\n")
+    );
 }
 
 #[test]

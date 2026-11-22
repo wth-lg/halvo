@@ -1829,7 +1829,7 @@ pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::S
     }
     #[cfg(all(windows, debug_assertions))]
     {
-        serve_windows(dir, writer)
+        serve_windows(dir, writer, None)
     }
     #[cfg(not(any(target_os = "macos", all(windows, debug_assertions))))]
     {
@@ -1847,9 +1847,8 @@ pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::S
 /// [`service_run`], which also ends through its one shutdown entry once the
 /// lifeline reaches its end of file or its parent is gone, with 0, or 1 when
 /// the final flush failed. The parent's pid is the exclusion root of the
-/// floor. On Windows the watch of the lifeline is not built: the mode says
-/// so on standard error and exits 1 before it takes the data directory, so
-/// that no run captures without the watch that ends it with the app.
+/// floor. On Windows the start opens the parent by its pid and the watch
+/// waits on that handle.
 #[cfg(any(debug_assertions, target_os = "macos"))]
 pub fn lifeline_service_run(
     dir: &halvo_control::paths::DataDir,
@@ -1862,19 +1861,22 @@ pub fn lifeline_service_run(
             Err(status) => status,
         }
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(all(windows, debug_assertions))]
+    {
+        match lease::lifeline::start_or_status(&mut std::io::stderr()) {
+            Ok(lifeline) => serve_windows(dir, writer, Some(lifeline)),
+            Err(status) => status,
+        }
+    }
+    #[cfg(not(any(target_os = "macos", all(windows, debug_assertions))))]
     {
         use std::io::Write as _;
         let _ = (dir, writer);
-        let _ = writeln!(std::io::stderr(), "halvo-capture: {LIFELINE_NOT_BUILT}");
+        let refused = DaemonError::NotImplemented("the lifeline mode on this system");
+        let _ = writeln!(std::io::stderr(), "halvo-capture: {refused}");
         halvo_control::exit::ERROR
     }
 }
-
-/// The line of `--service-run --lifeline` on a system where the watch of the
-/// lifeline is not built.
-#[cfg(not(target_os = "macos"))]
-pub const LIFELINE_NOT_BUILT: &str = "the lifeline mode is not built on this system";
 
 /// Runs `ctl` (contracts.md C2.2 to C2.7): the request of its verb to the
 /// service run of its data directory through halvo-control's client, the
@@ -2093,7 +2095,11 @@ impl main_loop::MainLoop for ServiceLoop {
 }
 
 #[cfg(all(windows, debug_assertions))]
-fn serve_windows(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::StateWrite>) -> i32 {
+fn serve_windows(
+    dir: &halvo_control::paths::DataDir,
+    writer: Box<dyn state::StateWrite>,
+    lifeline: Option<Lifeline>,
+) -> i32 {
     static NO_STOP_FLAG: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     serve_on(
         dir,
@@ -2104,7 +2110,10 @@ fn serve_windows(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::Sta
         &NO_STOP_FLAG,
         std::sync::Arc::new(main_loop::ExitNow),
         &mut std::io::stderr(),
-        ServiceParts::of(crate::windows::sources::ServiceSet::new()),
+        ServiceParts {
+            lifeline,
+            ..ServiceParts::of(crate::windows::sources::ServiceSet::new())
+        },
     )
 }
 
@@ -2127,25 +2136,8 @@ impl main_loop::MainLoop for WindowsLoop {
 #[cfg(all(windows, debug_assertions))]
 impl supervisor::SystemSources for crate::windows::sources::ServiceSet {}
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 pub(crate) type Lifeline = lease::lifeline::Lifeline;
-
-#[cfg(all(windows, debug_assertions))]
-pub(crate) enum Lifeline {}
-
-#[cfg(all(windows, debug_assertions))]
-impl Lifeline {
-    fn parent(&self) -> u32 {
-        match *self {}
-    }
-}
-
-#[cfg(all(windows, debug_assertions))]
-impl lease::ParentWatch for Lifeline {
-    fn ended(&self) -> bool {
-        match *self {}
-    }
-}
 
 #[cfg(all(target_os = "macos", debug_assertions))]
 struct NoSources;
