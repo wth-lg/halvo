@@ -142,7 +142,11 @@ fn watch<R: Runtime>(app: AppHandle<R>, started: Instant) {
         let guard = app.try_state::<GuardInstalled>();
         if let Some(line) = line(&seen, &version, guard.as_deref()) {
             #[cfg(windows)]
-            let line = format!("{line} display_affinity={}", display_affinity(&window));
+            let line = format!(
+                "{line} display_affinity={} general_autofill={}",
+                display_affinity(&window),
+                general_autofill(&window)
+            );
             let mut out = std::io::stdout().lock();
             let _ = writeln!(out, "{line}");
             let _ = out.flush();
@@ -176,6 +180,39 @@ fn display_affinity<R: Runtime>(window: &tauri::WebviewWindow<R>) -> String {
         return "-".to_owned();
     }
     affinity.to_string()
+}
+
+/// Whether the web view of the window main has its general autofill on, as WebView2 reads it
+/// (ICoreWebView2Settings4::IsGeneralAutofillEnabled): `on`, `off`, or `-` where it cannot be read
+/// within 2 s.
+#[cfg(windows)]
+fn general_autofill<R: Runtime>(window: &tauri::WebviewWindow<R>) -> &'static str {
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings4;
+    use windows_core::Interface;
+    let (tx, rx) = mpsc::channel();
+    let asked = window.with_webview(move |webview| {
+        let read = || -> windows_core::Result<bool> {
+            // SAFETY: wry keeps the controller alive as long as the web view, and with_webview
+            // hands it to this closure on the thread that created it, the one thread WebView2 lets
+            // call it; each returned interface holds its own reference.
+            let settings = unsafe { webview.controller().CoreWebView2()?.Settings()? };
+            let settings: ICoreWebView2Settings4 = settings.cast()?;
+            let mut enabled = windows_core::BOOL::default();
+            // SAFETY: on the window's thread, on an interface that holds its reference to the
+            // settings; `enabled` is a live local that the call writes.
+            unsafe { settings.IsGeneralAutofillEnabled(&mut enabled) }?;
+            Ok(enabled.as_bool())
+        };
+        let _ = tx.send(read().ok());
+    });
+    if asked.is_err() {
+        return "-";
+    }
+    match rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(Some(true)) => "on",
+        Ok(Some(false)) => "off",
+        Ok(None) | Err(_) => "-",
+    }
 }
 
 #[cfg(test)]
