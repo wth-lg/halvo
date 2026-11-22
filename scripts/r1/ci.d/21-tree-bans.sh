@@ -51,7 +51,8 @@ client_tree() {
     fail "cargo tree with features failed for halvo-runner on $1"
   judge "halvo-runner with features on $1" "halvo-runner-features-$1" halvo-runner ''
   if line=$(printf '%s\n' "$tree" | grep '^halvo-control feature "client"'); then
-    fail "halvo-runner on $1: its tree, read with features, holds the control client: $(printf '%s\n' "$line" | sed 1q)"
+    first=$(printf '%s\n' "$line" | sed 1q)
+    fail "halvo-runner on $1: its tree, read with features, holds the control client: $first"
   fi
 }
 

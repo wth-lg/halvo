@@ -270,10 +270,11 @@ test("RR-app-ui-04: with no daemon the page says that the capture service is not
   });
   assert.equal(page.text("state"), "Capture service not running");
   assert.deepEqual(claims(page), []);
-  assert.equal(page.byId("toggle").disabled, true);
+  assert.equal(page.byId("toggle").disabled, false);
+  assert.equal(page.text("toggle"), "Start");
   assert.equal(page.visible("inventory-unavailable"), true);
   assert.equal(page.visible("empty"), false);
-  assert.equal(page.byId("delete").disabled, true);
+  assert.equal(page.byId("delete").disabled, false);
   assert.equal(page.window.Halvo.service(), "not_running");
 });
 

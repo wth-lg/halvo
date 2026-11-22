@@ -64,6 +64,9 @@ pub struct Coordinator<P: Owner> {
     unstopped: Arc<Mutex<Vec<(AgentId, RunId)>>>,
     live_runs: AtomicUsize,
     quit_mark: Arc<AtomicBool>,
+    /// The mark of the hold of a delete of everything (`hold_stop`): read where the quit's mark
+    /// is read, and lifted by `lift_hold`, which never lifts the quit's.
+    hold_mark: Arc<AtomicBool>,
     /// The workflow of each member as the last publish found it, which `quit_write` reads
     /// without the coordinator's lock.
     flows: Mutex<Vec<(AgentId, crate::types::WorkflowId)>>,
@@ -194,9 +197,13 @@ struct Entered<'a, P: Owner + Page> {
 }
 
 /// What the thread of a call that holds the coordinator's lock reads of the app's quit: the
-/// mark, and the list of the runs that did not stop, inside whose lock a start reads the mark
-/// for the last time.
-type QuitLine = (Arc<AtomicBool>, Arc<Mutex<Vec<(AgentId, RunId)>>>);
+/// mark, the mark of the hold of a delete of everything, and the list of the runs that did not
+/// stop, inside whose lock a start reads the marks for the last time.
+type QuitLine = (
+    Arc<AtomicBool>,
+    Arc<AtomicBool>,
+    Arc<Mutex<Vec<(AgentId, RunId)>>>,
+);
 
 thread_local! {
     static QUIT_MARK: RefCell<Option<QuitLine>> = const { RefCell::new(None) };
@@ -208,9 +215,9 @@ fn mark_this_thread(line: Option<QuitLine>) -> Option<QuitLine> {
 
 pub(crate) fn quit_marked() -> bool {
     QUIT_MARK.with(|m| {
-        m.borrow()
-            .as_ref()
-            .is_some_and(|(mark, _)| mark.load(Ordering::SeqCst))
+        m.borrow().as_ref().is_some_and(|(mark, hold, _)| {
+            mark.load(Ordering::SeqCst) || hold.load(Ordering::SeqCst)
+        })
     })
 }
 
@@ -223,11 +230,11 @@ pub(crate) fn quit_marked() -> bool {
 pub(crate) fn past_the_mark(agent: &AgentId, run: &RunId) -> bool {
     QUIT_MARK.with(|m| {
         let line = m.borrow();
-        let Some((mark, unstopped)) = line.as_ref() else {
+        let Some((mark, hold, unstopped)) = line.as_ref() else {
             return true;
         };
         let mut listed = unstopped.lock().unwrap_or_else(PoisonError::into_inner);
-        if mark.load(Ordering::SeqCst) {
+        if mark.load(Ordering::SeqCst) || hold.load(Ordering::SeqCst) {
             return false;
         }
         listed.push((agent.clone(), run.clone()));
@@ -504,6 +511,7 @@ where
             unstopped: Arc::new(Mutex::new(Vec::new())),
             live_runs: AtomicUsize::new(0),
             quit_mark: Arc::new(AtomicBool::new(false)),
+            hold_mark: Arc::new(AtomicBool::new(false)),
             flows: Mutex::new(Vec::new()),
             written: Mutex::new(Vec::new()),
         }
@@ -531,6 +539,7 @@ where
             unwinding: std::thread::panicking(),
             mark_before: mark_this_thread(Some((
                 Arc::clone(&self.quit_mark),
+                Arc::clone(&self.hold_mark),
                 Arc::clone(&self.unstopped),
             ))),
         };
@@ -559,6 +568,7 @@ where
             unwinding: std::thread::panicking(),
             mark_before: mark_this_thread(Some((
                 Arc::clone(&self.quit_mark),
+                Arc::clone(&self.hold_mark),
                 Arc::clone(&self.unstopped),
             ))),
         };
@@ -928,7 +938,9 @@ where
     /// its run, each second step's and each other item's wait limit. After the first step of the
     /// quit a tick does only the stages that start nothing (ruling RD-34 (d)): it sends the rows
     /// of the items' ledgers and makes the run drive's `QuitTick`, which kills each stopping run
-    /// and dying tree at its grace with nothing stored and sends what the board owes.
+    /// and dying tree at its grace with nothing stored and sends what the board owes. While the
+    /// hold of a delete of everything stands a tick makes the `QuitTick` alone and sends no row
+    /// of the ledgers, since the store is being deleted or cannot be written.
     pub fn tick(&self) {
         let mut st = self.enter(Entry::Tick);
         if Self::holds_tick(&st) {
@@ -944,6 +956,8 @@ where
             if let Some(board) = board.as_mut() {
                 self.flush_ledgers(board, ledgers);
             }
+            let _ = self.act(&mut st, Act::QuitTick);
+        } else if self.hold_mark.load(Ordering::SeqCst) {
             let _ = self.act(&mut st, Act::QuitTick);
         } else {
             let before = Self::agents_held_off(&st);
@@ -2651,13 +2665,13 @@ where
     }
 
     /// A start by the person, `run_now` or the `start` of a `ready` item: `state` after the first
-    /// step of the quit, and `no_service` while the mark of a tick that did not return stands
-    /// (ruling RD-80 4.5).
+    /// step of the quit, and `no_service` while the hold of a delete of everything stands and
+    /// while the mark of a tick that did not return stands (ruling RD-80 4.5).
     fn start_in(&self, st: &mut State<Cfg<P>>, agent: &AgentId) -> Result<(), Cause> {
         if st.quitting || self.quit_mark.load(Ordering::SeqCst) {
             return Err(Cause::State);
         }
-        if st.mark.tick {
+        if self.hold_mark.load(Ordering::SeqCst) || st.mark.tick {
             return Err(Cause::NoService);
         }
         if st.offs.contains(agent) || st.held_off.contains(agent) {
@@ -3106,6 +3120,34 @@ where
         self.mark_quit();
         let mut st = self.enter(Entry::Move);
         st.quitting = true;
+        self.stop_every_run(&mut st)
+    }
+
+    /// Marks the hold of a delete of everything: from this call on every start that has not
+    /// passed its last reading of the marks is refused, as after `mark_quit`, until `lift_hold`.
+    /// This call takes no lock and calls no port.
+    pub fn mark_hold(&self) {
+        self.hold_mark.store(true, Ordering::SeqCst);
+    }
+
+    /// Lifts the hold of a delete of everything and nothing else: the next tick is a whole tick.
+    /// It never lifts the quit's mark, so after `mark_quit` a lift starts nothing.
+    pub fn lift_hold(&self) {
+        self.hold_mark.store(false, Ordering::SeqCst);
+    }
+
+    /// The first step of the hold of a delete of everything, which the app makes before its
+    /// delete goes out (the capture run's app-3b4): `mark_hold`, and then the quit's first step
+    /// after its mark, the same code: the queue emptied, every open item lapsed, every live run
+    /// that no stop has reached cancelled, and the time of the wait, with no mark of the quit for
+    /// the life.
+    pub fn hold_stop(&self) -> QuitWait {
+        self.mark_hold();
+        let mut st = self.enter(Entry::Move);
+        self.stop_every_run(&mut st)
+    }
+
+    fn stop_every_run(&self, st: &mut State<Cfg<P>>) -> QuitWait {
         if let Some(board) = st.board.as_mut() {
             for m in &mut board.members {
                 if board.queue.remove(&m.facts.agent) {
@@ -3115,14 +3157,14 @@ where
                 }
             }
         }
-        self.stop_for_settles(&mut st);
+        self.stop_for_settles(st);
         let last = self.last_read.load(Ordering::Relaxed);
         let now = self.clock_now().unwrap_or(last);
         let members = st.board.as_ref().map_or(0, |b| b.members.len());
         for i in 0..members {
-            self.lapse_at_quit(&mut st, i);
+            self.lapse_at_quit(st, i);
         }
-        let _ = self.act(&mut st, Act::StopAll);
+        let _ = self.act(st, Act::StopAll);
         let grace = self.limits.cancel_grace_s.saturating_mul(1000);
         let until = st
             .board
@@ -3134,7 +3176,7 @@ where
                     .max()
             })
             .map_or(now, |at| at.saturating_add(grace));
-        self.publish(&mut st);
+        self.publish(st);
         QuitWait { until, at: now }
     }
 
@@ -3149,9 +3191,21 @@ where
     /// library answers Ok takes the run out of `not_stopped`, and any other answer, such as the
     /// `unknown_run` of a library that never started the run, leaves it named.
     pub fn quit_kill(&self) {
+        self.kill_every_run(true);
+    }
+
+    /// The second step of the hold of a delete of everything, which the app's hold calls as the
+    /// quit's hook calls `quit_kill`, the same code: it kills every live run and every dying
+    /// tree, and each run of an earlier life that the board keeps alive, and stores nothing: no
+    /// row of the ledgers, no `run_ended`.
+    pub fn hold_kill(&self) {
+        self.kill_every_run(false);
+    }
+
+    fn kill_every_run(&self, send_ledgers: bool) {
         let mut st = self.enter(Entry::Move);
         let State { board, ledgers, .. } = &mut *st;
-        if let Some(board) = board.as_mut() {
+        if let (true, Some(board)) = (send_ledgers, board.as_mut()) {
             self.flush_ledgers(board, ledgers);
         }
         let _ = self.act(&mut st, Act::KillAll);
@@ -3394,6 +3448,7 @@ where
             unwinding: std::thread::panicking(),
             mark_before: mark_this_thread(Some((
                 Arc::clone(&self.quit_mark),
+                Arc::clone(&self.hold_mark),
                 Arc::clone(&self.unstopped),
             ))),
         };
