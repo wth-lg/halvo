@@ -74,6 +74,140 @@ pub(crate) fn state_of(read: FocusRead, still_the_last_password_element: bool) -
     }
 }
 
+/// The reading of a window title or a screen frame: its own reading of the
+/// same read of the focused element that the key's state comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentReading {
+    /// The element answered that it is no password field.
+    Clear(ClearBy),
+    /// The element is a password field, or the key's state of the same read
+    /// is Password.
+    Password,
+    /// No reading that a title or a frame may be kept by.
+    Unknown(UnknownBy),
+}
+
+impl Default for ContentReading {
+    fn default() -> Self {
+        ContentReading::Unknown(UnknownBy::BeforeFirstRead)
+    }
+}
+
+/// The kind of element whose answer made a content reading Clear.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClearBy {
+    /// A native Win32 edit control.
+    NativeEdit,
+    /// Chrome.
+    Chrome,
+    /// Edge.
+    Edge,
+    /// Any other kind that answered.
+    OtherKind,
+}
+
+/// Why a content reading is Unknown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnknownBy {
+    /// The detector has made no read since it started, or it is stopped.
+    BeforeFirstRead,
+    /// Firefox, by its file name or by its engine Gecko.
+    Firefox,
+    /// The element gave no answer.
+    NoAnswer,
+    /// No element could be read.
+    Unreadable,
+    /// The desktop switched.
+    DesktopSwitch,
+}
+
+/// The content readings that the sources of a gate asked of it, Clear by
+/// the kind that answered and Unknown by its cause.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct GateReadings {
+    /// Clear by a native edit control.
+    pub native_edit: u64,
+    /// Clear by Chrome.
+    pub chrome: u64,
+    /// Clear by Edge.
+    pub edge: u64,
+    /// Clear by another kind that answered.
+    pub other_kind: u64,
+    /// Password. Its word is not the bare `password`, because GitHub's log
+    /// of a run masks a bare `password=` with its value.
+    pub password_field: u64,
+    /// Unknown before the detector's first read.
+    pub before_first_read: u64,
+    /// Unknown in Firefox.
+    pub firefox: u64,
+    /// Unknown with no answer.
+    pub no_answer: u64,
+    /// Unknown with no readable element.
+    pub unreadable: u64,
+    /// Unknown after a desktop switch.
+    pub desktop_switch: u64,
+}
+
+impl GateReadings {
+    /// The readings that were Clear.
+    pub fn clear(&self) -> u64 {
+        self.native_edit + self.chrome + self.edge + self.other_kind
+    }
+
+    /// The readings that were Unknown.
+    pub fn unknown(&self) -> u64 {
+        self.before_first_read
+            + self.firefox
+            + self.no_answer
+            + self.unreadable
+            + self.desktop_switch
+    }
+
+    fn count(&mut self, reading: ContentReading) {
+        let field = match reading {
+            ContentReading::Clear(ClearBy::NativeEdit) => &mut self.native_edit,
+            ContentReading::Clear(ClearBy::Chrome) => &mut self.chrome,
+            ContentReading::Clear(ClearBy::Edge) => &mut self.edge,
+            ContentReading::Clear(ClearBy::OtherKind) => &mut self.other_kind,
+            ContentReading::Password => &mut self.password_field,
+            ContentReading::Unknown(UnknownBy::BeforeFirstRead) => &mut self.before_first_read,
+            ContentReading::Unknown(UnknownBy::Firefox) => &mut self.firefox,
+            ContentReading::Unknown(UnknownBy::NoAnswer) => &mut self.no_answer,
+            ContentReading::Unknown(UnknownBy::Unreadable) => &mut self.unreadable,
+            ContentReading::Unknown(UnknownBy::DesktopSwitch) => &mut self.desktop_switch,
+        };
+        *field += 1;
+    }
+}
+
+/// The content reading of one read: `gecko` says whether the element's
+/// framework is Gecko, and `key` is the key's state of the same read, with
+/// the kept password element.
+pub(crate) fn content_of(read: FocusRead, gecko: bool, key: FieldState) -> ContentReading {
+    if key == FieldState::Password {
+        return ContentReading::Password;
+    }
+    match read {
+        FocusRead::Answered {
+            is_password: true, ..
+        }
+        | FocusRead::Answered {
+            protected: true, ..
+        }
+        | FocusRead::NoAnswer { protected: true } => ContentReading::Password,
+        FocusRead::Answered { kind, .. } => match kind {
+            Kind::Firefox => ContentReading::Unknown(UnknownBy::Firefox),
+            _ if gecko => ContentReading::Unknown(UnknownBy::Firefox),
+            Kind::NativeEdit => ContentReading::Clear(ClearBy::NativeEdit),
+            Kind::Chrome => ContentReading::Clear(ClearBy::Chrome),
+            Kind::Edge => ContentReading::Clear(ClearBy::Edge),
+            Kind::Other => ContentReading::Clear(ClearBy::OtherKind),
+        },
+        FocusRead::NoAnswer { protected: false } => ContentReading::Unknown(UnknownBy::NoAnswer),
+        FocusRead::Unreadable => ContentReading::Unknown(UnknownBy::Unreadable),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Kept {
     Leave,
@@ -477,9 +611,50 @@ struct Marks {
     pointer_owns: bool,
     pointer_since: Option<u32>,
     forwarded: Option<u32>,
+    content: ContentReading,
+    writer: Option<u64>,
+    asked: u64,
+    held: u64,
+    pending: Option<(u64, ContentReading)>,
 }
 
 impl Marks {
+    /// Whether a read of `by` may write the content reading: one with no
+    /// writer (a test's own mark) always, one of a detector only while that
+    /// detector is the gate's writer.
+    fn may_write(&self, by: Option<u64>) -> bool {
+        by.is_none() || by == self.writer
+    }
+
+    /// The next ticket of a read: each focus event and each own read takes
+    /// one when it is asked, so that of two reads the one asked later is
+    /// known.
+    fn ask(&mut self) -> u64 {
+        self.asked += 1;
+        self.asked
+    }
+
+    /// Writes the content reading of the read whose ticket is `ticket`: of
+    /// two reads of one detector the one that was asked later holds, so a
+    /// read asked before the reading that the gate holds writes nothing,
+    /// whatever each read. Tickets are taken one at a time under the hold of
+    /// the marks, so no two reads have the same ticket.
+    fn set_content(&mut self, by: Option<u64>, ticket: u64, content: ContentReading) {
+        if self.may_write(by) && ticket > self.held {
+            self.content = content;
+            self.held = ticket;
+        }
+    }
+
+    /// Ends the writer of the content reading: a detector that its attach or
+    /// its detach gave up writes no content reading from then on, and the
+    /// reading is Unknown until an attach succeeds.
+    fn give_up_the_writer(&mut self) {
+        self.writer = None;
+        self.content = ContentReading::default();
+        self.pending = None;
+    }
+
     fn clicks_unseen_for(&self, key: &HeldKey) -> bool {
         self.gap.is_some_and(|gap| match gap.back {
             None => true,
@@ -587,6 +762,8 @@ impl Marks {
 #[derive(Debug, Default)]
 struct Shared {
     marks: Mutex<Marks>,
+    readings: Mutex<GateReadings>,
+    writers: std::sync::atomic::AtomicU64,
 }
 
 impl Shared {
@@ -594,21 +771,51 @@ impl Shared {
         self.marks.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn field(&self, at: u32, state: FieldState) {
-        let _ = self.begin_event();
-        self.field_seen(at, state, None);
+    fn field(&self, at: u32, state: FieldState, content: ContentReading, by: Option<u64>) {
+        let (_, ticket) = self.begin_asked_event();
+        self.field_seen(at, state, (content, by, ticket), None);
     }
 
+    /// Makes a new detector the only writer of the content reading.
+    fn open_writer(&self) -> u64 {
+        let writer = self
+            .writers
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        self.lock().writer = Some(writer);
+        writer
+    }
+
+    #[cfg(test)]
     fn begin_event(&self) -> u64 {
+        self.begin_asked_event().0
+    }
+
+    /// Begins a focus event: its move count and the ticket of its read.
+    fn begin_asked_event(&self) -> (u64, u64) {
         let mut marks = self.lock();
         marks.moves += 1;
         marks.events_in_flight += 1;
-        marks.moves
+        let ticket = marks.ask();
+        (marks.moves, ticket)
     }
 
-    fn field_seen(&self, at: u32, state: FieldState, seen: Option<String>) {
+    fn field_seen(
+        &self,
+        at: u32,
+        state: FieldState,
+        (content, by, ticket): (ContentReading, Option<u64>, u64),
+        seen: Option<String>,
+    ) {
         let mut marks = self.lock();
         marks.push(Some(at), at, Mark::Field(state));
+        if marks.started.is_some() && marks.first_read.is_none() {
+            if marks.may_write(by) && marks.pending.is_none_or(|(asked, _)| ticket > asked) {
+                marks.pending = Some((ticket, content));
+            }
+        } else {
+            marks.set_content(by, ticket, content);
+        }
         marks.events_in_flight = marks.events_in_flight.saturating_sub(1);
         marks.ask_read(at);
         note_mark("event", Some(state), None, Some(at), at, seen);
@@ -618,13 +825,17 @@ impl Shared {
         &self,
         began: u32,
         at: u32,
-        state: FieldState,
+        (state, content, by, ticket): (FieldState, ContentReading, Option<u64>, u64),
         moved: Moved,
         seen: Option<String>,
     ) {
         note_mark("read", Some(state), Some(moved), Some(at), began, seen);
         let mut marks = self.lock();
         marks.push(Some(at), began, Mark::Read { state, moved });
+        if let Some((asked, carried)) = marks.pending.take() {
+            marks.set_content(by, asked, carried);
+        }
+        marks.set_content(by, ticket, content);
         if marks.settle_due.is_some_and(|due| not_after(due, began)) {
             marks.settle_due = None;
         }
@@ -665,8 +876,13 @@ impl Shared {
         marks.push(Some(at), at, Mark::Started);
     }
 
-    fn desktop_switched(&self, tick: u32) {
-        self.field(tick, FieldState::Unknown);
+    fn desktop_switched(&self, tick: u32, by: Option<u64>) {
+        self.field(
+            tick,
+            FieldState::Unknown,
+            ContentReading::Unknown(UnknownBy::DesktopSwitch),
+            by,
+        );
         self.latch(tick, LatchFrom::AnotherThread);
     }
 }
@@ -686,6 +902,26 @@ fn note_mark(
 
 pub(crate) fn unreadable_state() -> FieldState {
     state_of(FocusRead::Unreadable, false)
+}
+
+/// What an attach does when the detector's first read has not come by its
+/// deadline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AtTheDeadline {
+    /// The keyboard source: the attach gives the detector up.
+    GiveUp,
+    /// The service set: the attach keeps the detector, whose first read may
+    /// land late; the content reading stays Unknown until it does.
+    WaitForIt,
+}
+
+/// How an attach that did not fail ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Attached {
+    /// The detector made its first read before the attach returned.
+    Read,
+    /// The detector runs and its first read has not landed yet.
+    Late,
 }
 
 /// The gate of the Windows keyboard source and its password-field detector.
@@ -856,11 +1092,31 @@ impl PasswordGate {
             .unwrap_or(FieldState::Unknown)
     }
 
+    /// The reading of a window title or a screen frame now.
+    pub fn content_reading(&self) -> ContentReading {
+        self.shared.lock().content
+    }
+
+    /// The content readings that the sources of this gate asked of it.
+    pub fn readings(&self) -> GateReadings {
+        *self
+            .shared
+            .readings
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
     pub(crate) fn content_probe(&self) -> PasswordFieldProbe {
-        PasswordFieldProbe(match self.field_now() {
-            FieldState::Password => SecureInputReading::Active,
-            FieldState::Clear => SecureInputReading::Inactive,
-            FieldState::Unknown => SecureInputReading::Unknown,
+        let reading = self.content_reading();
+        self.shared
+            .readings
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .count(reading);
+        PasswordFieldProbe(match reading {
+            ContentReading::Password => SecureInputReading::Active,
+            ContentReading::Clear(_) => SecureInputReading::Inactive,
+            ContentReading::Unknown(_) => SecureInputReading::Unknown,
         })
     }
 
@@ -876,12 +1132,32 @@ impl PasswordGate {
 
     #[cfg(test)]
     pub(crate) fn field_at(&self, at: u32, state: FieldState) {
-        self.shared.field(at, state);
+        let content = self.content_reading();
+        self.shared.field(at, state, content, None);
+    }
+
+    /// A focus event of one read, as the detector marks it with no kept
+    /// password element: the key's state and the content reading of the read.
+    #[cfg(test)]
+    pub(crate) fn focus_read_at(&self, at: u32, read: FocusRead, gecko: bool) {
+        let key = state_of(read, false);
+        self.shared
+            .field(at, key, content_of(read, gecko, key), None);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn switch_desktop_at(&self, at: u32) {
+        self.shared.desktop_switched(at, None);
     }
 
     #[cfg(test)]
     pub(crate) fn read_at(&self, began: u32, state: FieldState, moved: Moved) {
-        self.shared.read_seen(began, began, state, moved, None);
+        let (content, ticket) = {
+            let mut marks = self.shared.lock();
+            (marks.content, marks.ask())
+        };
+        self.shared
+            .read_seen(began, began, (state, content, None, ticket), moved, None);
     }
 
     #[cfg(test)]
@@ -1094,14 +1370,46 @@ mod detector {
             gate
         }
 
+        #[cfg(test)]
+        pub(crate) fn whose_attach_fails() -> PasswordGate {
+            fn no_desktop_hook() -> HWINEVENTHOOK {
+                HWINEVENTHOOK::default()
+            }
+            PasswordGate::with_removals(Removals {
+                set_desktop_hook: no_desktop_hook,
+                ..Removals::default()
+            })
+        }
+
+        #[cfg(test)]
+        pub(crate) fn is_attached(&self) -> bool {
+            self.detector
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_some()
+        }
+
         pub(crate) fn attach(&self) -> Result<(), CaptureError> {
+            self.attach_with(super::AtTheDeadline::GiveUp).map(|_| ())
+        }
+
+        /// The service set's attach: a detector whose first read has not come
+        /// by the deadline is kept, and the attach answers Late.
+        pub(crate) fn attach_waiting(&self) -> Result<super::Attached, CaptureError> {
+            self.attach_with(super::AtTheDeadline::WaitForIt)
+        }
+
+        fn attach_with(
+            &self,
+            at_the_deadline: super::AtTheDeadline,
+        ) -> Result<super::Attached, CaptureError> {
             if self
                 .detector
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .is_some()
             {
-                return Ok(());
+                return Ok(super::Attached::Read);
             }
             self.wait_for_the_stale_detector()?;
             #[cfg(feature = "test-seam")]
@@ -1109,18 +1417,28 @@ mod detector {
             let at = tick();
             self.shared.started(at);
             self.clicks_lost(at);
-            let wake = Arc::new(Event::new()?);
+            let writer = self.shared.open_writer();
+            let wake = match Event::new() {
+                Ok(wake) => Arc::new(wake),
+                Err(error) => {
+                    self.shared.lock().give_up_the_writer();
+                    return Err(error);
+                }
+            };
             let (ready, started) = std::sync::mpsc::channel();
             let shared = Arc::clone(&self.shared);
             let thread_wake = Arc::clone(&wake);
             let removals = self.removals;
             let join = std::thread::Builder::new()
                 .name("halvo-password-detector".to_string())
-                .spawn(move || run(&shared, &thread_wake, removals, ready))
-                .map_err(|e| CaptureError::Os {
-                    stage: "spawn the password detector thread",
-                    domain: "io",
-                    code: i64::from(e.raw_os_error().unwrap_or(0)),
+                .spawn(move || run(&shared, &thread_wake, (removals, writer), ready))
+                .map_err(|e| {
+                    self.shared.lock().give_up_the_writer();
+                    CaptureError::Os {
+                        stage: "spawn the password detector thread",
+                        domain: "io",
+                        code: i64::from(e.raw_os_error().unwrap_or(0)),
+                    }
                 })?;
             let deadline = crate::windows::INPUT_STOP_DEADLINE;
             #[cfg(test)]
@@ -1136,14 +1454,31 @@ mod detector {
                         wake,
                         join: Some(join),
                     });
-                    Ok(())
+                    Ok(super::Attached::Read)
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+                    if at_the_deadline == super::AtTheDeadline::WaitForIt =>
+                {
+                    *self
+                        .detector
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Running {
+                        wake,
+                        join: Some(join),
+                    });
+                    Ok(super::Attached::Late)
                 }
                 Ok(Err(error)) => {
+                    self.shared.lock().give_up_the_writer();
                     let _ = join.join();
                     Err(error)
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    self.shared.lock().stopping = true;
+                    {
+                        let mut marks = self.shared.lock();
+                        marks.stopping = true;
+                        marks.give_up_the_writer();
+                    }
                     wake.set();
                     *self
                         .stale
@@ -1155,6 +1490,7 @@ mod detector {
                     })
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    self.shared.lock().give_up_the_writer();
                     let _ = join.join();
                     Err(CaptureError::ThreadEnded)
                 }
@@ -1196,7 +1532,11 @@ mod detector {
             let Some(mut running) = taken else {
                 return Ok(());
             };
-            self.shared.lock().stopping = true;
+            {
+                let mut marks = self.shared.lock();
+                marks.stopping = true;
+                marks.give_up_the_writer();
+            }
             running.wake.set();
             let began = std::time::Instant::now();
             let Some(join) = running.join.take() else {
@@ -1220,6 +1560,7 @@ mod detector {
             marks.stopping = false;
             let at = tick();
             marks.push(Some(at), at, super::Mark::Field(FieldState::Unknown));
+            marks.content = super::ContentReading::default();
             super::note_mark("stop", Some(FieldState::Unknown), None, Some(at), at, None);
             ended
         }
@@ -1368,7 +1709,7 @@ mod detector {
     }
 
     impl Reader {
-        fn read(&self, element: &IUIAutomationElement) -> FocusRead {
+        fn read(&self, element: &IUIAutomationElement) -> (FocusRead, bool) {
             // SAFETY: `element` is a live element whose cache holds the
             // properties that the cache request names.
             let is_password = unsafe {
@@ -1410,14 +1751,18 @@ mod detector {
                 u8::from(pid.is_some()),
                 _file_read.text(),
             ));
-            match is_password {
+            let gecko = framework
+                .as_deref()
+                .is_some_and(|id| id.eq_ignore_ascii_case("Gecko"));
+            let read = match is_password {
                 Some(is_password) => FocusRead::Answered {
                     is_password,
                     protected,
                     kind,
                 },
                 None => FocusRead::NoAnswer { protected },
-            }
+            };
+            (read, gecko)
         }
 
         #[cfg(feature = "test-seam")]
@@ -1438,11 +1783,14 @@ mod detector {
             by: super::ReadBy,
             moves: u64,
             events_in_flight: bool,
-        ) -> FieldState {
+        ) -> (FieldState, super::ContentReading) {
             let Some(element) = element else {
                 #[cfg(feature = "test-seam")]
                 self.saw("no_element".to_string());
-                return super::unreadable_state();
+                return (
+                    super::unreadable_state(),
+                    super::ContentReading::Unknown(super::UnknownBy::Unreadable),
+                );
             };
             let mut kept = self
                 .kept
@@ -1458,6 +1806,7 @@ mod detector {
             } else {
                 super::KeptElement::Other
             };
+            let mut focus = None;
             let read = if same {
                 #[cfg(feature = "test-seam")]
                 self.saw(
@@ -1466,7 +1815,9 @@ mod detector {
                 );
                 FieldState::Password
             } else {
-                super::state_of(self.read(element), false)
+                let (read, gecko) = self.read(element);
+                focus = Some((read, gecko));
+                super::state_of(read, false)
             };
             let (state, change) = super::with_kept(
                 kept.as_ref().map(|(_, at)| *at),
@@ -1481,10 +1832,17 @@ mod detector {
                 super::Kept::Set => *kept = Some((element.clone(), moves)),
                 super::Kept::Drop => *kept = None,
             }
-            state
+            let content = focus.map_or(super::ContentReading::Password, |(read, gecko)| {
+                super::content_of(read, gecko, state)
+            });
+            (state, content)
         }
 
-        fn own(&self, moves: u64, events_in_flight: bool) -> (FieldState, super::Moved) {
+        fn own(
+            &self,
+            moves: u64,
+            events_in_flight: bool,
+        ) -> ((FieldState, super::ContentReading), super::Moved) {
             // SAFETY: the cache request is live for the call.
             let element = unsafe { self.automation.GetFocusedElementBuildCache(&self.cache) }.ok();
             let mut last = self
@@ -1523,6 +1881,7 @@ mod detector {
         shared: Arc<Shared>,
         reader: Arc<Reader>,
         wake: Arc<Event>,
+        writer: Option<u64>,
     }
 
     static HANDLER_VTABLE: IUIAutomationFocusChangedEventHandler_Vtbl =
@@ -1602,8 +1961,8 @@ mod detector {
                 IUIAutomationElement::from_raw_borrowed(&sender),
             )
         };
-        let moves = handler.shared.begin_event();
-        let state = handler
+        let (moves, ticket) = handler.shared.begin_asked_event();
+        let (state, content) = handler
             .reader
             .state(element, super::ReadBy::Event, moves, false);
         #[cfg(test)]
@@ -1612,9 +1971,12 @@ mod detector {
                 hook();
             }
         });
-        handler
-            .shared
-            .field_seen(tick(), state, handler.reader.seen());
+        handler.shared.field_seen(
+            tick(),
+            state,
+            (content, handler.writer, ticket),
+            handler.reader.seen(),
+        );
         handler.wake.set();
         #[cfg(feature = "test-seam")]
         crate::windows::input::seam::handler_ended();
@@ -1628,7 +1990,7 @@ mod detector {
     }
 
     thread_local! {
-        static DESKTOP_GATE: std::cell::RefCell<Option<Arc<Shared>>> =
+        static DESKTOP_GATE: std::cell::RefCell<Option<(Arc<Shared>, Option<u64>)>> =
             const { std::cell::RefCell::new(None) };
     }
 
@@ -1642,8 +2004,8 @@ mod detector {
         time: u32,
     ) {
         DESKTOP_GATE.with(|cell| {
-            if let Some(shared) = cell.borrow().as_ref() {
-                shared.desktop_switched(time);
+            if let Some((shared, writer)) = cell.borrow().as_ref() {
+                shared.desktop_switched(time, *writer);
             }
         });
     }
@@ -1694,6 +2056,7 @@ mod detector {
     fn start(
         shared: &Arc<Shared>,
         wake: &Arc<Event>,
+        writer: u64,
     ) -> Result<(Arc<Reader>, IUIAutomationFocusChangedEventHandler), CaptureError> {
         let reader = Arc::new(new_reader()?);
         let handler = FocusHandler {
@@ -1702,6 +2065,7 @@ mod detector {
             shared: Arc::clone(shared),
             reader: Arc::clone(&reader),
             wake: Arc::clone(wake),
+            writer: Some(writer),
         }
         .into_interface();
         // SAFETY: the cache request and the handler are live COM objects.
@@ -1714,16 +2078,22 @@ mod detector {
         Ok((reader, handler))
     }
 
-    fn own_read(shared: &Shared, reader: &Reader) {
+    fn own_read(shared: &Shared, reader: &Reader, writer: Option<u64>) {
         let began = tick();
         #[cfg(feature = "test-seam")]
         crate::windows::input::seam::own_read_began(began);
-        let (moves, events_in_flight) = {
-            let marks = shared.lock();
-            (marks.moves, marks.events_in_flight > 0)
+        let (moves, events_in_flight, ticket) = {
+            let mut marks = shared.lock();
+            (marks.moves, marks.events_in_flight > 0, marks.ask())
         };
-        let (state, moved) = reader.own(moves, events_in_flight);
-        shared.read_seen(began, tick(), state, moved, reader.seen());
+        let ((state, content), moved) = reader.own(moves, events_in_flight);
+        shared.read_seen(
+            began,
+            tick(),
+            (state, content, writer, ticket),
+            moved,
+            reader.seen(),
+        );
         #[cfg(feature = "test-seam")]
         crate::windows::input::seam::own_read_ended();
     }
@@ -1747,7 +2117,7 @@ mod detector {
     fn run(
         shared: &Arc<Shared>,
         wake: &Arc<Event>,
-        removals: Removals,
+        (removals, writer): (Removals, u64),
         ready: std::sync::mpsc::Sender<Result<(), CaptureError>>,
     ) -> Result<(), CaptureError> {
         // SAFETY: CoInitializeEx joins this new thread to the process's MTA.
@@ -1757,14 +2127,14 @@ mod detector {
             return Ok(());
         }
         let _com = Com;
-        let (reader, handler) = match start(shared, wake) {
+        let (reader, handler) = match start(shared, wake, writer) {
             Ok(started) => started,
             Err(error) => {
                 let _ = ready.send(Err(error));
                 return Ok(());
             }
         };
-        DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some(Arc::clone(shared)));
+        DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some((Arc::clone(shared), Some(writer))));
         #[cfg(test)]
         let desktop = (removals.set_desktop_hook)();
         #[cfg(not(test))]
@@ -1781,7 +2151,7 @@ mod detector {
         }
         #[cfg(test)]
         (removals.before_first_read)();
-        own_read(shared, &reader);
+        own_read(shared, &reader, Some(writer));
         let _ = ready.send(Ok(()));
         let mut msg = MSG::default();
         loop {
@@ -1807,7 +2177,7 @@ mod detector {
             if wait == 0 {
                 #[cfg(test)]
                 (removals.before_read)();
-                own_read(shared, &reader);
+                own_read(shared, &reader, Some(writer));
                 continue;
             }
             // SAFETY: the slice holds the live wake event, which outlives the
@@ -2062,12 +2432,16 @@ mod detector {
             assert!(joined.is_ok(), "{joined:?}");
             let _com = Com;
             let reader = new_reader().expect("the reader is made");
-            let own = reader.state(None, super::super::ReadBy::OwnRead, 0, false);
-            let event = reader.state(None, super::super::ReadBy::Event, 3, false);
+            let (own, content) = reader.state(None, super::super::ReadBy::OwnRead, 0, false);
+            let (event, _) = reader.state(None, super::super::ReadBy::Event, 3, false);
             let seen = reader.seen();
             drop(reader);
             assert_eq!(own, FieldState::Unknown);
             assert_eq!(event, FieldState::Unknown);
+            assert_eq!(
+                content,
+                super::super::ContentReading::Unknown(super::super::UnknownBy::Unreadable)
+            );
             #[cfg(feature = "test-seam")]
             assert_eq!(seen.as_deref(), Some("no_element"));
             #[cfg(not(feature = "test-seam"))]
@@ -2079,7 +2453,7 @@ mod detector {
             let gate = PasswordGate::new();
             gate.read_at(1_000, FieldState::Clear, Moved::NotCompared);
             let before = gate.hold(2_000, false, 0);
-            DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some(Arc::clone(&gate.shared)));
+            DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some((Arc::clone(&gate.shared), None)));
             // SAFETY: the callback reads its thread's gate and no argument but
             // the time.
             unsafe {
@@ -2307,6 +2681,7 @@ mod detector {
                 shared: Arc::clone(&gate.shared),
                 reader: Arc::clone(&reader),
                 wake: Arc::new(Event::new().expect("an event")),
+                writer: None,
             }
             .into_interface();
             let start = tick();
@@ -2609,6 +2984,183 @@ mod detector {
         }
 
         #[test]
+        fn a_detector_that_its_attach_or_its_detach_gave_up_writes_no_content_reading() {
+            use super::super::{ClearBy, ContentReading, UnknownBy};
+            use std::sync::atomic::Ordering;
+            let _serial = crate::windows::tests::serial();
+            let (edit, in_front) = EditInFront::open();
+            let ended = |gate: &PasswordGate| {
+                gate.stale
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .as_ref()
+                    .is_none_or(|join| join.is_finished())
+            };
+            HOLD_FIRST_READ.store(false, Ordering::SeqCst);
+            HOLD_READS.store(false, Ordering::SeqCst);
+            let mut gate = PasswordGate::with_removals(Removals {
+                before_first_read: first_read_held,
+                before_read: read_held,
+                attach_deadline: Some(Duration::from_millis(300)),
+                ..Removals::default()
+            });
+            let first_read = Hold::on(&HOLD_FIRST_READ);
+            let given_up = gate.attach();
+            drop(first_read);
+            until(|| ended(&gate));
+            let after_a_late_first_read = gate.content_reading();
+            gate.removals.attach_deadline = Some(UNTIMED);
+            let attached = gate.attach();
+            let while_it_runs = gate.content_reading();
+            READ_HELD.store(false, Ordering::SeqCst);
+            let reads = Hold::on(&HOLD_READS);
+            gate.shared.lock().ask_read(tick());
+            gate.wake_detector();
+            until(|| READ_HELD.load(Ordering::SeqCst));
+            let stopped = gate.detach(Duration::from_millis(200));
+            let after_a_timed_out_detach = gate.content_reading();
+            gate.removals.attach_deadline = None;
+            let refused = gate.attach();
+            let after_a_refused_attach = gate.content_reading();
+            drop(reads);
+            until(|| ended(&gate));
+            let after_the_held_read = gate.content_reading();
+            drop(edit);
+            assert!(
+                in_front,
+                "INCONCLUSIVE: the test's edit did not come to the front"
+            );
+            assert!(
+                matches!(given_up, Err(CaptureError::Timeout { .. })),
+                "{given_up:?}"
+            );
+            assert_eq!(attached, Ok(()));
+            assert_eq!(
+                while_it_runs,
+                ContentReading::Clear(ClearBy::NativeEdit),
+                "the control: a detector that runs reads the edit"
+            );
+            assert!(
+                matches!(stopped, Err(CaptureError::Timeout { .. })),
+                "{stopped:?}"
+            );
+            assert!(
+                matches!(refused, Err(CaptureError::Timeout { .. })),
+                "{refused:?}"
+            );
+            let unknown = ContentReading::Unknown(UnknownBy::BeforeFirstRead);
+            assert_eq!(
+                [
+                    after_a_late_first_read,
+                    after_a_timed_out_detach,
+                    after_a_refused_attach,
+                    after_the_held_read,
+                ],
+                [unknown; 4],
+                "after a late first read, a timed-out detach, a refused attach and the held read"
+            );
+        }
+
+        #[test]
+        fn a_first_read_that_lands_after_the_deadline_holds_and_nothing_is_kept_before_it() {
+            use super::super::{Attached, ClearBy, ContentReading, UnknownBy};
+            use crate::floor::exclude::{FloorHandle, PrivateWindow};
+            use crate::floor::payload::TitleWhy;
+            use crate::windows::window_title::title_event;
+            use crate::windows::{now_tick, Floor, FrontApp, OsTick};
+            use std::sync::atomic::Ordering;
+            let _serial = crate::windows::tests::serial();
+            let (edit, in_front) = EditInFront::open();
+            let floor = Floor::new(FloorHandle::default(), Arc::default());
+            let front = FrontApp {
+                pid: 9,
+                path: Some("C:\\Apps\\mail.exe".to_string()),
+            };
+            let kept = |gate: &PasswordGate| {
+                title_event(
+                    &floor,
+                    Some(gate),
+                    (&front, PrivateWindow::Unknown),
+                    ("Inbox".to_string(), TitleWhy::TitleChange),
+                    OsTick::new(now_tick()),
+                )
+                .is_some()
+            };
+            HOLD_FIRST_READ.store(false, Ordering::SeqCst);
+            let gate = PasswordGate::with_removals(Removals {
+                before_first_read: first_read_held,
+                attach_deadline: Some(Duration::from_millis(300)),
+                ..Removals::default()
+            });
+            let first_read = Hold::on(&HOLD_FIRST_READ);
+            let attached = gate.attach_waiting();
+            let running_while_late = gate.is_attached();
+            let before = (gate.content_reading(), kept(&gate));
+            drop(first_read);
+            let landed = std::time::Instant::now();
+            while !matches!(gate.content_reading(), ContentReading::Clear(_))
+                && landed.elapsed() < Duration::from_secs(10)
+            {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let after = (gate.content_reading(), kept(&gate));
+            let detached = gate.detach(UNTIMED);
+            let after_the_detach = gate.content_reading();
+            let second = PasswordGate::with_removals(Removals {
+                before_first_read: first_read_held,
+                attach_deadline: Some(Duration::from_millis(300)),
+                ..Removals::default()
+            });
+            let first_read = Hold::on(&HOLD_FIRST_READ);
+            let second_attached = second.attach_waiting();
+            let (password, password_in_front) = EditInFront::open_with(ES_PASSWORD as u32);
+            let before_with_a_password_field = (second.content_reading(), kept(&second));
+            drop(first_read);
+            let landed = std::time::Instant::now();
+            while second.content_reading() == ContentReading::Unknown(UnknownBy::BeforeFirstRead)
+                && landed.elapsed() < Duration::from_secs(10)
+            {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let after_with_a_password_field = (second.content_reading(), kept(&second));
+            let _ = second.detach(UNTIMED);
+            drop(password);
+            drop(edit);
+            assert!(
+                in_front && password_in_front,
+                "INCONCLUSIVE: the test's edits did not come to the front"
+            );
+            assert_eq!(attached, Ok(Attached::Late));
+            assert_eq!(second_attached, Ok(Attached::Late));
+            assert_eq!(
+                before_with_a_password_field,
+                (ContentReading::Unknown(UnknownBy::BeforeFirstRead), false),
+                "a focus event to a password field before the first read lands"
+            );
+            assert_eq!(
+                after_with_a_password_field,
+                (ContentReading::Password, false),
+                "the first read lands with a password field in the focus"
+            );
+            assert!(running_while_late, "the late detector was not kept");
+            assert_eq!(
+                before,
+                (ContentReading::Unknown(UnknownBy::BeforeFirstRead), false),
+                "before the first read lands: the reading and a title"
+            );
+            assert_eq!(
+                after,
+                (ContentReading::Clear(ClearBy::NativeEdit), true),
+                "after the first read lands: the reading and a title"
+            );
+            assert_eq!(detached, Ok(()));
+            assert_eq!(
+                after_the_detach,
+                ContentReading::Unknown(UnknownBy::BeforeFirstRead)
+            );
+        }
+
+        #[test]
         fn an_attach_whose_first_read_does_not_answer_times_out_and_stops_that_detector() {
             use std::sync::atomic::Ordering;
             let _serial = crate::windows::tests::serial();
@@ -2700,6 +3252,7 @@ mod detector {
                 shared: Arc::clone(&gate.shared),
                 reader: Arc::clone(reader),
                 wake: Arc::new(Event::new().expect("an event")),
+                writer: None,
             }
             .into_interface()
         }
@@ -2746,13 +3299,13 @@ mod detector {
                 );
             }
             let unmasked =
-                super::super::state_of(reader.read(&element_of(&reader, kept.hwnd)), false);
+                super::super::state_of(reader.read(&element_of(&reader, kept.hwnd)).0, false);
             // SAFETY: as above.
             let second_answer = unsafe { handler_focus(handler.as_raw(), other_element.as_raw()) };
             std::thread::sleep(Duration::from_millis(50));
             let key = gate.hold(tick(), false, 0);
             std::thread::sleep(Duration::from_millis(150));
-            own_read(&gate.shared, &reader);
+            own_read(&gate.shared, &reader, None);
             let at_the_own_read = gate.field_now();
             let decided = gate
                 .decide(&key, key.tick.wrapping_add(200), 0, false)
@@ -2818,7 +3371,7 @@ mod detector {
                 IN_FLIGHT.with(|hook| {
                     *hook.borrow_mut() = Some(Box::new(move || {
                         shared.latch(tick(), super::super::LatchFrom::TheInputThread);
-                        own_read(&shared, &reader);
+                        own_read(&shared, &reader, None);
                         let read =
                             shared
                                 .lock()
@@ -3493,7 +4046,7 @@ mod tests {
     fn a_desktop_switch_reads_unknown_and_closes_the_gate() {
         let gate = plain();
         let before = key(&gate, 2_000);
-        gate.shared.desktop_switched(2_010);
+        gate.shared.desktop_switched(2_010, None);
         let after = key(&gate, 2_020);
         assert_eq!(reading(&gate, &before, 2_200), Some(Err(Withheld::Unknown)));
         assert_eq!(gate.field_now(), FieldState::Unknown);
@@ -3957,6 +4510,109 @@ mod tests {
         assert_eq!(rule(&gate, &letter, 2_251), Some(Rule::ClicksNotForwarded));
     }
 
+    /// A focus event of the gate's own marks: it is asked, then it lands.
+    fn event_lands(gate: &PasswordGate, at: u32, state: FieldState, content: ContentReading) {
+        let (_, ticket) = gate.shared.begin_asked_event();
+        gate.shared
+            .field_seen(at, state, (content, None, ticket), None);
+    }
+
+    /// An own read of the gate's own marks that was asked with `ticket` lands
+    /// with the state and the content reading that it computed.
+    fn own_read_lands(
+        gate: &PasswordGate,
+        ticket: u64,
+        began: u32,
+        (state, content): (FieldState, ContentReading),
+    ) -> ContentReading {
+        gate.shared.read_seen(
+            began,
+            began + 5,
+            (state, content, None, ticket),
+            Moved::Another,
+            None,
+        );
+        gate.content_reading()
+    }
+
+    #[test]
+    fn an_own_read_writes_no_clear_over_a_password_event_that_came_after_it_began() {
+        use FieldState::{Clear, Password};
+        let gate = PasswordGate::new();
+        let ask = |gate: &PasswordGate| gate.shared.lock().ask();
+        let clear = ContentReading::Clear(ClearBy::NativeEdit);
+        gate.started_at(1_000);
+        let first_asked = ask(&gate);
+        event_lands(&gate, 1_010, Password, ContentReading::Password);
+        let first = own_read_lands(&gate, first_asked, 1_005, (Clear, clear));
+        event_lands(&gate, 1_100, Clear, clear);
+        let later_asked = ask(&gate);
+        event_lands(&gate, 1_110, Password, ContentReading::Password);
+        let later = own_read_lands(&gate, later_asked, 1_105, (Clear, clear));
+        let control_asked = ask(&gate);
+        let control = own_read_lands(&gate, control_asked, 1_200, (Clear, clear));
+        assert_eq!(
+            first,
+            ContentReading::Password,
+            "the first own read, overtaken by a password event"
+        );
+        assert_eq!(
+            later,
+            ContentReading::Password,
+            "a later own read, overtaken by a password event"
+        );
+        assert_eq!(
+            control, clear,
+            "an own read that began after the password event"
+        );
+    }
+
+    #[test]
+    fn an_own_read_that_began_before_an_event_that_reads_unknown_lands_after_it_and_writes_nothing()
+    {
+        use FieldState::{Clear, Unknown};
+        let gate = PasswordGate::new();
+        let ask = |gate: &PasswordGate| gate.shared.lock().ask();
+        let clear = ContentReading::Clear(ClearBy::NativeEdit);
+        let firefox = ContentReading::Unknown(UnknownBy::Firefox);
+        let no_answer = ContentReading::Unknown(UnknownBy::NoAnswer);
+        gate.started_at(1_000);
+        let first_asked = ask(&gate);
+        event_lands(&gate, 1_010, Unknown, firefox);
+        let first = own_read_lands(&gate, first_asked, 1_005, (Clear, clear));
+        event_lands(&gate, 1_100, Clear, clear);
+        let later_asked = ask(&gate);
+        event_lands(&gate, 1_110, Unknown, no_answer);
+        let later = own_read_lands(&gate, later_asked, 1_105, (Clear, clear));
+        let (_, earlier_event) = gate.shared.begin_asked_event();
+        let newer_asked = ask(&gate);
+        let newer = own_read_lands(&gate, newer_asked, 1_200, (Clear, clear));
+        gate.shared.field_seen(
+            1_210,
+            Unknown,
+            (
+                ContentReading::Unknown(UnknownBy::Unreadable),
+                None,
+                earlier_event,
+            ),
+            None,
+        );
+        let after_the_earlier_event = gate.content_reading();
+        assert_eq!(
+            first, firefox,
+            "the first own read lands with the newer event's carried reading"
+        );
+        assert_eq!(
+            later, no_answer,
+            "a later own read writes nothing over a newer event that reads Unknown"
+        );
+        assert_eq!(newer, clear, "an own read asked after the events");
+        assert_eq!(
+            after_the_earlier_event, clear,
+            "an event asked before that own read writes nothing over it"
+        );
+    }
+
     #[test]
     fn the_focus_event_that_made_a_password_reading_is_not_the_move_that_lets_it_go() {
         use FieldState::{Clear, Password};
@@ -3964,7 +4620,8 @@ mod tests {
         use ReadBy::OwnRead;
         let gate = PasswordGate::new();
         let kept = gate.shared.begin_event();
-        gate.shared.field_seen(2_000, Password, None);
+        gate.shared
+            .field_seen(2_000, Password, (ContentReading::Password, None, 1), None);
         let read_move = gate.shared.lock().moves;
         assert!(!lets_go(kept, read_move, false));
         assert_eq!(
@@ -4026,7 +4683,7 @@ mod tests {
     #[test]
     fn after_a_desktop_switch_a_clear_own_read_opens_nothing_without_a_move() {
         let gate = plain();
-        gate.shared.desktop_switched(1_900);
+        gate.shared.desktop_switched(1_900, None);
         gate.read_at(2_000, FieldState::Clear, Moved::Same);
         let letter = key(&gate, 2_010);
         gate.read_at(2_130, FieldState::Clear, Moved::Same);
