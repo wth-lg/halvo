@@ -36,6 +36,9 @@ pub struct StoreView {
     /// The status's `store_delete_unfinished`, written for the page only while it stands.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub delete_unfinished: bool,
+    /// The status's `cap_not_set`, written for the page only while it stands.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub cap_not_set: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -819,6 +822,7 @@ impl StatusView {
                 error: f.store_error,
                 retry_in_s: f.store_retry_in_s,
                 delete_unfinished: f.store_delete_unfinished,
+                cap_not_set: f.cap_not_set,
             },
             store_bytes: f.store_bytes,
             store_logical_bytes: f.store_logical_bytes,
