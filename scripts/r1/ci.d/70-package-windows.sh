@@ -181,6 +181,7 @@ uninstall_key='Software\Microsoft\Windows\CurrentVersion\Uninstall\Halvo'
 runtime_keys='HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5} HKCU\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
 start_s=60
 answer_s=30
+lease_s=30
 stop_hold_s=10
 end_s=10
 poll_s=1
@@ -409,6 +410,30 @@ wait_pair() {
   printf 'cycle %s: ctl status reads store=open\n' "$1"
 }
 
+# Waits up to lease_s for ctl status, on the data directory $2 or without --data-dir where $2 is
+# empty, to read lease=fresh: the app has read a Status of its child and takes it as its own, so a
+# stop is no longer followed by a child that the app starts again. At the bound the stage fails with
+# the status's lines.
+wait_lease() {
+  waited_from=$(date +%s) || fail "the clock cannot be read"
+  while :; do
+    if [ -n "$2" ]; then
+      "$install/halvo-capture.exe" ctl --data-dir "$2" status >"$work/lease.out" 2>&1
+    else
+      "$install/halvo-capture.exe" ctl status >"$work/lease.out" 2>&1
+    fi
+    tr -d '\r' <"$work/lease.out" | grep -q -x 'lease=fresh' && break
+    now=$(date +%s) || fail "the clock cannot be read"
+    if [ $((now - waited_from)) -ge "$lease_s" ]; then
+      tr -d '\r' <"$work/lease.out" | sed 's/^/found: status: /'
+      fail "ctl status of the installed app ($1) did not read lease=fresh within $lease_s s"
+    fi
+    sleep "$poll_s"
+  done
+  now=$(date +%s) || fail "the clock cannot be read"
+  printf 'cycle %s: ctl status read lease=fresh after %s s, the app takes its child as its own\n' "$1" "$((now - waited_from))"
+}
+
 # Ends each process from the install directory by its id and waits up to end_s for none.
 end_installed() {
   waited=0
@@ -492,6 +517,7 @@ cycle() {
   pid=$(winpid_of "$!") && started="$started $pid"
   wait_pair "--data-dir" "${data##*/}" "$native_data"
   stopped_child=${pair#* }
+  wait_lease "--data-dir" "$native_data"
   "$install/halvo-capture.exe" ctl --data-dir "$native_data" stop >"$work/stop.out" 2>&1 || fail "ctl stop of the installed app exited $?"
   stopped=$(date +%s) || fail "the clock cannot be read"
   now=$stopped
@@ -539,6 +565,7 @@ cycle() {
   "$install/halvo.exe" --background >"$work/app-2.out" 2>&1 &
   pid=$(winpid_of "$!") && started="$started $pid"
   wait_pair "default" "halvo" ""
+  wait_lease "default" ""
 
   MSYS_NO_PATHCONV=1 "$install/uninstall.exe" /S /DELETEALL "_?=$native_install" >"$work/uninstall.out" 2>&1
   code=$?
@@ -564,6 +591,7 @@ cycle() {
 fixture() {
   start_s=10
   answer_s=10
+  lease_s=3
   stop_hold_s=2
   end_s=3
   poll_s=0.2
@@ -604,7 +632,13 @@ fixture() {
   winpid_of() {
     printf '%s\n' "$1"
   }
+  # As taskkill /T: the process and each stand-in whose parent it is.
   end_tree() {
+    for file in "$STUB_DIR/procs"/*; do
+      [ -f "$file" ] || continue
+      read -r kind pid ppid rest <"$file"
+      [ "$ppid" = "$1" ] && kill -9 "$pid" 2>/dev/null
+    done
     kill -9 "$1" 2>/dev/null
     return 0
   }
@@ -726,7 +760,10 @@ case $1 in
     done
     [ -n "$pids" ] || exit 69
     case $1 in
-      status) printf 'store=open\n' ;;
+      status)
+        printf 'store=open\n'
+        if [ "$STUB_MODE" = no-fresh-lease ]; then printf 'lease=stale\n'; else printf 'lease=fresh\n'; fi
+        ;;
       stop) kill $pids ;;
       *) exit 64 ;;
     esac
@@ -963,7 +1000,7 @@ self_test() {
   stand_in_programs "$work/stand-in-bin"
   fixture_limit_s=120
   zoe=$(printf 'Zo\303\253')
-  for mode in good left delete-fails no-runtime-file run-value-left no-child install-goes-on listing-blind; do
+  for mode in good left delete-fails no-runtime-file run-value-left no-child install-goes-on listing-blind no-fresh-lease; do
     mkdir -p "$work/cycle-$mode" || exit 2
     STUB_MODE=$mode STUB_DIR=$work/cycle-$mode STUB_BIN=$work/stand-in-bin STUB_DEFAULT="$work/cycle-$mode/home/$zoe Halvo/com.halvo.desktop/data" STUB_HELPERS=$helpers STUB_SENTENCE=$sentence_runtime sh "$self" --fixture "$work/cycle-$mode" >"$work/cycle-$mode.out" 2>&1 &
     fixture=$!
@@ -1010,6 +1047,8 @@ self_test() {
   # A listing that sees nothing from the install directory, as the first hosted run's did: the
   # stage fails, and the cleanup ends the apps that the check started by their ids all the same.
   cycle_verdict listing-blind FAIL 'the installed app (--data-dir) runs with 0 halvo-capture.exe children from the install directory after 10 s, not one (0 apps from there)'
+  # An app that never takes its child as its own: the stage fails at the bound before its stop.
+  cycle_verdict no-fresh-lease FAIL 'ctl status of the installed app (--data-dir) did not read lease=fresh within 3 s'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
