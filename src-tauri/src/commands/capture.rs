@@ -647,11 +647,22 @@ pub async fn delete_all<R: Runtime>(
     })
 }
 
-/// The supervisor of the app's daemon child, as the offline delete holds it.
+/// The supervisor of the app's daemon child, as a run that must not meet the child holds it.
 pub trait WithoutTheChild: Send + Sync {
     /// Ends the app's child of the moment by its descriptor, starts no child while `run` runs,
-    /// and then lets the supervisor go on by its rule.
+    /// and then lets the supervisor go on by its rule. The app did not ask for that end in order
+    /// to restart: an end with 0 of a child that answered as the app's own is followed by no
+    /// start until a person's press.
+    #[allow(
+        dead_code,
+        reason = "Remove Halvo, a unit that lands on its own, is its caller"
+    )]
     fn without_the_child(&self, run: &mut dyn FnMut());
+
+    /// `without_the_child` for the offline delete, which wants a start after its run: the end
+    /// of the child of the moment counts as a stop that the app asked for in order to restart,
+    /// so that its end with 0 is followed by one start once `run` has ended.
+    fn without_the_child_then_a_start(&self, run: &mut dyn FnMut());
 }
 
 /// How the app runs the program of the offline delete: the system's run in the app, a stand-in
@@ -714,7 +725,7 @@ pub fn run_offline(offline: &Offline, before: &Before) -> Result<DeleteView, Out
     let mut end = OfflineEnd::NotStarted;
     let mut run = || end = (offline.run)(&offline.program, &args);
     match &offline.children {
-        Some(children) => children.without_the_child(&mut run),
+        Some(children) => children.without_the_child_then_a_start(&mut run),
         None => run(),
     }
     offline_view(&end, Some(&offline.data_dir.roots_dir()))
