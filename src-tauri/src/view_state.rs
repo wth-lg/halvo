@@ -1173,7 +1173,8 @@ pub enum DeleteView {
         #[serde(skip_serializing_if = "Option::is_none")]
         unfinished_in_a_row: Option<u32>,
         /// The run that gave this answer ended as one that is not whole, whatever its fields
-        /// read: the offline delete's end with 1 (contracts.md C3.3).
+        /// read: the offline delete's end with 1 (contracts.md C3.3), or a reply of the service
+        /// that carries `unfinished` (C2.1).
         #[serde(skip)]
         not_whole: bool,
     },
@@ -1327,7 +1328,7 @@ impl DeleteView {
                 deleted.store,
                 roots_dir,
                 None,
-                false,
+                deleted.unfinished,
             ),
             DeleteOutcome::AlreadyDeleted(already) => DeleteView::AlreadyDeleted {
                 current_store_id: already.current,

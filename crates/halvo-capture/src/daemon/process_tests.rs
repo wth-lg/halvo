@@ -2311,6 +2311,135 @@ fn the_turn_that_starts_the_opener_after_the_check_leaves_the_unfinished_state_u
     assert!(opener.wait_for_its_call(Duration::from_secs(60)));
 }
 
+fn read_the_answer(asked: &super::DeleteAsked) -> &'static str {
+    match asked {
+        super::DeleteAsked::Answered => "answered",
+        super::DeleteAsked::Reopen => "reopen",
+        super::DeleteAsked::Ending(_) => "ending",
+        super::DeleteAsked::Ran { .. } => "ran",
+    }
+}
+
+fn a_delete_handed_to_the_loop(
+    listening: &super::server::Listening,
+    dir: &Path,
+) -> (
+    std::thread::JoinHandle<
+        Result<halvo_control::proto::Reply, halvo_control::client::ClientError>,
+    >,
+    super::server::Asked,
+) {
+    let client = std::thread::spawn({
+        let dir = dir.to_path_buf();
+        move || {
+            ask(
+                &dir,
+                &halvo_control::proto::Request::DeleteAll { store: None },
+            )
+        }
+    });
+    let started = Instant::now();
+    loop {
+        if let Some(asked) = listening.next() {
+            return (client, asked);
+        }
+        assert!(
+            started.elapsed() < READY_WITHIN,
+            "no request reached the loop"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+#[test]
+fn a_delete_request_while_the_starts_finish_runs_is_answered_busy_and_served_after_its_end() {
+    use super::delete_all::AtStart;
+    use super::owner::open::Opener;
+    use halvo_control::proto::{ErrorCode, Reply};
+    let dir = kept_dir("finish-busy-");
+    let named = data_dir(&dir);
+    let listening = super::server::Listening::bind(&named).unwrap();
+    let facts = super::server::RunFacts {
+        started_at: halvo_control::model::UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+        parent: halvo_control::proto::Parent::None,
+        last_stop: halvo_control::proto::LastStop::None,
+        rss_peak_bytes: 0,
+    };
+    let serving = super::Serving {
+        listening: &listening,
+        facts: &facts,
+        obstructed: Some(Duration::from_secs(60)),
+    };
+    let mut supervisor = super::supervisor::Supervisor::new(
+        halvo_control::proto::Platform::Macos,
+        super::NoSources,
+        SleepLoop(Instant::now()),
+    );
+    let (began, begun) = std::sync::mpsc::channel();
+    let (open, gate) = std::sync::mpsc::channel::<()>();
+    let at_start: super::owner::open::AtStartCall = Box::new(move |_, deleting| {
+        deleting();
+        began.send(()).unwrap();
+        let _ = gate.recv();
+        AtStart::Finished { whole: true }
+    });
+    let mut opener =
+        Some(Opener::finish_alone(at_start, Box::new(DataDirStore::at(&dir))).unwrap());
+    begun.recv_timeout(READY_WITHIN).unwrap();
+    let mut store = super::HeldStore::None;
+    let mut err = Vec::new();
+
+    let (client, asked) = a_delete_handed_to_the_loop(&listening, &dir);
+    let first = super::delete_on_request(
+        asked,
+        &mut supervisor,
+        &serving,
+        (&mut store, &mut opener),
+        &named,
+        &mut err,
+    );
+    assert_eq!(
+        read_the_answer(&first),
+        "answered",
+        "a delete request while the start's finish of the standing intent runs"
+    );
+    let reply = client.join().unwrap();
+    assert!(
+        matches!(&reply, Ok(Reply::Error(error)) if error.code() == ErrorCode::Busy),
+        "{reply:?}"
+    );
+    assert!(
+        opener.as_ref().is_some_and(Opener::is_running),
+        "the request took the start's finish"
+    );
+
+    open.send(()).unwrap();
+    wait_until(READY_WITHIN, "the start's finish ended", || {
+        !opener.as_ref().is_some_and(Opener::is_running)
+    });
+    let (client, asked) = a_delete_handed_to_the_loop(&listening, &dir);
+    let second = super::delete_on_request(
+        asked,
+        &mut supervisor,
+        &serving,
+        (&mut store, &mut opener),
+        &named,
+        &mut err,
+    );
+    let served = read_the_answer(&second);
+    if let super::DeleteAsked::Ran {
+        asked,
+        report: Some(report),
+        ..
+    } = second
+    {
+        let _ = super::answer_the_delete(&mut Some((asked, report)), None);
+    }
+    assert_eq!(served, "ran", "the request behind the finish's end");
+    let reply = client.join().unwrap();
+    assert!(matches!(reply, Ok(Reply::Deleted(_))), "{reply:?}");
+}
+
 #[test]
 fn a_pause_in_an_ending_life_is_answered_and_the_next_start_reads_paused() {
     use halvo_control::proto::{Reply, Request};
