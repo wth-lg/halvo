@@ -121,6 +121,64 @@ pub enum UnknownBy {
     DesktopSwitch,
 }
 
+/// The content readings that the sources of a gate asked of it, Clear by
+/// the kind that answered and Unknown by its cause.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct GateReadings {
+    /// Clear by a native edit control.
+    pub native_edit: u64,
+    /// Clear by Chrome.
+    pub chrome: u64,
+    /// Clear by Edge.
+    pub edge: u64,
+    /// Clear by another kind that answered.
+    pub other_kind: u64,
+    /// Password.
+    pub password: u64,
+    /// Unknown before the detector's first read.
+    pub before_first_read: u64,
+    /// Unknown in Firefox.
+    pub firefox: u64,
+    /// Unknown with no answer.
+    pub no_answer: u64,
+    /// Unknown with no readable element.
+    pub unreadable: u64,
+    /// Unknown after a desktop switch.
+    pub desktop_switch: u64,
+}
+
+impl GateReadings {
+    /// The readings that were Clear.
+    pub fn clear(&self) -> u64 {
+        self.native_edit + self.chrome + self.edge + self.other_kind
+    }
+
+    /// The readings that were Unknown.
+    pub fn unknown(&self) -> u64 {
+        self.before_first_read
+            + self.firefox
+            + self.no_answer
+            + self.unreadable
+            + self.desktop_switch
+    }
+
+    fn count(&mut self, reading: ContentReading) {
+        let field = match reading {
+            ContentReading::Clear(ClearBy::NativeEdit) => &mut self.native_edit,
+            ContentReading::Clear(ClearBy::Chrome) => &mut self.chrome,
+            ContentReading::Clear(ClearBy::Edge) => &mut self.edge,
+            ContentReading::Clear(ClearBy::OtherKind) => &mut self.other_kind,
+            ContentReading::Password => &mut self.password,
+            ContentReading::Unknown(UnknownBy::BeforeFirstRead) => &mut self.before_first_read,
+            ContentReading::Unknown(UnknownBy::Firefox) => &mut self.firefox,
+            ContentReading::Unknown(UnknownBy::NoAnswer) => &mut self.no_answer,
+            ContentReading::Unknown(UnknownBy::Unreadable) => &mut self.unreadable,
+            ContentReading::Unknown(UnknownBy::DesktopSwitch) => &mut self.desktop_switch,
+        };
+        *field += 1;
+    }
+}
+
 /// The content reading of one read: `gecko` says whether the element's
 /// framework is Gecko, and `key` is the key's state of the same read, with
 /// the kept password element.
@@ -663,6 +721,7 @@ impl Marks {
 #[derive(Debug, Default)]
 struct Shared {
     marks: Mutex<Marks>,
+    readings: Mutex<GateReadings>,
 }
 
 impl Shared {
@@ -949,8 +1008,23 @@ impl PasswordGate {
         self.shared.lock().content
     }
 
+    /// The content readings that the sources of this gate asked of it.
+    pub fn readings(&self) -> GateReadings {
+        *self
+            .shared
+            .readings
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
     pub(crate) fn content_probe(&self) -> PasswordFieldProbe {
-        PasswordFieldProbe(match self.content_reading() {
+        let reading = self.content_reading();
+        self.shared
+            .readings
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .count(reading);
+        PasswordFieldProbe(match reading {
             ContentReading::Password => SecureInputReading::Active,
             ContentReading::Clear(_) => SecureInputReading::Inactive,
             ContentReading::Unknown(_) => SecureInputReading::Unknown,
