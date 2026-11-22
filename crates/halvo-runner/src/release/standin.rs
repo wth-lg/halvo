@@ -407,8 +407,8 @@ fn rows(record: &Record) -> Vec<(LogEvent, Option<u32>, Option<Cause>)> {
 
 /// r3 U4.1w-2 (5): the fixture charges another amount than the person was shown (the variant `amount_changes`, whose
 /// `/change` the supervisor sends when it reads the `begin` row, after the runner read the amount again) and its page
-/// after the reply names that amount: the effect stays `committed`, the step's `stopped` row holds `amount_differs`,
-/// and the run ends `failed` with that cause in its `stopped` row with no step, the row that the roster's
+/// after the reply names that amount: the effect stays `committed`, the step's `stopped` row holds `amount_differs`
+/// and that amount as `page_amount` (r3 U5.10-B), and the run ends `failed` with that cause in its `stopped` row with no step, the row that the roster's
 /// `last_cause` reads; one payment stands in the fixture, with the other amount.
 #[test]
 fn a_page_that_names_another_amount_ends_the_run() {
@@ -460,6 +460,16 @@ fn a_page_that_names_another_amount_ends_the_run() {
             (LogEvent::Stopped, Some(1), Some(Cause::AmountDiffers)),
             (LogEvent::Stopped, None, Some(Cause::AmountDiffers)),
         ]
+    );
+    assert_eq!(
+        record
+            .logs()
+            .iter()
+            .filter(|l| l.event == LogEvent::Stopped)
+            .map(|l| (l.step.map(NonZeroU32::get), l.page_amount))
+            .collect::<Vec<_>>(),
+        [(Some(1), u32::try_from(due + 100).ok()), (None, None)],
+        "the step's stopped row holds the amount that the page named, as the runner wrote it"
     );
     assert_eq!(record.done(), Some(Outcome::Failed));
     assert_eq!(record.finish().map(|f| f.outcome), Some(Outcome::Failed));

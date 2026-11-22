@@ -185,6 +185,10 @@ pub(crate) enum Replied {
     NotMade(NotMade),
     Answered,
     NoReply,
+    /// The maker let nothing leave: right before the let-through the rule's record held a request of the page that
+    /// the rule had failed, so the maker failed the paused request (crate::web::maker; the coordinator's ruling of log
+    /// line 15895).
+    Withheld,
 }
 
 /// The end of a run whose effect `decide` refuses: `refused`, with the cause `autonomy` under `observe`.
@@ -329,7 +333,9 @@ impl Runner {
     /// with the cause of its case; after `not_sent` or `throttled` the next effect of the call is let through, each
     /// behind its own rows, and the run ends `failed` with the cause `adapter` after the call; `unauthorized` ends
     /// it so at once (CP-226 item 8). A request with no reply, or with an answer read as neither made nor not made,
-    /// leaves its effect `releasing`, and the run ends `effect_unknown`.
+    /// leaves its effect `releasing`, and the run ends `effect_unknown`. A request that the maker withheld at its
+    /// let-through (`Replied::Withheld`) makes the move `not_made` with the cause `not_sent`, and the run ends `refused`
+    /// with `origin`.
     ///
     /// A request that always asks in this release (`always_asks`: a send or a delete of an event) goes to its `begin`
     /// only from an `approved` row whose digest the runner has read again; a `cleared` one is ended and the run ends
@@ -602,6 +608,14 @@ impl Runner {
                             self.log(LogEvent::StepFailed, Some(step), Some(cause))?;
                         }
                         Err(failed(Cause::Adapter))
+                    }
+                    Replied::Withheld => {
+                        let not_sent = EffectMove::NotMade {
+                            cause: Cause::NotSent,
+                        };
+                        self.advance(one.at, not_sent)?;
+                        self.reply_moved(one.at, reply.as_ref(), ReplyState::Drafted)?;
+                        Err(Stop::End(Outcome::Refused, Some(Cause::Origin)))
                     }
                     Replied::Answered | Replied::NoReply => {
                         Err(Stop::End(Outcome::EffectUnknown, Some(Cause::Unknown)))

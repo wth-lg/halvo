@@ -3,7 +3,9 @@
 //! web request before the owner answers D36. A web step of an effect class (`payment`, `purchase`, `submit`, `sign`)
 //! arms the run's origins in `Mode::Hold` for that step alone, acts, and gives the ONE request that the act holds to
 //! `Runner::release` as a [`Paused`] of this maker, which names itself in `always_asks`: no request of it leaves
-//! without an `approved` row, whatever the policy clears. After `allow_once` the request leaves once; after
+//! without an `approved` row, whatever the policy clears. After `allow_once` the request leaves once, unless the rule's
+//! record, read right before the let-through, holds a request of the page that the rule failed: then the held request
+//! is failed, nothing leaves and the run ends `refused` with `origin` (log line 15895); after
 //! `reject_once`, and at every other end of the confirm path, the held request is failed and nothing leaves. Where
 //! the act holds no request, or more than one, every held request is failed, no card is shown and the step answers
 //! `step_failed`. When the confirm path has ended the rule is armed in `Mode::Fail` again. The values of the page that
@@ -174,11 +176,26 @@ impl Paused for Held {
         }
     }
 
+    /// Reads the rule's record right before the let-through, under the same lock (the coordinator's ruling of log line
+    /// 15895): where it holds a request of the page that the rule failed, also one failed while the card waited, the
+    /// held request is failed and nothing leaves (`Withheld`); else the held request leaves once.
     fn release(mut self: Box<Self>) -> Box<dyn Left> {
         self.left = true;
-        let went = lock(&self.web)
+        let mut web = lock(&self.web);
+        if web
+            .as_mut()
+            .is_some_and(|web| refused_by_the_page(&web.0.record()))
+        {
+            crate::line("run effect=withheld cause=origin");
+            if let Some(web) = web.as_mut() {
+                let _ = web.0.fail_held();
+            }
+            return Box::new(Withheld);
+        }
+        let went = web
             .as_mut()
             .is_some_and(|web| web.0.let_through(self.id).is_ok());
+        drop(web);
         Box::new(Sent {
             web: Arc::clone(&self.web),
             went,
@@ -217,6 +234,16 @@ impl Drop for Held {
                 let _ = web.0.fail_held();
             }
         }
+    }
+}
+
+/// A held request that the maker failed at its let-through, because the rule's record held a request of the page that
+/// the rule had failed: nothing left.
+struct Withheld;
+
+impl Left for Withheld {
+    fn reply(self: Box<Self>) -> Replied {
+        Replied::Withheld
     }
 }
 
@@ -525,8 +552,9 @@ mod tests {
 
     /// The stand-in of the executor: an arm in `Mode::Fail` fails what it holds, a click holds the requests that the
     /// test gave, an extract reads `12.34`, a release of a held id gives the status that the test gave, the page after
-    /// it names the amounts that the test gave, the rule's record after the release holds the requests that the test
-    /// gave in `after`, and every call is one line of the log.
+    /// it names the amounts that the test gave, the rule's record holds the requests that the test gave in `waited`
+    /// from its second read on (the first is the read right after the act) and those of `after` once a request left,
+    /// and every call is one line of the log.
     struct StandIn {
         log: Log,
         holds: Vec<HeldRequest>,
@@ -534,7 +562,9 @@ mod tests {
         status: Option<i64>,
         released: bool,
         amounts: Result<Vec<u64>, ()>,
+        waited: Vec<PausedRequest>,
         after: Vec<PausedRequest>,
+        reads: usize,
         post_fails: bool,
     }
 
@@ -547,7 +577,9 @@ mod tests {
                 status: Some(200),
                 released: false,
                 amounts: Ok(vec![1234]),
+                waited: Vec::new(),
                 after: Vec::new(),
+                reads: 0,
                 post_fails: false,
             }
         }
@@ -610,11 +642,15 @@ mod tests {
         }
 
         fn record(&mut self) -> Vec<PausedRequest> {
-            if self.released {
-                self.after.clone()
-            } else {
-                Vec::new()
+            self.reads += 1;
+            let mut record = Vec::new();
+            if self.reads > 1 {
+                record.extend(self.waited.clone());
             }
+            if self.released {
+                record.extend(self.after.clone());
+            }
+            record
         }
 
         fn record_after_a_fault(&mut self) -> Vec<PausedRequest> {
@@ -986,5 +1022,38 @@ mod tests {
             ]
         );
         assert_eq!(record.done(), Some(Outcome::Completed));
+    }
+
+    /// r3 U5.10-B, the round of log line 15895, on the stand-in: a request of the page that the rule failed while the
+    /// card waited, which the read right after the act did not hold, is read right before the let-through: after the
+    /// person's `allow_once` the held request is failed and NOTHING LEAVES, the effect's row says `not_made` with
+    /// `not_sent`, and the run ends `refused` with the cause `origin`.
+    #[test]
+    fn on_the_stand_in_a_request_failed_while_the_card_waited_lets_nothing_leave() {
+        let log: Log = Arc::default();
+        let mut stand_in = StandIn::new(&log, vec![held(7)]);
+        stand_in.waited = vec![failed_of_the_page()];
+        let record = pay_on(stand_in, Plan::plain());
+        let log = lines(&log);
+        assert!(!log.iter().any(|l| l.starts_with("let through")), "{log:?}");
+        assert!(log.iter().any(|l| l == "fail held 1"), "{log:?}");
+        assert_eq!(record.confirms().len(), 1, "one card: {log:?}");
+        assert!(
+            !record.states().contains(&EffectState::Committed),
+            "{:?}",
+            record.states()
+        );
+        let last = record.effects().last().cloned().expect("an effect row");
+        assert_eq!(
+            (last.state, last.cause),
+            (EffectState::NotMade, Some(Cause::NotSent)),
+            "{log:?}"
+        );
+        assert_eq!(
+            rows(&record).last(),
+            Some(&(LogEvent::Stopped, None, Some(Cause::Origin))),
+            "{log:?}"
+        );
+        assert_eq!(record.done(), Some(Outcome::Refused), "{log:?}");
     }
 }
