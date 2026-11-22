@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use halvo_capture::daemon::custody_policy::Custody;
 use halvo_capture::daemon::port::{DataDirStore, Opened, StoreHost};
@@ -360,4 +360,40 @@ fn a_relayed_read_through_the_server_reaches_the_owner() {
         other => panic!("the owner answered {other:?}"),
     }
     assert!(rig.owner_pid_stands(), "no derived/owner.pid stands");
+}
+
+/// The wall clock in nanoseconds since 1970.
+fn wall_nanos() -> i64 {
+    let since = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    i64::try_from(since.as_nanos()).unwrap()
+}
+
+/// The client's call `defer` with the deadline `until` on one connection of this process's user.
+fn defer(until: i64) -> Result<Option<i64>, ClientError> {
+    connection(own_user(), |client| {
+        Client::new(Once(Mutex::new(Some(client)))).defer(until)
+    })
+}
+
+/// Ruling 6: after the open and a read in the cell, `defer` 60 s ahead returns a deadline at most 60 s ahead and
+/// starts no owner; while the mark of a delete stands it returns one too. A `defer` in the past clears the mark of
+/// the process.
+#[test]
+fn a_defer_starts_no_owner() {
+    let rig = Rig::new("stream-defer");
+    rig.open_with_a_read();
+    let asked = wall_nanos() + 60_000_000_000;
+    let until = defer(asked).unwrap().expect("no deadline is in force");
+    assert!(until <= asked, "the deadline {until} is after {asked}");
+    assert!(!rig.owner_pid_stands(), "an owner started");
+
+    service::delete();
+    let asked = wall_nanos() + 60_000_000_000;
+    let until = defer(asked)
+        .unwrap()
+        .expect("no deadline is in force after the delete");
+    assert!(until <= asked, "the deadline {until} is after {asked}");
+    assert!(!rig.owner_pid_stands(), "an owner started after the delete");
+
+    assert_eq!(defer(wall_nanos() - 1_000_000_000).unwrap(), None);
 }
