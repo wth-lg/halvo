@@ -93,17 +93,25 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
         .setup(move |app| {
             let control = Arc::clone(&parts.state.control);
             let views = Arc::clone(&parts.state.views);
-            app.manage(parts.state);
-            app.manage(PageLoads::default());
+            let mut start: commands::agents::Start = Box::new(|| {});
             if app.try_state::<Agents>().is_none() {
                 let handle = app.handle().clone();
-                app.manage(commands::agents::core(Box::new(move |count| {
-                    tray::set_attention(&handle, count)
-                })));
+                let (agents, steps) = commands::agents::core(
+                    Box::new(move |count| tray::set_attention(&handle, count)),
+                    &control,
+                    parts.state.data_dir.as_ref(),
+                );
+                app.manage(agents);
+                start = steps;
             }
+            app.manage(parts.state);
+            app.manage(PageLoads::default());
             app.manage(Hooks::default());
             let ticker = app.handle().clone();
-            std::thread::spawn(move || tick(&ticker));
+            std::thread::spawn(move || {
+                start();
+                tick(&ticker)
+            });
             let (sender, answer) = mpsc::channel();
             match main_window(
                 app.handle(),

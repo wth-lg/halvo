@@ -69,8 +69,8 @@ pub enum DeleteGuard {
 /// keyed read for that. It applies no bound of its own: a hold ends at the day of
 /// going of the `run_started` row only because the read hands out no older row. Its read cannot carry a fault: a read
 /// that faults before it visits a `run_started` row hands it fewer rows, and it then answers `Go`, so it rests on the
-/// store to refuse the delete where its read faults. No host calls it until halvo-derived offers the seam of the guard
-/// (the workflow run's U5.1c).
+/// store to refuse the delete where its read faults. The owner's host calls it through `family_guard` of this crate,
+/// which the owner's step list holds.
 pub fn delete_guard(
     workflow: &WorkflowId,
     rows: &dyn RowRead,

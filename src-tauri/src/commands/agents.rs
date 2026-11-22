@@ -14,8 +14,10 @@ use serde_json::Value;
 use tauri::ipc::Invoke;
 use tauri::{Manager, Runtime};
 
+use super::control::Control;
 use super::names::{Names, AGENTS};
 use super::Registration;
+use halvo_control::paths::DataDir;
 
 pub struct Module;
 
@@ -39,11 +41,75 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
     }
 }
 
-/// The one place where the app makes its `Core`. Until the coordinator's ports exist (U5.4)
-/// it is `NoService`, and nothing calls `tray`, the sink of the count of agents that need the
-/// person, which the hub of U5.4 takes.
-pub fn core(_tray: Box<dyn Fn(u32) + Send + Sync>) -> Agents {
-    Agents(Arc::new(NoService))
+/// The steps of the app's start that go with its `Core`, which the app takes on the thread of its
+/// first tick.
+pub type Start = Box<dyn FnOnce() + Send>;
+
+/// The one place where the app makes its `Core`, and the steps of its start. On a Mac with a data
+/// directory it is the hub over the product's ports (`halvo_coord_app::product`), whose count of
+/// agents that need the person goes to `tray`: its owner streams, relay and run marks go through
+/// `control`, its runs live under the data directory, and its start's steps are
+/// `halvo_coord_app::product::start`. Elsewhere, and on Windows until the capture run's win-5 cut
+/// 2, it is `NoService`, and nothing calls `tray`.
+pub fn core(
+    tray: Box<dyn Fn(u32) + Send + Sync>,
+    control: &Arc<dyn Control>,
+    data_dir: Option<&DataDir>,
+) -> (Agents, Start) {
+    #[cfg(target_os = "macos")]
+    if let Some(dir) = data_dir {
+        let hub = product_hub(tray, control, dir);
+        let started = Arc::clone(&hub);
+        return (
+            Agents(hub),
+            Box::new(move || halvo_coord_app::product::start(&started)),
+        );
+    }
+    let _ = (tray, control, data_dir);
+    (Agents(Arc::new(NoService)), Box::new(|| {}))
+}
+
+/// The hub over the product's ports: the runner and the browser stand beside the app's own
+/// executable, absolute, as the supervisor library takes them.
+#[cfg(target_os = "macos")]
+fn product_hub(
+    tray: Box<dyn Fn(u32) + Send + Sync>,
+    control: &Arc<dyn Control>,
+    dir: &DataDir,
+) -> Arc<halvo_coord_app::product::ProductHub> {
+    use halvo_coord_app::product::{Calls, Places};
+    let beside = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(std::path::Path::to_path_buf))
+        .unwrap_or_else(|| dir.path().to_path_buf());
+    let places = Places {
+        data_dir: dir.path().to_path_buf(),
+        runner: beside.join("halvo-runner"),
+        browser: beside.join("halvo-browser"),
+        model: None,
+    };
+    let (streams, relayed, marked) = (
+        Arc::clone(control),
+        Arc::clone(control),
+        Arc::clone(control),
+    );
+    let calls = Calls {
+        owner_stream: Arc::new(move || streams.owner_stream(streams.places().make())),
+        relay: Arc::new(move |request: &[u8]| relayed.relay(relayed.places().make(), request)),
+        mark: Arc::new(move |edge| marked.run_mark(marked.places().make(), edge)),
+    };
+    halvo_coord_app::product::hub(calls, places, tray, Box::new(NoDialog))
+}
+
+/// The presenter of the product's hub, which shows no native dialog: a confirmation reaches the
+/// person in the page alone, and one that only a native dialog answers (I4.5) lapses at its wait
+/// limit with its effects rejected (a named limit of U5.4a).
+#[cfg(target_os = "macos")]
+struct NoDialog;
+
+#[cfg(target_os = "macos")]
+impl halvo_coord_app::Present for NoDialog {
+    fn present(&self, _dialog: halvo_coord_app::Native) {}
 }
 
 /// The `Core` of the app until U5.4: `agents_snapshot` answers the stand-in state (`seq` 0,
