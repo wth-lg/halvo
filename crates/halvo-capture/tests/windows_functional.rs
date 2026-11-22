@@ -6883,12 +6883,22 @@ fn daemon_refuses_a_second_account() {
         "the read of the runner's own user",
     );
     let runner_pipe = runner_pipe_name(&dir);
+    let default_pipe = [r"\\.\pipe\halvo-wf-default-descriptor-", &stamp].concat();
+    let default_held = default_descriptor_pipe(&default_pipe);
+    say(
+        test,
+        format!(
+            "probe=4 control default_descriptor_pipe made={}",
+            yes_no(default_held.is_ok())
+        ),
+    );
     write_request(
         shared.path(),
         &[
             ("mode", "probes"),
             ("data_dir", &dir_text),
             ("runner_pipe", &runner_pipe),
+            ("default_pipe", &default_pipe),
             ("runner_user", &runner_user),
             ("ctl", ctl_exe.to_str().expect("a copy path that is valid text")),
             ("root_copy", root_copy.to_str().expect("a copy path that is valid text")),
@@ -6978,10 +6988,38 @@ fn daemon_refuses_a_second_account() {
             got(&a, "runner_pipe_code")
         ),
     );
+    say(
+        test,
+        format!(
+            "probe=4 runner_pipe_read_open={} code={}",
+            got(&a, "runner_pipe_read_open"),
+            got(&a, "runner_pipe_read_code")
+        ),
+    );
+    say(
+        test,
+        format!(
+            "probe=4 control default_descriptor_pipe write_open={} write_code={} read_open={} read_code={}",
+            got(&a, "default_pipe_write_open"),
+            got(&a, "default_pipe_write_code"),
+            got(&a, "default_pipe_read_open"),
+            got(&a, "default_pipe_read_code")
+        ),
+    );
+    drop(default_held);
     check(
         &mut faults,
-        got(&a, "runner_pipe_open") == "failed" && got(&a, "runner_pipe_code") == "5",
+        got(&a, "runner_pipe_open") == "failed"
+            && got(&a, "runner_pipe_code") == "5"
+            && got(&a, "runner_pipe_read_open") == "failed"
+            && got(&a, "runner_pipe_read_code") == "5",
         "probe_4",
+    );
+    check(
+        &mut faults,
+        got(&a, "default_pipe_read_open") == "opened"
+            || got(&a, "default_pipe_write_open") == "opened",
+        "probe_4_control",
     );
 
     must(std::fs::create_dir_all(&held_dir), "the make of the second data directory");
@@ -7135,8 +7173,8 @@ fn administrators_member() -> &'static str {
     }
 }
 
-fn open_pipe(name: &str) -> Result<(), u32> {
-    use windows::Win32::Foundation::{CloseHandle, ERROR_PIPE_BUSY, GENERIC_READ, GENERIC_WRITE};
+fn open_pipe(name: &str, access: u32) -> Result<(), u32> {
+    use windows::Win32::Foundation::{CloseHandle, ERROR_PIPE_BUSY};
     use windows::Win32::Storage::FileSystem::{
         CreateFileW, FILE_SHARE_NONE, OPEN_EXISTING, SECURITY_IDENTIFICATION,
         SECURITY_SQOS_PRESENT,
@@ -7149,7 +7187,7 @@ fn open_pipe(name: &str) -> Result<(), u32> {
         let opened = unsafe {
             CreateFileW(
                 PCWSTR(name.as_ptr()),
-                (GENERIC_READ | GENERIC_WRITE).0,
+                access,
                 FILE_SHARE_NONE,
                 None,
                 OPEN_EXISTING,
@@ -7173,6 +7211,7 @@ fn open_pipe(name: &str) -> Result<(), u32> {
 }
 
 fn second_account_probes(request: &BTreeMap<String, String>) {
+    use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE};
     let tag = SECOND_ACCOUNT_TAG;
     let own_user = match halvo_control::client_windows::current_user() {
         Ok(sid) if sid == requested(request, "runner_user") => "same",
@@ -7253,13 +7292,51 @@ fn second_account_probes(request: &BTreeMap<String, String>) {
         ),
     }
 
-    match open_pipe(runner_pipe) {
-        Ok(()) => say(tag, "runner_pipe_open=opened runner_pipe_code=0"),
-        Err(code) => say(
-            tag,
-            format!("runner_pipe_open=failed runner_pipe_code={code}"),
-        ),
+    let read_write = (GENERIC_READ | GENERIC_WRITE).0;
+    let read_alone = GENERIC_READ.0;
+    let default_pipe = requested(request, "default_pipe");
+    for (key, name, access) in [
+        ("runner_pipe", runner_pipe, read_write),
+        ("runner_pipe_read", runner_pipe, read_alone),
+        ("default_pipe_write", default_pipe, read_write),
+        ("default_pipe_read", default_pipe, read_alone),
+    ] {
+        match open_pipe(name, access) {
+            Ok(()) => say(tag, format!("{key}_open=opened {key}_code=0")),
+            Err(code) => say(tag, format!("{key}_open=failed {key}_code={code}")),
+        }
     }
+}
+
+fn default_descriptor_pipe(name: &str) -> Result<std::os::windows::io::OwnedHandle, u32> {
+    use std::os::windows::io::{FromRawHandle, OwnedHandle};
+    use windows::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
+    use windows::Win32::System::Pipes::{
+        CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE,
+        PIPE_WAIT,
+    };
+    let name = wide_nul(name);
+    // SAFETY: `name` ends in a NUL and outlives the call; no security
+    // attributes are passed, so the pipe takes the system's default
+    // descriptor.
+    let pipe = unsafe {
+        CreateNamedPipeW(
+            PCWSTR(name.as_ptr()),
+            PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            1,
+            4_096,
+            4_096,
+            0,
+            None,
+        )
+    };
+    let failed = std::io::Error::last_os_error();
+    if pipe.is_invalid() {
+        return Err(failed.raw_os_error().map_or(u32::MAX, |code| code as u32));
+    }
+    // SAFETY: `pipe` is a new handle that nothing else owns or closes.
+    Ok(unsafe { OwnedHandle::from_raw_handle(pipe.0) })
 }
 
 fn hold_pipe(name: &str) -> Result<std::os::windows::io::OwnedHandle, u32> {
