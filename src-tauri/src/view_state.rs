@@ -1430,3 +1430,82 @@ fn deleted_fields(line: &str) -> Option<DeleteFields> {
     };
     DeleteReport::new(fields).ok().map(|_| fields)
 }
+
+/// A step of Remove Halvo (contracts.md C10.7).
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Step {
+    Account,
+    DeleteAll,
+    Keychain,
+    LoginItem,
+    AppFiles,
+    DataDir,
+}
+
+/// The steps of Remove Halvo in their order; a failed step ends the list.
+#[cfg(target_os = "macos")]
+pub const STEPS: [Step; 6] = [
+    Step::Account,
+    Step::DeleteAll,
+    Step::Keychain,
+    Step::LoginItem,
+    Step::AppFiles,
+    Step::DataDir,
+];
+
+/// How a step ended.
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Outcome {
+    Done,
+    Skipped,
+    Failed,
+}
+
+/// What a step tells beside its outcome: the folder that it names, a count, and the cause of a
+/// skip or a failure.
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct Detail {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub count: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cause: Option<String>,
+}
+
+/// One step of the answer.
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct StepResult {
+    pub step: Step,
+    pub result: Outcome,
+    pub detail: Detail,
+}
+
+/// The answer of `remove_halvo`: the steps that ran, in their order, up to a failed one; none
+/// where the list did not start.
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct Removal {
+    pub steps: Vec<StepResult>,
+}
+
+#[cfg(target_os = "macos")]
+impl Removal {
+    /// Whether the list ran to its end: every step, and none failed.
+    pub fn whole(&self) -> bool {
+        self.steps.len() == STEPS.len()
+            && self.steps.iter().all(|step| step.result != Outcome::Failed)
+    }
+
+    /// The exit of the app after this answer: 0 after a whole list, none after one that
+    /// stopped.
+    pub fn exit(&self) -> Option<i32> {
+        self.whole().then(|| crate::launch::Exit::Quit.code())
+    }
+}

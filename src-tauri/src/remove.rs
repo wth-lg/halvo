@@ -1,88 +1,17 @@
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 
 use halvo_control::model::APP_BUNDLE_ID;
 use halvo_control::paths::{
     one_line, AccountLookup, DataDir, RemovedBy, ENTRIES, INTENT_FILE, KEYCHAIN_ITEMS,
     MACOS_LAUNCH_AGENTS_DIR, STATE_FILE,
 };
-use serde::Serialize;
 
 use crate::commands::capture::{run_offline, Before, Offline, WithoutTheChild};
-use crate::launch::Exit;
 use crate::quit::Children;
-use crate::view_state::{ActionError, DeleteView, OutcomeError};
-
-/// A step of Remove Halvo (contracts.md C10.7).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Step {
-    Account,
-    DeleteAll,
-    Keychain,
-    LoginItem,
-    AppFiles,
-    DataDir,
-}
-
-/// The steps of Remove Halvo in their order; a failed step ends the list.
-pub const STEPS: [Step; 6] = [
-    Step::Account,
-    Step::DeleteAll,
-    Step::Keychain,
-    Step::LoginItem,
-    Step::AppFiles,
-    Step::DataDir,
-];
-
-/// How a step ended.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Outcome {
-    Done,
-    Skipped,
-    Failed,
-}
-
-/// What a step tells beside its outcome: the folder that it names, a count, and the cause of a
-/// skip or a failure.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
-pub struct Detail {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub folder: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub count: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cause: Option<String>,
-}
-
-/// One step of the answer.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct StepResult {
-    pub step: Step,
-    pub result: Outcome,
-    pub detail: Detail,
-}
-
-/// The answer of `remove_halvo`: the steps that ran, in their order, up to a failed one; none
-/// where the list did not start.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
-pub struct Removal {
-    pub steps: Vec<StepResult>,
-}
-
-impl Removal {
-    /// Whether the list ran to its end: every step, and none failed.
-    pub fn whole(&self) -> bool {
-        self.steps.len() == STEPS.len()
-            && self.steps.iter().all(|step| step.result != Outcome::Failed)
-    }
-
-    /// The exit of the app after this answer: 0 after a whole list, none after one that
-    /// stopped.
-    pub fn exit(&self) -> Option<i32> {
-        self.whole().then(|| Exit::Quit.code())
-    }
-}
+use crate::view_state::{
+    ActionError, DeleteView, Detail, Outcome, OutcomeError, Removal, Step, StepResult, STEPS,
+};
 
 /// The supervisor of the app's child as Remove Halvo holds it: the offline delete's hold, and the
 /// end of a quit.
@@ -592,8 +521,11 @@ pub fn account_hook() -> (Outcome, Detail) {
 
 /// Remove Halvo (contracts.md C10.7 and item 8 of C17): the steps of `STEPS` in their order,
 /// each answered, up to the first that fails. Where `places` was refused it runs nothing. The
-/// account step is `account`; the delete is the offline delete of `offline` after `before`, and
-/// it is done only where it deleted and left nothing of the store, or found no store.
+/// app's child is ended first, with no request, and every start is held to the end of the list
+/// (`WithoutTheChild`); after a whole list the child's supervisor ends as at a quit, so that no
+/// child starts after it, and after a list that stopped it goes on by its rule. The account step
+/// is `account`; the delete is the offline delete of `offline` after `before`, and it is done
+/// only where it deleted and left nothing of the store, or found no store.
 pub fn remove_halvo(
     places: Result<Places, Refused>,
     children: Option<&dyn TheChild>,
@@ -608,7 +540,26 @@ pub fn remove_halvo(
             return Removal::default();
         }
     };
-    let _ = children;
+    let mut removal = Removal::default();
+    let mut run = || {
+        removal.steps = steps_of(&places, account, offline, before);
+        if let Some(children) = children.filter(|_| removal.whole()) {
+            children.end();
+        }
+    };
+    match children {
+        Some(children) => children.without_the_child(&mut run),
+        None => run(),
+    }
+    removal
+}
+
+fn steps_of(
+    places: &Places,
+    account: &dyn Fn() -> (Outcome, Detail),
+    offline: Option<&Offline>,
+    before: &Before,
+) -> Vec<StepResult> {
     let mut steps = Vec::new();
     for step in STEPS {
         let (result, detail) = match step {
@@ -628,7 +579,38 @@ pub fn remove_halvo(
             break;
         }
     }
-    Removal { steps }
+    steps
+}
+
+/// What main gives Remove Halvo: the account whose home it takes, whether the app runs with a
+/// data folder of its own (`--data-dir`), and the supervisor of the app's child.
+#[derive(Clone)]
+pub struct Wiring {
+    pub account: Arc<dyn AccountLookup + Send + Sync>,
+    pub given: bool,
+    pub children: Option<Arc<dyn TheChild>>,
+}
+
+/// Remove Halvo as the app runs it: the places of the app's bundle id under the account's home
+/// and of `data_dir`, the account hook of this version, and the offline delete of `offline`.
+pub fn run(
+    wiring: &Wiring,
+    data_dir: Option<&DataDir>,
+    offline: Option<&Offline>,
+    before: &Before,
+) -> Removal {
+    let places = match (home_of(wiring.account.as_ref()), data_dir) {
+        (None, _) => Err(Refused::NoHome),
+        (_, None) => Err(Refused::NoDataFolder),
+        (Some(home), Some(dir)) => Places::new(&home, APP_BUNDLE_ID, dir, wiring.given),
+    };
+    remove_halvo(
+        places,
+        wiring.children.as_deref(),
+        &account_hook,
+        offline,
+        before,
+    )
 }
 
 fn delete_all(offline: Option<&Offline>, before: &Before) -> (Outcome, Detail) {
@@ -685,12 +667,14 @@ fn delete_all(offline: Option<&Offline>, before: &Before) -> (Outcome, Detail) {
 mod tests {
     use std::collections::BTreeMap;
     use std::ffi::OsString;
-    use std::sync::Arc;
+    use std::time::{Duration, Instant};
 
-    use halvo_control::paths::{AccountLookup, DarwinUserTempDir, PathError};
+    use halvo_control::paths::{DarwinUserTempDir, PathError};
 
     use super::*;
-    use crate::daemon_child::stand_in::{note, Record};
+    use crate::commands::control::ChildPid;
+    use crate::daemon_child::stand_in::{note, Record, StandInChild, StandInClock, StandInSpawner};
+    use crate::daemon_child::Supervisor;
     use crate::tests::scratch_dir;
     use crate::view_state::OfflineEnd;
 
@@ -1102,5 +1086,91 @@ mod tests {
             record.lock().unwrap().is_empty(),
             "and the runner records nothing"
         );
+    }
+
+    fn noted(record: &Record) -> Vec<String> {
+        record.lock().unwrap().clone()
+    }
+
+    #[test]
+    fn after_remove_halvo_no_child_starts_and_the_app_ends_with_0() {
+        for whole in [true, false] {
+            let home = scratch_dir(&format!("remove-child-{whole}")).join("home");
+            let data = halvos_data(&home);
+            halvos_places(&home);
+            let record = Record::default();
+            let clock = Arc::new(StandInClock::default());
+            let pid = Arc::<ChildPid>::default();
+            let spawner = StandInSpawner {
+                children: [7, 8]
+                    .into_iter()
+                    .map(|pid| StandInChild::new(pid, &clock, &record))
+                    .collect(),
+                record: Arc::clone(&record),
+            };
+            let supervisor = Supervisor::start(spawner, Arc::clone(&pid), Arc::clone(&clock));
+            let until = Instant::now() + Duration::from_secs(10);
+            while pid.get() != Some(7) {
+                assert!(Instant::now() < until, "the stand-in child starts");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            record.lock().unwrap().clear();
+            let looked_in = data.path().display().to_string();
+            let (root, root_id, left) = if whole {
+                ("yes", "-", 0)
+            } else {
+                ("no", "0123456789abcdef0123456789abcdef", 1)
+            };
+            let stand_in = offline(
+                &data,
+                &record,
+                OfflineEnd::Exited {
+                    code: 0,
+                    out: deleted(&looked_in, root, root_id, left),
+                },
+            );
+            let removal = remove_halvo(
+                Places::new(&home, ID, &data, false),
+                Some(&supervisor),
+                &account_hook,
+                Some(&stand_in),
+                &before(),
+            );
+            if let Some(code) = removal.exit() {
+                note(&record, format!("exit {code}"));
+            }
+            let ran = format!("run /stand-in/halvo-capture --delete-all --data-dir {looked_in}");
+            let mut expected = vec![
+                "closed descriptor".to_owned(),
+                "kill after 20 s".to_owned(),
+                ran,
+            ];
+            if whole {
+                expected.push("exit 0".to_owned());
+                std::thread::sleep(Duration::from_millis(300));
+                assert_eq!(
+                    noted(&record),
+                    expected,
+                    "the child ended first, no start after it, and exit 0"
+                );
+            } else {
+                let until = Instant::now() + Duration::from_secs(10);
+                while !noted(&record).contains(&"start 8".to_owned()) {
+                    assert!(
+                        Instant::now() < until,
+                        "after a list that stopped the supervisor goes on: {:?}",
+                        noted(&record)
+                    );
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                expected.push("start 8".to_owned());
+                assert_eq!(
+                    noted(&record),
+                    expected,
+                    "the child ended first, and a list that stopped has no exit"
+                );
+            }
+            supervisor.end();
+        }
     }
 }

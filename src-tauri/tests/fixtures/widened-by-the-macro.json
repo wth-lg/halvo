@@ -17,6 +17,7 @@
     "allow-acknowledge-lost-permission",
     "allow-start-capture",
     "allow-delete-offline",
+    "allow-remove-halvo",
     "allow-agents-snapshot",
     "allow-agents-next",
     "allow-agents-card",

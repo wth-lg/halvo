@@ -18,6 +18,8 @@ use super::control::{control_of, Control, Made};
 use super::names::{Names, CAPTURE};
 use super::{tell_before_delete_all, Registration};
 use crate::poller::{self, Views};
+#[cfg(target_os = "macos")]
+use crate::view_state::Removal;
 use crate::view_state::{
     a_delete_removed_nothing, command_view, delete_view, inventory_view, offline_view,
     onboarding_shown, read_error, removes_nothing, ActionError, CapSetView, CaptureSet, DeleteView,
@@ -50,6 +52,11 @@ pub struct AppState {
     /// The app's hold on the agents' runs around a delete of everything.
     pub runs: Arc<RunsHold>,
     offline_running: Arc<AtomicBool>,
+    /// What Remove Halvo takes from main, set once the app has started the supervisor of its
+    /// child, through the cell that main holds from before the state moves into the app; never
+    /// set in a test app, whose remove_halvo so runs no step.
+    #[cfg(target_os = "macos")]
+    pub removal: Arc<OnceLock<RemoveHalvo>>,
 }
 
 impl AppState {
@@ -90,6 +97,8 @@ impl AppState {
             unfinished_in_a_row: AtomicU32::new(0),
             runs: Arc::default(),
             offline_running: Arc::default(),
+            #[cfg(target_os = "macos")]
+            removal: Arc::default(),
         }
     }
 }
@@ -117,6 +126,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         acknowledge_lost_permission,
         start_capture,
         delete_offline,
+        remove_halvo,
     ];
     handle(invoke)
 }
@@ -775,6 +785,73 @@ pub async fn delete_offline<R: Runtime>(
         Err(_) => LastDelete::None,
     });
     answer
+}
+
+/// The fifteenth command, Remove Halvo (contracts.md C10.7), which takes no id: the list of
+/// `RemoveHalvo` off the main thread, holding the mark of the offline delete, so that a
+/// second call, an offline delete, and a call while a delete is in flight answer busy and run
+/// nothing. With no wiring, as in a test app, it answers no step. After a whole list the app ends
+/// with 0 once the page has had `LAST_WORDS_WAIT` to show the answer.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub async fn remove_halvo<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<Removal, ActionError> {
+    let Some(remove) = state.removal.get().cloned() else {
+        return Ok(Removal::default());
+    };
+    if *state.last_delete.lock().unwrap_or_else(|e| e.into_inner()) == LastDelete::InFlight {
+        return Err(ActionError::Busy);
+    }
+    let Some(running) = OfflineRuns::take(&state.offline_running) else {
+        return Err(ActionError::Busy);
+    };
+    let offline = state.offline.get().cloned();
+    let data_dir = state.data_dir.clone();
+    let before = Before::of(&app, state.inner());
+    let removal = off_the_main_thread(move || {
+        let _running = running;
+        remove(data_dir.as_ref(), offline.as_ref(), &before)
+    })
+    .await?;
+    draw_off_the_main_thread(&state.views).await;
+    if let Some(code) = removal.exit() {
+        exit_after_the_last_words(&app, code);
+    }
+    Ok(removal)
+}
+
+/// How long the app goes on after a whole removal, so that the page shows its last words.
+#[cfg(target_os = "macos")]
+pub const LAST_WORDS_WAIT: Duration = Duration::from_secs(10);
+
+/// Ends the app with `code` once `LAST_WORDS_WAIT` has passed, on a thread of its own.
+#[cfg(target_os = "macos")]
+pub fn exit_after_the_last_words<R: Runtime>(app: &AppHandle<R>, code: i32) {
+    let ending = app.clone();
+    let spawned = std::thread::Builder::new()
+        .name("halvo-removed".to_owned())
+        .spawn(move || {
+            std::thread::sleep(LAST_WORDS_WAIT);
+            ending.exit(code);
+        });
+    if spawned.is_err() {
+        app.exit(code);
+    }
+}
+
+/// What Remove Halvo runs on the app's data folder and offline delete, after `Before`: the list
+/// of the module remove, which main wraps, so that this module names no part of it.
+#[cfg(target_os = "macos")]
+pub type RemoveHalvo =
+    Arc<dyn Fn(Option<&DataDir>, Option<&Offline>, &Before) -> Removal + Send + Sync>;
+
+/// Remove Halvo off macOS: it runs nothing and answers unsupported_op.
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+pub async fn remove_halvo() -> Result<(), ActionError> {
+    Err(ActionError::UnsupportedOp)
 }
 
 fn now_ms() -> u64 {

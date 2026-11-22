@@ -170,6 +170,8 @@ fn run(background: bool, given: Option<PathBuf>) {
     let login_views = Arc::clone(&state.views);
     #[cfg(target_os = "macos")]
     let (offline, offline_views) = (Arc::clone(&state.offline), Arc::clone(&state.views));
+    #[cfg(target_os = "macos")]
+    let removal = Arc::clone(&state.removal);
     let parts = app::Parts {
         state,
         tray: Some(tray::install),
@@ -198,6 +200,19 @@ fn run(background: bool, given: Option<PathBuf>) {
     let supervisor = start_the_daemon(child_dir, given.is_some(), pid, views);
     #[cfg(target_os = "macos")]
     set_the_offline_delete(&offline, &offline_views, supervisor.clone(), offline_dir);
+    #[cfg(target_os = "macos")]
+    {
+        let wiring = remove::Wiring {
+            account: Arc::new(halvo_control::paths::SystemAccount),
+            given: given.is_some(),
+            children: supervisor
+                .clone()
+                .map(|children| children as Arc<dyn remove::TheChild>),
+        };
+        let _ = removal.set(Arc::new(move |data_dir, offline, before| {
+            remove::run(&wiring, data_dir, offline, before)
+        }));
+    }
     #[cfg(any(target_os = "macos", test))]
     tauri::Manager::manage(
         &app,
