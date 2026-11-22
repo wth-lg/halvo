@@ -14,6 +14,12 @@ use crate::view_state::Hold;
 
 pub const MAX_CALLS_IN_FLIGHT: usize = 4;
 
+/// How long a relayed request waits for a place: the 5 s that the client call of the request
+/// `relay` then waits from its own connect. The control crate holds its own 5 s as
+/// `CLIENT_DEADLINE` in crates/halvo-control/src/r2/owner_stream.rs, a module that it does not
+/// export.
+const RELAY_LIMIT: Duration = Duration::from_secs(5);
+
 #[cfg(test)]
 pub const REPLY_BYTES_IN_FLIGHT: usize = MAX_CALLS_IN_FLIGHT * halvo_control::wire::REPLY_MAX_BYTES;
 
@@ -201,7 +207,17 @@ impl<C: Connector + Clone> Gated<C> {
         request: &Request,
         call: impl FnOnce(&Client<C>) -> Result<T, ClientError>,
     ) -> Result<T, ClientError> {
-        let limit = Deadlines::V1.of(request);
+        self.within(made, Deadlines::V1.of(request), call)
+    }
+
+    /// Runs `call` in a place of the line, which it enters within `limit` of the moment at which
+    /// the call was made.
+    fn within<T>(
+        &self,
+        made: Made,
+        limit: Duration,
+        call: impl FnOnce(&Client<C>) -> Result<T, ClientError>,
+    ) -> Result<T, ClientError> {
         let until = made.deadline_from + limit;
         let late = || ClientError::Deadline {
             seconds: limit.as_secs(),
@@ -287,6 +303,10 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
         self.run(made, &Request::RequestPermission { permission }, |client| {
             client.request_permission(permission)
         })
+    }
+
+    fn relay(&self, made: Made, request: &[u8]) -> Result<Vec<u8>, ClientError> {
+        self.within(made, RELAY_LIMIT, |client| client.relay(request))
     }
 }
 
