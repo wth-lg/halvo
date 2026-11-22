@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 //! The ONE door to a model's host (the agents run's unit U7.5). The program `halvo-model` reads the
-//! host's key as the first line of its standard input, then one request a line in the form of the
-//! agents run's contract A12.2, and writes one line a request. For each request it makes the closed
+//! host's key from the head of its standard input, in the form of `Key::read`, then one request a
+//! line in the form of the agents run's contract A12.2, and writes one line a request. For each request it makes the closed
 //! body of the routing run's contract T11.3, asks the router's `grant` with the release ruling, the
 //! tier, the ceiling and the agreement of its arguments, the part `text` alone and the origin of the
 //! ruling's row for the tier, and hands the grant by value to the one operation of
@@ -32,20 +32,44 @@ pub fn adapter_words() -> Vec<&'static str> {
     Adapter::ALL.iter().map(|adapter| adapter.word()).collect()
 }
 
-/// The host's key, read from the first line of standard input. It is written into no line: its
-/// `Debug` gives its number of bytes alone, and it has no `Display`.
+/// The most bytes of a key.
+pub const KEY_MAX: usize = 4_096;
+
+/// The host's key, read from the head of standard input. It is written into no line: its `Debug`
+/// gives its number of bytes alone, and it has no `Display`.
 pub struct Key(String);
 
 impl Key {
-    /// The key of `line` without its line end, one LF, when it is 1 or more bytes of visible ASCII
-    /// (0x21 to 0x7E), else none: an empty line, and a line that holds a carriage return, a NUL
-    /// byte, another control character, a space or a byte outside ASCII, give no key, and the door
-    /// then reads no request. A line feed inside a key ends the line: the door cannot tell it from
-    /// the end of the key's line, so its starter refuses such a key.
-    pub fn read(line: &str) -> Option<Key> {
-        let text = line.strip_suffix('\n').unwrap_or(line);
-        (!text.is_empty() && text.bytes().all(|b| (0x21..=0x7e).contains(&b)))
-            .then(|| Key(text.to_owned()))
+    /// Reads the key at the head of `input`, in the form that the door's starter writes (the
+    /// coordinator's log line 16979): the count of the key's bytes in decimal digits, 1 to
+    /// `KEY_MAX` with no leading zero, and one LF; then exactly that many bytes; then one LF. The key
+    /// is its bytes whole, each of visible ASCII (0x21 to 0x7E). Anything else gives no key: a count
+    /// line that is no such count, an input that ends early, a key shorter or longer than its count
+    /// (the byte after the count's bytes is then no LF, or a key byte is one), and a key that holds a
+    /// line feed, a carriage return, a NUL byte, another control character, a space or a byte
+    /// outside ASCII. The door then reads no request and sends nothing.
+    pub fn read<I: BufRead>(input: &mut I) -> Option<Key> {
+        let mut byte = [0u8; 1];
+        let mut digits = String::new();
+        loop {
+            input.read_exact(&mut byte).ok()?;
+            match byte[0] {
+                b'\n' => break,
+                b'0'..=b'9' if digits.len() < 4 && !(digits.is_empty() && byte[0] == b'0') => {
+                    digits.push(char::from(byte[0]))
+                }
+                _ => return None,
+            }
+        }
+        let count: usize = digits.parse().ok()?;
+        if !(1..=KEY_MAX).contains(&count) {
+            return None;
+        }
+        let mut key = vec![0u8; count];
+        input.read_exact(&mut key).ok()?;
+        input.read_exact(&mut byte).ok()?;
+        let whole = byte[0] == b'\n' && key.iter().all(|b| (0x21..=0x7e).contains(b));
+        whole.then(|| String::from_utf8(key).ok().map(Key))?
     }
 }
 
@@ -156,10 +180,10 @@ struct Request {
     effort: Effort,
 }
 
-/// The request of `line`, or the cause `request` with the line's id when it has one (else 0).
-fn parse_request(line: &str) -> Result<Request, u64> {
-    let value: Value = serde_json::from_str(line).map_err(|_| 0u64)?;
-    let id = value.get("id").and_then(Value::as_u64).unwrap_or(0);
+/// The request of `line`, or none: the door then answers the cause `request` with the id 0, and
+/// writes no byte of the line.
+fn parse_request(line: &str) -> Option<Request> {
+    let value: Value = serde_json::from_str(line).ok()?;
     let read = || -> Option<Request> {
         let object = value.as_object()?;
         let keys = ["id", "system", "prompt", "snapshot", "grammar", "level"];
@@ -175,14 +199,14 @@ fn parse_request(line: &str) -> Result<Request, u64> {
             return None;
         }
         Some(Request {
-            id: Some(id).filter(|id| *id > 0)?,
+            id: value["id"].as_u64().filter(|id| *id > 0)?,
             system: object["system"].as_str()?.to_owned(),
             prompt: object["prompt"].as_str()?.to_owned(),
             snapshot,
             effort: Effort::parse(object["level"].as_str()?).ok()?,
         })
     };
-    read().ok_or(id)
+    read()
 }
 
 /// The user's text: the prompt, then the snapshot between the two marker lines of A9.5.
@@ -275,7 +299,7 @@ fn answer(
     args: &Args,
     key: &Key,
 ) -> Result<(u64, Answered), (u64, Cause)> {
-    let request = parse_request(line).map_err(|id| (id, Cause::Request))?;
+    let request = parse_request(line).ok_or((0, Cause::Request))?;
     let id = request.id;
     let origin = ruling.row(args.tier).map_or("", HostRow::origin);
     let made = grant(
@@ -300,7 +324,7 @@ fn answer(
 
 /// The door: `args` are its arguments, `input` its standard input, `out` its standard output and
 /// `err` its standard error. Returns its exit status: 0 at the end of the input, 2 when the
-/// arguments or the key line are refused (with one line `REFUSED usage...` or `REFUSED key` on
+/// arguments or the key are refused (with one line `REFUSED usage...` or `REFUSED key` on
 /// `err`, which names no key), 1 when a line cannot be written.
 pub fn run<I: BufRead, O: Write, E: Write>(
     args: &[String],
@@ -312,13 +336,7 @@ pub fn run<I: BufRead, O: Write, E: Write>(
         let _ = writeln!(err, "{USAGE}");
         return 2;
     };
-    let mut first = String::new();
-    let key = match input.read_line(&mut first) {
-        Ok(n) if n > 0 => Key::read(&first),
-        _ => None,
-    };
-    first.clear();
-    let Some(key) = key else {
+    let Some(key) = Key::read(&mut input) else {
         let _ = writeln!(err, "REFUSED key");
         return 2;
     };

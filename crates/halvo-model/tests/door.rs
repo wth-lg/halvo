@@ -144,6 +144,12 @@ fn args(tier: &str, ceiling: &str, consent: &str, port: Option<u16>) -> Vec<Stri
     args
 }
 
+/// The input of the door: the key in the form that its starter writes (the count of its bytes and
+/// one LF, the key, one LF), then `rest`.
+fn keyed(key: &str, rest: &str) -> String {
+    format!("{}\n{key}\n{rest}", key.len())
+}
+
 fn request(id: u64) -> String {
     format!(
         r#"{{"id":{id},"system":"Be brief.","prompt":"Pay the bill.","snapshot":"e1 button \"Pay\"\ne2 link","grammar":"action","level":"high"}}"#
@@ -164,7 +170,7 @@ fn with_no_grant_the_door_opens_no_connection() {
         ),
         (args("on_device", "frontier", "recorded", port), "local"),
     ] {
-        let (code, out, err) = door(&args, &format!("{KEY}\n{}\n", request(1)));
+        let (code, out, err) = door(&args, &keyed(KEY, &format!("{}\n", request(1))));
         got.push((code, out, err));
         assert_eq!(
             got.last().expect("a run"),
@@ -187,7 +193,7 @@ fn with_no_grant_the_door_opens_no_connection() {
 fn with_a_grant_one_request_reaches_the_granted_origin_alone() {
     let granted = StandIn::start(200, ANSWER);
     let other = StandIn::start(200, ANSWER);
-    let input = format!("{KEY}\n{}\n", request(7));
+    let input = keyed(KEY, &format!("{}\n", request(7)));
     let refused = door(
         &args("frontier", "frontier", "missing", Some(granted.port)),
         &input,
@@ -244,7 +250,7 @@ fn the_request_that_leaves_holds_the_closed_fields_alone() {
     let host = StandIn::start(200, ANSWER);
     let (code, out, err) = door(
         &args("low_cost_hosted", "frontier", "recorded", Some(host.port)),
-        &format!("{KEY}\n{}\n", request(3)),
+        &keyed(KEY, &format!("{}\n", request(3))),
     );
     assert_eq!((code, err.as_str()), (0, ""), "{out}");
     let recorded = host.recorded.lock().expect("the record");
@@ -297,10 +303,13 @@ fn the_key_stands_in_no_line_that_the_door_writes() {
         r#"{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}"#,
     );
     let unreadable = StandIn::start(200, "not the form of the adapter");
-    let lines = format!(
-        "{KEY}\n{}\nnot a request {KEY}\n{{\"id\":2}}\n{}\n",
-        request(1),
-        request(4)
+    let lines = keyed(
+        KEY,
+        &format!(
+            "{}\nnot a request {KEY}\n{{\"id\":2}}\n{}\n",
+            request(1),
+            request(4)
+        ),
     );
     let mut written = String::new();
     let mut seen = Vec::new();
@@ -327,7 +336,7 @@ fn the_key_stands_in_no_line_that_the_door_writes() {
         ),
         (
             args("frontier", "frontier", "recorded", Some(ok.port)),
-            format!("{KEY} {KEY}\n{}\n", request(1)),
+            keyed(&format!("{KEY} {KEY}"), &format!("{}\n", request(1))),
         ),
     ] {
         let (code, out, err) = door(&args, &input);
@@ -335,7 +344,10 @@ fn the_key_stands_in_no_line_that_the_door_writes() {
         written.push_str(&out);
         written.push_str(&err);
     }
-    let debug = format!("{:?}", halvo_model::Key::read(&format!("{KEY}\n")));
+    let debug = format!(
+        "{:?}",
+        halvo_model::Key::read(&mut Cursor::new(keyed(KEY, "").into_bytes()))
+    );
     assert_eq!(seen, [0, 0, 0, 0, 2, 2], "{written}");
     for refusal in ["status", "answer", "ruling", "request"] {
         assert!(
@@ -349,6 +361,77 @@ fn the_key_stands_in_no_line_that_the_door_writes() {
         "{written}\n{debug}"
     );
     assert_eq!(debug, format!("Some(Key({} bytes))", KEY.len()));
+}
+
+#[test]
+fn no_line_that_the_door_writes_holds_a_byte_of_a_key_or_of_a_refused_request() {
+    let host = StandIn::start(200, ANSWER);
+    let halves = ["first-half-a91f", "second-half-b72e"];
+    let with_line_feed = halves.join("\n");
+    let line = "zq-91xw-lpq7-vv03 ~~ {nope";
+    let (system, prompt, snapshot) = ("sys-q8z1x-kk", "prompt-w7v2k-jj", "snap-j4m9t-hh");
+    let refused = format!(
+        r#"{{"id":5,"system":"{system}","prompt":"{prompt}","snapshot":"{snapshot}","grammar":"text","level":"low"}}"#
+    );
+    let large = "pz".repeat(70_000);
+    let too_large = format!(
+        r#"{{"id":6,"system":"s","prompt":"{large}","snapshot":null,"grammar":"text","level":"low"}}"#
+    );
+    let requests = format!("{line}\n{refused}\n{too_large}\n");
+    let mut written = String::new();
+    let mut seen = Vec::new();
+    for (consent, input) in [
+        ("recorded", keyed(&with_line_feed, &requests)),
+        ("recorded", keyed("cr-key-d81\r", &requests)),
+        ("recorded", keyed("nul-key\0-e72", &requests)),
+        ("recorded", format!("0\n\n{requests}")),
+        ("recorded", format!("40\nshort-key-f63\n{requests}")),
+        ("recorded", format!("4\nlong-key-g54\n{requests}")),
+        ("missing", keyed(KEY, &requests)),
+        ("recorded", keyed(KEY, &format!("{line}\n{too_large}\n"))),
+    ] {
+        let (code, out, err) = door(
+            &args("frontier", "frontier", consent, Some(host.port)),
+            &input,
+        );
+        seen.push(code);
+        written.push_str(&out);
+        written.push_str(&err);
+    }
+    let given = [
+        halves[0],
+        halves[1],
+        "cr-key-d81",
+        "nul-key",
+        "short-key-f63",
+        "long-key-g54",
+        KEY,
+        line,
+        system,
+        prompt,
+        snapshot,
+        &large[..6],
+    ];
+    let found: Vec<&str> = given
+        .iter()
+        .flat_map(|text| {
+            (0..=text.len().saturating_sub(6)).map(|at| &text[at..(at + 6).min(text.len())])
+        })
+        .filter(|part| written.contains(part))
+        .collect();
+    assert_eq!(
+        (seen, found, host.accepted()),
+        (vec![2, 2, 2, 2, 2, 2, 0, 0], Vec::<&str>::new(), 0),
+        "{written}"
+    );
+    assert_eq!(
+        written,
+        format!(
+            "{}{}",
+            "REFUSED key\n".repeat(6),
+            "{\"id\":0,\"refused\":\"request\"}\n{\"id\":5,\"refused\":\"consent\"}\n{\"id\":6,\"refused\":\"consent\"}\n{\"id\":0,\"refused\":\"request\"}\n{\"id\":6,\"refused\":\"size\"}\n"
+        )
+    );
 }
 
 #[test]
