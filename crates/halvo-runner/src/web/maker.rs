@@ -25,8 +25,9 @@
 //!
 //! The card is held against the held request itself (r3 U5.10-C; the coordinator's ruling of log line 16208): for a
 //! `payment` or a `purchase`, right after the read of the rule's record and the count of the one held request that
-//! follow the act, and before any card, the maker reads what the wire read of the request's body
-//! (`HeldRequest::form`): the values of the form fields whose names name an amount, and no other byte of the body. A
+//! follow the act, and before any card, the maker reads what the wire read of the request's body and of its
+//! address's query (`HeldRequest::form`, log line 16426): the values of the form fields whose names name an amount,
+//! and no other byte of either. A
 //! listed value is read whole by `extract_amount`, the reading of the card's own amount (log line 16399). A body
 //! that names another amount than the card's fails the held request, no card is shown and no effect row stands, and
 //! the step answers `amount_differs`; a body that the wire could not read, or a listed value that is not one amount
@@ -1238,14 +1239,15 @@ mod tests {
         assert_eq!(record.done(), Some(Outcome::Failed), "{log:?}");
     }
 
-    /// The parameters of the browser's paused event of a form's navigation to the bound origin with the body `body`
-    /// in a form's own encoding, in the form that the hosted probe of r3 U5.10-C saw the browser send.
-    fn paused_form(body: &str) -> serde_json::Value {
+    /// The parameters of the browser's paused event of a form's navigation to the bound origin's `path` (its query
+    /// included) with the body `body` in a form's own encoding, in the form that the hosted probe of r3 U5.10-C saw
+    /// the browser send.
+    fn paused_form(path: &str, body: &str) -> serde_json::Value {
         use base64::Engine;
         serde_json::json!({
             "requestId": "interception-7",
             "request": {
-                "url": format!("{BOUND}/charge"),
+                "url": format!("{BOUND}{path}"),
                 "method": "POST",
                 "headers": {"Content-Type": "application/x-www-form-urlencoded"},
                 "initialPriority": "VeryHigh",
@@ -1266,88 +1268,128 @@ mod tests {
     /// `amount_differs` and no row holds a `page_amount`, and the run ends `failed`; an amount field whose value names
     /// no one amount, read whole (an exponent, a sign, a digit that is not ASCII, a comma inside, a number that fits
     /// no u64 beside the card's), and a body that the wire could not read, end the same way with
-    /// `step_failed`; a body that names the card's amount, and one that names no amount, leave once. In every case no
-    /// frame that the runner wrote to its supervisor holds a byte of the token's value or of the body's other amount.
+    /// `step_failed`; a body that names the card's amount, and one that names no amount, leave once. A listed field of
+    /// the request's address is held as one of its body: another amount there fails the request, the card's leaves; a
+    /// body with a raw `;` between its pairs is not a form's own encoding and fails. In every case no frame that the
+    /// runner wrote to its supervisor holds a byte of the token's value or of the other amount.
     #[test]
     fn on_the_stand_in_a_held_request_whose_body_names_another_amount_than_the_card_never_leaves() {
         const TOKEN: &str = "tok-5f1c9e27a3b4d608";
         const OTHER: &str = "4302.29";
-        let run = |body: &str| {
+        let run = |path: &str, body: &str| {
             let log: Log = Arc::default();
-            let form = halvo_web::cdp::form_of_paused(&paused_form(body));
+            let form = halvo_web::cdp::form_of_paused(&paused_form(path, body));
             let record = pay(&log, vec![HeldRequest { form, ..held(7) }], Plan::plain());
             for frame in &record.frames {
                 let json = frame.to_json().expect("a frame");
-                assert!(!json.contains(TOKEN), "{body}: {json}");
-                assert!(!json.contains(OTHER), "{body}: {json}");
+                assert!(!json.contains(TOKEN), "{path} {body}: {json}");
+                assert!(!json.contains(OTHER), "{path} {body}: {json}");
             }
             assert!(
                 record.logs().iter().all(|l| l.page_amount.is_none()),
-                "{body}"
+                "{path} {body}"
             );
             (lines(&log), record)
         };
-        // Round 1 (the coordinator's ruling of log line 16399): a listed value that holds the card's amount beside an
-        // exponent, a sign, a digit that is not ASCII, a comma inside, or a number that fits no u64, is no amount.
+        // Round 1 (the coordinator's rulings of log lines 16399 and 16426): a listed value that holds the card's amount
+        // beside an exponent, a sign, a digit that is not ASCII, a comma inside, or a number that fits no u64, is no
+        // amount; a listed field of the address is held as the body's; a raw semicolon fails the body.
+        let charge = "/charge";
         let refused: Vec<(String, Cause, Vec<String>, Record)> = [
             (
+                charge,
                 format!("token={TOKEN}&amount={OTHER}"),
                 Cause::AmountDiffers,
             ),
             (
+                charge,
                 format!("amount=12.34&total={OTHER}&token={TOKEN}"),
                 Cause::AmountDiffers,
             ),
-            (format!("amount=12&token={TOKEN}"), Cause::StepFailed),
             (
+                charge,
+                format!("amount=12&token={TOKEN}"),
+                Cause::StepFailed,
+            ),
+            (
+                charge,
                 format!("amount=12.34&token={TOKEN}&x=%zz"),
                 Cause::StepFailed,
             ),
-            (format!("token={TOKEN}&amount=12.34e2"), Cause::StepFailed),
-            (format!("token={TOKEN}&amount=-12.34"), Cause::StepFailed),
             (
+                charge,
+                format!("token={TOKEN}&amount=12.34e2"),
+                Cause::StepFailed,
+            ),
+            (
+                charge,
+                format!("token={TOKEN}&amount=-12.34"),
+                Cause::StepFailed,
+            ),
+            (
+                charge,
                 format!("token={TOKEN}&amount=%D9%A112.34"),
                 Cause::StepFailed,
             ),
-            (format!("token={TOKEN}&amount=1%2C2.34"), Cause::StepFailed),
             (
+                charge,
+                format!("token={TOKEN}&amount=1%2C2.34"),
+                Cause::StepFailed,
+            ),
+            (
+                charge,
                 format!("token={TOKEN}&amount=12.34+99999999999999999999.99"),
+                Cause::StepFailed,
+            ),
+            (
+                "/charge?amount=4302.29",
+                format!("amount=12.34&token={TOKEN}"),
+                Cause::AmountDiffers,
+            ),
+            (
+                charge,
+                format!("t=x;amount={OTHER}&amount=12.34&token={TOKEN}"),
                 Cause::StepFailed,
             ),
         ]
         .into_iter()
-        .map(|(body, cause)| {
-            let (log, record) = run(&body);
-            (body, cause, log, record)
+        .map(|(path, body, cause)| {
+            let (log, record) = run(path, &body);
+            (format!("{path} {body}"), cause, log, record)
         })
         .collect();
         let left: Vec<&str> = refused
             .iter()
             .filter(|(_, _, log, _)| log.iter().any(|l| l.starts_with("let through")))
-            .map(|(body, ..)| body.as_str())
+            .map(|(case, ..)| case.as_str())
             .collect();
-        assert!(left.is_empty(), "these bodies left: {left:?}");
-        for (body, cause, log, record) in &refused {
+        assert!(left.is_empty(), "these requests left: {left:?}");
+        for (case, cause, log, record) in &refused {
             let cause = *cause;
-            assert!(log.iter().any(|l| l == "fail held 1"), "{body}: {log:?}");
-            assert_eq!(log.last(), Some(&format!("arm fail [{BOUND}]")), "{body}");
-            assert!(record.confirms().is_empty(), "no card: {body}");
-            assert!(record.states().is_empty(), "no effect row: {body}");
+            assert!(log.iter().any(|l| l == "fail held 1"), "{case}: {log:?}");
+            assert_eq!(log.last(), Some(&format!("arm fail [{BOUND}]")), "{case}");
+            assert!(record.confirms().is_empty(), "no card: {case}");
+            assert!(record.states().is_empty(), "no effect row: {case}");
             assert_eq!(
                 rows(record),
                 [
                     (LogEvent::StepFailed, Some(3), Some(cause)),
                     (LogEvent::Stopped, None, Some(cause)),
                 ],
-                "{body}"
+                "{case}"
             );
-            assert_eq!(record.done(), Some(Outcome::Failed), "{body}");
+            assert_eq!(record.done(), Some(Outcome::Failed), "{case}");
         }
-        for body in [
-            format!("amount=12.34&token={TOKEN}"),
-            format!("token={TOKEN}&kind=card&instrument=card-4417"),
+        for (path, body) in [
+            (charge, format!("amount=12.34&token={TOKEN}")),
+            (
+                charge,
+                format!("token={TOKEN}&kind=card&instrument=card-4417"),
+            ),
+            ("/charge?amount=12.34", format!("token={TOKEN}")),
         ] {
-            let (log, record) = run(&body);
+            let (log, record) = run(path, &body);
+            let body = format!("{path} {body}");
             assert_eq!(
                 log.iter().filter(|l| l.starts_with("let through")).count(),
                 1,

@@ -223,9 +223,9 @@ impl Sign {
 }
 
 /// A held state-changing request (CP-176 A1 (a)): the executor's own id, its method, origin, path
-/// and frame, and what the wire read of its body (r3 U5.10-C): the values of the form fields that
-/// name an amount alone, or that it has no body, or why its body could not be read
-/// (`HeldForm`); no other byte of the body.
+/// and frame, and what the wire read of its body and of its address's query (r3 U5.10-C): the
+/// values of the form fields that name an amount alone, or that it has no body, or why its body or
+/// query could not be read (`HeldForm`); no other byte of either.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HeldRequest {
     pub id: u64,

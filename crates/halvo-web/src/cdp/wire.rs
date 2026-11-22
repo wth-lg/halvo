@@ -75,11 +75,13 @@ pub(crate) struct Facts {
     pub form: HeldForm,
 }
 
-/// What the wire read of the body of a paused request (r3 U5.10-C; the coordinator's rulings of
-/// log lines 15991 and 16169). `NoBody`: the event says that the request has no body. `Named`: the
-/// values of the fields of a form's own encoding whose folded names `AMOUNT_FIELDS` holds, decoded,
-/// in the body's order, and of no other field; an empty list for a form that names no amount.
-/// `Unread`: why the body could not be read. No other byte of a body leaves the wire.
+/// What the wire read of the body and the address of a paused request (r3 U5.10-C; the
+/// coordinator's rulings of log lines 15991, 16169 and 16426). `NoBody`: the event says that the
+/// request has no body, and its address's query names no listed field. `Named`: the values of the
+/// fields whose folded names `AMOUNT_FIELDS` holds, decoded, those of the address's query first and
+/// then those of the body, each in its order, and of no other field; an empty list for a form that
+/// names no amount. `Unread`: why the body or the query could not be read. No other byte of a body
+/// or of an address leaves the wire.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HeldForm {
     NoBody,
@@ -109,8 +111,10 @@ pub enum FormUnread {
     NotCarried,
     /// The body is longer than `MAX_FORM_BYTES`.
     Large,
-    /// The body is not a form's own encoding of UTF-8: a charset other than UTF-8, a byte that is
-    /// not ASCII, a broken escape, or a name or a value that is not UTF-8 once decoded.
+    /// The body or the address's query is not a form's own encoding of UTF-8: a charset other than
+    /// UTF-8, a byte that is not ASCII, a raw `;` (which some servers take for a `&` and no
+    /// browser's form encoding writes), a broken escape, or a name or a value that is not UTF-8 once
+    /// decoded.
     Encoding,
 }
 
@@ -146,22 +150,32 @@ pub const AMOUNT_FIELDS: [&str; 10] = [
 /// The most bytes of a body that the wire reads; a longer body is `FormUnread::Large`.
 pub const MAX_FORM_BYTES: usize = 16 * 1024;
 
-/// What the wire reads of the body of the request that the browser paused in `ev`, in this order:
-/// a request that is no navigation of a document is `NotANavigation`; one whose event names no
-/// data (`hasPostData` absent or false, and no `postDataEntries`) is `NoBody`; then the content
-/// type must be a form's own encoding (`form_type`), every entry must carry its bytes, whole, as
-/// base64, and the bytes must stay within `MAX_FORM_BYTES`; the body is then read as a form
-/// (`named_values`). The entries are read from chromiumoxide's typed event, as `facts_of_event`
-/// gets it; the deprecated `postData` text is not in that type.
+/// What the wire reads of the body and the address of the request that the browser paused in
+/// `ev`, in this order: a request that is no navigation of a document is `NotANavigation`; the
+/// query of its address (`query_of`) is read as a form (`named_values`), and one that cannot be
+/// read gives its reason; one whose event names no data (`hasPostData` absent or false, and no
+/// `postDataEntries`) is `NoBody` where its query names no listed field, else the query's values;
+/// then the content type must be a form's own encoding (`form_type`), every entry must carry its
+/// bytes, whole, as base64, and the bytes must stay within `MAX_FORM_BYTES`; the body is then read
+/// as a form, and its values follow the query's. The entries are read from chromiumoxide's typed
+/// event, as `facts_of_event` gets it; the deprecated `postData` text is not in that type.
 pub(crate) fn form_of(ev: &EventRequestPaused) -> HeldForm {
     use base64::Engine;
     if !matches!(ev.resource_type, ResourceType::Document) {
         return HeldForm::Unread(FormUnread::NotANavigation);
     }
     let request = &ev.request;
+    let mut named = match named_values(query_of(&request.url).as_bytes()) {
+        HeldForm::Named(values) => values,
+        other => return other,
+    };
     let entries = request.post_data_entries.as_deref().unwrap_or_default();
     if request.has_post_data != Some(true) && entries.is_empty() {
-        return HeldForm::NoBody;
+        return if named.is_empty() {
+            HeldForm::NoBody
+        } else {
+            HeldForm::Named(named)
+        };
     }
     if let Err(unread) = form_type(request.headers.inner()) {
         return HeldForm::Unread(unread);
@@ -183,7 +197,20 @@ pub(crate) fn form_of(ev: &EventRequestPaused) -> HeldForm {
             return HeldForm::Unread(FormUnread::Large);
         }
     }
-    named_values(&body)
+    match named_values(&body) {
+        HeldForm::Named(values) => {
+            named.extend(values);
+            HeldForm::Named(named)
+        }
+        other => other,
+    }
+}
+
+/// The query of the address `url`: the text after its first `?` and before a `#`, empty where it
+/// has none. The browser writes the address of a request percent-encoded, as the page named it.
+fn query_of(url: &str) -> &str {
+    url.split_once('?')
+        .map_or("", |(_, rest)| rest.split('#').next().unwrap_or_default())
 }
 
 /// What the wire reads of the body of a paused request whose event the browser sent with
@@ -228,11 +255,12 @@ fn form_type(headers: &Value) -> Result<(), FormUnread> {
     Ok(())
 }
 
-/// The values of the fields of `body`, a form's own encoding, whose folded names (`fold`) the list
-/// `AMOUNT_FIELDS` holds, decoded, in the body's order: the body must be ASCII, and each name and
-/// value must decode (`form_decode`) to UTF-8, else the body is `Encoding`.
+/// The values of the fields of `body`, a form's own encoding (a body or an address's query), whose
+/// folded names (`fold`) the list `AMOUNT_FIELDS` holds, decoded, in the body's order: the body
+/// must be ASCII with no raw `;`, and each name and value must decode (`form_decode`) to UTF-8,
+/// else the body is `Encoding`.
 fn named_values(body: &[u8]) -> HeldForm {
-    if !body.is_ascii() {
+    if !body.is_ascii() || body.contains(&b';') {
         return HeldForm::Unread(FormUnread::Encoding);
     }
     let text = String::from_utf8_lossy(body);
