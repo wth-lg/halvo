@@ -23,7 +23,7 @@ mod mac {
     use std::os::unix::net::UnixStream;
     use std::path::{Path, PathBuf};
     use std::process::{Child, Command, Stdio};
-    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
     use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
     use std::sync::{Arc, Mutex, MutexGuard};
     use std::time::{Duration, Instant as Mono, SystemTime, UNIX_EPOCH};
@@ -31,10 +31,10 @@ mod mac {
     use halvo_agent_client::link::product::ClientEnds;
     use halvo_agent_client::link::StreamLink;
     use halvo_agent_client::OwnerLink;
-    use halvo_control::client::{Client, ClientError, Connector};
+    use halvo_control::client::{Client, ClientError, Connector, Transport};
     use halvo_control::proto::{decode_request, Decoded};
-    use halvo_control::r2::{dispatch_unknown, OwnerChannel};
-    use halvo_control::wire::{read_frame, write_frame, REQUEST_MAX_BYTES};
+    use halvo_control::r2::{dispatch_unknown, mark_request, OwnerChannel, RunEdge, RunMarked};
+    use halvo_control::wire::{read_frame, write_frame, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
     use halvo_coord_app::product::{self, Calls, Places, ProductHub};
     use halvo_coord_app::{Core, Native, Present, Reply};
     use halvo_schema_core::category::SeedCategory;
@@ -66,7 +66,7 @@ mod mac {
         if args.first().map(String::as_str) == Some("--run") {
             std::process::exit(runner(&args));
         }
-        let tests: [(&str, fn()); 3] = [
+        let tests: [(&str, fn()); 4] = [
             (
                 "a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record",
                 a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record,
@@ -78,6 +78,10 @@ mod mac {
             (
                 "the_start_removes_the_checkpoint_of_an_ended_run_of_an_earlier_life",
                 the_start_removes_the_checkpoint_of_an_ended_run_of_an_earlier_life,
+            ),
+            (
+                "a_run_of_an_earlier_life_left_by_a_killed_app_is_ended_interrupted_with_one_end_mark",
+                a_run_of_an_earlier_life_left_by_a_killed_app_is_ended_interrupted_with_one_end_mark,
             ),
         ];
         let exact = args.iter().any(|a| a == "--exact");
@@ -264,14 +268,45 @@ mod mac {
         }
     }
 
+    /// One run mark over the test's connector, as the app's client call sends it.
+    fn mark_over(to: &ToServer, edge: RunEdge) -> Result<RunMarked, ClientError> {
+        let mut stream = to.connect(WAIT)?;
+        stream.set_timeout(WAIT).map_err(ClientError::Io)?;
+        write_frame(&mut stream, &edge.request(), REQUEST_MAX_BYTES)
+            .map_err(|e| ClientError::Protocol(e.to_string()))?;
+        stream.end_request().map_err(ClientError::Io)?;
+        let reply = read_frame(&mut stream, REPLY_MAX_BYTES)
+            .map_err(|e| ClientError::Protocol(e.to_string()))?;
+        RunMarked::decode(&reply).ok_or_else(|| ClientError::Protocol("no run_marked".to_owned()))
+    }
+
+    /// The counts of the run marks that the stand-in server took.
+    #[derive(Default)]
+    struct Marks {
+        starts: AtomicUsize,
+        ends: AtomicUsize,
+    }
+
     /// Serves one control connection as the daemon's server does.
-    fn serve_one(stream: UnixStream, channel: &Mutex<Channel>) {
+    fn serve_one(stream: UnixStream, channel: &Mutex<Channel>, marks: &Marks) {
         let Ok(frame) = read_frame(&mut &stream, REQUEST_MAX_BYTES) else {
             return;
         };
         let Ok(Decoded::Unknown(request)) = decode_request(&frame) else {
             return;
         };
+        if let Some(edge) = mark_request(&request) {
+            let Ok(edge) = edge else {
+                return;
+            };
+            match edge {
+                RunEdge::Start => marks.starts.fetch_add(1, Ordering::SeqCst),
+                RunEdge::End => marks.ends.fetch_add(1, Ordering::SeqCst),
+            };
+            let reply = RunMarked { edge, stored: true }.encode();
+            let _ = write_frame(&mut &stream, &reply, REPLY_MAX_BYTES);
+            return;
+        }
         let mut channel = lock(channel);
         dispatch_unknown(&request, &stream, &mut Starter(&mut channel));
     }
@@ -283,6 +318,7 @@ mod mac {
         channel: Arc<Mutex<Channel>>,
         worker: PipeWriter,
         worker_frames: Receiver<Vec<u8>>,
+        marks: Arc<Marks>,
         to: ToServer,
         sent: AtomicU8,
     }
@@ -372,12 +408,13 @@ mod mac {
                 frames: frames(test.try_clone().unwrap()),
                 writes: test,
             }));
+            let marks = Arc::new(Marks::default());
             let (tx, conns) = mpsc::channel::<UnixStream>();
-            let served = Arc::clone(&channel);
+            let served = (Arc::clone(&channel), Arc::clone(&marks));
             std::thread::spawn(move || {
                 for stream in conns {
-                    let channel = Arc::clone(&served);
-                    std::thread::spawn(move || serve_one(stream, &channel));
+                    let (channel, marks) = (Arc::clone(&served.0), Arc::clone(&served.1));
+                    std::thread::spawn(move || serve_one(stream, &channel, &marks));
                 }
             });
             World {
@@ -386,6 +423,7 @@ mod mac {
                 channel,
                 worker,
                 worker_frames: frames(worker_reads),
+                marks,
                 to: ToServer(Arc::new(Mutex::new(tx))),
                 sent: AtomicU8::new(0),
             }
@@ -397,10 +435,12 @@ mod mac {
 
         /// The app's client calls, over the stand-in server and the owner's channel.
         fn calls(&self) -> Calls {
-            let (streams, relayed) = (self.to.clone(), Arc::clone(&self.channel));
+            let (streams, relayed, marked) =
+                (self.to.clone(), Arc::clone(&self.channel), self.to.clone());
             Calls {
                 owner_stream: Arc::new(move || Client::new(streams.clone()).owner_stream()),
                 relay: Arc::new(move |request: &[u8]| Ok(lock(&relayed).relay(request))),
+                mark: Arc::new(move |edge| mark_over(&marked, edge)),
             }
         }
 
@@ -744,5 +784,60 @@ mod mac {
             copy.display()
         );
         assert!(workbook.exists(), "the workbook stands");
+    }
+
+    /// U5.4a sentence 5: a run that died is ended once. A mark under `agents/marks/` of the scratch data directory, as
+    /// a killed app leaves it, with the run's `run_started` stored: after the next start the run's record reads
+    /// `interrupted` and the stand-in server has taken one mark `run_end` for it.
+    fn a_run_of_an_earlier_life_left_by_a_killed_app_is_ended_interrupted_with_one_end_mark() {
+        let mut world = World::new("killed");
+        let (workflow, agent) = world.agent();
+        let run = format!("{:032x}", 0xd1);
+        let link = world.link();
+        let head = format!(r#""workflow":"{workflow}","agent":"{agent}""#);
+        let (at, day) = local_now();
+        let started = format!(
+            r#"{{"v":1,{head},"seq":1,"day":{day},"at":{at},"event":"run_started","run":"{run}","slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":null,"trigger":"person","origin":null,"defer_launch":null,"defer_ticks_failed":null}}"#
+        );
+        assert_eq!(
+            world.ask(
+                &link,
+                "coordinator_write",
+                &format!(r#"{{"op":"coord_log",{head},"records":[{started}]}}"#)
+            ),
+            json!({"stored": 1})
+        );
+        world.ask(
+            &link,
+            "coordinator_write",
+            &format!(r#"{{"op":"start_run",{head},"run":"{run}","mode":"replay"}}"#),
+        );
+        let marks = world.dir.join("agents").join("marks");
+        std::fs::create_dir_all(&marks).unwrap();
+        std::fs::write(marks.join(&run), format!("mark run={run}\n")).unwrap();
+
+        let hub = world.hub();
+        product::start(&hub);
+        let history = world.ask(
+            &link,
+            "coordinator_write",
+            &format!(r#"{{"op":"coord_history",{head},"after":null}}"#),
+        );
+        let ended: Vec<&Value> = history["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["event"] == "run_ended" && r["run"] == run.as_str())
+            .collect();
+        assert_eq!(ended.len(), 1, "{history}");
+        assert_eq!(ended[0]["cause"], "interrupted", "{history}");
+        assert!(!marks.join(&run).exists(), "the mark is gone");
+        std::thread::sleep(Duration::from_millis(300));
+        assert_eq!(world.marks.ends.load(Ordering::SeqCst), 1, "one end mark");
+        assert_eq!(
+            world.marks.starts.load(Ordering::SeqCst),
+            0,
+            "no start mark"
+        );
     }
 }

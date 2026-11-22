@@ -47,7 +47,7 @@ pub type Start = Box<dyn FnOnce() + Send>;
 
 /// The one place where the app makes its `Core`, and the steps of its start. On a Mac with a data
 /// directory it is the hub over the product's ports (`halvo_coord_app::product`), whose count of
-/// agents that need the person goes to `tray`: its owner streams and relay go through
+/// agents that need the person goes to `tray`: its owner streams, relay and run marks go through
 /// `control`, its runs live under the data directory, and its start's steps are
 /// `halvo_coord_app::product::start`. Elsewhere, and on Windows until the capture run's win-5 cut
 /// 2, it is `NoService`, and nothing calls `tray`.
@@ -88,10 +88,15 @@ fn product_hub(
         browser: beside.join("halvo-browser"),
         model: None,
     };
-    let (streams, relayed) = (Arc::clone(control), Arc::clone(control));
+    let (streams, relayed, marked) = (
+        Arc::clone(control),
+        Arc::clone(control),
+        Arc::clone(control),
+    );
     let calls = Calls {
         owner_stream: Arc::new(move || streams.owner_stream(streams.places().make())),
         relay: Arc::new(move |request: &[u8]| relayed.relay(relayed.places().make(), request)),
+        mark: Arc::new(move |edge| marked.run_mark(marked.places().make(), edge)),
     };
     halvo_coord_app::product::hub(calls, places, tray, Box::new(NoDialog))
 }

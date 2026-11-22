@@ -7,19 +7,21 @@
 //!   decision `delete` are reads and decisions of the role `interface`, which a stream refuses: they go through the
 //!   app's relay call. No write of the coordinator goes through the relay.
 //! - `Runs` is the supervisor library over a second owner stream: `start` hands the machine's zone offset of the
-//!   moment as `utc_offset_s`.
+//!   moment as `utc_offset_s`; the first `reap` of a life answers what the start's own reap answered.
 //! - `Clock` reads the system clock and the zone of the Mac, `Rng` the system's generator, `Policy` the table of
 //!   halvo-policy (`decide_row`) and `Senders` the schema's reader of `reply_senders`.
 //!
 //! The library's calls back (`MarkSink`, `Human`) reach the coordinator through one thread of their own, so that no
-//! thread of a run ever waits for the coordinator's lock.
+//! thread of a run ever waits for the coordinator's lock. Each run of this life ends through `MarkSink::end`; a run
+//! of an earlier life that the start's reap answers is ended by the core's recovery, and the start sends the one
+//! mark `run_end` for it itself, because the library's reap calls no `MarkSink`.
 #![cfg(target_os = "macos")]
 
 use std::collections::HashMap;
 use std::io::Read;
 use std::num::NonZeroU32;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -27,11 +29,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use halvo_agent_client::link::product::ClientEnds;
 use halvo_agent_client::link::StreamLink;
 use halvo_agent_client::{
-    Confirmer, Human, IssueRefused, MarkSink, OriginAnswer, OwnerLink, Parts, RunEnd, Secrets,
-    Supervisor,
+    Confirmer, Human, IssueRefused, MarkSink, OriginAnswer, OwnerLink, Parts, ReapAnswer, RunEnd,
+    Secrets, Supervisor,
 };
 use halvo_control::client::ClientError;
-use halvo_control::r2::OwnerStreamEnd;
+use halvo_control::r2::{OwnerStreamEnd, RunEdge, RunMarked};
 use halvo_coord::guard::{EffectState, Policy};
 use halvo_coord::items::drive::log_text;
 use halvo_coord::ports::{
@@ -64,15 +66,19 @@ use crate::hub::{Core, Hub, Present};
 pub type StreamCall = Arc<dyn Fn() -> Result<OwnerStreamEnd, ClientError> + Send + Sync>;
 /// The call that relays one request of the role `interface` and gives the owner's reply.
 pub type RelayCall = Arc<dyn Fn(&[u8]) -> Result<Vec<u8>, ClientError> + Send + Sync>;
+/// The call of one run mark.
+pub type MarkCall = Arc<dyn Fn(RunEdge) -> Result<RunMarked, ClientError> + Send + Sync>;
 
-/// The app's client calls that the product's ports go through: a new owner stream and the relay of one request of
-/// the role `interface`.
+/// The app's client calls that the product's ports go through: a new owner stream, the relay of one request of the
+/// role `interface`, and one run mark.
 #[derive(Clone)]
 pub struct Calls {
     /// One end of a new owner stream (`Control::owner_stream` of the app).
     pub owner_stream: StreamCall,
     /// One request of the role `interface` relayed to the owner, and the owner's reply (`Control::relay`).
     pub relay: RelayCall,
+    /// One run mark (`Control::run_mark`).
+    pub mark: MarkCall,
 }
 
 /// Where the product's runs live: the absolute data directory and the absolute paths that a start hands the
@@ -104,11 +110,14 @@ pub fn hub(
     hub
 }
 
-/// The steps of the app's start, in their order: the hub's first tick, whose recovery reaps what an earlier life
-/// left; then the removal of the checkpoints that may go, once, before any start of a run (a start inside that
+/// The steps of the app's start, in their order: the library's reap of what an earlier life left (it ends what is
+/// left of each such run and removes its mark), and one mark `run_end` where it answered a run and no run of this
+/// life is live; the hub's first tick, whose recovery takes that reap's answers and ends each such run with its
+/// store; then the removal of the checkpoints that may go, once, before any start of a run (a start inside that
 /// first tick removes them first).
 pub fn start(hub: &ProductHub) {
     let product = hub.coordinator().ports().inner();
+    product.reap_earlier_life();
     Core::tick(hub);
     product.remove_checkpoints_once();
 }
@@ -225,15 +234,79 @@ impl Events {
 /// `run_started`.
 type RunsOf = Arc<Mutex<HashMap<RunId, (WorkflowId, AgentId)>>>;
 
-/// The library's `MarkSink`: the end of each run of this life for the coordinator.
+/// The level of the run marks (the workflow run's S-59 (g)): how many runs of this life are live, and the one edge
+/// that waits to be sent until a daemon has answered it.
+struct Marks {
+    calls: Calls,
+    live: AtomicUsize,
+    owed: Mutex<Option<RunEdge>>,
+    sending: AtomicBool,
+}
+
+impl Marks {
+    /// Keeps `edge` as the one edge owed and sends it on a thread of its own, so that no start and no end of a run
+    /// waits for a mark.
+    fn owe(self: &Arc<Self>, edge: RunEdge) {
+        *lock(&self.owed) = Some(edge);
+        self.send_owed();
+    }
+
+    /// Sends the edge owed, unless a send is under way; a daemon's answer, `stored` false among them, clears it.
+    fn send_owed(self: &Arc<Self>) {
+        if lock(&self.owed).is_none() || self.sending.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let marks = Arc::clone(self);
+        std::thread::spawn(move || {
+            marks.send_now();
+            marks.sending.store(false, Ordering::SeqCst);
+        });
+    }
+
+    /// Sends the edge owed on this thread.
+    fn send_now(&self) {
+        let Some(edge) = *lock(&self.owed) else {
+            return;
+        };
+        if (self.calls.mark)(edge).is_ok() {
+            let mut owed = lock(&self.owed);
+            if *owed == Some(edge) {
+                *owed = None;
+            }
+        }
+    }
+}
+
+/// The library's `MarkSink`: the level of the run marks, and the end of each run of this life for the
+/// coordinator.
 struct Sink {
+    marks: Arc<Marks>,
     events: Arc<Events>,
 }
 
 impl MarkSink for Sink {
-    fn start(&self, _run: &halvo_schema::executable::text::RunId) {}
+    fn start(&self, _run: &halvo_schema::executable::text::RunId) {
+        if self.marks.live.fetch_add(1, Ordering::SeqCst) == 0 {
+            self.marks.owe(RunEdge::Start);
+        }
+    }
 
     fn end(&self, run: &halvo_schema::executable::text::RunId, end: &RunEnd) {
+        let mut live = self.marks.live.load(Ordering::SeqCst);
+        let left = loop {
+            let next = live.saturating_sub(1);
+            match self
+                .marks
+                .live
+                .compare_exchange(live, next, Ordering::SeqCst, Ordering::SeqCst)
+            {
+                Ok(_) => break next,
+                Err(now) => live = now,
+            }
+        };
+        if left == 0 {
+            self.marks.owe(RunEdge::End);
+        }
         let Ok(run) = RunId::parse(run.as_str()) else {
             return;
         };
@@ -343,8 +416,10 @@ pub struct Product {
     relay: RelayCall,
     supervisor: Supervisor,
     places: Places,
+    marks: Arc<Marks>,
     runs: RunsOf,
     agents: Mutex<HashMap<AgentId, WorkflowId>>,
+    reaped: Mutex<Option<Vec<ReapAnswer>>>,
     checkpoints: AtomicBool,
 }
 
@@ -358,6 +433,12 @@ impl Product {
     fn new(calls: Calls, places: Places) -> (Product, Arc<Events>) {
         let events = Events::new();
         let runs: RunsOf = Arc::default();
+        let marks = Arc::new(Marks {
+            calls: calls.clone(),
+            live: AtomicUsize::new(0),
+            owed: Mutex::new(None),
+            sending: AtomicBool::new(false),
+        });
         let parts = Parts {
             link: link_of(&calls),
             confirmer: Arc::new(RejectAll),
@@ -367,6 +448,7 @@ impl Product {
             }),
             secrets: Arc::new(NoSecrets),
             marks: Arc::new(Sink {
+                marks: Arc::clone(&marks),
                 events: Arc::clone(&events),
             }),
         };
@@ -382,11 +464,27 @@ impl Product {
             relay: Arc::clone(&calls.relay),
             supervisor,
             places,
+            marks,
             runs,
             agents: Mutex::new(HashMap::new()),
+            reaped: Mutex::new(None),
             checkpoints: AtomicBool::new(false),
         };
         (product, events)
+    }
+
+    /// The library's reap of what an earlier life left, kept for the first `Runs::reap`, and the caller's own mark
+    /// `run_end` where it answered a run and no run of this life is live: the library's reap calls no `MarkSink`.
+    fn reap_earlier_life(&self) {
+        let Ok(answers) = self.supervisor.reap() else {
+            return;
+        };
+        let any = !answers.is_empty();
+        *lock(&self.reaped) = Some(answers);
+        if any && self.marks.live.load(Ordering::SeqCst) == 0 {
+            *lock(&self.marks.owed) = Some(RunEdge::End);
+            self.marks.send_now();
+        }
     }
 
     /// `Supervisor::remove_checkpoints` once in this life.
@@ -1049,7 +1147,10 @@ impl Runs for Product {
     }
 
     fn reap(&self) -> Result<Vec<(RunId, Reaped)>, PortError> {
-        let answers = self.supervisor.reap().map_err(|_| PortError::NoService)?;
+        let answers = match lock(&self.reaped).take() {
+            Some(answers) => answers,
+            None => self.supervisor.reap().map_err(|_| PortError::NoService)?,
+        };
         answers
             .iter()
             .map(|a| {
@@ -1084,6 +1185,7 @@ pub fn zone_offset_s(at: SystemTime) -> Option<i32> {
 
 impl Clock for Product {
     fn now(&self) -> Result<u64, PortError> {
+        self.marks.send_owed();
         let since = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| PortError::NoService)?;
