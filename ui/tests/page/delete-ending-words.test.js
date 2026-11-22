@@ -6,7 +6,7 @@ const { openPage, fixture } = require("../lib/page.js");
 
 const W = {
   ending: "This press deleted nothing, because Halvo's capture service was shutting down.",
-  nothingRemoved: "Everything was already deleted, so this press deleted nothing.",
+  nothingRemoved: "This press deleted nothing. Look at what this page shows as stored.",
   notBack: "Halvo's capture service shut down during your delete and did not start again in time, so Halvo could not ask it again.",
   unknown: "Halvo cannot tell whether your data was deleted. Look at what this page shows as stored.",
   notAnswering: "Halvo's capture service did not take the request.",
