@@ -442,7 +442,7 @@ impl SinkWriter {
         not(any(test, target_os = "macos", windows)),
         expect(
             dead_code,
-            reason = "Owner::append_run_mark, its one caller, is built in tests and in macOS debug builds alone"
+            reason = "Owner::append_run_mark, its one caller, is built in tests and in macOS and Windows builds alone"
         )
     )]
     pub(crate) fn number_next(&self) -> ArrivalNumber {

@@ -93,7 +93,7 @@ impl Marks {
         not(any(test, target_os = "macos", windows)),
         expect(
             dead_code,
-            reason = "the store owner, whose mark command calls it, is built in tests and in macOS debug builds alone"
+            reason = "the store owner, whose mark command calls it, is built in tests and in macOS and Windows builds alone"
         )
     )]
     pub(in crate::daemon) fn request(

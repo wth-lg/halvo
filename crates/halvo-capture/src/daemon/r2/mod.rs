@@ -22,7 +22,7 @@ pub(crate) fn site_reader<P>(_pid: P) -> Option<String> {
     not(any(test, target_os = "macos", windows)),
     expect(
         dead_code,
-        reason = "the store owner, its one caller, is built in tests and in macOS debug builds alone"
+        reason = "the store owner, its one caller, is built in tests and in macOS and Windows builds alone"
     )
 )]
 pub(super) fn owner_pass<T: marks::MarkEntry + cursor::ReadEntry>(owner: &mut T, took_event: bool) {
@@ -38,7 +38,7 @@ pub(super) fn owner_pass<T: marks::MarkEntry + cursor::ReadEntry>(owner: &mut T,
     not(any(test, target_os = "macos", windows)),
     expect(
         dead_code,
-        reason = "the supervisor, its one caller, is built in tests and in macOS debug builds alone"
+        reason = "the supervisor, its one caller, is built in tests and in macOS and Windows builds alone"
     )
 )]
 pub(super) fn start_children<T>(_supervisor: &mut T) {}
@@ -50,7 +50,7 @@ pub(super) fn start_children<T>(_supervisor: &mut T) {}
     not(any(test, target_os = "macos", windows)),
     expect(
         dead_code,
-        reason = "the supervisor, its one caller, is built in tests and in macOS debug builds alone"
+        reason = "the supervisor, its one caller, is built in tests and in macOS and Windows builds alone"
     )
 )]
 pub(super) fn tick(now: std::time::Duration) {
