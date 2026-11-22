@@ -767,6 +767,61 @@ fn the_profile_of_a_run_that_ends_hard_is_gone_at_its_end_with_no_reap() {
     }
 }
 
+#[test]
+fn a_remover_of_agents_after_the_answer_of_a_kill_leaves_nothing() {
+    for held in [false, true] {
+        let case = if held { "walk held" } else { "kill" };
+        let rig = Rig::new("kill-remove-agents");
+        let script = rig.script(&["hello", "browser child", "log ready", "idle"]);
+        let spec = rig.spec(&script);
+        let run = spec.run.clone();
+        rig.sup.start(spec).unwrap();
+        assert!(script.wait_log("ready", SHORT), "{case}: {}", script.log());
+        let agents = rig.data().join("agents");
+        let profile = profiles(&rig).join(run.as_str());
+        profile_tree(&profile);
+        if !held {
+            assert_eq!(rig.sup.kill(&run), Ok(()));
+            assert!(
+                !profile.exists(),
+                "{case}: the run's profile stands at the kill's answer"
+            );
+            let removed = fs::remove_dir_all(&agents);
+            assert!(
+                removed.is_ok() && !agents.exists(),
+                "{case}: a remover of agents after the kill's answer left it: {removed:?}"
+            );
+            continue;
+        }
+        let (reached, release) = hold_reap_at(&rig, ReapStep::ProfilesHeld);
+        let (answered, answer) = std::sync::mpsc::channel();
+        let sup = rig.sup.clone();
+        let killed = run.clone();
+        let killer = std::thread::spawn(move || {
+            let _ = answered.send(sup.kill(&killed));
+        });
+        let at_walk = reached.recv_timeout(SHORT).is_ok();
+        let early = answer.try_recv().is_ok();
+        let removed = fs::remove_dir_all(&agents);
+        let refused = agents.exists();
+        let _ = release.send(());
+        let late = answer.recv_timeout(SHORT);
+        killer.join().unwrap();
+        assert!(at_walk, "{case}: the run's end did not come to its walk");
+        assert!(
+            !early,
+            "{case}: the kill answered while the walk held agents"
+        );
+        if cfg!(windows) {
+            assert!(
+                refused,
+                "{case}: the walk's hold did not refuse a remover of agents: {removed:?}"
+            );
+        }
+        assert_eq!(late, Ok(Ok(())), "{case}");
+    }
+}
+
 fn hold_reap_at(
     rig: &Rig,
     at: ReapStep,
