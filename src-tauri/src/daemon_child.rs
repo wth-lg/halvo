@@ -4549,6 +4549,7 @@ mod tests {
             Ok(DeleteOutcome::Deleted(halvo_control::proto::Deleted {
                 report: halvo_control::testing::sample_delete_report(),
                 store: None,
+                unfinished: false,
             }))
         }
 
