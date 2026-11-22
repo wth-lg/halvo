@@ -50,6 +50,9 @@ fn main() {
         Ok(launch::Launch::WriteLoginItem { label, data_dir }) => {
             std::process::exit(write_login_item(&label, &data_dir).code())
         }
+        Ok(launch::Launch::DeleteAll { data_dir }) => {
+            std::process::exit(delete_all_of_a_scratch_dir(&data_dir).code())
+        }
         Err(usage) => {
             eprintln!("halvo: {usage}\n{}", launch::USAGE);
             std::process::exit(launch::Exit::Usage.code());
@@ -65,6 +68,54 @@ fn write_login_item(label: &str, data_dir: &Path) -> launch::Exit {
         std::env::current_exe(),
         &halvo_control::paths::SystemAccount,
     )
+}
+
+/// The launch form `--delete-all --data-dir DIR`, in the scratch form of `--write-login-item`:
+/// it refuses with 64, before any read of DIR's entries, the default data directory, a directory
+/// inside it and one that holds it; otherwise it runs the app's own entry of the offline delete
+/// with no child and no module, prints its answer as JSON, and exits 0 on deleted or no_store
+/// and 1 otherwise.
+fn delete_all_of_a_scratch_dir(data_dir: &Path) -> launch::Exit {
+    use commands::capture::{run_offline, Before, Offline, OFFLINE_WAIT};
+    use view_state::DeleteView;
+    let scratch =
+        halvo_control::paths::ScratchDir::new(data_dir, &halvo_control::paths::SystemAccount)
+            .and_then(|_| DataDir::from_flag(data_dir));
+    let dir = match scratch {
+        Ok(dir) => dir,
+        Err(error) => {
+            eprintln!(
+                "halvo: the scratch form does not take {}: {error}",
+                data_dir.display()
+            );
+            return launch::Exit::Usage;
+        }
+    };
+    let Some(program) = daemon_program() else {
+        eprintln!("halvo: the app's own path cannot be read");
+        return launch::Exit::NotDeleted;
+    };
+    let offline = Offline {
+        program,
+        data_dir: dir,
+        children: None,
+        run: Arc::new(|program, args| run_to_its_end(program, args, OFFLINE_WAIT)),
+    };
+    let before = Before {
+        modules: Vec::new(),
+        runs: Arc::default(),
+        core: None,
+    };
+    let answer = run_offline(&offline, &before);
+    let printed = match &answer {
+        Ok(view) => serde_json::to_string(view),
+        Err(error) => serde_json::to_string(error),
+    };
+    println!("{}", printed.unwrap_or_default());
+    match answer {
+        Ok(DeleteView::Deleted { .. } | DeleteView::NoStore { .. }) => launch::Exit::Deleted,
+        Ok(_) | Err(_) => launch::Exit::NotDeleted,
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -213,13 +264,68 @@ impl login_item::Runner for Launchctl {
     }
 }
 
+/// How often the app reads whether the offline delete has ended.
+const OFFLINE_POLL: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// Runs the offline delete's `program` with `args` to its end (contracts.md C3.3): standard
+/// input from the null device, standard output read whole, standard error the app's own, and
+/// every other descriptor closed at its exec; after `within` it kills the program and answers
+/// that it had no end.
+fn run_to_its_end(
+    program: &Path,
+    args: &[std::ffi::OsString],
+    within: std::time::Duration,
+) -> view_state::OfflineEnd {
+    use std::io::Read;
+    use std::process::{Command, Stdio};
+    use std::time::Instant;
+    use view_state::OfflineEnd;
+    let mut command = Command::new(program);
+    command
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit());
+    #[cfg(target_os = "macos")]
+    daemon_child::only_the_standard_streams(&mut command);
+    let Ok(mut child) = command.spawn() else {
+        return OfflineEnd::NotStarted;
+    };
+    let reader = child.stdout.take().map(|mut out| {
+        std::thread::spawn(move || {
+            let mut text = Vec::new();
+            let _ = out.read_to_end(&mut text);
+            String::from_utf8_lossy(&text).into_owned()
+        })
+    });
+    let until = Instant::now() + within;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Some(status),
+            Ok(None) if Instant::now() < until => std::thread::sleep(OFFLINE_POLL),
+            Ok(None) | Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break None;
+            }
+        }
+    };
+    let out = reader
+        .and_then(|reader| reader.join().ok())
+        .unwrap_or_default();
+    match status.map(|status| status.code()) {
+        None => OfflineEnd::NoEnd,
+        Some(Some(code)) => OfflineEnd::Exited { code, out },
+        Some(None) => OfflineEnd::Signal { out },
+    }
+}
+
 /// The daemon's program: the file halvo-capture beside the app's own executable (contracts.md
-/// C8 item 1).
-#[cfg(any(target_os = "macos", test))]
+/// C8 item 1), with the system's suffix of an executable.
 fn daemon_program() -> Option<PathBuf> {
     std::env::current_exe()
         .ok()
-        .map(|exe| exe.with_file_name("halvo-capture"))
+        .map(|exe| exe.with_file_name(format!("halvo-capture{}", std::env::consts::EXE_SUFFIX)))
 }
 
 /// The app's own supervisor of its daemon child.
@@ -253,7 +359,7 @@ fn set_the_offline_delete(
         children: supervisor
             .map(|children| children as Arc<dyn commands::capture::WithoutTheChild>),
         run: Arc::new(|program, args| {
-            daemon_child::run_to_its_end(program, args, commands::capture::OFFLINE_WAIT)
+            run_to_its_end(program, args, commands::capture::OFFLINE_WAIT)
         }),
     });
 }

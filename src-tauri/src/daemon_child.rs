@@ -244,8 +244,10 @@ pub fn start_child(program: &Program, args: &[OsString], err: File) -> io::Resul
     Ok(Running { child, lifeline })
 }
 
+/// Closes every descriptor but the standard streams in the child of `command` at its exec, also
+/// one that lacks close-on-exec.
 #[cfg(unix)]
-fn only_the_standard_streams(command: &mut Command) {
+pub fn only_the_standard_streams(command: &mut Command) {
     use std::os::unix::process::CommandExt;
     // SAFETY: getdtablesize reads the descriptor limit of this process; it takes no pointer.
     let highest = unsafe { sys::getdtablesize() };
@@ -425,57 +427,6 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
 impl<C: Watched, K: Clock> crate::commands::capture::WithoutTheChild for Supervisor<C, K> {
     fn without_the_child(&self, run: &mut dyn FnMut()) {
         Supervisor::without_the_child(self, run);
-    }
-}
-
-/// Runs the offline delete's `program` with `args` to its end (contracts.md C3.3): standard
-/// input from the null device, standard output read whole, standard error the app's own, and
-/// every other descriptor closed at its exec; after `within` it kills the program and answers
-/// that it had no end.
-#[cfg(target_os = "macos")]
-pub fn run_to_its_end(
-    program: &Path,
-    args: &[OsString],
-    within: Duration,
-) -> crate::view_state::OfflineEnd {
-    use crate::view_state::OfflineEnd;
-    use std::io::Read;
-    let mut command = Command::new(program);
-    command
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit());
-    only_the_standard_streams(&mut command);
-    let Ok(mut child) = command.spawn() else {
-        return OfflineEnd::NotStarted;
-    };
-    let reader = child.stdout.take().map(|mut out| {
-        std::thread::spawn(move || {
-            let mut text = Vec::new();
-            let _ = out.read_to_end(&mut text);
-            String::from_utf8_lossy(&text).into_owned()
-        })
-    });
-    let until = Instant::now() + within;
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break Some(status),
-            Ok(None) if Instant::now() < until => std::thread::sleep(STOP_POLL),
-            Ok(None) | Err(_) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                break None;
-            }
-        }
-    };
-    let out = reader
-        .and_then(|reader| reader.join().ok())
-        .unwrap_or_default();
-    match status.map(|status| status.code()) {
-        None => OfflineEnd::NoEnd,
-        Some(Some(code)) => OfflineEnd::Exited { code, out },
-        Some(None) => OfflineEnd::Signal { out },
     }
 }
 

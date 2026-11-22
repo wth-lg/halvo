@@ -18,6 +18,11 @@ pub enum Launch {
         label: String,
         data_dir: PathBuf,
     },
+    /// The offline delete of a scratch data directory, through the app's own entry (the capture
+    /// run's app-3b4): for the hosted test of the seam between the app and halvo-capture.
+    DeleteAll {
+        data_dir: PathBuf,
+    },
 }
 
 pub const MAX_WITHIN_S: u64 = 3600;
@@ -30,13 +35,15 @@ pub enum Exit {
     PageNotLoaded,
     GuardNotInstalled,
     LoginItemNotWritten,
+    Deleted,
+    NotDeleted,
 }
 
 impl Exit {
     pub const fn code(self) -> i32 {
         match self {
-            Exit::Quit | Exit::PageLoaded => 0,
-            Exit::PageNotLoaded | Exit::LoginItemNotWritten => 1,
+            Exit::Quit | Exit::PageLoaded | Exit::Deleted => 0,
+            Exit::PageNotLoaded | Exit::LoginItemNotWritten | Exit::NotDeleted => 1,
             Exit::GuardNotInstalled => 3,
             Exit::Usage => 64,
         }
@@ -54,6 +61,7 @@ pub enum Usage {
     RelativeDir,
     BadSeconds(String),
     LoginItemMissing(&'static str),
+    DeleteAllMissing,
 }
 
 impl fmt::Display for Usage {
@@ -71,6 +79,7 @@ impl fmt::Display for Usage {
                 "--within-s needs a whole number of seconds from 1 to {MAX_WITHIN_S}, not {value}"
             ),
             Usage::LoginItemMissing(option) => write!(f, "--write-login-item needs {option}"),
+            Usage::DeleteAllMissing => write!(f, "--delete-all needs --data-dir DIR"),
         }
     }
 }
@@ -90,6 +99,7 @@ pub fn parse<I: IntoIterator<Item = OsString>>(
         [first, ..] if first == "--version" => Err(Usage::Extra(first.clone())),
         [first, rest @ ..] if first == "--check-page" => check_page(rest),
         [first, rest @ ..] if first == "--write-login-item" => write_login_item(rest),
+        [first, rest @ ..] if first == "--delete-all" => delete_all(rest),
         options => run(options),
     }
 }
@@ -167,6 +177,15 @@ fn write_login_item(options: &[String]) -> Result<Launch, Usage> {
     Ok(Launch::WriteLoginItem { label, data_dir })
 }
 
+fn delete_all(options: &[String]) -> Result<Launch, Usage> {
+    let [data_dir] = values(options, ["--data-dir"])?;
+    let data_dir = PathBuf::from(data_dir.ok_or(Usage::DeleteAllMissing)?);
+    if !data_dir.is_absolute() {
+        return Err(Usage::RelativeDir);
+    }
+    Ok(Launch::DeleteAll { data_dir })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,6 +214,8 @@ mod tests {
         assert_eq!(Exit::Usage.code(), 64);
         assert_eq!(Exit::GuardNotInstalled.code(), 3);
         assert_eq!(Exit::LoginItemNotWritten.code(), 1);
+        assert_eq!(Exit::Deleted.code(), 0);
+        assert_eq!(Exit::NotDeleted.code(), 1);
     }
 
     #[test]

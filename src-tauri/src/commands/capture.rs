@@ -603,6 +603,13 @@ pub fn ask_offline(
             outcome_not_known: false,
         });
     };
+    run_offline(offline, before)
+}
+
+/// The run of the offline delete, the one entry of the command and of the launch form
+/// `--delete-all`: `Before::tell`, the app's child ended, the program run on the data directory,
+/// its lines mapped, and the supervisor then on by its rule.
+pub fn run_offline(offline: &Offline, before: &Before) -> Result<DeleteView, OutcomeError> {
     let _held = before.tell();
     let args = offline_arguments(&offline.data_dir);
     let mut end = OfflineEnd::NotStarted;
