@@ -19,6 +19,7 @@
   },
   "last_exit": null,
   "lease": "none",
+  "login_item_loaded": null,
   "loss": {
     "events_lost": 0,
     "events_pending": 0,

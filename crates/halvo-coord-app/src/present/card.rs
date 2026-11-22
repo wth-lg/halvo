@@ -1,12 +1,12 @@
 use halvo_coord::items::chars::columns;
-use halvo_coord::items::{CARD_COLUMNS, CARD_LINES};
+use halvo_coord::items::{NativeCard, CARD_COLUMNS, CARD_LINES};
 use halvo_coord::types::{Cause, Class, Field};
 use halvo_coord::words;
 
-/// What the native dialog shows (I4.3, I4.9): a title, one line per bound field, and its two
-/// controls, the rejecting one first. The title and the two controls come from the words file
-/// by the classes of the request's effects, so a card cannot hold the allowing text on its
-/// rejecting control, nor two controls of the same text. A card keeps the composed form when its
+/// What the native dialog shows (I4.3, I4.9): a title, its lines, and its two controls, the
+/// rejecting one first. The product's card is the core's (`Card::native`); `Card::new` composes
+/// one from the words file by the classes of the request's effects. Neither holds two controls
+/// of the same text. A card keeps the composed form when its
 /// title, each of its lines and each control text holds no character of the closed list of
 /// `breaks` (the control characters, the line and paragraph separators and the marks that set the
 /// direction of text), when it has at most `LINES` lines, when its title, each line and each
@@ -73,6 +73,23 @@ impl Card {
             lines: fields.iter().map(line).collect(),
             reject,
             allow,
+        })
+    }
+
+    /// The card of the core's native dialog (ruling RD-77 part 12): its title, its lines and the
+    /// texts of its two controls, the rejecting one first, as `halvo_coord` composes them and as
+    /// they are, so that the dialog shows the core's card and nothing else. `malformed` for two
+    /// controls of one text.
+    pub fn native(card: &NativeCard) -> Result<Card, Cause> {
+        let (reject, allow) = (&card.reject().text, &card.allow().text);
+        if reject == allow {
+            return Err(Cause::Malformed);
+        }
+        Ok(Card {
+            title: card.title().to_owned(),
+            lines: card.lines().to_vec(),
+            reject: reject.clone(),
+            allow: allow.clone(),
         })
     }
 
