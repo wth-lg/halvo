@@ -448,6 +448,7 @@ mod mac {
                 owner_stream: Arc::new(move || Client::new(streams.clone()).owner_stream()),
                 relay: Arc::new(move |request: &[u8]| Ok(lock(&relayed).relay(request))),
                 mark: Arc::new(move |edge| mark_over(&marked, edge)),
+                defer: Arc::new(|_| Err(ClientError::Unsupported)),
             }
         }
 

@@ -1826,6 +1826,11 @@ mod tests {
         ) -> Result<halvo_control::r2::RunMarked, ClientError> {
             own("run_mark")
         }
+
+        #[cfg(target_os = "macos")]
+        fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
+            own("defer")
+        }
     }
 
     fn status_of(pid: u32, versions_up: u32, pausing: bool) -> DaemonStatus {
@@ -2040,6 +2045,7 @@ mod tests {
         let of_the_system = vec![
             kind_of(control.owner_stream(made())),
             kind_of(control.run_mark(made(), halvo_control::r2::RunEdge::Start)),
+            kind_of(control.defer(made(), 0)),
         ];
         #[cfg(not(target_os = "macos"))]
         let of_the_system: Vec<&str> = Vec::new();
@@ -2070,7 +2076,7 @@ mod tests {
         ]
         .into_iter()
         .chain(if cfg!(target_os = "macos") {
-            vec!["owner_stream", "run_mark"]
+            vec!["owner_stream", "run_mark", "defer"]
         } else {
             Vec::new()
         })
