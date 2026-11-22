@@ -62,7 +62,7 @@ fn no_pane(_permission: Permission) -> Result<(), String> {
 }
 
 pub fn macos_fixture_daemon() -> ScriptedDaemon {
-    let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+    let mut daemon = ScriptedDaemon::new(states::status_with(Platform::Macos, |_| {}));
     daemon.set_inventory(sample_inventory(Vec::new()));
     daemon
 }

@@ -15,8 +15,9 @@ use super::names::{Names, CAPTURE};
 use super::Registration;
 use crate::poller::{self, Views};
 use crate::view_state::{
-    command_view, delete_view, inventory_view, read_error, removes_nothing, ActionError,
-    CapSetView, CaptureSet, DeleteView, Hold, InventoryView, LastDelete, OutcomeError, StatusView,
+    command_view, delete_view, inventory_view, onboarding_shown, read_error, removes_nothing,
+    ActionError, CapSetView, CaptureSet, DeleteView, Hold, InventoryView, LastDelete, OutcomeError,
+    StatusView,
 };
 
 pub struct AppState {
@@ -390,7 +391,7 @@ pub async fn onboarding_state(state: State<'_, AppState>) -> Result<OnboardingSt
     Ok(state
         .views
         .status()
-        .map_or_else(no_onboarding, |status| status.fields().onboarding.clone()))
+        .map_or_else(no_onboarding, |status| onboarding_shown(&status)))
 }
 
 #[tauri::command]

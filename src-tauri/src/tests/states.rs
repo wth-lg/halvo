@@ -3,7 +3,7 @@ use halvo_control::onboarding::{GrantState, Permission};
 use halvo_control::proto::{
     Cap, Capture, CaptureReason, Custody, DaemonStatus, DrainError, ExpiryError, Health, LastStop,
     Lease, LostRecord, Platform, Reason, SourceError, SourceLine, SourceName, SourceState,
-    StatusFields, StopKind, StopSourceLine, StoreErrorKind, StoreState,
+    StatusFields, StopKind, StopSourceLine, StoreErrorKind, StoreState, SwitchName,
 };
 use halvo_control::testing::{onboarding_of, sample_status, FIXTURE_STORE_ID};
 use serde_json::Value;
@@ -26,6 +26,9 @@ fn error(kind: &str, stage: &str, domain: &str, code: i64) -> SourceError {
 
 pub fn status_with(platform: Platform, edit: impl FnOnce(&mut StatusFields)) -> DaemonStatus {
     let mut f = sample_status(platform).into_fields();
+    if platform == Platform::Macos {
+        f.typing = Some(true);
+    }
     edit(&mut f);
     f.onboarding = onboarding_of(f.platform, &f.permissions);
     DaemonStatus::new(f).unwrap_or_else(|e| panic!("the edited status breaks: {}", e.rule()))
@@ -96,7 +99,7 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
         ("status-refused", none(NoStatusService::StatusRefused)),
         ("unsupported", none(NoStatusService::Unsupported)),
         ("another-version", none(NoStatusService::AnotherVersion)),
-        ("running", of(sample_status(mac))),
+        ("running", of(status_with(mac, |_| {}))),
         ("running-windows", of(sample_status(Platform::Windows))),
         (
             "starting",
@@ -520,6 +523,149 @@ fn the_store_id_and_the_custody_sentence_come_from_the_status() {
         f.custody = Custody::SecureEnclave
     }));
     assert!(!custody(&enclave).unwrap_or("").contains("unsigned"));
+}
+
+#[test]
+fn a_mac_status_with_typing_off_gets_none_of_the_four() {
+    let key_row = halvo_control::texts::recorded_when_on(SwitchName::KeyClass);
+    let early = halvo_control::texts::KEY_TYPED_AHEAD_CAN_BE_NOTED;
+    for (platform, typing, shown) in [
+        (Platform::Macos, Some(false), false),
+        (Platform::Macos, None, false),
+        (Platform::Macos, Some(true), true),
+        (Platform::Windows, None, true),
+    ] {
+        let case = format!("{platform:?} typing {typing:?}");
+        let status = status_with(platform, |f| {
+            f.typing = typing;
+            if let Some(line) = f
+                .permissions
+                .iter_mut()
+                .find(|line| line.name == Permission::InputMonitoring)
+            {
+                line.grant = GrantState::NotGranted;
+                line.once_granted = true;
+            }
+        });
+        let before = halvo_control::texts::texts(&status);
+        let test = super::test_app_with(
+            super::scratch_dir(&format!("typing-{}", case.replace(' ', "-"))),
+            halvo_control::testing::ScriptedDaemon::new(status.clone()),
+        );
+        test.poll();
+        let window = super::main_window(&test.app);
+        let view = super::invoke(
+            &window,
+            super::APP_URL,
+            "capture_status",
+            serde_json::json!({}),
+        )
+        .unwrap_or_else(|e| panic!("{case}: capture_status answers {e}"));
+        let onboarding = super::invoke(
+            &window,
+            super::APP_URL,
+            "onboarding_state",
+            serde_json::json!({}),
+        )
+        .unwrap_or_else(|e| panic!("{case}: onboarding_state answers {e}"));
+        let recorded: Vec<&str> = view["texts"]["recorded"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{case}: the view lists what is recorded"))
+            .iter()
+            .filter_map(|row| row["text"].as_str())
+            .collect();
+        let others = [&view["texts"]["passwords"], &view["texts"]["typed_ahead"]]
+            .into_iter()
+            .filter_map(Value::as_str)
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>();
+        let rows: Vec<&str> = onboarding["permissions"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{case}: onboarding_state lists rows"))
+            .iter()
+            .filter_map(|row| row["permission"].as_str())
+            .collect();
+        let steps: Vec<&str> = onboarding["walkback"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{case}: onboarding_state lists steps"))
+            .iter()
+            .filter_map(|step| step["permission"].as_str())
+            .collect();
+        let named = |list: &Value| {
+            list.as_array()
+                .is_some_and(|names| names.iter().any(|n| n == "input_monitoring"))
+        };
+        let sources: Vec<&str> = view["sources"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{case}: the view lists sources"))
+            .iter()
+            .filter_map(|line| line["name"].as_str())
+            .collect();
+        let mac = platform == Platform::Macos;
+        assert_eq!(
+            recorded.contains(&key_row),
+            shown && mac,
+            "{case}: the row of keys"
+        );
+        assert_eq!(
+            sources.contains(&"input"),
+            shown && mac,
+            "{case}: the input source's name for typing"
+        );
+        assert_eq!(
+            sources.contains(&"pointer"),
+            !shown || !mac,
+            "{case}: the name for the pointer alone"
+        );
+        assert_eq!(
+            rows.contains(&"input_monitoring"),
+            shown && mac,
+            "{case}: the card"
+        );
+        assert_eq!(
+            steps.contains(&"input_monitoring"),
+            shown && mac,
+            "{case}: its steps"
+        );
+        assert_eq!(
+            named(&onboarding["lost_grants"]),
+            shown && mac,
+            "{case}: its lost grant"
+        );
+        assert_eq!(
+            named(&view["lost_grants"]),
+            shown && mac,
+            "{case}: the banner's name"
+        );
+        assert_eq!(
+            others.contains(&early),
+            shown && mac,
+            "{case}: a key pressed early"
+        );
+        assert_eq!(
+            others.contains(&before.passwords),
+            shown,
+            "{case}: the sentence on passwords"
+        );
+        assert!(
+            !rows.contains(&"screen_and_system_audio_recording"),
+            "{case}: the screen's card while screen_activity is off"
+        );
+        if shown {
+            assert_eq!(
+                view["texts"],
+                serde_json::to_value(&before).expect("the texts write"),
+                "{case}: the texts as the status gives them"
+            );
+        }
+        if !mac {
+            assert_eq!(
+                onboarding,
+                serde_json::to_value(&status.fields().onboarding).expect("the rows write"),
+                "{case}: a Windows status is untouched"
+            );
+        }
+    }
 }
 
 #[test]

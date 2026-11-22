@@ -82,7 +82,7 @@ test("a missing permission shows its row and the Ask now step", async () => {
 test("every permission granted shows every row as On and no steps", async () => {
   const page = await openPage({ replies: { onboarding_state: () => fixture("onboarding_state-granted") } });
   const badges = page.byId("permissions").querySelectorAll("span.badge").map((b) => b.textContent);
-  assert.deepEqual(badges, ["On", "On", "On"]);
+  assert.deepEqual(badges, ["On", "On"]);
   assert.equal(page.visible("walkback"), false);
 });
 

@@ -1,10 +1,11 @@
 use halvo_control::client::{ClientError, DeleteOutcome};
 use halvo_control::model::{CaptureState, ObservationWindow, StorageCap, StoreId};
-use halvo_control::onboarding::Permission;
+use halvo_control::onboarding::{GrantState, OnboardingState, Permission};
 use halvo_control::proto::{
     Cap, Capture, CaptureReason, DaemonStatus, DeleteFields, DrainError, ErrorCode, ExpiryError,
-    Health, InventoryReply, LastStop, Lease, LostRecord, PasswordGuard, Platform, RootDestroyed,
-    Section, SourceName, SourceStateName, StopKind, StoreErrorKind, StoreState,
+    Health, InventoryReply, LastStop, Lease, LostRecord, OnOff, PasswordGuard, Platform,
+    RootDestroyed, Section, SourceName, SourceStateName, StopKind, StoreErrorKind, StoreState,
+    SwitchName,
 };
 use halvo_control::texts::{texts, Texts};
 use serde::{Deserialize, Serialize};
@@ -477,20 +478,74 @@ impl StatusView {
                 .sources
                 .iter()
                 .map(|line| SourceView {
-                    name: line.name,
+                    name: match line.name {
+                        SourceName::Input if !typing_shown(status) => SourceName::Pointer,
+                        name => name,
+                    },
                     state: line.state.name(),
                     reason: line.state.reason(),
                     error: line.state.error().map(ToString::to_string),
                 })
                 .collect(),
-            lost_grants: f.onboarding.lost_grants.clone(),
+            lost_grants: onboarding_shown(status).lost_grants,
             password_guard: f.password_guard,
             screen_filter_excludes_app: f.screen_filter_excludes_app,
-            texts: texts(status),
+            texts: texts_shown(status),
             ext: f.ext.clone(),
             hold: None,
         }))
     }
+}
+
+/// The one switch of what a view says about typing on a Mac: whether the status's typing line
+/// reads on. A Mac status that reads it off or holds no such line shows none of what typing
+/// would record or need: the row of keys, the sentences on passwords and on a key pressed early,
+/// the card of Input Monitoring, and the input source's name for typing. A Windows status is
+/// shown as it is.
+pub fn typing_shown(status: &DaemonStatus) -> bool {
+    let f = status.fields();
+    f.platform == Platform::Windows || f.typing == Some(true)
+}
+
+/// The onboarding rows of `status` that a view shows: a row with its steps and its lost grant
+/// stays only for a permission that the app can use, Input Monitoring by [`typing_shown`] and
+/// Screen and System Audio Recording while the switch screen_activity reads on.
+pub fn onboarding_shown(status: &DaemonStatus) -> OnboardingState {
+    let f = status.fields();
+    let screen = f
+        .switches
+        .iter()
+        .any(|line| line.name == SwitchName::ScreenActivity && line.value == OnOff::On);
+    let shown = |permission: Permission| match permission {
+        Permission::InputMonitoring => typing_shown(status),
+        Permission::ScreenAndSystemAudioRecording => screen,
+        Permission::Accessibility => true,
+    };
+    let mut onboarding = f.onboarding.clone();
+    onboarding.permissions.retain(|row| shown(row.permission));
+    onboarding
+        .lost_grants
+        .retain(|&permission| shown(permission));
+    onboarding.walkback.retain(|step| shown(step.permission));
+    onboarding.all_granted = onboarding
+        .permissions
+        .iter()
+        .all(|row| row.grant == GrantState::Granted);
+    onboarding
+}
+
+/// The sentences of `status` that a view shows: by [`typing_shown`], without the row of keys,
+/// the sentence on passwords (left empty) and the sentence on a key pressed early.
+pub fn texts_shown(status: &DaemonStatus) -> Texts {
+    let mut shown = texts(status);
+    if !typing_shown(status) {
+        shown
+            .recorded
+            .retain(|row| row.switch != SwitchName::KeyClass);
+        shown.passwords = "";
+        shown.typed_ahead = None;
+    }
+    shown
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
