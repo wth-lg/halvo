@@ -1233,8 +1233,10 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         } else {
             PROBE_INTERVAL
         };
-        let due = self.probe_retry_at.is_some_and(|at| now >= at)
-            || self.probe_last.is_none_or(|at| now >= at + interval);
+        let due = match self.probe_retry_at {
+            Some(at) => now >= at,
+            None => self.probe_last.is_none_or(|at| now >= at + interval),
+        };
         if !self.probe_asked && due {
             probe.start(&required);
             self.probe_asked = true;
@@ -3376,6 +3378,24 @@ mod tests {
             4,
             "no probe 60 s after with no client"
         );
+    }
+
+    #[test]
+    fn a_failed_probe_is_started_again_3_s_later_and_not_before() {
+        let (mut f, answers, asked) = probed(fixture(Factory::new()));
+        answers.borrow_mut().push_back(Probed::Failed);
+        f.start(&two());
+        f.tick();
+        assert_eq!(asked.borrow().len(), 1);
+        f.tick();
+        f.later(PROBE_INTERVAL_MISSING - Duration::from_millis(1));
+        assert_eq!(
+            asked.borrow().len(),
+            1,
+            "a start before 3 s after a failed probe"
+        );
+        f.later(Duration::from_millis(1));
+        assert_eq!(asked.borrow().len(), 2, "no start 3 s after a failed probe");
     }
 
     #[test]
