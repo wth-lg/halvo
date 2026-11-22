@@ -151,7 +151,11 @@
   }
 
   function deletedWords(r) {
-    return lineWords(r).concat(typeof r.looked_in === "string" ? [withFolder(w.DELETE_LOOKED_IN, r.looked_in)] : []);
+    var inARow = Number(r.unfinished_in_a_row) || 0;
+    var unfinished = inARow >= 2 ? [withFolder(w.DELETE_NOT_FINISHED_AGAIN, r.looked_in)] : inARow === 1 ? [w.DELETE_NOT_FINISHED] : [];
+    return lineWords(r)
+      .concat(unfinished)
+      .concat(typeof r.looked_in === "string" ? [withFolder(w.DELETE_LOOKED_IN, r.looked_in)] : []);
   }
 
   function lineWords(r) {

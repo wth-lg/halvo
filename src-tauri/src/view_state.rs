@@ -1028,6 +1028,10 @@ pub enum DeleteView {
         cleanup_command: Option<String>,
         looked_in: Option<String>,
         nothing_left: bool,
+        /// How many deletes in a row, this one the last, did not finish (ruling DM-21): only
+        /// where this one did not.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        unfinished_in_a_row: Option<u32>,
     },
     AlreadyDeleted {
         current_store_id: StoreId,
@@ -1091,6 +1095,43 @@ impl DeleteView {
             },
             looked_in,
             nothing_left: left_nothing(f),
+            unfinished_in_a_row: None,
+        }
+    }
+
+    /// Counts this answer into the deletes in a row that did not finish, at either door: a
+    /// deleted answer that left a key, a file, a database or an entry of Halvo's own adds one
+    /// and carries the count; one that left none, an already_deleted and a no_store end the row;
+    /// any other answer leaves the count as it stands.
+    pub fn count_unfinished(&mut self, in_a_row: &std::sync::atomic::AtomicU32) {
+        use std::sync::atomic::Ordering;
+        match self {
+            DeleteView::Deleted {
+                root_destroyed,
+                not_followed,
+                files_left,
+                database_left,
+                entries_left,
+                unfinished_in_a_row,
+                ..
+            } => {
+                let finished = *root_destroyed == RootDestroyed::Yes
+                    && *not_followed == 0
+                    && *files_left == 0
+                    && !*database_left
+                    && *entries_left == 0;
+                if finished {
+                    in_a_row.store(0, Ordering::SeqCst);
+                } else {
+                    let count = in_a_row.load(Ordering::SeqCst).saturating_add(1);
+                    in_a_row.store(count, Ordering::SeqCst);
+                    *unfinished_in_a_row = Some(count);
+                }
+            }
+            DeleteView::AlreadyDeleted { .. } | DeleteView::NoStore { .. } => {
+                in_a_row.store(0, Ordering::SeqCst);
+            }
+            DeleteView::DeleteRefused => {}
         }
     }
 

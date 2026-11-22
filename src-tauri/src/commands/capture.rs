@@ -35,6 +35,8 @@ pub struct AppState {
     /// The answers delete_refused of the service in a row, which open the offline delete's
     /// second door at two (contracts.md C10.5).
     pub refused_in_a_row: AtomicU32,
+    /// The deletes in a row, at either door, that did not finish (ruling DM-21).
+    pub unfinished_in_a_row: AtomicU32,
     offline_running: Arc<AtomicBool>,
 }
 
@@ -72,6 +74,7 @@ impl AppState {
             last_delete: Mutex::new(LastDelete::None),
             offline: OnceLock::new(),
             refused_in_a_row: AtomicU32::new(0),
+            unfinished_in_a_row: AtomicU32::new(0),
             offline_running: Arc::default(),
         }
     }
@@ -433,7 +436,7 @@ pub async fn delete_all(
         });
     };
     let roots = state.data_dir.as_ref().map(DataDir::roots_dir);
-    let (view, nothing_removed) = match end {
+    let (mut view, nothing_removed) = match end {
         DeleteEnd::Answered(answer) => {
             let nothing_removed = answer.as_ref().err().is_some_and(a_delete_removed_nothing);
             (delete_view(answer, roots.as_deref()), nothing_removed)
@@ -444,6 +447,9 @@ pub async fn delete_all(
         ),
         DeleteEnd::FirstNotKnown(first) => (delete_view(Err(first), roots.as_deref()), false),
     };
+    if let Ok(answer) = &mut view {
+        answer.count_unfinished(&state.unfinished_in_a_row);
+    }
     match &view {
         Ok(
             DeleteView::Deleted { .. }
@@ -575,7 +581,7 @@ pub async fn delete_offline(state: State<'_, AppState>) -> Result<DeleteView, Ou
     let views = Arc::clone(&state.views);
     state.keep_last_delete(LastDelete::InFlight);
     let _in_flight = NotLeftInFlight(state.inner());
-    let answer = off_the_main_thread(move || {
+    let mut answer = off_the_main_thread(move || {
         let _running = running;
         ask_offline(&views, refused_in_a_row, offline.as_ref())
     })
@@ -584,6 +590,9 @@ pub async fn delete_offline(state: State<'_, AppState>) -> Result<DeleteView, Ou
         error: ActionError::Internal,
         outcome_not_known: true,
     }));
+    if let Ok(view) = &mut answer {
+        view.count_unfinished(&state.unfinished_in_a_row);
+    }
     if answer != Ok(DeleteView::DeleteRefused) {
         let next = state.control.places().next_number();
         state.views.take_delete(next, next);

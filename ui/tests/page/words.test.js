@@ -134,6 +134,8 @@ const WORDS = {
   DELETE_LOOKED_IN: "The delete ran in Halvo's data folder, {folder}.",
   SETTINGS_UNREADABLE: "Halvo cannot read its settings file. Delete everything resets it, and it also deletes everything that Halvo has recorded.",
   SETTINGS_NEWER: "Halvo's settings file was saved by a newer version of Halvo. Update Halvo to read it, or use Delete everything, which resets it and also deletes everything that Halvo has recorded.",
+  DELETE_NOT_FINISHED: "The delete did not finish. Press Delete everything again to finish it.",
+  DELETE_NOT_FINISHED_AGAIN: "The delete did not finish a second time in a row. Something is still left in Halvo's data folder, {folder}.",
   STORAGE_CAP: "Storage cap",
   SAVE: "Save",
   LOWER_CAP: "Lower the cap",
