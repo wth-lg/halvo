@@ -329,10 +329,11 @@ const BUSY_LINE: &str =
 /// The offline delete of `dir` with `how` (contracts.md C3.3): it prints
 /// `data_dir=` and then `no_store`, or the `deleted` line of C2.6 without
 /// `store_id=`, on `out`, and on `err` what stays. It takes the instance
-/// lock first. It answers 0 once the root and store.key are gone and every
-/// row was handled, 75 when another process holds the directory's instance
-/// lock or its store, which this request then leaves as it found it, and 1
-/// when something stays or the directory cannot be used.
+/// lock first. It answers 0 once the root and store.key are gone, every row
+/// was handled and every folder that the steps flush reached the drive, 75
+/// when another process holds the directory's instance lock or its store,
+/// which this request then leaves as it found it, and 1 when something
+/// stays, a folder was not flushed or the directory cannot be used.
 pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let path = dir.path();
     let mut text = format!("data_dir={}\n", one_line(&path.to_string_lossy()));
@@ -371,7 +372,11 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
     if let Some(line) = &ran.line {
         text.push_str(line);
     }
-    let status = if ran.whole { exit::CLEAN } else { exit::ERROR };
+    let status = if ran.whole && ran.synced {
+        exit::CLEAN
+    } else {
+        exit::ERROR
+    };
     let causes = (!ran.causes.is_empty()).then(|| ran.causes.join("\n"));
     print(out, err, &text, causes, status)
 }
@@ -400,8 +405,9 @@ pub struct Ran {
     /// What stays, a line each for standard error; no line holds a path of
     /// the store.
     pub causes: Vec<String>,
-    /// The offline form's exit 0: the store's delete finished, no row stays
-    /// and no intent was kept by a failed removal.
+    /// The store's delete finished, no row stays and no intent was kept by a
+    /// failed removal. The offline form's exit 0, as the service's own
+    /// delete, needs this and [`Ran::synced`].
     pub whole: bool,
     /// Whether every folder that the steps flush reached the drive, which a
     /// whole finish needs before its intent goes.
