@@ -58,7 +58,7 @@ fn log_line(w: u32, seq: u32) -> TypedRecord {
     TypedRecord {
         kind: "agent_log",
         json: format!(
-            r#"{{"v":1,"workflow":"{}","agent":"{}","run":"5{:031x}","seq":{seq},"day":20770,"at":1794500000000000000,"event":"step_ok","step":1,"cause":null,"model":null,"ms":null,"tokens_in":null,"tokens_out":null}}"#,
+            r#"{{"v":1,"workflow":"{}","agent":"{}","run":"5{:031x}","seq":{seq},"day":20770,"at":1794500000000000000,"event":"step_ok","step":1,"cause":null,"model":null,"ms":null,"tokens_in":null,"tokens_out":null,"page_amount":null}}"#,
             wf(w),
             agent(1),
             1

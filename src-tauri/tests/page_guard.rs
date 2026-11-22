@@ -45,6 +45,10 @@ mod engine;
 mod launch;
 #[path = "../src/poller.rs"]
 mod poller;
+mod stop_hook {
+    /// The stop's message, which app.rs calls at its end with exit 3: this test crate shows none.
+    pub fn stopped() {}
+}
 #[expect(
     dead_code,
     reason = "this test crate compiles the app's tray.rs by path, because the capture commands refresh the tray: \

@@ -335,6 +335,7 @@ fn expected_keys() -> BTreeSet<String> {
         "ask.stop_sign_in.stops",
         "ask.stop_sign_in.next",
         "ask.stop_sign_in.keep",
+        "refused.sign_in_not_finished",
     ] {
         k.insert(key.to_owned());
     }
@@ -465,7 +466,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 331);
+    assert_eq!(seen.len(), 332);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {

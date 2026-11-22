@@ -385,6 +385,9 @@ const fn opens_no_store(recorded: Option<Custody>) -> Selection {
 struct Walked {
     removed: u64,
     left: u64,
+    /// Of `left`, the store's own rows, left while the store's delete is not
+    /// finished.
+    store_rows_left: u64,
     removed_an_entry: bool,
     marks_passed: u64,
 }
@@ -425,8 +428,16 @@ const BUSY_LINE: &str =
 /// lock first. It answers 0 once the root and store.key are gone, every row
 /// was handled and every folder that the steps flush reached the drive, 75
 /// when another process holds the directory's instance lock or its store,
-/// which this request then leaves as it found it, and 1 when something
-/// stays, a folder was not flushed or the directory cannot be used.
+/// which this request then leaves as it found it, 66 when the directory
+/// cannot be used, before any removal: [`DataDir::is_provisioned`] answers
+/// a cause, or the instance lock cannot be opened for any cause but a
+/// holder; `data_dir=` then stands alone. It answers 1 when something stays,
+/// a folder was not flushed, or the write of its own lines failed. Where the
+/// store's delete answered no report, the walk still ran behind it and the
+/// `deleted` line still stands: the counts of segments and keys and
+/// `root_destroyed` read `unknown`, `root_id` reads `-` and `not_followed`
+/// reads 0, and `files_left` and `database_left` are read from what stands
+/// of the store after the steps.
 pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let path = dir.path();
     let mut text = format!("data_dir={}\n", one_line(&path.to_string_lossy()));
@@ -436,7 +447,7 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
             err,
             &text,
             Some(format!("halvo-capture: {cause}")),
-            exit::ERROR,
+            exit::DATA_DIR_UNUSABLE,
         );
     }
     if std::fs::symlink_metadata(path).is_err_and(|e| e.kind() == io::ErrorKind::NotFound) {
@@ -451,7 +462,7 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
                 "halvo-capture: the data directory could not be opened: {}",
                 error.kind()
             );
-            return print(out, err, &text, Some(cause), exit::ERROR);
+            return print(out, err, &text, Some(cause), exit::DATA_DIR_UNUSABLE);
         }
     };
     if nothing_stands(path, how.rows) {
@@ -462,8 +473,15 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
         Steps::Busy => return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY),
         Steps::Ran(ran) => ran,
     };
-    if let Some(line) = &ran.line {
-        text.push_str(line);
+    match &ran.line {
+        Some(line) => text.push_str(line),
+        None => text.push_str(&deleted_line(
+            &what_stands_of_the_store(path),
+            ran.entries_removed,
+            ran.entries_left,
+            ran.unknown_entries,
+            ran.intent_written,
+        )),
     }
     let status = if ran.whole && ran.synced {
         exit::CLEAN
@@ -577,17 +595,29 @@ pub fn steps_of_the_delete(
         }
         return ran(None, None, causes);
     };
-    let line = deleted_line(report, &finished, intent.is_ok());
+    let line = deleted_line(
+        report,
+        finished.walked.removed,
+        finished.walked.left,
+        finished.unknown,
+        intent.is_ok(),
+    );
     if let TailAnswer::NotFinished(report) = &finished.store {
         causes.push(match report.what_stays() {
             stays if stays.is_empty() => "halvo-capture: the delete is not finished".to_owned(),
             stays => format!("halvo-capture: the delete is not finished: {stays}"),
         });
     }
-    if finished.walked.left > 0 {
+    let store_rows_left = finished.walked.store_rows_left;
+    if store_rows_left > 0 {
         causes.push(format!(
-            "halvo-capture: {} registered entries stay; a process that a pid file or a run's mark names did not end, or their files could not be removed",
-            finished.walked.left
+            "halvo-capture: registered entries of the store that stay until the delete of the store finishes: {store_rows_left}"
+        ));
+    }
+    let other_rows_left = finished.walked.left - store_rows_left;
+    if other_rows_left > 0 {
+        causes.push(format!(
+            "halvo-capture: {other_rows_left} registered entries stay; a process that a pid file or a run's mark names did not end, or their files could not be removed"
         ));
     }
     if !finished.whole() && stands(&path.join(INTENT_FILE)) {
@@ -656,9 +686,14 @@ fn open_for_the_delete(
 /// segments and the root that the handle named, comes from the handle's
 /// report. On Windows a finished delete of the handle marked the store's
 /// lock file, which goes when the handle closes; where its name still stands
-/// behind the close, the delete is not finished, with that file counted as
-/// left, and no tail runs behind it.
+/// behind the close, read by the reader of that name that the tail asks too,
+/// the delete is not finished, with that file counted as left, and no tail
+/// runs behind it.
 fn delete_the_store(host: &DataDirStore, handle: Option<Handle>) -> TailAnswer {
+    #[cfg(all(test, target_os = "macos", debug_assertions))]
+    if let Some(answer) = stand_in::answer() {
+        return answer;
+    }
     let Some(mut handle) = handle else {
         return host.delete();
     };
@@ -666,7 +701,7 @@ fn delete_the_store(host: &DataDirStore, handle: Option<Handle>) -> TailAnswer {
     drop(handle);
     #[cfg(windows)]
     if let TailAnswer::Finished(report) = &by_the_handle {
-        if stands(&host.store_dir().join("writer.lock")) {
+        if host.lock_file_stands() {
             let mut report = report.clone();
             report.files_left += 1;
             return TailAnswer::NotFinished(report);
@@ -700,6 +735,42 @@ fn delete_the_store(host: &DataDirStore, handle: Option<Handle>) -> TailAnswer {
     }
 }
 
+/// The store's own delete as a test of this thread sets it: while the guard of [`fails`] lives,
+/// [`delete_the_store`] answers that the delete failed with no report, in place of its run.
+#[cfg(all(test, target_os = "macos", debug_assertions))]
+mod stand_in {
+    use std::cell::Cell;
+
+    use super::TailAnswer;
+
+    thread_local! {
+        /// Whether the store's own delete fails with no report on this thread.
+        static FAILS: Cell<bool> = const { Cell::new(false) };
+    }
+
+    /// The answer of the store's own delete on this thread, none outside [`fails`].
+    pub(super) fn answer() -> Option<TailAnswer> {
+        FAILS
+            .with(Cell::get)
+            .then(|| TailAnswer::Failed("a stand-in of the store's delete failed".to_owned()))
+    }
+
+    /// Makes the store's own delete fail with no report on this thread until the drop of the
+    /// answer.
+    pub(super) fn fails() -> Fails {
+        FAILS.with(|fails| fails.set(true));
+        Fails(())
+    }
+
+    pub(super) struct Fails(());
+
+    impl Drop for Fails {
+        fn drop(&mut self) {
+            FAILS.with(|fails| fails.set(false));
+        }
+    }
+}
+
 fn print(
     out: &mut dyn Write,
     err: &mut dyn Write,
@@ -720,16 +791,61 @@ fn print(
     }
 }
 
-fn deleted_line(report: &TailReport, finished: &Finished, intent_written: bool) -> String {
+fn deleted_line(
+    report: &TailReport,
+    removed: u64,
+    left: u64,
+    unknown: u64,
+    intent_written: bool,
+) -> String {
     let line = report.deleted_line();
     format!(
-        "{} entries_removed={} entries_left={} unknown_entries={} intent={}\n",
+        "{} entries_removed={removed} entries_left={left} unknown_entries={unknown} intent={}\n",
         line.trim_end(),
-        finished.walked.removed,
-        finished.walked.left,
-        finished.unknown,
         if intent_written { "written" } else { "failed" },
     )
+}
+
+/// What stands of the store in `dir` after the steps of a delete whose store
+/// step answered no report, as its `deleted` line carries it: the counts of
+/// segments and keys and the root unknown, `files_left` the entries under
+/// store/ besides store.key and the database's files, each once as
+/// [`entries_under`] reads them, and `database_left` while a file of the
+/// database stands. A store/ that is no folder or cannot be listed reads as
+/// one file and the database left; no link is followed.
+fn what_stands_of_the_store(dir: &Path) -> TailReport {
+    let store = dir.join("store");
+    let database = [
+        "store.db",
+        "store.db-wal",
+        "store.db-shm",
+        "store.db-journal",
+    ];
+    let (files_left, database_left) = match std::fs::symlink_metadata(&store) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (0, false),
+        Ok(meta) if meta.is_dir() => match std::fs::read_dir(&store) {
+            Ok(entries) => entries.filter_map(Result::ok).fold(
+                (0, false),
+                |(files_left, database_left), entry| {
+                    let name = entry.file_name();
+                    if name == "store.key" {
+                        (files_left, database_left)
+                    } else if database.iter().any(|file| name == *file) {
+                        (files_left, true)
+                    } else {
+                        (files_left + entries_under(&entry.path()), database_left)
+                    }
+                },
+            ),
+            Err(_) => (1, true),
+        },
+        _ => (1, true),
+    };
+    TailReport {
+        files_left,
+        database_left,
+        ..TailReport::default()
+    }
 }
 
 fn stands(path: &Path) -> bool {
@@ -884,6 +1000,9 @@ fn walk(dir: &Path, rows: &[Row], store_done: bool, hands: &dyn Hands) -> Walked
             walked.removed += 1;
         } else {
             walked.left += 1;
+            if STORE_ROWS.contains(&row.name) {
+                walked.store_rows_left += 1;
+            }
         }
     }
     walked

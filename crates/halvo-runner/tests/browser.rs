@@ -1444,3 +1444,57 @@ fn a_run_reads_and_selects_inside_the_payment_frame() {
     );
     assert!(!profile_of(&seen, &sup.run).0.exists());
 }
+
+/// A page that asks for a sign-in by a button alone: no field, a paragraph and a button `Sign in`.
+const BUTTON_ALONE: &str = r#"<!doctype html><title>bills</title><p>Your bills are behind a sign-in.</p><button type="button" data-testid="sign-in">Sign in</button>"#;
+
+/// r3 U5.14, the coordinator's rulings of log lines 14127 (1) and 16106, on a hosted runner alone: on a page that
+/// shows no credential field and asks for a sign-in by a button alone, a click on a control that the page does not
+/// have fails, and the run hands back with the reason `sign_in` in place of the failure: the second reading reads the
+/// button by the role and the name that the browser's accessibility tree gives it. The request names the fixture's
+/// origin; the supervisor declines, and the run ends `declined` with no row of a failed step. With the base's web.rs,
+/// which makes no second reading, the step fails, the run hands back with `step_failed` and ends `handed_back`, and
+/// the case fails at its first assertion, on the handback.
+#[test]
+fn a_failed_step_on_a_page_that_asks_by_a_button_alone_hands_back() {
+    let Some(browser) = hosted("a_failed_step_on_a_page_that_asks_by_a_button_alone_hands_back")
+    else {
+        return;
+    };
+    let fixture = Fixture::start(&[("/bills", BUTTON_ALONE)]);
+    let mut sup = web_agent(214, &fixture);
+    sup.steps = vec![
+        navigate(1, &fixture.url("/bills")),
+        step(2, "click", Some("pay-bill"), &[], &[], &[]),
+    ];
+    let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
+    assert_eq!(
+        seen.handbacks(),
+        [HandbackReason::SignIn],
+        "U5.14: the failed step did not hand back with the reason sign_in: outcome {:?}, rows {:?}, {}",
+        seen.done(),
+        rows(&seen),
+        seen.stderr
+    );
+    assert_eq!(
+        rows(&seen),
+        [
+            (LogEvent::StepOk, Some(1), None),
+            (LogEvent::Handback, None, None),
+            (LogEvent::Stopped, None, Some(Cause::Declined)),
+        ],
+        "{}",
+        seen.stderr
+    );
+    assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+    let origins: Vec<Option<&str>> = seen
+        .frames
+        .iter()
+        .filter_map(|f| match f {
+            FromRunner::Handback(h) => Some(h.request.origin.as_ref().map(|o| o.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(origins, [Some(fixture.origin().as_str())]);
+    assert!(!profile_of(&seen, &sup.run).0.exists());
+}

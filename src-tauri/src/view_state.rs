@@ -137,6 +137,10 @@ pub struct RunningView {
     pub login_item_written: Option<bool>,
     pub data_folder: Option<String>,
     pub state_file: Option<SettingsUnread>,
+    /// The app's one renewal of a Windows run's spent screen still read the screen spent, and
+    /// this view's screen source does not run: the page then says to quit Halvo and open it
+    /// again.
+    pub screen_not_renewed: bool,
     /// The first run's rows of what a start records, which the question of a reset of the
     /// settings shows: on a settings file that cannot be read alone.
     pub reset_recorded: Option<Vec<Recorded>>,
@@ -216,6 +220,9 @@ struct HoldState {
     consenting: bool,
     login_item_written: Option<bool>,
     removing: bool,
+    renewal_asked: Option<u64>,
+    pauses: u64,
+    screen_spent: bool,
 }
 
 /// A consent click in flight, from `Hold::begin_consent` to its drop.
@@ -237,6 +244,9 @@ impl Drop for Consenting<'_> {
 pub struct Hold {
     state: Mutex<HoldState>,
     changed: Condvar,
+    /// The turn under which a Pause press counts itself and sends its request, and under which
+    /// the Resume that a press sends behind a wait for a child reads that count and goes out.
+    turn: Mutex<()>,
 }
 
 impl Hold {
@@ -280,6 +290,7 @@ impl Hold {
                 state.login_item_written,
             )
         };
+        let screen_spent = self.state().screen_spent;
         let view = match view {
             StatusView::Running(running) if another_version => {
                 StatusView::no_status(NoStatusService::AnotherVersion, running.platform)
@@ -301,6 +312,14 @@ impl Hold {
                 view.hold = hold;
                 view.data_folder = folder.clone();
                 view.login_item_written = written;
+                let screen_runs = view.sources.iter().any(|source| {
+                    source.name == SourceName::Screen
+                        && matches!(
+                            source.state,
+                            SourceStateName::Running | SourceStateName::Impaired
+                        )
+                });
+                view.screen_not_renewed = screen_spent && !screen_runs;
                 StatusView::Running(view)
             }
             StatusView::NoStatus(mut view) => {
@@ -317,7 +336,7 @@ impl Hold {
 
     /// Names the data folder, as resolved, that every view gives the page for the questions of
     /// the offline delete (contracts.md C10.5).
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     pub fn set_folder(&self, folder: String) {
         self.state().folder = Some(folder);
     }
@@ -378,6 +397,63 @@ impl Hold {
     #[cfg(target_os = "macos")]
     pub fn removal(&self, stands: bool) {
         self.state().removing = stands;
+    }
+
+    /// A press asks the supervisor to end the app's child of the moment with the mark of a start
+    /// that the app wants, as the stop NoReply does, so that a new child, with a screen session of
+    /// its own, starts at once: answers the number of that child, none while no child of the app
+    /// lives and while the mark of a removal of Halvo stands.
+    pub fn ask_renewal(&self) -> Option<u64> {
+        let mut state = self.state();
+        if !state.child_lives || state.removing {
+            return None;
+        }
+        let life = state.lives;
+        state.renewal_asked = Some(life);
+        drop(state);
+        self.changed.notify_all();
+        Some(life)
+    }
+
+    /// The supervisor takes the ask of a renewal: true where one waits for the child that lives
+    /// at this moment; an ask for a child that has ended is dropped.
+    #[cfg(any(target_os = "macos", windows, test))]
+    pub fn take_renewal(&self) -> bool {
+        let mut state = self.state();
+        let lives = state.child_lives.then_some(state.lives);
+        state
+            .renewal_asked
+            .take()
+            .is_some_and(|life| Some(life) == lives)
+    }
+
+    /// What the last read of a Windows run's screen read, at a Resume of a press or behind a
+    /// delete through the service, after its one renewal where one ran: `renewed` false where the
+    /// screen still read spent, and every running view whose screen source does not run then says
+    /// so.
+    pub fn screen_renewed(&self, renewed: bool) {
+        self.state().screen_spent = !renewed;
+    }
+
+    /// The count of a person's Pause presses in this life of the app.
+    pub fn pauses(&self) -> u64 {
+        self.state().pauses
+    }
+
+    /// A person's Pause press counts itself and holds the turn of the hold while its request goes
+    /// out, until the answer is dropped.
+    pub fn pause_pressed(&self) -> MutexGuard<'_, ()> {
+        let turn = self.turn.lock().unwrap_or_else(PoisonError::into_inner);
+        self.state().pauses += 1;
+        turn
+    }
+
+    /// The turn of the Resume that a press sends behind a wait for a child: some while the count
+    /// of Pause presses still reads `pauses`, that is while no Pause press came after the press or
+    /// the delete that read it; the Resume goes out while the answer is held.
+    pub fn no_pause_since(&self, pauses: u64) -> Option<MutexGuard<'_, ()>> {
+        let turn = self.turn.lock().unwrap_or_else(PoisonError::into_inner);
+        (self.state().pauses == pauses).then_some(turn)
     }
 
     /// Whether the login item stands written: what the consent click read of its write, the
@@ -584,6 +660,8 @@ struct WireView<'a> {
     data_folder: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     state_file: Option<SettingsUnread>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    screen_not_renewed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     reset_recorded: Option<&'a [Recorded]>,
 }
@@ -618,6 +696,7 @@ impl Serialize for StatusView {
                 ext: Some(&view.ext),
                 data_folder: view.data_folder.as_deref(),
                 state_file: view.state_file,
+                screen_not_renewed: view.screen_not_renewed,
                 reset_recorded: view.reset_recorded.as_deref(),
             },
             StatusView::NoStatus(view) => WireView {
@@ -650,6 +729,7 @@ impl Serialize for StatusView {
                 ext: None,
                 data_folder: view.data_folder.as_deref(),
                 state_file: None,
+                screen_not_renewed: false,
                 reset_recorded: None,
             },
         };
@@ -688,6 +768,14 @@ impl StatusView {
 
     pub fn without_status(service: NoStatusService) -> Self {
         StatusView::no_status(service, APP_PLATFORM)
+    }
+
+    /// The system of the run that this view reads, or of the app where it reads no status.
+    pub fn platform(&self) -> Platform {
+        match self {
+            StatusView::Running(view) => view.platform,
+            StatusView::NoStatus(view) => view.platform,
+        }
     }
 
     /// The app's hold as this view says it.
@@ -793,6 +881,7 @@ impl StatusView {
             reset_recorded: (f.state_file == StateFile::Corrupt)
                 .then(|| first_run(f.platform).recorded),
             login_item_written: None,
+            screen_not_renewed: false,
         }))
     }
 }
@@ -889,8 +978,8 @@ pub enum ActionError {
     DeleteHeld {
         looked_in: String,
     },
-    /// The program of the offline delete did not start, or the app has none to start: nothing
-    /// was deleted.
+    /// The program of the offline delete did not start, the app has none to start, or it could
+    /// not use its data directory (exit 66): nothing was deleted.
     DeleteNotStarted,
     /// The offline delete ended in a way that tells nothing of what it removed: another exit
     /// status, a signal, lines that do not read, or no end within its wait.
@@ -1173,9 +1262,15 @@ pub enum DeleteView {
         #[serde(skip_serializing_if = "Option::is_none")]
         unfinished_in_a_row: Option<u32>,
         /// The run that gave this answer ended as one that is not whole, whatever its fields
-        /// read: the offline delete's end with 1 (contracts.md C3.3).
+        /// read: the offline delete's end with 1 (contracts.md C3.3), or a reply of the service
+        /// that carries `unfinished` (C2.1).
         #[serde(skip)]
         not_whole: bool,
+        /// The folder of the crash reports of the web view of Halvo's own window, where one
+        /// stayed at the end of this whole delete on Windows; the delete of Halvo's data stays
+        /// whole by it.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        crash_reports_left: Option<String>,
     },
     AlreadyDeleted {
         current_store_id: StoreId,
@@ -1195,6 +1290,20 @@ pub enum LastDelete {
     None,
     InFlight,
     Answered { at_ms: u64, answer: DeleteView },
+}
+
+/// `resolved`, a path as the system resolved it, in the plain form that a person reads and that
+/// the delete's answer gives: Windows writes a resolved path in its extended form, `\\?\C:\...`
+/// or `\\?\UNC\server\share\...`, whose plain form is `C:\...` or `\\server\share\...`; any
+/// other text stays as it is.
+pub fn plain_form(resolved: &str) -> String {
+    if let Some(share) = resolved.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{share}");
+    }
+    resolved
+        .strip_prefix(r"\\?\")
+        .unwrap_or(resolved)
+        .to_owned()
 }
 
 pub fn left_nothing(report: &DeleteFields) -> bool {
@@ -1242,6 +1351,7 @@ impl DeleteView {
             nothing_left: !not_whole && left_nothing(f),
             unfinished_in_a_row: None,
             not_whole,
+            crash_reports_left: None,
         }
     }
 
@@ -1327,7 +1437,7 @@ impl DeleteView {
                 deleted.store,
                 roots_dir,
                 None,
-                false,
+                deleted.unfinished,
             ),
             DeleteOutcome::AlreadyDeleted(already) => DeleteView::AlreadyDeleted {
                 current_store_id: already.current,
@@ -1357,8 +1467,20 @@ pub fn delete_view(
 /// its standard output.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OfflineEnd {
-    Exited { code: i32, out: String },
-    Signal { out: String },
+    Exited {
+        code: i32,
+        out: String,
+    },
+    #[cfg_attr(
+        windows,
+        allow(
+            dead_code,
+            reason = "Windows has no end by a signal: an end reads as its exit code"
+        )
+    )]
+    Signal {
+        out: String,
+    },
     NotStarted,
     NoEnd,
 }
@@ -1373,10 +1495,11 @@ enum Printed {
 /// The answer of the offline delete by how its program ended and what it printed (contracts.md
 /// C3.3 and C10.5): `looked_in` is its `data_dir=`. An end with 0 and `no_store`, and an end with
 /// 0 or 1 and the `deleted` line, are its outcome, and an end with 1 is never a whole delete,
-/// whatever the line reads; an end with 75 deleted nothing; any other end tells nothing of what
-/// was removed, an end with 1 that printed no `deleted` line among them, which halvo-capture
-/// gives both where it could not use the directory and where its walk removed entries before
-/// the store's own delete failed with no report.
+/// whatever the line reads; an end with 75 deleted nothing, and so did an end with 66 that
+/// printed `data_dir=` alone, which halvo-capture gives where it could not use the directory,
+/// before any removal; any other end tells nothing of what was removed, an end with 1 that
+/// printed no `deleted` line among them, which halvo-capture gives where the write of its own
+/// lines failed.
 pub fn offline_view(
     end: &OfflineEnd,
     roots_dir: Option<&std::path::Path>,
@@ -1412,6 +1535,9 @@ pub fn offline_view(
             code == exit::ERROR,
         )),
         (exit::BUSY, Printed::Nothing) => removed_nothing(ActionError::DeleteHeld { looked_in }),
+        (exit::DATA_DIR_UNUSABLE, Printed::Nothing) => {
+            removed_nothing(ActionError::DeleteNotStarted)
+        }
         _ => not_known(Some(looked_in)),
     }
 }
@@ -1553,5 +1679,57 @@ impl Removal {
     /// stopped.
     pub fn exit(&self) -> Option<i32> {
         self.whole().then(|| crate::launch::Exit::Quit.code())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// N4 of app-4b's review: the folder that the offline delete's question names takes the
+    /// plain form of a path that Windows resolved, as the delete's answer names it.
+    #[test]
+    fn the_folder_of_the_offline_question_takes_the_plain_form_of_a_resolved_path() {
+        assert_eq!(plain_form(r"\\?\D:\halvo-data"), r"D:\halvo-data");
+        assert_eq!(
+            plain_form(r"\\?\UNC\server\share\halvo-data"),
+            r"\\server\share\halvo-data"
+        );
+        assert_eq!(plain_form(r"D:\halvo-data"), r"D:\halvo-data");
+        assert_eq!(plain_form("/scratch/halvo-data"), "/scratch/halvo-data");
+    }
+
+    /// The output of the offline delete where Windows refused the setting that keeps the program
+    /// out of its error reports, byte for byte as halvo-capture prints it on its standard output
+    /// (its tests of the form: crates/halvo-capture/tests/cli_windows.rs): a deleted answer whose
+    /// two counts are none, which names the folder that the delete ran in; the page's words of
+    /// that answer stand in ui/tests/page/delete-unfinished.test.js.
+    #[test]
+    fn a_deleted_line_with_unknown_counts_reads_as_deleted_with_no_count_and_names_its_folder() {
+        let folder = r"D:\halvo-data";
+        let out = format!(
+            "data_dir={folder}\ndeleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=yes root_id=- files_left=0 database_left=no not_followed=0 entries_removed=4 entries_left=0 unknown_entries=0 intent=written\n"
+        );
+        let view = offline_view(&OfflineEnd::Exited { code: 0, out }, None)
+            .expect("an end with 0 and a deleted line is an answer");
+        let DeleteView::Deleted {
+            segments_shredded,
+            keys_destroyed,
+            looked_in,
+            nothing_left,
+            ..
+        } = &view
+        else {
+            panic!("not a deleted answer: {view:?}");
+        };
+        assert_eq!((*segments_shredded, *keys_destroyed), (None, None));
+        assert_eq!(looked_in.as_deref(), Some(folder));
+        assert!(*nothing_left, "{view:?}");
+        assert!(view.finished(), "{view:?}");
+        let sent = serde_json::to_value(&view).expect("the answer is JSON");
+        assert_eq!(sent["outcome"], "deleted");
+        assert_eq!(sent["segments_shredded"], serde_json::Value::Null);
+        assert_eq!(sent["keys_destroyed"], serde_json::Value::Null);
+        assert_eq!(sent["looked_in"], folder);
     }
 }

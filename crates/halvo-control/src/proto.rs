@@ -599,6 +599,12 @@ pub struct Deleted {
     pub report: DeleteReport,
     #[serde(deserialize_with = "required")]
     pub store: Option<StoreId>,
+    /// The run of this delete ended not whole, whatever its report reads: a flush that did not
+    /// reach the drive, or an intent that a failed removal kept. It crosses the wire only while
+    /// it stands, so that a reply of a service that sends none reads false; the protocol number
+    /// does not move for it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unfinished: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -2107,6 +2113,7 @@ mod tests {
             })
             .unwrap(),
             store,
+            unfinished: false,
         })
     }
 
@@ -2744,6 +2751,21 @@ stopped/kind body
         );
         let without = br#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#;
         assert!(decode_reply(without).is_err());
+    }
+
+    #[test]
+    fn a_deleted_reply_carries_unfinished_only_while_it_stands() {
+        let not_whole = br#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"not_followed":0,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null,"unfinished":true}}"#;
+        let whole = br#"{"v":1,"body":{"kind":"deleted","report":{"segments_shredded":2,"keys_destroyed":3,"root_destroyed":"yes","root_id":null,"files_left":0,"database_left":false,"not_followed":0,"entries_removed":4,"entries_left":0,"unknown_entries":0,"intent":"written"},"store":null}}"#;
+        for (frame, run) in [
+            (&not_whole[..], "a run that was not whole"),
+            (&whole[..], "a whole run"),
+        ] {
+            let reply = decode_reply(frame).expect(run);
+            let sent: serde_json::Value = serde_json::from_slice(frame).unwrap();
+            let again: serde_json::Value = serde_json::from_slice(&encode_reply(&reply)).unwrap();
+            assert_eq!(again, sent, "{run}");
+        }
     }
 
     #[test]
