@@ -16,10 +16,11 @@ use halvo_schema::executable::frame::{
     Browser, BrowserReply, Cancel, FromRunner, HandbackResult, ReplyError, RunError, SecretReply,
     StoreReply, StoreReplyFrame, StoreRequest, ToRunner,
 };
-use halvo_schema::executable::names::{Outcome, Unreadable};
+use halvo_schema::executable::names::{LogEvent, Outcome, Unreadable};
 use halvo_schema::executable::record::AgentRun;
 use halvo_schema::executable::text::{Name, RunId};
 use halvo_schema::request::{CoordinatorRole, ErrorName};
+use halvo_schema::RequestId;
 
 use crate::acts::Acts;
 use crate::api::{
@@ -573,11 +574,85 @@ impl Supervisor {
     }
 }
 
-/// What the end of a run reports.
+/// What the end of a run reports, and the sends of the two stores of its end that the library answered.
 #[derive(Default)]
 pub(crate) struct Ending {
     pub(crate) outcome: Option<Outcome>,
     pub(crate) finish: Option<AgentRun>,
+    row_sends: Sends,
+    finish_sends: Sends,
+}
+
+/// How many sends of each store of a run's end, the first and two repeats, the library takes after `bound=no` or a
+/// cancelled bind.
+const END_SENDS_MAX: u8 = 3;
+
+/// One of the two stores of a run's end.
+#[derive(Clone, Copy)]
+enum EndStore {
+    /// The end row: a `log` body of one `stopped` line that names no step, which `Runner::finish` stores before
+    /// the `finish` of an end with a cause.
+    Row,
+    Finish,
+}
+
+/// Which store of a run's end `body` is, if any.
+fn end_store(body: &RunnerCall) -> Option<EndStore> {
+    match body {
+        RunnerCall::Log(log) => match log.records.as_slice() {
+            [line] if line.event == LogEvent::Stopped && line.step.is_none() => Some(EndStore::Row),
+            _ => None,
+        },
+        RunnerCall::Finish(_) => Some(EndStore::Finish),
+        _ => None,
+    }
+}
+
+/// The sends of one store of a run's end that the library answered: how many, the request id of the last, and
+/// whether its answer was ok, which stored it.
+#[derive(Default)]
+struct Sends {
+    count: u8,
+    before: Option<RequestId>,
+    stored: bool,
+}
+
+impl Sends {
+    /// Whether the gate after `bound=no` or a cancelled bind takes a send under `id`: the first, or a repeat under
+    /// the request id of the send before it after an error answer to that send, `END_SENDS_MAX` sends at most.
+    fn takes(&self, id: &RequestId) -> bool {
+        match &self.before {
+            None => true,
+            Some(before) => !self.stored && before == id && self.count < END_SENDS_MAX,
+        }
+    }
+
+    fn answered(&mut self, id: &RequestId, ok: bool) {
+        self.count = self.count.saturating_add(1);
+        self.before = Some(id.clone());
+        self.stored = ok;
+    }
+}
+
+impl Ending {
+    fn sends(&mut self, store: EndStore) -> &mut Sends {
+        match store {
+            EndStore::Row => &mut self.row_sends,
+            EndStore::Finish => &mut self.finish_sends,
+        }
+    }
+
+    /// Whether the gate after `bound=no` or a cancelled bind takes `request`: the end row while no `finish` came
+    /// and the `finish`, each by `Sends::takes`; no other body.
+    fn takes(&self, request: &StoreRequest) -> bool {
+        match end_store(request.body()) {
+            Some(EndStore::Row) => {
+                self.finish_sends.count == 0 && self.row_sends.takes(request.id())
+            }
+            Some(EndStore::Finish) => self.finish_sends.takes(request.id()),
+            None => false,
+        }
+    }
 }
 
 /// How a start's wait for the runner's `hello` ended.
@@ -726,9 +801,15 @@ impl Running<'_> {
     /// Answers one frame of the running run. After a stored `finish` a `confirm`, `handback`, `bind`, `secret` or
     /// `browser` frame is a frame out of turn: no trait is called, no reply is written and the run is lost, by the
     /// path `after_finish` (ruling CP-193 item 1). After the library wrote `bound=no` it takes progress, done and the
-    /// store of the run's `finish` alone, and any other frame is lost (ruling CP-193 item 2). After it wrote
-    /// `cancel` to a run whose bind is open, it drops that bind and takes the same three alone (ruling CP-193 item
-    /// 3). A request while the runner waits for a reply is lost too.
+    /// two stores of the run's end alone, and any other frame is lost, unrelayed (ruling CP-193 item 2): the store
+    /// of the end row, a `log` body of one `stopped` line that names no step, and then the store of the `finish`,
+    /// each until an ok answer stores it. A repeat of either is taken only under the request id of the send of it
+    /// before and after an error answer to that send, `END_SENDS_MAX` sends at most; an end row after an ok answer
+    /// to an end row or after a `finish` frame is lost. A `finish` with no row before it is taken. The count holds
+    /// every end row and every `finish` that the library answered in the run, also before `bound=no`. After it wrote
+    /// `cancel` to a run whose bind is open,
+    /// it drops that bind and takes the same frames alone (ruling CP-193 item 3). A request while the runner waits
+    /// for a reply is lost too.
     fn on_frame(&mut self, frame: FromRunner) -> Flow {
         let after_finish = matches!(
             frame,
@@ -743,7 +824,7 @@ impl Running<'_> {
         }
         let end_of_declined = match &frame {
             FromRunner::Progress(_) | FromRunner::Done(_) => true,
-            FromRunner::Store(s) => matches!(s.request.body(), RunnerCall::Finish(_)),
+            FromRunner::Store(s) => self.ending.takes(&s.request),
             _ => false,
         };
         if self.acts.declined() && !end_of_declined {
@@ -826,6 +907,9 @@ impl Running<'_> {
                     .unwrap_or_else(|| refuse(ReplyError::Workflow(ErrorName::Internal))),
             }
         };
+        if let Some(store) = end_store(body) {
+            self.ending.sends(store).answered(id, reply.outcome.is_ok());
+        }
         match (body, &reply.outcome) {
             (RunnerCall::Finish(f), Ok(_)) => {
                 let _ = marks::remove(&self.inner.config.data_dir, &spec.run);

@@ -912,6 +912,19 @@ fn load_store() -> String {
     .replacen("ask ", "send ", 1)
 }
 
+/// The store of a run's end row as `Runner::finish` writes it before the `finish` of an end with a cause: a `log`
+/// body of one `stopped` line with the cause `declined` and no step, or the step `step`, under the request id of 16
+/// bytes 0x53.
+fn end_row(step: Option<u32>) -> String {
+    let step = step.map_or_else(|| "null".to_owned(), |s| s.to_string());
+    let line = r#"{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","seq":1,"day":20768,"at":1794339000000000001,"event":"stopped","step":STEP,"cause":"declined","model":null,"ms":null,"tokens_in":null,"tokens_out":null}"#
+        .replace("STEP", &step);
+    common::ask_store(
+        &common::id(0x53),
+        &format!(r#"{{"op":"log","agent":"{{agent}}","run":"{{run}}","records":[{line}]}}"#),
+    )
+}
+
 fn after_bound_no(name: &str, frame: &str) {
     let rig = Rig::new("after-bound-no");
     *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
@@ -953,7 +966,7 @@ fn after_bound_no(name: &str, frame: &str) {
     );
     assert_eq!(trait_calls(&rig), (0, 1, 1, 0), "{name}");
     assert_eq!(script.replies().len(), 2, "{name}: {}", script.log());
-    assert_eq!(rig.store.count(r#""op":"load""#), 0, "{name}");
+    assert_eq!(rig.store.count(r#""request":"runner""#), 0, "{name}");
     assert!(adds(&rig).is_empty(), "{name}");
 }
 
@@ -988,15 +1001,27 @@ fn a_store_of_another_body_than_finish_after_bound_no_ends_the_run_unrelayed() {
 }
 
 #[test]
-fn the_declined_finish_after_bound_no_is_stored_and_its_done_taken() {
-    let rig = Rig::new("bound-no-finish");
+fn a_stopped_line_that_names_a_step_after_bound_no_ends_the_run_unrelayed() {
+    after_bound_no(
+        "stopped-step",
+        &end_row(Some(2)).replacen("ask ", "send ", 1),
+    );
+}
+
+#[test]
+fn after_bound_no_the_end_row_sent_again_after_a_store_fault_then_the_finish_and_done_end_the_run_declined(
+) {
+    let rig = Rig::new("bound-no-end");
     *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
+    rig.store.fail_all.store(1, Ordering::SeqCst);
+    let row = end_row(None);
     let finish = common::ask_finish();
     let script = rig.script(&[
         "hello",
         &sign_in(),
         &bind("http://pay.test:18090"),
-        r#"send {"t":"progress","step":2,"of":2}"#,
+        &row,
+        &row,
         &finish,
         r#"send {"t":"done","outcome":"declined"}"#,
         "exit 1",
@@ -1006,14 +1031,45 @@ fn the_declined_finish_after_bound_no_is_stored_and_its_done_taken() {
     rig.sup.start(spec).unwrap();
     signed_in(&rig, &run, 1);
     let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert_eq!(end.forced, None, "the run was lost: {}", script.log());
+    assert_eq!(end.outcome, Some(Outcome::Declined));
     assert!(
         end.finish.is_some(),
-        "the finish was stored: {}",
+        "the finish was not stored: {}",
         script.log()
     );
-    assert_eq!(end.outcome, Some(Outcome::Declined));
-    assert_eq!(end.forced, None, "{}", script.log());
+    let answer = |id: u8, outcome: &str| {
+        format!(
+            r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}",{outcome}}}}}"#,
+            common::id(id)
+        )
+    };
+    let stores: Vec<String> = script
+        .replies()
+        .into_iter()
+        .filter(|r| r.contains(r#""t":"store_reply""#))
+        .collect();
+    assert_eq!(
+        stores,
+        vec![
+            answer(0x53, r#""error":"store""#),
+            answer(0x53, r#""ok":{"stored":1}"#),
+            answer(0x51, r#""ok":{"stored":1}"#),
+        ],
+        "{}",
+        script.log()
+    );
+    let bodies = rig.store.bodies();
+    assert!(
+        bodies.len() >= 3
+            && bodies[..2].iter().all(|b| b.contains(r#""op":"log""#))
+            && bodies[2].contains(r#""op":"finish""#),
+        "{bodies:?}"
+    );
+    assert_eq!(rig.store.count(r#""op":"log""#), 2);
     assert_eq!(rig.store.count(r#""op":"finish""#), 1);
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"no"}"#]);
+    assert!(adds(&rig).is_empty());
 }
 
 fn cancelled_bind_script(rig: &Rig) -> (common::Script, std::path::PathBuf) {
@@ -1024,6 +1080,7 @@ fn cancelled_bind_script(rig: &Rig) -> (common::Script, std::path::PathBuf) {
         &sign_in(),
         &bind("http://pay.test:18090").replacen("ask ", "send ", 1),
         &format!("wait-for {}", go.display()),
+        &end_row(None),
         &finish,
         r#"send {"t":"done","outcome":"declined"}"#,
         "exit 1",
@@ -1045,6 +1102,7 @@ fn assert_cancelled_bind_ended_as_declined(rig: &Rig, script: &common::Script, e
     );
     assert_eq!(end.outcome, Some(Outcome::Declined));
     assert_eq!(end.forced, None, "the run was lost: {}", script.log());
+    assert_eq!(rig.store.count(r#""op":"log""#), 1);
     assert_eq!(rig.store.count(r#""op":"finish""#), 1);
 }
 
