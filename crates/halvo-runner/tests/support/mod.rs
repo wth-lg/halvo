@@ -577,6 +577,10 @@ pub struct Supervisor {
     pub data_dir: bool,
     /// Whether the runner gets `--headed`; false unless a test sets it.
     pub headed: bool,
+    /// Whether the runner gets `--stand-in-person`, the switch of the tests' builds by which the test answers each
+    /// handback at a sign-in as a person would in a run with no window, where a product build ends the run at a
+    /// credential field (r3 U5.15r); true unless a test clears it.
+    pub stand_in_person: bool,
     /// The session parts that a run before stored, which `load` lists and `load_session` answers; none unless a
     /// test gives them.
     pub kept: Vec<PutSession>,
@@ -598,6 +602,7 @@ impl Supervisor {
             utc_offset_s: 0,
             data_dir: true,
             headed: false,
+            stand_in_person: true,
             kept: Vec::new(),
         }
     }
@@ -619,6 +624,9 @@ impl Supervisor {
         ];
         if self.headed {
             args.push("--headed".into());
+        }
+        if self.stand_in_person {
+            args.push("--stand-in-person".into());
         }
         args
     }
