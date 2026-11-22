@@ -547,9 +547,9 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
     /// The hold of the supervision for a run (contracts.md C10.5), Remove Halvo's door: from the
     /// call on no child starts; the child of the moment, if any, gets its descriptor closed,
     /// STOP_WAIT for its end and a kill after that, as a quit ends it, and no request; then `run`
-    /// runs. After a run that returns no child starts by itself, whatever the end of that child,
-    /// a kill and an end before its first answer among them, until a person's press on Start or
-    /// the next launch of the app; after a run that unwinds the supervisor goes on by its rule.
+    /// runs. After the run, one that returns or one that unwinds, no child starts by itself,
+    /// whatever the end of that child, a kill and an end before its first answer among them,
+    /// until a person's press on Start or the next launch of the app.
     pub fn without_the_child<T>(&self, run: impl FnOnce() -> T) -> T {
         self.hold_for_a_run(false, run)
     }
@@ -584,9 +584,9 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
 }
 
 /// The hold of the supervision for a run, lifted when it is dropped: on every path out of the
-/// run, an unwind among them. Behind a run of Remove Halvo's door that returned, the drop sets
-/// the mark of a wait for a press under the same lock, so that no start passes the gate before
-/// the mark stands; behind a run that unwound the supervisor goes on by its rule.
+/// run, an unwind among them. Behind a run of Remove Halvo's door, one that returned or one that
+/// unwound, the drop sets the mark of a wait for a press under the same lock, so that no start
+/// passes the gate before the mark stands.
 struct HeldForARun<'a, C> {
     shared: &'a Shared<C>,
     until_a_press: bool,
@@ -611,7 +611,7 @@ impl<C> Drop for HeldForARun<'_, C> {
     fn drop(&mut self) {
         let mut state = self.shared.lock();
         state.held_for_a_run = false;
-        if self.until_a_press && !std::thread::panicking() {
+        if self.until_a_press {
             state.held_until_a_press = true;
         }
         drop(state);
@@ -668,8 +668,8 @@ enum Waits {
 }
 
 /// The supervisor's thread: after the third end with 5 in a row, after an end with 0 of its own
-/// child that it did not ask for, behind a run of Remove Halvo's door that returned, and before
-/// the first child on a data directory that is not provisioned, it starts no child until a
+/// child that it did not ask for, behind a run of Remove Halvo's door, and before the first
+/// child on a data directory that is not provisioned, it starts no child until a
 /// person's press on Start asks for one, which takes the mark of that door, and then supervises
 /// again with the count of 5s at zero; a quit ends the wait. After the consent its spawner
 /// starts on a directory that is not provisioned yet.
@@ -714,8 +714,8 @@ fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold
 /// the third end with 5 in a row and where it awaits the consent too, and none otherwise. After
 /// each end it draws the views, so that the set of the hold reaches the tray's menu at once.
 /// Each start waits while a run holds the supervision, and starts under the lock that the hold
-/// takes, so that no child starts while the run goes on; behind a run of Remove Halvo's door
-/// that returned it hands the spawner back, and no child starts until a press.
+/// takes, so that no child starts while the run goes on; behind a run of Remove Halvo's door it
+/// hands the spawner back, and no child starts until a press.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
@@ -2200,10 +2200,16 @@ mod tests {
     #[test]
     fn after_a_removal_that_stopped_starts_no_child_until_one_press_brings_one() {
         use crate::commands::control::Watching;
-        for (name, ends_at_close) in [
-            ("a child that the door kills after its wait", false),
+        for (name, ends_at_close, unwinds) in [
+            ("a child that the door kills after its wait", false, false),
             (
                 "a child that has not answered and ends with 0 at the close",
+                true,
+                false,
+            ),
+            (
+                "a child that the door kills, behind a run that unwinds",
+                false,
                 true,
             ),
         ] {
@@ -2240,7 +2246,14 @@ mod tests {
                     .collect::<Vec<_>>()
             };
             until(name, || pid.get() == Some(1000));
-            supervisor.without_the_child(|| note(&record, "run"));
+            if unwinds {
+                let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    supervisor.without_the_child(|| -> () { panic!("the removal's run unwinds") })
+                }));
+                assert!(unwound.is_err(), "{name}: the run unwound through the door");
+            } else {
+                supervisor.without_the_child(|| note(&record, "run"));
+            }
             let ran_at = clock.now();
             while clock.now().saturating_duration_since(ran_at) <= BACKOFF_MAX {
                 pass(&no_daemon, &views, None);
@@ -4128,7 +4141,8 @@ mod tests {
         );
         until("the first child lives", || pid.get() == Some(1000));
         let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            supervisor.without_the_child(|| -> () { panic!("the offline run unwinds") })
+            supervisor
+                .without_the_child_then_a_start(|| -> () { panic!("the offline run unwinds") })
         }));
         assert!(unwound.is_err(), "the run unwound through the entry");
         until("the child starts again after a run that unwound", || {
