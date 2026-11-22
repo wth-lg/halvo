@@ -43,11 +43,17 @@ use tauri::{AppHandle, Runtime};
 /// hold, and whose window, subclassed at its creation, reports the show at the first reading at
 /// which it is the active window and visible to the person (ruling RD-112 (b)): at TDN_CREATED or
 /// at an activation while visible, or at the window's own show, the message WM_WINDOWPOSCHANGED
-/// with SWP_SHOWWINDOW, while active; it refuses the message WM_CLOSE inside the hold; when that subclass cannot be set, the show
-/// closes at once through its rejecting control and its allowing control answers nothing. The same target holds that a click of the allowing
+/// with SWP_SHOWWINDOW, while active; it refuses the message WM_CLOSE inside the hold. At
+/// TDN_CREATED, before the window is visible and before anything else, the window gets the display
+/// affinity WDA_EXCLUDEFROMCAPTURE, so that no capture of the screen, Halvo's own screen record
+/// among them, shows the card; when the system refuses that call, or when that subclass cannot be
+/// set, the show closes at once through its rejecting control, before it reports itself on screen,
+/// and its allowing control answers nothing. The same target holds that a click of the allowing
 /// id 100 allows, and that a click of the rejecting id 101, of the cancel response 2, which the
 /// Escape key and the close control give, of an id that no button has, and the message WM_CLOSE
-/// each reject, each after the hold and after one report; its default control and the flag that
+/// each reject, each after the hold and after one report; that the window of every dialog that it
+/// shows reads the display affinity 17, WDA_EXCLUDEFROMCAPTURE, by GetWindowDisplayAffinity once
+/// the dialog has reported itself and before the case acts; its default control and the flag that
 /// allows the cancel response are held by the config test. On another system no dialog is shown and
 /// the answer is `reject`.
 pub struct System<R: Runtime> {
@@ -429,8 +435,8 @@ pub(super) mod windows {
     use windows::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
     use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
     use windows::Win32::UI::WindowsAndMessaging::{
-        IsWindowVisible, PostMessageW, SWP_SHOWWINDOW, WA_INACTIVE, WINDOWPOS, WM_ACTIVATE,
-        WM_CLOSE, WM_WINDOWPOSCHANGED,
+        IsWindowVisible, PostMessageW, SetWindowDisplayAffinity, SWP_SHOWWINDOW, WA_INACTIVE,
+        WDA_EXCLUDEFROMCAPTURE, WINDOWPOS, WM_ACTIVATE, WM_CLOSE, WM_WINDOWPOSCHANGED,
     };
 
     const SUBCLASS: usize = 1;
@@ -496,11 +502,18 @@ pub(super) mod windows {
         let show = unsafe { &*(data as *const Show) };
         match msg {
             TDN_CREATED => {
+                // SAFETY: the dialog's own window, a top-level window of this process that lives
+                // for this call and is not yet visible.
+                let protected =
+                    unsafe { SetWindowDisplayAffinity(window, WDA_EXCLUDEFROMCAPTURE) }.is_ok();
                 // SAFETY: the subclass reads `data` as the same `Show`, and it is removed at
                 // TDN_DESTROYED, before the call returns.
-                let set =
-                    unsafe { SetWindowSubclass(window, Some(subclass), SUBCLASS, data as usize) };
-                if !set.as_bool() {
+                let set = protected
+                    && unsafe {
+                        SetWindowSubclass(window, Some(subclass), SUBCLASS, data as usize)
+                    }
+                    .as_bool();
+                if !set {
                     show.lose();
                     // SAFETY: a message to the dialog's own window, which lives for this call.
                     let _ = unsafe {
