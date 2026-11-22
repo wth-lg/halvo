@@ -271,11 +271,11 @@ fn load_takes_no_session_revision_whose_parts_disagree_on_of() {
     );
     assert_eq!(
         put_session(&mut store, origin, 1, 2, 3, full_part()),
-        Ok(stored(1))
+        Err(declared("binding"))
     );
     assert_eq!(
         put_session(&mut store, origin, 1, 3, 3, vec!["QUJD".into()]),
-        Ok(stored(1))
+        Err(declared("binding"))
     );
     let reply = load(&mut store, 1).expect("load");
     assert!(reply.sessions.is_empty(), "{:?}", reply.sessions);

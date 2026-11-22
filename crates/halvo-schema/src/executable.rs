@@ -321,4 +321,5 @@ record::run_list! { names_with_run_list
     "last_cause",
     "agent_history",
     "runs",
+    "drop_sessions",
 }
