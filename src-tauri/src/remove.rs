@@ -8,9 +8,10 @@ use halvo_control::paths::{
 };
 
 use crate::commands::capture::{run_offline, Before, Offline, WithoutTheChild};
+use crate::poller::Views;
 use crate::quit::Children;
 use crate::view_state::{
-    ActionError, DeleteView, Detail, Outcome, OutcomeError, Removal, Step, StepResult, STEPS,
+    ActionError, DeleteView, Detail, Hold, Outcome, OutcomeError, Removal, Step, StepResult, STEPS,
 };
 
 /// The supervisor of the app's child as Remove Halvo holds it: the offline delete's hold, and the
@@ -539,13 +540,15 @@ pub fn account_hook() -> (Outcome, Detail) {
 /// Remove Halvo (contracts.md C10.7 and item 8 of C17): the steps of `STEPS` in their order,
 /// each answered, up to the first that fails. Where `places` was refused it runs nothing. The
 /// app's child is ended first, with no request, and every start is held to the end of the list
-/// (`WithoutTheChild`); after a whole list the child's supervisor ends as at a quit, so that no
-/// child starts after it, and after a list that stopped it goes on by its rule. The account step
+/// (`WithoutTheChild`); after a whole list `hold` is marked removed, so that no press writes the
+/// login item or asks for a child, and the child's supervisor ends as at a quit, so that no child
+/// starts after it; after a list that stopped it goes on by its rule. The account step
 /// is `account`; the delete is the offline delete of `offline` after `before`, and it is done
 /// only where it deleted and left nothing of the store, or found no store.
 pub fn remove_halvo(
     places: Result<Places, Refused>,
     children: Option<&dyn TheChild>,
+    hold: &Hold,
     account: &dyn Fn() -> (Outcome, Detail),
     offline: Option<&Offline>,
     before: &Before,
@@ -560,8 +563,11 @@ pub fn remove_halvo(
     let mut removal = Removal::default();
     let mut run = || {
         removal.steps = steps_of(&places, account, offline, before);
-        if let Some(children) = children.filter(|_| removal.whole()) {
-            children.end();
+        if removal.whole() {
+            hold.removed();
+            if let Some(children) = children {
+                children.end();
+            }
         }
     };
     match children {
@@ -606,6 +612,7 @@ pub struct Wiring {
     pub account: Arc<dyn AccountLookup + Send + Sync>,
     pub given: bool,
     pub children: Option<Arc<dyn TheChild>>,
+    pub views: Arc<Views>,
 }
 
 /// Remove Halvo as the app runs it: the places of the app's bundle id under the account's home
@@ -624,6 +631,7 @@ pub fn run(
     remove_halvo(
         places,
         wiring.children.as_deref(),
+        wiring.views.hold(),
         &account_hook,
         offline,
         before,
@@ -689,7 +697,8 @@ mod tests {
     use halvo_control::paths::{DarwinUserTempDir, PathError};
 
     use super::*;
-    use crate::commands::control::ChildPid;
+    use crate::commands::capture::consent;
+    use crate::commands::control::{ChildPid, Gated, Unresolved};
     use crate::daemon_child::stand_in::{note, Record, StandInChild, StandInClock, StandInSpawner};
     use crate::daemon_child::Supervisor;
     use crate::tests::scratch_dir;
@@ -896,6 +905,7 @@ mod tests {
             let removal = remove_halvo(
                 Places::new(&home, ID, &data, false),
                 None,
+                &Hold::default(),
                 account,
                 Some(&stand_in),
                 &before(),
@@ -972,7 +982,14 @@ mod tests {
     }
 
     fn whole(offline: &Offline, places: Result<Places, Refused>) -> Removal {
-        remove_halvo(places, None, &account_hook, Some(offline), &before())
+        remove_halvo(
+            places,
+            None,
+            &Hold::default(),
+            &account_hook,
+            Some(offline),
+            &before(),
+        )
     }
 
     #[test]
@@ -1137,7 +1154,13 @@ mod tests {
                     .collect(),
                 record: Arc::clone(&record),
             };
-            let supervisor = Supervisor::start(spawner, Arc::clone(&pid), Arc::clone(&clock));
+            let views = Arc::<Views>::default();
+            let supervisor = Supervisor::start_holding(
+                spawner,
+                Arc::clone(&pid),
+                Arc::clone(&clock),
+                Arc::clone(&views),
+            );
             let until = Instant::now() + Duration::from_secs(10);
             while pid.get() != Some(7) {
                 assert!(Instant::now() < until, "the stand-in child starts");
@@ -1161,12 +1184,29 @@ mod tests {
             let removal = remove_halvo(
                 Places::new(&home, ID, &data, false),
                 Some(&supervisor),
+                views.hold(),
                 &account_hook,
                 Some(&stand_in),
                 &before(),
             );
             if let Some(code) = removal.exit() {
                 note(&record, format!("exit {code}"));
+                let written = || {
+                    note(&record, "login item written");
+                    true
+                };
+                let clicked = consent(
+                    &Gated::new(Unresolved),
+                    &views,
+                    Some(&written),
+                    Duration::ZERO,
+                );
+                assert!(
+                    !noted(&record).contains(&"login item written".to_owned()),
+                    "a press on Start after a whole removal writes no login item: {:?}",
+                    noted(&record)
+                );
+                assert!(clicked.is_ok(), "and does nothing: {clicked:?}");
             }
             let ran = format!("run /stand-in/halvo-capture --delete-all --data-dir {looked_in}");
             let mut expected = vec![

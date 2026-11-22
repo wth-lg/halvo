@@ -171,7 +171,7 @@ fn run(background: bool, given: Option<PathBuf>) {
     #[cfg(target_os = "macos")]
     let (offline, offline_views) = (Arc::clone(&state.offline), Arc::clone(&state.views));
     #[cfg(target_os = "macos")]
-    let removal = Arc::clone(&state.removal);
+    let (removal, removal_views) = (Arc::clone(&state.removal), Arc::clone(&state.views));
     let parts = app::Parts {
         state,
         tray: Some(tray::install),
@@ -208,6 +208,7 @@ fn run(background: bool, given: Option<PathBuf>) {
             children: supervisor
                 .clone()
                 .map(|children| children as Arc<dyn remove::TheChild>),
+            views: removal_views,
         };
         let _ = removal.set(Arc::new(move |data_dir, offline, before| {
             remove::run(&wiring, data_dir, offline, before)
