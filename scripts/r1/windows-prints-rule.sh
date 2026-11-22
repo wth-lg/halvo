@@ -40,6 +40,7 @@ ignored libtest: the summary line
 imagename the filter word IMAGENAME of tasklist.exe in a format string of the tests
 inconclusive the word INCONCLUSIVE of a test that could not run its case
 lay English word of a fixed message of a test
+logon the secondary logon service of Windows (seclogon) in a line of the form --as-standard-account of check 50
 loops English word of the left_out lines of the stall tests
 mb a unit of a size
 mean English word of a fixed message of a test
