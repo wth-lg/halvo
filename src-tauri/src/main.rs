@@ -7,6 +7,7 @@
 mod app;
 mod check_page;
 mod commands;
+mod console;
 #[cfg(any(target_os = "macos", windows, test))]
 mod daemon_child;
 mod engine;
@@ -19,6 +20,7 @@ mod poller;
 mod quit;
 #[cfg(target_os = "macos")]
 mod remove;
+mod stop_hook;
 mod tray;
 mod view_state;
 
@@ -39,9 +41,10 @@ pub fn open_pane(permission: Permission) -> Result<(), String> {
 fn main() {
     #[cfg(windows)]
     app::take_engine_arguments_out_of_the_environment();
+    stop_hook::install(stop_hook::system);
     let started = std::time::Instant::now();
     match launch::parse(std::env::args_os().skip(1)) {
-        Ok(launch::Launch::Version) => println!("{}", app::VERSION),
+        Ok(launch::Launch::Version) => console::print_version(app::VERSION),
         Ok(launch::Launch::Run {
             background,
             data_dir,
@@ -181,6 +184,8 @@ fn run(background: bool, given: Option<PathBuf>) {
         engine_rules_dir: None,
         #[cfg(windows)]
         webview_data_dir: None,
+        #[cfg(windows)]
+        webview_environment: app::system_environment,
     };
     let builder = tauri::Builder::default().manage(tray::QuitNotice::default());
     #[cfg(any(target_os = "macos", windows, test))]
@@ -189,6 +194,7 @@ fn run(background: bool, given: Option<PathBuf>) {
         Ok(app) => app,
         Err(e) => {
             eprintln!("halvo: the app did not start: {e}");
+            stop_hook::stopped();
             std::process::exit(1);
         }
     };

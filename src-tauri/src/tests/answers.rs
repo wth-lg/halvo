@@ -336,6 +336,8 @@ fn the_kept_delete_is_dropped_when_the_window_main_is_built_again() {
         test.app.handle(),
         #[cfg(windows)]
         None,
+        #[cfg(windows)]
+        crate::tests::environment_made::record,
     );
     assert_eq!(
         *test

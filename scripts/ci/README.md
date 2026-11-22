@@ -156,7 +156,7 @@ Seven slices hold what CI runs outside the merge gate. The workflow `ci` runs on
 
 | Slice | macos job | windows job |
 |---|---|---|
-| mon | group A of the slow tests (the store); 31-store-full-volume; 63-maker-marker | group A; 24-hook-imports; 20-app-links-no-store; 10-r7-account |
+| mon | group A of the slow tests (the store); 31-store-full-volume; 63-maker-marker | group A; 24-hook-imports; 20-app-links-no-store; 10-r7-account; 35-app-windows-memory |
 | tue | group B (the test targets of the agent and coordinator packages, the target formal_traces, the unit tests of five packages) | group B |
 | wed | group E (the one target macos_stall_fixture, which 51-macos-stall reads from the list of 12-test); 51-macos-stall; 30-core-boundary-proofs; 55-r6-formal; 32-app-check-page; 38-app-engine-routes | 50-windows-functional; 60-r6-egress |
 | thu | 62-build; 60-release-dry-run; 10-egress; 20-r6-gateway; 80-r6-absent | 52-windows-browser; 10-egress |
