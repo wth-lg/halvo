@@ -389,7 +389,13 @@ pub struct Executor {
     ended: Option<crate::checks::Ended>,
     places: Mutex<HashMap<String, Place>>,
     owners: Mutex<HashMap<String, (Place, BackendNodeId)>>,
+    /// The executor's own script world of each frame (`Executor::world`): by the frame's id, the loader of the
+    /// document for which it was made and its context id.
+    worlds: Mutex<HashMap<String, (LoaderId, ExecutionContextId)>>,
 }
+
+/// The name of the executor's own script world in every frame's document (`Executor::world`).
+const WORLD_NAME: &str = "halvo-executor";
 
 /// How long before the start a process that names the start's profile may have begun and still be
 /// counted as the start's own: the margin of the clock's reading against a process's creation time.
@@ -865,6 +871,7 @@ impl Executor {
             ended: None,
             places: Mutex::new(HashMap::new()),
             owners: Mutex::new(HashMap::new()),
+            worlds: Mutex::new(HashMap::new()),
         })
     }
 
@@ -1061,14 +1068,33 @@ impl Executor {
         Ok(self.frame_info(frame).await?.2)
     }
 
+    /// The executor's own script world of the document that `frame` holds now, an isolated world named `WORLD_NAME`:
+    /// made once for that document and held by the context id that the browser gave, kept with the document's loader,
+    /// so that every later call into the same document finds the same world, and a new document of the frame, which
+    /// has a loader of its own, gets a world of its own. No script of the page runs in it or reaches what it holds:
+    /// the mark of `CREDENTIAL_FN` lives there.
     async fn world(&self, frame: &FrameId) -> Res<ExecutionContextId> {
-        let r = self
-            .exec(
-                &self.place_of(frame),
-                "frame",
-                CreateIsolatedWorldParams::new(frame.clone()),
-            )
-            .await?;
+        let lost = || Fault::new("frame", "the executor's world");
+        let loader = self.loader(frame).await?;
+        let held = self
+            .worlds
+            .lock()
+            .map_err(|_| lost())?
+            .get(frame.inner())
+            .filter(|(made_for, _)| *made_for == loader)
+            .map(|(_, context)| *context);
+        if let Some(context) = held {
+            return Ok(context);
+        }
+        let params = CreateIsolatedWorldParams {
+            world_name: Some(WORLD_NAME.to_string()),
+            ..CreateIsolatedWorldParams::new(frame.clone())
+        };
+        let r = self.exec(&self.place_of(frame), "frame", params).await?;
+        self.worlds
+            .lock()
+            .map_err(|_| lost())?
+            .insert(frame.inner().clone(), (loader, r.execution_context_id));
         Ok(r.execution_context_id)
     }
 
@@ -1165,6 +1191,31 @@ impl Executor {
             .ok_or_else(|| Fault::new("node", "no object"))
     }
 
+    /// The object of the node in the executor's own world of the document of `frame` (`world`), where the mark of
+    /// `CREDENTIAL_FN` lives.
+    async fn object_in_world(
+        &self,
+        frame: &FrameId,
+        place: &Place,
+        node: &BackendNodeId,
+    ) -> Res<RemoteObjectId> {
+        let context = self.world(frame).await?;
+        let r = self
+            .exec(
+                place,
+                "node",
+                ResolveNodeParams::builder()
+                    .backend_node_id(*node)
+                    .execution_context_id(context)
+                    .build(),
+            )
+            .await?;
+        r.object
+            .object_id
+            .ok_or_else(|| Fault::new("node", "no object"))
+    }
+
+    /// `function` called on the node in the page's own world.
     async fn call_on(
         &self,
         place: &Place,
@@ -1173,6 +1224,30 @@ impl Executor {
         args: Vec<serde_json::Value>,
     ) -> Res<serde_json::Value> {
         let object = self.object_of(place, node).await?;
+        self.call_with(place, object, function, args).await
+    }
+
+    /// `function` called on the node in the executor's own world of the document of `frame` (`world`): every call
+    /// that reads the mark of `CREDENTIAL_FN`.
+    async fn call_in_world(
+        &self,
+        frame: &FrameId,
+        place: &Place,
+        node: &BackendNodeId,
+        function: &str,
+        args: Vec<serde_json::Value>,
+    ) -> Res<serde_json::Value> {
+        let object = self.object_in_world(frame, place, node).await?;
+        self.call_with(place, object, function, args).await
+    }
+
+    async fn call_with(
+        &self,
+        place: &Place,
+        object: RemoteObjectId,
+        function: &str,
+        args: Vec<serde_json::Value>,
+    ) -> Res<serde_json::Value> {
         let mut builder = CallFunctionOnParams::builder()
             .function_declaration(function)
             .object_id(object)
@@ -1188,11 +1263,24 @@ impl Executor {
         Ok(r.result.value.unwrap_or(serde_json::Value::Null))
     }
 
-    /// The sign by which the node is a credential field (`CREDENTIAL_FN`), with `name`, the
-    /// accessible name that the page's tree gives it, as one of the names that the rule reads.
-    async fn sign_of(&self, place: &Place, node: &BackendNodeId, name: &str) -> Res<Option<Sign>> {
+    /// The sign by which the node of the document of `frame` is a credential field (`CREDENTIAL_FN`, in the
+    /// executor's own world), with `name`, the accessible name that the page's tree gives it, as one of the names
+    /// that the rule reads.
+    async fn sign_of(
+        &self,
+        frame: &FrameId,
+        place: &Place,
+        node: &BackendNodeId,
+        name: &str,
+    ) -> Res<Option<Sign>> {
         let v = self
-            .call_on(place, node, CREDENTIAL_FN, vec![serde_json::json!(name)])
+            .call_in_world(
+                frame,
+                place,
+                node,
+                CREDENTIAL_FN,
+                vec![serde_json::json!(name)],
+            )
             .await?;
         Ok(Sign::of(&v))
     }
@@ -1341,7 +1429,7 @@ impl Executor {
                         continue;
                     };
                     let sign = if CONTROL_ROLES.contains(&role) {
-                        self.sign_of(&place, &b, &name).await?
+                        self.sign_of(frame, &place, &b, &name).await?
                     } else {
                         None
                     };
@@ -1994,12 +2082,13 @@ fn typed_into_of(reply: &serde_json::Value) -> Option<bool> {
 }
 
 impl Executor {
-    /// The control of the ref, read fresh in one call on its node (`control_fn`): a credential
-    /// field gives its mark alone, so that no text and no value of it reaches this process.
+    /// The control of the ref, read fresh in one call on its node in the executor's own world
+    /// (`control_fn`): a credential field gives its mark alone, so that no text and no value of it
+    /// reaches this process.
     pub async fn control(&self, reference: &str) -> Res<Control> {
         let t = self.target(reference)?;
         let reply = self
-            .call_on(&t.place, &t.node, &control_fn(), Vec::new())
+            .call_in_world(&t.frame, &t.place, &t.node, &control_fn(), Vec::new())
             .await?;
         control_of(&reply)
     }
@@ -2083,10 +2172,13 @@ impl Executor {
     /// id and no document of its own, has no shadow root other than the browser's own, and reads no
     /// credential mark (`CREDENTIAL_FN`, the mark alone). Every other holder of the focus reads
     /// credential: none, the body, a frame of any kind, a host of a shadow root, and any other
-    /// element.
+    /// element. The element and its mark are read in the executor's own world of that document
+    /// (`world`).
     async fn focus_is_credential(&self, place: &Place) -> Res<bool> {
+        let top = self.frame_tree_at(place).await?.frame.id;
         let active = EvaluateParams::builder()
             .expression("document.activeElement")
+            .context_id(self.world(&top).await?)
             .return_by_value(false)
             .build()
             .map_err(|e| Fault::new("focus", e))?;
@@ -2115,7 +2207,13 @@ impl Executor {
             return Ok(true);
         }
         let read = self
-            .call_on(place, &node.backend_node_id, &typed_into_fn(), Vec::new())
+            .call_in_world(
+                &top,
+                place,
+                &node.backend_node_id,
+                &typed_into_fn(),
+                Vec::new(),
+            )
             .await?;
         Ok(typed_into_of(&read) != Some(true))
     }
@@ -2273,11 +2371,14 @@ const CONTENT_CORNER_FN: &str = "function () {
 /// `password`, `passwd`, `pwd` or `passcode` in lower case; the empty text for no sign. An element
 /// is known by the browser's own interface, never by its tag name, and an input's type and
 /// `autocomplete` are read from its own properties beside its attributes; an element that the
-/// world in which the call runs does not know as one of its own (made in another document's world
-/// and moved in) reads `secret`: fail closed (the coordinator's ruling of log line 14188). A control that showed a
-/// sign keeps it on its node for the life of the node, in the script world in which the call runs,
-/// so that a toggle that sets `type` to `text` does not unmark it. It reads no value and no text of
-/// the control itself.
+/// world in which the call runs does not know as one of its own (an object of it that the world made
+/// with another document's constructors) reads `secret`: fail closed (the coordinator's ruling of log
+/// line 14188). It runs in the executor's own world of the node's document alone (`Executor::world`),
+/// never in the page's. A control that showed a sign keeps it on its node for the life of the node,
+/// as a property of the node's object in that world, which no script of the page reaches: a toggle
+/// that sets `type` to `text` does not unmark it, the page's script can neither take the mark off nor
+/// put one on (r3 U5.13, the coordinator's ruling of log line 14127 (2)). It reads no value and no
+/// text of the control itself.
 const CREDENTIAL_FN: &str = "function (named) {
   if (typeof this.__halvoSign === 'string') return this.__halvoSign;
   if (typeof this.getAttribute !== 'function') return '';
@@ -2308,7 +2409,8 @@ const CREDENTIAL_FN: &str = "function (named) {
 /// tree, and `secret` for an element that the world does not know as one of its own; an element that
 /// the browser itself says is not shown (`checkVisibility`, also for `visibility: hidden`) counts for
 /// nothing (the coordinator's ruling of log line 14244); the strongest sign, or the empty text. It
-/// enters no frame and no shadow root.
+/// enters no frame and no shadow root, and runs in the executor's own world of the document
+/// (`Executor::world`), where the marks of `CREDENTIAL_FN` live.
 fn sweep_fn() -> String {
     format!(
         "(() => {{

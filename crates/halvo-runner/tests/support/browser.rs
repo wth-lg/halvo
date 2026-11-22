@@ -305,6 +305,39 @@ impl Fixture {
     }
 }
 
+impl Fixture {
+    /// `Fixture::start` with one path more, `switch`, whose answer is the word that the test last set in the
+    /// switch that comes back, `off` before the first: a page that asks it acts when the test says so, at a frame of
+    /// the run that the test chooses, and not after a time of its own.
+    pub fn start_switched(pages: &[(&str, &str)], switch: &str) -> (Fixture, Arc<Mutex<String>>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind the fixture");
+        let port = listener.local_addr().expect("the fixture's port").port();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let stop = Arc::new(AtomicBool::new(false));
+        let word = Arc::new(Mutex::new("off".to_string()));
+        let pages: Vec<(String, String)> = pages
+            .iter()
+            .map(|(path, page)| (path.to_string(), page.to_string()))
+            .collect();
+        let switch = switch.to_string();
+        let (record, stopped, set) = (Arc::clone(&seen), Arc::clone(&stop), Arc::clone(&word));
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                if stopped.load(Ordering::SeqCst) {
+                    return;
+                }
+                if let Ok(stream) = stream {
+                    let mut now = pages.clone();
+                    now.push((switch.clone(), set.lock().expect("the word").clone()));
+                    let request = answer(stream, &now);
+                    record.lock().expect("the record").push(request);
+                }
+            }
+        });
+        (Fixture { port, seen, stop }, word)
+    }
+}
+
 impl Drop for Fixture {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::SeqCst);
