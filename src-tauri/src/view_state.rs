@@ -22,6 +22,8 @@ pub enum Service {
     StatusRefused,
     Unsupported,
     AnotherVersion,
+    NotStarted,
+    DataDirUnusable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -128,6 +130,27 @@ pub struct NoStatusView {
     pub last_exit: Option<i32>,
     pub hold: Option<HoldView>,
     pub login_item_loaded: Option<bool>,
+    pub first_run: Option<FirstRun>,
+}
+
+/// What a view without a status says before the app's first child (contracts.md C10.7): on a
+/// data directory that is not provisioned the not-started state, whose Start is the consent; on
+/// a directory whose name leads nowhere, is no directory or cannot be read its own cause, and
+/// never the consent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FirstRun {
+    NotStarted,
+    DataDirUnusable,
+}
+
+impl NoStatusView {
+    fn word(&self) -> Service {
+        match self.first_run {
+            Some(FirstRun::NotStarted) => Service::NotStarted,
+            Some(FirstRun::DataDirUnusable) => Service::DataDirUnusable,
+            None => self.service.word(),
+        }
+    }
 }
 
 /// Why the app holds capture off: a child of the app ended itself with status 5, because a
@@ -162,6 +185,8 @@ struct HoldState {
     no_more_child: bool,
     start_asked: bool,
     another_version: bool,
+    awaits_consent: bool,
+    data_dir_unusable: bool,
 }
 
 /// The app's hold on capture after a child of the app ended itself with status 5 (contracts.md
@@ -200,16 +225,33 @@ impl Hold {
 
     /// `view` with the hold, and on `not_running` the status of the last end while no child of
     /// the app lives; while the app leaves its own child of another daemon_version, a running
-    /// view reads another_version.
+    /// view reads another_version. A view without a status reads data_dir_unusable while the
+    /// supervisor found the data directory's own cause, and a not_running view reads
+    /// not_started while the supervisor awaits the consent.
     pub fn mark(&self, view: StatusView) -> StatusView {
         let hold = self.view();
-        let (last_exit, another_version) = {
+        let (last_exit, another_version, awaits_consent, data_dir_unusable) = {
             let state = self.state();
-            (state.last_exit, state.another_version)
+            (
+                state.last_exit,
+                state.another_version,
+                state.awaits_consent,
+                state.data_dir_unusable,
+            )
         };
         let view = match view {
             StatusView::Running(running) if another_version => {
                 StatusView::no_status(NoStatusService::AnotherVersion, running.platform)
+            }
+            StatusView::NoStatus(mut view) if data_dir_unusable => {
+                view.first_run = Some(FirstRun::DataDirUnusable);
+                StatusView::NoStatus(view)
+            }
+            StatusView::NoStatus(mut view)
+                if awaits_consent && view.service == NoStatusService::NotRunning =>
+            {
+                view.first_run = Some(FirstRun::NotStarted);
+                StatusView::NoStatus(view)
             }
             other => other,
         };
@@ -276,7 +318,8 @@ impl Hold {
         self.changed.notify_all();
     }
 
-    /// Takes the ask of a Start, if one waits: the press then asked for the next child.
+    /// Takes the ask of a Start or of the consent, if one waits: the press then asked for the
+    /// next child.
     #[cfg(any(target_os = "macos", test))]
     pub fn take_start(&self) -> bool {
         let mut state = self.state();
@@ -284,8 +327,25 @@ impl Hold {
         if asked {
             state.start_asked = false;
             state.no_more_child = false;
+            state.awaits_consent = false;
         }
         asked
+    }
+
+    /// The supervisor's spawner reads the data directory not provisioned: no child starts before
+    /// the person's click on Start, the consent (contracts.md C10.7).
+    #[cfg(any(target_os = "macos", test))]
+    pub fn awaits_consent(&self) {
+        self.state().awaits_consent = true;
+        self.changed.notify_all();
+    }
+
+    /// The supervisor's spawner reads the data directory's own cause (ruling ST-36 (e)): no child
+    /// starts and no consent is offered.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn data_dir_unusable(&self) {
+        self.state().data_dir_unusable = true;
+        self.changed.notify_all();
     }
 
     /// The app leaves its own child that reads another daemon_version after the one restart of
@@ -383,7 +443,7 @@ impl Serialize for StatusView {
                 ext: Some(&view.ext),
             },
             StatusView::NoStatus(view) => WireView {
-                service: view.service.word(),
+                service: view.word(),
                 last_exit: view.last_exit,
                 hold: view.hold,
                 login_item_loaded: view.login_item_loaded,
@@ -429,6 +489,7 @@ impl StatusView {
             last_exit: None,
             hold: None,
             login_item_loaded: None,
+            first_run: None,
         })
     }
 
@@ -458,7 +519,7 @@ impl StatusView {
     pub fn service(&self) -> Service {
         match self {
             StatusView::Running(_) => Service::Running,
-            StatusView::NoStatus(view) => view.service.word(),
+            StatusView::NoStatus(view) => view.word(),
         }
     }
 

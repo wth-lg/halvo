@@ -226,6 +226,7 @@ fn start_the_daemon(
         },
         data_dir: data_dir?,
         given,
+        consented: false,
     };
     Some(Arc::new(daemon_child::Supervisor::start_holding(
         plan,
