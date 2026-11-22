@@ -154,7 +154,9 @@ So a request that an agent sends to a service that the person bound to it can
 hold three things, and nothing else of what was captured:
 
 - the agent's own config;
-- its run's records;
+- the records of that agent's own runs; and, for a message that it asks about,
+  the state of another agent's reply to that message (under way, done, withheld
+  or not known), never what that reply says;
 - what Halvo learned for that agent from its own runs: where on a page it found
   a control again after the page had changed.
 
