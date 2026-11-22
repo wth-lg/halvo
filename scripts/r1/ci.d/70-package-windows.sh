@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, each read for a number of bytes above zero before anything starts it, and no other file in that directory whose name ends in .exe but the uninstall.exe of the installer template, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started), and that directory holds THIRD-PARTY-NOTICES.txt as a file with the bytes that scripts/notices/generate.js writes for the host triple in the same run, in which grep -i -c zetetic counts at least 1.
+# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, each read for a number of bytes above zero before anything starts it, and no other file in that directory whose name ends in .exe but the uninstall.exe of the installer template, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started), and that directory holds THIRD-PARTY-NOTICES.txt as a file with the bytes that scripts/notices/generate.js writes for the host triple in the same run, in which grep -i -c zetetic counts at least 1. Then src-tauri/windows/hooks.nsh waits for each helper of packaging/helpers.d, and on a GitHub-hosted runner alone: the installer, run with /S into a scratch directory while the values pv of the WebView2 runtime that the template reads are moved aside, puts halvo.exe, each helper, the notices, uninstall.exe and WEBVIEW2-RUNTIME-MISSING.txt with sentence (1) there, with an uninstall entry under HKCU alone; the installed app started with --background on a provisioned scratch directory runs with exactly one halvo-capture.exe child from the install directory, ctl status reads store=open, and after ctl stop exits 0 no halvo-capture.exe from there runs for 10 s; an install over the copy while its halvo-owner.exe is held exits with a code other than 0 and writes no uninstall.exe; and while the app started with --background alone runs with its child on the default data directory that halvo-capture --default-data-dir names, which the check makes and provisions, with a file planted in EBWebView beside it and the Run value Halvo planted, uninstall.exe /S /DELETEALL exits 0 and leaves no process from the install directory, no file there but uninstall.exe, no notices, no Run value, no uninstall entry, no default data directory and no planted file.
 set -u
 name=70-package-windows
 config_keys='externalBin signCommand certificateThumbprint'
@@ -9,6 +9,7 @@ attempts=3
 template_executables='uninstall.exe'
 
 fail() {
+  [ -z "${cycling:-}" ] || cleanup
   printf 'FAIL %s (%s)\n' "$name" "$1"
   exit 1
 }
@@ -155,6 +156,517 @@ notices_defect() {
   printf 'installer holds THIRD-PARTY-NOTICES.txt beside halvo.exe, bytes=%s, zetetic lines: %s\n' "$bytes" "$zetetic"
 }
 
+# The hooks of the installer (src-tauri/windows/hooks.nsh): the file $1 waits for each helper of
+# the list after it, by a line !insertmacro HALVO_HELD "<helper>.exe" of its stop.
+hooks_defect() {
+  hooks=$1
+  shift
+  [ -f "$hooks" ] || { printf 'there is no file %s\n' "$hooks"; return 1; }
+  for helper in "$@"; do
+    found=$(sed 's/^[[:space:]]*//' "$hooks" | grep -c -x -F "!insertmacro HALVO_HELD \"$helper.exe\"")
+    [ "$found" -ge 1 ] || { printf '%s waits for no %s.exe of packaging/helpers.d before an uninstall\n' "$hooks" "$helper"; return 1; }
+  done
+}
+
+# The install, start, status, stop and uninstall of the built installer. Each helper below is the
+# hosted runner's own; the fixture of the self-test puts stand-ins in their place.
+sentence_runtime='Halvo cannot open its window yet: the Microsoft Edge WebView2 Runtime is not on this computer. This installer downloads nothing. Install the runtime from Microsoft, then start Halvo.'
+runtime_file=WEBVIEW2-RUNTIME-MISSING.txt
+run_key='HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
+uninstall_key='Software\Microsoft\Windows\CurrentVersion\Uninstall\Halvo'
+# The two values that the template's section WebView2 reads on a 64-bit Windows, in its order.
+runtime_keys='HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5} HKCU\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+start_s=60
+answer_s=30
+stop_hold_s=10
+end_s=10
+poll_s=1
+
+native_path() {
+  cygpath -w -l "$1"
+}
+
+posix_path() {
+  cygpath -u "$1"
+}
+
+# Every process whose executable lies in the directory $1 (native), one line each: its name, its
+# process id, the id of its parent and its command line.
+list_from() {
+  script=$work/list.ps1
+  [ -f "$script" ] || cat >"$script" <<'EOF' || return 1
+param([string]$Dir)
+$ErrorActionPreference = "Stop"
+$prefix = $Dir.TrimEnd('\') + '\'
+foreach ($p in Get-CimInstance -ClassName Win32_Process) {
+  $exe = $p.ExecutablePath
+  if ($exe -and $exe.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    [Console]::Out.WriteLine(("{0} {1} {2} {3}" -f $p.Name, $p.ProcessId, $p.ParentProcessId, $p.CommandLine))
+  }
+}
+EOF
+  native=$(native_path "$script") || return 1
+  powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$native" -Dir "$1" >"$work/list.raw" || return 1
+  tr -d '\r' <"$work/list.raw"
+}
+
+end_process() {
+  taskkill //F //PID "$1" >/dev/null 2>&1
+}
+
+take_away() {
+  rm -rf "$@"
+}
+
+reg_data() {
+  MSYS_NO_PATHCONV=1 reg query "$1" /v "$2" >"$work/reg.out" 2>/dev/null || return 1
+  tr -d '\r' <"$work/reg.out" | sed -n "s/^[[:space:]]*$2[[:space:]]*REG_SZ[[:space:]]*//p"
+}
+
+reg_put() {
+  MSYS_NO_PATHCONV=1 reg add "$1" /v "$2" /t REG_SZ /d "$3" /f >/dev/null 2>&1
+}
+
+reg_drop() {
+  MSYS_NO_PATHCONV=1 reg delete "$1" /v "$2" /f >/dev/null 2>&1
+}
+
+# Whether the uninstall entry of Halvo stands under the hive $1 (HKCU or HKLM).
+uninstall_entry() {
+  MSYS_NO_PATHCONV=1 reg query "$1\\$uninstall_key" >/dev/null 2>&1
+}
+
+uninstall_entry_drop() {
+  MSYS_NO_PATHCONV=1 reg delete "HKCU\\$uninstall_key" /f >/dev/null 2>&1
+}
+
+# Moves the values pv that the template reads aside, into $work/runtime-moved, for the next install.
+runtime_hide() {
+  : >"$work/runtime-moved" || return 1
+  for key in $runtime_keys; do
+    data=$(reg_data "$key" pv) || continue
+    [ -n "$data" ] || continue
+    printf '%s|%s\n' "$key" "$data" >>"$work/runtime-moved" || return 1
+    reg_drop "$key" pv || return 1
+  done
+}
+
+runtime_put_back() {
+  [ -f "$work/runtime-moved" ] || return 0
+  while IFS='|' read -r key data; do
+    reg_put "$key" pv "$data" || return 1
+    back=$(reg_data "$key" pv) || return 1
+    [ "$back" = "$data" ] || return 1
+  done <"$work/runtime-moved"
+  mv "$work/runtime-moved" "$work/runtime-put-back"
+}
+
+# Holds the file $1 open for reading alone, so that no other process opens it for writing, until
+# release_file; the holder writes its process id to $work/holder when it holds.
+hold_file() {
+  script=$work/hold.ps1
+  cat >"$script" <<'EOF' || return 1
+param([string]$File, [string]$Ready)
+$held = [System.IO.File]::Open($File, 'Open', 'Read', 'Read')
+[System.IO.File]::WriteAllText($Ready, "$PID")
+Start-Sleep -Seconds 120
+$held.Close()
+EOF
+  native=$(native_path "$script") || return 1
+  native_file=$(native_path "$1") || return 1
+  native_work=$(native_path "$work") || return 1
+  powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$native" -File "$native_file" -Ready "$native_work\\holder" >/dev/null 2>&1 &
+}
+
+release_file() {
+  [ -s "$work/holder" ] || return 0
+  holder=$(tr -d '\r' <"$work/holder") || return 1
+  end_process "$holder"
+  mv "$work/holder" "$work/holder-ended"
+}
+
+# The halvo.exe of the install directory and its halvo-capture.exe children of the listing in
+# $work/procs whose command line holds $1: it sets apps, children and pair (the app and its one
+# child, or empty).
+pair_of() {
+  apps=$(awk -v t="$1" '$1 == "halvo.exe" && index($0, t) { print $2 }' "$work/listing")
+  children=$(awk -v t="$1" '$1 == "halvo-capture.exe" && index($0, t) { print $2 " " $3 }' "$work/listing")
+  pair=
+  n_apps=$(printf '%s\n' "$apps" | grep -c .)
+  n_children=$(printf '%s\n' "$children" | grep -c .)
+  [ "$n_apps" = 1 ] && [ "$n_children" = 1 ] || return 0
+  [ "${children#* }" = "$apps" ] && pair="$apps ${children% *}"
+}
+
+# Waits up to start_s for the app started with $2 in its command line to run with exactly one
+# halvo-capture.exe child from the install directory, and up to answer_s more for ctl status, on
+# the data directory $3 or without --data-dir where $3 is empty, to read the store open.
+wait_pair() {
+  began=$(date +%s) || fail "the clock cannot be read"
+  while :; do
+    list_from "$native_install" >"$work/listing" || fail "the list of processes cannot be read"
+    pair_of "$2"
+    [ -n "$pair" ] && break
+    now=$(date +%s) || fail "the clock cannot be read"
+    [ $((now - began)) -lt "$start_s" ] || fail "the installed app ($1) runs with $n_children halvo-capture.exe children from the install directory after $start_s s, not one"
+    sleep "$poll_s"
+  done
+  printf 'cycle %s: the app %s runs with one halvo-capture.exe child %s from the install directory\n' "$1" "${pair% *}" "${pair#* }"
+  while :; do
+    if [ -n "$3" ]; then
+      "$install/halvo-capture.exe" ctl --data-dir "$3" status >"$work/status.out" 2>&1
+    else
+      "$install/halvo-capture.exe" ctl status >"$work/status.out" 2>&1
+    fi && tr -d '\r' <"$work/status.out" | grep -q -x 'store=open' && break
+    now=$(date +%s) || fail "the clock cannot be read"
+    [ $((now - began)) -lt $((start_s + answer_s)) ] || fail "ctl status of the installed app ($1) did not read store=open"
+    sleep "$poll_s"
+  done
+  printf 'cycle %s: ctl status reads store=open\n' "$1"
+}
+
+# Ends each process from the install directory by its id and waits up to end_s for none.
+end_installed() {
+  waited=0
+  while [ "$waited" -le "$end_s" ]; do
+    list_from "$native_install" >"$work/listing" 2>/dev/null || return 1
+    [ -s "$work/listing" ] || return 0
+    awk '{ print $2 }' "$work/listing" | while read -r pid; do end_process "$pid"; done
+    sleep 1
+    waited=$((waited + 1))
+  done
+  return 1
+}
+
+# Takes away what the cycle planted, also where it fails: its processes, the held file, the
+# values pv, the Run value with its own text, its install and the default data directory it made.
+cleanup() {
+  trap - EXIT
+  [ -n "${cycling:-}" ] || return 0
+  cycling=
+  end_installed || printf 'cycle: a process from the install directory still runs at the end\n'
+  release_file
+  runtime_put_back || printf 'cycle: the values pv of the WebView2 runtime could not all be put back\n'
+  if [ -n "${planted_run:-}" ] && run_now=$(reg_data "$run_key" Halvo) && [ "$run_now" = "$planted_run" ]; then
+    reg_drop "$run_key" Halvo
+  fi
+  if [ -d "$install" ] && uninstall_entry HKCU; then
+    uninstall_entry_drop
+  fi
+  [ -n "${made_default:-}" ] && [ -d "$made_default" ] && take_away "$made_default"
+  [ -n "${planted:-}" ] && [ -f "$planted" ] && take_away "$planted"
+  take_away "$work/installed"
+}
+
+cycle() {
+  installer=$1
+  work=$2
+  install=$work/installed/Halvo
+  mkdir -p "$install" || fail "mkdir failed"
+  native_install=$(native_path "$install") || fail "the install directory has no native path"
+  planted_run=
+  made_default=
+  planted=
+  cycling=yes
+  trap cleanup EXIT
+  runtime_hide || fail "the values pv of the WebView2 runtime could not be moved aside"
+  MSYS_NO_PATHCONV=1 "$installer" /S "/D=$native_install" >"$work/install.out" 2>&1
+  code=$?
+  runtime_put_back || fail "the values pv of the WebView2 runtime could not be put back"
+  [ "$code" = 0 ] || fail "the silent install exited $code"
+  for file in halvo.exe $helpers THIRD-PARTY-NOTICES.txt uninstall.exe; do
+    case $file in *.*) ;; *) file=$file.exe ;; esac
+    [ -f "$install/$file" ] || fail "the silent install put no $file into the install directory"
+  done
+  [ -f "$install/$runtime_file" ] || fail "the silent install with no WebView2 runtime wrote no $runtime_file into the install directory"
+  text=$(tr -d '\r' <"$install/$runtime_file") || fail "$runtime_file cannot be read"
+  [ "$text" = "$sentence_runtime" ] || fail "$runtime_file holds another text than sentence (1)"
+  n_helpers=$(printf '%s\n' "$helpers" | grep -c .)
+  printf 'cycle install: halvo.exe, %s helpers, the notices, uninstall.exe and %s with sentence (1)\n' "$n_helpers" "$runtime_file"
+  uninstall_entry HKCU || fail "the silent install wrote no uninstall entry under HKCU"
+  ! uninstall_entry HKLM || fail "the silent install wrote an uninstall entry under HKLM"
+  printf 'cycle install: the uninstall entry stands under HKCU alone\n'
+
+  data=$(mktemp -d "$work/data.XXXXXX") || fail "mktemp failed"
+  printf '{}\n' >"$data/daemon-state.json" || fail "the state file of a provisioned directory cannot be written"
+  native_data=$(native_path "$data") || fail "the data directory has no native path"
+  "$install/halvo.exe" --background --data-dir "$native_data" >"$work/app-1.out" 2>&1 &
+  wait_pair "--data-dir" "${data##*/}" "$native_data"
+  stopped_child=${pair#* }
+  "$install/halvo-capture.exe" ctl --data-dir "$native_data" stop >"$work/stop.out" 2>&1 || fail "ctl stop of the installed app exited $?"
+  stopped=$(date +%s) || fail "the clock cannot be read"
+  now=$stopped
+  while [ $((now - stopped)) -lt "$stop_hold_s" ]; do
+    list_from "$native_install" >"$work/listing" || fail "the list of processes cannot be read"
+    awk '$1 == "halvo-capture.exe" { print $2 }' "$work/listing" | while read -r pid; do
+      [ "$pid" = "$stopped_child" ] || printf '%s\n' "$pid"
+    done >"$work/again"
+    [ ! -s "$work/again" ] || fail "a second halvo-capture.exe from the install directory started after ctl stop"
+    sleep "$poll_s"
+    now=$(date +%s) || fail "the clock cannot be read"
+  done
+  awk '$1 == "halvo-capture.exe" { print $2 }' "$work/listing" | grep -q . && fail "the stopped halvo-capture.exe still runs $stop_hold_s s after ctl stop"
+  printf 'cycle --data-dir: ctl stop exited 0 and no halvo-capture.exe from the install directory ran for %s s behind it\n' "$stop_hold_s"
+  end_installed || fail "the processes from the install directory could not be ended"
+
+  # An install over the copy while a file of it is held goes no further than the hook's wait.
+  hold_file "$install/halvo-owner.exe"
+  waited=0
+  until [ -s "$work/holder" ]; do
+    [ "$waited" -lt "$end_s" ] || fail "halvo-owner.exe of the install directory could not be held"
+    sleep 1
+    waited=$((waited + 1))
+  done
+  mv "$install/uninstall.exe" "$work/uninstall.exe.aside" || fail "uninstall.exe could not be moved aside"
+  MSYS_NO_PATHCONV=1 "$installer" /S "/D=$native_install" >"$work/install-2.out" 2>&1
+  code=$?
+  release_file
+  [ "$code" != 0 ] && [ ! -e "$install/uninstall.exe" ] || fail "the install over a copy of which halvo-owner.exe is held went on (exit $code)"
+  mv "$work/uninstall.exe.aside" "$install/uninstall.exe" || fail "uninstall.exe could not be put back"
+  printf 'cycle install over a held copy: exit %s, nothing installed\n' "$code"
+
+  default_native=$("$install/halvo-capture.exe" --default-data-dir) || fail "halvo-capture.exe --default-data-dir exited $?"
+  default_native=$(printf '%s' "$default_native" | tr -d '\r')
+  default=$(posix_path "$default_native") || fail "the default data directory has no path here"
+  folder=${default%/*}
+  [ -e "$default" ] || made_default=$default
+  mkdir -p "$default" "$folder/EBWebView" || fail "the default data directory cannot be made"
+  printf '{}\n' >"$default/daemon-state.json" || fail "the state file of the default data directory cannot be written"
+  planted=$folder/EBWebView/check-70-planted.txt
+  printf 'planted by check 70\n' >"$planted" || fail "no file can be planted in the web view's folder"
+  planted_run="\"$native_install\\halvo.exe\" --background"
+  reg_put "$run_key" Halvo "$planted_run" || fail "the Run value Halvo cannot be planted"
+  printf 'cycle default: %s made, a file planted in %s, the Run value planted\n' "$default_native" "${folder##*/}/EBWebView"
+  "$install/halvo.exe" --background >"$work/app-2.out" 2>&1 &
+  wait_pair "default" "halvo" ""
+
+  MSYS_NO_PATHCONV=1 "$install/uninstall.exe" /S /DELETEALL "_?=$native_install" >"$work/uninstall.out" 2>&1
+  code=$?
+  printf 'cycle uninstall /S /DELETEALL: exit %s\n' "$code"
+  [ "$code" = 0 ] || fail "the silent uninstall with /DELETEALL exited $code"
+  list_from "$native_install" >"$work/listing" || fail "the list of processes cannot be read"
+  names=$(awk '{ print $1 }' "$work/listing" | paste -s -d ' ' -)
+  [ ! -s "$work/listing" ] || fail "a process from the install directory runs after the uninstall: $names"
+  [ ! -e "$install/THIRD-PARTY-NOTICES.txt" ] || fail "the uninstall left THIRD-PARTY-NOTICES.txt"
+  left=$(cd "$install" && find . ! -name . | sed 's|^\./||' | grep -v -x -F uninstall.exe | sort | paste -s -d ' ' -)
+  [ -z "$left" ] || fail "the uninstall left in the install directory: $left"
+  ! reg_data "$run_key" Halvo >/dev/null || fail "the Run value Halvo stays after the uninstall"
+  ! uninstall_entry HKCU || fail "the uninstall entry under HKCU stays after the uninstall"
+  [ ! -e "$default" ] || fail "the uninstall went on while the default data directory stays"
+  [ ! -e "$planted" ] || fail "the file planted in the web view's folder stays after an uninstall with /DELETEALL"
+  printf 'cycle uninstall: no process, no file but uninstall.exe, no notices, no Run value, no uninstall entry, no default data directory, no planted file\n'
+  cleanup
+}
+
+# The cycle on the stand-ins of the self-test, in the directory $1: STUB_MODE names the fault,
+# STUB_BIN holds the stand-in programs, and the stand-ins keep their processes in procs/ (one file
+# per process id), the registry in reg/ (one file per value) and what they take away in gone/.
+fixture() {
+  start_s=10
+  answer_s=10
+  stop_hold_s=2
+  end_s=3
+  poll_s=0.2
+  taken=0
+  helpers=$(helper_names)
+  native_path() {
+    printf '%s\n' "$1"
+  }
+  posix_path() {
+    printf '%s\n' "$1"
+  }
+  list_from() {
+    for file in "$STUB_DIR/procs"/*; do
+      [ -f "$file" ] || continue
+      kill -0 "${file##*/}" 2>/dev/null && cat "$file"
+    done
+    return 0
+  }
+  end_process() {
+    kill -9 "$1" 2>/dev/null
+    return 0
+  }
+  take_away() {
+    for path in "$@"; do
+      taken=$((taken + 1))
+      if [ -e "$path" ]; then mv "$path" "$STUB_DIR/gone/taken-$taken"; fi
+    done
+    return 0
+  }
+  reg_file() {
+    flat=$(printf '%s %s' "$1" "$2" | tr -c 'A-Za-z0-9' '_')
+    printf '%s/reg/%s\n' "$STUB_DIR" "$flat"
+  }
+  reg_data() {
+    file=$(reg_file "$1" "$2")
+    [ -f "$file" ] && cat "$file"
+  }
+  reg_put() {
+    printf '%s' "$3" >"$(reg_file "$1" "$2")"
+  }
+  reg_drop() {
+    file=$(reg_file "$1" "$2")
+    take_away "$file"
+  }
+  uninstall_entry() {
+    [ -f "$STUB_DIR/reg/uninstall-$1" ]
+  }
+  uninstall_entry_drop() {
+    take_away "$STUB_DIR/reg/uninstall-HKCU"
+  }
+  hold_file() {
+    : >"$STUB_DIR/held" && printf 'stand-in\n' >"$work/holder"
+  }
+  release_file() {
+    [ -s "$work/holder" ] || return 0
+    take_away "$STUB_DIR/held"
+    mv "$work/holder" "$work/holder-ended"
+  }
+  mkdir -p "$STUB_DIR/procs" "$STUB_DIR/reg" "$STUB_DIR/gone" || exit 2
+  # The runner's WebView2 runtime: its two values pv.
+  for key in $runtime_keys; do
+    reg_put "$key" pv 146.0.0.1 || exit 2
+  done
+  cycle "$STUB_BIN/setup.exe" "$STUB_DIR"
+  printf 'PASS %s\n' "$name"
+}
+
+# The stand-in programs of the fixture, into the directory $1.
+stand_in_programs() {
+  mkdir -p "$1" || exit 2
+  cat >"$1/setup.exe" <<'EOF'
+#!/bin/sh
+[ "$1" = /S ] || exit 98
+case $2 in /D=*) dir=${2#/D=} ;; *) exit 98 ;; esac
+[ -f "$STUB_DIR/held" ] && [ "$STUB_MODE" != install-goes-on ] && exit 2
+mkdir -p "$dir" || exit 3
+cp "$STUB_BIN/app" "$dir/halvo.exe" || exit 3
+cp "$STUB_BIN/capture" "$dir/halvo-capture.exe" || exit 3
+for helper in $STUB_HELPERS; do
+  [ -f "$dir/$helper.exe" ] || printf '#!/bin/sh\nexit 0\n' >"$dir/$helper.exe"
+done
+printf 'notices\n' >"$dir/THIRD-PARTY-NOTICES.txt"
+cp "$STUB_BIN/uninstall" "$dir/uninstall.exe" || exit 3
+if ! ls "$STUB_DIR/reg" | grep -q EdgeUpdate && [ "$STUB_MODE" != no-runtime-file ]; then
+  printf '%s\r\n' "$STUB_SENTENCE" >"$dir/WEBVIEW2-RUNTIME-MISSING.txt"
+fi
+: >"$STUB_DIR/reg/uninstall-HKCU"
+exit 0
+EOF
+  cat >"$1/app" <<'EOF'
+#!/bin/sh
+[ "$1" = --background ] || exit 98
+dir=$STUB_DEFAULT
+[ "${2:-}" = --data-dir ] && dir=$3
+here=$(cd "$(dirname "$0")" && pwd)
+printf 'halvo.exe %s %s %s --background --data-dir %s\n' "$$" "$PPID" "$here/halvo.exe" "$dir" >"$STUB_DIR/procs/$$"
+if [ -f "$dir/daemon-state.json" ] && [ "$STUB_MODE" != no-child ]; then
+  sh "$here/halvo-capture.exe" --service-run --lifeline --data-dir "$dir" &
+fi
+while :; do sleep 1; done
+EOF
+  cat >"$1/capture" <<'EOF'
+#!/bin/sh
+here=$(cd "$(dirname "$0")" && pwd)
+case $1 in
+  --default-data-dir)
+    [ $# = 1 ] || exit 64
+    printf '%s\n' "$STUB_DEFAULT"
+    exit 0
+    ;;
+  --delete-all)
+    [ $# = 3 ] && [ "$2" = --data-dir ] || exit 64
+    printf '%s\n' "$3" >>"$STUB_DIR/deleted"
+    if [ "$STUB_MODE" = delete-fails ]; then
+      printf '%s\n' "$3" >"$STUB_DIR/stuck"
+      exit 1
+    fi
+    [ -d "$3" ] && mv "$3" "$STUB_DIR/gone/deleted-$$"
+    exit 0
+    ;;
+  ctl)
+    shift
+    dir=$STUB_DEFAULT
+    if [ "$1" = --data-dir ]; then
+      dir=$2
+      shift 2
+    fi
+    pids=
+    for file in "$STUB_DIR/procs"/*; do
+      [ -f "$file" ] || continue
+      kill -0 "${file##*/}" 2>/dev/null || continue
+      case $(cat "$file") in
+        "halvo-capture.exe "*" --data-dir $dir") pids="$pids ${file##*/}" ;;
+      esac
+    done
+    [ -n "$pids" ] || exit 69
+    case $1 in
+      status) printf 'store=open\n' ;;
+      stop) kill $pids ;;
+      *) exit 64 ;;
+    esac
+    exit 0
+    ;;
+  --service-run)
+    [ "$2" = --lifeline ] && [ "$3" = --data-dir ] || exit 98
+    printf 'halvo-capture.exe %s %s %s --service-run --lifeline --data-dir %s\n' "$$" "$PPID" "$here/halvo-capture.exe" "$4" >"$STUB_DIR/procs/$$"
+    while kill -0 "$PPID" 2>/dev/null; do sleep 0.2; done
+    exit 0
+    ;;
+esac
+exit 98
+EOF
+  # The uninstaller with the hooks' steps in their order and the template's own steps; where the
+  # delete exits 1 a file of the data directory stays, and the removal of the folder leaves it.
+  cat >"$1/uninstall" <<'EOF'
+#!/bin/sh
+here=$(cd "$(dirname "$0")" && pwd)
+[ "$1" = /S ] || exit 98
+delete=no
+[ "${2:-}" = /DELETEALL ] && delete=yes
+sh "$here/halvo-capture.exe" ctl stop
+if [ "$STUB_MODE" != left ]; then
+  for file in "$STUB_DIR/procs"/*; do
+    [ -f "$file" ] || continue
+    case $(cat "$file") in
+      "halvo.exe "*) kill -9 "${file##*/}" 2>/dev/null ;;
+    esac
+  done
+fi
+sleep 1
+if [ "$delete" = yes ]; then
+  dir=$(sh "$here/halvo-capture.exe" --default-data-dir) || exit 2
+  sh "$here/halvo-capture.exe" --delete-all --data-dir "$dir"
+  code=$?
+  [ "$code" = 0 ] || [ "$STUB_MODE" = delete-fails ] || exit 2
+fi
+n=0
+gone() {
+  n=$((n + 1))
+  mv "$1" "$STUB_DIR/gone/uninstall-$$-$n"
+}
+if [ "$STUB_MODE" != run-value-left ]; then
+  for file in "$STUB_DIR/reg/"*_Run_Halvo; do
+    [ -f "$file" ] && gone "$file"
+  done
+fi
+for file in "$here"/*; do
+  [ "${file##*/}" = uninstall.exe ] || gone "$file"
+done
+if [ "$delete" = yes ]; then
+  folder=${STUB_DEFAULT%/*}
+  for entry in "$folder"/*; do
+    [ -e "$entry" ] || continue
+    [ -f "$STUB_DIR/stuck" ] && [ "$entry" = "$STUB_DEFAULT" ] && continue
+    gone "$entry"
+  done
+fi
+[ -f "$STUB_DIR/reg/uninstall-HKCU" ] && gone "$STUB_DIR/reg/uninstall-HKCU"
+exit 0
+EOF
+  chmod +x "$1/setup.exe" "$1/app" "$1/capture" "$1/uninstall" || exit 2
+}
+
 build() {
   : >"$CI_D_ARTIFACTS/build.txt"
   attempt=1
@@ -171,10 +683,14 @@ build() {
 
 measure() {
   cd "$CI_D_REPO" || exit 2
+  [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || fail "this check installs Halvo for the account that runs it and deletes that account's Halvo data, so it runs on a GitHub-hosted runner alone"
   found=$(signing_defect) || fail "$found"
   found=$(config_defect .) || fail "$found"
   helpers=$(helper_names)
   [ -n "$helpers" ] || fail "packaging/helpers.d names no helper"
+  # shellcheck disable=SC2086
+  found=$(hooks_defect src-tauri/windows/hooks.nsh $helpers) || fail "$found"
+  printf 'hooks: src-tauri/windows/hooks.nsh waits for each helper of packaging/helpers.d\n'
   sevenzip=$(command -v 7z) || sevenzip='/c/Program Files/7-Zip/7z.exe'
   [ -x "$sevenzip" ] || fail "no 7z on PATH and no $sevenzip; the windows runner's image holds 7-Zip"
   banner=$("$sevenzip" i | grep -m 1 '7-Zip')
@@ -219,6 +735,10 @@ measure() {
   printf '%s\n' "$read_output"
   found=$(notices_defect "$directory" "$work/notices.txt") || fail "$found"
   printf '%s\n' "$found"
+  cycled=$(date +%s) || fail "the clock cannot be read"
+  cycle "$work/installer.exe" "$work"
+  now=$(date +%s) || fail "the clock cannot be read"
+  printf 'cycle seconds: %s\n' "$((now - cycled))"
   printf 'PASS %s\n' "$name"
 }
 
@@ -294,6 +814,75 @@ self_test() {
   esac
   verdict configuration-with-a-sign-command FAIL "$got"
 
+  # The hooks of the tree wait for every helper; a hooks file that lacks the runner's line fails.
+  # shellcheck disable=SC2086
+  output=$(hooks_defect src-tauri/windows/hooks.nsh $helpers 2>"$work/hooks.err")
+  code=$?
+  got=FAIL
+  [ "$code" = 0 ] && got=PASS
+  verdict hooks-of-the-tree PASS "$got"
+  mkdir -p "$work/hooks" || exit 2
+  for helper in $(printf '%s\n' "$helpers" | grep -v -x -F halvo-runner); do
+    printf '    !insertmacro HALVO_HELD "%s.exe"\n' "$helper" >>"$work/hooks/hooks.nsh" || exit 2
+  done
+  # shellcheck disable=SC2086
+  output=$(hooks_defect "$work/hooks/hooks.nsh" $helpers 2>"$work/hooks.err")
+  answer hooks-without-the-runner $? "$output" "$work/hooks/hooks.nsh waits for no halvo-runner.exe of packaging/helpers.d before an uninstall"
+
+  # The cycle on stand-ins; the default data directory's path holds a space and a letter beyond
+  # ASCII, so the good one passes only where the uninstall hands the printed path on whole.
+  here=${0%/*}
+  [ "$here" = "$0" ] && here=.
+  here=$(cd "$here" && pwd) || exit 2
+  self=$here/${0##*/}
+  stand_in_programs "$work/stand-in-bin"
+  fixture_limit_s=120
+  zoe=$(printf 'Zo\303\253')
+  for mode in good left delete-fails no-runtime-file run-value-left no-child install-goes-on; do
+    mkdir -p "$work/cycle-$mode" || exit 2
+    STUB_MODE=$mode STUB_DIR=$work/cycle-$mode STUB_BIN=$work/stand-in-bin STUB_DEFAULT="$work/cycle-$mode/home/$zoe Halvo/com.halvo.desktop/data" STUB_HELPERS=$helpers STUB_SENTENCE=$sentence_runtime sh "$self" --fixture "$work/cycle-$mode" >"$work/cycle-$mode.out" 2>&1 &
+    fixture=$!
+    began=$(date +%s) || exit 2
+    now=$began
+    while kill -0 "$fixture" 2>/dev/null && [ $((now - began)) -lt "$fixture_limit_s" ]; do
+      sleep 0.2
+      now=$(date +%s) || exit 2
+    done
+    if kill -0 "$fixture" 2>/dev/null; then
+      kill -9 "$fixture" 2>/dev/null
+      printf 'the fixture ran past %s s and was ended\n' "$fixture_limit_s" >>"$work/cycle-$mode.out"
+    fi
+    wait "$fixture"
+    printf '%s\n' "$?" >"$work/cycle-$mode.code"
+    for file in "$work/cycle-$mode/procs"/*; do
+      if [ -f "$file" ] && kill -0 "${file##*/}" 2>/dev/null; then
+        printf 'left %s\n' "${file##*/}" >>"$work/cycle-$mode.left"
+        kill -9 "${file##*/}" 2>/dev/null
+      fi
+    done
+  done
+  cycle_verdict() {
+    out=$(cat "$work/cycle-$1.out")
+    code=$(cat "$work/cycle-$1.code")
+    last=$(printf '%s\n' "$out" | grep -E "^(PASS|FAIL) $name( |\$)" | tail -n 1)
+    case $code:$last in
+      "0:PASS $name") got=PASS ;;
+      "1:FAIL $name ($3)") got=FAIL ;;
+      *) got=exit-$code ;;
+    esac
+    [ ! -s "$work/cycle-$1.left" ] || got=$got-with-processes-left
+    [ "$got" = "$2" ] || printf '%s\n' "$out" | sed "s/^/  $1: /"
+    verdict "cycle-$1" "$2" "$got"
+  }
+  cycle_verdict good PASS ''
+  grep -q -x -F "$work/cycle-good/home/$zoe Halvo/com.halvo.desktop/data" "$work/cycle-good/deleted" || { printf 'the stand-in delete got another path than the one printed\n'; wrong="$wrong cycle-good-path"; }
+  cycle_verdict left FAIL 'a process from the install directory runs after the uninstall: halvo.exe'
+  cycle_verdict delete-fails FAIL 'the uninstall went on while the default data directory stays'
+  cycle_verdict no-runtime-file FAIL "the silent install with no WebView2 runtime wrote no $runtime_file into the install directory"
+  cycle_verdict run-value-left FAIL 'the Run value Halvo stays after the uninstall'
+  cycle_verdict no-child FAIL 'the installed app (--data-dir) runs with 0 halvo-capture.exe children from the install directory after 10 s, not one'
+  cycle_verdict install-goes-on FAIL 'the install over a copy of which halvo-owner.exe is held went on (exit 0)'
+
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
@@ -303,6 +892,7 @@ self_test() {
 
 case ${1:-} in
   --self-test) self_test ;;
+  --fixture) fixture ;;
   '') measure ;;
   *) exit 64 ;;
 esac
