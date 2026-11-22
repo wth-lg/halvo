@@ -127,7 +127,7 @@
     DELETE_HELD: "This press deleted nothing, because another program is using Halvo's data folder, {folder}. Quit any other copy of Halvo or restart this computer, then press Delete everything again.",
     DELETE_NOT_STARTED: "This press deleted nothing, because Halvo could not start its delete.",
     DELETE_LOOKED_IN: "The delete ran in Halvo's data folder, {folder}.",
-    SETTINGS_UNREADABLE: "Halvo cannot read its settings file. Delete everything resets it, and it also deletes everything that Halvo has recorded.",
+    SETTINGS_UNREADABLE: "Halvo cannot read its settings file. Reset settings keeps everything that Halvo has recorded and puts the settings back to how a new start has them.",
     SETTINGS_NEWER: "Halvo's settings file was saved by a newer version of Halvo. Update Halvo to read it, or use Delete everything, which resets it and also deletes everything that Halvo has recorded.",
     DELETE_NOT_FINISHED: "The delete did not finish. Press Delete everything again to finish it.",
     DELETE_NOT_FINISHED_AGAIN: "The delete did not finish a second time in a row. Something is still left in Halvo's data folder, {folder}.",
@@ -228,6 +228,9 @@
     START_STEPS_OPEN: "Capture is set up but does not record yet: macOS needs the permissions below first. Turn them on, then press Resume.",
     START_NO_ANSWER: "Halvo's capture service did not answer within {seconds} seconds, so capture is not on yet. When it answers, press Resume to turn capture on.",
     LOGIN_ITEM_NOT_WRITTEN: "Halvo could not set itself to open when you log in. Capture runs now, but after you log in again you need to open Halvo yourself.",
+    SETTINGS_RESET: "Reset settings",
+    SETTINGS_RESET_QUESTION: "Reset Halvo's settings? Halvo keeps everything that it has recorded. It stays paused until you press Resume, and from then on it records what a new start records:",
+    SETTINGS_RESET_YES: "Yes, reset settings",
   };
 
   Halvo.errorWords = function (e) {
