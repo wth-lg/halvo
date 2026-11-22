@@ -648,6 +648,7 @@ fn start_run(host: &mut dyn Host, now: Now, b: &StartRun) -> Result<CoordinatorR
             ms: None,
             tokens_in: None,
             tokens_out: None,
+            page_amount: None,
         };
         day::commit(host, now, vec![record(rows::AGENT_LOG, row.to_json())?])?;
     }

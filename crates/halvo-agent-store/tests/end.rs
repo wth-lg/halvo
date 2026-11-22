@@ -143,7 +143,7 @@ fn a_runner_body_naming_a_run_of_another_agent_is_refused() {
         "model": null,
         "ms": null,
         "tokens_in": null,
-        "tokens_out": null,
+        "tokens_out": null, "page_amount": null,
     });
     assert_eq!(
         runner(
@@ -190,7 +190,7 @@ fn a_run_that_another_agent_ended_or_logged_is_not_this_agent_s() {
         "model": null,
         "ms": null,
         "tokens_in": null,
-        "tokens_out": null,
+        "tokens_out": null, "page_amount": null,
     });
     assert_eq!(start_at(&mut store, NOW, 2, 2, 8), Ok(accepted()));
     assert_eq!(

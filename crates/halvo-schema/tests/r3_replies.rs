@@ -47,7 +47,7 @@ fn expect(result: Result<impl std::fmt::Debug, Refusal>, type_name: &str, rule: 
 fn line(seq: u32, event: &str, cause: Option<&str>) -> String {
     let cause = cause.map_or("null".to_owned(), |c| format!("\"{c}\""));
     of_run(&format!(
-        r#""seq":{seq},"day":20768,"at":1794339000000000000,"event":"{event}","step":null,"cause":{cause},"model":null,"ms":null,"tokens_in":null,"tokens_out":null"#
+        r#""seq":{seq},"day":20768,"at":1794339000000000000,"event":"{event}","step":null,"cause":{cause},"model":null,"ms":null,"tokens_in":null,"tokens_out":null,"page_amount":null"#
     ))
 }
 
@@ -94,6 +94,7 @@ fn the_cause_list_holds_unauthorized_not_selected_and_no_start_in_the_order_of_t
             "no_browser",
             "amount_differs",
             "amount_unread",
+            "page_unread",
         ]
     );
     for cause in Cause::ALL {
