@@ -1928,6 +1928,159 @@ mod tests {
         }
     }
 
+    #[test]
+    fn an_own_clean_end_that_was_not_asked_starts_no_child_until_one_press_brings_one() {
+        use crate::commands::control::Watching;
+        use crate::view_state::{NoStatusService, StatusView};
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let first_ends = Later::default();
+        let spawner = StandInSpawner {
+            children: [
+                StandInChild {
+                    later: Some(Arc::clone(&first_ends)),
+                    ..StandInChild::new(1000, &clock, &record)
+                },
+                StandInChild::new(1001, &clock, &record),
+            ]
+            .into_iter()
+            .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let control = Watching::new(
+            Scripted::new(&record, vec![Ok(status_of(1000, 0, false))], Vec::new()),
+            Arc::clone(&pid),
+        );
+        let tray = crate::tray::installed_for_tests();
+        until("the first child lives", || pid.get() == Some(1000));
+        pass(&control, &views, Some(&tray));
+        *first_ends.lock().unwrap() = Some(Ending::Status(0));
+        until("the supervisor sees the end", || pid.get().is_none());
+        let ended_at = clock.now();
+        while clock.now().saturating_duration_since(ended_at) <= BACKOFF_MAX {
+            pass(&control, &views, Some(&tray));
+            looked_again(&clock);
+            assert_eq!(
+                pid.get(),
+                None,
+                "no child after an own end with 0 that the app did not ask for"
+            );
+        }
+        match views.view() {
+            StatusView::NoStatus(view) => assert_eq!(
+                (view.service, view.last_exit, view.hold),
+                (NoStatusService::NotRunning, Some(0), None),
+                "not_running with last_exit 0, and no hold and no cause"
+            ),
+            other => panic!("a view without a status: {other:?}"),
+        }
+        let answering = Recording::new(&record, Some(held_child_status()));
+        let (answer, _) = press(
+            &answering,
+            &views,
+            answering.places().make(),
+            CaptureChange::Resume,
+            START_ANSWER_WAIT,
+        );
+        assert!(
+            answer.is_ok(),
+            "the press's Resume reaches the child that it asked for"
+        );
+        looked_again(&clock);
+        drop(supervisor.close());
+        let seen = record.lock().unwrap().clone();
+        let starts: Vec<&String> = seen
+            .iter()
+            .filter(|line| line.starts_with("start"))
+            .collect();
+        assert_eq!(starts, ["start 1000", "start 1001"], "one child for one press");
+        assert_eq!(seen[seen.len() - 4..], ["start 1001", "status", "resume", "closed descriptor"]);
+    }
+
+    #[test]
+    fn an_offline_delete_that_ends_the_child_with_0_starts_one_child_after_its_run_and_none_in_it() {
+        use crate::commands::capture::{run_offline, Before, Offline, OfflineRun, WithoutTheChild};
+        use crate::commands::control::Watching;
+        use crate::view_state::OfflineEnd;
+        use halvo_control::paths::DataDir;
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let spawner = StandInSpawner {
+            children: [
+                StandInChild {
+                    ends_at_close: true,
+                    ..StandInChild::new(1000, &clock, &record)
+                },
+                StandInChild::new(1001, &clock, &record),
+            ]
+            .into_iter()
+            .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Arc::new(Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        ));
+        let control = Watching::new(
+            Scripted::new(&record, vec![Ok(status_of(1000, 0, false))], Vec::new()),
+            Arc::clone(&pid),
+        );
+        until("the first child lives", || pid.get() == Some(1000));
+        pass(&control, &views, None);
+        let run: OfflineRun = {
+            let (record, clock, pid) = (Arc::clone(&record), Arc::clone(&clock), Arc::clone(&pid));
+            Arc::new(move |_, _| {
+                note(&record, "run");
+                until("the supervisor sees the end", || pid.get().is_none());
+                let ended_at = clock.now();
+                while clock.now().saturating_duration_since(ended_at) <= BACKOFF_MAX {
+                    looked_again(&clock);
+                    assert_eq!(pid.get(), None, "no child starts while the run holds");
+                }
+                OfflineEnd::NotStarted
+            })
+        };
+        let offline = Offline {
+            program: PathBuf::from("/stand-in/halvo-capture"),
+            data_dir: DataDir::from_flag(crate::tests::scratch_dir("offline-clean-end"))
+                .expect("an absolute directory"),
+            children: Some(Arc::clone(&supervisor) as Arc<dyn WithoutTheChild>),
+            run,
+        };
+        let no_module = Before {
+            modules: Vec::new(),
+            runs: Arc::default(),
+            core: None,
+        };
+        let _ = run_offline(&offline, &no_module);
+        until("one child after the run", || pid.get() == Some(1001));
+        looked_again(&clock);
+        drop(supervisor.close());
+        assert_eq!(
+            *record.lock().unwrap(),
+            [
+                "start 1000",
+                "status",
+                "closed descriptor",
+                "run",
+                "start 1001",
+                "closed descriptor"
+            ]
+        );
+    }
+
     struct SlowDelete {
         places: Arc<Places>,
         record: Record,
