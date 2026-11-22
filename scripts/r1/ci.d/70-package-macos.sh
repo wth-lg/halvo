@@ -95,7 +95,8 @@ seal_defect() {
   verify=$(codesign --verify --deep --strict "$1" 2>&1)
   status=$?
   if [ "$status" -ne 0 ]; then
-    printf 'codesign --verify --deep --strict refuses %s: %s\n' "${1##*/}" "$(printf '%s\n' "$verify" | head -n 1)"
+    first=$(printf '%s\n' "$verify" | sed 1q)
+    printf 'codesign --verify --deep --strict refuses %s: %s\n' "${1##*/}" "$first"
     return 1
   fi
   details=$(codesign -dv "$1" 2>&1) || { printf 'codesign -dv could not read the seal of %s\n' "${1##*/}"; return 1; }
@@ -182,11 +183,13 @@ store_open() {
   code=$?
   [ "$code" -eq 0 ] || { printf 'ctl status exited %s\n' "$code"; return 1; }
   if ! printf '%s\n' "$text" | grep -q -x -F "pid=$3"; then
-    printf 'ctl status reads %s, not pid=%s\n' "$(printf '%s\n' "$text" | grep -m 1 '^pid=' || printf 'no pid line')" "$3"
+    line=$(printf '%s\n' "$text" | grep -m 1 '^pid=') || line='no pid line'
+    printf 'ctl status reads %s, not pid=%s\n' "$line" "$3"
     return 1
   fi
   if ! printf '%s\n' "$text" | grep -q -x -F 'store=open'; then
-    printf 'ctl status reads %s, not store=open\n' "$(printf '%s\n' "$text" | grep -m 1 '^store=' || printf 'no store line')"
+    line=$(printf '%s\n' "$text" | grep -m 1 '^store=') || line='no store line'
+    printf 'ctl status reads %s, not store=open\n' "$line"
     return 1
   fi
 }
@@ -304,7 +307,8 @@ measure() {
   floor_major=$(sed -n 's/^pub const MACOS_FLOOR_MAJOR: u32 = \([0-9][0-9]*\);$/\1/p' "$floor_source")
   [ -n "$floor_major" ] || fail "$floor_source holds no line pub const MACOS_FLOOR_MAJOR: u32 = <number>;"
   image=$(image_of "$bundle_dir/dmg" "$work/build-started") || fail "$image"
-  printf 'disk image: %s, bytes: %s\n' "${image##*/}" "$(wc -c <"$image" | tr -d ' ')"
+  bytes=$(wc -c <"$image" | tr -d ' ')
+  printf 'disk image: %s, bytes: %s\n' "${image##*/}" "$bytes"
   mkdir "$work/mount" "$work/copy" || fail "mkdir could not make the mount point and the copy's directory"
   hdiutil attach -readonly -nobrowse -noautoopen -mountpoint "$work/mount" "$image" >"$CI_D_ARTIFACTS/attach.txt" 2>&1 || fail "hdiutil could not attach the disk image ${image##*/}; see attach.txt"
   attached=$work/mount
