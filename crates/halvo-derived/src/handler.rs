@@ -125,7 +125,10 @@ pub struct Removed {
     pub committed: Committed,
 }
 
-/// Why the removal call (`HandlerCx::remove_under`) removed no row and stored no record.
+/// Why the removal call (`HandlerCx::remove_under`) answered no `Removed`. Every refusal but `Commit` comes before any
+/// statement, and `Commit` for a refused list or a fault before the commit: the call removed no row and stored no
+/// record. `Commit` with a fault of the checkpoint or of the host's report after the commit comes with the rows
+/// removed and the records stored.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RemoveRefusal {
     /// The request is no `coordinator_write`. The call refuses it before any statement.

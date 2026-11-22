@@ -14,10 +14,12 @@ pub trait Host {
     /// The removal call (`HandlerCx::remove_under` of the derived store): in one transaction with the typed commit of
     /// `records`, it removes every stored row of the kind `kind` of the family `agent` that names the workflow
     /// `workflow`, the rows that a read no longer hands out among them, stores the records after the removal, and
-    /// answers how many rows it removed. A refusal or a fault leaves every row and stores no record. The derived store
-    /// removes each row under its secure delete with the truncating checkpoint behind the commit, makes the call under
-    /// a `coordinator_write` alone and answers `role` under a runner's request. A host that does not hand the call on
-    /// keeps this body: it answers `unsupported` and removes nothing.
+    /// answers how many rows it removed. A refusal, or a fault before the commit, leaves every row and stores no
+    /// record; a fault of the checkpoint or of the report after the commit is answered `store` with the rows removed
+    /// and the records stored. The derived store removes each row under its secure delete with the truncating
+    /// checkpoint behind the commit, makes the call under a `coordinator_write` alone and answers `role` under a
+    /// runner's request. A host that does not hand the call on keeps this body: it answers `unsupported` and removes
+    /// nothing.
     fn remove_under(
         &mut self,
         _kind: &str,
