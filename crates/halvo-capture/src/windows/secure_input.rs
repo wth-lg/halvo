@@ -2834,6 +2834,84 @@ mod detector {
         }
 
         #[test]
+        fn a_detector_that_its_attach_or_its_detach_gave_up_writes_no_content_reading() {
+            use super::super::{ClearBy, ContentReading, UnknownBy};
+            use std::sync::atomic::Ordering;
+            let _serial = crate::windows::tests::serial();
+            let (edit, in_front) = EditInFront::open();
+            let ended = |gate: &PasswordGate| {
+                gate.stale
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .as_ref()
+                    .is_none_or(|join| join.is_finished())
+            };
+            HOLD_FIRST_READ.store(false, Ordering::SeqCst);
+            HOLD_READS.store(false, Ordering::SeqCst);
+            let mut gate = PasswordGate::with_removals(Removals {
+                before_first_read: first_read_held,
+                before_read: read_held,
+                attach_deadline: Some(Duration::from_millis(300)),
+                ..Removals::default()
+            });
+            let first_read = Hold::on(&HOLD_FIRST_READ);
+            let given_up = gate.attach();
+            drop(first_read);
+            until(|| ended(&gate));
+            let after_a_late_first_read = gate.content_reading();
+            gate.removals.attach_deadline = Some(UNTIMED);
+            let attached = gate.attach();
+            let while_it_runs = gate.content_reading();
+            READ_HELD.store(false, Ordering::SeqCst);
+            let reads = Hold::on(&HOLD_READS);
+            gate.shared.lock().ask_read(tick());
+            gate.wake_detector();
+            until(|| READ_HELD.load(Ordering::SeqCst));
+            let stopped = gate.detach(Duration::from_millis(200));
+            let after_a_timed_out_detach = gate.content_reading();
+            gate.removals.attach_deadline = None;
+            let refused = gate.attach();
+            let after_a_refused_attach = gate.content_reading();
+            drop(reads);
+            until(|| ended(&gate));
+            let after_the_held_read = gate.content_reading();
+            drop(edit);
+            assert!(
+                in_front,
+                "INCONCLUSIVE: the test's edit did not come to the front"
+            );
+            assert!(
+                matches!(given_up, Err(CaptureError::Timeout { .. })),
+                "{given_up:?}"
+            );
+            assert_eq!(attached, Ok(()));
+            assert_eq!(
+                while_it_runs,
+                ContentReading::Clear(ClearBy::NativeEdit),
+                "the control: a detector that runs reads the edit"
+            );
+            assert!(
+                matches!(stopped, Err(CaptureError::Timeout { .. })),
+                "{stopped:?}"
+            );
+            assert!(
+                matches!(refused, Err(CaptureError::Timeout { .. })),
+                "{refused:?}"
+            );
+            let unknown = ContentReading::Unknown(UnknownBy::BeforeFirstRead);
+            assert_eq!(
+                [
+                    after_a_late_first_read,
+                    after_a_timed_out_detach,
+                    after_a_refused_attach,
+                    after_the_held_read,
+                ],
+                [unknown; 4],
+                "after a late first read, a timed-out detach, a refused attach and the held read"
+            );
+        }
+
+        #[test]
         fn an_attach_whose_first_read_does_not_answer_times_out_and_stops_that_detector() {
             use std::sync::atomic::Ordering;
             let _serial = crate::windows::tests::serial();
