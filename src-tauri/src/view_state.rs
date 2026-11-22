@@ -158,6 +158,7 @@ struct HoldState {
     child_lives: bool,
     no_more_child: bool,
     start_asked: bool,
+    another_version: bool,
 }
 
 /// The app's hold on capture after a child of the app ended itself with status 5 (contracts.md
@@ -195,10 +196,20 @@ impl Hold {
     }
 
     /// `view` with the hold, and on `not_running` the status of the last end while no child of
-    /// the app lives.
+    /// the app lives; while the app leaves its own child of another daemon_version, a running
+    /// view reads another_version.
     pub fn mark(&self, view: StatusView) -> StatusView {
         let hold = self.view();
-        let last_exit = self.state().last_exit;
+        let (last_exit, another_version) = {
+            let state = self.state();
+            (state.last_exit, state.another_version)
+        };
+        let view = match view {
+            StatusView::Running(running) if another_version => {
+                StatusView::no_status(NoStatusService::AnotherVersion, running.platform)
+            }
+            other => other,
+        };
         match view {
             StatusView::Running(mut view) => {
                 view.hold = hold;
@@ -274,12 +285,20 @@ impl Hold {
         asked
     }
 
+    /// The app leaves its own child that reads another daemon_version after the one restart of
+    /// the launch: views read another_version until a child starts again.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn another_version_left(&self) {
+        self.state().another_version = true;
+    }
+
     /// A child of the app started.
     #[cfg(any(target_os = "macos", test))]
     pub fn child_started(&self) {
         let mut state = self.state();
         state.child_lives = true;
         state.last_exit = None;
+        state.another_version = false;
         drop(state);
         self.changed.notify_all();
     }

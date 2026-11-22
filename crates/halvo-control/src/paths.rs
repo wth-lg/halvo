@@ -376,6 +376,7 @@ pub const INTENT_FILE: &str = "delete-all.intent";
 pub const INSTANCE_LOCK_FILE: &str = "daemon.lock";
 pub const CONTROL_SOCKET: &str = "control.sock";
 pub const RUN_MARKER: &str = "running";
+pub const APP_LOCK: &str = "app.lock";
 pub const DAEMON_ERR: &str = "daemon.err";
 /// The extension of a root file under `roots/`, named `<root id>.root`.
 pub const ROOT_FILE_EXT: &str = "root";
@@ -627,6 +628,12 @@ impl DataDir {
 
     pub fn run_marker(&self) -> PathBuf {
         self.run_dir().join(RUN_MARKER)
+    }
+
+    /// The lock that the desktop app holds for its whole life, one Halvo at a time for this
+    /// directory.
+    pub fn app_lock(&self) -> PathBuf {
+        self.run_dir().join(APP_LOCK)
     }
 
     pub fn daemon_err(&self) -> PathBuf {
@@ -2584,6 +2591,7 @@ mod tests {
             data.logs_dir(),
             data.control_socket(),
             data.run_marker(),
+            data.app_lock(),
             data.daemon_err(),
         ] {
             let inside = path.strip_prefix(data.path()).unwrap();
