@@ -385,6 +385,9 @@ const fn opens_no_store(recorded: Option<Custody>) -> Selection {
 struct Walked {
     removed: u64,
     left: u64,
+    /// Of `left`, the store's own rows, left while the store's delete is not
+    /// finished.
+    store_rows_left: u64,
     removed_an_entry: bool,
     marks_passed: u64,
 }
@@ -584,10 +587,16 @@ pub fn steps_of_the_delete(
             stays => format!("halvo-capture: the delete is not finished: {stays}"),
         });
     }
-    if finished.walked.left > 0 {
+    let store_rows_left = finished.walked.store_rows_left;
+    if store_rows_left > 0 {
         causes.push(format!(
-            "halvo-capture: {} registered entries stay; a process that a pid file or a run's mark names did not end, or their files could not be removed",
-            finished.walked.left
+            "halvo-capture: registered entries of the store that stay until the delete of the store finishes: {store_rows_left}"
+        ));
+    }
+    let other_rows_left = finished.walked.left - store_rows_left;
+    if other_rows_left > 0 {
+        causes.push(format!(
+            "halvo-capture: {other_rows_left} registered entries stay; a process that a pid file or a run's mark names did not end, or their files could not be removed"
         ));
     }
     if !finished.whole() && stands(&path.join(INTENT_FILE)) {
@@ -654,13 +663,25 @@ fn open_for_the_delete(
 /// when it did not or when the handle's delete is not finished, with the
 /// handle dropped first. What the tail cannot read, the count of keyed
 /// segments and the root that the handle named, comes from the handle's
-/// report.
+/// report. On Windows a finished delete of the handle marked the store's
+/// lock file, which goes when the handle closes; where its name still stands
+/// behind the close, read by the reader of that name that the tail asks too,
+/// the delete is not finished, with that file counted as left, and no tail
+/// runs behind it.
 fn delete_the_store(host: &DataDirStore, handle: Option<Handle>) -> TailAnswer {
     let Some(mut handle) = handle else {
         return host.delete();
     };
     let by_the_handle = handle.delete_all();
     drop(handle);
+    #[cfg(windows)]
+    if let TailAnswer::Finished(report) = &by_the_handle {
+        if host.lock_file_stands() {
+            let mut report = report.clone();
+            report.files_left += 1;
+            return TailAnswer::NotFinished(report);
+        }
+    }
     if matches!(by_the_handle, TailAnswer::Finished(_)) {
         return by_the_handle;
     }
@@ -740,10 +761,13 @@ fn holds_a_file(path: &Path) -> bool {
 
 /// Whether `dir` holds nothing of a store (contracts.md C3.3): no store.key,
 /// no database, no segment and no intent, no root file under roots/, the
-/// mark `store_made` not set, and no entry of a row that the walk removes.
+/// mark `store_made` not set, and no entry of a row that the walk removes;
+/// on Windows also no lock file of the store, which a delete removes.
 fn nothing_stands(dir: &Path, rows: &[Row]) -> bool {
     let store = dir.join("store");
     let store_files = ["store.key", "store.db", "store.db-wal", "store.db-journal"];
+    #[cfg(windows)]
+    let store_files = [store_files.as_slice(), &["writer.lock"]].concat();
     !store_files.iter().any(|name| stands(&store.join(name)))
         && !holds_a_file(&store.join("segments"))
         && !stands(&dir.join(INTENT_FILE))
@@ -870,6 +894,9 @@ fn walk(dir: &Path, rows: &[Row], store_done: bool, hands: &dyn Hands) -> Walked
             walked.removed += 1;
         } else {
             walked.left += 1;
+            if STORE_ROWS.contains(&row.name) {
+                walked.store_rows_left += 1;
+            }
         }
     }
     walked

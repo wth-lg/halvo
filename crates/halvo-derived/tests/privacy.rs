@@ -2639,6 +2639,12 @@ const OTHER_WORKFLOW: &str = "qzremovew9103";
 /// `derived/` and the marker of the second workflow's row is found; after the store is closed the rows of the other
 /// kind, of the other workflow and of the other family stand, with the record of the call and without the record of the
 /// refused call.
+/// Before all of that (r3 U9.12, the coordinator's ruling of 2026-11-22, log line 15958), the handler stores one
+/// `test_own` row of a kept sign-in part's size under the first workflow: its `note` is a list of 48 texts of 1,022
+/// bytes, each the marker of the row over and over, so that the body lies on overflow pages of the table and of the two
+/// indexes over the body. The marker is found in the files while the row is stored; a removal call under a
+/// `coordinator_write` removes that one row, and right after it, behind its checkpoint, the marker is in no entry of
+/// `derived/`.
 #[test]
 fn a_handler_removes_the_rows_of_one_kind_under_one_workflow_and_nothing_else() {
     let scratch = Scratch::new("remove-under");
@@ -2686,6 +2692,50 @@ fn a_handler_removes_the_rows_of_one_kind_under_one_workflow_and_nothing_else() 
         *act.borrow_mut() = Some(next);
         store.handle(&raw_request(name, body)).unwrap();
     };
+    let large_marker = "qzremovel9104";
+    let pieces = vec![format!("{large_marker}.").repeat(73); 48];
+    let large = record(
+        "test_own",
+        &w1,
+        &format!(
+            r#""note":{},"at":1794339000000000000"#,
+            serde_json::to_string(&pieces).unwrap()
+        ),
+    );
+    let large_bytes = large.json.len();
+    assert!(
+        large_bytes > 48 * 1024,
+        "a row of a kept part's size: {large_bytes} bytes"
+    );
+    send(
+        "coordinator_write",
+        r#"{"op":"test"}"#,
+        Act::Commit(vec![large]),
+    );
+    assert!(
+        !holding(&scratch, large_marker).is_empty(),
+        "the search finds {large_marker} while its row of {large_bytes} bytes is stored"
+    );
+    send(
+        "coordinator_write",
+        r#"{"op":"test"}"#,
+        Act::Remove("test_own", w1.clone(), Vec::new()),
+    );
+    assert_eq!(
+        removals.borrow_mut().pop(),
+        Some(Ok(Removed {
+            removed: 1,
+            committed: Committed {
+                stored: 0,
+                dropped: 0
+            }
+        }))
+    );
+    assert_eq!(
+        holding(&scratch, large_marker),
+        Vec::<String>::new(),
+        "right after the call, the entries that hold {large_marker}, whose row of {large_bytes} bytes is removed"
+    );
     send(
         "coordinator_write",
         r#"{"op":"test"}"#,

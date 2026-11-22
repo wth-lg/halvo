@@ -1008,3 +1008,306 @@ fn the_binary_returns_what_usage_answer_and_outcome_answer_give() {
         );
     }
 }
+
+const DATA_DIR_MAKER: &str = "for_current_user";
+const ACCOUNT_MAKER: &str = "for_account";
+const SYSTEM_ACCOUNT: &str = "SystemAccount";
+
+const MAKER_USES: [(&str, usize, &str); 5] = [
+    (
+        "crates/halvo-agent-gate/src/task.rs",
+        1,
+        "the product's link to the owner without --data-dir",
+    ),
+    (
+        "crates/halvo-control/src/ctl_text.rs",
+        3,
+        "the product's data_dir without --data-dir, and two tests that claim it as the default",
+    ),
+    (
+        "crates/halvo-control/src/paths.rs",
+        7,
+        "the two makers, their two calls of for_account, and three tests that claim the default path itself",
+    ),
+    (
+        "src-tauri/src/main.rs",
+        2,
+        "the app's data directory and login item without --data-dir",
+    ),
+    (
+        "src-tauri/tests/run_value_logon.rs",
+        1,
+        "the helper of check 36 runs as the standard account that the check makes on a hosted runner, and it stops unless the folder's path holds that account's name",
+    ),
+];
+
+fn maker_uses(t: &[String]) -> usize {
+    (0..t.len())
+        .filter(|&i| is_ident(&t[i]))
+        .filter(|&i| match bare(&t[i]) {
+            DATA_DIR_MAKER => true,
+            ACCOUNT_MAKER if t.get(i + 1).is_some_and(|x| x == "(") => t[i + 1..matching(t, i + 1)]
+                .iter()
+                .any(|x| is_ident(x) && bare(x) == SYSTEM_ACCOUNT),
+            _ => false,
+        })
+        .count()
+}
+
+fn rust_files(base: &Path, dir: &str, out: &mut Vec<String>, faults: &mut Vec<String>) {
+    let entries = match fs::read_dir(base.join(dir)) {
+        Ok(entries) => entries,
+        Err(e) => {
+            faults.push(format!("the directory '{dir}' cannot be listed: {e}"));
+            return;
+        }
+    };
+    let mut found = Vec::new();
+    for entry in entries {
+        let read = entry.and_then(|entry| {
+            let kind = entry.file_type()?;
+            Ok((entry.file_name().to_string_lossy().into_owned(), kind))
+        });
+        match read {
+            Ok(one) => found.push(one),
+            Err(e) => faults.push(format!("an entry of '{dir}' cannot be read: {e}")),
+        }
+    }
+    found.sort_by(|a, b| a.0.cmp(&b.0));
+    for (name, kind) in found {
+        let path = if dir.is_empty() {
+            name.clone()
+        } else {
+            format!("{dir}/{name}")
+        };
+        if kind.is_dir() {
+            let skipped = name.starts_with('.')
+                || name == "node_modules"
+                || name == "target"
+                || base.join(&path).join("CACHEDIR.TAG").exists();
+            if !skipped {
+                rust_files(base, &path, out, faults);
+            }
+        } else if name.to_ascii_lowercase().ends_with(".rs") {
+            out.push(path);
+        }
+    }
+}
+
+fn maker_reading(base: &Path) -> (Vec<(String, usize)>, Vec<String>) {
+    let (mut files, mut faults) = (Vec::new(), Vec::new());
+    rust_files(base, "", &mut files, &mut faults);
+    let mut counts = Vec::new();
+    for file in files {
+        let text = match fs::read_to_string(base.join(&file)) {
+            Ok(text) => text,
+            Err(e) => {
+                faults.push(format!("{file} cannot be read as UTF-8 text: {e}"));
+                continue;
+            }
+        };
+        if !text.contains(DATA_DIR_MAKER) && !text.contains(SYSTEM_ACCOUNT) {
+            continue;
+        }
+        match lex(&text) {
+            Err(cause) => faults.push(format!(
+                "{file} cannot be read as the compiler reads it: {cause}"
+            )),
+            Ok(t) => match maker_uses(&t) {
+                0 => {}
+                n => counts.push((file, n)),
+            },
+        }
+    }
+    (counts, faults)
+}
+
+fn lines_naming_a_maker(text: &str) -> String {
+    let lines: Vec<String> = text
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| line.contains(DATA_DIR_MAKER) || line.contains(SYSTEM_ACCOUNT))
+        .map(|(at, _)| (at + 1).to_string())
+        .collect();
+    if lines.is_empty() {
+        "none".to_owned()
+    } else {
+        lines.join(", ")
+    }
+}
+
+fn maker_refusals(
+    base: &Path,
+    counts: &[(String, usize)],
+    listed: &[(&str, usize, &str)],
+) -> Vec<String> {
+    let mut files: Vec<&str> = counts
+        .iter()
+        .map(|(file, _)| file.as_str())
+        .chain(listed.iter().map(|(file, _, _)| *file))
+        .collect();
+    files.sort();
+    files.dedup();
+    files
+        .into_iter()
+        .filter_map(|file| {
+            let found = counts
+                .iter()
+                .find(|(f, _)| f == file)
+                .map_or(0, |(_, n)| *n);
+            let (allowed, why) = listed
+                .iter()
+                .find(|(f, _, _)| *f == file)
+                .map_or((0, "the file is not on the list"), |(_, n, why)| (*n, *why));
+            (found != allowed).then(|| {
+                let lines = fs::read_to_string(base.join(file)).map_or_else(
+                    |e| format!("none, as the file cannot be read: {e}"),
+                    |text| lines_naming_a_maker(&text),
+                );
+                format!(
+                    "{file}: uses of a maker of the account's own data directory ({DATA_DIR_MAKER}, or {ACCOUNT_MAKER} with {SYSTEM_ACCOUNT}): {found}, where MAKER_USES allows {allowed} ({why}); its lines that hold either name: {lines}; a test takes DataDir::from_flag(<a directory that the test makes>) in their place, and a new product caller goes on MAKER_USES with its count and why"
+                )
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn makers_of_the_accounts_own_data_directory_stand_only_at_the_listed_uses() {
+    for (text, want) in [
+        (
+            "let state = AppState::new(DataDir::for_current_user, no_pane);",
+            1,
+        ),
+        ("let data = DataDir::for_current_user().unwrap();", 1),
+        (
+            "let agents = halvo_control::paths::LoginItemDir::for_current_user().ok()?;",
+            1,
+        ),
+        (
+            "use halvo_control::paths::DataDir as Dir;\nlet data = Dir::r#for_current_user();",
+            1,
+        ),
+        (
+            "assert_eq!(plain.data_dir(), DataDir::for_current_user());",
+            1,
+        ),
+        (
+            "#[cfg(test)]\nmod tests {\n    #[test]\n    fn t() { DataDir::for_current_user().unwrap(); }\n}",
+            1,
+        ),
+        ("DataDir::for_account(&SystemAccount)", 1),
+        (
+            "DataDir::for_account(\n    &halvo_control::paths::SystemAccount,\n)",
+            1,
+        ),
+        (
+            "pub fn for_current_user() -> Result<Self, PathError> {\n    Self::for_account(&SystemAccount)\n}",
+            2,
+        ),
+        (
+            "let state = AppState::new(move || DataDir::from_flag(data), no_pane);",
+            0,
+        ),
+        ("let data = DataDir::for_account(&account(BASE)).unwrap();", 0),
+        ("let socket = socket_path(&data, &SystemAccount).unwrap();", 0),
+        (
+            "pub fn for_account(account: &dyn AccountLookup) -> Result<Self, PathError> {}",
+            0,
+        ),
+        ("/// DataDir::for_current_user()\nfn f() {}", 0),
+        ("// DataDir::for_current_user()\nfn f() {}", 0),
+        ("/* DataDir::for_account(&SystemAccount) */\nfn f() {}", 0),
+        ("const S: &str = \"DataDir::for_current_user()\";", 0),
+        ("fn for_current_users() {}", 0),
+    ] {
+        assert_eq!(maker_uses(&lex(text).unwrap()), want, "{text}");
+    }
+
+    let tree = temp_tree("makers");
+    let held = "crates/halvo-app/src/tests/layer.rs";
+    let named = "crates/halvo-control/src/paths.rs";
+    let upper = "tools/trial/src/Upper.RS";
+    let call = "fn f() { DataDir::for_current_user(); }";
+    plant(
+        &tree,
+        held,
+        "fn builds() {\n    let no_pane = || None;\n    let state = AppState::new(DataDir::for_current_user, no_pane);\n}",
+    );
+    plant(
+        &tree,
+        "src-tauri/src/tests/layer.rs",
+        "let state = AppState::new(move || DataDir::from_flag(data), no_pane);",
+    );
+    plant(
+        &tree,
+        named,
+        "fn a() { DataDir::for_current_user(); }\nfn b() { DataDir::for_account(&SystemAccount); }",
+    );
+    plant(&tree, upper, call);
+    plant(
+        &tree,
+        "build-out/CACHEDIR.TAG",
+        "Signature: 8a477f597d28d172789f06886806bc55",
+    );
+    for skipped in [
+        "build-out/debug/build/out/made.rs",
+        "target/tmp/source-rules-makers/crates/a/tests/held.rs",
+        ".claude/worktrees/w/crates/a/src/lib.rs",
+        "ui/node_modules/pkg/src/lib.rs",
+        "docs/notes.md",
+    ] {
+        plant(&tree, skipped, call);
+    }
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(
+        "../../crates/halvo-app/src",
+        tree.join("tools/trial/linked"),
+    )
+    .unwrap();
+    let (counts, faults) = maker_reading(&tree);
+    assert_eq!(faults, Vec::<String>::new());
+    assert_eq!(
+        counts,
+        [
+            (held.to_owned(), 1),
+            (named.to_owned(), 2),
+            (upper.to_owned(), 1)
+        ]
+    );
+    let listed = [
+        (named, 2, "a named place of the planted tree"),
+        (upper, 1, "a product caller of the planted tree"),
+    ];
+    assert_eq!(
+        maker_refusals(&tree, &counts, &listed),
+        [format!(
+            "{held}: uses of a maker of the account's own data directory (for_current_user, or for_account with SystemAccount): 1, where MAKER_USES allows 0 (the file is not on the list); its lines that hold either name: 3; a test takes DataDir::from_flag(<a directory that the test makes>) in their place, and a new product caller goes on MAKER_USES with its count and why"
+        )]
+    );
+    let refused: Vec<String> = maker_refusals(
+        &tree,
+        &counts,
+        &[
+            (named, 3, "a count above the tree's"),
+            ("crates/gone.rs", 1, "a file that is gone"),
+        ],
+    )
+    .into_iter()
+    .map(|refusal| refusal.split(':').next().unwrap().to_owned())
+    .collect();
+    assert_eq!(refused, ["crates/gone.rs", held, named, upper]);
+
+    let (counts, faults) = maker_reading(&root());
+    let total: usize = counts.iter().map(|(_, n)| n).sum();
+    println!(
+        "uses of the makers of the account's own data directory: {total} in {} files, listed files: {}",
+        counts.len(),
+        MAKER_USES.len()
+    );
+    assert_eq!(faults, Vec::<String>::new());
+    assert_eq!(
+        maker_refusals(&root(), &counts, &MAKER_USES),
+        Vec::<String>::new()
+    );
+}

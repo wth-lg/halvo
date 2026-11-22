@@ -49,10 +49,13 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   stored step; where `check_playbook` refuses the steps of that number that would be held, `playbook` for its
 ///   cause `workbook`, a write to a file that is not the slot `workbook` (CP-218 (c)), and `class` for any other
 ///   cause. It stores each step that is not stored and answers the count of the body's steps.
-/// - `put_session`: `binding` where a stored part of the revision (origin, revision) names another `of`, and where
-///   the place of the part (origin, revision, part) holds a part with other data; else it stores the part, with the
-///   request's day, unless it is stored, and answers 1. So no part joins a revision of another count, a drop row's
-///   among them, and the parts of one revision always agree on their count.
+/// - `put_session`: `binding` where the revision is more than one above the newest stored revision of the origin, by
+///   every stored part of the agent's session of that origin, a part of a revision that a fault cut and a drop row
+///   among them (any revision but 1 where none is stored), so that a run keeps to Halvo's own numbering (U5.11);
+///   `binding` where a stored part of the revision (origin, revision) names another `of`, and where the place of the
+///   part (origin, revision, part) holds a part with other data; else it stores the part, with the request's day,
+///   unless it is stored, and answers 1. So no part joins a revision of another count, a drop row's among them, and
+///   the parts of one revision always agree on their count.
 /// - `drop_session`: it stores, with the request's day, one more revision of the origin, numbered after every
 ///   stored revision of that origin, of one part in the drop form (`SessionData::dropped`), unless the newest whole
 ///   revision of that origin is in that form already, and answers 1. `load` lists that revision as the origin's
@@ -387,6 +390,15 @@ fn put_session(host: &mut dyn Host, now: Now, b: &PutSession) -> Result<RunnerRe
     bind::own_run(&*host, now, &b.run, &b.agent)?;
     bind::open_run(&*host, &b.run)?;
     let held = own_sessions(&*host, &b.agent)?;
+    let newest = held
+        .iter()
+        .filter(|s| s.origin == b.origin)
+        .map(|s| u64::from(s.rev.get()))
+        .max()
+        .unwrap_or(0);
+    if u64::from(b.rev.get()) > newest + 1 {
+        return Err(Own::Binding.into());
+    }
     if held
         .iter()
         .any(|s| s.origin == b.origin && s.rev == b.rev && s.of != b.of)
@@ -431,8 +443,9 @@ fn drop_session(host: &mut dyn Host, now: Now, b: &DropSession) -> Result<Runner
     Ok(stored(1))
 }
 
-/// The one writer of the drop row, which `drop_session` and the coordinator body `drop_sessions` call after their
-/// own checks: for each origin, named once, one more revision of the agent's session of that origin, numbered after
+/// The one writer of the drop row, which the runner's body `drop_session` alone calls after its own checks (the
+/// coordinator body `drop_sessions` removes the rows instead, r3 U9.12): for each origin, named once, one more
+/// revision of the agent's session of that origin, numbered after
 /// every stored revision of it, of one part in the drop form (`SessionData::dropped`), with the workflow and the
 /// request's day, unless the newest whole revision of that origin is in that form already; every row in one commit.
 /// It answers the count of rows stored. `load` lists such a revision as the origin's newest, so Halvo stops using

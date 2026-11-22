@@ -506,6 +506,21 @@ impl DataDirStore {
         }
         std::fs::symlink_metadata(&path).is_err_and(|e| e.kind() == io::ErrorKind::NotFound)
     }
+
+    /// Whether the store's lock file stands in the store folder, read by the
+    /// reader of that name that the tail asks behind its close too: only no
+    /// such entry, of the lock file or of a folder above it,
+    /// reads as gone. A link at the data directory's own name is followed.
+    #[cfg(windows)]
+    pub fn lock_file_stands(&self) -> bool {
+        let store = resolved_data_dir(self.path())
+            .and_then(|dir| Dir::open(&dir))
+            .and_then(|dir| dir.open_dir(OsStr::new("store")));
+        match store {
+            Ok(store) => super::lock::DirLock::file_stands_in(&store),
+            Err(e) => e.kind() != io::ErrorKind::NotFound,
+        }
+    }
 }
 
 #[cfg(all(test, target_os = "macos", debug_assertions))]
@@ -645,6 +660,7 @@ fn tail_report(report: &super::DeleteReport) -> TailReport {
         database_left: report.database_left,
         files_left: report.files_left,
         not_followed: report.not_followed,
+        lock_file_kept: report.lock_file_kept,
     }
 }
 

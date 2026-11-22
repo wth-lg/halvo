@@ -18,6 +18,7 @@
     "allow-start-capture",
     "allow-delete-offline",
     "allow-remove-halvo",
+    "allow-reset-settings",
     "allow-agents-snapshot",
     "allow-agents-next",
     "allow-agents-card",

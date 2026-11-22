@@ -3152,6 +3152,7 @@ impl EncryptedStore {
             database_left: true,
             files_left: 0,
             not_followed: 0,
+            lock_file_kept: false,
         }
     }
 
@@ -3160,8 +3161,13 @@ impl EncryptedStore {
         if root_step.reading == RootReading::Destroyed && self.root_destroyed_with.is_none() {
             self.root_destroyed_with = Some(root_step.roots.clone());
         }
-        let mut report =
-            remove_the_store_files(&self.dir, None, root_step.reading, root_step.roots);
+        let mut report = remove_the_store_files(
+            &self.dir,
+            None,
+            root_step.reading,
+            root_step.roots,
+            &self._writer_lock,
+        );
         if !matches!(self.dir.still_named(), Ok(true)) {
             report.not_followed += 1;
         }
@@ -3343,7 +3349,9 @@ impl EncryptedStore {
 
     /// The tail through the handle of the store directory, with the roots
     /// directory opened from the handle of `parent`, the directory that holds
-    /// it.
+    /// it. On Windows, where its removal left nothing else in the store
+    /// folder, the lock marked its own file; behind the close of the lock, a
+    /// name that still stands counts as a file left.
     fn delete_through(store: &Dir, parent: &Dir) -> StoreResult<DeleteReport> {
         let place = KeyFile::of_store(store)?;
         let writer_lock = match DirLock::take(store)
@@ -3361,9 +3369,21 @@ impl EncryptedStore {
         failpoint::seam(SEAM_BEFORE_THE_TAILS_ROOT_STEP);
         let (reading, roots, root_not_handled) = tail_root_step(store, &place, parent, form);
         let mut report = match writer_lock {
-            Some(_) => remove_the_store_files(store, None, reading, roots),
-            None => not_opened(reading, roots),
+            Some(lock) => {
+                let report = remove_the_store_files(store, None, reading, roots, &lock);
+                drop(lock);
+                report
+            }
+            None => as_the_store_files_stand(store, reading, roots),
         };
+        #[cfg(windows)]
+        if report.key_file_gone
+            && !report.database_left
+            && report.files_left == 0
+            && DirLock::file_stands_in(store)
+        {
+            report.files_left += 1;
+        }
         report.root_not_handled = root_not_handled;
         finished(report)
     }
@@ -3458,6 +3478,7 @@ fn nothing_of_a_store(root: RootReading, roots: RootsLeft) -> DeleteReport {
         database_left: false,
         files_left: 0,
         not_followed: 0,
+        lock_file_kept: false,
     }
 }
 
@@ -3487,9 +3508,10 @@ fn finished(report: DeleteReport) -> StoreResult<DeleteReport> {
     }
 }
 
-/// The report of a tail that could not open the store directory, or could not
-/// take its lock for a reason other than a holder: the root step as it went,
-/// and the store's files as left.
+/// The report of a tail that did not look at the store's files: one that could
+/// not open the store directory, or that ran the root step alone at a name
+/// that Windows trims. The root step as it went, and the store's files as
+/// left.
 fn not_opened(root: RootReading, roots: RootsLeft) -> DeleteReport {
     DeleteReport {
         keyed_segments: None,
@@ -3500,14 +3522,62 @@ fn not_opened(root: RootReading, roots: RootsLeft) -> DeleteReport {
         database_left: true,
         files_left: 1,
         not_followed: 0,
+        lock_file_kept: false,
     }
 }
 
+/// The report of a tail that opened the store directory and could not take
+/// its lock for a reason other than a holder: the root step as it went, and
+/// the store's files read by their names as they stand, none removed.
+/// `files_left` counts the entries of the segments tree, the pending mark and
+/// its temporary file and, on Windows, the lock file, read by the reader of
+/// that name that the tail's count behind its close asks too. On Windows
+/// `lock_file_kept` says whether the lock file stands marked for removal while
+/// another handle keeps it open, which is what refuses the take there behind a
+/// delete that marked it.
+fn as_the_store_files_stand(store: &Dir, root: RootReading, roots: RootsLeft) -> DeleteReport {
+    let stands = |name: &str| !matches!(store.entry(OsStr::new(name)), Err(e) if e.kind() == ErrorKind::NotFound);
+    let database_left = [DATABASE_FILE]
+        .into_iter()
+        .chain(DATABASE_SIDE_FILES.map(|(file, _)| file))
+        .any(stands);
+    let pending_left = [CREATE_PENDING, CREATE_PENDING_TEMP]
+        .into_iter()
+        .filter(|name| stands(name))
+        .count() as u64;
+    let files_left = segment::entries_of_the_segments_tree(store) + pending_left;
+    #[cfg(windows)]
+    let files_left = files_left + u64::from(DirLock::file_stands_in(store));
+    #[cfg(windows)]
+    let lock_file_kept = DirLock::file_marked_and_kept_in(store);
+    #[cfg(not(windows))]
+    let lock_file_kept = false;
+    DeleteReport {
+        keyed_segments: None,
+        root,
+        roots,
+        root_not_handled: None,
+        key_file_gone: !stands(KEY_FILE),
+        database_left,
+        files_left,
+        not_followed: 0,
+        lock_file_kept,
+    }
+}
+
+/// The key file, the database files, the segments tree and the pending mark
+/// of the store, removed through the handle of the store directory under
+/// `lock`, the caller's writer lock. On Windows, where the lock is a file of
+/// the store directory, the last step marks that file for removal through the
+/// lock's own handle where nothing else of the store is left, so that it goes
+/// when the caller closes the lock; the caller then reads whether its name
+/// still stands.
 fn remove_the_store_files(
     store: &Dir,
     keyed_segments: Option<u64>,
     root: RootReading,
     roots: RootsLeft,
+    #[cfg_attr(not(windows), allow(unused_variables))] lock: &DirLock,
 ) -> DeleteReport {
     let key_file = match KeyFile::of_store(store) {
         Ok(place) => place.destroy(),
@@ -3519,6 +3589,10 @@ fn remove_the_store_files(
     let database = Db::destroy_through(store);
     let segments = segment::remove_segments_through(store);
     let pending_left = u64::from(remove_pending(store).is_err());
+    #[cfg(windows)]
+    if key_file.gone && !database.left && segments.entries_left + pending_left == 0 {
+        let _ = lock.remove_its_file_at_close();
+    }
     DeleteReport {
         keyed_segments,
         root,
@@ -3528,6 +3602,7 @@ fn remove_the_store_files(
         database_left: database.left,
         files_left: segments.entries_left + pending_left,
         not_followed: key_file.not_followed + database.not_followed + segments.links_or_others_met,
+        lock_file_kept: false,
     }
 }
 

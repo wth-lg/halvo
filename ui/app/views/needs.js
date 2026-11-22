@@ -190,6 +190,10 @@
         typed.setAttribute('data-act', 'typed');
         typed.setAttribute('data-param', p.name);
         typed.setAttribute('aria-labelledby', legend.id);
+        typed.setAttribute('autocomplete', 'off');
+        typed.setAttribute('autocorrect', 'off');
+        typed.setAttribute('autocapitalize', 'off');
+        typed.setAttribute('spellcheck', 'false');
         set.appendChild(typed);
         line = limit(typed, p.full, p.too_long);
       }

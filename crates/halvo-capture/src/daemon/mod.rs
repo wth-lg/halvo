@@ -400,6 +400,9 @@ pub struct TailReport {
     pub database_left: bool,
     pub files_left: u64,
     pub not_followed: u64,
+    /// On Windows, the tail was refused the lock because the lock file stands
+    /// marked for removal while another handle keeps it open.
+    pub lock_file_kept: bool,
 }
 
 /// What the tail says of the store's root: destroyed by this call, left
@@ -441,7 +444,8 @@ impl TailReport {
     /// answered through its not-opened report for another cause: the root left
     /// with no id, and store.key, the database and one file read as not removed
     /// because the tail never looked. A removal that left exactly those three
-    /// and read no root id reads the same.
+    /// and read no root id reads the same, and so does a tail refused the lock
+    /// that read exactly those three standing and no root id.
     fn not_opened(&self) -> bool {
         self.root == TailRoot::Left(None)
             && !self.key_file_gone
@@ -472,10 +476,16 @@ impl TailReport {
         )
     }
 
-    /// What stays, for standard error: the root files and partial root files
-    /// by their names in the folder roots, every other entry there by kind.
+    /// What stays, for standard error: first, on Windows, a lock file that
+    /// another program keeps open behind its mark; the root files and partial
+    /// root files by their names in the folder roots, every other entry there
+    /// by kind; then the store's files, the count of its other files behind
+    /// its words.
     fn what_stays(&self) -> String {
         let mut stays = Vec::new();
+        if self.lock_file_kept {
+            stays.push("another program holds the store's lock file open".to_owned());
+        }
         if matches!(self.root, TailRoot::Left(_)) {
             stays.push("this call did not destroy the store's root".to_owned());
         }
@@ -507,7 +517,10 @@ impl TailReport {
             stays.push("a database file stays".to_owned());
         }
         if self.files_left > 0 {
-            stays.push(format!("{} other files of the store stay", self.files_left));
+            stays.push(format!(
+                "other files of the store that stay: {}",
+                self.files_left
+            ));
         }
         if self.not_followed > 0 {
             stays.push(format!(
@@ -2549,6 +2562,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     let mut deleted = None;
     let mut delete_ends = false;
     let mut delete_written = None;
+    let mut reset_written = None;
     #[cfg(test)]
     let mut wrap_store = parts.wrap_store;
     loop {
@@ -2579,6 +2593,13 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 listening.admitting().end_the_life();
                 stop_asked = Some(asked);
                 break;
+            }
+            Waited::Reset(asked) => {
+                if let Some(written) = reset_on_request(asked, &mut supervisor, &serving) {
+                    reset_written = Some(written);
+                    status = halvo_control::exit::RESTART;
+                    break;
+                }
             }
             Waited::Delete(asked) => {
                 match delete_on_request(
@@ -2762,6 +2783,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     if let Some(written) = delete_written.filter(|_| delete_ends) {
         let _ = written.wait(WRITTEN_WAIT);
     }
+    if let Some(written) = reset_written {
+        let _ = written.wait(WRITTEN_WAIT);
+    }
     let outcome = supervisor.shutdown_entry(store.link(), status);
     #[cfg(test)]
     if let Some(settled) = parts.settled {
@@ -2835,6 +2859,7 @@ enum Waited {
     Ended,
     Stop(server::Asked),
     Delete(server::Asked),
+    Reset(server::Asked),
 }
 
 #[cfg(any(target_os = "macos", windows))]
@@ -2867,6 +2892,9 @@ fn wait_serving<F: supervisor::SystemSources, L: main_loop::MainLoop>(
                 halvo_control::proto::Request::DeleteAll { .. }
             ) {
                 return Waited::Delete(asked);
+            }
+            if matches!(asked.request, halvo_control::proto::Request::ResetSettings) {
+                return Waited::Reset(asked);
             }
             serve_request(asked, supervisor, serving, store);
         }
@@ -3195,6 +3223,33 @@ fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     if let Some(asked) = pending {
         let _ = asked.answer(changed(&supervisor.status_parts(serving.obstructed)));
     }
+}
+
+#[cfg(any(target_os = "macos", windows))]
+fn reset_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    asked: server::Asked,
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+) -> Option<server::Written> {
+    use halvo_control::proto::{ErrorCode, ErrorReply, Reply};
+    let refused = match supervisor.with_state_file(state::StateFile::reset_settings) {
+        Some(Ok(())) => None,
+        Some(Err(refused)) => Some(ErrorReply::new(ErrorCode::StateFile, refused.to_string())),
+        None => Some(ErrorReply::new(
+            ErrorCode::Internal,
+            "the capture service holds no state file",
+        )),
+    };
+    if let Some(refused) = refused {
+        let _ = asked.answer(Reply::Error(refused));
+        return None;
+    }
+    serving.listening.admitting().end_the_life();
+    let reply = status_reply(supervisor, serving).map_or_else(
+        |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+        Reply::Status,
+    );
+    Some(asked.answer(reply))
 }
 
 #[cfg(any(target_os = "macos", windows))]
@@ -4654,7 +4709,7 @@ mod tests {
         assert!(out.contains(" root_destroyed=yes root_id=- "), "{out}");
         assert_eq!(
             err,
-            "halvo-capture: the delete is not finished: the folder roots could not be listed; the folder roots no longer stands at its path; store.key stays; a database file stays; 2 other files of the store stay; 2 names were a link or an entry of another kind and were not followed\n"
+            "halvo-capture: the delete is not finished: the folder roots could not be listed; the folder roots no longer stands at its path; store.key stays; a database file stays; other files of the store that stay: 2; 2 names were a link or an entry of another kind and were not followed\n"
         );
         let unnamed = TailReport {
             files_left: 1,
@@ -4666,7 +4721,7 @@ mod tests {
         assert!(out.contains(" root_destroyed=unknown root_id=- "), "{out}");
         assert_eq!(
             err,
-            "halvo-capture: the delete is not finished: 1 other files of the store stay\n"
+            "halvo-capture: the delete is not finished: other files of the store that stay: 1\n"
         );
     }
 
@@ -4753,7 +4808,7 @@ mod tests {
             let (_, _, err, _) = scratch_answer(Path::new("/s"), TailAnswer::NotFinished(other));
             assert!(
                 !err.contains("could not be opened")
-                    && err.contains("1 other files of the store stay"),
+                    && err.contains("other files of the store that stay: 1"),
                 "{what}: {err}"
             );
         }

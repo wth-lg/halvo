@@ -91,7 +91,7 @@ fn log_line(seq: u32) -> Value {
         "model": null,
         "ms": null,
         "tokens_in": null,
-        "tokens_out": null,
+        "tokens_out": null, "page_amount": null,
     })
 }
 
@@ -259,6 +259,37 @@ fn put_session_refuses_the_same_data_at_a_stored_place_with_another_of() {
         Err(declared("binding"))
     );
     assert_eq!(session_rows(&store).len(), 1);
+}
+
+/// U5.11 (2), the coordinator's ruling of log line 14584: the store holds a run to Halvo's own numbering. `put_session`
+/// refuses with `binding`, and stores nothing, a part whose revision is more than one above the newest stored revision
+/// of its origin, where the part of a revision that a fault cut counts; with no stored row of the origin it refuses
+/// every revision above 1, the highest number among them. One above is stored.
+#[test]
+fn a_put_two_above_the_newest_stored_revision_is_refused() {
+    let mut store = store_with("utility_bill_payment");
+    let origin = "https://pay.test:443";
+    for rev in [2, u32::MAX] {
+        assert_eq!(
+            put_session(&mut store, origin, rev, 1, 1, vec!["QUJD".into()]),
+            Err(declared("binding")),
+            "{rev}"
+        );
+    }
+    assert!(session_rows(&store).is_empty());
+    put_session(&mut store, origin, 1, 1, 1, vec!["QUJD".into()]).expect("rev 1");
+    put_session(&mut store, origin, 2, 1, 2, full_part()).expect("part 1 of 2 of rev 2");
+    assert_eq!(
+        put_session(&mut store, origin, 4, 1, 1, vec!["QUJD".into()]),
+        Err(declared("binding"))
+    );
+    assert_eq!(session_rows(&store).len(), 2);
+    assert_eq!(
+        put_session(&mut store, origin, 3, 1, 1, vec!["QUJD".into()]),
+        Ok(stored(1)),
+        "one above the cut revision's part"
+    );
+    assert_eq!(load(&mut store, 1).expect("load").sessions[0].rev.get(), 3);
 }
 
 #[test]
@@ -1039,6 +1070,34 @@ fn a_repeat_of_a_stored_stopped_row_stores_nothing_and_is_answered_with_its_coun
     assert_eq!(rows(&store, "agent_log").len(), 3);
 }
 
+/// r3 U5.10-B (4): the step's `stopped` row of a made payment whose page named another amount than the card
+/// (`amount_differs`) holds that amount as the page named it, in minor units under `page_amount`, and the handler keeps
+/// it in the stored row; beside any other cause the key is refused and nothing is stored.
+#[test]
+fn the_row_of_another_amount_holds_the_amount_as_the_page_named_it() {
+    let mut store = store_with("utility_bill_payment");
+    let mut stopped = log_line(2);
+    stopped["event"] = json!("stopped");
+    stopped["cause"] = json!("amount_differs");
+    stopped["page_amount"] = json!(1334);
+    let mut unread = stopped.clone();
+    unread["seq"] = json!(3);
+    unread["cause"] = json!("amount_unread");
+    assert_eq!(put_log(&mut store, vec![stopped]), Ok(stored(1)));
+    assert_eq!(put_log(&mut store, vec![unread]), Err(ErrorName::Malformed));
+    let held: Vec<String> = rows(&store, "agent_log")
+        .into_iter()
+        .filter(|r| r.contains(r#""event":"stopped""#))
+        .collect();
+    assert_eq!(held.len(), 1, "{held:?}");
+    assert!(
+        held[0].contains(r#""cause":"amount_differs""#)
+            && held[0].contains(r#""page_amount":1334"#),
+        "{held:?}"
+    );
+    AgentLog::parse(held[0].as_bytes()).expect("a log row");
+}
+
 #[test]
 fn the_two_replies_name_the_agent_of_their_rows() {
     let mut store = store_with("utility_bill_payment");
@@ -1066,5 +1125,37 @@ fn the_two_replies_name_the_agent_of_their_rows() {
             r#"{{"agent":"{}","origin":"{origin}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#,
             agent(1)
         )
+    );
+}
+
+/// r3 U9.12 (the coordinator's ruling of 2026-11-22, log line 15958): the runner's own body `drop_session` keeps the
+/// refusal `day` of its one writer `drop_rows`. While a part of the origin stands with a day after the request's day,
+/// as a part kept while the clock stood a day ahead does, the body is refused with `day` and stores no row.
+#[test]
+fn drop_session_is_refused_with_day_while_a_part_of_the_origin_lies_after_today() {
+    let origin = "https://pay.test:443";
+    let tomorrow = at(NOW.at.0 + NANOS_PER_DAY);
+    let mut store = store_with("utility_bill_payment");
+    assert_eq!(
+        runner_at(
+            &mut store,
+            tomorrow,
+            json!({"op": "put_session", "agent": agent(1), "run": run(1), "origin": origin, "rev": 1, "part": 1, "of": 1, "data": ["QUJD"]}),
+        ),
+        Ok(stored(1)),
+        "a part kept while the clock stood a day ahead"
+    );
+    let before = every_agent_row(&store);
+    assert_eq!(
+        runner(
+            &mut store,
+            json!({"op": "drop_session", "agent": agent(1), "run": run(1), "origin": origin}),
+        ),
+        Err(declared("day"))
+    );
+    assert_eq!(
+        every_agent_row(&store),
+        before,
+        "a refused body stores nothing"
     );
 }

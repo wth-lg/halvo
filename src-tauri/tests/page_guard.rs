@@ -45,6 +45,10 @@ mod engine;
 mod launch;
 #[path = "../src/poller.rs"]
 mod poller;
+mod stop_hook {
+    /// The stop's message, which app.rs calls at its end with exit 3: this test crate shows none.
+    pub fn stopped() {}
+}
 #[expect(
     dead_code,
     reason = "this test crate compiles the app's tray.rs by path, because the capture commands refresh the tray: \
@@ -116,6 +120,8 @@ impl Guarded {
         let parts = app::Parts {
             #[cfg(windows)]
             webview_data_dir: Some(scratch(name).join("webview")),
+            #[cfg(windows)]
+            webview_environment: |_, _| Ok(None),
             state: commands::capture::AppState::with_control(
                 Arc::new(commands::control::Gated::new(daemon.clone())),
                 None,

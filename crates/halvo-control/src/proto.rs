@@ -12,7 +12,7 @@ use crate::onboarding::{GrantState, OnboardingState, Permission, RequestOutcome}
 pub const PROTOCOL_VERSION: u64 = 1;
 
 /// The ops of the request table of protocol version 1, in the order of contracts.md C2.1.
-pub const V1_OPS: [&str; 10] = [
+pub const V1_OPS: [&str; 11] = [
     "status",
     "inventory",
     "pause",
@@ -23,6 +23,7 @@ pub const V1_OPS: [&str; 10] = [
     "request_permission",
     "permission_asked",
     "acknowledge_lost_permission",
+    "reset_settings",
 ];
 
 /// The run marks, request names that a later version may use. Protocol version 1 answers
@@ -71,6 +72,9 @@ pub enum Request {
     AcknowledgeLostPermission {
         permission: Permission,
     },
+    /// Writes the defaults over a settings file that does not load, with capture paused and no
+    /// storage cap, keeps the store, and ends the service's life so that it starts again.
+    ResetSettings,
 }
 
 impl Request {
@@ -86,6 +90,7 @@ impl Request {
             Request::RequestPermission { .. } => "request_permission",
             Request::PermissionAsked { .. } => "permission_asked",
             Request::AcknowledgeLostPermission { .. } => "acknowledge_lost_permission",
+            Request::ResetSettings => "reset_settings",
         }
     }
 
@@ -1952,7 +1957,8 @@ pub fn admission(
         | Request::SetStorageCap { .. }
         | Request::RequestPermission { .. }
         | Request::PermissionAsked { .. }
-        | Request::AcknowledgeLostPermission { .. } => Admission::Ending,
+        | Request::AcknowledgeLostPermission { .. }
+        | Request::ResetSettings => Admission::Ending,
     }
 }
 
@@ -2080,6 +2086,7 @@ mod tests {
             Request::AcknowledgeLostPermission {
                 permission: Permission::ScreenAndSystemAudioRecording,
             },
+            Request::ResetSettings,
         ]
     }
 
@@ -4572,7 +4579,8 @@ stopped/kind body
                 "set_storage_cap",
                 "request_permission",
                 "permission_asked",
-                "acknowledge_lost_permission"
+                "acknowledge_lost_permission",
+                "reset_settings"
             ]
         );
     }
@@ -4702,6 +4710,7 @@ stopped/kind body
             Request::RequestPermission { .. } => "request_permission",
             Request::PermissionAsked { .. } => "permission_asked",
             Request::AcknowledgeLostPermission { .. } => "acknowledge_lost_permission",
+            Request::ResetSettings => "reset_settings",
         }
     }
 

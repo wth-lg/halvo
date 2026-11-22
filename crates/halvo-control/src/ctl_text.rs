@@ -5,8 +5,8 @@ use crate::client::ClientError;
 use crate::model::{StorageCap, StoreId};
 use crate::paths::{DataDir, ROOT_FILE_EXT};
 use crate::proto::{
-    AlreadyDeleted, Cap, CapSet, DaemonStatus, Deleted, ErrorCode, InventoryReply, Reply, Request,
-    RootDestroyed, StateFile, Stopped,
+    AlreadyDeleted, Cap, CapSet, DaemonStatus, DeleteFields, Deleted, ErrorCode, InventoryReply,
+    Reply, Request, RootDestroyed, StateFile, Stopped,
 };
 
 /// The most bytes of a peer's text that ctl prints on one line of standard error.
@@ -341,6 +341,29 @@ pub fn deleted_text(deleted: &Deleted) -> String {
     )
 }
 
+/// What a `deleted` reply says stays (contracts.md C2.6): a database file, the
+/// other files of the store and the registered entries, each count behind its
+/// words, or `None` where nothing of them stays.
+fn what_the_delete_left(report: &DeleteFields) -> Option<String> {
+    let mut stays = Vec::new();
+    if report.database_left {
+        stays.push("a database file stays".to_owned());
+    }
+    if report.files_left > 0 {
+        stays.push(format!(
+            "other files of the store that stay: {}",
+            report.files_left
+        ));
+    }
+    if report.entries_left > 0 {
+        stays.push(format!(
+            "registered entries that stay: {}",
+            report.entries_left
+        ));
+    }
+    (!stays.is_empty()).then(|| stays.join("; "))
+}
+
 pub fn already_deleted_text(already: &AlreadyDeleted) -> String {
     format!("already_deleted store_id={}\n", already.current)
 }
@@ -574,24 +597,31 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
         (Verb::DeleteAll(_), Reply::Deleted(deleted)) => {
             let stdout = deleted_text(&deleted);
             let report = deleted.report.fields();
-            match (report.root_destroyed, report.root_id) {
-                (RootDestroyed::No, Some(root)) => Printed {
-                    stdout,
-                    stderr: format!(
+            let (mut stderr, mut status) = match (report.root_destroyed, report.root_id) {
+                (RootDestroyed::No, Some(root)) => (
+                    format!(
                         "halvo-capture: the root survived the delete; remove its file {}\n",
                         data_dir
                             .roots_dir()
                             .join(format!("{root}.{ROOT_FILE_EXT}"))
                             .display()
                     ),
-                    status: crate::exit::ERROR,
-                },
-                (RootDestroyed::Unknown, _) => Printed {
-                    stdout,
-                    stderr: format!("halvo-capture: {ROOTS_NOT_LISTED_TEXT}\n"),
-                    status: crate::exit::CLEAN,
-                },
-                _ => printed(stdout, crate::exit::CLEAN),
+                    crate::exit::ERROR,
+                ),
+                (RootDestroyed::Unknown, _) => (
+                    format!("halvo-capture: {ROOTS_NOT_LISTED_TEXT}\n"),
+                    crate::exit::CLEAN,
+                ),
+                _ => (String::new(), crate::exit::CLEAN),
+            };
+            if let Some(stays) = what_the_delete_left(report) {
+                let _ = writeln!(stderr, "halvo-capture: the delete is not finished: {stays}");
+                status = crate::exit::ERROR;
+            }
+            Printed {
+                stdout,
+                stderr,
+                status,
             }
         }
         (Verb::DeleteAll(armed), Reply::AlreadyDeleted(already))
@@ -1232,7 +1262,11 @@ mod tests {
             printed.stdout,
             "deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=unknown root_id=- files_left=2 database_left=yes not_followed=0 entries_removed=3 entries_left=1 unknown_entries=5 intent=failed store_id=-\n"
         );
-        assert_eq!(printed.status, 0);
+        assert_eq!(
+            printed.stderr,
+            "halvo-capture: the roots of this custody cannot be listed; a root may survive\nhalvo-capture: the delete is not finished: a database file stays; other files of the store that stay: 2; registered entries that stay: 1\n"
+        );
+        assert_eq!(printed.status, 1);
     }
 
     #[test]

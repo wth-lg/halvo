@@ -45,6 +45,8 @@ pub struct Parts<R: Runtime> {
     pub engine_rules_dir: Option<PathBuf>,
     #[cfg(windows)]
     pub webview_data_dir: Option<PathBuf>,
+    #[cfg(windows)]
+    pub webview_environment: EnvironmentMaker,
 }
 
 pub const GUARD_WAIT: Duration = Duration::from_secs(20);
@@ -119,6 +121,8 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 app.handle(),
                 #[cfg(windows)]
                 parts.webview_data_dir,
+                #[cfg(windows)]
+                parts.webview_environment,
             ) {
                 Ok(window) => match engine_site(app.handle(), parts.engine_rules_dir) {
                     Ok(site) => (parts.guard)(&window, site, sender),
@@ -316,6 +320,7 @@ pub fn is_origin(url: &Url, (scheme, host): (&str, &str)) -> bool {
 pub(crate) fn main_window<R: Runtime>(
     app: &AppHandle<R>,
     #[cfg(windows)] data_dir: Option<PathBuf>,
+    #[cfg(windows)] environment: EnvironmentMaker,
 ) -> tauri::Result<tauri::WebviewWindow<R>> {
     let mut config = app
         .config()
@@ -342,6 +347,13 @@ pub(crate) fn main_window<R: Runtime>(
     #[cfg(windows)]
     let builder = builder.additional_browser_args(ENGINE_ARGS);
     #[cfg(windows)]
+    let builder = match environment(engine_options(), &engine_folder(app, data_dir.as_deref())?)
+        .map_err(std::io::Error::other)?
+    {
+        Some(made) => builder.with_environment(made),
+        None => builder,
+    };
+    #[cfg(windows)]
     let builder = match data_dir {
         Some(dir) => builder.data_directory(dir),
         None => builder,
@@ -352,7 +364,131 @@ pub(crate) fn main_window<R: Runtime>(
 #[cfg(windows)]
 pub const ENGINE_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND\" --proxy-server=http://255.255.255.255:9 --proxy-bypass-list=<-loopback> --webrtc-ip-handling-policy=disable_non_proxied_udp";
 
-pub const NO_PEER_SCRIPT: &str = "(function () { for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate', 'RTCDataChannel']) { try { Object.defineProperty(window, name, { value: undefined, writable: false, configurable: false }); } catch (e) {} } })();";
+/// Makes the web view's environment of the window main from the options that its builder hands
+/// it, on the web view's data folder: `system_environment` in the app. A test hands a stand-in
+/// that reads the options and makes none, so that the mock runtime goes on as before.
+#[cfg(windows)]
+pub type EnvironmentMaker = fn(
+    webview2_com::CoreWebView2EnvironmentOptions,
+    &std::path::Path,
+) -> Result<
+    Option<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment>,
+    String,
+>;
+
+/// The options of the web view's environment: custom crash reporting, with which the web view
+/// sends no crash report to Microsoft and keeps its dumps on this computer, and what wry 0.57.1
+/// sets in an environment of its own (src/webview2/mod.rs lines 308 to 355), which a given
+/// environment replaces: the browser arguments, extensions off, the person's display language and
+/// the default scroll bar.
+#[cfg(windows)]
+pub fn engine_options() -> webview2_com::CoreWebView2EnvironmentOptions {
+    use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_SCROLLBAR_STYLE_DEFAULT;
+    let options = webview2_com::CoreWebView2EnvironmentOptions::default();
+    // SAFETY: the options are this function's own and no COM object holds them yet, so nothing
+    // reads their cells while these setters write them.
+    unsafe {
+        options.set_is_custom_crash_reporting_enabled(true);
+        options.set_additional_browser_arguments(ENGINE_ARGS.to_string());
+        options.set_are_browser_extensions_enabled(false);
+        options.set_language(display_language());
+        options.set_scroll_bar_style(COREWEBVIEW2_SCROLLBAR_STYLE_DEFAULT);
+    }
+    options
+}
+
+/// The person's display language as wry 0.57.1 reads it for its own environment: the locale name
+/// of the user's interface language, neutral names allowed.
+#[cfg(windows)]
+pub fn display_language() -> String {
+    windows_core::link!("kernel32.dll" "system" fn GetUserDefaultUILanguage() -> u16);
+    windows_core::link!("kernel32.dll" "system" fn LCIDToLocaleName(locale: u32, name: *mut u16, size: i32, flags: u32) -> i32);
+    const LOCALE_ALLOW_NEUTRAL_NAMES: u32 = 0x0800_0000;
+    let mut name = [0u16; 85];
+    // SAFETY: the buffer is this function's own and its length is the size handed to the call,
+    // which writes no more than that; the other call takes and reads nothing.
+    unsafe {
+        LCIDToLocaleName(
+            u32::from(GetUserDefaultUILanguage()),
+            name.as_mut_ptr(),
+            i32::try_from(name.len()).unwrap_or(0),
+            LOCALE_ALLOW_NEUTRAL_NAMES,
+        );
+    }
+    let end = name.iter().position(|&c| c == 0).unwrap_or(name.len());
+    String::from_utf16_lossy(&name[..end])
+}
+
+/// The web view's data folder: the given one, else the app's local data folder, which tauri
+/// 2.12.5 gives the web view when the window names none (src/manager/webview.rs lines 559 to 574).
+#[cfg(windows)]
+fn engine_folder<R: Runtime>(
+    app: &AppHandle<R>,
+    given: Option<&std::path::Path>,
+) -> tauri::Result<PathBuf> {
+    match given {
+        Some(dir) => Ok(dir.to_path_buf()),
+        None => app.path().app_local_data_dir(),
+    }
+}
+
+/// The system's maker of the web view's environment, on the main thread as the runtime's own:
+/// the folder is made as tauri makes it, and an environment that cannot be made fails the window,
+/// with no fall-back to the runtime's own environment.
+///
+/// It first initializes COM for the main thread, apartment threaded, as wry 0.57.1 does as the
+/// first line of making its web view (src/webview2/mod.rs line 121): the setup hook, which calls
+/// this, runs before wry makes any web view and before tao 0.37.2 calls OleInitialize when it
+/// makes a window (src/platform_impl/windows/window.rs line 1140), so nothing has initialized COM
+/// on that thread yet, and WebView2 refuses the environment with CO_E_NOTINITIALIZED. Its answer
+/// is not read as a failure (S_FALSE where COM was initialized before), and COM stays
+/// initialized for the thread, as wry leaves it.
+#[cfg(windows)]
+pub fn system_environment(
+    options: webview2_com::CoreWebView2EnvironmentOptions,
+    folder: &std::path::Path,
+) -> Result<Option<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment>, String>
+{
+    windows_core::link!("ole32.dll" "system" fn CoInitializeEx(reserved: *const core::ffi::c_void, model: u32) -> i32);
+    const COINIT_APARTMENTTHREADED: u32 = 0x2;
+    // SAFETY: CoInitializeEx takes a null reserved pointer and the threading model by value.
+    unsafe {
+        CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED);
+    }
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        CreateCoreWebView2EnvironmentWithOptions, ICoreWebView2EnvironmentOptions,
+    };
+    std::fs::create_dir_all(folder)
+        .map_err(|e| format!("the web view's folder cannot be made: {e}"))?;
+    let folder = windows_core::HSTRING::from(folder.as_os_str());
+    let options = ICoreWebView2EnvironmentOptions::from(options);
+    let (sender, made) = mpsc::channel();
+    let handler = webview2_com::CreateCoreWebView2EnvironmentCompletedHandler::create(Box::new(
+        move |result, environment| {
+            let _ = sender.send(result.map(|()| environment));
+            Ok(())
+        },
+    ));
+    // SAFETY: the folder, the options and the handler are this function's own and live through
+    // the call; the handler sends its answer to `made`, which the pump below reads.
+    unsafe {
+        CreateCoreWebView2EnvironmentWithOptions(
+            windows_core::PCWSTR::null(),
+            &folder,
+            &options,
+            &handler,
+        )
+    }
+    .map_err(|e| format!("the web view's environment cannot be asked for: {e}"))?;
+    match webview2_com::wait_with_pump(made) {
+        Ok(Ok(Some(environment))) => Ok(Some(environment)),
+        Ok(Ok(None)) => Err("the web view gave no environment".to_string()),
+        Ok(Err(e)) => Err(format!("the web view's environment was not made: {e}")),
+        Err(e) => Err(format!("the web view's environment had no answer: {e:?}")),
+    }
+}
+
+pub const NO_PEER_SCRIPT: &str ="(function () { for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate', 'RTCDataChannel']) { try { Object.defineProperty(window, name, { value: undefined, writable: false, configurable: false }); } catch (e) {} } })();";
 
 #[cfg(any(windows, test))]
 pub const ENGINE_ARGUMENTS_VARIABLE: &str = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS";
@@ -450,6 +586,7 @@ fn open<R: Runtime>(app: &AppHandle<R>, opening: Opening, visible: bool) {
         }
         Opening::End(refusal) => {
             eprintln!("{}", not_opened_line(&refusal.reason));
+            crate::stop_hook::stopped();
             app.exit(Exit::GuardNotInstalled.code());
         }
     }
