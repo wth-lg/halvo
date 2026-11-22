@@ -1,5 +1,5 @@
-//! The product's ports of the coordinator on a Mac (contracts I5.10; unit U5.4a): the hub of the app runs over them
-//! in the place of the stand-in `NoService`.
+//! The product's ports of the coordinator on a Mac and on Windows (contracts I5.10; units U5.4a and U5.4w): the hub of
+//! the app runs over them in the place of the stand-in `NoService`.
 //!
 //! - `Owner` writes and reads as the role `coordinator` over an owner stream of the app's own (W-C24.13), through
 //!   the product's link of the supervisor library: `coord_log` and `coord_history` for the events, `list_agents`,
@@ -9,7 +9,7 @@
 //! - `Runs` is the supervisor library over a second owner stream: `start` hands the machine's zone offset of the
 //!   moment as `utc_offset_s`; the first `reap` of a life answers what the start's own reap answered.
 //! - `Analysis` sends the capture service the request `defer` of the core's deadline at each call (unit U5.4c).
-//! - `Clock` reads the system clock and the zone of the Mac, `Rng` the system's generator, `Policy` the table of
+//! - `Clock` reads the system clock and the system's zone, `Rng` the system's generator, `Policy` the table of
 //!   halvo-policy (`decide_row`) and `Senders` the schema's reader of `reply_senders`.
 //!
 //! The library's calls back (`MarkSink`, `Human`, `Confirmer`) reach the coordinator through one thread of their own,
@@ -21,7 +21,7 @@
 //! the owner acknowledged (`Coordinator::stored`). Each run of this life ends through `MarkSink::end`; a run
 //! of an earlier life that the start's reap answers is ended by the core's recovery, and the start sends the one
 //! mark `run_end` for it itself, because the library's reap calls no `MarkSink`.
-#![cfg(target_os = "macos")]
+#![cfg(any(target_os = "macos", windows))]
 
 use std::collections::HashMap;
 use std::io::Read;

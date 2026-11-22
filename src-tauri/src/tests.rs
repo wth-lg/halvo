@@ -1141,6 +1141,8 @@ fn the_configuration_holds_no_dev_policy_and_no_dev_address() {
 
 mod answers;
 mod layer;
+#[cfg(any(target_os = "macos", windows))]
+mod product_hub;
 mod states;
 
 #[derive(Default)]
