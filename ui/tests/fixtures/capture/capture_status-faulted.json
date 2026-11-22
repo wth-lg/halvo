@@ -82,7 +82,7 @@
     "backup_limit": null,
     "custody": "This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.",
     "limits": "A copy of Halvo's data made earlier, such as a backup, keeps what it held: expiry does not reach it, and after a delete-all a copy of the whole data folder can still be read.",
-    "passwords": "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.",
+    "passwords": "",
     "recorded": [
       {
         "switch": null,
@@ -97,8 +97,7 @@
         "text": "Screen activity is not recorded."
       }
     ],
-    "storage": "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that.",
-    "typed_ahead": "A key that you press before a program or page has moved to its password field, for example while it is frozen or still loading, can be noted: when it was pressed, in which app and what kind of key, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in."
+    "storage": "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
   },
   "window": {
     "first_report_day": 7,

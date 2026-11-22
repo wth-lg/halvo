@@ -728,10 +728,10 @@ fn a_mac_view_names_no_row_of_keys_or_pointer_actions_while_the_input_source_fai
             false,
         ),
         (
-            "a tap given no key events",
+            "a tap thread that ended",
             Capture::Partial,
             SourceState::Failed {
-                reason: Reason::NoKeyEvents,
+                reason: Reason::ThreadEnded,
                 error: None,
             },
             GrantState::Granted,
@@ -772,6 +772,16 @@ fn a_mac_view_names_no_row_of_keys_or_pointer_actions_while_the_input_source_fai
         for row in others {
             assert!(rows.contains(&row), "{case}: {row}");
         }
+        assert_eq!(
+            !view.texts.passwords.is_empty(),
+            shown,
+            "{case}: the sentence on passwords"
+        );
+        assert_eq!(
+            view.texts.typed_ahead.is_some(),
+            shown,
+            "{case}: the sentence on a key pressed early"
+        );
     }
 }
 

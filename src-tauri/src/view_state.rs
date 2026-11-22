@@ -971,7 +971,8 @@ fn reset_rows(status: &DaemonStatus) -> Vec<Recorded> {
 
 /// The sentences of `status` that a view shows: by [`typing_shown`], without the row of keys,
 /// the sentence on passwords (left empty) and the sentence on a key pressed early; by
-/// [`input_fails_or_waits_for_its_grant`], without the rows of keys and of pointer actions.
+/// [`input_fails_or_waits_for_its_grant`], without the rows of keys and of pointer actions and
+/// without the same two sentences.
 pub fn texts_shown(status: &DaemonStatus) -> Texts {
     let mut shown = texts(status);
     if !typing_shown(status) {
@@ -988,6 +989,8 @@ pub fn texts_shown(status: &DaemonStatus) -> Texts {
                 Some(SwitchName::KeyClass | SwitchName::PointerClass)
             )
         });
+        shown.passwords = "";
+        shown.typed_ahead = None;
     }
     shown
 }
