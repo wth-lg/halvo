@@ -85,6 +85,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         request_permission,
         open_permission_pane,
         last_delete,
+        acknowledge_lost_permission,
     ];
     handle(invoke)
 }
@@ -409,6 +410,30 @@ pub async fn request_permission(
             }
             _ => not_taken(&error),
         })
+}
+
+/// Puts a lost grant away with one acknowledge_lost_permission request, takes the
+/// status that comes back into the view, so that the tray's line goes with it, and answers the
+/// onboarding rows of that status.
+#[tauri::command]
+pub async fn acknowledge_lost_permission(
+    state: State<'_, AppState>,
+    permission: Permission,
+) -> Result<OnboardingState, ActionError> {
+    let made = state.control.places().make();
+    let call = made.number();
+    let control = Arc::clone(&state.control);
+    let (answer, next_number_at_answer) = off_the_main_thread(move || {
+        let answer = control.acknowledge_lost_permission(made, permission);
+        (answer, control.places().next_number())
+    })
+    .await?;
+    let status = answer.map_err(|error| not_taken(&error))?;
+    state
+        .views
+        .take_mutation(call, next_number_at_answer, &status);
+    draw_off_the_main_thread(&state.views).await;
+    Ok(onboarding_shown(&status))
 }
 
 /// The error of a request that the service did not take, as the page reads it.

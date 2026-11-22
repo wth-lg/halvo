@@ -138,6 +138,7 @@ const WORDS = {
   ASK_ALREADY_ON: "The {pane} permission is already on.",
   ASK_BUSY: "Halvo is already asking macOS for another permission. Try again in a moment.",
   ASK_UNSUPPORTED: "Halvo's capture service cannot ask macOS for this permission right now. Quit Halvo, open it again, and try once more.",
+  LEAVE_OFF: "Leave it off",
   PERMISSIONS_HEADING: "Permissions",
   WALKBACK_INTRO: "To get capture working again:",
   CAPTURE_HEADING: "Capture",

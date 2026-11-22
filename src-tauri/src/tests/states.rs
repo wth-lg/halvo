@@ -669,6 +669,78 @@ fn a_mac_status_with_typing_off_gets_none_of_the_four() {
 }
 
 #[test]
+fn an_acknowledged_lost_grant_reads_lost_no_more_on_the_row_and_the_tray() {
+    use tauri::Manager;
+    let grant = |once_granted: bool| {
+        status_with(Platform::Macos, |f| {
+            if let Some(line) = f
+                .permissions
+                .iter_mut()
+                .find(|line| line.name == Permission::Accessibility)
+            {
+                line.grant = GrantState::NotGranted;
+                line.once_granted = once_granted;
+            }
+        })
+    };
+    let lost = grant(true);
+    let put_away = crate::tray::labels(&StatusView::of(&grant(false)));
+    let test = super::test_app_with(
+        super::scratch_dir("acknowledge"),
+        halvo_control::testing::ScriptedDaemon::new(lost),
+    );
+    let before = crate::tray::labels(&test.poll());
+    assert_ne!(
+        before.status_text, put_away.status_text,
+        "the tray says that a grant was lost"
+    );
+    let window = super::main_window(&test.app);
+    let answer = super::invoke(
+        &window,
+        super::APP_URL,
+        "acknowledge_lost_permission",
+        serde_json::json!({ "permission": "accessibility" }),
+    )
+    .unwrap_or_else(|e| panic!("acknowledge_lost_permission answers {e}"));
+    let acknowledged: Vec<halvo_control::proto::Request> = test
+        .daemon
+        .requests()
+        .into_iter()
+        .filter(|r| {
+            matches!(
+                r,
+                halvo_control::proto::Request::AcknowledgeLostPermission { .. }
+            )
+        })
+        .collect();
+    assert_eq!(
+        acknowledged,
+        [halvo_control::proto::Request::AcknowledgeLostPermission {
+            permission: Permission::Accessibility
+        }],
+        "one request of that name"
+    );
+    let row = answer["permissions"]
+        .as_array()
+        .and_then(|rows| rows.iter().find(|row| row["permission"] == "accessibility"))
+        .unwrap_or_else(|| panic!("the answer holds the row: {answer}"));
+    assert_eq!(
+        row["lost"],
+        Value::Bool(false),
+        "the row reads lost no more"
+    );
+    assert_eq!(row["grant"], "not_granted");
+    assert_eq!(
+        answer["lost_grants"],
+        serde_json::json!([]),
+        "the banner goes"
+    );
+    let state = test.app.state::<crate::commands::capture::AppState>();
+    let after = crate::tray::labels(&state.views.view());
+    assert_eq!(after, put_away, "the tray's line goes with the answer");
+}
+
+#[test]
 #[ignore = "prints the view of each state for a review of the fixtures"]
 fn print_the_views_of_the_states() {
     for (name, view) in states() {

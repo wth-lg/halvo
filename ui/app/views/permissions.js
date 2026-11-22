@@ -55,6 +55,14 @@
     };
   }
 
+  function putAway(permission) {
+    return function () {
+      return Halvo.ipc.call("acknowledge_lost_permission", { permission: permission }).then(onboarding.set, function (e) {
+        outcome.textContent = Halvo.errorWords(e);
+      });
+    };
+  }
+
   function withKept(o) {
     var all = o.walkback.slice();
     Object.keys(kept).forEach(function (permission) {
@@ -114,7 +122,9 @@
           class: "badge " + (granted ? "granted" : "missing"),
           text: granted ? w.GRANT_ON : p.lost ? w.GRANT_LOST : p.asked ? w.GRANT_OFF : w.GRANT_NOT_ASKED,
         });
-        return Halvo.el("div", { class: "row" }, [badge, Halvo.el("strong", { text: p.pane_name }), Halvo.el("span", { class: "muted why", text: p.why })]);
+        var row = Halvo.el("div", { class: "row" }, [badge, Halvo.el("strong", { text: p.pane_name }), Halvo.el("span", { class: "muted why", text: p.why })]);
+        if (p.lost) row.appendChild(button(w.LEAVE_OFF, putAway(p.permission)));
+        return row;
       }),
     );
     var all = withKept(o);

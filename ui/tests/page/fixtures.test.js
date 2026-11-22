@@ -87,11 +87,29 @@ test("every permission granted shows every row as On and no steps", async () => 
 });
 
 test("a lost permission shows the banner that names its pane", async () => {
-  const page = await openPage({ replies: { onboarding_state: () => fixture("onboarding_state-lost") } });
+  const lost = fixture("onboarding_state-lost");
+  const putAway = { ...lost, lost_grants: [], permissions: lost.permissions.map((p) => ({ ...p, lost: false })) };
+  let answer = lost;
+  const page = await openPage({
+    replies: {
+      onboarding_state: () => answer,
+      acknowledge_lost_permission: () => {
+        answer = putAway;
+        return putAway;
+      },
+    },
+  });
   assert.equal(page.visible("lost-banner"), true);
   assert.match(page.text("lost-banner"), /Accessibility/);
-  const badges = page.byId("permissions").querySelectorAll("span.badge").map((b) => b.textContent);
-  assert.deepEqual(badges, ["On", "Lost", "On"]);
+  const badges = () => page.byId("permissions").querySelectorAll("span.badge").map((b) => b.textContent);
+  assert.deepEqual(badges(), ["On", "Lost", "On"]);
+  const controls = page.byId("permissions").querySelectorAll("button");
+  assert.deepEqual(controls.map((b) => b.textContent), ["Leave it off"], "one control puts the lost row away");
+  await page.click(controls[0]);
+  assert.deepEqual(page.calls("acknowledge_lost_permission").map((c) => c.args), [{ permission: "accessibility" }]);
+  assert.ok(argsOf("acknowledge_lost_permission").every((keys) => keys.join() === "permission"));
+  assert.deepEqual(badges(), ["On", "Not asked yet", "On"]);
+  assert.equal(page.visible("lost-banner"), false);
 });
 
 test("no required permission hides the permissions section", async () => {

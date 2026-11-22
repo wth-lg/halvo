@@ -166,6 +166,16 @@ pub trait Control: Send + Sync {
     fn relay(&self, _made: Made, _request: &[u8]) -> Result<Vec<u8>, ClientError> {
         Err(ClientError::Unsupported)
     }
+
+    /// Sends one acknowledge_lost_permission for `permission` and answers the status that comes
+    /// back. A control with no such call answers `ClientError::Unsupported`.
+    fn acknowledge_lost_permission(
+        &self,
+        _made: Made,
+        _permission: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
 }
 
 fn the_same_for_each_request(left: Duration) -> Deadlines {
@@ -287,6 +297,18 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
         self.run(made, &Request::RequestPermission { permission }, |client| {
             client.request_permission(permission)
         })
+    }
+
+    fn acknowledge_lost_permission(
+        &self,
+        made: Made,
+        permission: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        self.run(
+            made,
+            &Request::AcknowledgeLostPermission { permission },
+            |client| client.acknowledge_lost_permission(permission),
+        )
     }
 }
 
