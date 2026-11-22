@@ -120,7 +120,7 @@ impl Liveness {
 static APP: Liveness = Liveness::new();
 
 /// The app's first liveness signal in this life of the daemon: from this call on the driver may answer yes. The
-/// capture run's server makes it; nothing makes it yet.
+/// capture service's run makes it at each status that claims the indicator (`service::seen`).
 pub fn app_seen() {
     APP.see();
 }

@@ -2,12 +2,13 @@ mod common;
 
 use std::collections::VecDeque;
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
-use common::{ask_store, effect, id, Rig, Store};
+use common::{ask_store, effect, id, wait_until, Rig, Store};
 use halvo_agent_client::link::{End, Ends, Refusal, StreamLink};
 use halvo_agent_client::OwnerLink;
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
@@ -23,15 +24,21 @@ enum Far {
     Dead,
     /// Answers each request from the memory owner until the stream ends.
     Serve,
+    /// Answers one request from the memory owner and leaves, as an owner that exits while the link is idle: it ends
+    /// the stream for the link, makes the file `Seen::left`, and counts the bytes that it reads after that until
+    /// the link closes the stream.
+    Leaves,
 }
 
 /// What the test's ends saw: the calls of `Ends`, the requests that a far end read, and the memory owner that
-/// answers them.
+/// answers them; for a far end that leaves, the file that it makes when it has left and the bytes that it read after.
 #[derive(Default)]
 struct Seen {
     asked: AtomicUsize,
     read: AtomicUsize,
     owner: Store,
+    left: OnceLock<PathBuf>,
+    late: Mutex<Option<usize>>,
 }
 
 /// The test's `Ends`: each call takes the next planned answer, and for a far end makes a new stream and starts the
@@ -68,7 +75,27 @@ impl Ends for Planned {
 }
 
 type FarReads = Box<dyn Read + Send>;
-type FarWrites = Box<dyn Write + Send>;
+type FarWrites = Box<dyn FarWrite>;
+
+/// The far end's half that writes. `leave` ends the stream for the link and leaves the far end's half that reads
+/// open.
+trait FarWrite: Write + Send {
+    fn leave(self: Box<Self>);
+}
+
+#[cfg(unix)]
+impl FarWrite for std::os::unix::net::UnixStream {
+    fn leave(self: Box<Self>) {
+        self.shutdown(std::net::Shutdown::Write).unwrap();
+    }
+}
+
+#[cfg(windows)]
+impl FarWrite for std::io::PipeWriter {
+    fn leave(self: Box<Self>) {
+        drop(self);
+    }
+}
 
 /// A new stream: the link's end, and the far end as the half that reads and the half that writes.
 #[cfg(unix)]
@@ -113,6 +140,14 @@ fn far_end(far: Far, mut reads: FarReads, mut writes: FarWrites, seen: Arc<Seen>
             if write_frame(&mut writes, &reply, SERVER_FRAME_MAX).is_err() {
                 return;
             }
+            if let Far::Leaves = far {
+                writes.leave();
+                std::fs::write(seen.left.get().unwrap(), b"").unwrap();
+                let mut late = Vec::new();
+                let _ = reads.read_to_end(&mut late);
+                *seen.late.lock().unwrap() = Some(late.len());
+                return;
+            }
         }
     });
 }
@@ -154,11 +189,12 @@ fn a_stream_that_ends_inside_a_reply_is_answered_store() {
     rig.sup.kill(&run).unwrap();
 }
 
-/// U9.2 point 3: a refusal of `Ends` and the request after it inside the wait each cost one `store` and the second
-/// asks nobody; after the wait an end that is dead when it arrives costs one `store`, and the next request takes a
-/// new end and gets the owner's reply. No request but the last reaches the owner.
+/// U9.2 point 3, turned by U9.9: a refusal of `Ends` and the request after it inside the wait each cost one `store`
+/// and the second asks nobody; after the wait an end that is dead when it arrives costs nothing: the link finds it
+/// ended before the send, asks `Ends` for a new end and sends the request once, on that end, as it sends the next
+/// request. The two requests in the wait reach no owner.
 #[test]
-fn a_dead_end_costs_one_error_and_the_next_request_takes_a_new_end() {
+fn a_refused_end_costs_its_wait_and_a_dead_end_costs_nothing() {
     const WAIT: Duration = Duration::from_millis(700);
     let (ends, seen) = Planned::new(vec![Err(Refusal::Busy), Ok(Far::Dead), Ok(Far::Serve)]);
     let rig = Rig::linked(
@@ -184,19 +220,66 @@ fn a_dead_end_costs_one_error_and_the_next_request_takes_a_new_end() {
         vec![
             answered(0x72, "store"),
             answered(0x73, "store"),
-            answered(0x74, "store"),
+            stored(0x74),
             stored(0x75),
         ]
     );
     assert_eq!(seen.asked.load(Ordering::SeqCst), 3, "calls of Ends");
     assert_eq!(
         seen.read.load(Ordering::SeqCst),
-        1,
+        2,
         "requests that a far end read"
     );
-    for n in [0x72, 0x73, 0x74] {
+    for n in [0x72, 0x73] {
         assert_eq!(seen.owner.count(&id(n)), 0, "{n:#x} reached the owner");
     }
-    assert_eq!(seen.owner.count(&id(0x75)), 1);
+    for n in [0x74, 0x75] {
+        assert_eq!(seen.owner.count(&id(n)), 1, "{n:#x} at the owner");
+    }
+    rig.sup.kill(&run).unwrap();
+}
+
+/// U9.9: the far end answers one request and leaves while the link is idle, as an owner that exits after its idle
+/// time. The next request asks `Ends` for a new end, is sent once on it, and the runner gets the owner's reply; the
+/// far end that left read no byte of that request.
+#[test]
+fn a_stream_that_ended_while_idle_costs_the_next_request_nothing() {
+    let (ends, seen) = Planned::new(vec![Ok(Far::Leaves), Ok(Far::Serve)]);
+    let rig = Rig::linked("link-left", Arc::new(StreamLink::new(ends)));
+    let left = rig.dir.join("left");
+    seen.left.set(left.clone()).unwrap();
+    let script = rig.script(&[
+        "hello",
+        &ask_store(&id(0x7a), &effect(&id(0x7c), 1, "held")),
+        &format!("wait-for {}", left.display()),
+        &ask_store(&id(0x7b), &effect(&id(0x7d), 1, "held")),
+        "log asked",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("asked", SHORT), "{}", script.log());
+    assert!(
+        script.log().contains("waited found=yes"),
+        "{}",
+        script.log()
+    );
+    assert_eq!(script.replies(), vec![stored(0x7a), stored(0x7b)]);
+    assert_eq!(seen.asked.load(Ordering::SeqCst), 2, "calls of Ends");
+    assert_eq!(
+        seen.read.load(Ordering::SeqCst),
+        2,
+        "requests that a far end read"
+    );
+    for n in [0x7a, 0x7b] {
+        assert_eq!(seen.owner.count(&id(n)), 1, "{n:#x} at the owner");
+    }
+    assert!(wait_until(SHORT, || seen.late.lock().unwrap().is_some()));
+    assert_eq!(
+        *seen.late.lock().unwrap(),
+        Some(0),
+        "bytes that the far end read after it left"
+    );
     rig.sup.kill(&run).unwrap();
 }

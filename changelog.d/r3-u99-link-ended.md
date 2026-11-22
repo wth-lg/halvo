@@ -1,0 +1,1 @@
+- Fixed: An agent's run that waited for a person's yes no longer loses its next request when the store's owner left meanwhile: the agent client's link reads whether its owner stream has ended before it sends a request, and sends the request once on a new end (agents run, U9.9).

@@ -20,6 +20,7 @@ mod playbook;
 mod release;
 mod run;
 mod secret;
+mod web;
 
 use std::ffi::OsString;
 use std::io::Write;
@@ -37,8 +38,21 @@ fn line(text: &str) {
 
 /// Runs the runner with its arguments (without the program name) and returns the exit status: 0 once the run's
 /// `done` is written after a stored `finish`, 1 when the link closed or the `finish` was not stored, 2 for a
-/// refusal with one line `REFUSED <cause>: <detail>` on standard error, the cause `usage` or `frame`.
+/// refusal with one line `REFUSED <cause>: <detail>` on standard error, the cause `usage` or `frame`. A call whose
+/// first argument is `--relay-guard` is the guard of the relay of a run's browser, which the runner starts with its
+/// own binary: `halvo_web::guard::guard_main` takes its other arguments and gives its status, 2 for an argument that
+/// is not UTF-8.
 pub fn main(args: Vec<OsString>) -> i32 {
+    if args
+        .first()
+        .is_some_and(|first| first == halvo_web::guard::GUARD_FLAG)
+    {
+        let words: Option<Vec<String>> = args[1..]
+            .iter()
+            .map(|word| word.to_str().map(str::to_string))
+            .collect();
+        return words.map_or(2, |words| halvo_web::guard::guard_main(&words));
+    }
     std::panic::set_hook(Box::new(|_| {
         line(PANIC_LINE);
         std::process::exit(1);

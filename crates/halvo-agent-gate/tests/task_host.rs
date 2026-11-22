@@ -42,9 +42,10 @@ fn gate(args: &[&str], tmp: &Path) -> Output {
         .expect("agent-gate runs")
 }
 
-/// Builds the runner's binary beside `agent-gate`, where the gate looks for it.
+/// Builds the runner's binary beside `agent-gate`, where the gate looks for it, with the runner's test feature
+/// `loopback` (`common::build_runner` says why).
 fn build_runner() {
-    common::build_beside("halvo-runner", "halvo-runner");
+    common::build_runner();
 }
 
 /// U4.11 (first) sentence 1: the fill of seed 1 over the host link prints the one line of A14.5, its keys in its

@@ -296,6 +296,8 @@ fn accept(
     }
 }
 
+impl super::ServesUnknown for PipeStream {}
+
 fn client_user(instance: &OwnedHandle, user_of: UserOf) -> Option<String> {
     let mut pid = 0u32;
     // SAFETY: the instance is open and connected, and `pid` is a live local.

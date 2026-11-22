@@ -379,6 +379,13 @@ impl OwnerChannel for Starter<'_> {
             .map_err(|_| std::io::Error::other("the frame stream is not written"))
     }
 
+    /// Writes `frame` on the starter's channel, as owner.rs of halvo-owner does: the handler of `relay` hands the owner
+    /// its request so, and this stand-in server hands `dispatch_unknown` no request but `owner_stream`.
+    fn send(&mut self, frame: &[u8]) -> std::io::Result<()> {
+        write_frame(&mut self.0.requests, frame, CLIENT_FRAME_MAX)
+            .map_err(|_| std::io::Error::other("the frame is not written"))
+    }
+
     fn answer(&mut self, within: Duration) -> std::io::Result<Option<Vec<u8>>> {
         let deadline = Mono::now() + within;
         loop {
@@ -675,8 +682,8 @@ fn listed_checkpoints(data_dir: &Path) -> Vec<ListedCheckpoint> {
 /// of A14.5, its keys in its order, with `store=owner` and `result=completed`, and that the owner's store holds the
 /// checkpoint of the command's run of the workflow and the run's record, as `list_checkpoints` reads them afterwards.
 fn fill_over_the_owner(name: &str, zone: Option<&str>) {
-    common::build_beside("halvo-runner", "halvo-runner");
-    let owner_binary = common::build_beside("halvo-owner", "halvo-owner");
+    common::build_runner();
+    let owner_binary = common::build_beside("halvo-owner", "halvo-owner", &[]);
     let root = scratch(name);
     let tmp = dir_in(&root, "tmp");
     let mut owner = start_owner(&owner_binary, &dir_in(&root, "owner"), zone);
@@ -768,7 +775,7 @@ fn a_fill_over_the_product_link_completes_where_the_local_date_is_not_the_utc_da
 #[cfg(target_os = "macos")]
 #[test]
 fn a_server_that_does_not_serve_owner_stream_gives_no_completed_line() {
-    common::build_beside("halvo-runner", "halvo-runner");
+    common::build_runner();
     let root = scratch("link-product-unknown");
     let tmp = dir_in(&root, "tmp");
     let (data_dir, listener) = control_dir(&root);

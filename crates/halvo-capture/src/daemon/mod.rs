@@ -1,28 +1,28 @@
 //! The capture daemon: the store owner, which is the one thread that holds the
 //! capture store, and the gate's timed run on that owner.
 
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub mod barrier;
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub mod batch;
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub mod board;
 pub mod children;
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub mod counters;
 pub mod custody_policy;
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub mod delete_all;
 pub mod instance;
 pub mod lease;
 pub mod main_loop;
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub mod maintenance;
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 mod mask;
 #[cfg(test)]
 pub(crate) mod model_store;
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub mod owner;
 pub mod owner_pid;
 #[cfg(test)]
@@ -34,20 +34,20 @@ mod process_tests;
 #[rustfmt::skip]
 #[cfg(feature = "r2")] pub mod r2;
 mod report;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 mod run_marker;
 #[cfg(test)]
 mod scripted;
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub mod server;
 pub mod signal;
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub mod slot;
 pub mod sources;
 pub mod state;
 #[cfg(test)]
 mod stop_tests;
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub mod supervisor;
 
 use std::ffi::OsString;
@@ -989,7 +989,7 @@ pub trait RunSources {
     fn hold_refusal(&self) -> Option<DaemonError>;
 
     /// Waits as [`RunSources::wait`] does while the supervisor reads `owner`.
-    #[cfg(any(test, target_os = "macos"))]
+    #[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
     fn supervise(
         &mut self,
         window: Duration,
@@ -1008,7 +1008,7 @@ pub trait RunSources {
 
     /// The clock and the waits of the stop path, when the sources keep their
     /// own: the supervisor's main loop. `None` gives the real clock.
-    #[cfg(any(test, target_os = "macos"))]
+    #[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
     fn waits(&mut self) -> Option<&mut dyn Waits> {
         None
     }
@@ -1058,7 +1058,7 @@ pub fn finish_run(
 }
 
 /// The clock and the waits of a timed run's stop path.
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub trait Waits {
     /// The time since a fixed start.
     fn clock(&self) -> Duration;
@@ -1071,10 +1071,10 @@ pub trait Waits {
 }
 
 /// The process's own clock and blocking waits.
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 pub struct RealWaits;
 
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 impl Waits for RealWaits {
     fn clock(&self) -> Duration {
         static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
@@ -1354,7 +1354,7 @@ fn let_go_of<P: RunSources>(sources: &P) -> Vec<&'static str> {
 /// The loss line of a run whose owner thread ended before it answered the
 /// stop: the events that the sink accepted and no write stored (contracts.md
 /// C3.2).
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 fn owner_ended(settled: &counters::Snapshot, sink: &crate::sink::SinkCounts) -> Loss {
     let accepted: u64 = crate::event::Modality::ALL
         .into_iter()
@@ -1492,7 +1492,7 @@ fn with_the_drain_short(
     }
 }
 
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 fn loss_line(settled: &counters::Snapshot, count: u64, reports: &[owner::Report]) -> String {
     let kind = reports
         .iter()
@@ -1748,7 +1748,7 @@ pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
     }
 }
 
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 impl<'a> port::SegmentWrite<'a> {
     fn new(
         segment_id: &'a port::SegmentId,
@@ -1818,15 +1818,20 @@ pub struct DurableState;
 /// After the instance lock and the state file, the owner opens the store
 /// under the data directory through the adapter, and creates it on a first
 /// run; a SIGTERM closes it. This cut starts no source and binds no socket.
-/// On Windows it answers that the service run is not built yet (win-5) with
-/// status 1.
+/// A Windows debug build serves the same run over the named pipe of `dir`
+/// with the sources of [`crate::windows::sources::ServiceSet`]; there the
+/// Stop request is the one stop.
 #[cfg(any(debug_assertions, target_os = "macos"))]
 pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::StateWrite>) -> i32 {
     #[cfg(target_os = "macos")]
     {
         serve_the_mac(dir, writer, None)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(all(windows, debug_assertions))]
+    {
+        serve_windows(dir, writer)
+    }
+    #[cfg(not(any(target_os = "macos", all(windows, debug_assertions))))]
     {
         use std::io::Write as _;
         let _ = (dir, writer);
@@ -1842,7 +1847,9 @@ pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::S
 /// [`service_run`], which also ends through its one shutdown entry once the
 /// lifeline reaches its end of file or its parent is gone, with 0, or 1 when
 /// the final flush failed. The parent's pid is the exclusion root of the
-/// floor. On Windows it answers as [`service_run`] does (win-5).
+/// floor. On Windows the watch of the lifeline is not built: the mode says
+/// so on standard error and exits 1 before it takes the data directory, so
+/// that no run captures without the watch that ends it with the app.
 #[cfg(any(debug_assertions, target_os = "macos"))]
 pub fn lifeline_service_run(
     dir: &halvo_control::paths::DataDir,
@@ -1857,9 +1864,17 @@ pub fn lifeline_service_run(
     }
     #[cfg(not(target_os = "macos"))]
     {
-        service_run(dir, writer)
+        use std::io::Write as _;
+        let _ = (dir, writer);
+        let _ = writeln!(std::io::stderr(), "halvo-capture: {LIFELINE_NOT_BUILT}");
+        halvo_control::exit::ERROR
     }
 }
+
+/// The line of `--service-run --lifeline` on a system where the watch of the
+/// lifeline is not built.
+#[cfg(not(target_os = "macos"))]
+pub const LIFELINE_NOT_BUILT: &str = "the lifeline mode is not built on this system";
 
 /// Runs `ctl` (contracts.md C2.2 to C2.7): the request of its verb to the
 /// service run of its data directory through halvo-control's client, the
@@ -1975,22 +1990,28 @@ pub mod seam {
     }
 
     /// Runs the service run on `dir` with [`ScriptedSources`], after
-    /// [`FIRST_LINE`] on standard error; on another system it answers as
-    /// the service run does there.
+    /// [`FIRST_LINE`] on standard error; on another system the scripted
+    /// sources are not built, and it says so on standard error and exits 1
+    /// with no run.
     pub fn scripted_service_run(
         dir: &halvo_control::paths::DataDir,
         writer: Box<dyn super::state::StateWrite>,
     ) -> i32 {
         use std::io::Write as _;
         std::hint::black_box(&MARKER);
-        let _ = writeln!(std::io::stderr(), "{FIRST_LINE}");
         #[cfg(target_os = "macos")]
         {
+            let _ = writeln!(std::io::stderr(), "{FIRST_LINE}");
             super::serve_the_mac_with(dir, writer, None, |_| ScriptedSources)
         }
         #[cfg(not(target_os = "macos"))]
         {
-            super::service_run(dir, writer)
+            let _ = (dir, writer);
+            let _ = writeln!(
+                std::io::stderr(),
+                "halvo-capture: the scripted sources are not built on this system"
+            );
+            halvo_control::exit::ERROR
         }
     }
 }
@@ -2071,6 +2092,61 @@ impl main_loop::MainLoop for ServiceLoop {
     }
 }
 
+#[cfg(all(windows, debug_assertions))]
+fn serve_windows(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::StateWrite>) -> i32 {
+    static NO_STOP_FLAG: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    serve_on(
+        dir,
+        writer,
+        WindowsLoop {
+            started: std::time::Instant::now(),
+        },
+        &NO_STOP_FLAG,
+        std::sync::Arc::new(main_loop::ExitNow),
+        &mut std::io::stderr(),
+        ServiceParts::of(crate::windows::sources::ServiceSet::new()),
+    )
+}
+
+#[cfg(all(windows, debug_assertions))]
+struct WindowsLoop {
+    started: std::time::Instant,
+}
+
+#[cfg(all(windows, debug_assertions))]
+impl main_loop::MainLoop for WindowsLoop {
+    fn turn(&mut self, wait: Duration) {
+        std::thread::sleep(wait);
+    }
+
+    fn now(&self) -> Duration {
+        self.started.elapsed()
+    }
+}
+
+#[cfg(all(windows, debug_assertions))]
+impl supervisor::SystemSources for crate::windows::sources::ServiceSet {}
+
+#[cfg(target_os = "macos")]
+pub(crate) type Lifeline = lease::lifeline::Lifeline;
+
+#[cfg(all(windows, debug_assertions))]
+pub(crate) enum Lifeline {}
+
+#[cfg(all(windows, debug_assertions))]
+impl Lifeline {
+    fn parent(&self) -> u32 {
+        match *self {}
+    }
+}
+
+#[cfg(all(windows, debug_assertions))]
+impl lease::ParentWatch for Lifeline {
+    fn ended(&self) -> bool {
+        match *self {}
+    }
+}
+
 #[cfg(all(target_os = "macos", debug_assertions))]
 struct NoSources;
 
@@ -2084,7 +2160,7 @@ impl sources::SourceFactory for NoSources {
 #[cfg(all(target_os = "macos", debug_assertions))]
 impl supervisor::SystemSources for NoSources {}
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 const SERVICE_WAIT: Duration = Duration::from_secs(60);
 
 /// The service run of contracts.md C3.2 up to its wait, on the data directory
@@ -2117,10 +2193,10 @@ pub(crate) fn serve<L: main_loop::MainLoop>(
 /// a run started with `--lifeline`, and in a test build the lease that the
 /// run starts with and a call that gets the last settle of its shutdown
 /// entry.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 pub(crate) struct ServiceParts<F> {
     pub(crate) factory: F,
-    pub(crate) lifeline: Option<lease::lifeline::Lifeline>,
+    pub(crate) lifeline: Option<Lifeline>,
     #[cfg(test)]
     pub(crate) lease: lease::Lease,
     #[cfg(test)]
@@ -2129,11 +2205,11 @@ pub(crate) struct ServiceParts<F> {
     pub(crate) wrap_store: Option<WrapStore>,
 }
 
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(all(test, any(target_os = "macos", all(windows, debug_assertions))))]
 pub(crate) type WrapStore =
     Box<dyn FnOnce(Box<dyn port::CaptureStore + Send>) -> Box<dyn port::CaptureStore + Send>>;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 impl<F: supervisor::SystemSources> ServiceParts<F> {
     pub(crate) fn of(factory: F) -> ServiceParts<F> {
         ServiceParts {
@@ -2150,7 +2226,7 @@ impl<F: supervisor::SystemSources> ServiceParts<F> {
 }
 
 /// [`serve`] with the sources, the lifeline and the lease of `parts`.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 pub(crate) fn serve_on<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
@@ -2190,7 +2266,7 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
 /// once the store is open for capture, the supervisor serves the sources of
 /// [`sources::starting`] for the switches of the state file, each begun on
 /// the owner's sink and floor.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     lock: instance::InstanceLock,
@@ -2217,7 +2293,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             error.kind()
         );
     }
-    let listening = match server::unix::Listening::bind(dir) {
+    let listening = match server::Listening::bind(dir) {
         Ok(listening) => listening,
         Err(error) => {
             let _ = writeln!(
@@ -2269,7 +2345,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         .as_ref()
         .map(|lifeline| crate::floor::exclude::ProcessId::new(lifeline.parent()));
     let mut supervisor = supervisor::Supervisor::new(
-        halvo_control::proto::Platform::Macos,
+        halvo_control::proto::Platform::current(),
         parts.factory,
         main_loop,
     )
@@ -2458,7 +2534,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 match capture_owner(store, held_cap, switches, root) {
                     Ok(owner) => {
                         let wanted = sources::starting(
-                            halvo_control::proto::Platform::Macos,
+                            halvo_control::proto::Platform::current(),
                             sources::RunKind::Service,
                             switches,
                         );
@@ -2467,6 +2543,13 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                         listening
                             .admitting()
                             .hold_owner(Some(owner.watched.handle.clone()));
+                        #[cfg(feature = "r2")]
+                        r2::service::open(
+                            dir.path(),
+                            children::own_dir(),
+                            r2::when::SystemReadings,
+                            Box::new(std::io::stderr()),
+                        );
                         let store = HeldStore::Capture(Box::new(owner));
                         supervisor.set_slot(slot::Slot::Open { id }, store.link());
                         store
@@ -2557,7 +2640,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     status
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn second_now() -> halvo_control::model::UtcSecond {
     let seconds = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2569,14 +2652,14 @@ fn second_now() -> halvo_control::model::UtcSecond {
         })
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 struct Serving<'a> {
-    listening: &'a server::unix::Listening,
+    listening: &'a server::Listening,
     facts: &'a server::RunFacts,
     obstructed: Option<Duration>,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 enum Waited {
     Window,
     Ended,
@@ -2584,7 +2667,7 @@ enum Waited {
     Delete(server::Asked),
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn wait_serving<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     supervisor: &mut supervisor::Supervisor<F, L>,
     serving: &Serving<'_>,
@@ -2623,7 +2706,7 @@ fn wait_serving<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     asked: server::Asked,
     supervisor: &mut supervisor::Supervisor<F, L>,
@@ -2631,6 +2714,8 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     store: &HeldStore,
 ) {
     use halvo_control::proto::{ErrorCode, ErrorReply, Reply, Request};
+    #[cfg(feature = "r2")]
+    r2::service::seen(&asked.request);
     if asked.request.claims_the_indicator() {
         supervisor.renew_lease(store.link());
     }
@@ -2653,11 +2738,11 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     let _ = asked.answer(reply);
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 const WRITTEN_WAIT: Duration = Duration::from_millis(2_500);
 
-#[cfg(target_os = "macos")]
-fn answer_the_queue(listening: &server::unix::Listening) {
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+fn answer_the_queue(listening: &server::Listening) {
     let life = listening.admitting().ending_life();
     while let Some(asked) = listening.next() {
         let admission = halvo_control::proto::admission(
@@ -2677,7 +2762,7 @@ fn answer_the_queue(listening: &server::unix::Listening) {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 enum DeleteAsked {
     Answered,
     Reopen,
@@ -2690,7 +2775,7 @@ enum DeleteAsked {
     },
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     asked: server::Asked,
     supervisor: &mut supervisor::Supervisor<F, L>,
@@ -2781,6 +2866,8 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     };
     #[cfg(feature = "r2")]
     r2::marks::handler().drop_held();
+    #[cfg(feature = "r2")]
+    r2::service::delete();
     match delete_all::steps_of_the_delete(dir.path(), &how, &mut after_the_intent, &mut clear) {
         delete_all::Steps::Busy => {
             let line = "another process holds the store; this request deleted nothing";
@@ -2830,7 +2917,7 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn delete_report(
     ran: &delete_all::Ran,
     report: &TailReport,
@@ -2863,10 +2950,10 @@ fn delete_report(
     })
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 type DeletedReply = Option<(server::Asked, halvo_control::proto::DeleteReport)>;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn answer_the_delete(
     deleted: &mut DeletedReply,
     store: Option<port::StoreId>,
@@ -2880,7 +2967,7 @@ fn answer_the_delete(
     )))
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn made_none(opener: &owner::open::Opener) -> bool {
     opener.tries() > 0
         && !matches!(
@@ -2889,7 +2976,7 @@ fn made_none(opener: &owner::open::Opener) -> bool {
         )
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     asked: server::Asked,
     supervisor: &mut supervisor::Supervisor<F, L>,
@@ -2902,7 +2989,7 @@ fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         _ => state::Desired::Paused,
     };
     let facts = server::RunFacts {
-        rss_peak_bytes: server::unix::rss_peak_bytes(),
+        rss_peak_bytes: server::rss_peak_bytes(),
         ..*serving.facts
     };
     let changed = |parts: &server::StatusParts| {
@@ -2928,7 +3015,7 @@ fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 const INVENTORY_WAIT: Duration = Duration::from_millis(1_500);
 
 /// Writes `cap` through the state file's one writer (contracts.md C2.1,
@@ -2936,7 +3023,7 @@ const INVENTORY_WAIT: Duration = Duration::from_millis(1_500);
 /// state holds after it, which the owner evicts to: none for a cap that is
 /// not known, as after a write into a state file that does not load, which
 /// writes nothing.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn set_cap(
     state: &mut state::StateFile,
     cap: halvo_control::model::StorageCap,
@@ -2949,7 +3036,7 @@ fn set_cap(
 /// store whose disk total reads `disk_bytes`: whether that total stands above
 /// the cap, which the reply says as `evicting`, or the error `state_file`
 /// that names the file when the write did not land.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn cap_set_answer(
     written: &Result<(), state::StateError>,
     cap: halvo_control::model::StorageCap,
@@ -2964,7 +3051,7 @@ fn cap_set_answer(
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn cap_set_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     cap: halvo_control::model::StorageCap,
     supervisor: &mut supervisor::Supervisor<F, L>,
@@ -2997,7 +3084,7 @@ fn cap_set_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn inventory_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     supervisor: &mut supervisor::Supervisor<F, L>,
     store: &HeldStore,
@@ -3051,27 +3138,27 @@ fn inventory_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     )
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn status_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     supervisor: &supervisor::Supervisor<F, L>,
     serving: &Serving<'_>,
 ) -> Result<halvo_control::proto::DaemonStatus, halvo_control::proto::StatusError> {
     let facts = server::RunFacts {
-        rss_peak_bytes: server::unix::rss_peak_bytes(),
+        rss_peak_bytes: server::rss_peak_bytes(),
         ..*serving.facts
     };
     server::status_of(&supervisor.status_parts(serving.obstructed), &facts)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 const CLOSE_WAIT: Duration = Duration::from_secs(1);
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn close_the_store(owner: CaptureOwner, status: i32, err: &mut dyn std::io::Write) -> i32 {
     close_by(owner, owner::Command::Shutdown, status, err)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn close_unsettled(owner: CaptureOwner, err: &mut dyn std::io::Write) -> i32 {
     close_by(
         owner,
@@ -3081,7 +3168,7 @@ fn close_unsettled(owner: CaptureOwner, err: &mut dyn std::io::Write) -> i32 {
     )
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn close_by(
     owner: CaptureOwner,
     command: owner::Command,
@@ -3114,18 +3201,18 @@ fn close_by(
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 enum HeldStore {
     None,
     Capture(Box<CaptureOwner>),
     Maintenance(Box<MaintenanceUpkeep>),
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 type MaintenanceUpkeep =
     maintenance::Upkeep<Box<dyn port::MaintainStore + Send>, maintenance::SystemClocks>;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 impl HeldStore {
     fn link(&self) -> Option<&dyn supervisor::OwnerLink> {
         match self {
@@ -3135,7 +3222,7 @@ impl HeldStore {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn cap_bound(cap: state::Cap) -> Option<port::ByteBound> {
     match cap {
         state::Cap::Known(cap) => Some(port::ByteBound::of_cap(cap)),
@@ -3143,21 +3230,33 @@ fn cap_bound(cap: state::Cap) -> Option<port::ByteBound> {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 struct CaptureOwner {
     watched: supervisor::Watched,
     sink: crate::sink::SinkHandle,
     floor: crate::floor::exclude::FloorHandle,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 impl CaptureOwner {
     fn context(&self) -> SourceContext {
         SourceContext::with_floor(self.sink.clone(), self.floor.clone())
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+fn system_lineage() -> std::sync::Arc<dyn crate::floor::exclude::Lineage> {
+    #[cfg(target_os = "macos")]
+    {
+        std::sync::Arc::new(crate::macos::foreground::ProcessLineage)
+    }
+    #[cfg(all(windows, debug_assertions))]
+    {
+        std::sync::Arc::new(crate::windows::exclusion::ProcessLineage::new())
+    }
+}
+
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn capture_owner(
     store: Box<dyn port::CaptureStore + Send>,
     cap: Option<port::ByteBound>,
@@ -3165,9 +3264,8 @@ fn capture_owner(
     root: Option<crate::floor::exclude::ProcessId>,
 ) -> std::io::Result<CaptureOwner> {
     use crate::floor::exclude::FloorHandle;
-    use crate::macos::foreground::ProcessLineage;
     let (sink, writer) = crate::sink::channel(owner::QUEUE_SLOTS);
-    let floor = FloorHandle::new(root, std::sync::Arc::new(ProcessLineage), switches);
+    let floor = FloorHandle::new(root, system_lineage(), switches);
     let thread = owner::spawn(owner::OwnerParts {
         writer,
         store,
@@ -3183,20 +3281,20 @@ fn capture_owner(
     })
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 const MARK_RETRY: Duration = Duration::from_secs(1);
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 const DIR_SHUT_LINE: &str = "halvo-capture: store=unavailable store_error=obstructed: the data directory failed its check; no store was made or opened in it";
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 #[derive(Debug, Clone, Copy)]
 struct DirShut {
     next: std::time::Instant,
     delay: Duration,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 impl DirShut {
     fn first() -> DirShut {
         DirShut {
@@ -3219,7 +3317,7 @@ impl DirShut {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn start_the_opener(
     dir: &halvo_control::paths::DataDir,
     rule: owner::open::CreateRule,
@@ -3247,7 +3345,7 @@ fn start_the_opener(
 /// check, with no open after it: a failed check never gates a delete
 /// (contracts.md C3.2 step 3). The open starts once the check passes and
 /// this finish has ended.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn finish_the_intent_alone(
     dir: &halvo_control::paths::DataDir,
     err: &mut dyn std::io::Write,
@@ -3268,7 +3366,7 @@ fn finish_the_intent_alone(
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mark {
     NotYet,
@@ -3276,7 +3374,7 @@ enum Mark {
     Settled,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 impl Mark {
     fn at_the_answer(self) -> Mark {
         match self {
@@ -3286,14 +3384,14 @@ impl Mark {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn say_the_notes(opener: Option<&owner::open::Opener>, err: &mut dyn std::io::Write) {
     while let Some(note) = opener.and_then(owner::open::Opener::take_note) {
         let _ = writeln!(err, "{}", note.line());
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn mark_the_store_made<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     mark: Mark,
     supervisor: &mut supervisor::Supervisor<F, L>,
@@ -3317,12 +3415,13 @@ fn mark_the_store_made<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     Mark::Pending { said: true }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn take_the_data_dir(
     dir: &halvo_control::paths::DataDir,
     err: &mut dyn std::io::Write,
 ) -> Result<Option<instance::InstanceLock>, i32> {
     use halvo_control::paths::EntryAtDataDir;
+    #[cfg(target_os = "macos")]
     use std::os::unix::fs::DirBuilderExt;
 
     match dir.is_provisioned() {
@@ -3335,10 +3434,11 @@ fn take_the_data_dir(
     if std::fs::symlink_metadata(dir.path())
         .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
     {
-        let made = std::fs::DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
-            .create(dir.path());
+        let mut builder = std::fs::DirBuilder::new();
+        builder.recursive(true);
+        #[cfg(target_os = "macos")]
+        builder.mode(0o700);
+        let made = builder.create(dir.path());
         if let Err(error) = made {
             let _ = writeln!(
                 err,
@@ -3382,7 +3482,12 @@ fn obstructed_line(fault: halvo_control::paths::DataDirFault) -> String {
     format!("halvo-capture: data_dir=obstructed cause={cause}")
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(windows, debug_assertions))]
+fn obstructed_line(fault: std::convert::Infallible) -> String {
+    match fault {}
+}
+
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
 fn state_line(health: state::StateHealth) -> Option<String> {
     use state::StateHealth;
     match health {

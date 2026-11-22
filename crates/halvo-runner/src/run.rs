@@ -7,7 +7,7 @@ use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::{
     Done, Handback, HandbackReply, Hello, Progress, ReplyError, Store, StoreReplyFrame,
 };
-use halvo_schema::executable::names::{HandbackReason, LogEvent};
+use halvo_schema::executable::names::{HandbackReason, LogEvent, Verb};
 use halvo_schema::executable::step::Target;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
@@ -102,13 +102,17 @@ pub(crate) struct Runner {
     pub(crate) checkpoints: HashMap<String, Taken>,
     /// What the run's list and draft steps gave, for its record.
     pub(crate) lists: Lists,
+    /// The run's browser, once a web step started it (crate::web); stopped at every end of the run.
+    pub(crate) web: Option<crate::web::Web>,
 }
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
-/// `finish`, 1 when the link closed or the `finish` was not stored, 2 for a frame that breaks the form of A6.2.
+/// `finish`, 1 when the link closed or the `finish` was not stored, 2 for a frame that breaks the form of A6.2. The
+/// run's browser is stopped and its profile removed before the run's end is written, on every way out.
 pub(crate) fn run(args: Args, link: Link) -> i32 {
     let mut runner = Runner::new(args, link);
     let end = runner.carry_out();
+    runner.stop_browser();
     runner.close(end)
 }
 
@@ -135,6 +139,7 @@ impl Runner {
             read_under: None,
             checkpoints: HashMap::new(),
             lists: Lists::default(),
+            web: None,
         }
     }
 
@@ -179,8 +184,8 @@ impl Runner {
         Ok(())
     }
 
-    /// Carries out one step. This build has no browser, so a `web` step fails, and with it every step that holds a
-    /// condition, since only the stored playbook of a `web` agent can hold one.
+    /// Carries out one step. Of the web verbs this build carries `navigate` and `extract` (crate::web); every other
+    /// web step fails with `step_failed`, and so does every web step that holds a condition.
     fn step(&mut self, step: &ExecutableStep, loaded: &LoadReply) -> Result<(), Failure> {
         match &step.target {
             Some(Target::File(target)) if step.class == ActionClass::Read => {
@@ -188,6 +193,7 @@ impl Runner {
             }
             Some(Target::File(target)) => self.file_write(step, target),
             Some(Target::Api(target)) => self.api_call(step, target, loaded),
+            _ if matches!(step.verb, Verb::Navigate | Verb::Extract) => self.web_step(step, loaded),
             _ => Err(Failure::Step(Cause::StepFailed)),
         }
     }

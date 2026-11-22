@@ -457,6 +457,7 @@ fn with_any_service_but_running_every_daemon_field_is_null() {
                 "drain",
                 "expiry",
                 "ext",
+                "hold",
                 "last_exit",
                 "lease",
                 "loss",
@@ -477,7 +478,7 @@ fn with_any_service_but_running_every_daemon_field_is_null() {
         );
         if view.service() != Service::Running {
             for (key, value) in &map {
-                if ["service", "platform", "window", "last_exit"].contains(&key.as_str()) {
+                if ["service", "platform", "window", "last_exit", "hold"].contains(&key.as_str()) {
                     continue;
                 }
                 assert_eq!(value, &Value::Null, "{name}: {key}");

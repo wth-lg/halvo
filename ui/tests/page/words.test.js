@@ -180,6 +180,10 @@ const WORDS = {
   NOTHING_FOUND: "Halvo has not found a repeated task yet.",
   LOOKS_WHEN: "Halvo looks for repeated tasks while this computer is plugged in and not in use.",
   WORKFLOW_IN_USE: "Halvo did not delete this workflow, because an agent is still using it. Try again later.",
+  CAPTURE_HELD: "Capture is off. One part of capture did not stop in time, so Halvo shut its capture service down to make sure that nothing is being read. Nothing is recorded until you turn capture back on.",
+  HELD_RESUME: "Press Resume to turn capture back on.",
+  HELD_START: "This happened three times in a row, so Halvo did not start its capture service again. Press Start to turn capture back on.",
+  START: "Start",
 };
 
 const OWNER = {

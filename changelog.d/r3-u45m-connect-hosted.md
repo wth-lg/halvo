@@ -1,0 +1,2 @@
+- Fixed: The test task_host of halvo-agent-gate builds the runner with its test feature loopback, so the runner's tests of mail and calendar that run after it in one cargo call start a runner that reaches their fixture server.
+- Changed: A runner test fails with one sentence that names the cause when the runner's binary was built without the feature loopback.

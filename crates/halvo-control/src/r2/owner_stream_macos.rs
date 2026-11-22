@@ -9,7 +9,7 @@ use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
 use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 
-use super::owner_stream::{cannot, judge, OwnerStreamEnd, OwnerStreamReady};
+use super::owner_stream::{cannot, judge, stream_frame, OwnerStreamEnd, OwnerStreamReady};
 use crate::client::Transport;
 use crate::proto::ErrorReply;
 use crate::wire::{write_frame, FrameError, REPLY_MAX_BYTES};
@@ -31,13 +31,17 @@ pub trait CarriesEnds: Transport + AsFd {}
 
 impl<T: Transport + AsFd> CarriesEnds for T {}
 
-/// The owner's channel as the handler of `owner_stream` uses it. The caller holds its turn on the channel for the
-/// length of the handler's call, so no other exchange is open on it.
+/// The owner's channel as the handlers of `owner_stream` and `relay` use it. The caller holds its turn on the channel
+/// for the length of the handler's call, so no other exchange is open on it.
 pub trait OwnerChannel {
     /// Writes the frame `stream` on the channel with `end` as one SCM_RIGHTS control message on the call that writes
     /// the frame's first byte, as [`send_with_end`] does. The handler keeps its own descriptor of `end` open until
     /// [`OwnerChannel::answer`] has returned.
     fn send_stream(&mut self, frame: &[u8], end: BorrowedFd<'_>) -> io::Result<()>;
+
+    /// Writes `frame` on the channel as one frame with nothing beside it: the request that the handler of `relay`
+    /// hands to the owner. An error of kind `BrokenPipe` is the end of the channel.
+    fn send(&mut self, frame: &[u8]) -> io::Result<()>;
 
     /// The owner's next frame on the channel that is no report, waiting at most `within`: `None` at the end of the
     /// channel, and an error of kind `TimedOut` when no frame came.
@@ -47,9 +51,6 @@ pub trait OwnerChannel {
 /// How long the handler waits, after the reply that carried the client's end, for the end of the client's request
 /// before it closes its own copy of that end.
 pub const CLIENT_END_WAIT: Duration = Duration::from_secs(1);
-
-/// The frame `stream` on macOS: the end comes beside it.
-const STREAM_BESIDE: &[u8] = br#"{"stream":{"handles":null}}"#;
 
 /// The bytes of the data of a control message that carries `n` descriptors.
 const fn descriptor_bytes(n: u32) -> u32 {
@@ -179,7 +180,7 @@ pub(super) fn serve(
     let (owners, clients) =
         new_stream().map_err(|_| cannot("the stream to the owner cannot be made"))?;
     let answer = owner
-        .send_stream(STREAM_BESIDE, owners.as_fd())
+        .send_stream(&stream_frame(None), owners.as_fd())
         .and_then(|()| owner.answer(answer_by.saturating_duration_since(Instant::now())));
     drop(owners);
     if let Err(refusal) = judge(answer) {
@@ -326,8 +327,12 @@ mod tests {
 
     impl OwnerChannel for Scripted {
         fn send_stream(&mut self, frame: &[u8], _: BorrowedFd<'_>) -> io::Result<()> {
-            assert_eq!(frame, STREAM_BESIDE);
+            assert_eq!(frame, br#"{"stream":{"handles":null}}"#);
             Ok(())
+        }
+
+        fn send(&mut self, _: &[u8]) -> io::Result<()> {
+            unreachable!("the handler of owner_stream writes no frame without an end")
         }
 
         fn answer(&mut self, _: Duration) -> io::Result<Option<Vec<u8>>> {

@@ -133,7 +133,7 @@ impl ReadCell {
     }
 
     /// Forgets the figures and the ask.
-    fn forget(&self) {
+    pub(in crate::daemon) fn forget(&self) {
         let mut kept = self.kept();
         kept.figures = None;
         kept.asked = false;
