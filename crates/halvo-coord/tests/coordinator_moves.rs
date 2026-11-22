@@ -1098,11 +1098,7 @@ fn a_sign_in_item_names_the_site_of_its_hand_back() {
         assert_eq!(s.items[0].kind(), ItemKind::SignIn);
         s.items[0].text().to_owned()
     };
-    for reason in [
-        HandbackReason::SignIn,
-        HandbackReason::SecondFactor,
-        HandbackReason::Captcha,
-    ] {
+    for reason in [HandbackReason::SecondFactor, HandbackReason::Captcha] {
         let text = shown(reason, Some("https://shop.site1.example:443"));
         assert_eq!(text, sign_in_site("shop.site1.example"), "{reason:?}");
         assert_eq!(
@@ -1112,19 +1108,63 @@ fn a_sign_in_item_names_the_site_of_its_hand_back() {
     }
     assert_eq!(
         shown(
-            HandbackReason::SignIn,
+            HandbackReason::SecondFactor,
             Some("https://shop.site1.example:8443")
         ),
         sign_in_site("shop.site1.example:8443")
     );
     assert_eq!(
-        shown(HandbackReason::SignIn, None),
+        shown(HandbackReason::SecondFactor, None),
         text("item.sign_in.text")
     );
     assert_eq!(
-        shown(HandbackReason::SignIn, Some("http://pay.site1.example:80")),
+        shown(
+            HandbackReason::SecondFactor,
+            Some("http://pay.site1.example:80")
+        ),
         "Sign in to http://pay.site1.example in its own window, then choose Done."
     );
+}
+
+#[test]
+fn a_sign_in_item_of_the_reason_sign_in_says_that_halvo_keeps_the_sign_in() {
+    let shown = |reason: HandbackReason, origin: Option<&str>| {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        c.on_run(&run, handback_at(&run, 0, reason, origin))
+            .unwrap();
+        let s = c.snapshot();
+        assert_eq!(s.items.len(), 1, "{s:?}");
+        assert_eq!(s.items[0].kind(), ItemKind::SignIn);
+        s.items[0].text().to_owned()
+    };
+    let cases = [
+        (
+            Some("https://shop.site1.example:443"),
+            sign_in_site("shop.site1.example"),
+            "Sign in to shop.site1.example in its own window, then choose Done. Halvo keeps this agent signed in to shop.site1.example on this computer, so that it does not ask you each time. It removes the sign-in at the latest 35 days after this agent last finished a run, or when you delete everything.",
+        ),
+        (
+            Some("http://pay.site1.example:80"),
+            sign_in_site("http://pay.site1.example"),
+            "Sign in to http://pay.site1.example in its own window, then choose Done. Halvo keeps this agent signed in to http://pay.site1.example on this computer, so that it does not ask you each time. It removes the sign-in at the latest 35 days after this agent last finished a run, or when you delete everything.",
+        ),
+        (
+            None,
+            text("item.sign_in.text"),
+            "Sign in to the site in its own window, then choose Done. Halvo keeps this agent signed in to the site on this computer, so that it does not ask you each time. It removes the sign-in at the latest 35 days after this agent last finished a run, or when you delete everything.",
+        ),
+    ];
+    for (origin, first, paragraph) in &cases {
+        let read = shown(HandbackReason::SignIn, *origin);
+        assert_eq!(read, *paragraph, "{origin:?}");
+        assert!(read.starts_with(&format!("{first} ")), "{origin:?}");
+    }
+    for reason in [HandbackReason::SecondFactor, HandbackReason::Captcha] {
+        for (origin, first, _) in [&cases[0], &cases[2]] {
+            assert_eq!(shown(reason, *origin), *first, "{reason:?} {origin:?}");
+        }
+    }
 }
 
 #[test]
@@ -1140,7 +1180,7 @@ fn two_sign_in_items_each_name_the_site_of_their_own_hand_back() {
         let origin = format!("https://{site}:443");
         c.on_run(
             &run,
-            handback_at(&run, n, HandbackReason::SignIn, Some(&origin)),
+            handback_at(&run, n, HandbackReason::SecondFactor, Some(&origin)),
         )
         .unwrap();
     }

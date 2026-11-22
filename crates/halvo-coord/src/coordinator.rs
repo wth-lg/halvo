@@ -3780,12 +3780,8 @@ where
             ItemKind::SignIn => match st.binds.iter().find(|b| b.item() == item) {
                 Some(b) => b.page_item(name).ok(),
                 None => {
-                    let origin = st
-                        .handbacks
-                        .iter()
-                        .find(|(i, _)| i == item)
-                        .and_then(|(_, a)| a.origin.as_ref());
-                    compose_sign_in(item, agent, name, origin).ok()
+                    let ask = st.handbacks.iter().find(|(i, _)| i == item).map(|(_, a)| a);
+                    compose_sign_in(item, agent, name, ask).ok()
                 }
             },
             ItemKind::LinkAccount => st
