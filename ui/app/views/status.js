@@ -11,6 +11,7 @@
   var failed;
   var drain;
   var expiry;
+  var screenLine;
   var loginLine;
   var firstRun;
   var settingsLine;
@@ -171,6 +172,7 @@
     var x = s.expiry;
     expiry.textContent =
       x && x.state === "failing" ? w.EXPIRY_FAILING + " " + (EXPIRY[x.error] || w.CAUSE_IO) + (x.last_at ? " " + w.EXPIRY_SINCE + " " + x.last_at + "." : "") : "";
+    screenLine.textContent = s.service === "running" && s.screen_not_renewed === true ? w.SCREEN_NOT_RENEWED : "";
     loginLine.textContent = s.login_item_written === false ? w.LOGIN_ITEM_NOT_WRITTEN : s.login_item_loaded === false ? w.LOGIN_ITEM_OFF : "";
     settingsLine.textContent = SETTINGS[s.state_file] || "";
     settingsReset.classList.toggle("hidden", !resetOffered(s));
@@ -324,6 +326,7 @@
       failed = Halvo.el("ul", { id: "failed-sources", class: "hidden" });
       drain = Halvo.el("p", { id: "drain-line" });
       expiry = Halvo.el("p", { id: "expiry-line" });
+      screenLine = Halvo.el("p", { id: "screen-line" });
       loginLine = Halvo.el("p", { id: "login-line" });
       firstRun = Halvo.el("div", { id: "first-run", class: "hidden" });
       settingsLine = Halvo.el("span", { id: "settings-line" });
@@ -353,6 +356,7 @@
         failed,
         drain,
         expiry,
+        screenLine,
         loginLine,
         Halvo.el("div", { class: "row" }, [settingsLine, settingsReset, settingsDelete]),
         resetRow,
