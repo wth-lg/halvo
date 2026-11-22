@@ -1926,9 +1926,9 @@ copy = sys.argv[1]
 assert copy in COPIES, copy
 
 
-def sub(path, old, new):
+def sub(path, old, new, place=None):
     text = open(path, encoding="utf-8").read()
-    assert text.count(old) == 1, (path, old, text.count(old))
+    assert text.count(old) == 1, (path, old, text.count(old)) if place is None else (place, path, old, text.count(old))
     open(path, "w", encoding="utf-8", newline="\n").write(text.replace(old, new))
 
 
@@ -2089,8 +2089,26 @@ def guard_head(text):
     return head
 
 
+WRY_DEFAULT_ARGS = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"
+
+
 def args_out():
-    sub("src-tauri/src/app.rs", "    let builder = builder.additional_browser_args(ENGINE_ARGS);\n", "    let builder = builder;\n")
+    """Takes the engine's start arguments out at both places where app.rs hands them: the builder's,
+    which wry 0.57.1 reads only in an environment of its own (src/webview2/mod.rs lines 139 to 142
+    and 308), and the options of the environment that app.rs makes, which get wry's own default
+    alone (lines 308 to 312)."""
+    sub(
+        "src-tauri/src/app.rs",
+        "    let builder = builder.additional_browser_args(ENGINE_ARGS);\n",
+        "    let builder = builder;\n",
+        "args_out: the builder's start arguments",
+    )
+    sub(
+        "src-tauri/src/app.rs",
+        "        options.set_additional_browser_arguments(ENGINE_ARGS.to_string());\n",
+        '        options.set_additional_browser_arguments("' + WRY_DEFAULT_ARGS + '".to_string());\n',
+        "args_out: the start arguments of the environment's options",
+    )
 
 
 def config_out():
