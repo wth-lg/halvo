@@ -8,6 +8,7 @@
   "hold": null,
   "last_exit": null,
   "lease": null,
+  "login_item_loaded": null,
   "loss": null,
   "lost_grants": null,
   "password_guard": null,

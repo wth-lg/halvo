@@ -15,9 +15,9 @@ use super::names::{Names, CAPTURE};
 use super::Registration;
 use crate::poller::{self, Views};
 use crate::view_state::{
-    a_delete_removed_nothing, command_view, delete_view, inventory_view, read_error,
-    removes_nothing, ActionError, CapSetView, CaptureSet, DeleteView, Hold, InventoryView,
-    LastDelete, OutcomeError, StatusView,
+    a_delete_removed_nothing, command_view, delete_view, inventory_view, onboarding_shown,
+    read_error, removes_nothing, ActionError, CapSetView, CaptureSet, DeleteView, Hold,
+    InventoryView, LastDelete, OutcomeError, StatusView,
 };
 
 pub struct AppState {
@@ -85,6 +85,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         request_permission,
         open_permission_pane,
         last_delete,
+        acknowledge_lost_permission,
     ];
     handle(invoke)
 }
@@ -530,12 +531,22 @@ fn no_onboarding() -> OnboardingState {
     }
 }
 
+/// The rows of the Permissions view, which the page asks every 3 s while it shows: each call
+/// sends one Status without the indicator claim, beside the poller's claiming pass, so that the
+/// service reads the grants every 3 s while the view is open; the view of the app stays the
+/// poller's. Without an answer the rows come from the poller's last status.
 #[tauri::command]
 pub async fn onboarding_state(state: State<'_, AppState>) -> Result<OnboardingState, ActionError> {
-    Ok(state
-        .views
-        .status()
-        .map_or_else(no_onboarding, |status| status.fields().onboarding.clone()))
+    let made = state.control.places().make();
+    let control = Arc::clone(&state.control);
+    let answer = off_the_main_thread(move || control.status(made, false)).await?;
+    Ok(match answer {
+        Ok(status) => onboarding_shown(&status),
+        Err(_) => state
+            .views
+            .status()
+            .map_or_else(no_onboarding, |status| onboarding_shown(&status)),
+    })
 }
 
 #[tauri::command]
@@ -547,12 +558,43 @@ pub async fn request_permission(
     let control = Arc::clone(&state.control);
     off_the_main_thread(move || control.request_permission(made, permission))
         .await?
-        .map_err(|error| {
-            let reading = read_error(&error);
-            reading.command_error.unwrap_or(ActionError::NotAnswering {
-                service: reading.service,
-            })
+        .map_err(|error| match &error {
+            ClientError::Daemon(reply) if reply.code() == ErrorCode::UnsupportedOp => {
+                ActionError::UnsupportedOp
+            }
+            _ => not_taken(&error),
         })
+}
+
+/// Puts a lost grant away with one acknowledge_lost_permission request, takes the
+/// status that comes back into the view, so that the tray's line goes with it, and answers the
+/// onboarding rows of that status.
+#[tauri::command]
+pub async fn acknowledge_lost_permission(
+    state: State<'_, AppState>,
+    permission: Permission,
+) -> Result<OnboardingState, ActionError> {
+    let made = state.control.places().make();
+    let call = made.number();
+    let control = Arc::clone(&state.control);
+    let (answer, next_number_at_answer) = off_the_main_thread(move || {
+        let answer = control.acknowledge_lost_permission(made, permission);
+        (answer, control.places().next_number())
+    })
+    .await?;
+    let status = answer.map_err(|error| not_taken(&error))?;
+    state
+        .views
+        .take_mutation(call, next_number_at_answer, &status);
+    draw_off_the_main_thread(&state.views).await;
+    Ok(onboarding_shown(&status))
+}
+
+fn not_taken(error: &ClientError) -> ActionError {
+    let reading = read_error(error);
+    reading.command_error.unwrap_or(ActionError::NotAnswering {
+        service: reading.service,
+    })
 }
 
 #[tauri::command]

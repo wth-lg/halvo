@@ -92,7 +92,8 @@ fn product_hub<R: Runtime>(
         browser: beside.join("halvo-browser"),
         model: None,
     };
-    let (streams, relayed, marked) = (
+    let (streams, relayed, marked, deferred) = (
+        Arc::clone(control),
         Arc::clone(control),
         Arc::clone(control),
         Arc::clone(control),
@@ -101,6 +102,7 @@ fn product_hub<R: Runtime>(
         owner_stream: Arc::new(move || streams.owner_stream(streams.places().make())),
         relay: Arc::new(move |request: &[u8]| relayed.relay(relayed.places().make(), request)),
         mark: Arc::new(move |edge| marked.run_mark(marked.places().make(), edge)),
+        defer: Arc::new(move |until| deferred.defer(deferred.places().make(), until)),
     };
     let dialog = Arc::new(halvo_coord_app::System::new(app.clone()));
     halvo_coord_app::product::hub(calls, places, tray, dialog)

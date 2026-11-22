@@ -6443,3 +6443,1046 @@ fn a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event() {
         );
     });
 }
+
+const SECOND_ACCOUNT_TEST: &str = "daemon_refuses_a_second_account";
+const SECOND_ACCOUNT_TAG: &str = "second_account";
+const SECOND_ACCOUNT_REQUEST: &str = "second-account-request.txt";
+const SECOND_ACCOUNT_PROBE_EXE: &str = "halvo-wf-second-account.exe";
+const SECOND_ACCOUNT_CTL_EXE: &str = "halvo-capture.exe";
+const SECOND_ACCOUNT_ROOT_COPY: &str = "root-copy.bin";
+const STANDARD_ACCOUNT_FORM: &str = "scripts/r1/ci.d/50-windows-functional.sh";
+const SERVICE_RUN_BIN: &str = env!("CARGO_BIN_EXE_halvo-capture");
+const SERVICE_RUN_START_WAIT: Duration = Duration::from_secs(60);
+const SERVICE_RUN_STOP_WAIT: Duration = Duration::from_secs(20);
+const HELD_RUN_WAIT: Duration = Duration::from_secs(30);
+const HELD_NAME_WAIT: Duration = Duration::from_secs(90);
+const STANDARD_ACCOUNT_FORM_WAIT: Duration = Duration::from_secs(150);
+const HOLDER_END_WAIT: Duration = Duration::from_secs(60);
+const HOLDER_CONNECT_WAIT: Duration = Duration::from_secs(120);
+const HOLDER_READ_WAIT: Duration = Duration::from_secs(15);
+const NOT_RUNNING_AT: &str = "halvo-capture: capture service not running at ";
+const BOUND_IN_USE: &str = "the control channel could not be bound: address in use";
+const SERVER_OF_ANOTHER_USER: &str = "the server runs as another user";
+const OS_ERROR_ACCESS_DENIED: &str = "(os error 5)";
+
+fn os_code(error: &std::io::Error) -> i32 {
+    error.raw_os_error().unwrap_or(-1)
+}
+
+fn must<T>(result: std::io::Result<T>, what: &str) -> T {
+    result.unwrap_or_else(|error| panic!("{what} failed with code {}", os_code(&error)))
+}
+
+fn win32_code(error: &windows::core::Error) -> u32 {
+    let hresult = error.code().0 as u32;
+    if hresult & 0xFFFF_0000 == 0x8007_0000 {
+        hresult & 0xFFFF
+    } else {
+        hresult
+    }
+}
+
+fn wide_nul(text: &str) -> Vec<u16> {
+    text.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+fn yes_no(holds: bool) -> &'static str {
+    if holds {
+        "yes"
+    } else {
+        "no"
+    }
+}
+
+fn code_text(code: Option<i32>) -> String {
+    code.map_or_else(|| "none".to_string(), |code| code.to_string())
+}
+
+fn read_all(mut from: impl Read + Send + 'static) -> std::thread::JoinHandle<String> {
+    std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = from.read_to_end(&mut bytes);
+        String::from_utf8_lossy(&bytes).into_owned()
+    })
+}
+
+fn unprotected_len(blob: &[u8], entropy: &[u8]) -> Result<usize, u32> {
+    use windows::Win32::Foundation::{LocalFree, HLOCAL};
+    use windows::Win32::Security::Cryptography::{
+        CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
+    };
+    let input = CRYPT_INTEGER_BLOB {
+        cbData: blob.len() as u32,
+        pbData: blob.as_ptr() as *mut u8,
+    };
+    let extra = CRYPT_INTEGER_BLOB {
+        cbData: entropy.len() as u32,
+        pbData: entropy.as_ptr() as *mut u8,
+    };
+    let mut out = CRYPT_INTEGER_BLOB::default();
+    // SAFETY: the two input blobs point into `blob` and `entropy`, which live
+    // across the call and which the call only reads; `out` is a live local
+    // that receives memory that LocalFree releases below.
+    let done = unsafe {
+        CryptUnprotectData(
+            &input,
+            None,
+            Some(&extra),
+            None,
+            None,
+            CRYPTPROTECT_UI_FORBIDDEN,
+            &mut out,
+        )
+    };
+    if let Err(error) = done {
+        return Err(error.code().0 as u32);
+    }
+    let len = out.cbData as usize;
+    if !out.pbData.is_null() {
+        // SAFETY: the call wrote `len` bytes at `out.pbData`, which this
+        // block zeroes and then releases once with LocalFree.
+        unsafe {
+            std::ptr::write_bytes(out.pbData, 0, len);
+            let _ = LocalFree(Some(HLOCAL(out.pbData.cast())));
+        }
+    }
+    Ok(len)
+}
+
+struct ServiceRun {
+    child: std::process::Child,
+    stderr: Option<std::thread::JoinHandle<String>>,
+}
+
+impl ServiceRun {
+    fn start(dir: &Path) -> Self {
+        let mut child = must(
+            Command::new(SERVICE_RUN_BIN)
+                .args(["--service-run", "--data-dir"])
+                .arg(dir)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .spawn(),
+            "the start of a service run",
+        );
+        let stderr = read_all(child.stderr.take().expect("the stderr of the service run"));
+        Self {
+            child,
+            stderr: Some(stderr),
+        }
+    }
+
+    fn ended_within(&mut self, within: Duration) -> Option<i32> {
+        let end = Instant::now() + within;
+        loop {
+            if let Some(status) = must(self.child.try_wait(), "the poll of the service run") {
+                return Some(status.code().unwrap_or(-1));
+            }
+            if Instant::now() >= end {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+
+    fn stderr_after_its_end(&mut self) -> String {
+        self.stderr
+            .take()
+            .and_then(|reader| reader.join().ok())
+            .unwrap_or_default()
+    }
+}
+
+impl Drop for ServiceRun {
+    fn drop(&mut self) {
+        if matches!(self.child.try_wait(), Ok(None)) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
+    }
+}
+
+fn service_ctl(dir: &Path, verb: &str) -> std::process::Output {
+    must(
+        Command::new(SERVICE_RUN_BIN)
+            .arg("ctl")
+            .arg("--data-dir")
+            .arg(dir)
+            .arg(verb)
+            .stdin(Stdio::null())
+            .output(),
+        "a ctl of the runner",
+    )
+}
+
+fn status_with_store_open(dir: &Path) -> Option<String> {
+    let end = Instant::now() + SERVICE_RUN_START_WAIT;
+    loop {
+        let output = service_ctl(dir, "status");
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        if output.status.code() == Some(halvo_control::exit::CLEAN)
+            && stdout.lines().any(|line| line == "store=open")
+        {
+            return Some(stdout);
+        }
+        if Instant::now() >= end {
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+}
+
+fn runner_pipe_name(dir: &Path) -> String {
+    let Ok(data_dir) = halvo_control::paths::DataDir::from_flag(dir) else {
+        panic!("the scratch data directory is no data directory");
+    };
+    match halvo_control::client_windows::PipeConnector::for_data_dir(&data_dir) {
+        Ok(connector) => connector.name().to_string(),
+        Err(_) => panic!("the runner names no pipe for its scratch data directory"),
+    }
+}
+
+fn write_request(shared: &Path, fields: &[(&str, &str)]) {
+    let text: String = fields
+        .iter()
+        .map(|(key, value)| format!("{key}={value}\n"))
+        .collect();
+    must(
+        std::fs::write(shared.join(SECOND_ACCOUNT_REQUEST), text),
+        "the write of the request of the second account",
+    );
+}
+
+fn grant_to_users(shared: &Path) -> bool {
+    Command::new(r"C:\Windows\System32\icacls.exe")
+        .arg(shared)
+        .args(["/grant", "*S-1-5-32-545:(OI)(CI)RX", "/T", "/Q"])
+        .stdin(Stdio::null())
+        .output()
+        .is_ok_and(|output| output.status.success())
+}
+
+struct FormRun {
+    child: std::process::Child,
+    stdout: Option<std::thread::JoinHandle<String>>,
+    stderr: Option<std::thread::JoinHandle<String>>,
+}
+
+struct FormOutput {
+    code: Option<i32>,
+    stdout: String,
+    stderr: String,
+}
+
+impl FormRun {
+    fn helper(probe_exe: &Path) -> Self {
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Path::parent)
+            .expect("the folder above the crates");
+        let mut child = must(
+            Command::new("sh")
+                .current_dir(repo)
+                .arg(STANDARD_ACCOUNT_FORM)
+                .args(["--as-standard-account", "--"])
+                .arg(probe_exe)
+                .args([
+                    "helper_second_account",
+                    "--exact",
+                    "--ignored",
+                    "--nocapture",
+                ])
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn(),
+            "the start of the form of check 50 by sh",
+        );
+        let stdout = read_all(child.stdout.take().expect("the stdout of the form"));
+        let stderr = read_all(child.stderr.take().expect("the stderr of the form"));
+        Self {
+            child,
+            stdout: Some(stdout),
+            stderr: Some(stderr),
+        }
+    }
+
+    fn ended(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(Some(_)))
+    }
+
+    fn finish(mut self, within: Duration) -> Option<FormOutput> {
+        let end = Instant::now() + within;
+        let code = loop {
+            if let Some(status) = must(self.child.try_wait(), "the poll of the form") {
+                break status.code();
+            }
+            if Instant::now() >= end {
+                let _ = self.child.kill();
+                let _ = self.child.wait();
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        };
+        let joined = |reader: Option<std::thread::JoinHandle<String>>| {
+            reader
+                .and_then(|reader| reader.join().ok())
+                .unwrap_or_default()
+        };
+        Some(FormOutput {
+            code,
+            stdout: joined(self.stdout.take()),
+            stderr: joined(self.stderr.take()),
+        })
+    }
+}
+
+fn form_lines(test: &str, run: &str, output: &FormOutput) -> BTreeMap<String, String> {
+    for line in output.stderr.lines().map(str::trim_end) {
+        if !line.starts_with("standard_account") {
+            continue;
+        }
+        if line
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"_=- ".contains(&b))
+        {
+            say(test, format!("form run={run} {line}"));
+        } else {
+            say(
+                test,
+                format!("form run={run} standard_account_line=withheld"),
+            );
+        }
+    }
+    if output.stdout.lines().any(|line| line.starts_with("FAIL ")) {
+        say(test, format!("form run={run} refused=yes"));
+    }
+    say(
+        test,
+        format!("form run={run} exit={}", code_text(output.code)),
+    );
+    let prefix = format!("TF {SECOND_ACCOUNT_TAG} ");
+    output
+        .stdout
+        .lines()
+        .filter_map(|line| line.trim_end().strip_prefix(prefix.as_str()))
+        .flat_map(str::split_whitespace)
+        .filter_map(|token| token.split_once('='))
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect()
+}
+
+fn got(fields: &BTreeMap<String, String>, key: &str) -> String {
+    fields
+        .get(key)
+        .cloned()
+        .unwrap_or_else(|| "none".to_string())
+}
+
+fn held_name_stands(name: &str, holder: &mut FormRun) -> bool {
+    use windows::Win32::System::Pipes::WaitNamedPipeW;
+    let name = wide_nul(name);
+    let end = Instant::now() + HELD_NAME_WAIT;
+    loop {
+        // SAFETY: `name` ends in a NUL and outlives the call; no other pointer
+        // is passed.
+        let waited = unsafe { WaitNamedPipeW(PCWSTR(name.as_ptr()), 1) };
+        if waited.as_bool() || std::io::Error::last_os_error().raw_os_error() != Some(2) {
+            return true;
+        }
+        if holder.ended() || Instant::now() >= end {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
+fn check(faults: &mut Vec<&'static str>, holds: bool, part: &'static str) {
+    if !holds {
+        faults.push(part);
+    }
+}
+
+#[test]
+#[ignore = "functional: starts the built daemon and probes it from the standard account that the form of check 50 makes on a hosted runner alone"]
+fn daemon_refuses_a_second_account() {
+    let test = SECOND_ACCOUNT_TEST;
+    let mut faults = Vec::new();
+    let base = std::path::PathBuf::from(
+        std::env::var_os("LOCALAPPDATA").expect("the variable of the local app data of the runner"),
+    );
+    let under_profile =
+        std::env::var_os("USERPROFILE").is_some_and(|profile| base.starts_with(profile));
+    say(
+        test,
+        format!(
+            "data_dir_base=local_app_data under_own_profile={}",
+            yes_no(under_profile)
+        ),
+    );
+    check(&mut faults, under_profile, "place");
+    let stamp = format!("{}-{}", std::process::id(), unix_millis(SystemTime::now()));
+    let dir = base.join(["halvo-wf-second-account-", &stamp].concat());
+    let held_dir = base.join(["halvo-wf-second-account-held-", &stamp].concat());
+    let dir_text = dir
+        .to_str()
+        .expect("a data directory that is valid text")
+        .to_string();
+
+    let mut daemon = ServiceRun::start(&dir);
+    let Some(status) = status_with_store_open(&dir) else {
+        panic!(
+            "the service run gave no status with store=open within {}s",
+            SERVICE_RUN_START_WAIT.as_secs()
+        );
+    };
+    let platform_windows = status.lines().any(|line| line == "platform=windows");
+    say(
+        test,
+        format!(
+            "control ctl=status exit=0 platform_windows={} store=open",
+            yes_no(platform_windows)
+        ),
+    );
+    check(&mut faults, platform_windows, "control");
+
+    let root_files: Vec<(std::path::PathBuf, String)> = must(
+        std::fs::read_dir(dir.join("roots")),
+        "the listing of the roots by the runner",
+    )
+    .filter_map(Result::ok)
+    .filter_map(|entry| {
+        let name = entry.file_name().into_string().ok()?;
+        let id = name.strip_suffix(".root")?.to_string();
+        Some((entry.path(), id))
+    })
+    .collect();
+    assert!(
+        root_files.len() == 1,
+        "the roots of the data directory hold {} root files and not one",
+        root_files.len()
+    );
+    let (root_file, root_id_text) = root_files.into_iter().next().expect("the one root file");
+    let Some(root_id) = halvo_capture::custody::RootId::parse(&root_id_text) else {
+        panic!("the name of the root file holds no root id");
+    };
+
+    let shared = scratch_dir();
+    let probe_exe = shared.path().join(SECOND_ACCOUNT_PROBE_EXE);
+    let ctl_exe = shared.path().join(SECOND_ACCOUNT_CTL_EXE);
+    let root_copy = shared.path().join(SECOND_ACCOUNT_ROOT_COPY);
+    must(
+        std::fs::copy(
+            must(std::env::current_exe(), "the read of the test binary"),
+            &probe_exe,
+        ),
+        "the copy of the test binary",
+    );
+    must(
+        std::fs::copy(SERVICE_RUN_BIN, &ctl_exe),
+        "the copy of the daemon",
+    );
+    must(
+        std::fs::copy(&root_file, &root_copy),
+        "the copy of the root file",
+    );
+    let copy_bytes = must(
+        std::fs::read(&root_copy),
+        "the read of the root copy by the runner",
+    );
+    let runner_unprotects = unprotected_len(&copy_bytes, root_id.as_bytes());
+    say(
+        test,
+        format!(
+            "probe=3 control runner_unprotects={} len={}",
+            yes_no(runner_unprotects.is_ok()),
+            runner_unprotects.unwrap_or(0)
+        ),
+    );
+
+    let runner_user = must(
+        halvo_control::client_windows::current_user(),
+        "the read of the runner's own user",
+    );
+    let runner_pipe = runner_pipe_name(&dir);
+    let default_pipe = [r"\\.\pipe\halvo-wf-default-descriptor-", &stamp].concat();
+    let default_held = default_descriptor_pipe(&default_pipe);
+    say(
+        test,
+        format!(
+            "probe=4 control default_descriptor_pipe made={}",
+            yes_no(default_held.is_ok())
+        ),
+    );
+    write_request(
+        shared.path(),
+        &[
+            ("mode", "probes"),
+            ("data_dir", &dir_text),
+            ("runner_pipe", &runner_pipe),
+            ("default_pipe", &default_pipe),
+            ("runner_user", &runner_user),
+            (
+                "ctl",
+                ctl_exe.to_str().expect("a copy path that is valid text"),
+            ),
+            (
+                "root_copy",
+                root_copy.to_str().expect("a copy path that is valid text"),
+            ),
+            ("root_id", &root_id_text),
+        ],
+    );
+    let granted = grant_to_users(shared.path());
+    say(
+        test,
+        format!(
+            "shared_folder copies=3 read_and_execute_granted={}",
+            yes_no(granted)
+        ),
+    );
+    check(&mut faults, granted, "grant");
+
+    let Some(probes) = FormRun::helper(&probe_exe).finish(STANDARD_ACCOUNT_FORM_WAIT) else {
+        panic!(
+            "the form of the probes did not end within {}s",
+            STANDARD_ACCOUNT_FORM_WAIT.as_secs()
+        );
+    };
+    let a = form_lines(test, "probes", &probes);
+    check(&mut faults, probes.code == Some(0), "form_probes");
+    say(
+        test,
+        format!(
+            "second_account own_user={} administrators_member={}",
+            got(&a, "own_user"),
+            got(&a, "administrators_member")
+        ),
+    );
+    check(
+        &mut faults,
+        got(&a, "own_user") == "other" && got(&a, "administrators_member") == "no",
+        "second_account",
+    );
+    say(
+        test,
+        format!(
+            "probe=1 ctl=status exit={} status_lines={} endpoint={} runner_pipe_reached={}",
+            got(&a, "ctl_exit"),
+            got(&a, "ctl_stdout_lines"),
+            got(&a, "ctl_endpoint"),
+            yes_no(got(&a, "ctl_endpoint") == "runner_pipe")
+        ),
+    );
+    check(
+        &mut faults,
+        got(&a, "ctl_exit") == halvo_control::exit::UNREACHABLE.to_string()
+            && got(&a, "ctl_stdout_lines") == "0"
+            && got(&a, "ctl_endpoint") == "own_pipe",
+        "probe_1",
+    );
+    say(
+        test,
+        format!(
+            "probe=2 listing={} code={}",
+            got(&a, "listing"),
+            got(&a, "listing_code")
+        ),
+    );
+    check(
+        &mut faults,
+        got(&a, "listing") == "failed" && got(&a, "listing_code") == "5",
+        "probe_2",
+    );
+    say(
+        test,
+        format!(
+            "probe=3 root_copy_read={} copy_len={} second_account_unprotects={} code={}",
+            got(&a, "root_copy_read"),
+            copy_bytes.len(),
+            got(&a, "root_copy_unprotects"),
+            got(&a, "root_copy_code")
+        ),
+    );
+    check(
+        &mut faults,
+        runner_unprotects == Ok(32)
+            && got(&a, "root_copy_read") == copy_bytes.len().to_string()
+            && got(&a, "root_copy_unprotects") == "no",
+        "probe_3",
+    );
+    say(
+        test,
+        format!(
+            "probe=4 runner_pipe_open={} code={}",
+            got(&a, "runner_pipe_open"),
+            got(&a, "runner_pipe_code")
+        ),
+    );
+    say(
+        test,
+        format!(
+            "probe=4 runner_pipe_read_open={} code={}",
+            got(&a, "runner_pipe_read_open"),
+            got(&a, "runner_pipe_read_code")
+        ),
+    );
+    say(
+        test,
+        format!(
+            "probe=4 control default_descriptor_pipe write_open={} write_code={} read_open={} read_code={}",
+            got(&a, "default_pipe_write_open"),
+            got(&a, "default_pipe_write_code"),
+            got(&a, "default_pipe_read_open"),
+            got(&a, "default_pipe_read_code")
+        ),
+    );
+    drop(default_held);
+    check(
+        &mut faults,
+        got(&a, "runner_pipe_open") == "failed"
+            && got(&a, "runner_pipe_code") == "5"
+            && got(&a, "runner_pipe_read_open") == "failed"
+            && got(&a, "runner_pipe_read_code") == "5",
+        "probe_4",
+    );
+    check(
+        &mut faults,
+        got(&a, "default_pipe_read_open") == "opened"
+            || got(&a, "default_pipe_write_open") == "opened",
+        "probe_4_control",
+    );
+
+    must(
+        std::fs::create_dir_all(&held_dir),
+        "the make of the second data directory",
+    );
+    let held_pipe = runner_pipe_name(&held_dir);
+    write_request(
+        shared.path(),
+        &[("mode", "hold"), ("runner_pipe", &held_pipe)],
+    );
+    let mut holder = FormRun::helper(&probe_exe);
+    let stands = held_name_stands(&held_pipe, &mut holder);
+    say(test, format!("probe=5 held_name_stands={}", yes_no(stands)));
+    let (held_exit, bound_in_use) = if stands {
+        let mut held_run = ServiceRun::start(&held_dir);
+        let held_exit = held_run.ended_within(HELD_RUN_WAIT);
+        let bound_in_use =
+            held_exit.is_some() && held_run.stderr_after_its_end().contains(BOUND_IN_USE);
+        (held_exit, bound_in_use)
+    } else {
+        (None, false)
+    };
+    say(
+        test,
+        format!(
+            "probe=5 service_run=held_name exit={} bound_in_use={}",
+            code_text(held_exit),
+            yes_no(bound_in_use)
+        ),
+    );
+    let refused = service_ctl(&held_dir, "status");
+    let refused_err = String::from_utf8_lossy(&refused.stderr).into_owned();
+    let refusal = if refused_err.contains(OS_ERROR_ACCESS_DENIED) {
+        "io_access_denied"
+    } else if refused_err.contains(SERVER_OF_ANOTHER_USER) {
+        "server_of_another_user"
+    } else {
+        "other"
+    };
+    let refused_lines = String::from_utf8_lossy(&refused.stdout).lines().count();
+    say(
+        test,
+        format!(
+            "probe=5 ctl=status exit={} status_lines={refused_lines} refusal={refusal}",
+            code_text(refused.status.code())
+        ),
+    );
+    let held = holder.finish(HOLDER_END_WAIT);
+    let b = match &held {
+        Some(output) => form_lines(test, "hold", output),
+        None => {
+            say(test, "form run=hold ended=no");
+            BTreeMap::new()
+        }
+    };
+    say(
+        test,
+        format!(
+            "probe=5 holder_made={} holder_connected={} holder_bytes={} holder_read={}",
+            got(&b, "holder_made"),
+            got(&b, "holder_connected"),
+            got(&b, "holder_bytes"),
+            got(&b, "holder_read")
+        ),
+    );
+    check(
+        &mut faults,
+        stands
+            && held_exit == Some(halvo_control::exit::ERROR)
+            && bound_in_use
+            && refused.status.code() == Some(halvo_control::exit::ERROR)
+            && refused_lines == 0
+            && refusal != "other"
+            && held.as_ref().is_some_and(|output| output.code == Some(0))
+            && got(&b, "holder_made") == "yes"
+            && got(&b, "holder_connected") == "yes"
+            && got(&b, "holder_bytes") == "0"
+            && got(&b, "holder_read") == "end",
+        "probe_5",
+    );
+
+    let stopped = service_ctl(&dir, "stop");
+    let flushed = String::from_utf8_lossy(&stopped.stdout).starts_with("stopped flushed=yes");
+    let ended = daemon.ended_within(SERVICE_RUN_STOP_WAIT);
+    say(
+        test,
+        format!(
+            "stop ctl_exit={} flushed={} service_run_exit={}",
+            code_text(stopped.status.code()),
+            yes_no(flushed),
+            code_text(ended)
+        ),
+    );
+    check(
+        &mut faults,
+        stopped.status.code() == Some(halvo_control::exit::CLEAN)
+            && flushed
+            && ended == Some(halvo_control::exit::CLEAN),
+        "stop",
+    );
+    assert!(
+        faults.is_empty(),
+        "these parts failed: {}",
+        faults.join(" ")
+    );
+}
+
+#[test]
+#[ignore = "helper: does nothing unless daemon_refuses_a_second_account starts it as the second account"]
+fn helper_second_account() {
+    let Some(request) = second_account_request() else {
+        return;
+    };
+    match request.get("mode").map(String::as_str) {
+        Some("probes") => second_account_probes(&request),
+        Some("hold") => second_account_hold(&request),
+        _ => panic!("the request of the second account names no mode"),
+    }
+}
+
+fn second_account_request() -> Option<BTreeMap<String, String>> {
+    let exe = std::env::current_exe().ok()?;
+    let text = std::fs::read_to_string(exe.parent()?.join(SECOND_ACCOUNT_REQUEST)).ok()?;
+    Some(
+        text.lines()
+            .filter_map(|line| line.split_once('='))
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect(),
+    )
+}
+
+fn requested<'a>(request: &'a BTreeMap<String, String>, key: &str) -> &'a str {
+    request
+        .get(key)
+        .map(String::as_str)
+        .unwrap_or_else(|| panic!("the request of the second account has no {key}"))
+}
+
+fn administrators_member() -> &'static str {
+    use windows::Win32::Security::{
+        CheckTokenMembership, CreateWellKnownSid, WinBuiltinAdministratorsSid, PSID,
+    };
+    let mut sid = [0u32; 17];
+    let mut size = std::mem::size_of_val(&sid) as u32;
+    let sid_ptr = PSID(sid.as_mut_ptr().cast());
+    // SAFETY: `sid` holds `size` bytes, aligned for a SID, and lives across
+    // the call, which writes the SID of the Administrators group into it.
+    if unsafe { CreateWellKnownSid(WinBuiltinAdministratorsSid, None, Some(sid_ptr), &mut size) }
+        .is_err()
+    {
+        return "unknown";
+    }
+    let mut member = windows::core::BOOL::default();
+    // SAFETY: `sid_ptr` points to the SID that the call above wrote into
+    // `sid`, which lives across this call, and `member` is a live local.
+    match unsafe { CheckTokenMembership(None, sid_ptr, &mut member) } {
+        Ok(()) if member.as_bool() => "yes",
+        Ok(()) => "no",
+        Err(_) => "unknown",
+    }
+}
+
+fn open_pipe(name: &str, access: u32) -> Result<(), u32> {
+    use windows::Win32::Foundation::{CloseHandle, ERROR_PIPE_BUSY};
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_SHARE_NONE, OPEN_EXISTING, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
+    };
+    let name = wide_nul(name);
+    let end = Instant::now() + Duration::from_secs(10);
+    loop {
+        // SAFETY: `name` ends in a NUL and outlives the call; no other pointer
+        // is passed.
+        let opened = unsafe {
+            CreateFileW(
+                PCWSTR(name.as_ptr()),
+                access,
+                FILE_SHARE_NONE,
+                None,
+                OPEN_EXISTING,
+                SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION,
+                None,
+            )
+        };
+        match opened {
+            Ok(handle) => {
+                // SAFETY: `handle` came from CreateFileW above and is closed
+                // once.
+                let _ = unsafe { CloseHandle(handle) };
+                return Ok(());
+            }
+            Err(error) if win32_code(&error) == ERROR_PIPE_BUSY.0 && Instant::now() < end => {
+                std::thread::sleep(Duration::from_millis(200));
+            }
+            Err(error) => return Err(win32_code(&error)),
+        }
+    }
+}
+
+fn second_account_probes(request: &BTreeMap<String, String>) {
+    use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE};
+    let tag = SECOND_ACCOUNT_TAG;
+    let own_user = match halvo_control::client_windows::current_user() {
+        Ok(sid) if sid == requested(request, "runner_user") => "same",
+        Ok(_) => "other",
+        Err(_) => "unread",
+    };
+    say(
+        tag,
+        format!(
+            "own_user={own_user} administrators_member={}",
+            administrators_member()
+        ),
+    );
+
+    let data_dir = requested(request, "data_dir");
+    let runner_pipe = requested(request, "runner_pipe");
+    let own_pipe = halvo_control::paths::DataDir::from_flag(data_dir)
+        .ok()
+        .and_then(|dir| halvo_control::client_windows::PipeConnector::for_data_dir(&dir).ok())
+        .map(|connector| connector.name().to_string());
+    match Command::new(requested(request, "ctl"))
+        .args(["ctl", "--data-dir", data_dir, "status"])
+        .stdin(Stdio::null())
+        .output()
+    {
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let endpoint = stderr
+                .lines()
+                .find_map(|line| line.trim_end().strip_prefix(NOT_RUNNING_AT));
+            let place = match endpoint {
+                Some(name) if name == runner_pipe => "runner_pipe",
+                Some(name) if Some(name) == own_pipe.as_deref() => "own_pipe",
+                Some(_) => "other",
+                None => "none",
+            };
+            say(
+                tag,
+                format!(
+                    "ctl_exit={} ctl_stdout_lines={} ctl_endpoint={place}",
+                    code_text(output.status.code()),
+                    String::from_utf8_lossy(&output.stdout).lines().count()
+                ),
+            );
+        }
+        Err(error) => say(
+            tag,
+            format!("ctl_exit=not_started ctl_start_code={}", os_code(&error)),
+        ),
+    }
+
+    match std::fs::read_dir(data_dir) {
+        Ok(_) => say(tag, "listing=read listing_code=0"),
+        Err(error) => say(
+            tag,
+            format!("listing=failed listing_code={}", os_code(&error)),
+        ),
+    }
+
+    let Some(root_id) = halvo_capture::custody::RootId::parse(requested(request, "root_id")) else {
+        panic!("the request of the second account names no root id");
+    };
+    match std::fs::read(requested(request, "root_copy")) {
+        Ok(blob) => {
+            let unprotected = match unprotected_len(&blob, root_id.as_bytes()) {
+                Ok(len) => format!("root_copy_unprotects=yes root_copy_len={len}"),
+                Err(code) => format!("root_copy_unprotects=no root_copy_code={code:#010x}"),
+            };
+            say(tag, format!("root_copy_read={} {unprotected}", blob.len()));
+        }
+        Err(error) => say(
+            tag,
+            format!(
+                "root_copy_read=failed root_copy_read_code={}",
+                os_code(&error)
+            ),
+        ),
+    }
+
+    let read_write = (GENERIC_READ | GENERIC_WRITE).0;
+    let read_alone = GENERIC_READ.0;
+    let default_pipe = requested(request, "default_pipe");
+    for (key, name, access) in [
+        ("runner_pipe", runner_pipe, read_write),
+        ("runner_pipe_read", runner_pipe, read_alone),
+        ("default_pipe_write", default_pipe, read_write),
+        ("default_pipe_read", default_pipe, read_alone),
+    ] {
+        match open_pipe(name, access) {
+            Ok(()) => say(tag, format!("{key}_open=opened {key}_code=0")),
+            Err(code) => say(tag, format!("{key}_open=failed {key}_code={code}")),
+        }
+    }
+}
+
+fn default_descriptor_pipe(name: &str) -> Result<std::os::windows::io::OwnedHandle, u32> {
+    use std::os::windows::io::{FromRawHandle, OwnedHandle};
+    use windows::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
+    use windows::Win32::System::Pipes::{
+        CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
+    };
+    let name = wide_nul(name);
+    // SAFETY: `name` ends in a NUL and outlives the call; no security
+    // attributes are passed, so the pipe takes the system's default
+    // descriptor.
+    let pipe = unsafe {
+        CreateNamedPipeW(
+            PCWSTR(name.as_ptr()),
+            PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            1,
+            4_096,
+            4_096,
+            0,
+            None,
+        )
+    };
+    let failed = std::io::Error::last_os_error();
+    if pipe.is_invalid() {
+        return Err(failed.raw_os_error().map_or(u32::MAX, |code| code as u32));
+    }
+    // SAFETY: `pipe` is a new handle that nothing else owns or closes.
+    Ok(unsafe { OwnedHandle::from_raw_handle(pipe.0) })
+}
+
+fn hold_pipe(name: &str) -> Result<std::os::windows::io::OwnedHandle, u32> {
+    use std::os::windows::io::{FromRawHandle, OwnedHandle};
+    use windows::Win32::Foundation::{LocalFree, HLOCAL};
+    use windows::Win32::Security::Authorization::{
+        ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+    };
+    use windows::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
+    use windows::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
+    use windows::Win32::System::Pipes::{
+        CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
+    };
+    let sddl = wide_nul("D:(A;;GA;;;WD)");
+    let mut descriptor = PSECURITY_DESCRIPTOR::default();
+    // SAFETY: `sddl` ends in a NUL and outlives the call, and `descriptor` is a
+    // live local that receives memory that LocalFree releases below.
+    unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            PCWSTR(sddl.as_ptr()),
+            SDDL_REVISION_1,
+            &mut descriptor,
+            None,
+        )
+    }
+    .map_err(|error| win32_code(&error))?;
+    let attributes = SECURITY_ATTRIBUTES {
+        nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
+        lpSecurityDescriptor: descriptor.0,
+        bInheritHandle: false.into(),
+    };
+    let name = wide_nul(name);
+    // SAFETY: `name` ends in a NUL, and `attributes` and the descriptor that it
+    // points to live across the call.
+    let pipe = unsafe {
+        CreateNamedPipeW(
+            PCWSTR(name.as_ptr()),
+            PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            1,
+            4_096,
+            4_096,
+            0,
+            Some(&attributes),
+        )
+    };
+    let failed = std::io::Error::last_os_error();
+    // SAFETY: the descriptor came from the conversion above, whose memory
+    // LocalFree releases, once.
+    let _ = unsafe { LocalFree(Some(HLOCAL(descriptor.0))) };
+    if pipe.is_invalid() {
+        return Err(failed.raw_os_error().map_or(u32::MAX, |code| code as u32));
+    }
+    // SAFETY: `pipe` is a new handle that nothing else owns or closes.
+    Ok(unsafe { OwnedHandle::from_raw_handle(pipe.0) })
+}
+
+enum Held {
+    Connected(bool),
+    Read(Result<usize, i32>),
+}
+
+fn second_account_hold(request: &BTreeMap<String, String>) {
+    use std::os::windows::io::AsRawHandle;
+    use windows::Win32::Foundation::{ERROR_PIPE_CONNECTED, HANDLE};
+    use windows::Win32::System::Pipes::ConnectNamedPipe;
+    let tag = SECOND_ACCOUNT_TAG;
+    let pipe = match hold_pipe(requested(request, "runner_pipe")) {
+        Ok(pipe) => pipe,
+        Err(code) => {
+            say(tag, format!("holder_made=no holder_made_code={code}"));
+            return;
+        }
+    };
+    say(tag, "holder_made=yes");
+    let (tell, told) = mpsc::channel();
+    std::thread::spawn(move || {
+        // SAFETY: `pipe` is the open handle of a pipe instance that this
+        // thread owns for the whole call.
+        let connected = match unsafe { ConnectNamedPipe(HANDLE(pipe.as_raw_handle()), None) } {
+            Ok(()) => true,
+            Err(error) => win32_code(&error) == ERROR_PIPE_CONNECTED.0,
+        };
+        let _ = tell.send(Held::Connected(connected));
+        if connected {
+            let mut file = std::fs::File::from(pipe);
+            let mut bytes = [0u8; 4_096];
+            let read = file.read(&mut bytes).map_err(|error| os_code(&error));
+            let _ = tell.send(Held::Read(read));
+        }
+    });
+    let connected = match told.recv_timeout(HOLDER_CONNECT_WAIT) {
+        Ok(Held::Connected(true)) => "yes",
+        Ok(_) => "failed",
+        Err(_) => "no",
+    };
+    let read = if connected == "yes" {
+        match told.recv_timeout(HOLDER_READ_WAIT) {
+            Ok(Held::Read(Ok(0))) => "holder_bytes=0 holder_read=end".to_string(),
+            Ok(Held::Read(Ok(count))) => format!("holder_bytes={count} holder_read=request"),
+            Ok(Held::Read(Err(code))) => {
+                format!("holder_bytes=0 holder_read=failed holder_read_code={code}")
+            }
+            _ => "holder_bytes=0 holder_read=timed_out".to_string(),
+        }
+    } else {
+        "holder_bytes=0 holder_read=none".to_string()
+    };
+    say(tag, format!("holder_connected={connected} {read}"));
+}

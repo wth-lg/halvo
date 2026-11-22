@@ -2045,7 +2045,16 @@ fn a_runner_reply_one_byte_over_its_bound_is_refused_before_any_byte_of_it_is_re
     }
 }
 
-fn listed_agent(agent: &str, last: &str) -> String {
+/// The three keys of an entry whose newest started run a site refused, whose run of `last` left a reply `unknown`,
+/// and of whose stored slots one is refused by its reader.
+fn refused_signs() -> String {
+    format!(r#""refused_run":"{R}","reply_unknown":"yes","refused_slots":["instrument"]"#)
+}
+
+/// The three keys of an entry with no such sign.
+const NO_SIGNS: &str = r#""refused_run":null,"reply_unknown":"no","refused_slots":[]"#;
+
+fn listed_agent(agent: &str, last: &str, signs: &str) -> String {
     let config = swap(
         CONFIG,
         &format!(r#""agent":"{A}""#),
@@ -2053,7 +2062,7 @@ fn listed_agent(agent: &str, last: &str) -> String {
     );
     let config = swap(&config, r#""playbook":null"#, r#""playbook":1"#);
     format!(
-        r#"{{"config":{config},"state":"active","slots":["payee","instrument"],"session":"yes","last":{last},"unknown":[{{"run":"{R}","effect":"{E}","day":20768,"class":"payment","kept":{PAY_KEPT}}}]}}"#
+        r#"{{"config":{config},"state":"active","slots":["payee","instrument"],"session":"yes","last":{last},"unknown":[{{"run":"{R}","effect":"{E}","day":20768,"class":"payment","kept":{PAY_KEPT}}}],{signs}}}"#
     )
 }
 
@@ -2092,8 +2101,8 @@ fn list_agents_is_a_body_and_its_reply_reads_back() {
     );
 
     const A2: &str = "40000000000000000000000000000002";
-    let first = listed_agent(A, &run_record(R, RUN_REST));
-    let second = listed_agent(A2, "null");
+    let first = listed_agent(A, &run_record(R, RUN_REST), &refused_signs());
+    let second = listed_agent(A2, "null", NO_SIGNS);
     let lists = format!(r#"{{"agents":[{first},{second}],"next":"{A2}"}}"#);
     let empty = r#"{"agents":[],"next":null}"#.to_owned();
     let call = CoordinatorCall::parse(
@@ -2133,13 +2142,37 @@ fn list_agents_is_a_body_and_its_reply_reads_back() {
     );
     let of_another = format!(
         r#"{{"agents":[{}],"next":null}}"#,
-        listed_agent(A2, &run_record(R, RUN_REST))
+        listed_agent(A2, &run_record(R, RUN_REST), NO_SIGNS)
     );
     expect(
         CoordinatorReply::parse(of_another.as_bytes()),
         "ListedAgent",
         "record_of_another_agent",
         "last",
+    );
+    for key in ["refused_run", "reply_unknown", "refused_slots"] {
+        let held = refused_signs()
+            .split(',')
+            .find(|pair| pair.starts_with(&format!(r#""{key}":"#)))
+            .map(|pair| format!(",{pair}"))
+            .expect("the key's pair");
+        let lacking = format!(r#"{{"agents":[{}],"next":null}}"#, swap(&first, &held, ""));
+        expect(
+            CoordinatorReply::parse(lacking.as_bytes()),
+            "ListedAgent",
+            "missing_key",
+            key,
+        );
+    }
+    let yes_without_last = format!(
+        r#"{{"agents":[{}],"next":null}}"#,
+        listed_agent(A2, "null", &refused_signs())
+    );
+    expect(
+        CoordinatorReply::parse(yes_without_last.as_bytes()),
+        "ListedAgent",
+        "reply_unknown_without_last",
+        "reply_unknown",
     );
     let mut over = empty.clone().into_bytes();
     over.resize(CHECKPOINTS_REPLY_MAX + 1, b' ');

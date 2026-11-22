@@ -1813,6 +1813,14 @@ mod tests {
             own("relay")
         }
 
+        fn acknowledge_lost_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<DaemonStatus, ClientError> {
+            own("acknowledge_lost_permission")
+        }
+
         #[cfg(target_os = "macos")]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             own("owner_stream")
@@ -1825,6 +1833,11 @@ mod tests {
             _: halvo_control::r2::RunEdge,
         ) -> Result<halvo_control::r2::RunMarked, ClientError> {
             own("run_mark")
+        }
+
+        #[cfg(target_os = "macos")]
+        fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
+            own("defer")
         }
     }
 
@@ -2040,6 +2053,7 @@ mod tests {
         let of_the_system = vec![
             kind_of(control.owner_stream(made())),
             kind_of(control.run_mark(made(), halvo_control::r2::RunEdge::Start)),
+            kind_of(control.defer(made(), 0)),
         ];
         #[cfg(not(target_os = "macos"))]
         let of_the_system: Vec<&str> = Vec::new();
@@ -2053,6 +2067,7 @@ mod tests {
             kind_of(control.set_storage_cap(made(), StorageCap::DEFAULT)),
             kind_of(control.request_permission(made(), Permission::Accessibility)),
             kind_of(control.relay(made(), b"{}")),
+            kind_of(control.acknowledge_lost_permission(made(), Permission::Accessibility)),
         ]
         .into_iter()
         .chain(of_the_system)
@@ -2067,10 +2082,11 @@ mod tests {
             "set_storage_cap",
             "request_permission",
             "relay",
+            "acknowledge_lost_permission",
         ]
         .into_iter()
         .chain(if cfg!(target_os = "macos") {
-            vec!["owner_stream", "run_mark"]
+            vec!["owner_stream", "run_mark", "defer"]
         } else {
             Vec::new()
         })

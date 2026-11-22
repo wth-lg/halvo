@@ -1248,6 +1248,15 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             .iter()
             .chain(&idle)
             .filter_map(|name| self.needs(*name))
+            .chain(
+                self.state_file()
+                    .is_some_and(|file| {
+                        file.state()
+                            .permissions_asked
+                            .contains(&Permission::Accessibility)
+                    })
+                    .then_some(Permission::Accessibility),
+            )
             .collect()
     }
 
@@ -1301,10 +1310,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         match self.board.granted_at_start.clone() {
             None => self.board.granted_at_start = Some(granted.clone()),
             Some(at_start) => {
-                if granted
-                    .iter()
-                    .any(|permission| !at_start.contains(permission))
-                {
+                if granted.iter().any(|permission| {
+                    permission.restarts_capture() && !at_start.contains(permission)
+                }) {
                     return Some(Ending::Restart);
                 }
             }
@@ -1832,6 +1840,16 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// the last settle, when the last settle gets no answer or when the life
     /// lost events between the two settles, else `status`; with no owner it
     /// is `status`.
+    ///
+    /// At a Windows session's end, which [`super::signal::session_end_budget`]
+    /// reads, the entry takes SESSION_END_BUDGET_MS from its start (contracts.md
+    /// C14 item 6): the watchdog is armed for that budget with `status`, no
+    /// stop turns the arm into 5, the first settle is skipped and the last one
+    /// is cut to what is left of the budget. A source that does not stop in
+    /// its one pass is let go with its line, and no second ask and no ending
+    /// call follow, so the exit status stays that of the last settle. The arm
+    /// stays at the entry's end with the entry's answer, so that what follows
+    /// the entry also ends inside the budget.
     pub fn shutdown_entry(
         &mut self,
         owner: Option<&dyn OwnerLink>,
@@ -1842,13 +1860,21 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
         self.entered = true;
         self.end_the_life();
+        let session_end = super::signal::session_end_budget();
         let asked_before = self.pausing;
         let started = self.main_loop.now();
         let found = self.arm_found();
         let in_play = self.held(stop_order(self.platform));
-        self.arm_entry(&in_play, status);
-        self.entry_status = Some(status);
+        match (session_end, &self.watchdog) {
+            (None, _) => {
+                self.arm_entry(&in_play, status);
+                self.entry_status = Some(status);
+            }
+            (Some(budget), Some(watchdog)) => watchdog.arm(budget, status),
+            (Some(_), None) => {}
+        }
         let first = owner
+            .filter(|_| session_end.is_none())
             .and_then(|owner| owner.ask(Command::Settle).ok())
             .and_then(|pending| {
                 self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE))
@@ -1861,7 +1887,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         #[cfg(feature = "r2")]
         super::r2::service::stop();
         let unstopped = asked_before || stops.iter().any(|(_, answer)| !is_a_stop(answer));
-        if unstopped {
+        if unstopped && session_end.is_none() {
             if let Some(Ok(pending)) = owner.map(|owner| owner.ask(Command::Settle)) {
                 let _ = self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE));
             }
@@ -1869,11 +1895,26 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 let _ = self.stop_sources(true);
             }
         }
+        if session_end.is_some() {
+            for (name, answer) in stops.iter().filter(|(_, answer)| !is_a_stop(answer)) {
+                if let Some(failed) = super::stop_failure(*name, answer.clone()) {
+                    let _ = writeln!(
+                        self.err,
+                        "halvo-capture: at the session's end the source {} did not stop and was let go: {}",
+                        failed.name, failed.error
+                    );
+                }
+            }
+        }
+        let last_bound = match session_end {
+            Some(budget) => {
+                FINAL_SETTLE.min((started + budget).saturating_sub(self.main_loop.now()))
+            }
+            None => self.before_the_deadline(FINAL_SETTLE),
+        };
         let last = owner
             .and_then(|owner| owner.ask(Command::Settle).ok())
-            .and_then(|pending| {
-                self.answer_within(&pending, self.before_the_deadline(FINAL_SETTLE))
-            });
+            .and_then(|pending| self.answer_within(&pending, last_bound));
         let settled = match last {
             Some(Answer::Settled(snapshot)) => Some(snapshot),
             _ => None,
@@ -1885,7 +1926,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             (Some(before), Some(after)) => after.events_lost > before.events_lost,
             _ => false,
         };
-        let status = if unstopped {
+        let status = if unstopped && session_end.is_none() {
             exit::SOURCE_NOT_STOPPED
         } else if unanswered || failing || lost_more {
             exit::ERROR
@@ -1902,7 +1943,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             }
         }
         self.entry_status = None;
-        if unstopped {
+        if session_end.is_some() {
+            if let Some(watchdog) = &self.watchdog {
+                watchdog.set_status(status);
+            }
+        } else if unstopped {
             if let Some(end_call) = &self.end_call {
                 end_call.end(exit::SOURCE_NOT_STOPPED);
             }
@@ -3013,6 +3058,87 @@ mod tests {
             .borrow()
             .iter()
             .all(|named| named == &[Permission::InputMonitoring]));
+    }
+
+    #[test]
+    fn the_probe_names_accessibility_once_its_asked_record_stands() {
+        let (f, answers, asked) = probed(fixture(Factory::new()));
+        let (mut f, _dir, _writer) = with_state_file(f);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        f.start(&two());
+        f.tick();
+        assert!(
+            asked
+                .borrow()
+                .iter()
+                .all(|named| !named.contains(&Permission::Accessibility)),
+            "before the record stands the probe names no Accessibility: {:?}",
+            asked.borrow()
+        );
+        f.supervisor
+            .state_file()
+            .expect("the state file")
+            .record_asked(Permission::Accessibility)
+            .expect("the record is written");
+        answers.borrow_mut().push_back(Probed::Answered(vec![
+            (Permission::InputMonitoring, GrantState::Granted),
+            (Permission::Accessibility, GrantState::NotGranted),
+        ]));
+        f.later(PROBE_INTERVAL);
+        assert_eq!(
+            asked
+                .borrow()
+                .last()
+                .map(|named| named.contains(&Permission::Accessibility)),
+            Some(true),
+            "once the record stands the probe names Accessibility: {:?}",
+            asked.borrow()
+        );
+        let row = |f: &Fixture<Factory>| {
+            let facts = super::super::server::RunFacts {
+                started_at: halvo_control::model::UtcSecond::from_unix_seconds(1_800_000_000)
+                    .unwrap(),
+                parent: halvo_control::proto::Parent::None,
+                last_stop: halvo_control::proto::LastStop::None,
+                rss_peak_bytes: 0,
+            };
+            let status = super::super::server::status_of(&f.supervisor.status_parts(None), &facts)
+                .expect("the status holds together");
+            status
+                .fields()
+                .onboarding
+                .permissions
+                .iter()
+                .find(|row| row.permission == Permission::Accessibility)
+                .map(|row| (row.grant, row.lost))
+        };
+        assert_eq!(
+            row(&f),
+            Some((GrantState::NotGranted, false)),
+            "the row of Accessibility shows the answer"
+        );
+        answers.borrow_mut().push_back(Probed::Answered(vec![
+            (Permission::InputMonitoring, GrantState::Granted),
+            (Permission::Accessibility, GrantState::Granted),
+        ]));
+        assert_eq!(
+            f.later(PROBE_INTERVAL),
+            None,
+            "a granted Accessibility answer ends no life"
+        );
+        assert_eq!(row(&f), Some((GrantState::Granted, false)));
+        answers.borrow_mut().push_back(Probed::Answered(vec![
+            (Permission::InputMonitoring, GrantState::Granted),
+            (Permission::Accessibility, GrantState::NotGranted),
+        ]));
+        f.later(PROBE_INTERVAL);
+        assert_eq!(
+            row(&f),
+            Some((GrantState::NotGranted, true)),
+            "the grant was recorded, so its loss reads lost"
+        );
     }
 
     #[test]

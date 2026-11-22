@@ -88,6 +88,21 @@ pub fn start_time_of(_pid: u32) -> Option<u64> {
 #[cfg(windows)]
 pub struct ProcessHandle(windows::Win32::Foundation::HANDLE);
 
+// SAFETY: a process handle names a kernel object that any thread of the
+// process may use; this value owns its handle alone and closes it once.
+#[cfg(all(windows, debug_assertions))]
+unsafe impl Send for ProcessHandle {}
+
+/// What an open of a process by its pid found: the process, an open that the
+/// system refused (ERROR_ACCESS_DENIED: a process runs there that this user
+/// may not open with the rights asked), or no process of that pid.
+#[cfg(windows)]
+pub enum Opened {
+    Process(ProcessHandle),
+    Refused,
+    NoProcess,
+}
+
 #[cfg(windows)]
 impl ProcessHandle {
     /// Opens the process `pid` with `access`: `None` when no process of that
@@ -96,11 +111,27 @@ impl ProcessHandle {
         pid: u32,
         access: windows::Win32::System::Threading::PROCESS_ACCESS_RIGHTS,
     ) -> Option<ProcessHandle> {
+        match ProcessHandle::open_or_refused(pid, access) {
+            Opened::Process(process) => Some(process),
+            Opened::Refused | Opened::NoProcess => None,
+        }
+    }
+
+    /// Opens the process `pid` with `access`, and tells a refused open from a
+    /// pid that names no process, as the owner slot of the workflows run
+    /// reads its owner.
+    pub fn open_or_refused(
+        pid: u32,
+        access: windows::Win32::System::Threading::PROCESS_ACCESS_RIGHTS,
+    ) -> Opened {
+        use windows::Win32::Foundation::ERROR_ACCESS_DENIED;
         // SAFETY: OpenProcess takes plain values and returns a new handle,
         // which this value owns from here on, or an error.
-        unsafe { windows::Win32::System::Threading::OpenProcess(access, false, pid) }
-            .ok()
-            .map(ProcessHandle)
+        match unsafe { windows::Win32::System::Threading::OpenProcess(access, false, pid) } {
+            Ok(handle) => Opened::Process(ProcessHandle(handle)),
+            Err(error) if error.code() == ERROR_ACCESS_DENIED.to_hresult() => Opened::Refused,
+            Err(_) => Opened::NoProcess,
+        }
     }
 
     /// The creation time of the process in microseconds since the epoch,
@@ -143,6 +174,19 @@ impl ProcessHandle {
         let _ = unsafe { TerminateProcess(self.0, status) };
         // SAFETY: the handle is open with the right to wait for the process.
         unsafe { WaitForSingleObject(self.0, wait) == WAIT_OBJECT_0 }
+    }
+}
+
+#[cfg(all(windows, debug_assertions))]
+impl ProcessHandle {
+    /// Whether the process has ended, read with no wait. The handle needs
+    /// the right to wait for the process.
+    pub fn has_ended(&self) -> bool {
+        use windows::Win32::Foundation::WAIT_OBJECT_0;
+        // SAFETY: the handle is open; the call takes no pointer.
+        unsafe {
+            windows::Win32::System::Threading::WaitForSingleObject(self.0, 0) == WAIT_OBJECT_0
+        }
     }
 }
 

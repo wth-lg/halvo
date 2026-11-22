@@ -133,6 +133,10 @@
     GRANT_OFF: "Off",
     OPEN_SETTINGS: "Open System Settings",
     ASK_NOW: "Ask now",
+    ASK_REQUESTED: "Halvo asked macOS for the {pane} permission. If a message from macOS appears, answer it there. Your choice then shows here.",
+    ASK_ALREADY_ON: "The {pane} permission is already on.",
+    ASK_UNSUPPORTED: "Halvo's capture service cannot ask macOS for this permission right now. Quit Halvo, open it again, and try once more.",
+    LEAVE_OFF: "Leave it off",
     PERMISSIONS_HEADING: "Permissions",
     WALKBACK_INTRO: "To get capture working again:",
     CAPTURE_HEADING: "Capture",
@@ -183,6 +187,7 @@
     HELD_RESUME: "Press Resume to turn capture back on.",
     HELD_START: "This happened three times in a row, so Halvo did not start its capture service again. Press Start to turn capture back on.",
     START: "Start",
+    LOGIN_ITEM_OFF: "Halvo should start by itself when you log in. If it does not, open System Settings, then General, then Login Items, and turn Halvo on.",
   };
 
   Halvo.errorWords = function (e) {

@@ -98,6 +98,10 @@ pub const HELD: &str = "Capture off: one part did not stop in time";
 pub const PAUSE_NOT_DONE: &str =
     "Capture was not paused. Try again, or quit Halvo to stop capture.";
 
+/// The tray's status line while a status names a lost grant, until the grant is back or put
+/// away; the window's Permissions view says which one.
+pub const LOST_GRANT: &str = "A permission that capture needs was turned off";
+
 const PAUSED_TITLE: &str = "Halvo ❚❚";
 
 /// The tray's tooltip while the app holds capture off.
@@ -272,6 +276,9 @@ pub fn labels(view: &StatusView) -> TrayLabels {
             CaptureChange::Resume => "Resume capture",
         };
         labels.toggle_enabled = true;
+        if !view.lost_grants.is_empty() {
+            labels.status_text = LOST_GRANT;
+        }
     }
     if let Some(hold) = view.hold() {
         labels = TrayLabels {

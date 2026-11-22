@@ -179,6 +179,16 @@ pub trait Control: Send + Sync {
         Err(ClientError::Unsupported)
     }
 
+    /// Sends one acknowledge_lost_permission for `permission` and answers the status that comes
+    /// back. A control with no such call answers `ClientError::Unsupported`.
+    fn acknowledge_lost_permission(
+        &self,
+        _made: Made,
+        _permission: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
     /// Asks the daemon for one end of a new owner stream (the workflows run's W-C24.13), on which the coordinator's
     /// requests reach the owner of the derived store. A control with no stream call answers
     /// `ClientError::Unsupported`.
@@ -191,6 +201,14 @@ pub trait Control: Send + Sync {
     /// control with no mark call answers `ClientError::Unsupported`.
     #[cfg(target_os = "macos")]
     fn run_mark(&self, _made: Made, _edge: RunEdge) -> Result<RunMarked, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    /// Asks the daemon to hold the search for repeated tasks off until `until`, in nanoseconds since 1970 (the
+    /// workflows run's C24.5), and gives the deadline in force, none where none is. A control with no defer call
+    /// answers `ClientError::Unsupported`.
+    #[cfg(target_os = "macos")]
+    fn defer(&self, _made: Made, _until: i64) -> Result<Option<i64>, ClientError> {
         Err(ClientError::Unsupported)
     }
 }
@@ -363,6 +381,18 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
         })
     }
 
+    fn acknowledge_lost_permission(
+        &self,
+        made: Made,
+        permission: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        self.run(
+            made,
+            &Request::AcknowledgeLostPermission { permission },
+            |client| client.acknowledge_lost_permission(permission),
+        )
+    }
+
     /// The stream call of `streaming`, in its place in the line; a control made by `new` answers
     /// `ClientError::Unsupported`.
     #[cfg(target_os = "macos")]
@@ -408,6 +438,21 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
                 "the reply is no run_marked".to_owned(),
             )),
         }
+    }
+
+    /// The request `defer` of `until` by `Client::defer`, once the call has its place in the line, for which it waits
+    /// as long as a mark does; the client's call then waits up to 5 s for the daemon. It gives the deadline in force
+    /// that the daemon names, or the error of the call.
+    #[cfg(target_os = "macos")]
+    fn defer(&self, made: Made, until: i64) -> Result<Option<i64>, ClientError> {
+        let by = made.deadline_from + CALL_DEADLINE;
+        let late = ClientError::Deadline {
+            seconds: CALL_DEADLINE.as_secs(),
+        };
+        let place = made.enter(by).ok_or(late)?;
+        let answer = Client::new(self.connector.clone()).defer(until);
+        drop(place);
+        answer
     }
 
     fn relay(&self, made: Made, request: &[u8]) -> Result<Vec<u8>, ClientError> {
@@ -720,6 +765,18 @@ impl<C: Control> Control for Watching<C> {
         self.inner.relay(made, request)
     }
 
+    fn acknowledge_lost_permission(
+        &self,
+        made: Made,
+        permission: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        let before = self.pid.get();
+        self.took_status(
+            before,
+            self.inner.acknowledge_lost_permission(made, permission),
+        )
+    }
+
     #[cfg(target_os = "macos")]
     fn owner_stream(&self, made: Made) -> Result<OwnerStreamEnd, ClientError> {
         self.inner.owner_stream(made)
@@ -728,6 +785,11 @@ impl<C: Control> Control for Watching<C> {
     #[cfg(target_os = "macos")]
     fn run_mark(&self, made: Made, edge: RunEdge) -> Result<RunMarked, ClientError> {
         self.inner.run_mark(made, edge)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn defer(&self, made: Made, until: i64) -> Result<Option<i64>, ClientError> {
+        self.inner.defer(made, until)
     }
 }
 

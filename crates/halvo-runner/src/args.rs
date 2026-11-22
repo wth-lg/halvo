@@ -85,6 +85,15 @@ fn text(value: &OsString, what: Usage) -> Result<&str, Usage> {
     value.to_str().ok_or(what)
 }
 
+/// The flag that asks for the runner's version, as halvo and halvo-capture take it.
+const VERSION_FLAG: &str = "--version";
+
+/// Whether the arguments are the flag `--version` alone; beside another argument the flag is an unknown argument
+/// of `parse`.
+pub(crate) fn asks_version(args: &[OsString]) -> bool {
+    matches!(args, [only] if only == VERSION_FLAG)
+}
+
 /// Reads the arguments, or the detail of the refusal `usage`.
 pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
     let mut values: [Option<&OsString>; 8] = [None; 8];

@@ -9,18 +9,21 @@ use halvo_schema::executable::body::{
     UnknownEffect, CHECKPOINTS_REPLY_MAX,
 };
 use halvo_schema::executable::names::{
-    ActionClass, AgentState, CheckpointState, EffectState, FieldName, LogEvent, Mode, YesNo,
+    ActionClass, AgentState, Cause, CheckpointState, EffectState, FieldName, LogEvent, Mode,
+    ReplyState, YesNo,
 };
-use halvo_schema::executable::text::V1;
+use halvo_schema::executable::record::Slot;
+use halvo_schema::executable::text::{Name, V1};
 use halvo_schema::executable::{
-    AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentRun, AgentSession, AgentStart,
-    CoordinatorCall, CoordinatorReply, EffectId, OwnText, RunId, Runtime,
+    reply_senders, AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentReply, AgentRun,
+    AgentSession, AgentStart, CoordinatorCall, CoordinatorReply, EffectId, OwnText, RunId, Runtime,
 };
-use halvo_schema::{AgentId, Category, ErrorName, Instant, RowRead, Workflow, WorkflowState};
+use halvo_schema::{AgentId, Category, ErrorName, Instant, Workflow, WorkflowState};
 
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
+use crate::workbook::{workbook_path, PathForm};
 use crate::{bind, bindings, checkpoint, day, end, runner};
 
 /// Answers one coordinator body of A7.2, read from its bytes with the typed parser: the reply, or the error name of
@@ -100,9 +103,17 @@ use crate::{bind, bindings, checkpoint, day, end, runner};
 ///   `session`, `yes` where a session revision of the agent is stored whole, as `load` lists it; `last`, the agent's
 ///   run record of the greatest day, then of the latest start row, then of the greatest run id; `unknown`, each
 ///   effect of the agent whose newest row by seq is `unknown`, in ascending order of effect id, with the run, the
-///   day, the class and the kept fields of that row, whatever a record's count says. A page holds whole entries while
-///   the writer takes it, and `next` names its last agent where agents are left; `length` where the first entry of
-///   the page alone does not fit.
+///   day, the class and the kept fields of that row, whatever a record's count says; `refused_run`, the run of the
+///   agent's newest start row (`start_accepted`, by `at` and then run id), ended or not and with or without a record,
+///   where a log row of that run and the agent holds `step_failed` with the cause `unauthorized`, else null (CP-183);
+///   `reply_unknown`, `yes` where `last` is a record and an `agent_reply` row of the agent names its run in the state
+///   `unknown`, else `no`; `refused_slots`, of the bindings that `slots` reads, the names in their order of the slots
+///   that their one reader refuses: `workbook` by `workbook_path` in the form of `set_bindings` and `reply_senders` by
+///   `reply_senders`, a slot with no reader never. Each key reads the agent's own rows alone and holds no slot's
+///   value. Named limits of the contract: a newer start of the agent ends the sign of `refused_run`, also a run that
+///   ended before any request to the service, and the sign leaves with its log row after 93 days. A page holds whole
+///   entries while the writer takes it, and `next` names its last agent where agents are left; `length` where the
+///   first entry of the page alone does not fit.
 /// - `agent_history`: `no_workflow`; `binding`. It stores nothing and changes no state. Of the agent's runs, only
 ///   those whose `agent_run` record is stored count, in the order of `last` of `list_agents`, newest first, and it
 ///   gives the first `runs` of them: each with its record and the effects whose rows name the run, in ascending order
@@ -149,7 +160,9 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
     let sessions = rows::sessions(rows)?;
     let runs = rows::runs(rows)?;
     let effects = rows::effects(rows)?;
-    let starts = start_rows(rows)?;
+    let logs = rows::logs(rows)?;
+    let starts = start_rows(&logs);
+    let replies = rows::replies(rows)?;
     let mut entries = Vec::new();
     for (agent, mut config) in newest {
         let Some(state) = named_state(host, &config) else {
@@ -158,13 +171,14 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
         config.playbook = runner::finished(rows, &agent)?
             .pop_last()
             .map(|(number, _)| number);
-        let slots = bindings
+        let newest_bindings = bindings
             .iter()
             .filter(|r| r.agent == agent && r.workflow == config.workflow)
-            .max_by_key(|r| r.rev)
-            .map_or_else(Vec::new, |r| {
-                r.slots.iter().map(|s| s.name.clone()).collect()
-            });
+            .max_by_key(|r| r.rev);
+        let slots = newest_bindings.map_or_else(Vec::new, |r| {
+            r.slots.iter().map(|s| s.name.clone()).collect()
+        });
+        let refused_slots = newest_bindings.map_or_else(Vec::new, |r| refused_slots(&r.slots));
         let own: Vec<AgentSession> = sessions
             .iter()
             .filter(|s| s.agent == agent)
@@ -181,6 +195,8 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
             .max_by_key(|r| age(&starts, r))
             .cloned();
         let unknown = unknown_of(&effects, &agent);
+        let refused_run = refused_run(&logs, &starts, &agent);
+        let reply_unknown = reply_unknown(&replies, last.as_ref());
         entries.push(ListedAgent {
             config,
             state,
@@ -188,6 +204,9 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
             session,
             last,
             unknown,
+            refused_run,
+            reply_unknown,
+            refused_slots,
         });
     }
     Ok(CoordinatorReply::Agents(page(entries)?))
@@ -207,11 +226,60 @@ fn named_state(host: &dyn Host, config: &AgentConfig) -> Option<AgentState> {
     }
 }
 
-fn start_rows(rows: &dyn RowRead) -> Result<Vec<AgentLog>, ErrorName> {
-    Ok(rows::logs(rows)?
-        .into_iter()
+fn start_rows(logs: &[AgentLog]) -> Vec<AgentLog> {
+    logs.iter()
         .filter(|l| l.event == LogEvent::StartAccepted)
-        .collect())
+        .cloned()
+        .collect()
+}
+
+/// The run of the agent's newest start row, of the greatest `at` and then run id, where a log row of that run and the
+/// agent holds `step_failed` with the cause `unauthorized`; else none. It reads no run record and no row of another
+/// agent.
+fn refused_run(logs: &[AgentLog], starts: &[AgentLog], agent: &AgentId) -> Option<RunId> {
+    let newest = starts
+        .iter()
+        .filter(|l| &l.agent == agent)
+        .max_by_key(|l| (l.at, &l.run))?;
+    logs.iter()
+        .any(|l| {
+            &l.agent == agent
+                && l.run == newest.run
+                && l.event == LogEvent::StepFailed
+                && l.cause == Some(Cause::Unauthorized)
+        })
+        .then(|| newest.run.clone())
+}
+
+/// `yes` where `last` is a record and a reply row of its agent and run is `unknown`, a state that no row follows.
+fn reply_unknown(replies: &[AgentReply], last: Option<&AgentRun>) -> YesNo {
+    let left = last.is_some_and(|record| {
+        replies.iter().any(|r| {
+            r.agent == record.agent && r.run == record.run && r.state == ReplyState::Unknown
+        })
+    });
+    if left {
+        YesNo::Yes
+    } else {
+        YesNo::No
+    }
+}
+
+/// The names, in their order, of the slots that their one reader refuses: `workbook` by `workbook_path` in the form
+/// of `set_bindings`, `reply_senders` by `reply_senders`. A slot of another name has no reader and is never named.
+fn refused_slots(slots: &[Slot]) -> Vec<Name> {
+    slots
+        .iter()
+        .filter(|slot| {
+            let value = slot.value.joined();
+            match slot.name.as_str() {
+                "workbook" => workbook_path(&value, PathForm::NATIVE).is_err(),
+                "reply_senders" => reply_senders(&value).is_err(),
+                _ => false,
+            }
+        })
+        .map(|slot| slot.name.clone())
+        .collect()
 }
 
 fn started(starts: &[AgentLog], record: &AgentRun) -> Option<Instant> {
@@ -290,7 +358,7 @@ fn page(entries: Vec<ListedAgent>) -> Result<AgentsReply, ErrorName> {
 fn agent_history(host: &dyn Host, b: &AgentHistory) -> Result<CoordinatorReply, ErrorName> {
     bind::of_agent(host, &b.workflow, &b.agent)?;
     let rows = host.rows();
-    let starts = start_rows(rows)?;
+    let starts = start_rows(&rows::logs(rows)?);
     let mut records: Vec<AgentRun> = rows::runs(rows)?
         .into_iter()
         .filter(|r| r.agent == b.agent)

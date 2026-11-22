@@ -1,10 +1,11 @@
 use halvo_control::client::{ClientError, DeleteOutcome};
 use halvo_control::model::{CaptureState, ObservationWindow, StorageCap, StoreId};
-use halvo_control::onboarding::Permission;
+use halvo_control::onboarding::{GrantState, OnboardingState, Permission};
 use halvo_control::proto::{
     Cap, Capture, CaptureReason, DaemonStatus, DeleteFields, DrainError, ErrorCode, ExpiryError,
-    Health, InventoryReply, LastStop, Lease, LostRecord, PasswordGuard, Platform, RootDestroyed,
-    Section, SourceName, SourceStateName, StopKind, StoreErrorKind, StoreState,
+    Health, InventoryReply, LastStop, Lease, LostRecord, OnOff, PasswordGuard, Platform,
+    RootDestroyed, Section, SourceName, SourceStateName, StopKind, StoreErrorKind, StoreState,
+    SwitchName,
 };
 use halvo_control::texts::{texts, Texts};
 use serde::{Deserialize, Serialize};
@@ -116,6 +117,7 @@ pub struct RunningView {
     pub texts: Texts,
     pub ext: Vec<Section>,
     pub hold: Option<HoldView>,
+    pub login_item_loaded: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,6 +127,7 @@ pub struct NoStatusView {
     pub window: ObservationWindow,
     pub last_exit: Option<i32>,
     pub hold: Option<HoldView>,
+    pub login_item_loaded: Option<bool>,
 }
 
 /// Why the app holds capture off: a child of the app ended itself with status 5, because a
@@ -389,6 +392,7 @@ struct WireView<'a> {
     service: Service,
     last_exit: Option<i32>,
     hold: Option<HoldView>,
+    login_item_loaded: Option<bool>,
     platform: Platform,
     desired: Option<CaptureState>,
     capture: Option<Capture>,
@@ -417,6 +421,7 @@ impl Serialize for StatusView {
                 service: Service::Running,
                 last_exit: None,
                 hold: view.hold,
+                login_item_loaded: view.login_item_loaded,
                 platform: view.platform,
                 desired: Some(view.desired),
                 capture: Some(view.capture),
@@ -441,6 +446,7 @@ impl Serialize for StatusView {
                 service: view.service.word(),
                 last_exit: view.last_exit,
                 hold: view.hold,
+                login_item_loaded: view.login_item_loaded,
                 platform: view.platform,
                 desired: None,
                 capture: None,
@@ -482,6 +488,7 @@ impl StatusView {
             window: ObservationWindow::r1(),
             last_exit: None,
             hold: None,
+            login_item_loaded: None,
         })
     }
 
@@ -495,6 +502,16 @@ impl StatusView {
             StatusView::Running(view) => view.hold,
             StatusView::NoStatus(view) => view.hold,
         }
+    }
+
+    /// This view with what the app read of its login item at its start: whether launchd holds
+    /// it, none where nothing was read.
+    pub fn with_login_item_loaded(mut self, loaded: Option<bool>) -> Self {
+        match &mut self {
+            StatusView::Running(view) => view.login_item_loaded = loaded,
+            StatusView::NoStatus(view) => view.login_item_loaded = loaded,
+        }
+        self
     }
 
     #[cfg(test)]
@@ -556,20 +573,75 @@ impl StatusView {
                 .sources
                 .iter()
                 .map(|line| SourceView {
-                    name: line.name,
+                    name: match line.name {
+                        SourceName::Input if !typing_shown(status) => SourceName::Pointer,
+                        name => name,
+                    },
                     state: line.state.name(),
                     reason: line.state.reason(),
                     error: line.state.error().map(ToString::to_string),
                 })
                 .collect(),
-            lost_grants: f.onboarding.lost_grants.clone(),
+            lost_grants: onboarding_shown(status).lost_grants,
             password_guard: f.password_guard,
             screen_filter_excludes_app: f.screen_filter_excludes_app,
-            texts: texts(status),
+            texts: texts_shown(status),
             ext: f.ext.clone(),
             hold: None,
+            login_item_loaded: None,
         }))
     }
+}
+
+/// The one switch of what a view says about typing on a Mac: whether the status's typing line
+/// reads on. A Mac status that reads it off or holds no such line shows none of what typing
+/// would record or need: the row of keys, the sentences on passwords and on a key pressed early,
+/// the card of Input Monitoring, and the input source's name for typing. A Windows status is
+/// shown as it is.
+pub fn typing_shown(status: &DaemonStatus) -> bool {
+    let f = status.fields();
+    f.platform == Platform::Windows || f.typing == Some(true)
+}
+
+/// The onboarding rows of `status` that a view shows: a row with its steps and its lost grant
+/// stays only for a permission that the app can use, Input Monitoring by [`typing_shown`] and
+/// Screen and System Audio Recording while the switch screen_activity reads on.
+pub fn onboarding_shown(status: &DaemonStatus) -> OnboardingState {
+    let f = status.fields();
+    let screen = f
+        .switches
+        .iter()
+        .any(|line| line.name == SwitchName::ScreenActivity && line.value == OnOff::On);
+    let shown = |permission: Permission| match permission {
+        Permission::InputMonitoring => typing_shown(status),
+        Permission::ScreenAndSystemAudioRecording => screen,
+        Permission::Accessibility => true,
+    };
+    let mut onboarding = f.onboarding.clone();
+    onboarding.permissions.retain(|row| shown(row.permission));
+    onboarding
+        .lost_grants
+        .retain(|&permission| shown(permission));
+    onboarding.walkback.retain(|step| shown(step.permission));
+    onboarding.all_granted = onboarding
+        .permissions
+        .iter()
+        .all(|row| row.grant == GrantState::Granted);
+    onboarding
+}
+
+/// The sentences of `status` that a view shows: by [`typing_shown`], without the row of keys,
+/// the sentence on passwords (left empty) and the sentence on a key pressed early.
+pub fn texts_shown(status: &DaemonStatus) -> Texts {
+    let mut shown = texts(status);
+    if !typing_shown(status) {
+        shown
+            .recorded
+            .retain(|row| row.switch != SwitchName::KeyClass);
+        shown.passwords = "";
+        shown.typed_ahead = None;
+    }
+    shown
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -605,6 +677,9 @@ pub enum ActionError {
     /// The service ended with status 5 during a person's delete and no later life answered
     /// within the wait, so the flow could not ask again.
     ServiceNotBack,
+    /// The service does not serve a request of this kind; the page says it in its own words for
+    /// the request, never the message of the service's reply.
+    UnsupportedOp,
 }
 
 impl ActionError {

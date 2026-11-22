@@ -113,7 +113,7 @@ test("a faulted status reaches the page with its reason", async () => {
   assert.equal(p.text("capture-reason"), "A permission that capture needs is off.");
 });
 
-test("RR-app-ui-30: a failed source gets a row with its steps, a failing drain gets its line, and Unsupported says that capture is not available on Windows", async () => {
+test("RR-app-ui-30: a failed source gets a row with its steps, a failing drain gets its line, Unsupported says that capture is not available on Windows, and a login item that launchd does not hold gets its line", async () => {
   const failed = await page(fixture("capture_status-failed-source"));
   const items = failed.byId("failed-sources").children.map((li) => li.textContent);
   assert.deepEqual(items, ["Typing and the pointer has stopped. The steps under Permissions turn it back on."]);
@@ -124,6 +124,9 @@ test("RR-app-ui-30: a failed source gets a row with its steps, a failing drain g
   assert.equal(offered(expiry), true);
   const unsupported = await page(fixture("capture_status-unsupported"));
   assert.equal(unsupported.text("state"), "Capture is not available on Windows in this version.");
+  const notAtLogin = await page({ ...fixture("capture_status-not-running"), login_item_loaded: false });
+  assert.equal(notAtLogin.text("login-line"), "Halvo should start by itself when you log in. If it does not, open System Settings, then General, then Login Items, and turn Halvo on.");
+  for (const loaded of [true, null]) assert.equal((await page({ ...fixture("capture_status-running"), login_item_loaded: loaded })).text("login-line"), "", String(loaded));
 });
 
 test("X-app-ui-01: an unsigned macOS build shows the custody sentence of texts.custody word for word, and another custody shows none of it", async () => {
@@ -211,4 +214,8 @@ test("control-2b: the sentence typed_ahead stands under the password sentence wh
   assert.equal(limits.indexOf(typed), limits.indexOf(passwords) + 1);
   const win = await page(fixture("capture_status-running-windows"));
   assert.equal(win.byId("keeps-limits").children.some((el) => el.textContent === typed), false);
+  const off = await page(fixture("held-child"));
+  const offLimits = off.byId("keeps-limits").children.map((el) => el.textContent);
+  assert.deepEqual([passwords, typed].filter((line) => offLimits.includes(line)), [], "a Mac view with typing off");
+  assert.equal(off.byId("recorded").children.some((li) => /each key/.test(li.textContent)), false);
 });

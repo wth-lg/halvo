@@ -62,6 +62,9 @@ pub struct Views {
     hold: Arc<Hold>,
     pause_missed: Mutex<bool>,
     own_deletes: AtomicUsize,
+    /// Whether launchd holds the app's login item, read once at the app's start; unset where
+    /// nothing was read.
+    pub login_item_loaded: OnceLock<bool>,
 }
 
 /// The mark of the app's own delete request in flight, from `Views::own_delete` until it is
@@ -91,6 +94,7 @@ impl Default for Views {
             hold: Arc::default(),
             pause_missed: Mutex::new(false),
             own_deletes: AtomicUsize::new(0),
+            login_item_loaded: OnceLock::new(),
         }
     }
 }
@@ -106,9 +110,12 @@ impl Views {
         self.marked(view)
     }
 
-    /// `view` with the app's hold, as every view that the app hands to the page or the tray.
+    /// `view` with the app's hold and what the app read of its login item, as every view that
+    /// the app hands to the page or the tray.
     pub fn marked(&self, view: StatusView) -> StatusView {
-        self.hold.mark(view)
+        self.hold
+            .mark(view)
+            .with_login_item_loaded(self.login_item_loaded.get().copied())
     }
 
     /// The app's hold on capture after a child ended itself with status 5.
