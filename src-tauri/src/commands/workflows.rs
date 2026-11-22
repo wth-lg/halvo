@@ -79,9 +79,8 @@ pub struct Listed {
     /// Whether the workflow is in the state `proposed`.
     pub proposed: bool,
     pub category: String,
-    /// The display name that the operating system gives for the workflow's app, if it gives one.
-    /// It is none for every workflow: nothing asks the operating system for a name yet, and no
-    /// row names an app id.
+    /// The display name that the operating system gives for the workflow's app, if it gives one;
+    /// never the app id or a part of it.
     pub app: Option<String>,
     pub site: Option<String>,
     /// The ids of the summaries that support the workflow, in ascending order.
@@ -89,17 +88,19 @@ pub struct Listed {
 }
 
 impl Listed {
-    /// One item of a page of the read `workflows`. The site is the domain of a workflow whose
+    /// One item of a page of the read `workflows`. The app is the name that `app_name` gives for
+    /// the workflow's app id, none where it gives none. The site is the domain of a workflow whose
     /// site is a domain, and the item's hint for a site that comes from a window title.
-    fn of(item: &WorkflowItem) -> Listed {
-        let (id, proposed, category, site) = match &item.workflow {
+    fn of(item: &WorkflowItem, app_name: &dyn Fn(&str) -> Option<String>) -> Listed {
+        let (id, proposed, category, site, app) = match &item.workflow {
             Workflow::Full(w) => (
                 &w.id,
                 w.state == WorkflowState::Proposed,
                 w.category,
                 &w.site,
+                &w.app,
             ),
-            Workflow::Dismissed(w) => (&w.id, false, w.category, &w.site),
+            Workflow::Dismissed(w) => (&w.id, false, w.category, &w.site, &w.app),
         };
         let site = match site {
             Some(SiteValue::Domain { key, .. }) => Some(key.as_str().to_string()),
@@ -112,7 +113,7 @@ impl Listed {
             id: id.as_str().to_string(),
             proposed,
             category: category.as_str().to_string(),
-            app: None,
+            app: app_name(app.as_str()),
             site,
             summaries: item
                 .summaries
@@ -264,7 +265,11 @@ fn action_error(error: &ClientError) -> ActionError {
 
 /// Reads every page of the read `workflows`, the `after` of each being the `next` of the page
 /// before, until a page has no `next`. An answer without a list gives its state and no row.
-pub fn read(control: &dyn Control) -> Result<WorkflowsView, ActionError> {
+/// `app_name` gives the display name of an app id, as `system_app_name` does for the command.
+pub fn read(
+    control: &dyn Control,
+    app_name: &dyn Fn(&str) -> Option<String>,
+) -> Result<WorkflowsView, ActionError> {
     let role = InterfaceRole::claim();
     let mut listed = Vec::new();
     let mut after: Option<WorkflowId> = None;
@@ -286,7 +291,7 @@ pub fn read(control: &dyn Control) -> Result<WorkflowsView, ActionError> {
             }
             Asked::Failed(error) => return Err(action_error(&error)),
         };
-        listed.extend(page.workflows.iter().map(Listed::of));
+        listed.extend(page.workflows.iter().map(|item| Listed::of(item, app_name)));
         match page.next {
             Some(next) if after.as_ref().is_none_or(|before| next > *before) => {
                 after = Some(next);
@@ -341,6 +346,40 @@ async fn decided(
         .map_err(|_| DecisionError::Other(ActionError::Internal))?
 }
 
+/// The display name that the operating system gives for the app of an app id, if it gives one.
+/// On a Mac the bundle id finds the app's bundle in the system's records of apps, without
+/// starting the app and without a window, and the name is the bundle's `CFBundleDisplayName`,
+/// else its `CFBundleName`; an app id that is the file name of an executable finds no bundle.
+/// An empty or blank name is none. The command calls it on its blocking thread.
+#[cfg(target_os = "macos")]
+fn system_app_name(app: &str) -> Option<String> {
+    use objc2::rc::autoreleasepool;
+    use objc2_app_kit::NSWorkspace;
+    use objc2_foundation::{NSBundle, NSString};
+
+    autoreleasepool(|_| {
+        let url = NSWorkspace::sharedWorkspace()
+            .URLForApplicationWithBundleIdentifier(&NSString::from_str(app))?;
+        let bundle = NSBundle::bundleWithURL(&url)?;
+        ["CFBundleDisplayName", "CFBundleName"]
+            .into_iter()
+            .find_map(|key| {
+                let name = bundle
+                    .objectForInfoDictionaryKey(&NSString::from_str(key))?
+                    .downcast::<NSString>()
+                    .ok()?
+                    .to_string();
+                (!name.trim().is_empty()).then_some(name)
+            })
+    })
+}
+
+/// No system but the Mac is asked for a name, so every row leaves the app out.
+#[cfg(not(target_os = "macos"))]
+fn system_app_name(_: &str) -> Option<String> {
+    None
+}
+
 pub struct Workflows;
 
 impl Registration for Workflows {
@@ -363,7 +402,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
 #[tauri::command]
 pub async fn workflows(state: State<'_, AppState>) -> Result<WorkflowsView, ActionError> {
     let control = Arc::clone(&state.control);
-    tauri::async_runtime::spawn_blocking(move || read(control.as_ref()))
+    tauri::async_runtime::spawn_blocking(move || read(control.as_ref(), &system_app_name))
         .await
         .map_err(|_| ActionError::Internal)?
 }
