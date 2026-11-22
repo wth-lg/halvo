@@ -25,16 +25,31 @@
   var keptInFlight = false;
   var refusedInARow = 0;
   var AFTER_DELETE = "after-delete";
+  var removeButton;
+  var removeRow;
+  var removeConfirm;
+  var removeLines;
+  var removal = { armedAt: null, timer: null, box: null, point: null, pressed: false };
+  var removing = false;
+  var removed = false;
 
   function hasPoint(event) {
     return Boolean(event) && event.detail >= 1;
   }
 
-  function atKeptPlace(event) {
+  function atPlace(event, box, point) {
     var x = event.clientX;
     var y = event.clientY;
-    if (keptPoint !== null && Math.abs(x - keptPoint.x) <= 2 && Math.abs(y - keptPoint.y) <= 2) return true;
-    return keptBox !== null && keptBox.width > 0 && keptBox.height > 0 && x >= keptBox.left && x <= keptBox.right && y >= keptBox.top && y <= keptBox.bottom;
+    if (point !== null && Math.abs(x - point.x) <= 2 && Math.abs(y - point.y) <= 2) return true;
+    return box !== null && box.width > 0 && box.height > 0 && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+  }
+
+  function atKeptPlace(event) {
+    return atPlace(event, keptBox, keptPoint);
+  }
+
+  function removalHolds() {
+    return removal.armedAt !== null || removing || removed;
   }
 
   function onPress() {
@@ -52,9 +67,10 @@
   }
 
   function renderOffer() {
-    start.disabled = busy || loading || keptInFlight || armedAt !== null || !offered(current);
+    start.disabled = busy || loading || keptInFlight || armedAt !== null || removalHolds() || !offered(current);
     offerRow.classList.toggle("hidden", refusedInARow < 2);
-    offerButton.disabled = busy || loading || keptInFlight || armedAt !== null || refusedInARow < 2;
+    offerButton.disabled = busy || loading || keptInFlight || armedAt !== null || removalHolds() || refusedInARow < 2;
+    removeButton.disabled = busy || loading || keptInFlight || armedAt !== null || removalHolds() || !current || current.service === "unsupported";
   }
 
   function withFolder(text, folder) {
@@ -117,7 +133,7 @@
   };
 
   function armAt(event, control, stopFirst) {
-    if (armedAt !== null || busy || !current) return;
+    if (armedAt !== null || busy || removalHolds() || !current) return;
     if (stopFirst ? refusedInARow < 2 : !offered(current)) return;
     var offline = stopFirst || current.service === "not_running";
     armed = { id: offline ? null : current.store.id || null, service: current.service, offline: offline, stopFirst: stopFirst };
@@ -152,7 +168,7 @@
 
   function deletedWords(r) {
     var inARow = Number(r.unfinished_in_a_row) || 0;
-    var unfinished = inARow >= 2 ? [withFolder(w.DELETE_NOT_FINISHED_AGAIN, r.looked_in)] : inARow === 1 ? [w.DELETE_NOT_FINISHED] : [];
+    var unfinished = inARow >= 2 ? [withFolder(w.DELETE_NOT_FINISHED_AGAIN, r.looked_in), w.REMOVE_BY_HAND] : inARow === 1 ? [w.DELETE_NOT_FINISHED] : [];
     var lines = lineWords(r).concat(unfinished);
     if (lines.length === 0) lines = [w.DELETE_RESULT_UNREADABLE];
     return lines.concat(typeof r.looked_in === "string" ? [withFolder(w.DELETE_LOOKED_IN, r.looked_in)] : []);
@@ -301,6 +317,126 @@
     return remove();
   }
 
+  function boxOf(control) {
+    var box = control.getBoundingClientRect();
+    return { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
+  }
+
+  function disarmRemove() {
+    if (removal.timer !== null) clearTimeout(removal.timer);
+    removal = { armedAt: null, timer: null, box: null, point: null, pressed: false };
+    removeRow.classList.add("hidden");
+    Halvo.views.release();
+    renderOffer();
+  }
+
+  function armRemove(event) {
+    if (removalHolds() || armedAt !== null || busy || !current || current.service === "unsupported") return;
+    removal = {
+      armedAt: performance.now(),
+      timer: setTimeout(disarmRemove, DISARM_AFTER_MS),
+      box: boxOf(removeButton),
+      point: hasPoint(event) ? { x: event.clientX, y: event.clientY } : null,
+      pressed: false,
+    };
+    Halvo.views.hold();
+    renderOffer();
+    removeRow.classList.remove("hidden");
+    showRemoveLines([]);
+  }
+
+  function onRemovePress() {
+    if (removal.armedAt !== null) removal.pressed = true;
+  }
+
+  function showRemoveLines(texts) {
+    removeLines.replaceChildren.apply(
+      removeLines,
+      texts.map(function (text) {
+        return Halvo.el("p", { text: text });
+      }),
+    );
+  }
+
+  function stepWords(s) {
+    var detail = s.detail || {};
+    var folder = typeof detail.folder === "string" ? detail.folder : "";
+    var failed = s.result === "failed";
+    if (s.step === "delete_all") return [failed ? w.REMOVE_DELETE_FAILED : w.REMOVE_DELETE_DONE];
+    if (s.step === "keychain") return failed ? [] : [w.REMOVE_KEYCHAIN_DONE];
+    if (s.result === "skipped" && (s.step === "login_item" || s.step === "app_files")) return [w.REMOVE_OWN_FOLDER_SKIPPED];
+    if (s.step === "login_item") return [failed ? w.REMOVE_LOGIN_ITEM_FAILED : w.REMOVE_LOGIN_ITEM_DONE];
+    if (s.step === "app_files") return [failed ? w.REMOVE_APP_FILES_FAILED : w.REMOVE_APP_FILES_DONE];
+    if (s.step !== "data_dir") return [];
+    if (failed) return [w.REMOVE_DATA_DIR_FAILED.replace("{folder}", folder), w.REMOVE_BY_HAND];
+    if (Number(detail.count) > 0) return [w.REMOVE_DATA_DIR_UNKNOWN.replace("{folder}", folder).replace("{count}", String(Number(detail.count))), w.REMOVE_BY_HAND];
+    return [w.REMOVE_DATA_DIR_DONE];
+  }
+
+  function removalWords(steps) {
+    if (steps.length === 0) return [w.REMOVE_NOT_STARTED];
+    var texts = [];
+    steps.forEach(function (s) {
+      stepWords(s).forEach(function (text) {
+        if (texts.indexOf(text) === -1) texts.push(text);
+      });
+    });
+    var whole =
+      steps[steps.length - 1].step === "data_dir" &&
+      steps.every(function (s) {
+        return s.result !== "failed";
+      });
+    removed = whole;
+    return texts.concat(whole ? [w.REMOVE_DONE, w.REMOVE_CANNOT_REMOVE] : [w.REMOVE_STOPPED]);
+  }
+
+  function sendRemove() {
+    removing = true;
+    renderOffer();
+    removeButton.textContent = w.REMOVING;
+    Halvo.showError("");
+    return Halvo.ipc
+      .call("remove_halvo")
+      .then(function (r) {
+        Halvo.markAnswer();
+        showRemoveLines(removalWords(r && Array.isArray(r.steps) ? r.steps : []));
+      })
+      .catch(function (e) {
+        var code = e && typeof e === "object" ? e.error : null;
+        if (code === "busy") {
+          showRemoveLines([w.REMOVE_BUSY]);
+          return;
+        }
+        showRemoveLines([]);
+        Halvo.showError(e);
+      })
+      .then(function () {
+        removing = false;
+        if (!removed) removeButton.textContent = w.REMOVE_HALVO;
+        renderOffer();
+      });
+  }
+
+  function onRemoveConfirm(event) {
+    if (removal.armedAt === null) return Promise.resolve();
+    if (event && event.detail > 1) return Promise.resolve();
+    if (hasPoint(event)) {
+      var fromPress = removal.pressed;
+      removal.pressed = false;
+      if (!fromPress || atPlace(event, removal.box, removal.point)) return Promise.resolve();
+    }
+    var since = performance.now() - removal.armedAt;
+    if (since < ARM_DELAY_MS) return Promise.resolve();
+    disarmRemove();
+    if (since >= DISARM_AFTER_MS) return Promise.resolve();
+    return sendRemove();
+  }
+
+  function hideBoth() {
+    disarm();
+    if (removal.armedAt !== null) disarmRemove();
+  }
+
   Halvo.views.add({
     id: "delete-everything",
     order: 6,
@@ -320,6 +456,19 @@
       cleanup = Halvo.el("code", { id: "delete-cleanup", class: "hidden" });
       cleanupNote = Halvo.el("p", { id: "delete-cleanup-note", class: "muted hidden", text: w.CLEANUP_NAMES_ACCOUNT });
       confirmRow = Halvo.el("div", { id: "delete-confirm-row", class: "confirm-row hidden" }, [question, Halvo.el("div", { class: "row" }, [confirm, cancel])]);
+      removeButton = Halvo.el("button", { id: "remove-halvo", class: "danger", text: w.REMOVE_HALVO });
+      removeConfirm = Halvo.el("button", { id: "confirm-remove", class: "danger", text: w.REMOVE_YES });
+      var removeCancel = Halvo.el("button", { id: "cancel-remove", text: w.CANCEL });
+      removeRow = Halvo.el("div", { id: "remove-confirm-row", class: "confirm-row hidden" }, [
+        Halvo.el("p", { id: "remove-question", text: w.REMOVE_QUESTION }),
+        Halvo.el("div", { class: "row" }, [removeConfirm, removeCancel]),
+      ]);
+      removeLines = Halvo.el("div", { id: "remove-result", class: "muted" });
+      removeButton.onclick = armRemove;
+      removeCancel.onclick = disarmRemove;
+      removeConfirm.onclick = onRemoveConfirm;
+      removeConfirm.addEventListener("pointerdown", onRemovePress);
+      removeConfirm.addEventListener("mousedown", onRemovePress);
       start.onclick = arm;
       offerButton.onclick = armOffline;
       cancel.onclick = disarm;
@@ -328,13 +477,16 @@
       confirm.addEventListener("mousedown", onPress);
       el.append(
         Halvo.el("p", { class: "muted", text: w.DELETE_ABOUT }),
-        Halvo.el("div", { class: "row" }, [start, result]),
+        Halvo.el("div", { class: "row" }, [start, removeButton, result]),
         offerRow,
         cleanup,
         cleanupNote,
         confirmRow,
+        removeRow,
+        removeLines,
       );
       start.disabled = true;
+      removeButton.disabled = true;
       var afterDelete = Halvo.takeLoadMark() === AFTER_DELETE;
       Halvo.feed("status").on(function (s) {
         current = s;
@@ -344,6 +496,6 @@
       readKept(afterDelete);
     },
     show: function () {},
-    hide: disarm,
+    hide: hideBoth,
   });
 })();
