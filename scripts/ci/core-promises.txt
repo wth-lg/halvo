@@ -102,6 +102,9 @@ billing check 10-r7-account scheduled mon the windows job, 38 s there
 egress check 60-r6-egress gate macos job, 69 s there in the push run 44895970784
 egress check 60-r6-egress scheduled wed the windows job, 123 s there as a check of the merge gate in the push run 44893237714
 egress check 21-tree-bans gate
+egress target halvo-route/no_grant_in_release gate under the release data no build makes a grant; a ruling made for a test names http://127.0.0.1:<port> alone; no Rust file but the maker's own and the listed test files names the maker of that ruling; the pins of five files
+egress units halvo-route::leave gate under a hosted ruling a grant is made for the origin of the row of its tier alone, by equal bytes, and names that row
+egress units halvo-route::ruling gate ruling=hosted over a table of hosts with no row reads as none
 egress check 10-egress scheduled thu the macos job, 33 s there in the push run 44895970784
 egress check 10-egress scheduled thu the windows job, 206 s there in the run 44930942501
 egress check 80-r6-absent scheduled thu the macos job, 20 s there in the push run 44895970784
