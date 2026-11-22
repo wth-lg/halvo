@@ -232,7 +232,7 @@ fn run(background: bool, given: Option<PathBuf>) {
     #[cfg(any(target_os = "macos", windows, test))]
     let builder = quit::installed(builder);
     #[cfg(windows)]
-    let built = app::after_the_reports_go(crash_reports.as_deref(), || {
+    let built = app::after_the_reports_go(crash_reports.as_deref(), &views, || {
         app::build(builder, parts).build(context)
     });
     #[cfg(not(windows))]

@@ -585,15 +585,20 @@ pub fn app_url() -> Url {
 /// The step of a start before the app and its window are built: every file under `folder`, the
 /// folder of the crash reports of the web view of Halvo's own window, goes by app-4b's
 /// `every_file_goes`, folders kept, and only then `make` builds the app, whose setup makes the
-/// window. With no folder nothing is removed.
+/// window. Where a file stays, every view of `views` names the folder, so that the page says it.
+/// With no folder nothing is removed.
 #[cfg(any(windows, test))]
 pub(crate) fn after_the_reports_go<T>(
     folder: Option<&std::path::Path>,
+    views: &poller::Views,
     make: impl FnOnce() -> T,
 ) -> T {
     if let Some(folder) = folder {
-        let _ =
-            crate::commands::capture::every_file_goes(folder, &|file| std::fs::remove_file(file));
+        if !crate::commands::capture::every_file_goes(folder, &|file| std::fs::remove_file(file)) {
+            views
+                .hold()
+                .set_crash_reports_left(halvo_control::paths::one_line(&folder.to_string_lossy()));
+        }
     }
     make()
 }
@@ -791,7 +796,8 @@ mod tests {
         for file in ["a.dmp", "below/b.dmp"] {
             std::fs::write(folder.join(file), b"a dump of the window").expect("a report");
         }
-        let at_the_maker = after_the_reports_go(Some(&folder), || files_in(&folder));
+        let views = poller::Views::default();
+        let at_the_maker = after_the_reports_go(Some(&folder), &views, || files_in(&folder));
         assert_eq!(
             at_the_maker,
             Vec::<PathBuf>::new(),

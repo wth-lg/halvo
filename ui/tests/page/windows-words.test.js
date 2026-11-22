@@ -31,3 +31,15 @@ test("app-4b: where the app's one renewal still read the screen spent, the page 
   const renewed = await page(running);
   assert.equal(renewed.text("screen-line"), "");
 });
+
+test("win-crash-reports: where a crash report of the window stayed at the start, the page names its folder in the three sentences, whatever the service reads; with none it says nothing of it", async () => {
+  const folder = "D:\\halvo web\\EBWebView\\Crashpad\\reports";
+  const said = `Halvo could not remove a crash report of its own window in ${folder}. The report can hold what the window showed. Remove it yourself.`;
+  const running = fixture("capture_status-running-windows");
+  const left = await page({ ...running, crash_reports_left: folder });
+  assert.equal(left.text("crash-report-line"), said);
+  const notRunning = await page({ ...fixture("capture_status-not-running"), platform: "windows", crash_reports_left: folder });
+  assert.equal(notRunning.text("crash-report-line"), said);
+  const none = await page(running);
+  assert.equal(none.text("crash-report-line"), "");
+});
