@@ -15,6 +15,7 @@
     "allow-open-permission-pane",
     "allow-last-delete",
     "allow-acknowledge-lost-permission",
+    "allow-start-capture",
     "allow-agents-snapshot",
     "allow-agents-next",
     "allow-agents-card",

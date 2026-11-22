@@ -2590,4 +2590,190 @@ mod tests {
             drop(supervisor.close());
         }
     }
+
+    /// A spawner that awaits the consent until its `consent`, and then hands out the children of
+    /// `inner`.
+    struct BeforeTheConsent {
+        consented: bool,
+        inner: StandInSpawner,
+    }
+
+    impl Spawner for BeforeTheConsent {
+        type Child = StandInChild;
+
+        fn start(&mut self) -> io::Result<Spawned<StandInChild>> {
+            if self.consented {
+                self.inner.start()
+            } else {
+                Ok(Spawned::AwaitsConsent)
+            }
+        }
+
+        fn consent(&mut self) {
+            self.consented = true;
+        }
+    }
+
+    /// `held_child_status` with the Accessibility permission off, so that one step stays open.
+    fn status_with_an_open_step() -> DaemonStatus {
+        let mut f = held_child_status().into_fields();
+        for line in f.permissions.iter_mut() {
+            if line.name == Permission::Accessibility {
+                line.grant = halvo_control::onboarding::GrantState::NotGranted;
+            }
+        }
+        f.onboarding = halvo_control::testing::onboarding_of(f.platform, &f.permissions);
+        DaemonStatus::new(f).expect("the status holds together")
+    }
+
+    #[test]
+    fn the_consent_click_starts_one_child_and_resumes_only_with_no_open_step() {
+        use crate::commands::capture::{consent, LoginItemWriter};
+        use crate::view_state::Service;
+        let root = crate::tests::scratch_dir("consent-click");
+        for given in [false, true] {
+            let record = Record::default();
+            let clock = Arc::new(StandInClock::default());
+            let spawner = BeforeTheConsent {
+                consented: false,
+                inner: StandInSpawner {
+                    children: [1000, 1001]
+                        .into_iter()
+                        .map(|pid| StandInChild {
+                            ends_at_close: true,
+                            ..StandInChild::new(pid, &clock, &record)
+                        })
+                        .collect(),
+                    record: Arc::clone(&record),
+                },
+            };
+            let views = Arc::new(Views::default());
+            let pid = Arc::<ChildPid>::default();
+            let supervisor = Supervisor::start_holding(
+                spawner,
+                Arc::clone(&pid),
+                Arc::clone(&clock),
+                Arc::clone(&views),
+            );
+            pass(&Recording::new(&Record::default(), None), &views, None);
+            until("the view reads not_started", || {
+                views.view().service() == Service::NotStarted
+            });
+            let home = root.join(if given { "home-data-dir" } else { "home" });
+            std::fs::create_dir(&home).unwrap();
+            let plist = home.join("Library/LaunchAgents/com.halvo.desktop.plist");
+            #[cfg(target_os = "macos")]
+            let item = {
+                struct Home(PathBuf);
+                impl halvo_control::paths::AccountLookup for Home {
+                    fn base_dir(
+                        &self,
+                    ) -> Result<Option<OsString>, halvo_control::paths::PathError>
+                    {
+                        Ok(Some(self.0.clone().into_os_string()))
+                    }
+                    fn user_temp_dir(
+                        &self,
+                    ) -> Result<
+                        Option<halvo_control::paths::DarwinUserTempDir>,
+                        halvo_control::paths::PathError,
+                    > {
+                        Ok(None)
+                    }
+                }
+                let (record, home) = (Arc::clone(&record), home.clone());
+                move || {
+                    note(&record, "login item");
+                    crate::login_item::LoginItem::new(
+                        halvo_control::service::LOGIN_ITEM_LABEL,
+                        Path::new("/Applications/Halvo.app/Contents/MacOS/halvo"),
+                        halvo_control::paths::LoginItemDir::for_account(&Home(home.clone()))
+                            .ok()?,
+                        None,
+                    )
+                    .ok()
+                }
+            };
+            #[cfg(target_os = "macos")]
+            let writer: Option<LoginItemWriter> =
+                crate::login_item::at_the_click(given, item.clone());
+            #[cfg(not(target_os = "macos"))]
+            let writer: Option<LoginItemWriter> = {
+                let record = Arc::clone(&record);
+                (!given).then(|| -> LoginItemWriter {
+                    Arc::new(move || {
+                        note(&record, "login item");
+                        true
+                    })
+                })
+            };
+            let write = writer.as_deref().map(|write| write as &dyn Fn() -> bool);
+            let status = if given {
+                status_with_an_open_step()
+            } else {
+                held_child_status()
+            };
+            let control = Recording::new(&record, Some(status));
+
+            let answer = consent(&control, &views, write, START_ANSWER_WAIT)
+                .expect("the click answers a view");
+            assert_eq!(answer.service(), Service::Running);
+            let seen = record.lock().unwrap().clone();
+            if given {
+                assert_eq!(
+                    seen,
+                    ["start 1000", "status"],
+                    "with --data-dir no login item, and with an open step no Resume"
+                );
+                assert!(!plist.exists(), "with --data-dir no plist");
+                assert_eq!(std::fs::read_dir(&home).unwrap().count(), 0);
+            } else {
+                assert_eq!(
+                    seen,
+                    ["login item", "start 1000", "status", "resume"],
+                    "login item, one child, Status, no open step, one Resume"
+                );
+                if cfg!(target_os = "macos") {
+                    assert!(plist.is_file(), "the click wrote the login item");
+                }
+                assert_eq!(
+                    serde_json::to_value(views.view()).unwrap()["login_item_written"],
+                    true
+                );
+                let again = consent(&control, &views, write, START_ANSWER_WAIT)
+                    .expect("a second click answers a view");
+                assert_eq!(again.service(), Service::Running);
+                let after = record.lock().unwrap().clone();
+                assert!(
+                    after[seen.len()..]
+                        .iter()
+                        .all(|line| !line.starts_with("start")),
+                    "a click while the child lives starts no second child: {after:?}"
+                );
+                assert_eq!(pid.get(), Some(1000));
+                #[cfg(target_os = "macos")]
+                {
+                    struct Runner(Record);
+                    impl crate::login_item::Runner for Runner {
+                        fn status(&self, args: &[String]) -> Option<i32> {
+                            note(&self.0, args.join(" "));
+                            Some(0)
+                        }
+                    }
+                    let provisioned = root.join("provisioned");
+                    std::fs::create_dir(&provisioned).unwrap();
+                    let data_dir = DataDir::from_flag(&provisioned).unwrap();
+                    std::fs::write(data_dir.state_file(), b"").unwrap();
+                    let runner = Runner(Record::default());
+                    crate::login_item::at_start(&views, &data_dir, false, item, &runner);
+                    let calls = runner.0.lock().unwrap().clone();
+                    assert!(
+                        calls.iter().all(|call| call.starts_with("print ")),
+                        "the runner's record holds no bootstrap: {calls:?}"
+                    );
+                }
+            }
+            drop(supervisor.close());
+        }
+    }
 }

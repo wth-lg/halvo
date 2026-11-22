@@ -120,6 +120,7 @@ pub struct RunningView {
     pub ext: Vec<Section>,
     pub hold: Option<HoldView>,
     pub login_item_loaded: Option<bool>,
+    pub login_item_written: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -130,6 +131,7 @@ pub struct NoStatusView {
     pub last_exit: Option<i32>,
     pub hold: Option<HoldView>,
     pub login_item_loaded: Option<bool>,
+    pub login_item_written: Option<bool>,
     pub first_run: Option<FirstRun>,
 }
 
@@ -187,6 +189,18 @@ struct HoldState {
     another_version: bool,
     awaits_consent: bool,
     data_dir_unusable: bool,
+    consenting: bool,
+    login_item_written: Option<bool>,
+}
+
+/// A consent click in flight, from `Hold::begin_consent` to its drop.
+#[derive(Debug)]
+pub struct Consenting<'a>(&'a Hold);
+
+impl Drop for Consenting<'_> {
+    fn drop(&mut self) {
+        self.0.state().consenting = false;
+    }
 }
 
 /// The app's hold on capture after a child of the app ended itself with status 5 (contracts.md
@@ -230,13 +244,14 @@ impl Hold {
     /// not_started while the supervisor awaits the consent.
     pub fn mark(&self, view: StatusView) -> StatusView {
         let hold = self.view();
-        let (last_exit, another_version, awaits_consent, data_dir_unusable) = {
+        let (last_exit, another_version, awaits_consent, data_dir_unusable, written) = {
             let state = self.state();
             (
                 state.last_exit,
                 state.another_version,
                 state.awaits_consent,
                 state.data_dir_unusable,
+                state.login_item_written,
             )
         };
         let view = match view {
@@ -258,10 +273,12 @@ impl Hold {
         match view {
             StatusView::Running(mut view) => {
                 view.hold = hold;
+                view.login_item_written = written;
                 StatusView::Running(view)
             }
             StatusView::NoStatus(mut view) => {
                 view.hold = hold;
+                view.login_item_written = written;
                 if view.service == NoStatusService::NotRunning {
                     view.last_exit = last_exit;
                 }
@@ -289,6 +306,38 @@ impl Hold {
             self.changed.notify_all();
         }
         start
+    }
+
+    /// The click on Start, the consent, asks the supervisor for one child where it awaits the
+    /// consent, no ask stands and no child lives; the read and the ask stand under one lock, so
+    /// that a second click in flight asks for none. Answers whether it asked.
+    pub fn ask_consent(&self) -> bool {
+        let mut state = self.state();
+        let ask = state.awaits_consent && !state.start_asked && !state.child_lives;
+        if ask {
+            state.start_asked = true;
+            drop(state);
+            self.changed.notify_all();
+        }
+        ask
+    }
+
+    /// Begins a consent click: none while the hold stands, whose press is then the hold's and
+    /// never a new consent, while the data directory reads its own cause, and while another
+    /// consent click is in flight.
+    pub fn begin_consent(&self) -> Option<Consenting<'_>> {
+        let mut state = self.state();
+        if state.held || state.data_dir_unusable || state.consenting {
+            return None;
+        }
+        state.consenting = true;
+        Some(Consenting(self))
+    }
+
+    /// What the consent click read of its write of the login item: whether the plist stands
+    /// written; every view says it from then on.
+    pub fn login_item_written(&self, written: bool) {
+        self.state().login_item_written = Some(written);
     }
 
     /// Waits until `until` for the child that a Start asked for: true once the supervisor took
@@ -393,6 +442,8 @@ struct WireView<'a> {
     last_exit: Option<i32>,
     hold: Option<HoldView>,
     login_item_loaded: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    login_item_written: Option<bool>,
     platform: Platform,
     desired: Option<CaptureState>,
     capture: Option<Capture>,
@@ -422,6 +473,7 @@ impl Serialize for StatusView {
                 last_exit: None,
                 hold: view.hold,
                 login_item_loaded: view.login_item_loaded,
+                login_item_written: view.login_item_written,
                 platform: view.platform,
                 desired: Some(view.desired),
                 capture: Some(view.capture),
@@ -447,6 +499,7 @@ impl Serialize for StatusView {
                 last_exit: view.last_exit,
                 hold: view.hold,
                 login_item_loaded: view.login_item_loaded,
+                login_item_written: view.login_item_written,
                 platform: view.platform,
                 desired: None,
                 capture: None,
@@ -489,6 +542,7 @@ impl StatusView {
             last_exit: None,
             hold: None,
             login_item_loaded: None,
+            login_item_written: None,
             first_run: None,
         })
     }
@@ -590,6 +644,7 @@ impl StatusView {
             ext: f.ext.clone(),
             hold: None,
             login_item_loaded: None,
+            login_item_written: None,
         }))
     }
 }
