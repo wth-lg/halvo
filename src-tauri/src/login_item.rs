@@ -2,7 +2,8 @@ use std::path::{Path, PathBuf};
 
 use halvo_control::paths::{AccountLookup, DataDir, LoginItemDir, PathError, ScratchDir};
 use halvo_control::service::{
-    install_login_item, InstallOutcome, LoginItemSpec, SpecError, LOGIN_ITEM_LABEL,
+    install_login_item, login_item_state, InstallOutcome, LoginItemSpec, LoginItemState, SpecError,
+    LOGIN_ITEM_LABEL,
 };
 
 use crate::launch::Exit;
@@ -115,6 +116,22 @@ pub fn write_scratch(
     }
 }
 
+/// What a start of `run` does with the login item: with --data-dir (`given`), or on a data
+/// directory that does not read provisioned, nothing. Otherwise the manager that `item` makes for
+/// the app's own path reads the plist's state, and writes it again where it reads Stale; Absent
+/// and Current write nothing, and a program that the manager refuses writes nothing.
+pub fn at_start(data_dir: &DataDir, given: bool, item: impl FnOnce() -> Option<LoginItem>) {
+    if given || !matches!(data_dir.is_provisioned(), Ok(true)) {
+        return;
+    }
+    let Some(item) = item() else {
+        return;
+    };
+    if let Ok(LoginItemState::Stale) = login_item_state(&item.spec, &item.dir) {
+        let _ = item.write();
+    }
+}
+
 fn refused_dir(error: PathError) -> Exit {
     match error {
         PathError::InsideDataDir
@@ -140,6 +157,7 @@ mod tests {
 
     const PROGRAM: &str = "/Applications/Halvo.app/Contents/MacOS/halvo";
     const LABEL: &str = "dev.halvo.test.scratch";
+    const OTHER_PROGRAM: &str = "/Users/Shared/Halvo.app/Contents/MacOS/halvo";
     const TRANSLOCATED: &str =
         "/private/var/folders/zz/T/AppTranslocation/0A1B2C3D/d/Halvo.app/Contents/MacOS/halvo";
 
@@ -272,5 +290,80 @@ mod tests {
                 default
             ]
         );
+    }
+
+    fn data_dir(name: &str, provisioned: bool) -> DataDir {
+        let dir = DataDir::from_flag(scratch(name)).expect("an absolute directory");
+        if provisioned {
+            std::fs::write(dir.state_file(), b"{}").expect("a state file");
+        }
+        dir
+    }
+
+    fn stand(home: &Path, program: &str) -> PathBuf {
+        let spec = LoginItemSpec::new(LOGIN_ITEM_LABEL, Path::new(program), None).expect("a spec");
+        install_login_item(&spec, &agents_of(home)).expect("the plist is written");
+        home.join("Library/LaunchAgents/com.halvo.desktop.plist")
+    }
+
+    fn inode(path: &Path) -> u64 {
+        std::os::unix::fs::MetadataExt::ino(&std::fs::metadata(path).expect("the plist stands"))
+    }
+
+    fn start(home: &Path, data_dir: &DataDir, given: bool, program: &str) {
+        at_start(data_dir, given, || {
+            LoginItem::new(LOGIN_ITEM_LABEL, Path::new(program), agents_of(home), None).ok()
+        });
+    }
+
+    #[test]
+    fn a_start_rewrites_a_plist_of_another_path_and_writes_none_where_none_stands() {
+        let ready = data_dir("login-item-ready", true);
+        let unready = data_dir("login-item-unready", false);
+
+        let home = scratch("login-item-stale");
+        let plist = stand(&home, OTHER_PROGRAM);
+        start(&home, &ready, false, PROGRAM);
+        assert_eq!(
+            std::fs::read_to_string(&plist).expect("the plist stands"),
+            plist_of(PROGRAM),
+            "Stale is written again"
+        );
+
+        let home = scratch("login-item-absent");
+        start(&home, &ready, false, PROGRAM);
+        assert_eq!(
+            entries(&home),
+            Vec::<PathBuf>::new(),
+            "Absent writes nothing"
+        );
+
+        let home = scratch("login-item-current");
+        let plist = stand(&home, PROGRAM);
+        let before = inode(&plist);
+        start(&home, &ready, false, PROGRAM);
+        assert_eq!(inode(&plist), before, "Current writes nothing");
+
+        for (row, data_dir, given, program) in [
+            ("a translocated path", &ready, false, TRANSLOCATED),
+            ("a start with --data-dir", &ready, true, PROGRAM),
+            (
+                "a directory that is not provisioned",
+                &unready,
+                false,
+                PROGRAM,
+            ),
+        ] {
+            let home = scratch("login-item-kept");
+            let plist = stand(&home, OTHER_PROGRAM);
+            let before = inode(&plist);
+            start(&home, data_dir, given, program);
+            assert_eq!(inode(&plist), before, "{row}");
+            assert_eq!(
+                std::fs::read_to_string(&plist).expect("the plist stands"),
+                plist_of(OTHER_PROGRAM),
+                "{row}"
+            );
+        }
     }
 }

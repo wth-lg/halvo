@@ -86,6 +86,8 @@ fn run(background: bool, given: Option<PathBuf>) {
     );
     #[cfg(any(target_os = "macos", test))]
     let child_dir = data_dir.clone();
+    #[cfg(target_os = "macos")]
+    let login_dir = data_dir.clone();
     let state = commands::capture::AppState::with_control(control, data_dir, open_pane);
     #[cfg(any(target_os = "macos", test))]
     let views = Arc::clone(&state.views);
@@ -114,7 +116,27 @@ fn run(background: bool, given: Option<PathBuf>) {
         &app,
         quit::AppChildren(start_the_daemon(child_dir, given.is_some(), pid, views)),
     );
+    #[cfg(target_os = "macos")]
+    start_the_login_item(login_dir, given.is_some());
     app.run(|_, _| {});
+}
+
+#[cfg(target_os = "macos")]
+fn start_the_login_item(data_dir: Option<DataDir>, given: bool) {
+    let Some(data_dir) = data_dir else {
+        return;
+    };
+    std::thread::spawn(move || {
+        login_item::at_start(&data_dir, given, || {
+            login_item::LoginItem::new(
+                halvo_control::service::LOGIN_ITEM_LABEL,
+                &std::env::current_exe().ok()?,
+                halvo_control::paths::LoginItemDir::for_current_user().ok()?,
+                None,
+            )
+            .ok()
+        });
+    });
 }
 
 /// The daemon's program: the file halvo-capture beside the app's own executable (contracts.md
