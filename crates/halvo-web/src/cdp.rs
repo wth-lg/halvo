@@ -1877,35 +1877,32 @@ fn control_of(reply: &serde_json::Value) -> Res<Control> {
     }
 }
 
-/// The one function on the element that holds the focus: `[editable, credential]`, whether the
-/// element is editable by its own `contenteditable` attribute (the empty word, `true` or
-/// `plaintext-only`), and its credential mark by `CREDENTIAL_FN`.
+/// The one function on the element that holds the focus: `[kind, credential]`, whether the
+/// element is of a kind that is typed into, known by the browser's own interface (an input, a
+/// textarea, a select, or an HTML element editable by its own `contenteditable` attribute, the
+/// empty word, `true` or `plaintext-only`; never the body or the root), and its credential mark by
+/// `CREDENTIAL_FN`. No tag name's text is read.
 fn typed_into_fn() -> String {
     format!(
         "function () {{
   const own = this.getAttribute('contenteditable');
-  const editable = own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase());
-  return [editable, Boolean(({CREDENTIAL_FN}).call(this))];
+  const editable = this instanceof HTMLElement && own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase());
+  const whole = this instanceof HTMLInputElement || this instanceof HTMLTextAreaElement || this instanceof HTMLSelectElement;
+  const none = this instanceof HTMLBodyElement || this instanceof HTMLHtmlElement;
+  return [(whole || editable) && !none, Boolean(({CREDENTIAL_FN}).call(this))];
 }}"
     )
 }
 
-/// Whether a text or a key may reach an element named `name` (as the browser names a node) whose
-/// `typed_into_fn` reply is `reply`: an INPUT, a TEXTAREA, a SELECT or an element editable by its
-/// own attribute, other than the BODY and the HTML, whose mark reads no credential. None for a
-/// reply of another form, which the caller reads as credential.
-fn typed_into_of(name: &str, reply: &serde_json::Value) -> Option<bool> {
+/// Whether a text or a key may reach the element whose `typed_into_fn` reply is `reply`: one of
+/// the kinds that are typed into whose mark reads no credential. None for a reply of another
+/// form, which the caller reads as credential.
+fn typed_into_of(reply: &serde_json::Value) -> Option<bool> {
     use serde_json::Value as V;
-    let Some([V::Bool(editable), V::Bool(credential)]) = reply.as_array().map(Vec::as_slice) else {
+    let Some([V::Bool(kind), V::Bool(credential)]) = reply.as_array().map(Vec::as_slice) else {
         return None;
     };
-    let name = name.to_ascii_uppercase();
-    let kind = match name.as_str() {
-        "INPUT" | "TEXTAREA" | "SELECT" => true,
-        "BODY" | "HTML" => false,
-        _ => *editable,
-    };
-    Some(kind && !credential)
+    Some(*kind && !credential)
 }
 
 impl Executor {
@@ -1992,7 +1989,8 @@ impl Executor {
 
     /// Whether a text or a key must not reach the element that holds the focus in the document of
     /// `place` (the ruling of the list of what is typed into): it may reach that element only where
-    /// it is one of four kinds that the top document's own read sees whole, an input, a textarea, a
+    /// it is one of four kinds that the top document's own read sees whole, known by the browser's
+    /// own interface and never by a tag name's text (`typed_into_fn`): an input, a textarea, a
     /// select, or an element editable by its own `contenteditable` attribute, that carries no frame
     /// id and no document of its own, has no shadow root other than the browser's own, and reads no
     /// credential mark (`CREDENTIAL_FN`, the mark alone). Every other holder of the focus reads
@@ -2031,7 +2029,7 @@ impl Executor {
         let read = self
             .call_on(place, &node.backend_node_id, &typed_into_fn(), Vec::new())
             .await?;
-        Ok(typed_into_of(&node.node_name, &read) != Some(true))
+        Ok(typed_into_of(&read) != Some(true))
     }
 }
 
@@ -2159,28 +2157,32 @@ const CONTENT_CORNER_FN: &str = "function () {
 /// inside an element with `data-halvo-captcha`, `code` for an `autocomplete` that holds
 /// `one-time-code`, `secret` for an input of the type `password`, an `autocomplete` that holds
 /// `current-password`, `new-password` or `cc-csc`, or, on a field alone (an input that takes text,
-/// a textarea, a select, an element editable by its own attribute, each known by its interface;
-/// never a link or a button), a `name` attribute or a name of the field (the given accessible name,
-/// which the page's tree makes from its labels and `aria-labelledby` too, `aria-label`, `title`,
-/// `placeholder`) that holds `password`, `passwd`, `pwd` or `passcode` in lower case; the empty
-/// text for no sign. A control that showed a sign keeps it on its node for the life of the node, in
-/// the script world in which the call runs, so that a toggle that sets `type` to `text` does not
-/// unmark it. It reads no value and no text of the control itself.
+/// a textarea, a select, an element editable by its own attribute; never a link or a button), a
+/// `name` attribute or a name of the field (the given accessible name, which the page's tree makes
+/// from its labels and `aria-labelledby` too, `aria-label`, `title`, `placeholder`) that holds
+/// `password`, `passwd`, `pwd` or `passcode` in lower case; the empty text for no sign. An element
+/// is known by the browser's own interface, never by its tag name, and an input's type and
+/// `autocomplete` are read from its own properties beside its attributes. A control that showed a
+/// sign keeps it on its node for the life of the node, in the script world in which the call runs,
+/// so that a toggle that sets `type` to `text` does not unmark it. It reads no value and no text of
+/// the control itself.
 const CREDENTIAL_FN: &str = "function (named) {
   if (typeof this.__halvoSign === 'string') return this.__halvoSign;
   if (typeof this.getAttribute !== 'function') return '';
   const attr = (n) => this.getAttribute(n) || '';
+  const input = this instanceof HTMLInputElement;
+  const type = input ? [String(this.type), attr('type')].map((t) => t.toLowerCase()) : [];
+  const auto = [input ? String(this.autocomplete || '') : '', attr('autocomplete')].join(' ').toLowerCase().split(/\\s+/);
   const says = (t) => ['password', 'passwd', 'pwd', 'passcode'].some((w) => String(t).toLowerCase().includes(w));
-  const auto = attr('autocomplete').toLowerCase().split(/\\s+/);
   const names = [typeof named === 'string' ? named : '', attr('aria-label'), attr('title'), attr('placeholder')];
   const own = this.getAttribute('contenteditable');
-  const field = (this instanceof HTMLInputElement && !['button', 'submit', 'reset', 'image', 'checkbox', 'radio', 'hidden', 'file', 'range', 'color'].includes(attr('type').toLowerCase()))
+  const field = (input && !type.some((t) => ['button', 'submit', 'reset', 'image', 'checkbox', 'radio', 'hidden', 'file', 'range', 'color'].includes(t)))
     || this instanceof HTMLTextAreaElement || this instanceof HTMLSelectElement
     || (own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase()));
   let sign = '';
   if (this.parentElement !== null && this.parentElement.closest('[data-halvo-captcha]') !== null) sign = 'challenge';
   else if (auto.includes('one-time-code')) sign = 'code';
-  else if ((this.tagName === 'INPUT' && attr('type').toLowerCase() === 'password')
+  else if ((input && type.includes('password'))
     || ['current-password', 'new-password', 'cc-csc'].some((t) => auto.includes(t))
     || (field && (says(attr('name')) || names.some(says)))) sign = 'secret';
   if (sign !== '') this.__halvoSign = sign;
@@ -2220,7 +2222,7 @@ const SELECT_FN: &str = "function (label) {
 }";
 
 const READ_FN: &str = "function () {
-  if (this.tagName === 'INPUT' || this.tagName === 'SELECT' || this.tagName === 'TEXTAREA') return String(this.value);
+  if (this instanceof HTMLInputElement || this instanceof HTMLSelectElement || this instanceof HTMLTextAreaElement) return String(this.value);
   return String(this.innerText || this.textContent || '');
 }";
 

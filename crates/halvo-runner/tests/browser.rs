@@ -385,6 +385,13 @@ fn a_run_fills_a_form_and_reads_it_back() {
 /// hands the focus on into the password field of `INNER`, which an object element shows.
 const TYPED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" value="halvo-runner-secret-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="turns" aria-label="Code" onfocus="this.type = 'password'" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="hands" aria-label="Pin" onfocus="document.querySelector('[data-testid=secret]').focus()" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="into" aria-label="Note" onfocus="document.querySelector('object').contentDocument.querySelector('input').focus()"><object data="/inner" type="text/html"></object>"#;
 
+/// A page served as XHTML, whose browser names its elements in lower case, with one password field that holds
+/// `XHTML_SECRET` and asks `/typed` at each input.
+const XHTML: &str = r#"<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>xhtml</title></head><body><input type="password" data-testid="pw" aria-label="Password" value="halvo-runner-xhtml-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"/></body></html>"#;
+
+/// The value of the password field of `XHTML`.
+const XHTML_SECRET: &str = "halvo-runner-xhtml-marker";
+
 /// The document of the object element of `TYPED`: a password field that asks `/typed` at each input.
 const INNER: &str = r#"<!doctype html><title>inner</title><input type="password" aria-label="Password" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
 
@@ -421,9 +428,11 @@ const CODE: &str = r#"<!doctype html><title>typed</title><input data-testid="nam
 /// field of its own, is refused the same way and is handed back with `step_failed`: the reading enters the frames of
 /// the page's tree alone and not an object's document, so it does not see the object's password field (run
 /// 44998838561 read this end in both jobs). A fill of the name field on a page with a code field of the type number
-/// meets the reading's sweep of every field, which opens a handback of the reason `second_factor`. No step that would
-/// reach a password field types a byte, the one with the failing `post` acted, and no frame and no line of the runner
-/// holds the password field's value.
+/// meets the reading's sweep of every field, which opens a handback of the reason `second_factor`; and a fill of the
+/// password field of a page served as XHTML meets the reading before the act, which knows the field by the browser's
+/// own interface and not by the lower-case tag name that the browser gives it there: a handback of the reason
+/// `sign_in`, declined. No step that would reach a password field types a byte, the one with the failing `post`
+/// acted, and no frame and no line of the runner holds a password field's value.
 #[test]
 fn a_post_condition_that_fails_logs_step_failed() {
     let Some(browser) = hosted("a_post_condition_that_fails_logs_step_failed") else {
@@ -543,6 +552,34 @@ fn a_post_condition_that_fails_logs_step_failed() {
         }
         assert!(!profile_of(&seen, &sup.run).0.exists());
     }
+
+    // Case 248: a password field of a page served as XHTML, known by the browser's own interface and not by the
+    // lower-case name that the browser gives it there: the reading before the act opens a sign_in handback, which the
+    // supervisor declines; typed into by nothing, its value read by nothing.
+    let fixture = Fixture::start(&[("/form.xhtml", XHTML)]);
+    let mut sup = web_agent(248, &fixture);
+    sup.steps = vec![
+        navigate(1, &fixture.url("/form.xhtml")),
+        step(2, "fill", Some("pw"), &[konst("text", "Ada")], &[], &[]),
+    ];
+    let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
+    assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+    assert_eq!(rows(&seen), declined, "run 248");
+    assert_eq!(seen.handbacks(), [HandbackReason::SignIn], "run 248");
+    assert_eq!(typed(&fixture), 0, "run 248: the act on the field");
+    assert!(
+        !seen.stderr.contains(XHTML_SECRET),
+        "run 248: {}",
+        seen.stderr
+    );
+    for frame in &seen.frames {
+        let json = frame.to_json().expect("a frame");
+        assert!(
+            !json.contains(XHTML_SECRET),
+            "run 248: a frame holds the secret"
+        );
+    }
+    assert!(!profile_of(&seen, &sup.run).0.exists());
 }
 
 /// The body that `SEND` posts when the field `note` holds it.
