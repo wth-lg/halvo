@@ -2248,7 +2248,16 @@ mod tests {
     fn one_key_of_each_class_maps_to_each_class_once() {
         let mut state = KeyState::default();
         let mut classes = Vec::new();
-        let presses: [&[u16]; 6] = [&[0x41], &[0x08], &[0x25], &[0x0D], &[0x09], &[0x11, 0x41]];
+        let presses: [&[u16]; 8] = [
+            &[0x41],
+            &[0x08],
+            &[0x25],
+            &[0x0D],
+            &[0x09],
+            &[0x1B],
+            &[0x11, 0x41],
+            &[0x14],
+        ];
         for keys in presses {
             for &vkey in keys {
                 let down = KeyStroke {

@@ -484,32 +484,33 @@ mod tests {
         folds: [u64; 3],
         on_key_up: bool,
         on_repeat: bool,
-        lone_modifier_dropped: bool,
+        lone_modifier_noted: bool,
     }
 
     fn chord(modifier: Modifier) -> bool {
         !matches!(modifier, Modifier::Shift)
     }
 
-    fn class_of(key: Key) -> KeyClass {
-        match key {
+    fn class_of(key: Key) -> Option<KeyClass> {
+        Some(match key {
             Key::Letter | Key::Digit | Key::Space | Key::Punctuation => KeyClass::Printable,
             Key::Backspace | Key::Delete | Key::Insert => KeyClass::Editing,
             Key::Arrow | Key::Home | Key::End | Key::PageUp | Key::PageDown => KeyClass::Navigation,
             Key::Enter => KeyClass::Enter,
             Key::Tab => KeyClass::Tab,
-            Key::Escape | Key::Function | Key::Modifier(_) => KeyClass::Other,
-        }
+            Key::Escape | Key::Function => KeyClass::Other,
+            Key::Modifier(_) => return None,
+        })
     }
 
     impl Reference {
         fn key(&self, key: Key) -> Vec<Expected> {
             let class = match key {
-                Key::Modifier(_) => KeyClass::Other,
-                _ if self.chord_held > 0 => KeyClass::Shortcut,
+                Key::Modifier(_) => self.lone_modifier_noted.then_some(KeyClass::Other),
+                _ if self.chord_held > 0 => Some(KeyClass::Shortcut),
                 _ => class_of(key),
             };
-            vec![K(class)]
+            class.map(K).into_iter().collect()
         }
     }
 
@@ -520,9 +521,6 @@ mod tests {
                     let events = self.key(key);
                     if let Key::Modifier(modifier) = key {
                         self.chord_held += u32::from(chord(modifier));
-                        if self.lone_modifier_dropped {
-                            return Vec::new();
-                        }
                     }
                     if self.on_key_up {
                         return Vec::new();
@@ -633,12 +631,12 @@ mod tests {
         let named = |name: &str| CASES.iter().find(|case| case.name == name).expect(name);
         assert_eq!(named("a held key gives one event").expected.len(), 1);
         assert_eq!(
-            named("a modifier down and up alone gives one event")
+            named("a modifier down and up alone gives no event")
                 .expected
                 .len(),
-            1
+            0
         );
-        assert_eq!(named("a shortcut gives two events").expected.len(), 2);
+        assert_eq!(named("a shortcut gives one event").expected.len(), 1);
         for (index, case) in CASES.iter().enumerate() {
             assert!(
                 CASES[..index].iter().all(|other| other.name != case.name),
@@ -663,13 +661,13 @@ mod tests {
             on_repeat.contains(&"a held key gives one event"),
             "{on_repeat:?}"
         );
-        let dropped = failing_cases(|| Reference {
-            lone_modifier_dropped: true,
+        let noted = failing_cases(|| Reference {
+            lone_modifier_noted: true,
             ..Reference::default()
         });
         assert!(
-            dropped.contains(&"a modifier down and up alone gives one event"),
-            "{dropped:?}"
+            noted.contains(&"a modifier down and up alone gives no event"),
+            "{noted:?}"
         );
     }
 }
