@@ -5713,54 +5713,72 @@ macro_rules! defect {
     }};
 }
 
-mod known_defect {
-    use super::*;
+#[test]
+#[ignore = "functional: was a known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
+fn browser_self_move_after_a_held_main_thread_in_chrome() {
+    let recorded = browser::self_move_phases("browser-self-chrome", "chrome");
+    flipped!(
+        "W3-5-A2",
+        recorded == 0,
+        format!(
+            "TF browser-self-chrome password_letters_recorded_while_the_page_was_held={recorded}"
+        )
+    );
+}
 
-    #[test]
-    #[ignore = "known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
-    fn browser_self_move_after_a_held_main_thread_in_chrome() {
-        let recorded = browser::self_move_phases("browser-self-chrome", "chrome");
-        defect!(
-            "W3-5-A2",
-            recorded == 0,
-            format!("TF browser-self-chrome password_letters_recorded_while_the_page_was_held={recorded}")
-        );
-    }
+#[test]
+#[ignore = "functional: was a known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
+fn browser_self_move_after_a_held_main_thread_in_edge() {
+    let recorded = browser::self_move_phases("browser-self-edge", "edge");
+    flipped!(
+        "W3-5-A2",
+        recorded == 0,
+        format!(
+            "TF browser-self-edge password_letters_recorded_while_the_page_was_held={recorded}"
+        )
+    );
+}
 
-    #[test]
-    #[ignore = "known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
-    fn browser_self_move_after_a_held_main_thread_in_edge() {
-        let recorded = browser::self_move_phases("browser-self-edge", "edge");
-        defect!(
+#[test]
+#[ignore = "functional: was a known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
+fn browser_swaps_on_a_held_main_thread_in_chrome() {
+    let recorded = browser::held_swap_phases("browser-held-swap-chrome", "chrome");
+    flipped!(
+        "W3-7-Q2i",
+        recorded == 0,
+        format!("TF browser-held-swap-chrome password_letters_recorded_while_the_page_was_held={recorded}")
+    );
+}
+
+#[test]
+#[ignore = "functional: was a known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
+fn browser_swaps_on_a_held_main_thread_in_edge() {
+    let recorded = browser::held_swap_phases("browser-held-swap-edge", "edge");
+    flipped!(
+        "W3-7-Q2i",
+        recorded == 0,
+        format!("TF browser-held-swap-edge password_letters_recorded_while_the_page_was_held={recorded}")
+    );
+}
+
+#[test]
+#[ignore = "functional: was a known defect: W3-5 A2, a focus move that no latch sees"]
+fn stall_no_focus_key_and_the_program_moves_the_focus_itself() {
+    with_deadline("stall-self-focus", Duration::from_secs(330), || {
+        let (recorded, late) = stall::no_focus_key_and_the_program_moves_the_focus_itself();
+        assert_eq!(late, 0, "the source's late value moved");
+        flipped!(
             "W3-5-A2",
             recorded == 0,
             format!(
-                "TF browser-self-edge password_letters_recorded_while_the_page_was_held={recorded}"
+                "TF stall-self-focus letters_recorded_that_landed_in_the_password_field={recorded}"
             )
         );
-    }
+    });
+}
 
-    #[test]
-    #[ignore = "known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
-    fn browser_swaps_on_a_held_main_thread_in_chrome() {
-        let recorded = browser::held_swap_phases("browser-held-swap-chrome", "chrome");
-        defect!(
-            "W3-7-Q2i",
-            recorded == 0,
-            format!("TF browser-held-swap-chrome password_letters_recorded_while_the_page_was_held={recorded}")
-        );
-    }
-
-    #[test]
-    #[ignore = "known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
-    fn browser_swaps_on_a_held_main_thread_in_edge() {
-        let recorded = browser::held_swap_phases("browser-held-swap-edge", "edge");
-        defect!(
-            "W3-7-Q2i",
-            recorded == 0,
-            format!("TF browser-held-swap-edge password_letters_recorded_while_the_page_was_held={recorded}")
-        );
-    }
+mod known_defect {
+    use super::*;
 
     #[test]
     #[ignore = "known defect: W3-20, a text input that a page masks by style alone"]
@@ -5786,20 +5804,6 @@ mod known_defect {
             recorded == 0,
             format!("TF style-mask keystroke_events_in_chrome_and_edge={recorded}")
         );
-    }
-
-    #[test]
-    #[ignore = "known defect: W3-5 A2, a focus move that no latch sees"]
-    fn stall_no_focus_key_and_the_program_moves_the_focus_itself() {
-        with_deadline("stall-self-focus", Duration::from_secs(330), || {
-            let (recorded, late) = stall::no_focus_key_and_the_program_moves_the_focus_itself();
-            assert_eq!(late, 0, "the source's late value moved");
-            defect!(
-                "W3-5-A2",
-                recorded == 0,
-                format!("TF stall-self-focus letters_recorded_that_landed_in_the_password_field={recorded}")
-            );
-        });
     }
 }
 

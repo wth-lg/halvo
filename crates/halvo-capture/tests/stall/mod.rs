@@ -19,7 +19,8 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetFocus, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN,
-    MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEINPUT, MOUSE_EVENT_FLAGS, VK_A, VK_MENU, VK_TAB,
+    MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEINPUT, MOUSE_EVENT_FLAGS, VK_A, VK_MENU, VK_P,
+    VK_TAB,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
@@ -29,8 +30,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     TranslateMessage, UnregisterClassW, WindowFromPoint, ES_PASSWORD, MSG, MWMO_INPUTAVAILABLE,
     PEEK_MESSAGE_REMOVE_TYPE, PM_NOREMOVE, PM_QS_SENDMESSAGE, QS_SENDMESSAGE, SC_KEYMENU,
     SM_CXSCREEN, SM_CYSCREEN, SW_MINIMIZE, SW_RESTORE, SW_SHOW, WINDOW_EX_STYLE, WINDOW_STYLE,
-    WM_APP, WM_KEYDOWN, WM_SYSCOMMAND, WNDCLASSW, WS_CHILD, WS_OVERLAPPEDWINDOW, WS_TABSTOP,
-    WS_VISIBLE,
+    WM_APP, WM_KEYDOWN, WM_SYSCOMMAND, WM_SYSKEYDOWN, WNDCLASSW, WS_CHILD, WS_OVERLAPPEDWINDOW,
+    WS_TABSTOP, WS_VISIBLE,
 };
 
 use super::{
@@ -39,7 +40,6 @@ use super::{
 };
 
 mod kinds;
-pub(super) mod trial;
 
 use kinds::{
     phase, ControlRead, Controls, Kind, Landing, Lead, Outcome, Phase, PhaseRun, Step, Totals,
@@ -511,14 +511,9 @@ fn fixture_main() {
         post(target, CMD_QUIT, 0);
     });
     println!(
-        "STALLC ready fg={} method={} window={} plain={} password={} thread={}",
+        "STALLC ready fg={} method={}",
         flag(front.is_some()),
-        Front::code(front),
-        window.hwnd.0 as isize,
-        plain.0 as isize,
-        password.0 as isize,
-        // SAFETY: GetCurrentThreadId takes no argument.
-        unsafe { GetCurrentThreadId() }
+        Front::code(front)
     );
     let mut letters = [0u32; 4];
     let mut tabs = [0u32; 4];
@@ -690,14 +685,13 @@ fn fixture_main() {
                     let stall_ms = (arg & 0xFFFF) as u64;
                     let aimed = arg & ARG_AIM == 0 || aim_at(password);
                     println!(
-                        "STALLC ack fg={} focus_plain={} focus_password={} plain_len={} password_len={} aimed={} tick={}",
+                        "STALLC ack fg={} focus_plain={} focus_password={} plain_len={} password_len={} aimed={}",
                         flag(window.is_foreground()),
                         flag(focus == plain),
                         flag(focus == password),
                         text_len(plain),
                         text_len(password),
-                        flag(aimed),
-                        trial::tick()
+                        flag(aimed)
                     );
                     if arg & ARG_STALL_AFTER_A_TAB != 0 {
                         dispatch_until_a_tab(window.hwnd, &mut tabs, [plain, password, second]);
@@ -716,7 +710,6 @@ fn fixture_main() {
                         Wait::Sleeps
                     };
                     stall(stall_ms, wait);
-                    let woke_at = trial::tick();
                     let (plain_len, password_len) = (text_len(plain), text_len(password));
                     if arg & ARG_SELF_FOCUS != 0 {
                         focus_on(password);
@@ -724,15 +717,17 @@ fn fixture_main() {
                     if let Some(other) = other {
                         let _ = other.join();
                     }
-                    println!(
-                        "STALLC woke plain_len={plain_len} password_len={password_len} tick={woke_at}"
-                    );
+                    println!("STALLC woke plain_len={plain_len} password_len={password_len}");
                 }
                 _ => {
                     // SAFETY: PostQuitMessage takes an exit code.
                     unsafe { PostQuitMessage(0) };
                 }
             }
+            continue;
+        }
+        if msg.message == WM_SYSKEYDOWN && msg.wParam.0 == usize::from(VK_P.0) {
+            focus_on(password);
             continue;
         }
         count_key(&msg, &mut letters, &mut tabs, [plain, password, second]);
@@ -855,7 +850,6 @@ pub(super) struct Fixture {
     lines: mpsc::Receiver<(String, Fields)>,
     foreground: bool,
     front: Option<Front>,
-    ready: Fields,
 }
 
 impl Fixture {
@@ -904,12 +898,10 @@ impl Fixture {
             lines,
             foreground: false,
             front: None,
-            ready: Fields::new(),
         };
         let ready = fixture.expect("ready", Duration::from_secs(40));
         fixture.foreground = get(&ready, "fg") == 1;
         fixture.front = Front::of_code(get(&ready, "method"));
-        fixture.ready = ready;
         say(
             test,
             format!(
@@ -1082,7 +1074,7 @@ struct Decisions {
     first_tab_rule: Option<seam::Rule>,
 }
 
-const RULES: [seam::Rule; 10] = [
+const RULES: [seam::Rule; 11] = [
     seam::Rule::PasswordEdit,
     seam::Rule::NotClearedInTime,
     seam::Rule::AnotherThreadInFront,
@@ -1093,6 +1085,7 @@ const RULES: [seam::Rule; 10] = [
     seam::Rule::ElementNotTheSame,
     seam::Rule::MarksLost,
     seam::Rule::ClicksNotForwarded,
+    seam::Rule::LandingAfterTheLatch,
 ];
 
 fn rule_index(rule: Option<seam::Rule>) -> i64 {
@@ -1242,6 +1235,12 @@ fn run_rounds(
                     burst.push(mouse_input(0, 0, MOUSEEVENTF_LEFTUP));
                 }
                 Lead::Enter => burst.extend(key_pair(VK_RETURN)),
+                Lead::AccessKey => burst.extend([
+                    key_input(VK_MENU, false),
+                    key_input(VK_P, false),
+                    key_input(VK_P, true),
+                    key_input(VK_MENU, true),
+                ]),
                 Lead::TabTab => {
                     accepted += send(&key_pair(VK_TAB));
                     inputs += 2;
@@ -1703,9 +1702,6 @@ fn the_round_count_of_the_stall_tests() {
         println!(
             "left_out the rounds of every other stall phase but one, of phase E but one, of each browser stall and swap phase but one, of the fixtures' phases E and F but one, of the letter and Tab out of a swapped field but one, and of each held page of the self-move but one; each phase and each wait still runs once"
         );
-        println!(
-            "left_out the known defects held swaps (Chrome, Edge) and the stall self-focus, which run in the long form alone and print their ledger id"
-        );
     }
 }
 
@@ -1743,6 +1739,12 @@ fn a_second_field_and_a_window_of_another_thread_while_the_program_waits_300_ms(
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn enter_a_tab_out_and_a_focus_move_in_two_steps_record_no_letter() {
     kind_test(Kind::EnterTabOutAndTwoStep);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn an_access_key_that_moves_the_focus_while_the_program_waits_records_no_letter() {
+    kind_test(Kind::AccessKey);
 }
 
 #[test]
