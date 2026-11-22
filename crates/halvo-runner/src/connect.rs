@@ -1,10 +1,12 @@
 //! The runner's link to the connect adapters of halvo-connect (A11.2): the reads of mail and calendar and the drafts
 //! of replies, through one `Graph` for the origin of the agent's bindings; the rows of answered messages (A7.4
 //! `agent_reply`), read for each page of the mail list by `load_replies` and written by `reply_row`; and the keys
-//! of the run's list for the record of `finish`. The send of a reply is linked in a build with the feature
-//! `loopback` alone, which only the runner's own tests turn on (`send`); in every other build its step fails with
-//! the cause `adapter`, and so does a delete in every build.
+//! of the run's list for the record of `finish`. The send of a reply (`send`) and the delete of an event (`delete`)
+//! are linked in a build with the feature `loopback` alone, which only the runner's own tests turn on; in every other
+//! build their steps fail with the cause `adapter`.
 
+#[cfg(feature = "loopback")]
+mod delete;
 #[cfg(feature = "loopback")]
 mod send;
 
@@ -73,6 +75,9 @@ pub(crate) struct Lists {
     /// The id and the sender of each message that the list kept, in its order, as `mail_list` gave them.
     #[cfg(feature = "loopback")]
     senders: Vec<(String, String)>,
+    /// The events that the list step kept, until the delete step takes them.
+    #[cfg(feature = "loopback")]
+    calendar: Option<halvo_connect::Events>,
 }
 
 impl Lists {
@@ -127,8 +132,8 @@ pub(crate) fn slot(loaded: &LoadReply, name: &str) -> Option<String> {
 
 impl Runner {
     /// Carries out the operation `op` with the adapter's token `secret`. The mail list, the drafts and the calendar
-    /// list are linked; a send is linked in a build with the feature `loopback` alone, and fails with the cause
-    /// `adapter` in every other build; a delete fails with the cause `adapter`.
+    /// list are linked; a send and a delete are linked in a build with the feature `loopback` alone, and fail with
+    /// the cause `adapter` in every other build.
     pub(crate) fn connect(
         &mut self,
         step: &ExecutableStep,
@@ -147,6 +152,9 @@ impl Runner {
             ApiOp::MailSend => self.send_replies(step, token, loaded),
             #[cfg(not(feature = "loopback"))]
             ApiOp::MailSend => Err(Failure::Step(Cause::Adapter)),
+            #[cfg(feature = "loopback")]
+            ApiOp::CalendarDelete => self.delete_events(step, token, loaded),
+            #[cfg(not(feature = "loopback"))]
             ApiOp::CalendarDelete => Err(Failure::Step(Cause::Adapter)),
         }
     }
@@ -421,7 +429,8 @@ impl Runner {
         Ok(())
     }
 
-    /// `calendar_list` for the run's day, which `day_of` gives at the run's offset.
+    /// `calendar_list` for the run's day, which `day_of` gives at the run's offset. In a build with the feature
+    /// `loopback` the kept events wait for the delete step.
     fn calendar_list(
         &mut self,
         step: &ExecutableStep,
@@ -434,6 +443,10 @@ impl Runner {
         match graph.calendar_list(token, day) {
             Ok(events) => {
                 self.lists.events = Some(events.counts());
+                #[cfg(feature = "loopback")]
+                {
+                    self.lists.calendar = Some(events);
+                }
                 Ok(())
             }
             Err(error) => Err(self.call_failed(step, error)),

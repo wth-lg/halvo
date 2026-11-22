@@ -1,12 +1,14 @@
 mod support;
 
 use halvo_schema::executable::frame::SecretReply;
-use halvo_schema::executable::names::{HandbackOutcome, HandbackReason, LogEvent, Unreadable};
+use halvo_schema::executable::names::{
+    Answer, HandbackOutcome, HandbackReason, LogEvent, Unreadable,
+};
 use halvo_schema::executable::text::SecretText;
 use halvo_schema::executable::{Cause, FromRunner, Outcome, ToRunner, WebOrigin};
 use halvo_schema::Category;
 
-use support::connect::Fixture;
+use support::connect::{decision, Fixture};
 use support::{handback_reply, Act, Seen, Supervisor, LONG};
 
 const TOKEN: &str = "Zq7-halvo-marker-token";
@@ -27,7 +29,7 @@ fn secret_refs(seen: &Seen) -> Vec<String> {
         .collect()
 }
 
-/// Answers the secrets in order, then the handbacks in order.
+/// Answers the secrets in order, then the handbacks in order, and each confirmation `reject_once`.
 fn serve(sup: &Supervisor, secrets: Vec<SecretReply>, handbacks: Vec<ToRunner>) -> Seen {
     let mut secrets = secrets.into_iter();
     let mut handbacks = handbacks.into_iter();
@@ -37,6 +39,7 @@ fn serve(sup: &Supervisor, secrets: Vec<SecretReply>, handbacks: Vec<ToRunner>) 
                 secrets.next().expect("an answer left"),
             )),
             FromRunner::Handback(_) => Act::With(handbacks.next().expect("a result left")),
+            FromRunner::Confirm(_) => decision(frame, |_| Answer::RejectOnce),
             _ => Act::Answer,
         },
         LONG,
@@ -182,19 +185,19 @@ fn a_stored_secret_reaches_the_call() {
         }
         want.extend([
             (LogEvent::StepOk, Some(1), None),
-            (LogEvent::StepFailed, Some(2), Some(Cause::Adapter)),
-            (LogEvent::Stopped, None, Some(Cause::Adapter)),
+            (LogEvent::Confirm, None, None),
+            (LogEvent::Stopped, None, Some(Cause::Declined)),
         ]);
         assert_eq!(
             lines, want,
-            "the list took the token, and the delete fails as at the base"
+            "the list took the token, and the delete step's card answered reject_once"
         );
         let (total, _, unauthorized) = fixture.requests();
         assert!(
             total > 0 && unauthorized == 0,
             "the fixture took the token of the call"
         );
-        assert_eq!(seen.done(), Some(Outcome::Failed));
+        assert_eq!(seen.done(), Some(Outcome::Declined));
         assert!(
             !seen.stderr.contains(TOKEN),
             "standard error holds no secret"
