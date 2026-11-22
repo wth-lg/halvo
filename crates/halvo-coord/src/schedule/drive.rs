@@ -2187,7 +2187,8 @@ where
             answer_check(cx, board, i, &run, answer)
         }
         Move::SwitchOn { .. } => {
-            if !standing.contains(&Hold::Off) && !standing.contains(&Hold::Failures) {
+            let ends = |h: &Hold| matches!(h, Hold::Off | Hold::SignInRefused | Hold::Failures);
+            if !standing.iter().any(ends) {
                 return refused(Cause::State);
             }
             let mut whats = Vec::new();
@@ -2196,6 +2197,9 @@ where
                     cause: Cleared::Person,
                 });
             }
+            whats.extend(refused_runs(facts).into_iter().map(|run| What::HoldCleared {
+                cause: Cleared::SignInRefused { run },
+            }));
             if standing.contains(&Hold::Failures) {
                 whats.push(What::HoldCleared {
                     cause: Cleared::Failures,
@@ -2222,7 +2226,7 @@ where
                     && read_once(cx, board, i).is_ok()
                     && !holds(&board.members[i].facts)
                         .iter()
-                        .any(|h| matches!(h, Hold::Off | Hold::Failures) && standing.contains(h));
+                        .any(|h| ends(h) && standing.contains(h));
                 if !ended {
                     return refused(port_cause(&e));
                 }
@@ -2399,7 +2403,8 @@ fn stop_live<P: Owner + Runs, C: ConfigView>(
 /// while the hold stands, stores `hold_set` as a new press where the hold has ended, and answers
 /// the read's cause where the read fails. The switch-on takes a read that shows its holds ended
 /// as its store in the same way. It sends `set_state` first (`switch_on_state`) and stores a
-/// `hold_cleared` for each hold by the events only after the acknowledgement, which it writes
+/// `hold_cleared` for each hold by the events, and one of the cause `sign_in_refused` for each run
+/// that `refused_runs` names (ruling RD-73 4.3), only after the acknowledgement, which it writes
 /// into the facts; a refusal or no answer stores nothing and answers the cause, and after
 /// `overlap` the read `Owner::overlaps` follows, whose answer `Report::shared` carries (rulings
 /// RD-67 1.3 (a), 3.2 (f)). A start by the person that ends the hold `failures` with no hold `off`

@@ -4605,3 +4605,68 @@ fn under_a_refused_sign_in_the_scheduler_starts_nothing_and_one_start_by_the_per
     w.tick();
     assert_eq!(w.starts(), 0, "and the next tick starts nothing");
 }
+
+/// U2.4h, sentence 3 (ruling RD-73 4.3, 4.7; I1.3, I2.5): while the hold of a refused sign-in
+/// stands beside `failures`, the row says that the site did not let it sign in and offers Start
+/// now, Switch on and Delete; one Switch on sends the state first and ends both holds with one
+/// `hold_cleared` each, the one of `sign_in_refused` naming the run.
+#[test]
+fn the_row_of_a_refused_sign_in_stands_before_failures_and_one_switch_on_ends_both() {
+    use halvo_coord::roster::{controls, status_of};
+    use halvo_coord::types::Control;
+    let mut w = world_with(
+        &[manual()],
+        Limits {
+            fails_to_pause: 1,
+            ..Limits::PRODUCT
+        },
+    );
+    let run = ok_run(&w.start(0));
+    w.owner_agent(0, |a| a.refused_run = Some(run.clone()));
+    w.end(&run, Some(Outcome::Failed));
+    let line = status_of(w.facts(0), &w.limits, None, false);
+    assert_eq!(line.key(), "line.problem.sign_in_refused");
+    assert_eq!(
+        halvo_coord::words::text(&line.key(), &[]).as_deref(),
+        Ok("The site did not let it sign in.")
+    );
+    assert_eq!(
+        holds(w.facts(0)),
+        vec![Hold::SignInRefused, Hold::Failures],
+        "both holds stand by their stored hold_set"
+    );
+    assert_eq!(
+        controls(w.facts(0), None, &w.limits),
+        vec![Control::RunNow, Control::SwitchOn, Control::Delete]
+    );
+    w.forget();
+    assert_eq!(
+        w.go(Move::SwitchOn { agent: agent(0) }).answer,
+        Ok(Answer::Ok)
+    );
+    assert_eq!(
+        w.calls(),
+        vec![
+            "set_state active".to_string(),
+            "log hold_cleared sign_in_refused, hold_cleared failures".into()
+        ],
+        "the state first, then one hold_cleared of each cause"
+    );
+    let cleared: Vec<Cleared> = w
+        .stored()
+        .into_iter()
+        .filter_map(|e| match e.what {
+            What::HoldCleared { cause } => Some(cause),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        cleared,
+        vec![Cleared::SignInRefused { run }, Cleared::Failures]
+    );
+    assert_eq!(holds(w.facts(0)), Vec::<Hold>::new());
+    assert_eq!(
+        controls(w.facts(0), None, &w.limits),
+        vec![Control::RunNow, Control::SwitchOff, Control::Delete]
+    );
+}
