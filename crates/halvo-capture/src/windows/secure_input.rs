@@ -618,7 +618,8 @@ struct Marks {
 impl Marks {
     /// Writes the content reading of a read: one with no writer (a test's
     /// own mark) always, one of a detector only while that detector is the
-    /// gate's writer.
+    /// gate's writer. A focus event of a started detector writes nothing
+    /// before that detector's first own read, as the key's start rule.
     fn set_content(&mut self, by: Option<u64>, content: ContentReading) {
         if by.is_none() || by == self.writer {
             self.content = content;
@@ -780,7 +781,9 @@ impl Shared {
     ) {
         let mut marks = self.lock();
         marks.push(Some(at), at, Mark::Field(state));
-        marks.set_content(by, content);
+        if !(marks.started.is_some() && marks.first_read.is_none()) {
+            marks.set_content(by, content);
+        }
         marks.events_in_flight = marks.events_in_flight.saturating_sub(1);
         marks.ask_read(at);
         note_mark("event", Some(state), None, Some(at), at, seen);
@@ -3065,12 +3068,42 @@ mod detector {
             let after = (gate.content_reading(), kept(&gate));
             let detached = gate.detach(UNTIMED);
             let after_the_detach = gate.content_reading();
+            let second = PasswordGate::with_removals(Removals {
+                before_first_read: first_read_held,
+                attach_deadline: Some(Duration::from_millis(300)),
+                ..Removals::default()
+            });
+            let first_read = Hold::on(&HOLD_FIRST_READ);
+            let second_attached = second.attach_waiting();
+            let (password, password_in_front) = EditInFront::open_with(ES_PASSWORD as u32);
+            let before_with_a_password_field = (second.content_reading(), kept(&second));
+            drop(first_read);
+            let landed = std::time::Instant::now();
+            while second.content_reading() == ContentReading::Unknown(UnknownBy::BeforeFirstRead)
+                && landed.elapsed() < Duration::from_secs(10)
+            {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let after_with_a_password_field = (second.content_reading(), kept(&second));
+            let _ = second.detach(UNTIMED);
+            drop(password);
             drop(edit);
             assert!(
-                in_front,
-                "INCONCLUSIVE: the test's edit did not come to the front"
+                in_front && password_in_front,
+                "INCONCLUSIVE: the test's edits did not come to the front"
             );
             assert_eq!(attached, Ok(Attached::Late));
+            assert_eq!(second_attached, Ok(Attached::Late));
+            assert_eq!(
+                before_with_a_password_field,
+                (ContentReading::Unknown(UnknownBy::BeforeFirstRead), false),
+                "a focus event to a password field before the first read lands"
+            );
+            assert_eq!(
+                after_with_a_password_field,
+                (ContentReading::Password, false),
+                "the first read lands with a password field in the focus"
+            );
             assert!(running_while_late, "the late detector was not kept");
             assert_eq!(
                 before,
