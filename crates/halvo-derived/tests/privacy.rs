@@ -10,10 +10,13 @@ use std::time::Duration;
 use common::{
     domain, episode, key, listed, open_host, own_note_body, position, raw, raw_request, registry,
     store_id, summary_id, token, Grouping, NoProposals, OwnNote, Scratch, Seq, TestClock, DAY_NS,
-    FAR, NOTE, OWN, TRACE,
+    FAR, FRONT, NOTE, OWN, TRACE,
 };
 use halvo_derived::test_host::{delete_all, open_keyless};
-use halvo_derived::{Committed, Counts, Host, OpenError, Report, Store, Takes};
+use halvo_derived::{
+    Committed, Counts, Handler, HandlerCx, Host, OpenError, RemoveRefusal, Removed, Report, Store,
+    Takes,
+};
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::{RequestId, WorkflowId};
 use halvo_schema_core::kinds::{self, KindEntry};
@@ -1542,6 +1545,11 @@ const CHECKPOINTED_WRITES: &[(&str, &str, &str)] = &[
     ),
     ("src/decide.rs", "decide", "privacy_listed"),
     ("src/decide.rs", "decide", "privacy_scrub"),
+    (
+        "src/handler.rs",
+        "remove_under",
+        "a_handler_removes_the_rows_of_one_kind_under_one_workflow_and_nothing_else",
+    ),
     ("src/purge.rs", "purge", "privacy_scrub"),
     ("src/purge.rs", "purge_below", "privacy_scrub"),
     ("src/report.rs", "expire", "privacy_scrub"),
@@ -1564,6 +1572,7 @@ const REMOVALS: &[(&str, &str, &str, &str)] = &[
     ("src/decide.rs", "dismiss", "remove", "src/decide.rs decide, the dismissal"),
     ("src/decide.rs", "delete", "remove", "src/decide.rs decide, the delete"),
     ("src/decide.rs", "delete", "remove", "src/decide.rs decide, the delete"),
+    ("src/handler.rs", "remove_under", "remove", "src/handler.rs remove_under, the removal call"),
     (
         "src/propose.rs",
         "set_support",
@@ -2569,5 +2578,197 @@ fn removed_rows_leave_no_text_in_the_gap_of_a_page_built_again() {
         !failed,
         "removed rows left text in the files:\n{}",
         lines.join("\n")
+    );
+}
+
+/// What a handler of the removal test makes in one request: the typed commit of a list, or the removal call of a kind
+/// under a workflow id with its list.
+enum Act {
+    Commit(Vec<TypedRecord>),
+    Remove(&'static str, String, Vec<TypedRecord>),
+}
+
+/// A handler that makes, in its own family, the act that the test put in `act`, and keeps the answer of a removal call
+/// in `removals`.
+struct Acting {
+    act: Rc<RefCell<Option<Act>>>,
+    removals: Rc<RefCell<Vec<Result<Removed, RemoveRefusal>>>>,
+}
+
+impl Handler for Acting {
+    fn handle(
+        &self,
+        _request: &request::RawRequest,
+        cx: &mut HandlerCx<'_>,
+    ) -> Result<Box<serde_json::value::RawValue>, ErrorName> {
+        match self.act.borrow_mut().take() {
+            Some(Act::Commit(list)) => {
+                assert!(matches!(cx.commit(&list), Ok(c) if c.stored == list.len() as u64));
+            }
+            Some(Act::Remove(kind, workflow, list)) => {
+                let id = WorkflowId::parse(&workflow).unwrap();
+                self.removals
+                    .borrow_mut()
+                    .push(cx.remove_under(kind, &id, &list));
+            }
+            None => {}
+        }
+        Ok(serde_json::value::RawValue::from_string("null".to_owned()).unwrap())
+    }
+}
+
+/// A record of `kind` under `workflow`, whose other fields `rest` holds.
+fn record(kind: &'static str, workflow: &str, rest: &str) -> TypedRecord {
+    TypedRecord {
+        kind,
+        json: format!(r#"{{"v":1,"workflow":"{workflow}",{rest}}}"#),
+    }
+}
+
+const REMOVED_A: &str = "qzremovea9101";
+const REMOVED_B: &str = "qzremoveb9102";
+const OTHER_WORKFLOW: &str = "qzremovew9103";
+
+/// The removal call, `HandlerCx::remove_under` (U9.12a; the coordinator's rulings of 2026-11-22 on its five points):
+/// on a keyless store, the handler of the family `test` stores two `test_own` rows under the first workflow, one under
+/// the second and a `test_note` row under the first, and the handler of the family `front` a `front_mark` row under the
+/// first. Each `test_own` row holds a marker, and every marker is found in the files while its row is stored. Under a
+/// `runner` request the call answers `Role`, removes no row and stores no record. Under a `coordinator_write` it
+/// removes the two `test_own` rows of the first workflow, answers 2, and stores its `test_note` record in the same
+/// write. Right after the call, behind its checkpoint, the markers of the two removed rows are in no entry of
+/// `derived/` and the marker of the second workflow's row is found; after the store is closed the rows of the other
+/// kind, of the other workflow and of the other family stand, with the record of the call and without the record of the
+/// refused call.
+#[test]
+fn a_handler_removes_the_rows_of_one_kind_under_one_workflow_and_nothing_else() {
+    let scratch = Scratch::new("remove-under");
+    let clock = TestClock::at_day(DAY);
+    let act = Rc::new(RefCell::new(None));
+    let removals = Rc::new(RefCell::new(Vec::new()));
+    let acting = || -> Box<dyn Handler> {
+        Box::new(Acting {
+            act: Rc::clone(&act),
+            removals: Rc::clone(&removals),
+        })
+    };
+    let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 }))
+        .handler("test", Takes::Coordinator(&["test"]), acting())
+        .handler("test", Takes::Runner, acting())
+        .handler("front", Takes::Coordinator(&["front"]), acting());
+    let mut store = keyless(&scratch, &with(&[&NOTE, &OWN, &FRONT]), host);
+    store
+        .commit_batch(
+            &store_id(1),
+            &[
+                episode(1, DAY, None),
+                episode(2, DAY, domain("northwind-power.test")),
+            ],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    let ids: Vec<String> = listed(&store)
+        .iter()
+        .map(|item| item.workflow.id().as_str().to_owned())
+        .collect();
+    let [w1, w2] = <[String; 2]>::try_from(ids).unwrap();
+    let own_note = |workflow: &str, marker: &str| {
+        let rest = format!(r#""note":"Call {marker}","at":1794339000000000000"#);
+        record("test_own", workflow, &rest)
+    };
+    let note =
+        |workflow: &str, n: u32| record("test_note", workflow, &format!(r#""day":{DAY},"n":{n}"#));
+    let mark = record("front_mark", &w1, r#""seen":1"#);
+    let other_workflow = own_note(&w2, OTHER_WORKFLOW);
+    let other_kind = note(&w1, 1);
+    let of_call = note(&w1, 3);
+    let mut send = |name: &str, body: &str, next: Act| {
+        *act.borrow_mut() = Some(next);
+        store.handle(&raw_request(name, body)).unwrap();
+    };
+    send(
+        "coordinator_write",
+        r#"{"op":"test"}"#,
+        Act::Commit(vec![
+            own_note(&w1, REMOVED_A),
+            own_note(&w1, REMOVED_B),
+            other_workflow.clone(),
+            other_kind.clone(),
+        ]),
+    );
+    send(
+        "coordinator_write",
+        r#"{"op":"front"}"#,
+        Act::Commit(vec![mark.clone()]),
+    );
+    let markers = [REMOVED_A, REMOVED_B, OTHER_WORKFLOW];
+    for marker in markers {
+        assert!(
+            !holding(&scratch, marker).is_empty(),
+            "the search finds {marker} while its row is stored"
+        );
+    }
+    send(
+        "runner",
+        "{}",
+        Act::Remove("test_own", w1.clone(), vec![note(&w1, 2)]),
+    );
+    for marker in markers {
+        assert!(
+            !holding(&scratch, marker).is_empty(),
+            "after the call under a runner request, the search finds {marker}"
+        );
+    }
+    send(
+        "coordinator_write",
+        r#"{"op":"test"}"#,
+        Act::Remove("test_own", w1.clone(), vec![of_call.clone()]),
+    );
+    assert_eq!(
+        removals.borrow().clone(),
+        vec![
+            Err(RemoveRefusal::Role),
+            Ok(Removed {
+                removed: 2,
+                committed: Committed {
+                    stored: 1,
+                    dropped: 0
+                }
+            })
+        ]
+    );
+    for marker in [REMOVED_A, REMOVED_B] {
+        assert_eq!(
+            holding(&scratch, marker),
+            Vec::<String>::new(),
+            "right after the call, the entries that hold {marker}, whose row is removed"
+        );
+    }
+    assert!(
+        !holding(&scratch, OTHER_WORKFLOW).is_empty(),
+        "right after the call, the search finds {OTHER_WORKFLOW}, whose row is stored"
+    );
+    drop(store);
+    let conn = plain(&scratch);
+    let mut statement = conn
+        .prepare("SELECT kind, workflow, body FROM rows WHERE family <> 'workflow' ORDER BY id")
+        .unwrap();
+    let standing: Vec<(String, String, String)> = statement
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    let row = |workflow: &str, record: TypedRecord| {
+        (record.kind.to_owned(), workflow.to_owned(), record.json)
+    };
+    assert_eq!(
+        standing,
+        vec![
+            row(&w2, other_workflow),
+            row(&w1, other_kind),
+            row(&w1, mark),
+            row(&w1, of_call),
+        ],
+        "the rows that stand after the call, by the test's own connection"
     );
 }
