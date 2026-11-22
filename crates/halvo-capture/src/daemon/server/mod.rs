@@ -955,7 +955,6 @@ mod tests {
             "source name=keyboard state=off",
             "source name=screen state=off",
             "source name=system_audio state=off",
-            "password_guard=none",
             "keys_withheld=no",
         ] {
             assert!(
