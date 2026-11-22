@@ -1680,6 +1680,130 @@ impl Executor {
     }
 }
 
+/// A control as `Executor::control` reads it (A4.3's fresh report of a target, U4.1w part 1):
+/// whether it is a credential field, whether it is enabled, and its text and its value with white
+/// space squeezed. Of a credential field the read holds the mark alone: it is not enabled and its
+/// text and value are empty, for none of them was read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Control {
+    pub credential: bool,
+    pub enabled: bool,
+    pub text: String,
+    pub value: String,
+}
+
+/// The one function of `Executor::control`, called on the node: it decides the mark by
+/// `CREDENTIAL_FN`, the rule of a snapshot line's mark, and returns `[true]` for a credential
+/// before it reads anything more; for every other control `[false, enabled, text, value]`.
+fn control_fn() -> String {
+    format!(
+        "function () {{
+  if (({CREDENTIAL_FN}).call(this)) return [true];
+  const enabled = typeof this.matches !== 'function' || (!this.matches(':disabled') && this.getAttribute('aria-disabled') !== 'true');
+  const value = typeof this.value === 'string' ? this.value : '';
+  return [false, enabled, String(this.innerText || this.textContent || ''), value];
+}}"
+    )
+}
+
+/// The control of `control_fn`'s reply: the mark alone for `[true]`; enabled, text and value for
+/// `[false, enabled, text, value]`. Every other reply is refused, a reply that marks a credential
+/// and carries more than its mark among them.
+fn control_of(reply: &serde_json::Value) -> Res<Control> {
+    use serde_json::Value as V;
+    match reply.as_array().map(Vec::as_slice) {
+        Some([V::Bool(true)]) => Ok(Control {
+            credential: true,
+            enabled: false,
+            text: String::new(),
+            value: String::new(),
+        }),
+        Some([V::Bool(false), V::Bool(enabled), V::String(text), V::String(value)]) => {
+            Ok(Control {
+                credential: false,
+                enabled: *enabled,
+                text: squeeze(text),
+                value: squeeze(value),
+            })
+        }
+        _ => Err(Fault::new("read", "not a control")),
+    }
+}
+
+impl Executor {
+    /// The control of the ref, read fresh in one call on its node (`control_fn`): a credential
+    /// field gives its mark alone, so that no text and no value of it reaches this process.
+    pub async fn control(&self, reference: &str) -> Res<Control> {
+        let t = self.target(reference)?;
+        let reply = self
+            .call_on(&t.place, &t.node, &control_fn(), Vec::new())
+            .await?;
+        control_of(&reply)
+    }
+
+    /// How many nodes the first of `locators` to find any finds in the frame of `frame_path`, as
+    /// `resolve` tries them; 0 where none finds one.
+    pub async fn count(&mut self, locators: &[Locator], frame_path: &[&str]) -> Res<usize> {
+        let frame = match self.frame_by_path(frame_path).await? {
+            Ok(frame) => frame,
+            Err(_) => return Err(Fault::new("resolve", "frame")),
+        };
+        for locator in locators {
+            let found = match locator {
+                Locator::TestId(id) => self.by_test_id(&frame, id).await?,
+                Locator::Role(role, name) => self.by_role(&frame, role, name).await?,
+            };
+            if !found.is_empty() {
+                return Ok(found.len());
+            }
+        }
+        Ok(0)
+    }
+}
+
+#[cfg(test)]
+mod control_tests {
+    use super::*;
+
+    /// U4.1w part 1, the condition on the read: a password field with a value is read as its mark
+    /// alone. The reply `[true]` gives a credential with no text and no value; a reply that marks a
+    /// credential and carries a text and a value is refused, not read; and the function returns
+    /// the mark before it touches the node's value or text. The function itself runs in a real
+    /// browser alone, which no test of this crate starts.
+    #[test]
+    fn a_credential_control_is_read_as_its_mark_alone() {
+        let credential = Control {
+            credential: true,
+            enabled: false,
+            text: String::new(),
+            value: String::new(),
+        };
+        assert_eq!(control_of(&serde_json::json!([true])), Ok(credential));
+        assert_eq!(
+            control_of(&serde_json::json!([true, true, "hunter2", "hunter2"])),
+            Err(Fault::new("read", "not a control"))
+        );
+        assert_eq!(
+            control_of(&serde_json::json!([false, true, " Your  name ", "Ada"])),
+            Ok(Control {
+                credential: false,
+                enabled: true,
+                text: "Your name".to_string(),
+                value: "Ada".to_string(),
+            })
+        );
+        let function = control_fn();
+        let mark = function.find("return [true];").expect("the mark's return");
+        for read in ["this.value", "innerText", "textContent"] {
+            assert!(
+                function.find(read).is_some_and(|at| at > mark),
+                "{read} is read after the mark's return"
+            );
+        }
+        assert!(!CREDENTIAL_FN.contains("this.value") && !CREDENTIAL_FN.contains("innerText"));
+    }
+}
+
 /// The origin and the path of `url`: the origin without a user and a password of its address,
 /// the path without its query and fragment (CP-176 A1 (e)).
 pub fn split_url(url: &str) -> (String, String) {

@@ -603,11 +603,12 @@ fn a_cancel_before_any_begin_ends_the_run_declined() {
 }
 
 /// CP-142 (3): the confirm path's request maker of the suite is test code alone; the binary still fails a `web`
-/// step of one of the seven verbs that it does not carry (`click` here; `navigate` and `extract` start the browser)
-/// with `step_failed` and an `api` call with the cause `adapter`, with no effect row and no confirmation.
+/// step of an effect class (a `click` with the effect `request`, of the class `payment`; the steps of the classes
+/// `read` and `prepare` start the browser) with `step_failed` and an `api` call with the cause `adapter`, with no
+/// effect row and no confirmation.
 #[test]
 fn the_binary_still_fails_a_web_step_and_an_api_call_and_asks_no_confirmation() {
-    let click = r#"{"v":1,"n":1,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"text","value":"v","name":null}]},"args":[],"pre":[],"post":[],"effect":"none","class":"prepare"}"#;
+    let click = r#"{"v":1,"n":1,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"pay","name":null}]},"args":[{"name":"payee","from":"const","value":"p","key":null},{"name":"amount","from":"const","value":"1.00","key":null},{"name":"instrument","from":"const","value":"i","key":null},{"name":"origin","from":"const","value":"https://pay.example.com","key":null}],"pre":[],"post":[],"effect":"request","class":"payment"}"#;
     let mut web = Supervisor::new(156, Category::UtilityBillPayment, Vec::new());
     web.steps = vec![ExecutableStep::parse(click.as_bytes()).expect("a step")];
     let seen = web.serve(|_, _| Act::Answer, LONG);
