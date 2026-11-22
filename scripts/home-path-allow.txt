@@ -15,3 +15,5 @@ crates/halvo-coord/src/types/reply.rs	C:\\Users\\pat	a made-up account name, pat
 scripts/r1-gate/fixtures/c2-unreachable.txt	/Users/example	a made-up account name, example, in a fixture of the gate's status text; the file comes with the capture run's unit gate-2 in the same landing, so this entry stands ahead of it
 crates/halvo-control/src/proto.rs	/Users/a	a made-up account name, a, in a test frame of the reply decoder for the field os_domain
 crates/halvo-control/src/ctl_text.rs	/Users/example	a made-up account name, example, in the test of the text for a daemon that cannot be reached
+src-tauri/src/commands/tests.rs	/Users/someone	a made-up account name, someone, in the test of the places where an app's names are read
+src-tauri/src/commands/tests.rs	/System/Volumes/Data/Users/someone	a made-up account name, someone, in the test of the places where an app's names are read
