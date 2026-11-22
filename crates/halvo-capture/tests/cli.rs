@@ -388,10 +388,12 @@ fn scripted_service_run() {
 
     let before = total_events(&dir);
     let claimed = ctl(&dir, &["status", "--indicator"]);
-    let last_claim = Instant::now();
     assert_eq!(claimed.status.code(), Some(0), "case 5: {}", text(&claimed));
     let resumed = ctl(&dir, &["resume"]);
     assert_eq!(resumed.status.code(), Some(0), "case 5: {}", text(&resumed));
+    let claimed = ctl(&dir, &["status", "--indicator"]);
+    let last_claim = Instant::now();
+    assert_eq!(claimed.status.code(), Some(0), "case 5: {}", text(&claimed));
     grows_to(&dir, "case 5", before + EVENTS_A_START);
     let lapse =
         Duration::from_millis(halvo_control::INDICATOR_LEASE_MS + TICK_MS + LAPSE_MARGIN_MS);
