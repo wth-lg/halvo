@@ -7,6 +7,7 @@
 mod app;
 mod check_page;
 mod commands;
+mod console;
 #[cfg(any(target_os = "macos", windows, test))]
 mod daemon_child;
 mod engine;
@@ -43,7 +44,7 @@ fn main() {
     stop_hook::install(stop_hook::system);
     let started = std::time::Instant::now();
     match launch::parse(std::env::args_os().skip(1)) {
-        Ok(launch::Launch::Version) => println!("{}", app::VERSION),
+        Ok(launch::Launch::Version) => console::print_version(app::VERSION),
         Ok(launch::Launch::Run {
             background,
             data_dir,
