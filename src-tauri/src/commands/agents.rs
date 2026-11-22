@@ -383,12 +383,13 @@ impl Core for NoService {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use std::sync::{Arc, Condvar, Mutex, PoisonError};
     use std::time::{Duration, Instant};
 
     use halvo_control::client::{ClientError, Deadlines};
     use halvo_control::paths::DataDir;
-    use halvo_control::proto::{DaemonStatus, Platform, StoreState};
+    use halvo_control::proto::{DaemonStatus, ErrorCode, Platform, StoreState};
     use halvo_control::testing::{sample_status, ScriptedConnector, ScriptedDaemon};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord::types::{AgentId, Cause, ItemId, RunId};
@@ -398,9 +399,12 @@ mod tests {
     use tauri::{App, Manager};
 
     use super::{hold_by_the_view, RunsHold};
-    use crate::commands::capture::{delete_everything, AppState, Before, DeleteEnd, DELETE_WAITS};
+    use crate::commands::capture::{
+        delete_everything, run_offline, AppState, Before, DeleteEnd, Offline, DELETE_WAITS,
+    };
     use crate::commands::control::{Control, Gated, Places};
     use crate::poller::Views;
+    use crate::view_state::OfflineEnd;
 
     /// A core that records every `hold_runs` that reaches it.
     #[derive(Default)]
@@ -624,6 +628,200 @@ mod tests {
             core.holds(),
             [true, false],
             "at the bound, a poll that passed its deadline is a reading again and lifts the hold once"
+        );
+    }
+
+    /// The offline delete of a stand-in program that finds no store, with no child to end.
+    fn an_offline_run() -> Offline {
+        let dir = DataDir::from_flag(crate::tests::scratch_dir("hold-no-service"))
+            .expect("an absolute directory");
+        let printed = format!("data_dir={}\nno_store\n", dir.path().display());
+        Offline {
+            program: PathBuf::from("/stand-in/halvo-capture"),
+            data_dir: dir,
+            children: None,
+            run: Arc::new(move |_, _| OfflineEnd::Exited {
+                code: 0,
+                out: printed.clone(),
+            }),
+        }
+    }
+
+    /// The answers of a poll that finds no service: nothing listens, the data folder is held
+    /// with nothing listening, or the system has no control channel.
+    fn no_service() -> [ClientError; 3] {
+        [
+            ClientError::Unreachable {
+                endpoint: String::new(),
+            },
+            ClientError::DataDirInUse {
+                endpoint: String::new(),
+            },
+            ClientError::Unsupported,
+        ]
+    }
+
+    /// The hold of `core` before a door, with no module.
+    fn before_of(core: &Arc<Told>) -> Before {
+        Before {
+            modules: Vec::new(),
+            runs: Arc::new(RunsHold::default()),
+            core: Some(Arc::clone(core) as Arc<dyn Core>),
+        }
+    }
+
+    #[test]
+    fn behind_the_offline_doors_end_and_a_list_that_stopped_a_poll_that_finds_no_service_is_no_reading(
+    ) {
+        type Door = Box<dyn Fn(&Before, &Views)>;
+        #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
+        let mut doors: Vec<(&str, Door)> = vec![(
+            "the offline door",
+            Box::new(|before: &Before, _: &Views| {
+                let _ = run_offline(&an_offline_run(), before);
+            }),
+        )];
+        #[cfg(target_os = "macos")]
+        doors.push((
+            "a list of Remove Halvo that stopped",
+            Box::new(|before: &Before, views: &Views| {
+                let home = crate::tests::scratch_dir("hold-no-service-list").join("home");
+                let data = DataDir::from_flag(home.join("data")).expect("an absolute directory");
+                let stops = || {
+                    (
+                        crate::view_state::Outcome::Failed,
+                        crate::view_state::Detail::default(),
+                    )
+                };
+                let removal = crate::remove::remove_halvo(
+                    crate::remove::Places::new(
+                        &home,
+                        halvo_control::model::APP_BUNDLE_ID,
+                        &data,
+                        true,
+                    ),
+                    None,
+                    views.hold(),
+                    &stops,
+                    None,
+                    before,
+                );
+                assert_eq!(removal.exit(), None, "the list stopped at its first step");
+            }),
+        ));
+        for (door, end) in doors {
+            let core = Arc::new(Told::default());
+            let before = before_of(&core);
+            let views = Views::default();
+            let places = Arc::<Places>::default();
+            let read = |answer: Result<DaemonStatus, ClientError>| {
+                views.take_poll(places.make().number(), &answer);
+                before.runs.drawn(before.core.as_deref(), &views, &places);
+            };
+            end(&before, &views);
+            before.runs.drawn(before.core.as_deref(), &views, &places);
+            for found in no_service() {
+                let named = format!("{found:?}");
+                read(Err(found));
+                assert_eq!(
+                    core.holds(),
+                    [true],
+                    "{door}: a poll that finds no service ({named}) is no reading and lifts nothing"
+                );
+            }
+            read(Ok(deleting_with_the_field()));
+            assert_eq!(
+                core.holds(),
+                [true],
+                "{door}: a poll that answers that the store still deletes lifts nothing"
+            );
+            read(Ok(sample_status(Platform::Macos)));
+            assert_eq!(
+                core.holds(),
+                [true, false],
+                "{door}: the first poll that answers with the store open lifts the hold once"
+            );
+        }
+    }
+
+    #[test]
+    fn behind_the_offline_doors_end_a_poll_that_finds_no_service_lifts_the_hold_at_the_bound_and_not_before_it(
+    ) {
+        let core = Arc::new(Told::default());
+        let before = before_of(&core);
+        let views = Views::default();
+        let places = Arc::<Places>::default();
+        let bound = Deadlines::V1.delete_all;
+        let a_poll_that_finds_no_service_drawn_at = |now: Instant| {
+            views.take_poll(
+                places.make().number(),
+                &Err(ClientError::Unreachable {
+                    endpoint: String::new(),
+                }),
+            );
+            before
+                .runs
+                .drawn_at(before.core.as_deref(), &views, &places, now);
+        };
+        let begun = Instant::now();
+        let _ = run_offline(&an_offline_run(), &before);
+        let ended = Instant::now();
+        before
+            .runs
+            .drawn_at(before.core.as_deref(), &views, &places, ended);
+        a_poll_that_finds_no_service_drawn_at(begun + bound - Duration::from_millis(1));
+        assert_eq!(
+            core.holds(),
+            [true],
+            "before the bound, a poll that finds no service lifts nothing"
+        );
+        a_poll_that_finds_no_service_drawn_at(ended + bound);
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "once the bound has passed since the end, a poll that finds no service is a reading again and lifts the hold once"
+        );
+    }
+
+    #[test]
+    fn behind_a_delete_that_the_service_answered_busy_a_poll_past_its_deadline_is_no_reading() {
+        let core = Arc::new(Told::default());
+        let mut busy = ScriptedDaemon::new(sample_status(Platform::Macos));
+        busy.set_mutation_in_flight(true);
+        let control = Gated::new(ScriptedConnector::new(busy));
+        let views = Views::default();
+        let before = before_of(&core);
+        let drawn = || {
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+        };
+        let asked = delete_everything(&before, &control, &views, None, DELETE_WAITS);
+        assert!(
+            matches!(
+                &asked.end,
+                DeleteEnd::Answered(Err(ClientError::Daemon(reply))) if reply.code() == ErrorCode::Busy
+            ),
+            "the service answered the delete busy: {:?}",
+            asked.end
+        );
+        views.take_refusal(asked.next_number_at_answer);
+        drawn();
+        let number = control.places().make().number();
+        views.take_poll(number, &Err(ClientError::Deadline { seconds: 2 }));
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true],
+            "behind a busy answer, a poll that passed its deadline is no reading and lifts nothing"
+        );
+        let number = control.places().make().number();
+        views.take_poll(number, &Ok(sample_status(Platform::Macos)));
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first poll behind it that answers, the store open, lifts the hold once"
         );
     }
 }
