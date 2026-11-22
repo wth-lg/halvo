@@ -95,6 +95,7 @@ sat macos check 10-r7-account
 sat macos check 25-advisories
 sat windows check 32-app-check-page
 sat windows check 38-app-engine-routes
+sat windows check 34-app-windows-start
 sat windows check 20-r6-gateway
 sat windows check 80-r6-absent
 sat windows tests D

@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
@@ -81,7 +82,8 @@ pub enum Next {
     WaitForAPress,
     StartNow,
     StartAfter(Duration),
-    /// No further child in this life of the app.
+    /// No child starts by itself, after the third end with 5 in a row and after an end with 6:
+    /// a person's press on Start starts one again, and a quit ends the wait.
     NoMoreChild,
 }
 
@@ -140,8 +142,9 @@ pub struct Restarts {
 /// restart a start at once; 0 of a child that answered as the app's own, with no such ask, no
 /// start until a person's press; 0 of a child that never answered as the app's own the attach
 /// to the daemon that holds the directory, and a start once no daemon answers; 4 after a life
-/// of 60 s or more a start at once; 5 the backoff, and no child after the third 5 in a row; 1,
-/// a 4 within 60 s of its start, a status that this list does not name, an end by a signal and
+/// of 60 s or more a start at once; 5 the backoff, and no child after the third 5 in a row; 6,
+/// a Windows run that was not taken out of Windows Error Reporting, no child again until a
+/// person's press; 1, a 4 within 60 s of its start, a status that this list does not name, an end by a signal and
 /// a failed start the backoff, which doubles from 1 s to 60 s and starts again from 1 s after a
 /// 4 that starts at once and after a child that lived 60 s.
 pub fn next(ending: Ending, clean: Clean, lived: Duration, before: Restarts) -> (Next, Restarts) {
@@ -161,6 +164,7 @@ pub fn next(ending: Ending, clean: Clean, lived: Duration, before: Restarts) -> 
         Ending::Status(exit::RESTART) if lived >= BACKOFF_MAX => {
             (Next::StartNow, Restarts::default())
         }
+        Ending::Status(exit::FAULT_REPORTS_ON) => (Next::NoMoreChild, Restarts::default()),
         _ if fives >= FIVES_IN_A_ROW => (
             Next::NoMoreChild,
             Restarts {
@@ -258,12 +262,21 @@ impl Clock for SystemClock {
 
 /// A child that the app started: the process and the write end of the pipe on its standard
 /// input, which the app alone holds while the child lives.
+#[cfg(unix)]
 #[derive(Debug)]
 pub struct Running {
     child: Child,
     lifeline: Option<ChildStdin>,
 }
 
+/// A child that the app started on Windows, through halvo-control's one start of a child with
+/// its handles named: the process and the write end of the pipe on its standard input, which
+/// the app alone holds while the child lives.
+#[cfg(windows)]
+#[derive(Debug)]
+pub struct Running(halvo_control::child_windows::Lifelined);
+
+#[cfg(unix)]
 impl Watched for Running {
     fn pid(&self) -> u32 {
         self.child.id()
@@ -286,10 +299,31 @@ impl Watched for Running {
     }
 }
 
+/// A Windows child has no end by a signal: an end, a kill among them, reads as its exit code.
+#[cfg(windows)]
+impl Watched for Running {
+    fn pid(&self) -> u32 {
+        self.0.id()
+    }
+
+    fn ended(&mut self) -> io::Result<Option<Ending>> {
+        Ok(self.0.ended()?.map(|code| Ending::Status(code as i32)))
+    }
+
+    fn close_lifeline(&mut self) {
+        self.0.close_lifeline();
+    }
+
+    fn kill(&mut self) -> io::Result<()> {
+        self.0.kill()
+    }
+}
+
 /// The one start of a child of the app: `program` with `args`; standard input is the read end
 /// of a pipe whose write end the returned value holds, standard output is the null device,
 /// standard error is `err`, and every other descriptor is closed in the child at its exec,
 /// also one that lacks close-on-exec.
+#[cfg(unix)]
 pub fn start_child(program: &Program, args: &[OsString], err: File) -> io::Result<Running> {
     let mut command = Command::new(&program.path);
     command
@@ -302,6 +336,23 @@ pub fn start_child(program: &Program, args: &[OsString], err: File) -> io::Resul
     let mut child = command.spawn()?;
     let lifeline = child.stdin.take();
     Ok(Running { child, lifeline })
+}
+
+/// The one start of a child of the app on Windows: `program` with `args`, with no console
+/// window; standard input is the read end of a pipe whose write end the returned value holds,
+/// standard output is the null device, standard error is `err`, and the child inherits these
+/// three handles and no other (halvo-control's `start_with_lifeline`).
+#[cfg(windows)]
+pub fn start_child(program: &Program, args: &[OsString], err: File) -> io::Result<Running> {
+    use std::os::windows::io::AsHandle;
+    let args: Vec<&std::ffi::OsStr> = program
+        .leading
+        .iter()
+        .chain(args)
+        .map(OsString::as_os_str)
+        .collect();
+    halvo_control::child_windows::start_with_lifeline(&program.path, &args, err.as_handle())
+        .map(Running)
 }
 
 /// Closes every descriptor but the standard streams in the child of `command` at its exec, also
@@ -321,11 +372,6 @@ pub fn only_the_standard_streams(command: &mut Command) {
             Ok(())
         });
     }
-}
-
-#[cfg(not(unix))]
-fn only_the_standard_streams(command: &mut Command) {
-    let _ = command;
 }
 
 #[cfg(unix)]

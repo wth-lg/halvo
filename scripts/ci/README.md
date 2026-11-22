@@ -161,7 +161,7 @@ Seven slices hold what CI runs outside the merge gate. The workflow `ci` runs on
 | wed | group E (the one target macos_stall_fixture, which 51-macos-stall reads from the list of 12-test); 51-macos-stall; 30-core-boundary-proofs; 55-r6-formal; 32-app-check-page; 38-app-engine-routes | 50-windows-functional; 60-r6-egress |
 | thu | 62-build; 60-release-dry-run; 10-egress; 20-r6-gateway; 80-r6-absent | 52-windows-browser; 10-egress |
 | fri | 24 self-tests; group C (eight name parts of the unit tests of halvo-capture, and the doc-tests); the step `Self-tests that commit in throwaway repositories`; the self-test of the lockfile step | 15 self-tests; group C; the step `Scripts and hook in a core.autocrlf=true clone`; the self-test of the lockfile step |
-| sat | 16-shell-lint; group D (the test targets of seven more packages and two targets by name); 10-r7-account | 32-app-check-page; 38-app-engine-routes; 20-r6-gateway; 80-r6-absent; group D |
+| sat | 16-shell-lint; group D (the test targets of seven more packages and two targets by name); 10-r7-account | 32-app-check-page; 38-app-engine-routes; 34-app-windows-start; 20-r6-gateway; 80-r6-absent; group D |
 | sun | 62-build; 70-package-macos | 62-build; 70-package-windows |
 
 The slice fri of the macos job also runs the self-test of 72-notices, which the unit package-notices added; the table's count of 24 self-tests leaves it out.
