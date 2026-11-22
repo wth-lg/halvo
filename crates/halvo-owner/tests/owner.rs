@@ -1595,20 +1595,34 @@ fn a_dropped_model_key_is_gone_from_the_stores_files() {
     );
 }
 
-/// r3 U7.6, sentence (2) (the coordinator's log line 16422, point 4): after Delete everything a read of the key answers
-/// none. The owner's program writes the person's key, a made-up text that names itself as a test value, on a scratch
-/// store and ends; the product's offline delete runs on the data directory, as
-/// `a_delete_of_everything_leaves_no_entry_under_derived` of slot.rs runs it; an owner started again on that
-/// directory with the same store key answers `model_key_state` with `stands` `no`.
-#[cfg(target_os = "macos")]
+/// r3 U7.6, sentence (2) (the coordinator's log lines 16422, point 4, and 16823, its condition (v)): after Delete
+/// everything a read of the key answers none, on the harness of `a_delete_during_a_batch_leaves_nothing` of crash.rs. A
+/// capture store is made in the data directory under the root file's custody, whose root wraps the derived store's
+/// key in derived/master.key; the owner's program on that key writes the person's key, a made-up text that names
+/// itself as a test value, and ends; the product's offline delete runs on the data directory and destroys that root;
+/// a capture store made again gives the derived store's key of the next start, and the owner started on it answers
+/// `read_model_key` with no key.
+#[cfg(all(target_os = "macos", debug_assertions))]
 #[test]
 fn a_model_key_row_is_gone_after_delete_everything() {
+    use halvo_capture::daemon::custody_policy::Custody;
     use halvo_capture::daemon::delete_all::offline;
+    use halvo_capture::daemon::port::{DataDirStore, Opened, StoreHost};
     const BEFORE: &str = "test-value-not-a-model-key-before-the-delete";
     let scratch = Scratch::new("owner-model-key-delete-all");
-    let started = || start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let derived_key = || -> [u8; 32] {
+        let host = DataDirStore::at(&scratch.0);
+        let Opened::ReadWrite { store, .. } = host.create(Custody::RootFile) else {
+            panic!("no capture store was made in {}", scratch.0.display());
+        };
+        drop(store);
+        let key = host
+            .derived_store_key()
+            .unwrap_or_else(|fault| panic!("no key of the derived store: {fault:?}"));
+        *key.expose()
+    };
 
-    let mut owner = started();
+    let mut owner = start_on(stream_channel(), &scratch.0, derived_key(), 1, false, &[]);
     let (mut stream, answer) = hand_over(&mut owner);
     assert_eq!(answer, TAKEN);
     let written = key_body(&mut stream, "put_model_key", &key_of(BEFORE));
@@ -1630,12 +1644,12 @@ fn a_model_key_row_is_gone_after_delete_everything() {
     );
     assert_eq!(status, 0, "{printed}");
 
-    let mut owner = started();
+    let mut owner = start_on(stream_channel(), &scratch.0, derived_key(), 1, false, &[]);
     let (mut stream, answer) = hand_over(&mut owner);
     assert_eq!(answer, TAKEN);
     assert_eq!(
-        key_body(&mut stream, "model_key_state", ""),
-        r#"{"stands":"no"}"#,
+        key_body(&mut stream, "read_model_key", ""),
+        r#"{"key":null}"#,
         "{printed}"
     );
 }

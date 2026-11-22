@@ -1,7 +1,7 @@
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::{AgentId, ErrorName, Instant, RowRead, TypedRecord, WorkflowId, WorkflowItem};
 
-/// The calls that a store offers a handler while the handler answers one request (W-C25.5), and no other: the five
+/// The calls that a store offers a handler while the handler answers one request (W-C25.5), and no other: the six
 /// of the store and the day of the host's clock. The host calls a handler to its end before it passes it the next
 /// request, so no other request changes the rows between a handler's reads and its commits. Each commit is a
 /// transaction of its own: a handler that makes a commit and then a state call (`create_agent`) leaves the commit
@@ -26,6 +26,18 @@ pub trait Host {
         _workflow: &WorkflowId,
         _records: Vec<TypedRecord>,
     ) -> Result<u64, ErrorName> {
+        Err(ErrorName::Unsupported)
+    }
+
+    /// The removal call of a person's kind (`HandlerCx::remove_person` of the derived store, r3 U7.6): in one
+    /// transaction with the typed commit of `records`, it removes every stored row of the kind `kind` of the family
+    /// `agent`, a kind of origin person whose rows name no workflow, the rows that a read no longer hands out among
+    /// them, stores the records after the removal, and answers how many rows it removed. Its refusals and faults are
+    /// those of `remove_under`, and it refuses a kind that has a workflow key. The derived store removes each row under
+    /// its secure delete with the truncating checkpoint behind the commit, makes the call under a `coordinator_write`
+    /// alone and answers `role` under a runner's request. A host that does not hand the call on keeps this body: it
+    /// answers `unsupported` and removes nothing.
+    fn remove_person(&mut self, _kind: &str, _records: Vec<TypedRecord>) -> Result<u64, ErrorName> {
         Err(ErrorName::Unsupported)
     }
 

@@ -172,6 +172,9 @@ these kinds alone:
 The twelfth body, `drop_session`, answers no record: it makes Halvo stop using
 the kept sign-in of one site of the agent.
 
+For an agent that the person allowed to use a hosted model, the supervisor also
+hands the run the key of that model's host. No build starts such a run yet.
+
 The test `a_runner_body_answers_no_kind_outside_the_closed_list`
 (`crates/halvo-learn-store/src/tests/kinds.rs`) holds that list.
 

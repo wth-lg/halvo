@@ -21,7 +21,8 @@ use super::record::{
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
 use super::text::{
-    Digest, EffectId, Name, Null, OwnText, OwnValue, ProviderId, RunId, SessionData, WebOrigin,
+    Digest, EffectId, Name, Null, OwnText, OwnValue, ProviderId, RunId, SecretText, SessionData,
+    WebOrigin, OWN_TEXT_MAX,
 };
 use super::{is_sender, same_address, Refusal};
 
@@ -777,6 +778,58 @@ object_type! {
     rules(_b) { Ok(()) }
 }
 
+object_type! {
+    /// `put_model_key`: the person's key for a model's host, for the person and for no agent, with `workflow` and
+    /// `agent` null (r3 U7.6). The store keeps ONE row of the kind `model_key`: in one write it removes the row that
+    /// stands, at rest, and stores the key, and answers `{"stored":1}`. The key is at least one byte and at most
+    /// `OWN_TEXT_MAX` bytes, taken as given and never trimmed; `Debug` prints no part of it.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct PutModelKey [op = "put_model_key"] {
+        pub workflow: Null = "workflow" => from_json,
+        pub agent: Null = "agent" => from_json,
+        pub key: SecretText = "key" => from_json,
+    }
+    rules(b) {
+        if b.key.expose().len() > OWN_TEXT_MAX {
+            return Err(Refusal::length("PutModelKey", "key_length").at("key"));
+        }
+        Ok(())
+    }
+}
+
+object_type! {
+    /// `drop_model_key`: the end of the person's key, with `workflow` and `agent` null (r3 U7.6). The store removes the
+    /// row of the kind `model_key` at rest and answers `{"stored":0}`, also where none stands.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct DropModelKey [op = "drop_model_key"] {
+        pub workflow: Null = "workflow" => from_json,
+        pub agent: Null = "agent" => from_json,
+    }
+    rules(_b) { Ok(()) }
+}
+
+object_type! {
+    /// `model_key_state`: whether the person's key stands, with `workflow` and `agent` null (r3 U7.6): what the window
+    /// is told. It stores nothing.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ModelKeyState [op = "model_key_state"] {
+        pub workflow: Null = "workflow" => from_json,
+        pub agent: Null = "agent" => from_json,
+    }
+    rules(_b) { Ok(()) }
+}
+
+object_type! {
+    /// `read_model_key`: the person's key, with `workflow` and `agent` null (r3 U7.6), which the app's own answer of
+    /// the supervisor's `Secrets` to the reserved name `model_key` reads. It stores nothing.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ReadModelKey [op = "read_model_key"] {
+        pub workflow: Null = "workflow" => from_json,
+        pub agent: Null = "agent" => from_json,
+    }
+    rules(_b) { Ok(()) }
+}
+
 op_enum! {
     /// The coordinator bodies of this run (`CoordinatorCall`): each holds `op` first, then `workflow` and `agent`,
     /// then its keys.
@@ -794,6 +847,10 @@ op_enum! {
         AgentHistory(AgentHistory) = "agent_history",
         DropSessions(DropSessions) = "drop_sessions",
         ListReplies(ListReplies) = "list_replies",
+        PutModelKey(PutModelKey) = "put_model_key",
+        DropModelKey(DropModelKey) = "drop_model_key",
+        ModelKeyState(ModelKeyState) = "model_key_state",
+        ReadModelKey(ReadModelKey) = "read_model_key",
     }
 }
 
@@ -1289,6 +1346,27 @@ object_type! {
     arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
+object_type! {
+    /// The reply of `model_key_state`: `yes` while the person's key stands, else `no`, and no part, length or sign of
+    /// the key.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct StandsReply {
+        pub stands: YesNo = "stands" => from_json,
+    }
+    rules(_r) { Ok(()) }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
+}
+
+object_type! {
+    /// The reply of `read_model_key`: the person's key, or null where none stands. `Debug` prints no part of it.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct KeyReply {
+        pub key: Option<SecretText> = "key" => opt(from_json),
+    }
+    rules(_r) { Ok(()) }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
+}
+
 reply_enum! {
     /// The reply of a coordinator body, told apart by its keys. Each variant's type has a bound of
     /// `CHECKPOINTS_REPLY_MAX` bytes as they arrive in its own `parse`, or the crate does not compile.
@@ -1302,6 +1380,8 @@ reply_enum! {
         Agents(AgentsReply) = "agents",
         History(HistoryReply) = "runs",
         Replies(ListRepliesReply) = "replies",
+        Stands(StandsReply) = "stands",
+        Key(KeyReply) = "key",
     }
 }
 
@@ -1309,7 +1389,8 @@ impl CoordinatorReply {
     /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
     /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints`, `list_agents`,
     /// `agent_history` and `list_replies` by their lists, `mark_checkpoint` by `stored` 0 or 1, `drop_sessions` by any
-    /// count stored, and `list_overlaps` by its list only as `OverlapsReply::answers` says.
+    /// count stored, `put_model_key` by `stored` 1, `drop_model_key` by `stored` 0, `model_key_state` by `stands` and
+    /// `read_model_key` by `key`, and `list_overlaps` by its list only as `OverlapsReply::answers` says.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
         match (self, call) {
             (CoordinatorReply::Overlaps(r), CoordinatorCall::ListOverlaps(b)) => {
@@ -1317,6 +1398,8 @@ impl CoordinatorReply {
             }
             (CoordinatorReply::Rev(r), CoordinatorCall::CreateAgent(_)) => r.rev.get() == 1,
             (CoordinatorReply::Stored(r), CoordinatorCall::MarkCheckpoint(_)) => r.stored <= 1,
+            (CoordinatorReply::Stored(r), CoordinatorCall::PutModelKey(_)) => r.stored == 1,
+            (CoordinatorReply::Stored(r), CoordinatorCall::DropModelKey(_)) => r.stored == 0,
             (
                 CoordinatorReply::Rev(_),
                 CoordinatorCall::SetBindings(_) | CoordinatorCall::AddOrigin(_),
@@ -1327,6 +1410,8 @@ impl CoordinatorReply {
             | (CoordinatorReply::History(_), CoordinatorCall::AgentHistory(_))
             | (CoordinatorReply::Stored(_), CoordinatorCall::DropSessions(_))
             | (CoordinatorReply::Replies(_), CoordinatorCall::ListReplies(_))
+            | (CoordinatorReply::Stands(_), CoordinatorCall::ModelKeyState(_))
+            | (CoordinatorReply::Key(_), CoordinatorCall::ReadModelKey(_))
             | (
                 CoordinatorReply::Accepted(_),
                 CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_),

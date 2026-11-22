@@ -1440,6 +1440,7 @@ impl Runs for Product {
             model: self.places.model.clone(),
             headed: spec.headed,
             utc_offset_s: zone_offset_s(SystemTime::now()).ok_or(PortError::NoService)?,
+            hosted: None,
         };
         lock(&self.runs).insert(
             spec.run.clone(),
