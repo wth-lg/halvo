@@ -8,10 +8,15 @@ pub mod unix;
 #[cfg(windows)]
 pub mod windows;
 
+#[cfg(target_os = "macos")]
+pub use unix::Listening;
+#[cfg(windows)]
+pub use windows::Listening;
+
 use std::io::{ErrorKind, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use halvo_control::model::{CaptureState, Modality, UtcSecond};
@@ -28,7 +33,7 @@ use halvo_control::wire::{self, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
 
 use super::board::{Board, Capture as BoardCapture};
 use super::slot::Slot;
-use super::state::{Cap as StateCap, Desired, StateHealth};
+use super::state::{Cap as StateCap, Desired, SharedStateFile, StateHealth};
 use crate::floor::{Switch, Switches};
 
 /// How long the server waits for each read of a request (contracts.md C2.1).
@@ -50,12 +55,11 @@ pub fn serves_peer(peer: u32, own: u32) -> bool {
 }
 
 /// What the connections of one server share with the service run's loop: the
-/// mutation in flight and the fact that the life is ending (contracts.md
-/// C2.1, ruling PL-17), which the loop sets once it accepts a Stop.
+/// mutation in flight and the life (contracts.md C2.1, ruling PL-17).
 #[derive(Debug, Default)]
 pub struct Admitting {
     in_flight: AtomicBool,
-    ending: AtomicBool,
+    life: Arc<EndingLife>,
     #[cfg(feature = "r2")]
     owner: std::sync::Mutex<Option<super::owner::OwnerHandle>>,
 }
@@ -74,15 +78,111 @@ impl Admitting {
     /// Marks the life as ending: from now on every mutation but a Pause and a
     /// Resume answers the busy of an ending life.
     pub fn end_the_life(&self) {
-        self.ending.store(true, Ordering::SeqCst);
+        self.life.end_the_life();
     }
 
     pub(crate) fn life(&self) -> Life {
-        if self.ending.load(Ordering::SeqCst) {
+        if self.life.ending.load(Ordering::SeqCst) {
             Life::Ending
         } else {
             Life::Going
         }
+    }
+
+    /// The life that the loop and the supervisor share with the connections.
+    pub fn ending_life(&self) -> Arc<EndingLife> {
+        self.life.clone()
+    }
+}
+
+/// The life of a service run as its connections, its loop and its
+/// supervisor share it (ruling PL-17): whether it is ending, and what a
+/// connection answers from in a life that is ending, while the loop serves no
+/// request: the state file through its one writer, the facts of the run and
+/// the parts of the status as the supervisor last published them. There a
+/// Pause writes desired paused first, where desired is not paused yet, and
+/// answers `capture_changed` with the status as it stands; a Resume answers
+/// the status as it stands and writes nothing; a claim and a Status answer
+/// the status and start nothing.
+#[derive(Default)]
+pub struct EndingLife {
+    ending: AtomicBool,
+    state: Mutex<Option<SharedStateFile>>,
+    facts: Mutex<Option<RunFacts>>,
+    parts: Mutex<Option<StatusParts>>,
+}
+
+impl std::fmt::Debug for EndingLife {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EndingLife")
+            .field("ending", &self.ending)
+            .finish_non_exhaustive()
+    }
+}
+
+impl EndingLife {
+    /// Marks the life as ending.
+    pub fn end_the_life(&self) {
+        self.ending.store(true, Ordering::SeqCst);
+    }
+
+    /// The state file and the facts of the run, from which a connection of
+    /// an ending life answers.
+    pub fn serve_from(&self, state: Option<SharedStateFile>, facts: RunFacts) {
+        *self.state.lock().unwrap_or_else(PoisonError::into_inner) = state;
+        *self.facts.lock().unwrap_or_else(PoisonError::into_inner) = Some(facts);
+    }
+
+    /// The parts of the status as the supervisor publishes them.
+    pub fn publish(&self, parts: StatusParts) {
+        *self.parts.lock().unwrap_or_else(PoisonError::into_inner) = Some(parts);
+    }
+
+    /// The answer of an ending life to `request`, which the admission
+    /// answered `admission`: none when the life is not ending, when the
+    /// request is not a Pause, a Resume, a claim or a Status, or when the
+    /// loop has not given the life its state file and its facts yet.
+    pub fn answer(&self, admission: Admission, request: &Request) -> Option<Reply> {
+        if !self.ending.load(Ordering::SeqCst) {
+            return None;
+        }
+        let keeps_the_word = match (admission, request) {
+            (Admission::PauseKeepingTheWord, _) => true,
+            (Admission::StatusAsItStands | Admission::ClaimStartingNothing, _)
+            | (Admission::Serve, Request::Status { .. }) => false,
+            _ => return None,
+        };
+        let facts = (*self.facts.lock().unwrap_or_else(PoisonError::into_inner))?;
+        let state = self
+            .state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()?;
+        let mut parts = self
+            .parts
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()?;
+        {
+            let mut file = state.lock().unwrap_or_else(PoisonError::into_inner);
+            if keeps_the_word && file.state().desired != Desired::Paused {
+                let _ = file.update(|state| state.desired = Desired::Paused);
+            }
+            parts.health = file.health();
+            if keeps_the_word || file.state().desired == Desired::Paused {
+                parts.desired = Desired::Paused;
+            }
+        }
+        #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+        let facts = RunFacts {
+            rss_peak_bytes: rss_peak_bytes(),
+            ..facts
+        };
+        Some(match (status_of(&parts, &facts), request) {
+            (Err(broken), _) => error(ErrorCode::Internal, broken.rule()),
+            (Ok(status), Request::Status { .. }) => Reply::Status(status),
+            (Ok(status), _) => Reply::CaptureChanged(status),
+        })
     }
 }
 
@@ -129,13 +229,25 @@ pub enum RequestEnd {
     Length,
 }
 
+/// What the stream of a connection does with a request that the v1 table does
+/// not hold and that is no run mark. The server asks it, with the feature
+/// `r2`, before it answers such a request as v1 does.
+pub trait ServesUnknown {
+    /// Serves `request` on the stream itself, where the stream is one that a
+    /// later protocol version's request is answered on: true when the request
+    /// was answered there, false when the server is to answer it as v1 does.
+    fn serve_unknown(&mut self, _request: &proto::UnknownRequest) -> bool {
+        false
+    }
+}
+
 /// Serves the one request of a connection on `stream`, whose peer has the
 /// effective user id `peer` (`None` when it could not be read), in a daemon
 /// whose own id is `own`. A peer of another user, or one whose id could not
 /// be read, gets the error `peer_rejected` and no read of its request. Any
 /// other peer is served by [`serve_request`], whose known request ends at the
 /// end of its stream.
-pub fn serve_connection<S: Read + Write>(
+pub fn serve_connection<S: Read + Write + ServesUnknown>(
     stream: &mut S,
     peer: Option<u32>,
     own: u32,
@@ -157,11 +269,15 @@ pub fn serve_connection<S: Read + Write>(
 
 /// Serves the one request of a connection on `stream` whose peer was
 /// admitted. A request that the v1 table does not know is answered at its
-/// whole frame; a known one once it has ended as `ends` says. An admitted
-/// request goes to the loop through `hand` and its answer is written. The
-/// answer is the sender that the caller signals once it has ended its writing
-/// side and closed the connection, when the loop answered.
-pub fn serve_request<S: Read + Write>(
+/// whole frame; a known one once it has ended as `ends` says. With the
+/// feature `r2`, a request that the v1 table does not know and that is no run
+/// mark goes to the stream first ([`ServesUnknown`]), with no wait for the
+/// end of the stream before it, and is answered as v1 answers it only where
+/// the stream did not answer it. An admitted request goes to the loop through
+/// `hand` and its answer is written. The answer is the sender that the caller
+/// signals once it has ended its writing side and closed the connection, when
+/// the loop answered.
+pub fn serve_request<S: Read + Write + ServesUnknown>(
     stream: &mut S,
     ends: RequestEnd,
     admitting: &Arc<Admitting>,
@@ -180,9 +296,26 @@ pub fn serve_request<S: Read + Write>(
             }
             return None;
         }
+        #[cfg(feature = "r2")]
+        Got::Unknown(unknown) => {
+            if !stream.serve_unknown(&unknown) {
+                write_reply(stream, &proto::unknown_answer(&unknown));
+            }
+            return None;
+        }
     };
-    if let Some(reply) = refusal(&request, admitting) {
+    let admission = match refusal(&request, admitting) {
+        Ok(admission) => admission,
+        Err(reply) => {
+            write_reply(stream, &reply);
+            return None;
+        }
+    };
+    if let Some(reply) = admitting.life.answer(admission, &request) {
         write_reply(stream, &reply);
+        if request.is_mutation() {
+            admitting.in_flight.store(false, Ordering::SeqCst);
+        }
         return None;
     }
     let (reply, answer) = mpsc::channel();
@@ -210,6 +343,8 @@ enum Got {
     Answer(Box<Reply>),
     #[cfg(feature = "r2")]
     Mark(halvo_control::r2::RunEdge),
+    #[cfg(feature = "r2")]
+    Unknown(proto::UnknownRequest),
 }
 
 #[cfg(feature = "r2")]
@@ -242,10 +377,11 @@ fn read_request<S: Read>(stream: &mut S, ends: RequestEnd) -> Got {
         Ok(Decoded::Unknown(unknown)) => {
             #[cfg(feature = "r2")]
             match halvo_control::r2::mark_request(&unknown) {
-                Some(Ok(edge)) => return Got::Mark(edge),
-                Some(Err(refused)) => return Got::Answer(Box::new(Reply::Error(refused))),
-                None => {}
+                Some(Ok(edge)) => Got::Mark(edge),
+                Some(Err(refused)) => Got::Answer(Box::new(Reply::Error(refused))),
+                None => Got::Unknown(unknown),
             }
+            #[cfg(not(feature = "r2"))]
             Got::Answer(Box::new(proto::unknown_answer(&unknown)))
         }
         Ok(Decoded::Known(request)) if ends == RequestEnd::Length || at_the_end(stream) => {
@@ -283,12 +419,12 @@ fn served_by_this_build(request: &Request) -> bool {
     )
 }
 
-fn refusal(request: &Request, admitting: &Admitting) -> Option<Reply> {
+fn refusal(request: &Request, admitting: &Admitting) -> Result<Admission, Box<Reply>> {
     if PERMISSION_FORM.serves(request) && !served_by_this_build(request) {
-        return Some(error(
+        return Err(Box::new(error(
             ErrorCode::UnsupportedOp,
             "this build of the capture service does not serve the op",
-        ));
+        )));
     }
     let mutation = request.is_mutation() && PERMISSION_FORM.serves(request);
     let claimed = mutation
@@ -296,12 +432,13 @@ fn refusal(request: &Request, admitting: &Admitting) -> Option<Reply> {
             .in_flight
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok();
-    let refused = match proto::admission(
+    let admission = proto::admission(
         request,
         PERMISSION_FORM,
         mutation && !claimed,
         admitting.life(),
-    ) {
+    );
+    let refused = match admission {
         Admission::OtherForm => Some(error(
             ErrorCode::UnsupportedOp,
             "this build of the capture service does not serve the op",
@@ -316,10 +453,15 @@ fn refusal(request: &Request, admitting: &Admitting) -> Option<Reply> {
         | Admission::ClaimStartingNothing
         | Admission::Serve => None,
     };
-    if refused.is_some() && claimed {
-        admitting.in_flight.store(false, Ordering::SeqCst);
+    match refused {
+        Some(reply) => {
+            if claimed {
+                admitting.in_flight.store(false, Ordering::SeqCst);
+            }
+            Err(Box::new(reply))
+        }
+        None => Ok(admission),
     }
-    refused
 }
 
 fn error(code: ErrorCode, message: &str) -> Reply {
@@ -355,6 +497,33 @@ pub const TYPING: Option<bool> = Some(crate::macos::input::TYPING_ON_MAC);
 #[cfg(not(target_os = "macos"))]
 pub const TYPING: Option<bool> = None;
 
+/// The peak of this process's memory in bytes, as a status reports it: on a
+/// Mac the peak resident size that getrusage reports, on Windows the peak
+/// working set that GetProcessMemoryInfo reports; 0 when the call fails.
+#[cfg(target_os = "macos")]
+pub fn rss_peak_bytes() -> u64 {
+    unix::rss_peak_bytes()
+}
+
+/// The peak of this process's memory in bytes, as a status reports it: on a
+/// Mac the peak resident size that getrusage reports, on Windows the peak
+/// working set that GetProcessMemoryInfo reports; 0 when the call fails.
+#[cfg(windows)]
+pub fn rss_peak_bytes() -> u64 {
+    use ::windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+    use ::windows::Win32::System::Threading::GetCurrentProcess;
+    let mut counters = PROCESS_MEMORY_COUNTERS::default();
+    let size = u32::try_from(std::mem::size_of::<PROCESS_MEMORY_COUNTERS>()).unwrap_or(0);
+    // SAFETY: GetCurrentProcess returns the pseudo handle of this process,
+    // and the call writes at most `size` bytes into `counters`, which is one
+    // PROCESS_MEMORY_COUNTERS that lives across the call.
+    let read = unsafe { GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, size) };
+    match read {
+        Ok(()) => u64::try_from(counters.PeakWorkingSetSize).unwrap_or(u64::MAX),
+        Err(_) => 0,
+    }
+}
+
 /// What a status reads of the life beside the supervisor: its start, whether a
 /// parent is watched, the reading of the run marker at its start and the peak
 /// of its resident memory.
@@ -379,11 +548,17 @@ pub struct StatusParts {
     pub switches: Switches,
     pub once_granted: Vec<Permission>,
     pub asked: Vec<Permission>,
+    /// Whether the hold of a record in the run marker stands (ruling PL-3
+    /// part (5)): capture reads `awaiting_resume` while desired is running.
+    pub held: bool,
 }
 
-/// The status of a service run on a Mac (contracts.md C2.1, C2.3), built from
-/// `parts` and `facts`; a status whose fields do not hold together is the
-/// error of its rule.
+/// The status of a service run (contracts.md C2.1, C2.3) on the system of
+/// its board, built from `parts` and `facts`; a status whose fields do not
+/// hold together is the error of its rule. On Windows it names the platform
+/// windows, lists no permission, reports no secure-input count, the custody
+/// dpapi and the password guard `none` while the keyboard source reads off
+/// (contracts.md C10.2).
 pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, StatusError> {
     let board = &parts.board;
     let snapshot = board.snapshot;
@@ -394,7 +569,16 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
     };
     let lines = board.source_lines();
     let fresh = parts.lease == proto::Lease::Fresh;
-    let (capture, capture_reason) = capture_of(board, &lines, desired, fresh);
+    let (capture, capture_reason) = match capture_of(board, &lines, desired, fresh) {
+        (capture, _)
+            if parts.held
+                && desired == CaptureState::Running
+                && capture != proto::Capture::Pausing =>
+        {
+            (proto::Capture::AwaitingResume, None)
+        }
+        read => read,
+    };
     let (store, store_id, store_error, store_retry_in_s) = store_of(parts);
     let failing = board.drain.failing || board.drain.hold;
     let enabled_sources = lines
@@ -402,7 +586,9 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         .filter(|line| line.state != proto::SourceState::Off)
         .map(|line| line.name)
         .collect();
-    let permissions: Vec<PermissionLine> = Permission::R1_MACOS
+    let platform = board.platform;
+    let guard = guard_of(board, &lines);
+    let permissions: Vec<PermissionLine> = required_of(platform)
         .iter()
         .map(|&name| PermissionLine {
             name,
@@ -420,7 +606,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
             once_granted: parts.once_granted.contains(&name),
         })
         .collect();
-    let onboarding = onboarding_of(&permissions, parts.switches);
+    let onboarding = onboarding_of(platform, &permissions, parts.switches);
     DaemonStatus::new(StatusFields {
         daemon_version: env!("CARGO_PKG_VERSION").parse().unwrap_or(DaemonVersion {
             major: 0,
@@ -465,7 +651,8 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         tap_disabled_user_input: figures.tap_disabled_user_input,
         late_events: figures.late_events > 0,
         max_lag_ms: figures.max_lag_ms,
-        secure_input_keystrokes: Some(figures.secure_input_keystrokes > 0),
+        secure_input_keystrokes: (platform == Platform::Macos)
+            .then_some(figures.secure_input_keystrokes > 0),
         typing: TYPING,
         keys_withheld: figures.keys_withheld,
         title_read_errors: figures.title_read_errors,
@@ -485,7 +672,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
             StateHealth::NewerVersion(_) => proto::StateFile::NewerVersion,
             StateHealth::WriteFailed(_) => proto::StateFile::WriteFailed,
         },
-        platform: Platform::Macos,
+        platform,
         enabled_sources,
         switches: SwitchName::ALL
             .iter()
@@ -508,11 +695,13 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
                 refused: 0,
             })
             .collect(),
-        password_guard: board.password_guard,
-        password_guard_bound_ms: (board.password_guard != PasswordGuard::None)
-            .then_some(MAC_GUARD_BOUND_MS),
+        password_guard: guard,
+        password_guard_bound_ms: (guard != PasswordGuard::None).then_some(MAC_GUARD_BOUND_MS),
         screen_filter_excludes_app: None,
-        custody: Custody::RootFile,
+        custody: match platform {
+            Platform::Macos => Custody::RootFile,
+            Platform::Windows => Custody::Dpapi,
+        },
         onboarding,
         ext: Vec::new(),
     })
@@ -589,7 +778,29 @@ fn store_of(
     )
 }
 
-fn onboarding_of(lines: &[PermissionLine], switches: Switches) -> OnboardingState {
+fn required_of(platform: Platform) -> &'static [Permission] {
+    match platform {
+        Platform::Macos => &Permission::R1_MACOS,
+        Platform::Windows => &[],
+    }
+}
+
+fn guard_of(board: &Board, lines: &[SourceLine]) -> PasswordGuard {
+    let keyboard_off = lines.iter().any(|line| {
+        line.name == proto::SourceName::Keyboard && line.state == proto::SourceState::Off
+    });
+    if board.platform == Platform::Windows && keyboard_off {
+        PasswordGuard::None
+    } else {
+        board.password_guard
+    }
+}
+
+fn onboarding_of(
+    platform: Platform,
+    lines: &[PermissionLine],
+    switches: Switches,
+) -> OnboardingState {
     let set = |pick: fn(&PermissionLine) -> bool| -> PermissionSet {
         lines
             .iter()
@@ -601,7 +812,7 @@ fn onboarding_of(lines: &[PermissionLine], switches: Switches) -> OnboardingStat
         grants.with(line.name, line.grant)
     });
     onboarding::assess(&AssessInput {
-        required: &Permission::R1_MACOS,
+        required: required_of(platform),
         now,
         granted_at_capture_start: set(|line| line.at_start == GrantState::Granted),
         asked: set(|line| line.asked),
@@ -676,6 +887,8 @@ mod tests {
         }
     }
 
+    impl ServesUnknown for Recorded {}
+
     #[test]
     fn the_server_refuses_a_peer_of_another_user() {
         let own = 501;
@@ -705,5 +918,83 @@ mod tests {
         assert!(serve_connection(&mut stream, Some(own), own, &admitting, &hand).is_none());
         assert!(stream.reads > 0, "the own user's request was not read");
         assert_eq!(stream.reply().code(), Some(ErrorCode::Busy));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn the_status_of_a_windows_run_names_windows_and_holds_the_keyboard_off() {
+        use halvo_control::model::{StorageCap, UtcSecond};
+        use halvo_control::proto::{SourceName, SourceState};
+
+        let mut switches = Switches::default();
+        for switch in Switch::ALL {
+            switches.set(switch, true);
+        }
+        let running = [
+            SourceName::Foreground,
+            SourceName::Pointer,
+            SourceName::WindowTitle,
+        ];
+        let mut board = Board::new(Platform::Windows);
+        for name in running {
+            board.set_source(name, &crate::source::SourceState::Running, false);
+        }
+        board.enabled = running.to_vec();
+        board.capture = BoardCapture::Running;
+        let parts = StatusParts {
+            board,
+            desired: Desired::Running,
+            lease: proto::Lease::Fresh,
+            slot: Slot::Opening,
+            obstructed: None,
+            health: StateHealth::Ok,
+            cap: StateCap::Known(StorageCap::DEFAULT),
+            switches,
+            once_granted: Vec::new(),
+            asked: Vec::new(),
+            held: false,
+        };
+        let facts = RunFacts {
+            started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+            parent: proto::Parent::None,
+            last_stop: proto::LastStop::None,
+            rss_peak_bytes: 0,
+        };
+        let status = status_of(&parts, &facts).unwrap();
+        let fields = status.fields();
+        assert_eq!(fields.platform, Platform::Windows);
+        let names: Vec<SourceName> = fields.sources.iter().map(|line| line.name).collect();
+        assert_eq!(names, SourceName::WINDOWS);
+        for line in &fields.sources {
+            let off = !running.contains(&line.name);
+            assert_eq!(line.state == SourceState::Off, off, "{:?}", line.name);
+        }
+        assert_eq!(fields.password_guard, PasswordGuard::None);
+        assert_eq!(fields.password_guard_bound_ms, None);
+        assert!(!fields.keys_withheld);
+        assert_eq!(fields.secure_input_keystrokes, None);
+        assert_eq!(fields.typing, None);
+        assert!(fields.permissions.is_empty());
+        assert_eq!(fields.custody, Custody::Dpapi);
+
+        let text = halvo_control::ctl_text::status_text(&status);
+        for wanted in [
+            "platform=windows",
+            "source name=keyboard state=off",
+            "source name=screen state=off",
+            "source name=system_audio state=off",
+            "keys_withheld=no",
+        ] {
+            assert!(
+                text.lines().any(|line| line == wanted),
+                "no line {wanted} in:\n{text}"
+            );
+        }
+        let json = serde_json::to_value(&status).unwrap();
+        for (key, value) in json.as_object().unwrap() {
+            if key.contains("key") {
+                assert!(!value.is_number(), "a count of keys: {key}={value}");
+            }
+        }
     }
 }

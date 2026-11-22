@@ -137,6 +137,16 @@ fn serve_one(mut stream: UnixStream, own: u32, admitting: &Arc<Admitting>, hand:
     }
 }
 
+/// With the feature `r2`, a request of protocol v2 is answered on the socket
+/// itself by the workflows run's part of the service run; without it, no
+/// request is.
+impl super::ServesUnknown for UnixStream {
+    #[cfg(feature = "r2")]
+    fn serve_unknown(&mut self, request: &halvo_control::proto::UnknownRequest) -> bool {
+        crate::daemon::r2::service::serve(request, self)
+    }
+}
+
 fn peer_uid(stream: &UnixStream) -> io::Result<u32> {
     let mut uid: libc::uid_t = 0;
     let mut gid: libc::gid_t = 0;

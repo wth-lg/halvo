@@ -93,6 +93,13 @@ pub trait Caller: Send + Sync {
 
     /// One report frame of the owner (contracts.md C24.9), as it came, on the reader thread of the slot.
     fn report(&self, frame: &[u8]);
+
+    /// Whether a read of the capture store stands, so that [`Caller::first_live`] names a figure that a read gave:
+    /// asked at each start before the child is made. Where it answers no, no owner starts and the call answers
+    /// `store_unavailable`. A caller that reads no store answers yes.
+    fn read_stands(&self) -> bool {
+        true
+    }
 }
 
 /// Where the slot finds the owner and the store.
@@ -322,6 +329,9 @@ impl OwnerSlot {
     /// Starts the owner: the child, with its ends of a worker's channel where `worker` holds them, its pid file,
     /// its reader thread, and then its key.
     fn start(&self, worker: Option<(PipeReader, PipeWriter)>) -> Result<Running, ErrorReply> {
+        if !self.caller.read_stands() {
+            return Err(unavailable("no read of the capture store stands yet"));
+        }
         sys::private_dir(&self.derived)
             .map_err(|_| unavailable("the folder derived cannot be made private"))?;
         let mut data_dir = OsString::from("--data-dir=");
@@ -439,6 +449,10 @@ impl OwnerChannel for Turn<'_> {
 
     #[cfg(windows)]
     fn send_stream(&mut self, frame: &[u8]) -> io::Result<()> {
+        self.running.write(frame)
+    }
+
+    fn send(&mut self, frame: &[u8]) -> io::Result<()> {
         self.running.write(frame)
     }
 

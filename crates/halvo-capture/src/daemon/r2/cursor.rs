@@ -48,6 +48,12 @@
 //! removes anything: the connection that is served then is answered no
 //! further message, whatever a later pass finds in the store. The process has
 //! one cursor, [`cursor`].
+//!
+//! The cursor leaves the figures of every answer of the store in its cell
+//! ([`Cursor::cell`]): the store's id and its watermark, and from an answer
+//! to a read from ordinal 0 the lowest live ordinal. While no connection is
+//! served it reads nothing, so the daemon's caller can ask for a read:
+//! [`Cursor::read_asked`] then reads the store once, from ordinal 0.
 
 use std::io::{self, Read, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -64,6 +70,7 @@ use halvo_seam::record::CaptureRecord;
 use zeroize::Zeroizing;
 
 use crate::daemon::port::{LiveSegment, MaintFault, Ordinal, SegmentRead};
+use crate::daemon::r2::daemon_caller::ReadCell;
 
 /// The most bytes of record lines, line ends included, that one read takes
 /// from the store's segments (contracts.md C5.7 item 5).
@@ -79,6 +86,10 @@ const PASS_SEGMENTS_MAX: usize = 64;
 /// The ordinal that an `open_cursor` asks the store at: above every segment,
 /// so the store answers its id and its highest ordinal and reads no line.
 const PAST_EVERY_SEGMENT: Ordinal = Ordinal::new(u64::MAX);
+
+/// The ordinal that no segment lies below: the store's answer to a read from
+/// it names the lowest live segment of the store, or none where none lives.
+const BELOW_EVERY_SEGMENT: Ordinal = Ordinal::new(0);
 
 /// The longest position that a payload holds, 2^63 - 1 in each part.
 const LONGEST: Position = Position {
@@ -103,7 +114,7 @@ pub(in crate::daemon) trait ReadEntry {
     fn read_from(&mut self, from: Ordinal) -> (Result<SegmentRead, MaintFault>, SystemTime);
 }
 
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(test, target_os = "macos", all(windows, debug_assertions)))]
 impl<S, C> ReadEntry for crate::daemon::owner::Owner<S, C>
 where
     S: crate::daemon::port::CaptureStore,
@@ -194,6 +205,9 @@ pub(in crate::daemon) struct Cursor {
     state: Mutex<State>,
     turned: Condvar,
     left_out: AtomicU64,
+    /// The figures of the newest answer of the store, and the word that a
+    /// read is asked.
+    cell: ReadCell,
 }
 
 /// Ends the serving call's hold of the cursor when the call returns.
@@ -212,11 +226,48 @@ impl Cursor {
             state: Mutex::new(State::idle()),
             turned: Condvar::new(),
             left_out: AtomicU64::new(0),
+            cell: ReadCell::new(),
         }
     }
 
     fn state(&self) -> MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The cell in which this cursor leaves the figures of its reads.
+    pub(in crate::daemon) fn cell(&self) -> &ReadCell {
+        &self.cell
+    }
+
+    /// Leaves the figures of `read`, the store's answer to a read from
+    /// `from`, in the cell: the store's id and its watermark, and where the
+    /// read asked from ordinal 0 the lowest live ordinal, which is the
+    /// ordinal of the answer's segment or, where no segment lives, the
+    /// watermark's segment. An answer that names no watermark leaves nothing.
+    fn keep(&self, from: Ordinal, read: &SegmentRead) {
+        let Some((store, watermark)) = named(read) else {
+            return;
+        };
+        let first_live = (from == BELOW_EVERY_SEGMENT).then(|| {
+            let lowest = read.segment.as_ref();
+            lowest.map_or(watermark.seg, |live| live.ordinal.get())
+        });
+        self.cell.keep(store, watermark, first_live);
+    }
+
+    /// The read that the daemon's caller asked for, in a pass of the store
+    /// owner that took no event and answered no message: where the cell
+    /// holds an ask, it takes the ask and reads the store once, from ordinal
+    /// 0, and the answer leaves its figures. A read that fails leaves the
+    /// figures as they were.
+    pub(in crate::daemon) fn read_asked(&self, owner: &mut impl ReadEntry) {
+        if !self.cell.take_ask() {
+            return;
+        }
+        let (answer, _) = owner.read_from(BELOW_EVERY_SEGMENT);
+        if let Ok(read) = answer {
+            self.keep(BELOW_EVERY_SEGMENT, &read);
+        }
     }
 
     /// Serves one connection on the two stream ends of its caller: one
@@ -308,26 +359,59 @@ impl Cursor {
 
     /// The cursor's part of one pass of the store owner: the message that
     /// waits is answered from the store, one message a pass, and none in a
-    /// pass that took an event. The serving call writes the reply.
-    pub(in crate::daemon) fn pass(&self, owner: &mut impl ReadEntry, took_event: bool) {
+    /// pass that took an event. The serving call writes the reply. True when
+    /// the pass answered a message.
+    pub(in crate::daemon) fn pass(&self, owner: &mut impl ReadEntry, took_event: bool) -> bool {
         if took_event {
-            return;
+            return false;
         }
         let mut state = self.state();
         let ask = match std::mem::replace(&mut state.turn, Turn::Idle) {
             Turn::Asked(ask) => ask,
             other => {
                 state.turn = other;
-                return;
+                return false;
             }
         };
         let reply = match ask {
-            Ask::Open(open) => opened(&mut state, owner, &open),
+            Ask::Open(open) => self.opened(&mut state, owner, &open),
             Ask::Read => self.read(&mut state, owner),
         };
         state.turn = Turn::Answered(reply);
         drop(state);
         self.turned.notify_all();
+        true
+    }
+
+    /// The reply to an `open_cursor`, which opens the cursor when it is a
+    /// Batch.
+    fn opened(&self, state: &mut State, owner: &mut impl ReadEntry, open: &OpenCursor) -> Reply {
+        let (answer, _) = owner.read_from(PAST_EVERY_SEGMENT);
+        if let Ok(read) = &answer {
+            self.keep(PAST_EVERY_SEGMENT, read);
+        }
+        let Some((store, watermark)) = answer.ok().as_ref().and_then(named) else {
+            return Reply::Refused((Cause::StoreError, UNREADABLE));
+        };
+        if open.store().is_some_and(|asked| *asked != store) {
+            return Reply::Refused((Cause::StoreChanged(store), STORE_DIFFERS));
+        }
+        if open.position() > watermark {
+            return Reply::Refused((Cause::BadPosition, PAST_WATERMARK));
+        }
+        state.open = Some(Open {
+            store: store.clone(),
+            position: open.position(),
+            kinds: open.kinds().cloned(),
+            range: open.range(),
+        });
+        Reply::Batch(Batch {
+            store,
+            watermark,
+            records: Vec::new(),
+            expiry: Vec::new(),
+            next: open.position(),
+        })
     }
 
     /// The reply to a `read_batch`. A refusal closes the cursor.
@@ -360,6 +444,7 @@ impl Cursor {
         loop {
             let (answer, now) = owner.read_from(Ordinal::new(seg));
             let read = answer.map_err(|_| unreadable.clone())?;
+            self.keep(Ordinal::new(seg), &read);
             let (store, watermark) = named(&read).ok_or_else(|| unreadable.clone())?;
             if store != cursor.store {
                 return Err((Cause::StoreChanged(store), STORE_DIFFERS));
@@ -451,33 +536,6 @@ impl Cursor {
     pub(in crate::daemon) fn left_out(&self) -> u64 {
         self.left_out.load(Ordering::Relaxed)
     }
-}
-
-/// The reply to an `open_cursor`, which opens the cursor when it is a Batch.
-fn opened(state: &mut State, owner: &mut impl ReadEntry, open: &OpenCursor) -> Reply {
-    let (answer, _) = owner.read_from(PAST_EVERY_SEGMENT);
-    let Some((store, watermark)) = answer.ok().as_ref().and_then(named) else {
-        return Reply::Refused((Cause::StoreError, UNREADABLE));
-    };
-    if open.store().is_some_and(|asked| *asked != store) {
-        return Reply::Refused((Cause::StoreChanged(store), STORE_DIFFERS));
-    }
-    if open.position() > watermark {
-        return Reply::Refused((Cause::BadPosition, PAST_WATERMARK));
-    }
-    state.open = Some(Open {
-        store: store.clone(),
-        position: open.position(),
-        kinds: open.kinds().cloned(),
-        range: open.range(),
-    });
-    Reply::Batch(Batch {
-        store,
-        watermark,
-        records: Vec::new(),
-        expiry: Vec::new(),
-        next: open.position(),
-    })
 }
 
 /// The store id and the watermark of a store's answer, in the protocol's
@@ -646,6 +704,7 @@ mod tests {
     };
     use crate::daemon::owner::{Answer, Command};
     use crate::daemon::port::{self, MaintFault, Ordinal};
+    use crate::daemon::r2::daemon_caller::Figures;
     use crate::daemon::r2::marks::Marks;
     use crate::event::{unix_nanos, AppIdentity, FloorEvent};
     use crate::floor::cases::keep;
@@ -1176,5 +1235,80 @@ mod tests {
         assert_eq!(positions(&second), [pos(bound + 1, 0), pos(bound + 2, 0)]);
         assert_eq!(second.next, second.watermark);
         assert_eq!(client.end(), Ended::EndOfFile);
+    }
+
+    /// Rule 4: of three segments the first is shredded. After the open and
+    /// one served read from the zero position the cell holds the store's id,
+    /// its watermark and its lowest live ordinal, the second segment's.
+    #[test]
+    fn a_read_leaves_its_figures() {
+        let mut harness = Harness::new();
+        resumed(&mut harness);
+        let ordinals: Vec<Ordinal> = (1..=3)
+            .map(|age| stored(&mut harness, vec![foreground(age)]))
+            .collect();
+        harness.store.shred(ordinals[0]);
+        let mut client = Connection::new();
+        batch(client.open(&mut harness, OpenCursor::fresh(None, None)));
+        let read = batch(client.read(&mut harness));
+        assert_eq!(positions(&read), [pos(2, 0), pos(3, 0)]);
+        let figures = Figures {
+            store: seam_id(MODEL_ID),
+            watermark: pos(4, 0),
+            first_live: ordinals[1].get(),
+        };
+        assert_eq!(of_this_thread().cell().figures(), Some(figures));
+        assert_eq!(client.end(), Ended::EndOfFile);
+    }
+
+    /// Rule 5: a record is stored while no connection is served, and the
+    /// watermark of the cell stands still. With a read asked, the pass that
+    /// takes an event reads nothing and leaves the ask; the pass after it
+    /// reads the store once, takes the ask, and the watermark has passed the
+    /// record.
+    #[test]
+    fn an_asked_read_moves_the_watermark() {
+        let mut harness = Harness::new();
+        resumed(&mut harness);
+        let cell = of_this_thread().cell();
+        cell.ask();
+        harness.pass();
+        let before = cell.figures().expect("the asked read left no figures");
+        let appended = stored(&mut harness, vec![foreground(1)]);
+        assert_eq!(cell.figures(), Some(before.clone()));
+        let asked = harness.store.read_calls().len();
+        cell.ask();
+        harness.emit(foreground(0));
+        harness.pass();
+        assert_eq!(harness.store.read_calls().len(), asked);
+        assert!(cell.asked(), "the pass that took the event took the ask");
+        harness.pass();
+        assert_eq!(harness.store.read_calls().len(), asked + 1);
+        assert!(!cell.asked(), "the ask stands after its read");
+        let after = cell.figures().expect("the asked read left no figures");
+        assert!(before.watermark <= pos(appended.get(), 0));
+        assert!(after.watermark > pos(appended.get(), 0));
+    }
+
+    /// Rule 6: before a read the cell says that none stands, and a pass with
+    /// no ask reads nothing; after an asked read of a store with no segment
+    /// one stands, and its lowest live ordinal is the watermark's segment.
+    #[test]
+    fn no_read_stands_before_the_first() {
+        let mut harness = Harness::new();
+        let cell = of_this_thread().cell();
+        assert_eq!(cell.figures(), None);
+        harness.pass();
+        assert!(harness.store.read_calls().is_empty());
+        assert_eq!(cell.figures(), None);
+        cell.ask();
+        harness.pass();
+        assert_eq!(harness.store.read_calls(), [Ordinal::new(0)]);
+        let figures = Figures {
+            store: seam_id(MODEL_ID),
+            watermark: pos(1, 0),
+            first_live: 1,
+        };
+        assert_eq!(cell.figures(), Some(figures));
     }
 }

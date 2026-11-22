@@ -12,6 +12,8 @@ use halvo_control::paths::DataDir;
 use halvo_control::service::{DAEMON_ARG, DATA_DIR_ARG};
 
 use crate::commands::control::ChildPid;
+use crate::poller::Views;
+use crate::view_state::Hold;
 
 /// The flag that makes the daemon watch its parent through the descriptor on its standard
 /// input (contracts.md C14 item 1).
@@ -334,9 +336,21 @@ pub struct Supervisor<C, K> {
 }
 
 impl<C: Watched, K: Clock> Supervisor<C, K> {
-    /// Starts the supervisor's thread, which starts the child off the main thread and gives
-    /// `pid` the pid of the child of the moment.
+    /// `start_holding` with views of its own.
+    #[cfg(test)]
     pub fn start<S: Spawner<Child = C>>(spawner: S, pid: Arc<ChildPid>, clock: Arc<K>) -> Self {
+        Self::start_holding(spawner, pid, clock, Arc::default())
+    }
+
+    /// Starts the supervisor's thread, which starts the child off the main thread, gives `pid`
+    /// the pid of the child of the moment, tells the hold of `views` each start and end of a
+    /// child and draws the views after each end.
+    pub fn start_holding<S: Spawner<Child = C>>(
+        spawner: S,
+        pid: Arc<ChildPid>,
+        clock: Arc<K>,
+        views: Arc<Views>,
+    ) -> Self {
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
                 quitting: false,
@@ -347,7 +361,9 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
         let (watched, time) = (Arc::clone(&shared), Arc::clone(&clock));
         let started = std::thread::Builder::new()
             .name("halvo-daemon-child".to_owned())
-            .spawn(move || supervise(spawner, &watched, &pid, time.as_ref()));
+            .spawn(move || {
+                supervise_and_start_again(spawner, &watched, &pid, time.as_ref(), &views)
+            });
         if let Err(e) = started {
             eprintln!("halvo: the capture service is not started: {e}");
         }
@@ -401,29 +417,64 @@ fn end_child<C: Watched, K: Clock>(child: &mut C, clock: &K, wait: Duration) {
     }
 }
 
+/// The supervisor's thread: after the third end with 5 in a row it starts no further child
+/// until a person's press on Start asks for one, and then supervises again with the count of
+/// 5s at zero; a quit ends the wait.
+fn supervise_and_start_again<S: Spawner, K: Clock>(
+    spawner: S,
+    shared: &Shared<S::Child>,
+    pid: &ChildPid,
+    clock: &K,
+    views: &Views,
+) {
+    let mut spawner = spawner;
+    while let Some(back) = supervise(spawner, shared, pid, clock, views) {
+        if !asked_to_start_before_a_quit(shared, clock, views.hold()) {
+            return;
+        }
+        spawner = back;
+    }
+}
+
+fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold: &Hold) -> bool {
+    let mut state = shared.lock();
+    loop {
+        if state.quitting {
+            return false;
+        }
+        if hold.take_start() {
+            return true;
+        }
+        state = clock.wait(&shared.changed, state, CHILD_POLL);
+    }
+}
+
+/// Starts the child and starts it again by the rule of `next`; hands the spawner back after
+/// the third end with 5 in a row, and none otherwise. After each end it draws the views, so
+/// that the set of the hold reaches the tray's menu at once.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
     pid: &ChildPid,
     clock: &K,
-) {
+    views: &Views,
+) -> Option<S> {
+    let hold = views.hold();
     let mut restarts = Restarts::default();
     loop {
         let began = clock.now();
         let ending = match spawner.start() {
-            Ok(None) => return,
+            Ok(None) => return None,
             Ok(Some(child)) => {
                 let mut state = shared.lock();
                 if state.quitting {
-                    return;
+                    return None;
                 }
                 pid.0.store(child.pid(), Ordering::SeqCst);
                 state.child = Some(child);
                 drop(state);
-                match watch(shared, clock) {
-                    Some(ending) => ending,
-                    None => return,
-                }
+                hold.child_started();
+                watch(shared, clock)?
             }
             Err(e) => {
                 eprintln!("halvo: the capture service did not start: {e}");
@@ -431,6 +482,11 @@ fn supervise<S: Spawner, K: Clock>(
             }
         };
         pid.0.store(0, Ordering::SeqCst);
+        hold.child_ended(match ending {
+            Ending::Status(status) => Some(status),
+            Ending::Signal | Ending::NotStarted => None,
+        });
+        views.draw_now();
         eprintln!("halvo: the capture service ended: {ending:?}");
         let (step, after) = next(
             ending,
@@ -439,11 +495,16 @@ fn supervise<S: Spawner, K: Clock>(
         );
         restarts = after;
         match step {
-            Next::Attach | Next::NoMoreChild => return,
+            Next::Attach => return None,
+            Next::NoMoreChild => {
+                hold.no_more_child();
+                views.draw_now();
+                return Some(spawner);
+            }
             Next::StartNow => {}
             Next::StartAfter(period) => {
                 if waited_into_a_quit(shared, clock, period) {
-                    return;
+                    return None;
                 }
             }
         }
@@ -554,13 +615,17 @@ pub mod stand_in {
         }
     }
 
+    /// The ending of a child that the test gives while the child lives.
+    pub type Later = Arc<Mutex<Option<Ending>>>;
+
     /// A child that ends as its row says, after the clock has moved by the time it lived, or,
-    /// with no ending, once its descriptor is closed when it ends at the close, and when it is
-    /// killed.
+    /// with no ending, once the test gives one in `later`, once its descriptor is closed when it
+    /// ends at the close, and when it is killed.
     #[derive(Debug)]
     pub struct StandInChild {
         pub pid: u32,
         pub ending: Option<Ending>,
+        pub later: Option<Later>,
         pub lived: Duration,
         pub ends_at_close: bool,
         pub clock: Arc<StandInClock>,
@@ -574,6 +639,7 @@ pub mod stand_in {
             StandInChild {
                 pid,
                 ending: None,
+                later: None,
                 lived: Duration::ZERO,
                 ends_at_close: false,
                 clock: Arc::clone(clock),
@@ -595,6 +661,11 @@ pub mod stand_in {
             }
             if self.ends_at_close && self.closed_at.is_some() {
                 return Ok(Some(Ending::Status(0)));
+            }
+            if let Some(later) = &self.later {
+                if let Some(ending) = *later.lock().unwrap_or_else(PoisonError::into_inner) {
+                    return Ok(Some(ending));
+                }
             }
             if self.ending.is_some() {
                 self.clock.advance(self.lived);
@@ -641,9 +712,179 @@ pub mod stand_in {
 
 #[cfg(test)]
 mod tests {
+    use halvo_control::client::{ClientError, DeleteOutcome};
+    use halvo_control::model::{StorageCap, StoreId};
+    use halvo_control::onboarding::{Permission, RequestOutcome};
+    use halvo_control::proto::{
+        CapSet, Capture, CaptureChange, DaemonStatus, InventoryReply, Lease, Platform, SourceName,
+        SourceState,
+    };
+    use halvo_control::testing::sample_status;
+
     use super::*;
+    use crate::commands::capture::{capture_set, press, START_ANSWER_WAIT};
+    use crate::commands::control::{Control, Made, Places};
     #[cfg(unix)]
     use crate::launch::{parse, Launch};
+    use crate::poller::{pass, Views};
+    use crate::tests::{fixtures_dir, read_json};
+    use crate::view_state::{ActionError, Press};
+    use stand_in::{note, Later, Record, StandInChild, StandInClock, StandInSpawner};
+
+    /// A control whose Status answers `status`, or no daemon where it holds none, and whose
+    /// Resume answers the held child's status; it records each request.
+    struct Recording {
+        places: Arc<Places>,
+        record: Record,
+        status: Mutex<Option<DaemonStatus>>,
+    }
+
+    impl Recording {
+        fn new(record: &Record, status: Option<DaemonStatus>) -> Self {
+            Recording {
+                places: Arc::default(),
+                record: Arc::clone(record),
+                status: Mutex::new(status),
+            }
+        }
+    }
+
+    impl Control for Recording {
+        fn places(&self) -> &Arc<Places> {
+            &self.places
+        }
+
+        fn status(&self, _: Made, claim: bool) -> Result<DaemonStatus, ClientError> {
+            note(&self.record, if claim { "status, claim" } else { "status" });
+            self.status
+                .lock()
+                .unwrap()
+                .clone()
+                .ok_or_else(|| ClientError::Unreachable {
+                    endpoint: String::new(),
+                })
+        }
+
+        fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
+            unreachable!("no inventory here")
+        }
+
+        fn pause(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            unreachable!("no Pause here")
+        }
+
+        fn resume(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            note(&self.record, "resume");
+            Ok(held_child_status())
+        }
+
+        fn delete_all(&self, _: Made, _: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
+            unreachable!("no delete here")
+        }
+
+        fn set_storage_cap(&self, _: Made, _: StorageCap) -> Result<CapSet, ClientError> {
+            unreachable!("no cap here")
+        }
+
+        fn request_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<RequestOutcome, ClientError> {
+            unreachable!("no permission here")
+        }
+    }
+
+    /// The status of a new life that no claim has reached: desired running, no indicator.
+    fn held_child_status() -> DaemonStatus {
+        let mut f = sample_status(Platform::Macos).into_fields();
+        f.capture = Capture::NoIndicator;
+        f.lease = Lease::None;
+        for line in f.sources.iter_mut() {
+            if matches!(line.name, SourceName::Foreground | SourceName::Input) {
+                line.state = SourceState::Stopped { by_user: false };
+            }
+        }
+        DaemonStatus::new(f).expect("the status holds together")
+    }
+
+    fn until(what: &str, done: impl Fn() -> bool) {
+        let by = Instant::now() + Duration::from_secs(10);
+        while !done() {
+            assert!(Instant::now() < by, "{what}");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[test]
+    fn after_an_end_with_5_the_next_child_gets_no_claim_and_no_resume_before_the_press() {
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let second = Later::default();
+        let child = |pid, ending, later| StandInChild {
+            ending,
+            later,
+            ends_at_close: true,
+            ..StandInChild::new(pid, &clock, &record)
+        };
+        let spawner = StandInSpawner {
+            children: [
+                child(1000, Some(Ending::Status(5)), None),
+                child(1001, None, Some(Arc::clone(&second))),
+                child(1002, None, None),
+            ]
+            .into_iter()
+            .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let control = Recording::new(&record, Some(held_child_status()));
+        let tray = crate::tray::installed_for_tests();
+
+        until("the child after the 5 starts", || pid.get() == Some(1001));
+        pass(&control, &views, Some(&tray));
+        pass(&control, &views, Some(&tray));
+        assert_eq!(
+            serde_json::to_value(views.view()).unwrap(),
+            read_json(&fixtures_dir().join("held-child.json")),
+            "the held child's view names the cause and Resume"
+        );
+        *second.lock().unwrap() = Some(Ending::Status(1));
+        until("the child after the 1 starts", || pid.get() == Some(1002));
+        pass(&control, &views, Some(&tray));
+
+        let resume = CaptureChange::Resume;
+        let within = START_ANSWER_WAIT;
+        let (answer, call) = press(&control, &views, control.places().make(), resume, within);
+        let next = control.places().next_number();
+        let set = capture_set(&views, call, next, CaptureChange::Resume, answer)
+            .expect("the press's Resume answers a status");
+        assert!(set.reached);
+        assert_eq!(set.view.hold(), None, "the press ends the hold");
+        pass(&control, &views, Some(&tray));
+        let seen = record.lock().unwrap().clone();
+        drop(supervisor.close());
+        assert_eq!(
+            seen,
+            [
+                "start 1000",
+                "start 1001",
+                "status",
+                "status",
+                "start 1002",
+                "status",
+                "resume",
+                "status, claim",
+            ]
+        );
+    }
 
     #[cfg(unix)]
     const STUB: &str = "daemon_child::tests::stub_child";
@@ -795,8 +1036,203 @@ mod tests {
     }
 
     #[test]
+    fn after_the_third_5_the_view_names_the_cause_and_start_brings_one_child_back() {
+        assert_eq!(START_ANSWER_WAIT, Duration::from_secs(10));
+        for answers in [true, false] {
+            let record = Record::default();
+            let clock = Arc::new(StandInClock::default());
+            let fourth = Later::default();
+            let child = |pid, ending, later| StandInChild {
+                ending,
+                later,
+                ends_at_close: true,
+                ..StandInChild::new(pid, &clock, &record)
+            };
+            let five = Some(Ending::Status(5));
+            let spawner = StandInSpawner {
+                children: [
+                    child(1000, five, None),
+                    child(1001, five, None),
+                    child(1002, five, None),
+                    child(1003, None, Some(Arc::clone(&fourth))),
+                    child(1004, None, None),
+                ]
+                .into_iter()
+                .collect(),
+                record: Arc::clone(&record),
+            };
+            let views = Arc::new(Views::default());
+            let pid = Arc::<ChildPid>::default();
+            let supervisor = Supervisor::start_holding(
+                spawner,
+                Arc::clone(&pid),
+                Arc::clone(&clock),
+                Arc::clone(&views),
+            );
+            let tray = crate::tray::installed_for_tests();
+
+            until("the hold reads Start after the third 5", || {
+                views
+                    .hold()
+                    .view()
+                    .is_some_and(|hold| hold.press == Press::Start)
+            });
+            pass(&Recording::new(&record, None), &views, Some(&tray));
+            assert_eq!(
+                *record.lock().unwrap(),
+                ["start 1000", "start 1001", "start 1002", "status"],
+                "no fourth child after the third 5"
+            );
+            let mut expected = read_json(&fixtures_dir().join("held-no-child.json"));
+            expected["platform"] = serde_json::to_value(crate::view_state::APP_PLATFORM).unwrap();
+            assert_eq!(
+                serde_json::to_value(views.view()).unwrap(),
+                expected,
+                "not_running with last_exit 5, the cause and Start, on the app's own system"
+            );
+            let labels = crate::tray::labels(&views.view());
+            assert_eq!(
+                (
+                    labels.status_text,
+                    labels.toggle_text,
+                    labels.toggle_enabled
+                ),
+                (crate::tray::HELD, "Start capture", true)
+            );
+
+            let control = Recording::new(&record, answers.then(held_child_status));
+            let within = if answers {
+                START_ANSWER_WAIT
+            } else {
+                Duration::from_secs(1)
+            };
+            let resume = CaptureChange::Resume;
+            let (answer, call) = press(&control, &views, control.places().make(), resume, within);
+            let next = control.places().next_number();
+            let set = capture_set(&views, call, next, resume, answer);
+            if answers {
+                assert!(set.expect("the Start's Resume answers a status").reached);
+                assert_eq!(
+                    views.hold().view(),
+                    None,
+                    "the Start's Resume ends the hold"
+                );
+                *fourth.lock().unwrap() = five;
+                until("a 5 after the Start counts as the first", || {
+                    pid.get() == Some(1004)
+                });
+            } else {
+                assert!(matches!(set, Err(ActionError::Deadline { .. })));
+                assert!(views.hold().stands(), "with no answer the hold stands");
+            }
+            let seen = record.lock().unwrap().clone();
+            drop(supervisor.close());
+            let after: Vec<&str> = seen[4..].iter().map(String::as_str).collect();
+            if answers {
+                assert_eq!(after, ["start 1003", "status", "resume", "start 1004"]);
+            } else {
+                assert_eq!(after[0], "start 1003", "one child by the Start");
+                assert!(after.len() > 1, "the Start asked its child for a Status");
+                assert!(after[1..].iter().all(|line| *line == "status"), "{after:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_press_on_the_tray_sends_what_its_drawn_item_said_and_the_set_of_the_hold_draws_it() {
+        use crate::poller::Drawer;
+        use crate::tray::{labels_with, DrawnMenu, TogglePress, HELD};
+        let drawn_into = |views: &Views, menu: &Arc<DrawnMenu>| {
+            let menu = Arc::clone(menu);
+            views.set_drawer(Drawer::new(
+                Box::new(move |view| menu.drew(labels_with(view, None, false, None))),
+                Vec::new(),
+            ));
+        };
+        let press = |views: &Views, menu: &DrawnMenu| {
+            let view = views.view();
+            menu.press(&view, &labels_with(&view, None, false, None))
+        };
+        let record = Record::default();
+        let tray = crate::tray::installed_for_tests();
+
+        let views = Views::default();
+        let menu = Arc::new(DrawnMenu::default());
+        drawn_into(&views, &menu);
+        let capturing = Recording::new(&record, Some(sample_status(Platform::Macos)));
+        pass(&capturing, &views, Some(&tray));
+        views.draw_now();
+        assert_eq!(
+            press(&views, &menu),
+            TogglePress::Send(CaptureChange::Pause)
+        );
+        views.hold().child_ended(Some(5));
+        assert_eq!(
+            press(&views, &menu),
+            TogglePress::DrawAnew,
+            "an item drawn while capturing sends no Resume after the end with 5"
+        );
+        assert!(views.hold().stands(), "the hold stands");
+        views.draw_now();
+        assert_eq!(menu.last().map(|labels| labels.status_text), Some(HELD));
+        assert_eq!(
+            press(&views, &menu),
+            TogglePress::Send(CaptureChange::Resume),
+            "a press on the drawn line that names the cause"
+        );
+
+        let clock = Arc::new(StandInClock::default());
+        let ends = Later::default();
+        let spawner = StandInSpawner {
+            children: [StandInChild {
+                later: Some(Arc::clone(&ends)),
+                ends_at_close: true,
+                ..StandInChild::new(1000, &clock, &record)
+            }]
+            .into_iter()
+            .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let menu = Arc::new(DrawnMenu::default());
+        drawn_into(&views, &menu);
+        let pid = Arc::<ChildPid>::default();
+        let supervisor =
+            Supervisor::start_holding(spawner, Arc::clone(&pid), clock, Arc::clone(&views));
+        until("the child starts", || pid.get() == Some(1000));
+        views.draw_now();
+        assert_ne!(menu.last().map(|labels| labels.status_text), Some(HELD));
+        *ends.lock().unwrap() = Some(Ending::Status(5));
+        until("the set of the hold draws the menu", || {
+            menu.last().map(|labels| labels.status_text) == Some(HELD)
+        });
+        drop(supervisor.close());
+    }
+
+    #[test]
+    fn a_second_press_on_start_leaves_no_ask_for_the_next_third_5() {
+        let five = Some(halvo_control::exit::SOURCE_NOT_STOPPED);
+        let hold = Hold::default();
+        hold.child_ended(five);
+        hold.no_more_child();
+        assert!(hold.ask_start(), "the first press asks for a child");
+        assert!(hold.take_start(), "the supervisor takes that ask");
+        assert!(
+            !hold.ask_start(),
+            "a second press that comes after the take asks for nothing"
+        );
+        hold.child_started();
+        hold.child_ended(five);
+        hold.no_more_child();
+        assert!(
+            !hold.take_start(),
+            "at the next third 5 no child starts with nobody pressing"
+        );
+        assert_eq!(hold.view().map(|view| view.press), Some(Press::Start));
+    }
+
+    #[test]
     fn the_child_is_started_again_by_its_exit_status() {
-        use stand_in::{Record, StandInChild, StandInClock, StandInSpawner};
         let s = Duration::from_secs;
         let status = Ending::Status;
         let rows: Vec<Row> = vec![
@@ -883,7 +1319,7 @@ mod tests {
                 changed: Condvar::new(),
             };
             let pid = ChildPid::default();
-            supervise(spawner, &shared, &pid, clock.as_ref());
+            supervise(spawner, &shared, &pid, clock.as_ref(), &Views::default());
             let started = record
                 .lock()
                 .unwrap()

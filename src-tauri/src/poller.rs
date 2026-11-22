@@ -7,7 +7,7 @@ use halvo_control::proto::DaemonStatus;
 use crate::commands::control::Control;
 use crate::commands::Registration;
 use crate::tray::TrayInstalled;
-use crate::view_state::{view_of, NoStatusService, StatusView};
+use crate::view_state::{view_of, Hold, NoStatusService, StatusView};
 
 pub const POLL: Duration = Duration::from_millis(halvo_control::POLL_MS);
 
@@ -55,6 +55,8 @@ pub struct Views {
     wake: Condvar,
     draw_lock: Mutex<()>,
     drawer: OnceLock<Drawer>,
+    hold: Arc<Hold>,
+    pause_missed: Mutex<bool>,
 }
 
 impl Default for Views {
@@ -70,6 +72,8 @@ impl Default for Views {
             wake: Condvar::new(),
             draw_lock: Mutex::new(()),
             drawer: OnceLock::new(),
+            hold: Arc::default(),
+            pause_missed: Mutex::new(false),
         }
     }
 }
@@ -79,8 +83,32 @@ impl Views {
         self.latest.lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    /// The view of this moment, with the app's hold.
     pub fn view(&self) -> StatusView {
-        self.latest().view.clone()
+        let view = self.latest().view.clone();
+        self.marked(view)
+    }
+
+    /// `view` with the app's hold, as every view that the app hands to the page or the tray.
+    pub fn marked(&self, view: StatusView) -> StatusView {
+        self.hold.mark(view)
+    }
+
+    /// The app's hold on capture after a child ended itself with status 5.
+    pub fn hold(&self) -> &Arc<Hold> {
+        &self.hold
+    }
+
+    /// Whether the last answer of a person's Pause or Resume was that of a Pause that did not
+    /// happen.
+    pub fn pause_missed(&self) -> bool {
+        *self.pause_missed.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Keeps whether the answer of a person's Pause or Resume was that of a Pause that did not
+    /// happen, until the next such answer.
+    pub fn set_pause_missed(&self, missed: bool) {
+        *self.pause_missed.lock().unwrap_or_else(|e| e.into_inner()) = missed;
     }
 
     pub fn status(&self) -> Option<DaemonStatus> {
@@ -222,7 +250,7 @@ pub fn take_command_answer(
 pub fn pass(control: &dyn Control, views: &Views, tray: Option<&TrayInstalled>) -> StatusView {
     let made = control.places().make();
     let number = made.number();
-    let answer = control.status(made, tray.is_some());
+    let answer = control.status_of_a_pass(made, tray.is_some(), &views.hold);
     views.take_poll(number, &answer);
     views.view()
 }

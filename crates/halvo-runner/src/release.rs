@@ -50,6 +50,17 @@ pub(crate) trait Paused {
     fn reply(&self) -> Option<&Reply> {
         None
     }
+    /// The step of the adapter's call that the request makes, whose row `step_failed` with the cause
+    /// `unauthorized` the runner writes after an answer 401 (A8.6): the send step of a reply, the delete step of an
+    /// event; none for a request of the browser.
+    fn step(&self) -> Option<NonZeroU32> {
+        self.reply().map(|reply| reply.step)
+    }
+    /// Whether the request is one of `calendar_delete`, which always asks in this release (`always_asks`); the
+    /// maker of that op alone answers yes.
+    fn deletes_an_event(&self) -> bool {
+        false
+    }
 }
 
 /// The reply that a request of `mail_send` sends (A5.1, A7.4 `agent_reply`): the send step's number, the provider's
@@ -77,11 +88,13 @@ impl Reply {
     }
 }
 
-/// Whether a request of the class `class` always asks in this release: the class `send`, of `mail_send` (A5.1,
-/// the coordinator's ruling of 2026-11-21T20:16:11Z, log line 11974, point (3)). The runner lets no such request
-/// through without an `approved` row whose digest it has read again, whatever the policy clears.
-fn always_asks(class: ActionClass) -> bool {
-    class == ActionClass::Send
+/// Whether `request` always asks in this release: a request of the class `send`, which `mail_send` alone makes, and
+/// a request of `calendar_delete` (A5.1, the coordinator's ruling of 2026-11-21T20:16:11Z, log line 11974, point
+/// (3)). The runner lets no such request through without an `approved` row whose digest it has read again, whatever
+/// the policy clears. The delete is named by its maker and not by the class `delete`, which the stand-in makers of
+/// the port's tests take for effects that the policy clears and lets through.
+fn always_asks(request: &dyn Paused) -> bool {
+    request.class() == ActionClass::Send || request.deletes_an_event()
 }
 
 /// The facts of A9.3 that a request maker gives: no maker can name an origin of the bindings or a new origin.
@@ -255,12 +268,14 @@ impl Runner {
     /// it so at once (CP-226 item 8). A request with no reply, or with an answer read as neither made nor not made,
     /// leaves its effect `releasing`, and the run ends `effect_unknown`.
     ///
-    /// A request of a class that always asks in this release (`always_asks`) goes to its `begin` only from an
-    /// `approved` row whose digest the runner has read again; a `cleared` one is ended and the run ends `refused`
-    /// with the cause `approval`. For a request of `mail_send` the reply rule is tested again on the load before
-    /// each `begin`, and a message that it no longer selects ends its effect, with the send step's `stopped` row and
-    /// the cause `not_selected`, while the run goes on (A5.1); its reply row `begun` is stored and answered before the
-    /// `begin` row, and after the reply the row `committed`, or `drafted` with the same draft after `not_made`.
+    /// A request that always asks in this release (`always_asks`: a send or a delete of an event) goes to its `begin`
+    /// only from an `approved` row whose digest the runner has read again; a `cleared` one is ended and the run ends
+    /// `refused` with the cause `approval`. After an answer 401 the step of the request's adapter call gets the row
+    /// `step_failed` with the cause `unauthorized`. For a request of `mail_send` the reply rule is tested again on
+    /// the load before each `begin`, and a message that it no longer selects ends its effect, with the send step's
+    /// `stopped` row and the cause `not_selected`, while the run goes on (A5.1); its reply row `begun` is stored and
+    /// answered before the `begin` row, and after the reply the row `committed`, or `drafted` with the same draft
+    /// after `not_made`.
     ///
     /// A `reject_once` ends its effect `rejected`, and that effect alone, whatever a later load gives, on the first
     /// card, on the card of a batch of case (iv) and on a later card for one effect; its paused request is failed and
@@ -446,11 +461,14 @@ impl Runner {
             }
             let read = digest(&now).map_err(|_| failed(Cause::StepFailed))?;
             if &read == self.effects[one.at].digest() {
-                if always_asks(class) && self.effects[one.at].state != EffectState::Approved {
+                if always_asks(one.request.as_ref())
+                    && self.effects[one.at].state != EffectState::Approved
+                {
                     self.advance(one.at, EffectMove::End)?;
                     return Err(Stop::End(Outcome::Refused, Some(Cause::Approval)));
                 }
                 let reply = one.request.reply().cloned();
+                let step = one.request.step();
                 self.reply_moved(one.at, reply.as_ref(), ReplyState::Begun)?;
                 self.advance(one.at, EffectMove::Begin { digest: read })?;
                 let request = one.request;
@@ -475,8 +493,8 @@ impl Runner {
                         if case != NotMade::Unauthorized {
                             return Ok(Through::NotMade);
                         }
-                        if let Some(reply) = &reply {
-                            self.log(LogEvent::StepFailed, Some(reply.step), Some(cause))?;
+                        if let Some(step) = step {
+                            self.log(LogEvent::StepFailed, Some(step), Some(cause))?;
                         }
                         Err(failed(Cause::Adapter))
                     }

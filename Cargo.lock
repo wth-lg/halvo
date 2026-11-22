@@ -1577,11 +1577,14 @@ name = "halvo-agent-gate"
 version = "0.0.0"
 dependencies = [
  "getrandom 0.3.4",
+ "halvo-agent-client",
  "halvo-agent-store",
+ "halvo-checkpoint",
  "halvo-derived",
  "halvo-owner",
  "halvo-policy",
  "halvo-schema",
+ "halvo-sheet",
  "halvo-test-dir",
  "serde_json",
 ]
@@ -1601,6 +1604,7 @@ version = "0.0.0"
 dependencies = [
  "getrandom 0.3.4",
  "halvo-capture",
+ "halvo-control",
  "halvo-identify",
  "halvo-owner",
  "halvo-sample",

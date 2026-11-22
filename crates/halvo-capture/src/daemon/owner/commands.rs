@@ -48,6 +48,10 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                 self.stopping = true;
                 Answer::ShutDown(snapshot)
             }
+            Command::EndUnsettled => {
+                self.stopping = true;
+                Answer::ShutDown(self.snapshot())
+            }
             Command::Inventory => Answer::Inventory(self.store.inventory()),
             Command::SetBound(bound) => {
                 self.schedule.set_bound(bound);

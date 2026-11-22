@@ -1603,3 +1603,267 @@ fn a_service_run_whose_owner_thread_ended_ends_through_its_shutdown_entry_with_1
         "{err}"
     );
 }
+
+const LIFE_DIR: &str = "HALVO_LIFE_DIR";
+const LIFE_MARKS: &str = "HALVO_LIFE_MARKS";
+const LIFE: &str = "HALVO_LIFE";
+const LIFE_CHILD: &str = "daemon::process_tests::life_child";
+const FIRST_LIFE: &str = "first";
+const SECOND_LIFE: &str = "second";
+const ENDING_LIFE: &str = "ending";
+const STOP_HELD_AT_MOST: Duration = Duration::from_millis(5_000);
+
+fn begun(marks: &Path) -> usize {
+    std::fs::read_to_string(marks.join("begun")).map_or(0, |text| text.lines().count())
+}
+
+#[test]
+fn life_child() {
+    let (Some(dir), Some(marks), Some(life)) = (
+        std::env::var_os(LIFE_DIR),
+        std::env::var_os(LIFE_MARKS),
+        std::env::var_os(LIFE),
+    ) else {
+        return;
+    };
+    signal::prepare().unwrap();
+    let marks = PathBuf::from(marks);
+    let life = life.to_string_lossy().into_owned();
+    let unstopped = life == FIRST_LIFE;
+    let held_open = life == ENDING_LIFE;
+    let factory = super::sources::tests::Factory::adjusting(move |source| {
+        if held_open && source.name == super::SourceName::Screen {
+            let (stopping, answered) = (marks.join("stopping"), marks.join("answered"));
+            source.on_stop = Some(Box::new(move |_: &crate::source::SourceContext| {
+                std::fs::write(&stopping, b"").unwrap();
+                let started = Instant::now();
+                while !answered.exists() && started.elapsed() < STOP_HELD_AT_MOST {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            }));
+        }
+        if source.name != super::SourceName::Foreground {
+            return;
+        }
+        let begun = marks.join("begun");
+        source.on_begin = Some(Box::new(move |_: &crate::source::SourceContext| {
+            use std::io::Write;
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&begun)
+                .unwrap();
+            file.write_all(b"begun\n").unwrap();
+        }));
+        if unstopped {
+            source.stop = Err(crate::source::CaptureError::Timeout {
+                stage: "foreground_stop",
+                ms: 1_000,
+            });
+        }
+    });
+    let parts = super::ServiceParts {
+        lease: if life == SECOND_LIFE {
+            super::lease::Lease::NONE
+        } else {
+            super::lease::Lease::never_lapsing()
+        },
+        ..super::ServiceParts::of(factory)
+    };
+    let status = super::serve_on(
+        &DataDir::from_flag(PathBuf::from(dir)).unwrap(),
+        Box::new(TestWrite::default()),
+        SleepLoop(Instant::now()),
+        signal::flag(),
+        Arc::new(main_loop::ExitNow),
+        &mut std::io::stderr(),
+        parts,
+    );
+    std::process::exit(status);
+}
+
+fn life(dir: &Path, marks: &Path, life: &str) -> Service {
+    Service(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", LIFE_CHILD, "--test-threads=1"])
+            .env(LIFE_DIR, dir)
+            .env(LIFE_MARKS, marks)
+            .env(LIFE, life)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap(),
+    )
+}
+
+fn running_dir(screen: bool) -> (PathBuf, PathBuf) {
+    use super::state::Desired;
+    let root = kept_dir("life-tests-");
+    let dir = root.join("data");
+    let marks = root.join("marks");
+    std::fs::create_dir(&marks).unwrap();
+    std::fs::create_dir(&dir).unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    )
+    .update(|state| {
+        state.desired = Desired::Running;
+        state
+            .switches
+            .set(crate::floor::Switch::ScreenActivity, screen);
+    })
+    .unwrap();
+    (dir, marks)
+}
+
+fn ask(
+    dir: &Path,
+    request: &halvo_control::proto::Request,
+) -> Result<halvo_control::proto::Reply, halvo_control::client::ClientError> {
+    halvo_control::client::system_connector(&data_dir(dir))
+        .and_then(|connector| halvo_control::client::Client::new(connector).send(request))
+}
+
+fn wait_until(within: Duration, what: &str, done: impl Fn() -> bool) {
+    let started = Instant::now();
+    while !done() {
+        assert!(started.elapsed() < within, "{what} within {within:?}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn ended_within(service: &mut Service, within: Duration) -> Option<i32> {
+    let started = Instant::now();
+    loop {
+        if let Some(status) = service.0.try_wait().unwrap() {
+            return status.code();
+        }
+        assert!(
+            started.elapsed() < within,
+            "the child did not end within {within:?}"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn files_under(root: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let mut walk = vec![root.to_path_buf()];
+    while let Some(at) = walk.pop() {
+        let meta = std::fs::symlink_metadata(&at).unwrap();
+        if meta.is_dir() {
+            for entry in std::fs::read_dir(&at).unwrap() {
+                walk.push(entry.unwrap().path());
+            }
+        } else if meta.is_file() {
+            found.push(at);
+        }
+    }
+    found
+}
+
+fn holds(haystack: &[u8], needle: &[u8]) -> bool {
+    !needle.is_empty() && haystack.windows(needle.len()).any(|at| at == needle)
+}
+
+#[test]
+fn a_delete_goes_on_past_a_source_that_does_not_stop_and_the_life_ends_with_5() {
+    use halvo_control::proto::{Capture, Reply, Request, StoreState};
+    let (dir, marks) = running_dir(false);
+    let mut first = life(&dir, &marks, FIRST_LIFE);
+    wait_until(READY_WITHIN, "the first life's source began", || {
+        begun(&marks) == 1
+    });
+    let shown = match ask(&dir, &Request::Status { indicator: false }) {
+        Ok(Reply::Status(status)) => status.fields().store_id,
+        other => panic!("the status of the first life: {other:?}"),
+    };
+    let kept: Vec<Vec<u8>> = std::iter::once(dir.join("store").join("store.key"))
+        .chain(files_under(&dir.join("roots")))
+        .map(|path| std::fs::read(path).unwrap())
+        .collect();
+    assert_eq!(kept.len(), 2, "store.key and one root file");
+
+    let reply = ask(&dir, &Request::DeleteAll { store: shown });
+    let status = ended_within(&mut first, Duration::from_secs(60));
+    assert!(matches!(reply, Ok(Reply::Deleted(_))), "{reply:?}");
+    assert_eq!(status, Some(halvo_control::exit::SOURCE_NOT_STOPPED));
+    for file in files_under(&dir) {
+        let bytes = std::fs::read(&file).unwrap();
+        assert!(
+            !kept.iter().any(|key| holds(&bytes, key)),
+            "{} holds the bytes of a key of the deleted store",
+            file.display()
+        );
+    }
+    assert_eq!(
+        std::fs::read_to_string(data_dir(&dir).run_marker()).unwrap(),
+        "last_stop=source_not_stopped kind=delete_all final=yes not_stopped=foreground:timeout\n",
+        "the run marker's last record"
+    );
+
+    let second = life(&dir, &marks, SECOND_LIFE);
+    wait_until(READY_WITHIN, "the second life's store opened", || {
+        matches!(
+            ask(&dir, &Request::Status { indicator: false }),
+            Ok(Reply::Status(status)) if status.fields().store == StoreState::Open
+        )
+    });
+    let claimed = ask(&dir, &Request::Status { indicator: true });
+    assert!(
+        matches!(&claimed, Ok(Reply::Status(status)) if status.fields().capture == Capture::AwaitingResume),
+        "{claimed:?}"
+    );
+    std::thread::sleep(Duration::from_millis(1_500));
+    assert_eq!(begun(&marks), 1, "a source began in the held life");
+    let resumed = ask(&dir, &Request::Resume);
+    assert!(
+        matches!(resumed, Ok(Reply::CaptureChanged(_))),
+        "{resumed:?}"
+    );
+    let _ = ask(&dir, &Request::Status { indicator: true });
+    wait_until(
+        Duration::from_secs(10),
+        "a source began after the Resume",
+        || begun(&marks) == 2,
+    );
+    assert_eq!(terminate(second), Some(0));
+}
+
+#[test]
+fn a_pause_in_an_ending_life_is_answered_and_the_next_start_reads_paused() {
+    use halvo_control::proto::{Reply, Request};
+    let (dir, marks) = running_dir(true);
+    let mut ending = life(&dir, &marks, ENDING_LIFE);
+    wait_until(READY_WITHIN, "the source began", || begun(&marks) == 1);
+    let pid = libc::pid_t::try_from(ending.0.id()).unwrap();
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+    wait_until(
+        Duration::from_secs(30),
+        "the shutdown entry asked the source to stop",
+        || marks.join("stopping").exists(),
+    );
+    let paused = ask(&dir, &Request::Pause);
+    std::fs::write(marks.join("answered"), b"").unwrap();
+    let status = ended_within(&mut ending, Duration::from_secs(60));
+    assert!(
+        matches!(&paused, Ok(Reply::CaptureChanged(status)) if status.fields().desired == halvo_control::model::CaptureState::Paused),
+        "{paused:?}"
+    );
+    assert_eq!(status, Some(halvo_control::exit::CLEAN));
+    let state = StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    );
+    assert_eq!(
+        state.state().desired,
+        super::state::Desired::Paused,
+        "the state file as the next start reads it"
+    );
+}

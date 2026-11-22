@@ -68,8 +68,88 @@ pub fn start_time_of(pid: u32) -> Option<u64> {
     )
 }
 
-/// The start time of a process: no build of another system reads it yet.
-#[cfg(not(target_os = "macos"))]
+/// The start time of the process `pid` in microseconds since the epoch, as
+/// Windows records it (its creation time, read with `GetProcessTimes` on a
+/// handle opened by the pid), or `None` when no process of that pid can be
+/// opened or its times cannot be read.
+#[cfg(windows)]
+pub fn start_time_of(pid: u32) -> Option<u64> {
+    use windows::Win32::System::Threading::PROCESS_QUERY_LIMITED_INFORMATION;
+    ProcessHandle::open(pid, PROCESS_QUERY_LIMITED_INFORMATION)?.started()
+}
+
+/// The start time of a process: no build of another system reads it.
+#[cfg(not(any(target_os = "macos", windows)))]
 pub fn start_time_of(_pid: u32) -> Option<u64> {
     None
+}
+
+/// One handle of a process, opened by its pid and closed when it drops.
+#[cfg(windows)]
+pub struct ProcessHandle(windows::Win32::Foundation::HANDLE);
+
+#[cfg(windows)]
+impl ProcessHandle {
+    /// Opens the process `pid` with `access`: `None` when no process of that
+    /// pid runs or the open is refused.
+    pub fn open(
+        pid: u32,
+        access: windows::Win32::System::Threading::PROCESS_ACCESS_RIGHTS,
+    ) -> Option<ProcessHandle> {
+        // SAFETY: OpenProcess takes plain values and returns a new handle,
+        // which this value owns from here on, or an error.
+        unsafe { windows::Win32::System::Threading::OpenProcess(access, false, pid) }
+            .ok()
+            .map(ProcessHandle)
+    }
+
+    /// The creation time of the process in microseconds since the epoch,
+    /// read on this handle.
+    pub fn started(&self) -> Option<u64> {
+        use windows::Win32::Foundation::FILETIME;
+        let (mut created, mut exited, mut kernel, mut user) = (
+            FILETIME::default(),
+            FILETIME::default(),
+            FILETIME::default(),
+            FILETIME::default(),
+        );
+        // SAFETY: the handle is open, and the call writes the four FILETIME
+        // values that the pointers name, each of which lives across the call.
+        unsafe {
+            windows::Win32::System::Threading::GetProcessTimes(
+                self.0,
+                &mut created,
+                &mut exited,
+                &mut kernel,
+                &mut user,
+            )
+        }
+        .ok()?;
+        let ticks = (u64::from(created.dwHighDateTime) << 32) | u64::from(created.dwLowDateTime);
+        ticks
+            .checked_sub(116_444_736_000_000_000)
+            .map(|since| since / 10)
+    }
+
+    /// Ends the process with the exit status `status` and waits at most
+    /// `bound` for it to end: true when it has ended within the bound, also
+    /// when it ended by itself before the call. The handle needs the rights
+    /// to end the process and to wait for it.
+    pub fn end_within(&self, status: u32, bound: std::time::Duration) -> bool {
+        use windows::Win32::Foundation::WAIT_OBJECT_0;
+        use windows::Win32::System::Threading::{TerminateProcess, WaitForSingleObject};
+        let wait = u32::try_from(bound.as_millis()).unwrap_or(u32::MAX);
+        // SAFETY: the handle is open with the right to end the process.
+        let _ = unsafe { TerminateProcess(self.0, status) };
+        // SAFETY: the handle is open with the right to wait for the process.
+        unsafe { WaitForSingleObject(self.0, wait) == WAIT_OBJECT_0 }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for ProcessHandle {
+    fn drop(&mut self) {
+        // SAFETY: the handle is open and owned by this value alone.
+        let _ = unsafe { windows::Win32::Foundation::CloseHandle(self.0) };
+    }
 }

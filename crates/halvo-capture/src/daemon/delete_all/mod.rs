@@ -4,6 +4,8 @@
 
 #[cfg(test)]
 mod process_tests;
+#[cfg(all(test, windows))]
+mod windows_tests;
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -22,13 +24,15 @@ use super::state::{StateDir, StateFile, StateHealth};
 use super::{DurableState, TailAnswer, TailReport, TailRoot};
 
 /// One row of the registry of contracts.md C17 item 2 as the walk reads it:
-/// the name of the entry under the data directory, its key files and its
-/// owner's pid file, each a path under the data directory.
+/// the name of the entry under the data directory, its key files, its
+/// owner's pid file and the folder of the runs' marks, each a path under the
+/// data directory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Row {
     pub name: &'static str,
     pub key_files: &'static [&'static str],
     pub owner_pid_file: Option<&'static str>,
+    pub marks_dir: Option<&'static str>,
 }
 
 impl From<&Entry> for Row {
@@ -37,6 +41,7 @@ impl From<&Entry> for Row {
             name: entry.name(),
             key_files: entry.key_files(),
             owner_pid_file: entry.owner_pid_file(),
+            marks_dir: entry.marks_dir(),
         }
     }
 }
@@ -155,7 +160,25 @@ fn end_by_signal(owner: Owner) -> bool {
     gone_within(owner, OWNER_KILL_WAIT)
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+const OWNER_END_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+#[cfg(windows)]
+fn end_by_signal(owner: Owner) -> bool {
+    use windows::Win32::System::Threading::{
+        PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+    };
+    let access = PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | PROCESS_SYNCHRONIZE;
+    let Some(process) = super::owner_pid::ProcessHandle::open(owner.pid, access) else {
+        return !runs(owner);
+    };
+    if process.started() != Some(owner.started) {
+        return true;
+    }
+    process.end_within(1, OWNER_END_WAIT)
+}
+
+#[cfg(not(any(unix, windows)))]
 fn end_by_signal(owner: Owner) -> bool {
     !runs(owner)
 }
@@ -184,13 +207,15 @@ pub fn offline(dir: &DataDir, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     )
 }
 
-/// What the walk over the rows did: the rows handled and left, and whether
-/// it removed an entry of the data directory itself.
+/// What the walk over the rows did: the rows handled and left, whether it
+/// removed an entry of the data directory itself, and the entries of a
+/// marks folder that it could not read as a run's mark and passed.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct Walked {
     removed: u64,
     left: u64,
     removed_an_entry: bool,
+    marks_passed: u64,
 }
 
 /// What steps 3 to 5 of contracts.md C17 item 3 did.
@@ -261,7 +286,7 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
         text.push_str("no_store\n");
         return print(out, err, &text, None, exit::CLEAN);
     }
-    let ran = match steps_of_the_delete(path, how, &mut || clear_the_mark(path)) {
+    let ran = match steps_of_the_delete(path, how, &mut || {}, &mut || clear_the_mark(path)) {
         Steps::Busy => return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY),
         Steps::Ran(ran) => ran,
     };
@@ -307,7 +332,10 @@ pub struct Ran {
 
 /// Steps 2 to 5 of contracts.md C17 item 3 in `path`, a data directory whose
 /// instance lock the caller holds, with the rows, selection and hands of
-/// `how`: the open of the store for the delete, the intent, the store's
+/// `how`: the open of the store for the delete, the intent, then
+/// `after_the_intent` before any removal (the service run writes there the
+/// first record of a delete that went on past a source that did not stop,
+/// ruling PL-3 part (3) item 5), the store's
 /// delete, then the clear of the mark `store_made` by `clear` (which answers
 /// a line when the clear failed) once that delete did not answer busy, so a
 /// delete that removed nothing leaves the mark as it was, the walk over the
@@ -320,6 +348,7 @@ pub struct Ran {
 pub fn steps_of_the_delete(
     path: &Path,
     how: &Offline<'_>,
+    after_the_intent: &mut dyn FnMut(),
     clear: &mut dyn FnMut() -> Option<String>,
 ) -> Steps {
     let host = DataDirStore::at(path);
@@ -330,6 +359,7 @@ pub fn steps_of_the_delete(
     };
     let intent_stood = stands(&path.join(INTENT_FILE));
     let intent = write_intent(path, how.rows, probe);
+    after_the_intent();
     let mut causes = Vec::new();
     let store = delete_the_store(&host, handle);
     if matches!(store, TailAnswer::Held) {
@@ -342,6 +372,12 @@ pub fn steps_of_the_delete(
         causes.push(line);
     }
     let finished = steps_3_to_5(path, how.rows, how.hands, store);
+    if finished.walked.marks_passed > 0 {
+        causes.push(format!(
+            "halvo-capture: {} of the runs' marks could not be read and were passed; what they name was not ended",
+            finished.walked.marks_passed
+        ));
+    }
     let ran = |line, report, causes| {
         Steps::Ran(Box::new(Ran {
             line,
@@ -373,7 +409,7 @@ pub fn steps_of_the_delete(
     }
     if finished.walked.left > 0 {
         causes.push(format!(
-            "halvo-capture: {} registered entries stay; a process that a pid file names did not end, or their files could not be removed",
+            "halvo-capture: {} registered entries stay; a process that a pid file or a run's mark names did not end, or their files could not be removed",
             finished.walked.left
         ));
     }
@@ -638,7 +674,8 @@ fn steps_3_to_5(dir: &Path, rows: &[Row], hands: &dyn Hands, store: TailAnswer) 
 }
 
 /// Step 3 for every row, in table order and in the same way: the process
-/// that its owner pid file names is ended before any unlink, its key files
+/// that its owner pid file names, and the runner and the browser that each
+/// mark of its marks folder names, are ended before any unlink, its key files
 /// go through the key-file helper, and its entry is removed. The store's
 /// rows are the store's delete, which ran first; the kept rows keep their
 /// files.
@@ -671,6 +708,11 @@ fn walk_a_row(dir: &Path, row: &Row, hands: &dyn Hands, walked: &mut Walked) -> 
             Err(_) => return false,
         }
     }
+    if let Some(marks) = row.marks_dir {
+        if !end_what_the_marks_name(&dir.join(marks), hands, walked) {
+            return false;
+        }
+    }
     let mut handled = true;
     for file in row.key_files {
         if stands(&dir.join(file)) && !hands.destroy_key_file(dir, file) {
@@ -685,6 +727,48 @@ fn walk_a_row(dir: &Path, row: &Row, hands: &dyn Hands, walked: &mut Walked) -> 
         }
     }
     handled
+}
+
+/// Ends, through `hands`, the runner and then the browser that each mark
+/// under `marks` names, by the pid and the creation time of its line, and
+/// answers whether every one of them is gone after. A mark is read by
+/// [`halvo_control::marks::read`] under its file name; an entry that is no
+/// file, or that does not read as a mark, is passed and counted in
+/// `walked`, and so is a folder that cannot be listed.
+fn end_what_the_marks_name(marks: &Path, hands: &dyn Hands, walked: &mut Walked) -> bool {
+    let entries = match std::fs::read_dir(marks) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return true,
+        Err(_) => {
+            walked.marks_passed += 1;
+            return true;
+        }
+    };
+    let mut all_gone = true;
+    for entry in entries {
+        let lines = entry.ok().and_then(|entry| {
+            if !entry.file_type().ok()?.is_file() {
+                return None;
+            }
+            let run = entry.file_name().into_string().ok()?;
+            let bytes = std::fs::read(entry.path()).ok()?;
+            halvo_control::marks::read(&run, std::str::from_utf8(&bytes).ok()?)
+        });
+        let Some(lines) = lines else {
+            walked.marks_passed += 1;
+            continue;
+        };
+        for line in [lines.runner, lines.browser].into_iter().flatten() {
+            let owner = Owner {
+                pid: line.pid.get(),
+                started: line.created.get(),
+            };
+            if !hands.end_owner(owner) {
+                all_gone = false;
+            }
+        }
+    }
+    all_gone
 }
 
 /// Step 4: the entries under `dir` that the registry does not know. The

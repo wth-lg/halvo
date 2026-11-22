@@ -8,8 +8,12 @@
 #   test <part> <group> <package>  every test whose name holds the part (cargo test -- --skip <part>);
 #                                  the group runs the part in the unit tests of that package
 #   doc-tests <group>              the doc-tests of every package
-#   kept <package> <part>          the merge gate runs the unit tests of that package whose name holds
-#                                  the part, although a units line names the package; no group
+#   kept <package> <part> [<job>]  the merge gate runs the unit tests of that package whose name holds
+#                                  the part, although a units line names the package; no group. 12-test
+#                                  prints how many such tests passed and fails when none did; a part
+#                                  whose tests one job alone has is followed by that job, macos or
+#                                  windows, and the other job runs it and does not count it (so the
+#                                  note of a kept line never begins with the word macos or windows)
 # The merge gate keeps the unit tests of every package that no units line names, and the test
 # targets of the packages that hold a core promise (scripts/ci/core-promises.txt): halvo,
 # halvo-capture, halvo-derived, halvo-learn, halvo-learn-gate, halvo-learn-store, halvo-redact,
@@ -60,7 +64,7 @@ kept halvo-learn-gate tests::privacy the deletion of learned rows: the module te
 units halvo-sqlcipher A 27 s macos, 32 s windows
 units halvo-web B 24 s macos, 7 s windows
 units halvo-control B 16 s macos, 10 s windows
-kept halvo-control _windows::tests:: the two peer checks of the Windows control channel: client_windows::tests::the_pipe_client_refuses_a_server_of_another_user and child_windows::tests::a_child_inherits_the_listed_handles_and_no_other; the windows job alone has them
+kept halvo-control _windows::tests:: windows the two peer checks of the Windows control channel: client_windows::tests::the_pipe_client_refuses_a_server_of_another_user and child_windows::tests::a_child_inherits_the_listed_handles_and_no_other; the windows job alone has them
 units halvo-route-gate B 13 s macos, 9 s windows
 units halvo-learn-store B 7 s macos, 5 s windows
 test daemon::supervisor::tests::stress_cases C halvo-capture 88 s macos, 38 s windows, 48 tests

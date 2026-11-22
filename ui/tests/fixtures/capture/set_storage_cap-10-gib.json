@@ -14,6 +14,7 @@
     "state": "healthy"
   },
   "ext": [],
+  "hold": null,
   "last_exit": null,
   "lease": "fresh",
   "loss": {
