@@ -669,8 +669,8 @@ fn signed_in() -> SessionState {
 /// of each site that it bound at a handback, the cookies of its host and parent domains and its localStorage, by
 /// `put_session` as the next revision of that site: the listed one plus 1, else 1; so does a run that failed. A bound
 /// site that the run neither imported nor bound, and a site that it does not bind, get nothing. A run that ends at a
-/// sign-in field stores nothing for that site, and nothing for a site that the handback's opening cleared; a run whose
-/// browser never started stores nothing.
+/// sign-in field stores nothing for that site; the handback's opening stores, before it clears them, the other sites
+/// that the run kept so far (U5.2f); a run whose browser never started stores nothing.
 #[test]
 fn a_run_end_stores_the_state_of_each_bound_origin() {
     let world = World::default();
@@ -749,9 +749,10 @@ fn a_run_end_stores_the_state_of_each_bound_origin() {
     at_field.answers = &[DECLINED];
     let ran = world.run(&at_field, &[click()]);
     assert_eq!(ran.seen.finish, Some(Outcome::Declined), "{}", ran.end);
-    assert!(
-        lines(&ran.log, "frame store put_session").is_empty(),
-        "nothing for the site at whose field the run ended, nor for the site that the opening cleared: {:?}",
+    assert_eq!(
+        lines(&ran.log, "frame store put_session"),
+        ["frame store put_session http://b.test:8081 2 1 1"],
+        "nothing for the site at whose field the run ended; the opening stores the other kept site: {:?}",
         ran.log
     );
 
@@ -1041,7 +1042,7 @@ fn three_runs_hold_the_marker_in_store_frames_alone() {
 /// origin, and stores the other origin's state. The store's drop row (here the supervisor's, in the form of
 /// `drop_session`) is the newest revision of that origin, so the next run, which the interface starts with a window,
 /// imports nothing of it and the other origin's state, opens a handback at the field and keeps the new sign-in as the
-/// revision after the drop; the handback's opening cleared the other origin, so that run stores nothing of it.
+/// revision after the drop; the handback's opening stores the other origin's state before it clears it (U5.2f).
 #[test]
 fn a_run_without_a_window_ends_at_a_credential_field_and_drops_that_sign_in() {
     let world = World::default();
@@ -1121,8 +1122,11 @@ fn a_run_without_a_window_ends_at_a_credential_field_and_drops_that_sign_in() {
     assert_eq!(ran.seen.finish, Some(Outcome::Completed), "{}", ran.end);
     assert_eq!(
         lines(&ran.log, "frame store put_session"),
-        ["frame store put_session http://a.test:8080 3 1 1"],
-        "the site bound at the handback alone; the handback's opening cleared B"
+        [
+            "frame store put_session http://b.test:8081 3 1 1",
+            "frame store put_session http://a.test:8080 3 1 1"
+        ],
+        "B at the handback's opening, before its clear; the site bound at the handback at the end"
     );
 }
 
@@ -1198,8 +1202,8 @@ fn a_run_that_signed_in_nothing_stores_nothing() {
 
 /// The round of log line 14366, static-analyzer-67's F1: in a run with a window that imported the kept sign-ins of two
 /// sites, a handback at the first clears what the pages of every site keep for later, the second site's localStorage
-/// among it; the run stores the site that it bound at the handback and nothing of the second, whose listed revision
-/// keeps its localStorage.
+/// among it; the opening stores the second site's state before it clears it, its localStorage among it (U5.2f), and
+/// the end stores the site that it bound at the handback.
 #[test]
 fn a_handback_in_a_run_with_a_window_keeps_the_local_storage_of_another_bound_origin() {
     let world = World::default();
@@ -1221,11 +1225,15 @@ fn a_handback_in_a_run_with_a_window_keeps_the_local_storage_of_another_bound_or
     assert!(at(&ran.log, "clear stores") < at(&ran.log, "frame handback sign_in"));
     assert_eq!(
         lines(&ran.log, "frame store put_session"),
-        ["frame store put_session http://a.test:8080 2 1 1"],
+        [
+            "frame store put_session http://b.test:8081 2 1 1",
+            "frame store put_session http://a.test:8080 2 1 1"
+        ],
         "{:?}",
         ran.log
     );
-    assert_eq!(world.revisions(B), [(1, 1, 1)]);
+    assert_eq!(world.revisions(B), [(1, 1, 1), (2, 1, 1)]);
+    assert_eq!(world.stored(B, 2), Some(b_state.clone()));
     assert_eq!(world.stored(B, 1), Some(b_state));
 }
 
