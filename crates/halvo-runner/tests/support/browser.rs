@@ -62,8 +62,9 @@ pub struct Request {
     pub bytes: Vec<u8>,
 }
 
-/// A fixture server on a loopback port of its own that answers each path of its pages with that page and every
-/// other path with 404, and records every connection. Dropping it stops it.
+/// A fixture server on a loopback port of its own that answers each path of its pages with that page, as XHTML for a
+/// path that ends in `.xhtml` and as HTML for every other, and every other path with 404, and records every
+/// connection. Dropping it stops it.
 pub struct Fixture {
     port: u16,
     seen: Arc<Mutex<Vec<Request>>>,
@@ -153,8 +154,13 @@ fn answer(mut stream: TcpStream, pages: &[(String, String)]) -> Request {
             Some(page) => ("200 OK", page.as_str()),
             None => ("404 Not Found", ""),
         };
+        let kind = if path.ends_with(".xhtml") {
+            "application/xhtml+xml"
+        } else {
+            "text/html"
+        };
         let reply = format!(
-            "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            "HTTP/1.1 {status}\r\nContent-Type: {kind}; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
             body.len()
         );
         let _ = stream.write_all(reply.as_bytes());

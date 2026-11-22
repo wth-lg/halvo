@@ -1765,35 +1765,32 @@ fn control_of(reply: &serde_json::Value) -> Res<Control> {
     }
 }
 
-/// The one function on the element that holds the focus: `[editable, credential]`, whether the
-/// element is editable by its own `contenteditable` attribute (the empty word, `true` or
-/// `plaintext-only`), and its credential mark by `CREDENTIAL_FN`.
+/// The one function on the element that holds the focus: `[kind, credential]`, whether the
+/// element is of a kind that is typed into, known by the browser's own interface (an input, a
+/// textarea, a select, or an HTML element editable by its own `contenteditable` attribute, the
+/// empty word, `true` or `plaintext-only`; never the body or the root), and its credential mark by
+/// `CREDENTIAL_FN`. No tag name's text is read.
 fn typed_into_fn() -> String {
     format!(
         "function () {{
   const own = this.getAttribute('contenteditable');
-  const editable = own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase());
-  return [editable, Boolean(({CREDENTIAL_FN}).call(this))];
+  const editable = this instanceof HTMLElement && own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase());
+  const whole = this instanceof HTMLInputElement || this instanceof HTMLTextAreaElement || this instanceof HTMLSelectElement;
+  const none = this instanceof HTMLBodyElement || this instanceof HTMLHtmlElement;
+  return [(whole || editable) && !none, Boolean(({CREDENTIAL_FN}).call(this))];
 }}"
     )
 }
 
-/// Whether a text or a key may reach an element named `name` (as the browser names a node) whose
-/// `typed_into_fn` reply is `reply`: an INPUT, a TEXTAREA, a SELECT or an element editable by its
-/// own attribute, other than the BODY and the HTML, whose mark reads no credential. None for a
-/// reply of another form, which the caller reads as credential.
-fn typed_into_of(name: &str, reply: &serde_json::Value) -> Option<bool> {
+/// Whether a text or a key may reach the element whose `typed_into_fn` reply is `reply`: one of
+/// the kinds that are typed into whose mark reads no credential. None for a reply of another
+/// form, which the caller reads as credential.
+fn typed_into_of(reply: &serde_json::Value) -> Option<bool> {
     use serde_json::Value as V;
-    let Some([V::Bool(editable), V::Bool(credential)]) = reply.as_array().map(Vec::as_slice) else {
+    let Some([V::Bool(kind), V::Bool(credential)]) = reply.as_array().map(Vec::as_slice) else {
         return None;
     };
-    let name = name.to_ascii_uppercase();
-    let kind = match name.as_str() {
-        "INPUT" | "TEXTAREA" | "SELECT" => true,
-        "BODY" | "HTML" => false,
-        _ => *editable,
-    };
-    Some(kind && !credential)
+    Some(*kind && !credential)
 }
 
 impl Executor {
@@ -1880,7 +1877,8 @@ impl Executor {
 
     /// Whether a text or a key must not reach the element that holds the focus in the document of
     /// `place` (the ruling of the list of what is typed into): it may reach that element only where
-    /// it is one of four kinds that the top document's own read sees whole, an input, a textarea, a
+    /// it is one of four kinds that the top document's own read sees whole, known by the browser's
+    /// own interface and never by a tag name's text (`typed_into_fn`): an input, a textarea, a
     /// select, or an element editable by its own `contenteditable` attribute, that carries no frame
     /// id and no document of its own, has no shadow root other than the browser's own, and reads no
     /// credential mark (`CREDENTIAL_FN`, the mark alone). Every other holder of the focus reads
@@ -1919,7 +1917,7 @@ impl Executor {
         let read = self
             .call_on(place, &node.backend_node_id, &typed_into_fn(), Vec::new())
             .await?;
-        Ok(typed_into_of(&node.node_name, &read) != Some(true))
+        Ok(typed_into_of(&read) != Some(true))
     }
 }
 
@@ -2043,10 +2041,11 @@ const CONTENT_CORNER_FN: &str = "function () {
 }";
 
 const CREDENTIAL_FN: &str = "function () {
-  const type = (this.getAttribute('type') || '').toLowerCase();
-  const auto = (this.getAttribute('autocomplete') || '').toLowerCase().split(/\\s+/);
+  const field = this instanceof HTMLInputElement;
+  const type = field ? [String(this.type), this.getAttribute('type') || ''].map((t) => t.toLowerCase()) : [];
+  const auto = field ? [String(this.autocomplete || ''), this.getAttribute('autocomplete') || ''].join(' ').toLowerCase().split(/\\s+/) : [];
   const secret = ['current-password', 'new-password', 'one-time-code'].some((t) => auto.includes(t));
-  const input = this.tagName === 'INPUT' && (type === 'password' || secret);
+  const input = field && (type.includes('password') || secret);
   const captcha = this.parentElement !== null && this.parentElement.closest('[data-halvo-captcha]') !== null;
   return input || captcha;
 }";
@@ -2061,7 +2060,7 @@ const SELECT_FN: &str = "function (label) {
 }";
 
 const READ_FN: &str = "function () {
-  if (this.tagName === 'INPUT' || this.tagName === 'SELECT' || this.tagName === 'TEXTAREA') return String(this.value);
+  if (this instanceof HTMLInputElement || this instanceof HTMLSelectElement || this instanceof HTMLTextAreaElement) return String(this.value);
   return String(this.innerText || this.textContent || '');
 }";
 
