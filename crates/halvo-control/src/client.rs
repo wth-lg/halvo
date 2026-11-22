@@ -105,7 +105,8 @@ pub struct Deadlines {
 
 impl Deadlines {
     /// The deadlines of contracts.md C2.1. `permission_asked` waits as `request_permission`
-    /// does, and `acknowledge_lost_permission`, a write of the state file, as `pause` does.
+    /// does, and `acknowledge_lost_permission` and `reset_settings`, writes of the state file,
+    /// as `pause` does.
     pub const V1: Deadlines = Deadlines {
         read: Duration::from_millis(2_000),
         pause: Duration::from_millis(10_000),
@@ -120,7 +121,7 @@ impl Deadlines {
     pub fn of(&self, request: &Request) -> Duration {
         match request {
             Request::Status { .. } | Request::Inventory => self.read,
-            Request::Pause => self.pause,
+            Request::Pause | Request::ResetSettings => self.pause,
             Request::Resume => self.resume,
             Request::Stop => self.stop,
             Request::DeleteAll { .. } => self.delete_all,
@@ -387,6 +388,12 @@ impl<C: Connector> Client<C> {
         permission: Permission,
     ) -> Result<DaemonStatus, ClientError> {
         self.status_reply(Request::AcknowledgeLostPermission { permission })
+    }
+
+    /// Resets the settings where the settings file does not load and answers the status after
+    /// the write; the daemon's life ends behind that answer and starts again.
+    pub fn reset_settings(&self) -> Result<DaemonStatus, ClientError> {
+        self.status_reply(Request::ResetSettings)
     }
 }
 
@@ -1669,7 +1676,7 @@ mod tests {
 
     #[test]
     fn each_request_waits_for_its_own_deadline_and_a_reply_that_never_comes_is_a_deadline() {
-        let cases: [(Request, u64); 10] = [
+        let cases: [(Request, u64); 11] = [
             (Request::Status { indicator: false }, 2_000),
             (Request::Inventory, 2_000),
             (Request::Pause, 10_000),
@@ -1700,6 +1707,7 @@ mod tests {
                 },
                 10_000,
             ),
+            (Request::ResetSettings, 10_000),
         ];
         for (request, ms) in cases {
             assert_eq!(Deadlines::V1.of(&request), Duration::from_millis(ms));

@@ -2546,6 +2546,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     let mut deleted = None;
     let mut delete_ends = false;
     let mut delete_written = None;
+    let mut reset_written = None;
     #[cfg(test)]
     let mut wrap_store = parts.wrap_store;
     loop {
@@ -2576,6 +2577,13 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 listening.admitting().end_the_life();
                 stop_asked = Some(asked);
                 break;
+            }
+            Waited::Reset(asked) => {
+                if let Some(written) = reset_on_request(asked, &mut supervisor, &serving) {
+                    reset_written = Some(written);
+                    status = halvo_control::exit::RESTART;
+                    break;
+                }
             }
             Waited::Delete(asked) => {
                 match delete_on_request(
@@ -2757,6 +2765,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     if let Some(written) = delete_written.filter(|_| delete_ends) {
         let _ = written.wait(WRITTEN_WAIT);
     }
+    if let Some(written) = reset_written {
+        let _ = written.wait(WRITTEN_WAIT);
+    }
     let outcome = supervisor.shutdown_entry(store.link(), status);
     #[cfg(test)]
     if let Some(settled) = parts.settled {
@@ -2830,6 +2841,7 @@ enum Waited {
     Ended,
     Stop(server::Asked),
     Delete(server::Asked),
+    Reset(server::Asked),
 }
 
 #[cfg(any(target_os = "macos", windows))]
@@ -2862,6 +2874,9 @@ fn wait_serving<F: supervisor::SystemSources, L: main_loop::MainLoop>(
                 halvo_control::proto::Request::DeleteAll { .. }
             ) {
                 return Waited::Delete(asked);
+            }
+            if matches!(asked.request, halvo_control::proto::Request::ResetSettings) {
+                return Waited::Reset(asked);
             }
             serve_request(asked, supervisor, serving, store);
         }
@@ -3190,6 +3205,33 @@ fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     if let Some(asked) = pending {
         let _ = asked.answer(changed(&supervisor.status_parts(serving.obstructed)));
     }
+}
+
+#[cfg(any(target_os = "macos", windows))]
+fn reset_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    asked: server::Asked,
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+) -> Option<server::Written> {
+    use halvo_control::proto::{ErrorCode, ErrorReply, Reply};
+    let refused = match supervisor.with_state_file(state::StateFile::reset_settings) {
+        Some(Ok(())) => None,
+        Some(Err(refused)) => Some(ErrorReply::new(ErrorCode::StateFile, refused.to_string())),
+        None => Some(ErrorReply::new(
+            ErrorCode::Internal,
+            "the capture service holds no state file",
+        )),
+    };
+    if let Some(refused) = refused {
+        let _ = asked.answer(Reply::Error(refused));
+        return None;
+    }
+    serving.listening.admitting().end_the_life();
+    let reply = status_reply(supervisor, serving).map_or_else(
+        |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+        Reply::Status,
+    );
+    Some(asked.answer(reply))
 }
 
 #[cfg(any(target_os = "macos", windows))]
