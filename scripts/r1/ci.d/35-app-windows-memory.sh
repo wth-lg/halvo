@@ -1,7 +1,7 @@
 #!/bin/sh
 # jobs: windows
 # lane: alone
-# rule: the built app on Windows, started with --background on a data directory that is not provisioned, runs after 60 s, and the check prints the summed peak working set of that halvo.exe and of every msedgewebview2.exe below it, with no bound; a run with no halvo.exe of that directory fails
+# rule: the built app on Windows, started with --background on a data directory that is not provisioned, runs after 60 s, and the check prints the summed peak working set of that halvo.exe and of every msedgewebview2.exe below it, with no bound; a run with no halvo.exe of that directory, or with no msedgewebview2.exe below it, fails
 set -u
 name=35-app-windows-memory
 settle_s=60
@@ -40,7 +40,7 @@ EOF
 # The verdict on the list of processes in the file $1 for the data directory whose name is $2:
 # the one halvo.exe whose command line holds that name, and every msedgewebview2.exe below it by
 # the ids of the parents, with the sum of their peak working sets. It holds the sum against no
-# bound.
+# bound, and fails with no web view process: a figure of an app without its page measures nothing.
 verdict() {
   sums=$(awk -v token="$2" '
     {
@@ -87,6 +87,7 @@ EOF
     1) ;;
     *) fail "$apps halvo.exe of the scratch directory run after $settle_s s, not one" ;;
   esac
+  [ "$views" -gt 0 ] || fail "no msedgewebview2.exe below the halvo.exe of the scratch directory after $settle_s s"
   sum_kb=$((app_kb + view_kb))
   printf 'app-memory: after %s s, the peak working set of halvo.exe %s KiB and of its %s msedgewebview2.exe %s KiB, together %s KiB (%s MiB), the debug build, no bound\n' "$settle_s" "$app_kb" "$views" "$view_kb" "$sum_kb" $((sum_kb / 1024))
 }
@@ -161,9 +162,9 @@ check() {
   fi
 }
 
-# The verdict on two lists: the app of the scratch directory with two processes of the web view
+# The verdict on three lists: the app of the scratch directory with two processes of the web view
 # below it, beside a web view process of another parent and an app of another directory with its
-# own; and a list of no process, which must fail.
+# own; a list of no process; and the app with no web view process below it. The last two must fail.
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   token=mem.Ab12Cd
@@ -176,7 +177,11 @@ halvo.exe 500 4 40000 C:\t\halvo.exe --background --data-dir C:\t\mem.Other1
 msedgewebview2.exe 600 500 90000 "C:\w\msedgewebview2.exe" --embedded-browser-webview=1
 EOF
   : >"$work/none"
-  for mode in good none; do
+  cat >"$work/no-page" <<'EOF'
+halvo.exe 100 4 51200 C:\t\halvo.exe --background --data-dir C:\t\mem.Ab12Cd
+msedgewebview2.exe 400 999 70000 "C:\w\msedgewebview2.exe" --type=renderer
+EOF
+  for mode in good none no-page; do
     (verdict "$work/$mode" "$token") >"$work/$mode.out" 2>&1
     printf '%s\n' "$?" >"$work/$mode.code"
   done
@@ -184,6 +189,7 @@ EOF
   rejected=0
   check good PASS 'halvo.exe 51200 KiB and of its 2 msedgewebview2.exe 204800 KiB, together 256000 KiB (250 MiB)'
   check none FAIL 'no halvo.exe of the scratch directory runs after 60 s'
+  check no-page FAIL 'no msedgewebview2.exe below the halvo.exe of the scratch directory after 60 s'
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
