@@ -3348,7 +3348,9 @@ impl EncryptedStore {
 
     /// The tail through the handle of the store directory, with the roots
     /// directory opened from the handle of `parent`, the directory that holds
-    /// it.
+    /// it. On Windows, where its removal left nothing else in the store
+    /// folder, the lock marked its own file; behind the close of the lock, a
+    /// name that still stands counts as a file left.
     fn delete_through(store: &Dir, parent: &Dir) -> StoreResult<DeleteReport> {
         let place = KeyFile::of_store(store)?;
         let writer_lock = match DirLock::take(store)
@@ -3373,8 +3375,6 @@ impl EncryptedStore {
             }
             None => not_opened(reading, roots),
         };
-        // Where nothing else of the store was left, the lock marked its own
-        // file; behind the close, a name that still stands is a file left.
         #[cfg(windows)]
         if report.key_file_gone
             && !report.database_left

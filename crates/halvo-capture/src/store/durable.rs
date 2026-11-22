@@ -1004,8 +1004,13 @@ mod windows_dir {
         /// shared for reading and writing and not for deletion. The handle
         /// also has the right to delete, so that the lock's own handle can
         /// mark its file for removal at the end of a delete
-        /// ([`remove_when_closed`]); while it is open, another open that
-        /// asks for that right as well is refused with a sharing violation.
+        /// ([`remove_when_closed`]). While it is open, Windows refuses with a
+        /// sharing violation every other open of the name that asks to read
+        /// or write the file and does not share deletion, another take of the
+        /// lock among them, and every open that asks for the right to delete;
+        /// an open that asks for the file's attributes alone is not refused.
+        /// An earlier open of the name that reads or writes the file and does
+        /// not share deletion refuses this one in the same way.
         pub(crate) fn open_lock_file(&self, name: &OsStr) -> io::Result<File> {
             let file = File::options()
                 .read(true)
