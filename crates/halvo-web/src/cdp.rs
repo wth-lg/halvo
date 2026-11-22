@@ -1715,6 +1715,255 @@ impl Executor {
     }
 }
 
+/// A control as `Executor::control` reads it (A4.3's fresh report of a target, U4.1w part 1):
+/// whether it is a credential field, whether it is enabled, and its text and its value with white
+/// space squeezed. Of a credential field the read holds the mark alone: it is not enabled and its
+/// text and value are empty, for none of them was read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Control {
+    pub credential: bool,
+    pub enabled: bool,
+    pub text: String,
+    pub value: String,
+}
+
+/// The one function of `Executor::control`, called on the node: it decides the mark by
+/// `CREDENTIAL_FN`, the rule of a snapshot line's mark, and returns `[true]` for a credential
+/// before it reads anything more; for every other control `[false, enabled, text, value]`.
+fn control_fn() -> String {
+    format!(
+        "function () {{
+  if (({CREDENTIAL_FN}).call(this)) return [true];
+  const enabled = typeof this.matches !== 'function' || (!this.matches(':disabled') && this.getAttribute('aria-disabled') !== 'true');
+  const value = typeof this.value === 'string' ? this.value : '';
+  return [false, enabled, String(this.innerText || this.textContent || ''), value];
+}}"
+    )
+}
+
+/// The control of `control_fn`'s reply: the mark alone for `[true]`; enabled, text and value for
+/// `[false, enabled, text, value]`. Every other reply is refused, a reply that marks a credential
+/// and carries more than its mark among them.
+fn control_of(reply: &serde_json::Value) -> Res<Control> {
+    use serde_json::Value as V;
+    match reply.as_array().map(Vec::as_slice) {
+        Some([V::Bool(true)]) => Ok(Control {
+            credential: true,
+            enabled: false,
+            text: String::new(),
+            value: String::new(),
+        }),
+        Some([V::Bool(false), V::Bool(enabled), V::String(text), V::String(value)]) => {
+            Ok(Control {
+                credential: false,
+                enabled: *enabled,
+                text: squeeze(text),
+                value: squeeze(value),
+            })
+        }
+        _ => Err(Fault::new("read", "not a control")),
+    }
+}
+
+/// The one function on the element that holds the focus: `[kind, credential]`, whether the
+/// element is of a kind that is typed into, known by the browser's own interface (an input, a
+/// textarea, a select, or an HTML element editable by its own `contenteditable` attribute, the
+/// empty word, `true` or `plaintext-only`; never the body or the root), and its credential mark by
+/// `CREDENTIAL_FN`. No tag name's text is read.
+fn typed_into_fn() -> String {
+    format!(
+        "function () {{
+  const own = this.getAttribute('contenteditable');
+  const editable = this instanceof HTMLElement && own !== null && ['', 'true', 'plaintext-only'].includes(own.toLowerCase());
+  const whole = this instanceof HTMLInputElement || this instanceof HTMLTextAreaElement || this instanceof HTMLSelectElement;
+  const none = this instanceof HTMLBodyElement || this instanceof HTMLHtmlElement;
+  return [(whole || editable) && !none, Boolean(({CREDENTIAL_FN}).call(this))];
+}}"
+    )
+}
+
+/// Whether a text or a key may reach the element whose `typed_into_fn` reply is `reply`: one of
+/// the kinds that are typed into whose mark reads no credential. None for a reply of another
+/// form, which the caller reads as credential.
+fn typed_into_of(reply: &serde_json::Value) -> Option<bool> {
+    use serde_json::Value as V;
+    let Some([V::Bool(kind), V::Bool(credential)]) = reply.as_array().map(Vec::as_slice) else {
+        return None;
+    };
+    Some(*kind && !credential)
+}
+
+impl Executor {
+    /// The control of the ref, read fresh in one call on its node (`control_fn`): a credential
+    /// field gives its mark alone, so that no text and no value of it reaches this process.
+    pub async fn control(&self, reference: &str) -> Res<Control> {
+        let t = self.target(reference)?;
+        let reply = self
+            .call_on(&t.place, &t.node, &control_fn(), Vec::new())
+            .await?;
+        control_of(&reply)
+    }
+
+    /// How many nodes the first of `locators` to find any finds in the frame of `frame_path`, as
+    /// `resolve` tries them; 0 where none finds one.
+    pub async fn count(&mut self, locators: &[Locator], frame_path: &[&str]) -> Res<usize> {
+        let frame = match self.frame_by_path(frame_path).await? {
+            Ok(frame) => frame,
+            Err(_) => return Err(Fault::new("resolve", "frame")),
+        };
+        for locator in locators {
+            let found = match locator {
+                Locator::TestId(id) => self.by_test_id(&frame, id).await?,
+                Locator::Role(role, name) => self.by_role(&frame, role, name).await?,
+            };
+            if !found.is_empty() {
+                return Ok(found.len());
+            }
+        }
+        Ok(0)
+    }
+
+    /// `fill` that sends no text to a credential field: it focuses the ref and selects its text as
+    /// `fill` does, then reads the mark of the element that holds the focus, the one that the text
+    /// will reach (`focus_is_credential`), and sends the text as one insert only where that
+    /// element reads no credential; refused with the cause `credential` otherwise.
+    pub async fn fill_unless_credential(&self, reference: &str, text: &str) -> Res<()> {
+        let t = self.target(reference)?;
+        self.focus(&t).await?;
+        self.call_on(
+            &t.place,
+            &t.node,
+            "function () { if (this.select) this.select(); }",
+            Vec::new(),
+        )
+        .await?;
+        if self.focus_is_credential(&t.place).await? {
+            return Err(Fault::new("credential", "the focus is a credential field"));
+        }
+        self.exec(&t.place, "fill", InsertTextParams::new(text))
+            .await?;
+        Ok(())
+    }
+
+    /// `press` that sends no key to a credential field: it focuses the ref, then reads the mark of
+    /// the element that holds the focus (`focus_is_credential`) and sends the key, down and up,
+    /// only where that element reads no credential; refused with the cause `credential` otherwise.
+    pub async fn press_unless_credential(&self, reference: &str, key: &str) -> Res<()> {
+        let t = self.target(reference)?;
+        self.focus(&t).await?;
+        let (code, text) = match key {
+            "Enter" => (13, "\r"),
+            "Tab" => (9, ""),
+            "Escape" => (27, ""),
+            _ => return Err(Fault::new("press", "key")),
+        };
+        if self.focus_is_credential(&t.place).await? {
+            return Err(Fault::new("credential", "the focus is a credential field"));
+        }
+        for kind in [DispatchKeyEventType::KeyDown, DispatchKeyEventType::KeyUp] {
+            let mut b = DispatchKeyEventParams::builder()
+                .r#type(kind.clone())
+                .key(key)
+                .code(key)
+                .windows_virtual_key_code(code);
+            if kind == DispatchKeyEventType::KeyDown && !text.is_empty() {
+                b = b.text(text);
+            }
+            let params = b.build().map_err(|e| Fault::new("press", e))?;
+            self.exec(&t.place, "press", params).await?;
+        }
+        Ok(())
+    }
+
+    /// Whether a text or a key must not reach the element that holds the focus in the document of
+    /// `place` (the ruling of the list of what is typed into): it may reach that element only where
+    /// it is one of four kinds that the top document's own read sees whole, known by the browser's
+    /// own interface and never by a tag name's text (`typed_into_fn`): an input, a textarea, a
+    /// select, or an element editable by its own `contenteditable` attribute, that carries no frame
+    /// id and no document of its own, has no shadow root other than the browser's own, and reads no
+    /// credential mark (`CREDENTIAL_FN`, the mark alone). Every other holder of the focus reads
+    /// credential: none, the body, a frame of any kind, a host of a shadow root, and any other
+    /// element.
+    async fn focus_is_credential(&self, place: &Place) -> Res<bool> {
+        let active = EvaluateParams::builder()
+            .expression("document.activeElement")
+            .return_by_value(false)
+            .build()
+            .map_err(|e| Fault::new("focus", e))?;
+        let r = self.exec(place, "focus", active).await?;
+        let Some(object) = r.result.object_id.filter(|_| r.exception_details.is_none()) else {
+            return Ok(true);
+        };
+        let node = self
+            .exec(
+                place,
+                "focus",
+                DescribeNodeParams::builder()
+                    .object_id(object)
+                    .depth(1)
+                    .pierce(true)
+                    .build(),
+            )
+            .await?
+            .node;
+        let framed = node.frame_id.is_some() || node.content_document.is_some();
+        let hosts = node.shadow_roots.iter().flatten().any(|root| {
+            root.shadow_root_type
+                != Some(chromiumoxide::cdp::browser_protocol::dom::ShadowRootType::UserAgent)
+        });
+        if framed || hosts {
+            return Ok(true);
+        }
+        let read = self
+            .call_on(place, &node.backend_node_id, &typed_into_fn(), Vec::new())
+            .await?;
+        Ok(typed_into_of(&read) != Some(true))
+    }
+}
+
+#[cfg(test)]
+mod control_tests {
+    use super::*;
+
+    /// U4.1w part 1, the condition on the read: a password field with a value is read as its mark
+    /// alone. The reply `[true]` gives a credential with no text and no value; a reply that marks a
+    /// credential and carries a text and a value is refused, not read; and the function returns
+    /// the mark before it touches the node's value or text. The function itself runs in a real
+    /// browser alone, which no test of this crate starts.
+    #[test]
+    fn a_credential_control_is_read_as_its_mark_alone() {
+        let credential = Control {
+            credential: true,
+            enabled: false,
+            text: String::new(),
+            value: String::new(),
+        };
+        assert_eq!(control_of(&serde_json::json!([true])), Ok(credential));
+        assert_eq!(
+            control_of(&serde_json::json!([true, true, "hunter2", "hunter2"])),
+            Err(Fault::new("read", "not a control"))
+        );
+        assert_eq!(
+            control_of(&serde_json::json!([false, true, " Your  name ", "Ada"])),
+            Ok(Control {
+                credential: false,
+                enabled: true,
+                text: "Your name".to_string(),
+                value: "Ada".to_string(),
+            })
+        );
+        let function = control_fn();
+        let mark = function.find("return [true];").expect("the mark's return");
+        for read in ["this.value", "innerText", "textContent"] {
+            assert!(
+                function.find(read).is_some_and(|at| at > mark),
+                "{read} is read after the mark's return"
+            );
+        }
+        assert!(!CREDENTIAL_FN.contains("this.value") && !CREDENTIAL_FN.contains("innerText"));
+    }
+}
+
 /// The origin and the path of `url`: the origin without a user and a password of its address,
 /// the path without its query and fragment (CP-176 A1 (e)).
 pub fn split_url(url: &str) -> (String, String) {
@@ -1792,10 +2041,11 @@ const CONTENT_CORNER_FN: &str = "function () {
 }";
 
 const CREDENTIAL_FN: &str = "function () {
-  const type = (this.getAttribute('type') || '').toLowerCase();
-  const auto = (this.getAttribute('autocomplete') || '').toLowerCase().split(/\\s+/);
+  const field = this instanceof HTMLInputElement;
+  const type = field ? [String(this.type), this.getAttribute('type') || ''].map((t) => t.toLowerCase()) : [];
+  const auto = field ? [String(this.autocomplete || ''), this.getAttribute('autocomplete') || ''].join(' ').toLowerCase().split(/\\s+/) : [];
   const secret = ['current-password', 'new-password', 'one-time-code'].some((t) => auto.includes(t));
-  const input = this.tagName === 'INPUT' && (type === 'password' || secret);
+  const input = field && (type.includes('password') || secret);
   const captcha = this.parentElement !== null && this.parentElement.closest('[data-halvo-captcha]') !== null;
   return input || captcha;
 }";
@@ -1810,7 +2060,7 @@ const SELECT_FN: &str = "function (label) {
 }";
 
 const READ_FN: &str = "function () {
-  if (this.tagName === 'INPUT' || this.tagName === 'SELECT' || this.tagName === 'TEXTAREA') return String(this.value);
+  if (this instanceof HTMLInputElement || this instanceof HTMLSelectElement || this instanceof HTMLTextAreaElement) return String(this.value);
   return String(this.innerText || this.textContent || '');
 }";
 
