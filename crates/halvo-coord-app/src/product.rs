@@ -1485,13 +1485,16 @@ impl Runs for Product {
 /// One request `defer` of the capture service at each call of the core (at a run's start and at each tick while a
 /// run is live), with the core's deadline as it is, turned from milliseconds into the nanoseconds of
 /// `Client::defer`; a deadline beyond an `i64` goes as the largest, which the service caps. The port keeps nothing
-/// between calls, so each tick renews the deadline.
+/// between calls, so each tick renews the deadline. It answers `Ok` where the service names a deadline in force, and
+/// `no_service` for every error of the call and where the service holds no deadline, as a failed relay call answers:
+/// the core then stops nothing and asks again at its next tick.
 impl Analysis for Product {
     fn defer(&self, until: u64) -> Result<(), PortError> {
         let nanos = i64::try_from(u128::from(until) * 1_000_000).unwrap_or(i64::MAX);
-        (self.defer)(nanos)
-            .map(|_| ())
-            .map_err(|_| PortError::NoService)
+        match (self.defer)(nanos) {
+            Ok(Some(_)) => Ok(()),
+            Ok(None) | Err(_) => Err(PortError::NoService),
+        }
     }
 }
 
@@ -1692,6 +1695,32 @@ mod tests {
             *lock(&sent),
             [1_800_000_000_000_000_000, 1_800_000_003_000_000_000]
         );
+    }
+
+    /// U5.4c, sentence 2: an error reply of v1, no answer in time and the answer that no deadline is in force are each
+    /// `no_service` to the core, one request a call.
+    #[test]
+    fn the_port_defer_answers_no_service_for_a_failed_request_and_for_no_deadline() {
+        let answers = Mutex::new(std::collections::VecDeque::from([
+            Err(ClientError::Daemon(halvo_control::proto::ErrorReply::new(
+                halvo_control::proto::ErrorCode::Busy,
+                "busy",
+            ))),
+            Err(ClientError::Deadline { seconds: 5 }),
+            Ok(None),
+        ]));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&calls);
+        let hub = deferring(Arc::new(move |_| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            lock(&answers).pop_front().unwrap_or(Ok(None))
+        }));
+        let ports = hub.coordinator().ports();
+
+        assert_eq!(ports.defer(1_800_000_000_000), Err(PortError::NoService));
+        assert_eq!(ports.defer(1_800_000_003_000), Err(PortError::NoService));
+        assert_eq!(ports.defer(1_800_000_006_000), Err(PortError::NoService));
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
     }
 
     /// A presenter that drops each dialog.
