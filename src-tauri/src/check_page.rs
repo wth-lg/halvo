@@ -141,6 +141,8 @@ fn watch<R: Runtime>(app: AppHandle<R>, started: Instant) {
         };
         let guard = app.try_state::<GuardInstalled>();
         if let Some(line) = line(&seen, &version, guard.as_deref()) {
+            #[cfg(windows)]
+            let line = format!("{line} display_affinity={}", display_affinity(&window));
             let mut out = std::io::stdout().lock();
             let _ = writeln!(out, "{line}");
             let _ = out.flush();
@@ -152,6 +154,28 @@ fn watch<R: Runtime>(app: AppHandle<R>, started: Instant) {
             return;
         }
     }
+}
+
+/// The display affinity of the window main as Windows reads it (GetWindowDisplayAffinity): 17,
+/// WDA_EXCLUDEFROMCAPTURE, where the system keeps the window out of every capture; `-` where
+/// it cannot be read.
+#[cfg(windows)]
+fn display_affinity<R: Runtime>(window: &tauri::WebviewWindow<R>) -> String {
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetWindowDisplayAffinity(window: *mut std::ffi::c_void, affinity: *mut u32) -> i32;
+    }
+    let Ok(handle) = window.hwnd() else {
+        return "-".to_owned();
+    };
+    let mut affinity = 0u32;
+    // SAFETY: the handle names the window main, which the app holds open while it runs, and
+    // `affinity` is a live local that the call writes.
+    let read = unsafe { GetWindowDisplayAffinity(handle.0, &mut affinity) };
+    if read == 0 {
+        return "-".to_owned();
+    }
+    affinity.to_string()
 }
 
 #[cfg(test)]

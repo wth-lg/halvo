@@ -312,7 +312,9 @@ pub fn is_origin(url: &Url, (scheme, host): (&str, &str)) -> bool {
 /// hook: one window builder, no web view builder, no child web view, and the
 /// one hook line. `each_arm_of_the_rule_refuses_the_near_misses_of_its_origin`
 /// calls the rule itself. Only the real window shows that the engine puts each
-/// navigation to the hook.
+/// navigation to the hook. On Windows the window is content protected: the
+/// system keeps it out of every capture, Halvo's own screen record among them
+/// (display affinity WDA_EXCLUDEFROMCAPTURE, which `--check-page` prints).
 pub(crate) fn main_window<R: Runtime>(
     app: &AppHandle<R>,
     #[cfg(windows)] data_dir: Option<PathBuf>,
@@ -341,6 +343,8 @@ pub(crate) fn main_window<R: Runtime>(
     };
     #[cfg(windows)]
     let builder = builder.additional_browser_args(ENGINE_ARGS);
+    #[cfg(windows)]
+    let builder = builder.content_protected(true);
     #[cfg(windows)]
     let builder = match data_dir {
         Some(dir) => builder.data_directory(dir),

@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: the built app loads its page and its read commands answer through the capability, and it prints when its event loop was ready
+# rule: the built app loads its page and its read commands answer through the capability, and it prints when its event loop was ready; on Windows its window's display affinity is 17, WDA_EXCLUDEFROMCAPTURE, so that the system keeps the window out of every capture
 # lane: alone
 set -u
 name=32-app-check-page
@@ -33,6 +33,21 @@ expected_service() {
       case $(uname -s) in
         MINGW* | MSYS* | CYGWIN*) printf 'not_running\n' ;;
         *) printf 'not_running\n' ;;
+      esac
+      ;;
+  esac
+}
+
+# What the line ends with in this job: on Windows the window's display affinity, 17, which keeps it out of
+# every capture.
+expected_tail() {
+  case ${CI_D_JOB:-} in
+    windows) printf ' display_affinity=17\n' ;;
+    macos) printf '\n' ;;
+    *)
+      case $(uname -s) in
+        MINGW* | MSYS* | CYGWIN*) printf ' display_affinity=17\n' ;;
+        *) printf '\n' ;;
       esac
       ;;
   esac
@@ -123,7 +138,8 @@ verdict() {
   service=$4
   lines=$(grep -c '' "$out")
   content=$(cat "$out") || fail "the output of halvo --check-page cannot be read"
-  expected="page=loaded commands_ok=$expected_commands_ok version=$version service=$service guard=installed"
+  tail=${6:-}
+  expected="page=loaded commands_ok=$expected_commands_ok version=$version service=$service guard=installed$tail"
   first=$(head -n 1 "$out" | cut -c1-120 | LC_ALL=C tr -c 'A-Za-z0-9=._ \n-' '?') || fail "the first line of halvo --check-page cannot be read"
   [ -n "$first" ] || first='(none)'
   matched=false
@@ -133,7 +149,7 @@ verdict() {
   printf 'check-page exit: %s, lines: %s, line matched: %s, first line: %s\n' "$code" "$lines" "$matched" "$first"
   [ "$code" -eq 0 ] || fail "halvo --check-page exited $code"
   [ "$lines" -eq 1 ] || fail "halvo --check-page printed $lines lines"
-  [ "$matched" = true ] || fail "halvo --check-page printed another line than page=loaded commands_ok=$expected_commands_ok version=<the version> service=$service guard=installed"
+  [ "$matched" = true ] || fail "halvo --check-page printed another line than page=loaded commands_ok=$expected_commands_ok version=<the version> service=$service guard=installed$tail"
   [ -n "$5" ] || fail "halvo --check-page printed no time of the Ready of its event loop"
 }
 
@@ -152,7 +168,8 @@ measure() {
   data_dir=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
   watch_app "$exe" "$data_dir" "$APP_CHECK_PAGE_MAX_S" "$artifacts/check-page.out" "$artifacts/check-page.err"
   service=$(expected_service) || fail "the expected service cannot be named"
-  verdict "$artifacts/check-page.out" "$check_code" "$version" "$service" "$ready_ms"
+  tail=$(expected_tail) || fail "the expected end of the line cannot be named"
+  verdict "$artifacts/check-page.out" "$check_code" "$version" "$service" "$ready_ms" "$tail"
   git diff --quiet HEAD -- || fail "a tracked file differs from HEAD after the build and the check"
   printf 'PASS %s\n' "$name"
 }
