@@ -41,7 +41,7 @@ targets halvo-cap D 4 test targets: 6 s macos, 6 s windows
 targets halvo-checkpoint D 10 test targets: 13 s macos, 3 s windows
 targets halvo-connect D 8 test targets: 24 s macos, 19 s windows
 targets halvo-coord B 40 test targets: 17 s macos, 11 s windows
-targets halvo-coord-app B 12 test targets: 21 s macos, 16 s windows
+targets halvo-coord-app B 13 test targets: 21 s macos, 16 s windows
 targets halvo-coord-store B 8 test targets: under 1 s in each job
 targets halvo-policy B 10 test targets: under 1 s in each job
 targets halvo-runner B 10 test targets: 9 s macos, 9 s windows

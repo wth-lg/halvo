@@ -13,6 +13,7 @@ mod bell;
 mod handler;
 mod hub;
 mod present;
+pub mod product;
 mod window;
 mod wired;
 

@@ -21,9 +21,27 @@ use serde_json::value::RawValue;
 /// The family of the kind `coord_event`, which the handler's commits, reads and fifth call keep to.
 pub const FAMILY: &str = "coord";
 
+/// The one kind of the family, which the guard asks the held-ahead call about.
+const KIND: &str = "coord_event";
+
+/// The delete guard of the family `coord` as a value of the derived store's seam (W-C25.7; ruling RD-64 1.6 (a)).
+/// At a delete it asks the held-ahead call for the one kind `coord_event` once, and hands `delete_guard` the
+/// workflow id, the seam's read and that answer unchanged, a refusal under the names of `HeldRefused`: a no with a
+/// live run of the workflow waits; a yes, a refusal and no live run go. A fault of the read or of the call is the
+/// store's, which answers the delete with it whatever the guard answered. The owner's step list holds it with
+/// `FAMILY`, behind `CoordHandler`.
+pub fn family_guard() -> halvo_derived::DeleteGuard {
+    Box::new(|workflow, rows, held_ahead| {
+        match delete_guard(workflow, rows, held_ahead(KIND).map_err(held)) {
+            DeleteGuard::Go => halvo_derived::GuardAnswer::Go,
+            DeleteGuard::Wait => halvo_derived::GuardAnswer::Wait,
+        }
+    })
+}
+
 /// The handler of the bodies `coord_log` and `coord_history` for the host of the derived store (W-C25.5; the
-/// review's F-2). U5.4's owner is to add it with `halvo_derived::Host::handler(FAMILY, Takes::Coordinator(&OPS),
-/// ..)`; nothing adds it to a host at this head. For each request it answers with `coordinator` over the calls of `HandlerCx`, and writes the reply's compact JSON, or
+/// review's F-2). The owner's step list adds it with `Takes::Coordinator(&OPS)` and the family `FAMILY`, on the
+/// host's clock. For each request it answers with `coordinator` over the calls of `HandlerCx`, and writes the reply's compact JSON, or
 /// `internal` where the reply cannot be written. A refusal of the typed commit answers by `CommitRefused`: an unknown
 /// kind, a kind of the family `workflow` and a kind of another family are `Kind`, and a fault of the store and a
 /// commit that stored fewer records than its list held are `Fault`, so each answers `store`; a fault of the read of a

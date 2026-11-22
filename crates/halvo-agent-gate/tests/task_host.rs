@@ -42,7 +42,10 @@ fn gate(args: &[&str], tmp: &Path) -> Output {
 
 /// Builds the runner's binary beside `agent-gate`, where the gate looks for it: a test binary of this package gets
 /// the gate's binary from cargo and no binary of another package, so the cargo that built this test builds the
-/// runner's in the same target directory and profile (the form of halvo-learn-gate's test of its product link).
+/// runner's in the same target directory and profile (the form of halvo-learn-gate's test of its product link). It
+/// builds it with the runner's test feature `loopback`: the binary that it leaves at that path is the one that the
+/// runner's own tests start in the same cargo call, and a runner without the feature refuses the `http` origin of
+/// their fixture server before any request.
 fn build_runner() {
     let gate = Path::new(env!("CARGO_BIN_EXE_agent-gate"));
     let profile_dir = gate.parent().expect("the gate's directory");
@@ -54,6 +57,8 @@ fn build_runner() {
         "halvo-runner",
         "--bin",
         "halvo-runner",
+        "--features",
+        "loopback",
     ])
     .arg("--target-dir")
     .arg(profile_dir.parent().expect("the target directory"))
