@@ -376,16 +376,17 @@ fn at_the_end<S: Read>(stream: &mut S) -> bool {
 }
 
 fn served_by_this_build(request: &Request) -> bool {
-    matches!(
-        request,
+    match request {
         Request::Status { .. }
-            | Request::Inventory
-            | Request::Pause
-            | Request::Resume
-            | Request::Stop
-            | Request::DeleteAll { .. }
-            | Request::SetStorageCap { .. }
-    )
+        | Request::Inventory
+        | Request::Pause
+        | Request::Resume
+        | Request::Stop
+        | Request::DeleteAll { .. }
+        | Request::SetStorageCap { .. } => true,
+        Request::AcknowledgeLostPermission { .. } => cfg!(target_os = "macos"),
+        Request::RequestPermission { .. } | Request::PermissionAsked { .. } => false,
+    }
 }
 
 fn refusal(request: &Request, admitting: &Admitting) -> Result<Admission, Box<Reply>> {

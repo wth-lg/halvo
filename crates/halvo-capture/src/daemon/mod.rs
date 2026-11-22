@@ -2660,6 +2660,9 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         ),
         Request::Inventory => inventory_reply(supervisor, store),
         Request::SetStorageCap { bytes } => cap_set_reply(bytes, supervisor, serving, store),
+        Request::AcknowledgeLostPermission { permission } => {
+            acknowledged_reply(permission, supervisor, serving)
+        }
         Request::Pause | Request::Resume => {
             capture_change(asked, supervisor, serving, store);
             return;
@@ -3012,6 +3015,29 @@ fn cap_set_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         Ok(evicting) => status_reply(supervisor, serving).map_or_else(
             |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
             |status| Reply::CapSet(CapSet { status, evicting }),
+        ),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn acknowledged_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    permission: Permission,
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+) -> halvo_control::proto::Reply {
+    use halvo_control::proto::{ErrorCode, ErrorReply, Reply};
+    match supervisor.with_state_file(|state| state.forget_granted(permission)) {
+        None => Reply::Error(ErrorReply::new(
+            ErrorCode::Internal,
+            "the capture service holds no state file",
+        )),
+        Some(Err(error)) => Reply::Error(ErrorReply::new(
+            ErrorCode::StateFile,
+            format!("the lost permission was not put away: {error}"),
+        )),
+        Some(Ok(())) => status_reply(supervisor, serving).map_or_else(
+            |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+            Reply::Status,
         ),
     }
 }

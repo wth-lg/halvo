@@ -2127,3 +2127,118 @@ fn a_service_run_reads_the_grants_from_its_probe_and_ends_with_4_at_a_new_grant(
         "the probe of the service's own parts, and none in the seam's"
     );
 }
+
+fn lost_row(status: &halvo_control::proto::DaemonStatus, permission: Permission) -> bool {
+    status
+        .fields()
+        .onboarding
+        .permissions
+        .iter()
+        .find(|row| row.permission == permission)
+        .unwrap()
+        .lost
+}
+
+fn state_bytes(dir: &Path) -> Vec<u8> {
+    std::fs::read(dir.join(halvo_control::paths::STATE_FILE)).unwrap()
+}
+
+fn corrupt_dir() -> PathBuf {
+    let dir = kept_dir("permission-tests-").join("data");
+    std::fs::create_dir(&dir).unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    std::fs::write(dir.join(halvo_control::paths::STATE_FILE), b"{\"v\":").unwrap();
+    dir
+}
+
+#[test]
+fn an_acknowledged_lost_grant_leaves_the_record_and_its_row_reads_lost_no_more() {
+    use halvo_control::proto::{ErrorCode, Reply, Request};
+    let (dir, _) = running_dir(false);
+    StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    )
+    .update(|state| state.permissions_once_granted = vec![Permission::InputMonitoring])
+    .unwrap();
+    let life = Probing::new();
+    life.probe
+        .answer(Permission::InputMonitoring, GrantState::NotGranted);
+    let asking = {
+        let (dir, stop) = (dir.clone(), life.stop.clone());
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            let lost = status_until(&dir, "the row reads lost", |status| {
+                grant_row(status, Permission::InputMonitoring).grant == GrantState::NotGranted
+            });
+            let acknowledged = ask(
+                &dir,
+                &Request::AcknowledgeLostPermission {
+                    permission: Permission::InputMonitoring,
+                },
+            );
+            let record = once_granted_in(&dir);
+            let before = state_bytes(&dir);
+            let not_held = ask(
+                &dir,
+                &Request::AcknowledgeLostPermission {
+                    permission: Permission::ScreenAndSystemAudioRecording,
+                },
+            );
+            let after = state_bytes(&dir);
+            stop.store(true, Ordering::SeqCst);
+            (lost, acknowledged, record, not_held, before == after)
+        })
+    };
+    let (status, err) = life.serve(&dir, super::sources::tests::Factory::new());
+    let (lost, acknowledged, record, not_held, unchanged) = asking.join().unwrap();
+    assert!(lost_row(&lost, Permission::InputMonitoring), "{lost:?}");
+    match &acknowledged {
+        Ok(Reply::Status(status)) => assert!(
+            !lost_row(status, Permission::InputMonitoring),
+            "the reply's row: {status:?}"
+        ),
+        other => panic!("the acknowledge: {other:?}"),
+    }
+    assert!(record.is_empty(), "the record after it: {record:?}");
+    assert!(matches!(not_held, Ok(Reply::Status(_))), "{not_held:?}");
+    assert!(
+        unchanged,
+        "an acknowledge of a permission that the record does not hold wrote the file"
+    );
+    assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+
+    let corrupt = corrupt_dir();
+    let life = Probing::new();
+    let asking = {
+        let (dir, stop) = (corrupt.clone(), life.stop.clone());
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            status_until(&dir, "the status of a life on a corrupt file", |_| true);
+            let acknowledged = ask(
+                &dir,
+                &Request::AcknowledgeLostPermission {
+                    permission: Permission::InputMonitoring,
+                },
+            );
+            stop.store(true, Ordering::SeqCst);
+            acknowledged
+        })
+    };
+    let (status, err) = life.serve(&corrupt, super::sources::tests::Factory::new());
+    let acknowledged = asking.join().unwrap();
+    assert_eq!(
+        acknowledged.as_ref().ok().and_then(Reply::code),
+        Some(ErrorCode::StateFile),
+        "{acknowledged:?}"
+    );
+    assert_eq!(
+        state_bytes(&corrupt),
+        b"{\"v\":",
+        "the file that does not load"
+    );
+    assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+}

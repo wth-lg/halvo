@@ -404,6 +404,23 @@ impl StateFile {
         })
     }
 
+    /// Takes `permission` out of `permissions_once_granted` through
+    /// [`StateFile::update`]; when a file that loaded does not hold it, nothing
+    /// is written, and a file that did not load answers
+    /// [`StateError::LeftAsItIs`].
+    pub fn forget_granted(&mut self, permission: Permission) -> Result<(), StateError> {
+        if self.loaded == Loaded::Readable
+            && !self.state.permissions_once_granted.contains(&permission)
+        {
+            return Ok(());
+        }
+        self.update(|state| {
+            state
+                .permissions_once_granted
+                .retain(|held| *held != permission);
+        })
+    }
+
     fn save(&self, state: &DaemonState) -> io::Result<()> {
         let bytes = encode(state)?;
         self.writer
