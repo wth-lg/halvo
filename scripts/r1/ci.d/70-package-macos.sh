@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin or signingIdentity, makes Halvo.app under release/bundle/macos of the target directory with Contents/Info.plist, whose CFBundleIdentifier is the identifier of src-tauri/tauri.conf.json and whose CFBundleShortVersionString and CFBundleVersion are what 61-version.sh --print prints, with halvo and each helper that packaging/helpers.d names as an executable file in Contents/MacOS and no other entry there, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, no import of the call that holds secure input, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started); the same build leaves exactly one disk image in release/bundle/dmg, newer than the start of the build, which the check attaches read-only and unbrowsed under its scratch directory, copies Halvo.app out of with ditto and detaches, also when it fails; the copy's Info.plist names as LSMinimumSystemVersion the bundle.macOS.minimumSystemVersion of src-tauri/tauri.macos.conf.json, whose major is the MACOS_FLOOR_MAJOR of crates/halvo-control/src/onboarding.rs; codesign --verify --deep --strict passes on the copy and codesign -dv names Signature=adhoc and a bound Info.plist; the copy's halvo, started with --background on a scratch data directory that holds a state file, has within 60 s exactly one process whose path, as ps names it, is the copy's halvo-capture, with that app as its parent, whose status by the copy's ctl reads its pid and store=open, which ctl stop, sent two of the app's poll periods (POLL_MS of crates/halvo-control/src/lib.rs) and one second after that status, ends with exit 0, after which no halvo-capture of the copy runs for 5 s, and within 60 s of the app's end, by TERM from the check, which ends nothing else, no process whose path lies in the copy runs.
+# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin or signingIdentity, makes Halvo.app under release/bundle/macos of the target directory with Contents/Info.plist, whose CFBundleIdentifier is the identifier of src-tauri/tauri.conf.json and whose CFBundleShortVersionString and CFBundleVersion are what 61-version.sh --print prints, with halvo and each helper that packaging/helpers.d names as an executable file in Contents/MacOS and no other entry there, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, no import of the call that holds secure input, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started); the same build leaves exactly one disk image in release/bundle/dmg, newer than the start of the build, which the check attaches read-only and unbrowsed under its scratch directory, copies Halvo.app out of with ditto and detaches, also when it fails; the copy's Info.plist names as LSMinimumSystemVersion the bundle.macOS.minimumSystemVersion of src-tauri/tauri.macos.conf.json, whose major is the MACOS_FLOOR_MAJOR of crates/halvo-control/src/onboarding.rs; codesign --verify --deep --strict passes on the copy and codesign -dv names Signature=adhoc and a bound Info.plist; the copy holds Contents/Resources/THIRD-PARTY-NOTICES.txt as a file with the bytes that scripts/notices/generate.js writes for the host triple in the same run, in which grep -i -c zetetic counts at least 1; the copy's halvo, started with --background on a scratch data directory that holds a state file, has within 60 s exactly one process whose path, as ps names it, is the copy's halvo-capture, with that app as its parent, whose status by the copy's ctl reads its pid and store=open, which ctl stop, sent two of the app's poll periods (POLL_MS of crates/halvo-control/src/lib.rs) and one second after that status, ends with exit 0, after which no halvo-capture of the copy runs for 5 s, and within 60 s of the app's end, by TERM from the check, which ends nothing else, no process whose path lies in the copy runs; a line of the wrapper that says it ran the CLI once more stands in the check's output.
 set -u
 name=70-package-macos
 config_keys='externalBin signingIdentity'
@@ -111,6 +111,32 @@ floor_defect() {
   value=$(plutil -extract LSMinimumSystemVersion raw -o - "$1") || { printf 'plutil could not read the LSMinimumSystemVersion of Info.plist\n'; return 1; }
   [ "$value" = "$2" ] || { printf 'the LSMinimumSystemVersion of Info.plist is %s, not the minimumSystemVersion %s of %s\n' "$value" "$2" "$macos_config"; return 1; }
   [ "${value%%.*}" = "$3" ] || { printf 'the major of the LSMinimumSystemVersion %s of Info.plist is not the MACOS_FLOOR_MAJOR %s of %s\n' "$value" "$3" "$floor_source"; return 1; }
+}
+
+# The notices: the bundle $1 holds Contents/Resources/THIRD-PARTY-NOTICES.txt as a file with the
+# bytes that scripts/notices/generate.js writes for the host triple now, into the file $2, and the
+# file names Zetetic, the holder of SQLCipher, on at least one line.
+notices_defect() {
+  notices=$1/Contents/Resources/THIRD-PARTY-NOTICES.txt
+  if [ -L "$notices" ] || [ ! -f "$notices" ]; then
+    printf 'Halvo.app holds no file Contents/Resources/THIRD-PARTY-NOTICES.txt\n'
+    return 1
+  fi
+  host=$(rustc -vV | sed -n 's/^host: //p')
+  [ -n "$host" ] || { printf 'rustc -vV names no host triple\n'; return 1; }
+  node scripts/notices/generate.js --triple "$host" >"$2" 2>"$CI_D_ARTIFACTS/notices.err" || { printf 'scripts/notices/generate.js exited %s; see notices.err\n' "$?"; return 1; }
+  cmp -s "$notices" "$2" || { printf 'Contents/Resources/THIRD-PARTY-NOTICES.txt is not the file that scripts/notices/generate.js writes for %s\n' "$host"; return 1; }
+  zetetic=$(grep -i -c zetetic "$notices")
+  [ "$zetetic" -ge 1 ] || { printf 'Contents/Resources/THIRD-PARTY-NOTICES.txt names no Zetetic, the holder of SQLCipher\n'; return 1; }
+  bytes=$(wc -c <"$notices" | tr -d ' ')
+  printf 'notices: Contents/Resources/THIRD-PARTY-NOTICES.txt bytes=%s, zetetic lines: %s\n' "$bytes" "$zetetic"
+}
+
+# The wrapper's line of a second call of the Tauri CLI after hdiutil's busy answer stands in the
+# build's output, which goes to the artifacts alone; this prints it into the job's log.
+second_calls() {
+  grep -E '^scripts/tauri\.js: the Tauri CLI exited [0-9]+ after ' "$1"
+  return 0
 }
 
 # The one disk image of the build: exactly one *.dmg in the directory $1, a file newer than the
@@ -298,7 +324,10 @@ measure() {
   work=$(cd "$work" && pwd -P) || fail "the scratch directory has no physical path"
   : >"$work/build-started" || fail "the mark of the build's start could not be written"
   : >"$CI_D_ARTIFACTS/build.txt"
-  if ! npm run tauri build -- -- --locked >>"$CI_D_ARTIFACTS/build.txt" 2>&1; then
+  npm run tauri build -- -- --locked >>"$CI_D_ARTIFACTS/build.txt" 2>&1
+  built=$?
+  second_calls "$CI_D_ARTIFACTS/build.txt"
+  if [ "$built" -ne 0 ]; then
     # The wrapper's progress lines (a helper staged, the CLI run once more) name no cause.
     cause=$(grep -v -E '^scripts/tauri\.js: (staged |the Tauri CLI exited [0-9]+ after )' "$CI_D_ARTIFACTS/build.txt" | grep -m 1 -E '^ *(error|Error)|^failed to |^scripts/tauri\.js:')
     fail "the build call failed: ${cause:-see build.txt in the artifacts}"
@@ -336,6 +365,8 @@ measure() {
   printf 'floor: LSMinimumSystemVersion %s, MACOS_FLOOR_MAJOR %s\n' "$floor" "$floor_major"
   found=$(seal_defect "$copy") || fail "$found"
   codesign -dv "$copy" 2>&1 | grep -E '^(Format|CodeDirectory|Signature|Info\.plist|TeamIdentifier|Sealed Resources)' | sed 's/^/codesign: /'
+  found=$(notices_defect "$copy" "$work/notices.txt") || fail "$found"
+  printf '%s\n' "$found"
   run_copy "$copy" "$work/data"
   printf 'PASS %s\n' "$name"
 }
@@ -452,6 +483,25 @@ SH
   [ "$code:$output" = "1:FAIL $name (the build call failed: failed to bundle project: hdiutil: create failed - Resource busy)" ] && got=FAIL
   verdict failed-build-names-its-cause-and-no-progress-line FAIL "$got"
 
+  # Fixture 6: the build's output holds the wrapper's line of a second call of the CLI, and the
+  # check prints that line into the job's log before its FAIL line.
+  second_line='scripts/tauri.js: the Tauri CLI exited 1 after "hdiutil: create failed - Resource busy" while it made the disk image, so it runs once more'
+  mkdir -p "$work/second-call-tools" || exit 2
+  cat >"$work/second-call-tools/npm" <<SH || exit 2
+#!/bin/sh
+echo 'failed to bundle project: hdiutil: create failed - Resource busy'
+echo '$second_line' >&2
+echo 'failed to bundle project: hdiutil: create failed - Resource busy'
+exit 1
+SH
+  chmod +x "$work/second-call-tools/npm" || exit 2
+  output=$(CI_D_REPO="$measure_repo" CI_D_ARTIFACTS="$work/artifacts" CI_D_JOB=macos PATH="$work/second-call-tools:$PATH" sh "$check_script" 2>"$work/second-call.err")
+  code=$?
+  got=unexpected-exit-$code
+  [ "$code:$output" = "1:$second_line
+FAIL $name (the build call failed: failed to bundle project: hdiutil: create failed - Resource busy)" ] && got=FAIL
+  verdict second-call-line-in-the-log FAIL "$got"
+
   # A case of a rule below is rejected when its function exits 1 and prints the wanted line.
   rule_case() {
     case_name=$1 want=$2
@@ -486,6 +536,10 @@ SH
   stand_in_bundle with-another-floor halvo halvo-capture
   floor=14.0
   rule_case bundle-with-another-floor "the LSMinimumSystemVersion of Info.plist is 10.13, not the minimumSystemVersion 14.0 of $macos_config" floor_defect "$app/Contents/Info.plist" 14.0 14
+
+  # Fixture 3: a bundle without the notices file.
+  stand_in_bundle without-the-notices halvo halvo-capture
+  rule_case bundle-without-the-notices 'Halvo.app holds no file Contents/Resources/THIRD-PARTY-NOTICES.txt' notices_defect "$app" "$work/notices.txt"
 
   image_tree=$work/build-without-a-disk-image
   mkdir -p "$image_tree/release/bundle/dmg" || exit 2
