@@ -33,6 +33,9 @@ pub struct StoreView {
     pub id: Option<StoreId>,
     pub error: Option<StoreErrorKind>,
     pub retry_in_s: Option<u64>,
+    /// The status's `store_delete_unfinished`, written for the page only while it stands.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub delete_unfinished: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -719,6 +722,7 @@ impl StatusView {
                 id: f.store_id,
                 error: f.store_error,
                 retry_in_s: f.store_retry_in_s,
+                delete_unfinished: f.store_delete_unfinished,
             },
             store_bytes: f.store_bytes,
             store_logical_bytes: f.store_logical_bytes,
