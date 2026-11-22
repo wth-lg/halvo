@@ -214,4 +214,8 @@ test("control-2b: the sentence typed_ahead stands under the password sentence wh
   assert.equal(limits.indexOf(typed), limits.indexOf(passwords) + 1);
   const win = await page(fixture("capture_status-running-windows"));
   assert.equal(win.byId("keeps-limits").children.some((el) => el.textContent === typed), false);
+  const off = await page(fixture("held-child"));
+  const offLimits = off.byId("keeps-limits").children.map((el) => el.textContent);
+  assert.deepEqual([passwords, typed].filter((line) => offLimits.includes(line)), [], "a Mac view with typing off");
+  assert.equal(off.byId("recorded").children.some((li) => /each key/.test(li.textContent)), false);
 });

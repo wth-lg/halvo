@@ -20,6 +20,7 @@ pub const CAPTURE: Names = Names {
         "request_permission",
         "open_permission_pane",
         "last_delete",
+        "acknowledge_lost_permission",
     ],
     reads: &[
         "capture_status",

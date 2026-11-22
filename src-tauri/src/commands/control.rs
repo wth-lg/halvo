@@ -179,6 +179,16 @@ pub trait Control: Send + Sync {
         Err(ClientError::Unsupported)
     }
 
+    /// Sends one acknowledge_lost_permission for `permission` and answers the status that comes
+    /// back. A control with no such call answers `ClientError::Unsupported`.
+    fn acknowledge_lost_permission(
+        &self,
+        _made: Made,
+        _permission: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
     /// Asks the daemon for one end of a new owner stream (the workflows run's W-C24.13), on which the coordinator's
     /// requests reach the owner of the derived store. A control with no stream call answers
     /// `ClientError::Unsupported`.
@@ -369,6 +379,18 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
         self.run(made, &Request::RequestPermission { permission }, |client| {
             client.request_permission(permission)
         })
+    }
+
+    fn acknowledge_lost_permission(
+        &self,
+        made: Made,
+        permission: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        self.run(
+            made,
+            &Request::AcknowledgeLostPermission { permission },
+            |client| client.acknowledge_lost_permission(permission),
+        )
     }
 
     /// The stream call of `streaming`, in its place in the line; a control made by `new` answers
@@ -741,6 +763,18 @@ impl<C: Control> Control for Watching<C> {
 
     fn relay(&self, made: Made, request: &[u8]) -> Result<Vec<u8>, ClientError> {
         self.inner.relay(made, request)
+    }
+
+    fn acknowledge_lost_permission(
+        &self,
+        made: Made,
+        permission: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        let before = self.pid.get();
+        self.took_status(
+            before,
+            self.inner.acknowledge_lost_permission(made, permission),
+        )
     }
 
     #[cfg(target_os = "macos")]

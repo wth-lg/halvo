@@ -836,6 +836,15 @@ impl Control for RecordingControl {
         self.record("request_permission");
         Err(ClientError::Unsupported)
     }
+
+    fn acknowledge_lost_permission(
+        &self,
+        _: Made,
+        _: Permission,
+    ) -> Result<DaemonStatus, ClientError> {
+        self.record("acknowledge_lost_permission");
+        Err(ClientError::Unsupported)
+    }
 }
 
 #[test]
@@ -869,6 +878,7 @@ fn every_read_command_of_every_module_makes_no_writing_call() {
         "delete_all",
         "set_storage_cap",
         "request_permission",
+        "acknowledge_lost_permission",
     ] {
         assert!(
             !calls.contains(&write),

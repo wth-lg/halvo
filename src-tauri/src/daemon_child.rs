@@ -1813,6 +1813,14 @@ mod tests {
             own("relay")
         }
 
+        fn acknowledge_lost_permission(
+            &self,
+            _: Made,
+            _: Permission,
+        ) -> Result<DaemonStatus, ClientError> {
+            own("acknowledge_lost_permission")
+        }
+
         #[cfg(target_os = "macos")]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             own("owner_stream")
@@ -2059,6 +2067,7 @@ mod tests {
             kind_of(control.set_storage_cap(made(), StorageCap::DEFAULT)),
             kind_of(control.request_permission(made(), Permission::Accessibility)),
             kind_of(control.relay(made(), b"{}")),
+            kind_of(control.acknowledge_lost_permission(made(), Permission::Accessibility)),
         ]
         .into_iter()
         .chain(of_the_system)
@@ -2073,6 +2082,7 @@ mod tests {
             "set_storage_cap",
             "request_permission",
             "relay",
+            "acknowledge_lost_permission",
         ]
         .into_iter()
         .chain(if cfg!(target_os = "macos") {
