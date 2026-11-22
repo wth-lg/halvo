@@ -168,6 +168,8 @@ fn run(background: bool, given: Option<PathBuf>) {
     let views = Arc::clone(&state.views);
     #[cfg(target_os = "macos")]
     let login_views = Arc::clone(&state.views);
+    #[cfg(target_os = "macos")]
+    let (offline, offline_views) = (Arc::clone(&state.offline), Arc::clone(&state.views));
     let parts = app::Parts {
         state,
         tray: Some(tray::install),
@@ -195,11 +197,7 @@ fn run(background: bool, given: Option<PathBuf>) {
     #[cfg(any(target_os = "macos", test))]
     let supervisor = start_the_daemon(child_dir, given.is_some(), pid, views);
     #[cfg(target_os = "macos")]
-    set_the_offline_delete(
-        &tauri::Manager::state::<commands::capture::AppState>(&app),
-        supervisor.clone(),
-        offline_dir,
-    );
+    set_the_offline_delete(&offline, &offline_views, supervisor.clone(), offline_dir);
     #[cfg(any(target_os = "macos", test))]
     tauri::Manager::manage(
         &app,
@@ -342,10 +340,12 @@ type AppSupervisor = daemon_child::Supervisor<daemon_child::Running, daemon_chil
 
 /// The offline delete of the app (contracts.md C10.5): halvo-capture beside the app's own
 /// executable on the app's data directory, held by the app's supervisor; every view names that
-/// folder as resolved.
+/// folder as resolved. It takes the state's cell and views from before the state moves into the
+/// app, and reads no managed state, which the setup hook manages only inside `run`.
 #[cfg(target_os = "macos")]
 fn set_the_offline_delete(
-    state: &commands::capture::AppState,
+    offline: &std::sync::OnceLock<commands::capture::Offline>,
+    views: &poller::Views,
     supervisor: Option<Arc<AppSupervisor>>,
     data_dir: Option<DataDir>,
 ) {
@@ -354,14 +354,13 @@ fn set_the_offline_delete(
     };
     let resolved =
         std::fs::canonicalize(data_dir.path()).unwrap_or_else(|_| data_dir.path().to_path_buf());
-    state
-        .views
+    views
         .hold()
         .set_folder(halvo_control::paths::one_line(&resolved.to_string_lossy()));
     let Some(program) = daemon_program() else {
         return;
     };
-    let _ = state.offline.set(commands::capture::Offline {
+    let _ = offline.set(commands::capture::Offline {
         program,
         data_dir,
         children: supervisor

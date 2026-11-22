@@ -38,8 +38,10 @@ pub struct AppState {
     pub last_delete: Mutex<LastDelete>,
     /// The login item that the consent click writes: none with --data-dir and off macOS.
     pub login_item: Option<LoginItemWriter>,
-    /// What the offline delete runs, set once the app has started the supervisor of its child.
-    pub offline: OnceLock<Offline>,
+    /// What the offline delete runs, set once the app has started the supervisor of its child;
+    /// main holds the same cell from before the state moves into the app, so that it sets it
+    /// with no read of the app's managed state.
+    pub offline: Arc<OnceLock<Offline>>,
     /// The answers delete_refused of the service in a row, which open the offline delete's
     /// second door at two (contracts.md C10.5).
     pub refused_in_a_row: AtomicU32,
@@ -83,7 +85,7 @@ impl AppState {
             tray_installed: AtomicBool::new(false),
             last_delete: Mutex::new(LastDelete::None),
             login_item: None,
-            offline: OnceLock::new(),
+            offline: Arc::default(),
             refused_in_a_row: AtomicU32::new(0),
             unfinished_in_a_row: AtomicU32::new(0),
             runs: Arc::default(),
