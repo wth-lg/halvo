@@ -1,0 +1,2 @@
+- Added: An agent's run acts on a web page with click, fill, select, press, upload and wait, each step's conditions read before and after its act, while the request rule fails every state-changing request.
+- Security: A web step refuses a password or a like secret field, by the step's own mark or by the browser's fresh read before the act and after the act's own focus, before it types into it or reads it.

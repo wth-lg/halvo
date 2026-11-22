@@ -13,10 +13,10 @@ use halvo_schema::executable::names::LogEvent;
 use halvo_schema::executable::{Cause, FromRunner, Outcome, RunnerCall, ToRunner};
 use halvo_schema::Category;
 use support::browser::{
-    bearing, extract_amount, hosted, hosted_mac, navigate, own_start_us, profile_of, say,
-    serve_finding, serve_with, Fixture,
+    bearing, cond, extract_amount, from_slot, hosted, hosted_mac, konst, navigate, own_start_us,
+    profile_of, say, serve_finding, serve_with, step, Fixture,
 };
-use support::{tag, Act, Seen, Supervisor, FINDS_ITS_BROWSER, LONG};
+use support::{slot, tag, Act, Seen, Supervisor, FINDS_ITS_BROWSER, LONG};
 
 /// A page whose one control with the test id `amount` reads `12.34`.
 const READ: &str = r#"<!doctype html><title>read</title><p data-testid="amount">12.34</p>"#;
@@ -274,6 +274,304 @@ fn the_browser_is_gone_within_link_end_of_the_close() {
         "processes that bear the run's profile at LINK_END: {pids:?}"
     );
     assert!(!run_dir.exists(), "{} is left", run_dir.display());
+}
+
+/// A form that sends nothing: a name field, which writes the key that is pressed in it under `key`; a plan; a file
+/// field, which writes the name of the chosen file under `chosen`; a button `agree`, which writes `yes` under
+/// `agreed`; a button `send` that is disabled; and three rows.
+const FORM: &str = r#"<!doctype html><title>form</title><form onsubmit="return false"><input data-testid="name" aria-label="Name" onkeydown="document.querySelector('[data-testid=key]').textContent = event.key"><select data-testid="plan"><option value="">-</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select><input type="file" data-testid="file" onchange="document.querySelector('[data-testid=chosen]').textContent = this.files[0].name"><button type="button" data-testid="agree" onclick="document.querySelector('[data-testid=agreed]').textContent = 'yes'">Agree</button><button type="button" data-testid="send" disabled>Send</button></form><p data-testid="key">-</p><p data-testid="agreed">no</p><p data-testid="chosen">-</p><ul><li data-testid="row">a</li><li data-testid="row">b</li><li data-testid="row">c</li></ul>"#;
+
+/// U4.1w part 1 (1): a run fills in a form with `fill`, `press`, `select`, `click` and `upload`, waits, and reads
+/// the name back with `extract`, each step's conditions holding before and after its act; the run completes, the
+/// fixture got no request but GET, and the profile is gone.
+#[test]
+fn a_run_fills_a_form_and_reads_it_back() {
+    let Some(browser) = hosted("a_run_fills_a_form_and_reads_it_back") else {
+        return;
+    };
+    let fixture = Fixture::start(&[("/form", FORM)]);
+    let file = support::scratch("upload").join("upload.txt");
+    std::fs::write(&file, "a file of the test").expect("write the file");
+    let mut sup = web_agent(241, &fixture);
+    sup.slots = vec![slot("file", &file.to_string_lossy())];
+    let form = fixture.url("/form");
+    sup.steps = vec![
+        step(
+            1,
+            "navigate",
+            None,
+            &[konst("url", &form)],
+            &[],
+            &[cond("url_is", None, Some(&form))],
+        ),
+        step(
+            2,
+            "fill",
+            Some("name"),
+            &[konst("text", "Ada")],
+            &[
+                cond("present", Some("name"), None),
+                cond("count_is", Some("row"), Some("3")),
+            ],
+            &[cond("value_is", Some("name"), Some("Ada"))],
+        ),
+        step(
+            3,
+            "press",
+            Some("name"),
+            &[konst("key", "Tab")],
+            &[],
+            &[cond("text_is", Some("key"), Some("Tab"))],
+        ),
+        step(
+            4,
+            "select",
+            Some("plan"),
+            &[konst("option", "Monthly")],
+            &[],
+            &[cond("value_is", Some("plan"), Some("monthly"))],
+        ),
+        step(
+            5,
+            "click",
+            Some("agree"),
+            &[],
+            &[cond("enabled", Some("agree"), None)],
+            &[cond("text_is", Some("agreed"), Some("yes"))],
+        ),
+        step(
+            6,
+            "upload",
+            Some("file"),
+            &[from_slot("file", "file")],
+            &[],
+            &[cond("text_is", Some("chosen"), Some("upload.txt"))],
+        ),
+        step(7, "wait", None, &[konst("ms", "100")], &[], &[]),
+        step(
+            8,
+            "extract",
+            Some("name"),
+            &[konst("as", "name"), konst("parse", "text")],
+            &[cond("value_is", Some("name"), Some("Ada"))],
+            &[],
+        ),
+    ];
+    let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    let ok: Vec<_> = (1..=8).map(|n| (LogEvent::StepOk, Some(n), None)).collect();
+    assert_eq!(rows(&seen), ok);
+    let named: Vec<(String, String)> = fixture
+        .requests()
+        .into_iter()
+        .map(|r| (r.method, r.path))
+        .collect();
+    assert!(
+        named.contains(&("GET".to_string(), "/form".to_string())),
+        "{named:?}"
+    );
+    assert!(
+        named.iter().all(|(method, _)| method == "GET"),
+        "a request other than GET reached the fixture: {named:?}"
+    );
+    assert!(!profile_of(&seen, &sup.run).0.exists());
+}
+
+/// A name field, a password field that holds `SECRET`, a field that becomes a password field when it is focused,
+/// and a field whose focus hands the focus on to the password field, each of which, at each input, asks its own
+/// origin for `/typed` by a synchronous GET, a request that changes no state and that the rule lets through to a
+/// bound origin, so that the fixture sees each act on a field; and a field with no input of its own whose focus
+/// hands the focus on into the password field of `INNER`, which an object element shows.
+const TYPED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" value="halvo-runner-secret-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="turns" aria-label="Code" onfocus="this.type = 'password'" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="hands" aria-label="Pin" onfocus="document.querySelector('[data-testid=secret]').focus()" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="into" aria-label="Note" onfocus="document.querySelector('object').contentDocument.querySelector('input').focus()"><object data="/inner" type="text/html"></object>"#;
+
+/// A page served as XHTML, whose browser names its elements in lower case, with one password field that holds
+/// `XHTML_SECRET` and asks `/typed` at each input.
+const XHTML: &str = r#"<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>xhtml</title></head><body><input type="password" data-testid="pw" aria-label="Password" value="halvo-runner-xhtml-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"/></body></html>"#;
+
+/// The value of the password field of `XHTML`.
+const XHTML_SECRET: &str = "halvo-runner-xhtml-marker";
+
+/// The document of the object element of `TYPED`: a password field that asks `/typed` at each input.
+const INNER: &str = r#"<!doctype html><title>inner</title><input type="password" aria-label="Password" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+
+/// The value of the password field of `TYPED`.
+const SECRET: &str = "halvo-runner-secret-marker";
+
+/// U4.1w part 1 (3): a step whose `post` fails after it acted, a step whose locator finds no control, a step whose
+/// `pre` fails, a step stored with `credential` `no` whose locator finds a password field, one whose field becomes a
+/// password field at the focus that the fill makes, one whose field hands the focus on to the password field, one
+/// whose field hands it on into an object's document, and one on the password field of a page served as XHTML each
+/// log one `step_failed` row with the cause `step_failed`, never `timeout`, and the run is handed back; the step
+/// with the failing `pre` and the five that would reach a password field act on nothing, the one with the failing
+/// `post` acted, and no frame and no line of the runner holds a password field's value (A4.3: the fresh read marks
+/// the target credential before the act, and the runner types only into an element that holds the focus of the four
+/// kinds that it reads whole, each known by the browser's own interface).
+#[test]
+fn a_post_condition_that_fails_logs_step_failed() {
+    let Some(browser) = hosted("a_post_condition_that_fails_logs_step_failed") else {
+        return;
+    };
+    let failed = [
+        (LogEvent::StepOk, Some(1), None),
+        (LogEvent::StepFailed, Some(2), Some(Cause::StepFailed)),
+        (LogEvent::Handback, None, None),
+        (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+    ];
+    let typed = |fixture: &Fixture| {
+        fixture
+            .requests()
+            .iter()
+            .filter(|r| r.path == "/typed")
+            .count()
+    };
+    let cases = [
+        (
+            251,
+            step(
+                2,
+                "fill",
+                Some("name"),
+                &[konst("text", "Ada")],
+                &[],
+                &[cond("value_is", Some("name"), Some("Bob"))],
+            ),
+            true,
+        ),
+        (
+            252,
+            step(
+                2,
+                "fill",
+                Some("missing"),
+                &[konst("text", "Ada")],
+                &[],
+                &[],
+            ),
+            false,
+        ),
+        (
+            253,
+            step(
+                2,
+                "fill",
+                Some("name"),
+                &[konst("text", "Ada")],
+                &[cond("present", Some("missing"), None)],
+                &[],
+            ),
+            false,
+        ),
+        (
+            254,
+            step(2, "fill", Some("secret"), &[konst("text", "Ada")], &[], &[]),
+            false,
+        ),
+        (
+            255,
+            step(2, "fill", Some("turns"), &[konst("text", "Ada")], &[], &[]),
+            false,
+        ),
+        (
+            250,
+            step(2, "fill", Some("hands"), &[konst("text", "Ada")], &[], &[]),
+            false,
+        ),
+        (
+            249,
+            step(2, "fill", Some("into"), &[konst("text", "Ada")], &[], &[]),
+            false,
+        ),
+    ];
+    for (n, second, acted) in cases {
+        let fixture = Fixture::start(&[("/typed-form", TYPED), ("/inner", INNER)]);
+        let mut sup = web_agent(n, &fixture);
+        sup.steps = vec![navigate(1, &fixture.url("/typed-form")), second];
+        let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
+        assert_eq!(seen.done(), Some(Outcome::HandedBack), "{}", seen.stderr);
+        assert_eq!(rows(&seen), failed, "run {n}");
+        assert_eq!(typed(&fixture) > 0, acted, "run {n}: the act on the field");
+        assert!(!seen.stderr.contains(SECRET), "run {n}: {}", seen.stderr);
+        for frame in &seen.frames {
+            let json = frame.to_json().expect("a frame");
+            assert!(!json.contains(SECRET), "run {n}: a frame holds the secret");
+        }
+        assert!(!profile_of(&seen, &sup.run).0.exists());
+    }
+
+    // Case 248: a password field of a page served as XHTML, known by the browser's own interface and not by the
+    // lower-case name that the browser gives it there: refused, typed into by nothing, its value read by nothing.
+    let fixture = Fixture::start(&[("/form.xhtml", XHTML)]);
+    let mut sup = web_agent(248, &fixture);
+    sup.steps = vec![
+        navigate(1, &fixture.url("/form.xhtml")),
+        step(2, "fill", Some("pw"), &[konst("text", "Ada")], &[], &[]),
+    ];
+    let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
+    assert_eq!(seen.done(), Some(Outcome::HandedBack), "{}", seen.stderr);
+    assert_eq!(rows(&seen), failed, "run 248");
+    assert_eq!(typed(&fixture), 0, "run 248: the act on the field");
+    assert!(
+        !seen.stderr.contains(XHTML_SECRET),
+        "run 248: {}",
+        seen.stderr
+    );
+    for frame in &seen.frames {
+        let json = frame.to_json().expect("a frame");
+        assert!(
+            !json.contains(XHTML_SECRET),
+            "run 248: a frame holds the secret"
+        );
+    }
+    assert!(!profile_of(&seen, &sup.run).0.exists());
+}
+
+/// The body that `SEND` posts when the field `note` holds it.
+const NOTE: &str = "halvo-runner-click-marker";
+
+/// A note field and a button that posts the note to its own origin by a synchronous request when it is clicked.
+const SEND: &str = r#"<!doctype html><title>send</title><input data-testid="note" aria-label="Note"><button type="button" data-testid="send" onclick="var x = new XMLHttpRequest(); try { x.open('POST', '/sink', false); x.send(document.querySelector('[data-testid=note]').value); } catch (e) {}">Send</button>"#;
+
+/// U4.1w part 1 (4): a run fills in a note and clicks a button that posts it; the rule in `Mode::Fail` fails the
+/// POST, the run ends `refused` with the cause `origin` after the click, and no byte of the note and no request but
+/// GET reaches the fixture.
+#[test]
+fn a_click_that_posts_reaches_no_fixture() {
+    let Some(browser) = hosted("a_click_that_posts_reaches_no_fixture") else {
+        return;
+    };
+    let fixture = Fixture::start(&[("/send", SEND)]);
+    let mut sup = web_agent(243, &fixture);
+    sup.steps = vec![
+        navigate(1, &fixture.url("/send")),
+        step(2, "fill", Some("note"), &[konst("text", NOTE)], &[], &[]),
+        step(3, "click", Some("send"), &[], &[], &[]),
+    ];
+    let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
+    assert_eq!(seen.done(), Some(Outcome::Refused), "{}", seen.stderr);
+    assert_eq!(
+        rows(&seen),
+        [
+            (LogEvent::StepOk, Some(1), None),
+            (LogEvent::StepOk, Some(2), None),
+            (LogEvent::Stopped, None, Some(Cause::Origin)),
+        ]
+    );
+    let got = fixture.requests();
+    let named: Vec<(&str, &str)> = got
+        .iter()
+        .map(|r| (r.method.as_str(), r.path.as_str()))
+        .collect();
+    assert!(named.contains(&("GET", "/send")), "{named:?}");
+    assert!(
+        named.iter().all(|(method, _)| *method == "GET"),
+        "a request other than GET reached the fixture: {named:?}"
+    );
+    assert!(
+        got.iter()
+            .all(|r| !r.bytes.windows(NOTE.len()).any(|w| w == NOTE.as_bytes())),
+        "a byte of the note reached the fixture"
+    );
+    assert!(!profile_of(&seen, &sup.run).0.exists());
 }
 
 /// U4.1w (5), the row `win_single_argument_inside_quotes` of `terminator_table` (crates/halvo-web/src/checks.rs):

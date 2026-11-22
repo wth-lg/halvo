@@ -7,7 +7,7 @@ use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::{
     Done, Handback, HandbackReply, Hello, Progress, ReplyError, Store, StoreReplyFrame,
 };
-use halvo_schema::executable::names::{HandbackReason, LogEvent, Verb};
+use halvo_schema::executable::names::{HandbackReason, LogEvent, StepKind};
 use halvo_schema::executable::step::Target;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
@@ -195,8 +195,8 @@ impl Runner {
         Ok(())
     }
 
-    /// Carries out one step. Of the web verbs this build carries `navigate` and `extract` (crate::web); every other
-    /// web step fails with `step_failed`, and so does every web step that holds a condition.
+    /// Carries out one step. A web step goes to `web_step` (crate::web), which carries a step of the class `read` or
+    /// `prepare` with its conditions and fails every other with `step_failed`.
     fn step(&mut self, step: &ExecutableStep, loaded: &LoadReply) -> Result<(), Failure> {
         match &step.target {
             Some(Target::File(target)) if step.class == ActionClass::Read => {
@@ -204,7 +204,7 @@ impl Runner {
             }
             Some(Target::File(target)) => self.file_write(step, target),
             Some(Target::Api(target)) => self.api_call(step, target, loaded),
-            _ if matches!(step.verb, Verb::Navigate | Verb::Extract) => self.web_step(step, loaded),
+            _ if step.kind == StepKind::Web => self.web_step(step, loaded),
             _ => Err(Failure::Step(Cause::StepFailed)),
         }
     }

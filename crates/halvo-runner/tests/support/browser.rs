@@ -62,8 +62,9 @@ pub struct Request {
     pub bytes: Vec<u8>,
 }
 
-/// A fixture server on a loopback port of its own that answers each path of its pages with that page and every
-/// other path with 404, and records every connection. Dropping it stops it.
+/// A fixture server on a loopback port of its own that answers each path of its pages with that page, as XHTML for a
+/// path that ends in `.xhtml` and as HTML for every other, and every other path with 404, and records every
+/// connection. Dropping it stops it.
 pub struct Fixture {
     port: u16,
     seen: Arc<Mutex<Vec<Request>>>,
@@ -153,8 +154,13 @@ fn answer(mut stream: TcpStream, pages: &[(String, String)]) -> Request {
             Some(page) => ("200 OK", page.as_str()),
             None => ("404 Not Found", ""),
         };
+        let kind = if path.ends_with(".xhtml") {
+            "application/xhtml+xml"
+        } else {
+            "text/html"
+        };
         let reply = format!(
-            "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            "HTTP/1.1 {status}\r\nContent-Type: {kind}; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
             body.len()
         );
         let _ = stream.write_all(reply.as_bytes());
@@ -180,6 +186,55 @@ pub fn extract_amount(n: u32, id: &str) -> ExecutableStep {
         r#"{{"v":1,"n":{n},"kind":"web","verb":"extract","target":{{"desc":"the amount","frame":[],"credential":"no","locators":[{{"by":"test_id","value":"{id}","name":null}}]}},"args":[{{"name":"as","from":"const","value":"amount","key":null}},{{"name":"parse","from":"const","value":"amount","key":null}}],"pre":[],"post":[],"effect":"none","class":"read"}}"#
     );
     ExecutableStep::parse(json.as_bytes()).expect("an extract step")
+}
+
+/// The JSON of a web target of the top document found by the test id `id`.
+pub fn target(id: &str) -> String {
+    format!(
+        r#"{{"desc":"the control {id}","frame":[],"credential":"no","locators":[{{"by":"test_id","value":"{id}","name":null}}]}}"#
+    )
+}
+
+/// The JSON of an arg `name` with the const `value`.
+pub fn konst(name: &str, value: &str) -> String {
+    format!(r#"{{"name":"{name}","from":"const","value":"{value}","key":null}}"#)
+}
+
+/// The JSON of an arg `name` from the slot `key`.
+pub fn from_slot(name: &str, key: &str) -> String {
+    format!(r#"{{"name":"{name}","from":"slot","value":null,"key":"{key}"}}"#)
+}
+
+/// The JSON of a condition `check` on the control with the test id `id`, with the const `arg`.
+pub fn cond(check: &str, id: Option<&str>, arg: Option<&str>) -> String {
+    let target = id.map_or("null".to_string(), target);
+    let arg = arg.map_or("null".to_string(), |a| konst("arg", a));
+    format!(r#"{{"check":"{check}","target":{target},"arg":{arg}}}"#)
+}
+
+/// A web step `n` of `verb` with the effect `none`, on the control with the test id `id` (none for a step with no
+/// target), with its args and its conditions; of the class `read` for `navigate`, `extract` and `wait` and
+/// `prepare` for every other verb.
+pub fn step(
+    n: u32,
+    verb: &str,
+    id: Option<&str>,
+    args: &[String],
+    pre: &[String],
+    post: &[String],
+) -> ExecutableStep {
+    let class = match verb {
+        "navigate" | "extract" | "wait" => "read",
+        _ => "prepare",
+    };
+    let json = format!(
+        r#"{{"v":1,"n":{n},"kind":"web","verb":"{verb}","target":{},"args":[{}],"pre":[{}],"post":[{}],"effect":"none","class":"{class}"}}"#,
+        id.map_or("null".to_string(), target),
+        args.join(","),
+        pre.join(","),
+        post.join(",")
+    );
+    ExecutableStep::parse(json.as_bytes()).expect("a web step")
 }
 
 /// `Supervisor::serve` with `--browser` set to `browser`: starts the runner and serves it until its end, with `rule`

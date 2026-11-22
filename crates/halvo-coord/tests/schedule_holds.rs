@@ -62,6 +62,7 @@ fn facts(category: Category, runtime: &str, whats: Vec<(u32, What)>) -> Facts<Co
         replies: halvo_coord::types::Replies::NotAsked,
         unknown: Vec::new(),
         refused: None,
+        last_cause: None,
         today: 107,
         doing: Doing::Idle(None),
         stand_in: false,

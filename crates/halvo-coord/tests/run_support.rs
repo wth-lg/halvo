@@ -132,6 +132,7 @@ pub fn world_with(spec: &[A], limits: Limits) -> World {
             last: Some(record.clone()),
             unknown: Vec::new(),
             refused_run: None,
+            last_cause: None,
         });
         members.push(Member {
             facts: Facts {
@@ -145,6 +146,7 @@ pub fn world_with(spec: &[A], limits: Limits) -> World {
                 replies: halvo_coord::types::Replies::NotAsked,
                 unknown: Vec::new(),
                 refused: None,
+                last_cause: None,
                 today: DAY,
                 doing: Doing::Idle(None),
                 stand_in: false,
