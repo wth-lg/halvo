@@ -4,6 +4,7 @@
 set -u
 name=70-package-macos
 config_keys='externalBin signingIdentity'
+macos_config=src-tauri/tauri.macos.conf.json
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -118,6 +119,7 @@ self_test() {
   }
   identifier=com.halvo.desktop
   version=0.0.0-stand-in
+  floor=14.0
   stand_in_bundle() {
     app=$work/$1/Halvo.app
     shift
@@ -132,6 +134,8 @@ self_test() {
   <string>$version</string>
   <key>CFBundleVersion</key>
   <string>$version</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>$floor</string>
 </dict>
 </plist>
 EOF
@@ -209,6 +213,49 @@ SH
     "1:the tracked file src-tauri/tauri.conf.json names signingIdentity; "*) got=FAIL ;;
   esac
   verdict tracked-configuration-with-a-signing-identity FAIL "$got"
+
+  # A case of a rule below is rejected when its function exits 1 and prints the wanted line.
+  rule_case() {
+    case_name=$1 want=$2
+    shift 2
+    output=$("$@" 2>"$work/$case_name.err")
+    code=$?
+    got=unexpected-exit-$code
+    [ "$code" = 0 ] && got=PASS
+    [ "$code:$output" = "1:$want" ] && got=FAIL
+    verdict "$case_name" FAIL "$got"
+  }
+  # Runs a function with the stand-in programs of the directory $1 first on PATH.
+  with_tools() {
+    tools=$1
+    shift
+    (PATH="$tools:$PATH" && "$@")
+  }
+  stand_in_program() {
+    directory=$work/$1 program=$2
+    shift 2
+    mkdir -p "$directory" || exit 2
+    printf '%s\n' '#!/bin/sh' "$@" >"$directory/$program" || exit 2
+    chmod +x "$directory/$program" || exit 2
+  }
+
+  stand_in_bundle refused-by-codesign halvo halvo-capture
+  stand_in_program refusing-tools codesign 'echo "code object is not signed at all" >&2' 'exit 1'
+  rule_case seal-that-codesign-refuses 'codesign --verify --deep --strict refuses Halvo.app: code object is not signed at all' with_tools "$work/refusing-tools" seal_defect "$app"
+
+  floor=10.13
+  stand_in_bundle with-another-floor halvo halvo-capture
+  floor=14.0
+  rule_case bundle-with-another-floor "the LSMinimumSystemVersion of Info.plist is 10.13, not the minimumSystemVersion 14.0 of $macos_config" floor_defect "$app/Contents/Info.plist" 14.0 14
+
+  image_tree=$work/build-without-a-disk-image
+  mkdir -p "$image_tree/release/bundle/dmg" || exit 2
+  : >"$image_tree/started" || exit 2
+  printf '%s\n' '#!/bin/sh' >"$image_tree/release/bundle/dmg/bundle_dmg.sh" || exit 2
+  rule_case build-without-a-disk-image "the build left 0 disk images in $image_tree/release/bundle/dmg, not one" image_of "$image_tree/release/bundle/dmg" "$image_tree/started"
+
+  stand_in_program other-parent-tools ps "echo '  4100     1 /stand-in/Halvo.app/Contents/MacOS/halvo'" "echo '  4101     1 /stand-in/Halvo.app/Contents/MacOS/halvo-capture'"
+  rule_case daemon-whose-parent-is-not-the-app 'the halvo-capture of the copy runs with the parent 1, not the app 4100' with_tools "$work/other-parent-tools" daemon_of 4100 /stand-in/Halvo.app
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
