@@ -40,8 +40,10 @@ pub enum PollEnd {
     /// No reply of the service: nothing listens at the endpoint (`Unreachable`), the data folder
     /// is held and nothing listens (`DataDirInUse`), the system has no control channel
     /// (`Unsupported`), the client refused the peer before it sent the request
-    /// (`PeerRejected`), the transport failed (`Io`), or no whole frame came back, a stream
-    /// that ended before any byte among them (`Protocol`).
+    /// (`PeerRejected`), the transport failed (`Io`), or the client could not take what came
+    /// back (`Protocol`): mostly no whole frame, a stream that ended before any byte among them,
+    /// and in two cases a whole frame, one with a byte behind it and one that the client cannot
+    /// decode, which wait here too.
     NoReply,
 }
 

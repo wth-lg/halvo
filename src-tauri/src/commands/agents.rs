@@ -163,7 +163,8 @@ impl RunsHold {
     /// The answer of a delete of everything that runs left the service maybe still deleting at
     /// `at`: it passed its deadline, or the service answered busy. From the delete's end on, a
     /// poll that passes its deadline is no reading until a reading clears the mark or
-    /// `Deadlines::V1.delete_all` has passed since `at` (`Owed`).
+    /// `Deadlines::V1.delete_all` has passed since the mark's moment, which is `at` until a
+    /// reading whose view bars moves it to that draw's moment (`Owed`).
     pub fn may_still_delete(&self, at: Instant) {
         self.wanted().late = Some(at);
     }
@@ -172,7 +173,8 @@ impl RunsHold {
     /// may end it: the offline door, a list of Remove Halvo that stopped, or a deleted answer at
     /// the service's door where the app may renew a Windows run's child. From that end on, a
     /// poll with no reply of the service, or one that passes its deadline, is no reading until a
-    /// reading clears the mark or `Deadlines::V1.delete_all` has passed since `at` (`Owed`).
+    /// reading clears the mark or `Deadlines::V1.delete_all` has passed since the mark's moment,
+    /// which is `at` until a reading whose view bars moves it to that draw's moment (`Owed`).
     pub fn ended_with_no_service(&self, at: Instant) {
         self.wanted().no_service = Some(at);
     }
