@@ -240,6 +240,11 @@ mod mac {
             halvo_control::r2::send_with_end(self.0.writes.as_fd(), frame, end)
         }
 
+        fn send(&mut self, frame: &[u8]) -> std::io::Result<()> {
+            write_frame(&mut self.0.writes, frame, REQUEST_MAX_BYTES)
+                .map_err(|e| std::io::Error::other(e.to_string()))
+        }
+
         fn answer(&mut self, within: Duration) -> std::io::Result<Option<Vec<u8>>> {
             match self.0.next(within) {
                 Ok(frame) => Ok(Some(frame)),
