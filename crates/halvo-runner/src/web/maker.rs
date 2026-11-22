@@ -31,8 +31,9 @@
 //! listed value is read whole by `extract_amount`, the reading of the card's own amount (log line 16399). A body
 //! that names another amount than the card's fails the held request, no card is shown and no effect row stands, and
 //! the step answers `amount_differs`; a body that the wire could not read, or a listed value that is not one amount
-//! (digits, one point and two decimals), answers `step_failed` the same way; a navigation with no body, and a form
-//! that names no amount, go on to the card. A `submit` and a `sign` go on as before.
+//! (digits, one point and two decimals), answers `step_failed` the same way; a navigation with no body and no listed
+//! field in its query, and a form that names no amount, go on to the card, and one whose query names another amount
+//! is failed. A `submit` and a `sign` go on as before.
 //!
 //! A binary that holds the maker holds its marker text (`MAKER_MARKER`), which the scan of check 62-build
 //! (scripts/r1/ci.d/62-build.sh) refuses in every shipped file.
@@ -113,7 +114,8 @@ fn card_amount(fields: &[(FieldName, From)], loaded: &LoadReply) -> Option<u64> 
 
 /// Whether the body of the one held request of a `payment` or a `purchase` holds the card's amount `card`, read at the
 /// act, before the card (r3 U5.10-C; the coordinator's rulings of log lines 16208 and 16399): a navigation with no
-/// body holds it, as does a form that names no amount, or whose every amount is the card's. Each value of a field of
+/// body and no listed field in its query (`HeldForm::NoBody`) holds it, as does a form or a query that names no
+/// amount, or whose every amount is the card's. Each value of a field of
 /// the closed list (`HeldForm::Named`) is read WHOLE, with the spaces at its ends left off, by `extract_amount`, the
 /// reading of the card's own amount: it must be ONE amount, digits, one point and two decimals within a u64, and
 /// nothing else. A form that names another amount gives `amount_differs`; a body that the wire could not read, and a
