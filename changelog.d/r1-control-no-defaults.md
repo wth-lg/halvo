@@ -1,0 +1,1 @@
+- Changed: The app's trait Control has no default body any more, so the compiler names each implementor, a wrapper such as Watching among them, that leaves a method out; the bodies of status_of_a_pass, relay, acknowledge_lost_permission, owner_stream, run_mark and defer moved into the eleven test stand-ins that took them, with the same answers, and no answer of the app changes.
