@@ -32,8 +32,10 @@
 //! A web step that FAILED on a page that shows no credential field reads the page a second time (crate::web, r3 U5.14,
 //! the coordinator's ruling of log line 14127 (1)): where the page shows a link or a button that asks for a sign-in by
 //! its name (halvo-web's `asks_to_sign_in`), the runner opens a handback of the reason `sign_in` in place of the
-//! step's failure, by the same opening and with the same ends as at a credential field (`open_handback`). A step that
-//! does not fail makes no second reading.
+//! step's failure, by the same opening and with the same ends as at a credential field (`open_handback`); behind a
+//! bind with `bound=yes` the act that failed is asked once more, and a second failure fails the step as before, with
+//! no second reading (crate::web, the coordinator's ruling of log line 16106 (3)). A step that does not fail makes no
+//! second reading.
 
 #[cfg(test)]
 mod tests;

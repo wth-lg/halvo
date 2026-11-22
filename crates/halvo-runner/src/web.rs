@@ -17,7 +17,8 @@
 //! credential field on the page, or before any browser runs, is done; every other answers `step_failed`. A web step
 //! that fails on the run's page, its act or a step marked `credential`, reads the page a second time before its
 //! failure is written, and hands back with the reason `sign_in` where a link or a button asks for a sign-in by its
-//! name (r3 U5.14, `Runner::asked_at_a_failure`). A step with
+//! name (r3 U5.14, `Runner::asked_at_a_failure`); behind the bind of that handback the act that failed is asked once
+//! more, and a second failure fails the step as before. A step with
 //! the effect `request`, a web step of an effect class (`payment`, `purchase`, `submit`, `sign`), is the browser's
 //! request maker's (crate::web::maker), which this build holds under the feature `loopback` alone: without it such a
 //! step answers `step_failed` before any browser starts, and `Live` lets no held request through.
@@ -944,8 +945,11 @@ impl Runner {
     /// at the act's own focus, which the executor refuses, opens a handback; after one that ended in a bind the step
     /// is done. Where that reading finds no credential field, and where a step marked `credential` meets a running
     /// browser's page with none, the second reading (`asked_at_a_failure`, r3 U5.14) hands back with the reason
-    /// `sign_in` at a link or a button that asks for a sign-in, in place of the failure, and after one that ended in a
-    /// bind the step is done too. A step that does not fail makes no second reading.
+    /// `sign_in` at a link or a button that asks for a sign-in, in place of the failure. After one that ended in a bind
+    /// the act that failed is asked once more, with the reading of the page before it and without a second reading
+    /// after it, so that a second failure fails the step as before (the coordinator's ruling of log line 16106 (3));
+    /// a step marked `credential`, which acts on nothing, is done after that bind. A step that does not fail makes no
+    /// second reading.
     /// A condition of `pre` that does not hold acts on nothing; a control that the locators do not find, an act that
     /// fails and a condition of `post` that does not hold fail the step with `step_failed`. At the step's end a
     /// request of the run's page that the rule failed ends the run `refused` with the cause `origin` (A9.2,
@@ -1000,37 +1004,44 @@ impl Runner {
             _ => None,
         };
         self.browser(loaded)?;
-        let mut web = self.web.take().ok_or_else(failed)?;
-        let read = self.read_page(&mut *web.0, loaded, step.n);
-        self.web = Some(web);
-        read?;
-        let web = &mut self.web.as_mut().ok_or_else(failed)?.0;
-        let done = web
-            .carry_out(&pre, &act, &post)
-            .and_then(|read| match (&as_parsed, read) {
-                (Some((_, parse)), Some(text)) => parsed(parse, text).map(Some),
-                _ => Ok(None),
-            });
-        let record = if done.is_err() || act.on_a_control() {
-            web.record_after_a_fault()
-        } else {
-            web.record()
-        };
-        if done.is_err() && !refused_by_the_page(&record) {
+        let mut asked = false;
+        loop {
             let mut web = self.web.take().ok_or_else(failed)?;
             let read = self.read_page(&mut *web.0, loaded, step.n);
             self.web = Some(web);
-            if read? || self.asked_at_a_failure(loaded, step.n)? {
-                return Ok(());
+            read?;
+            let web = &mut self.web.as_mut().ok_or_else(failed)?.0;
+            let done = web
+                .carry_out(&pre, &act, &post)
+                .and_then(|read| match (&as_parsed, read) {
+                    (Some((_, parse)), Some(text)) => parsed(parse, text).map(Some),
+                    _ => Ok(None),
+                });
+            let record = if done.is_err() || act.on_a_control() {
+                web.record_after_a_fault()
+            } else {
+                web.record()
+            };
+            if done.is_err() && !refused_by_the_page(&record) {
+                let mut web = self.web.take().ok_or_else(failed)?;
+                let read = self.read_page(&mut *web.0, loaded, step.n);
+                self.web = Some(web);
+                if read? {
+                    return Ok(());
+                }
+                if !asked && self.asked_at_a_failure(loaded, step.n)? {
+                    asked = true;
+                    continue;
+                }
             }
-        }
-        if let (Some((name, parse)), Some(value)) = (as_parsed, end_of_step(done, &record)?) {
-            if let Act::Extract(target) = act {
-                self.extracts.insert(name.clone(), (target.clone(), parse));
+            if let (Some((name, parse)), Some(value)) = (as_parsed, end_of_step(done, &record)?) {
+                if let Act::Extract(target) = act {
+                    self.extracts.insert(name.clone(), (target.clone(), parse));
+                }
+                self.kept.insert(name, vec![vec![value]]);
             }
-            self.kept.insert(name, vec![vec![value]]);
+            return Ok(());
         }
-        Ok(())
     }
 
     /// The second reading of a web step that failed (r3 U5.14, the coordinator's ruling of log line 14127 (1)), made
