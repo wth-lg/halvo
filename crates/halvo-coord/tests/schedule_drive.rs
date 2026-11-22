@@ -4671,3 +4671,70 @@ fn the_row_of_a_refused_sign_in_stands_before_failures_and_one_switch_on_ends_bo
         vec![Control::RunNow, Control::SwitchOff, Control::Delete]
     );
 }
+
+/// Logs for `run` of agent 0, at the owner and on the board as the core stores them, the
+/// `item_raised` of a sign-in item and the person's `answer` at its second step, the question
+/// that allows a site (the rows of U2.4o's test in tests/roster_card.rs).
+fn answered_at_the_site_question(
+    w: &mut World,
+    run: &RunId,
+    answer: halvo_coord::types::BindResult,
+) {
+    use halvo_coord::types::{BindAnswer, ItemId, Origin, SignInAnswer};
+    let item = ItemId::parse(&format!("{:032x}", 0x24a0 + w.stored().len())).unwrap();
+    let raised = Raised::SignIn(run.clone());
+    let what = What::ItemRaised {
+        item: item.clone(),
+        raised,
+    };
+    stored_at_owner(w, 0, what, true);
+    let bind = BindAnswer {
+        answer,
+        origin: Origin::parse("https://site1.example:443").unwrap(),
+    };
+    let answer = Answered::SignIn(SignInAnswer::Second(bind));
+    stored_at_owner(w, 0, What::ItemAnswered { item, answer }, true);
+}
+
+/// U2.4a, sentence 1 (the coordinator's way (a) after Q2 (a); I5.4): after a run in which the
+/// person said no at the question that allows a site, the scheduler starts no run of the agent,
+/// also in the next life; nothing is stored for the hold and no `paused` is sent.
+#[test]
+fn after_a_no_at_the_question_that_allows_a_site_the_scheduler_starts_nothing_in_every_life() {
+    use halvo_coord::types::BindResult;
+    let mut w = world(&[AUTO]);
+    let run = ok_run(&w.start(0));
+    answered_at_the_site_question(&mut w, &run, BindResult::Decline);
+    w.end(&run, Some(Outcome::Declined));
+    w.clock(T0 + 1_000, DAY + 2);
+    let sent = w.calls();
+    w.forget();
+    assert_eq!(
+        w.tick().started,
+        Vec::<Served>::new(),
+        "the tick at the agent's next slot starts nothing"
+    );
+    assert_eq!(w.starts(), 0);
+    let by_scheduler = start_step(
+        w.facts(0),
+        Trigger::Schedule,
+        &w.limits,
+        &Around {
+            listed: true,
+            live: 0,
+            model_held: false,
+            queued: 0,
+            session: true,
+            from_queue: false,
+            owed: false,
+        },
+    );
+    assert_eq!(by_scheduler.verdict, Verdict::Refused(Cause::Hold));
+    assert_eq!(holds_set(&w, 0), Vec::<HoldSetCause>::new(), "no hold_set");
+    let paused = |calls: &[String]| calls.iter().any(|c| c == "set_state paused");
+    assert!(!paused(&sent) && !paused(&w.calls()), "{sent:?}");
+    w.relife();
+    w.forget();
+    w.tick();
+    assert_eq!(w.starts(), 0, "the next life starts nothing either");
+}

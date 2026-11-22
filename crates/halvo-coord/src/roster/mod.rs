@@ -667,8 +667,8 @@ fn said_no(events: &[Event], run: &RunId, effect: &PastEffect) -> bool {
 /// widened by the coordinator's way A): the ledger `events` holds an `item_answered` row with
 /// the second step's `decline` in an item whose `item_raised` row of the kind `sign_in` names
 /// `run`. The first step's `decline` stops this time and answers no question, and a lapse is no
-/// answer: neither is a no here.
-fn said_no_at_sign_in(events: &[Event], run: &RunId) -> bool {
+/// answer: neither is a no here. The hold `site_declined` of the schedule reads it too (r4 U2.4a).
+pub(crate) fn said_no_at_sign_in(events: &[Event], run: &RunId) -> bool {
     let items: Vec<&ItemId> = events
         .iter()
         .filter_map(|e| match &e.what {
