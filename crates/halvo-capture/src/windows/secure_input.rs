@@ -626,6 +626,25 @@ impl Marks {
         }
     }
 
+    /// The content reading that an own read which began at the mark `since`
+    /// may write: never Clear where the newest mark that came after it holds
+    /// Password, because that mark (a focus event) is a newer reading of the
+    /// key's state than the read's own; the reading is then Password.
+    fn content_of_an_own_read(&self, since: u64, content: ContentReading) -> ContentReading {
+        let newer = self
+            .entries
+            .iter()
+            .rev()
+            .take_while(|entry| entry.seq >= since)
+            .find_map(|entry| entry.mark.state());
+        match content {
+            ContentReading::Clear(_) if newer == Some(FieldState::Password) => {
+                ContentReading::Password
+            }
+            content => content,
+        }
+    }
+
     /// Ends the writer of the content reading: a detector that its attach or
     /// its detach gave up writes no content reading from then on, and the
     /// reading is Unknown until an attach succeeds.
@@ -793,12 +812,13 @@ impl Shared {
         &self,
         began: u32,
         at: u32,
-        (state, content, by): (FieldState, ContentReading, Option<u64>),
+        (state, content, by, since): (FieldState, ContentReading, Option<u64>, u64),
         moved: Moved,
         seen: Option<String>,
     ) {
         note_mark("read", Some(state), Some(moved), Some(at), began, seen);
         let mut marks = self.lock();
+        let content = marks.content_of_an_own_read(since, content);
         marks.push(Some(at), began, Mark::Read { state, moved });
         marks.set_content(by, content);
         if marks.settle_due.is_some_and(|due| not_after(due, began)) {
@@ -1117,9 +1137,12 @@ impl PasswordGate {
 
     #[cfg(test)]
     pub(crate) fn read_at(&self, began: u32, state: FieldState, moved: Moved) {
-        let content = self.content_reading();
+        let (content, since) = {
+            let marks = self.shared.lock();
+            (marks.content, marks.next_seq)
+        };
         self.shared
-            .read_seen(began, began, (state, content, None), moved, None);
+            .read_seen(began, began, (state, content, None, since), moved, None);
     }
 
     #[cfg(test)]
@@ -2044,15 +2067,15 @@ mod detector {
         let began = tick();
         #[cfg(feature = "test-seam")]
         crate::windows::input::seam::own_read_began(began);
-        let (moves, events_in_flight) = {
+        let (moves, events_in_flight, since) = {
             let marks = shared.lock();
-            (marks.moves, marks.events_in_flight > 0)
+            (marks.moves, marks.events_in_flight > 0, marks.next_seq)
         };
         let ((state, content), moved) = reader.own(moves, events_in_flight);
         shared.read_seen(
             began,
             tick(),
-            (state, content, writer),
+            (state, content, writer, since),
             moved,
             reader.seen(),
         );
@@ -4470,6 +4493,52 @@ mod tests {
         assert_eq!(reading(&gate, &letter, 2_200), None);
         assert_eq!(reading(&gate, &letter, 2_251), Some(Err(Withheld::Unknown)));
         assert_eq!(rule(&gate, &letter, 2_251), Some(Rule::ClicksNotForwarded));
+    }
+
+    #[test]
+    fn an_own_read_writes_no_clear_over_a_password_event_that_came_after_it_began() {
+        use FieldState::{Clear, Password};
+        let gate = PasswordGate::new();
+        let since = |gate: &PasswordGate| gate.shared.lock().next_seq;
+        let clear = ContentReading::Clear(ClearBy::NativeEdit);
+        let event = |gate: &PasswordGate, at: u32, state: FieldState, content: ContentReading| {
+            let _ = gate.shared.begin_event();
+            gate.shared.field_seen(at, state, (content, None), None);
+        };
+        let own_read = |gate: &PasswordGate, began: u32, since: u64| {
+            gate.shared.read_seen(
+                began,
+                began + 5,
+                (Clear, clear, None, since),
+                Moved::Another,
+                None,
+            );
+            gate.content_reading()
+        };
+        gate.started_at(1_000);
+        let first_began = since(&gate);
+        event(&gate, 1_010, Password, ContentReading::Password);
+        let first = own_read(&gate, 1_005, first_began);
+        event(&gate, 1_100, Clear, clear);
+        let later_began = since(&gate);
+        event(&gate, 1_110, Password, ContentReading::Password);
+        let later = own_read(&gate, 1_105, later_began);
+        let control_began = since(&gate);
+        let control = own_read(&gate, 1_200, control_began);
+        assert_eq!(
+            first,
+            ContentReading::Password,
+            "the first own read, overtaken by a password event"
+        );
+        assert_eq!(
+            later,
+            ContentReading::Password,
+            "a later own read, overtaken by a password event"
+        );
+        assert_eq!(
+            control, clear,
+            "an own read that began after the password event"
+        );
     }
 
     #[test]
