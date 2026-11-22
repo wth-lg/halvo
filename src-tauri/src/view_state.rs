@@ -8,7 +8,7 @@ use halvo_control::proto::{
     Platform, RootDestroyed, Section, SourceName, SourceStateName, StateFile, StopKind,
     StoreErrorKind, StoreState, SwitchName,
 };
-use halvo_control::texts::{first_run, texts, Texts};
+use halvo_control::texts::{first_run, texts, Recorded, Texts};
 use serde::{Deserialize, Serialize};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
@@ -141,6 +141,9 @@ pub struct RunningView {
     /// this view's screen source does not run: the page then says to quit Halvo and open it
     /// again.
     pub screen_not_renewed: bool,
+    /// The first run's rows of what a start records, which the question of a reset of the
+    /// settings shows: on a settings file that cannot be read alone.
+    pub reset_recorded: Option<Vec<Recorded>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -452,8 +455,9 @@ impl Hold {
         (self.state().pauses == pauses).then_some(turn)
     }
 
-    /// What the consent click read of its write of the login item: whether the plist stands
-    /// written; every view says it from then on.
+    /// Whether the login item stands written: what the consent click read of its write, the
+    /// plist on macOS and the Run value on Windows, and on Windows false also where a start's
+    /// read or write of the value failed; every view says it from then on.
     pub fn login_item_written(&self, written: bool) {
         self.state().login_item_written = Some(written);
     }
@@ -657,6 +661,8 @@ struct WireView<'a> {
     state_file: Option<SettingsUnread>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     screen_not_renewed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reset_recorded: Option<&'a [Recorded]>,
 }
 
 impl Serialize for StatusView {
@@ -690,6 +696,7 @@ impl Serialize for StatusView {
                 data_folder: view.data_folder.as_deref(),
                 state_file: view.state_file,
                 screen_not_renewed: view.screen_not_renewed,
+                reset_recorded: view.reset_recorded.as_deref(),
             },
             StatusView::NoStatus(view) => WireView {
                 service: view.word(),
@@ -722,6 +729,7 @@ impl Serialize for StatusView {
                 data_folder: view.data_folder.as_deref(),
                 state_file: None,
                 screen_not_renewed: false,
+                reset_recorded: None,
             },
         };
         wire.serialize(serializer)
@@ -869,6 +877,8 @@ impl StatusView {
                 StateFile::NewerVersion => Some(SettingsUnread::NewerVersion),
                 StateFile::Ok | StateFile::WriteFailed => None,
             },
+            reset_recorded: (f.state_file == StateFile::Corrupt)
+                .then(|| first_run(f.platform).recorded),
             login_item_written: None,
             screen_not_renewed: false,
         }))

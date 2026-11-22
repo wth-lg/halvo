@@ -133,6 +133,8 @@
     armAt(event, control || start, false);
   };
 
+  Halvo.pressGuard = { armDelayMs: ARM_DELAY_MS, disarmAfterMs: DISARM_AFTER_MS, hasPoint: hasPoint, atPlace: atPlace };
+
   function armAt(event, control, stopFirst) {
     if (armedAt !== null || busy || removalHolds() || !current) return;
     if (stopFirst ? refusedInARow < 2 : !offered(current)) return;
@@ -305,6 +307,7 @@
         start.textContent = w.DELETE_EVERYTHING;
         confirm.disabled = false;
         renderOffer();
+        return Halvo.readWorkflows();
       });
   }
 

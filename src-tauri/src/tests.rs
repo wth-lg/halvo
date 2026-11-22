@@ -77,6 +77,8 @@ pub fn test_parts(dir: PathBuf, state: AppState) -> app::Parts<MockRuntime> {
     app::Parts {
         #[cfg(windows)]
         webview_data_dir: Some(dir.join("webview")),
+        #[cfg(windows)]
+        webview_environment: environment_made::record,
         state,
         tray: None,
         guard: guard_installed,
@@ -609,7 +611,7 @@ fn the_navigation_rule_refuses_every_engine_string_that_does_not_parse_and_every
     }
 }
 
-const UNIT_PERMISSIONS: [&str; 14] = [
+const UNIT_PERMISSIONS: [&str; 15] = [
     "allow-capture-status",
     "allow-inventory",
     "allow-set-capture-state",
@@ -623,6 +625,7 @@ const UNIT_PERMISSIONS: [&str; 14] = [
     "allow-start-capture",
     "allow-delete-offline",
     "allow-remove-halvo",
+    "allow-reset-settings",
     "core:app:allow-version",
 ];
 
@@ -735,7 +738,7 @@ fn is_refused(reply: &Result<Value, Value>) -> bool {
 #[test]
 fn every_command_of_the_manifests_answers_from_the_window_main_at_the_app_origin_alone() {
     let commands = manifest_commands();
-    assert_eq!(commands.len(), 191, "commands of the generated manifests");
+    assert_eq!(commands.len(), 192, "commands of the generated manifests");
     let test = test_app(scratch_dir("every-command"));
     let main = main_window(&test.app);
     let other = WebviewWindowBuilder::new(
@@ -1402,6 +1405,73 @@ fn the_engine_start_arguments_repeat_the_runtime_default_and_map_every_host_to_n
     assert_eq!(app.matches("proxy_url").count(), 0);
 }
 
+/// The maker of the web view's environment that every test app of this module gets, and the
+/// test of what the window's builder hands it.
+#[cfg(windows)]
+pub(crate) mod environment_made {
+    use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, PoisonError};
+
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2Environment, COREWEBVIEW2_SCROLLBAR_STYLE_DEFAULT,
+    };
+
+    use crate::app;
+
+    /// What the window's builder handed the maker of its environment.
+    struct Made {
+        folder: PathBuf,
+        custom_crash_reporting: bool,
+        arguments: String,
+        extensions: bool,
+        language: String,
+        scroll_bar: i32,
+    }
+
+    static MADE: Mutex<Vec<Made>> = Mutex::new(Vec::new());
+
+    /// The tests' maker: it keeps what the options say and makes no environment, so that the
+    /// mock runtime goes on as before.
+    pub fn record(
+        options: webview2_com::CoreWebView2EnvironmentOptions,
+        folder: &Path,
+    ) -> Result<Option<ICoreWebView2Environment>, String> {
+        // SAFETY: the options were handed to this function by value, and nothing else reads or
+        // writes their cells.
+        let made = unsafe {
+            Made {
+                folder: folder.to_path_buf(),
+                custom_crash_reporting: options.is_custom_crash_reporting_enabled(),
+                arguments: options.additional_browser_arguments().to_string(),
+                extensions: options.are_browser_extensions_enabled(),
+                language: options.language().to_string(),
+                scroll_bar: options.scroll_bar_style().0,
+            }
+        };
+        MADE.lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(made);
+        Ok(None)
+    }
+
+    #[test]
+    fn the_window_hands_its_environment_custom_crash_reporting_and_the_settings_of_today() {
+        let dir = super::scratch_dir("environment-made");
+        let _test = super::test_app(dir.clone());
+        let folder = dir.join("webview");
+        let made = MADE.lock().unwrap_or_else(PoisonError::into_inner);
+        let mine: Vec<&Made> = made.iter().filter(|m| m.folder == folder).collect();
+        assert_eq!(mine.len(), 1, "one environment for the window main");
+        let mine = mine[0];
+        assert!(mine.custom_crash_reporting);
+        assert_eq!(mine.arguments, app::ENGINE_ARGS);
+        assert!(!mine.extensions);
+        assert!(!mine.language.is_empty());
+        assert_eq!(mine.language, app::display_language());
+        assert_eq!(mine.scroll_bar, COREWEBVIEW2_SCROLLBAR_STYLE_DEFAULT.0);
+    }
+}
+
 #[test]
 fn the_script_of_every_frame_takes_the_peer_connection_constructors_away() {
     assert_eq!(
@@ -1500,7 +1570,7 @@ fn the_engine_arguments_of_the_environment_are_taken_out_on_windows_alone_at_the
         .expect("main.rs reads")
         .replace("\r\n", "\n");
     assert!(
-        main.contains("fn main() {\n    #[cfg(windows)]\n    app::take_engine_arguments_out_of_the_environment();\n    let started = std::time::Instant::now();\n    match launch::parse("),
+        main.contains("fn main() {\n    #[cfg(windows)]\n    app::take_engine_arguments_out_of_the_environment();\n    stop_hook::install(stop_hook::system);\n    let started = std::time::Instant::now();\n    match launch::parse("),
         "the first statement of main, before any thread exists, under cfg(windows)"
     );
     let app = std::fs::read_to_string(src_tauri().join("src/app.rs"))
@@ -1591,7 +1661,7 @@ fn every_cause_that_keeps_the_window_closed_gives_the_tray_one_sentence_on_macos
         } else if restart_cures {
             "Halvo's window is not available. Quit Halvo and start it again."
         } else {
-            "Halvo's window cannot open on this version of macOS. You can still pause or resume here. A newer Halvo is needed to see or delete what Halvo has stored."
+            "Halvo's window cannot open right now. You can still pause or resume here. Quit Halvo and start it again."
         };
         assert_eq!(
             tray::shown(app.handle(), &view).status_text,
@@ -1663,8 +1733,9 @@ fn no_manifest_turns_the_feature_scripted_of_halvo_coord_app_on_for_the_app() {
 }
 
 /// The tray's count of agents that need the person (I10.3): above zero the icon variant and
-/// the tooltip of `Attention::of`, and on macOS the tray's own title with the count after it,
-/// so that the title still says whether Halvo captures; at zero the tray's own.
+/// the tooltip of `Attention::of`, after the tray's own tooltip on Windows, and on macOS the
+/// tray's own title with the count after it, so that the title still says whether Halvo
+/// captures; at zero the tray's own.
 #[test]
 fn the_tray_shows_the_count_of_agents_that_need_the_person_as_attention_of_gives_it() {
     let test = test_app(scratch_dir("tray-count"));
@@ -1676,7 +1747,11 @@ fn the_tray_shows_the_count_of_agents_that_need_the_person_as_attention_of_gives
         let attention = halvo_coord_app::Attention::of(count);
         let shown = tray::with_attention(handle, &view);
         assert_eq!(shown.variant, attention.variant, "{count}");
-        let tooltip = attention.tooltip.unwrap_or_else(|| own.tooltip.to_string());
+        let tooltip = match attention.tooltip {
+            Some(needs) if cfg!(windows) => format!("{}\n{needs}", own.tooltip),
+            Some(needs) => needs,
+            None => own.tooltip.to_string(),
+        };
         assert_eq!(shown.tooltip, tooltip, "{count}");
         let title = if count > 0 && cfg!(target_os = "macos") {
             format!("{} {count}", own.title)
@@ -1699,6 +1774,111 @@ fn the_tray_shows_the_count_of_agents_that_need_the_person_as_attention_of_gives
         title_with(Capture::Paused, CaptureState::Paused),
         "with 12 agents that need the person, the title still says whether Halvo captures"
     );
+}
+
+/// What Windows shows of a tooltip: its first 127 UTF-16 units, as the tooltip of a
+/// notification icon holds 128 with the closing NUL.
+fn shown_on_windows(tooltip: &str) -> String {
+    String::from_utf16_lossy(&tooltip.encode_utf16().take(127).collect::<Vec<u16>>())
+}
+
+#[test]
+fn on_windows_the_tooltip_differs_between_every_two_states_and_no_label_names_the_mac() {
+    use crate::view_state::{HoldCause, HoldView, NoStatusService, Press};
+    use std::collections::BTreeMap;
+    let windows = |capture: Capture| {
+        let StatusView::Running(mut view) = StatusView::of(&sample_status(Platform::Windows))
+        else {
+            panic!("the sample status makes a running view")
+        };
+        view.capture = capture;
+        StatusView::Running(view)
+    };
+    let mut states: Vec<(String, StatusView, bool, Option<&'static str>)> = Vec::new();
+    for service in [
+        NoStatusService::Connecting,
+        NoStatusService::NotRunning,
+        NoStatusService::HeldUnreachable,
+        NoStatusService::StatusRefused,
+        NoStatusService::AnotherVersion,
+    ] {
+        let view = StatusView::no_status(service, Platform::Windows);
+        states.push((format!("{service:?}"), view, false, None));
+    }
+    for capture in Capture::ALL.iter().copied() {
+        states.push((format!("{capture:?}"), windows(capture), false, None));
+    }
+    let StatusView::Running(mut held) = windows(Capture::Running) else {
+        unreachable!("windows makes a running view")
+    };
+    held.hold = Some(HoldView {
+        cause: HoldCause::SourceNotStopped,
+        press: Press::Resume,
+    });
+    states.push(("the hold".into(), StatusView::Running(held), false, None));
+    let missed = windows(Capture::Running);
+    states.push(("a Pause that did not happen".into(), missed, true, None));
+    for (name, notice) in [
+        ("NOT_PAUSED", crate::quit::NOT_PAUSED),
+        ("NOT_ANSWERED", crate::quit::NOT_ANSWERED),
+        ("CAPTURE_GOES_ON", crate::quit::CAPTURE_GOES_ON.as_str()),
+        ("CAPTURE_MAY_GO_ON", crate::quit::CAPTURE_MAY_GO_ON),
+    ] {
+        states.push((name.into(), windows(Capture::Running), false, Some(notice)));
+    }
+
+    let cut: Vec<&str> = states
+        .iter()
+        .filter(|(_, view, missed, notice)| {
+            tray::labels_with(view, None, *missed, *notice)
+                .tooltip
+                .encode_utf16()
+                .count()
+                > 127
+        })
+        .map(|(name, ..)| name.as_str())
+        .collect();
+    assert_eq!(
+        cut,
+        ["CAPTURE_GOES_ON", "CAPTURE_MAY_GO_ON"],
+        "the tooltips cut"
+    );
+    let mut seen: BTreeMap<String, String> = BTreeMap::new();
+    for (name, view, missed, notice) in &states {
+        let own = tray::labels_with(view, None, *missed, *notice);
+        let alone = shown_on_windows(&tray::marked(own, 0, Platform::Windows).tooltip);
+        let counted = shown_on_windows(&tray::marked(own, 3, Platform::Windows).tooltip);
+        if cut.contains(&name.as_str()) {
+            assert_eq!(counted, alone, "{name}: the count line is cut away");
+        }
+        for (row, tooltip) in [
+            (name.clone(), alone),
+            (format!("{name}, 3 agents"), counted),
+        ] {
+            if let Some(other) = seen.insert(tooltip.clone(), row.clone()) {
+                assert!(
+                    cut.contains(&name.as_str()) && other == *name,
+                    "{row} and {other} show one tooltip on Windows: {tooltip:?}"
+                );
+            }
+        }
+        for missing in [None, Some(true), Some(false)] {
+            let labels = tray::labels_with(view, missing, *missed, *notice);
+            let tooltip = tray::marked(labels, 3, Platform::Windows).tooltip;
+            for text in [
+                labels.title,
+                labels.tooltip,
+                labels.status_text,
+                labels.toggle_text,
+                tooltip.as_str(),
+            ] {
+                assert!(
+                    !text.contains("macOS") && !text.contains("Mac"),
+                    "{name}, window {missing:?}: {text}"
+                );
+            }
+        }
+    }
 }
 
 /// A stand-in for the app's `Core` that records each call with the thread that made it, and

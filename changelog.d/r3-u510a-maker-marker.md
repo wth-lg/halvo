@@ -1,0 +1,2 @@
+- Added: the browser's web request maker of halvo-runner carries a marker text of its own, `halvo-runner:web-maker:this-build-has-it!`, and the new check 63-maker-marker, in the macos job of the slice mon, builds the runner with the feature loopback in the release profile and fails when the built file lacks that marker.
+- Changed: check 62-build refuses a shipped file that holds the marker of halvo-runner's web request maker.
