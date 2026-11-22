@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
     Accepted, AddOrigin, AgentHistory, AgentsReply, CheckpointsReply, CoordinatorCall,
-    CoordinatorReply, CreateAgent, EndRun, Finish, HistoryReply, HistoryRun, ListAgents,
-    ListCheckpoints, ListOverlaps, ListedAgent, ListedCheckpoint, Load, LoadReplies,
+    CoordinatorReply, CreateAgent, DropSession, EndRun, Finish, HistoryReply, HistoryRun,
+    ListAgents, ListCheckpoints, ListOverlaps, ListedAgent, ListedCheckpoint, Load, LoadReplies,
     LoadRepliesReply, LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook,
     LoadedSession, MarkCheckpoint, Overlap, OverlapsReply, PastCheckpoint, PastEffect,
     PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession, RevReply, RunnerCall,
@@ -833,6 +833,11 @@ fn runner_bodies() -> Vec<RunnerCall> {
                 .iter()
                 .map(|m| ProviderId::parse(&format!("msg-{m}")).unwrap())
                 .collect(),
+        }),
+        RunnerCall::DropSession(DropSession {
+            agent: agent(),
+            run: run(),
+            origin: origin(UTILITY),
         }),
     ]
 }
