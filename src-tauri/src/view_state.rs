@@ -878,8 +878,7 @@ impl StatusView {
                 StateFile::NewerVersion => Some(SettingsUnread::NewerVersion),
                 StateFile::Ok | StateFile::WriteFailed => None,
             },
-            reset_recorded: (f.state_file == StateFile::Corrupt)
-                .then(|| first_run(f.platform).recorded),
+            reset_recorded: (f.state_file == StateFile::Corrupt).then(|| reset_rows(status)),
             login_item_written: None,
             screen_not_renewed: false,
         }))
@@ -945,6 +944,29 @@ pub fn input_fails_or_waits_for_its_grant(status: &DaemonStatus) -> bool {
                     _ => false,
                 }
         })
+}
+
+/// The rows that the question of a settings reset lists: the first run's, without the row of
+/// keys and the row of pointer actions on a Mac whose status shows typing ([`typing_shown`])
+/// and whose row of Input Monitoring does not read granted, or which holds no such row. A reset
+/// turns the switch of keys on, so the input source then waits for the grant and records
+/// neither; the rows follow the grant and not the input source's state of the moment.
+fn reset_rows(status: &DaemonStatus) -> Vec<Recorded> {
+    let f = status.fields();
+    let granted = f
+        .permissions
+        .iter()
+        .any(|line| line.name == Permission::InputMonitoring && line.grant == GrantState::Granted);
+    let mut rows = first_run(f.platform).recorded;
+    if f.platform == Platform::Macos && typing_shown(status) && !granted {
+        rows.retain(|row| {
+            !matches!(
+                row.switch,
+                Some(SwitchName::KeyClass | SwitchName::PointerClass)
+            )
+        });
+    }
+    rows
 }
 
 /// The sentences of `status` that a view shows: by [`typing_shown`], without the row of keys,
