@@ -5,10 +5,12 @@
 # shellcheck disable=SC2016
 set -u
 name=24-r7-wall
+# shellcheck source=scripts/r7/backend-roots.sh
+. "$(dirname "$0")/../backend-roots.sh"
 tab=$(printf '\t')
 contract='backend/contract/schema/v1.json backend/contract/routes/v1.json backend/contract/samples/v1.json backend/gate/prompt-budget.json'
 limits='names-v0 computed-path bare-module file-or-environment nul-byte model-side absolute-path both-sides-path unread-variable bare-operand bracket-glob name-in-a-variable case-in-text quote-before-glob backend-glob'
-r7_files='scripts/r7/ci.d/20-r7-backend-static.sh scripts/r7/ci.d/21-r7-backend-test.sh scripts/r7/ci.d/24-r7-wall.sh scripts/r7/ci.d/25-r7-backend-licenses.sh scripts/r7/ci.d/27-r7-metering-self.sh'
+r7_files='scripts/r7/backend-roots.sh scripts/r7/ci.d/20-r7-backend-static.sh scripts/r7/ci.d/21-r7-backend-test.sh scripts/r7/ci.d/24-r7-wall.sh scripts/r7/ci.d/25-r7-backend-licenses.sh scripts/r7/ci.d/27-r7-metering-self.sh'
 nlimits=$(awk -v l="$limits" 'BEGIN { print split(l, w, " ") }')
 
 step_lines() {
@@ -53,21 +55,26 @@ step_lines() {
 }
 
 judge() {
-  awk -F "$tab" -v tree_read="$tree_read" -v tree_listed="$tree_listed" -v q="'" -v contract="$contract" -v r7="$r7_files" -v nlimits="$nlimits" -v problems="$1" -v tally="$2" '
+  awk -F "$tab" -v tree_read="$tree_read" -v tree_listed="$tree_listed" -v q="'" -v backend_root="$backend_root" -v model_root="$model_root" -v contract="$contract" -v r7="$r7_files" -v nlimits="$nlimits" -v problems="$1" -v tally="$2" '
     function problem(where, why) { printf "%s: %s\n", where, why >>problems; refused[side]++ }
     function lower(s) { return tolower(s) }
     function inside(r,   l) {
       l = lower(r)
-      return l == "backend" || index(l, "backend/") == 1 || l == "formal/r7-ledger" || index(l, "formal/r7-ledger/") == 1
+      return l == backend_root || index(l, backend_root "/") == 1 || l == model_root || index(l, model_root "/") == 1
     }
-    function under_backend(r,   l) { l = lower(r); return l == "backend" || index(l, "backend/") == 1 }
+    function under_backend(r,   l) { l = lower(r); return l == backend_root || index(l, backend_root "/") == 1 }
+    function model_at(sg, i, n,   k) {
+      if (i + nmodel - 1 > n) return 0
+      for (k = 1; k <= nmodel; k++) if (lower(sg[i + k - 1]) != model_part[k]) return 0
+      return 1
+    }
     function tracked(r) { return r != "" && ((r in known) || (r in tracked_dir) || (r in stem)) }
     function tracked_file(r) { return r != "" && ((r in known) || (r in stem)) }
     function dir_of(p,   k) { k = match(p, /\/[^\/]*$/); return k ? substr(p, 1, k - 1) : "" }
     function side_of(p,   l) {
       l = lower(p)
-      if (index(l, "backend/") == 1) return "backend"
-      if (index(l, "formal/r7-ledger/") == 1) return "model"
+      if (index(l, backend_root "/") == 1) return "backend"
+      if (index(l, model_root "/") == 1) return "model"
       return "app"
     }
     function manifest_of(p,   d) {
@@ -251,7 +258,7 @@ judge() {
         prev = ""
         for (i = from; i <= n; i++) {
           if (prev == ".." && (lower(sg[i]) in app_only) && !tracked(r)) {
-            if (lower(sg[i]) == "formal" && i < n && lower(sg[i + 1]) == "r7-ledger") { prev = sg[i]; continue }
+            if (model_at(sg, i, n)) { prev = sg[i]; continue }
             problem(where, "names " sg[i] ", a top-level entry of the app, after a climb: " tok fix_md)
             return
           }
@@ -590,6 +597,7 @@ judge() {
       fix_ask = "; ask for a ruling"
       person_cargo_home = "$HOME/.cargo"
       max_run = 64
+      nmodel = split(model_root, model_part, "/")
       split(contract, list, " ")
       for (k in list) copied[list[k]] = 1
       nr7 = split(r7, r7list, " ")
@@ -714,8 +722,8 @@ literal_search_path() {
 
 search_scope() {
   case $search in
-    backend) "$@" -- ':(icase)backend/' ;;
-    app) "$@" -- . ':(exclude,icase)backend/' ':(exclude,icase)formal/r7-ledger/' ;;
+    backend) "$@" -- ":(icase)$backend_root/" ;;
+    app) "$@" -- . ":(exclude,icase)$backend_root/" ":(exclude,icase)$model_root/" ;;
     case-lines) "$@" -- '*.sh' '*.bash' '.githooks/' ;;
     anchors|assignments) "$@" -- . ;;
     hidden) "$@" -- ":(literal)$path" ;;

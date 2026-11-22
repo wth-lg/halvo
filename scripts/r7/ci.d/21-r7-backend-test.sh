@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The backend's test script, sh scripts/with-env.sh node_modules/.bin/vitest run in backend/ as its package.json words it, run with vitest's json reporter beside its default one, exits 0 with no failed file or test, every test file that scripts/r7/backend-tests.txt of the commit C (HEAD, read before the tests; the list read from C's objects after them) lists runs with no test that the json report gives a status other than passed or failed (skipped, todo or pending) and at least as many passed tests as its line says, and no other test file runs; then check 50's records run from C's objects, backend/ at C exported by git archive into a new directory under TMPDIR with one link to the checkout's backend/node_modules and records.mjs run there through the export's scripts/with-env.sh with GATE_STATE and its lines under the artifacts, every .json path under backend/gate/fixtures/concurrency/records/ at C is a record named good-<name>.json or bad-<name>.json directly in that directory with no line break and in UTF-8, C holds at least one, and the output holds each record's own line as expected once, by name, no problem line whatever the exit code, no other line, and the summary "concurrency: records: N of N as expected" once as its last line, and before the records' lines each .json fixture directly under backend/gate/fixtures/concurrency/refused/ at C, at least one and each named by the same rules, has its one line "self-test concurrency: refused record-<name>: refused as expected: <the cause that the fixture names>" and the tally "concurrency: refused records: N of N refused as expected" stands once, no other line stands there, and a line that says that a fixture was not refused fails the run whatever the exit code; no tracked file differs from C or carries an index flag other than H (git diff and git ls-files -v with core.fsmonitor and core.untrackedCache off) before the node tests, after them and after the records' run; trusted and not checked, by ruling P7-101 and its Addition 1 and ruling P7-107: backend/node_modules, the tools on the PATH (node, git, tar, sh), code that a node test starts or arranges to run after the tests end (it can write the export, the lines under the artifacts and backend/node_modules), the clone's .git, the index against a change that is staged and put back, and records.mjs as C holds it; the windows job does not run them, because on windows-2025 the stack needs lsof and ps -o, which Git Bash lacks, and the test script does not end.
+# rule: The backend's test script, sh scripts/with-env.sh node_modules/.bin/vitest run in backend/ as its package.json words it, run with vitest's json reporter beside its default one, exits 0 with no failed file or test, every test file that scripts/r7/backend-tests.txt of the commit C (HEAD, read before the tests; the list read from C's objects after them) lists runs with no test that the json report gives a status other than passed or failed (skipped, todo or pending) and at least as many passed tests as its line says, and no other test file runs; then check 50's records run from C's objects, backend/ at C exported by git archive into a new directory under TMPDIR with one link to the checkout's backend/node_modules and records.mjs run there through the export's scripts/with-env.sh with GATE_STATE and its lines under the artifacts, every .json path under backend/gate/fixtures/concurrency/records/ at C is a record named good-<name>.json or bad-<name>.json directly in that directory with no line break and in UTF-8, C holds at least one, and the output holds each record's own line as expected once, by name, no problem line whatever the exit code, no other line, and the summary "concurrency: records: N of N as expected" once as its last line, and before the records' lines each .json fixture directly under backend/gate/fixtures/concurrency/refused/ at C, at least one and each named by the same rules, has its one line "self-test concurrency: refused record-<name>: refused as expected: <the cause that the fixture names>" and the tally "concurrency: refused records: N of N refused as expected" stands once, no other line stands there, and a line that says that a fixture was not refused fails the run whatever the exit code; no tracked file differs from C or carries an index flag other than H (git diff and git ls-files -v with core.fsmonitor and core.untrackedCache off) before the node tests, after them and after the records' run; trusted and not checked, by ruling P7-101 and its Addition 1 and ruling P7-107: backend/node_modules, the tools on the PATH (node, git, tar, sh), code that a node test starts or arranges to run after the tests end (it can write the export, the lines under the artifacts and backend/node_modules), the clone's .git, the index against a change that is staged and put back, and records.mjs as C holds it; the windows job does not run them, because on windows-2025 the stack needs lsof and ps -o, which Git Bash lacks, and the test script does not end. In a pull request's run (GITHUB_EVENT_NAME pull_request, HEAD a merge commit) the check runs nothing and passes, with one line before PASS that names the count of the paths that it read, when at least one path differs between HEAD and its first parent (git diff-tree -r --no-renames) and none of them, in any letter case, lies under backend/ or formal/r7-ledger/, the roots of 24-r7-wall that scripts/r7/backend-roots.sh holds for both checks, or under scripts/r7/ or scripts/ci/, or is scripts/prerequisites.sh or .github/workflows/ci.yml, and git quotes no name; every other event, an unset event, a HEAD with one parent and a list that git cannot make run the tests.
 # lane: alone
 set -u
 name=21-r7-backend-test
@@ -8,6 +8,9 @@ list=scripts/r7/backend-tests.txt
 records_dir=backend/gate/fixtures/concurrency/records
 refused_dir=backend/gate/fixtures/concurrency/refused
 records_script=backend/gate/fixtures/concurrency/records.mjs
+# shellcheck source=scripts/r7/backend-roots.sh
+. "$(dirname "$0")/../backend-roots.sh"
+run_paths='scripts/r7/ scripts/ci/ scripts/prerequisites.sh .github/workflows/ci.yml'
 
 compare_report() {
   node - "$1" "$2" "$3" "$4" <<'EOF'
@@ -355,8 +358,67 @@ guard_in() {
   [ -z "$guard_cause" ]
 }
 
+decide() {
+  decision=run
+  case $2 in
+    pull_request) ;;
+    push|schedule|workflow_dispatch) decision_why="the event $2 runs them always"; return 0 ;;
+    '') decision_why='GITHUB_EVENT_NAME is not set'; return 0 ;;
+    *) decision_why="the event $2 is none that this check knows"; return 0 ;;
+  esac
+  if [ -z "${backend_root:-}" ] || [ -z "${model_root:-}" ]; then
+    decision_why='scripts/r7/backend-roots.sh names no root'
+    return 0
+  fi
+  if ! git -C "$1" rev-parse -q --verify 'HEAD^2^{commit}' >/dev/null 2>&1; then
+    decision_why='HEAD has no second parent'
+    return 0
+  fi
+  if ! d_paths=$(git -C "$1" -c core.quotePath=false diff-tree -r --no-renames --name-only 'HEAD^1' HEAD 2>/dev/null); then
+    decision_why='git could not list the paths that HEAD changes against its first parent'
+    return 0
+  fi
+  d_counts=$(printf '%s\n' "$d_paths" | awk -v paths="$backend_root/ $model_root/ $run_paths" '
+    BEGIN { n = split(paths, p, " "); read = 0; hit = 0; quoted = 0 }
+    $0 == "" { next }
+    {
+      read++
+      l = tolower($0)
+      if (substr(l, 1, 1) == "\"") quoted++
+      for (k = 1; k <= n; k++) {
+        if (l == p[k] || (substr(p[k], length(p[k])) == "/" && (index(l, p[k]) == 1 || l "/" == p[k]))) { hit++; break }
+      }
+    }
+    END { printf "%d %d %d\n", read, hit, quoted }') || d_counts=
+  d_read=${d_counts%% *}
+  d_rest=${d_counts#* }
+  d_hit=${d_rest%% *}
+  d_quoted=${d_rest#* }
+  case "$d_read:$d_hit:$d_quoted" in
+    *[!0-9:]*|:*|*::*|*:) decision_why='the list of the changed paths could not be read' ;;
+    *:*:0)
+      if [ "$d_hit" -gt 0 ]; then
+        decision_why="$d_hit of the $d_read paths that the pull request changes can change the verdict of the backend's tests"
+      elif [ "$d_read" -eq 0 ]; then
+        decision_why='the pull request changes no path'
+      else
+        decision=skip
+        decision_why="none of the $d_read paths that the pull request changes can change the verdict of the backend's tests"
+      fi
+      ;;
+    *) decision_why="git quotes the name of $d_quoted of the $d_read paths that the pull request changes" ;;
+  esac
+}
+
 measure() {
   repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
+  decide "$repo" "${GITHUB_EVENT_NAME:-}"
+  if [ "$decision" = skip ]; then
+    printf '%s: not run: %s\n' "$name" "$decision_why"
+    printf 'PASS %s\n' "$name"
+    exit 0
+  fi
+  printf '%s: runs the tests: %s\n' "$name" "$decision_why"
   artifacts=${CI_D_ARTIFACTS:-$repo/target/ci-artifacts/$name}
   mkdir -p "$artifacts" || exit 2
   if ! at_commit=$(git -C "$repo" rev-parse --verify -q 'HEAD^{commit}'); then
@@ -688,6 +750,39 @@ expect_measure() {
   verdict "$1" "$got" "$case_name"
 }
 
+decision_repo() {
+  d_dir=$scratch/decide-$1
+  shift
+  mkdir -p "$d_dir/docs" || exit 2
+  git -C "$d_dir" init -q >/dev/null 2>&1 || exit 2
+  printf 'the base\n' >"$d_dir/docs/base.txt" || exit 2
+  git_commit "$d_dir" 'the base' docs/base.txt
+  [ "$#" -gt 0 ] || return 0
+  git -C "$d_dir" checkout -q -b pull-request || exit 2
+  for d_path in "$@"; do
+    mkdir -p "$d_dir/${d_path%/*}" || exit 2
+    printf 'changed by the pull request\n' >"$d_dir/$d_path" || exit 2
+  done
+  git_commit "$d_dir" 'the pull request' "$@"
+  git -C "$d_dir" checkout -q - || exit 2
+  git -C "$d_dir" -c maintenance.auto=false -c gc.auto=0 merge -q --no-ff --no-edit pull-request >/dev/null || exit 2
+}
+
+expect_decision() {
+  case_name=decide-$2
+  decide "$scratch/decide-$3" "$4"
+  got="$decision: $decision_why"
+  if [ -n "${5:-}" ]; then
+    (CI_D_REPO=$scratch/decide-$3 GITHUB_EVENT_NAME=$4 measure) >"$scratch/$case_name.measure" 2>&1
+    d_code=$?
+    printf '%s\n0\n' "$5" >"$scratch/$case_name.wanted" || exit 2
+    printf '%s\n' "$d_code" >>"$scratch/$case_name.measure" || exit 2
+    cmp -s "$scratch/$case_name.wanted" "$scratch/$case_name.measure" || got="$got (with another output of the check)"
+  fi
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$case_name" "$1" "$got"
+  [ "$got" = "$1" ] || wrong="$wrong $case_name"
+}
+
 self_test() {
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   scratch=$(cd "$scratch" && pwd -P) || exit 2
@@ -699,6 +794,29 @@ self_test() {
   refused_tally='concurrency: refused records: 1 of 1 refused as expected'
   refused_prelude="$refused_line
 $refused_tally"
+
+  decision_repo a-path-under-backend backend/src/a.ts docs/a.md
+  expect_decision "run: 1 of the 2 paths that the pull request changes can change the verdict of the backend's tests" a-path-under-backend a-path-under-backend pull_request
+
+  decision_repo a-file-of-the-wire-contract backend/contract/schema/v1.json
+  expect_decision "run: 1 of the 1 paths that the pull request changes can change the verdict of the backend's tests" a-file-of-the-wire-contract a-file-of-the-wire-contract pull_request
+
+  decision_repo outside-the-list-alone account/schema/schema.v1.json backends/a.ts scripts/r7x/a.sh docs/r7/a.md formal/r7-ledgers/a.tla
+  outside="none of the 5 paths that the pull request changes can change the verdict of the backend's tests"
+  expect_decision "skip: $outside" paths-outside-the-list-alone outside-the-list-alone pull_request "$name: not run: $outside
+PASS $name"
+
+  decision_repo a-commit-with-one-parent
+  printf 'one parent\n' >"$scratch/decide-a-commit-with-one-parent/docs/one.txt" || exit 2
+  git_commit "$scratch/decide-a-commit-with-one-parent" 'a commit with one parent' docs/one.txt
+  expect_decision 'run: HEAD has no second parent' a-commit-with-one-parent a-commit-with-one-parent pull_request
+
+  decision_repo a-diff-that-fails docs/a.md
+  d_tree=$(git -C "$scratch/decide-a-diff-that-fails" rev-parse 'HEAD^1^{tree}') || exit 2
+  mv "$scratch/decide-a-diff-that-fails/.git/objects/${d_tree%"${d_tree#??}"}/${d_tree#??}" "$scratch/a-diff-that-fails.tree" || exit 2
+  expect_decision 'run: git could not list the paths that HEAD changes against its first parent' a-diff-that-fails a-diff-that-fails pull_request
+
+  expect_decision 'run: the event push runs them always' the-event-push outside-the-list-alone push
 
   fixture good
   expect PASS good
