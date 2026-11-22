@@ -1201,6 +1201,10 @@ mod tests {
         ) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
+
+        fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
     }
 
     /// The status of a new life that no claim has reached: desired running, no indicator.
@@ -1763,6 +1767,10 @@ mod tests {
         ) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
+
+        fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
     }
 
     fn looked_again(clock: &StandInClock) {
@@ -2267,6 +2275,10 @@ mod tests {
         ) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
+
+        fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
     }
 
     struct EachItsOwn {
@@ -2342,6 +2354,10 @@ mod tests {
             _: Permission,
         ) -> Result<DaemonStatus, ClientError> {
             own("acknowledge_lost_permission")
+        }
+
+        fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            own("reset_settings")
         }
 
         #[cfg(target_os = "macos")]
@@ -2920,6 +2936,10 @@ mod tests {
             _: Made,
             _: Permission,
         ) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
 
@@ -3658,6 +3678,10 @@ mod tests {
                 _: Made,
                 _: Permission,
             ) -> Result<DaemonStatus, ClientError> {
+                Err(ClientError::Unsupported)
+            }
+
+            fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
                 Err(ClientError::Unsupported)
             }
 

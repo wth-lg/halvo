@@ -97,6 +97,10 @@ impl Control for AtTheMutation {
     ) -> Result<DaemonStatus, ClientError> {
         Err(ClientError::Unsupported)
     }
+
+    fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
 }
 
 fn app_with_mutations_answering(answer: fn() -> ClientError, name: &str) -> TestApp {
@@ -680,6 +684,10 @@ impl Control for Reading {
         _: Made,
         _: Permission,
     ) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
         Err(ClientError::Unsupported)
     }
 }

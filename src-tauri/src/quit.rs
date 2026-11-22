@@ -451,6 +451,10 @@ mod tests {
         ) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
+
+        fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
     }
 
     fn status(capture: Capture, desired: CaptureState) -> DaemonStatus {

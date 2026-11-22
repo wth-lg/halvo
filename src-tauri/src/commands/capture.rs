@@ -127,6 +127,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         start_capture,
         delete_offline,
         remove_halvo,
+        reset_settings,
     ];
     handle(invoke)
 }
@@ -1000,6 +1001,29 @@ pub async fn acknowledge_lost_permission(
         .take_mutation(call, next_number_at_answer, &status);
     draw_off_the_main_thread(&state.views).await;
     Ok(onboarding_shown(&status))
+}
+
+/// The reset of the settings alone, the command `reset_settings`: one reset_settings request,
+/// whose status the views take as the answer of a mutation, and its view. It writes nothing of
+/// its own, no login item among it: the file that the service writes is the record of what was
+/// asked. A refusal is answered as the command's error, and no second request goes out.
+pub fn reset(control: &dyn Control, views: &Views) -> Result<StatusView, ActionError> {
+    let made = control.places().make();
+    let call = made.number();
+    let answer = control.reset_settings(made);
+    let next_number_at_answer = control.places().next_number();
+    let status = answer.map_err(|error| not_taken(&error))?;
+    views.take_mutation(call, next_number_at_answer, &status);
+    Ok(views.marked(StatusView::of(&status)))
+}
+
+#[tauri::command]
+pub async fn reset_settings(state: State<'_, AppState>) -> Result<StatusView, ActionError> {
+    let control = Arc::clone(&state.control);
+    let views = Arc::clone(&state.views);
+    let answer = off_the_main_thread(move || reset(control.as_ref(), &views)).await?;
+    draw_off_the_main_thread(&state.views).await;
+    answer
 }
 
 fn not_taken(error: &ClientError) -> ActionError {

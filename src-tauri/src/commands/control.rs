@@ -182,6 +182,10 @@ pub trait Control: Send + Sync {
         permission: Permission,
     ) -> Result<DaemonStatus, ClientError>;
 
+    /// Sends one reset_settings and answers the status that comes back: the settings after the
+    /// reset, before the daemon's life ends and starts again.
+    fn reset_settings(&self, made: Made) -> Result<DaemonStatus, ClientError>;
+
     /// Asks the daemon for one end of a new owner stream (the workflows run's W-C24.13), on which the coordinator's
     /// requests reach the owner of the derived store.
     #[cfg(target_os = "macos")]
@@ -375,6 +379,10 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
             &Request::AcknowledgeLostPermission { permission },
             |client| client.acknowledge_lost_permission(permission),
         )
+    }
+
+    fn reset_settings(&self, made: Made) -> Result<DaemonStatus, ClientError> {
+        self.run(made, &Request::ResetSettings, Client::reset_settings)
     }
 
     /// The stream call of `streaming`, in its place in the line; a control made by `new` answers
@@ -774,6 +782,11 @@ impl<C: Control> Control for Watching<C> {
             before,
             self.inner.acknowledge_lost_permission(made, permission),
         )
+    }
+
+    fn reset_settings(&self, made: Made) -> Result<DaemonStatus, ClientError> {
+        let before = self.pid.get();
+        self.took_status(before, self.inner.reset_settings(made))
     }
 
     #[cfg(target_os = "macos")]

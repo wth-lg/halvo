@@ -867,6 +867,13 @@ impl crate::commands::control::Control for Claims {
         Err(halvo_control::client::ClientError::Unsupported)
     }
 
+    fn reset_settings(
+        &self,
+        _: crate::commands::control::Made,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
     #[cfg(target_os = "macos")]
     fn owner_stream(
         &self,
