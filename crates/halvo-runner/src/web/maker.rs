@@ -578,6 +578,7 @@ mod tests {
             origin: BOUND.to_string(),
             path: "/charge".to_string(),
             frame: "F1".to_string(),
+            form: halvo_web::cdp::HeldForm::NoBody,
         }
     }
 

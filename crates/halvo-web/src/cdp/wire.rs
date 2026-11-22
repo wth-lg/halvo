@@ -71,12 +71,225 @@ pub(crate) struct Facts {
     /// The host and port that the runner's hook of the main document gets when the request is let
     /// through.
     pub hook: Option<(String, u16)>,
+    /// What the wire read of the request's body (`form_of`).
+    pub form: HeldForm,
+}
+
+/// What the wire read of the body of a paused request (r3 U5.10-C; the coordinator's rulings of
+/// log lines 15991 and 16169). `NoBody`: the event says that the request has no body. `Named`: the
+/// values of the fields of a form's own encoding whose folded names `AMOUNT_FIELDS` holds, decoded,
+/// in the body's order, and of no other field; an empty list for a form that names no amount.
+/// `Unread`: why the body could not be read. No other byte of a body leaves the wire.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum HeldForm {
+    NoBody,
+    Named(Vec<String>),
+    Unread(FormUnread),
+}
+
+/// A body that is not read fails closed: the default of a form is one that was not carried.
+impl Default for HeldForm {
+    fn default() -> HeldForm {
+        HeldForm::Unread(FormUnread::NotCarried)
+    }
+}
+
+/// Why the wire could not read the body of a paused request. Only the body of a form's navigation,
+/// in a form's own encoding, carried whole by the event, is read: the hosted probe of r3 U5.10-C
+/// (run 45054776701) showed that body alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FormUnread {
+    /// The request is no navigation of a document: a fetch, an XHR or any other.
+    NotANavigation,
+    /// The headers name no content type, or another than a form's own encoding
+    /// (`application/x-www-form-urlencoded`): a multipart, a JSON or a text body.
+    Type,
+    /// The event says that the request has a body and does not carry it whole: no entry of it, an
+    /// entry with no bytes, or bytes that are no base64.
+    NotCarried,
+    /// The body is longer than `MAX_FORM_BYTES`.
+    Large,
+    /// The body is not a form's own encoding of UTF-8: a charset other than UTF-8, a byte that is
+    /// not ASCII, a broken escape, or a name or a value that is not UTF-8 once decoded.
+    Encoding,
+}
+
+impl FormUnread {
+    /// The reason's word, for a line on standard error.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            FormUnread::NotANavigation => "not_a_navigation",
+            FormUnread::Type => "type",
+            FormUnread::NotCarried => "not_carried",
+            FormUnread::Large => "large",
+            FormUnread::Encoding => "encoding",
+        }
+    }
+}
+
+/// The folded names (`fold`) of the form fields that name an amount: the closed list of r3
+/// U5.10-C, point (i). A field of another name is never read, so that a token, an id, a quantity
+/// or a price of one item never reads as the amount.
+pub const AMOUNT_FIELDS: [&str; 10] = [
+    "amount",
+    "amt",
+    "total",
+    "totalamount",
+    "amounttotal",
+    "grandtotal",
+    "amountdue",
+    "totaldue",
+    "paymentamount",
+    "chargeamount",
+];
+
+/// The most bytes of a body that the wire reads; a longer body is `FormUnread::Large`.
+pub const MAX_FORM_BYTES: usize = 16 * 1024;
+
+/// What the wire reads of the body of the request that the browser paused in `ev`, in this order:
+/// a request that is no navigation of a document is `NotANavigation`; one whose event names no
+/// data (`hasPostData` absent or false, and no `postDataEntries`) is `NoBody`; then the content
+/// type must be a form's own encoding (`form_type`), every entry must carry its bytes, whole, as
+/// base64, and the bytes must stay within `MAX_FORM_BYTES`; the body is then read as a form
+/// (`named_values`). The entries are read from chromiumoxide's typed event, as `facts_of_event`
+/// gets it; the deprecated `postData` text is not in that type.
+pub(crate) fn form_of(ev: &EventRequestPaused) -> HeldForm {
+    use base64::Engine;
+    if !matches!(ev.resource_type, ResourceType::Document) {
+        return HeldForm::Unread(FormUnread::NotANavigation);
+    }
+    let request = &ev.request;
+    let entries = request.post_data_entries.as_deref().unwrap_or_default();
+    if request.has_post_data != Some(true) && entries.is_empty() {
+        return HeldForm::NoBody;
+    }
+    if let Err(unread) = form_type(request.headers.inner()) {
+        return HeldForm::Unread(unread);
+    }
+    if entries.is_empty() {
+        return HeldForm::Unread(FormUnread::NotCarried);
+    }
+    let mut body = Vec::new();
+    for entry in entries {
+        let Some(bytes) = &entry.bytes else {
+            return HeldForm::Unread(FormUnread::NotCarried);
+        };
+        let text: &str = AsRef::<str>::as_ref(bytes);
+        let Ok(part) = base64::engine::general_purpose::STANDARD.decode(text) else {
+            return HeldForm::Unread(FormUnread::NotCarried);
+        };
+        body.extend_from_slice(&part);
+        if body.len() > MAX_FORM_BYTES {
+            return HeldForm::Unread(FormUnread::Large);
+        }
+    }
+    named_values(&body)
+}
+
+/// Whether the request's `headers` name a form's own encoding as its content type: the media type
+/// `application/x-www-form-urlencoded`, the header's name and the media type read without regard
+/// to case; a charset among its parameters must be UTF-8 (`Encoding` otherwise); no content type,
+/// or another, is `Type`.
+fn form_type(headers: &Value) -> Result<(), FormUnread> {
+    let named = headers.as_object().and_then(|h| {
+        h.iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case("content-type"))
+            .and_then(|(_, v)| v.as_str())
+    });
+    let Some(value) = named else {
+        return Err(FormUnread::Type);
+    };
+    let mut parts = value.split(';');
+    let media = parts.next().unwrap_or_default().trim();
+    if !media.eq_ignore_ascii_case("application/x-www-form-urlencoded") {
+        return Err(FormUnread::Type);
+    }
+    for parameter in parts {
+        let (key, value) = parameter.split_once('=').unwrap_or((parameter, ""));
+        let value = value.trim().trim_matches('"');
+        if key.trim().eq_ignore_ascii_case("charset")
+            && !value.eq_ignore_ascii_case("utf-8")
+            && !value.eq_ignore_ascii_case("utf8")
+        {
+            return Err(FormUnread::Encoding);
+        }
+    }
+    Ok(())
+}
+
+/// The values of the fields of `body`, a form's own encoding, whose folded names (`fold`) the list
+/// `AMOUNT_FIELDS` holds, decoded, in the body's order: the body must be ASCII, and each name and
+/// value must decode (`form_decode`) to UTF-8, else the body is `Encoding`.
+fn named_values(body: &[u8]) -> HeldForm {
+    if !body.is_ascii() {
+        return HeldForm::Unread(FormUnread::Encoding);
+    }
+    let text = String::from_utf8_lossy(body);
+    let mut values = Vec::new();
+    for pair in text.split('&').filter(|p| !p.is_empty()) {
+        let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
+        let (Some(name), Some(value)) = (form_decode(name), form_decode(value)) else {
+            return HeldForm::Unread(FormUnread::Encoding);
+        };
+        if AMOUNT_FIELDS.contains(&fold(&name).as_str()) {
+            values.push(value);
+        }
+    }
+    HeldForm::Named(values)
+}
+
+/// One name or value of a form's own encoding decoded: `+` is a space and `%` with two hex digits
+/// the byte that they name; none for any other `%` or a result that is not UTF-8.
+fn form_decode(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        match bytes[at] {
+            b'+' => {
+                out.push(b' ');
+                at += 1;
+            }
+            b'%' => {
+                let hex = bytes.get(at + 1..at + 3)?;
+                if !hex.iter().all(u8::is_ascii_hexdigit) {
+                    return None;
+                }
+                out.push(u8::from_str_radix(std::str::from_utf8(hex).ok()?, 16).ok()?);
+                at += 3;
+            }
+            b => {
+                out.push(b);
+                at += 1;
+            }
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+/// A field's name folded for `AMOUNT_FIELDS`: of a name `a[b]` its last bracket part that is not
+/// empty (`b` of `a[b][]`), in ASCII lower case, with every `_`, `-` and `.` taken out.
+fn fold(name: &str) -> String {
+    let mut part = name;
+    while let Some((outer, inner)) = part.strip_suffix(']').and_then(|p| p.rsplit_once('[')) {
+        if inner.is_empty() {
+            part = outer;
+        } else {
+            part = inner;
+            break;
+        }
+    }
+    part.chars()
+        .filter(|c| !matches!(c, '_' | '-' | '.'))
+        .map(|c| c.to_ascii_lowercase())
+        .collect()
 }
 
 /// The facts of the request that the browser paused in `ev` (CP-186 T4 (a)): its number, whether
 /// the pause is a redirect's hop (the event's `redirectedRequestId`), its method, address, origin,
-/// path and frame, whether it is a service worker's script, and the host and port for the runner's
-/// hook when it is a document of the executor's own page `home`.
+/// path and frame, whether it is a service worker's script, the host and port for the runner's
+/// hook when it is a document of the executor's own page `home`, and what the wire read of its
+/// body (`form_of`).
 pub(crate) fn facts_of_event(ev: &EventRequestPaused, home: Option<&str>) -> Facts {
     let (origin, path) = split_url(&ev.request.url);
     let document = matches!(ev.resource_type, ResourceType::Document);
@@ -92,6 +305,7 @@ pub(crate) fn facts_of_event(ev: &EventRequestPaused, home: Option<&str>) -> Fac
         path,
         frame: ev.frame_id.inner().clone(),
         worker_script: is_worker_script(ev.request.headers.inner()),
+        form: form_of(ev),
     }
 }
 
@@ -204,6 +418,7 @@ impl Holds {
             origin: f.origin.clone(),
             path: f.path.clone(),
             frame: f.frame.clone(),
+            form: f.form.clone(),
         };
         let (state, act) = if holds {
             (HoldState::Waiting, Act::Hold(self.next))
@@ -1311,6 +1526,196 @@ mod tests {
         );
     }
 
+    /// A paused POST of the type `resource` to the probe's form, as the hosted probe of r3 U5.10-C
+    /// saw the browser send it: the content type `content_type` where one is given, `hasPostData`
+    /// where `has` is given, and `postDataEntries` where `entries` is given, each entry with the
+    /// base64 of its text, or with no bytes where its text is none.
+    fn body_event(
+        resource: &str,
+        content_type: Option<&str>,
+        has: Option<bool>,
+        entries: Option<&[Option<&str>]>,
+    ) -> EventRequestPaused {
+        use base64::Engine;
+        let mut v = serde_json::json!({
+            "requestId": "interception-9",
+            "request": {
+                "url": "http://pay.agent.test:18090/pay",
+                "method": "POST",
+                "headers": {},
+                "initialPriority": "VeryHigh",
+                "referrerPolicy": "strict-origin-when-cross-origin"
+            },
+            "frameId": "F1",
+            "resourceType": resource,
+            "networkId": "n9"
+        });
+        if let Some(t) = content_type {
+            v["request"]["headers"]["Content-Type"] = serde_json::json!(t);
+        }
+        if let Some(h) = has {
+            v["request"]["hasPostData"] = serde_json::json!(h);
+        }
+        if let Some(entries) = entries {
+            let list: Vec<serde_json::Value> = entries
+                .iter()
+                .map(|e| match e {
+                    Some(text) => serde_json::json!({
+                        "bytes": base64::engine::general_purpose::STANDARD.encode(text)
+                    }),
+                    None => serde_json::json!({}),
+                })
+                .collect();
+            v["request"]["postDataEntries"] = serde_json::json!(list);
+        }
+        serde_json::from_value(v).unwrap()
+    }
+
+    /// r3 U5.10-C, stage two (the coordinator's rulings of log lines 15991 and 16169): the wire
+    /// reads the body of a held form's navigation from its paused event, in a form's own encoding,
+    /// and hands out the values of the fields that name an amount alone, through the held request;
+    /// a request with no body says so; a multipart, a JSON or a typeless body, a body that the event
+    /// does not carry whole, a large body, a body that is not a form's own encoding of UTF-8 and a
+    /// request that is no navigation are each unreadable with its reason, never an empty body.
+    #[test]
+    fn a_held_form_body_is_read_and_every_other_body_is_unreadable_with_its_reason() {
+        const FORM: &str = "application/x-www-form-urlencoded";
+        let form = |entries: &[Option<&str>]| {
+            form_of(&body_event(
+                "Document",
+                Some(FORM),
+                Some(true),
+                Some(entries),
+            ))
+        };
+        let named =
+            |values: &[&str]| HeldForm::Named(values.iter().map(|v| v.to_string()).collect());
+        let unread = HeldForm::Unread;
+
+        // The probe's own body, and a body with more fields that name an amount, by the folded
+        // names of the closed list, beside a token, a quantity and a price that never read as one.
+        assert_eq!(
+            form(&[Some("amount=4302.29&payee=probe-payee")]),
+            named(&["4302.29"])
+        );
+        let body = "token=tok_123.45&amount=4302.29&qty=2&price=2151.15\
+                    &payment%5Btotal%5D=4%2C302.29&Grand-Total=4302.29+USD&amount_due=";
+        assert_eq!(
+            form(&[Some(body)]),
+            named(&["4302.29", "4,302.29", "4302.29 USD", ""])
+        );
+        // Entries are one body; a form that names no amount reads as such.
+        assert_eq!(
+            form(&[Some("amount=43"), Some("02.29")]),
+            named(&["4302.29"])
+        );
+        assert_eq!(form(&[Some("token=tok_123.45&kind=card")]), named(&[]));
+        assert_eq!(
+            form_of(&body_event(
+                "Document",
+                Some("Application/X-WWW-Form-Urlencoded; charset=UTF-8"),
+                Some(true),
+                Some(&[Some("total=1.00")])
+            )),
+            named(&["1.00"])
+        );
+
+        // The held request hands the read values out, and nothing else of the body.
+        let ev = body_event(
+            "Document",
+            Some(FORM),
+            Some(true),
+            Some(&[Some("amount=4302.29&payee=probe-payee")]),
+        );
+        let mut h = Holds::default();
+        let r = rule(&["http://pay.agent.test:18090"], Mode::Hold);
+        let (Act::Hold(_), true) = h.on_pause(Some(&r), &facts_of_event(&ev, None), pause("p"))
+        else {
+            panic!("held")
+        };
+        assert_eq!(h.waiting()[0].form, named(&["4302.29"]));
+
+        // No body.
+        for has in [None, Some(false)] {
+            assert_eq!(
+                form_of(&body_event("Document", Some(FORM), has, None)),
+                HeldForm::NoBody,
+                "{has:?}"
+            );
+        }
+
+        // A body of another type, or of none.
+        for t in [
+            Some("multipart/form-data; boundary=x"),
+            Some("application/json"),
+            Some("text/plain"),
+            None,
+        ] {
+            let body =
+                "--x\r\nContent-Disposition: form-data; name=\"amount\"\r\n\r\n4302.29\r\n--x--";
+            assert_eq!(
+                form_of(&body_event("Document", t, Some(true), Some(&[Some(body)]))),
+                unread(FormUnread::Type),
+                "{t:?}"
+            );
+        }
+        assert_eq!(
+            form_of(&body_event(
+                "Document",
+                Some("application/json"),
+                Some(true),
+                Some(&[Some("{\"amount\":\"9999.99\"}")])
+            )),
+            unread(FormUnread::Type)
+        );
+
+        // A body that the event does not carry whole.
+        assert_eq!(
+            form_of(&body_event("Document", Some(FORM), Some(true), None)),
+            unread(FormUnread::NotCarried)
+        );
+        assert_eq!(form(&[None]), unread(FormUnread::NotCarried));
+        assert_eq!(
+            form(&[Some("amount=4302.29"), None]),
+            unread(FormUnread::NotCarried)
+        );
+
+        // A large body.
+        let large = format!("amount=4302.29&pad={}", "a".repeat(MAX_FORM_BYTES));
+        assert_eq!(form(&[Some(&large)]), unread(FormUnread::Large));
+
+        // A body that is not a form's own encoding of UTF-8.
+        for bad in [
+            "amount=4302.29&x=%zz",
+            "amount=%E4302.29",
+            "amount=4302.29&x=%+f",
+            "amount=4302.29&n=é",
+        ] {
+            assert_eq!(form(&[Some(bad)]), unread(FormUnread::Encoding), "{bad}");
+        }
+        assert_eq!(
+            form_of(&body_event(
+                "Document",
+                Some("application/x-www-form-urlencoded; charset=ISO-8859-1"),
+                Some(true),
+                Some(&[Some("amount=4302.29")])
+            )),
+            unread(FormUnread::Encoding)
+        );
+
+        // A request that is no navigation of a document, with a form's body or none.
+        for resource in ["Fetch", "XHR", "Other", "Ping"] {
+            for has in [Some(true), None] {
+                let entries: Option<&[Option<&str>]> = has.map(|_| &[Some("amount=4302.29")][..]);
+                assert_eq!(
+                    form_of(&body_event(resource, Some(FORM), has, entries)),
+                    unread(FormUnread::NotANavigation),
+                    "{resource} {has:?}"
+                );
+            }
+        }
+    }
+
     /// CP-186 S3: the executor's own storage page carries the policy line of A4.2.
     #[test]
     fn s3_the_storage_page_carries_the_policy_line() {
@@ -1383,6 +1788,7 @@ mod tests {
             frame: "F1".to_string(),
             worker_script: false,
             hook: None,
+            form: HeldForm::NoBody,
         }
     }
 
