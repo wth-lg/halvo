@@ -20,6 +20,7 @@
   var busy = false;
   var loading = false;
   var keptInFlight = false;
+  var refusedInARow = 0;
   var AFTER_DELETE = "after-delete";
 
   function hasPoint(event) {
@@ -195,18 +196,22 @@
       .then(function (r) {
         Halvo.markAnswer();
         if (r.outcome === "deleted" || r.outcome === "already_deleted") {
+          refusedInARow = 0;
           loading = true;
           Halvo.loadAgain(AFTER_DELETE);
           return null;
         } else if (r.outcome === "delete_refused") {
-          result.textContent = w.DELETE_REFUSED;
+          refusedInARow += 1;
+          result.textContent = refusedInARow >= 2 ? w.DELETE_REFUSED + " " + w.DELETE_REFUSED_TWICE : w.DELETE_REFUSED;
         } else {
+          refusedInARow = 0;
           result.textContent = "";
           Halvo.showError(w.ERROR_BROKEN);
         }
         return refreshAll();
       })
       .catch(function (e) {
+        refusedInARow = 0;
         if (e && typeof e === "object" && e.error === "busy") {
           result.textContent = w.DELETE_BUSY;
           return;
