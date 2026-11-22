@@ -9,7 +9,7 @@ use std::time::Duration;
 static SIGNALLED: AtomicBool = AtomicBool::new(false);
 
 #[cfg(all(windows, debug_assertions))]
-static SESSION_ENDING: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+static SESSION_ENDING: AtomicBool = AtomicBool::new(false);
 
 /// The stop flag of a run: on macOS SIGINT and SIGTERM set it, and on
 /// Windows the session window and a console's Ctrl-C and Ctrl-Break do.
@@ -26,26 +26,21 @@ pub fn end_on_request() {
 }
 
 /// Ends the run for a session's end: the mark that gives the shutdown entry
-/// the session's budget, with the moment of the first message, then the stop
-/// flag. The session window's WM_QUERYENDSESSION and WM_ENDSESSION call it,
-/// however often.
+/// the session's budget, then the stop flag. The session window's
+/// WM_QUERYENDSESSION and WM_ENDSESSION call it, however often.
 #[cfg(all(windows, debug_assertions))]
 pub fn end_for_the_session() {
-    SESSION_ENDING.get_or_init(std::time::Instant::now);
+    SESSION_ENDING.store(true, Ordering::SeqCst);
     SIGNALLED.store(true, Ordering::SeqCst);
 }
 
-/// The budget of the shutdown entry at a session's end: what is left of
-/// SESSION_END_BUDGET_MS since the first message that marked one (contracts.md
-/// C14 item 6), and none on every other run, every test of the library among
-/// them.
+/// The budget of the shutdown entry at a session's end, SESSION_END_BUDGET_MS
+/// once the session window marked one (contracts.md C14 item 6), and none on
+/// every other run, every test of the library among them.
 pub fn session_end_budget() -> Option<Duration> {
     #[cfg(all(windows, debug_assertions))]
-    if let Some(at) = SESSION_ENDING.get() {
-        return Some(
-            Duration::from_millis(halvo_control::SESSION_END_BUDGET_MS)
-                .saturating_sub(at.elapsed()),
-        );
+    if SESSION_ENDING.load(Ordering::SeqCst) {
+        return Some(Duration::from_millis(halvo_control::SESSION_END_BUDGET_MS));
     }
     None
 }
