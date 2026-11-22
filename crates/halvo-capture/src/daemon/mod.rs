@@ -2658,7 +2658,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 let finishing = opener.as_ref().is_some_and(owner::open::Opener::is_running);
                 dir_shut = match lock.check(dir) {
                     Ok(_) if !finishing => {
-                        opener = start_the_opener(dir, rule, err);
+                        opener = open_after_the_check(&mut supervisor, || {
+                            start_the_opener(dir, rule, err)
+                        });
                         None
                     }
                     Ok(_) | Err(_) => Some(shut.again()),
@@ -3571,6 +3573,15 @@ fn start_the_opener(
             None
         }
     }
+}
+
+#[cfg(any(target_os = "macos", windows))]
+fn open_after_the_check<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    start: impl FnOnce() -> Option<owner::open::Opener>,
+) -> Option<owner::open::Opener> {
+    supervisor.set_slot(slot::Slot::Opening, None);
+    start()
 }
 
 /// The finish of a delete-all intent where the data directory failed its
