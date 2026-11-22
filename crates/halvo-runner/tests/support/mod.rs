@@ -525,6 +525,8 @@ pub struct Supervisor {
     /// Whether `serve` starts the runner with `--data-dir` and a directory of the test's own; true unless a test
     /// clears it for `Runner::start_without_data_dir`.
     pub data_dir: bool,
+    /// Whether the runner gets `--headed`; false unless a test sets it.
+    pub headed: bool,
 }
 
 impl Supervisor {
@@ -542,11 +544,12 @@ impl Supervisor {
             mode: "replay",
             utc_offset_s: 0,
             data_dir: true,
+            headed: false,
         }
     }
 
     pub fn args(&self) -> Vec<String> {
-        vec![
+        let mut args: Vec<String> = vec![
             "--run".into(),
             self.run.as_str().into(),
             "--agent".into(),
@@ -559,7 +562,11 @@ impl Supervisor {
             "no-browser-in-this-build".into(),
             "--utc-offset".into(),
             self.utc_offset_s.to_string(),
-        ]
+        ];
+        if self.headed {
+            args.push("--headed".into());
+        }
+        args
     }
 
     /// The store's answer to a body.

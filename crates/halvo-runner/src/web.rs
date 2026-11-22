@@ -1,17 +1,22 @@
 //! The agent's browser of a run (A11.1, A6.2, A9.2). The first web step that acts starts it with halvo-web's
 //! executor behind a relay of its own, the runner's own binary as the relay's guard (`--relay-guard`, `crate::main`).
 //! Once the browser runs and before any page loads, the runner writes the frame `browser` and reads
-//! `browser_reply`; then it arms the request rule with the origins of the bindings in `Mode::Fail`, the one mode of
-//! this build: the rule fails every load outside those origins and every state-changing request, and a request of
-//! the run's page that it failed ends the run `refused` with the cause `origin` (`end_of_step`). At every end of the
-//! run it stops the browser and removes the directories that its start made.
+//! `browser_reply`; then it arms the request rule with the origins of the bindings in `Mode::Fail`: the rule fails
+//! every load outside those origins and every state-changing request, and a request of the run's page that it failed
+//! ends the run `refused` with the cause `origin` (`end_of_step`). At every end of the run it stops the browser and
+//! removes the directories that its start made. The runner drives the browser through `Page`, which the browser of
+//! a run (`Live`) gives and which the unit tests of crate::handback give with a stand-in of the executor.
 //!
 //! A web step acts only where its class is `read` or `prepare` (`acts`): `navigate`, `extract`, `wait`, and `click`,
-//! `fill`, `select`, `press` and `upload` with the effect `none`. Its conditions `pre` are read fresh before the act
-//! and its conditions `post` after it, and `holds` decides each on what the executor read. A target with
-//! `credential` `yes`, a step with the effect `request` and the verb `handback` answer `step_failed` before any
-//! browser starts: an agent types into no field for a password or a like secret. `Mode::Hold`, the request maker and
-//! the web steps of an effect class are the second part's.
+//! `fill`, `select`, `press` and `upload` with the effect `none`. Before it acts, the runner reads the page
+//! (crate::handback): where the page shows a credential field it hands the browser to the person, and acts only
+//! after a sign-in that ended in a bind. Its conditions `pre` are read fresh before the act and its conditions `post`
+//! after it, and `holds` decides each on what the executor read. A step of the verb `handback` and a step whose
+//! target, or the target of one of its conditions, is marked `credential` act on nothing: each reads the page when
+//! the browser runs, and is done after a handback that ended in a bind; a step of the verb `handback` with no
+//! credential field on the page, or before any browser runs, is done; every other answers `step_failed`. A step with
+//! the effect `request` answers `step_failed` before any browser starts. `Mode::Hold`, the request maker and the web
+//! steps of an effect class are the second part's.
 
 use std::collections::HashMap;
 use std::num::{NonZeroU32, NonZeroU64};
@@ -31,10 +36,11 @@ use halvo_schema::executable::{
 use halvo_schema::SeedCategory;
 use halvo_sheet::Value;
 use halvo_web::cdp::{
-    self, CrashMeans, Executor, Fault, Mode, PausedRequest, Resolved, StartOptions,
+    self, CrashMeans, Executor, Fault, Mode, PausedRequest, Resolved, Sign, StartOptions,
 };
 use halvo_web::guard::GuardProgram;
-use halvo_web::relay::{Entry, Names, Relay};
+use halvo_web::relay::{Entry, List, Names, Relay};
+use std::collections::BTreeSet;
 
 use crate::link::Broken;
 use crate::run::{Failure, Runner, Stop};
@@ -47,15 +53,71 @@ pub(crate) const PROFILE: &str = "profile";
 /// that the rule failed.
 const REFUSAL_WAIT: Duration = Duration::from_millis(500);
 
+/// The run's browser as the web steps and the handback drive it (A6.4, A11.1). Each call ends when the executor
+/// has answered; a fault of the executor is `Err(())`.
+pub(crate) trait Page: Send {
+    /// The frame `browser` of the browser's first process.
+    fn frame(&self) -> Option<FromRunner>;
+    /// Arms the request rule in `Mode::Fail` with `origins`, and lets the relay reach their hosts and ports alone.
+    fn arm(&mut self, origins: &[WebOrigin]) -> Result<(), ()>;
+    /// Reads the conditions `pre` fresh and acts only where each holds, carries out the act, then reads the
+    /// conditions `post` fresh; the text that `extract` read.
+    fn carry_out(
+        &mut self,
+        pre: &[(&Cond, Option<String>)],
+        act: &Act<'_>,
+        post: &[(&Cond, Option<String>)],
+    ) -> Result<Option<String>, ()>;
+    /// The rule's record of every request that it paused since it was armed, each with whether it was let through.
+    fn record(&mut self) -> Vec<PausedRequest>;
+    /// `record`, read again until it holds a failed request of the run's page or `REFUSAL_WAIT` has passed: the
+    /// executor records a request that it failed once the browser has answered the fail, which can be after the
+    /// step that the fail made fail has returned.
+    fn record_after_a_fault(&mut self) -> Vec<PausedRequest> {
+        let until = std::time::Instant::now() + REFUSAL_WAIT;
+        loop {
+            let requests = self.record();
+            if refused_by_the_page(&requests) || std::time::Instant::now() >= until {
+                return requests;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+    /// Stops the browser and removes what its start made; whether the profile and its temporary directory are gone.
+    fn stop(self: Box<Self>) -> bool;
+    /// The reading of A6.4: the strongest sign of a credential field that the page shows (A8.2), none for none.
+    fn sign(&mut self) -> Result<Option<Sign>, ()>;
+    /// Fails every request that the rule holds paused.
+    fn fail_held(&mut self) -> Result<(), ()>;
+    /// Closes every page of the run but the top one.
+    fn close_others(&mut self) -> Result<(), ()>;
+    /// Clears, for every origin that the run has loaded, what a page can keep for later, and keeps the cookies.
+    fn clear_stores(&mut self) -> Result<(), ()>;
+    /// Loads the top document's address again with a GET navigation.
+    fn load_again(&mut self) -> Result<(), ()>;
+    /// Arms the handback's mode: the rule lets every request of the person's pages through, and the relay reaches
+    /// every host and port.
+    fn pass_all(&mut self) -> Result<(), ()>;
+    /// The address that the top page holds now.
+    fn address(&mut self) -> Result<String, ()>;
+}
+
+/// The run's browser: the browser of a run, or in a unit test a stand-in of the executor.
+pub(crate) struct Web(pub(crate) Box<dyn Page>);
+
 /// The browser of a run, the relay that is its only route, the directory that holds its profile, and the runtime
 /// on which the executor and the relay run. The executor is dropped before the relay and the runtime.
-pub(crate) struct Web {
+struct Live {
     executor: Executor,
     relay: Relay,
     run_dir: PathBuf,
     runtime: tokio::runtime::Runtime,
     /// How many entries of the rule's record the lines on standard error have read.
     told: usize,
+    /// The origins that the rule let a request of reach since the browser started, as the browser writes them.
+    loaded: BTreeSet<String>,
+    /// The origins of the newest arm in `Mode::Fail`, whose loopback hosts keep their mark in the handback's mode.
+    armed: Vec<WebOrigin>,
 }
 
 /// The cause of the run's end for a start that failed: `no_channel` for a browser that lived and gave no first
@@ -108,19 +170,23 @@ fn locators(target: &WebTarget) -> Result<Vec<cdp::Locator>, Fault> {
 /// conditions is a credential field. A target with `credential` `yes`, a step with the effect `request` and the
 /// verb `handback` do not act.
 pub(crate) fn acts(category: SeedCategory, step: &ExecutableStep) -> bool {
-    let credential = |target: &WebTarget| target.credential == YesNo::Yes;
-    let own = matches!(&step.target, Some(Target::Web(target)) if credential(target));
-    let of_a_condition = step
-        .pre
-        .iter()
-        .chain(&step.post)
-        .filter_map(|cond| cond.target.as_ref())
-        .any(credential);
-    !own && !of_a_condition
+    !marks_a_credential(step)
         && matches!(
             class_of(category, step),
             ActionClass::Read | ActionClass::Prepare
         )
+}
+
+/// Whether the step's own target, or the target of one of its conditions, is marked `credential`.
+fn marks_a_credential(step: &ExecutableStep) -> bool {
+    let credential = |target: &WebTarget| target.credential == YesNo::Yes;
+    matches!(&step.target, Some(Target::Web(target)) if credential(target))
+        || step
+            .pre
+            .iter()
+            .chain(&step.post)
+            .filter_map(|cond| cond.target.as_ref())
+            .any(credential)
 }
 
 /// One control as the executor read it, fresh: its text, its value, and whether it is enabled.
@@ -221,7 +287,7 @@ impl Values<'_> {
 }
 
 /// The act of a web step that acts, with the texts of its args.
-enum Act<'s> {
+pub(crate) enum Act<'s> {
     Open(String),
     Extract(&'s WebTarget),
     Click(&'s WebTarget),
@@ -258,6 +324,24 @@ impl<'s> Act<'s> {
     /// Whether the act works on a control of the page, after which the page can still make a request.
     fn on_a_control(&self) -> bool {
         !matches!(self, Act::Open(_) | Act::Extract(_) | Act::Wait(_))
+    }
+
+    /// The verb of the act.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the stand-in of the unit tests logs the verb")
+    )]
+    pub(crate) fn verb(&self) -> &'static str {
+        match self {
+            Act::Open(_) => "navigate",
+            Act::Extract(_) => "extract",
+            Act::Click(_) => "click",
+            Act::Fill(..) => "fill",
+            Act::Select(..) => "select",
+            Act::Press(..) => "press",
+            Act::Upload(..) => "upload",
+            Act::Wait(_) => "wait",
+        }
     }
 }
 
@@ -392,11 +476,11 @@ fn end_of_step<T>(done: Result<T, ()>, record: &[PausedRequest]) -> Result<T, Fa
     done.map_err(|()| Failure::Step(Cause::StepFailed))
 }
 
-impl Web {
+impl Live {
     /// Starts the browser `browser` with its profile `<data directory>/agents/profiles/<run id>/profile`, headless
     /// unless `headed`, behind a new relay that reaches nothing until `arm`; the cause of the run's end when the start
     /// fails, after which nothing of the start is left that the executor made.
-    fn start(browser: &Path, headed: bool, data_dir: &DataDir, run: &RunId) -> Result<Web, Cause> {
+    fn start(browser: &Path, headed: bool, data_dir: &DataDir, run: &RunId) -> Result<Live, Cause> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
@@ -435,12 +519,14 @@ impl Web {
                 }
             });
         match started {
-            Ok((executor, relay)) => Ok(Web {
+            Ok((executor, relay)) => Ok(Live {
                 executor,
                 relay,
                 run_dir,
                 runtime,
                 told: 0,
+                loaded: BTreeSet::new(),
+                armed: Vec::new(),
             }),
             Err(cause) => {
                 let _ = std::fs::remove_dir(&run_dir);
@@ -449,6 +535,15 @@ impl Web {
         }
     }
 
+    /// Notes the origin of every request of the rule's record that the rule let through.
+    fn note_loaded(&mut self, requests: &[PausedRequest]) {
+        for request in requests.iter().filter(|r| r.let_through) {
+            self.loaded.insert(request.origin.clone());
+        }
+    }
+}
+
+impl Page for Live {
     /// The frame `browser` of the browser's first process: its number, creation time and, on macOS, group.
     fn frame(&self) -> Option<FromRunner> {
         let root = self.executor.root();
@@ -463,24 +558,30 @@ impl Web {
         }))
     }
 
-    /// Lets the relay reach the host and port of each origin, each bound by the person's own word, and arms the
-    /// request rule with the origins in `Mode::Fail`.
+    /// Sets the relay's list to exactly the host and port of each origin, each bound by the person's own word, which
+    /// closes every open tunnel to another host and port, and arms the request rule with the origins in `Mode::Fail`.
     fn arm(&mut self, origins: &[WebOrigin]) -> Result<(), ()> {
+        let requests = self.executor.requests();
+        self.note_loaded(&requests);
         let handle = self.relay.handle();
+        let mut hosts = BTreeSet::new();
         let mut allowed = Vec::with_capacity(origins.len());
         for origin in origins {
             let (host, port) = cdp::host_port(origin.as_str()).ok_or(())?;
-            handle.allow(&host, port, Entry::BoundLoopback);
+            hosts.insert((host, port));
             allowed.push(rule_origin(origin));
         }
+        handle.set_list(List::Hosts(hosts.clone()));
+        for (host, port) in &hosts {
+            handle.allow(host, *port, Entry::BoundLoopback);
+        }
+        self.armed = origins.to_vec();
         let executor = &mut self.executor;
         self.runtime
             .block_on(executor.arm_rule(allowed, Mode::Fail))
             .map_err(drop)
     }
 
-    /// Reads the conditions `pre` fresh and acts only where each holds, carries out the act, then reads the
-    /// conditions `post` fresh; the text that `extract` read.
     fn carry_out(
         &mut self,
         pre: &[(&Cond, Option<String>)],
@@ -498,9 +599,8 @@ impl Web {
             .map_err(|_: Fault| ())
     }
 
-    /// The rule's record of every request that it paused since it was armed, each with whether it was let through;
-    /// one line on standard error (`failed_line`) for each request in it that the rule failed and that no earlier
-    /// line named.
+    /// The rule's record; one line on standard error (`failed_line`) for each request in it that the rule failed
+    /// and that no earlier line named.
     fn record(&mut self) -> Vec<PausedRequest> {
         let requests = self.executor.requests();
         if requests.len() < self.told {
@@ -510,44 +610,117 @@ impl Web {
             crate::line(&failed_line(request));
         }
         self.told = requests.len();
+        self.note_loaded(&requests);
         requests
     }
 
-    /// `record`, read again until it holds a failed request of the run's page or `REFUSAL_WAIT` has passed: the
-    /// executor records a request that it failed once the browser has answered the fail, which can be after the
-    /// step that the fail made fail has returned.
-    fn record_after_a_fault(&mut self) -> Vec<PausedRequest> {
-        let until = std::time::Instant::now() + REFUSAL_WAIT;
-        loop {
-            let requests = self.record();
-            if refused_by_the_page(&requests) || std::time::Instant::now() >= until {
-                return requests;
-            }
-            std::thread::sleep(Duration::from_millis(20));
-        }
-    }
-
-    /// Stops the browser and removes the profile, its temporary directory and the run's directory that holds them;
-    /// whether the profile and its temporary directory are gone.
-    fn stop(self) -> bool {
-        let Web {
+    /// Stops the browser and removes the profile, its temporary directory and the run's directory that holds them.
+    fn stop(self: Box<Self>) -> bool {
+        let Live {
             executor,
             relay,
             run_dir,
             runtime,
             ..
-        } = self;
+        } = *self;
         let stopped = runtime.block_on(executor.stop_and_remove());
         relay.stop();
         let _ = std::fs::remove_dir(&run_dir);
         stopped.removed
     }
+
+    fn sign(&mut self) -> Result<Option<Sign>, ()> {
+        let executor = &mut self.executor;
+        self.runtime.block_on(executor.sign()).map_err(drop)
+    }
+
+    fn fail_held(&mut self) -> Result<(), ()> {
+        let executor = &mut self.executor;
+        self.runtime
+            .block_on(async move {
+                for held in executor.paused() {
+                    executor.fail(held.id).await?;
+                }
+                Ok(())
+            })
+            .map_err(|_: Fault| ())
+    }
+
+    fn close_others(&mut self) -> Result<(), ()> {
+        let executor = &self.executor;
+        self.runtime
+            .block_on(executor.close_other_pages())
+            .map_err(drop)
+    }
+
+    fn clear_stores(&mut self) -> Result<(), ()> {
+        let requests = self.executor.requests();
+        self.note_loaded(&requests);
+        let origins: Vec<String> = self.loaded.iter().cloned().collect();
+        let executor = &self.executor;
+        self.runtime
+            .block_on(executor.clear_stores(&origins))
+            .map_err(drop)
+    }
+
+    fn load_again(&mut self) -> Result<(), ()> {
+        let executor = &mut self.executor;
+        self.runtime.block_on(executor.load_again()).map_err(drop)
+    }
+
+    /// Sets the relay's list to every host and port, the loopback hosts of the newest arm keeping their mark, and
+    /// arms the request rule in `Mode::Handback`.
+    fn pass_all(&mut self) -> Result<(), ()> {
+        let requests = self.executor.requests();
+        self.note_loaded(&requests);
+        let handle = self.relay.handle();
+        handle.set_list(List::Every);
+        for origin in &self.armed {
+            if let Some((host, port)) = cdp::host_port(origin.as_str()) {
+                handle.allow(&host, port, Entry::BoundLoopback);
+            }
+        }
+        let executor = &mut self.executor;
+        self.runtime
+            .block_on(executor.arm_rule(Vec::new(), Mode::Handback))
+            .map_err(drop)
+    }
+
+    fn address(&mut self) -> Result<String, ()> {
+        let executor = &self.executor;
+        self.runtime
+            .block_on(async move {
+                let frame = executor.main_frame().await?;
+                executor.frame_url(&frame).await
+            })
+            .map_err(|_: Fault| ())
+    }
+}
+
+impl Web {
+    /// The browser of a run, started as `Live::start` starts it.
+    fn start(browser: &Path, headed: bool, data_dir: &DataDir, run: &RunId) -> Result<Web, Cause> {
+        Live::start(browser, headed, data_dir, run).map(|live| Web(Box::new(live)))
+    }
+
+    /// Stops the browser and removes what its start made; whether the profile and its temporary directory are gone.
+    fn stop(self) -> bool {
+        self.0.stop()
+    }
 }
 
 impl Runner {
-    /// A web step. One that does not act (`acts`) answers `step_failed` before any browser starts, and so does one
-    /// whose args or targets, or those of its conditions, cannot be read or have no locator of the top document that
-    /// the executor takes. The browser starts at the first step that acts.
+    /// A web step. A step of the verb `handback`, or one that marks a credential (`marks_a_credential`), acts on
+    /// nothing: where the browser runs it reads the page (crate::handback), and it is done after a handback that
+    /// ended in a bind; a step of the verb `handback` is done where the page shows no credential field or no browser
+    /// runs; every other such step answers `step_failed`. Every other step that does not act (`acts`) answers
+    /// `step_failed` before any browser starts, and so does one whose args or targets, or those of its conditions,
+    /// cannot be read or have no locator of the top document that the executor takes. The browser starts at the
+    /// first step that acts, and the runner reads the page before each act, which goes on only after a handback that
+    /// ended in a bind, or where the page shows no credential field. After an act that failed, with no failed request
+    /// of the page in the rule's record, it reads the page again, so that a field that turned into a credential field
+    /// at the act's own focus, which the executor refuses, opens a handback; after one that ended in a bind the step
+    /// is done.
     /// A condition of `pre` that does not hold acts on nothing; a control that the locators do not find, an act that
     /// fails and a condition of `post` that does not hold fail the step with `step_failed`. At the step's end a
     /// request of the run's page that the rule failed ends the run `refused` with the cause `origin` (A9.2,
@@ -558,6 +731,22 @@ impl Runner {
         loaded: &LoadReply,
     ) -> Result<(), Failure> {
         let failed = || Failure::Step(Cause::StepFailed);
+        let handback = step.verb == Verb::Handback;
+        if handback || marks_a_credential(step) {
+            let handed = match self.web.take() {
+                Some(mut web) => {
+                    let read = self.read_page(&mut *web.0, loaded);
+                    self.web = Some(web);
+                    read?
+                }
+                None => false,
+            };
+            return if handed || handback {
+                Ok(())
+            } else {
+                Err(failed())
+            };
+        }
         if !acts(loaded.config.category, step) {
             return Err(failed());
         }
@@ -575,13 +764,26 @@ impl Runner {
             )),
             _ => None,
         };
-        let web = self.browser(loaded)?;
+        self.browser(loaded)?;
+        let mut web = self.web.take().ok_or_else(failed)?;
+        let read = self.read_page(&mut *web.0, loaded);
+        self.web = Some(web);
+        read?;
+        let web = &mut self.web.as_mut().ok_or_else(failed)?.0;
         let done = web.carry_out(&pre, &act, &post);
         let record = if done.is_err() || act.on_a_control() {
             web.record_after_a_fault()
         } else {
             web.record()
         };
+        if done.is_err() && !refused_by_the_page(&record) {
+            let mut web = self.web.take().ok_or_else(failed)?;
+            let read = self.read_page(&mut *web.0, loaded);
+            self.web = Some(web);
+            if read? {
+                return Ok(());
+            }
+        }
         let read = end_of_step(done, &record)?;
         if let (Some((name, parse)), Some(text)) = (as_parsed, read) {
             let value = match parse.as_str() {
@@ -613,7 +815,7 @@ impl Runner {
                 &self.args.run,
             )
             .map_err(|cause| Stop::End(Outcome::Failed, Some(cause)))?;
-            let frame = web.frame();
+            let frame = web.0.frame();
             self.web = Some(web);
             let frame = frame.ok_or(Stop::End(Outcome::Failed, Some(Cause::BrowserStart)))?;
             match self.link.ask(&frame)? {
@@ -623,7 +825,8 @@ impl Runner {
             self.check()?;
             let origins = loaded.bindings.as_ref().map_or(&[][..], |b| &b.origins[..]);
             let web = self.web.as_mut().ok_or(Failure::Step(Cause::StepFailed))?;
-            web.arm(origins)
+            web.0
+                .arm(origins)
                 .map_err(|()| Failure::Step(Cause::StepFailed))?;
         }
         self.web.as_mut().ok_or(Failure::Step(Cause::StepFailed))
@@ -743,10 +946,10 @@ mod tests {
     const REQUEST: &str = r#"{"v":1,"n":1,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"pay","name":null}]},"args":[{"name":"payee","from":"const","value":"p","key":null},{"name":"amount","from":"const","value":"1.00","key":null},{"name":"instrument","from":"const","value":"i","key":null},{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null}],"pre":[],"post":[],"effect":"request","class":"payment"}"#;
     const HANDBACK: &str = r#"{"v":1,"n":1,"kind":"web","verb":"handback","target":null,"args":[{"name":"reason","from":"const","value":"sign_in","key":null}],"pre":[],"post":[],"effect":"none","class":"credential"}"#;
 
-    /// U4.1w part 1 (5): a web step acts where halvo-policy classes it `read` or `prepare`; a target with
-    /// `credential` `yes` (of the step or of a condition), a step with the effect `request` and the verb `handback`
-    /// answer `step_failed` from the runner before any browser starts: no frame, no browser, where the runner has a
-    /// data directory and a start would end the run with `browser_start`.
+    /// U4.1w part 1 (5), U5.1: a web step acts where halvo-policy classes it `read` or `prepare`; a target with
+    /// `credential` `yes` (of the step or of a condition) and a step with the effect `request` answer `step_failed`
+    /// from the runner before any browser starts, and a step of the verb `handback` is done with no page to read: no
+    /// frame, no browser, where the runner has a data directory and a start would end the run with `browser_start`.
     #[test]
     fn only_read_and_prepare_steps_act() {
         let step = |json: &str| ExecutableStep::parse(json.as_bytes()).expect("a step");
@@ -809,7 +1012,7 @@ mod tests {
             Box::new(|| {}),
         );
         let mut runner = Runner::new(args, link);
-        for json in refused {
+        for json in [CREDENTIAL_FILL, CREDENTIAL_CONDITION, REQUEST] {
             let got = runner.web_step(&step(json), &loaded);
             assert!(
                 matches!(got, Err(Failure::Step(Cause::StepFailed))),
@@ -817,6 +1020,9 @@ mod tests {
             );
             assert!(runner.web.is_none(), "no browser for {json}");
         }
+        let got = runner.web_step(&step(HANDBACK), &loaded);
+        assert!(matches!(got, Ok(())), "done for {HANDBACK}: {got:?}");
+        assert!(runner.web.is_none(), "no browser for {HANDBACK}");
         assert!(out.lock().expect("lock").is_empty(), "no frame");
     }
 

@@ -40,6 +40,19 @@ pub fn hosted(test: &str) -> Option<PathBuf> {
     Some(browser)
 }
 
+/// `hosted` on macOS alone: on Windows none, after one line that says so, for a test that starts a headed browser
+/// on the hosted macos job alone.
+pub fn hosted_mac(test: &str) -> Option<PathBuf> {
+    if cfg!(windows) {
+        say(
+            test,
+            "not run: it starts a headed browser, on the hosted macos job alone",
+        );
+        return None;
+    }
+    hosted(test)
+}
+
 /// One connection that the fixture accepted: the request's method and path, empty where none came, and every byte
 /// that it read.
 #[derive(Clone, Debug)]
@@ -159,6 +172,14 @@ pub fn navigate(n: u32, url: &str) -> ExecutableStep {
         r#"{{"v":1,"n":{n},"kind":"web","verb":"navigate","target":null,"args":[{{"name":"url","from":"const","value":"{url}","key":null}}],"pre":[],"post":[],"effect":"none","class":"read"}}"#
     );
     ExecutableStep::parse(json.as_bytes()).expect("a navigate step")
+}
+
+/// A step `handback`, number `n`.
+pub fn handback(n: u32) -> ExecutableStep {
+    let json = format!(
+        r#"{{"v":1,"n":{n},"kind":"web","verb":"handback","target":null,"args":[{{"name":"reason","from":"const","value":"sign_in","key":null}}],"pre":[],"post":[],"effect":"none","class":"credential"}}"#
+    );
+    ExecutableStep::parse(json.as_bytes()).expect("a handback step")
 }
 
 /// A step `extract` of the control with the test id `id`, parsed as an amount and kept as `amount`, number `n`.

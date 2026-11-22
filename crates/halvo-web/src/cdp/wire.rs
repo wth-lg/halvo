@@ -145,9 +145,20 @@ impl Holds {
     /// own). A request that changes no state passes to an allowed origin and is failed elsewhere.
     /// A state-changing request is failed outside the list and in `Mode::Fail`; in `Mode::Hold` it
     /// is held under a new id, unless the browser gave it no number, a release was made since the
-    /// arm, or `MAX_HELD` requests wait, which fail it. A second pause of one request (the same
+    /// arm, or `MAX_HELD` requests wait, which fail it. In `Mode::Handback` every request that
+    /// names a frame goes on and every other is failed. A second pause of one request (the same
     /// number, address, method and hop) follows the answer of the first.
     pub(crate) fn on_pause(&mut self, rule: Option<&Rule>, f: &Facts, pause: Pause) -> (Act, bool) {
+        if rule.is_some_and(|r| r.mode == Mode::Handback) {
+            return (
+                if f.frame.is_empty() {
+                    Act::Fail
+                } else {
+                    Act::Continue
+                },
+                true,
+            );
+        }
         let allowed = !f.worker_script && rule.is_some_and(|r| r.allowed.contains(&f.origin));
         if !changes_state(&f.method) {
             return (if allowed { Act::Continue } else { Act::Fail }, true);
@@ -709,6 +720,11 @@ impl Wire {
         if let Ok(mut b) = self.book.lock() {
             b.on_main_document = hook;
         }
+    }
+
+    /// The target of the executor's own page, once the start made it.
+    pub(crate) fn home(&self) -> Option<String> {
+        self.book.lock().ok().and_then(|b| b.home.clone())
     }
 
     pub(crate) fn set_home(&self, target: &str) {

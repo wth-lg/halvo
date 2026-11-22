@@ -7,12 +7,12 @@ mod support;
 use std::time::{Duration, Instant};
 
 use halvo_runner::LINK_END;
-use halvo_schema::executable::names::LogEvent;
+use halvo_schema::executable::names::{HandbackReason, LogEvent};
 use halvo_schema::executable::{Cause, FromRunner, Outcome, RunnerCall, ToRunner};
 use halvo_schema::Category;
 use support::browser::{
-    bearing, cond, extract_amount, from_slot, hosted, konst, navigate, own_start_us, profile_of,
-    serve_with, step, Fixture,
+    bearing, cond, extract_amount, from_slot, handback, hosted, hosted_mac, konst, navigate,
+    own_start_us, profile_of, serve_with, step, Fixture,
 };
 use support::{slot, tag, Act, Seen, Supervisor, LONG};
 
@@ -329,14 +329,19 @@ fn a_run_fills_a_form_and_reads_it_back() {
 /// so that the fixture sees each act on a field.
 const TYPED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" value="halvo-runner-secret-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
 
+/// `TYPED` with its name field alone.
+const NAMED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+
 /// The value of the password field of `TYPED`.
 const SECRET: &str = "halvo-runner-secret-marker";
 
-/// U4.1w part 1 (3): a step whose `post` fails after it acted, a step whose locator finds no control, a step whose
-/// `pre` fails, and a step stored with `credential` `no` whose locator finds a password field each log one
-/// `step_failed` row with the cause `step_failed`, never `timeout`, and the run is handed back; the step with the
-/// failing `pre` and the one on the password field act on nothing, the one with the failing `post` acted, and no
-/// frame and no line of the runner holds the password field's value (A4.3: the fresh read marks it credential).
+/// U4.1w part 1 (3), U5.1: a step whose `post` fails after it acted, a step whose locator finds no control and a
+/// step whose `pre` fails, on a page with no password field, each log one `step_failed` row with the cause
+/// `step_failed`, never `timeout`, and the run is handed back; a step stored with `credential` `no` whose locator
+/// finds a password field meets the runner's reading of the page first, which opens a handback of the reason
+/// `sign_in`, and the supervisor's `declined` ends the run `declined`. The step with the failing `pre` and the one on
+/// the password field act on nothing, the one with the failing `post` acted, and no frame and no line of the runner
+/// holds the password field's value.
 #[test]
 fn a_post_condition_that_fails_logs_step_failed() {
     let Some(browser) = hosted("a_post_condition_that_fails_logs_step_failed") else {
@@ -347,6 +352,11 @@ fn a_post_condition_that_fails_logs_step_failed() {
         (LogEvent::StepFailed, Some(2), Some(Cause::StepFailed)),
         (LogEvent::Handback, None, None),
         (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+    ];
+    let declined = [
+        (LogEvent::StepOk, Some(1), None),
+        (LogEvent::Handback, None, None),
+        (LogEvent::Stopped, None, Some(Cause::Declined)),
     ];
     let typed = |fixture: &Fixture| {
         fixture
@@ -399,12 +409,19 @@ fn a_post_condition_that_fails_logs_step_failed() {
         ),
     ];
     for (n, second, acted) in cases {
-        let fixture = Fixture::start(&[("/typed-form", TYPED)]);
+        let page = if n == 254 { TYPED } else { NAMED };
+        let fixture = Fixture::start(&[("/typed-form", page)]);
         let mut sup = web_agent(n, &fixture);
         sup.steps = vec![navigate(1, &fixture.url("/typed-form")), second];
         let seen = serve_with(&sup, &browser, reply_to_browser, LONG);
-        assert_eq!(seen.done(), Some(Outcome::HandedBack), "{}", seen.stderr);
-        assert_eq!(rows(&seen), failed, "run {n}");
+        if n == 254 {
+            assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+            assert_eq!(rows(&seen), declined, "run {n}");
+            assert_eq!(seen.handbacks(), [HandbackReason::SignIn], "run {n}");
+        } else {
+            assert_eq!(seen.done(), Some(Outcome::HandedBack), "{}", seen.stderr);
+            assert_eq!(rows(&seen), failed, "run {n}");
+        }
         assert_eq!(typed(&fixture) > 0, acted, "run {n}: the act on the field");
         assert!(!seen.stderr.contains(SECRET), "run {n}: {}", seen.stderr);
         for frame in &seen.frames {
@@ -461,6 +478,107 @@ fn a_click_that_posts_reaches_no_fixture() {
             .all(|r| !r.bytes.windows(NOTE.len()).any(|w| w == NOTE.as_bytes())),
         "a byte of the note reached the fixture"
     );
+    assert!(!profile_of(&seen, &sup.run).0.exists());
+}
+
+/// A sign-in page: a name field and a password field. At a load with no cookie `seen` its script sets that cookie;
+/// at a load that finds it, its script sends a POST to `/signed-in` 2 s later, as a person's sign-in does, and takes
+/// the password field out of the page. The handback's opening keeps the cookies when it clears the origin's stores
+/// and loads the page again by GET, so the second load is the one that signs in.
+const SIGN_IN: &str = r#"<!doctype html><title>sign in</title><form onsubmit="return false"><input data-testid="user" aria-label="Email"><input type="password" data-testid="password" aria-label="Password"></form><p data-testid="state">out</p><script>if (document.cookie.indexOf('seen=1') < 0) { document.cookie = 'seen=1; path=/'; } else { setTimeout(function () { var x = new XMLHttpRequest(); try { x.open('POST', '/signed-in', false); x.send('in'); } catch (e) {} var p = document.querySelector('[data-testid=password]'); p.parentNode.removeChild(p); document.querySelector('[data-testid=state]').textContent = 'in'; }, 2000); }</script>"#;
+
+/// U5.1, A6.4, on the hosted macos job alone: a headed run opens the sign-in page, and its `handback` step reads a
+/// credential field there and opens a handback of the reason `sign_in` that names the fixture's origin, after it has
+/// loaded the page again by GET;
+/// while the handback is open the page's own POST reaches the fixture and its script takes the password field out;
+/// the test answers `done` 8 s after the request, the runner finds no credential field, sends `bind` with the
+/// fixture's origin, and after `bound=yes` the run goes on to a page of the bound origin and ends `completed`.
+#[test]
+fn a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind() {
+    let Some(browser) =
+        hosted_mac("a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind")
+    else {
+        return;
+    };
+    let fixture = Fixture::start(&[("/sign-in", SIGN_IN), ("/read", READ)]);
+    let mut sup = web_agent(245, &fixture);
+    sup.headed = true;
+    sup.steps = vec![
+        navigate(1, &fixture.url("/sign-in")),
+        handback(2),
+        navigate(3, &fixture.url("/read")),
+        extract_amount(4, "amount"),
+    ];
+    let done = ToRunner::parse(
+        br#"{"t":"handback_reply","result":{"v":1,"outcome":"done","secret":null}}"#,
+    )
+    .expect("a handback_reply");
+    let bound = ToRunner::parse(br#"{"t":"bind_reply","bound":"yes"}"#).expect("a bind_reply");
+    let seen = serve_with(
+        &sup,
+        &browser,
+        |frame, _| match frame {
+            FromRunner::Browser(_) => Act::With(browser_reply()),
+            FromRunner::Handback(_) => {
+                Act::After(Duration::from_secs(8), Box::new(Act::With(done.clone())))
+            }
+            FromRunner::Bind(_) => Act::With(bound.clone()),
+            _ => Act::Answer,
+        },
+        Duration::from_secs(120),
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(seen.handbacks(), [HandbackReason::SignIn]);
+    let asked: Vec<Option<&str>> = seen
+        .frames
+        .iter()
+        .filter_map(|f| match f {
+            FromRunner::Handback(h) => Some(h.request.origin.as_ref().map(|o| o.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(asked, [Some(fixture.origin().as_str())]);
+    let binds: Vec<&str> = seen
+        .frames
+        .iter()
+        .filter_map(|f| match f {
+            FromRunner::Bind(b) => Some(b.origin.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(binds, [fixture.origin().as_str()]);
+    assert_eq!(
+        rows(&seen),
+        [
+            (LogEvent::StepOk, Some(1), None),
+            (LogEvent::Handback, None, None),
+            (LogEvent::StepOk, Some(2), None),
+            (LogEvent::StepOk, Some(3), None),
+            (LogEvent::StepOk, Some(4), None),
+        ]
+    );
+    let named: Vec<(String, String)> = fixture
+        .requests()
+        .into_iter()
+        .map(|r| (r.method, r.path))
+        .collect();
+    let times = |method: &str, path: &str| {
+        named
+            .iter()
+            .filter(|(m, p)| m == method && p == path)
+            .count()
+    };
+    assert_eq!(
+        times("GET", "/sign-in"),
+        2,
+        "loaded again by GET: {named:?}"
+    );
+    assert_eq!(
+        times("POST", "/signed-in"),
+        1,
+        "the page's POST in the handback: {named:?}"
+    );
+    assert_eq!(times("GET", "/read"), 1, "{named:?}");
     assert!(!profile_of(&seen, &sup.run).0.exists());
 }
 

@@ -20,6 +20,7 @@ use chromiumoxide::cdp::browser_protocol::page::{
     AddScriptToEvaluateOnNewDocumentParams, CreateIsolatedWorldParams, EnableParams as PageEnable,
     FrameId, FrameTree, GetFrameTreeParams, NavigateParams,
 };
+use chromiumoxide::cdp::browser_protocol::storage::ClearDataForOriginParams;
 use chromiumoxide::cdp::browser_protocol::target::{
     CloseTargetParams, CreateTargetParams, GetTargetsParams,
 };
@@ -189,6 +190,34 @@ pub enum Mode {
     /// `Executor::paused`, until `let_through` or `fail` answers it or a new arm, the stop or the
     /// drop of the executor fails it.
     Hold,
+    /// The handback's mode of U5.1 (A6.4, A11.1): every request that a page of the browser makes,
+    /// of every origin and method, is let through, while the interception stays armed; a request
+    /// for which the browser names no frame, the browser's own, is failed.
+    Handback,
+}
+
+/// The kind of sign by which a control is a credential field (A8.2), from which the runner takes
+/// the reason of a handback (A6.4): a place inside a challenge block, a field that takes a one-time
+/// code, or any other sign. A later kind is the stronger: a reading gives the strongest that the
+/// page shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Sign {
+    Secret,
+    Code,
+    Challenge,
+}
+
+impl Sign {
+    /// The sign of `CREDENTIAL_FN`'s reply: `secret`, `code` or `challenge`; none for every other
+    /// reply, the empty text of a control that shows no sign among them.
+    fn of(reply: &serde_json::Value) -> Option<Sign> {
+        match reply.as_str()? {
+            "secret" => Some(Sign::Secret),
+            "code" => Some(Sign::Code),
+            "challenge" => Some(Sign::Challenge),
+            _ => None,
+        }
+    }
 }
 
 /// A held state-changing request (CP-176 A1 (a)): the executor's own id, its method, origin, path
@@ -1078,9 +1107,13 @@ impl Executor {
         Ok(r.result.value.unwrap_or(serde_json::Value::Null))
     }
 
-    async fn is_credential(&self, place: &Place, node: &BackendNodeId) -> Res<bool> {
-        let v = self.call_on(place, node, CREDENTIAL_FN, Vec::new()).await?;
-        Ok(v == serde_json::Value::Bool(true))
+    /// The sign by which the node is a credential field (`CREDENTIAL_FN`), with `name`, the
+    /// accessible name that the page's tree gives it, as one of the names that the rule reads.
+    async fn sign_of(&self, place: &Place, node: &BackendNodeId, name: &str) -> Res<Option<Sign>> {
+        let v = self
+            .call_on(place, node, CREDENTIAL_FN, vec![serde_json::json!(name)])
+            .await?;
+        Ok(Sign::of(&v))
     }
 
     async fn child_frame_of(&self, place: &Place, owner: &BackendNodeId) -> Res<FrameId> {
@@ -1102,8 +1135,21 @@ impl Executor {
         self.refs.new_snapshot();
         let main = self.main_frame().await?;
         let mut lines = Vec::new();
-        self.snapshot_frame(&main, None, &mut lines).await?;
+        self.snapshot_frame(&main, None, &mut lines, &mut Vec::new())
+            .await?;
         Ok(lines)
+    }
+
+    /// The reading of A6.4: the page read as `snapshot` reads it, the top document and every frame
+    /// in it, and the strongest sign of a credential field that it shows (A8.2); none where it
+    /// shows none. Every earlier ref is stale from here (`RefTable`).
+    pub async fn sign(&mut self) -> Res<Option<Sign>> {
+        self.refs.new_snapshot();
+        let main = self.main_frame().await?;
+        let mut signs = Vec::new();
+        self.snapshot_frame(&main, None, &mut Vec::new(), &mut signs)
+            .await?;
+        Ok(signs.into_iter().max())
     }
 
     pub async fn table(&mut self, name: &str) -> Res<Vec<SnapshotLine>> {
@@ -1123,7 +1169,7 @@ impl Executor {
             _ => return Err(Fault::new("resolve", "many")),
         };
         let mut lines = Vec::new();
-        self.lines_under(&main, &nodes, root, None, &mut lines)
+        self.lines_under(&main, &nodes, root, None, &mut lines, &mut Vec::new())
             .await?;
         Ok(lines)
     }
@@ -1137,13 +1183,15 @@ impl Executor {
         frame: &FrameId,
         label: Option<String>,
         lines: &mut Vec<SnapshotLine>,
+        signs: &mut Vec<Sign>,
     ) -> Res<()> {
         let nodes = self.ax_tree(frame).await?;
         let root = nodes
             .iter()
             .position(|n| n.parent_id.is_none())
             .ok_or_else(|| Fault::new("snapshot", "no root"))?;
-        self.lines_under(frame, &nodes, root, label, lines).await
+        self.lines_under(frame, &nodes, root, label, lines, signs)
+            .await
     }
 
     async fn lines_under(
@@ -1153,6 +1201,7 @@ impl Executor {
         root: usize,
         label: Option<String>,
         lines: &mut Vec<SnapshotLine>,
+        signs: &mut Vec<Sign>,
     ) -> Res<()> {
         let place = self.place_of(frame);
         let index: HashMap<String, usize> = nodes
@@ -1206,11 +1255,13 @@ impl Executor {
                         push_children(&mut stack, true);
                         continue;
                     };
-                    let credential = if CONTROL_ROLES.contains(&role) {
-                        self.is_credential(&place, &b).await?
+                    let sign = if CONTROL_ROLES.contains(&role) {
+                        self.sign_of(&place, &b, &name).await?
                     } else {
-                        false
+                        None
                     };
+                    signs.extend(sign);
+                    let credential = sign.is_some();
                     let value = line_value(credential, role, &ax_text(&node.value));
                     let r = self.add_ref(Target {
                         frame: frame.clone(),
@@ -1229,7 +1280,7 @@ impl Executor {
                         let child = self.child_frame_of(&place, &b).await?;
                         self.enter_frame(&child, &place, b);
                         let origin = self.frame_origin(&child).await?;
-                        Box::pin(self.snapshot_frame(&child, Some(origin), lines)).await?;
+                        Box::pin(self.snapshot_frame(&child, Some(origin), lines, signs)).await?;
                     } else {
                         push_children(&mut stack, true);
                     }
@@ -1694,6 +1745,54 @@ impl Executor {
         self.wire.requests()
     }
 
+    /// Closes every page of the browser but the executor's own: the pages that the page opened, a
+    /// pop-up among them (A6.4, A11.1), before a handback opens and when it ends.
+    pub async fn close_other_pages(&self) -> Res<()> {
+        let home = self.wire.home();
+        let r = self
+            .wire
+            .call(None, GetTargetsParams::default())
+            .await
+            .map_err(|f| Fault::new("targets", f.1))?;
+        for t in r.target_infos {
+            if t.r#type == "page" && home.as_deref() != Some(t.target_id.inner().as_str()) {
+                self.wire
+                    .call(None, CloseTargetParams::new(t.target_id))
+                    .await
+                    .map_err(|f| Fault::new("close", f.1))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Clears, for each of `origins`, what a page can keep for later (`KEPT_FOR_LATER`: the stores
+    /// that scripts write, the workers and their caches) and keeps its cookies (A6.4).
+    pub async fn clear_stores(&self, origins: &[String]) -> Res<()> {
+        for origin in origins {
+            self.wire
+                .call(
+                    None,
+                    ClearDataForOriginParams::new(origin.clone(), KEPT_FOR_LATER),
+                )
+                .await
+                .map_err(|f| Fault::new("clear", f.1))?;
+        }
+        Ok(())
+    }
+
+    /// Loads the top document's address again by a GET navigation (`open`), never a reload that
+    /// sends a body again (A6.4), its fragment left out so that the document loads again; a page
+    /// whose address is not of http or https is left as it is.
+    pub async fn load_again(&mut self) -> Res<()> {
+        let frame = self.main_frame().await?;
+        let address = self.frame_url(&frame).await?;
+        let address = address.split('#').next().unwrap_or_default().to_string();
+        if !openable(&address) {
+            return Ok(());
+        }
+        self.open(&address).await
+    }
+
     pub async fn add_recorder(&mut self) -> Res<()> {
         self.exec(
             &Place::Page,
@@ -1915,13 +2014,32 @@ const CONTENT_CORNER_FN: &str = "function () {
   return [r.left + this.clientLeft + parseFloat(s.paddingLeft), r.top + this.clientTop + parseFloat(s.paddingTop)];
 }";
 
-const CREDENTIAL_FN: &str = "function () {
-  const type = (this.getAttribute('type') || '').toLowerCase();
-  const auto = (this.getAttribute('autocomplete') || '').toLowerCase().split(/\\s+/);
-  const secret = ['current-password', 'new-password', 'one-time-code'].some((t) => auto.includes(t));
-  const input = this.tagName === 'INPUT' && (type === 'password' || secret);
-  const captcha = this.parentElement !== null && this.parentElement.closest('[data-halvo-captcha]') !== null;
-  return input || captcha;
+/// The rule of a credential field (A8.2), called on a node with the accessible name that the
+/// page's tree gives it, where the caller has one: the kind of its sign, `challenge` for a place
+/// inside an element with `data-halvo-captcha`, `code` for an `autocomplete` that holds
+/// `one-time-code`, `secret` for an input of the type `password`, an `autocomplete` that holds
+/// `current-password`, `new-password` or `cc-csc`, or a `name` attribute or a name of the control
+/// (the given accessible name, which the page's tree makes from its labels and `aria-labelledby`
+/// too, `aria-label`, `title`, `placeholder`) that holds `password`, `passwd`, `pwd` or `passcode`
+/// in lower case;
+/// the empty text for no sign. A control that showed a sign keeps it on its node for the life of
+/// the node, so that a toggle that sets `type` to `text` does not unmark it. It reads no value
+/// and no text of the control itself.
+const CREDENTIAL_FN: &str = "function (named) {
+  if (typeof this.__halvoSign === 'string') return this.__halvoSign;
+  if (typeof this.getAttribute !== 'function') return '';
+  const attr = (n) => this.getAttribute(n) || '';
+  const says = (t) => ['password', 'passwd', 'pwd', 'passcode'].some((w) => String(t).toLowerCase().includes(w));
+  const auto = attr('autocomplete').toLowerCase().split(/\\s+/);
+  const names = [typeof named === 'string' ? named : '', attr('aria-label'), attr('title'), attr('placeholder')];
+  let sign = '';
+  if (this.parentElement !== null && this.parentElement.closest('[data-halvo-captcha]') !== null) sign = 'challenge';
+  else if (auto.includes('one-time-code')) sign = 'code';
+  else if ((this.tagName === 'INPUT' && attr('type').toLowerCase() === 'password')
+    || ['current-password', 'new-password', 'cc-csc'].some((t) => auto.includes(t))
+    || says(attr('name')) || names.some(says)) sign = 'secret';
+  if (sign !== '') this.__halvoSign = sign;
+  return sign;
 }";
 
 const SELECT_FN: &str = "function (label) {
@@ -1937,6 +2055,10 @@ const READ_FN: &str = "function () {
   if (this.tagName === 'INPUT' || this.tagName === 'SELECT' || this.tagName === 'TEXTAREA') return String(this.value);
   return String(this.innerText || this.textContent || '');
 }";
+
+/// The storage types of `Executor::clear_stores`: every type that the protocol names but the
+/// cookies.
+const KEPT_FOR_LATER: &str = "file_systems,indexeddb,local_storage,shader_cache,service_workers,cache_storage,interest_groups,shared_storage,storage_buckets";
 
 pub const RECORD_BINDING: &str = "halvoRecord";
 
