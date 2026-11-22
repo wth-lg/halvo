@@ -444,8 +444,8 @@ const FOREIGN: &str = r#"<!doctype html><title>typed</title><iframe></iframe><bu
 /// password field of a page served as XHTML meets the reading before the act, which knows the field by the browser's
 /// own interface and not by the lower-case tag name that the browser gives it there: a handback of the reason
 /// `sign_in`, declined; and a click whose `pre` reads the value of a password field that the page's script made in a
-/// frame's document and moved into itself meets the reading, which takes an element that the page's world does not
-/// know as one of its own for a credential field: a handback of the reason `sign_in`, declined, no click and no value
+/// frame's document and moved into itself meets the reading, which reads it in the executor's own world as what it is,
+/// a password field by its type (r3 U5.13): a handback of the reason `sign_in`, declined, no click and no value
 /// read. A fill of the name field beside a password field that the page hides acts and opens no handback: the
 /// reading counts a field only where the browser says it is shown (the coordinator's ruling of log line 14244). No step that would reach a password field types a byte, the one with the failing `post`
 /// acted, and no frame and no line of the runner holds a password field's value.
