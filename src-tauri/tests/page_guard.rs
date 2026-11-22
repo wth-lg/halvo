@@ -116,6 +116,8 @@ impl Guarded {
         let parts = app::Parts {
             #[cfg(windows)]
             webview_data_dir: Some(scratch(name).join("webview")),
+            #[cfg(windows)]
+            webview_environment: |_, _| Ok(None),
             state: commands::capture::AppState::with_control(
                 Arc::new(commands::control::Gated::new(daemon.clone())),
                 None,

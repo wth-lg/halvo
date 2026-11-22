@@ -19,6 +19,7 @@
     not_running: w.NOT_LOOKING,
     store_unavailable: w.STORE_UNAVAILABLE,
     deleting: w.STORE_DELETING,
+    delete_unfinished: w.STORE_DELETE_UNFINISHED,
   };
   var stateLine;
   var nothingFound;
@@ -28,6 +29,9 @@
   var stored;
   var rowsMade = 0;
   var reads = 0;
+  /** While the newest reply reads deleting, the view reads again after this many ms, and at no other time. */
+  var DELETING_READ_MS = 3000;
+  var readAgain = null;
 
   function known(text) {
     return typeof text === "string" && text !== "" ? text : null;
@@ -79,13 +83,19 @@
   function read() {
     reads += 1;
     var mine = reads;
+    clearTimeout(readAgain);
+    readAgain = null;
     return Halvo.ipc
       .call("workflows")
       .then(function (reply) {
-        if (mine === reads) render(reply);
+        if (mine !== reads) return;
+        render(reply);
+        if (reply.state === "deleting") readAgain = setTimeout(read, DELETING_READ_MS);
       })
       .catch(Halvo.showError);
   }
+  /** The delete view reads the list again behind an answer of a delete that is not a finished one. */
+  Halvo.readWorkflows = read;
 
   /** After a decision that succeeded the view reads again; after one that failed the row stays. */
   function decide(command, id, buttons) {

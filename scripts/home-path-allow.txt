@@ -17,3 +17,4 @@ crates/halvo-control/src/proto.rs	/Users/a	a made-up account name, a, in a test 
 crates/halvo-control/src/ctl_text.rs	/Users/example	a made-up account name, example, in the test of the text for a daemon that cannot be reached
 src-tauri/src/commands/tests.rs	/Users/someone	a made-up account name, someone, in the test of the places where an app's names are read
 src-tauri/src/commands/tests.rs	/System/Volumes/Data/Users/someone	a made-up account name, someone, in the test of the places where an app's names are read
+src-tauri/src/login_item.rs	C:\Users\a b	a made-up account name, a b, in the tests of the Run value of the app

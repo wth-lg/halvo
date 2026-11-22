@@ -10,16 +10,20 @@
 #          self-test  the self-test of the check of that name
 #          tests      12-test in its group form: the tests that scripts/ci/slow-tests.txt gives the
 #                     group of that capital letter, and no other test; one tests line a slice and job
-# A job of a slice ends in under 900 s. Before you add a line, name the seconds of the check in that
-# job; scripts/ci/README.md, The slices, holds the measured seconds and what each slice builds.
+# A job of a slice ends in under 1,200 s, the owner's bound for every job of every run. Before you
+# add a line, name the seconds of the check in that job: the newest reading of the slice's job stays
+# under 1,000 s with them, or another day takes the line. scripts/ci/README.md, The slices, holds the
+# measured seconds and what each slice builds.
 
 mon macos tests A
 mon macos check 31-store-full-volume
+mon macos check 63-maker-marker
 mon macos check 25-advisories
 mon windows tests A
 mon windows check 24-hook-imports
 mon windows check 20-app-links-no-store
 mon windows check 10-r7-account
+mon windows check 35-app-windows-memory
 
 tue macos tests B
 tue macos check 25-advisories
@@ -59,6 +63,7 @@ fri macos self-test 39-store-no-analyze
 fri macos self-test 51-macos-stall
 fri macos self-test 55-sqlcipher-unmended
 fri macos self-test 62-build
+fri macos self-test 63-maker-marker
 fri macos self-test 70-package-macos
 fri macos self-test 10-egress
 fri macos self-test 22-redact
@@ -93,6 +98,8 @@ sat macos check 10-r7-account
 sat macos check 25-advisories
 sat windows check 32-app-check-page
 sat windows check 38-app-engine-routes
+sat windows check 34-app-windows-start
+sat windows check 36-app-windows-logon
 sat windows check 20-r6-gateway
 sat windows check 80-r6-absent
 sat windows tests D

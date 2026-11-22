@@ -88,7 +88,7 @@
     "backup_limit": "Windows backups and restore points can keep a copy of Halvo's data that deleting it in Halvo does not remove.",
     "custody": "Windows protects the key that protects your data with your account.",
     "limits": "A copy of Halvo's data made earlier, such as a backup, keeps what it held: expiry does not reach it, and after a delete-all a copy of the whole data folder can still be read.",
-    "passwords": "Halvo observes no typing on Windows in this version, so it records nothing that you type into a password field.",
+    "passwords": "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.",
     "recorded": [
       {
         "switch": null,
@@ -100,7 +100,7 @@
       },
       {
         "switch": "key_class",
-        "text": "Typing is not observed on Windows in this version."
+        "text": "Halvo does not record what you type."
       },
       {
         "switch": "pointer_class",

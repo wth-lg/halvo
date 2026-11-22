@@ -692,7 +692,7 @@ fn answer(w: &mut World, op: &str, body: Value, replies: &mut Vec<(String, Strin
 fn put_bodies(w: &mut World, r: u32, replies: &mut Vec<(String, String)>) {
     let a = agent(1);
     let bodies = [
-        json!({"op": "put_session", "agent": a, "run": run(r), "origin": ORIGIN, "rev": r, "part": 1, "of": 1, "data": [SESSION_MARK]}),
+        json!({"op": "put_session", "agent": a, "run": run(r), "origin": ORIGIN, "rev": r - 2, "part": 1, "of": 1, "data": [SESSION_MARK]}),
         json!({"op": "effect", "agent": a, "run": run(r), "record": effect_row(w, r)}),
         json!({"op": "log", "agent": a, "run": run(r), "records": [log_line(w, r)]}),
         json!({"op": "checkpoint", "agent": a, "run": run(r), "record": checkpoint_row(w, r)}),
@@ -804,7 +804,7 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
         json!({"op": "load_steps", "agent": a, "run": run(4), "number": w.loaded, "from": 1});
     let served: Value =
         serde_json::from_str(&answer(&mut w, "load_steps", body, &mut replies)).expect("JSON");
-    let body = json!({"op": "load_session", "agent": a, "run": run(4), "origin": ORIGIN, "rev": 3, "part": 1});
+    let body = json!({"op": "load_session", "agent": a, "run": run(4), "origin": ORIGIN, "rev": 1, "part": 1});
     answer(&mut w, "load_session", body, &mut replies);
     let proposal = with_locators(
         served["steps"][1].clone(),

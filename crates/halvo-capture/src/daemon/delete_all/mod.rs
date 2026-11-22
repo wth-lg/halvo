@@ -654,13 +654,24 @@ fn open_for_the_delete(
 /// when it did not or when the handle's delete is not finished, with the
 /// handle dropped first. What the tail cannot read, the count of keyed
 /// segments and the root that the handle named, comes from the handle's
-/// report.
+/// report. On Windows a finished delete of the handle marked the store's
+/// lock file, which goes when the handle closes; where its name still stands
+/// behind the close, the delete is not finished, with that file counted as
+/// left, and no tail runs behind it.
 fn delete_the_store(host: &DataDirStore, handle: Option<Handle>) -> TailAnswer {
     let Some(mut handle) = handle else {
         return host.delete();
     };
     let by_the_handle = handle.delete_all();
     drop(handle);
+    #[cfg(windows)]
+    if let TailAnswer::Finished(report) = &by_the_handle {
+        if stands(&host.store_dir().join("writer.lock")) {
+            let mut report = report.clone();
+            report.files_left += 1;
+            return TailAnswer::NotFinished(report);
+        }
+    }
     if matches!(by_the_handle, TailAnswer::Finished(_)) {
         return by_the_handle;
     }
@@ -740,10 +751,13 @@ fn holds_a_file(path: &Path) -> bool {
 
 /// Whether `dir` holds nothing of a store (contracts.md C3.3): no store.key,
 /// no database, no segment and no intent, no root file under roots/, the
-/// mark `store_made` not set, and no entry of a row that the walk removes.
+/// mark `store_made` not set, and no entry of a row that the walk removes;
+/// on Windows also no lock file of the store, which a delete removes.
 fn nothing_stands(dir: &Path, rows: &[Row]) -> bool {
     let store = dir.join("store");
     let store_files = ["store.key", "store.db", "store.db-wal", "store.db-journal"];
+    #[cfg(windows)]
+    let store_files = [store_files.as_slice(), &["writer.lock"]].concat();
     !store_files.iter().any(|name| stands(&store.join(name)))
         && !holds_a_file(&store.join("segments"))
         && !stands(&dir.join(INTENT_FILE))

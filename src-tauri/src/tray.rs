@@ -2,7 +2,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Mutex, PoisonError};
 
 use halvo_control::model::CaptureState;
-use halvo_control::proto::{Capture, CaptureChange};
+use halvo_control::proto::{Capture, CaptureChange, Platform};
 use halvo_coord_app::{Agents, Attention};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
@@ -89,6 +89,10 @@ pub struct TrayLabels {
 
 pub const NOT_RUNNING: &str = "Capture service not running";
 
+/// The tray's status line on Windows where no capture service runs: one sentence for one fact,
+/// as the page says it there.
+pub const NOT_RECORDING: &str = "Halvo is not recording";
+
 /// The tray's status line while the app holds capture off after its child ended itself with
 /// status 5: it names the cause, and a Resume of the toggle ends the hold only beside it.
 pub const HELD: &str = "Capture off: one part did not stop in time";
@@ -112,7 +116,10 @@ pub const WINDOW_MISSING: &str = "Halvo's window is not available. Quit Halvo an
 
 pub const WINDOW_CANNOT_OPEN_ON_THIS_MAC: &str = "Halvo's window cannot open on this Mac right now. You can still pause or resume here. Quit Halvo and start it again; if the window still does not open, a newer Halvo is needed to see or delete what Halvo has stored.";
 
-pub const WINDOW_CANNOT_OPEN_HERE: &str = "Halvo's window cannot open on this version of macOS. You can still pause or resume here. A newer Halvo is needed to see or delete what Halvo has stored.";
+/// The tray's line on Windows while the window cannot open for a cause that a restart is not
+/// known to cure; it still asks for a restart, the one step that the tray can name.
+pub const WINDOW_CANNOT_OPEN_HERE: &str =
+    "Halvo's window cannot open right now. You can still pause or resume here. Quit Halvo and start it again.";
 
 fn line(title: &'static str, status_text: &'static str, tooltip: &'static str) -> TrayLabels {
     TrayLabels {
@@ -126,18 +133,24 @@ fn line(title: &'static str, status_text: &'static str, tooltip: &'static str) -
 }
 
 /// The tray's line while the window cannot open: on macOS one sentence for every cause, so
-/// that no cause can be sorted wrongly; elsewhere the line by whether a restart cures it.
-pub fn without_window(labels: TrayLabels, restart_cures: bool) -> TrayLabels {
+/// that no cause can be sorted wrongly; on Windows the line by whether a restart cures it.
+pub fn without_window(labels: TrayLabels, restart_cures: bool, platform: Platform) -> TrayLabels {
     TrayLabels {
-        status_text: if cfg!(target_os = "macos") {
-            WINDOW_CANNOT_OPEN_ON_THIS_MAC
-        } else if restart_cures {
-            WINDOW_MISSING
-        } else {
-            WINDOW_CANNOT_OPEN_HERE
+        status_text: match platform {
+            Platform::Macos => WINDOW_CANNOT_OPEN_ON_THIS_MAC,
+            Platform::Windows if restart_cures => WINDOW_MISSING,
+            Platform::Windows => WINDOW_CANNOT_OPEN_HERE,
         },
         open_enabled: false,
         ..labels
+    }
+}
+
+/// The system that `view` names.
+fn platform_of(view: &StatusView) -> Platform {
+    match view {
+        StatusView::Running(view) => view.platform,
+        StatusView::NoStatus(view) => view.platform,
     }
 }
 
@@ -185,7 +198,7 @@ pub fn labels_with(
                 ..labels
             }
         } else {
-            without_window(labels, restart_cures)
+            without_window(labels, restart_cures, platform_of(view))
         };
     }
     if pause_missed && !held {
@@ -221,7 +234,10 @@ pub fn labels(view: &StatusView) -> TrayLabels {
                 "Connecting",
                 "Halvo is connecting to its capture service",
             ),
-            NoStatusService::NotRunning => line("Halvo", NOT_RUNNING, NOT_RUNNING),
+            NoStatusService::NotRunning | NoStatusService::Unsupported => match view.platform {
+                Platform::Windows => line("Halvo", NOT_RECORDING, NOT_RECORDING),
+                Platform::Macos => line("Halvo", NOT_RUNNING, NOT_RUNNING),
+            },
             NoStatusService::HeldUnreachable => line(
                 "Halvo",
                 "Capture service not answering",
@@ -236,11 +252,6 @@ pub fn labels(view: &StatusView) -> TrayLabels {
                 "Halvo",
                 "Update Halvo",
                 "Halvo's capture service is of another version",
-            ),
-            NoStatusService::Unsupported => line(
-                "Halvo",
-                "Capture not available on Windows yet",
-                "Capture is not available on Windows in this version",
             ),
         },
         StatusView::Running(view) => match view.capture {
@@ -380,21 +391,33 @@ pub struct Marked {
 }
 
 /// What the tray shows for `view` with the count that it last took, by `Attention::of`
-/// (I10.3): above zero the icon variant and the tooltip `tray.needs` with the count; on macOS
-/// the tray's own title with the count after it, never the count alone, because the title says
-/// whether Halvo captures; at zero the tray's own title, tooltip and icon.
+/// (I10.3): above zero the icon variant and the tooltip `tray.needs` with the count, on Windows
+/// after the tray's own tooltip; on macOS the tray's own title with the count after it, never
+/// the count alone, because the title says whether Halvo captures; at zero the tray's own
+/// title, tooltip and icon.
 pub fn with_attention<R: Runtime>(app: &AppHandle<R>, view: &StatusView) -> Marked {
     let count = app.try_state::<Needs>().map_or(0, |needs| {
         *needs.0.lock().unwrap_or_else(PoisonError::into_inner)
     });
-    let own = shown(app, view);
+    marked(shown(app, view), count, platform_of(view))
+}
+
+/// What the tray shows for its own labels `own` and `count`, the agents that need the person,
+/// on `platform`. Windows shows no title, so there the tooltip is the one text that says the
+/// state: with a count above zero it keeps the tray's own tooltip and puts the count's words on
+/// a line after it.
+pub fn marked(own: TrayLabels, count: u32, platform: Platform) -> Marked {
     let attention = Attention::of(count);
     Marked {
         title: match attention.title {
             Some(count) => format!("{} {count}", own.title),
             None => own.title.to_string(),
         },
-        tooltip: attention.tooltip.unwrap_or_else(|| own.tooltip.to_string()),
+        tooltip: match (attention.tooltip, platform) {
+            (Some(needs), Platform::Windows) => format!("{}\n{needs}", own.tooltip),
+            (Some(needs), Platform::Macos) => needs,
+            (None, _) => own.tooltip.to_string(),
+        },
         variant: attention.variant,
     }
 }
@@ -645,6 +668,14 @@ mod tests {
             ))
             .status_text,
             "Capture service not running"
+        );
+        assert_eq!(
+            labels(&StatusView::no_status(
+                NoStatusService::NotRunning,
+                Platform::Windows
+            ))
+            .status_text,
+            "Halvo is not recording"
         );
         for service in [
             NoStatusService::HeldUnreachable,

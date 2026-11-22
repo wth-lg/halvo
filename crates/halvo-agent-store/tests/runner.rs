@@ -261,6 +261,37 @@ fn put_session_refuses_the_same_data_at_a_stored_place_with_another_of() {
     assert_eq!(session_rows(&store).len(), 1);
 }
 
+/// U5.11 (2), the coordinator's ruling of log line 14584: the store holds a run to Halvo's own numbering. `put_session`
+/// refuses with `binding`, and stores nothing, a part whose revision is more than one above the newest stored revision
+/// of its origin, where the part of a revision that a fault cut counts; with no stored row of the origin it refuses
+/// every revision above 1, the highest number among them. One above is stored.
+#[test]
+fn a_put_two_above_the_newest_stored_revision_is_refused() {
+    let mut store = store_with("utility_bill_payment");
+    let origin = "https://pay.test:443";
+    for rev in [2, u32::MAX] {
+        assert_eq!(
+            put_session(&mut store, origin, rev, 1, 1, vec!["QUJD".into()]),
+            Err(declared("binding")),
+            "{rev}"
+        );
+    }
+    assert!(session_rows(&store).is_empty());
+    put_session(&mut store, origin, 1, 1, 1, vec!["QUJD".into()]).expect("rev 1");
+    put_session(&mut store, origin, 2, 1, 2, full_part()).expect("part 1 of 2 of rev 2");
+    assert_eq!(
+        put_session(&mut store, origin, 4, 1, 1, vec!["QUJD".into()]),
+        Err(declared("binding"))
+    );
+    assert_eq!(session_rows(&store).len(), 2);
+    assert_eq!(
+        put_session(&mut store, origin, 3, 1, 1, vec!["QUJD".into()]),
+        Ok(stored(1)),
+        "one above the cut revision's part"
+    );
+    assert_eq!(load(&mut store, 1).expect("load").sessions[0].rev.get(), 3);
+}
+
 #[test]
 fn load_takes_no_session_revision_whose_parts_disagree_on_of() {
     let mut store = store_with("utility_bill_payment");

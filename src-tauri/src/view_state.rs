@@ -8,7 +8,7 @@ use halvo_control::proto::{
     Platform, RootDestroyed, Section, SourceName, SourceStateName, StateFile, StopKind,
     StoreErrorKind, StoreState, SwitchName,
 };
-use halvo_control::texts::{first_run, texts, Texts};
+use halvo_control::texts::{first_run, texts, Recorded, Texts};
 use serde::{Deserialize, Serialize};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
@@ -137,6 +137,9 @@ pub struct RunningView {
     pub login_item_written: Option<bool>,
     pub data_folder: Option<String>,
     pub state_file: Option<SettingsUnread>,
+    /// The first run's rows of what a start records, which the question of a reset of the
+    /// settings shows: on a settings file that cannot be read alone.
+    pub reset_recorded: Option<Vec<Recorded>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -377,8 +380,9 @@ impl Hold {
         self.state().removing = stands;
     }
 
-    /// What the consent click read of its write of the login item: whether the plist stands
-    /// written; every view says it from then on.
+    /// Whether the login item stands written: what the consent click read of its write, the
+    /// plist on macOS and the Run value on Windows, and on Windows false also where a start's
+    /// read or write of the value failed; every view says it from then on.
     pub fn login_item_written(&self, written: bool) {
         self.state().login_item_written = Some(written);
     }
@@ -458,7 +462,7 @@ impl Hold {
     }
 
     /// After the third end with 5 in a row no further child starts until a Start.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn no_more_child(&self) {
         self.state().no_more_child = true;
         self.changed.notify_all();
@@ -466,7 +470,7 @@ impl Hold {
 
     /// Takes the ask of a Start or of the consent, if one waits: the press then asked for the
     /// next child.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn take_start(&self) -> bool {
         let mut state = self.state();
         let asked = state.start_asked;
@@ -480,7 +484,7 @@ impl Hold {
     }
 
     /// The supervisor starts a child: an ask of a Start between two children is taken by it.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn take_the_ask(&self) {
         let mut state = self.state();
         state.start_asked = false;
@@ -491,7 +495,7 @@ impl Hold {
 
     /// The supervisor's spawner reads the data directory not provisioned: no child starts before
     /// the person's click on Start, the consent (contracts.md C10.7).
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn awaits_consent(&self) {
         self.state().awaits_consent = true;
         self.changed.notify_all();
@@ -499,7 +503,7 @@ impl Hold {
 
     /// The supervisor's spawner reads the data directory's own cause (ruling ST-36 (e)): no child
     /// starts and no consent is offered.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn data_dir_unusable(&self) {
         self.state().data_dir_unusable = true;
         self.changed.notify_all();
@@ -507,13 +511,13 @@ impl Hold {
 
     /// The app leaves its own child that reads another daemon_version after the one restart of
     /// the launch: views read another_version until a child starts again.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn another_version_left(&self) {
         self.state().another_version = true;
     }
 
     /// A child of the app started.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn child_started(&self) {
         let mut state = self.state();
         state.lives += 1;
@@ -526,7 +530,7 @@ impl Hold {
 
     /// The child of the moment ended, with its exit status where it has one; an end with 5
     /// sets the hold.
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     pub fn child_ended(&self, status: Option<i32>) {
         let mut state = self.state();
         if state.child_lives {
@@ -580,6 +584,8 @@ struct WireView<'a> {
     data_folder: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     state_file: Option<SettingsUnread>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reset_recorded: Option<&'a [Recorded]>,
 }
 
 impl Serialize for StatusView {
@@ -612,6 +618,7 @@ impl Serialize for StatusView {
                 ext: Some(&view.ext),
                 data_folder: view.data_folder.as_deref(),
                 state_file: view.state_file,
+                reset_recorded: view.reset_recorded.as_deref(),
             },
             StatusView::NoStatus(view) => WireView {
                 service: view.word(),
@@ -643,6 +650,7 @@ impl Serialize for StatusView {
                 ext: None,
                 data_folder: view.data_folder.as_deref(),
                 state_file: None,
+                reset_recorded: None,
             },
         };
         wire.serialize(serializer)
@@ -782,6 +790,8 @@ impl StatusView {
                 StateFile::NewerVersion => Some(SettingsUnread::NewerVersion),
                 StateFile::Ok | StateFile::WriteFailed => None,
             },
+            reset_recorded: (f.state_file == StateFile::Corrupt)
+                .then(|| first_run(f.platform).recorded),
             login_item_written: None,
         }))
     }
