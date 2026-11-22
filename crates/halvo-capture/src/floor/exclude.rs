@@ -854,7 +854,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     fn list(folder: &std::path::Path) -> Listing {
-        crate::daemon::agent_marks::list(folder)
+        crate::daemon::agent_marks::list(folder).0
     }
 
     #[cfg(target_os = "macos")]

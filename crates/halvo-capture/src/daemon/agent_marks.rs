@@ -4,7 +4,7 @@
 //! and then once a second by one thread beside the owner. A decision reads the
 //! set that the last listing left and never lists.
 
-use std::io;
+use std::io::{self, Write};
 use std::path::Path;
 use std::sync::{mpsc, Arc};
 use std::time::Duration;
@@ -30,29 +30,36 @@ impl CreationTime for SystemCreationTime {
 /// none. A folder that cannot be listed, an entry that cannot be read and a
 /// mark whose bytes cannot be read make the listing unread, unless the error
 /// says that it is gone. An entry that is no file and a file that does not
-/// read as a mark name nobody.
-pub(crate) fn list(marks: &Path) -> Listing {
+/// read as a mark name nobody. Beside the listing, the kind of the first error
+/// that made it unread.
+pub(crate) fn list(marks: &Path) -> (Listing, Option<io::ErrorKind>) {
     let mut listing = Listing::default();
+    let mut fault = None;
     let entries = match std::fs::read_dir(marks) {
         Ok(entries) => entries,
         Err(error) => {
-            listing.unread = error.kind() != io::ErrorKind::NotFound;
-            return listing;
+            if error.kind() != io::ErrorKind::NotFound {
+                fault = Some(error.kind());
+            }
+            listing.unread = fault.is_some();
+            return (listing, fault);
         }
     };
     for entry in entries {
-        let read = entry.and_then(|entry| {
+        let file = entry.and_then(|entry| {
             if !entry.file_type()?.is_file() {
                 return Ok(None);
             }
             let bytes = std::fs::read(entry.path())?;
             Ok(Some((entry.file_name(), bytes)))
         });
-        let (name, bytes) = match read {
+        let (name, bytes) = match file {
             Ok(Some(found)) => found,
             Ok(None) => continue,
             Err(error) => {
-                listing.unread |= error.kind() != io::ErrorKind::NotFound;
+                if error.kind() != io::ErrorKind::NotFound {
+                    fault.get_or_insert(error.kind());
+                }
                 continue;
             }
         };
@@ -70,7 +77,26 @@ pub(crate) fn list(marks: &Path) -> Listing {
             });
         }
     }
-    listing
+    listing.unread = fault.is_some();
+    (listing, fault)
+}
+
+/// Lists the folder `marks` into `set` and writes one line to `err` when the
+/// set turns unread, with the kind of the error, or reads again, after
+/// `was_unread`; answers whether the set is unread now.
+fn take(set: &Marks, marks: &Path, was_unread: bool, err: &mut dyn Write) -> bool {
+    let (listing, fault) = list(marks);
+    set.take(listing);
+    match fault {
+        Some(kind) if !was_unread => {
+            let _ = writeln!(err, "halvo-capture: agent_marks=unread error={kind}");
+        }
+        None if was_unread => {
+            let _ = writeln!(err, "halvo-capture: agent_marks=read");
+        }
+        Some(_) | None => {}
+    }
+    fault.is_some()
 }
 
 /// The set of the marks under one data directory and the thread that lists
@@ -82,18 +108,19 @@ pub(crate) struct MarkListing {
 
 impl MarkListing {
     /// Lists the marks under the data directory `dir` into a new set at once,
-    /// and then every [`LISTING_EVERY`] on a thread of its own.
+    /// and then every [`LISTING_EVERY`] on a thread of its own; each turn of the
+    /// set to unread and back writes one line to standard error.
     pub(crate) fn start(dir: &Path) -> io::Result<MarkListing> {
         let folder = dir.join("agents").join("marks");
         let marks = Arc::new(Marks::new(Box::new(SystemCreationTime)));
-        marks.take(list(&folder));
+        let mut unread = take(&marks, &folder, false, &mut io::stderr());
         let (stop, stopped) = mpsc::channel::<()>();
         let set = Arc::clone(&marks);
         std::thread::Builder::new()
             .name("halvo-capture-marks".to_owned())
             .spawn(move || {
                 while stopped.recv_timeout(LISTING_EVERY) == Err(mpsc::RecvTimeoutError::Timeout) {
-                    set.take(list(&folder));
+                    unread = take(&set, &folder, unread, &mut io::stderr());
                 }
             })?;
         Ok(MarkListing { marks, _stop: stop })
