@@ -544,6 +544,38 @@ pub fn compose_plain(
     .said_by(name)
 }
 
+/// The item of the first step of a `sign_in` item whose hand-back names `origin` (I3.1, I3.4):
+/// the title `item.sign_in.title` with the agent's name, the text `item.sign_in.site` with the
+/// site's name of `origin`, and the kind's two choices, the safe one first. Where `origin` is
+/// `insecure`, an `http` site outside 127.0.0.0/8 that takes a sign-in over a connection that is
+/// not protected, its scheme stands before the site's name, as that is the one case where the
+/// scheme is the thing to see: the origin's own text, without its port where the site's name has
+/// none. With no `origin` it is the item of `compose_plain`, which names no site.
+pub fn compose_sign_in(
+    item: &ItemId,
+    agent: &AgentId,
+    name: &str,
+    origin: Option<&Origin>,
+) -> Result<Item, Cause> {
+    let Some(origin) = origin else {
+        return compose_plain(item, agent, Plain::SignIn, name);
+    };
+    let full = origin.as_str();
+    let site = if !origin.insecure() {
+        site_name(origin)
+    } else if site_name(origin).contains(':') {
+        full.to_owned()
+    } else {
+        full.rsplit_once(':')
+            .map_or(full, |(no_port, _)| no_port)
+            .to_owned()
+    };
+    let title = Key::parse("item.sign_in.title")?.text(&[("name", name)])?;
+    let text = Key::parse("item.sign_in.site")?.text(&[("origin", &site)])?;
+    let choices = two_choices(ItemKind::SignIn)?;
+    Item::sign_in(item.clone(), agent.clone(), title, text, choices).said_by(name)
+}
+
 /// The item of the second step of a `sign_in` item (I3.1, I3.4): the title `item.sign_in.title`
 /// with the agent's name, the text `item.sign_in.bind` with the site's name of `origin` (ruling
 /// IG-14), and the two choices `decline` and `allow` with the texts
