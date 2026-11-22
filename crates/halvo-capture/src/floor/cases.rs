@@ -290,29 +290,29 @@ pub(crate) const CASES: &[Case] = &[
         expected: &[K(KeyClass::Other), K(KeyClass::Other)],
     },
     Case {
-        name: "a modifier down and up alone gives one event",
+        name: "a modifier down and up alone gives no event",
         inputs: &[KeyDown(SHIFT), KeyUp(SHIFT)],
-        expected: &[K(KeyClass::Other)],
+        expected: &[],
     },
     Case {
-        name: "a held modifier gives one event",
+        name: "a held modifier gives no event",
         inputs: &[
             KeyDown(CONTROL),
             KeyRepeat(CONTROL),
             KeyRepeat(CONTROL),
             KeyUp(CONTROL),
         ],
-        expected: &[K(KeyClass::Other)],
+        expected: &[],
     },
     Case {
-        name: "a shortcut gives two events",
+        name: "a shortcut gives one event",
         inputs: &[
             KeyDown(COMMAND),
             KeyDown(Key::Letter),
             KeyUp(Key::Letter),
             KeyUp(COMMAND),
         ],
-        expected: &[K(KeyClass::Other), K(KeyClass::Shortcut)],
+        expected: &[K(KeyClass::Shortcut)],
     },
     Case {
         name: "control with an arrow is a shortcut",
@@ -322,7 +322,7 @@ pub(crate) const CASES: &[Case] = &[
             KeyUp(Key::Arrow),
             KeyUp(CONTROL),
         ],
-        expected: &[K(KeyClass::Other), K(KeyClass::Shortcut)],
+        expected: &[K(KeyClass::Shortcut)],
     },
     Case {
         name: "option or alt with a key is a shortcut",
@@ -332,7 +332,7 @@ pub(crate) const CASES: &[Case] = &[
             KeyUp(Key::Enter),
             KeyUp(ALT),
         ],
-        expected: &[K(KeyClass::Other), K(KeyClass::Shortcut)],
+        expected: &[K(KeyClass::Shortcut)],
     },
     Case {
         name: "shift with a letter is no shortcut",
@@ -342,10 +342,10 @@ pub(crate) const CASES: &[Case] = &[
             KeyUp(Key::Letter),
             KeyUp(SHIFT),
         ],
-        expected: &[K(KeyClass::Other), K(KeyClass::Printable)],
+        expected: &[K(KeyClass::Printable)],
     },
     Case {
-        name: "two modifiers and a key give three events",
+        name: "two modifiers and a key give one event",
         inputs: &[
             KeyDown(CONTROL),
             KeyDown(SHIFT),
@@ -354,11 +354,7 @@ pub(crate) const CASES: &[Case] = &[
             KeyUp(SHIFT),
             KeyUp(CONTROL),
         ],
-        expected: &[
-            K(KeyClass::Other),
-            K(KeyClass::Other),
-            K(KeyClass::Shortcut),
-        ],
+        expected: &[K(KeyClass::Shortcut)],
     },
     Case {
         name: "a key after the chord ends is no shortcut",
@@ -368,7 +364,7 @@ pub(crate) const CASES: &[Case] = &[
             KeyDown(Key::Letter),
             KeyUp(Key::Letter),
         ],
-        expected: &[K(KeyClass::Other), K(KeyClass::Printable)],
+        expected: &[K(KeyClass::Printable)],
     },
     Case {
         name: "a key-up alone is no event",
