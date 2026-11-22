@@ -427,9 +427,10 @@ impl Hold {
             .is_some_and(|life| Some(life) == lives)
     }
 
-    /// What the last Resume of a press read of a Windows run's screen, after its one renewal
-    /// where one ran: `renewed` false where the screen still read spent, and every running view
-    /// whose screen source does not run then says so.
+    /// What the last read of a Windows run's screen read, at a Resume of a press or behind a
+    /// delete through the service, after its one renewal where one ran: `renewed` false where the
+    /// screen still read spent, and every running view whose screen source does not run then says
+    /// so.
     pub fn screen_renewed(&self, renewed: bool) {
         self.state().screen_spent = !renewed;
     }

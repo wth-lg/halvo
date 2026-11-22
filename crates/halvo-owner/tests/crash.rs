@@ -629,9 +629,9 @@ fn a_delete_during_a_batch_leaves_nothing() {
 /// derived row and the derived key on a real store and key, the test writes derived/owner.pid as the owner slot writes
 /// it, and then halvo-capture.exe, the program that the app runs, runs with `--delete-all --data-dir DIR`. It ends the
 /// owner by its pid and start time and leaves no entry under derived/, no store, no root and no intent; the next start
-/// makes a new key and an owner that reads no workflow. The store's writer lock, an empty file that stays after a delete
-/// on Windows until the unit win-delete-lock lands, is not counted while it is empty. The program stands beside the
-/// owner when the build that made this test also made halvo-capture's test targets, as the merge gate's test step does.
+/// makes a new key and an owner that reads no workflow; no file stands under store/, its writer lock among them. The
+/// program stands beside the owner when the build that made this test also made halvo-capture's test targets, as the
+/// merge gate's test step does.
 #[cfg(windows)]
 #[test]
 fn on_windows_the_programs_offline_delete_ends_the_owner_and_leaves_no_derived_row_key_or_store() {

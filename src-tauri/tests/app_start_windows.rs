@@ -411,8 +411,8 @@ fn files_under(dir: &Path) -> Vec<PathBuf> {
     found
 }
 
-/// What stands in `dir` of the store, its key and its root. The store's writer lock on Windows, an empty file that
-/// stays after a delete until the store lets it go, is not counted while it is empty.
+/// What stands in `dir` of the store, its key, its root and the intent: every file under store/, its writer lock among
+/// them, and under roots/.
 fn what_stays_of_the_store(dir: &Path) -> Vec<PathBuf> {
     let mut stays = files_under(&dir.join("store"));
     stays.extend(files_under(&dir.join("roots")));
