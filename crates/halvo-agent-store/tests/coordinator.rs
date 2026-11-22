@@ -1566,6 +1566,144 @@ fn an_entry_names_state_slots_session_and_the_last_run() {
     assert_eq!(entry(&mut store)["last"], ended, "the newest record");
 }
 
+/// `put_session` of part `part` of `of` of the revision `rev` of the origin, for the agent `a` in its run `r`: a part
+/// before the last holds 48 full pieces, as every such part does.
+fn session_part(a: u32, r: u32, origin: &str, rev: u32, part: u32, of: u32) -> Value {
+    let data = if part < of {
+        vec!["A".repeat(1024); 48]
+    } else {
+        vec!["QUJD".to_owned()]
+    };
+    json!({"op": "put_session", "agent": agent(a), "run": run(r), "origin": origin, "rev": rev, "part": part, "of": of, "data": data})
+}
+
+fn drop_sessions_of(w: u32, a: u32) -> Value {
+    json!({"op": "drop_sessions", "workflow": wf(w), "agent": agent(a)})
+}
+
+fn stored_reply(n: u32) -> CoordinatorReply {
+    CoordinatorReply::parse(format!(r#"{{"stored":{n}}}"#).as_bytes()).expect("a stored reply")
+}
+
+#[test]
+fn drop_sessions_ends_the_use_of_every_kept_sign_in_of_one_agent() {
+    const BOUND: &str = "http://utility.test:18090";
+    const UNBOUND: &str = "http://other.test:18091";
+    const HALF: &str = "http://half.test:18092";
+    let mut store = store_with("utility_bill_payment");
+    store.put_workflow(workflow(&wf(2), "utility_bill_payment", "approved", None));
+    create(&mut store, 2, 2).expect("create_agent of the second agent");
+    start_at(&mut store, NOW, 2, 2, 9).expect("start_run of the second agent");
+    assert_eq!(
+        runner(&mut store, session_part(2, 9, BOUND, 1, 1, 1)),
+        Ok(stored(1))
+    );
+    let add = json!({"op": "add_origin", "workflow": wf(1), "agent": agent(1), "run": run(1), "origin": BOUND, "way": "sign_in"});
+    assert_eq!(coordinator(&mut store, add), Ok(rev(1)));
+    for (origin, rev, part, of) in [
+        (BOUND, 1, 1, 1),
+        (UNBOUND, 1, 1, 1),
+        (UNBOUND, 2, 1, 2),
+        (HALF, 1, 1, 2),
+    ] {
+        assert_eq!(
+            runner(&mut store, session_part(1, 1, origin, rev, part, of)),
+            Ok(stored(1)),
+            "{origin} {rev}"
+        );
+    }
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    let session = |store: &mut MemoryStore| -> Vec<Value> {
+        let listed = roster(store)["agents"].clone();
+        (0..2).map(|i| listed[i]["session"].clone()).collect()
+    };
+    assert_eq!(session(&mut store), [json!("yes"), json!("yes")]);
+
+    let before = every_row(&store);
+    let mut host = Stopper::new(&mut store, None);
+    let body = drop_sessions_of(1, 1).to_string();
+    assert_eq!(
+        halvo_agent_store::coordinator(&mut host, NOW, body.as_bytes()),
+        Ok(stored_reply(2)),
+        "the bound origin and the one that the bindings no longer hold; no row for an incomplete revision"
+    );
+    assert_eq!(host.commits, 1, "every drop row in one commit");
+    let after = every_row(&store);
+    let sessions = AGENT_KINDS
+        .iter()
+        .position(|(kind, _)| *kind == "agent_session")
+        .expect("the kind agent_session");
+    for (i, (was, is)) in before.iter().zip(&after).enumerate() {
+        if i != sessions {
+            assert_eq!(was, is, "{:?}", AGENT_KINDS[i].0);
+        }
+    }
+    let (was, is) = (&before[sessions], &after[sessions]);
+    assert!(was.iter().all(|r| is.contains(r)), "no stored row changes");
+    let mut new: Vec<Value> = is
+        .iter()
+        .filter(|r| !was.contains(r))
+        .map(|r| serde_json::from_str(r).expect("a session row"))
+        .collect();
+    new.sort_by_key(|r| r["origin"].to_string());
+    assert_eq!(is.len(), was.len() + new.len());
+    let drop_row = |origin: &str, rev: u32| json!({"v": 1, "workflow": wf(1), "agent": agent(1), "origin": origin, "rev": rev, "part": 1, "of": 1, "day": TODAY, "data": ["="]});
+    assert_eq!(
+        new,
+        [drop_row(UNBOUND, 3), drop_row(BOUND, 2)],
+        "one revision of the drop form after every stored revision of each origin"
+    );
+    assert_eq!(
+        session(&mut store),
+        [json!("no"), json!("yes")],
+        "the agent's kept sign-ins are no longer used; the other agent's stay"
+    );
+
+    let rows_now = every_row(&store);
+    assert_eq!(
+        coordinator(&mut store, drop_sessions_of(1, 1)),
+        Ok(stored_reply(0)),
+        "a repeat"
+    );
+    assert_eq!(every_row(&store), rows_now, "a repeat stores nothing");
+}
+
+#[test]
+fn drop_sessions_is_refused_while_a_run_of_the_agent_is_open() {
+    let mut store = store_with("utility_bill_payment");
+    assert_eq!(
+        runner(
+            &mut store,
+            session_part(1, 1, "http://utility.test:18090", 1, 1, 1)
+        ),
+        Ok(stored(1))
+    );
+    store.put_workflow(workflow(&wf(2), "utility_bill_payment", "approved", None));
+    create(&mut store, 2, 2).expect("create_agent of the second agent");
+    let before = every_row(&store);
+    assert_eq!(
+        coordinator(&mut store, drop_sessions_of(9, 1)),
+        Err(ErrorName::NoWorkflow)
+    );
+    assert_eq!(
+        coordinator(&mut store, drop_sessions_of(2, 1)),
+        Err(declared("binding")),
+        "the workflow's agent is another agent"
+    );
+    assert_eq!(
+        coordinator(&mut store, drop_sessions_of(1, 1)),
+        Err(ErrorName::State),
+        "run 1 of the agent is open"
+    );
+    assert_eq!(every_row(&store), before, "a refused body stores nothing");
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    assert_eq!(
+        coordinator(&mut store, drop_sessions_of(1, 1)),
+        Ok(stored_reply(1)),
+        "taken after the run's end"
+    );
+}
+
 #[test]
 fn the_roster_names_each_effect_whose_newest_row_is_unknown() {
     let mut store = store_with("utility_bill_payment");

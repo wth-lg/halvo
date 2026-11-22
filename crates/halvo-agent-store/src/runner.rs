@@ -12,7 +12,7 @@ use halvo_schema::executable::text::{SessionData, V1};
 use halvo_schema::executable::{
     AgentPlaybook, AgentSession, ExecutableStep, RunnerCall, RunnerReply, WebOrigin,
 };
-use halvo_schema::{AgentId, ErrorName, RowRead};
+use halvo_schema::{AgentId, ErrorName, RowRead, WorkflowId};
 
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
@@ -398,33 +398,65 @@ fn drop_session(host: &mut dyn Host, now: Now, b: &DropSession) -> Result<Runner
     let (_, workflow) = bind::runner_agent(&*host, &b.agent)?;
     bind::own_run(&*host, now, &b.run, &b.agent)?;
     bind::open_run(&*host, &b.run)?;
-    let held: Vec<AgentSession> = own_sessions(&*host, &b.agent)?
-        .into_iter()
-        .filter(|s| s.origin == b.origin)
-        .collect();
-    if newest_sessions(&held)
-        .first()
-        .is_some_and(|newest| dropped(&held, newest))
-    {
-        return Ok(stored(1));
-    }
-    let rev = match held.iter().map(|s| s.rev).max() {
-        Some(newest) => newest.checked_add(1).ok_or(Own::Length)?,
-        None => NonZeroU32::MIN,
-    };
-    let row = AgentSession {
-        v: V1,
-        workflow: workflow.id,
-        agent: b.agent.clone(),
-        origin: b.origin.clone(),
-        rev,
-        part: NonZeroU32::MIN,
-        of: NonZeroU32::MIN,
-        day: day::of(&*host, now),
-        data: SessionData::dropped(),
-    };
-    day::commit(host, now, vec![record(rows::AGENT_SESSION, row.to_json())?])?;
+    drop_rows(
+        host,
+        now,
+        &workflow.id,
+        &b.agent,
+        std::slice::from_ref(&b.origin),
+    )?;
     Ok(stored(1))
+}
+
+/// The one writer of the drop row, which `drop_session` and the coordinator body `drop_sessions` call after their
+/// own checks: for each origin, named once, one more revision of the agent's session of that origin, numbered after
+/// every stored revision of it, of one part in the drop form (`SessionData::dropped`), with the workflow and the
+/// request's day, unless the newest whole revision of that origin is in that form already; every row in one commit.
+/// It answers the count of rows stored. `load` lists such a revision as the origin's newest, so Halvo stops using
+/// the kept sign-in; the parts before it stay stored until their own bound.
+pub(crate) fn drop_rows(
+    host: &mut dyn Host,
+    now: Now,
+    workflow: &WorkflowId,
+    agent: &AgentId,
+    origins: &[WebOrigin],
+) -> Result<usize, ErrorName> {
+    let own = own_sessions(&*host, agent)?;
+    let mut records = Vec::new();
+    for origin in origins {
+        let held: Vec<AgentSession> = own
+            .iter()
+            .filter(|s| &s.origin == origin)
+            .cloned()
+            .collect();
+        if newest_sessions(&held)
+            .first()
+            .is_some_and(|newest| dropped(&held, newest))
+        {
+            continue;
+        }
+        let rev = match held.iter().map(|s| s.rev).max() {
+            Some(newest) => newest.checked_add(1).ok_or(Own::Length)?,
+            None => NonZeroU32::MIN,
+        };
+        let row = AgentSession {
+            v: V1,
+            workflow: workflow.clone(),
+            agent: agent.clone(),
+            origin: origin.clone(),
+            rev,
+            part: NonZeroU32::MIN,
+            of: NonZeroU32::MIN,
+            day: day::of(&*host, now),
+            data: SessionData::dropped(),
+        };
+        records.push(record(rows::AGENT_SESSION, row.to_json())?);
+    }
+    let count = records.len();
+    if count > 0 {
+        day::commit(host, now, records)?;
+    }
+    Ok(count)
 }
 
 fn put_log(host: &mut dyn Host, now: Now, b: &PutLog) -> Result<RunnerReply, ErrorName> {
