@@ -35,6 +35,14 @@
 //! field in its query, and a form that names no amount, go on to the card, and one whose query names another amount
 //! is failed. A `submit` and a `sign` go on as before.
 //!
+//! In a frame (r3 U5.10-B part two; the coordinator's ruling of log line 16745): a step whose own target or a
+//! condition `post`'s target names a frame, or whose amount is a value read in a frame, comes to the maker, and every
+//! other way into a frame still fails before any act (`reaches_a_frame_beyond_the_maker` of the browser's module).
+//! Before any arm and act the maker reads the top page's address and acts only where its origin is an origin of the
+//! run, so that a foreign page cannot carry a bound site's frame into a payment; a value read in a frame names the
+//! frame document's origin, the last of the path that its target names (`read_again`); and the read after the reply
+//! waits for a new document in the frame of the released request (`Page::arm_hold`, `Page::page_amounts`).
+//!
 //! A binary that holds the maker holds its marker text (`MAKER_MARKER`), which the scan of check 62-build
 //! (scripts/r1/ci.d/62-build.sh) refuses in every shipped file.
 
@@ -45,7 +53,7 @@ use std::time::{Duration, Instant};
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::names::{FieldName, Source};
 use halvo_schema::executable::record::Slot;
-use halvo_schema::executable::step::{Cond, WebTarget};
+use halvo_schema::executable::step::{Cond, Target, WebTarget};
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, ExecutableStep, WebOrigin};
 use halvo_web::cdp::{HeldForm, HeldRequest, STEP_TIMEOUT};
@@ -178,9 +186,12 @@ struct Held {
 }
 
 /// The value of an extract read again on the page with its target, as its parse keeps it (the text, or the amount in
-/// the form `<units>.<two decimals>`), and the origin of the page that holds it; one line on standard error that names
-/// the part that failed. The maker reads it right before the act, while the page is idle: the executor's read of a
-/// control fails while the page's navigation is held (the hosted macos job of run 45025948760).
+/// the form `<units>.<two decimals>`), and the origin of the document that holds it: for a target inside a frame the
+/// last origin of the frame path that the target names, which the walk of the read held against that frame's document
+/// before it resolved the control (r3 U5.10-B part two, the coordinator's ruling of log line 16745, point 3), and for a
+/// target of the top document the origin of the top page's address; one line on standard error that names the part
+/// that failed. The maker reads it right before the act, while the page is idle: the executor's read of a control
+/// fails while the page's navigation is held (the hosted macos job of run 45025948760).
 fn read_again(web: &mut Web, target: &WebTarget, parse: &str) -> Result<(String, WebOrigin), ()> {
     let failed = |part: &str| crate::line(&format!("run effect=failed at=read_again part={part}"));
     let text = match web.0.carry_out(&[], &Act::Extract(target), &[]) {
@@ -208,6 +219,9 @@ fn read_again(web: &mut Web, target: &WebTarget, parse: &str) -> Result<(String,
             return Err(());
         }
     };
+    if let Some(frame) = target.frame.last() {
+        return Ok((value, frame.clone()));
+    }
     let address = web.0.address().map_err(|()| failed("address"))?;
     let origin = WebOrigin::of_address(&address).map_err(|_| failed("origin"))?;
     Ok((value, origin))
@@ -522,7 +536,19 @@ impl Runner {
         self.web = Some(web);
         read?;
         let origins = self.run_origins(loaded);
+        let framed = self.reaches_a_frame(step);
         let web = self.web.as_mut().ok_or_else(failed)?;
+        if framed {
+            let top = web
+                .0
+                .address()
+                .ok()
+                .and_then(|address| WebOrigin::of_address(&address).ok());
+            if !top.is_some_and(|top| origins.contains(&top)) {
+                crate::line("run effect=failed at=frame top=unbound");
+                return Err(failed());
+            }
+        }
         let mut fields = Vec::with_capacity(sources.len());
         for (name, from) in sources {
             fields.push(match from {
@@ -539,7 +565,11 @@ impl Runner {
             crate::line("run effect=failed at=arm refused=yes");
             return end_of_step(Err(()), &before);
         }
-        if web.0.arm_hold(&origins).is_err() {
+        let frame = match &step.target {
+            Some(Target::Web(target)) => &target.frame[..],
+            _ => &[],
+        };
+        if web.0.arm_hold(&origins, frame).is_err() {
             let _ = web.0.arm(&origins);
             return Err(failed());
         }
@@ -831,7 +861,7 @@ mod tests {
             Err(())
         }
 
-        fn arm_hold(&mut self, origins: &[WebOrigin]) -> Result<(), ()> {
+        fn arm_hold(&mut self, origins: &[WebOrigin], _: &[WebOrigin]) -> Result<(), ()> {
             note(&self.log, format!("arm hold [{}]", named(origins)));
             self.before.clear();
             self.reads = 0;

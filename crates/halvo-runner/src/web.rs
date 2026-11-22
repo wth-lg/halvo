@@ -125,11 +125,13 @@ pub(crate) trait Page: Send {
     /// Sets the cookies of `state` and the localStorage of each of its origins.
     fn import(&mut self, state: &SessionState) -> Result<(), ()>;
     /// Arms the request rule in `Mode::Hold` with `origins`, as `arm` arms it in `Mode::Fail`: a state-changing
-    /// request to one of them stays held until `let_through` or `fail_held` (crate::web::maker). These six methods
-    /// stand in a build with the feature `loopback` alone; their defaults, which the stand-ins of the unit tests of
+    /// request to one of them stays held until `let_through` or `fail_held` (crate::web::maker); and notes, before the
+    /// act, the top document and, where `frame` names the frame of the step's target, that frame's document, so that
+    /// the read after the reply waits in the frame of the released request (r3 U5.10-B). These six methods stand in a
+    /// build with the feature `loopback` alone; their defaults, which the stand-ins of the unit tests of
     /// crate::handback and crate::session take, hold nothing and let nothing leave.
     #[cfg(feature = "loopback")]
-    fn arm_hold(&mut self, _origins: &[WebOrigin]) -> Result<(), ()> {
+    fn arm_hold(&mut self, _origins: &[WebOrigin], _frame: &[WebOrigin]) -> Result<(), ()> {
         Err(())
     }
     /// The state-changing requests that the rule holds now, each with the executor's id.
@@ -148,8 +150,9 @@ pub(crate) trait Page: Send {
     fn released_status(&mut self) -> Option<i64> {
         None
     }
-    /// Every amount that the page after the reply names, in minor units, read once the top document that `arm_hold`
-    /// noted has given way to a loaded one.
+    /// Every amount that the page after the reply names, in minor units, read once the document that `arm_hold`
+    /// noted in the frame of the request that `let_through` let leave has given way to a loaded one; none where that
+    /// frame is not one that `arm_hold` noted.
     #[cfg(feature = "loopback")]
     fn page_amounts(&mut self) -> Result<Vec<u64>, ()> {
         Err(())
@@ -178,18 +181,23 @@ struct Live {
     loaded: BTreeSet<String>,
     /// The origins of the newest arm in `Mode::Fail`, whose loopback hosts keep their mark in the handback's mode.
     armed: Vec<WebOrigin>,
-    /// The wait for the top document that replaces the one that the page held at `arm_hold`, before the act, run once
-    /// by `page_amounts`.
+    /// The wait for the document that replaces the one that `arm_hold` noted, before the act, in the frame of the
+    /// released request, run once by `page_amounts`.
     #[cfg(feature = "loopback")]
     after_release: Option<AfterRelease>,
+    /// The frame of the request that `let_through` let leave, as the browser named it in its paused event.
+    #[cfg(feature = "loopback")]
+    released: Option<String>,
     /// The cause word of the newest `carry_out` that failed (`Page::last_fault`).
     #[cfg(feature = "loopback")]
     fault: Option<&'static str>,
 }
 
-/// The wait for the top document that replaces the one noted at `arm_hold`.
+/// The wait for the document that replaces the one noted at `arm_hold` in the frame that the browser names by the
+/// given id, the frame of the released request; a failure where that frame is not a noted one.
 #[cfg(feature = "loopback")]
-type AfterRelease = Box<dyn FnOnce(&Executor, &tokio::runtime::Runtime) -> Result<(), ()> + Send>;
+type AfterRelease =
+    Box<dyn FnOnce(&Executor, &tokio::runtime::Runtime, Option<&str>) -> Result<(), ()> + Send>;
 
 /// The cause of the run's end for a start that failed: `no_channel` for a browser that lived and gave no first
 /// reply, `browser_start` for every other failure of the start (A11.1, U1.8 (b)).
@@ -654,6 +662,8 @@ impl Live {
                 #[cfg(feature = "loopback")]
                 after_release: None,
                 #[cfg(feature = "loopback")]
+                released: None,
+                #[cfg(feature = "loopback")]
                 fault: None,
             }),
             Err(cause) => {
@@ -723,23 +733,38 @@ impl Page for Live {
     }
 
     #[cfg(feature = "loopback")]
-    /// Arms the rule in `Mode::Hold`, then notes the top document while the page is idle, before the act: the
-    /// executor's read of the frame tree fails while the page's navigation is held (the hosted macos job of run
-    /// 45028032532, `call=let_through cause=frame`), so `page_amounts` waits for the document that replaces the one
-    /// noted here.
-    fn arm_hold(&mut self, origins: &[WebOrigin]) -> Result<(), ()> {
+    /// Arms the rule in `Mode::Hold`, then notes, while the page is idle and before the act, the top document and,
+    /// where `frame` names the frame of the step's target, that frame with the document whose origin the walk of
+    /// `Executor::frame_and_loader_in` read there: the executor's read of the frame tree fails while the page's
+    /// navigation is held (the hosted macos job of run 45028032532, `call=let_through cause=frame`), so
+    /// `page_amounts` waits, in the frame of the released request, for the document that replaces the one noted
+    /// here (r3 U5.10-B, the coordinator's ruling of log line 16745).
+    fn arm_hold(&mut self, origins: &[WebOrigin], frame: &[WebOrigin]) -> Result<(), ()> {
         self.arm_in(origins, Mode::Hold)?;
+        self.released = None;
+        let path: Vec<String> = frame.iter().map(rule_origin).collect();
         let executor = &self.executor;
         let done = self.runtime.block_on(async move {
-            let frame = executor.main_frame().await?;
-            let before = executor.loader(&frame).await?;
-            Ok::<_, Fault>((frame, before))
+            let top = executor.main_frame().await?;
+            let before = executor.loader(&top).await?;
+            let mut noted = vec![(top, before)];
+            if !path.is_empty() {
+                let path: Vec<&str> = path.iter().map(String::as_str).collect();
+                noted.push(executor.frame_and_loader_in(&path).await?);
+            }
+            Ok::<_, Fault>(noted)
         });
-        let (frame, before) = told("arm_hold", done)?;
-        self.after_release = Some(Box::new(move |executor, runtime| {
+        let noted = told("arm_hold", done)?;
+        self.after_release = Some(Box::new(move |executor, runtime, released| {
+            let Some((frame, before)) =
+                released.and_then(|id| noted.iter().find(|(frame, _)| frame.inner() == id))
+            else {
+                crate::line("run page=failed call=page_after cause=frame");
+                return Err(());
+            };
             told(
                 "page_after",
-                runtime.block_on(executor.wait_loaded_after(&frame, Some(&before))),
+                runtime.block_on(executor.wait_loaded_after(frame, Some(before))),
             )
         }));
         Ok(())
@@ -752,13 +777,22 @@ impl Page for Live {
 
     #[cfg(feature = "loopback")]
     /// Lets the held request leave and sends the page no other command: a read of the page fails while its
-    /// navigation is held.
+    /// navigation is held. It notes the frame that the browser named for that request, in which `page_amounts`
+    /// reads the page after the reply.
     fn let_through(&mut self, id: u64) -> Result<(), ()> {
+        let frame = self
+            .executor
+            .paused()
+            .into_iter()
+            .find(|held| held.id == id)
+            .map(|held| held.frame);
         let executor = &mut self.executor;
         told(
             "let_through",
             self.runtime.block_on(executor.let_through(id)),
-        )
+        )?;
+        self.released = frame;
+        Ok(())
     }
 
     #[cfg(feature = "loopback")]
@@ -776,7 +810,7 @@ impl Page for Live {
     #[cfg(feature = "loopback")]
     fn page_amounts(&mut self) -> Result<Vec<u64>, ()> {
         let wait = self.after_release.take().ok_or(())?;
-        wait(&self.executor, &self.runtime)?;
+        wait(&self.executor, &self.runtime, self.released.as_deref())?;
         let executor = &mut self.executor;
         let lines = told("snapshot", self.runtime.block_on(executor.snapshot()))?;
         Ok(lines
@@ -1012,7 +1046,7 @@ impl Runner {
             };
         }
         if of_an_effect_class(loaded.config.category, step) {
-            if self.reaches_a_frame(step) {
+            if self.reaches_a_frame_beyond_the_maker(step) {
                 return Err(failed());
             }
             #[cfg(feature = "loopback")]
@@ -1106,12 +1140,22 @@ impl Runner {
         read
     }
 
+    /// Whether an `extract` of this run read the value of `arg` in a frame (`extracts`).
+    fn read_in_a_frame(&self, arg: &Arg) -> bool {
+        matches!(arg.from, Source::Extract)
+            && arg
+                .key
+                .as_ref()
+                .and_then(|key| self.extracts.get(key.as_str()))
+                .is_some_and(|(target, _)| !target.frame.is_empty())
+    }
+
     /// Whether the step reaches into a frame: its target or the target of one of its conditions names a frame, or one
     /// of its args or of the args of its conditions takes a value that an `extract` of this run read in a frame
-    /// (`extracts`; the coordinator's ruling of log line 16325, point 1). A web step of an effect class that does
-    /// answers `step_failed` before any act (the coordinator's ruling of log line 15706, NOT BUILT):
-    /// this build makes no effect in a frame, and the browser's maker, which reads such a value again right before its
-    /// act, records the top document's address as the origin of that read (crate::web::maker, `read_again`).
+    /// (`read_in_a_frame`; the coordinator's ruling of log line 16325, point 1). The browser's maker then reads the
+    /// top page's address before any arm and act, and acts only where its origin is an origin of the run (the
+    /// coordinator's ruling of log line 16745, point 2; crate::web::maker).
+    #[cfg(feature = "loopback")]
     fn reaches_a_frame(&self, step: &ExecutableStep) -> bool {
         let framed = |target: &WebTarget| !target.frame.is_empty();
         matches!(&step.target, Some(Target::Web(target)) if framed(target))
@@ -1130,9 +1174,27 @@ impl Runner {
                         .chain(&step.post)
                         .filter_map(|cond| cond.arg.as_ref()),
                 )
-                .filter(|arg| matches!(arg.from, Source::Extract))
-                .filter_map(|arg| self.extracts.get(arg.key.as_ref()?.as_str()))
-                .any(|(target, _)| framed(target))
+                .any(|arg| self.read_in_a_frame(arg))
+    }
+
+    /// Whether the step reaches into a frame by a way that the browser's maker does not take (r3 U5.10-B part two, the
+    /// coordinator's ruling of log line 16745: the maker takes the ways that its three real-browser tests walk, and no
+    /// other): the target of one of its conditions `pre` names a frame, or the arg of one of its conditions, `pre` or
+    /// `post`, takes a value that an `extract` of this run read in a frame. A web step of an effect class that does
+    /// answers `step_failed` before any act; one whose own target or a condition `post`'s target names a frame, or
+    /// whose arg takes a value read in a frame, goes to the maker, which records the frame document's origin for such
+    /// a value (`read_again`). A `fill`, a `press` and an `upload` whose target names a frame fail in `Act::of`.
+    fn reaches_a_frame_beyond_the_maker(&self, step: &ExecutableStep) -> bool {
+        step.pre
+            .iter()
+            .filter_map(|cond| cond.target.as_ref())
+            .any(|target| !target.frame.is_empty())
+            || step
+                .pre
+                .iter()
+                .chain(&step.post)
+                .filter_map(|cond| cond.arg.as_ref())
+                .any(|arg| self.read_in_a_frame(arg))
     }
 
     /// The run's browser, started at the first call: the frame `browser` once it runs, its `browser_reply`, the
@@ -1777,12 +1839,12 @@ mod tests {
     /// that holds it by the frame's origins, from the top document inward, is carried to the page with that target, as
     /// a step on the top document is, and so is a condition on such a target: the extract of the amount with a
     /// condition `present` on it, the select of the payment method, and a click in a frame inside the frame. The page
-    /// is read first, as before each act, and the extract keeps its amount. A step of an effect class whose target
-    /// names a frame, whose amount is the value read in the frame, whose condition's target names the frame, or whose
-    /// condition's arg is a text read in the frame, and a `fill`, a `press` and an `upload` whose target names a
-    /// frame, each answer `step_failed`, and the stand-in page sees no read and no act of them (the coordinator's words
-    /// on this unit: no effect in a frame is built, no web step of an effect class takes anything read in a frame, and
-    /// no text, key or file goes into a frame).
+    /// is read first, as before each act, and the extract keeps its amount. A step of an effect class whose condition
+    /// `pre`'s target names the frame, or whose condition's arg is a text read in the frame, and a `fill`, a `press`
+    /// and an `upload` whose target names a frame, each answer `step_failed`, and the stand-in page sees no read and no
+    /// act of them (the coordinator's words on this unit: no text, key or file goes into a frame; r3 U5.10-B part two
+    /// gives the browser's maker a step of an effect class whose own target or condition `post`'s target names a
+    /// frame, or whose amount is a value read in one, by the coordinator's ruling of log line 16745).
     #[test]
     fn a_step_acts_on_a_target_inside_the_frame_that_its_step_names() {
         let amount = framed(r#"{"by":"test_id","value":"amount","name":null}"#, &[PAY]);
@@ -1889,20 +1951,7 @@ mod tests {
             Some(&vec![vec![Value::Number(12.34)]])
         );
 
-        let pay = |target: &str, amount: &str| {
-            format!(
-                r#"{{"v":1,"n":4,"kind":"web","verb":"click","target":{target},"args":[{{"name":"payee","from":"const","value":"p","key":null}},{amount},{{"name":"instrument","from":"const","value":"i","key":null}},{{"name":"origin","from":"const","value":"{PAY}","key":null}}],"pre":[],"post":[],"effect":"request","class":"payment"}}"#
-            )
-        };
         let pay_now = r#"{"by":"test_id","value":"pay-now","name":null}"#;
-        let in_the_frame = pay(
-            &framed(pay_now, &[PAY]),
-            r#"{"name":"amount","from":"const","value":"12.34","key":null}"#,
-        );
-        let read_in_the_frame = pay(
-            &framed(pay_now, &[]),
-            r#"{"name":"amount","from":"extract","value":null,"key":"amount"}"#,
-        );
         let judged_by_the_frame = format!(
             r#"{{"v":1,"n":4,"kind":"web","verb":"click","target":{},"args":[{{"name":"payee","from":"const","value":"p","key":null}},{{"name":"amount","from":"const","value":"12.34","key":null}},{{"name":"instrument","from":"const","value":"i","key":null}},{{"name":"origin","from":"const","value":"{PAY}","key":null}}],"pre":[{{"check":"text_is","target":{},"arg":{{"name":"arg","from":"extract","value":null,"key":"payee_text"}}}}],"post":[],"effect":"request","class":"payment"}}"#,
             framed(pay_now, &[]),
@@ -1931,8 +1980,6 @@ mod tests {
             r#"{"name":"file","from":"slot","value":null,"key":"document"}"#,
         );
         for json in [
-            &in_the_frame,
-            &read_in_the_frame,
             &judged_by_the_frame,
             &judged_in_the_frame,
             &fill,
