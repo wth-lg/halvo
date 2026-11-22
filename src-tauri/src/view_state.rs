@@ -569,6 +569,14 @@ impl Hold {
         self.changed.notify_all();
     }
 
+    /// A run of Remove Halvo's door ends: an ask of a Start that stands from before that end is
+    /// dropped, and the end of the last child stays read, so that only a press behind the run
+    /// asks for a child.
+    #[cfg(any(target_os = "macos", windows, test))]
+    pub fn drop_the_ask(&self) {
+        self.state().start_asked = false;
+    }
+
     /// The supervisor's spawner reads the data directory not provisioned: no child starts before
     /// the person's click on Start, the consent (contracts.md C10.7).
     #[cfg(any(target_os = "macos", windows, test))]
