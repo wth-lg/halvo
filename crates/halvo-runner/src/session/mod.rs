@@ -2,13 +2,19 @@
 //!
 //! When the run's browser has started, the frame `browser` has its reply and the rule is armed, and before a step
 //! acts, the runner loads every part of the newest stored revision of each origin of the bindings that the load
-//! lists, and of no other (`load_session`), and imports the state into the browser. Before `finish`, also after a
-//! run that failed, a run whose browser lives exports, for each origin of the bindings and each origin bound in the
-//! run, the browser's cookies of that origin's host and of its parent domains and the origin's localStorage, and
-//! stores them by `put_session` as the next revision of that origin: the listed revision plus 1, else 1. The state is
-//! stored as its JSON form in base64 text, cut into pieces of 1,024 bytes and parts of 48 pieces; a state of more than
-//! 64 parts is not stored, and the run's log gets one `stopped` line with the cause `session_size`, and the run's
-//! outcome stays. Nothing is stored for the origin at whose credential field the run ended.
+//! lists, and of no other (`load_session`), and imports the state into the browser.
+//!
+//! A run stores a site's state anew ONLY where it imported that site's kept sign-in whole at its start, or bound the
+//! site at a handback in this run, and no handback cleared it since (the coordinator's ruling of log line 14366): the
+//! opening of every handback clears what the pages keep for later, so after it the run stores anew only a site bound
+//! at a handback after it. In every other case the listed revision stays as it is and nothing new is stored for that
+//! site, so Halvo keeps no cookies of a site at which nobody signed in for that agent. Before `finish`, also after a
+//! run that failed, a run whose browser lives exports, for each such site but the one at whose sign-in field the run
+//! ended, the browser's cookies of that site's host and of its parent domains and the site's localStorage, and stores
+//! them by `put_session` as the next revision of that site: the listed revision plus 1, else 1. The state is stored as
+//! its JSON form in base64 text, cut into pieces of 1,024 bytes and parts of 48 pieces; a state of more than 64 parts
+//! is not stored, and the run's log gets one `stopped` line with the cause `session_size`, and the run's outcome
+//! stays.
 //!
 //! The state passes in the frames `store` and `store_reply` alone: the runner writes no byte of it in a line, an
 //! error or another frame.
@@ -35,8 +41,9 @@ use crate::run::{cause_of, Failure, Runner, Stop};
 /// What the run knows of the sign-ins of its origins.
 #[derive(Debug, Default)]
 pub(crate) struct Sessions {
-    /// The origins of the bindings when the browser started.
-    origins: Vec<WebOrigin>,
+    /// The sites whose state the run stores anew at its end: each whose kept sign-in it imported whole and each that it
+    /// bound at a handback, until the opening of a handback after it clears them.
+    keep: Vec<WebOrigin>,
     /// The newest revision of each origin that the load listed.
     listed: Vec<(WebOrigin, NonZeroU32)>,
     /// Whether the run imported the state of an origin.
@@ -46,6 +53,19 @@ pub(crate) struct Sessions {
 }
 
 impl Sessions {
+    /// Notes that the run stores `origin` anew at its end.
+    pub(crate) fn keep(&mut self, origin: &WebOrigin) {
+        if !self.keep.contains(origin) {
+            self.keep.push(origin.clone());
+        }
+    }
+
+    /// Notes that a handback's opening cleared what the pages of the run keep for later: no site is stored anew unless a
+    /// handback after it binds it.
+    pub(crate) fn cleared(&mut self) {
+        self.keep.clear();
+    }
+
     /// The revision that the run stores for `origin`: the listed one plus 1, else 1.
     fn next(&self, origin: &WebOrigin) -> Option<NonZeroU32> {
         match self.listed.iter().find(|(o, _)| o == origin) {
@@ -85,14 +105,14 @@ fn state_of(text: &str) -> Option<SessionState> {
 
 impl Runner {
     /// Loads and imports, once the run's browser runs, the newest revision of each origin of the bindings of
-    /// `loaded` that the load lists, and of no other. A store's refusal of a part ends the run as a refused load
-    /// does; a revision whose text does not read is imported nothing of; a fault of the executor fails the step.
+    /// `loaded` that the load lists, and of no other, and notes each origin imported whole as one to store anew. A
+    /// store's refusal of a part ends the run as a refused load does; a revision whose text does not read is imported
+    /// nothing of; a fault of the executor fails the step, and no origin from it on is stored anew.
     pub(crate) fn import_sessions(&mut self, loaded: &LoadReply) -> Result<(), Failure> {
         let origins = loaded
             .bindings
             .as_ref()
             .map_or_else(Vec::new, |b| b.origins.clone());
-        self.sessions.origins = origins.clone();
         self.sessions.listed = loaded
             .sessions
             .iter()
@@ -111,6 +131,7 @@ impl Runner {
                 .import(&state)
                 .map_err(|()| Failure::Step(Cause::StepFailed))?;
             self.sessions.imported = true;
+            self.sessions.keep(&listed.origin);
         }
         Ok(())
     }
@@ -172,20 +193,16 @@ impl Runner {
         Stop::End(Outcome::Failed, Some(Cause::StepFailed))
     }
 
-    /// Stores, when the run's browser lives, the state of each origin of the bindings and of each origin bound in the
-    /// run but the one at whose credential field the run ended, as the next revision of that origin. An export that
-    /// fails and a part that the store refuses store nothing more of that origin; a state over the limit is not
-    /// stored, and the run's log gets one `stopped` line with the cause `session_size`. A link that broke stops it.
+    /// Stores, when the run's browser lives, the state of each site that the run stores anew (`Sessions::keep`) but the
+    /// one at whose credential field the run ended, as the next revision of that site; every other site's listed
+    /// revision stays as it is. An export that fails and a part that the store refuses store nothing more of that site;
+    /// a state over the limit is not stored, and the run's log gets one `stopped` line with the cause `session_size`. A
+    /// link that broke stops it.
     pub(crate) fn keep_sessions(&mut self) {
         let Some(mut web) = self.web.take() else {
             return;
         };
-        let mut origins = self.sessions.origins.clone();
-        for bound in &self.bound {
-            if !origins.contains(bound) {
-                origins.push(bound.clone());
-            }
-        }
+        let mut origins = self.sessions.keep.clone();
         origins.retain(|o| self.sessions.at_field.as_ref() != Some(o));
         let mut too_large = false;
         let mut kept = Ok(());

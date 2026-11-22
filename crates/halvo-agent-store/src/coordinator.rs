@@ -115,8 +115,9 @@ use crate::{bind, bindings, checkpoint, day, end, runner};
 ///   that their one reader refuses: `workbook` by `workbook_path` in the form of `set_bindings` and `reply_senders` by
 ///   `reply_senders`, a slot with no reader never; `last_cause`, the cause of the end of the agent's newest started
 ///   run, as `refused_run` finds that run, else null: null until the run's `agent_run` record stands, then the cause
-///   of the run's `stopped` row with no step, else of its `stopped` row with a step whose cause is not in
-///   `GOES_ON_AFTER` (`not_selected`, a step after which the run goes on), else null; a name of the closed list of
+///   of the run's `stopped` row with no step, else of its `stopped` row with a step, each whose cause is not in
+///   `GOES_ON_AFTER` (`not_selected`, a step after which the run goes on, and `session_size`, a state over the limit
+///   that the run's end does not store), else null; a name of the closed list of
 ///   causes alone, never a text of a page, of a site or of an error. A `stopped` row
 ///   whose stored cause is no name of the list reads with the cause null, so it gives `last_cause` null and does not
 ///   refuse the roster; every other `agent_log` row that the typed reader refuses refuses it with `store`. Each key
@@ -277,16 +278,17 @@ fn newest_start<'a>(starts: &'a [AgentLog], agent: &AgentId) -> Option<&'a Agent
 }
 
 /// The causes of a step's `stopped` row after which the runner goes on with its run: `not_selected`, the row of a
-/// send whose message the reply rule no longer selects. `last_cause` of `list_agents` never reads such a row as the
-/// row of a run's end. The list is the runner's knowledge held by name: a second such cause of the runner reads as the
-/// cause of an end until it stands here.
-pub const GOES_ON_AFTER: &[Cause] = &[Cause::NotSelected];
+/// send whose message the reply rule no longer selects, and `session_size`, the row with no step that the runner writes
+/// at its end, before its own end row, for a state over the limit that it does not store (r3 U5.2). `last_cause` of
+/// `list_agents` never reads such a row as the row of a run's end. The list is the runner's knowledge held by name: a
+/// second such cause of the runner reads as the cause of an end until it stands here.
+pub const GOES_ON_AFTER: &[Cause] = &[Cause::NotSelected, Cause::SessionSize];
 
 /// The cause of the end of the run of the agent's newest start row, none where that run has not ended or ended with
 /// no cause. The run has ended where its `agent_run` record of the agent stands. The cause of its end is that of the
 /// run's `stopped` row with no step, which the runner writes just before the record where its end has a cause; else
-/// that of its `stopped` row with a step and a cause not in `GOES_ON_AFTER`, the row of a step that ended the run;
-/// each the row of the greatest seq where two stand. It reads no row of another agent.
+/// that of its `stopped` row with a step, the row of a step that ended the run; each with a cause not in
+/// `GOES_ON_AFTER`, and each the row of the greatest seq where two stand. It reads no row of another agent.
 fn last_cause(
     logs: &[AgentLog],
     starts: &[AgentLog],
@@ -304,10 +306,9 @@ fn last_cause(
         logs.iter()
             .filter(|l| &l.agent == agent && l.run == newest.run && l.event == LogEvent::Stopped)
     };
-    let end = stopped().filter(|l| l.step.is_none()).max_by_key(|l| l.seq);
-    let step = stopped()
-        .filter(|l| l.step.is_some() && !l.cause.is_some_and(|c| GOES_ON_AFTER.contains(&c)))
-        .max_by_key(|l| l.seq);
+    let ends = || stopped().filter(|l| !l.cause.is_some_and(|c| GOES_ON_AFTER.contains(&c)));
+    let end = ends().filter(|l| l.step.is_none()).max_by_key(|l| l.seq);
+    let step = ends().filter(|l| l.step.is_some()).max_by_key(|l| l.seq);
     end.or(step)?.cause
 }
 
