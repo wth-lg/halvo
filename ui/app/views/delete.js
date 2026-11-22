@@ -140,6 +140,15 @@
     return Boolean(e) && typeof e === "object" && e.outcome_not_known === true;
   }
 
+  function ownWords(e) {
+    var code = e && typeof e === "object" ? e.error : null;
+    if (code === "busy") return w.DELETE_BUSY;
+    if (code === "service_ending") return w.DELETE_SERVICE_ENDING;
+    if (code === "nothing_removed") return w.DELETE_NOTHING_REMOVED;
+    if (code === "service_not_back") return answerLost(e) ? w.DELETE_SERVICE_NOT_BACK + " " + w.DELETE_UNKNOWN_OUTCOME : w.DELETE_SERVICE_NOT_BACK;
+    return null;
+  }
+
   function showKept(kept, afterDelete) {
     keptInFlight = Boolean(kept) && kept.state === "in_flight";
     var answer = kept && kept.state === "answered" ? kept.answer : null;
@@ -212,8 +221,9 @@
       })
       .catch(function (e) {
         refusedInARow = 0;
-        if (e && typeof e === "object" && e.error === "busy") {
-          result.textContent = w.DELETE_BUSY;
+        var own = ownWords(e);
+        if (own !== null) {
+          result.textContent = own;
           return;
         }
         result.textContent = answerLost(e) ? w.DELETE_UNKNOWN_OUTCOME : "";

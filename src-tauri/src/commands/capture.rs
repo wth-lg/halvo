@@ -15,8 +15,9 @@ use super::names::{Names, CAPTURE};
 use super::Registration;
 use crate::poller::{self, Views};
 use crate::view_state::{
-    command_view, delete_view, inventory_view, read_error, removes_nothing, ActionError,
-    CapSetView, CaptureSet, DeleteView, Hold, InventoryView, LastDelete, OutcomeError, StatusView,
+    a_delete_removed_nothing, command_view, delete_view, inventory_view, read_error,
+    removes_nothing, ActionError, CapSetView, CaptureSet, DeleteView, Hold, InventoryView,
+    LastDelete, OutcomeError, StatusView,
 };
 
 pub struct AppState {
@@ -404,12 +405,13 @@ pub async fn delete_all(
     let roots = state.data_dir.as_ref().map(DataDir::roots_dir);
     let (view, nothing_removed) = match end {
         DeleteEnd::Answered(answer) => {
-            let nothing_removed = answer.as_ref().err().is_some_and(removes_nothing);
+            let nothing_removed = answer.as_ref().err().is_some_and(a_delete_removed_nothing);
             (delete_view(answer, roots.as_deref()), nothing_removed)
         }
-        DeleteEnd::NoLifeAnswered(first) => {
-            (Err(ActionError::ServiceNotBack), removes_nothing(&first))
-        }
+        DeleteEnd::NoLifeAnswered(first) => (
+            Err(ActionError::ServiceNotBack),
+            a_delete_removed_nothing(&first),
+        ),
     };
     match &view {
         Ok(DeleteView::Deleted { .. } | DeleteView::AlreadyDeleted { .. }) => {

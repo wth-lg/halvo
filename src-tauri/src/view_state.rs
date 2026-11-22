@@ -596,6 +596,12 @@ pub enum ActionError {
     NotAnswering {
         service: NoStatusService,
     },
+    /// The busy of a life that is ending: the service took no request, and a delete removed
+    /// nothing.
+    ServiceEnding,
+    /// An already_deleted that answers no request of a person's delete: that press removed
+    /// nothing.
+    NothingRemoved,
     /// The service ended with status 5 during a person's delete and no later life answered
     /// within the wait, so the flow could not ask again.
     ServiceNotBack,
@@ -624,9 +630,9 @@ pub struct OutcomeError {
 /// written, or the service gave it before anything is removed (contracts.md C2.1 line 52,
 /// unsupported_version read before the shape; line 61, unsupported_op; C2.6 lines 170 and 174,
 /// busy before the store's state and the ids are read, the busy of a life that is ending among
-/// them; line 173, an already_deleted that the client does not take for this request; C15
-/// item 3, peer_rejected by the client before it sends). Every other error leaves the outcome
-/// not known.
+/// them; C15 item 3, peer_rejected by the client before it sends). Every other error leaves the
+/// outcome not known, an already_deleted that answers no request of the call among them; a
+/// delete reads that one by `a_delete_removed_nothing`.
 #[deny(clippy::wildcard_enum_match_arm)]
 pub fn removes_nothing(error: &ClientError) -> bool {
     match error {
@@ -634,8 +640,7 @@ pub fn removes_nothing(error: &ClientError) -> bool {
         | ClientError::Unreachable { .. }
         | ClientError::DataDirInUse { .. }
         | ClientError::PeerRejected(_)
-        | ClientError::ServiceEnding(_)
-        | ClientError::AlreadyDeletedToThisRequest(_) => true,
+        | ClientError::ServiceEnding(_) => true,
         ClientError::Daemon(reply) => match reply.code() {
             ErrorCode::Busy | ErrorCode::UnsupportedVersion | ErrorCode::UnsupportedOp => true,
             ErrorCode::InvalidArgument
@@ -650,8 +655,16 @@ pub fn removes_nothing(error: &ClientError) -> bool {
         | ClientError::ValueUnknownToV1(_)
         | ClientError::StateDoesNotHoldTogether(_)
         | ClientError::UnexpectedReply { .. }
+        | ClientError::AlreadyDeletedToThisRequest(_)
         | ClientError::Io(_) => false,
     }
+}
+
+/// Whether a person's delete that ended in `error` removed nothing: the errors of
+/// `removes_nothing`, and an already_deleted that the client does not take for this delete
+/// (contracts.md C2.6 line 173).
+pub fn a_delete_removed_nothing(error: &ClientError) -> bool {
+    removes_nothing(error) || matches!(error, ClientError::AlreadyDeletedToThisRequest(_))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -666,11 +679,11 @@ pub fn read_error(error: &ClientError) -> Reading {
         ClientError::Unsupported => (NoStatusService::Unsupported, None),
         ClientError::Unreachable { .. } => (NoStatusService::NotRunning, None),
         ClientError::DataDirInUse { .. } => (NoStatusService::HeldUnreachable, None),
-        // The busy of a life that is ending, and an already_deleted that answers no request of
-        // this call: the service did not take the request, which ERROR_NOT_ANSWERING says. The
-        // words of I-82 point 5 for the first are not on the page yet (the join step after
-        // control-2c names them for the planner).
-        ClientError::ServiceEnding(_) | ClientError::AlreadyDeletedToThisRequest(_) => (
+        ClientError::ServiceEnding(_) => (
+            NoStatusService::StatusRefused,
+            Some(ActionError::ServiceEnding),
+        ),
+        ClientError::AlreadyDeletedToThisRequest(_) => (
             NoStatusService::StatusRefused,
             Some(ActionError::NotAnswering {
                 service: NoStatusService::StatusRefused,
@@ -934,6 +947,7 @@ pub fn delete_view(
 ) -> Result<DeleteView, ActionError> {
     match answer {
         Ok(outcome) => Ok(DeleteView::of(&outcome, roots_dir)),
+        Err(ClientError::AlreadyDeletedToThisRequest(_)) => Err(ActionError::NothingRemoved),
         Err(error) => {
             let reading = read_error(&error);
             Err(reading.command_error.unwrap_or(ActionError::NotAnswering {

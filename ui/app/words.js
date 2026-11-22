@@ -112,6 +112,9 @@
     CAP_UNKNOWN_OUTCOME: "Halvo cannot tell whether the cap was changed. Look at the cap shown here once the capture service answers. If it was lowered, older capture may have been removed.",
     DELETE_BUSY: "This press deleted nothing. Halvo's capture service is busy with another change. Press Delete everything again in a moment.",
     DELETE_REFUSED_TWICE: "This is the second time in a row that Halvo could not delete.",
+    DELETE_NOTHING_REMOVED: "Everything was already deleted, so this press deleted nothing.",
+    DELETE_SERVICE_NOT_BACK: "Halvo's capture service shut down during your delete and did not start again in time, so Halvo could not ask it again.",
+    DELETE_SERVICE_ENDING: "This press deleted nothing, because Halvo's capture service was shutting down.",
     DELETE_NOT_FOLLOWED_KEY_LEFT: "Something that was not Halvo's stood in its data folder, or the folder was moved while Halvo was running. Halvo removed nothing in that place. Files may be left there, and you can remove them.",
     DELETE_FILES_COUNT: "Some files could not be removed: {count}.",
     DELETE_DATABASE_ALONE: "A database file could not be removed.",
@@ -214,6 +217,12 @@
         return w.ERROR_PANE;
       case "not_answering":
         return w.ERROR_NOT_ANSWERING;
+      case "service_ending":
+        return w.ERROR_NOT_ANSWERING;
+      case "nothing_removed":
+        return w.DELETE_NOTHING_REMOVED;
+      case "service_not_back":
+        return w.DELETE_SERVICE_NOT_BACK;
       default:
         return w.ERROR_OTHER;
     }

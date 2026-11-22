@@ -533,6 +533,18 @@ fn g6_a_delete_whose_reply_was_not_read_as_an_outcome_reads_connecting_and_says_
             json!(!nothing_removed),
             "{name}: {reply}"
         );
+        let own_kind = match name {
+            "the busy of a life that is ending" => Some("service_ending"),
+            "an already_deleted that answers no request of this call" => Some("nothing_removed"),
+            _ => None,
+        };
+        if let Some(kind) = own_kind {
+            assert_eq!(
+                reply,
+                json!({ "error": kind, "outcome_not_known": false }),
+                "{name}"
+            );
+        }
         let read = call(&test, "capture_status", json!({})).expect("a status");
         if nothing_removed {
             assert_ne!(read["service"], json!("connecting"), "{name}");
@@ -1074,7 +1086,7 @@ fn h3_a_cap_save_takes_the_outcome_from_the_same_list_as_the_delete() {
                     current: FIXTURE_STORE_ID,
                 })
             },
-            CapEnd::NothingChanged,
+            CapEnd::NotKnown,
         ),
     ];
     let gb = 1024 * 1024 * 1024u64;
