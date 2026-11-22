@@ -229,13 +229,25 @@ pub enum RequestEnd {
     Length,
 }
 
+/// What the stream of a connection does with a request that the v1 table does
+/// not hold and that is no run mark. The server asks it, with the feature
+/// `r2`, before it answers such a request as v1 does.
+pub trait ServesUnknown {
+    /// Serves `request` on the stream itself, where the stream is one that a
+    /// later protocol version's request is answered on: true when the request
+    /// was answered there, false when the server is to answer it as v1 does.
+    fn serve_unknown(&mut self, _request: &proto::UnknownRequest) -> bool {
+        false
+    }
+}
+
 /// Serves the one request of a connection on `stream`, whose peer has the
 /// effective user id `peer` (`None` when it could not be read), in a daemon
 /// whose own id is `own`. A peer of another user, or one whose id could not
 /// be read, gets the error `peer_rejected` and no read of its request. Any
 /// other peer is served by [`serve_request`], whose known request ends at the
 /// end of its stream.
-pub fn serve_connection<S: Read + Write>(
+pub fn serve_connection<S: Read + Write + ServesUnknown>(
     stream: &mut S,
     peer: Option<u32>,
     own: u32,
@@ -257,11 +269,15 @@ pub fn serve_connection<S: Read + Write>(
 
 /// Serves the one request of a connection on `stream` whose peer was
 /// admitted. A request that the v1 table does not know is answered at its
-/// whole frame; a known one once it has ended as `ends` says. An admitted
-/// request goes to the loop through `hand` and its answer is written. The
-/// answer is the sender that the caller signals once it has ended its writing
-/// side and closed the connection, when the loop answered.
-pub fn serve_request<S: Read + Write>(
+/// whole frame; a known one once it has ended as `ends` says. With the
+/// feature `r2`, a request that the v1 table does not know and that is no run
+/// mark goes to the stream first ([`ServesUnknown`]), with no wait for the
+/// end of the stream before it, and is answered as v1 answers it only where
+/// the stream did not answer it. An admitted request goes to the loop through
+/// `hand` and its answer is written. The answer is the sender that the caller
+/// signals once it has ended its writing side and closed the connection, when
+/// the loop answered.
+pub fn serve_request<S: Read + Write + ServesUnknown>(
     stream: &mut S,
     ends: RequestEnd,
     admitting: &Arc<Admitting>,
@@ -277,6 +293,13 @@ pub fn serve_request<S: Read + Write>(
         Got::Mark(edge) => {
             if wire::write_frame(stream, &marked(edge, admitting), REPLY_MAX_BYTES).is_ok() {
                 let _ = stream.flush();
+            }
+            return None;
+        }
+        #[cfg(feature = "r2")]
+        Got::Unknown(unknown) => {
+            if !stream.serve_unknown(&unknown) {
+                write_reply(stream, &proto::unknown_answer(&unknown));
             }
             return None;
         }
@@ -320,6 +343,8 @@ enum Got {
     Answer(Box<Reply>),
     #[cfg(feature = "r2")]
     Mark(halvo_control::r2::RunEdge),
+    #[cfg(feature = "r2")]
+    Unknown(proto::UnknownRequest),
 }
 
 #[cfg(feature = "r2")]
@@ -352,10 +377,11 @@ fn read_request<S: Read>(stream: &mut S, ends: RequestEnd) -> Got {
         Ok(Decoded::Unknown(unknown)) => {
             #[cfg(feature = "r2")]
             match halvo_control::r2::mark_request(&unknown) {
-                Some(Ok(edge)) => return Got::Mark(edge),
-                Some(Err(refused)) => return Got::Answer(Box::new(Reply::Error(refused))),
-                None => {}
+                Some(Ok(edge)) => Got::Mark(edge),
+                Some(Err(refused)) => Got::Answer(Box::new(Reply::Error(refused))),
+                None => Got::Unknown(unknown),
             }
+            #[cfg(not(feature = "r2"))]
             Got::Answer(Box::new(proto::unknown_answer(&unknown)))
         }
         Ok(Decoded::Known(request)) if ends == RequestEnd::Length || at_the_end(stream) => {
@@ -860,6 +886,8 @@ mod tests {
             Ok(())
         }
     }
+
+    impl ServesUnknown for Recorded {}
 
     #[test]
     fn the_server_refuses_a_peer_of_another_user() {
