@@ -484,7 +484,7 @@ fn element_seen(file: &str) -> String {
     marks_seen(file).0
 }
 
-fn marks_with_elements(marks: &[seam::MarkSeen]) -> String {
+fn marks_with_kinds(marks: &[seam::MarkSeen]) -> String {
     let listed: Vec<String> = marks
         .iter()
         .map(|mark| {
@@ -494,7 +494,10 @@ fn marks_with_elements(marks: &[seam::MarkSeen]) -> String {
                 mark.at.unwrap_or(mark.began),
                 mark.state,
                 mark.moved,
-                mark.element.as_deref().unwrap_or("none").replace(' ', "_")
+                mark.element
+                    .as_deref()
+                    .and_then(|element| element.split(' ').find(|part| part.starts_with("kind=")))
+                    .unwrap_or("kind=none")
             )
         })
         .collect();
@@ -2177,15 +2180,16 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
                     .iter()
                     .rev()
                     .find_map(|mark| mark.element.as_deref())
-                    .unwrap_or("none")
-                    .replace(' ', "_");
+                    .and_then(|element| element.split(' ').find(|part| part.starts_with("kind=")))
+                    .unwrap_or("kind=none")
+                    .to_string();
                 say(
                     test,
                     format!(
                         "browser={name} phase=burst round={round} gate_before_the_step={gate_before_the_step:?} \
                          gate_before_the_burst={gate_before:?} element={element} control_letters_sent={control_sent} \
                          control_keystroke_events={control} marks=[{}]",
-                        marks_with_elements(&control_marks)
+                        marks_with_kinds(&control_marks)
                     ),
                 );
                 panic!(
