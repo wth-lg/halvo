@@ -105,6 +105,8 @@ impl Hands for SystemHands {
             Ok(_) => std::fs::remove_file(&path),
             Err(_) => Ok(()),
         };
+        #[cfg(windows)]
+        held::try_again(&path);
         entries_under(&path)
     }
 }
@@ -131,6 +133,10 @@ fn entries_under(path: &Path) -> u64 {
 #[cfg(windows)]
 const HELD_BOUND: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// The wait between two tries of a removal under [`HELD_BOUND`].
+#[cfg(windows)]
+const HELD_TRY_EVERY: std::time::Duration = std::time::Duration::from_millis(100);
+
 /// The bound of the remover on Windows. There a folder or a file that another
 /// process holds without sharing its deletion, such as a scanner or a program
 /// that has not let go of it yet, refuses its removal for a moment: with a
@@ -140,6 +146,7 @@ const HELD_BOUND: std::time::Duration = std::time::Duration::from_secs(5);
 #[cfg(windows)]
 mod held {
     use std::cell::Cell;
+    use std::path::Path;
     use std::time::{Duration, Instant};
 
     thread_local! {
@@ -166,6 +173,29 @@ mod held {
     impl Drop for Walk {
         fn drop(&mut self) {
             SEAT.with(|seat| seat.set((seat.get().0, None)));
+        }
+    }
+
+    /// After a removal of `path` that left an entry at its name: the same
+    /// removal again, whatever its error, every [`super::HELD_TRY_EVERY`],
+    /// until no entry stands there or the end of the walk's bound has
+    /// passed. Outside a walk the bound starts at this call.
+    pub(super) fn try_again(path: &Path) {
+        let (length, end) = SEAT.with(Cell::get);
+        let Some(end) = end.or_else(|| Instant::now().checked_add(length)) else {
+            return;
+        };
+        while super::stands(path) {
+            let left = end.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return;
+            }
+            std::thread::sleep(left.min(super::HELD_TRY_EVERY));
+            let _ = match std::fs::symlink_metadata(path) {
+                Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(path),
+                Ok(_) => std::fs::remove_file(path),
+                Err(_) => Ok(()),
+            };
         }
     }
 
