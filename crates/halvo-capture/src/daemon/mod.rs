@@ -1927,8 +1927,8 @@ pub struct DurableState;
 /// under the data directory through the adapter, and creates it on a first
 /// run; a SIGTERM closes it. This cut starts no source and binds no socket.
 /// A Windows debug build serves the same run over the named pipe of `dir`
-/// with the sources of [`crate::windows::sources::ServiceSet`]; there the
-/// Stop request is the one stop.
+/// with the sources of [`crate::windows::sources::ServiceSet`]; there a Stop
+/// request or a message of its session window ends it.
 #[cfg(any(debug_assertions, target_os = "macos"))]
 pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::StateWrite>) -> i32 {
     #[cfg(target_os = "macos")]
