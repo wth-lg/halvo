@@ -704,7 +704,7 @@ fn a_start_whose_finish_cannot_delete_keeps_the_intent_and_opens_nothing() {
         intent_stays,
         "a finish that deleted nothing removed the intent"
     );
-    assert_eq!((slot, tries, handed), (Slot::Deleting, 0, false));
+    assert_eq!((slot, tries, handed), (Slot::DeleteUnfinished, 0, false));
     assert!(dir.join("store/store.key").exists());
 
     let (second, answer) = opener_after_an_intent(&dir);
@@ -730,6 +730,94 @@ fn a_start_whose_finish_cannot_delete_keeps_the_intent_and_opens_nothing() {
     assert_ne!(id.to_string(), old);
     assert!(!old_root[0].exists());
     assert!(!dir.join("delete-all.intent").exists());
+}
+
+#[test]
+fn a_start_whose_retry_is_again_not_whole_sets_the_field_too() {
+    use halvo_control::proto::{
+        decode_reply, delete_decision, encode_reply, DeleteDecision, Life, Platform, Reply,
+        StoreState,
+    };
+    let dir = kept_dir("delete-all-start-again-");
+    let old = a_store_with_a_segment(&dir);
+    std::fs::write(
+        dir.join("delete-all.intent"),
+        format!("{{\"v\":1,\"started_at\":\"2026-11-21T00:00:00Z\",\"entries\":[{{\"name\":\"store\",\"custody_kind\":\"root_file\",\"root_id\":\"{old}\"}}]}}"),
+    )
+    .unwrap();
+    let mut holder = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", START_TEST, "--nocapture", "--test-threads=1"])
+        .env(STORE_HOLD, &dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .unwrap();
+    let mut lines = BufReader::new(holder.stdout.take().unwrap()).lines();
+    let started = Instant::now();
+    loop {
+        let line = lines.next().expect("the holder ended early").unwrap();
+        if line.contains("delete-all-store-holder: held") {
+            break;
+        }
+        assert!(started.elapsed() < Duration::from_secs(60));
+    }
+
+    let (opener, answer) = opener_after_an_intent(&dir);
+    let found = answer.recv_timeout(Duration::from_secs(60)).unwrap();
+    std::thread::sleep(Duration::from_millis(500));
+    let slot = opener.slot();
+    opener.stop();
+    assert!(opener.wait_for_its_call(Duration::from_secs(60)));
+    let handed = opener.take().is_some();
+    drop(holder.stdin.take());
+    for line in lines.by_ref() {
+        line.unwrap();
+    }
+    assert!(holder.wait().unwrap().success(), "the holder failed");
+    assert_eq!((found, handed), (AtStart::Finished { whole: false }, false));
+
+    let parts = crate::daemon::server::StatusParts {
+        board: crate::daemon::board::Board::new(Platform::Macos),
+        desired: crate::daemon::state::Desired::Running,
+        lease: halvo_control::proto::Lease::Fresh,
+        slot,
+        obstructed: None,
+        health: crate::daemon::state::StateHealth::Ok,
+        cap: crate::daemon::state::Cap::Known(halvo_control::model::StorageCap::DEFAULT),
+        switches: crate::floor::Switches::default(),
+        once_granted: Vec::new(),
+        asked: Vec::new(),
+        input_keys: false,
+        held: false,
+    };
+    let facts = crate::daemon::server::RunFacts {
+        started_at: halvo_control::model::UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+        parent: halvo_control::proto::Parent::None,
+        last_stop: halvo_control::proto::LastStop::None,
+        rss_peak_bytes: 0,
+    };
+    let status = crate::daemon::server::status_of(&parts, &facts).unwrap();
+    let Ok(Reply::Status(read)) = decode_reply(&encode_reply(&Reply::Status(status))) else {
+        panic!("the status did not cross the wire");
+    };
+    let f = read.fields();
+    assert_eq!(
+        (f.store, f.store_delete_unfinished, f.store_id),
+        (StoreState::Deleting, true, None)
+    );
+    assert_eq!(
+        delete_decision(
+            Life::Going,
+            f.capture,
+            f.store,
+            f.store_error,
+            f.store_delete_unfinished,
+            f.store_id,
+            None
+        ),
+        DeleteDecision::Accept
+    );
 }
 
 #[test]
