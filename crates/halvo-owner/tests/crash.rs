@@ -683,12 +683,11 @@ fn on_windows_the_programs_offline_delete_ends_the_owner_and_leaves_no_derived_r
         std::thread::sleep(Duration::from_millis(20));
     }
     assert_eq!(entries_under(&derived), Vec::<PathBuf>::new(), "{printed}");
-    let lock = scratch.0.join("store").join("writer.lock");
-    let store: Vec<PathBuf> = files_under(&scratch.0.join("store"))
-        .into_iter()
-        .filter(|file| *file != lock || fs::metadata(file).map_or(true, |meta| meta.len() > 0))
-        .collect();
-    assert_eq!(store, Vec::<PathBuf>::new(), "{printed}");
+    assert_eq!(
+        files_under(&scratch.0.join("store")),
+        Vec::<PathBuf>::new(),
+        "{printed}"
+    );
     assert_eq!(
         files_under(&scratch.0.join("roots")),
         Vec::<PathBuf>::new(),

@@ -414,11 +414,7 @@ fn files_under(dir: &Path) -> Vec<PathBuf> {
 /// What stands in `dir` of the store, its key and its root. The store's writer lock on Windows, an empty file that
 /// stays after a delete until the store lets it go, is not counted while it is empty.
 fn what_stays_of_the_store(dir: &Path) -> Vec<PathBuf> {
-    let lock = dir.join("store").join("writer.lock");
-    let mut stays: Vec<PathBuf> = files_under(&dir.join("store"))
-        .into_iter()
-        .filter(|file| *file != lock || std::fs::metadata(file).map_or(true, |m| m.len() > 0))
-        .collect();
+    let mut stays = files_under(&dir.join("store"));
     stays.extend(files_under(&dir.join("roots")));
     if dir.join("delete-all.intent").exists() {
         stays.push(dir.join("delete-all.intent"));
