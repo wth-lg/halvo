@@ -4,9 +4,9 @@ use std::num::NonZeroU32;
 
 use halvo_policy::{preset, validate};
 use halvo_schema::executable::body::{
-    Accepted, AgentHistory, AgentsReply, CreateAgent, HistoryReply, HistoryRun, ListAgents,
-    ListedAgent, PastCheckpoint, PastEffect, RevReply, SetState, StartRun, StateReply,
-    UnknownEffect, CHECKPOINTS_REPLY_MAX,
+    Accepted, AgentHistory, AgentsReply, CreateAgent, DropSessions, HistoryReply, HistoryRun,
+    ListAgents, ListedAgent, PastCheckpoint, PastEffect, RevReply, SetState, StartRun, StateReply,
+    Stored, UnknownEffect, CHECKPOINTS_REPLY_MAX,
 };
 use halvo_schema::executable::names::{
     ActionClass, AgentState, Cause, CheckpointState, EffectState, FieldName, LogEvent, Mode,
@@ -102,7 +102,9 @@ use crate::{bind, bindings, checkpoint, day, end, runner};
 ///   stored, names another agent, or is stored in the dismissed shape (S-69 (d)). Each entry holds: the
 ///   configuration with `playbook` the newest number of `finished`, or null (CP-182); `state`, the stored state of
 ///   that workflow; `slots`, the slot names of the agent's newest bindings of that workflow, in their order, or none;
-///   `session`, `yes` where a session revision of the agent is stored whole, as `load` lists it; `last`, the agent's
+///   `session`, `yes` where a session revision of the agent is stored whole, as `load` lists it, and no origin's
+///   revision that `load` lists is in the drop form of `drop_session`, so that the interface starts a run with a
+///   window while a dropped sign-in is not kept again; `last`, the agent's
 ///   run record of the greatest day, then of the latest start row, then of the greatest run id; `unknown`, each
 ///   effect of the agent whose newest row by seq is `unknown`, in ascending order of effect id, with the run, the
 ///   day, the class and the kept fields of that row, whatever a record's count says; `refused_run`, the run of the
@@ -113,8 +115,9 @@ use crate::{bind, bindings, checkpoint, day, end, runner};
 ///   that their one reader refuses: `workbook` by `workbook_path` in the form of `set_bindings` and `reply_senders` by
 ///   `reply_senders`, a slot with no reader never; `last_cause`, the cause of the end of the agent's newest started
 ///   run, as `refused_run` finds that run, else null: null until the run's `agent_run` record stands, then the cause
-///   of the run's `stopped` row with no step, else of its `stopped` row with a step whose cause is not in
-///   `GOES_ON_AFTER` (`not_selected`, a step after which the run goes on), else null; a name of the closed list of
+///   of the run's `stopped` row with no step, else of its `stopped` row with a step, each whose cause is not in
+///   `GOES_ON_AFTER` (`not_selected`, a step after which the run goes on, and `session_size`, a state over the limit
+///   that the run's end does not store), else null; a name of the closed list of
 ///   causes alone, never a text of a page, of a site or of an error. A `stopped` row
 ///   whose stored cause is no name of the list reads with the cause null, so it gives `last_cause` null and does not
 ///   refuse the roster; every other `agent_log` row that the typed reader refuses refuses it with `store`. Each key
@@ -132,6 +135,19 @@ use crate::{bind, bindings, checkpoint, day, end, runner};
 ///   workbook path that is the effect's kept `file`, with its state, its instant and the copy's name, or null where
 ///   no such row stands or that row is `planned`; `store` where that name is longer than one `own_text`. The reply
 ///   is bounded as every reply: one that does not fit is refused by the writer, never cut.
+/// - `drop_sessions`: `no_workflow`; `binding` unless the workflow's agent is the body's; `state` while a run of the
+///   agent is open: a start row of the agent (`start_accepted`) stands in the store's read as the runner bodies read
+///   one, from 93 days back to two days ahead of the request's day, and no `agent_run` record of its run is stored;
+///   after `end_run` of that run the body is taken; `day` while a row of an origin that it would drop stands with a
+///   day after the request's day, as `drop_session` refuses it, and then it stores no row of any origin. Else, in one
+///   commit, it stores the drop row of `drop_session`, by that body's one writer, for each origin of the agent, bound
+///   or no longer bound, whose newest whole revision, as `load` lists it, is not in the drop form, and answers the
+///   count of rows stored, 0 at a repeat. So `list_agents`
+///   reads `session` `no`, and no row of another agent changes. Halvo stops using the sign-ins; what it kept stays
+///   under the store's key until its own day, at most 35 days. An origin whose stored revision is incomplete gets no
+///   row: nothing of it is in use. Named limits: a run that never gets its record keeps the body refused until its
+///   `end_run`, or until its start row leaves the store's read; only after a clock that was set back, and for at
+///   most two days, the body is refused with `day`.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -149,7 +165,46 @@ pub fn coordinator(
         CoordinatorCall::ListOverlaps(b) => bindings::list_overlaps(&*host, &b),
         CoordinatorCall::ListAgents(b) => list_agents(&*host, &b),
         CoordinatorCall::AgentHistory(b) => agent_history(&*host, &b),
+        CoordinatorCall::DropSessions(b) => drop_sessions(host, now, &b),
     }
+}
+
+fn drop_sessions(
+    host: &mut dyn Host,
+    now: Now,
+    b: &DropSessions,
+) -> Result<CoordinatorReply, ErrorName> {
+    bind::of_agent(&*host, &b.workflow, &b.agent)?;
+    if open_run_of(&*host, now, &b.agent)? {
+        return Err(ErrorName::State);
+    }
+    let own: Vec<AgentSession> = rows::sessions(host.rows())?
+        .into_iter()
+        .filter(|s| s.agent == b.agent)
+        .collect();
+    let origins: Vec<_> = runner::newest_sessions(&own)
+        .into_iter()
+        .map(|listed| listed.origin)
+        .collect();
+    let count = runner::drop_rows(host, now, &b.workflow, &b.agent, &origins)?;
+    Ok(CoordinatorReply::Stored(Stored {
+        stored: u32::try_from(count).unwrap_or(u32::MAX),
+    }))
+}
+
+/// Whether a run of the agent is open: a start row of the agent (`start_accepted`) stands in the store's read as
+/// `bind::start_row` reads one, and no `agent_run` record of its run is stored, as `bind::open_run` reads one.
+fn open_run_of(host: &dyn Host, now: Now, agent: &AgentId) -> Result<bool, ErrorName> {
+    let rows = host.rows();
+    let today = day::of(host, now);
+    let bound = day::bound(rows::AGENT_LOG);
+    let records = rows::runs(rows)?;
+    Ok(rows::logs(rows)?.iter().any(|l| {
+        l.event == LogEvent::StartAccepted
+            && &l.agent == agent
+            && bound.is_none_or(|days| day::stands(today, days, l.day))
+            && !records.iter().any(|r| r.run == l.run)
+    }))
 }
 
 fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, ErrorName> {
@@ -194,7 +249,8 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
             .filter(|s| s.agent == agent)
             .cloned()
             .collect();
-        let session = if runner::newest_sessions(&own).is_empty() {
+        let listed = runner::newest_sessions(&own);
+        let session = if listed.is_empty() || listed.iter().any(|s| runner::dropped(&own, s)) {
             YesNo::No
         } else {
             YesNo::Yes
@@ -274,16 +330,17 @@ fn newest_start<'a>(starts: &'a [AgentLog], agent: &AgentId) -> Option<&'a Agent
 }
 
 /// The causes of a step's `stopped` row after which the runner goes on with its run: `not_selected`, the row of a
-/// send whose message the reply rule no longer selects. `last_cause` of `list_agents` never reads such a row as the
-/// row of a run's end. The list is the runner's knowledge held by name: a second such cause of the runner reads as the
-/// cause of an end until it stands here.
-pub const GOES_ON_AFTER: &[Cause] = &[Cause::NotSelected];
+/// send whose message the reply rule no longer selects, and `session_size`, the row with no step that the runner writes
+/// at its end, before its own end row, for a state over the limit that it does not store (r3 U5.2). `last_cause` of
+/// `list_agents` never reads such a row as the row of a run's end. The list is the runner's knowledge held by name: a
+/// second such cause of the runner reads as the cause of an end until it stands here.
+pub const GOES_ON_AFTER: &[Cause] = &[Cause::NotSelected, Cause::SessionSize];
 
 /// The cause of the end of the run of the agent's newest start row, none where that run has not ended or ended with
 /// no cause. The run has ended where its `agent_run` record of the agent stands. The cause of its end is that of the
 /// run's `stopped` row with no step, which the runner writes just before the record where its end has a cause; else
-/// that of its `stopped` row with a step and a cause not in `GOES_ON_AFTER`, the row of a step that ended the run;
-/// each the row of the greatest seq where two stand. It reads no row of another agent.
+/// that of its `stopped` row with a step, the row of a step that ended the run; each with a cause not in
+/// `GOES_ON_AFTER`, and each the row of the greatest seq where two stand. It reads no row of another agent.
 fn last_cause(
     logs: &[AgentLog],
     starts: &[AgentLog],
@@ -301,10 +358,9 @@ fn last_cause(
         logs.iter()
             .filter(|l| &l.agent == agent && l.run == newest.run && l.event == LogEvent::Stopped)
     };
-    let end = stopped().filter(|l| l.step.is_none()).max_by_key(|l| l.seq);
-    let step = stopped()
-        .filter(|l| l.step.is_some() && !l.cause.is_some_and(|c| GOES_ON_AFTER.contains(&c)))
-        .max_by_key(|l| l.seq);
+    let ends = || stopped().filter(|l| !l.cause.is_some_and(|c| GOES_ON_AFTER.contains(&c)));
+    let end = ends().filter(|l| l.step.is_none()).max_by_key(|l| l.seq);
+    let step = ends().filter(|l| l.step.is_some()).max_by_key(|l| l.seq);
     end.or(step)?.cause
 }
 

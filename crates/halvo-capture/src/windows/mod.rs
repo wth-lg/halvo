@@ -7,7 +7,7 @@ pub mod exclusion;
 pub mod foreground;
 pub mod input;
 pub mod screen;
-#[cfg(all(windows, debug_assertions))]
+#[cfg(windows)]
 pub mod session;
 pub mod sources;
 pub mod window_title;
@@ -907,14 +907,14 @@ fn read_at_stop(limit: usize) {
 /// Why a Windows run did not start: the call that takes the run out of
 /// Windows Error Reporting failed, with its error code. No key was read and
 /// no store was opened.
-#[cfg(all(windows, debug_assertions))]
+#[cfg(windows)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FaultReportsOn {
     pub call: &'static str,
     pub code: u32,
 }
 
-#[cfg(all(windows, debug_assertions))]
+#[cfg(windows)]
 impl std::fmt::Display for FaultReportsOn {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -931,7 +931,7 @@ impl std::fmt::Display for FaultReportsOn {
 /// and WerAddExcludedApplication takes the program out of Windows Error
 /// Reporting for this user. Then `run`. A failed exclusion ends the start
 /// with its call and code, and `run` is not called.
-#[cfg(all(windows, debug_assertions))]
+#[cfg(windows)]
 pub fn start_a_run<T>(run: impl FnOnce() -> T) -> Result<T, FaultReportsOn> {
     use windows::core::{HRESULT, HSTRING};
     use windows::Win32::System::Diagnostics::Debug::{
@@ -963,8 +963,9 @@ pub fn start_a_run<T>(run: impl FnOnce() -> T) -> Result<T, FaultReportsOn> {
 /// a service run's set, by the names of Windows, run for the window on a
 /// scratch store in the run's store directory, whose root is destroyed at
 /// the end. A console's Ctrl-C or Ctrl-Break ends the window early, and the
-/// run reports and exits 2. The set makes no keyboard source and no screen
-/// source, and the parse refuses the switches that would ask for them.
+/// run reports and exits 2. The set makes no keyboard source, and the parse
+/// refuses the switch that would ask for it; with `screen_activity` on, the
+/// set's screen source reads the set's password gate.
 #[cfg(all(windows, debug_assertions))]
 pub(crate) fn timed_run(
     run: &crate::daemon::TimedRun,
@@ -1312,7 +1313,7 @@ pub(crate) mod tests {
         );
     }
 
-    #[cfg(all(windows, debug_assertions))]
+    #[cfg(windows)]
     #[test]
     fn the_windows_start_shuts_fault_reports_off_before_it_reads_the_key() {
         use windows::Win32::System::Diagnostics::Debug::{

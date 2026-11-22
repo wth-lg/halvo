@@ -17,6 +17,8 @@ mod login_item;
 mod poller;
 #[cfg(any(target_os = "macos", test))]
 mod quit;
+#[cfg(target_os = "macos")]
+mod remove;
 mod tray;
 mod view_state;
 
@@ -144,6 +146,10 @@ fn run(background: bool, given: Option<PathBuf>) {
             None
         }
     };
+    #[cfg(target_os = "macos")]
+    if let (None, Ok(dir)) = (&given, &resolved) {
+        remove::old_consent_at_start(&halvo_control::paths::SystemAccount, dir);
+    }
     let pid = Arc::<ChildPid>::default();
     let (control, data_dir) = control_of_child(|| resolved, Arc::clone(&pid));
     #[cfg(any(target_os = "macos", test))]
@@ -164,6 +170,8 @@ fn run(background: bool, given: Option<PathBuf>) {
     let login_views = Arc::clone(&state.views);
     #[cfg(target_os = "macos")]
     let (offline, offline_views) = (Arc::clone(&state.offline), Arc::clone(&state.views));
+    #[cfg(target_os = "macos")]
+    let (removal, removal_views) = (Arc::clone(&state.removal), Arc::clone(&state.views));
     let parts = app::Parts {
         state,
         tray: Some(tray::install),
@@ -192,6 +200,20 @@ fn run(background: bool, given: Option<PathBuf>) {
     let supervisor = start_the_daemon(child_dir, given.is_some(), pid, views);
     #[cfg(target_os = "macos")]
     set_the_offline_delete(&offline, &offline_views, supervisor.clone(), offline_dir);
+    #[cfg(target_os = "macos")]
+    {
+        let wiring = remove::Wiring {
+            account: Arc::new(halvo_control::paths::SystemAccount),
+            given: given.is_some(),
+            children: supervisor
+                .clone()
+                .map(|children| children as Arc<dyn remove::TheChild>),
+            views: removal_views,
+        };
+        let _ = removal.set(Arc::new(move |data_dir, offline, before| {
+            remove::run(&wiring, data_dir, offline, before)
+        }));
+    }
     #[cfg(any(target_os = "macos", test))]
     tauri::Manager::manage(
         &app,

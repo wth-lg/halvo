@@ -13,8 +13,8 @@ mod tick;
 
 pub use board::{Board, Dying, LiveRun, Member, Owed, Owing, Stop};
 pub use drive::{drive, drive_with, stop_run, Answer, Ended, Halt, Move, Report, Served};
+pub use drive::{drop_sessions, pause_owed, refused_active};
 pub(crate) use drive::{hold_refusals_at, item_closed, owed_of_kind, owed_ready};
-pub use drive::{pause_owed, refused_active};
 pub(crate) use drive::{read_back, resync, seq_refusal};
 pub use hold::{held_by_events, kept_off, refusal_unstored, refused_runs};
 pub use hold::{holds, Hold};

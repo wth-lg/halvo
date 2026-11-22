@@ -179,6 +179,7 @@ fn expected_keys() -> BTreeSet<String> {
         "take_back",
         "switch_off",
         "switch_on",
+        "stop_sign_in",
         "delete",
     ] {
         k.insert(format!("control.{c}"));
@@ -327,6 +328,10 @@ fn expected_keys() -> BTreeSet<String> {
         "item.setup.overlap_unread",
         "refused.overlap_named",
         "refused.overlap_more",
+        "ask.stop_sign_in.title",
+        "ask.stop_sign_in.stops",
+        "ask.stop_sign_in.next",
+        "ask.stop_sign_in.keep",
     ] {
         k.insert(key.to_owned());
     }
@@ -457,7 +462,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 322);
+    assert_eq!(seen.len(), 328);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -504,6 +509,7 @@ fn placeholders_are_the_ones_that_the_contract_names() {
         "ask.delete.title",
         "ask.working.title",
         "ask.stopping.title",
+        "ask.stop_sign_in.title",
     ] {
         want.insert(key.into(), vec!["name"]);
     }

@@ -478,6 +478,7 @@ struct Read {
     no_daemon: bool,
     sight: Option<(u32, Sight)>,
     deleting: Vec<u32>,
+    answered_as_own: bool,
 }
 
 /// What an answer of the app's own child showed of that child (contracts.md C14 item 4).
@@ -505,10 +506,21 @@ impl ChildPid {
         }
     }
 
-    /// Names `pid` as the app's child of the moment, 0 for none.
+    /// Names `pid` as the app's child of the moment, 0 for none; the child so named has not
+    /// answered as the app's own yet.
     #[cfg(any(target_os = "macos", test))]
     pub fn set(&self, pid: u32) {
+        let mut read = self.read();
+        read.answered_as_own = false;
         self.pid.store(pid, Ordering::SeqCst);
+    }
+
+    /// Whether the child of the moment has answered as the app's own: a status of its own pid
+    /// came from it since `set` named it. Such a child has passed the instance lock of
+    /// contracts.md C3.2 step 3.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn answered_as_own(&self) -> bool {
+        self.read().answered_as_own
     }
 
     #[cfg(any(target_os = "macos", test))]
@@ -575,6 +587,9 @@ impl ChildPid {
         let Some(child) = before.filter(|child| self.get() == Some(*child)) else {
             return;
         };
+        if status.is_some_and(|status| status.fields().pid == child) {
+            read.answered_as_own = true;
+        }
         let sight = match (status, error) {
             (Some(status), _) if status.fields().pid != child => None,
             (Some(status), _) if source_not_stopped(status) => Some(Sight::SourceNotStopped),

@@ -63,7 +63,8 @@ impl std::fmt::Debug for OriginStorage {
 /// left the tree and were waited for but never ended (`adopted`, on macOS the crash handler); the
 /// pids that still ran when the wait ended and that it read as members, the tree's and the
 /// adopted ones that bear the run's mark (`left`, CP-189 G3); the profile directory and the
-/// temporary directory that the start made; and whether both are gone (`removed`).
+/// temporary directory that the start made; and whether both are gone and, on macOS, no folder of
+/// the run's chain under the person's `Library/Caches` stands (`removed`, `super::cache_chain`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Stopped {
     pub pids: Vec<u32>,
@@ -213,8 +214,8 @@ pub(crate) fn make_dirs(profile: &Path) -> Res<(PathBuf, PathBuf)> {
             Err(e) => return Err(Fault::new("start", e.to_string())),
         }
     }
-    std::fs::create_dir(profile).map_err(|e| Fault::new("start", e.to_string()))?;
-    if let Err(e) = std::fs::create_dir(&temp) {
+    own_dir(profile).map_err(|e| Fault::new("start", e.to_string()))?;
+    if let Err(e) = own_dir(&temp) {
         let _ = std::fs::remove_dir(profile);
         return Err(Fault::new("start", e.to_string()));
     }
@@ -226,6 +227,15 @@ pub(crate) fn make_dirs(profile: &Path) -> Res<(PathBuf, PathBuf)> {
             Err(Fault::new("start", "canonical path"))
         }
     }
+}
+
+/// Makes the directory `dir` the person's alone: mode 0700 on a system of modes (A8.3, the coordinator's ruling of
+/// log line 13918 (P2)); on Windows it takes the access list of the directory above it.
+fn own_dir(dir: &Path) -> std::io::Result<()> {
+    let builder = &mut std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(builder, 0o700);
+    builder.create(dir)
 }
 
 fn gone(dir: &Path) -> bool {
@@ -448,7 +458,10 @@ impl Executor {
     }
 
     /// Stops the browser and removes the two directories that its start made, the profile and the
-    /// temporary directory beside it, and nothing else. It closes the browser (`stop`, which ends the
+    /// temporary directory beside it, and, on macOS, after them, the empty folders of the run that
+    /// the browser's cache rule made under the person's `Library/Caches` (`super::cache_chain`,
+    /// `super::remove_cache_chain`: each only where it is empty, so that a file there stays and the
+    /// stop reports `removed` false), and nothing else. It closes the browser (`stop`, which ends the
     /// first process through the child's handle and the run's own processes by the run's mark),
     /// then waits up to 15 s for every process of the tree and for the adopted ones, and ends none
     /// of them: the walk is for the wait and the report alone (CP-189 G3). After the wait it ends
@@ -500,6 +513,7 @@ impl Executor {
             (Some(p), Some(t)) => remove_dirs(p, t).await,
             _ => false,
         };
+        let removed = super::remove_cache_folders(profile.as_deref()) && removed;
         Stopped {
             pids: pids(&tree),
             adopted: pids(&adopted),

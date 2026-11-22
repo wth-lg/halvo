@@ -681,6 +681,9 @@ fn row(b: &Built) -> Row {
         .controls
         .contains(&Control::Delete)
         .then(|| crate::roster::ask(&b.facts, &name).expect("the question of a state's row"));
+    let ask_stop_sign_in = b.spec.controls.contains(&Control::StopSignIn).then(|| {
+        crate::roster::stop_sign_in_ask(&name).expect("the question of a state's stop_sign_in")
+    });
     Row {
         agent: b.facts.agent.clone(),
         workflow: b.facts.workflow.id.clone(),
@@ -701,6 +704,7 @@ fn row(b: &Built) -> Row {
             })
             .collect(),
         ask,
+        ask_stop_sign_in,
     }
 }
 

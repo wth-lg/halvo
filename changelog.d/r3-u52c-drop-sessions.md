@@ -1,0 +1,2 @@
+- Added: The coordinator body `drop_sessions` makes Halvo stop using every kept sign-in of one agent when no run of that agent is open, and answers the count of drop rows stored.
+- Changed: The agent store refuses a drop of a kept sign-in with `day` while a stored row of that site carries a later day, serves a run only the listed sign-in revision of a site, and refuses a sign-in part under a revision whose stored parts name another count.

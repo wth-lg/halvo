@@ -449,7 +449,8 @@ pub(crate) fn start_profile_form(given: &Path, made: &Path) -> PathBuf {
 
 /// The browser's command line after its path, every flag the executor's own: the product's flags
 /// (`crate::PRODUCT_FLAGS`), its means against a crash's dump (`crate::CRASH_MEANS`, with the
-/// run's profile), the relay's flags, headless when asked, the profile, the debugging pipe
+/// run's profile), the relay's flags, headless when asked, the profile, the cache place inside it
+/// (`crate::CACHE_PLACE`, in the profile's form of `--user-data-dir`, r3 U5.2e), the debugging pipe
 /// and the first page. A caller adds no flag, so none can name a port or a route beside the relay.
 /// No flag names a bound site, and the product carries no mock keychain (A8.3).
 pub fn launch_args(opts: &StartOptions) -> Vec<String> {
@@ -481,9 +482,88 @@ pub fn launch_args(opts: &StartOptions) -> Vec<String> {
         args.push("--headless=new".into());
     }
     args.push(format!("--user-data-dir={}", opts.profile.display()));
+    args.push(crate::CACHE_PLACE.replace("{profile}", &profile));
     args.push("--remote-debugging-pipe".into());
     args.push("about:blank".into());
     args
+}
+
+/// The folders that the browser's cache rule makes under the person's `Library/Caches` for a run
+/// whose profile is `profile`, `home` standing for the person's home (r3 U5.2e, the coordinator's
+/// line 14450). Where `profile` lies below `<home>/Library/Application Support`, the browser takes
+/// `<home>/Library/Caches/<the same path below>` for the cache of its profile `<profile>/Default`
+/// and makes that directory at every start, with every folder above it, whatever flag names the
+/// cache place (`GetUserCacheDirectory` in Chromium's chrome/common/chrome_paths_mac.mm and
+/// `CreateProfileDirectory` in chrome/browser/profiles/profile_impl.cc). The folders, from the
+/// bottom up: the one of `<profile>/Default`, the one of the profile, and the one of the profile's
+/// parent, the run's own directory, where that parent lies below `Library/Application Support`
+/// too; the folders above them stay. Elsewhere there are none, since there the rule gives the
+/// profile itself (`AppendRelativePath` fails and the result stays `profile_dir`). The paths are
+/// compared by their parts as given, as the browser compares them, following no link.
+pub fn cache_chain(home: &Path, profile: &Path) -> Vec<PathBuf> {
+    let library = home.join("Library");
+    let Ok(below) = profile.strip_prefix(library.join("Application Support")) else {
+        return Vec::new();
+    };
+    if below.as_os_str().is_empty() {
+        return Vec::new();
+    }
+    let mirror = library.join("Caches").join(below);
+    let mut chain = vec![mirror.join("Default"), mirror.clone()];
+    if below.components().count() > 1 {
+        chain.extend(mirror.parent().map(Path::to_path_buf));
+    }
+    chain
+}
+
+/// The stop's act on the browser's cache rule (r3 U5.2e, the coordinator's line 14450): removes
+/// the folders of `cache_chain(home, profile)` from the bottom up, each only where it is empty
+/// (`remove_dir`, never a walk), and stops at the first that stays, so that a file there stays and
+/// is seen. It follows no link: where a part of the chain's path below `Library/Caches` is a link
+/// or no folder, it removes nothing. True when no folder of the chain stands after it.
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn remove_cache_chain(home: &Path, profile: &Path) -> bool {
+    let chain = cache_chain(home, profile);
+    let caches = home.join("Library").join("Caches");
+    let below = chain
+        .first()
+        .and_then(|bottom| bottom.strip_prefix(&caches).ok())
+        .unwrap_or(Path::new(""));
+    let mut at = caches;
+    let mut followed_none = true;
+    for part in below.components() {
+        at.push(part);
+        match std::fs::symlink_metadata(&at) {
+            Ok(m) if m.is_dir() => {}
+            Ok(_) => {
+                followed_none = false;
+                break;
+            }
+            Err(_) => break,
+        }
+    }
+    if followed_none {
+        for dir in &chain {
+            if std::fs::remove_dir(dir).is_err() && std::fs::symlink_metadata(dir).is_ok() {
+                break;
+            }
+        }
+    }
+    chain
+        .iter()
+        .all(|dir| std::fs::symlink_metadata(dir).is_err())
+}
+
+/// `remove_cache_chain` for the run's `profile` in the home that `HOME` names, on macOS; true on
+/// every other system, where the browser's rule makes no such folder, and where no profile or no
+/// home is known.
+pub(crate) fn remove_cache_folders(profile: Option<&Path>) -> bool {
+    #[cfg(target_os = "macos")]
+    if let (Some(profile), Some(home)) = (profile, std::env::var_os("HOME")) {
+        return remove_cache_chain(Path::new(&home), profile);
+    }
+    let _ = profile;
+    true
 }
 
 impl Executor {
@@ -2513,6 +2593,7 @@ pub(crate) mod tests {
             [
                 "--headless=new",
                 "--user-data-dir=/p/profile",
+                "--disk-cache-dir=/p/profile/DiskCache",
                 "--remote-debugging-pipe",
                 "about:blank",
             ]
@@ -2530,6 +2611,92 @@ pub(crate) mod tests {
         assert!(!args.iter().any(|a| crate::checks::names_a_port(a)));
         assert!(!args.iter().any(|a| a.contains("mock-keychain")));
         assert!(!args.iter().any(|a| a.contains("host-resolver-rules")));
+    }
+
+    /// r3 U5.2e: whatever the crash means, the start names the browser's cache place once, in a
+    /// directory below the run's profile written in the profile's own form (`--user-data-dir`), and
+    /// no other flag names a cache place.
+    #[test]
+    fn the_start_names_the_cache_place_inside_the_profile_and_nowhere_else() {
+        let relay = crate::relay::RelayHandle::for_tests(18999);
+        let mut opts = options_with(
+            PathBuf::from("/b/chrome"),
+            PathBuf::from("/p/run/profile"),
+            relay,
+        );
+        for means in [
+            CrashMeans::Product,
+            CrashMeans::Without,
+            CrashMeans::Candidate(0),
+        ] {
+            opts.crash_means = means;
+            let args = launch_args(&opts);
+            let profile = args
+                .iter()
+                .find_map(|a| a.strip_prefix("--user-data-dir="))
+                .map(Path::new)
+                .expect("the profile's flag");
+            let places: Vec<&Path> = args
+                .iter()
+                .filter_map(|a| a.strip_prefix("--disk-cache-dir="))
+                .map(Path::new)
+                .collect();
+            assert_eq!(places.len(), 1, "the cache place stands once: {args:?}");
+            assert!(
+                places[0].starts_with(profile) && places[0] != profile,
+                "the cache place {:?} lies below the profile {profile:?}",
+                places[0]
+            );
+            let others: Vec<&String> = args
+                .iter()
+                .filter(|a| !a.starts_with("--disk-cache-dir="))
+                .filter(|a| {
+                    let key = a.split('=').next().unwrap_or_default();
+                    key.to_ascii_lowercase().contains("cache")
+                })
+                .collect();
+            assert!(others.is_empty(), "another flag names a cache: {others:?}");
+        }
+    }
+
+    /// r3 U5.2e, the coordinator's line 14450, on a scratch directory that stands in for the
+    /// person's home: for a profile under its `Library/Application Support` the three empty folders
+    /// of the run under `Library/Caches` go and the folders above them stay; a chain that holds a
+    /// file stays whole; a profile elsewhere has no chain.
+    #[test]
+    fn the_stop_removes_the_three_empty_cache_folders_and_keeps_a_chain_that_holds_a_file() {
+        let home = crate::child::scratch("cache-chain");
+        let support = home.join("Library").join("Application Support").join("H");
+        let caches = home.join("Library").join("Caches").join("H");
+        let runs = caches.join("agents").join("profiles");
+        let profile = |run: &str| {
+            support
+                .join("agents")
+                .join("profiles")
+                .join(run)
+                .join("profile")
+        };
+        let bottom = |run: &str| runs.join(run).join("profile").join("Default");
+        assert_eq!(
+            cache_chain(&home, &profile("r1")),
+            [
+                bottom("r1"),
+                runs.join("r1").join("profile"),
+                runs.join("r1")
+            ]
+        );
+        std::fs::create_dir_all(bottom("r1")).unwrap();
+        std::fs::create_dir_all(bottom("r2")).unwrap();
+        std::fs::write(bottom("r2").join("index"), b"cached").unwrap();
+        assert!(remove_cache_chain(&home, &profile("r1")));
+        assert!(std::fs::symlink_metadata(runs.join("r1")).is_err());
+        assert!(runs.is_dir());
+        assert!(!remove_cache_chain(&home, &profile("r2")));
+        assert_eq!(
+            std::fs::read(bottom("r2").join("index")).unwrap(),
+            b"cached"
+        );
+        assert!(cache_chain(&home, &home.join("elsewhere").join("profile")).is_empty());
     }
 
     /// CP-167 E2: the control starts without the product's means, a candidate adds its entry of
@@ -2836,6 +3003,9 @@ pub(crate) mod tests {
         let opts = options_with(browser, profile.clone(), relay.handle());
         let ex = Executor::start(&opts).await.expect("the stand-in starts");
         let resolved = std::fs::canonicalize(&real).unwrap().join("p");
+        let mode = std::os::unix::fs::PermissionsExt::mode(
+            &std::fs::metadata(&resolved).unwrap().permissions(),
+        );
         let args = crate::checks::command_args(ex.root().pid).unwrap_or_default();
         let held = ex.profile().map(Path::to_path_buf);
         let stopped = ex.stop_and_remove().await;
@@ -2854,6 +3024,7 @@ pub(crate) mod tests {
         );
         assert_eq!(held, Some(resolved.clone()));
         assert_eq!(before, resolved);
+        assert_eq!(mode & 0o777, 0o700, "the profile is the person's alone");
         assert!(stopped.removed);
         assert!(left.is_empty());
     }

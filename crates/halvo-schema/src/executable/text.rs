@@ -605,7 +605,21 @@ impl SessionData {
     pub fn is_full(&self) -> bool {
         self.0.len() == SESSION_PIECES_MAX && self.0.iter().all(|p| p.len() == OWN_TEXT_MAX)
     }
+
+    /// The drop form: the one piece `=`, which is the base64 text of no state, so that no part that a runner exports
+    /// holds it alone. A revision of one part in this form is a dropped sign-in (`drop_session`).
+    pub fn dropped() -> SessionData {
+        SessionData(vec![DROPPED.to_owned()])
+    }
+
+    /// Whether the data is the drop form.
+    pub fn is_dropped(&self) -> bool {
+        self.0.len() == 1 && self.0[0] == DROPPED
+    }
 }
+
+/// The one piece of the drop form of `SessionData`.
+const DROPPED: &str = "=";
 
 impl fmt::Debug for SessionData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

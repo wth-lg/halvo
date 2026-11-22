@@ -7,16 +7,20 @@
 //! scheme, host and port alone, which the runner reads once before the opening, null where the top document has no
 //! origin of http or https (the coordinator's ruling of log line 13906). Before the handback opens the runner, in
 //! this order,
-//! fails every request that the rule holds paused, closes every other page of the run, clears for every origin that
-//! the run has loaded what a page keeps for later but the cookies, and loads the top document's address again by a
-//! GET navigation; then it arms the handback's mode, in which the rule lets every request of the person's pages
-//! through and the relay reaches every host and port. While the handback is open the runner sends the browser no
-//! command and reads nothing. After `done` it reads the page again and hands back again while a credential field is
-//! still there, at most `IN_A_ROW` times in a row. After the `done` that leaves no credential field it reads once
-//! the address of the page on which the handback opened and sends its origin in the frame `bind`; after
-//! `bind_reply` with `bound=yes` it first arms `Mode::Fail` with the origins of the bindings and every origin bound
-//! in this run, then closes the pages that were opened meanwhile, so that no page loads outside the rule (the
-//! coordinator's ruling of log line 14127 (3), (4)), and the run goes on.
+//! fails every request that the rule holds paused, closes every other page of the run, stores the state of each site
+//! that the run stores anew so far but the one at whose field the handback opens (crate::session, the coordinator's
+//! ruling of log line 14407), clears for every origin that the run has loaded what a page keeps for later but the
+//! cookies, and loads the top document's address again by a GET navigation; then it arms the handback's mode, in which
+//! the rule lets every request of the person's pages through and the relay reaches every host and port. While the
+//! handback is open the runner sends the browser no command and reads nothing. After `done` it reads the page again and
+//! hands back again while a credential field is still there, at most `IN_A_ROW` times in a row. After the `done` that
+//! leaves no credential field it reads once the address of the page on which the handback opened and sends its origin
+//! in the frame `bind`; after `bind_reply` with `bound=yes` it first arms `Mode::Fail` with the origins of the bindings
+//! and every origin bound in this run, then closes the pages that were opened meanwhile, so that no page loads outside
+//! the rule (the coordinator's ruling of log line 14127 (3), (4)), and the run goes on. Since the opening clears what
+//! the pages of every site keep for later, the run then stores anew at its end only a site bound at a handback after it
+//! (crate::session, the coordinator's ruling of log line 14366); each site that it kept before the opening, but the one
+//! at whose field the handback opened, the opening stored.
 //!
 //! Every other end binds nothing and makes no further step: the runner first lets no request through (the rule in
 //! `Mode::Fail` with no origin, the relay with no host), fails every request that it holds paused and closes the
@@ -27,6 +31,8 @@
 
 #[cfg(test)]
 mod tests;
+
+use std::num::NonZeroU32;
 
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::frame::{Bind, BindReply};
@@ -59,19 +65,28 @@ impl Runner {
     /// The reading of the page before a web step acts: false where the page shows no credential field; true after
     /// a handback that ended in a bind with `bound=yes`; every other end of a handback stops the run. A reading that
     /// fails, a read of the address before the opening that fails, or a step of the opening that fails, fails the
-    /// step with `step_failed` before the handback opens.
+    /// step with `step_failed` before the handback opens; a link that broke while the opening stores the kept sites
+    /// stops the run, and no other fault of that store keeps the handback from opening. In a run with no window that
+    /// imported a kept sign-in (crate::session), a credential field opens no handback: the step `step` ends the run
+    /// (`Runner::no_window`).
     pub(crate) fn read_page(
         &mut self,
         page: &mut dyn Page,
         loaded: &LoadReply,
+        step: NonZeroU32,
     ) -> Result<bool, Failure> {
         let failed = |()| Failure::Step(Cause::StepFailed);
         let Some(sign) = page.sign().map_err(failed)? else {
             return Ok(false);
         };
         let top = WebOrigin::of_address(&page.address().map_err(failed)?).ok();
+        self.sessions.at_field = top.clone();
+        if self.sessions.imported && !self.args.headed {
+            return Err(self.no_window(step, top).into());
+        }
         page.fail_held().map_err(failed)?;
         page.close_others().map_err(failed)?;
+        self.keep_before_clear(page)?;
         page.clear_stores().map_err(failed)?;
         page.load_again().map_err(failed)?;
         if page.pass_all().is_err() {
@@ -83,6 +98,8 @@ impl Runner {
             .and_then(|origin| self.bind(origin))
         {
             Ok((origin, YesNo::Yes)) => {
+                self.sessions.at_field = None;
+                self.sessions.keep(&origin);
                 if !self.bound.contains(&origin) {
                     self.bound.push(origin);
                 }

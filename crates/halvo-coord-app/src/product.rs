@@ -900,6 +900,9 @@ fn body_text(body: &Body, runs: &RunsOf) -> Option<String> {
                 run.as_str()
             )
         }
+        Body::DropSessions { workflow, agent } => {
+            format!("{}}}", head("drop_sessions", workflow, agent))
+        }
     })
 }
 
@@ -1787,6 +1790,22 @@ mod tests {
             .map(event_of)
             .collect();
         assert_eq!(read, events.into_iter().map(Some).collect::<Vec<_>>());
+    }
+
+    /// r4 U2.4y, sentence 3: the body `drop_sessions` goes out as r3 U5.2c built it, with the keys `op`,
+    /// `workflow` and `agent` in that order and nothing else.
+    #[test]
+    fn the_body_drop_sessions_is_written_as_r3_built_it() {
+        let body = Body::DropSessions {
+            workflow: WorkflowId::parse(&"f1".repeat(16)).unwrap(),
+            agent: AgentId::parse(&"a1".repeat(16)).unwrap(),
+        };
+        assert_eq!(
+            body_text(&body, &RunsOf::default()).as_deref(),
+            Some(
+                r#"{"op":"drop_sessions","workflow":"f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1","agent":"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"}"#
+            )
+        );
     }
 
     /// `list_agents` takes `last_cause` of an entry: a name of the core's list as its cause, null as none, and a name

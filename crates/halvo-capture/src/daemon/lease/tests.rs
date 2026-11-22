@@ -285,7 +285,7 @@ fn a_lapsed_lease_stops_every_source_and_leaves_the_state_file_byte_identical() 
     assert_eq!(f.stored(), 3, "the event after the renewal was not stored");
 }
 
-#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+#[cfg(any(target_os = "macos", windows))]
 #[test]
 fn a_pause_and_a_lapse_leave_the_owners_open_batch_in_the_store_before_they_answer() {
     let mut rows = Vec::new();

@@ -13,9 +13,10 @@ use halvo_schema::executable::names::{HandbackReason, LogEvent};
 use halvo_schema::executable::{Cause, FromRunner, Outcome, RunnerCall, ToRunner};
 use halvo_schema::Category;
 use support::browser::{
-    bearing, cond, extract_amount, from_slot, handback, hosted, hosted_headed, hosted_mac, konst,
-    navigate, own_start_us, print_outside_the_profile, profile_of, say, serve_finding, serve_with,
-    step, Fixture,
+    bearing, cond, entries_below, extract_amount, from_slot, handback, hosted, hosted_headed,
+    hosted_mac, hosted_on_mac, konst, navigate, own_start_us, print_entries,
+    print_outside_the_profile, profile_of, say, serve_finding, serve_in, serve_with, step, Fixture,
+    Made,
 };
 use support::{slot, tag, Act, Seen, Supervisor, FINDS_ITS_BROWSER, LONG};
 
@@ -786,6 +787,102 @@ fn a_headed_run_hands_back_at_a_sign_in_and_goes_on_after_the_bind() {
     assert!(!profile_of(&seen, &sup.run).0.exists());
 }
 
+/// A sign-in page that keeps its sign-in in a cookie `signed` and the localStorage item `token`: where both stand at
+/// its load, its script takes the password field out at once and the page reads `in`. Else, at a load with no cookie
+/// `seen` it sets that cookie, and at a load that finds it (the handback's load by GET) it sets both 2 s later, as a
+/// person's sign-in does, and takes the password field out.
+const KEEPS: &str = r#"<!doctype html><title>sign in</title><form onsubmit="return false"><input data-testid="user" aria-label="Email"><input type="password" data-testid="password" aria-label="Password"></form><p data-testid="state">out</p><script>function signedIn() { var p = document.querySelector('[data-testid=password]'); if (p) { p.parentNode.removeChild(p); } document.querySelector('[data-testid=state]').textContent = 'in'; } if (document.cookie.indexOf('signed=1') >= 0 && localStorage.getItem('token') === 'kept-u52') { signedIn(); } else if (document.cookie.indexOf('seen=1') < 0) { document.cookie = 'seen=1; path=/'; } else { setTimeout(function () { document.cookie = 'signed=1; path=/; max-age=3600'; localStorage.setItem('token', 'kept-u52'); signedIn(); }, 2000); }</script>"#;
+
+/// U5.2 (7), A8.3, on a hosted runner alone, headless, two runs: run 1 hands back at the sign-in page, the page signs
+/// in by its own script while the handback is open, and after `bound=yes` the run ends `completed` and stores the
+/// fixture origin's state by `put_session`. Run 2 gets those parts from its load, imports them when its browser starts,
+/// and finds the page signed in: no handback, no `step_failed`, and the run ends `completed`.
+#[test]
+fn what_run_one_signed_in_serves_run_two() {
+    let Some(browser) = hosted("what_run_one_signed_in_serves_run_two") else {
+        return;
+    };
+    let fixture = Fixture::start(&[("/sign-in", KEEPS), ("/read", READ)]);
+    let steps = |fixture: &Fixture| {
+        vec![
+            navigate(1, &fixture.url("/sign-in")),
+            handback(2),
+            navigate(3, &fixture.url("/read")),
+            extract_amount(4, "amount"),
+        ]
+    };
+    let mut one = web_agent(251, &fixture);
+    one.steps = steps(&fixture);
+    let done = ToRunner::parse(
+        br#"{"t":"handback_reply","result":{"v":1,"outcome":"done","secret":null}}"#,
+    )
+    .expect("a handback_reply");
+    let bound = ToRunner::parse(br#"{"t":"bind_reply","bound":"yes"}"#).expect("a bind_reply");
+    let first = serve_with(
+        &one,
+        &browser,
+        |frame, _| match frame {
+            FromRunner::Browser(_) => Act::With(browser_reply()),
+            FromRunner::Handback(_) => {
+                Act::After(Duration::from_secs(8), Box::new(Act::With(done.clone())))
+            }
+            FromRunner::Bind(_) => Act::With(bound.clone()),
+            _ => Act::Answer,
+        },
+        Duration::from_secs(120),
+    );
+    assert_eq!(first.done(), Some(Outcome::Completed), "{}", first.stderr);
+    assert_eq!(first.handbacks(), [HandbackReason::SignIn]);
+    let kept: Vec<_> = first
+        .calls()
+        .into_iter()
+        .filter_map(|c| match c {
+            RunnerCall::PutSession(p) => Some(p),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        !kept.is_empty() && kept.iter().all(|p| p.origin == fixture.origin()),
+        "run 1 keeps the fixture's sign-in: {}",
+        first.stderr
+    );
+
+    let mut two = web_agent(252, &fixture);
+    two.agent = one.agent.clone();
+    two.workflow = one.workflow.clone();
+    two.config = one.config.clone();
+    two.steps = steps(&fixture);
+    two.kept = kept;
+    let before = fixture.requests().len();
+    let second = serve_with(&two, &browser, reply_to_browser, Duration::from_secs(120));
+    let loads = second
+        .calls()
+        .into_iter()
+        .filter(|c| matches!(c, RunnerCall::LoadSession(_)))
+        .count();
+    assert!(loads >= 1, "run 2 loads the kept parts: {}", second.stderr);
+    assert_eq!(second.done(), Some(Outcome::Completed), "{}", second.stderr);
+    assert!(second.handbacks().is_empty(), "no handback in run 2");
+    assert!(
+        rows(&second)
+            .iter()
+            .all(|(event, _, _)| *event == LogEvent::StepOk),
+        "{:?}",
+        rows(&second)
+    );
+    let got: Vec<String> = fixture.requests()[before..]
+        .iter()
+        .map(|r| format!("{} {}", r.method, r.path))
+        .collect();
+    assert_eq!(
+        got.iter().filter(|r| *r == "GET /sign-in").count(),
+        1,
+        "run 2 loads the sign-in page once: {got:?}"
+    );
+    assert!(!profile_of(&first, &one.run).0.exists());
+    assert!(!profile_of(&second, &two.run).0.exists());
+}
+
 /// U4.1w (5), the row `win_single_argument_inside_quotes` of `terminator_table` (crates/halvo-web/src/checks.rs):
 /// a browser started with the one argument `--app=x --single-argument`, which the system writes in quotes, before
 /// the profile's switch takes that profile directory: the directory exists and holds an entry. The browser gets TMP
@@ -833,4 +930,141 @@ fn the_browser_takes_the_profile_after_a_quoted_single_argument() {
         "the browser did not take {} after a quoted --single-argument",
         profile.display()
     );
+}
+
+/// The two browsers of a hosted Mac that the runner finds, in its own order (src/find.rs): Google Chrome, then
+/// Microsoft Edge.
+const MAC_BROWSERS: [&str; 2] = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+];
+
+/// r3 U5.2e, on the hosted macos job alone (the coordinator's lines 14401, 14450 and 14668): with each of the two
+/// browsers of a hosted Mac (`MAC_BROWSERS`), a run whose data directory lies under the hosted runner's own
+/// `Library/Application Support`, in a folder of its own whose name the test makes and no other program uses, loads a
+/// fixture page and completes with a clean stop. After the stop nothing of the run stands under the runner's
+/// `Library/Caches` below that folder's name, where the browser's own rule puts the cache of a profile under
+/// `Library/Application Support` when its start names no other cache place: no folder of the run's id, and no file at
+/// any depth. For each browser it prints the entries that it finds there (at most `MOST_LINES`, then how many more),
+/// each line with the browser's path, its kind and its size. A browser that the hosted Mac does not have fails the case
+/// before any run. Its limits: one version of each browser on one system; and at the end of each browser's run it
+/// removes, by its own code (`Made`), both folders that it made under the runner's `Library`, with all that they hold,
+/// also when it fails; a hosted runner is thrown away after the job.
+#[test]
+fn a_run_under_the_persons_library_leaves_no_cache_outside_its_profile() {
+    const TEST: &str = "a_run_under_the_persons_library_leaves_no_cache_outside_its_profile";
+    if hosted_on_mac(TEST).is_none() {
+        return;
+    }
+    for browser in MAC_BROWSERS {
+        assert!(
+            std::path::Path::new(browser).is_file(),
+            "{TEST}: the hosted Mac has no {browser}; the case runs with Google Chrome and with Microsoft Edge"
+        );
+    }
+    let home = std::path::PathBuf::from(std::env::var_os("HOME").expect("HOME is set"));
+    let made_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("the clock")
+        .as_nanos();
+    let mut faults = Vec::new();
+    for (n, browser) in [(251, MAC_BROWSERS[0]), (252, MAC_BROWSERS[1])] {
+        let name = format!(
+            "halvo-u52e-cache-place-{}-{made_at}-{n}",
+            std::process::id()
+        );
+        faults.extend(cache_case(TEST, &home, &name, n, browser));
+    }
+    assert!(faults.is_empty(), "{faults:#?}");
+}
+
+/// One run of the cache case with `browser`, in the folder `name` under the runner's `Library/Application Support`
+/// and with the run number `n`: what fails, each fault named by the browser's path. Both folders that it made under
+/// the runner's `Library` are removed when it returns.
+fn cache_case(
+    test: &'static str,
+    home: &std::path::Path,
+    name: &str,
+    n: u8,
+    browser: &str,
+) -> Vec<String> {
+    let data = home.join("Library/Application Support").join(name);
+    let caches = home.join("Library/Caches").join(name);
+    if std::fs::symlink_metadata(&data).is_ok() || std::fs::symlink_metadata(&caches).is_ok() {
+        return vec![format!(
+            "{browser}: the folder {name} stands before the run"
+        )];
+    }
+    let _made = Made {
+        test,
+        dirs: vec![data.clone(), caches.clone()],
+    };
+    std::fs::create_dir(&data).expect("make the data directory");
+    let fixture = Fixture::start(&[("/read", READ)]);
+    let mut sup = web_agent(n, &fixture);
+    sup.steps = vec![
+        navigate(1, &fixture.url("/read")),
+        extract_amount(2, "amount"),
+    ];
+    let seen = serve_in(
+        &sup,
+        std::path::Path::new(browser),
+        &data,
+        reply_to_browser,
+        LONG,
+    );
+    let entries = entries_below(&caches);
+    print_entries(test, &format!("{browser}: Library/Caches/{name}"), &entries);
+    let run_folder = caches
+        .join("agents")
+        .join("profiles")
+        .join(sup.run.as_str());
+    let (run_dir, _) = profile_of(&seen, &sup.run);
+    let files: Vec<&str> = entries
+        .iter()
+        .filter(|e| !e.dir)
+        .map(|e| e.rel.as_str())
+        .collect();
+    let checks = [
+        (
+            seen.done() == Some(Outcome::Completed),
+            format!("the run did not complete: {}", seen.stderr),
+        ),
+        (
+            rows(&seen)
+                == [
+                    (LogEvent::StepOk, Some(1), None),
+                    (LogEvent::StepOk, Some(2), None),
+                ],
+            format!("the rows are {:?}", rows(&seen)),
+        ),
+        (!run_dir.exists(), format!("{} is left", run_dir.display())),
+        (
+            fixture
+                .requests()
+                .iter()
+                .any(|r| r.method == "GET" && r.path == "/read"),
+            "the page was not loaded".to_string(),
+        ),
+        (
+            files.is_empty(),
+            format!("files of the run stand under Library/Caches/{name}: {files:?}"),
+        ),
+        (
+            std::fs::symlink_metadata(&run_folder).is_err(),
+            format!(
+                "the run's folder stands under Library/Caches: {}",
+                run_folder.display()
+            ),
+        ),
+        (
+            seen.stderr.contains("run browser=stopped removed=yes"),
+            format!("the stop did not say removed=yes: {}", seen.stderr),
+        ),
+    ];
+    checks
+        .into_iter()
+        .filter(|(held, _)| !held)
+        .map(|(_, fault)| format!("{browser}: {fault}"))
+        .collect()
 }

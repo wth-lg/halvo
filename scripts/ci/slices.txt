@@ -15,18 +15,21 @@
 
 mon macos tests A
 mon macos check 31-store-full-volume
+mon macos check 25-advisories
 mon windows tests A
 mon windows check 24-hook-imports
 mon windows check 20-app-links-no-store
 mon windows check 10-r7-account
 
 tue macos tests B
+tue macos check 25-advisories
 tue windows tests B
 
 wed macos tests E
 wed macos check 51-macos-stall
 wed macos check 30-core-boundary-proofs
 wed macos check 55-r6-formal
+wed macos check 25-advisories
 wed windows check 50-windows-functional
 
 thu macos check 62-build
@@ -36,6 +39,7 @@ thu macos check 60-release-dry-run
 thu macos check 10-egress
 thu macos check 20-r6-gateway
 thu macos check 80-r6-absent
+thu macos check 25-advisories
 thu windows check 52-windows-browser
 
 fri macos self-test 12-test
@@ -58,6 +62,7 @@ fri macos self-test 40-r6-policy
 fri macos self-test 55-r6-formal
 fri macos self-test 21-r7-backend-test
 fri macos self-test 27-r7-metering-self
+fri macos check 25-advisories
 fri windows self-test 12-test
 fri windows self-test 19-control-links-no-store
 fri windows self-test 20-app-links-no-store
@@ -78,6 +83,7 @@ fri windows tests C
 sat macos check 16-shell-lint
 sat macos tests D
 sat macos check 10-r7-account
+sat macos check 25-advisories
 sat windows check 32-app-check-page
 sat windows check 38-app-engine-routes
 sat windows check 20-r6-gateway
@@ -87,6 +93,7 @@ sat windows tests D
 sun macos check 62-build
 sun macos check 70-package-macos
 sun macos tests C
+sun macos check 25-advisories
 sun windows check 62-build
 sun windows check 70-package-windows
 sun windows check 60-r6-egress

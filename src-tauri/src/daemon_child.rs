@@ -70,17 +70,48 @@ pub enum Ending {
 /// What the supervisor does after the child of the moment has ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Next {
-    /// No start again while a daemon answers or holds the directory: another daemon holds it,
-    /// and the app talks to it with no expected pid and no descriptor; once no daemon answers,
-    /// a start again from a fresh count.
+    /// No start again while a daemon answers or holds the directory: the child ended at the
+    /// instance lock, which another starter's daemon holds, and the app talks to that daemon
+    /// with no expected pid and no descriptor; once no daemon answers, a start again from a
+    /// fresh count.
     Attach,
+    /// No start in this life of the stop: the app's own child ended with 0 and the app did not
+    /// ask for the stop in order to restart. The app talks to a daemon that answers, and a child
+    /// starts only at a person's press on Start or at the next launch of the app.
+    WaitForAPress,
     StartNow,
     StartAfter(Duration),
     /// No further child in this life of the app.
     NoMoreChild,
 }
 
-/// Why the app ends its own child (contracts.md C14 item 4).
+/// Whose stop an end of the app's child with status 0 was (contracts.md C14 item 4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Clean {
+    /// A stop of the app's own that wants a start, which set the mark: the stops `Restart` and
+    /// `NoReply`, and the offline delete's.
+    Asked,
+    /// A stop that the app did not ask for, of a child that answered as the app's own and so had
+    /// passed the instance lock.
+    NotAsked,
+    /// The child never answered as the app's own: it ended at the instance lock, which another
+    /// starter's daemon holds, or a stop came before the app's first answer from it.
+    NeverAnswered,
+}
+
+impl Clean {
+    fn of(owed: bool, answered_as_own: bool) -> Self {
+        match (owed, answered_as_own) {
+            (true, _) => Clean::Asked,
+            (false, true) => Clean::NotAsked,
+            (false, false) => Clean::NeverAnswered,
+        }
+    }
+}
+
+/// Why the app ends its own child (contracts.md C14 item 4). `Restart` and `NoReply` want a
+/// start after the end, as the offline delete does: each sets the mark of a start that the app
+/// wants, so that an end with 0 of that child is followed by a start at once.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stop {
     /// The child read another version: one child starts again at once, since the app asked for
@@ -91,8 +122,8 @@ pub enum Stop {
     /// counts as an end with 5, whether the child ended or was killed, and what starts next is
     /// the rule of `next`.
     SourceNotStopped,
-    /// A request of the app to the child passed its deadline with no reply: what starts next is
-    /// the rule of `next`, and a kill sets no hold.
+    /// A request of the app to the child passed its deadline with no reply: an end with 0 is
+    /// followed by a start at once, any other end by the rule of `next`, and a kill sets no hold.
     NoReply,
 }
 
@@ -104,19 +135,29 @@ pub struct Restarts {
     fives: u32,
 }
 
-/// The rule of a start again (contracts.md C14 item 4), by how the child ended and how long it
-/// lived: 0 no start; 4 after a life of 60 s or more a start at once; 5 the backoff, and no
-/// child after the third 5 in a row; 1, a 4 within 60 s of its start, a status that this list
-/// does not name, an end by a signal and a failed start the backoff, which doubles from 1 s to
-/// 60 s and starts again from 1 s after a 4 that starts at once and after a child that lived
-/// 60 s.
-pub fn next(ending: Ending, lived: Duration, before: Restarts) -> (Next, Restarts) {
+/// The rule of a start again (contracts.md C14 item 4), by how the child ended, whose stop an
+/// end with 0 was, and how long it lived: 0 after a stop that the app asked for in order to
+/// restart a start at once; 0 of a child that answered as the app's own, with no such ask, no
+/// start until a person's press; 0 of a child that never answered as the app's own the attach
+/// to the daemon that holds the directory, and a start once no daemon answers; 4 after a life
+/// of 60 s or more a start at once; 5 the backoff, and no child after the third 5 in a row; 1,
+/// a 4 within 60 s of its start, a status that this list does not name, an end by a signal and
+/// a failed start the backoff, which doubles from 1 s to 60 s and starts again from 1 s after a
+/// 4 that starts at once and after a child that lived 60 s.
+pub fn next(ending: Ending, clean: Clean, lived: Duration, before: Restarts) -> (Next, Restarts) {
     let fives = match ending {
         Ending::Status(exit::SOURCE_NOT_STOPPED) => before.fives + 1,
         _ => 0,
     };
     match ending {
-        Ending::Status(exit::CLEAN) => (Next::Attach, Restarts::default()),
+        Ending::Status(exit::CLEAN) => (
+            match clean {
+                Clean::Asked => Next::StartNow,
+                Clean::NotAsked => Next::WaitForAPress,
+                Clean::NeverAnswered => Next::Attach,
+            },
+            Restarts::default(),
+        ),
         Ending::Status(exit::RESTART) if lived >= BACKOFF_MAX => {
             (Next::StartNow, Restarts::default())
         }
@@ -367,6 +408,18 @@ struct State<C> {
     child: Option<C>,
     version_restarted: bool,
     held_for_a_run: bool,
+    start_owed: bool,
+}
+
+impl<C> State<C> {
+    fn owe_a_start(&mut self) {
+        self.start_owed |= self.child.is_some();
+    }
+
+    fn ended(&mut self) -> bool {
+        self.child = None;
+        std::mem::take(&mut self.start_owed)
+    }
 }
 
 #[derive(Debug)]
@@ -409,6 +462,7 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
                 child: None,
                 version_restarted: false,
                 held_for_a_run: false,
+                start_owed: false,
             }),
             changed: Condvar::new(),
         });
@@ -438,13 +492,26 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
         })
     }
 
-    /// The offline delete's hold of the supervision (contracts.md C10.5): from the call on no
-    /// child starts; the child of the moment, if any, gets its descriptor closed, STOP_WAIT for
-    /// its end and a kill after that, as a quit ends it, and no request; then `run` runs, and
-    /// after it the supervisor goes on by its rule.
+    /// The hold of the supervision for a run (contracts.md C10.5): from the call on no child
+    /// starts; the child of the moment, if any, gets its descriptor closed, STOP_WAIT for its end
+    /// and a kill after that, as a quit ends it, and no request; then `run` runs, and after it
+    /// the supervisor goes on by its rule. The app did not ask for that end in order to restart:
+    /// an end with 0 of a child that answered as the app's own is followed by no start until a
+    /// person's press.
     pub fn without_the_child<T>(&self, run: impl FnOnce() -> T) -> T {
+        self.hold_for_a_run(false, run)
+    }
+
+    /// `without_the_child` for the offline delete, which wants a start after its run: it sets
+    /// the mark of a start that the app wants on the child of the moment, so that its end with
+    /// 0 is followed by one start at once after `run`.
+    pub fn without_the_child_then_a_start<T>(&self, run: impl FnOnce() -> T) -> T {
+        self.hold_for_a_run(true, run)
+    }
+
+    fn hold_for_a_run<T>(&self, owed: bool, run: impl FnOnce() -> T) -> T {
         let until = self.clock.now() + STOP_WAIT;
-        let _lifted = HeldForARun::mark(&self.shared);
+        let _lifted = HeldForARun::mark(&self.shared, owed);
         let mut state = self.shared.lock();
         while let Some(child) = state.child.as_mut() {
             child.close_lifeline();
@@ -464,13 +531,18 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
     }
 }
 
-/// The offline delete's hold of the supervision, lifted when it is dropped: on every path out
-/// of the run, an unwind among them, so that the supervisor goes on by its rule.
+/// The hold of the supervision for a run, lifted when it is dropped: on every path out of the
+/// run, an unwind among them, so that the supervisor goes on by its rule.
 struct HeldForARun<'a, C>(&'a Shared<C>);
 
 impl<'a, C> HeldForARun<'a, C> {
-    fn mark(shared: &'a Shared<C>) -> Self {
-        shared.lock().held_for_a_run = true;
+    fn mark(shared: &'a Shared<C>, owed: bool) -> Self {
+        let mut state = shared.lock();
+        state.held_for_a_run = true;
+        if owed {
+            state.owe_a_start();
+        }
+        drop(state);
         HeldForARun(shared)
     }
 }
@@ -485,6 +557,10 @@ impl<C> Drop for HeldForARun<'_, C> {
 impl<C: Watched, K: Clock> crate::commands::capture::WithoutTheChild for Supervisor<C, K> {
     fn without_the_child(&self, run: &mut dyn FnMut()) {
         Supervisor::without_the_child(self, run);
+    }
+
+    fn without_the_child_then_a_start(&self, run: &mut dyn FnMut()) {
+        Supervisor::without_the_child_then_a_start(self, run);
     }
 }
 
@@ -526,10 +602,11 @@ enum Waits {
     Consent,
 }
 
-/// The supervisor's thread: after the third end with 5 in a row, and before the first child
-/// on a data directory that is not provisioned, it starts no child until a person's press on
-/// Start asks for one, and then supervises again with the count of 5s at zero; a quit ends the
-/// wait. After the consent its spawner starts on a directory that is not provisioned yet.
+/// The supervisor's thread: after the third end with 5 in a row, after an end with 0 of its own
+/// child that it did not ask for, and before the first child on a data directory that is not
+/// provisioned, it starts no child until a person's press on Start asks for one, and then
+/// supervises again with the count of 5s at zero; a quit ends the wait. After the consent its
+/// spawner starts on a directory that is not provisioned yet.
 fn supervise_and_start_again<S: Spawner, K: Clock>(
     spawner: S,
     shared: &Shared<S::Child>,
@@ -562,12 +639,15 @@ fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold
     }
 }
 
-/// Starts the child and starts it again by the rule of `next`, after a 0 once the other daemon
-/// is gone; hands the spawner back after the third end with 5 in a row and where it awaits the
-/// consent, and none otherwise. After each end it draws the views, so that the set of the hold
-/// reaches the tray's menu at once. Each start waits while the offline delete holds the
-/// supervision, and starts under the lock that the hold takes, so that no child starts while the
-/// delete runs.
+/// Starts the child and starts it again by the rule of `next`. An end with 0 goes by whose stop
+/// it was: after a stop that set the mark of a start that the app wants, a start at once; of a
+/// child that answered as the app's own, with no such mark, it hands the spawner back and no
+/// child starts until a press; of a child that never answered as the app's own, which ended at
+/// the instance lock, a start once the other daemon is gone. It hands the spawner back after
+/// the third end with 5 in a row and where it awaits the consent too, and none otherwise. After
+/// each end it draws the views, so that the set of the hold reaches the tray's menu at once.
+/// Each start waits while a run holds the supervision, and starts under the lock that the hold
+/// takes, so that no child starts while the run goes on.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
@@ -580,9 +660,10 @@ fn supervise<S: Spawner, K: Clock>(
     loop {
         let gate = held_before_a_start(shared, clock, hold)?;
         let began = clock.now();
-        let by_the_rule = |ending: Ending| {
+        let by_the_rule = |ending: Ending, owed: bool| {
             let (step, after) = next(
                 ending,
+                Clean::of(owed, pid.answered_as_own()),
                 clock.now().saturating_duration_since(began),
                 restarts,
             );
@@ -614,14 +695,14 @@ fn supervise<S: Spawner, K: Clock>(
                 drop(state);
                 hold.child_started();
                 match watch(shared, pid, clock, views)? {
-                    Seen::Ended(ending) => by_the_rule(ending),
+                    Seen::Ended(ending, owed) => by_the_rule(ending, owed),
                     Seen::Stop(stop) => stop_and_start(shared, pid, clock, stop, began, restarts)?,
                 }
             }
             Err(e) => {
                 drop(gate);
                 eprintln!("halvo: the capture service did not start: {e}");
-                by_the_rule(Ending::NotStarted)
+                by_the_rule(Ending::NotStarted, false)
             }
         };
         pid.set(0);
@@ -638,6 +719,7 @@ fn supervise<S: Spawner, K: Clock>(
                     return None;
                 }
             }
+            Next::WaitForAPress => return Some((spawner, Waits::Start)),
             Next::NoMoreChild => {
                 hold.no_more_child();
                 views.draw_now();
@@ -707,7 +789,7 @@ fn waited_for_no_daemon<C, K: Clock>(shared: &Shared<C>, pid: &ChildPid, clock: 
 }
 
 enum Seen {
-    Ended(Ending),
+    Ended(Ending, bool),
     Stop(Stop),
 }
 
@@ -724,8 +806,8 @@ fn watch<C: Watched, K: Clock>(
         }
         let child = state.child.as_mut()?;
         if let Ok(Some(ending)) = child.ended() {
-            state.child = None;
-            return Some(Seen::Ended(ending));
+            let owed = state.ended();
+            return Some(Seen::Ended(ending, owed));
         }
         match pid.take_sight(child.pid()) {
             Some(Sight::SourceNotStopped) => return Some(Seen::Stop(Stop::SourceNotStopped)),
@@ -758,6 +840,9 @@ fn stop_and_start<C: Watched, K: Clock>(
     let mut stop = stop;
     let until = clock.now() + STOP_WAIT;
     let mut state = shared.lock();
+    if matches!(stop, Stop::Restart | Stop::NoReply) {
+        state.owe_a_start();
+    }
     state.child.as_mut()?.close_lifeline();
     let ended = loop {
         if state.quitting {
@@ -778,7 +863,7 @@ fn stop_and_start<C: Watched, K: Clock>(
         }
         state = clock.wait(&shared.changed, state, STOP_POLL);
     };
-    state.child = None;
+    let owed = state.ended();
     drop(state);
     let ending = match stop {
         Stop::SourceNotStopped => Ending::Status(exit::SOURCE_NOT_STOPPED),
@@ -787,7 +872,12 @@ fn stop_and_start<C: Watched, K: Clock>(
     if stop == Stop::Restart && ending != Ending::Status(exit::SOURCE_NOT_STOPPED) {
         return Some((ending, Next::StartNow, Restarts::default()));
     }
-    let (step, after) = next(ending, clock.now().saturating_duration_since(began), before);
+    let (step, after) = next(
+        ending,
+        Clean::of(owed, pid.answered_as_own()),
+        clock.now().saturating_duration_since(began),
+        before,
+    );
     Some((ending, step, after))
 }
 
@@ -1928,6 +2018,167 @@ mod tests {
         }
     }
 
+    #[test]
+    fn an_own_clean_end_that_was_not_asked_starts_no_child_until_one_press_brings_one() {
+        use crate::commands::control::Watching;
+        use crate::view_state::{NoStatusService, StatusView};
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let first_ends = Later::default();
+        let spawner = StandInSpawner {
+            children: [
+                StandInChild {
+                    later: Some(Arc::clone(&first_ends)),
+                    ..StandInChild::new(1000, &clock, &record)
+                },
+                StandInChild::new(1001, &clock, &record),
+            ]
+            .into_iter()
+            .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let control = Watching::new(
+            Scripted::new(&record, vec![Ok(status_of(1000, 0, false))], Vec::new()),
+            Arc::clone(&pid),
+        );
+        let tray = crate::tray::installed_for_tests();
+        until("the first child lives", || pid.get() == Some(1000));
+        pass(&control, &views, Some(&tray));
+        *first_ends.lock().unwrap() = Some(Ending::Status(0));
+        until("the supervisor sees the end", || pid.get().is_none());
+        let ended_at = clock.now();
+        while clock.now().saturating_duration_since(ended_at) <= BACKOFF_MAX {
+            pass(&control, &views, Some(&tray));
+            looked_again(&clock);
+            assert_eq!(
+                pid.get(),
+                None,
+                "no child after an own end with 0 that the app did not ask for"
+            );
+        }
+        match views.view() {
+            StatusView::NoStatus(view) => assert_eq!(
+                (view.service, view.last_exit, view.hold),
+                (NoStatusService::NotRunning, Some(0), None),
+                "not_running with last_exit 0, and no hold and no cause"
+            ),
+            other => panic!("a view without a status: {other:?}"),
+        }
+        let answering = Recording::new(&record, Some(held_child_status()));
+        let (answer, _) = press(
+            &answering,
+            &views,
+            answering.places().make(),
+            CaptureChange::Resume,
+            START_ANSWER_WAIT,
+        );
+        assert!(
+            answer.is_ok(),
+            "the press's Resume reaches the child that it asked for"
+        );
+        looked_again(&clock);
+        drop(supervisor.close());
+        let seen = record.lock().unwrap().clone();
+        let starts: Vec<&String> = seen
+            .iter()
+            .filter(|line| line.starts_with("start"))
+            .collect();
+        assert_eq!(
+            starts,
+            ["start 1000", "start 1001"],
+            "one child for one press"
+        );
+        assert_eq!(
+            seen[seen.len() - 4..],
+            ["start 1001", "status", "resume", "closed descriptor"]
+        );
+    }
+
+    #[test]
+    fn an_offline_delete_that_ends_the_child_with_0_starts_one_child_after_its_run_and_none_in_it()
+    {
+        use crate::commands::capture::{run_offline, Before, Offline, OfflineRun, WithoutTheChild};
+        use crate::commands::control::Watching;
+        use crate::view_state::OfflineEnd;
+        use halvo_control::paths::DataDir;
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let spawner = StandInSpawner {
+            children: [
+                StandInChild {
+                    ends_at_close: true,
+                    ..StandInChild::new(1000, &clock, &record)
+                },
+                StandInChild::new(1001, &clock, &record),
+            ]
+            .into_iter()
+            .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Arc::new(Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        ));
+        let control = Watching::new(
+            Scripted::new(&record, vec![Ok(status_of(1000, 0, false))], Vec::new()),
+            Arc::clone(&pid),
+        );
+        until("the first child lives", || pid.get() == Some(1000));
+        pass(&control, &views, None);
+        let run: OfflineRun = {
+            let (record, clock, pid) = (Arc::clone(&record), Arc::clone(&clock), Arc::clone(&pid));
+            Arc::new(move |_, _| {
+                note(&record, "run");
+                until("the supervisor sees the end", || pid.get().is_none());
+                let ended_at = clock.now();
+                while clock.now().saturating_duration_since(ended_at) <= BACKOFF_MAX {
+                    looked_again(&clock);
+                    assert_eq!(pid.get(), None, "no child starts while the run holds");
+                }
+                OfflineEnd::NotStarted
+            })
+        };
+        let offline = Offline {
+            program: PathBuf::from("/stand-in/halvo-capture"),
+            data_dir: DataDir::from_flag(crate::tests::scratch_dir("offline-clean-end"))
+                .expect("an absolute directory"),
+            children: Some(Arc::clone(&supervisor) as Arc<dyn WithoutTheChild>),
+            run,
+        };
+        let no_module = Before {
+            modules: Vec::new(),
+            runs: Arc::default(),
+            core: None,
+        };
+        let _ = run_offline(&offline, &no_module);
+        until("one child after the run", || pid.get() == Some(1001));
+        looked_again(&clock);
+        drop(supervisor.close());
+        assert_eq!(
+            *record.lock().unwrap(),
+            [
+                "start 1000",
+                "status",
+                "closed descriptor",
+                "run",
+                "start 1001",
+                "closed descriptor"
+            ]
+        );
+    }
+
     struct SlowDelete {
         places: Arc<Places>,
         record: Record,
@@ -3045,6 +3296,7 @@ mod tests {
                     child: None,
                     version_restarted: false,
                     held_for_a_run: false,
+                    start_owed: false,
                 }),
                 changed: Condvar::new(),
             };

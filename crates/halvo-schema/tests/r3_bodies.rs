@@ -1294,6 +1294,7 @@ fn coordinator_bodies() -> Vec<String> {
         ),
         format!(r#"{{"op":"end_run","workflow":"{W}","agent":"{A}","run":"{R}"}}"#),
         add_origin("sign_in"),
+        format!(r#"{{"op":"drop_sessions","workflow":"{W}","agent":"{A}"}}"#),
     ]
 }
 
@@ -1312,6 +1313,7 @@ fn every_coordinator_body_reads_writes_back_and_travels_in_a_coordinator_write()
         "start_run",
         "end_run",
         "add_origin",
+        "drop_sessions",
     ];
     assert_eq!(coordinator_bodies().len(), ops.len());
     for (text, op) in coordinator_bodies().iter().zip(ops) {
