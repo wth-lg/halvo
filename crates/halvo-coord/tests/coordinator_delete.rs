@@ -160,6 +160,36 @@ fn the_yes_of_stop_sign_in_sends_one_drop_sessions_and_the_row_offers_it_no_more
     }
 }
 
+/// r4 U3.16, sentence 2: at the owner's refusal `store` of the body `drop_sessions`, a fault of
+/// the store behind which the agent's kept sign-ins may be gone or may all stand, the reply of
+/// `stop_sign_in` holds the cause `no_service` and the sentence that the coordinator ruled for
+/// this control alone, and the row keeps the control; another refusal, `binding`, keeps the
+/// sentence of `refused.no_service`.
+#[test]
+fn the_owners_refusal_store_of_stop_sign_in_answers_that_halvo_could_not_finish_this() {
+    let offers = |c: &Coordinator<Both>, n: usize| {
+        row(&c.snapshot(), n)
+            .is_some_and(|r| r.controls.iter().any(|x| x.control == Control::StopSignIn))
+    };
+    for (name, sentence) in [
+        (
+            "store",
+            "Halvo could not finish this. If this agent still shows Stop using its sign-in, choose it again.".to_owned(),
+        ),
+        ("binding", text("refused.no_service")),
+    ] {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        c.ports().ports.refuse(Method::Send, refused(name));
+        let refusal = c
+            .control_reply(&agent(0), Action::StopSignIn)
+            .expect_err(name);
+        assert_eq!(refusal.cause(), Cause::NoService, "{name}");
+        assert_eq!(refusal.text(), Ok(sentence), "{name}");
+        assert!(c.ports().ports.agents.borrow()[0].session, "{name}");
+        assert!(offers(&c, 0), "{name}: the row keeps the control");
+    }
+}
+
 #[test]
 fn a_start_that_only_waits_its_turn_leaves_the_queue_and_does_not_withhold_the_delete() {
     let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);

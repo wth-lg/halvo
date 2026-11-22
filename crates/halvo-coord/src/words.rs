@@ -773,6 +773,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "refused.switch_not_saved",
         "Halvo is stopping the task but could not switch this agent off. It may start again: press Switch off again.",
     ),
+    (
+        "refused.sign_in_not_finished",
+        "Halvo could not finish this. If this agent still shows Stop using its sign-in, choose it again.",
+    ),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {
