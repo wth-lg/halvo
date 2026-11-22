@@ -87,6 +87,10 @@
     "passwords": "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.",
     "recorded": [
       {
+        "switch": null,
+        "text": "Halvo records which app is in front, each time that changes."
+      },
+      {
         "switch": "title_text",
         "text": "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private."
       },
@@ -96,7 +100,7 @@
       },
       {
         "switch": "pointer_class",
-        "text": "Halvo records a class for each click or scroll, never its position."
+        "text": "Halvo records each click and which button you pressed, and how many times you scroll, drag or move the pointer each second, never where on the screen."
       },
       {
         "switch": "screen_activity",
