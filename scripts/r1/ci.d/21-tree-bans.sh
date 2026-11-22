@@ -1,9 +1,10 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No package of the workspace links openssl-sys, and halvo, halvo-control, halvo-capture, halvo-agent-client, which relays a run, halvo-owner, which opens the derived store, halvo-analysis, which reads the capture records, and halvo-learn-store, which keeps what the agents learn, link no network client on the shipped targets; the feature test-seam stands in crates/halvo-capture/Cargo.toml alone, on its features line and on the crate's dev-dependency on itself, and in no other manifest (ruling W3-8 (b) (2)).
+# rule: No package of the workspace links openssl-sys, and halvo, halvo-control, halvo-capture, halvo-agent-client, which relays a run, halvo-owner, which opens the derived store, halvo-analysis, which reads the capture records, and halvo-learn-store, which keeps what the agents learn, link no network client on the shipped targets; the feature test-seam stands in crates/halvo-capture/Cargo.toml alone, on its features line and on the crate's dev-dependency on itself, and in no other manifest (ruling W3-8 (b) (2)). halvo-runner, the program that runs a person's agents, reaches a closed list (its supervisor's frames; HTTPS to the origins of its agent's bindings through halvo-connect; the browser that it starts), and its tree on each shipped target holds no store crate (halvo-sqlcipher, halvo-capture, halvo-derived, halvo-owner, halvo-agent-store, halvo-coord-store and halvo-learn-store, the packages of the workspace that open a store, on disk or in memory, or keep its rows, one of which every other package that opens a store takes into its tree) and no network client (a crate of the list clients of this script) beyond those that the trees of halvo-connect and halvo-web hold on that target, by name and version.
 set -u
 name=21-tree-bans
 clients='reqwest hyper ureq rustls ring aws-lc-rs native-tls openssl-sys'
+stores='halvo-sqlcipher halvo-capture halvo-derived halvo-owner halvo-agent-store halvo-coord-store halvo-learn-store'
 triples='aarch64-apple-darwin x86_64-pc-windows-msvc'
 nl='
 '
@@ -19,6 +20,30 @@ judge() {
   printf '%s: %s lines\n' "$1" "$lines"
   cause=$(predicate_tree_lines "$tree" "$3" "$4") ||
     fail "$1: ${cause:-predicate_tree_lines of scripts/r1-gate/lib.sh gave no cause}"
+}
+
+package_tree() {
+  tree=$(cargo tree -p "$1" -e normal --all-features --target "$2" --prefix none --locked) ||
+    fail "cargo tree failed for $1 on $2"
+  judge "$1 on $2" "$1-$2" "$1" "$3"
+}
+
+client_beyond() {
+  for client in $clients; do
+    held=$(printf '%s\n' "$1" | sed -n "s/^\($client v[^ ]*\).*/\1/p")
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      case $nl$2$nl in
+        *"$nl$line$nl"* | *"$nl$line "*) ;;
+        *)
+          printf '%s\n' "$line"
+          return 1
+          ;;
+      esac
+    done <<EOF
+$held
+EOF
+  done
 }
 
 seam_manifests() {
@@ -64,10 +89,17 @@ measure() {
         ;;
     esac
     for triple in $triples; do
-      tree=$(cargo tree -p "$package" -e normal --all-features --target "$triple" --prefix none --locked) ||
-        fail "cargo tree failed for $package on $triple"
-      judge "$package on $triple" "$package-$triple" "$package" "$clients"
+      package_tree "$package" "$triple" "$clients"
     done
+  done
+  for triple in $triples; do
+    package_tree halvo-connect "$triple" ''
+    allowed=$tree
+    package_tree halvo-web "$triple" ''
+    allowed=$allowed$nl$tree
+    package_tree halvo-runner "$triple" "$stores"
+    beyond=$(client_beyond "$tree" "$allowed") ||
+      fail "halvo-runner on $triple: a network client beyond the trees of halvo-connect and halvo-web: $beyond"
   done
   printf 'PASS %s\n' "$name"
 }
@@ -171,6 +203,9 @@ EOF
     printf 'halvo-owner v0.0.0 (/w/crates/halvo-owner)\nhalvo-derived v0.0.0 (/w/crates/halvo-derived)\n' >"$work/main/halvo-owner-$triple.txt"
     printf 'halvo-analysis v0.0.0 (/w/crates/halvo-analysis)\nhalvo-seam v0.0.0 (/w/crates/halvo-seam)\n' >"$work/main/halvo-analysis-$triple.txt"
     printf 'halvo-learn-store v0.0.0 (/w/crates/halvo-learn-store)\nhalvo-learn v0.0.0 (/w/crates/halvo-learn)\n' >"$work/main/halvo-learn-store-$triple.txt"
+    printf 'halvo-connect v0.0.0 (/w/crates/halvo-connect)\nreqwest v0.13.5\nhyper v1.12.0\nrustls v0.23.46\nring v0.17.14\n' >"$work/main/halvo-connect-$triple.txt"
+    printf 'halvo-web v0.0.0 (/w/crates/halvo-web)\nchromiumoxide v0.9.1\ntungstenite v0.28.0\n' >"$work/main/halvo-web-$triple.txt"
+    printf 'halvo-runner v0.0.0 (/w/crates/halvo-runner)\nhalvo-connect v0.0.0 (/w/crates/halvo-connect)\nreqwest v0.13.5\nhyper v1.12.0 (*)\nrustls v0.23.46\nring v0.17.14 (*)\nhalvo-web v0.0.0 (/w/crates/halvo-web)\nchromiumoxide v0.9.1\ntungstenite v0.28.0\nhalvo-sheet v0.0.0 (/w/crates/halvo-sheet)\n' >"$work/main/halvo-runner-$triple.txt"
   done
   rejected=0
   wrong=
@@ -251,6 +286,12 @@ EOF
   trees reqwest-in-the-agent-client
   printf 'reqwest v0.13.5\n' >>"$work/reqwest-in-the-agent-client/halvo-agent-client-x86_64-pc-windows-msvc.txt"
   check reqwest-in-the-agent-client FAIL 'halvo-agent-client on x86_64-pc-windows-msvc: forbidden crate line: reqwest v0.13.5)'
+  trees runner-links-a-store
+  printf 'halvo-derived v0.0.0 (/w/crates/halvo-derived)\n' >>"$work/runner-links-a-store/halvo-runner-x86_64-pc-windows-msvc.txt"
+  check runner-links-a-store FAIL 'halvo-runner on x86_64-pc-windows-msvc: forbidden crate line: halvo-derived v0.0.0 (/w/crates/halvo-derived))'
+  trees runner-links-another-client
+  printf 'ureq v3.1.2\n' >>"$work/runner-links-another-client/halvo-runner-aarch64-apple-darwin.txt"
+  check runner-links-another-client FAIL 'halvo-runner on aarch64-apple-darwin: a network client beyond the trees of halvo-connect and halvo-web: ureq v3.1.2)'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
