@@ -700,7 +700,8 @@ fn a_mac_status_with_typing_off_gets_none_of_the_four() {
 }
 
 #[test]
-fn a_mac_view_names_no_row_of_keys_or_pointer_actions_while_the_input_source_waits_for_its_grant() {
+fn a_mac_view_names_no_row_of_keys_or_pointer_actions_while_the_input_source_fails_or_waits_for_its_grant(
+) {
     let keys = halvo_control::texts::recorded_when_on(SwitchName::KeyClass);
     let pointer = halvo_control::texts::recorded_when_on(SwitchName::PointerClass);
     let others = [
@@ -724,6 +725,16 @@ fn a_mac_view_names_no_row_of_keys_or_pointer_actions_while_the_input_source_wai
             Capture::Starting,
             SourceState::Off,
             GrantState::NotDetermined,
+            false,
+        ),
+        (
+            "a tap given no key events",
+            Capture::Partial,
+            SourceState::Failed {
+                reason: Reason::NoKeyEvents,
+                error: None,
+            },
+            GrantState::Granted,
             false,
         ),
         (

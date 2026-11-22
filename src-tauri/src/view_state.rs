@@ -5,7 +5,7 @@ use halvo_control::onboarding::{GrantState, OnboardingState, Permission};
 use halvo_control::proto::{
     Cap, Capture, CaptureReason, DaemonStatus, DeleteFields, DeleteReport, DrainError, ErrorCode,
     ExpiryError, Health, InventoryReply, LastStop, Lease, LostRecord, OnOff, PasswordGuard,
-    Platform, Reason, RootDestroyed, Section, SourceName, SourceState, SourceStateName, StateFile,
+    Platform, RootDestroyed, Section, SourceName, SourceState, SourceStateName, StateFile,
     StopKind, StoreErrorKind, StoreState, SwitchName,
 };
 use halvo_control::texts::{first_run, texts, Recorded, Texts};
@@ -923,12 +923,12 @@ pub fn onboarding_shown(status: &DaemonStatus) -> OnboardingState {
     onboarding
 }
 
-/// Whether a Mac's input source does not run for want of the grant of Input Monitoring: its
-/// line reads failed with the reason permission, or reads off while the status's row of Input
-/// Monitoring holds no grant. Its one tap takes the keys and the pointer actions both, so while
-/// it waits neither is recorded. A line that may still run (marked unstopped) and a Windows
-/// status never wait so.
-pub fn input_waits_for_its_grant(status: &DaemonStatus) -> bool {
+/// Whether a Mac's input source records nothing because it failed or waits for the grant of
+/// Input Monitoring: its line reads failed, whatever the reason, or reads off while the
+/// status's row of Input Monitoring holds no grant. Its one tap takes the keys and the pointer
+/// actions both, so neither is recorded then. A line that may still run (marked unstopped), a
+/// paused one and a Windows status never read so.
+pub fn input_fails_or_waits_for_its_grant(status: &DaemonStatus) -> bool {
     let f = status.fields();
     let ungranted = || {
         f.permissions.iter().any(|line| {
@@ -940,10 +940,7 @@ pub fn input_waits_for_its_grant(status: &DaemonStatus) -> bool {
             line.name == SourceName::Input
                 && !line.unstopped
                 && match &line.state {
-                    SourceState::Failed {
-                        reason: Reason::Permission,
-                        ..
-                    } => true,
+                    SourceState::Failed { .. } => true,
                     SourceState::Off => ungranted(),
                     _ => false,
                 }
@@ -952,7 +949,7 @@ pub fn input_waits_for_its_grant(status: &DaemonStatus) -> bool {
 
 /// The sentences of `status` that a view shows: by [`typing_shown`], without the row of keys,
 /// the sentence on passwords (left empty) and the sentence on a key pressed early; by
-/// [`input_waits_for_its_grant`], without the rows of keys and of pointer actions.
+/// [`input_fails_or_waits_for_its_grant`], without the rows of keys and of pointer actions.
 pub fn texts_shown(status: &DaemonStatus) -> Texts {
     let mut shown = texts(status);
     if !typing_shown(status) {
@@ -962,7 +959,7 @@ pub fn texts_shown(status: &DaemonStatus) -> Texts {
         shown.passwords = "";
         shown.typed_ahead = None;
     }
-    if input_waits_for_its_grant(status) {
+    if input_fails_or_waits_for_its_grant(status) {
         shown.recorded.retain(|row| {
             !matches!(
                 row.switch,
