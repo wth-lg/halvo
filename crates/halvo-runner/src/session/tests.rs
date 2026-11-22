@@ -105,7 +105,8 @@ fn put_into(jar: &mut SessionState, state: &SessionState) {
 /// once the queue is empty); the page holds `address`; every call is one line of the log, with no value of the jar.
 /// The clear of a handback's opening clears the localStorage of every origin of the jar and keeps the cookies, as the
 /// executor's clears every origin that the run loaded; the person signs in to `person` while the handback is open
-/// (at the arm of its mode); an import fails where `import_fails` holds.
+/// (at the arm of its mode); an import fails where `import_fails` holds; the first act that does not fail takes the
+/// page to the address of `next_site`, and the person then signs in to its state.
 struct StandIn {
     log: Log,
     jar: Arc<Mutex<SessionState>>,
@@ -114,6 +115,7 @@ struct StandIn {
     act_fails: bool,
     person: Option<SessionState>,
     import_fails: bool,
+    next_site: Option<(&'static str, SessionState)>,
 }
 
 impl Page for StandIn {
@@ -140,6 +142,10 @@ impl Page for StandIn {
         note(&self.log, format!("act {}", act.verb()));
         if self.act_fails {
             return Err(());
+        }
+        if let Some((address, person)) = self.next_site.take() {
+            self.address = address.to_string();
+            self.person = Some(person);
         }
         Ok(None)
     }
@@ -430,7 +436,7 @@ struct World {
 
 /// One run: the browser's jar as the stand-in starts it, the bound origins, the readings, the page's address, the
 /// answers to handback requests and binds, whether the act fails, whether the run has a window, the state that the
-/// person signs in to while a handback is open, and whether the import fails.
+/// person signs in to while a handback is open, whether the import fails, and the site that the first act goes to.
 struct Run<'a> {
     jar: SessionState,
     bound: &'a [&'a str],
@@ -441,6 +447,7 @@ struct Run<'a> {
     headed: bool,
     person: Option<SessionState>,
     import_fails: bool,
+    next_site: Option<(&'static str, SessionState)>,
 }
 
 impl Run<'_> {
@@ -455,6 +462,7 @@ impl Run<'_> {
             headed: false,
             person: None,
             import_fails: false,
+            next_site: None,
         }
     }
 }
@@ -579,6 +587,7 @@ impl World {
             act_fails: run.act_fails,
             person: run.person.clone(),
             import_fails: run.import_fails,
+            next_site: run.next_site.clone(),
         })));
         let config = preset(Category::UtilityBillPayment, workflow, agent).expect("a preset");
         let loaded = LoadReply {
@@ -668,8 +677,8 @@ fn signed_in() -> SessionState {
 /// of each site that it bound at a handback, the cookies of its host and parent domains and its localStorage, by
 /// `put_session` as the next revision of that site: the listed one plus 1, else 1; so does a run that failed. A bound
 /// site that the run neither imported nor bound, and a site that it does not bind, get nothing. A run that ends at a
-/// sign-in field stores nothing for that site, and nothing for a site that the handback's opening cleared; a run whose
-/// browser never started stores nothing.
+/// sign-in field stores nothing for that site; the handback's opening stores, before it clears them, the other sites
+/// that the run kept so far (U5.2f); a run whose browser never started stores nothing.
 #[test]
 fn a_run_end_stores_the_state_of_each_bound_origin() {
     let world = World::default();
@@ -748,9 +757,10 @@ fn a_run_end_stores_the_state_of_each_bound_origin() {
     at_field.answers = &[DECLINED];
     let ran = world.run(&at_field, &[click()]);
     assert_eq!(ran.seen.finish, Some(Outcome::Declined), "{}", ran.end);
-    assert!(
-        lines(&ran.log, "frame store put_session").is_empty(),
-        "nothing for the site at whose field the run ended, nor for the site that the opening cleared: {:?}",
+    assert_eq!(
+        lines(&ran.log, "frame store put_session"),
+        ["frame store put_session http://b.test:8081 2 1 1"],
+        "nothing for the site at whose field the run ended; the opening stores the other kept site: {:?}",
         ran.log
     );
 
@@ -919,15 +929,17 @@ fn stored_needles() -> [String; 2] {
 }
 
 /// A8.3, U5.2 (5): a marker value of a kept sign-in goes through one run that signs in by a handback and stores it,
-/// and through the next run, which loads and imports it and stores it again. No line of the stand-in's log, no
+/// through the next run, which loads and imports it and stores it again, and through a third run with a window, which
+/// imports it and stores it at the opening of a handback at another site (U5.2f). No line of the stand-in's log, no
 /// frame's Debug text, no frame of the runner but `store` and no answer to it but `store_reply`, a handback request
 /// among them, no run's end and no line of standard error holds it, as plain text or as the store holds it (two
-/// needles of its base64 text, which a `store` frame holds); the marker went into the store and back into the
-/// browser. The test runs the two runs in a second process of its own binary and reads that process's standard error.
+/// needles of its base64 text, which a `store` frame of the first run and the opening's `store` frame hold); the marker
+/// went into the store and back into the browser. The test runs the three runs in a second process of its own binary
+/// and reads that process's standard error.
 #[test]
 fn no_line_and_no_text_holds_a_byte_of_a_kept_sign_in() {
     if std::env::var_os(CUSTODY_CHILD).is_some() {
-        two_runs_hold_the_marker_in_store_frames_alone();
+        three_runs_hold_the_marker_in_store_frames_alone();
         return;
     }
     let out = std::process::Command::new(std::env::current_exe().expect("the test binary"))
@@ -956,7 +968,7 @@ fn no_line_and_no_text_holds_a_byte_of_a_kept_sign_in() {
     }
 }
 
-fn two_runs_hold_the_marker_in_store_frames_alone() {
+fn three_runs_hold_the_marker_in_store_frames_alone() {
     let world = World::default();
     let mut signing = Run::new(SessionState::default(), &[A]);
     signing.signs = &[Some(Sign::Secret), None];
@@ -983,14 +995,34 @@ fn two_runs_hold_the_marker_in_store_frames_alone() {
         }],
         "the marker came back into the browser"
     );
+    let mut opening = Run::new(SessionState::default(), &[A, B]);
+    opening.headed = true;
+    opening.address = B;
+    opening.signs = &[Some(Sign::Secret), None];
+    opening.answers = &[DONE, BOUND_YES];
+    let three = world.run(&opening, &[click()]);
+    let put = "frame store put_session http://a.test:8080 3 1 1";
+    assert!(
+        at(&three.log, put) < at(&three.log, "clear stores"),
+        "run 3 stores the kept sign-in at the opening: {:?}",
+        three.log
+    );
     let needles = stored_needles();
     for needle in &needles {
         assert!(
             one.seen.stores.iter().any(|s| s.contains(needle.as_str())),
             "the known positive: a store frame of run 1 holds {needle}"
         );
+        assert!(
+            three
+                .seen
+                .stores
+                .iter()
+                .any(|s| s.contains(needle.as_str())),
+            "the known positive: the store frame of run 3's opening holds {needle}"
+        );
     }
-    for ran in [&one, &two] {
+    for ran in [&one, &two, &three] {
         for text in ran
             .log
             .iter()
@@ -1018,7 +1050,7 @@ fn two_runs_hold_the_marker_in_store_frames_alone() {
 /// origin, and stores the other origin's state. The store's drop row (here the supervisor's, in the form of
 /// `drop_session`) is the newest revision of that origin, so the next run, which the interface starts with a window,
 /// imports nothing of it and the other origin's state, opens a handback at the field and keeps the new sign-in as the
-/// revision after the drop; the handback's opening cleared the other origin, so that run stores nothing of it.
+/// revision after the drop; the handback's opening stores the other origin's state before it clears it (U5.2f).
 #[test]
 fn a_run_without_a_window_ends_at_a_credential_field_and_drops_that_sign_in() {
     let world = World::default();
@@ -1098,8 +1130,11 @@ fn a_run_without_a_window_ends_at_a_credential_field_and_drops_that_sign_in() {
     assert_eq!(ran.seen.finish, Some(Outcome::Completed), "{}", ran.end);
     assert_eq!(
         lines(&ran.log, "frame store put_session"),
-        ["frame store put_session http://a.test:8080 3 1 1"],
-        "the site bound at the handback alone; the handback's opening cleared B"
+        [
+            "frame store put_session http://b.test:8081 3 1 1",
+            "frame store put_session http://a.test:8080 3 1 1"
+        ],
+        "B at the handback's opening, before its clear; the site bound at the handback at the end"
     );
 }
 
@@ -1175,8 +1210,8 @@ fn a_run_that_signed_in_nothing_stores_nothing() {
 
 /// The round of log line 14366, static-analyzer-67's F1: in a run with a window that imported the kept sign-ins of two
 /// sites, a handback at the first clears what the pages of every site keep for later, the second site's localStorage
-/// among it; the run stores the site that it bound at the handback and nothing of the second, whose listed revision
-/// keeps its localStorage.
+/// among it; the opening stores the second site's state before it clears it, its localStorage among it (U5.2f), and
+/// the end stores the site that it bound at the handback.
 #[test]
 fn a_handback_in_a_run_with_a_window_keeps_the_local_storage_of_another_bound_origin() {
     let world = World::default();
@@ -1198,10 +1233,91 @@ fn a_handback_in_a_run_with_a_window_keeps_the_local_storage_of_another_bound_or
     assert!(at(&ran.log, "clear stores") < at(&ran.log, "frame handback sign_in"));
     assert_eq!(
         lines(&ran.log, "frame store put_session"),
-        ["frame store put_session http://a.test:8080 2 1 1"],
+        [
+            "frame store put_session http://b.test:8081 2 1 1",
+            "frame store put_session http://a.test:8080 2 1 1"
+        ],
         "{:?}",
         ran.log
     );
-    assert_eq!(world.revisions(B), [(1, 1, 1)]);
+    assert_eq!(world.revisions(B), [(1, 1, 1), (2, 1, 1)]);
+    assert_eq!(world.stored(B, 2), Some(b_state.clone()));
     assert_eq!(world.stored(B, 1), Some(b_state));
+}
+
+/// U5.2f, the coordinator's ruling of log line 14407 (verifier-100's W1): with nothing kept before, the person signs in
+/// at a handback of site A and then at a handback of site B in one run, and each binds. B's opening stores A's state
+/// as it stood before that opening cleared what the pages keep for later, its localStorage among it, as A's revision
+/// 1; the end stores B's as B's revision 1; the run ends completed. The next run, with no window, imports both and
+/// opens no handback.
+#[test]
+fn two_sign_ins_in_one_run_are_both_kept() {
+    let world = World::default();
+    let a_state = jar(
+        &[cookie("sid", "a-session", "a.test")],
+        &[(A, &[("token", "a-token")])],
+    );
+    let b_state = jar(
+        &[cookie("sid", "b-session", "b.test")],
+        &[(B, &[("token", "b-token")])],
+    );
+    let mut run = Run::new(SessionState::default(), &[A, B]);
+    run.headed = true;
+    run.signs = &[Some(Sign::Secret), None, Some(Sign::Secret), None];
+    run.answers = &[DONE, BOUND_YES, DONE, BOUND_YES];
+    run.person = Some(a_state.clone());
+    run.next_site = Some((B, b_state.clone()));
+    let ran = world.run(&run, &[click(), click()]);
+    let listed: Vec<(String, u32, u32)> = world
+        .listed()
+        .iter()
+        .map(|s| (s.origin.as_str().to_string(), s.rev.get(), s.parts.get()))
+        .collect();
+    assert_eq!(
+        listed,
+        [(A.to_string(), 1, 1), (B.to_string(), 1, 1)],
+        "a whole revision of each site: {:?}",
+        ran.log
+    );
+    assert_eq!(ran.seen.finish, Some(Outcome::Completed), "{}", ran.end);
+    assert_eq!(
+        lines(&ran.log, "frame bind"),
+        [
+            "frame bind http://a.test:8080",
+            "frame bind http://b.test:8081"
+        ]
+    );
+    let clears: Vec<usize> = (0..ran.log.len())
+        .filter(|&i| ran.log[i] == "clear stores")
+        .collect();
+    let put = at(&ran.log, "frame store put_session http://a.test:8080 1 1 1");
+    assert!(
+        clears.len() == 2 && clears[0] < put && put < clears[1],
+        "A is stored at B's opening, before its clear: {:?}",
+        ran.log
+    );
+    let a = world.stored(A, 1).expect("A's revision");
+    assert_eq!(
+        a,
+        export_of(&a_state, A),
+        "A's state as it stood before the clear"
+    );
+    assert_eq!(a.item_count(), 1, "its localStorage among it");
+    assert_eq!(
+        export_of(&ran.jar, A).item_count(),
+        0,
+        "the clear took A's item from the browser"
+    );
+    assert_eq!(world.stored(B, 1), Some(export_of(&b_state, B)));
+
+    let next = world.run(&Run::new(SessionState::default(), &[A, B]), &[click()]);
+    assert_eq!(lines(&next.log, "import").len(), 2, "{:?}", next.log);
+    assert_eq!(export_of(&next.jar, A), export_of(&a_state, A));
+    assert_eq!(export_of(&next.jar, B), export_of(&b_state, B));
+    assert!(
+        lines(&next.log, "frame handback").is_empty(),
+        "asked at neither site: {:?}",
+        next.log
+    );
+    assert_eq!(next.seen.finish, Some(Outcome::Completed), "{}", next.end);
 }

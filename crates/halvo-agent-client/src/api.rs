@@ -361,8 +361,8 @@ pub(crate) fn absolute_paths(config: &Config, spec: &RunSpec) -> Result<(), Rela
     Ok(())
 }
 
-/// A point of `reap` at which the hook that a test set runs: a seam of the crate's tests, which the app does not
-/// set.
+/// A point of `reap`, or of the removal of a profile directory at a run's end, at which the hook that a test set
+/// runs: a seam of the crate's tests, which the app does not set.
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReapStep {

@@ -4,9 +4,9 @@ use std::num::NonZeroU32;
 
 use halvo_policy::{preset, validate};
 use halvo_schema::executable::body::{
-    Accepted, AgentHistory, AgentsReply, CreateAgent, HistoryReply, HistoryRun, ListAgents,
-    ListedAgent, PastCheckpoint, PastEffect, RevReply, SetState, StartRun, StateReply,
-    UnknownEffect, CHECKPOINTS_REPLY_MAX,
+    Accepted, AgentHistory, AgentsReply, CreateAgent, DropSessions, HistoryReply, HistoryRun,
+    ListAgents, ListedAgent, PastCheckpoint, PastEffect, RevReply, SetState, StartRun, StateReply,
+    Stored, UnknownEffect, CHECKPOINTS_REPLY_MAX,
 };
 use halvo_schema::executable::names::{
     ActionClass, AgentState, Cause, CheckpointState, EffectState, FieldName, LogEvent, Mode,
@@ -135,6 +135,19 @@ use crate::{bind, bindings, checkpoint, day, end, runner};
 ///   workbook path that is the effect's kept `file`, with its state, its instant and the copy's name, or null where
 ///   no such row stands or that row is `planned`; `store` where that name is longer than one `own_text`. The reply
 ///   is bounded as every reply: one that does not fit is refused by the writer, never cut.
+/// - `drop_sessions`: `no_workflow`; `binding` unless the workflow's agent is the body's; `state` while a run of the
+///   agent is open: a start row of the agent (`start_accepted`) stands in the store's read as the runner bodies read
+///   one, from 93 days back to two days ahead of the request's day, and no `agent_run` record of its run is stored;
+///   after `end_run` of that run the body is taken; `day` while a row of an origin that it would drop stands with a
+///   day after the request's day, as `drop_session` refuses it, and then it stores no row of any origin. Else, in one
+///   commit, it stores the drop row of `drop_session`, by that body's one writer, for each origin of the agent, bound
+///   or no longer bound, whose newest whole revision, as `load` lists it, is not in the drop form, and answers the
+///   count of rows stored, 0 at a repeat. So `list_agents`
+///   reads `session` `no`, and no row of another agent changes. Halvo stops using the sign-ins; what it kept stays
+///   under the store's key until its own day, at most 35 days. An origin whose stored revision is incomplete gets no
+///   row: nothing of it is in use. Named limits: a run that never gets its record keeps the body refused until its
+///   `end_run`, or until its start row leaves the store's read; only after a clock that was set back, and for at
+///   most two days, the body is refused with `day`.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -152,7 +165,46 @@ pub fn coordinator(
         CoordinatorCall::ListOverlaps(b) => bindings::list_overlaps(&*host, &b),
         CoordinatorCall::ListAgents(b) => list_agents(&*host, &b),
         CoordinatorCall::AgentHistory(b) => agent_history(&*host, &b),
+        CoordinatorCall::DropSessions(b) => drop_sessions(host, now, &b),
     }
+}
+
+fn drop_sessions(
+    host: &mut dyn Host,
+    now: Now,
+    b: &DropSessions,
+) -> Result<CoordinatorReply, ErrorName> {
+    bind::of_agent(&*host, &b.workflow, &b.agent)?;
+    if open_run_of(&*host, now, &b.agent)? {
+        return Err(ErrorName::State);
+    }
+    let own: Vec<AgentSession> = rows::sessions(host.rows())?
+        .into_iter()
+        .filter(|s| s.agent == b.agent)
+        .collect();
+    let origins: Vec<_> = runner::newest_sessions(&own)
+        .into_iter()
+        .map(|listed| listed.origin)
+        .collect();
+    let count = runner::drop_rows(host, now, &b.workflow, &b.agent, &origins)?;
+    Ok(CoordinatorReply::Stored(Stored {
+        stored: u32::try_from(count).unwrap_or(u32::MAX),
+    }))
+}
+
+/// Whether a run of the agent is open: a start row of the agent (`start_accepted`) stands in the store's read as
+/// `bind::start_row` reads one, and no `agent_run` record of its run is stored, as `bind::open_run` reads one.
+fn open_run_of(host: &dyn Host, now: Now, agent: &AgentId) -> Result<bool, ErrorName> {
+    let rows = host.rows();
+    let today = day::of(host, now);
+    let bound = day::bound(rows::AGENT_LOG);
+    let records = rows::runs(rows)?;
+    Ok(rows::logs(rows)?.iter().any(|l| {
+        l.event == LogEvent::StartAccepted
+            && &l.agent == agent
+            && bound.is_none_or(|days| day::stands(today, days, l.day))
+            && !records.iter().any(|r| r.run == l.run)
+    }))
 }
 
 fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, ErrorName> {
