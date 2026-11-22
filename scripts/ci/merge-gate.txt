@@ -31,6 +31,7 @@ macos 21-r7-backend-test
 macos 24-r7-wall
 macos 25-r7-backend-licenses
 macos 27-r7-metering-self
+macos 72-notices
 windows 10-format
 windows 11-clippy
 windows 12-test

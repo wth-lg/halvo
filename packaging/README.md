@@ -52,17 +52,20 @@ For `build` and `bundle`, and for no other command of the Tauri CLI,
 `scripts/tauri.js` does this in order:
 
 1. It runs `sh scripts/r1/ci.d/54-tag-needs-store4.sh` and stops when that fails.
-2. For each helper it runs, at the repository root,
+2. It runs `node scripts/notices/generate.js --triple <triple> --out
+   target/notices/THIRD-PARTY-NOTICES.txt` and stops when that fails (see Notices).
+   The triple is the `host:` line of `rustc -vV`.
+3. For each helper it runs, at the repository root,
    `cargo build --release --locked --manifest-path <manifest> -p <package> --bin <bin>`,
    with no feature and no test target. These are the same builds as the second
    to the fifth call of `scripts/r1/ci.d/62-build.sh`, so cargo builds the
    dependencies once for both.
-3. It copies the built binary to `target/helpers/<name>-<triple>`, with `.exe` at
-   the end on Windows. The triple is the `host:` line of `rustc -vV`. It copies
-   only when the bytes differ.
-4. It starts the Tauri CLI with `--config` that sets `bundle.externalBin` to
-   `../target/helpers/<name>` for this run alone. On a Mac the same `--config`
-   sets `bundle.macOS.signingIdentity` to `-`, and the CLI starts with `CI=true`.
+4. It copies the built binary to `target/helpers/<name>-<triple>`, with `.exe` at
+   the end on Windows. It copies only when the bytes differ.
+5. It starts the Tauri CLI with `--config` that sets `bundle.externalBin` to
+   `../target/helpers/<name>` and `bundle.resources` to the notices file for this
+   run alone. On a Mac the same `--config` sets `bundle.macOS.signingIdentity` to
+   `-`, and the CLI starts with `CI=true`.
 
 No tracked configuration names an external binary. Tauri's build script requires
 each external binary to exist, so `cargo test` on a clean checkout would fail if
@@ -130,9 +133,63 @@ as its own; so the check sends `ctl stop` two poll periods and one second after
 the daemon's first answer.
 It ends only the app that it started, by its pid.
 
+## Notices
+
+The Mac bundle holds `Contents/Resources/THIRD-PARTY-NOTICES.txt`, and the
+installer puts `THIRD-PARTY-NOTICES.txt` beside `halvo.exe`. The file lists the
+software of others inside the build and the text of each licence. It says nothing
+of Halvo's own licence, which the owner has not chosen yet (item I-146).
+
+The generator `scripts/notices/generate.js` reads `cargo metadata --locked
+--format-version 1 --filter-platform <triple>` once and walks from the app and
+from each helper of `helpers.d` over normal edges. It skips proc-macro crates,
+which run inside the compiler alone, and the members of the workspace. For each
+crate it lists the name, the version and the licence field. Its texts are the
+files at the crate's root whose names start with LICENSE, LICENCE, COPYING,
+COPYRIGHT, NOTICE or UNLICENSE, in any case, and the file that its
+`license-file` names. A crate that ships no such file gets the standard text of
+each licence id of its field from `scripts/notices/licences/<id>.txt`, with the
+line `Copyright (c) the authors of <crate>: <authors>` as the holder, and the
+generator prints at every run how many crates take that way. A crate that ships
+no text file and names no licence fails the generator. An equal text stands
+once. The file holds no path of a machine, no date and no version of Halvo, so
+two runs give the same bytes. The wrapper writes the file only when its bytes
+differ, as it copies a helper, and no tracked configuration names it.
+
+`scripts/notices/config.json` names what no normal edge gives:
+
+- `app`: the manifest of the app, the first root of the walk.
+- `compiled`: a build-dependency whose sources a build script compiles in, as
+  `sqlcipher-src` is for `halvo-sqlcipher` (SQLCipher, SQLite and LibTomCrypt).
+  An entry names the crate, the package that build-depends on it (`by`) and its
+  texts, each a `file` in the crate's directory, or the part of such a file from
+  the first line that holds `from` through the first line after it that holds
+  `through`. The crate's own text files come with them. The generator fails when
+  a crate that the walk reaches build-depends on a crate whose name ends in
+  `-src` and no entry names that edge, and when an entry names an edge that the
+  metadata lacks.
+- `tracked`: a text of the repository for data that a member of the workspace
+  embeds, with `name`, `licence`, the member (`in`) and its `texts` by `path`
+  from the repository root: the Public Suffix List in `halvo-schema-core` and the
+  rules of gitleaks in `halvo-redact`. It is listed when the walk reaches the
+  member.
+
+The standard texts are licence files of crates on crates.io, with the holder
+line in place of the holder's name: Apache-2.0 from `LICENSE-APACHE` of
+annotate-snippets 0.12.16, MPL-2.0 from `LICENSE` of cssparser 0.37.0,
+BSD-3-Clause from `LICENSE` of alloc-no-stdlib 3.0.0, Zlib from `LICENSE-ZLIB`
+of bytemuck 1.25.2 and MIT from `LICENSE` of sqlcipher-src 420.0.0.
+
+`scripts/r1/ci.d/72-notices.sh` runs the generator twice for each of
+`aarch64-apple-darwin` and `x86_64-pc-windows-msvc`. It fails when the generator
+fails, when two runs differ, and when the file names no Zetetic, the holder of
+SQLCipher. Check 70 reads the file in the copy out of the disk image and beside
+`halvo.exe` in the unpacked installer: it is there, it holds the bytes that the
+generator writes for the host triple in the same run, and Zetetic stands on one
+line at least.
+
 ## Not yet here
 
-- The notices file, a unit of its own.
 - The owner's signing and notarization (item I-116).
 - A check of the minimum macOS version that each binary names in its own build; the check reads the bundle's floor alone.
 - The list of modes that only a debug build has.
