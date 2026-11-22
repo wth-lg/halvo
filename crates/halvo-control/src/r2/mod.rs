@@ -3,8 +3,9 @@
 //!
 //! Protocol v2 keeps the framing, the limits and the transport of v1. [`crate::proto::decode_request`] hands the body
 //! of a `{"v":2,"body":{...}}` request to the server as [`crate::proto::Decoded::Unknown`], and the server passes it
-//! to [`dispatch_unknown`]. The requests of this module: `owner_stream`, in owner_stream.rs. A further request joins
-//! as one module file beside owner_stream.rs, one `mod` line below and one arm of the match in [`dispatch_unknown`].
+//! to [`dispatch_unknown`]. The requests of this module: `owner_stream`, in owner_stream.rs, and `relay`, in relay.rs.
+//! A further request joins as one module file beside these, one `mod` line below and one arm of the match in
+//! [`dispatch_unknown`].
 
 use crate::client::ClientError;
 use crate::proto::Reply;
@@ -15,6 +16,8 @@ mod owner_stream;
 mod owner_stream_macos;
 #[cfg(windows)]
 mod owner_stream_windows;
+#[cfg(any(target_os = "macos", windows))]
+mod relay;
 mod run_mark;
 
 #[cfg(any(target_os = "macos", windows))]
@@ -24,6 +27,8 @@ pub use owner_stream::{
 };
 #[cfg(target_os = "macos")]
 pub use owner_stream_macos::send_with_end;
+#[cfg(any(target_os = "macos", windows))]
+pub use relay::{Relay, RelayError, Relayed, RelayedError};
 pub use run_mark::{mark_request, RunEdge, RunMarked};
 
 /// The protocol version of the bodies of this module.
@@ -38,6 +43,15 @@ pub const fn takes_version(version: u64) -> bool {
 /// The reply that `Client::send` decoded, unchanged: no section of this module is read from a reply yet.
 pub fn decode_sections(reply: Reply) -> Result<Reply, ClientError> {
     Ok(reply)
+}
+
+/// Whether this module serves `request`: a body of version 2 whose op is a request of this module, which is
+/// `owner_stream` or `relay`. The server asks it before it takes a lock or starts the owner for a request, and for
+/// every request that it answers false for, [`dispatch_unknown`] writes nothing and returns false. A further request
+/// adds its op here.
+#[cfg(any(target_os = "macos", windows))]
+pub fn serves(request: &crate::proto::UnknownRequest) -> bool {
+    request.version() == VERSION && matches!(request.op(), Some(OwnerStream::OP | Relay::OP))
 }
 
 /// The server's one call for a request that the v1 table does not hold. It gets the decoded request, the accepted
@@ -57,6 +71,10 @@ pub fn dispatch_unknown(
     match request.op() {
         Some(OwnerStream::OP) => {
             owner_stream::serve(request, connection, owner);
+            true
+        }
+        Some(Relay::OP) => {
+            relay::serve(request, connection, owner);
             true
         }
         _ => false,

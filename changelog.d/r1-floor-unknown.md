@@ -1,0 +1,1 @@
+- Security: On macOS, Halvo keeps a window title or a screen activity record only where it reads that secure input is off. Where it cannot read the secure-input state, as in a login session that is not at the console (an account switched out, or one used through Screen Sharing beside the console's), it now keeps neither; before, it kept both there. Windows is unchanged.
