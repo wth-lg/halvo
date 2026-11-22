@@ -6,6 +6,7 @@ use std::io;
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::io::{AsHandle, AsRawHandle, BorrowedHandle, FromRawHandle, OwnedHandle};
 use std::path::Path;
+use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use windows::core::{PCWSTR, PWSTR};
@@ -152,19 +153,26 @@ pub fn start_with_lifeline(
     })
 }
 
+/// The one lock of [`start_with_handles`]: no call reads or changes an inherit flag while
+/// another call holds a handle inheritable.
+static ONE_START: Mutex<()> = Mutex::new(());
+
 /// Starts `program` with the arguments `args`, the standard handles `standard` and no console
 /// window.
 /// The child inherits the three standard handles and each handle of `inherited`, at the values
 /// that they have in this process, and no other handle (PROC_THREAD_ATTRIBUTE_HANDLE_LIST). Each
 /// of them is made inheritable for the call alone and gets its own inherit flag back after it, so
 /// a start that names no handle list on another thread of this process while the call runs can
-/// inherit them too. The child takes this process's environment and current directory.
+/// inherit them too. Calls run one at a time under one lock, so two starts that share a handle
+/// each read its flag as it was before both and leave it so. The child takes this process's
+/// environment and current directory.
 pub fn start_with_handles(
     program: &Path,
     args: &[&OsStr],
     standard: StdHandles<'_>,
     inherited: &[BorrowedHandle<'_>],
 ) -> io::Result<Child> {
+    let _one_start = ONE_START.lock().unwrap_or_else(PoisonError::into_inner);
     let mut listed: Vec<HANDLE> = Vec::new();
     for handle in [standard.input, standard.output, standard.error]
         .iter()
@@ -459,5 +467,66 @@ mod tests {
             HANDLE_FLAG_INHERIT.0,
             "the start changed the inherit flag of a handle off its list"
         );
+    }
+
+    #[test]
+    fn two_starts_at_one_moment_that_share_a_handle_leave_it_not_inheritable_and_both_children_start(
+    ) {
+        let root = tempfile::tempdir().unwrap();
+        let shared = std::fs::File::create(root.path().join("children.txt")).unwrap();
+        let input = std::fs::File::open("NUL").unwrap();
+        let program = std::env::current_exe().unwrap();
+        let args: Vec<&OsStr> = ["--exact", "no test of this crate has this name"]
+            .iter()
+            .map(OsStr::new)
+            .collect();
+        let inherit_flag = || {
+            let mut flag = 0u32;
+            // SAFETY: the handle is open and owned by `shared`, and `flag` is a live local.
+            unsafe { GetHandleInformation(HANDLE(shared.as_raw_handle()), &mut flag) }.unwrap();
+            flag & HANDLE_FLAG_INHERIT.0
+        };
+        assert_eq!(inherit_flag(), 0, "a new file is not inheritable");
+        for round in 0..20u64 {
+            let start = || {
+                start_with_handles(
+                    &program,
+                    &args,
+                    StdHandles {
+                        input: input.as_handle(),
+                        output: shared.as_handle(),
+                        error: shared.as_handle(),
+                    },
+                    &[],
+                )
+            };
+            let moment = std::sync::Barrier::new(2);
+            let children = std::thread::scope(|scope| {
+                let first = scope.spawn(|| {
+                    moment.wait();
+                    start()
+                });
+                let second = scope.spawn(|| {
+                    moment.wait();
+                    std::thread::sleep(Duration::from_micros(250 * round));
+                    start()
+                });
+                [first.join().unwrap(), second.join().unwrap()]
+            });
+            for child in children {
+                let child = child.unwrap_or_else(|e| panic!("round {round}: a start failed: {e}"));
+                assert_eq!(
+                    child.wait(Duration::from_secs(60)).unwrap(),
+                    Some(0),
+                    "round {round}: the child {} did not end with 0",
+                    child.id()
+                );
+            }
+            assert_eq!(
+                inherit_flag(),
+                0,
+                "round {round}: the shared handle is inheritable behind both starts"
+            );
+        }
     }
 }
