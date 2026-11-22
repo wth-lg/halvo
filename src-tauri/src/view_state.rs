@@ -1280,6 +1280,20 @@ pub enum LastDelete {
     Answered { at_ms: u64, answer: DeleteView },
 }
 
+/// `resolved`, a path as the system resolved it, in the plain form that a person reads and that
+/// the delete's answer gives: Windows writes a resolved path in its extended form, `\\?\C:\...`
+/// or `\\?\UNC\server\share\...`, whose plain form is `C:\...` or `\\server\share\...`; any
+/// other text stays as it is.
+pub fn plain_form(resolved: &str) -> String {
+    if let Some(share) = resolved.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{share}");
+    }
+    resolved
+        .strip_prefix(r"\\?\")
+        .unwrap_or(resolved)
+        .to_owned()
+}
+
 pub fn left_nothing(report: &DeleteFields) -> bool {
     report.root_destroyed == RootDestroyed::Yes
         && report.not_followed == 0
@@ -1655,6 +1669,19 @@ impl Removal {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// N4 of app-4b's review: the folder that the offline delete's question names takes the
+    /// plain form of a path that Windows resolved, as the delete's answer names it.
+    #[test]
+    fn the_folder_of_the_offline_question_takes_the_plain_form_of_a_resolved_path() {
+        assert_eq!(plain_form(r"\\?\D:\halvo-data"), r"D:\halvo-data");
+        assert_eq!(
+            plain_form(r"\\?\UNC\server\share\halvo-data"),
+            r"\\server\share\halvo-data"
+        );
+        assert_eq!(plain_form(r"D:\halvo-data"), r"D:\halvo-data");
+        assert_eq!(plain_form("/scratch/halvo-data"), "/scratch/halvo-data");
+    }
 
     /// The output of the offline delete where Windows refused the setting that keeps the program
     /// out of its error reports, byte for byte as halvo-capture prints it on its standard output

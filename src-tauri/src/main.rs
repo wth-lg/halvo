@@ -464,7 +464,9 @@ fn set_the_offline_delete(
         std::fs::canonicalize(data_dir.path()).unwrap_or_else(|_| data_dir.path().to_path_buf());
     views
         .hold()
-        .set_folder(halvo_control::paths::one_line(&resolved.to_string_lossy()));
+        .set_folder(halvo_control::paths::one_line(&view_state::plain_form(
+            &resolved.to_string_lossy(),
+        )));
     let Some(program) = daemon_program() else {
         return;
     };
