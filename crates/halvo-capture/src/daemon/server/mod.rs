@@ -1137,7 +1137,7 @@ mod tests {
                 read("off", "running"),
                 read("running", "running"),
                 read("stopped", "partial"),
-                read("off", "running"),
+                read("stopped", "partial"),
                 read("stopped", "partial"),
                 read("stopped", "partial"),
             ],

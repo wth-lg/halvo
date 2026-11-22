@@ -315,7 +315,8 @@ impl RunningSources {
     }
 
     /// Starts the source of `name` when its entry holds none: `None` when it
-    /// holds one, running or held.
+    /// holds one, running or held. A source that answers off reads off, or
+    /// stopped where its health reports a stop at once.
     pub fn start_one(
         &mut self,
         factory: &mut dyn SourceFactory,
@@ -338,7 +339,10 @@ impl RunningSources {
                 entry.source = Some(source);
             }
             Ok(Started::Off) => {
-                entry.state = SourceState::Off;
+                entry.state = match source.health().state {
+                    stopped @ SourceState::Stopped(_) => stopped,
+                    _ => SourceState::Off,
+                };
                 entry.source = Some(source);
             }
             Err(error) => entry.state = failure(error.clone()),
