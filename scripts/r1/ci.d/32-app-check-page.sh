@@ -28,10 +28,10 @@ native_path() {
 expected_service() {
   case ${CI_D_JOB:-} in
     macos) printf 'not_running\n' ;;
-    windows) printf 'unsupported\n' ;;
+    windows) printf 'not_running\n' ;;
     *)
       case $(uname -s) in
-        MINGW* | MSYS* | CYGWIN*) printf 'unsupported\n' ;;
+        MINGW* | MSYS* | CYGWIN*) printf 'not_running\n' ;;
         *) printf 'not_running\n' ;;
       esac
       ;;
