@@ -244,6 +244,25 @@ pub fn controls<C: ConfigView>(
     out
 }
 
+/// `offered` with `stop_sign_in` before `delete` where `session` says that the board's member of
+/// the agent holds a stored session (I6.1 `session`), the agent is idle (`Doing::Idle`) and
+/// `offered` holds `delete`: the control that makes Halvo stop using every sign-in that it keeps
+/// for the agent, which the core sends as the body `drop_sessions` (r4 U2.4y). A row with no
+/// `delete`, of a gone workflow or of an agent that is being deleted, gets none.
+pub fn with_stop_sign_in<C>(
+    facts: &Facts<C>,
+    session: bool,
+    mut offered: Vec<Control>,
+) -> Vec<Control> {
+    let idle = matches!(facts.doing, Doing::Idle(_));
+    if let Some(at) = offered.iter().position(|c| *c == Control::Delete) {
+        if session && idle {
+            offered.insert(at, Control::StopSignIn);
+        }
+    }
+    offered
+}
+
 fn started_by_the_schedule<C: ConfigView>(facts: &Facts<C>, limits: &Limits) -> bool {
     !needs_person(&facts.config) && finished(facts) && slot_due(facts, limits).is_some()
 }
@@ -251,7 +270,8 @@ fn started_by_the_schedule<C: ConfigView>(facts: &Facts<C>, limits: &Limits) -> 
 /// The row of an agent as the page gets it (I2.5), with its status line, its name, and the
 /// trigger of its start that waits in the queue, or none, and the limits of the tick, from
 /// which `controls` decides the take-back. The row of `problem.record` offers Stop where a run
-/// is live, the delete, and no other control (I1.3; ruling RD-64 1.5, 1.7).
+/// is live, the delete, and no other control (I1.3; ruling RD-64 1.5, 1.7). It is the row of
+/// `row_with_session` for an agent with no stored session.
 pub fn row<C: ConfigView>(
     facts: &Facts<C>,
     line: StatusLine,
@@ -259,7 +279,21 @@ pub fn row<C: ConfigView>(
     waiting: Option<Trigger>,
     limits: &Limits,
 ) -> Result<Row, Cause> {
-    let offered = controls(facts, waiting, limits)
+    row_with_session(facts, false, line, name, waiting, limits)
+}
+
+/// The row of `row`, where `session` says whether the board's member of the agent holds a stored
+/// session (I6.1 `session`): its controls are those of `with_stop_sign_in`, so that the row of
+/// `problem.record` offers no `stop_sign_in` (r4 U2.4y).
+pub fn row_with_session<C: ConfigView>(
+    facts: &Facts<C>,
+    session: bool,
+    line: StatusLine,
+    name: &str,
+    waiting: Option<Trigger>,
+    limits: &Limits,
+) -> Result<Row, Cause> {
+    let offered = with_stop_sign_in(facts, session, controls(facts, waiting, limits))
         .into_iter()
         .filter(|c| line != StatusLine::Record || matches!(c, Control::Stop | Control::Delete))
         .collect();
@@ -287,6 +321,11 @@ fn row_with<C: ConfigView>(
     } else {
         None
     };
+    let ask_stop_sign_in = if offered.contains(&Control::StopSignIn) {
+        Some(stop_sign_in_ask(name)?)
+    } else {
+        None
+    };
     Ok(Row {
         agent: facts.agent.clone(),
         workflow: facts.workflow.id.clone(),
@@ -308,6 +347,7 @@ fn row_with<C: ConfigView>(
             })
             .collect::<Result<_, _>>()?,
         ask,
+        ask_stop_sign_in,
     })
 }
 
@@ -391,6 +431,28 @@ pub fn ask<C: ConfigView>(facts: &Facts<C>, name: &str) -> Result<Ask, Cause> {
             })
         }
     }
+}
+
+/// The question that a press on the row's `stop_sign_in` opens in the page, which sends nothing
+/// (r4 U2.4y): its title names the agent; it says that Halvo will stop using the sign-in that it
+/// keeps for the agent and removes it within 35 days, and that the agent's next run asks the
+/// person to sign in again; then the safe control, and the one that sends `agents_control` with
+/// `stop_sign_in`, in the control's own words.
+pub fn stop_sign_in_ask(name: &str) -> Result<Ask, Cause> {
+    Ok(Ask {
+        kind: AskKind::StopSignIn,
+        title: text("ask.stop_sign_in.title", &[("name", name)])?,
+        text: vec![
+            text("ask.stop_sign_in.stops", &[])?,
+            text("ask.stop_sign_in.next", &[])?,
+        ],
+        effects: Vec::new(),
+        record: None,
+        controls: vec![
+            ask_control(AskAct::Reject, "ask.stop_sign_in.keep")?,
+            ask_control(AskAct::Allow, "control.stop_sign_in")?,
+        ],
+    })
 }
 
 fn unknown_effects<C: ConfigView>(facts: &Facts<C>, name: &str) -> Result<Vec<AskEffect>, Cause> {

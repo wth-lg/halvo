@@ -1010,6 +1010,16 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
                 self.end_in_store(run);
                 serde_json::json!({ "ok": "yes" })
             }
+            Body::DropSessions { agent, .. } => {
+                let mut stored = 0u32;
+                for a in self.agents.borrow_mut().iter_mut() {
+                    if &a.agent == agent && a.session {
+                        a.session = false;
+                        stored += 1;
+                    }
+                }
+                serde_json::json!({ "stored": stored })
+            }
         })
     }
 

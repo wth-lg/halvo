@@ -1,6 +1,7 @@
 (function () {
   var ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
-  var CONTROL = { run_now: true, stop: true, take_back: true, switch_off: true, switch_on: true, delete: true };
+  var CONTROL = { run_now: true, stop: true, take_back: true, switch_off: true, switch_on: true, stop_sign_in: true, delete: true };
+  var ASKED = { delete: 'ask', stop_sign_in: 'ask_stop_sign_in' };
   var CARD_TRIES = 3;
 
   var root = null;
@@ -165,9 +166,9 @@
     b.setAttribute('aria-describedby', 'r4a-name-' + row.agent);
     b.addEventListener('click', function (event) {
       if (event.detail > 1 || !pressedOn(b, event) || busy[row.agent]) return;
-      if (c.control === 'delete') {
+      if (ASKED[c.control]) {
         if (drop(row.agent)) render();
-        ask(row);
+        ask(row, c.control);
         return;
       }
       press(row, c.control, 'agents_control', { agent: row.agent, action: c.control }, true).then(reread);
@@ -197,21 +198,24 @@
     );
   }
 
-  function ask(row) {
-    if (question !== null || Halvo.confirm.busy() || !isAsk(row.ask)) return;
+  function ask(row, control) {
+    var key = ASKED[control];
+    var asked = row[key];
+    if (question !== null || Halvo.confirm.busy() || !isAsk(asked)) return;
     var agent = row.agent;
-    var mine = { agent: agent, handle: null };
+    var mine = { agent: agent, key: key, handle: null };
     question = mine;
     say.empty();
     mine.handle = Halvo.confirm.ask(asks, {
-      title: row.ask.title,
-      text: row.ask.text,
-      effects: row.ask.effects,
-      record: row.ask.record,
-      controls: row.ask.controls,
+      title: asked.title,
+      text: asked.text,
+      effects: asked.effects,
+      record: asked.record,
+      controls: asked.controls,
       param: agent,
       answer: function (act) {
-        if (act === 'allow') send(agent, 'agents_delete', { agent: agent }).then(reread);
+        if (act === 'allow' && control === 'stop_sign_in') press(row, control, 'agents_control', { agent: agent, action: control }, true).then(reread);
+        else if (act === 'allow') send(agent, 'agents_delete', { agent: agent }).then(reread);
         else if (act === 'stop') send(agent, 'agents_control', { agent: agent, action: 'stop' }).then(reread);
       },
       closed: function () {
@@ -484,7 +488,7 @@
     if (question !== null) {
       var asked = question;
       var still = reply.rows.some(function (r) {
-        return r.agent === asked.agent && isAsk(r.ask);
+        return r.agent === asked.agent && isAsk(r[asked.key]);
       });
       if (!still) Halvo.confirm.drop(asked.handle);
     }

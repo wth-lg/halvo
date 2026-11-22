@@ -402,6 +402,7 @@ fn act(call: &Call) -> Option<String> {
         Call::Send(Body::CreateAgent { .. }) => "create_agent".into(),
         Call::Send(Body::SetBindings { .. }) => "set_bindings".into(),
         Call::Send(Body::EndRun { run }) => format!("end_run {run}"),
+        Call::Send(Body::DropSessions { agent, .. }) => format!("drop_sessions {agent}"),
         Call::Start(spec) => format!("start {}", spec.agent),
         Call::Cancel(run) => format!("cancel {run}"),
         Call::Kill(run) => format!("kill {run}"),
