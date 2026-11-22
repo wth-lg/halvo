@@ -610,7 +610,7 @@ where
             && match action {
                 None | Some(Action::TakeBack | Action::Stop) => true,
                 Some(Action::SwitchOff) => !off,
-                Some(Action::RunNow | Action::SwitchOn) => false,
+                Some(Action::RunNow | Action::SwitchOn | Action::StopSignIn) => false,
             }
     }
 
@@ -2996,6 +2996,7 @@ where
                 },
             ),
             Action::Stop => self.stop_in(st, i),
+            Action::StopSignIn => self.stop_sign_in(st, i),
             Action::TakeBack => {
                 self.schedule(
                     st,
@@ -3013,6 +3014,30 @@ where
                 }
                 Ok(())
             }
+        }
+    }
+
+    /// The person's `stop_sign_in` (r4 U2.4y): after the quit's first step, as the delete, and
+    /// while the agent is not idle on the board, it answers `state` and sends nothing; else the
+    /// schedule's `drop_sessions` sends ONE body `drop_sessions`, after whose success the agent's
+    /// member holds no session, so the row that the call publishes offers the control no more.
+    /// The store's refusal `state` (a run of the agent is open there) and its refusal `day` (a row
+    /// of a later day stands, after this computer's clock was set back) answer those causes, so
+    /// that the person reads their sentences beside the control; every other refusal answers
+    /// what `cause_of` makes of it.
+    fn stop_sign_in(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
+        if st.quitting {
+            return Err(Cause::State);
+        }
+        let board = st.board.as_mut().ok_or(Cause::NoService)?;
+        if !matches!(board.members[i].facts.doing, Doing::Idle(_)) {
+            return Err(Cause::State);
+        }
+        match schedule::drop_sessions(&self.ports, board, i) {
+            Ok(()) => Ok(()),
+            Err(PortError::Refused(name)) if name.as_str() == "state" => Err(Cause::State),
+            Err(PortError::Refused(name)) if name.as_str() == "day" => Err(Cause::Day),
+            Err(e) => Err(cause_of(&e)),
         }
     }
 

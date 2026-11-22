@@ -742,6 +742,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "“{name}” already answers mail from {senders} on this mailbox, and other agents answer some of these people too. A message that one agent answered can still look unread to another, so this agent stays off. Switch the other agents off or delete them, then switch this one on.",
     ),
     (
+        "refused.day",
+        "Halvo cannot do that today because this computer's clock was changed. Try again in a day or two.",
+    ),
+    (
         "refused.switch_not_saved",
         "Halvo is stopping the task but could not switch this agent off. It may start again: press Switch off again.",
     ),

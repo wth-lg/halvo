@@ -1584,7 +1584,7 @@ if (want('ten')) {
       }
     });
     const ok =
-      CAUSES.length === 13 &&
+      CAUSES.length === 14 &&
       seen.every((s) => typeof words['refused.' + s.cause] === 'string' && s.text === words['refused.' + s.cause] && s.beside && s.described && same(s.said, [[s.text]]));
     return [ok, seen];
   });
