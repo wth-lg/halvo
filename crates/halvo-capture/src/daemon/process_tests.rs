@@ -2806,6 +2806,99 @@ fn a_settings_reset_writes_the_defaults_with_no_cap_and_is_refused_where_the_fil
     }
 }
 
+#[test]
+fn behind_a_settings_reset_capture_is_paused_until_a_resume() {
+    use halvo_control::model::CaptureState;
+    use halvo_control::proto::{
+        reaches_the_end, Capture, CaptureChange, OnOff, Reply, Request, SourceState, StoreState,
+    };
+    let dir = corrupt_dir();
+    drop(made_store(&dir));
+    let first = Probing::new();
+    let asking = {
+        let (dir, stop) = (dir.clone(), first.stop.clone());
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            status_until(
+                &dir,
+                "the store of the life on a corrupt file is open",
+                |status| status.fields().store == StoreState::Open,
+            );
+            let resumed = ask(&dir, &Request::Resume);
+            let reset = ask(&dir, &Request::ResetSettings);
+            if !matches!(reset, Ok(Reply::Status(_))) {
+                stop.store(true, Ordering::SeqCst);
+            }
+            (resumed, reset)
+        })
+    };
+    let (ended, err) = first.serve(&dir, super::sources::tests::Factory::new());
+    let (resumed, reset) = asking.join().unwrap();
+    match &resumed {
+        Ok(Reply::CaptureChanged(status)) => assert!(
+            !reaches_the_end(CaptureChange::Resume, status),
+            "a Resume was taken on a file that does not load: {status:?}"
+        ),
+        other => panic!("the Resume on a file that does not load answered {other:?}"),
+    }
+    assert!(
+        matches!(reset, Ok(Reply::Status(_))),
+        "the reset: {reset:?}"
+    );
+    assert_eq!(ended, halvo_control::exit::RESTART, "{err}");
+
+    let next = Probing::new();
+    let asking = {
+        let (dir, stop) = (dir.clone(), next.stop.clone());
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            let paused = status_until(&dir, "the store of the next life is open", |status| {
+                status.fields().store == StoreState::Open
+            });
+            let resumed = ask(&dir, &Request::Resume);
+            stop.store(true, Ordering::SeqCst);
+            (paused, resumed)
+        })
+    };
+    let (status, err) = next.serve(&dir, super::sources::tests::Factory::new());
+    let (paused, resumed) = asking.join().unwrap();
+    let f = paused.fields();
+    assert_eq!(f.state_file, halvo_control::proto::StateFile::Ok, "{f:?}");
+    assert_eq!(
+        (f.desired, f.capture),
+        (CaptureState::Paused, Capture::Paused)
+    );
+    assert!(
+        f.sources
+            .iter()
+            .all(|line| matches!(line.state, SourceState::Off | SourceState::Stopped { .. })),
+        "a source is on behind a reset: {:?}",
+        f.sources
+    );
+    let Ok(Reply::CaptureChanged(resumed)) = &resumed else {
+        panic!("the Resume behind a reset answered {resumed:?}");
+    };
+    assert!(
+        reaches_the_end(CaptureChange::Resume, resumed),
+        "the Resume behind a reset was not taken: {resumed:?}"
+    );
+    for line in &resumed.fields().switches {
+        let default = if line.name.default_on() {
+            OnOff::On
+        } else {
+            OnOff::Off
+        };
+        assert_eq!(line.value, default, "{:?}", line.name);
+    }
+    assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+    let loaded = StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    );
+    assert_eq!(loaded.state().desired, super::state::Desired::Running);
+    assert_eq!(loaded.state().switches, DaemonState::default().switches);
+}
+
 fn asked_in(dir: &Path) -> Vec<Permission> {
     StateFile::open(StateDir::open(dir).unwrap(), Box::new(TestWrite::default()))
         .state()
