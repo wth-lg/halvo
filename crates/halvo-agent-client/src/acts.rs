@@ -33,8 +33,8 @@ pub(crate) enum Waiting {
     Handback(HandbackRequest),
     Bind,
     Link,
-    /// The library wrote `cancel` while the runner waited for a `bind_reply`: it writes none, and takes the store of
-    /// the run's `finish` and its done (ruling CP-193 item 3).
+    /// The library wrote `cancel` while the runner waited for a `bind_reply`: it writes none, and takes the frames of
+    /// the run's end that `Running::on_frame` names (ruling CP-193 item 3).
     CancelledBind,
 }
 
@@ -75,8 +75,8 @@ impl Acts {
         matches!(self.waiting, Waiting::CancelledBind)
     }
 
-    /// Whether the library wrote `bound=no` to the runner: from then on it takes progress, done and the store of the
-    /// run's `finish` alone (ruling CP-193 item 2).
+    /// Whether the library wrote `bound=no` to the runner: from then on it takes the frames of the run's end that
+    /// `Running::on_frame` names alone (ruling CP-193 item 2).
     pub(crate) fn declined(&self) -> bool {
         self.declined
     }

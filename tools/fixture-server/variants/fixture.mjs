@@ -15,6 +15,7 @@ export const VARIANTS = [
   'get_effect',
   'no_reply',
   'amount_changes',
+  'charged_no_amount',
   'slow_charge',
   'draft_no_recipient',
   'draft_two_recipients',
@@ -557,20 +558,21 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
       if (!instruments.includes(instrument)) return html(ctx, 400, page.frame(kind, token, amountOf(t), instruments, opts()));
       fx.tokens.delete(token);
       ctx.records = true;
+      const charged = amountOf(t);
       if (kind === 'bill') {
-        fx.st.utility.payments.push({ account: d.utility.account, amount: amountOf(t), payee: d.utility.payee, instrument });
+        fx.st.utility.payments.push({ account: d.utility.account, amount: charged, payee: d.utility.payee, instrument });
       } else {
         fx.st.shop.orders.push({
           items: d.shop.items.map((i) => ({ name: i.name, quantity: i.quantity })),
-          total: amountOf(t),
+          total: charged,
           instrument,
         });
       }
       if (has('slow_charge')) {
-        setTimeout(() => html(ctx, 200, page.charged(kind, opts())), SLOW_CHARGE_MS);
+        setTimeout(() => html(ctx, 200, page.charged(kind, charged, opts())), SLOW_CHARGE_MS);
         return;
       }
-      return html(ctx, 200, page.charged(kind, opts()));
+      return html(ctx, 200, page.charged(kind, charged, opts()));
     }
     return text(ctx, 404, 'not found\n');
   }

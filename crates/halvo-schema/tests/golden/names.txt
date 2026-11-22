@@ -22,6 +22,8 @@ agent_start
 agents
 allow
 allow_once
+amount_differs
+amount_unread
 analysis
 analysis_write
 answer
@@ -197,6 +199,7 @@ list_agents
 list_checkpoints
 list_overlaps
 list_refinements
+list_replies
 load
 load_replies
 load_session

@@ -1909,6 +1909,39 @@ fn the_app_calls_the_hooks_of_its_core_from_its_poller_and_its_window() {
     );
 }
 
+#[test]
+fn a_reopen_shows_the_hidden_window_main_as_the_trays_item_does_and_without_one_shows_nothing() {
+    let core = Recorder::new(&[]);
+    let test = app_with_core("reopen", core.clone(), guard_installed, None);
+    core.wait_for("tick", 1);
+    app::hide_on_close(&main_window(&test.app).as_ref().window());
+    assert_eq!(core.names(), ["tick", "hidden"]);
+    tray::show_main_window(test.app.handle());
+    assert_eq!(core.names(), ["tick", "hidden", "shown"]);
+    let without_window = Recorder::new(&[]);
+    let bare_core: Arc<dyn halvo_coord_app::Core> = without_window.clone();
+    let bare = mock_builder()
+        .manage(halvo_coord_app::Agents(bare_core))
+        .build(app::context())
+        .expect("the app builds on the mock runtime");
+    assert!(bare.get_webview_window("main").is_none());
+    tray::show_main_window(bare.handle());
+    assert!(
+        without_window.names().is_empty(),
+        "{:?}",
+        without_window.names()
+    );
+    let main_rs = std::fs::read_to_string(src_tauri().join("src/main.rs"))
+        .expect("main.rs reads")
+        .replace("\r\n", "\n");
+    assert!(main_rs.contains(
+        "    #[cfg(target_os = \"macos\")]\n    app.run(|app, event| {\n        if let tauri::RunEvent::Reopen { .. } = event {\n            tray::show_main_window(app);\n        }\n    });\n    #[cfg(not(target_os = \"macos\"))]\n    app.run(|_, _| {});\n}\n"
+    ));
+    assert_eq!(main_rs.matches("RunEvent::").count(), 1);
+    assert_eq!(main_rs.matches("app.run(").count(), 2);
+    assert!(!main_rs.contains("has_visible_windows"));
+}
+
 /// The tray's Quit (I5.7, ruling RD-8): it calls `Core::quit` once, off the main thread and with
 /// no budget, before it asks for the exit, and no tick and no other call of the Core follows it.
 /// The mock runtime cannot exit, so the test hands the Quit an exit that records.

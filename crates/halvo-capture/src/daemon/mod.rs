@@ -1,6 +1,8 @@
 //! The capture daemon: the store owner, which is the one thread that holds the
 //! capture store, and the gate's timed run on that owner.
 
+#[cfg(target_os = "macos")]
+pub(crate) mod agent_marks;
 #[cfg(any(test, target_os = "macos", windows))]
 pub mod barrier;
 #[cfg(any(test, target_os = "macos", windows))]
@@ -183,8 +185,8 @@ pub enum Mode {
         data_dir: halvo_control::paths::DataDir,
     },
     /// `--delete-all --data-dir DIR`, the offline delete of a data directory
-    /// (contracts.md C3.3), with DIR absolute. A macOS build runs it; a build
-    /// of another system, Windows among them, exits 64 and prints no text.
+    /// (contracts.md C3.3), with DIR absolute. A macOS or Windows build runs
+    /// it; a debug build of another system exits 64 and prints no text.
     #[cfg(any(debug_assertions, target_os = "macos", windows))]
     DeleteAllOfADataDir {
         data_dir: halvo_control::paths::DataDir,
@@ -2693,7 +2695,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                     Some(wrap) => wrap(store),
                     None => store,
                 };
-                match capture_owner(store, held_cap, switches, root) {
+                match capture_owner(store, held_cap, switches, root, dir.path()) {
                     Ok(owner) => {
                         let wanted = sources::starting(
                             halvo_control::proto::Platform::current(),
@@ -3463,6 +3465,8 @@ struct CaptureOwner {
     watched: supervisor::Watched,
     sink: crate::sink::SinkHandle,
     floor: crate::floor::exclude::FloorHandle,
+    #[cfg(target_os = "macos")]
+    _marks: agent_marks::MarkListing,
 }
 
 #[cfg(any(target_os = "macos", windows))]
@@ -3490,10 +3494,17 @@ fn capture_owner(
     cap: Option<port::ByteBound>,
     switches: crate::floor::Switches,
     root: Option<crate::floor::exclude::ProcessId>,
+    data_dir: &std::path::Path,
 ) -> std::io::Result<CaptureOwner> {
     use crate::floor::exclude::FloorHandle;
     let (sink, writer) = crate::sink::channel(owner::QUEUE_SLOTS);
+    #[cfg(target_os = "macos")]
+    let marks = agent_marks::MarkListing::start(data_dir)?;
+    #[cfg(windows)]
+    let _ = data_dir;
     let floor = FloorHandle::new(root, system_lineage(), switches);
+    #[cfg(target_os = "macos")]
+    let floor = floor.with_marks(marks.marks());
     let thread = owner::spawn(owner::OwnerParts {
         writer,
         store,
@@ -3506,6 +3517,8 @@ fn capture_owner(
         watched: supervisor::Watched::new(thread, Box::new(std::io::stderr())),
         sink,
         floor,
+        #[cfg(target_os = "macos")]
+        _marks: marks,
     })
 }
 

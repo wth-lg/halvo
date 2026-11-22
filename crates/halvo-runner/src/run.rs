@@ -8,7 +8,7 @@ use halvo_schema::executable::frame::{
     Done, Handback, HandbackReply, Hello, Progress, ReplyError, Store, StoreReplyFrame,
 };
 use halvo_schema::executable::names::{HandbackReason, LogEvent, StepKind};
-use halvo_schema::executable::step::Target;
+use halvo_schema::executable::step::{Target, WebTarget};
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
     ActionClass, AgentLog, AgentRun, ApprovalId, Cause, EffectState, ExecutableStep, FromRunner,
@@ -97,6 +97,9 @@ pub(crate) struct Runner {
     )]
     pub(crate) approvals: Vec<ApprovalId>,
     pub(crate) kept: HashMap<String, Vec<Vec<Value>>>,
+    /// The target and the parse of the `extract` that kept each value of `kept`, by its name, which the browser's
+    /// maker reads again right before the act of a web step of an effect class (crate::web::maker).
+    pub(crate) extracts: HashMap<String, (WebTarget, String)>,
     pub(crate) read_under: Option<ReadUnder>,
     /// The newest row of each checkpoint of the run that the store took, by the workbook's path as the rows name it.
     pub(crate) checkpoints: HashMap<String, Taken>,
@@ -160,6 +163,7 @@ impl Runner {
             effects: Vec::new(),
             approvals: Vec::new(),
             kept: HashMap::new(),
+            extracts: HashMap::new(),
             read_under: None,
             checkpoints: HashMap::new(),
             lists: Lists::default(),
@@ -388,6 +392,30 @@ impl Runner {
         }
     }
 
+    /// How many times a body of the run's end, its `stopped` row or its `finish`, is sent when the store answers it
+    /// with a fault (`store` or `internal`), each time as the same request, as a row of an effect is sent (A7.5,
+    /// CP-178 (1)): the store's handler of `log` keeps a record only when no held row equals it, and it answers a
+    /// `finish` whose record equals the stored run record as the first (CP-132 (e)).
+    const END_SENDS: u32 = 3;
+
+    /// Sends a body of the run's end as one request, built once: again after a fault of the store, up to
+    /// `END_SENDS` sends in all, and never again after any other answer. Returns the store's last answer.
+    fn log_end(&mut self, call: RunnerCall) -> Result<Result<RunnerReply, ReplyError>, Broken> {
+        let request = RunnerRequest::new(&self.role, RequestId::from_random(random16()), call);
+        let mut sends = 1;
+        loop {
+            match self.send_store(&request)? {
+                Err(error)
+                    if matches!(error.as_str(), "store" | "internal")
+                        && sends < Self::END_SENDS =>
+                {
+                    sends += 1;
+                }
+                answer => return Ok(answer),
+            }
+        }
+    }
+
     /// The time since the runner started, on a clock that never goes back.
     pub(crate) fn elapsed(&self) -> Duration {
         let elapsed = self.started.elapsed();
@@ -434,10 +462,32 @@ impl Runner {
     /// Stores the run's record and writes `done`; whether the store took the record.
     fn finish(&mut self, outcome: Outcome, cause: Option<Cause>) -> Result<bool, Broken> {
         if cause.is_some() {
-            match self.log(LogEvent::Stopped, None, cause) {
-                Err(Stop::Link(broken)) => return Err(broken),
-                Err(Stop::End(..)) | Ok(()) => {}
-            }
+            self.log_seq += 1;
+            let at = now();
+            let row = AgentLog {
+                v: V1,
+                workflow: self.args.workflow.clone(),
+                agent: self.args.agent.clone(),
+                run: self.args.run.clone(),
+                seq: NonZeroU32::new(self.log_seq).unwrap_or(NonZeroU32::MAX),
+                day: day_of(at, self.args.utc_offset_s),
+                at,
+                event: LogEvent::Stopped,
+                step: None,
+                cause,
+                model: None,
+                ms: None,
+                tokens_in: None,
+                tokens_out: None,
+            };
+            let call = RunnerCall::Log(PutLog {
+                agent: self.args.agent.clone(),
+                run: self.args.run.clone(),
+                records: vec![row],
+            });
+            // The run goes on to its `finish` whatever the store answered: after the third fault the cause of the
+            // run's end is not handed out, a named limit (A7.5).
+            let _ = self.log_end(call)?;
         }
         let mut record = AgentRun {
             v: V1,
@@ -479,7 +529,7 @@ impl Runner {
             record,
         });
         let stored = matches!(
-            self.store(call)?,
+            self.log_end(call)?,
             Ok(RunnerReply::Stored(Stored { stored: 1 }))
         );
         self.link.send(&FromRunner::Done(Done { outcome }))?;
