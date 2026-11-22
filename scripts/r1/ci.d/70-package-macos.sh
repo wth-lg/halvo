@@ -34,7 +34,7 @@ config_defect() {
     esac
     case $key in
       externalBin) why='scripts/tauri.js gives the build its external binaries for that build alone, and cargo test fails on a clean checkout when a tracked configuration names one' ;;
-      *) why='the bundle is built unsigned, and sign_step in scripts/tauri.js is the place of signing' ;;
+      *) why='scripts/tauri.js gives a Mac build the ad hoc identity for that build alone, and sign_step in scripts/tauri.js is the place of the owner'"'"'s signing' ;;
     esac
     printf 'the tracked file %s names %s; %s\n' "${found%%
 *}" "$key" "$why"
@@ -299,7 +299,8 @@ measure() {
   : >"$work/build-started" || fail "the mark of the build's start could not be written"
   : >"$CI_D_ARTIFACTS/build.txt"
   if ! npm run tauri build -- -- --locked >>"$CI_D_ARTIFACTS/build.txt" 2>&1; then
-    cause=$(grep -m 1 -E '^(error|Error|scripts/tauri.js:)' "$CI_D_ARTIFACTS/build.txt")
+    # The wrapper's progress lines (a helper staged, the CLI run once more) name no cause.
+    cause=$(grep -v -E '^scripts/tauri\.js: (staged |the Tauri CLI exited [0-9]+ after )' "$CI_D_ARTIFACTS/build.txt" | grep -m 1 -E '^ *(error|Error)|^failed to |^scripts/tauri\.js:')
     fail "the build call failed: ${cause:-see build.txt in the artifacts}"
   fi
   helpers=$(helper_names)
@@ -443,6 +444,13 @@ SH
     "1:the tracked file src-tauri/tauri.conf.json names signingIdentity; "*) got=FAIL ;;
   esac
   verdict tracked-configuration-with-a-signing-identity FAIL "$got"
+
+  mkdir -p "$work/cause-tools" && printf '%s\n' '#!/bin/sh' 'echo "scripts/tauri.js: staged halvo-capture for aarch64-apple-darwin"' 'echo "failed to bundle project: hdiutil: create failed - Resource busy"' 'exit 1' >"$work/cause-tools/npm" && chmod +x "$work/cause-tools/npm" || exit 2
+  output=$(CI_D_REPO="$measure_repo" CI_D_ARTIFACTS="$work/artifacts" CI_D_JOB=macos PATH="$work/cause-tools:$PATH" sh "$check_script" 2>"$work/cause.err")
+  code=$?
+  got=unexpected-exit-$code
+  [ "$code:$output" = "1:FAIL $name (the build call failed: failed to bundle project: hdiutil: create failed - Resource busy)" ] && got=FAIL
+  verdict failed-build-names-its-cause-and-no-progress-line FAIL "$got"
 
   # A case of a rule below is rejected when its function exits 1 and prints the wanted line.
   rule_case() {
