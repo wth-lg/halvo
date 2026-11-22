@@ -36,14 +36,14 @@ const CAPTURE = {
   faulted: "Halvo is not capturing",
 };
 
-test("the page draws every state fixture: the heading follows service and capture, the toggle follows desired, and Delete everything is offered by the rule of C10.2", async () => {
+test("the page draws every state fixture: the heading follows service and capture, the toggle follows desired and reads Resume where capture awaits a resume, and Delete everything is offered by the rule of C10.2", async () => {
   assert.ok(STATES.length >= 30, `${STATES.length} state fixtures`);
   for (const name of STATES) {
     const status = fixture(name);
     const p = await page(status);
     const heading = status.service === "running" ? CAPTURE[status.capture] : HEADINGS[status.service];
     assert.equal(p.text("state"), heading, name);
-    const toggle = status.desired === "paused" ? "Resume" : "Pause";
+    const toggle = status.desired === "paused" || status.capture === "awaiting_resume" ? "Resume" : "Pause";
     assert.equal(p.text("toggle"), toggle, name);
     assert.equal(p.byId("toggle").disabled, status.desired === null, name);
     const store = status.store;
