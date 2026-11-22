@@ -2648,7 +2648,13 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                             }
                             Some(report) if !whole => {
                                 delete_written =
-                                    answer_the_delete(&mut Some((asked, report)), None);
+                                    Some(asked.answer(halvo_control::proto::Reply::Deleted(
+                                        halvo_control::proto::Deleted {
+                                            report,
+                                            store: None,
+                                            unfinished: true,
+                                        },
+                                    )));
                             }
                             Some(report) => {
                                 rule = owner::open::CreateRule::of(
@@ -3009,12 +3015,13 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         }
     };
     let fields = status.fields();
+    let (store_read, unfinished) = the_store_that_the_rule_reads(fields, opener.as_ref());
     let refused = match halvo_control::proto::delete_decision(
         serving.listening.admitting().life(),
         fields.capture,
-        fields.store,
+        store_read,
         fields.store_error,
-        fields.store_delete_unfinished,
+        unfinished,
         fields.store_id,
         armed,
     ) {
@@ -3127,6 +3134,26 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     }
 }
 
+/// The store's state and its `store_delete_unfinished` that the delete rule reads: the
+/// status's, except while an opener runs whose slot reads opening or deleting, whose own call
+/// may yet begin or still runs the finish of a standing delete, also in a data directory that
+/// failed its check, whose status reads unavailable: then its slot's, so that the rule answers
+/// busy and no second walk begins beside that call. Whether it runs is read before its slot,
+/// and its thread leaves those two slots only once that call has returned.
+#[cfg(any(target_os = "macos", windows))]
+fn the_store_that_the_rule_reads(
+    fields: &halvo_control::proto::StatusFields,
+    opener: Option<&owner::open::Opener>,
+) -> (halvo_control::proto::StoreState, bool) {
+    match opener
+        .filter(|opener| opener.is_running())
+        .map(owner::open::Opener::slot)
+    {
+        Some(slot @ (slot::Slot::Opening | slot::Slot::Deleting)) => (slot.state(), false),
+        _ => (fields.store, fields.store_delete_unfinished),
+    }
+}
+
 #[cfg(any(target_os = "macos", windows))]
 fn delete_report(
     ran: &delete_all::Ran,
@@ -3173,6 +3200,7 @@ fn answer_the_delete(
         halvo_control::proto::Deleted {
             report,
             store: store.map(|id| halvo_control::model::StoreId::from_bytes(*id.as_bytes())),
+            unfinished: false,
         },
     )))
 }

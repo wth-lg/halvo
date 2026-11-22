@@ -569,6 +569,14 @@ impl Hold {
         self.changed.notify_all();
     }
 
+    /// A run of Remove Halvo's door ends: an ask of a Start that stands from before that end is
+    /// dropped, and the end of the last child stays read, so that only a press behind the run
+    /// asks for a child.
+    #[cfg(any(target_os = "macos", windows, test))]
+    pub fn drop_the_ask(&self) {
+        self.state().start_asked = false;
+    }
+
     /// The supervisor's spawner reads the data directory not provisioned: no child starts before
     /// the person's click on Start, the consent (contracts.md C10.7).
     #[cfg(any(target_os = "macos", windows, test))]
@@ -1262,7 +1270,8 @@ pub enum DeleteView {
         #[serde(skip_serializing_if = "Option::is_none")]
         unfinished_in_a_row: Option<u32>,
         /// The run that gave this answer ended as one that is not whole, whatever its fields
-        /// read: the offline delete's end with 1 (contracts.md C3.3).
+        /// read: the offline delete's end with 1 (contracts.md C3.3), or a reply of the service
+        /// that carries `unfinished` (C2.1).
         #[serde(skip)]
         not_whole: bool,
         /// The folder of the crash reports of the web view of Halvo's own window, where one
@@ -1436,7 +1445,7 @@ impl DeleteView {
                 deleted.store,
                 roots_dir,
                 None,
-                false,
+                deleted.unfinished,
             ),
             DeleteOutcome::AlreadyDeleted(already) => DeleteView::AlreadyDeleted {
                 current_store_id: already.current,

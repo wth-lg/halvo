@@ -1,0 +1,1 @@
+- Added: A web step can click, select and read inside a frame that its step names, found by the frame's origins from the top document inward; a fill, a press, an upload and a web step of an effect class that reach into a frame fail before any act.

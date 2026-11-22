@@ -1,9 +1,15 @@
 #![cfg(windows)]
-//! The built app's start on Windows, a test form of the cases of check 34 (scripts/r1/ci.d/34-app-windows-start.sh)
-//! on the programs that the test build made: three apps at once, A on a data directory that is not provisioned, B and
-//! C on provisioned ones; no child and no store of A before the Start step, one halvo-capture.exe of B and of C, each
-//! a child of its app with no window of its own, none of B behind a ctl stop while its app runs, and none of C behind
-//! a kill of its app. The test returns at its first line off a hosted runner.
+//! The built app's start on Windows, a test form of the cases of check 34 (scripts/r1/ci.d/34-app-windows-start.sh),
+//! on the app that the test build made and on the capture program that the test builds beside it at every run with
+//! `cargo build --locked -p halvo-capture --bin halvo-capture --features stall-seam,test-seam`, since no other target
+//! of its slice builds that program. The features are those of halvo-capture's dev-dependency on itself, read from
+//! that line of crates/halvo-capture/Cargo.toml, so that the test starts the program that it would find in the gate
+//! and its build never replaces a program that another test of the same run needs: in a test run of the whole
+//! workspace, cli_windows.rs of halvo-capture runs after this test and needs the seam of the offline delete in it.
+//! The cases: three apps at once, A on a data directory that is not provisioned, B and C on provisioned ones; no child
+//! and no store of A before the Start step, one halvo-capture.exe of B and of C, each a child of its app with no
+//! window of its own, none of B behind a ctl stop while its app runs, and none of C behind a kill of its app. The test
+//! returns at its first line off a hosted runner.
 //!
 //! THE SEAM: a stop that the service takes before the app has read its child's first answer is followed by a child
 //! that the app starts again: the app reads a child as its own only when its poll, every 3 s, takes that child's
@@ -72,13 +78,91 @@ fn on_a_hosted_runner(name: &str, what: &str) -> bool {
     hosted
 }
 
-/// The app and the capture service that the gate's test build made beside it.
+/// The features of halvo-capture's dev-dependency on itself, read from its line in `manifest`: the features that the
+/// test targets of halvo-capture give the program in the gate's test build, joined by commas.
+fn gate_features(manifest: &Path) -> String {
+    let text = std::fs::read_to_string(manifest).unwrap_or_default();
+    let names: Vec<&str> = text
+        .lines()
+        .find(|line| line.starts_with("halvo-capture = { path = \".\""))
+        .and_then(|line| line.split_once("features = [")?.1.split_once(']'))
+        .map(|(list, _)| {
+            list.split(',')
+                .map(|name| name.trim().trim_matches('"'))
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(
+        !names.is_empty() && names.iter().all(|name| !name.is_empty()),
+        "{} holds no readable line halvo-capture = {{ path = \".\", features = [...] }}",
+        manifest.display()
+    );
+    names.join(",")
+}
+
+/// The app that the test build made, and the capture service that this test builds beside it at every run: one
+/// cargo build of halvo-capture's program alone, with the features of the gate's program, by the cargo that runs the
+/// test, at the workspace's root, with the profile and the target directory read from the app's path.
 fn built() -> (PathBuf, PathBuf) {
     let app = PathBuf::from(env!("CARGO_BIN_EXE_halvo"));
     let daemon = app.with_file_name("halvo-capture.exe");
+    let layout = app
+        .parent()
+        .and_then(|dir| Some((dir.file_name()?.to_str()?, dir.parent()?)));
+    let (profile, target): (&[&str], &Path) = match layout {
+        Some(("debug", target)) => (&[], target),
+        Some(("release", target)) => (&["--release"], target),
+        _ => panic!(
+            "{} stands in no directory debug or release, so the test cannot name its build",
+            app.display()
+        ),
+    };
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("the package of the app stands in the workspace's root");
+    let features = gate_features(&root.join("crates/halvo-capture/Cargo.toml"));
+    let mut words = vec![
+        "build",
+        "--locked",
+        "-p",
+        "halvo-capture",
+        "--bin",
+        "halvo-capture",
+        "--features",
+        features.as_str(),
+    ];
+    words.extend_from_slice(profile);
+    let began = Instant::now();
+    let out = Command::new(&cargo)
+        .args(&words)
+        .arg("--target-dir")
+        .arg(target)
+        .current_dir(root)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap_or_else(|e| panic!("{} does not start: {e}", Path::new(&cargo).display()));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let last: Vec<&str> = stderr.lines().rev().take(20).collect();
+    assert!(
+        out.status.success(),
+        "cargo {} --target-dir {} {}; its last lines:\n{}",
+        words.join(" "),
+        target.display(),
+        out.status,
+        last.into_iter().rev().collect::<Vec<_>>().join("\n")
+    );
+    say(
+        START,
+        &format!(
+            "built halvo-capture.exe beside the app in {:.1} s: cargo {}",
+            began.elapsed().as_secs_f64(),
+            words.join(" ")
+        ),
+    );
     assert!(
         daemon.is_file(),
-        "{} is not built: the test step builds it with the test targets of halvo-capture",
+        "{} is not there after the build of halvo-capture's program",
         daemon.display()
     );
     (app, daemon)
@@ -231,8 +315,8 @@ fn the_built_app_on_windows_starts_one_child_only_on_a_provisioned_directory_and
     let _one_at_a_time = ONE_BUILT_APP_AT_A_TIME
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let began = Instant::now();
     let (app, daemon) = built();
+    let began = Instant::now();
     let root = scratch_root("app-start-windows");
     let script = root.join("list.ps1");
     let [dir_a, dir_b, dir_c] = ["a", "b", "c"].map(|name| {
