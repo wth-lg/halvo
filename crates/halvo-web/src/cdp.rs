@@ -35,7 +35,7 @@ use crate::start;
 mod session;
 mod wire;
 pub use session::{cookie_param, domain_matches, host_of, OriginStorage, SessionState, Stopped};
-pub use wire::host_port;
+pub use wire::{form_of_paused, host_port, FormUnread, HeldForm, AMOUNT_FIELDS, MAX_FORM_BYTES};
 
 pub const STEP_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -166,8 +166,9 @@ pub enum Outcome {
 
 /// A request that the rule paused before it left: the executor's id when it was held, its method,
 /// origin and path, the id of the frame that made it, whether the rule let it through, and how the
-/// browser took the answer. The executor never reads, keeps or returns a request's body
-/// (CP-176 A1 (e)).
+/// browser took the answer. The record holds no byte of a request's body (CP-176 A1 (e)); of a
+/// held request the executor reads the body for the values of the form fields that name an amount
+/// alone (`HeldRequest::form`, r3 U5.10-C).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PausedRequest {
     pub id: Option<u64>,
@@ -222,7 +223,9 @@ impl Sign {
 }
 
 /// A held state-changing request (CP-176 A1 (a)): the executor's own id, its method, origin, path
-/// and frame, and nothing else.
+/// and frame, and what the wire read of its body and of its address's query (r3 U5.10-C): the
+/// values of the form fields that name an amount alone, or that it has no body, or why its body or
+/// query could not be read (`HeldForm`); no other byte of either.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HeldRequest {
     pub id: u64,
@@ -230,6 +233,7 @@ pub struct HeldRequest {
     pub origin: String,
     pub path: String,
     pub frame: String,
+    pub form: HeldForm,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
