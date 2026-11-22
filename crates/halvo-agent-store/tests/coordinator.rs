@@ -1,7 +1,7 @@
 mod common;
 
 use common::*;
-use halvo_agent_store::{Host, MemoryStore, AGENT_KINDS};
+use halvo_agent_store::{Host, MemoryStore, AGENT_KINDS, GOES_ON_AFTER};
 use halvo_policy::{preset, validate};
 use halvo_schema::executable::body::{AgentsReply, CHECKPOINTS_REPLY_MAX};
 use halvo_schema::executable::names::{Cause, LogEvent};
@@ -1637,13 +1637,37 @@ fn the_roster_names_the_newest_started_run_that_a_site_refused() {
     );
 }
 
-/// The `stopped` line of the run `r` of the agent `a` of the workflow `w`, with the cause and no step.
-fn stopped_line(w: u32, a: u32, r: u32, cause: &str) -> Value {
+/// The `stopped` line of the run `r` of the agent `a` of the workflow `w`, with the step, if any, and the cause.
+fn stopped_line(w: u32, a: u32, r: u32, step: Option<u32>, cause: &str) -> Value {
     json!({
         "v": 1, "workflow": wf(w), "agent": agent(a), "run": run(r), "seq": 2, "day": TODAY,
-        "at": NOW.at.0, "event": "stopped", "step": null, "cause": cause, "model": null, "ms": null,
+        "at": NOW.at.0, "event": "stopped", "step": step, "cause": cause, "model": null, "ms": null,
         "tokens_in": null, "tokens_out": null,
     })
+}
+
+/// The runner's `log` of the one line in the run `r` of the agent `a`.
+fn log_line(store: &mut MemoryStore, a: u32, r: u32, line: Value) {
+    let body = json!({"op": "log", "agent": agent(a), "run": run(r), "records": [line]});
+    assert_eq!(runner(store, body), Ok(stored(1)));
+}
+
+/// The runner's `finish` of the run `r` of the agent `a` of the workflow `w` with the outcome.
+fn finish_of(store: &mut MemoryStore, w: u32, a: u32, r: u32, outcome: &str) {
+    let mut record = run_record(r, Some("replay"), outcome);
+    record["workflow"] = json!(wf(w));
+    record["agent"] = json!(agent(a));
+    assert_eq!(finish(store, record), Ok(stored(1)), "{outcome}");
+}
+
+/// The `last_cause` of each entry of the roster, none where an entry lacks the key.
+fn causes(store: &mut MemoryStore) -> Vec<Option<Value>> {
+    let agents = roster(store)["agents"].clone();
+    let agents = agents.as_array().expect("the entries").clone();
+    agents
+        .iter()
+        .map(|a| a.get("last_cause").cloned())
+        .collect()
 }
 
 #[test]
@@ -1652,32 +1676,34 @@ fn the_roster_names_the_cause_of_the_newest_started_run() {
     store.put_workflow(workflow(&wf(2), "email", "approved", None));
     assert_eq!(create(&mut store, 2, 2), Ok(rev(1)));
     start_at(&mut store, NOW, 2, 2, 2).expect("start_run of the second agent");
-    let body = json!({"op": "log", "agent": agent(2), "run": run(2), "records": [stopped_line(2, 2, 2, "no_browser")]});
-    assert_eq!(runner(&mut store, body), Ok(stored(1)));
-    let causes = |store: &mut MemoryStore| -> Vec<Option<Value>> {
-        let agents = roster(store)["agents"].clone();
-        let agents = agents.as_array().expect("the entries").clone();
-        agents
-            .iter()
-            .map(|a| a.get("last_cause").cloned())
-            .collect()
-    };
+    log_line(&mut store, 2, 2, stopped_line(2, 2, 2, None, "no_browser"));
+    assert_eq!(
+        causes(&mut store),
+        [Some(Value::Null), Some(Value::Null)],
+        "the row of the end stands and the record does not: the run has not ended"
+    );
+    finish_of(&mut store, 2, 2, 2, "failed");
     assert_eq!(
         causes(&mut store),
         [Some(Value::Null), Some(json!("no_browser"))],
-        "the first agent's run has not ended; the second agent's run stopped with no_browser"
+        "the first agent's run has not ended; the second agent's run ended with no_browser"
     );
 
-    let later = at(NOW.at.0 + 1_000_000_000);
-    start_at(&mut store, later, 2, 2, 3).expect("a later start of the second agent");
-    let mut record = run_record(3, Some("replay"), "completed");
-    record["workflow"] = json!(wf(2));
-    record["agent"] = json!(agent(2));
-    assert_eq!(finish(&mut store, record), Ok(stored(1)));
+    start_at(&mut store, at(NOW.at.0 + 1_000_000_000), 2, 2, 3).expect("a later start");
+    finish_of(&mut store, 2, 2, 3, "completed");
     assert_eq!(
         causes(&mut store),
         [Some(Value::Null), Some(Value::Null)],
         "a later run that ended well"
+    );
+
+    start_at(&mut store, at(NOW.at.0 + 2_000_000_000), 2, 2, 4).expect("a later start");
+    log_line(&mut store, 2, 4, stopped_line(2, 2, 4, Some(1), "no_start"));
+    finish_of(&mut store, 2, 2, 4, "failed");
+    assert_eq!(
+        causes(&mut store),
+        [Some(Value::Null), Some(json!("no_start"))],
+        "the row of a list step that ended its run"
     );
 
     let outside = "no_such_cause";
@@ -1685,12 +1711,12 @@ fn the_roster_names_the_cause_of_the_newest_started_run() {
         Cause::parse(outside).is_err(),
         "{outside} is a name of the list"
     );
-    let latest = at(NOW.at.0 + 2_000_000_000);
-    start_at(&mut store, latest, 2, 2, 4).expect("the latest start of the second agent");
+    start_at(&mut store, at(NOW.at.0 + 3_000_000_000), 2, 2, 5).expect("the latest start");
+    finish_of(&mut store, 2, 2, 5, "failed");
     store
         .commit(vec![TypedRecord {
             kind: "agent_log",
-            json: stopped_line(2, 2, 4, outside).to_string(),
+            json: stopped_line(2, 2, 5, None, outside).to_string(),
         }])
         .expect("the row is stored as the store holds it");
     assert!(rows(&store, "agent_log")
@@ -1700,6 +1726,31 @@ fn the_roster_names_the_cause_of_the_newest_started_run() {
         causes(&mut store),
         [Some(Value::Null), Some(Value::Null)],
         "a stored cause that is no name of the list"
+    );
+}
+
+#[test]
+fn the_roster_names_no_cause_of_a_step_after_which_the_run_went_on() {
+    let mut store = store_with("email");
+    assert!(GOES_ON_AFTER.contains(&Cause::NotSelected));
+    for cause in GOES_ON_AFTER {
+        log_line(
+            &mut store,
+            1,
+            1,
+            stopped_line(1, 1, 1, Some(3), cause.as_str()),
+        );
+    }
+    assert_eq!(
+        causes(&mut store),
+        [Some(Value::Null)],
+        "the run goes on after the send step's row"
+    );
+    finish_of(&mut store, 1, 1, 1, "completed");
+    assert_eq!(
+        causes(&mut store),
+        [Some(Value::Null)],
+        "the run ended completed"
     );
 }
 
