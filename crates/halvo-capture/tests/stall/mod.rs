@@ -39,6 +39,7 @@ use super::{
 };
 
 mod kinds;
+pub(super) mod trial;
 
 use kinds::{
     phase, ControlRead, Controls, Kind, Landing, Lead, Outcome, Phase, PhaseRun, Step, Totals,
@@ -510,9 +511,14 @@ fn fixture_main() {
         post(target, CMD_QUIT, 0);
     });
     println!(
-        "STALLC ready fg={} method={}",
+        "STALLC ready fg={} method={} window={} plain={} password={} thread={}",
         flag(front.is_some()),
-        Front::code(front)
+        Front::code(front),
+        window.hwnd.0 as isize,
+        plain.0 as isize,
+        password.0 as isize,
+        // SAFETY: GetCurrentThreadId takes no argument.
+        unsafe { GetCurrentThreadId() }
     );
     let mut letters = [0u32; 4];
     let mut tabs = [0u32; 4];
@@ -684,13 +690,14 @@ fn fixture_main() {
                     let stall_ms = (arg & 0xFFFF) as u64;
                     let aimed = arg & ARG_AIM == 0 || aim_at(password);
                     println!(
-                        "STALLC ack fg={} focus_plain={} focus_password={} plain_len={} password_len={} aimed={}",
+                        "STALLC ack fg={} focus_plain={} focus_password={} plain_len={} password_len={} aimed={} tick={}",
                         flag(window.is_foreground()),
                         flag(focus == plain),
                         flag(focus == password),
                         text_len(plain),
                         text_len(password),
-                        flag(aimed)
+                        flag(aimed),
+                        trial::tick()
                     );
                     if arg & ARG_STALL_AFTER_A_TAB != 0 {
                         dispatch_until_a_tab(window.hwnd, &mut tabs, [plain, password, second]);
@@ -709,6 +716,7 @@ fn fixture_main() {
                         Wait::Sleeps
                     };
                     stall(stall_ms, wait);
+                    let woke_at = trial::tick();
                     let (plain_len, password_len) = (text_len(plain), text_len(password));
                     if arg & ARG_SELF_FOCUS != 0 {
                         focus_on(password);
@@ -716,7 +724,9 @@ fn fixture_main() {
                     if let Some(other) = other {
                         let _ = other.join();
                     }
-                    println!("STALLC woke plain_len={plain_len} password_len={password_len}");
+                    println!(
+                        "STALLC woke plain_len={plain_len} password_len={password_len} tick={woke_at}"
+                    );
                 }
                 _ => {
                     // SAFETY: PostQuitMessage takes an exit code.
@@ -845,6 +855,7 @@ pub(super) struct Fixture {
     lines: mpsc::Receiver<(String, Fields)>,
     foreground: bool,
     front: Option<Front>,
+    ready: Fields,
 }
 
 impl Fixture {
@@ -893,10 +904,12 @@ impl Fixture {
             lines,
             foreground: false,
             front: None,
+            ready: Fields::new(),
         };
         let ready = fixture.expect("ready", Duration::from_secs(40));
         fixture.foreground = get(&ready, "fg") == 1;
         fixture.front = Front::of_code(get(&ready, "method"));
+        fixture.ready = ready;
         say(
             test,
             format!(

@@ -2874,3 +2874,136 @@ fn a_renamed_copy_of_firefox_reads_unknown_and_records_nothing() {
 fn a_renamed_copy_of_chrome_reads_unknown_and_records_nothing() {
     renamed_copy_phases("browser-renamed-chrome", &CHROME);
 }
+
+fn trial_page_round(
+    test: &str,
+    keyboard: &Keyboard,
+    recorder: &super::stall::trial::Recorder,
+    (hwnd, name): (HWND, &str),
+    (phase, hold, round): (&str, u64, u32),
+) {
+    use super::stall::trial;
+    let mut pid = 0u32;
+    // SAFETY: GetWindowThreadProcessId reads a handle value and fills `pid`.
+    let tid = unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    let reset_at = trial::tick();
+    let start = reset(keyboard, hwnd).unwrap_or_default();
+    let _ = recorder.take();
+    let front = foreground_window() == hwnd;
+    let sampler = trial::Sampler::start(pid, tid, hwnd.0 as isize);
+    let sent_at = trial::tick();
+    let mut pointer = String::from("pointer=not-read");
+    let sent = match phase {
+        "tab" => {
+            send(&[
+                key_input(VK_TAB, false),
+                key_input(VK_TAB, true),
+                key_input(VK_A, false),
+                key_input(VK_A, true),
+            ]);
+            1 + letters_for(Duration::from_millis(hold + 300), Duration::from_millis(60))
+        }
+        "click" => {
+            let (cx, cy) = screen_size();
+            let to = |v: i64, span: i32| (v * 65_535 / i64::from(span - 1)) as i32;
+            send(&[mouse_input(
+                to(start.px, cx),
+                to(start.py, cy),
+                MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
+            )]);
+            std::thread::sleep(Duration::from_millis(40));
+            send(&[
+                mouse_input(0, 0, MOUSEEVENTF_LEFTDOWN),
+                mouse_input(0, 0, MOUSEEVENTF_LEFTUP),
+                key_input(VK_A, false),
+                key_input(VK_A, true),
+            ]);
+            pointer = trial::pointer_element();
+            1 + letters_for(Duration::from_millis(hold + 300), Duration::from_millis(60))
+        }
+        "self" => {
+            std::thread::sleep(Duration::from_millis(150));
+            letters_for(Duration::from_millis(1_400), Duration::from_millis(60))
+        }
+        "swap-timer" => {
+            std::thread::sleep(Duration::from_millis(150));
+            letters_for(Duration::from_millis(1_300), Duration::from_millis(60))
+        }
+        "swap-keydown" => letters_for(Duration::from_millis(1_300), Duration::from_millis(60)),
+        _ => letters_for(Duration::from_millis(300), Duration::from_millis(60)),
+    };
+    let r = end_round(keyboard, hwnd, sent, front);
+    let samples = sampler.finish();
+    let seen = recorder.take();
+    let freed = (r.page.freed_at >= 0).then_some(r.page.freed_at);
+    let mark = freed.or_else(|| r.page.landed_at.first().copied());
+    let held_until = mark.map_or_else(trial::tick, |ms| {
+        reset_at.wrapping_add(u32::try_from(ms).unwrap_or(0))
+    });
+    let class = |e: &trial::WinEventSeen| match e.protected {
+        1 => 'p',
+        0 => 't',
+        _ => '?',
+    };
+    say(
+        test,
+        format!(
+            "trial=page browser={name} phase={phase} hold={hold} round={round} front={front} \
+             focus_at_reset={} sent={sent} page_text={} page_pw={} landings={} landed_at={:?} freed_at={} \
+             gate_letters_recorded={} held_until_after_send_ms={} held: {} | {} | {pointer}",
+            start.focus,
+            r.page.text,
+            r.page.password,
+            if r.page.landings.is_empty() { "-" } else { r.page.landings.as_str() },
+            r.page.landed_at,
+            r.page.freed_at,
+            r.keys.letters,
+            i64::from(held_until.wrapping_sub(sent_at) as i32),
+            trial::sample_counts(&samples, sent_at, held_until),
+            trial::event_line(&seen, pid, sent_at, held_until, class),
+        ),
+    );
+}
+
+fn trial_page_signals(test: &'static str, name: &'static str) {
+    with_deadline(test, Duration::from_secs(900), move || {
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start(test);
+        let recorder = super::stall::trial::Recorder::start(true);
+        let mut plan: Vec<(&str, u64)> = vec![("control", 0)];
+        for phase in ["tab", "click", "self", "swap-timer", "swap-keydown"] {
+            for hold in [150, 300] {
+                plan.push((phase, hold));
+            }
+        }
+        for (phase, hold) in plan {
+            let Some(hwnd) = browser.open(test, phase, hold) else {
+                continue;
+            };
+            for round in 0..2 {
+                trial_page_round(
+                    test,
+                    &keyboard,
+                    &recorder,
+                    (hwnd, name),
+                    (phase, hold, round),
+                );
+            }
+        }
+        drop(recorder);
+        say(test, format!("trial=page browser={name} ended=1"));
+    });
+}
+
+#[test]
+#[ignore = "trial: prints the signals of a page that holds its thread or not; asserts nothing"]
+fn trial_signals_of_the_page_in_chrome() {
+    trial_page_signals("trial-page-chrome", "chrome");
+}
+
+#[test]
+#[ignore = "trial: prints the signals of a page that holds its thread or not; asserts nothing"]
+fn trial_signals_of_the_page_in_edge() {
+    trial_page_signals("trial-page-edge", "edge");
+}
