@@ -34,7 +34,7 @@ pub enum Refused {
 pub struct Lifeline {
     closed: Arc<AtomicBool>,
     parent: u32,
-    #[cfg(all(windows, debug_assertions))]
+    #[cfg(windows)]
     handle: crate::daemon::owner_pid::ProcessHandle,
 }
 
@@ -58,7 +58,7 @@ impl Lifeline {
     /// comes from the process table, and the start opens the parent by it
     /// to wait on. A pid that names no process, a parent that has ended and
     /// a process that started after this one are a parent that is gone.
-    #[cfg(all(windows, debug_assertions))]
+    #[cfg(windows)]
     pub fn start() -> Result<Lifeline, Refused> {
         use crate::daemon::owner_pid::{start_time_of, Opened, ProcessHandle};
         use windows::Win32::System::Threading::{
@@ -105,7 +105,7 @@ impl ParentWatch for Lifeline {
         self.closed.load(Ordering::SeqCst) || std::os::unix::process::parent_id() != self.parent
     }
 
-    #[cfg(all(windows, debug_assertions))]
+    #[cfg(windows)]
     fn ended(&self) -> bool {
         self.closed.load(Ordering::SeqCst) || self.handle.has_ended()
     }
@@ -146,7 +146,7 @@ fn input_is_a_pipe() -> bool {
         .is_ok_and(|meta| meta.file_type().is_fifo())
 }
 
-#[cfg(all(windows, debug_assertions))]
+#[cfg(windows)]
 fn input_is_a_pipe() -> bool {
     use std::os::windows::io::AsRawHandle;
     use windows::Win32::Foundation::HANDLE;
@@ -159,7 +159,7 @@ fn input_is_a_pipe() -> bool {
 
 /// The pid of the process that started this one, from a Toolhelp snapshot of
 /// the process table: the parent pid of this process's own entry.
-#[cfg(all(windows, debug_assertions))]
+#[cfg(windows)]
 fn parent_pid() -> std::io::Result<u32> {
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Diagnostics::ToolHelp::{
