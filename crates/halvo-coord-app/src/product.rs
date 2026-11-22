@@ -16,7 +16,8 @@
 //! wait for the person's answer, which `Runs::answer_confirm` and `Runs::answer_bind` hand them, or for the run's
 //! cancel or kill, which rejects and declines. The supervisor's link puts each effect row that a runner stores to the
 //! core's guard first (`Coordinator::check_record`, which asks `Policy`), answers a refused one `approval` without
-//! sending it, and reports each one that the owner acknowledged (`Coordinator::stored`). Each run of this life ends through `MarkSink::end`; a run
+//! sending it, and so one that the guard cannot read and every one while no hub is attached, and reports each one that
+//! the owner acknowledged (`Coordinator::stored`). Each run of this life ends through `MarkSink::end`; a run
 //! of an earlier life that the start's reap answers is ended by the core's recovery, and the start sends the one
 //! mark `run_end` for it itself, because the library's reap calls no `MarkSink`.
 #![cfg(target_os = "macos")]
@@ -38,7 +39,7 @@ use halvo_agent_client::{
 };
 use halvo_control::client::ClientError;
 use halvo_control::r2::{OwnerStreamEnd, RunEdge, RunMarked};
-use halvo_coord::guard::{EffectRecord, EffectState, Policy};
+use halvo_coord::guard::{EffectRecord, EffectState, Policy, Refusal as GuardRefusal};
 use halvo_coord::items::drive::log_text;
 use halvo_coord::ports::{
     Analysis, Clock, Overlap, Overlaps, Owner, PortError, Reading, Reaped, Refused, Rng, Runs,
@@ -538,52 +539,108 @@ impl Confirmer for Asks {
     }
 }
 
-/// The supervisor's link with the core's guard: each effect row that a runner stores is put to
-/// `Coordinator::check_record` first, a refused one is answered with the refusal's name and never sent, and each one
-/// that the owner acknowledged is reported with `Coordinator::stored`, never one that the guard alone passed.
+/// The supervisor's link with the core's guard. Each effect row that a runner stores is put to
+/// `Coordinator::check_record` first, and each one that the owner acknowledged is reported with
+/// `Coordinator::stored`, never one that the guard alone passed. The guard refuses what it cannot read: a request
+/// that is no JSON object naming its request, a runner's `effect` whose record it cannot read, and every runner's
+/// `effect` while no hub is attached. A refused request never reaches the owner; its sender gets the error reply
+/// of the guard's refusal, `approval`, with the request's id.
 struct Guarded {
     link: Arc<dyn OwnerLink>,
     hub: Arc<OnceLock<Weak<ProductHub>>>,
 }
 
-/// The effect record of a runner's `effect` request, with the request's id.
-fn effect_of(request: &[u8]) -> Option<(EffectRecord, String)> {
-    let v: Value = serde_json::from_slice(request).ok()?;
-    if v["request"] != "runner" || v["body"]["op"] != "effect" {
-        return None;
-    }
-    let r = &v["body"]["record"];
-    let record = EffectRecord {
-        run: RunId::parse(r["run"].as_str()?).ok()?,
-        agent: AgentId::parse(r["agent"].as_str()?).ok()?,
-        effect: EffectId::parse(r["effect"].as_str()?).ok()?,
-        state: EffectState::parse(r["state"].as_str()?).ok()?,
-        class: Class::parse(r["class"].as_str()?).ok()?,
-        digest: Digest::parse(r["digest"].as_str()?).ok()?,
-        approval: match &r["approval"] {
-            Value::Null => None,
-            a => Some(ApprovalId::parse(a.as_str()?).ok()?),
-        },
+/// What the guard reads of one request.
+enum Asked {
+    /// A request that is no runner's `effect`: it goes on unchecked.
+    Other,
+    /// A request that the guard cannot read, with its id where it reads one.
+    Unread(Value),
+    /// A runner's `effect`, with what the guard reads of its record and the request's id.
+    Effect(Row, Value),
+}
+
+/// What the guard reads of the record of a runner's `effect`.
+enum Row {
+    /// The record, read whole.
+    Read(EffectRecord),
+    /// A record of the state `not_made`, which the schema names and the coordinator's reader does not, read whole
+    /// but for that: no row of that state begins or approves an effect, so the guard holds nothing for it.
+    NotMade,
+    /// A record that the guard cannot read.
+    Unread,
+}
+
+/// What the guard reads of `request`.
+fn asked(request: &[u8]) -> Asked {
+    let Ok(v) = serde_json::from_slice::<Value>(request) else {
+        return Asked::Unread(Value::Null);
     };
-    Some((record, v["id"].as_str()?.to_owned()))
+    let id = match &v["id"] {
+        Value::String(id) => Value::String(id.clone()),
+        _ => Value::Null,
+    };
+    let Some(name) = v["request"].as_str() else {
+        return Asked::Unread(id);
+    };
+    if name != "runner" || v["body"]["op"] != "effect" {
+        return Asked::Other;
+    }
+    let row = row_of(&v["body"]["record"]).unwrap_or(Row::Unread);
+    Asked::Effect(row, id)
+}
+
+/// The record of a runner's `effect` as the guard reads it, none where a key does not read.
+fn row_of(r: &Value) -> Option<Row> {
+    let run = RunId::parse(r["run"].as_str()?).ok()?;
+    let agent = AgentId::parse(r["agent"].as_str()?).ok()?;
+    let effect = EffectId::parse(r["effect"].as_str()?).ok()?;
+    let class = Class::parse(r["class"].as_str()?).ok()?;
+    let digest = Digest::parse(r["digest"].as_str()?).ok()?;
+    let approval = match &r["approval"] {
+        Value::Null => None,
+        a => Some(ApprovalId::parse(a.as_str()?).ok()?),
+    };
+    Some(match r["state"].as_str()? {
+        "not_made" => Row::NotMade,
+        state => Row::Read(EffectRecord {
+            run,
+            agent,
+            effect,
+            state: EffectState::parse(state).ok()?,
+            class,
+            digest,
+            approval,
+        }),
+    })
+}
+
+/// The error reply of the guard's refusal `refusal` to the request of `id`.
+fn refused_reply(id: &Value, refusal: GuardRefusal) -> Vec<u8> {
+    format!(r#"{{"v":1,"id":{id},"error":"{}"}}"#, refusal.name()).into_bytes()
 }
 
 impl OwnerLink for Guarded {
     fn request(&self, request: &[u8]) -> Result<Vec<u8>, LinkError> {
-        let hub = self.hub.get().and_then(Weak::upgrade);
-        let effect = effect_of(request);
-        if let (Some(hub), Some((record, id))) = (&hub, &effect) {
-            if let Err(refusal) = hub.coordinator().check_record(record) {
-                return Ok(
-                    format!(r#"{{"v":1,"id":"{id}","error":"{}"}}"#, refusal.name()).into_bytes(),
-                );
-            }
+        let (row, id) = match asked(request) {
+            Asked::Other => return self.link.request(request),
+            Asked::Unread(id) => return Ok(refused_reply(&id, GuardRefusal::Approval)),
+            Asked::Effect(row, id) => (row, id),
+        };
+        let Some(hub) = self.hub.get().and_then(Weak::upgrade) else {
+            return Ok(refused_reply(&id, GuardRefusal::Approval));
+        };
+        let record = match row {
+            Row::Unread => return Ok(refused_reply(&id, GuardRefusal::Approval)),
+            Row::NotMade => return self.link.request(request),
+            Row::Read(record) => record,
+        };
+        if let Err(refusal) = hub.coordinator().check_record(&record) {
+            return Ok(refused_reply(&id, refusal));
         }
         let reply = self.link.request(request)?;
-        if let (Some(hub), Some((record, _))) = (&hub, &effect) {
-            if decode_reply(&reply).is_ok_and(|r| r.outcome.is_ok()) {
-                hub.coordinator().stored(record);
-            }
+        if decode_reply(&reply).is_ok_and(|r| r.outcome.is_ok()) {
+            hub.coordinator().stored(&record);
         }
         Ok(reply)
     }
@@ -1493,5 +1550,95 @@ impl Senders for Product {
                 later: n(later)?,
             }),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A link that keeps each request that reaches it and answers each with a null result.
+    struct Kept(Mutex<Vec<Vec<u8>>>);
+
+    impl OwnerLink for Kept {
+        fn request(&self, request: &[u8]) -> Result<Vec<u8>, LinkError> {
+            lock(&self.0).push(request.to_vec());
+            Ok(br#"{"v":1,"id":null,"ok":null}"#.to_vec())
+        }
+    }
+
+    /// A runner's `effect` request whose body holds `record`.
+    fn effect(record: &str) -> Vec<u8> {
+        format!(
+            r#"{{"v":1,"id":"{}","request":"runner","body":{{"op":"effect","agent":"{}","run":"{}","record":{record}}}}}"#,
+            "01".repeat(16),
+            "a1".repeat(16),
+            "d1".repeat(16)
+        )
+        .into_bytes()
+    }
+
+    /// The key `error` of a reply as its text holds it, or none: `decode_reply` takes no name `approval`.
+    fn error_of(reply: &[u8]) -> Option<String> {
+        let reply: Value = serde_json::from_slice(reply).ok()?;
+        reply.get("error")?.as_str().map(str::to_owned)
+    }
+
+    /// U5.4a round 1, item (1): the guard on the supervisor's link refuses a record of `effect` that its reader
+    /// cannot read, and every such record while no hub is attached: neither reaches the owner, and its sender gets
+    /// the guard's refusal `approval`.
+    #[test]
+    fn the_links_guard_refuses_what_it_cannot_read_and_everything_while_no_hub_is_attached() {
+        let kept = Arc::new(Kept(Mutex::new(Vec::new())));
+        let attached: Arc<OnceLock<Weak<ProductHub>>> = Arc::default();
+        let guarded = Guarded {
+            link: kept.clone(),
+            hub: Arc::clone(&attached),
+        };
+        let record = |class: &str| {
+            format!(
+                r#"{{"v":1,"workflow":"{}","agent":"{}","run":"{}","effect":"{}","seq":1,"day":20778,"at":1,"state":"approved","class":"{class}","digest":"{}","kept":[],"fields":0,"approval":"{}","cause":null}}"#,
+                "f1".repeat(16),
+                "a1".repeat(16),
+                "d1".repeat(16),
+                "e1".repeat(16),
+                "0a".repeat(32),
+                "c1".repeat(16)
+            )
+        };
+
+        let unattached = guarded.request(&effect(&record("send"))).unwrap();
+        assert_eq!(error_of(&unattached).as_deref(), Some("approval"));
+        assert!(
+            lock(&kept.0).is_empty(),
+            "a record went on while no hub was attached"
+        );
+
+        let fails: Calls = Calls {
+            owner_stream: Arc::new(|| Err(ClientError::Unsupported)),
+            relay: Arc::new(|_: &[u8]| Err(ClientError::Unsupported)),
+            mark: Arc::new(|_| Err(ClientError::Unsupported)),
+        };
+        let places = Places {
+            data_dir: PathBuf::from("/nowhere/halvo-u54a"),
+            runner: PathBuf::from("/nowhere/halvo-runner"),
+            browser: PathBuf::from("/nowhere/halvo-browser"),
+            model: None,
+        };
+        let hub = hub(fails, places, Box::new(|_| {}), Box::new(Drops));
+        assert!(attached.set(Arc::downgrade(&hub)).is_ok());
+        let unread = guarded.request(&effect(&record("no_such_class"))).unwrap();
+        assert_eq!(error_of(&unread).as_deref(), Some("approval"));
+        assert!(
+            lock(&kept.0).is_empty(),
+            "a record that the guard cannot read went on"
+        );
+    }
+
+    /// A presenter that drops each dialog.
+    struct Drops;
+
+    impl Present for Drops {
+        fn present(&self, _dialog: crate::hub::Native) {}
     }
 }
