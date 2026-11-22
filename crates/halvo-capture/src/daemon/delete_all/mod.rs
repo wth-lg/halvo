@@ -669,6 +669,10 @@ fn open_for_the_delete(
 /// the delete is not finished, with that file counted as left, and no tail
 /// runs behind it.
 fn delete_the_store(host: &DataDirStore, handle: Option<Handle>) -> TailAnswer {
+    #[cfg(all(test, target_os = "macos", debug_assertions))]
+    if let Some(answer) = stand_in::answer() {
+        return answer;
+    }
     let Some(mut handle) = handle else {
         return host.delete();
     };
@@ -707,6 +711,42 @@ fn delete_the_store(host: &DataDirStore, handle: Option<Handle>) -> TailAnswer {
             TailAnswer::NotFinished(report)
         }
         other => other,
+    }
+}
+
+/// The store's own delete as a test of this thread sets it: while the guard of [`fails`] lives,
+/// [`delete_the_store`] answers that the delete failed with no report, in place of its run.
+#[cfg(all(test, target_os = "macos", debug_assertions))]
+mod stand_in {
+    use std::cell::Cell;
+
+    use super::TailAnswer;
+
+    thread_local! {
+        /// Whether the store's own delete fails with no report on this thread.
+        static FAILS: Cell<bool> = const { Cell::new(false) };
+    }
+
+    /// The answer of the store's own delete on this thread, none outside [`fails`].
+    pub(super) fn answer() -> Option<TailAnswer> {
+        FAILS
+            .with(Cell::get)
+            .then(|| TailAnswer::Failed("a stand-in of the store's delete failed".to_owned()))
+    }
+
+    /// Makes the store's own delete fail with no report on this thread until the drop of the
+    /// answer.
+    pub(super) fn fails() -> Fails {
+        FAILS.with(|fails| fails.set(true));
+        Fails(())
+    }
+
+    pub(super) struct Fails(());
+
+    impl Drop for Fails {
+        fn drop(&mut self) {
+            FAILS.with(|fails| fails.set(false));
+        }
     }
 }
 
