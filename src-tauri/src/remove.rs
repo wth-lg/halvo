@@ -109,17 +109,16 @@ const ROWS: [Row; 6] = [
     },
     Row {
         step: Step::AppFiles,
-        parents: &[LIBRARY, "Caches", DATA_FOLDER_NAME],
-        last: Last::Fixed("agents"),
+        parents: &[LIBRARY, "Caches"],
+        last: Last::Fixed(DATA_FOLDER_NAME),
         kind: Kind::Tree,
         at_start: false,
     },
 ];
 
-const KEPT: [&[&str]; 6] = [
+const KEPT: [&[&str]; 5] = [
     &[LIBRARY],
     &[LIBRARY, "Caches"],
-    &[LIBRARY, "Caches", DATA_FOLDER_NAME],
     &[LIBRARY, "WebKit"],
     &[LIBRARY, APPLICATION_SUPPORT],
     &MACOS_LAUNCH_AGENTS_DIR,
@@ -968,7 +967,7 @@ mod tests {
             library(home, &[APPLICATION_SUPPORT, "notes of the person.txt"]),
             library(home, &[APPLICATION_SUPPORT, other, "settings.json"]),
             library(home, &[APPLICATION_SUPPORT, ID, "kept by the person.txt"]),
-            library(home, &["Caches", "Halvo", "model.lock"]),
+            library(home, &["Caches", "Halvo beside", "kept"]),
         ];
         for path in &placed {
             write(path, "the person's");
@@ -982,7 +981,7 @@ mod tests {
             library(home, &["Caches", ID]),
             library(home, &["WebKit", ID]),
             library(home, &[APPLICATION_SUPPORT, ID, OLD_CONSENT_FILE]),
-            library(home, &["Caches", "Halvo", "agents"]),
+            library(home, &["Caches", "Halvo"]),
             data.state_file(),
             data.intent_file(),
         ];
