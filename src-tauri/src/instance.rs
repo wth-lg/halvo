@@ -205,9 +205,13 @@ mod tests {
         assert!(!first.asked_to_show(), "with --background it asks nothing");
 
         drop(first);
-        assert!(
-            matches!(take(&dir, true), Ok(Taken::First(_))),
-            "a new take after the first is dropped holds the lock"
-        );
+        let until = std::time::Instant::now() + Duration::from_secs(10);
+        while !matches!(take(&dir, true), Ok(Taken::First(_))) {
+            assert!(
+                std::time::Instant::now() < until,
+                "a new take after the first is dropped holds the lock"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
     }
 }

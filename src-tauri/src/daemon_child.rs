@@ -713,8 +713,13 @@ pub mod stand_in {
                 .unwrap_or_else(PoisonError::into_inner)
                 .push(period);
             self.advance(period);
+            let real = if period <= STOP_POLL {
+                Duration::ZERO
+            } else {
+                Duration::from_millis(5)
+            };
             changed
-                .wait_timeout(held, Duration::from_millis(5))
+                .wait_timeout(held, real)
                 .unwrap_or_else(PoisonError::into_inner)
                 .0
         }
@@ -722,6 +727,17 @@ pub mod stand_in {
 
     /// The ending of a child that the test gives while the child lives.
     pub type Later = Arc<Mutex<Option<Ending>>>;
+
+    /// A call that a stand-in child makes once, at its first look after its descriptor closed:
+    /// a step of a test that lands inside the stop's wait whatever the real time.
+    #[derive(Clone)]
+    pub struct AtClose(pub Arc<dyn Fn() + Send + Sync>);
+
+    impl std::fmt::Debug for AtClose {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("AtClose")
+        }
+    }
 
     /// A child that ends as its row says, after the clock has moved by the time it lived, or,
     /// with no ending, once the test gives one in `later`, once its descriptor is closed when it
@@ -737,6 +753,7 @@ pub mod stand_in {
         pub record: Record,
         pub closed_at: Option<Instant>,
         pub killed: bool,
+        pub at_close: Option<AtClose>,
     }
 
     impl StandInChild {
@@ -751,6 +768,7 @@ pub mod stand_in {
                 record: Arc::clone(record),
                 closed_at: None,
                 killed: false,
+                at_close: None,
             }
         }
     }
@@ -761,6 +779,11 @@ pub mod stand_in {
         }
 
         fn ended(&mut self) -> io::Result<Option<Ending>> {
+            if self.closed_at.is_some() {
+                if let Some(AtClose(call)) = self.at_close.take() {
+                    call();
+                }
+            }
             if self.killed {
                 return Ok(Some(Ending::Signal));
             }
@@ -834,7 +857,7 @@ mod tests {
     use crate::poller::{pass, Views};
     use crate::tests::{fixtures_dir, read_json};
     use crate::view_state::{ActionError, Press};
-    use stand_in::{note, Later, Record, StandInChild, StandInClock, StandInSpawner};
+    use stand_in::{note, AtClose, Later, Record, StandInChild, StandInClock, StandInSpawner};
 
     /// A control whose Status answers `status`, or no daemon where it holds none, and whose
     /// Resume answers the held child's status; it records each request.
@@ -1934,41 +1957,57 @@ mod tests {
         for (name, steps, children, expected, (held, backoff, service)) in rows {
             let record = Record::default();
             let clock = Arc::new(StandInClock::default());
-            let spawner = StandInSpawner {
-                children: children
-                    .into_iter()
-                    .map(|(pid, ends_at_close)| StandInChild {
-                        ends_at_close,
-                        ..StandInChild::new(pid, &clock, &record)
-                    })
-                    .collect(),
-                record: Arc::clone(&record),
-            };
             let views = Arc::new(Views::default());
             let pid = Arc::<ChildPid>::default();
-            let supervisor = Supervisor::start_holding(
-                spawner,
-                Arc::clone(&pid),
-                Arc::clone(&clock),
-                Arc::clone(&views),
-            );
             let mut waits = Vec::new();
             let mut answers = Vec::new();
             for (child, line, answer) in steps {
                 waits.push((child, line));
                 answers.push(answer);
             }
-            let control = Watching::new(
+            let control = Arc::new(Watching::new(
                 Scripted::new(&record, answers, Vec::new()),
                 Arc::clone(&pid),
+            ));
+            let at_close = |child: u32| {
+                let inside_the_stop = waits
+                    .iter()
+                    .any(|(of, line)| *of == child && *line == "closed descriptor");
+                inside_the_stop.then(|| {
+                    let (control, views) = (Arc::clone(&control), Arc::clone(&views));
+                    AtClose(Arc::new(move || {
+                        let tray = crate::tray::installed_for_tests();
+                        pass(control.as_ref(), &views, Some(&tray));
+                    }))
+                })
+            };
+            let spawner = StandInSpawner {
+                children: children
+                    .into_iter()
+                    .map(|(pid, ends_at_close)| StandInChild {
+                        ends_at_close,
+                        at_close: at_close(pid),
+                        ..StandInChild::new(pid, &clock, &record)
+                    })
+                    .collect(),
+                record: Arc::clone(&record),
+            };
+            let supervisor = Supervisor::start_holding(
+                spawner,
+                Arc::clone(&pid),
+                Arc::clone(&clock),
+                Arc::clone(&views),
             );
             for (child, line) in waits {
+                if line == "closed descriptor" {
+                    continue;
+                }
                 until(name, || {
                     pid.get() == Some(child)
                         && (line.is_empty()
                             || record.lock().unwrap().iter().any(|seen| seen == line))
                 });
-                pass(&control, &views, Some(&tray));
+                pass(control.as_ref(), &views, Some(&tray));
             }
             until(name, || record.lock().unwrap().len() >= expected.len());
             looked_again(&clock);
