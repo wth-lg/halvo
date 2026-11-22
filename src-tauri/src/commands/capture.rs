@@ -615,8 +615,8 @@ fn ask_once(
 
 /// What the app does before a delete of everything goes out, at either door: every registered
 /// module is told (`Registration::before_delete_all`), and then the agents' runs are held, the
-/// runs at work stopped within the core's grace, until the view of a poll made after the
-/// delete's end is drawn (`agents::RunsHold`).
+/// runs at work stopped within the core's grace, until a reading of a poll made after the
+/// delete's end is drawn whose view does not bar (`agents::RunsHold`).
 #[derive(Clone)]
 pub struct Before {
     pub modules: Vec<&'static dyn Registration>,
@@ -641,7 +641,8 @@ impl Before {
 
     /// Tells every module, waiting for them at most STOP_WAIT_MS, and holds the agents' runs;
     /// this delete ends in the hold when the answer is dropped, also where the hold's own call
-    /// unwinds, and the hold stands on until the view of a poll made after that end is drawn.
+    /// unwinds, and the hold stands on until a reading of a poll made after that end is drawn
+    /// whose view does not bar.
     pub fn tell(&self) -> HeldForADelete {
         tell_before_delete_all(
             &self.modules,

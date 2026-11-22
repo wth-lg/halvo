@@ -551,11 +551,11 @@ pub fn account_hook() -> (Outcome, Detail) {
 /// agents' runs by a guard of the list, which also sets the mark of a removal on `hold`, so that
 /// no press writes the login item or asks for a child while the list runs. The guard is made
 /// before its hold begins, as the delete's own is, and its drop ends the list's delete in the
-/// runs' hold, which stands on until the view of a poll made after that end is drawn
-/// (`agents::RunsHold`), and takes the mark off: after a list that stopped, and where a step
-/// unwinds. After a whole list the list keeps the guard (`keep` marks it kept, and its drop then
-/// ends nothing), so the runs stay held and the mark stands to the end of the app, and the
-/// child's supervisor ends as at a
+/// runs' hold, which stands on until a reading of a poll made after that end is drawn whose
+/// view does not bar (`agents::RunsHold`), and takes the mark off: after a list that stopped,
+/// and where a step unwinds. After a whole list the list keeps the guard (`keep` marks it kept,
+/// and its drop then ends nothing), so the runs stay held and the mark stands to the end of the
+/// app, and the child's supervisor ends as at a
 /// quit, so that no child starts after it; after a list that stopped the supervisor goes on by
 /// its rule. The account step is `account`; the delete is the offline delete of `offline` after
 /// `before`, and it is done only where it deleted and left nothing of the store, or found no
