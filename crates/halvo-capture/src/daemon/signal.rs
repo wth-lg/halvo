@@ -62,7 +62,28 @@ pub fn prepare() -> io::Result<()> {
             }
         }
     }
+    #[cfg(all(windows, debug_assertions))]
+    {
+        // SAFETY: `on_console_event` is an `extern "system"` function that
+        // stores to a static atomic, and it lives for the whole process.
+        unsafe {
+            windows::Win32::System::Console::SetConsoleCtrlHandler(Some(on_console_event), true)
+        }?;
+    }
     Ok(())
+}
+
+/// A console's Ctrl-C and Ctrl-Break set the stop flag and count as handled;
+/// every other console event goes to the next handler.
+#[cfg(all(windows, debug_assertions))]
+unsafe extern "system" fn on_console_event(event: u32) -> windows::core::BOOL {
+    use windows::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
+    if event == CTRL_C_EVENT || event == CTRL_BREAK_EVENT {
+        SIGNALLED.store(true, Ordering::SeqCst);
+        windows::core::BOOL(1)
+    } else {
+        windows::core::BOOL(0)
+    }
 }
 
 #[cfg(target_os = "macos")]

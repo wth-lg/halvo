@@ -235,8 +235,14 @@ impl Mode {
 
 /// Installs the signal flag for a mode that reads it and nothing for any
 /// other mode, which SIGINT and SIGTERM then end by the system's default
-/// action (ruling DM-12 P3).
+/// action (ruling DM-12 P3). On Windows a console's Ctrl-C and Ctrl-Break
+/// serve a timed run alone (unit win-5, X-windows-03): a service run ends by
+/// its session window, its lifeline or a Stop request.
 pub fn prepare_signals(mode: &Mode) -> std::io::Result<()> {
+    #[cfg(all(windows, debug_assertions))]
+    if !matches!(mode, Mode::TimedRun(_)) {
+        return Ok(());
+    }
     if mode.reads_the_signal_flag() {
         signal::prepare()
     } else {
@@ -845,6 +851,25 @@ mod gate {
             .ok_or(Usage("--timed-run needs SECONDS"))?;
         let flags = Flags::read(flags, &["--store-dir", "--hold-secure-input", "--switch"])?;
         let seconds = seconds_of(seconds)?;
+        if cfg!(target_os = "windows") {
+            for (switch, on) in &flags.switches.0 {
+                match (switch, on) {
+                    (Switch::KeyClass, true) => {
+                        return Err(Usage(
+                            "--switch key_class=on is refused on Windows: this build starts no keyboard source",
+                        )
+                        .into());
+                    }
+                    (Switch::ScreenActivity, true) => {
+                        return Err(Usage(
+                            "--switch screen_activity=on is refused on Windows: this build starts no screen source",
+                        )
+                        .into());
+                    }
+                    _ => {}
+                }
+            }
+        }
         let secure_input = if flags.hold {
             if cfg!(target_os = "windows") {
                 return Err(Usage("--hold-secure-input is a flag of macOS").into());
@@ -1090,7 +1115,11 @@ impl Waits for RealWaits {
     }
 }
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 fn waits_of<'a, P: RunSources>(sources: &'a mut P, real: &'a mut RealWaits) -> &'a mut dyn Waits {
     match sources.waits() {
         Some(waits) => waits,
@@ -1107,12 +1136,20 @@ fn waits_of<'a, P: RunSources>(sources: &'a mut P, real: &'a mut RealWaits) -> &
 /// the gate's kill of a timed child comes at its seconds plus
 /// child_deadline_extra_s (25 s, docs/baseline/r1-gate-bounds.txt), counted
 /// from the child's start, so the margin moves no end past it.
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 pub const STOP_PATH_MARGIN_MS: u64 = 1_000;
 
 /// What is left of the stop path's budget, SHUTDOWN_BUDGET_MS less
 /// [`STOP_PATH_MARGIN_MS`] from `start`.
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 fn left_of(start: Duration, waits: &dyn Waits) -> Duration {
     (start + Duration::from_millis(supervisor::SHUTDOWN_BUDGET_MS - STOP_PATH_MARGIN_MS))
         .saturating_sub(waits.clock())
@@ -1164,7 +1201,40 @@ where
     S: port::CaptureStore + Send + 'static,
     C: maintenance::Clocks + 'static,
 {
-    let answer = run_timed_steps(run, sources, store, clocks, stop, settle_bound);
+    run_timed_on(
+        halvo_control::proto::Platform::Macos,
+        run,
+        sources,
+        store,
+        clocks,
+        stop,
+        settle_bound,
+    )
+}
+
+/// [`run_timed`] with the sources that a timed run starts on `platform`, by
+/// the names of that system: macOS's for the macOS run and every test, and
+/// Windows's for the Windows run.
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
+pub fn run_timed_on<P, S, C>(
+    platform: halvo_control::proto::Platform,
+    run: &TimedRun,
+    sources: &mut P,
+    store: S,
+    clocks: C,
+    stop: &std::sync::atomic::AtomicBool,
+    settle_bound: Duration,
+) -> Result<RunOutcome, DaemonError>
+where
+    P: RunSources,
+    S: port::CaptureStore + Send + 'static,
+    C: maintenance::Clocks + 'static,
+{
+    let answer = run_timed_steps(platform, run, sources, store, clocks, stop, settle_bound);
     if sources.let_go().is_empty() {
         sources.disarm_watchdog();
     } else {
@@ -1176,8 +1246,13 @@ where
     answer
 }
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 fn run_timed_steps<P, S, C>(
+    platform: halvo_control::proto::Platform,
     run: &TimedRun,
     sources: &mut P,
     store: S,
@@ -1194,7 +1269,6 @@ where
 
     use halvo_control::exit;
     use halvo_control::model::StorageCap;
-    use halvo_control::proto::Platform;
 
     use crate::floor::exclude::{FloorHandle, NoLineage};
     use owner::{Answer, Command, OwnerParts};
@@ -1222,7 +1296,7 @@ where
         return Err(DaemonError::DrainPanicked);
     }
     let ctx = SourceContext::with_floor(handle.clone(), floor);
-    let wanted = sources::starting(Platform::Macos, run.kind(), switches);
+    let wanted = sources::starting(platform, run.kind(), switches);
     let mut failed = sources.start(&ctx, &wanted, run.hold_after());
     drop(ctx);
     let signalled = sources.supervise(run.window, stop, &owner);
@@ -1342,7 +1416,11 @@ where
 }
 
 /// The names of the sources that `sources` let go.
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 fn let_go_of<P: RunSources>(sources: &P) -> Vec<&'static str> {
     sources
         .let_go()
@@ -1369,7 +1447,11 @@ fn owner_ended(settled: &counters::Snapshot, sink: &crate::sink::SinkCounts) -> 
     }
 }
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 fn answer_within(
     waits: &mut dyn Waits,
     handle: &owner::OwnerHandle,
@@ -1380,7 +1462,11 @@ fn answer_within(
     waits.wait_answer(&pending, bound)
 }
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 /// Asks Settle until nothing is pending or the bound runs out, and answers the
 /// last snapshot that an ask got: a later ask that is not answered in time
 /// leaves the one before it, and only a settle whose every ask went
@@ -1409,12 +1495,20 @@ fn settle_within(
     }
 }
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 /// For a stop that got no answer: an upper bound of what the life did not
 /// store, from a snapshot read after the last wait and the sink's counts read
 /// after the sources stopped: lost, pending, and accepted less received over
 /// the kinds of `Modality::ALL`.
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 fn unstored_bound(settled: &counters::Snapshot, sink: &crate::sink::SinkCounts) -> u64 {
     use crate::event::Modality;
     let accepted: u64 = Modality::ALL
@@ -1428,7 +1522,11 @@ fn unstored_bound(settled: &counters::Snapshot, sink: &crate::sink::SinkCounts) 
     settled.events_lost + settled.events_pending + accepted.saturating_sub(received)
 }
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 fn stop_loss(
     answered: Result<(), LossCause>,
     settled: &counters::Snapshot,
@@ -1453,7 +1551,11 @@ fn stop_loss(
     })
 }
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 fn with_the_drain_short(
     loss: Option<Loss>,
     unreceived: u64,
@@ -1511,7 +1613,11 @@ fn loss_line(settled: &counters::Snapshot, count: u64, reports: &[owner::Report]
     )
 }
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 fn report_of(
     snapshot: &counters::Snapshot,
     sink: &crate::sink::SinkCounts,
@@ -1733,13 +1839,7 @@ pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
     }
     #[cfg(target_os = "windows")]
     {
-        crate::windows::timed_run(run.window.as_secs()).map(|report| RunOutcome {
-            report,
-            status: halvo_control::exit::CLEAN,
-            loss: None,
-            let_go: Vec::new(),
-            refusal: None,
-        })
+        crate::windows::timed_run(run)
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
@@ -1773,7 +1873,11 @@ impl<'a> port::SegmentWrite<'a> {
 /// adapter with its root file under `roots` in that directory, and the guard
 /// of that root, held from right after the create (contracts.md C4 item 5,
 /// C20 item 7).
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 pub fn scratch_store(run: &TimedRun) -> Result<port::ScratchStore, DaemonError> {
     port::ScratchDir::at(&run.store_dir)
         .create()
@@ -1784,7 +1888,11 @@ pub fn scratch_store(run: &TimedRun) -> Result<port::ScratchStore, DaemonError> 
 /// the root is destroyed now, and a destroy that fails makes the status 1,
 /// with a line on standard error. After a panic the guard's drop destroys
 /// the root.
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", debug_assertions),
+    all(windows, debug_assertions)
+))]
 pub fn end_of_a_scratch_run(
     answer: Result<RunOutcome, DaemonError>,
     root: port::RootGuard,
@@ -2116,9 +2224,7 @@ fn serve_windows(
     serve_on(
         dir,
         writer,
-        WindowsLoop {
-            started: std::time::Instant::now(),
-        },
+        WindowsLoop::new(),
         signal::flag(),
         std::sync::Arc::new(main_loop::ExitNow),
         &mut std::io::stderr(),
@@ -2129,9 +2235,20 @@ fn serve_windows(
     )
 }
 
+/// The main loop of a Windows run: the thread sleeps, because every source
+/// and the session window pump their messages on threads of their own.
 #[cfg(all(windows, debug_assertions))]
-struct WindowsLoop {
+pub(crate) struct WindowsLoop {
     started: std::time::Instant,
+}
+
+#[cfg(all(windows, debug_assertions))]
+impl WindowsLoop {
+    pub(crate) fn new() -> WindowsLoop {
+        WindowsLoop {
+            started: std::time::Instant::now(),
+        }
+    }
 }
 
 #[cfg(all(windows, debug_assertions))]

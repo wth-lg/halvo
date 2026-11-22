@@ -309,3 +309,120 @@ fn a_windows_run_ends_inside_the_budget_when_the_session_ends() {
     );
     assert!(took <= budget, "the run took {took:?}");
 }
+
+/// Gives this process a console when it has none, with its standard handles
+/// kept, so that a Ctrl-Break can reach a child that shares it.
+fn a_console() {
+    use windows::Win32::System::Console::{
+        AllocConsole, GetStdHandle, SetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE,
+        STD_OUTPUT_HANDLE,
+    };
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let kinds = [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE];
+        // SAFETY: GetStdHandle reads a handle of this process and takes no
+        // pointer.
+        let kept = kinds.map(|kind| unsafe { GetStdHandle(kind) });
+        // SAFETY: AllocConsole takes no argument; it fails when this process
+        // has a console already.
+        if unsafe { AllocConsole() }.is_ok() {
+            for (kind, handle) in kinds.into_iter().zip(kept) {
+                if let Ok(handle) = handle {
+                    // SAFETY: the handle is the one that GetStdHandle read
+                    // before the console came.
+                    let _ = unsafe { SetStdHandle(kind, handle) };
+                }
+            }
+        }
+    });
+}
+
+#[test]
+fn a_timed_run_on_windows_ends_on_ctrl_break_with_its_report_and_exit_2() {
+    use std::os::windows::process::CommandExt;
+    use windows::Win32::System::Console::{GenerateConsoleCtrlEvent, CTRL_BREAK_EVENT};
+    use windows::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
+    let store = scratch_data_dir("timed");
+    std::fs::create_dir_all(&store).unwrap();
+    for (flags, line) in [
+        (
+            &["--hold-secure-input"][..],
+            "--hold-secure-input is a flag of macOS",
+        ),
+        (
+            &["--switch", "key_class=on"][..],
+            "--switch key_class=on is refused on Windows",
+        ),
+        (
+            &["--switch", "screen_activity=on"][..],
+            "--switch screen_activity=on is refused on Windows",
+        ),
+    ] {
+        let refused = Command::new(BIN)
+            .args(["--timed-run", "5", "--store-dir"])
+            .arg(&store)
+            .args(flags)
+            .output()
+            .expect("a refused timed run runs");
+        assert_eq!(
+            refused.status.code(),
+            Some(64),
+            "{flags:?}: {}",
+            text(&refused)
+        );
+        assert!(
+            String::from_utf8_lossy(&refused.stderr).contains(line),
+            "{flags:?}: {}",
+            text(&refused)
+        );
+    }
+
+    a_console();
+    let mut child = Command::new(BIN)
+        .args(["--timed-run", "60", "--store-dir"])
+        .arg(&store)
+        .creation_flags(CREATE_NEW_PROCESS_GROUP.0)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the timed run starts");
+    let stdout = lines_of(child.stdout.take().unwrap());
+    let stderr = lines_of(child.stderr.take().unwrap());
+    let mut daemon = Daemon { child, stderr };
+    let roots = store.join("roots");
+    let entries = |dir: &Path| {
+        std::fs::read_dir(dir).map_or(0, |entries| entries.filter_map(Result::ok).count())
+    };
+    until(START_WAIT, || (entries(&roots) > 0).then_some(())).unwrap_or_else(|| {
+        panic!(
+            "no root under {} within {START_WAIT:?}; the run's stderr:\n{}",
+            roots.display(),
+            daemon.stderr()
+        )
+    });
+    // SAFETY: the call takes two plain values; the group is the child's own.
+    unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, daemon.child.id()) }.unwrap();
+    let ended = daemon.ended_within(Duration::from_secs(2));
+    assert_eq!(
+        ended.and_then(|status| status.code()),
+        Some(2),
+        "the run's end after Ctrl-Break; its stderr:\n{}",
+        daemon.stderr()
+    );
+    let report = until(Duration::from_secs(5), || {
+        let lines = stdout.lock().unwrap();
+        lines
+            .iter()
+            .any(|line| line.starts_with("failed_sources="))
+            .then(|| lines.join("\n"))
+    })
+    .unwrap_or_else(|| panic!("no report on standard output: {:?}", stdout.lock().unwrap()));
+    for line in [
+        "modality=keystroke count=0",
+        "modality=screen_frame count=0",
+    ] {
+        assert!(report.lines().any(|seen| seen == line), "{line}:\n{report}");
+    }
+    assert_eq!(entries(&roots), 0, "a root stays under {}", roots.display());
+}

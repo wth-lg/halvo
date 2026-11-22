@@ -12,7 +12,6 @@ pub mod session;
 pub mod sources;
 pub mod window_title;
 
-use crate::daemon::{DaemonError, TimedRunReport};
 use crate::event::{AppIdentity, FloorEvent, FoldEvent, Modality};
 use crate::floor::exclude::{
     DropReason, FloorHandle, Keep, PrivateWindow, ProcessId, Subject, Verdict,
@@ -905,11 +904,34 @@ fn read_at_stop(limit: usize) {
     }
 }
 
-pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
-    let _ = seconds;
-    Err(DaemonError::NotImplemented(
-        "Windows functional capture (deferred to a permissioned interactive desktop)",
-    ))
+/// The gate's timed run on Windows (contracts.md C4, C5.5): the sources of
+/// a service run's set, by the names of Windows, run for the window on a
+/// scratch store in the run's store directory, whose root is destroyed at
+/// the end. A console's Ctrl-C or Ctrl-Break ends the window early, and the
+/// run reports and exits 2. The set makes no keyboard source and no screen
+/// source, and the parse refuses the switches that would ask for them.
+#[cfg(all(windows, debug_assertions))]
+pub(crate) fn timed_run(
+    run: &crate::daemon::TimedRun,
+) -> Result<crate::daemon::RunOutcome, crate::daemon::DaemonError> {
+    use halvo_control::proto::Platform;
+    let mut supervisor = crate::daemon::supervisor::Supervisor::new(
+        Platform::Windows,
+        sources::ServiceSet::new(),
+        crate::daemon::WindowsLoop::new(),
+    )
+    .with_ending(Arc::new(crate::daemon::main_loop::ExitNow));
+    let scratch = crate::daemon::scratch_store(run)?;
+    let answer = crate::daemon::run_timed_on(
+        Platform::Windows,
+        run,
+        &mut supervisor,
+        scratch.store,
+        crate::daemon::maintenance::SystemClocks::new(),
+        crate::daemon::signal::flag(),
+        crate::daemon::SETTLE_BOUND,
+    );
+    crate::daemon::end_of_a_scratch_run(answer, scratch.root)
 }
 
 #[cfg(test)]
@@ -1233,14 +1255,6 @@ pub(crate) mod tests {
                 secure_input: 1,
             }
         );
-    }
-
-    #[test]
-    fn timed_run_reports_the_deferral() {
-        assert!(matches!(
-            timed_run(600),
-            Err(DaemonError::NotImplemented(_))
-        ));
     }
 
     #[cfg(target_os = "windows")]
