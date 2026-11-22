@@ -4738,3 +4738,42 @@ fn after_a_no_at_the_question_that_allows_a_site_the_scheduler_starts_nothing_in
     w.tick();
     assert_eq!(w.starts(), 0, "the next life starts nothing either");
 }
+
+/// U2.4a, sentence 2 (the coordinator's way (a); I5.4, I5.5): under the hold of a no at the
+/// question that allows a site, ONE start by the person runs once with nothing stored or sent for
+/// the hold; a second no holds the agent again, and a yes holds nothing.
+#[test]
+fn one_start_by_the_person_passes_the_hold_of_a_no_and_a_second_no_holds_again() {
+    use halvo_coord::types::BindResult;
+    let mut w = world(&[AUTO]);
+    let first = ok_run(&w.start(0));
+    answered_at_the_site_question(&mut w, &first, BindResult::Decline);
+    w.end(&first, Some(Outcome::Declined));
+    w.clock(T0 + 1_000, DAY + 2);
+    w.forget();
+    let second = ok_run(&w.start(0));
+    assert_eq!(
+        w.calls(),
+        vec![
+            "defer".to_string(),
+            "log run_started".into(),
+            "start_run".into(),
+            format!("start {}", agent(0)),
+        ],
+        "one press: one start, and nothing stored or sent for the hold"
+    );
+    assert_eq!(count(&w.stored(), "hold_cleared"), 0);
+    answered_at_the_site_question(&mut w, &second, BindResult::Decline);
+    w.end(&second, Some(Outcome::Declined));
+    w.clock(T0 + 2_000, DAY + 4);
+    w.forget();
+    w.tick();
+    assert_eq!(w.starts(), 0, "a second no holds the agent again");
+    let third = ok_run(&w.start(0));
+    answered_at_the_site_question(&mut w, &third, BindResult::Allow);
+    w.end(&third, Some(Outcome::Completed));
+    w.clock(T0 + 3_000, DAY + 6);
+    w.forget();
+    w.tick();
+    assert_eq!(w.starts(), 1, "after a yes the tick at the next slot starts a run");
+}
