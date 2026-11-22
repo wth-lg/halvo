@@ -1156,3 +1156,174 @@ fn a_payment_leaves_once_after_the_yes() {
     assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
     assert!(!profile_of(&seen, &sup.run).0.exists());
 }
+
+/// The value of the password field of `MARKS`.
+const WORD: &str = "halvo-runner-word-marker";
+
+/// A password field `word`, a credential field by its type alone, that holds `WORD`, and a plain field `name`, each of
+/// which asks its own origin at each input (`/typed-word`, `/typed-name`); and a script that asks `/switch` every
+/// 100 ms. At the word `mark` the script deletes the property `__halvoSign` of the password field, sets it to the
+/// empty text, sets the field's `type` to `text`, and asks `/marked`; at the word `forge` it sets `__halvoSign` to
+/// `secret` on the plain field, hides the password field (`display: none`) and asks `/forged`; each once.
+const MARKS: &str = r#"<!doctype html><title>marks</title><input type="password" data-testid="word" aria-label="Word" value="halvo-runner-word-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed-word', false); x.send(); } catch (e) {}"><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed-name', false); x.send(); } catch (e) {}"><script>(function () { var word = document.querySelector('[data-testid=word]'); var plain = document.querySelector('[data-testid=name]'); var did = {}; var busy = false; function tell(path) { var x = new XMLHttpRequest(); x.open('GET', path); x.send(); } setInterval(function () { if (busy) { return; } busy = true; var x = new XMLHttpRequest(); x.onloadend = function () { busy = false; var said = x.status === 200 ? x.responseText : ''; if (said === 'mark' && !did.mark) { did.mark = true; delete word.__halvoSign; word.__halvoSign = ''; word.type = 'text'; tell('/marked'); } if (said === 'forge' && !did.forge) { did.forge = true; plain.__halvoSign = 'secret'; word.style.display = 'none'; tell('/forged'); } }; x.open('GET', '/switch'); x.send(); }, 100); })();</script>"#;
+
+/// r3 U5.13, A8.2, the coordinator's ruling of log line 14127 (2): the mark of a credential field lives in the
+/// executor's own script world, which the page's scripts cannot reach. A handback loads the page again before it
+/// opens, so the readings of one document are those after each `done` of one handback: the reading after the first
+/// `done` marks the password field; then, at the second handback, the page's own script deletes the property
+/// `__halvoSign` of the password field, sets it to the empty text and sets the field's `type` to `text`, and the test
+/// answers `done` only after the page has said so (`/marked`). The reading after that still hands back (`sign_in`)
+/// while the password field shows as a field of the type text. At that third handback the page's script sets
+/// `__halvoSign` to `secret` on the plain field and hides the password field (`/forged`), and the reading after it
+/// finds no credential field and binds. Then step 2's fill of the plain field acts (the fixture sees `/typed-name`):
+/// the page's own `__halvoSign` gave it no sign; and step 3, whose `pre` reads the value of the hidden password field,
+/// is refused (`step_failed`), with no act on that field and its value in no frame and no line of the runner. With the
+/// base's cdp.rs, whose rule kept the mark in the page's world, the test fails at one of its two assertions on the
+/// mark: at the third handback where the reading after the script finds no sign on the password field, else at the
+/// fill of the plain field, which the page's own mark makes a credential field there.
+#[test]
+fn a_page_s_script_cannot_take_the_mark_off_a_password_field() {
+    let Some(browser) = hosted("a_page_s_script_cannot_take_the_mark_off_a_password_field") else {
+        return;
+    };
+    let (fixture, switch) = Fixture::start_switched(&[("/marks", MARKS)], "/switch");
+    let mut sup = web_agent(213, &fixture);
+    sup.steps = vec![
+        navigate(1, &fixture.url("/marks")),
+        step(2, "fill", Some("name"), &[konst("text", "Ada")], &[], &[]),
+        step(
+            3,
+            "wait",
+            None,
+            &[konst("ms", "1")],
+            &[cond("value_is", Some("word"), Some(WORD))],
+            &[],
+        ),
+    ];
+    let done = ToRunner::parse(
+        br#"{"t":"handback_reply","result":{"v":1,"outcome":"done","secret":null}}"#,
+    )
+    .expect("a handback_reply");
+    let bound = ToRunner::parse(br#"{"t":"bind_reply","bound":"yes"}"#).expect("a bind_reply");
+    let asked = |path: &str| fixture.requests().iter().any(|r| r.path == path);
+    let after = |word: &str, path: &str| {
+        *switch.lock().expect("the switch") = word.to_string();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !asked(path) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        asked(path)
+    };
+    let (mut marked, mut forged) = (false, false);
+    let seen = serve_with(
+        &sup,
+        &browser,
+        |frame, before| match frame {
+            FromRunner::Browser(_) => Act::With(browser_reply()),
+            FromRunner::Handback(_) => {
+                match before
+                    .iter()
+                    .filter(|f| matches!(f, FromRunner::Handback(_)))
+                    .count()
+                {
+                    0 => Act::With(done.clone()),
+                    1 => {
+                        marked = after("mark", "/marked");
+                        Act::With(done.clone())
+                    }
+                    2 => {
+                        forged = after("forge", "/forged");
+                        Act::With(done.clone())
+                    }
+                    _ => Act::Answer,
+                }
+            }
+            FromRunner::Bind(_) => Act::With(bound.clone()),
+            _ => Act::Answer,
+        },
+        Duration::from_secs(150),
+    );
+    let typed = |path: &str| fixture.requests().iter().filter(|r| r.path == path).count();
+    assert!(
+        marked,
+        "the page's script did not take the mark off at the second handback; {}",
+        seen.stderr
+    );
+    assert_eq!(
+        seen.handbacks().get(..3),
+        Some(
+            &[
+                HandbackReason::SignIn,
+                HandbackReason::SignIn,
+                HandbackReason::SignIn
+            ][..]
+        ),
+        "the reading after the page's script took the mark off the password field did not hand back: handbacks {:?}, \
+         rows {:?}, {}",
+        seen.handbacks(),
+        rows(&seen),
+        seen.stderr
+    );
+    assert!(
+        forged,
+        "the page's script did not mark the plain field at the third handback; {}",
+        seen.stderr
+    );
+    assert!(
+        typed("/typed-name") > 0,
+        "the plain field on which the page's script set __halvoSign to secret was read as a credential field: no step \
+         filled it; handbacks {:?}, rows {:?}, {}",
+        seen.handbacks(),
+        rows(&seen),
+        seen.stderr
+    );
+    assert_eq!(
+        typed("/typed-word"),
+        0,
+        "a step acted on the password field whose mark the page's script took off"
+    );
+    assert_eq!(
+        rows(&seen),
+        [
+            (LogEvent::StepOk, Some(1), None),
+            (LogEvent::Handback, None, None),
+            (LogEvent::Handback, None, None),
+            (LogEvent::Handback, None, None),
+            (LogEvent::StepOk, Some(2), None),
+            (LogEvent::StepFailed, Some(3), Some(Cause::StepFailed)),
+            (LogEvent::Handback, None, None),
+            (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+        ],
+        "step 3, whose pre reads the value of the password field whose mark the page's script took off, was not \
+         refused: {}",
+        seen.stderr
+    );
+    assert_eq!(
+        seen.handbacks(),
+        [
+            HandbackReason::SignIn,
+            HandbackReason::SignIn,
+            HandbackReason::SignIn,
+            HandbackReason::StepFailed
+        ]
+    );
+    let binds: Vec<&str> = seen
+        .frames
+        .iter()
+        .filter_map(|f| match f {
+            FromRunner::Bind(b) => Some(b.origin.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(binds, [fixture.origin().as_str()]);
+    assert_eq!(seen.done(), Some(Outcome::HandedBack), "{}", seen.stderr);
+    assert!(!seen.stderr.contains(WORD), "{}", seen.stderr);
+    for frame in &seen.frames {
+        let json = frame.to_json().expect("a frame");
+        assert!(
+            !json.contains(WORD),
+            "a frame holds the password field's value"
+        );
+    }
+    assert!(!profile_of(&seen, &sup.run).0.exists());
+}
