@@ -133,3 +133,37 @@ system; until then they are the recommended text.
   store-3 and daemon-3 make it true.
 
 docs-2 confirms each sentence of this section against the merged code.
+
+## What an agent's request can hold
+
+A person's agent runs in a program of its own, halvo-runner. That program links
+no crate that opens a store (check 21, `scripts/r1/ci.d/21-tree-bans.sh`), and
+no client of the capture service, which can pause the capture and delete
+everything. The stored records that it gets are the answers to the eleven
+runner bodies that its supervisor answers, and a runner body answers records of
+these kinds alone:
+
+- `agent_config`, `agent_finished`, `agent_playbook`, `agent_bindings`,
+  `agent_session`, `agent_start` and `agent_reply`;
+- the target of a `learn_edit` row, laid on a step of `load_steps`.
+
+The test `a_runner_body_answers_no_kind_outside_the_closed_list`
+(`crates/halvo-learn-store/src/tests/kinds.rs`) holds that list.
+
+So a request that an agent sends to a service that the person bound to it can
+hold three things, and nothing else of what was captured:
+
+- the agent's own config;
+- the records of that agent's own runs; and, for a message that it asks about,
+  the state of another agent's reply to that message (under way, done, withheld
+  or not known), never what that reply says;
+- what Halvo learned for that agent from its own runs: where on a page it found
+  a control again after the page had changed.
+
+An agent's browser also contacts some servers of its own maker by itself. Halvo
+starts it so that its only way out is Halvo's own relay, which refuses every
+request to a host that the person did not bind to the agent, before any
+connection leaves the computer. A request of the browser's own to a host that
+the person did bind is let through. The test
+`a_host_outside_the_list_is_refused_before_any_connection_and_recorded`
+(`crates/halvo-web/src/relay.rs`) shows the refusal.
