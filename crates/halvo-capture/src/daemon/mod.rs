@@ -2218,6 +2218,8 @@ pub(crate) struct ServiceParts<F> {
     pub(crate) probe: Option<Box<dyn permissions::ProbeRunner>>,
     pub(crate) requests: Option<Box<dyn permissions::RequestStarter>>,
     #[cfg(test)]
+    pub(crate) typing: bool,
+    #[cfg(test)]
     pub(crate) lease: lease::Lease,
     #[cfg(test)]
     pub(crate) settled: Option<Box<dyn FnOnce(Option<counters::Snapshot>)>>,
@@ -2237,6 +2239,8 @@ impl<F: supervisor::SystemSources> ServiceParts<F> {
             lifeline: None,
             probe: None,
             requests: None,
+            #[cfg(test)]
+            typing: server::TYPING == Some(true),
             #[cfg(test)]
             lease: lease::Lease::NONE,
             #[cfg(test)]
@@ -2388,6 +2392,10 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     }
     if let Some(requests) = parts.requests {
         supervisor = supervisor.with_requests(requests);
+    }
+    #[cfg(test)]
+    {
+        supervisor = supervisor.with_typing(parts.typing);
     }
     #[cfg(test)]
     supervisor.set_lease(parts.lease, None);

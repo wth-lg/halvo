@@ -467,6 +467,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     probe_asked: bool,
     client_polls: bool,
     polled_until: Option<Duration>,
+    typing: bool,
     ending: Option<Ending>,
     entered: bool,
     err: Box<dyn Write + Send>,
@@ -514,6 +515,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             probe_asked: false,
             client_polls: false,
             polled_until: None,
+            typing: super::server::TYPING == Some(true),
             ending: None,
             entered: false,
             err: Box::new(std::io::stderr()),
@@ -688,6 +690,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn status_parts(&self, obstructed: Option<Duration>) -> super::server::StatusParts {
         let desired = self.desired();
+        let input_keys = self.holds_keys();
         let file = self.state_file();
         let state = file.as_deref().map(StateFile::state);
         super::server::StatusParts {
@@ -707,6 +710,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             once_granted: state
                 .map_or_else(Vec::new, |state| state.permissions_once_granted.clone()),
             asked: state.map_or_else(Vec::new, |state| state.permissions_asked.clone()),
+            input_keys,
             held: self.held,
         }
     }
@@ -788,6 +792,12 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     /// A client's Status without the indicator claim: for
     /// [`CLIENT_POLL_WINDOW`] from now a client counts as one that polls.
+    #[cfg(test)]
+    pub(crate) fn with_typing(mut self, typing: bool) -> Supervisor<F, L> {
+        self.typing = typing;
+        self
+    }
+
     #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn client_polled(&mut self) {
         self.polled_until = Some(self.main_loop.now() + CLIENT_POLL_WINDOW);
@@ -1168,8 +1178,27 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.delays.push((name, delay));
     }
 
+    fn switches(&self) -> crate::floor::Switches {
+        match &self.ctx {
+            Some(ctx) => ctx.floor().switches(),
+            None => self
+                .state_file()
+                .map_or_else(crate::floor::Switches::default, |state| {
+                    state.state().switches
+                }),
+        }
+    }
+
+    fn holds_keys(&self) -> bool {
+        input_holds_keys(self.switches(), self.typing)
+    }
+
+    fn needs(&self, name: SourceName) -> Option<Permission> {
+        required_permission(self.platform, name, self.holds_keys())
+    }
+
     fn missing_permission(&self, name: SourceName) -> bool {
-        required_permission(self.platform, name).is_some_and(|permission| {
+        self.needs(name).is_some_and(|permission| {
             self.board.permissions.iter().any(|(answered, grant)| {
                 *answered == permission && *grant == GrantState::NotGranted
             })
@@ -1184,7 +1213,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if !self.reads_grants() {
             return self.missing_permission(name);
         }
-        required_permission(self.platform, name).is_some_and(|permission| {
+        self.needs(name).is_some_and(|permission| {
             !self
                 .board
                 .permissions
@@ -1194,7 +1223,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     fn waits_for_a_grant(&self, name: SourceName) -> bool {
         self.reads_grants()
-            && required_permission(self.platform, name).is_some()
+            && self.needs(name).is_some()
             && !self.sources.holds(name)
             && self
                 .sources
@@ -1217,7 +1246,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.wanted
             .iter()
             .chain(&idle)
-            .filter_map(|name| required_permission(self.platform, *name))
+            .filter_map(|name| self.needs(*name))
             .collect()
     }
 
@@ -1921,14 +1950,26 @@ pub const fn restarts(reason: HealthReason) -> bool {
 }
 
 /// The permission that a source of `platform` needs: Screen and System Audio
-/// Recording for the screen source and Input Monitoring for the input source
-/// on macOS; none on Windows. No source names Accessibility (RD-29).
-pub const fn required_permission(platform: Platform, name: SourceName) -> Option<Permission> {
+/// Recording for the screen source on macOS, and Input Monitoring for the
+/// input source on macOS only while its events hold keys (`keys`, by
+/// [`input_holds_keys`]); a source of pointer events alone needs none. None on
+/// Windows. No source names Accessibility (RD-29).
+pub const fn required_permission(
+    platform: Platform,
+    name: SourceName,
+    keys: bool,
+) -> Option<Permission> {
     match (platform, name) {
         (Platform::Macos, SourceName::Screen) => Some(Permission::ScreenAndSystemAudioRecording),
-        (Platform::Macos, SourceName::Input) => Some(Permission::InputMonitoring),
+        (Platform::Macos, SourceName::Input) if keys => Some(Permission::InputMonitoring),
         _ => None,
     }
+}
+
+/// Whether the input source's events hold keys, as its tap asks for them:
+/// typing on and the switch key_class on.
+pub fn input_holds_keys(switches: crate::floor::Switches, typing: bool) -> bool {
+    typing && switches.is_on(crate::floor::Switch::KeyClass)
 }
 
 impl<F: SystemSources, L: MainLoop> RunSources for Supervisor<F, L> {
@@ -2910,10 +2951,13 @@ mod tests {
         let answers: Answers = Rc::default();
         let asked = Rc::default();
         let mut f = f;
-        f.supervisor = f.supervisor.with_probe(Box::new(FakeProbe {
-            answers: answers.clone(),
-            asked: Rc::clone(&asked),
-        }));
+        f.supervisor = f
+            .supervisor
+            .with_typing(true)
+            .with_probe(Box::new(FakeProbe {
+                answers: answers.clone(),
+                asked: Rc::clone(&asked),
+            }));
         (f, answers, asked)
     }
 
@@ -3399,6 +3443,48 @@ mod tests {
     }
 
     #[test]
+    fn a_pointer_only_input_source_needs_no_grant_and_one_with_keys_waits_for_it() {
+        for typing in [false, true] {
+            let (mut f, answers, asked) = probed(fixture(Factory::new()));
+            f.supervisor = f.supervisor.with_typing(typing);
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            let ctx = f.ctx.clone();
+            f.supervisor.serve_sources(ctx, two().to_vec());
+            f.start(&two());
+            let begun_at_the_start = f.supervisor.factory().calls.of("begin input").len();
+            f.tick();
+            let begun = f.supervisor.factory().calls.of("begin input").len();
+            if typing {
+                assert_eq!(
+                    (begun_at_the_start, begun, asked.borrow().clone()),
+                    (0, 0, vec![vec![Permission::InputMonitoring]]),
+                    "an input source with keys"
+                );
+                assert!(
+                    matches!(
+                        f.state(SourceName::Input),
+                        SourceState::Failed {
+                            reason: HealthReason::Permission,
+                            ..
+                        }
+                    ),
+                    "{:?}",
+                    f.state(SourceName::Input)
+                );
+            } else {
+                assert_eq!(
+                    (begun_at_the_start, begun, asked.borrow().clone()),
+                    (1, 1, Vec::<Vec<Permission>>::new()),
+                    "a pointer-only input source"
+                );
+                assert_eq!(f.state(SourceName::Input), SourceState::Running);
+            }
+        }
+    }
+
+    #[test]
     fn the_entry_exits_1_when_events_were_lost_between_its_two_settles() {
         let store = ModelStore::new();
         let watched = store.clone();
@@ -3464,6 +3550,7 @@ mod tests {
             .borrow_mut()
             .push_back(input_monitoring(GrantState::Granted));
         let mut supervisor = Supervisor::new(Platform::Macos, Factory::new(), real_loop())
+            .with_typing(true)
             .with_probe(Box::new(FakeProbe {
                 answers: answers.clone(),
                 asked: Rc::default(),
@@ -5775,6 +5862,7 @@ mod tests {
             let ending = Stamped::default();
             let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop)
                 .with_ending(Arc::new(ending.clone()))
+                .with_typing(true)
                 .with_probe(Box::new(FakeProbe {
                     answers: answers.clone(),
                     asked: Rc::default(),
@@ -6135,6 +6223,7 @@ mod tests {
                 &mut f.supervisor,
                 Supervisor::new(Platform::Macos, Holds(Factory::new()), placeholder()),
             )
+            .with_typing(true)
             .with_probe(Box::new(FakeProbe {
                 answers: answers.clone(),
                 asked: Rc::default(),

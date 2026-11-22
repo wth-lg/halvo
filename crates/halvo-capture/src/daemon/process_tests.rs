@@ -1986,6 +1986,7 @@ impl Probing {
             lease: super::lease::Lease::never_lapsing(),
             probe: Some(Box::new(self.probe.clone())),
             requests: Some(Box::new(self.starter.clone())),
+            typing: true,
             ..super::ServiceParts::of(factory)
         };
         let mut err = Vec::new();
