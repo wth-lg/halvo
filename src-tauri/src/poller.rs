@@ -32,13 +32,17 @@ pub struct Polled {
 /// How the answer of a poll ended, as the agents' hold reads it (`agents::RunsHold`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PollEnd {
-    /// A status, or an error other than the two below.
-    Answer,
+    /// A reply of the service: a status, or a frame that the service sent and that the client
+    /// read whole, an error reply or one that it cannot take.
+    Reply,
     /// No reply within its deadline.
     Deadline,
-    /// No service: nothing listens at the endpoint (`Unreachable`), the data folder is held and
-    /// nothing listens (`DataDirInUse`), or the system has no control channel (`Unsupported`).
-    NoService,
+    /// No reply of the service: nothing listens at the endpoint (`Unreachable`), the data folder
+    /// is held and nothing listens (`DataDirInUse`), the system has no control channel
+    /// (`Unsupported`), the client refused the peer before it sent the request
+    /// (`PeerRejected`), the transport failed (`Io`), or no whole frame came back, a stream
+    /// that ended before any byte among them (`Protocol`).
+    NoReply,
 }
 
 impl PollEnd {
@@ -49,21 +53,21 @@ impl PollEnd {
             Err(
                 ClientError::Unreachable { .. }
                 | ClientError::DataDirInUse { .. }
-                | ClientError::Unsupported,
-            ) => PollEnd::NoService,
+                | ClientError::Unsupported
+                | ClientError::PeerRejected(_)
+                | ClientError::Io(_)
+                | ClientError::Protocol(_),
+            ) => PollEnd::NoReply,
             Ok(_)
             | Err(
-                ClientError::PeerRejected(_)
-                | ClientError::Daemon(_)
+                ClientError::Daemon(_)
                 | ClientError::ServiceEnding(_)
-                | ClientError::Protocol(_)
                 | ClientError::ReplyOfAnotherVersion { .. }
                 | ClientError::ValueUnknownToV1(_)
                 | ClientError::StateDoesNotHoldTogether(_)
                 | ClientError::UnexpectedReply { .. }
-                | ClientError::AlreadyDeletedToThisRequest(_)
-                | ClientError::Io(_),
-            ) => PollEnd::Answer,
+                | ClientError::AlreadyDeletedToThisRequest(_),
+            ) => PollEnd::Reply,
         }
     }
 }
@@ -134,7 +138,7 @@ impl Default for Views {
                 status: None,
                 mutation_mark: 0,
                 poll_number: None,
-                poll_end: PollEnd::Answer,
+                poll_end: PollEnd::Reply,
             }),
             woken: Mutex::new(false),
             wake: Condvar::new(),

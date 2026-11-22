@@ -84,9 +84,9 @@ impl Wanted {
             mark.is_some_and(|at| now.saturating_duration_since(at) < Deadlines::V1.delete_all)
         };
         match poll.end {
-            PollEnd::Answer => true,
+            PollEnd::Reply => true,
             PollEnd::Deadline => !stands(self.late) && !stands(self.no_service),
-            PollEnd::NoService => !stands(self.no_service),
+            PollEnd::NoReply => !stands(self.no_service),
         }
     }
 }
@@ -210,9 +210,14 @@ impl RunsHold {
             Owed::From(fence)
                 if poll.is_some_and(|poll| poll.number >= fence && wanted.reads(poll, now)) =>
             {
-                wanted.owed = Owed::Nothing;
-                wanted.late = None;
-                wanted.no_service = None;
+                if wanted.barred {
+                    wanted.late = wanted.late.map(|_| now);
+                    wanted.no_service = wanted.no_service.map(|_| now);
+                } else {
+                    wanted.owed = Owed::Nothing;
+                    wanted.late = None;
+                    wanted.no_service = None;
+                }
             }
             Owed::Nothing | Owed::From(_) => {}
         }
