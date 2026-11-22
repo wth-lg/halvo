@@ -612,6 +612,25 @@ fn a_row_names_the_app_that_the_system_names_and_no_app_id_and_no_day() {
     }
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn an_apps_names_are_read_only_where_it_lies_under_applications_or_system() {
+    let read = |place: &str| super::workflows::names_readable_at(std::path::Path::new(place));
+    for place in ["/Applications/Safari.app", "/System/Applications/Mail.app"] {
+        assert!(read(place), "{place} is not read");
+    }
+    for place in [
+        "/Users/someone/Downloads/Tool.app",
+        "/Users/someone/Desktop/Tool.app",
+        "/Users/someone/Documents/Tool.app",
+        "/Users/someone/Applications/Tool.app",
+        "/Volumes/Disk/Tool.app",
+        "/Applications/../Users/someone/Downloads/Tool.app",
+    ] {
+        assert!(!read(place), "{place} is read");
+    }
+}
+
 /// The daemon's end of the control channel as a stand-in: each connection keeps the bytes that
 /// the client writes and reads `reply` as one frame.
 #[derive(Clone)]

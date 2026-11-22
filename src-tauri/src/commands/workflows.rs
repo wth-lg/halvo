@@ -347,10 +347,12 @@ async fn decided(
 }
 
 /// The display name that the operating system gives for the app of an app id, if it gives one.
-/// On a Mac the bundle id finds the app's bundle in the system's records of apps, without
-/// starting the app and without a window, and the name is the bundle's `CFBundleDisplayName`,
-/// else its `CFBundleName`; an app id that is the file name of an executable finds no bundle.
-/// An empty or blank name is none. The command calls it on its blocking thread.
+/// On a Mac the bundle id finds the app's place in the system's records of apps, without
+/// starting the app and without a window. Where `names_readable_at` takes that place, the name
+/// is the bundle's `CFBundleDisplayName`, else its `CFBundleName`; at any other place it is none.
+/// An app id that is the file name of an executable finds a place only where an installed app
+/// has that word as its bundle id. An empty or blank name is none. The command calls it on its
+/// blocking thread.
 #[cfg(target_os = "macos")]
 fn system_app_name(app: &str) -> Option<String> {
     use objc2::rc::autoreleasepool;
@@ -360,6 +362,9 @@ fn system_app_name(app: &str) -> Option<String> {
     autoreleasepool(|_| {
         let url = NSWorkspace::sharedWorkspace()
             .URLForApplicationWithBundleIdentifier(&NSString::from_str(app))?;
+        if !names_readable_at(std::path::Path::new(&url.path()?.to_string())) {
+            return None;
+        }
         let bundle = NSBundle::bundleWithURL(&url)?;
         ["CFBundleDisplayName", "CFBundleName"]
             .into_iter()
@@ -372,6 +377,24 @@ fn system_app_name(app: &str) -> Option<String> {
                 (!name.trim().is_empty()).then_some(name)
             })
     })
+}
+
+/// Whether the names of an app's bundle may be read at the place that the system gives for the
+/// app: only where the place is absolute, lies under /Applications or under /System, and holds
+/// no step up, as macOS protects no folder of the person's there. At any other place, the
+/// person's own Applications folder among them, a read could make macOS ask the person for
+/// access to a folder of theirs, and Halvo never does that for the sake of a name.
+#[cfg(target_os = "macos")]
+pub(super) fn names_readable_at(place: &std::path::Path) -> bool {
+    use std::path::Component;
+
+    let mut parts = place.components();
+    parts.next() == Some(Component::RootDir)
+        && matches!(
+            parts.next(),
+            Some(Component::Normal(top)) if top == "Applications" || top == "System"
+        )
+        && parts.all(|part| matches!(part, Component::Normal(_)))
 }
 
 /// No system but the Mac is asked for a name, so every row leaves the app out.
