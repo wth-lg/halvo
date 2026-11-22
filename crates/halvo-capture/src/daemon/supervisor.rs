@@ -48,7 +48,8 @@ pub const ENTRY_DEADLINE_MS: u64 = SHUTDOWN_BUDGET_MS + 1_250;
 
 const _: () = assert!(ENTRY_DEADLINE_MS < halvo_control::STOP_WAIT_MS);
 
-/// The first settle of the shutdown entry.
+/// The first settle of the shutdown entry, and the settle that ends a Pause
+/// or a lapse whose sources all stopped.
 pub const FIRST_SETTLE: Duration = Duration::from_secs(1);
 
 /// The final settle of the shutdown entry.
@@ -1212,8 +1213,13 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// stop bound in play plus SHUTDOWN_BUDGET_MS, at most
     /// [`ENTRY_DEADLINE_MS`]; then each source in the stop order until the
     /// first answer that is not a stop, a stop past its bound included (ruling
-    /// DM-25 N1). When every source stops the arm that it found is put back and
-    /// the process stays up. At the first answer that is not a stop the arm moves to
+    /// DM-25 N1). When every source stops, a Pause and a lapse end with the
+    /// owner's settle, waited for at most [`FIRST_SETTLE`] cut to what is left
+    /// before the deadline, so that what the owner received before the barrier
+    /// is in the store, or its write's failure is reported, before the answer
+    /// (contracts.md C14 item 3); a delete's stop asks no settle. Then the arm
+    /// that it found is put back and the process stays up. At the first answer
+    /// that is not a stop the arm moves to
     /// SHUTDOWN_BUDGET_MS after that answer, or after the moment that a late
     /// stop's bound passed, the earlier deadline kept, and the end routine
     /// runs: `reply` gets the Board, the first record is written, the owner
@@ -1263,6 +1269,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
         self.publish();
         if !unstopped {
+            if matches!(kind, StopKind::Pause | StopKind::Lapse) {
+                if let Ok(pending) = owner.ask(Command::Settle) {
+                    let _ = self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE));
+                }
+            }
             self.put_back(found);
             return Some(CaptureOff::Stopped);
         }
@@ -6476,15 +6487,18 @@ mod tests {
 
         /// N7 (a): an owner that never answers the barrier still lets the stops
         /// begin, once BARRIER_WAIT has passed: 5 s, written as a literal so that
-        /// a change of the constant fails the case (ruling DM-26 F3's v25).
+        /// a change of the constant fails the case (ruling DM-26 F3's v25). The
+        /// Pause then ends with the owner's settle, which the owner never answers
+        /// either, so the routine ends FIRST_SETTLE later.
         #[test]
         fn a_barrier_that_is_never_answered_lets_the_stops_begin_after_its_wait() {
             let (taken, at) = capture_off_with_a_late_barrier(None);
             println!("dm25 n7 never at_ms={} calls={taken:?}", at.as_millis());
             assert_eq!(taken, ["stop input", "stop foreground"]);
             assert!(
-                at >= Duration::from_millis(5_000) && at < Duration::from_millis(5_500),
-                "the stops began {at:?} after the Pause"
+                at >= Duration::from_millis(5_000) + FIRST_SETTLE
+                    && at < Duration::from_millis(5_500) + FIRST_SETTLE,
+                "the routine ended {at:?} after the Pause"
             );
         }
 
