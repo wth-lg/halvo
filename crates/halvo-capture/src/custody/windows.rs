@@ -105,15 +105,6 @@ impl Protector for Dpapi {
     }
 }
 
-#[expect(dead_code, reason = "win-5 removes the per-user roots path")]
-pub(crate) fn user_roots() -> Result<FileRoots<Dpapi>, CustodyError> {
-    let local = std::env::var_os("LOCALAPPDATA").ok_or(CustodyError::NoRootDirectory)?;
-    Ok(FileRoots::new(
-        PathBuf::from(local).join("Halvo").join("roots"),
-        Dpapi,
-    ))
-}
-
 /// The release Windows custody: the store key wrapped under a per-store root
 /// that DPAPI protects for this user, in the roots directory that the caller
 /// passes.

@@ -44,6 +44,22 @@ pub const CLIENT_DEADLINE: Duration = Duration::from_secs(5);
 /// 1 s of the client's 5 s.
 pub const OWNER_ANSWER_WAIT: Duration = Duration::from_secs(4);
 
+/// The one key of the frame `stream`, the daemon's own frame on the owner's channel that hands the owner an end of a
+/// stream. [`stream_frame`] writes the frame from it, and the handler of `relay` refuses an object that holds it, so
+/// that no relayed object reaches the owner as that frame.
+pub(super) const STREAM_KEY: &str = "stream";
+
+/// The frame `stream`: `{"stream":{"handles":null}}` on macOS, where the end comes beside the frame, and
+/// `{"stream":{"handles":[<read>,<write>]}}` on Windows, where it names the owner's two handles by their values.
+pub(super) fn stream_frame(handles: Option<[u64; 2]>) -> Vec<u8> {
+    let mut frame = serde_json::Map::new();
+    frame.insert(
+        STREAM_KEY.to_owned(),
+        serde_json::json!({ "handles": handles }),
+    );
+    serde_json::to_vec(&frame).expect("a map of JSON values always serializes")
+}
+
 /// The owner's answers to the frame `stream` that the handler reads: any other frame is a refusal.
 const TAKEN: &[u8] = br#"{"stream":"taken"}"#;
 const FULL: &[u8] = br#"{"stream":"full"}"#;
@@ -183,7 +199,7 @@ fn is_timeout(error: &std::io::Error) -> bool {
 }
 
 /// The error of the client call for a reply of v1.
-fn v1_answer(frame: &[u8]) -> ClientError {
+pub(super) fn v1_answer(frame: &[u8]) -> ClientError {
     match decode_reply(frame) {
         Ok(Reply::Error(error)) if error.ending() => ClientError::ServiceEnding(error),
         Ok(Reply::Error(error)) => ClientError::Daemon(error),

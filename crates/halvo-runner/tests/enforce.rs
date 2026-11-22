@@ -603,7 +603,8 @@ fn a_cancel_before_any_begin_ends_the_run_declined() {
 }
 
 /// CP-142 (3): the confirm path's request maker of the suite is test code alone; the binary still fails a `web`
-/// step with `step_failed` and an `api` call with the cause `adapter`, with no effect row and no confirmation.
+/// step of one of the seven verbs that it does not carry (`click` here; `navigate` and `extract` start the browser)
+/// with `step_failed` and an `api` call with the cause `adapter`, with no effect row and no confirmation.
 #[test]
 fn the_binary_still_fails_a_web_step_and_an_api_call_and_asks_no_confirmation() {
     let click = r#"{"v":1,"n":1,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"text","value":"v","name":null}]},"args":[],"pre":[],"post":[],"effect":"none","class":"prepare"}"#;

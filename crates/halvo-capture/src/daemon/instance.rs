@@ -117,6 +117,8 @@ mod windows {
 
     use halvo_control::paths::DataDir;
 
+    use crate::daemon::state::StateDir;
+
     const ERROR_SHARING_VIOLATION: i32 = 32;
     const FILE_SHARE_READ: u32 = 0x1;
 
@@ -125,6 +127,7 @@ mod windows {
     #[derive(Debug)]
     pub struct InstanceLock {
         _held: std::fs::File,
+        folder: std::path::PathBuf,
     }
 
     impl InstanceLock {
@@ -142,7 +145,12 @@ mod windows {
                     .share_mode(FILE_SHARE_READ)
                     .open(dir.instance_lock_file())
                 {
-                    Ok(file) => return Ok(Some(InstanceLock { _held: file })),
+                    Ok(file) => {
+                        return Ok(Some(InstanceLock {
+                            _held: file,
+                            folder: dir.path().to_path_buf(),
+                        }))
+                    }
                     Err(error) if error.raw_os_error() == Some(ERROR_SHARING_VIOLATION) => {}
                     Err(error) => return Err(error),
                 }
@@ -152,6 +160,24 @@ mod windows {
                 }
                 std::thread::sleep(left.min(Duration::from_millis(50)));
             }
+        }
+
+        /// The check of the data directory that a Mac makes on its lock:
+        /// Windows makes none in this release, so it finds nothing.
+        pub fn check(&self, _dir: &DataDir) -> Result<(), std::convert::Infallible> {
+            Ok(())
+        }
+
+        /// The folder of the data directory that the lock was taken in,
+        /// opened by its path for the state file.
+        pub fn state_dir(&self) -> io::Result<StateDir> {
+            StateDir::open(&self.folder)
+        }
+
+        /// The mark that keeps the data directory out of backups: no such
+        /// mark is set on Windows, so it answers Unsupported.
+        pub fn exclude_from_backup(&self) -> io::Result<()> {
+            Err(io::ErrorKind::Unsupported.into())
         }
     }
 }

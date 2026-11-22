@@ -452,6 +452,10 @@ impl OwnerChannel for Turn<'_> {
         self.running.write(frame)
     }
 
+    fn send(&mut self, frame: &[u8]) -> io::Result<()> {
+        self.running.write(frame)
+    }
+
     fn answer(&mut self, within: Duration) -> io::Result<Option<Vec<u8>>> {
         self.running.answer(within)
     }
