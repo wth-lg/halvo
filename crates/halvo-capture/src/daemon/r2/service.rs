@@ -2,7 +2,8 @@
 //! of the run that make it, flag the app, stop it, delete it and serve a request of protocol v2 on it.
 //!
 //! - THE FORM. One lock holds the slot of the open capture store with the daemon's caller over its data directory
-//!   ([`WorkerSlot`], [`DaemonCaller`]). Beside the lock stand two marks, of a delete and of a stop. The driver of
+//!   ([`WorkerSlot`], [`DaemonCaller`]). Beside the lock stand two marks, of a delete and of a stop, and a third,
+//!   the deadline of the request `defer` (`Deferral` of daemon/r2/defer.rs). The driver of
 //!   the slot ([`Driver`]) holds the form as its [`Slot`] and its [`Source`]. A pass, [`stop`], [`delete`] and an
 //!   exchange of `serve` each hold the lock for their whole length; the supervisor's tick never takes it, as it
 //!   hands the driver's thread the loop's time alone (`when::tick`). With no slot in the form a pass answers
@@ -12,6 +13,11 @@
 //!   started. Each of the two so waits behind one exchange or one pass at most. The mark of a delete stands until
 //!   the next [`open`]; the mark of a stop stands until that stop has dropped the slot, after which the form holds
 //!   no slot and answers the same.
+//! - THE DEADLINE. `serve` sets the third mark at each request `defer`, with no lock of the form, and [`open`],
+//!   [`stop`] and [`delete`] leave it (defer.rs holds its rule). While it holds, a pass turns the caller's
+//!   yes into a no: the slot ends a living worker by its kill, with the line `analysis end=ended`, and starts none,
+//!   and the owner that ran keeps running. A pass that held the lock at the request can still start one worker,
+//!   which the next pass ends.
 //! - THE SOURCE. The form's source gives what [`DaemonCaller::reading`] gives at the clock's reading of the call:
 //!   the origin, with the watermark as the one that a yes carries; none with no slot in the form.
 //! - [`open`], at each open of the capture store: the cell of the cursor's reads forgets its figures and its ask
@@ -36,8 +42,10 @@
 //!   store that goes after the delete's forget, and its last pass comes before the store's lock is given up, so
 //!   before the fresh store opens.
 //! - `serve`, on macOS, at a request of an accepted connection that the v1 table does not hold and that is no run
-//!   mark, on the connection's own thread and behind the server's peer check. A request that the control crate's
-//!   module of protocol v2 does not serve (`halvo_control::r2::serves`) is left to the server, with no lock taken.
+//!   mark, on the connection's own thread and behind the server's peer check. A request `defer` is answered first
+//!   (`halvo_control::r2::serve_defer`), with no lock taken and no owner started, in every state of the form. A
+//!   request that the control crate's module of protocol v2 does not serve (`halvo_control::r2::serves`) is left to
+//!   the server, with no lock taken.
 //!   For any other the call takes the form's lock. While the mark of a delete stands the client gets the error
 //!   `busy`; while the mark of a stop stands, or with no slot in the form, `store_unavailable`; a refusal of the
 //!   owner slot's turn (`OwnerSlot::turn`) goes out as it stands. Each is one error reply of v1, written after the
@@ -57,6 +65,7 @@ use halvo_control::proto::Request;
 use halvo_schema::Position;
 
 use crate::daemon::r2::daemon_caller::{cell, DaemonCaller};
+use crate::daemon::r2::defer::Deferral;
 use crate::daemon::r2::owner_slot::{Caller, Place};
 use crate::daemon::r2::when::{self, Driver, Readings, Slot, Source};
 use crate::daemon::r2::worker_slot::{Answer, MayRun, Origin, WorkerSlot};
@@ -75,8 +84,8 @@ struct Held {
     driven: bool,
 }
 
-/// The one form of the worker slot that the daemon holds: the lock, and the two marks beside it, which are read
-/// under the lock and set before it is asked for.
+/// The one form of the worker slot that the daemon holds: the lock, the two marks beside it, which are read under the
+/// lock and set before it is asked for, and the deadline of `defer`, which is set with no lock of the form.
 struct Form {
     held: Mutex<Held>,
     /// The mark of a delete: [`delete`] sets it before it asks for the lock and once more under it, so that an
@@ -85,6 +94,9 @@ struct Form {
     /// The mark of a stop: the calls of [`stop`] that have not yet dropped the slot. Each adds one before it asks
     /// for the lock and takes it back under the lock, once the slot is out.
     stopping: AtomicUsize,
+    /// The deadline of `defer`: while it holds, a pass turns a yes into a no. `serve` sets it; [`open`], [`stop`] and
+    /// [`delete`] leave it.
+    deferred: Deferral,
 }
 
 impl Form {
@@ -142,6 +154,7 @@ static FORM: Form = Form {
     }),
     deleting: AtomicBool::new(false),
     stopping: AtomicUsize::new(0),
+    deferred: Deferral::new(),
 };
 
 impl Slot for &'static Form {
@@ -154,7 +167,10 @@ impl Slot for &'static Form {
             return Answer::Idle;
         }
         match held.open.as_mut() {
-            Some(open) => open.slot.pass(now, may_run, origin),
+            Some(open) => {
+                let may_run = self.deferred.may_run(may_run, Instant::now());
+                open.slot.pass(now, may_run, origin)
+            }
             None => Answer::Idle,
         }
     }
@@ -281,11 +297,12 @@ pub fn delete() {
 /// connection of the control server, whose peer the server has checked: true when the call answered the request on
 /// the connection, false when the server is to answer it as v1 does. The call adds no check of the peer.
 ///
-/// A request that the control crate's module of protocol v2 does not serve is false, with no lock taken and no
-/// owner started. For any other the call takes the form's lock: under a mark, with no slot, and where the owner
-/// slot refuses its turn, the client gets that one error reply of v1, with no end of a stream beside it, written
-/// after the lock is given up; otherwise `dispatch_unknown` runs on the owner's channel, and the lock is held until
-/// it has returned and the turn is dropped.
+/// A request `defer` is answered first, by `serve_defer` with the setter of the form's deadline, with no lock taken
+/// and no owner started, in every state of the form. A request that the control crate's module of protocol v2 does
+/// not serve is false, with no lock taken and no owner started. For any other the call takes the form's lock: under a
+/// mark, with no slot, and where the owner slot refuses its turn, the client gets that one error reply of v1, with no
+/// end of a stream beside it, written after the lock is given up; otherwise `dispatch_unknown` runs on the owner's
+/// channel, and the lock is held until it has returned and the turn is dropped.
 #[cfg(target_os = "macos")]
 pub fn serve(
     request: &halvo_control::proto::UnknownRequest,
@@ -293,6 +310,9 @@ pub fn serve(
 ) -> bool {
     use halvo_control::proto::{encode_reply, Reply};
     use halvo_control::wire::{write_frame, REPLY_MAX_BYTES};
+    if halvo_control::r2::serve_defer(request, connection, |until| FORM.deferred.set(until)) {
+        return true;
+    }
     if !halvo_control::r2::serves(request) {
         return false;
     }

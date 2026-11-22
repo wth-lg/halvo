@@ -8,17 +8,29 @@
 //! children of this process; on a system without that list it reads the pid file and the slot's lines alone.
 
 use std::io::Write;
+#[cfg(target_os = "macos")]
+use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(target_os = "macos")]
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
+#[cfg(target_os = "macos")]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use halvo_capture::daemon::custody_policy::Custody;
 use halvo_capture::daemon::port::{DataDirStore, Opened, StoreHost};
 use halvo_capture::daemon::r2::daemon_caller::cell;
 use halvo_capture::daemon::r2::service;
 use halvo_capture::daemon::r2::when::{self, Reading, Readings};
+#[cfg(target_os = "macos")]
+use halvo_capture::daemon::server::{
+    serve_connection, Admitting, READ_DEADLINE, REPLY_WRITE_DEADLINE,
+};
+#[cfg(target_os = "macos")]
+use halvo_control::client::{Client, ClientError, Connector};
 use halvo_control::proto::Request;
 use halvo_schema_core::ids::{Position, StoreId};
 
@@ -443,4 +455,117 @@ fn a_delete_ends_both_and_a_new_open_starts_anew() {
     if let Some(worker) = again.worker {
         assert_runs(worker);
     }
+}
+
+/// The user id of this process, the daemon's own in these tests.
+#[cfg(target_os = "macos")]
+fn own_user() -> u32 {
+    // SAFETY: the call reads the effective user id of this process and touches no memory.
+    unsafe { libc::geteuid() }
+}
+
+/// A connector that gives the client call the client's end of the test's control connection, once, as `Once` of
+/// tests/daemon_stream.rs does.
+#[cfg(target_os = "macos")]
+struct Once(Mutex<Option<UnixStream>>);
+
+#[cfg(target_os = "macos")]
+impl Connector for Once {
+    type Transport = UnixStream;
+
+    fn endpoint(&self) -> String {
+        "the test's control connection".to_owned()
+    }
+
+    fn connect(&self, _: Duration) -> Result<UnixStream, ClientError> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .take()
+            .expect("the client call connects once"))
+    }
+}
+
+/// One connection of the control server, as `connection` of tests/daemon_stream.rs: a thread serves one end of a
+/// new socket pair with `serve_connection` for a peer of this process's user, while `call` asks on the other end.
+#[cfg(target_os = "macos")]
+fn connection<T>(call: impl FnOnce(UnixStream) -> T) -> T {
+    let (client, mut server) = UnixStream::pair().unwrap();
+    server.set_read_timeout(Some(READ_DEADLINE)).unwrap();
+    server
+        .set_write_timeout(Some(REPLY_WRITE_DEADLINE))
+        .unwrap();
+    let admitting = Arc::new(Admitting::default());
+    let (hand, handed) = mpsc::channel();
+    let answer = std::thread::scope(|scope| {
+        let serving = scope.spawn(|| {
+            serve_connection(&mut server, Some(own_user()), own_user(), &admitting, &hand)
+        });
+        let answer = call(client);
+        assert!(
+            serving.join().unwrap().is_none(),
+            "the server waits for the loop's answer"
+        );
+        answer
+    });
+    assert!(
+        handed.try_recv().is_err(),
+        "a request reached the service's loop"
+    );
+    answer
+}
+
+/// The client's call `defer` with the deadline `until`, in nanoseconds since 1970.
+#[cfg(target_os = "macos")]
+fn defer(until: i64) -> Result<Option<i64>, ClientError> {
+    connection(|client| Client::new(Once(Mutex::new(Some(client)))).defer(until))
+}
+
+/// The wall clock in nanoseconds since 1970.
+#[cfg(target_os = "macos")]
+fn wall_nanos() -> i64 {
+    let since = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    i64::try_from(since.as_nanos()).unwrap()
+}
+
+/// Ruling 7: with a worker and an owner running, after a `defer` 60 s ahead and one tick the worker is gone and the
+/// slot wrote the line of a worker that it ended; after two more ticks no worker runs for 1 s, and derived/owner.pid
+/// names the same owner. A `defer` in the past clears the mark of the process.
+#[cfg(target_os = "macos")]
+#[test]
+fn a_defer_ends_the_worker_and_none_starts() {
+    let rig = Rig::new("children-defer");
+    rig.open();
+    write_read(&first_store());
+    seen_and_two_ticks();
+    let running = rig.wait_running();
+    let worker = running.worker.expect("macOS lists the worker");
+    assert!(
+        defer(wall_nanos() + 60_000_000_000).unwrap().is_some(),
+        "no deadline is in force"
+    );
+    tick();
+    let until = Instant::now() + WAIT;
+    while !rig.lines.text().contains(ENDED) {
+        assert!(
+            Instant::now() < until,
+            "no line of an ended worker: {}",
+            rig.lines.text()
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_gone(worker);
+
+    tick();
+    tick();
+    let until = Instant::now() + WATCH;
+    while Instant::now() < until {
+        assert_eq!(workers(), Vec::<u32>::new(), "a worker started");
+        assert_eq!(rig.owner(), Some(running.owner), "the owner changed");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_runs(running.owner);
+
+    assert_eq!(defer(wall_nanos() - 1_000_000_000).unwrap(), None);
 }
