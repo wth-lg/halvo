@@ -3,14 +3,17 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
+#[cfg(target_os = "macos")]
+use halvo_control::client::Transport;
 use halvo_control::client::{
     Client, ClientError, Connector, Deadlines, DeleteOutcome, NoTransport, SystemConnector,
-    Transport,
 };
 use halvo_control::model::{StorageCap, StoreId};
 use halvo_control::onboarding::{Permission, RequestOutcome};
 use halvo_control::proto::{CapSet, DaemonStatus, InventoryReply, Request};
+#[cfg(target_os = "macos")]
 use halvo_control::r2::{OwnerStreamEnd, RunEdge, RunMarked};
+#[cfg(target_os = "macos")]
 use halvo_control::wire::{read_frame, write_frame, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
 
 use crate::view_state::Hold;
@@ -173,24 +176,29 @@ pub trait Control: Send + Sync {
     /// Asks the daemon for one end of a new owner stream (the workflows run's W-C24.13), on which the coordinator's
     /// requests reach the owner of the derived store. A control with no stream call answers
     /// `ClientError::Unsupported`.
+    #[cfg(target_os = "macos")]
     fn owner_stream(&self, _made: Made) -> Result<OwnerStreamEnd, ClientError> {
         Err(ClientError::Unsupported)
     }
 
     /// Sends one run mark, `run_start` or `run_end` (the workflows run's C24.12), and gives the daemon's reply. A
     /// control with no mark call answers `ClientError::Unsupported`.
+    #[cfg(target_os = "macos")]
     fn run_mark(&self, _made: Made, _edge: RunEdge) -> Result<RunMarked, ClientError> {
         Err(ClientError::Unsupported)
     }
 }
 
 /// How long a stream call or a mark waits for its place in the line and for the daemon, from the call on.
+#[cfg(target_os = "macos")]
 const CALL_DEADLINE: Duration = Duration::from_secs(5);
 
 /// The call of a new owner stream on the system's connector of this account.
+#[cfg(target_os = "macos")]
 #[derive(Clone)]
 struct Streams(Arc<dyn Fn() -> Result<OwnerStreamEnd, ClientError> + Send + Sync>);
 
+#[cfg(target_os = "macos")]
 impl std::fmt::Debug for Streams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("Streams")
@@ -214,6 +222,7 @@ fn the_same_for_each_request(left: Duration) -> Deadlines {
 pub struct Gated<C> {
     connector: C,
     places: Arc<Places>,
+    #[cfg(target_os = "macos")]
     streams: Option<Streams>,
 }
 
@@ -222,6 +231,7 @@ impl<C: Connector + Clone> Gated<C> {
         Gated {
             connector,
             places: Arc::default(),
+            #[cfg(target_os = "macos")]
             streams: None,
         }
     }
@@ -339,6 +349,7 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
 
     /// The stream call of `streaming`, in its place in the line; a control made by `new` answers
     /// `ClientError::Unsupported`.
+    #[cfg(target_os = "macos")]
     fn owner_stream(&self, made: Made) -> Result<OwnerStreamEnd, ClientError> {
         let Some(Streams(call)) = &self.streams else {
             return Err(ClientError::Unsupported);
@@ -354,6 +365,7 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
 
     /// The request of the edge, `{"v":1,"body":{"op":"run_start"}}` or `run_end`, in its place in the line: the
     /// reply `run_marked`, or the daemon's error reply.
+    #[cfg(target_os = "macos")]
     fn run_mark(&self, made: Made, edge: RunEdge) -> Result<RunMarked, ClientError> {
         let until = made.deadline_from + CALL_DEADLINE;
         let late = || ClientError::Deadline {
