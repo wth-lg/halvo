@@ -99,6 +99,8 @@ fn run(background: bool, given: Option<PathBuf>) {
     let child_dir = data_dir.clone();
     #[cfg(target_os = "macos")]
     let login_dir = data_dir.clone();
+    #[cfg(target_os = "macos")]
+    let offline_dir = data_dir.clone();
     let state = commands::capture::AppState::with_control(control, data_dir, open_pane);
     #[cfg(any(target_os = "macos", test))]
     let views = Arc::clone(&state.views);
@@ -129,9 +131,17 @@ fn run(background: bool, given: Option<PathBuf>) {
         lock.show_on_ask(move || tray::show_main_window(&handle));
     }
     #[cfg(any(target_os = "macos", test))]
+    let supervisor = start_the_daemon(child_dir, given.is_some(), pid, views);
+    #[cfg(target_os = "macos")]
+    set_the_offline_delete(
+        &tauri::Manager::state::<commands::capture::AppState>(&app),
+        supervisor.clone(),
+        offline_dir,
+    );
+    #[cfg(any(target_os = "macos", test))]
     tauri::Manager::manage(
         &app,
-        quit::AppChildren(start_the_daemon(child_dir, given.is_some(), pid, views)),
+        quit::AppChildren(supervisor.map(|children| children as Arc<dyn quit::Children>)),
     );
     #[cfg(target_os = "macos")]
     start_the_login_item(login_dir, given.is_some(), login_views);
@@ -212,13 +222,49 @@ fn daemon_program() -> Option<PathBuf> {
         .map(|exe| exe.with_file_name("halvo-capture"))
 }
 
+/// The app's own supervisor of its daemon child.
+#[cfg(any(target_os = "macos", test))]
+type AppSupervisor = daemon_child::Supervisor<daemon_child::Running, daemon_child::SystemClock>;
+
+/// The offline delete of the app (contracts.md C10.5): halvo-capture beside the app's own
+/// executable on the app's data directory, held by the app's supervisor; every view names that
+/// folder as resolved.
+#[cfg(target_os = "macos")]
+fn set_the_offline_delete(
+    state: &commands::capture::AppState,
+    supervisor: Option<Arc<AppSupervisor>>,
+    data_dir: Option<DataDir>,
+) {
+    let Some(data_dir) = data_dir else {
+        return;
+    };
+    let resolved =
+        std::fs::canonicalize(data_dir.path()).unwrap_or_else(|_| data_dir.path().to_path_buf());
+    state
+        .views
+        .hold()
+        .set_folder(halvo_control::paths::one_line(&resolved.to_string_lossy()));
+    let Some(program) = daemon_program() else {
+        return;
+    };
+    let _ = state.offline.set(commands::capture::Offline {
+        program,
+        data_dir,
+        children: supervisor
+            .map(|children| children as Arc<dyn commands::capture::WithoutTheChild>),
+        run: Arc::new(|program, args| {
+            daemon_child::run_to_its_end(program, args, commands::capture::OFFLINE_WAIT)
+        }),
+    });
+}
+
 #[cfg(any(target_os = "macos", test))]
 fn start_the_daemon(
     data_dir: Option<DataDir>,
     given: bool,
     pid: Arc<ChildPid>,
     views: Arc<poller::Views>,
-) -> Option<Arc<dyn quit::Children>> {
+) -> Option<Arc<AppSupervisor>> {
     let plan = daemon_child::Plan {
         program: daemon_child::Program {
             path: daemon_program()?,

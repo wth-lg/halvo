@@ -1,5 +1,7 @@
-use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use halvo_control::client::{ClientError, DeleteOutcome};
@@ -7,6 +9,7 @@ use halvo_control::model::{CaptureState, StorageCap, StoreId};
 use halvo_control::onboarding::{OnboardingState, Permission, RequestOutcome};
 use halvo_control::paths::DataDir;
 use halvo_control::proto::{reaches_the_end, CaptureChange, DaemonStatus, ErrorCode, StateFile};
+use halvo_control::service::DATA_DIR_ARG;
 use tauri::ipc::Invoke;
 use tauri::{Runtime, State};
 
@@ -15,9 +18,9 @@ use super::names::{Names, CAPTURE};
 use super::Registration;
 use crate::poller::{self, Views};
 use crate::view_state::{
-    a_delete_removed_nothing, command_view, delete_view, inventory_view, onboarding_shown,
-    read_error, removes_nothing, ActionError, CapSetView, CaptureSet, DeleteView, Hold,
-    InventoryView, LastDelete, OutcomeError, StatusView,
+    a_delete_removed_nothing, command_view, delete_view, inventory_view, offline_view,
+    onboarding_shown, read_error, removes_nothing, ActionError, CapSetView, CaptureSet, DeleteView,
+    Hold, InventoryView, LastDelete, OfflineEnd, OutcomeError, StatusView,
 };
 
 pub struct AppState {
@@ -27,6 +30,12 @@ pub struct AppState {
     pub open_pane: fn(Permission) -> Result<(), String>,
     pub tray_installed: AtomicBool,
     pub last_delete: Mutex<LastDelete>,
+    /// What the offline delete runs, set once the app has started the supervisor of its child.
+    pub offline: OnceLock<Offline>,
+    /// The answers delete_refused of the service in a row, which open the offline delete's
+    /// second door at two (contracts.md C10.5).
+    pub refused_in_a_row: AtomicU32,
+    offline_running: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -61,6 +70,9 @@ impl AppState {
             open_pane,
             tray_installed: AtomicBool::new(false),
             last_delete: Mutex::new(LastDelete::None),
+            offline: OnceLock::new(),
+            refused_in_a_row: AtomicU32::new(0),
+            offline_running: Arc::default(),
         }
     }
 }
@@ -86,6 +98,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         open_permission_pane,
         last_delete,
         acknowledge_lost_permission,
+        delete_offline,
     ];
     handle(invoke)
 }
@@ -432,7 +445,11 @@ pub async fn delete_all(
         DeleteEnd::FirstNotKnown(first) => (delete_view(Err(first), roots.as_deref()), false),
     };
     match &view {
-        Ok(DeleteView::Deleted { .. } | DeleteView::AlreadyDeleted { .. }) => {
+        Ok(
+            DeleteView::Deleted { .. }
+            | DeleteView::AlreadyDeleted { .. }
+            | DeleteView::NoStore { .. },
+        ) => {
             state.views.take_delete(call, next_number_at_answer);
         }
         Ok(DeleteView::DeleteRefused) => state.views.take_refusal(next_number_at_answer),
@@ -440,6 +457,13 @@ pub async fn delete_all(
         Err(_) => state.views.take_delete(call, next_number_at_answer),
     }
     draw_off_the_main_thread(&state.views).await;
+    state.refused_in_a_row.store(
+        match &view {
+            Ok(DeleteView::DeleteRefused) => state.refused_in_a_row.load(Ordering::SeqCst) + 1,
+            _ => 0,
+        },
+        Ordering::SeqCst,
+    );
     state.keep_last_delete(match &view {
         Ok(answer) => LastDelete::Answered {
             at_ms: now_ms(),
@@ -451,6 +475,129 @@ pub async fn delete_all(
         error,
         outcome_not_known: !nothing_removed,
     })
+}
+
+/// The supervisor of the app's daemon child, as the offline delete holds it.
+pub trait WithoutTheChild: Send + Sync {
+    /// Ends the app's child of the moment by its descriptor, starts no child while `run` runs,
+    /// and then lets the supervisor go on by its rule.
+    fn without_the_child(&self, run: &mut dyn FnMut());
+}
+
+/// How the app runs the program of the offline delete: the system's run in the app, a stand-in
+/// in the tests.
+pub type OfflineRun = Arc<dyn Fn(&Path, &[OsString]) -> OfflineEnd + Send + Sync>;
+
+/// What the offline delete of contracts.md C10.5 runs: halvo-capture beside the app's own
+/// executable, on the app's data directory, while the supervisor of the child holds every start.
+#[derive(Clone)]
+pub struct Offline {
+    pub program: PathBuf,
+    pub data_dir: DataDir,
+    pub children: Option<Arc<dyn WithoutTheChild>>,
+    pub run: OfflineRun,
+}
+
+/// How long the app waits for the offline delete: the client's own wait for a delete_all.
+pub const OFFLINE_WAIT: Duration = halvo_control::client::Deadlines::V1.delete_all;
+
+/// The arguments of the offline delete: `--delete-all --data-dir DIR`, the one form of a
+/// release build (contracts.md C3.3).
+pub fn offline_arguments(data_dir: &DataDir) -> Vec<OsString> {
+    vec![
+        OsString::from("--delete-all"),
+        OsString::from(DATA_DIR_ARG),
+        data_dir.path().as_os_str().to_owned(),
+    ]
+}
+
+/// The offline delete of a person's press, off the main thread (contracts.md C10.5): only where
+/// the view reads not_running, or after two answers delete_refused in a row, and otherwise
+/// delete_refused with nothing run (contracts.md C10.5, a delete armed at one door is never
+/// carried out at the other). It ends the app's child, runs the program and maps its lines, and
+/// the supervisor then goes on by its rule; with no program to run nothing is deleted.
+pub fn ask_offline(
+    views: &Views,
+    refused_in_a_row: u32,
+    offline: Option<&Offline>,
+) -> Result<DeleteView, OutcomeError> {
+    if !views.view().reads_not_running() && refused_in_a_row < 2 {
+        return Ok(DeleteView::DeleteRefused);
+    }
+    let Some(offline) = offline else {
+        return Err(OutcomeError {
+            error: ActionError::DeleteNotStarted,
+            outcome_not_known: false,
+        });
+    };
+    let args = offline_arguments(&offline.data_dir);
+    let mut end = OfflineEnd::NotStarted;
+    let mut run = || end = (offline.run)(&offline.program, &args);
+    match &offline.children {
+        Some(children) => children.without_the_child(&mut run),
+        None => run(),
+    }
+    offline_view(&end, Some(&offline.data_dir.roots_dir()))
+}
+
+/// The mark of an offline delete that runs, until it is dropped.
+struct OfflineRuns(Arc<AtomicBool>);
+
+impl OfflineRuns {
+    fn take(running: &Arc<AtomicBool>) -> Option<Self> {
+        (!running.swap(true, Ordering::SeqCst)).then(|| OfflineRuns(Arc::clone(running)))
+    }
+}
+
+impl Drop for OfflineRuns {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+/// The fourteenth command: the offline delete of contracts.md C10.5, which takes no id. One runs
+/// at a time: a second press while one runs answers busy and runs nothing. On Windows it runs
+/// nothing and answers unsupported_op.
+#[tauri::command]
+pub async fn delete_offline(state: State<'_, AppState>) -> Result<DeleteView, OutcomeError> {
+    let refused = |error| OutcomeError {
+        error,
+        outcome_not_known: false,
+    };
+    if cfg!(windows) {
+        return Err(refused(ActionError::UnsupportedOp));
+    }
+    let Some(running) = OfflineRuns::take(&state.offline_running) else {
+        return Err(refused(ActionError::Busy));
+    };
+    let refused_in_a_row = state.refused_in_a_row.load(Ordering::SeqCst);
+    let offline = state.offline.get().cloned();
+    let views = Arc::clone(&state.views);
+    state.keep_last_delete(LastDelete::InFlight);
+    let _in_flight = NotLeftInFlight(state.inner());
+    let answer = off_the_main_thread(move || {
+        let _running = running;
+        ask_offline(&views, refused_in_a_row, offline.as_ref())
+    })
+    .await
+    .unwrap_or(Err(OutcomeError {
+        error: ActionError::Internal,
+        outcome_not_known: true,
+    }));
+    if answer != Ok(DeleteView::DeleteRefused) {
+        let next = state.control.places().next_number();
+        state.views.take_delete(next, next);
+        state.refused_in_a_row.store(0, Ordering::SeqCst);
+    }
+    draw_off_the_main_thread(&state.views).await;
+    state.keep_last_delete(match &answer {
+        Ok(view) => LastDelete::Answered {
+            at_ms: now_ms(),
+            answer: view.clone(),
+        },
+        Err(_) => LastDelete::None,
+    });
+    answer
 }
 
 fn now_ms() -> u64 {

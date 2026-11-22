@@ -321,6 +321,7 @@ struct State<C> {
     quitting: bool,
     child: Option<C>,
     version_restarted: bool,
+    held_for_a_run: bool,
 }
 
 #[derive(Debug)]
@@ -362,6 +363,7 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
                 quitting: false,
                 child: None,
                 version_restarted: false,
+                held_for_a_run: false,
             }),
             changed: Condvar::new(),
         });
@@ -389,6 +391,94 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
             child.close_lifeline();
             child
         })
+    }
+
+    /// The offline delete's hold of the supervision (contracts.md C10.5): from the call on no
+    /// child starts; the child of the moment, if any, gets its descriptor closed, STOP_WAIT for
+    /// its end and a kill after that, as a quit ends it, and no request; then `run` runs, and
+    /// after it the supervisor goes on by its rule.
+    pub fn without_the_child<T>(&self, run: impl FnOnce() -> T) -> T {
+        let until = self.clock.now() + STOP_WAIT;
+        let mut state = self.shared.lock();
+        state.held_for_a_run = true;
+        loop {
+            let Some(child) = state.child.as_mut() else {
+                break;
+            };
+            child.close_lifeline();
+            if let Ok(Some(_)) = child.ended() {
+                break;
+            }
+            if self.clock.now() >= until {
+                if let Err(e) = child.kill() {
+                    eprintln!("halvo: the capture service could not be ended: {e}");
+                }
+                break;
+            }
+            state = self.clock.wait(&self.shared.changed, state, STOP_POLL);
+        }
+        drop(state);
+        let answer = run();
+        self.shared.lock().held_for_a_run = false;
+        self.shared.changed.notify_all();
+        answer
+    }
+}
+
+impl<C: Watched, K: Clock> crate::commands::capture::WithoutTheChild for Supervisor<C, K> {
+    fn without_the_child(&self, run: &mut dyn FnMut()) {
+        Supervisor::without_the_child(self, run);
+    }
+}
+
+/// Runs the offline delete's `program` with `args` to its end (contracts.md C3.3): standard
+/// input from the null device, standard output read whole, standard error the app's own, and
+/// every other descriptor closed at its exec; after `within` it kills the program and answers
+/// that it had no end.
+#[cfg(target_os = "macos")]
+pub fn run_to_its_end(
+    program: &Path,
+    args: &[OsString],
+    within: Duration,
+) -> crate::view_state::OfflineEnd {
+    use crate::view_state::OfflineEnd;
+    use std::io::Read;
+    let mut command = Command::new(program);
+    command
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit());
+    only_the_standard_streams(&mut command);
+    let Ok(mut child) = command.spawn() else {
+        return OfflineEnd::NotStarted;
+    };
+    let reader = child.stdout.take().map(|mut out| {
+        std::thread::spawn(move || {
+            let mut text = Vec::new();
+            let _ = out.read_to_end(&mut text);
+            String::from_utf8_lossy(&text).into_owned()
+        })
+    });
+    let until = Instant::now() + within;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Some(status),
+            Ok(None) if Instant::now() < until => std::thread::sleep(STOP_POLL),
+            Ok(None) | Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break None;
+            }
+        }
+    };
+    let out = reader
+        .and_then(|reader| reader.join().ok())
+        .unwrap_or_default();
+    match status.map(|status| status.code()) {
+        None => OfflineEnd::NoEnd,
+        Some(Some(code)) => OfflineEnd::Exited { code, out },
+        Some(None) => OfflineEnd::Signal { out },
     }
 }
 
@@ -459,7 +549,8 @@ fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold
 /// Starts the child and starts it again by the rule of `next`, after a 0 once the other daemon
 /// is gone; hands the spawner back after the third end with 5 in a row, and none otherwise.
 /// After each end it draws the views, so that the set of the hold reaches the tray's menu at
-/// once.
+/// once. Each start waits while the offline delete holds the supervision, and starts under the
+/// lock that the hold takes, so that no child starts while the delete runs.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
@@ -470,6 +561,7 @@ fn supervise<S: Spawner, K: Clock>(
     let hold = views.hold();
     let mut restarts = Restarts::default();
     loop {
+        let gate = held_before_a_start(shared, clock, hold)?;
         let began = clock.now();
         let by_the_rule = |ending: Ending| {
             let (step, after) = next(
@@ -482,7 +574,7 @@ fn supervise<S: Spawner, K: Clock>(
         let (ending, step, after) = match spawner.start() {
             Ok(None) => return None,
             Ok(Some(child)) => {
-                let mut state = shared.lock();
+                let mut state = gate;
                 if state.quitting {
                     return None;
                 }
@@ -496,6 +588,7 @@ fn supervise<S: Spawner, K: Clock>(
                 }
             }
             Err(e) => {
+                drop(gate);
                 eprintln!("halvo: the capture service did not start: {e}");
                 by_the_rule(Ending::NotStarted)
             }
@@ -526,6 +619,27 @@ fn supervise<S: Spawner, K: Clock>(
                 }
             }
         }
+    }
+}
+
+/// Before a start: waits while the offline delete holds the supervision, and then takes the ask
+/// of a Start between two children; it answers the lock under which the child starts, and none at
+/// a quit.
+fn held_before_a_start<'a, C, K: Clock>(
+    shared: &'a Shared<C>,
+    clock: &K,
+    hold: &Hold,
+) -> Option<MutexGuard<'a, State<C>>> {
+    let mut state = shared.lock();
+    loop {
+        if state.quitting {
+            return None;
+        }
+        if !state.held_for_a_run {
+            hold.take_the_ask();
+            return Some(state);
+        }
+        state = clock.wait(&shared.changed, state, CHILD_POLL);
     }
 }
 
@@ -2732,6 +2846,7 @@ mod tests {
                     quitting: false,
                     child: None,
                     version_restarted: false,
+                    held_for_a_run: false,
                 }),
                 changed: Condvar::new(),
             };
@@ -2751,5 +2866,209 @@ mod tests {
             );
             assert_eq!(pid.get(), None, "{name}: no pid once no child lives");
         }
+    }
+
+    #[test]
+    fn the_offline_delete_ends_the_child_and_starts_it_again() {
+        use crate::commands::capture::{ask_offline, AppState, Offline, OfflineRun};
+        use crate::view_state::{ActionError, DeleteView, OfflineEnd, OutcomeError};
+        use halvo_control::paths::DataDir;
+        use halvo_control::proto::RootDestroyed;
+
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let ends_with_1_at_its_close = |pid| {
+            let later = Later::default();
+            let at_close = Arc::clone(&later);
+            StandInChild {
+                later: Some(later),
+                at_close: Some(AtClose(Arc::new(move || {
+                    *at_close.lock().unwrap() = Some(Ending::Status(1));
+                }))),
+                ..StandInChild::new(pid, &clock, &record)
+            }
+        };
+        let spawner = StandInSpawner {
+            children: (1000..1005).map(ends_with_1_at_its_close).collect(),
+            record: Arc::clone(&record),
+        };
+        let dir = DataDir::from_flag(crate::tests::scratch_dir("offline-delete"))
+            .expect("an absolute directory");
+        let looked_in = dir.path().display().to_string();
+        let no_daemon: Arc<dyn Control> = Arc::new(Recording::new(&Record::default(), None));
+        let state = AppState::with_control(Arc::clone(&no_daemon), Some(dir.clone()), |_| Ok(()));
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Arc::new(Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&state.views),
+        ));
+        let line = |root: &str, root_id: &str, files_left: u64, entries_left: u64| {
+            format!(
+                "data_dir={looked_in}\ndeleted segments_shredded=unknown keys_destroyed=unknown root_destroyed={root} root_id={root_id} files_left={files_left} database_left=no not_followed=0 entries_removed=3 entries_left={entries_left} unknown_entries=0 intent=written\n"
+            )
+        };
+        let ends = Arc::new(Mutex::new(std::collections::VecDeque::from([
+            OfflineEnd::Exited {
+                code: 0,
+                out: line("yes", "-", 0, 0),
+            },
+            OfflineEnd::Exited {
+                code: 75,
+                out: format!("data_dir={looked_in}\n"),
+            },
+            OfflineEnd::Exited {
+                code: 1,
+                out: format!("data_dir={looked_in}\n"),
+            },
+            OfflineEnd::Exited {
+                code: 1,
+                out: line("no", "0123456789abcdef0123456789abcdef", 1, 1),
+            },
+        ])));
+        let seen = Arc::new(std::sync::atomic::AtomicUsize::new(usize::MAX));
+        let run: OfflineRun = {
+            let (record, clock, ends, seen) = (
+                Arc::clone(&record),
+                Arc::clone(&clock),
+                Arc::clone(&ends),
+                Arc::clone(&seen),
+            );
+            Arc::new(move |program, args| {
+                let words: Vec<String> = std::iter::once(program.as_os_str())
+                    .chain(args.iter().map(std::ffi::OsString::as_os_str))
+                    .map(|word| word.to_string_lossy().into_owned())
+                    .collect();
+                note(&record, format!("program {}", words.join(" ")));
+                let from = seen.swap(usize::MAX, std::sync::atomic::Ordering::SeqCst);
+                if from != usize::MAX {
+                    until(
+                        "a start that the rule makes waits for the run's end",
+                        || {
+                            let waits = clock.waits();
+                            waits[from..]
+                                .iter()
+                                .position(|wait| *wait == BACKOFF_FIRST)
+                                .is_some_and(|at| waits.len() > from + at + 3)
+                        },
+                    );
+                }
+                ends.lock()
+                    .unwrap()
+                    .pop_front()
+                    .expect("one end for each run")
+            })
+        };
+        let program = std::path::PathBuf::from("/stand-in/halvo-capture");
+        assert!(state
+            .offline
+            .set(Offline {
+                program: program.clone(),
+                data_dir: dir.clone(),
+                children: Some(
+                    Arc::clone(&supervisor) as Arc<dyn crate::commands::capture::WithoutTheChild>
+                ),
+                run,
+            })
+            .is_ok());
+        let mut answers = Vec::new();
+        for life in 1000..1004 {
+            until("the next child lives", || pid.get() == Some(life));
+            pass(no_daemon.as_ref(), &state.views, None);
+            if life == 1000 {
+                seen.store(clock.waits().len(), std::sync::atomic::Ordering::SeqCst);
+            }
+            answers.push(ask_offline(&state.views, 0, state.offline.get()));
+        }
+        until("the fifth child lives", || pid.get() == Some(1004));
+        let ran = format!(
+            "program {} --delete-all --data-dir {looked_in}",
+            program.display()
+        );
+        let mut expected = vec!["start 1000".to_owned()];
+        for life in 1001..1005 {
+            expected.extend([
+                "closed descriptor".to_owned(),
+                ran.clone(),
+                format!("start {life}"),
+            ]);
+        }
+        assert_eq!(
+            *record.lock().unwrap(),
+            expected,
+            "each run: the child ended by its descriptor, the program with its arguments, a child started, and no start between"
+        );
+        match &answers[0] {
+            Ok(DeleteView::Deleted {
+                root_destroyed: RootDestroyed::Yes,
+                files_left: 0,
+                entries_left: 0,
+                nothing_left: true,
+                looked_in: Some(place),
+                ..
+            }) => assert_eq!(place, &looked_in),
+            other => panic!("an end with 0 and the deleted line: {other:?}"),
+        }
+        assert_eq!(
+            answers[1],
+            Err(OutcomeError {
+                error: ActionError::DeleteHeld {
+                    looked_in: looked_in.clone()
+                },
+                outcome_not_known: false,
+            }),
+            "an end with 75 deleted nothing"
+        );
+        assert_eq!(
+            answers[2],
+            Err(OutcomeError {
+                error: ActionError::DeleteNotUsable {
+                    looked_in: looked_in.clone()
+                },
+                outcome_not_known: false,
+            }),
+            "an end with 1 and no deleted line deleted nothing"
+        );
+        match &answers[3] {
+            Ok(DeleteView::Deleted {
+                root_destroyed: RootDestroyed::No,
+                files_left: 1,
+                entries_left: 1,
+                nothing_left: false,
+                cleanup_command: Some(_),
+                looked_in: Some(place),
+                ..
+            }) => assert_eq!(place, &looked_in),
+            other => panic!("an end with 1 and the deleted line: {other:?}"),
+        }
+
+        let other_record = Record::default();
+        let running: Arc<dyn Control> = Arc::new(Recording::new(
+            &Record::default(),
+            Some(held_child_status()),
+        ));
+        let other = AppState::with_control(Arc::clone(&running), Some(dir.clone()), |_| Ok(()));
+        let noted = Arc::clone(&other_record);
+        assert!(other
+            .offline
+            .set(Offline {
+                program,
+                data_dir: dir,
+                children: None,
+                run: Arc::new(move |_, _| {
+                    note(&noted, "program");
+                    OfflineEnd::NotStarted
+                }),
+            })
+            .is_ok());
+        pass(running.as_ref(), &other.views, None);
+        assert_eq!(
+            ask_offline(&other.views, 1, other.offline.get()),
+            Ok(DeleteView::DeleteRefused),
+            "a delete armed while the service answered is not carried out offline"
+        );
+        assert!(other_record.lock().unwrap().is_empty(), "nothing ran");
+        crate::quit::Children::end(supervisor.as_ref());
     }
 }

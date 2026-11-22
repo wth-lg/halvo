@@ -81,7 +81,8 @@
 
   function renderToggle(s) {
     var press = pressOf(s);
-    if (press === "start") action = "running";
+    var notRunning = s.service === "not_running";
+    if (press === "start" || notRunning) action = "running";
     else if (press === "resume") action = s.service === "running" ? "running" : null;
     else if (s.capture === "awaiting_resume") action = "running";
     else action = s.desired === "running" ? "paused" : s.desired === "paused" ? "running" : null;
@@ -90,7 +91,7 @@
       toggle.disabled = true;
       return;
     }
-    if (press === "start") toggle.textContent = w.START;
+    if (press === "start" || notRunning) toggle.textContent = w.START;
     else toggle.textContent = press === "resume" || action === "running" ? w.RESUME : w.PAUSE;
     toggle.disabled = action === null;
   }
