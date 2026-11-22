@@ -10,7 +10,8 @@ feature_flags='--features -F -f --all-features --no-default-features'
 configuration_flags='--config -c'
 allowed_configurations='.cargo/config.toml'
 markers='halvo-standin-module-present
-halvo-capture:test-seam:this-build-has-it!'
+halvo-capture:test-seam:this-build-has-it!
+halvo-web:test-fence:this-build-has-it!'
 macos_calls='npm run tauri build -- -- --locked
 cargo build --release --locked -p halvo-capture --bin halvo-capture
 cargo build --release --locked -p halvo-owner --bin halvo-owner
@@ -427,6 +428,17 @@ $analysis"
   printf 'PASS %s\n' "$name"
 }
 
+# Whether the file $1 is a helper with no version argument: its name, without .exe, is the name
+# of a file of packaging/helpers.d, the installed name of a helper, and that file holds the line
+# version=none. A carriage return at the end of the line, as a Windows checkout can leave one, is
+# dropped.
+unversioned() {
+  helper=${1##*/}
+  helper=${helper%.exe}
+  [ -f "packaging/helpers.d/$helper" ] || return 1
+  tr -d '\r' <"packaging/helpers.d/$helper" | grep -q -x -F -e 'version=none'
+}
+
 files_form() {
   [ $# -gt 0 ] || { printf 'usage: sh scripts/r1/ci.d/%s.sh --files <file>...\n' "$name" >&2; exit 64; }
   for file in "$@"; do
@@ -437,14 +449,25 @@ files_form() {
   if [ "$system" = Darwin ]; then
     release_imports "$@"
   fi
-  checked=$(sh scripts/r1/ci.d/61-version.sh --check "$@")
-  status=$?
-  printf '%s\n' "$checked" | grep -v -E '^(PASS|FAIL) 61-version'
-  if [ "$status" -ne 0 ]; then
-    cause=$(printf '%s\n' "$checked" | sed -n 's/^FAIL 61-version (\(.*\))$/\1/p')
-    fail "${cause:-61-version --check exited $status}"
+  read_files=$#
+  for file in "$@"; do
+    if unversioned "$file"; then
+      printf '%s: read and not started, its file of packaging/helpers.d says version=none\n' "${file##*/}"
+    else
+      set -- "$@" "$file"
+    fi
+  done
+  shift "$read_files"
+  if [ $# -gt 0 ]; then
+    checked=$(sh scripts/r1/ci.d/61-version.sh --check "$@")
+    status=$?
+    printf '%s\n' "$checked" | grep -v -E '^(PASS|FAIL) 61-version'
+    if [ "$status" -ne 0 ]; then
+      cause=$(printf '%s\n' "$checked" | sed -n 's/^FAIL 61-version (\(.*\))$/\1/p')
+      fail "${cause:-61-version --check exited $status}"
+    fi
   fi
-  printf 'files read: %s\n' "$#"
+  printf 'files read: %s\n' "$read_files"
   printf 'PASS %s\n' "$name"
 }
 
@@ -498,7 +521,8 @@ EOF
   printf 'head\000\001\002%s\000tail' 'halvo-standin-module-present' >"$work/standin.bin"
   printf 'head\000%s\377' 'halvo-capture:test-seam:this-build-has-it!' >"$work/seam.bin"
   printf 'head\000\377halvo-standin-module\000present' >"$work/clean.bin"
-  for fixture in standin:FAIL seam:FAIL clean:PASS; do
+  printf 'head\000%s\000tail' 'halvo-web:test-fence:this-build-has-it!' >"$work/fence.bin"
+  for fixture in standin:FAIL seam:FAIL clean:PASS fence:FAIL; do
     got=FAIL
     marker_defect "$work/${fixture%:*}.bin" >/dev/null && got=PASS
     verdict "marker-${fixture%:*}" "${fixture#*:}" "$got"
@@ -1086,6 +1110,49 @@ SH
   got=unexpected-exit-$code
   [ "$code:$files_output" = "1:FAIL $name (seam.bin holds the marker halvo-capture:test-seam:this-build-has-it!)" ] && got=FAIL
   verdict files-form-reads-the-markers FAIL "$got"
+
+  # A helper whose file of packaging/helpers.d says version=none is read and not started. The files
+  # form runs in a directory with its own helper list, written with CRLF, and with a stand-in
+  # 61-version.sh that records the files it gets; a stand-in xcrun gives each file a clean import
+  # table on a Mac. With the test-seam marker in the helper the same call fails by the marker.
+  unversioned_root=$work/unversioned
+  mkdir -p "$unversioned_root/packaging/helpers.d" "$unversioned_root/scripts/r1/ci.d" "$unversioned_root/tools" "$unversioned_root/bin" || exit 2
+  printf '%s\r\n' 'package=p' 'bin=b' 'manifest=m' >"$unversioned_root/packaging/helpers.d/with-version" || exit 2
+  printf '%s\r\n' 'package=p' 'bin=b' 'manifest=m' 'version=none' >"$unversioned_root/packaging/helpers.d/without-version" || exit 2
+  cat >"$unversioned_root/scripts/r1/ci.d/61-version.sh" <<'SH' || exit 2
+[ "$1" = --check ] || exit 64
+shift
+printf '%s\n' "$@" >>handed-to-the-version-check
+printf 'PASS 61-version\n'
+SH
+  cat >"$unversioned_root/tools/xcrun" <<'SH' || exit 2
+#!/bin/sh
+printf '%s\n' 'stand-in [arm64]:' '    -imports:' '      _free  (from libSystem)'
+SH
+  chmod +x "$unversioned_root/tools/xcrun" || exit 2
+  printf 'clean\n' >"$unversioned_root/bin/with-version" || exit 2
+  printf 'clean\n' >"$unversioned_root/bin/without-version.exe" || exit 2
+  unversioned_run() (
+    cd "$unversioned_root" || exit 2
+    PATH="$unversioned_root/tools:$PATH" sh "$check_script" --files bin/with-version bin/without-version.exe 2>"$work/unversioned.err"
+  )
+  output=$(unversioned_run)
+  code=$?
+  got=unexpected-exit-$code
+  case $code:$output in
+    0:*"without-version.exe: read and not started, its file of packaging/helpers.d says version=none"*"files read: 2
+PASS $name") got=not-started ;;
+  esac
+  handed=$(cat "$unversioned_root/handed-to-the-version-check" 2>/dev/null)
+  [ "$got" = not-started ] && [ "$handed" != bin/with-version ] && got=the-version-check-got-other-files
+  if [ "$got" = not-started ]; then
+    printf '%s\n' 'halvo-capture:test-seam:this-build-has-it!' >>"$unversioned_root/bin/without-version.exe" || exit 2
+    output=$(unversioned_run)
+    code=$?
+    got=unexpected-exit-$code
+    [ "$code:$output" = "1:FAIL $name (without-version.exe holds the marker halvo-capture:test-seam:this-build-has-it!)" ] && got=FAIL
+  fi
+  verdict files-form-does-not-start-a-helper-without-a-version FAIL "$got"
 
   for ref in tag:fresh branch:cached :cached; do
     got=$(build_root_for "${ref%:*}")

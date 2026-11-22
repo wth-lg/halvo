@@ -2,6 +2,8 @@
 //! request): `task fill --mode replay --seed N` plays the task `fill` with the real runner against the gate host's
 //! memory store, and every form that this pull request does not build is refused as `usage` before a runner starts.
 
+mod common;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
@@ -40,39 +42,10 @@ fn gate(args: &[&str], tmp: &Path) -> Output {
         .expect("agent-gate runs")
 }
 
-/// Builds the runner's binary beside `agent-gate`, where the gate looks for it: a test binary of this package gets
-/// the gate's binary from cargo and no binary of another package, so the cargo that built this test builds the
-/// runner's in the same target directory and profile (the form of halvo-learn-gate's test of its product link).
+/// Builds the runner's binary beside `agent-gate`, where the gate looks for it, with the runner's test feature
+/// `loopback` (`common::build_runner` says why).
 fn build_runner() {
-    let gate = Path::new(env!("CARGO_BIN_EXE_agent-gate"));
-    let profile_dir = gate.parent().expect("the gate's directory");
-    let mut cmd = Command::new(env!("CARGO"));
-    cmd.args([
-        "build",
-        "--locked",
-        "-p",
-        "halvo-runner",
-        "--bin",
-        "halvo-runner",
-    ])
-    .arg("--target-dir")
-    .arg(profile_dir.parent().expect("the target directory"))
-    .current_dir(env!("CARGO_MANIFEST_DIR"));
-    match profile_dir.file_name().and_then(|name| name.to_str()) {
-        Some("debug") => {}
-        Some("release") => {
-            cmd.arg("--release");
-        }
-        other => panic!("the gate's binary lies in the directory {other:?}, of no known profile"),
-    }
-    let built = cmd.output().expect("cargo runs");
-    assert!(
-        built.status.success(),
-        "cargo did not build the runner's binary: {}",
-        String::from_utf8_lossy(&built.stderr)
-    );
-    let runner = format!("halvo-runner{}", std::env::consts::EXE_SUFFIX);
-    assert!(profile_dir.join(runner).is_file());
+    common::build_runner();
 }
 
 /// U4.11 (first) sentence 1: the fill of seed 1 over the host link prints the one line of A14.5, its keys in its
@@ -126,7 +99,6 @@ fn a_form_that_the_command_does_not_build_yet_is_refused_as_usage() {
         &["--model", "/model.gguf"][..],
         &["--variant", "renamed"],
         &["--second"],
-        &["--link", "product"],
     ] {
         forms.push(FILL.iter().chain(more).copied().collect());
     }

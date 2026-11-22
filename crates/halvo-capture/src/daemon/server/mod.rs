@@ -229,13 +229,25 @@ pub enum RequestEnd {
     Length,
 }
 
+/// What the stream of a connection does with a request that the v1 table does
+/// not hold and that is no run mark. The server asks it, with the feature
+/// `r2`, before it answers such a request as v1 does.
+pub trait ServesUnknown {
+    /// Serves `request` on the stream itself, where the stream is one that a
+    /// later protocol version's request is answered on: true when the request
+    /// was answered there, false when the server is to answer it as v1 does.
+    fn serve_unknown(&mut self, _request: &proto::UnknownRequest) -> bool {
+        false
+    }
+}
+
 /// Serves the one request of a connection on `stream`, whose peer has the
 /// effective user id `peer` (`None` when it could not be read), in a daemon
 /// whose own id is `own`. A peer of another user, or one whose id could not
 /// be read, gets the error `peer_rejected` and no read of its request. Any
 /// other peer is served by [`serve_request`], whose known request ends at the
 /// end of its stream.
-pub fn serve_connection<S: Read + Write>(
+pub fn serve_connection<S: Read + Write + ServesUnknown>(
     stream: &mut S,
     peer: Option<u32>,
     own: u32,
@@ -257,11 +269,15 @@ pub fn serve_connection<S: Read + Write>(
 
 /// Serves the one request of a connection on `stream` whose peer was
 /// admitted. A request that the v1 table does not know is answered at its
-/// whole frame; a known one once it has ended as `ends` says. An admitted
-/// request goes to the loop through `hand` and its answer is written. The
-/// answer is the sender that the caller signals once it has ended its writing
-/// side and closed the connection, when the loop answered.
-pub fn serve_request<S: Read + Write>(
+/// whole frame; a known one once it has ended as `ends` says. With the
+/// feature `r2`, a request that the v1 table does not know and that is no run
+/// mark goes to the stream first ([`ServesUnknown`]), with no wait for the
+/// end of the stream before it, and is answered as v1 answers it only where
+/// the stream did not answer it. An admitted request goes to the loop through
+/// `hand` and its answer is written. The answer is the sender that the caller
+/// signals once it has ended its writing side and closed the connection, when
+/// the loop answered.
+pub fn serve_request<S: Read + Write + ServesUnknown>(
     stream: &mut S,
     ends: RequestEnd,
     admitting: &Arc<Admitting>,
@@ -277,6 +293,13 @@ pub fn serve_request<S: Read + Write>(
         Got::Mark(edge) => {
             if wire::write_frame(stream, &marked(edge, admitting), REPLY_MAX_BYTES).is_ok() {
                 let _ = stream.flush();
+            }
+            return None;
+        }
+        #[cfg(feature = "r2")]
+        Got::Unknown(unknown) => {
+            if !stream.serve_unknown(&unknown) {
+                write_reply(stream, &proto::unknown_answer(&unknown));
             }
             return None;
         }
@@ -320,6 +343,8 @@ enum Got {
     Answer(Box<Reply>),
     #[cfg(feature = "r2")]
     Mark(halvo_control::r2::RunEdge),
+    #[cfg(feature = "r2")]
+    Unknown(proto::UnknownRequest),
 }
 
 #[cfg(feature = "r2")]
@@ -352,10 +377,11 @@ fn read_request<S: Read>(stream: &mut S, ends: RequestEnd) -> Got {
         Ok(Decoded::Unknown(unknown)) => {
             #[cfg(feature = "r2")]
             match halvo_control::r2::mark_request(&unknown) {
-                Some(Ok(edge)) => return Got::Mark(edge),
-                Some(Err(refused)) => return Got::Answer(Box::new(Reply::Error(refused))),
-                None => {}
+                Some(Ok(edge)) => Got::Mark(edge),
+                Some(Err(refused)) => Got::Answer(Box::new(Reply::Error(refused))),
+                None => Got::Unknown(unknown),
             }
+            #[cfg(not(feature = "r2"))]
             Got::Answer(Box::new(proto::unknown_answer(&unknown)))
         }
         Ok(Decoded::Known(request)) if ends == RequestEnd::Length || at_the_end(stream) => {
@@ -381,16 +407,19 @@ fn at_the_end<S: Read>(stream: &mut S) -> bool {
 }
 
 fn served_by_this_build(request: &Request) -> bool {
-    matches!(
-        request,
+    match request {
         Request::Status { .. }
-            | Request::Inventory
-            | Request::Pause
-            | Request::Resume
-            | Request::Stop
-            | Request::DeleteAll { .. }
-            | Request::SetStorageCap { .. }
-    )
+        | Request::Inventory
+        | Request::Pause
+        | Request::Resume
+        | Request::Stop
+        | Request::DeleteAll { .. }
+        | Request::SetStorageCap { .. } => true,
+        Request::RequestPermission { .. } | Request::AcknowledgeLostPermission { .. } => {
+            cfg!(target_os = "macos")
+        }
+        Request::PermissionAsked { .. } => false,
+    }
 }
 
 fn refusal(request: &Request, admitting: &Admitting) -> Result<Admission, Box<Reply>> {
@@ -522,6 +551,9 @@ pub struct StatusParts {
     pub switches: Switches,
     pub once_granted: Vec<Permission>,
     pub asked: Vec<Permission>,
+    /// Whether the input source's events hold keys, so that it needs Input
+    /// Monitoring; the walk names that permission only then.
+    pub input_keys: bool,
     /// Whether the hold of a record in the run marker stands (ruling PL-3
     /// part (5)): capture reads `awaiting_resume` while desired is running.
     pub held: bool,
@@ -580,7 +612,13 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
             once_granted: parts.once_granted.contains(&name),
         })
         .collect();
-    let onboarding = onboarding_of(platform, &permissions, parts.switches);
+    let onboarding = onboarding_of(
+        platform,
+        &permissions,
+        &board.permissions,
+        parts.switches,
+        parts.input_keys,
+    );
     DaemonStatus::new(StatusFields {
         daemon_version: env!("CARGO_PKG_VERSION").parse().unwrap_or(DaemonVersion {
             major: 0,
@@ -773,7 +811,9 @@ fn guard_of(board: &Board, lines: &[SourceLine]) -> PasswordGuard {
 fn onboarding_of(
     platform: Platform,
     lines: &[PermissionLine],
+    answered: &[(Permission, GrantState)],
     switches: Switches,
+    input_keys: bool,
 ) -> OnboardingState {
     let set = |pick: fn(&PermissionLine) -> bool| -> PermissionSet {
         lines
@@ -786,11 +826,24 @@ fn onboarding_of(
         grants.with(line.name, line.grant)
     });
     onboarding::assess(&AssessInput {
-        required: required_of(platform),
+        required: &required_of(platform)
+            .iter()
+            .copied()
+            .filter(|permission| input_keys || *permission != Permission::InputMonitoring)
+            .collect::<Vec<_>>(),
         now,
         granted_at_capture_start: set(|line| line.at_start == GrantState::Granted),
         asked: set(|line| line.asked),
-        once_granted: set(|line| line.once_granted),
+        once_granted: lines
+            .iter()
+            .filter(|line| {
+                line.once_granted
+                    && answered
+                        .iter()
+                        .any(|(permission, _)| *permission == line.name)
+            })
+            .map(|line| line.name)
+            .collect(),
         macos_major: None,
         settings_entry_name: "Halvo",
         screen_activity: switches.is_on(Switch::ScreenActivity),
@@ -861,6 +914,8 @@ mod tests {
         }
     }
 
+    impl ServesUnknown for Recorded {}
+
     #[test]
     fn the_server_refuses_a_peer_of_another_user() {
         let own = 501;
@@ -924,6 +979,7 @@ mod tests {
             switches,
             once_granted: Vec::new(),
             asked: Vec::new(),
+            input_keys: false,
             held: false,
         };
         let facts = RunFacts {

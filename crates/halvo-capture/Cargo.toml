@@ -6,6 +6,7 @@ edition = "2021"
 publish = false
 
 [features]
+default = ["r2"]
 secure-enclave = []
 r2 = ["halvo-control/r2", "dep:halvo-seam", "dep:halvo-schema", "dep:halvo-cap"]
 stall-seam = []

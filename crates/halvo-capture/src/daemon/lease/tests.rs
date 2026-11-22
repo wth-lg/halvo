@@ -8,9 +8,11 @@ use halvo_control::proto::{Platform, SourceName};
 use halvo_control::{exit, INDICATOR_LEASE_MS};
 
 use super::Lease;
+use crate::daemon::batch::BATCH_MAX_AGE;
 use crate::daemon::board::Capture;
 use crate::daemon::counters::Snapshot;
 use crate::daemon::main_loop::{EndCall, MainLoop, TICK};
+use crate::daemon::maintenance::Clocks;
 use crate::daemon::model_store::{foreground_now, open_floor, Harness};
 use crate::daemon::owner::{Answer, Command, OwnerGone, Pending, RETRY_FIRST};
 use crate::daemon::port::{StoreId, WriteFault};
@@ -281,6 +283,52 @@ fn a_lapsed_lease_stops_every_source_and_leaves_the_state_file_byte_identical() 
     }
     f.emit(1);
     assert_eq!(f.stored(), 3, "the event after the renewal was not stored");
+}
+
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+#[test]
+fn a_pause_and_a_lapse_leave_the_owners_open_batch_in_the_store_before_they_answer() {
+    let mut rows = Vec::new();
+    for kind in ["pause", "lapse"] {
+        let mut f = Fixture::new(Desired::Running, Factory::new());
+        f.set_slot(open());
+        let claimed = f.now.get();
+        f.claim();
+        for name in f.wanted.clone() {
+            assert_eq!(f.begins(name), 1, "{kind}: begins of {name:?}");
+        }
+        f.emit(2);
+        let from = {
+            let mut harness = f.link.harness.borrow_mut();
+            harness.passes(3);
+            assert_eq!(
+                harness.store.records().len(),
+                0,
+                "{kind}: the batch was written before the stop"
+            );
+            harness.clocks.monotonic()
+        };
+        if kind == "pause" {
+            let _ = f
+                .supervisor
+                .set_desired(Desired::Paused, Some(&f.link), &mut |_| {});
+        } else {
+            f.now
+                .set(claimed + Duration::from_millis(INDICATOR_LEASE_MS));
+            f.tick();
+        }
+        for name in f.wanted.clone() {
+            assert_eq!(f.stops(name), 1, "{kind}: stops of {name:?}");
+        }
+        let harness = f.link.harness.borrow();
+        let took = harness.clocks.monotonic() - from;
+        rows.push((kind, took < BATCH_MAX_AGE, harness.store.records().len()));
+    }
+    assert_eq!(
+        rows,
+        [("pause", true, 2), ("lapse", true, 2)],
+        "(kind, the owner's clock under BATCH_MAX_AGE, records in the store) when the sequence answered"
+    );
 }
 
 #[derive(Clone, Default)]

@@ -19,7 +19,7 @@ use super::main_loop::{self, EndCall, MainLoop, Watchdog};
 use super::owner::{
     Answer, Command, OwnerGone, OwnerHandle, OwnerPanicked, OwnerThread, Pending, Report,
 };
-use super::permissions::{ProbeRunner, Probed};
+use super::permissions::{ProbeRunner, Probed, RequestStarter};
 use super::report::FailedSource;
 use super::slot::Slot;
 use super::sources::{
@@ -48,7 +48,8 @@ pub const ENTRY_DEADLINE_MS: u64 = SHUTDOWN_BUDGET_MS + 1_250;
 
 const _: () = assert!(ENTRY_DEADLINE_MS < halvo_control::STOP_WAIT_MS);
 
-/// The first settle of the shutdown entry.
+/// The first settle of the shutdown entry, and the settle that ends a Pause
+/// or a lapse whose sources all stopped.
 pub const FIRST_SETTLE: Duration = Duration::from_secs(1);
 
 /// The final settle of the shutdown entry.
@@ -76,6 +77,10 @@ pub const PROBE_INTERVAL: Duration = Duration::from_secs(60);
 /// How often the probe child runs while a required permission is not granted
 /// and a client polls.
 pub const PROBE_INTERVAL_MISSING: Duration = Duration::from_secs(3);
+
+/// How long a client's Status without the indicator claim counts as a client
+/// that polls, for the cadence of [`PROBE_INTERVAL_MISSING`].
+pub const CLIENT_POLL_WINDOW: Duration = Duration::from_secs(10);
 
 /// The secure-input line of an input source with a hold plan whose stop did
 /// not answer a stop (ruling MA-9 part (5)).
@@ -231,6 +236,30 @@ pub trait SystemSources: SourceFactory {
     fn hold_refusal(&self) -> Option<DaemonError> {
         None
     }
+}
+
+/// The answer of a client's request for the system's question about one
+/// permission (contracts.md C2.1, form A).
+#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+#[derive(Debug)]
+pub(crate) enum AskAnswer {
+    /// The newest probe answer reads the permission granted: nothing was
+    /// written and nothing started.
+    AlreadyGranted,
+    /// The record holds the permission and its request child runs.
+    Requested,
+    /// The request child of another permission still runs: nothing was
+    /// written and nothing started.
+    AnotherRuns,
+    /// The run starts no request child.
+    NotServed,
+    /// The supervisor holds no state file.
+    NoStateFile,
+    /// The record was not written; nothing started.
+    NotRecorded(StateError),
+    /// The record holds the permission, and its request child did not
+    /// start.
+    NotStarted(std::io::Error),
 }
 
 /// Why a wait ended before its window.
@@ -430,11 +459,16 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     started_failed: Vec<SourceName>,
     stopped_for_drain: bool,
     probe: Option<Box<dyn ProbeRunner>>,
+    requests: Option<Box<dyn RequestStarter>>,
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+    request_for: Option<Permission>,
     probe_last: Option<Duration>,
     probe_retry_at: Option<Duration>,
     probe_missing: bool,
     probe_asked: bool,
     client_polls: bool,
+    polled_until: Option<Duration>,
+    typing: bool,
     ending: Option<Ending>,
     entered: bool,
     err: Box<dyn Write + Send>,
@@ -473,11 +507,16 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             started_failed: Vec::new(),
             stopped_for_drain: false,
             probe: None,
+            requests: None,
+            #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+            request_for: None,
             probe_last: None,
             probe_retry_at: None,
             probe_missing: false,
             probe_asked: false,
             client_polls: false,
+            polled_until: None,
+            typing: super::server::TYPING == Some(true),
             ending: None,
             entered: false,
             err: Box::new(std::io::stderr()),
@@ -541,6 +580,62 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self
     }
 
+    /// The starter of the request children of a client's asks; a child that
+    /// still runs when the supervisor is dropped is ended with it.
+    pub fn with_requests(mut self, requests: Box<dyn RequestStarter>) -> Supervisor<F, L> {
+        self.requests = Some(requests);
+        self
+    }
+
+    /// A client's request for the system's question about `permission`,
+    /// answered from what the supervisor holds and never after a wait: the
+    /// newest probe answer, the request child that still runs, then the
+    /// record in `permissions_asked` through the state file's one writer and
+    /// ONE request child with [`super::permissions::REQUEST_DEADLINE`].
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+    pub(crate) fn request_permission(&mut self, permission: Permission) -> AskAnswer {
+        if self
+            .board
+            .permissions
+            .contains(&(permission, GrantState::Granted))
+        {
+            return AskAnswer::AlreadyGranted;
+        }
+        let Some(requests) = self.requests.as_mut() else {
+            return AskAnswer::NotServed;
+        };
+        if requests.running() {
+            return if self.request_for == Some(permission) {
+                AskAnswer::Requested
+            } else {
+                AskAnswer::AnotherRuns
+            };
+        }
+        match self
+            .state_file()
+            .map(|mut state| state.record_asked(permission))
+        {
+            None => return AskAnswer::NoStateFile,
+            Some(Err(error)) => return AskAnswer::NotRecorded(error),
+            Some(Ok(())) => {}
+        }
+        self.publish();
+        let Some(requests) = self.requests.as_mut() else {
+            return AskAnswer::NotServed;
+        };
+        match requests.start(
+            super::permissions::PROGRAM,
+            &super::permissions::request_args(permission),
+            super::permissions::REQUEST_DEADLINE,
+        ) {
+            Ok(()) => {
+                self.request_for = Some(permission);
+                AskAnswer::Requested
+            }
+            Err(error) => AskAnswer::NotStarted(error),
+        }
+    }
+
     /// The call that ends the process, and the watchdog that makes it at the
     /// budget's end, started now.
     pub fn with_ending(mut self, end_call: Arc<dyn EndCall>) -> Supervisor<F, L> {
@@ -596,6 +691,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn status_parts(&self, obstructed: Option<Duration>) -> super::server::StatusParts {
         let desired = self.desired();
+        let input_keys = self.holds_keys();
         let file = self.state_file();
         let state = file.as_deref().map(StateFile::state);
         super::server::StatusParts {
@@ -615,6 +711,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             once_granted: state
                 .map_or_else(Vec::new, |state| state.permissions_once_granted.clone()),
             asked: state.map_or_else(Vec::new, |state| state.permissions_asked.clone()),
+            input_keys,
             held: self.held,
         }
     }
@@ -694,6 +791,19 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.client_polls = polls;
     }
 
+    /// A client's Status without the indicator claim: for
+    /// [`CLIENT_POLL_WINDOW`] from now a client counts as one that polls.
+    #[cfg(test)]
+    pub(crate) fn with_typing(mut self, typing: bool) -> Supervisor<F, L> {
+        self.typing = typing;
+        self
+    }
+
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+    pub(crate) fn client_polled(&mut self) {
+        self.polled_until = Some(self.main_loop.now() + CLIENT_POLL_WINDOW);
+    }
+
     /// The start sequence's second half, after the owner's acknowledgement of
     /// ClosePause: a fresh set of the sources of `wanted`.
     pub fn start_sources(
@@ -704,7 +814,16 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.ctx = Some(ctx.clone());
         self.wanted = wanted.to_vec();
         self.board.enabled = wanted.to_vec();
-        let answers = self.sources.start(&mut self.factory, ctx, wanted);
+        let begun: Vec<SourceName> = if self.reads_grants() {
+            wanted
+                .iter()
+                .copied()
+                .filter(|name| !self.withheld(*name))
+                .collect()
+        } else {
+            wanted.to_vec()
+        };
+        let answers = self.sources.start(&mut self.factory, ctx, &begun);
         #[cfg(feature = "r2")]
         super::r2::start_children(self);
         let now = self.main_loop.now();
@@ -920,6 +1039,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if let Some(ending) = self.read_permissions(now, owner) {
             self.ending = Some(ending);
         }
+        if let Some(requests) = self.requests.as_mut() {
+            requests.running();
+        }
         self.publish();
         self.ending
     }
@@ -948,7 +1070,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             .wanted
             .iter()
             .copied()
-            .filter(|name| !self.missing_permission(*name) && !self.stopped_by_user(*name))
+            .filter(|name| !self.withheld(*name) && !self.stopped_by_user(*name))
             .collect();
         for name in wanted {
             if let Some(Err(error)) = self.sources.start_one(&mut self.factory, &ctx, name) {
@@ -1032,7 +1154,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             return;
         };
         for backoff in due {
-            if self.missing_permission(backoff.name) {
+            if self.withheld(backoff.name) {
                 continue;
             }
             if self.sources.holds(backoff.name) {
@@ -1057,18 +1179,75 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.delays.push((name, delay));
     }
 
+    fn switches(&self) -> crate::floor::Switches {
+        match &self.ctx {
+            Some(ctx) => ctx.floor().switches(),
+            None => self
+                .state_file()
+                .map_or_else(crate::floor::Switches::default, |state| {
+                    state.state().switches
+                }),
+        }
+    }
+
+    fn holds_keys(&self) -> bool {
+        input_holds_keys(self.switches(), self.typing)
+    }
+
+    fn needs(&self, name: SourceName) -> Option<Permission> {
+        required_permission(self.platform, name, self.holds_keys())
+    }
+
     fn missing_permission(&self, name: SourceName) -> bool {
-        required_permission(self.platform, name).is_some_and(|permission| {
+        self.needs(name).is_some_and(|permission| {
             self.board.permissions.iter().any(|(answered, grant)| {
                 *answered == permission && *grant == GrantState::NotGranted
             })
         })
     }
 
+    fn reads_grants(&self) -> bool {
+        self.served.is_some() && self.probe.is_some()
+    }
+
+    fn withheld(&self, name: SourceName) -> bool {
+        if !self.reads_grants() {
+            return self.missing_permission(name);
+        }
+        self.needs(name).is_some_and(|permission| {
+            !self
+                .board
+                .permissions
+                .contains(&(permission, GrantState::Granted))
+        })
+    }
+
+    fn waits_for_a_grant(&self, name: SourceName) -> bool {
+        self.reads_grants()
+            && self.needs(name).is_some()
+            && !self.sources.holds(name)
+            && self
+                .sources
+                .state(name)
+                .is_some_and(|(state, _)| *state == SourceState::Off)
+    }
+
     fn required(&self) -> Vec<Permission> {
+        let idle = if self.wanted.is_empty() && self.life.is_some() {
+            self.state_file().map_or_else(Vec::new, |state| {
+                super::sources::starting(
+                    self.platform,
+                    super::sources::RunKind::Service,
+                    state.state().switches,
+                )
+            })
+        } else {
+            Vec::new()
+        };
         self.wanted
             .iter()
-            .filter_map(|name| required_permission(self.platform, *name))
+            .chain(&idle)
+            .filter_map(|name| self.needs(*name))
             .collect()
     }
 
@@ -1078,13 +1257,16 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if required.is_empty() {
             return None;
         }
-        let interval = if self.probe_missing && self.client_polls {
+        let polls = self.client_polls || self.polled_until.is_some_and(|until| now < until);
+        let interval = if self.probe_missing && polls {
             PROBE_INTERVAL_MISSING
         } else {
             PROBE_INTERVAL
         };
-        let due = self.probe_retry_at.is_some_and(|at| now >= at)
-            || self.probe_last.is_none_or(|at| now >= at + interval);
+        let due = match self.probe_retry_at {
+            Some(at) => now >= at,
+            None => self.probe_last.is_none_or(|at| now >= at + interval),
+        };
         if !self.probe_asked && due {
             probe.start(&required);
             self.probe_asked = true;
@@ -1097,6 +1279,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             Probed::Failed => {
                 self.probe_asked = false;
                 self.probe_retry_at = Some(now + PROBE_INTERVAL_MISSING);
+                if self.reads_grants() {
+                    return self.stop_without_permission(owner);
+                }
                 return None;
             }
             Probed::Answered(answers) => answers,
@@ -1161,7 +1346,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         let names: Vec<SourceName> = stop_order(self.platform)
             .iter()
             .copied()
-            .filter(|name| self.wanted.contains(name) && self.missing_permission(*name))
+            .filter(|name| self.wanted.contains(name) && self.withheld(*name))
             .collect();
         let in_play = self.held(&names);
         let armed = owner.is_some()
@@ -1212,8 +1397,13 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// stop bound in play plus SHUTDOWN_BUDGET_MS, at most
     /// [`ENTRY_DEADLINE_MS`]; then each source in the stop order until the
     /// first answer that is not a stop, a stop past its bound included (ruling
-    /// DM-25 N1). When every source stops the arm that it found is put back and
-    /// the process stays up. At the first answer that is not a stop the arm moves to
+    /// DM-25 N1). When every source stops, a Pause and a lapse end with the
+    /// owner's settle, waited for at most [`FIRST_SETTLE`] cut to what is left
+    /// before the deadline, so that what the owner received before the barrier
+    /// is in the store, or its write's failure is reported, before the answer
+    /// (contracts.md C14 item 3); a delete's stop asks no settle. Then the arm
+    /// that it found is put back and the process stays up. At the first answer
+    /// that is not a stop the arm moves to
     /// SHUTDOWN_BUDGET_MS after that answer, or after the moment that a late
     /// stop's bound passed, the earlier deadline kept, and the end routine
     /// runs: `reply` gets the Board, the first record is written, the owner
@@ -1263,6 +1453,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
         self.publish();
         if !unstopped {
+            if matches!(kind, StopKind::Pause | StopKind::Lapse) {
+                if let Ok(pending) = owner.ask(Command::Settle) {
+                    let _ = self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE));
+                }
+            }
             self.put_back(found);
             return Some(CaptureOff::Stopped);
         }
@@ -1496,8 +1691,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                     }
                 )
             });
-            if lost_its_grant
-                && !self.missing_permission(name)
+            if (lost_its_grant || self.waits_for_a_grant(name))
+                && !self.withheld(name)
                 && !self.sources.holds(name)
                 && !self.backoff.iter().any(|backoff| backoff.name == name)
             {
@@ -1770,6 +1965,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             Capture::NoIndicator
         } else if self.stopped_for_drain {
             Capture::Stopped
+        } else if self.capturing && self.wanted.iter().any(|name| self.waits_for_a_grant(*name)) {
+            Capture::Starting
         } else {
             self.board.capture_of(&self.wanted)
         };
@@ -1801,14 +1998,26 @@ pub const fn restarts(reason: HealthReason) -> bool {
 }
 
 /// The permission that a source of `platform` needs: Screen and System Audio
-/// Recording for the screen source and Input Monitoring for the input source
-/// on macOS; none on Windows. No source names Accessibility (RD-29).
-pub const fn required_permission(platform: Platform, name: SourceName) -> Option<Permission> {
+/// Recording for the screen source on macOS, and Input Monitoring for the
+/// input source on macOS only while its events hold keys (`keys`, by
+/// [`input_holds_keys`]); a source of pointer events alone needs none. None on
+/// Windows. No source names Accessibility (RD-29).
+pub const fn required_permission(
+    platform: Platform,
+    name: SourceName,
+    keys: bool,
+) -> Option<Permission> {
     match (platform, name) {
         (Platform::Macos, SourceName::Screen) => Some(Permission::ScreenAndSystemAudioRecording),
-        (Platform::Macos, SourceName::Input) => Some(Permission::InputMonitoring),
+        (Platform::Macos, SourceName::Input) if keys => Some(Permission::InputMonitoring),
         _ => None,
     }
+}
+
+/// Whether the input source's events hold keys, as its tap asks for them:
+/// typing on and the switch key_class on.
+pub fn input_holds_keys(switches: crate::floor::Switches, typing: bool) -> bool {
+    typing && switches.is_on(crate::floor::Switch::KeyClass)
 }
 
 impl<F: SystemSources, L: MainLoop> RunSources for Supervisor<F, L> {
@@ -2790,10 +2999,13 @@ mod tests {
         let answers: Answers = Rc::default();
         let asked = Rc::default();
         let mut f = f;
-        f.supervisor = f.supervisor.with_probe(Box::new(FakeProbe {
-            answers: answers.clone(),
-            asked: Rc::clone(&asked),
-        }));
+        f.supervisor = f
+            .supervisor
+            .with_typing(true)
+            .with_probe(Box::new(FakeProbe {
+                answers: answers.clone(),
+                asked: Rc::clone(&asked),
+            }));
         (f, answers, asked)
     }
 
@@ -3261,6 +3473,66 @@ mod tests {
     }
 
     #[test]
+    fn a_failed_probe_is_started_again_3_s_later_and_not_before() {
+        let (mut f, answers, asked) = probed(fixture(Factory::new()));
+        answers.borrow_mut().push_back(Probed::Failed);
+        f.start(&two());
+        f.tick();
+        assert_eq!(asked.borrow().len(), 1);
+        f.tick();
+        f.later(PROBE_INTERVAL_MISSING - Duration::from_millis(1));
+        assert_eq!(
+            asked.borrow().len(),
+            1,
+            "a start before 3 s after a failed probe"
+        );
+        f.later(Duration::from_millis(1));
+        assert_eq!(asked.borrow().len(), 2, "no start 3 s after a failed probe");
+    }
+
+    #[test]
+    fn a_pointer_only_input_source_needs_no_grant_and_one_with_keys_waits_for_it() {
+        for typing in [false, true] {
+            let (mut f, answers, asked) = probed(fixture(Factory::new()));
+            f.supervisor = f.supervisor.with_typing(typing);
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            let ctx = f.ctx.clone();
+            f.supervisor.serve_sources(ctx, two().to_vec());
+            f.start(&two());
+            let begun_at_the_start = f.supervisor.factory().calls.of("begin input").len();
+            f.tick();
+            let begun = f.supervisor.factory().calls.of("begin input").len();
+            if typing {
+                assert_eq!(
+                    (begun_at_the_start, begun, asked.borrow().clone()),
+                    (0, 0, vec![vec![Permission::InputMonitoring]]),
+                    "an input source with keys"
+                );
+                assert!(
+                    matches!(
+                        f.state(SourceName::Input),
+                        SourceState::Failed {
+                            reason: HealthReason::Permission,
+                            ..
+                        }
+                    ),
+                    "{:?}",
+                    f.state(SourceName::Input)
+                );
+            } else {
+                assert_eq!(
+                    (begun_at_the_start, begun, asked.borrow().clone()),
+                    (1, 1, Vec::<Vec<Permission>>::new()),
+                    "a pointer-only input source"
+                );
+                assert_eq!(f.state(SourceName::Input), SourceState::Running);
+            }
+        }
+    }
+
+    #[test]
     fn the_entry_exits_1_when_events_were_lost_between_its_two_settles() {
         let store = ModelStore::new();
         let watched = store.clone();
@@ -3326,6 +3598,7 @@ mod tests {
             .borrow_mut()
             .push_back(input_monitoring(GrantState::Granted));
         let mut supervisor = Supervisor::new(Platform::Macos, Factory::new(), real_loop())
+            .with_typing(true)
             .with_probe(Box::new(FakeProbe {
                 answers: answers.clone(),
                 asked: Rc::default(),
@@ -5637,6 +5910,7 @@ mod tests {
             let ending = Stamped::default();
             let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop)
                 .with_ending(Arc::new(ending.clone()))
+                .with_typing(true)
                 .with_probe(Box::new(FakeProbe {
                     answers: answers.clone(),
                     asked: Rc::default(),
@@ -5997,6 +6271,7 @@ mod tests {
                 &mut f.supervisor,
                 Supervisor::new(Platform::Macos, Holds(Factory::new()), placeholder()),
             )
+            .with_typing(true)
             .with_probe(Box::new(FakeProbe {
                 answers: answers.clone(),
                 asked: Rc::default(),
@@ -6513,15 +6788,18 @@ mod tests {
 
         /// N7 (a): an owner that never answers the barrier still lets the stops
         /// begin, once BARRIER_WAIT has passed: 5 s, written as a literal so that
-        /// a change of the constant fails the case (ruling DM-26 F3's v25).
+        /// a change of the constant fails the case (ruling DM-26 F3's v25). The
+        /// Pause then ends with the owner's settle, which the owner never answers
+        /// either, so the routine ends FIRST_SETTLE later.
         #[test]
         fn a_barrier_that_is_never_answered_lets_the_stops_begin_after_its_wait() {
             let (taken, at) = capture_off_with_a_late_barrier(None);
             println!("dm25 n7 never at_ms={} calls={taken:?}", at.as_millis());
             assert_eq!(taken, ["stop input", "stop foreground"]);
             assert!(
-                at >= Duration::from_millis(5_000) && at < Duration::from_millis(5_500),
-                "the stops began {at:?} after the Pause"
+                at >= Duration::from_millis(5_000) + FIRST_SETTLE
+                    && at < Duration::from_millis(5_500) + FIRST_SETTLE,
+                "the routine ended {at:?} after the Pause"
             );
         }
 

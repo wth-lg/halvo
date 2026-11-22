@@ -1,12 +1,23 @@
-//! `agent-gate task` (contracts.md A14.5): plays one task from start to end through the gate host and prints one line:
+//! `agent-gate task` (contracts.md A14.5): plays one task from start to end through the gate host, or through the
+//! product's owner, and prints one line:
 //!
-//! `task name=<task> mode=<mode> seed=<n> store=memory steps=<n> prompts=<n> handbacks=<n> confirmations=<n>
-//! effects=<n> unknown=<n> model_calls=<n> marks=<start,end|miss> fixture=<ok|miss> result=<completed|outcome>`.
+//! `task name=<task> mode=<mode> seed=<n> store=<memory|owner> steps=<n> prompts=<n> handbacks=<n>
+//! confirmations=<n> effects=<n> unknown=<n> model_calls=<n> marks=<start,end|miss> fixture=<ok|miss>
+//! result=<completed|outcome>`.
 //!
-//! This command builds `task fill --mode replay --seed N`, with `--link host` or with no `--link`, and with
-//! `--browser PATH`, which it reads and does not use: `fill` opens no browser. Every other form of A14.5 (the tasks
-//! `bill`, `order`, `reply` and `cleanup`, the modes `compile` and `recover`, `--model`, `--variant`, `--second` and
-//! `--link product`) is refused as `usage` before anything is made, and so before a runner starts.
+//! This command builds `task fill --mode replay --seed N`, with `--link host` or with no `--link`, or with
+//! `--link product --workflow ID [--data-dir DIR]`, and with `--browser PATH`, which it reads and does not use: `fill`
+//! opens no browser. Every other form of A14.5 (the tasks `bill`, `order`, `reply` and `cleanup`, the modes `compile`
+//! and `recover`, `--model`, `--variant` and `--second`) is refused as `usage` before anything is made, and so before
+//! a runner starts. `--workflow` and `--data-dir` stand with `--link product` alone.
+//!
+//! With `--link product` (unit U9.4) the command makes no gate host and no store. It reaches the product's owner
+//! through U9.2's link: `StreamLink` over `ClientEnds` over the call `owner_stream` of a client of its own, on the
+//! control channel of the data directory `DIR`, or of the product's own data directory without `--data-dir`. So the
+//! command is the second lawful client of the stream beside the app, with an end of its own. The workflow `ID` is an
+//! approved workflow of the category `spreadsheet_fill` that the owner's store holds: no request of the stream
+//! makes or reads a workflow, since a stream admits the roles `runner` and `coordinator` alone. The client's connector
+//! is `ctl_connector`: the control socket of the data directory on macOS, its named pipe on Windows.
 //!
 //! The play (A1.2): the command makes a directory of its own under the system's temporary directory
 //! (`std::env::temp_dir`), copies the corpus workbook `tools/r3-trials/sheet/corpus/formulas.xlsx` there as the
@@ -19,21 +30,33 @@
 //! gate host as the owner behind the link, which answers each `store` frame and each body of the library with the
 //! store's handlers, and the stand-in (`crate::standin`) as the person.
 //!
-//! After the run's end the counts and the result come from the run's record in the gate host's store. `marks` is
-//! `start,end` when the library called the gate's `MarkSink` with the run's start and then its end. `fixture` is
-//! `ok` when the range did not hold the seed's rows before the run, holds them after it, as the sheet executor reads
-//! the workbook and the source, and the run's checkpoint stands beside the workbook: the cells change only by a
-//! `replace`, which renames only a copy that passed the check of A11.3.
+//! Over the product link the same set-up goes to the owner on the command's end of the stream, as
+//! `coordinator_write` requests, from `create_agent` on, and the runner's requests go there through the library.
+//! There the runner stamps the day of each row with the offset of this system's clock from UTC at the start of the
+//! play, which the binary reads by the system's time zone as the owner reads its local calendar, since the owner
+//! refuses a row whose day is not its local day of the row's instant; over the host link the offset is 0, by which the
+//! gate host's memory store counts.
+//!
+//! After the run's end the counts and the result come from the run's record: in the gate host's store, or, over the
+//! product link, the record of the run's `finish` that the owner acknowledged, as the library hands it to the gate's
+//! `MarkSink` with the run's end (the stream serves no read of an agent's history). `marks` is `start,end` when the
+//! library called the gate's `MarkSink` with the run's start and then its end. `fixture` is `ok` when the range did
+//! not hold the seed's rows before the run, holds them after it, as the sheet executor reads the workbook and the
+//! source, and the run's checkpoint stands beside the workbook: the cells change only by a `replace`, which renames
+//! only a copy that passed the check of A11.3.
 //!
 //! Refusals: `usage` for a form that is not built, and for a play that cannot run (no runner beside `agent-gate`, a
-//! body of the set-up that the host refuses, a start that the library answers with an error); `fixture` for a seed
-//! that cannot be read or a fixture file that cannot be made.
+//! body of the set-up that the host or the owner refuses or that the product link leaves without a reply, a start
+//! that the library answers with an error, a run whose `finish` the owner did not acknowledge); `fixture` for a seed
+//! that cannot be read or a fixture file that cannot be made. The product link answers a refused `owner_stream` (an owner that
+//! cannot be reached, `busy`, an unknown request) with no reply, so each of them prints the one detail of the first
+//! body, `create_agent`, that got no reply.
 
 use std::ffi::OsString;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::Duration;
@@ -41,15 +64,19 @@ use std::time::Duration;
 use halvo_agent_client::{
     Config, LinkError, MarkSink, OwnerLink, Parts, RunEnd, RunSpec, Secrets, Supervisor,
 };
-use halvo_schema::executable::body::{CreateAgent, SetState, StartRun};
+use halvo_schema::executable::body::{
+    CoordinatorReply, CreateAgent, SetBindings, SetState, StartRun,
+};
 use halvo_schema::executable::frame::{ConfirmRequest, SecretReply};
 use halvo_schema::executable::names::{AgentState, Answer, Mode};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::{
     AgentRun, CoordinatorCall, EffectId, Name, Outcome, OwnValue, RunId, RunnerCall,
 };
-use halvo_schema::request::{decode, write_reply, CoordinatorRole, Decoded, ReplyResult};
-use halvo_schema::{AgentId, ErrorName, RowRead, SeedCategory, WorkflowId};
+use halvo_schema::request::{
+    decode, decode_reply, write_reply, CoordinatorRole, CoordinatorWrite, Decoded, ReplyResult,
+};
+use halvo_schema::{AgentId, ErrorName, RequestId, RowRead, SeedCategory, WorkflowId};
 use halvo_sheet::{Cell, Folder, Locks, Range, Value};
 use serde_json::value::RawValue;
 
@@ -59,8 +86,7 @@ use crate::standin::{self, Standin};
 use crate::STORE;
 
 /// The form that this command plays.
-pub const USAGE: &str =
-    "agent-gate task fill --mode replay --seed N [--link host] [--browser PATH]";
+pub const USAGE: &str = "agent-gate task fill --mode replay --seed N [--link host | --link product --workflow ID [--data-dir DIR]] [--browser PATH]";
 
 const TASKS: [&str; 5] = ["bill", "reply", "order", "cleanup", "fill"];
 const MODES: [&str; 3] = ["replay", "compile", "recover"];
@@ -114,10 +140,34 @@ fn fixture(detail: impl Into<String>) -> Refused {
     }
 }
 
-/// The play that this command builds: `fill` in the mode `replay` with the seed `seed`, on the gate host.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The play that this command builds: `fill` in the mode `replay` with the seed `seed`, over `link`.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fill {
     pub seed: u32,
+    pub link: Link,
+}
+
+/// Where the play's store requests go.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Link {
+    /// The gate host on the memory store, in this process.
+    Host,
+    /// The product's owner through U9.2's link, on the control channel of `data_dir`, or of the product's own data
+    /// directory where it is none; `workflow` is the approved workflow of the agent that the play makes.
+    Product {
+        workflow: WorkflowId,
+        data_dir: Option<PathBuf>,
+    },
+}
+
+impl Link {
+    /// The store of the line, after `store=`.
+    pub fn store(&self) -> &'static str {
+        match self {
+            Link::Host => STORE,
+            Link::Product { .. } => "owner",
+        }
+    }
 }
 
 /// A form of `task` as given, each flag at most once.
@@ -130,6 +180,8 @@ struct Form {
     model: Option<OsString>,
     second: bool,
     link: Option<String>,
+    workflow: Option<WorkflowId>,
+    data_dir: Option<PathBuf>,
     browser: bool,
 }
 
@@ -141,7 +193,16 @@ pub fn parse(args: &[OsString]) -> Result<Fill, Refused> {
     let seed = form
         .seed
         .ok_or_else(|| usage(format!("no --seed: {USAGE}")))?;
-    Ok(Fill { seed })
+    let link = match form.link.as_deref() {
+        Some("product") => Link::Product {
+            workflow: form
+                .workflow
+                .ok_or_else(|| usage(format!("--link product takes --workflow: {USAGE}")))?,
+            data_dir: form.data_dir,
+        },
+        _ => Link::Host,
+    };
+    Ok(Fill { seed, link })
 }
 
 fn read(args: &[OsString]) -> Result<Form, Refused> {
@@ -164,13 +225,21 @@ fn read(args: &[OsString]) -> Result<Form, Refused> {
             "--link" if form.link.is_none() => {
                 form.link = Some(one_of(args.next(), &LINKS, "a link")?);
             }
+            "--workflow" if form.workflow.is_none() => {
+                let id = text(args.next(), flag)?;
+                let workflow = WorkflowId::parse(&id)
+                    .map_err(|_| usage(format!("--workflow takes a workflow id, not {id:?}")))?;
+                form.workflow = Some(workflow);
+            }
+            "--data-dir" if form.data_dir.is_none() => {
+                form.data_dir = Some(value(args.next(), flag)?.into());
+            }
             "--browser" if !form.browser => {
                 value(args.next(), flag)?;
                 form.browser = true;
             }
-            "--mode" | "--seed" | "--model" | "--second" | "--link" | "--browser" => {
-                return Err(twice())
-            }
+            "--mode" | "--seed" | "--model" | "--second" | "--link" | "--workflow"
+            | "--data-dir" | "--browser" => return Err(twice()),
             _ => return Err(usage(format!("no flag {flag:?}: {USAGE}"))),
         }
     }
@@ -180,8 +249,9 @@ fn read(args: &[OsString]) -> Result<Form, Refused> {
     Ok(form)
 }
 
-/// The one rule of what this command builds: the task `fill` in the mode `replay` over the host link, with no
-/// `--variant`, `--model` or `--second`.
+/// The one rule of what this command builds: the task `fill` in the mode `replay` over the host link or the product
+/// link, with no `--variant`, `--model` or `--second`, and with `--workflow` and `--data-dir` over the product link
+/// alone.
 fn built(form: &Form) -> Result<(), Refused> {
     let not_yet = |what: String| Err(usage(format!("{what} is not built yet: {USAGE}")));
     if form.task != "fill" {
@@ -199,8 +269,17 @@ fn built(form: &Form) -> Result<(), Refused> {
     if form.second {
         return not_yet("--second".into());
     }
-    if form.link.as_deref().is_some_and(|link| link != "host") {
-        return not_yet("--link product".into());
+    if form.link.as_deref() != Some("product") {
+        for (flag, given) in [
+            ("--workflow", form.workflow.is_some()),
+            ("--data-dir", form.data_dir.is_some()),
+        ] {
+            if given {
+                return Err(usage(format!(
+                    "{flag} stands with --link product alone: {USAGE}"
+                )));
+            }
+        }
     }
     Ok(())
 }
@@ -238,7 +317,9 @@ fn seed(arg: Option<&OsString>) -> Result<u32, Refused> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Line {
     pub seed: u32,
-    /// The run's record as the gate host's store holds it.
+    /// The store behind the link: `memory` for the gate host, `owner` for the product's owner.
+    pub store: &'static str,
+    /// The run's record as the store behind the link holds it.
     pub record: AgentRun,
     /// Whether the library called the gate's `MarkSink` with the run's start and then its end.
     pub marks: bool,
@@ -251,9 +332,10 @@ impl Line {
     pub fn render(&self) -> String {
         let r = &self.record;
         format!(
-            "task name=fill mode=replay seed={} store={STORE} steps={} prompts={} handbacks={} confirmations={} \
+            "task name=fill mode=replay seed={} store={} steps={} prompts={} handbacks={} confirmations={} \
              effects={} unknown={} model_calls={} marks={} fixture={} result={}\n",
             self.seed,
+            self.store,
             r.steps,
             r.prompts,
             r.handbacks,
@@ -286,8 +368,11 @@ pub(crate) enum Event {
     End,
 }
 
-/// Plays `fill` from start to end.
-pub fn play(fill: &Fill) -> Result<Line, Refused> {
+/// Plays `fill` from start to end. `utc_offset_s` is the offset of this system's clock from UTC, in seconds east of
+/// UTC, at the start of the play, as the product's owner reads its local calendar: over the product link the runner
+/// stamps the day of each row with it, because the owner refuses a row whose day is not its local day of the row's
+/// instant. The host link hands the runner 0, the offset by which the gate host's memory store counts its days.
+pub fn play(fill: &Fill, utc_offset_s: i32) -> Result<Line, Refused> {
     let rows = seed_rows(fill.seed)?;
     let runner = runner_beside()?;
     let dir = make_dir()?;
@@ -303,18 +388,170 @@ pub fn play(fill: &Fill) -> Result<Line, Refused> {
         .map_err(|_| fixture("the data directory cannot be made in the command's directory"))?;
     let before = holds_rows(&dir, &data, &workbook, &source);
 
-    let mut host = GateHost::new();
     let run = RunId::from_random(minted());
     let slots = slots(&workbook, &source)?;
-    let (workflow, agent) = set_up(&mut host, slots, &run).map_err(usage)?;
+    let start = Start {
+        runner,
+        data: data.clone(),
+        browser: dir.join("no-browser"),
+        run: run.clone(),
+        utc_offset_s: match fill.link {
+            Link::Host => 0,
+            Link::Product { .. } => utc_offset_s,
+        },
+    };
+    let played = match &fill.link {
+        Link::Host => on_host(start, slots)?,
+        Link::Product { workflow, data_dir } => {
+            on_owner(start, slots, workflow, data_dir.as_deref())?
+        }
+    };
+
+    let checkpoint = halvo_checkpoint::RunId::parse(run.as_str())
+        .and_then(|run| halvo_checkpoint::checkpoint_name(&workbook, &run))
+        .is_some_and(|name| dir.join(name).is_file());
+    let after = holds_rows(&dir, &data, &workbook, &source);
+    Ok(Line {
+        seed: fill.seed,
+        store: fill.link.store(),
+        record: played.record,
+        marks: played.marks,
+        fixture: !before && after && checkpoint,
+    })
+}
+
+/// What the start of the runner takes beside the link: the runner's binary, the library's data directory, the
+/// browser path that `fill` does not open, the run, and the offset from UTC by which the runner stamps its days.
+struct Start {
+    runner: PathBuf,
+    data: PathBuf,
+    /// `fill` opens no browser, and the runner checks no more than the form of its `--browser`.
+    browser: PathBuf,
+    run: RunId,
+    /// The offset of the clock by which the store behind the link counts its days, in seconds east of UTC.
+    utc_offset_s: i32,
+}
+
+/// What one run left: its record, and whether the library called the gate's `MarkSink` with its start and then its
+/// end.
+struct Played {
+    record: AgentRun,
+    marks: bool,
+}
+
+/// The play on the gate host, in this process: the set-up on the host, the runner over the host link, and the record
+/// from the host's store.
+fn on_host(start: Start, slots: Vec<Slot>) -> Result<Played, Refused> {
+    let mut host = GateHost::new();
+    let (workflow, agent) = set_up(&mut host, slots, &start.run).map_err(usage)?;
     let (events, ended) = mpsc::channel();
+    let link = Arc::new(HostLink(events.clone()));
+    let run = start.run.clone();
+    let (marks, _) = run_to_end(start, link, (workflow, agent), (events, ended), &mut host)?;
+    let record = record_of(host.rows(), &run)
+        .ok_or_else(|| usage("the gate host's store holds no record of the run"))?;
+    Ok(Played { record, marks })
+}
+
+/// The play on the product's owner: no gate host and no store in this process. The set-up and the runner's requests
+/// go over one `StreamLink`, whose one end the owner holds as one of its streams. The record is the run's `finish` as
+/// the owner acknowledged it, which the library hands the gate's `MarkSink` with the run's end: the stream serves no
+/// read of the agent's history.
+fn on_owner(
+    start: Start,
+    slots: Vec<Slot>,
+    workflow: &WorkflowId,
+    data_dir: Option<&Path>,
+) -> Result<Played, Refused> {
+    let link: Arc<dyn OwnerLink> = Arc::new(product::link(data_dir)?);
+    let agent = AgentId::from_random(minted());
+    set_up_over(&*link, workflow, &agent, slots, &start.run)?;
+    let (events, ended) = mpsc::channel();
+    let (marks, finish) = run_to_end(
+        start,
+        link,
+        (workflow.clone(), agent),
+        (events, ended),
+        &mut Owner,
+    )?;
+    let record = finish.ok_or_else(|| usage("the owner acknowledged no finish of the run"))?;
+    Ok(Played { record, marks })
+}
+
+/// The product link of `--link product`: `StreamLink` over `ClientEnds` over the call `owner_stream` of a client of
+/// the command's own, on the control channel of the data directory: its socket on macOS, its named pipe on Windows,
+/// by `ctl_connector`, the connector of `ctl`.
+#[cfg(any(target_os = "macos", windows))]
+mod product {
+    use std::path::Path;
+
+    use halvo_agent_client::link::product::ClientEnds;
+    use halvo_agent_client::link::{Ends, StreamLink};
+    use halvo_control::client::{ctl_connector, Client};
+    use halvo_control::paths::DataDir;
+
+    use super::{usage, Refused};
+
+    /// The link to the owner behind the control channel of `data_dir`, or of the product's own data directory.
+    pub(super) fn link(data_dir: Option<&Path>) -> Result<StreamLink<impl Ends>, Refused> {
+        let data_dir = match data_dir {
+            Some(dir) => DataDir::from_flag(dir).map_err(|_| {
+                usage("--data-dir takes an absolute UTF-8 path with no part \"..\"")
+            })?,
+            None => DataDir::for_current_user()
+                .map_err(|_| usage("the product's data directory cannot be named"))?,
+        };
+        let client = Client::new(
+            ctl_connector(&data_dir)
+                .map_err(|_| usage("the control channel of the data directory cannot be named"))?,
+        );
+        Ok(StreamLink::new(ClientEnds::new(move || {
+            client.owner_stream()
+        })))
+    }
+}
+
+/// The product link of `--link product` elsewhere: the request `owner_stream` is built on macOS and Windows alone.
+#[cfg(not(any(target_os = "macos", windows)))]
+mod product {
+    use std::path::Path;
+
+    use halvo_agent_client::link::{End, Ends, Refusal, StreamLink};
+
+    use super::{usage, Refused};
+
+    /// The ends of a system with no request `owner_stream`: never an end.
+    pub(super) struct NoEnds;
+
+    impl Ends for NoEnds {
+        fn end(&self) -> Result<End, Refusal> {
+            Err(Refusal::Internal)
+        }
+    }
+
+    pub(super) fn link(_data_dir: Option<&Path>) -> Result<StreamLink<NoEnds>, Refused> {
+        Err(usage("--link product is built on macOS and Windows alone"))
+    }
+}
+
+/// Starts the runner through the supervisor library over `link`, and answers on this thread what the stand-in, the
+/// gate's `MarkSink` and a host link hand it, until the run's end. Returns whether the marks are the run's start and
+/// then its end, and the record of the run's acknowledged `finish` that the end carried.
+fn run_to_end(
+    start: Start,
+    link: Arc<dyn OwnerLink>,
+    (workflow, agent): (WorkflowId, AgentId),
+    (events, ended): (Sender<Event>, Receiver<Event>),
+    behind: &mut dyn Behind,
+) -> Result<(bool, Option<AgentRun>), Refused> {
     let standin = Arc::new(Standin::new(events.clone()));
     let marks = Arc::new(Marks {
         seen: Mutex::new(Vec::new()),
-        events: events.clone(),
+        finish: Mutex::new(None),
+        events,
     });
     let parts = Parts {
-        link: Arc::new(HostLink(events)),
+        link,
         confirmer: standin.clone(),
         human: standin,
         secrets: Arc::new(NoSecrets),
@@ -322,20 +559,19 @@ pub fn play(fill: &Fill) -> Result<Line, Refused> {
     };
     let supervisor = Supervisor::new(
         CoordinatorRole::claim(),
-        Config::new(data.clone(), runner),
+        Config::new(start.data, start.runner),
         parts,
     );
     supervisor
         .start(RunSpec {
-            run: run.clone(),
+            run: start.run,
             agent,
             workflow,
             mode: Mode::Replay,
-            // `fill` opens no browser, and the runner checks no more than the form of its `--browser`.
-            browser: dir.join("no-browser"),
+            browser: start.browser,
             model: None,
             headed: false,
-            utc_offset_s: 0,
+            utc_offset_s: start.utc_offset_s,
         })
         .map_err(|e| {
             usage(format!(
@@ -345,10 +581,10 @@ pub fn play(fill: &Fill) -> Result<Line, Refused> {
     loop {
         match ended.recv() {
             Ok(Event::Request(request, reply)) => {
-                let _ = reply.send(serve(&mut host, &request));
+                let _ = reply.send(behind.serve(&request));
             }
             Ok(Event::Confirm(of, request, reply)) => {
-                let _ = reply.send(standin::answers(host.rows(), &of, &request));
+                let _ = reply.send(standin::answers(behind.rows(), &of, &request));
             }
             Ok(Event::Handback(of)) => {
                 // `answer_handback` waits for the library's driver, which may wait for this thread: answer from
@@ -361,20 +597,49 @@ pub fn play(fill: &Fill) -> Result<Line, Refused> {
         }
     }
     drop(ended);
-
-    let record = record_of(host.rows(), &run)
-        .ok_or_else(|| usage("the gate host's store holds no record of the run"))?;
-    let checkpoint = halvo_checkpoint::RunId::parse(run.as_str())
-        .and_then(|run| halvo_checkpoint::checkpoint_name(&workbook, &run))
-        .is_some_and(|name| dir.join(name).is_file());
-    let after = holds_rows(&dir, &data, &workbook, &source);
     let marked = *lock(&marks.seen) == ["start", "end"];
-    Ok(Line {
-        seed: fill.seed,
-        record,
-        marks: marked,
-        fixture: !before && after && checkpoint,
-    })
+    let finish = lock(&marks.finish).take();
+    Ok((marked, finish))
+}
+
+/// What stands behind the link on the command's thread while a run goes.
+trait Behind {
+    /// The reply to a request that a host link handed this thread.
+    fn serve(&mut self, request: &[u8]) -> Result<Vec<u8>, LinkError>;
+    /// The rows from which the stand-in answers a confirmation.
+    fn rows(&self) -> &dyn RowRead;
+}
+
+impl Behind for GateHost {
+    fn serve(&mut self, request: &[u8]) -> Result<Vec<u8>, LinkError> {
+        serve(self, request)
+    }
+
+    fn rows(&self) -> &dyn RowRead {
+        GateHost::rows(self)
+    }
+}
+
+/// The product's owner, which no thread of this command holds: the product link hands this thread no request, and
+/// the command reads no row of the owner's store, so the stand-in answers every effect of a confirmation
+/// `reject_once`.
+struct Owner;
+
+impl Behind for Owner {
+    fn serve(&mut self, _request: &[u8]) -> Result<Vec<u8>, LinkError> {
+        Err(LinkError)
+    }
+
+    fn rows(&self) -> &dyn RowRead {
+        &NoRows
+    }
+}
+
+/// No row of any kind.
+struct NoRows;
+
+impl RowRead for NoRows {
+    fn for_each(&self, _kind: &str, _visit: &mut dyn FnMut(&str)) {}
 }
 
 /// The root of the repository, two directories above this crate.
@@ -530,6 +795,92 @@ fn other_form(op: &str) -> String {
     format!("the gate host answered the set-up body {op} with another form")
 }
 
+/// Why one coordinator body over the product link brought no reply that answers it.
+enum Missed {
+    /// The link gave no reply: the owner could not be reached, refused the stream, or the stream ended.
+    NoReply,
+    /// The owner refused the body with this error name.
+    Refused(ErrorName),
+    /// A reply that `decode_reply` refuses, with another id, or of another form than the body's call answers with.
+    OtherForm,
+}
+
+impl Missed {
+    /// The detail of a refusal for the body `op`: the op and the owner's error name, no value.
+    fn detail(&self, op: &str) -> String {
+        match self {
+            Missed::NoReply => format!("the product link gave no reply to the body {op}"),
+            Missed::Refused(error) => {
+                format!("the owner refused the body {op} with {}", error.as_str())
+            }
+            Missed::OtherForm => format!("the owner answered the body {op} with another form"),
+        }
+    }
+}
+
+/// Sends one coordinator body over the product link under a new request id and reads its reply, as the supervisor
+/// library does with its own bodies: the reply counts only with the body's id and the form that the body's call
+/// answers with.
+fn exchange(link: &dyn OwnerLink, call: CoordinatorCall) -> Result<CoordinatorReply, Missed> {
+    let id = RequestId::from_random(minted());
+    let write = CoordinatorWrite::new(&CoordinatorRole::claim(), id.clone(), call);
+    let bytes = write.to_bytes().map_err(|_| Missed::OtherForm)?;
+    let reply = link.request(&bytes).map_err(|_| Missed::NoReply)?;
+    let reply = decode_reply(&reply).map_err(|_| Missed::OtherForm)?;
+    if reply.id.as_ref() != Some(&id) {
+        return Err(Missed::OtherForm);
+    }
+    let raw = match reply.outcome {
+        Ok(ReplyResult::Raw(raw)) => raw,
+        Ok(_) => return Err(Missed::OtherForm),
+        Err(error) => return Err(Missed::Refused(error)),
+    };
+    match CoordinatorReply::parse(raw.get().as_bytes()) {
+        Ok(value) if value.answers(write.body()) => Ok(value),
+        _ => Err(Missed::OtherForm),
+    }
+}
+
+/// The set-up of a run on the owner over the product link, on the stored workflow `workflow`: the agent by
+/// `create_agent`, the slots by `set_bindings`, the agent `active` by `set_state`, and `start_run` in the mode
+/// `replay`, the bodies that `set_up` sends to the gate host after its workflow. It stops at the first body that
+/// does not get the reply of its call.
+fn set_up_over(
+    link: &dyn OwnerLink,
+    workflow: &WorkflowId,
+    agent: &AgentId,
+    slots: Vec<Slot>,
+    run: &RunId,
+) -> Result<(), Refused> {
+    let calls = [
+        CoordinatorCall::CreateAgent(CreateAgent {
+            workflow: workflow.clone(),
+            agent: agent.clone(),
+        }),
+        CoordinatorCall::SetBindings(SetBindings {
+            workflow: workflow.clone(),
+            agent: agent.clone(),
+            slots,
+        }),
+        CoordinatorCall::SetState(SetState {
+            workflow: workflow.clone(),
+            agent: agent.clone(),
+            state: AgentState::Active,
+        }),
+        CoordinatorCall::StartRun(StartRun {
+            workflow: workflow.clone(),
+            agent: agent.clone(),
+            run: run.clone(),
+            mode: Mode::Replay,
+        }),
+    ];
+    for call in calls {
+        let op = call.op();
+        exchange(link, call).map_err(|missed| usage(missed.detail(op)))?;
+    }
+    Ok(())
+}
+
 /// Whether the range of the workbook holds the rows of the source, cell for cell, as the sheet executor reads both.
 fn holds_rows(dir: &Path, data: &Path, workbook: &Path, source: &Path) -> bool {
     let Ok(range) = Range::parse(RANGE) else {
@@ -624,9 +975,11 @@ fn answer(host: &mut GateHost, name: &str, body: &RawValue) -> Result<ReplyResul
         .map_err(|_| ErrorName::Internal)
 }
 
-/// The gate's `MarkSink`: what the library called for the run, in order, and the end handed to the command.
+/// The gate's `MarkSink`: what the library called for the run, in order, the record of the run's acknowledged
+/// `finish` that the end carries, and the end handed to the command.
 struct Marks {
     seen: Mutex<Vec<&'static str>>,
+    finish: Mutex<Option<AgentRun>>,
     events: Sender<Event>,
 }
 
@@ -635,8 +988,9 @@ impl MarkSink for Marks {
         lock(&self.seen).push("start");
     }
 
-    fn end(&self, _run: &RunId, _end: &RunEnd) {
+    fn end(&self, _run: &RunId, end: &RunEnd) {
         lock(&self.seen).push("end");
+        lock(&self.finish).clone_from(&end.finish);
         let _ = self.events.send(Event::End);
     }
 }

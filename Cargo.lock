@@ -1580,13 +1580,17 @@ dependencies = [
  "halvo-agent-client",
  "halvo-agent-store",
  "halvo-checkpoint",
+ "halvo-control",
  "halvo-derived",
  "halvo-owner",
  "halvo-policy",
  "halvo-schema",
+ "halvo-seam",
  "halvo-sheet",
  "halvo-test-dir",
+ "libc",
  "serde_json",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1714,7 +1718,16 @@ dependencies = [
 name = "halvo-coord-app"
 version = "0.0.0"
 dependencies = [
+ "halvo-agent-client",
+ "halvo-checkpoint",
+ "halvo-control",
  "halvo-coord",
+ "halvo-owner",
+ "halvo-policy",
+ "halvo-schema",
+ "halvo-schema-core",
+ "halvo-test-dir",
+ "libc",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
@@ -1807,6 +1820,7 @@ dependencies = [
  "halvo-agent-store",
  "halvo-capture",
  "halvo-control",
+ "halvo-coord-store",
  "halvo-derived",
  "halvo-identify",
  "halvo-learn-store",
@@ -1871,7 +1885,9 @@ dependencies = [
  "halvo-schema",
  "halvo-sheet",
  "halvo-test-dir",
+ "halvo-web",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

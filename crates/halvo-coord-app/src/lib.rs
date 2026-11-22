@@ -7,12 +7,16 @@
 //! Tauri's feature `unstable`), and a real window's events, which the tests hand to the hooks
 //! themselves.
 
+#[cfg(test)]
+extern crate self as halvo_coord_app;
+
 mod args;
 mod attention;
 mod bell;
 mod handler;
 mod hub;
 mod present;
+pub mod product;
 mod window;
 mod wired;
 
@@ -22,6 +26,6 @@ pub use handler::{handler, handler_with, MAIN, REFUSED};
 pub use hub::{Agents, Core, Hub, Native, Present, Reply, Waits};
 #[cfg(feature = "scripted")]
 pub use present::Scripted;
-pub use present::{decide, Card, Dialog, DialogPresenter, Outcome, Read, System};
+pub use present::{decide, dialog_hub, Card, Dialog, DialogPresenter, Outcome, Read, System};
 pub use window::{on_window_event, Close, CLOSE};
 pub use wired::Wired;

@@ -6,6 +6,7 @@ edition = "2021"
 publish = false
 
 [features]
+default = ["r2"]
 r2 = []
 test-support = []
 
