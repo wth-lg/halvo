@@ -75,6 +75,7 @@ fn entry(flow: WorkflowId, agent: AgentId, slots: &[&str]) -> Agent<Config> {
         session: true,
         last: None,
         unknown: vec![],
+        refused_run: None,
     }
 }
 

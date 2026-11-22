@@ -19,7 +19,7 @@ loopback = ["halvo-connect/loopback"]
 [dependencies]
 halvo-checkpoint = { path = "../halvo-checkpoint" }
 halvo-connect = { path = "../halvo-connect" }
-halvo-control = { path = "../halvo-control" }
+halvo-control = { path = "../halvo-control", default-features = false }
 halvo-policy = { path = "../halvo-policy" }
 halvo-schema = { path = "../halvo-schema" }
 halvo-sheet = { path = "../halvo-sheet" }

@@ -162,8 +162,8 @@ pub fn core<R: Runtime>(
 }
 
 /// The hub over the product's ports, whose native confirmations are shown in the system's dialog
-/// of `app`: the runner and the browser stand beside the app's own executable, absolute, as the
-/// supervisor library takes them.
+/// of `app`: the runner stands beside the app's own executable, absolute, as the supervisor
+/// library takes it.
 #[cfg(target_os = "macos")]
 fn product_hub<R: Runtime>(
     app: &AppHandle<R>,
@@ -179,7 +179,6 @@ fn product_hub<R: Runtime>(
     let places = Places {
         data_dir: dir.path().to_path_buf(),
         runner: beside.join("halvo-runner"),
-        browser: beside.join("halvo-browser"),
         model: None,
     };
     let (streams, relayed, marked, deferred) = (

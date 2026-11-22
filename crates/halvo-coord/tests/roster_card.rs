@@ -79,6 +79,7 @@ fn owner() -> (Ports<Config>, WorkflowId, AgentId) {
         session: false,
         last: f.runs.first().cloned(),
         unknown: vec![],
+        refused_run: None,
     });
     (ports, f.workflow.id.clone(), f.agent.clone())
 }

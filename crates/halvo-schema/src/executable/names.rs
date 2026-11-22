@@ -211,7 +211,8 @@ names! {
     /// a row of an effect. `no_channel` and `browser_start` are causes of a browser start that failed (A11.1), and
     /// `senders_unread` of a slot of senders that its reader refuses at the load before the list (A5.1).
     /// `reproposed` is the cause of the runner's end of an effect that it then proposes again, and stands only in a
-    /// `rejected` row of an effect with a null approval (A7.4).
+    /// `rejected` row of an effect with a null approval (A7.4). `no_browser` stands in a `stopped` line, the line of a
+    /// run given no `--browser` whose runner found no browser at the fixed places of its system.
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -247,6 +248,7 @@ names! {
         BrowserStart = "browser_start",
         SendersUnread = "senders_unread",
         Reproposed = "reproposed",
+        NoBrowser = "no_browser",
     }
 }
 

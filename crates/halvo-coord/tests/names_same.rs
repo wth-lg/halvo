@@ -376,8 +376,8 @@ fn lapse_cause_names_are_the_seven_of_i4_2() {
 #[test]
 fn hold_set_cause_names_are_those_of_i7_1() {
     assert_eq!(
-        names(HoldSetCause::ALL, HoldSetCause::name),
-        ["person", "failures"]
+        HoldSetCause::NAMES,
+        ["person", "failures", "sign_in_refused"]
     );
 }
 

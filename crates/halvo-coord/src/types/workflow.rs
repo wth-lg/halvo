@@ -108,6 +108,9 @@ pub struct Agent<C> {
     pub last: Option<PastRun>,
     /// `unknown`: the effects of an unknown outcome.
     pub unknown: Vec<Unknown>,
+    /// `refused_run`: the agent's newest started run whose log holds a `step_failed` row with
+    /// the cause `unauthorized`, or none (the agent-setup run's contracts line 305).
+    pub refused_run: Option<RunId>,
 }
 
 /// What the coordinator reads of a run record `agent_run` (A-A7.4).

@@ -27,6 +27,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || github.event_name == 'workflow_dispatch' && github.run_id || github.sha }}
@@ -40,6 +41,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Slice
         id: slice
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -128,10 +130,12 @@ jobs:
         run: |
           sh scripts/check-own-source-reads.sh --self-test
           sh scripts/check-own-source-reads.sh
+          sh scripts/ci/keep-one-rust-cache.sh --self-test
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           prefix-key: v0-rust
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+        id: cache
       - name: Processor
         shell: bash
         run: |
@@ -172,6 +176,13 @@ jobs:
         with:
           name: ci-artifacts-macos
           path: target/ci-artifacts/
+      - name: Keep one Rust cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: sh scripts/ci/keep-one-rust-cache.sh macos
 
   windows:
     runs-on: windows-2025
@@ -180,6 +191,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
+          persist-credentials: false
       - name: Slice
         id: slice
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -221,6 +233,7 @@ jobs:
         with:
           prefix-key: v0-rust
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+        id: cache
       - name: Processor
         shell: bash
         run: |
@@ -294,3 +307,10 @@ jobs:
         with:
           name: ci-artifacts-windows
           path: target/ci-artifacts/
+      - name: Keep one Rust cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: sh scripts/ci/keep-one-rust-cache.sh windows

@@ -152,7 +152,12 @@ fn run(background: bool, given: Option<PathBuf>) {
     let login_dir = data_dir.clone();
     #[cfg(target_os = "macos")]
     let offline_dir = data_dir.clone();
-    let state = commands::capture::AppState::with_control(control, data_dir, open_pane);
+    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
+    let mut state = commands::capture::AppState::with_control(control, data_dir, open_pane);
+    #[cfg(target_os = "macos")]
+    {
+        state.login_item = login_item::at_the_click(given.is_some(), the_login_item);
+    }
     #[cfg(any(target_os = "macos", test))]
     let views = Arc::clone(&state.views);
     #[cfg(target_os = "macos")]
@@ -205,22 +210,19 @@ fn start_the_login_item(data_dir: Option<DataDir>, given: bool, views: Arc<polle
         return;
     };
     std::thread::spawn(move || {
-        login_item::at_start(
-            &views,
-            &data_dir,
-            given,
-            || {
-                login_item::LoginItem::new(
-                    halvo_control::service::LOGIN_ITEM_LABEL,
-                    &std::env::current_exe().ok()?,
-                    halvo_control::paths::LoginItemDir::for_current_user().ok()?,
-                    None,
-                )
-                .ok()
-            },
-            &Launchctl,
-        );
+        login_item::at_start(&views, &data_dir, given, the_login_item, &Launchctl);
     });
+}
+
+#[cfg(target_os = "macos")]
+fn the_login_item() -> Option<login_item::LoginItem> {
+    login_item::LoginItem::new(
+        halvo_control::service::LOGIN_ITEM_LABEL,
+        &std::env::current_exe().ok()?,
+        halvo_control::paths::LoginItemDir::for_current_user().ok()?,
+        None,
+    )
+    .ok()
 }
 
 #[cfg(target_os = "macos")]
@@ -378,6 +380,7 @@ fn start_the_daemon(
         },
         data_dir: data_dir?,
         given,
+        consented: false,
     };
     Some(Arc::new(daemon_child::Supervisor::start_holding(
         plan,

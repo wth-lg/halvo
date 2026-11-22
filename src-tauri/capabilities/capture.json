@@ -15,6 +15,7 @@
     "allow-open-permission-pane",
     "allow-last-delete",
     "allow-acknowledge-lost-permission",
+    "allow-start-capture",
     "allow-delete-offline",
     "core:app:allow-version"
   ]

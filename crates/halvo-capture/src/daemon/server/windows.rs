@@ -296,7 +296,15 @@ fn accept(
     }
 }
 
-impl super::ServesUnknown for PipeStream {}
+/// With the feature `r2`, a request of protocol v2 is answered on the pipe
+/// itself by the workflows run's part of the service run; without it, no
+/// request is.
+impl super::ServesUnknown for PipeStream {
+    #[cfg(feature = "r2")]
+    fn serve_unknown(&mut self, request: &halvo_control::proto::UnknownRequest) -> bool {
+        crate::daemon::r2::service::serve(request, self)
+    }
+}
 
 fn client_user(instance: &OwnedHandle, user_of: UserOf) -> Option<String> {
     let mut pid = 0u32;

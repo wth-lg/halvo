@@ -15,7 +15,8 @@ use crate::types::{Ask, AskAct, AskControl, AskEffect, AskKind, Class, Kept};
 use crate::words;
 
 /// The status of the agent of `facts` with the case of its line (I1.3): the first row that fits
-/// of an open item that waits for the person, the holds `not_yet`, `off` and `failures`, a live
+/// of an open item that waits for the person, the holds `not_yet`, `off`, `sign_in_refused`
+/// (ruling RD-73 4.3) and `failures`, a live
 /// run with its phase, a queued start, a newest run that the agent store has not ended, a last
 /// run that ended with a cause of the failure class, a day with `starts_per_day` starts, and the
 /// end of the last run. `confirm` is the state of the agent's open confirmation where the
@@ -57,6 +58,7 @@ pub fn status_of<C: ConfigView>(
     for (hold, line) in [
         (Hold::NotYet, StatusLine::NotYet),
         (Hold::Off, StatusLine::Off),
+        (Hold::SignInRefused, StatusLine::SignInRefused),
         (Hold::Failures, StatusLine::Failures),
         (Hold::Check, StatusLine::NeedsYou(ItemKind::Check)),
     ] {
@@ -196,13 +198,14 @@ pub fn names<C>(
 }
 
 /// The controls of a row (I2.5), in the order of `Control`: `run_now` while no hold but
-/// `failures` stands and no run is live or queued; `stop` exactly while a run is live;
+/// `failures` and `sign_in_refused` stands and no run is live or queued; `stop` exactly while a
+/// run is live;
 /// `take_back` while the agent's start that waits in the queue, whose trigger `waiting` gives,
 /// does not come back without the person once taken back: a start of the person, whatever hold
 /// stands, unless the agent does not ask first, has a finished run and has a slot due by
 /// `limits`, which the next tick would start by itself; never a start of the scheduler (rulings
-/// RD-54 (h), RD-149 (a)); `switch_on` while the hold `off` or `failures` stands, and
-/// `switch_off` otherwise; `delete` always.
+/// RD-54 (h), RD-149 (a)); `switch_on` while the hold `off`, `sign_in_refused` or `failures`
+/// stands (ruling RD-73 4.3), and `switch_off` otherwise; `delete` always.
 pub fn controls<C: ConfigView>(
     facts: &Facts<C>,
     waiting: Option<Trigger>,
@@ -212,7 +215,11 @@ pub fn controls<C: ConfigView>(
     let idle = matches!(facts.doing, Doing::Idle(_));
     let live = matches!(facts.doing, Doing::Live(_));
     let mut out = Vec::new();
-    if idle && standing.iter().all(|h| *h == Hold::Failures) {
+    if idle
+        && standing
+            .iter()
+            .all(|h| matches!(h, Hold::Failures | Hold::SignInRefused))
+    {
         out.push(Control::RunNow);
     }
     if live {
@@ -221,7 +228,10 @@ pub fn controls<C: ConfigView>(
     if waiting == Some(Trigger::Person) && !started_by_the_schedule(facts, limits) {
         out.push(Control::TakeBack);
     }
-    if standing.contains(&Hold::Off) || standing.contains(&Hold::Failures) {
+    if standing
+        .iter()
+        .any(|h| matches!(h, Hold::Off | Hold::SignInRefused | Hold::Failures))
+    {
         out.push(Control::SwitchOn);
     } else {
         out.push(Control::SwitchOff);

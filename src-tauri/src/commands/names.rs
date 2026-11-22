@@ -21,6 +21,7 @@ pub const CAPTURE: Names = Names {
         "open_permission_pane",
         "last_delete",
         "acknowledge_lost_permission",
+        "start_capture",
         "delete_offline",
     ],
     reads: &[

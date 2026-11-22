@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the one line timeout-minutes with the bound ci_gate_job_timeout_min, on every event, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag; pull_request and the pinned schedule are the other events, and the event workflow_dispatch is taken when it is its line and the lines of pin_dispatch under it, the inputs slice and checks, and is not required. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, under it the line '  schedule:' alone with the seven pinned cron lines below it, Monday to Saturday and then Sunday, one for each slice of scripts/ci/slices.txt, and no other line under them and no other line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are runs-on, timeout-minutes and steps at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at crons_text blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, and the letters rust-cache stand on no other line. A step condition must be always(), or one of three that each belong to their steps alone: the step ci.d merge gate carries github.event_name == 'push' || github.event_name == 'pull_request', so a push and a pull request run the merge gate and no slice; the steps Slice and ci.d slice carry github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'; the steps Self-tests that commit in throwaway repositories and Scripts and hook in a core.autocrlf=true clone carry steps.slice.outputs.name == 'fri'; a step must have no continue-on-error key. The lint reads a condition by the value that YAML decodes from a plain scalar, so lines folded into one, a comment behind it and blanks around it change nothing, refuses a condition in quotes or in a block, and reads a step's name by its value in any style. Review each changed step command in the diff; this pin does not read what a step runs, and so not which slice the step Slice gives a cron line. The block concurrency: stands once, as the line 'concurrency:' in column 1 with the two pinned lines pin_group and pin_cancel under it and nothing else, and no other line names concurrency or cancel-in-progress: the push runs of the branch main share one group, in which the run at work ends and one pending run waits, a pull request has a group by its ref, in which alone a newer run cancels the run at work, and every other run has a group by its commit or by its run. The push filters are pin_branches and pin_tags. The schedule and cache lines are pin_crons, pin_uses, pin_with, pin_prefix and pin_save below; they make every event restore the Rust build cache of main and a push to main alone save one.
+# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read, actions: write at most (for the step Keep one Rust cache) and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the one line timeout-minutes with the bound ci_gate_job_timeout_min, on every event, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag; pull_request and the pinned schedule are the other events, and the event workflow_dispatch is taken when it is its line and the lines of pin_dispatch under it, the inputs slice and checks, and is not required. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, under it the line '  schedule:' alone with the seven pinned cron lines below it, Monday to Saturday and then Sunday, one for each slice of scripts/ci/slices.txt, and no other line under them and no other line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are runs-on, timeout-minutes and steps at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at crons_text blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, or those lines and the line pin_id after them, and the letters rust-cache stand on no other line but one that runs scripts/ci/keep-one-rust-cache.sh with a job or --self-test. A step condition must be always(), or one of four that each belong to their steps alone: the step ci.d merge gate carries github.event_name == 'push' || github.event_name == 'pull_request', so a push and a pull request run the merge gate and no slice; the steps Slice and ci.d slice carry github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'; the steps Self-tests that commit in throwaway repositories and Scripts and hook in a core.autocrlf=true clone carry steps.slice.outputs.name == 'fri'; the step Keep one Rust cache carries github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit == 'false'; a step must have no continue-on-error key. The lint reads a condition by the value that YAML decodes from a plain scalar, so lines folded into one, a comment behind it and blanks around it change nothing, refuses a condition in quotes or in a block, and reads a step's name by its value in any style. Review each changed step command in the diff; this pin does not read what a step runs, and so not which slice the step Slice gives a cron line. The block concurrency: stands once, as the line 'concurrency:' in column 1 with the two pinned lines pin_group and pin_cancel under it and nothing else, and no other line names concurrency or cancel-in-progress: the push runs of the branch main share one group, in which the run at work ends and one pending run waits, a pull request has a group by its ref, in which alone a newer run cancels the run at work, and every other run has a group by its commit or by its run. The push filters are pin_branches and pin_tags. The schedule and cache lines are pin_crons, pin_uses, pin_with, pin_prefix, pin_save and pin_id below; they make every event restore the Rust build cache of main and a push to main alone save one.
 set -u
 name=17-workflow-lint
 pinned_version=1.7.12
@@ -15,6 +15,7 @@ pin_uses="      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f
 pin_with="        with:"
 pin_prefix="          prefix-key: v0-rust"
 pin_save="          save-if: \${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}"
+pin_id="        id: cache"
 pin_dispatch="    inputs:${nl}      slice:${nl}        description: The slice to run, as the run of its day at 03:17 UTC does${nl}        type: choice${nl}        options: [mon, tue, wed, thu, fri, sat, sun]${nl}        default: mon${nl}      checks:${nl}        description: In place of the slice, these checks alone, each with its self-test (names with blanks between them)${nl}        type: string${nl}        default: ''"
 
 fail() {
@@ -118,7 +119,7 @@ measure() {
   permissions=$(awk -v q="'" '
     BEGIN { key = "^[\"" q "]?permissions[\"" q "]?[[:space:]]*:" }
     in_block && /^[^[:space:]#]/ { in_block = 0 }
-    in_block && /^[[:space:]]+[^[:space:]#]/ { grants++; if ($0 != "  contents: read") other = 1; next }
+    in_block && /^[[:space:]]+[^[:space:]#]/ { grants++; if ($0 == "  actions: write") { grants--; if (actions++) other = 1 } else if ($0 != "  contents: read") other = 1; next }
     $0 ~ key { tops++; rest = $0; sub(key, "", rest); if (rest !~ /^[[:space:]]*(#.*)?$/) other = 1; in_block = 1 }
     END { print tops + 0, grants + 0, other + 0 }' "$file")
   read -r tops grants other <<EOF
@@ -139,7 +140,7 @@ EOF
   if [ "$tops" -ne 1 ]; then
     finding "ci.yml must set permissions once at the top level, and it does so $tops times"
   elif [ "$other" -ne 0 ] || [ "$grants" -ne 1 ]; then
-    finding "the top-level permissions of ci.yml must grant contents: read and nothing else"
+    finding "the top-level permissions of ci.yml must grant contents: read once, actions: write at most once, and nothing else"
   fi
 
   [ -f scripts/r1-gate/lib.sh ] || fail "scripts/r1-gate/lib.sh is missing"
@@ -185,7 +186,7 @@ EOF
       ;;
   esac
 
-  pins=$(LC_ALL=C PIN_DISPATCH=$pin_dispatch PIN_BRANCHES=$pin_branches PIN_TAGS=$pin_tags PIN_CRONS=$pin_crons PIN_USES=$pin_uses PIN_WITH=$pin_with PIN_PREFIX=$pin_prefix PIN_SAVE=$pin_save awk -v q="'" '
+  pins=$(LC_ALL=C PIN_DISPATCH=$pin_dispatch PIN_BRANCHES=$pin_branches PIN_TAGS=$pin_tags PIN_CRONS=$pin_crons PIN_USES=$pin_uses PIN_WITH=$pin_with PIN_PREFIX=$pin_prefix PIN_SAVE=$pin_save PIN_ID=$pin_id awk -v q="'" '
     function decode(s,    out, h, n, k) {
       out = ""
       while (match(s, /\\(x[0-9A-Fa-f][0-9A-Fa-f]|u[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]|U[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f])/)) {
@@ -235,7 +236,7 @@ EOF
       if (sec == "on" && !onbad && !sched && !schedother) add(onstart, "the block on: holds no line " shown("  schedule:") "; this lint reads the schedule as that line alone and under it " crons() "; write these lines under " shown("on:") heldtwo())
     }
     function checkname() {
-      if (low !~ /rust-cache/ || firstofstep || quiet) return
+      if (low !~ /rust-cache/ || firstofstep || quiet || low ~ /^ *(run: )?sh scripts\/ci\/keep-one-rust-cache\.sh (macos|windows|--self-test)$/) return
       add(NR, shown(line) " names the action rust-cache; this lint reads the action" q "s name on the first line of a job" q "s Rust cache step alone, the line " shown(PIN_USES) "; take the name out of this line" held("pin_uses"))
       if (job != "") e17[jid] = 1
     }
@@ -438,10 +439,13 @@ EOF
         add(NR, shown(line) " stands where this lint reads line " k " of the Rust cache step of the job " job ", " shown(want[k]) "; " differ(line, want[k]) "; write " shown(want[k]) held(var[k]))
         cstate = 0
         if (blank || comment || line !~ /^[^ ]/ && i != 2 && line !~ /^      - /) { checkname(); next }
+      } else if (cstate == 2 && line == ENVIRON["PIN_ID"]) {
+        cstate = 0
+        next
       } else if (cstate == 2 && !blank && !comment) {
         cstate = 0
         if (line !~ /^[^ ]/ && i != 2 && line !~ /^      - /) {
-          add(NR, shown(line) " follows the four lines of the Rust cache step of the job " job "; this lint reads that step as those four lines alone, so the next line begins a step, is a job" q "s key or stands in column 1; take it out or begin a step there")
+          add(NR, shown(line) " follows the four lines of the Rust cache step of the job " job "; this lint reads that step as those four lines alone, or with the line pin_id after them, so the next line begins a step, is a job" q "s key or stands in column 1; take it out or begin a step there")
           checkname()
           next
         }
@@ -496,7 +500,8 @@ EOF
       merge_gate = "github.event_name == \x27push\x27 || github.event_name == \x27pull_request\x27"
       sliced = "github.event_name == \x27schedule\x27 || github.event_name == \x27workflow_dispatch\x27"
       friday = "steps.slice.outputs.name == \x27fri\x27"
-      owners = { merge_gate => ["ci.d merge gate"], sliced => ["Slice", "ci.d slice"], friday => ["Self-tests that commit in throwaway repositories", "Scripts and hook in a core.autocrlf=true clone"] }
+      keep = "github.event_name == \x27push\x27 && github.ref == \x27refs/heads/main\x27 && steps.cache.outputs.cache-hit == \x27false\x27"
+      owners = { merge_gate => ["ci.d merge gate"], sliced => ["Slice", "ci.d slice"], friday => ["Self-tests that commit in throwaway repositories", "Scripts and hook in a core.autocrlf=true clone"], keep => ["Keep one Rust cache"] }
       plain = lambda { |node| node.is_a?(Psych::Nodes::Scalar) && node.plain ? node.value : nil }
       text = lambda { |node| node.is_a?(Psych::Nodes::Scalar) ? node.value : nil }
       _, jobs = pairs(workflow).find { |key, _| key.value == "jobs" }
@@ -789,11 +794,11 @@ EOF
   tree third-job "26s/\$/\\${nl}  linux:\\${nl}    runs-on: ubuntu-24.04\\${nl}$timeout_30_sed\\${nl}    steps:\\${nl}      - run: \"true\"/"
   check third-job FAIL 'the jobs of ci.yml must be exactly macos and windows, and it holds: macos windows linux)'
   tree permissions-write-all '27s/.*/permissions: write-all/;28d'
-  check permissions-write-all FAIL 'the top-level permissions of ci.yml must grant contents: read and nothing else)'
+  check permissions-write-all FAIL 'the top-level permissions of ci.yml must grant contents: read once, actions: write at most once, and nothing else)'
   tree permissions-contents-write '28s/read/write/'
-  check permissions-contents-write FAIL 'the top-level permissions of ci.yml must grant contents: read and nothing else)'
-  tree permissions-read-and-more "28s/\$/\\${nl}  actions: write/"
-  check permissions-read-and-more FAIL 'the top-level permissions of ci.yml must grant contents: read and nothing else)'
+  check permissions-contents-write FAIL 'the top-level permissions of ci.yml must grant contents: read once, actions: write at most once, and nothing else)'
+  tree permissions-read-and-more "28s/\$/\\${nl}  pull-requests: write/"
+  check permissions-read-and-more FAIL 'the top-level permissions of ci.yml must grant contents: read once, actions: write at most once, and nothing else)'
   tree uses-key-with-an-escape '13s/.*/      - "u\\x73es": actions\/checkout@v7/'
   check uses-key-with-an-escape FAIL '1 of 4 uses keys of ci.yml take no 40-hex commit'
   tree uses-key-with-a-unicode-escape '13s/.*/      - "\\u0075ses": actions\/checkout@v7/'
@@ -1035,9 +1040,9 @@ EOF
   lines f05-macos-quoted-job-key 9 '  "macos":'
   check f05-macos-quoted-job-key FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 9: '  \"macos\":' stands at two blanks under 'jobs:', where this lint reads a job's key; it reads that key as the line '  macos:' or '  windows:' alone, with no comment, no quotes and no blank before the colon; write one of those lines)"
   lines i07-macos-input-cache-on-failure 17 "$pin_save${nl}          cache-on-failure: true"
-  check i07-macos-input-cache-on-failure FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 18: '          cache-on-failure: true' follows the four lines of the Rust cache step of the job macos; this lint reads that step as those four lines alone, so the next line begins a step, is a job's key or stands in column 1; take it out or begin a step there)"
+  check i07-macos-input-cache-on-failure FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 18: '          cache-on-failure: true' follows the four lines of the Rust cache step of the job macos; this lint reads that step as those four lines alone, or with the line pin_id after them, so the next line begins a step, is a job's key or stands in column 1; take it out or begin a step there)"
   lines c01-macos-step-if-not-pull-request 17 "$pin_save${nl}        if: github.event_name != 'pull_request'"
-  check c01-macos-step-if-not-pull-request FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 18: '        if: github.event_name != 'pull_request'' follows the four lines of the Rust cache step of the job macos; this lint reads that step as those four lines alone, so the next line begins a step, is a job's key or stands in column 1; take it out or begin a step there)"
+  check c01-macos-step-if-not-pull-request FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 18: '        if: github.event_name != 'pull_request'' follows the four lines of the Rust cache step of the job macos; this lint reads that step as those four lines alone, or with the line pin_id after them, so the next line begins a step, is a job's key or stands in column 1; take it out or begin a step there)"
   lines c07-other-commit-of-the-action 14 "      - uses: Swatinem/rust-cache@0123456789abcdef0123456789abcdef01234567 # v2.9.3"
   check c07-other-commit-of-the-action FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 14: '      - uses: Swatinem/rust-cache@0123456789abcdef0123456789abcdef01234567 # v2.9.3' stands where this lint reads line 1 of the Rust cache step of the job macos, '${pin_uses}'; it differs from the line to write first at column 35, which holds the sign 0 where the line to write holds the sign d; write '${pin_uses}'; the pin holds the uses line of the Rust cache step in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
   lines j1-macos-keys-at-three-blanks-with-a-timeout-in-a-name-block 17 - 16 - 15 - 14 - 13 - 12 - 11 - 10 - 9 "  macos:${nl}   name: |${nl}$timeout_30${nl}   runs-on: macos-15${nl}   timeout-minutes: 600${nl}   steps:${nl}     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1${nl}${pin_uses# }${nl}${pin_with# }${nl}${pin_prefix# }${nl}${pin_save# }"

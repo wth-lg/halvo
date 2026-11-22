@@ -24,6 +24,8 @@ const HEADINGS = {
   status_refused: "Halvo's capture service reported a state that Halvo cannot rely on. Capture may be running.",
   unsupported: "Capture is not available on Windows in this version.",
   another_version: "Halvo's capture service is of another version. Update Halvo.",
+  not_started: "Halvo is not recording yet.",
+  data_dir_unusable: "Halvo cannot use its data folder: the folder, or a folder above it, is a shortcut that leads nowhere, is not a folder, or cannot be read. Halvo started nothing and changed nothing there. Put the folder back in its place, or ask the person who set up this computer, then open Halvo again.",
 };
 const CAPTURE = {
   running: "Halvo is capturing",
@@ -43,10 +45,11 @@ test("the page draws every state fixture: the heading follows service and captur
     const p = await page(status);
     const heading = status.service === "running" ? CAPTURE[status.capture] : HEADINGS[status.service];
     assert.equal(p.text("state"), heading, name);
+    const consent = status.service === "not_started";
     const notRunning = status.service === "not_running";
-    const toggle = notRunning ? "Start" : status.desired === "paused" || status.capture === "awaiting_resume" ? "Resume" : "Pause";
+    const toggle = consent || notRunning ? "Start" : status.desired === "paused" || status.capture === "awaiting_resume" ? "Resume" : "Pause";
     assert.equal(p.text("toggle"), toggle, name);
-    assert.equal(p.byId("toggle").disabled, status.desired === null && !notRunning, name);
+    assert.equal(p.byId("toggle").disabled, !consent && !notRunning && status.desired === null, name);
     const store = status.store;
     const offer = notRunning || (status.service === "running" && store !== null && store.state !== "deleting" && store.error !== "locked" && !(store.state === "opening" && store.id === null));
     assert.equal(offered(p), offer, name);

@@ -1,13 +1,16 @@
-use halvo_schema::executable::{CoordinatorReply, RunId, RunnerReply};
+use halvo_schema::executable::{ActionClass, CoordinatorReply, RunId, RunnerReply};
 use halvo_schema::learning::record::{
     EditState, LearnEdit, LearnRoutine, LearnRun, RunStatus, Verdict,
 };
 use halvo_schema::{ErrorName, Summary, SummaryRead, WriterStep};
 use serde_json::{json, Value};
 
-use super::host::{active_world, agent, compiled, locator, run, wf, with_locators, World, DAY};
+use super::host::{
+    active_world, active_world_with, agent, click, compiled, id, locator, run, wf, with_locators,
+    World, DAY,
+};
 use crate::handlers::Fault;
-use crate::{Clock, CoordinatorAnswer, LearnHandlers, LearnStep, Refused};
+use crate::{Clock, CoordinatorAnswer, LearnHandlers, LearnHost, LearnStep, Refused};
 
 fn loc(name: &str) -> Value {
     json!({"by": "role", "value": "button", "name": name})
@@ -556,4 +559,288 @@ fn a_start_run_of_a_held_run_under_another_agent_at_runs_held_max_drops_no_other
     );
     let held_42 = &w.handlers.starts[&RunId::parse(&run(42)).expect("a run id")];
     assert_eq!(held_42.agent.as_str(), agent(2));
+}
+
+/// The kinds of the families `agent` and `learn` whose rows a runner body may answer (docs/privacy-limits.md): seven
+/// of the family `agent`, and of a `learn_edit` row its target, which `load_steps` lays on a step.
+const ANSWERED: [&str; 8] = [
+    "agent_config",
+    "agent_finished",
+    "agent_playbook",
+    "agent_bindings",
+    "agent_session",
+    "agent_start",
+    "agent_reply",
+    "learn_edit",
+];
+
+const PLAYBOOK_MARK: &str = "playbook-mark-p7";
+const BINDINGS_MARK: &str = "bindings-mark-b7";
+const EDIT_MARK: &str = "edit-mark-e7";
+const SESSION_MARK: &str = "sessionmarks7";
+const REPLY_MARK: &str = "reply-mark-m7";
+const EFFECT_MARK: &str = "effect-mark-k7";
+const CHECKPOINT_MARK: &str = "checkpoint-mark-c7";
+const ROUTINE_MARK: &str = "com.example.routinemark";
+const RUN_WALL_S: u32 = 7_340_033;
+const LOG_MS: u32 = 7_340_047;
+const LEARN_RUN: u32 = 32_343;
+const ORIGIN: &str = "https://northwind-power.test:443";
+
+/// Every stored row of the kind: the agent store's for the family `agent`, the learning rows for `learn`.
+fn every_row(w: &World, kind: &str) -> Vec<String> {
+    if kind.starts_with("learn_") {
+        w.host.stored(kind)
+    } else {
+        w.host.agent_rows(kind)
+    }
+}
+
+/// The value holds the marker: a string that holds its text, or a number equal to it.
+fn holds(value: &Value, marker: &Value) -> bool {
+    match (value, marker) {
+        (Value::String(text), Value::String(m)) => text.contains(m.as_str()),
+        (Value::Number(n), Value::Number(m)) => n == m,
+        (Value::Array(items), _) => items.iter().any(|v| holds(v, marker)),
+        (Value::Object(map), _) => map.values().any(|v| holds(v, marker)),
+        _ => false,
+    }
+}
+
+fn text_holds(text: &str, marker: &Value) -> bool {
+    holds(
+        &serde_json::from_str(text).expect("the JSON of a row or a reply"),
+        marker,
+    )
+}
+
+fn at(w: &World, offset: i64) -> i64 {
+    w.host.agent_now().at.0 + offset
+}
+
+fn effect_row(w: &World, r: u32) -> Value {
+    let class = ActionClass::parse("payment").expect("a class");
+    let kept: Vec<Value> = class
+        .kept_fields()
+        .into_iter()
+        .map(|(name, _)| json!({"name": name.as_str(), "value": [EFFECT_MARK]}))
+        .collect();
+    json!({
+        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(r), "effect": id('6', r), "seq": 1,
+        "day": w.host.day, "at": at(w, 11), "state": "held", "class": "payment",
+        "digest": format!("d{r:063x}"), "kept": kept, "fields": class.bound_fields().len(),
+        "approval": null, "cause": null,
+    })
+}
+
+fn log_line(w: &World, r: u32) -> Value {
+    json!({
+        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(r), "seq": 2, "day": w.host.day,
+        "at": at(w, 13), "event": "step_ok", "step": 1, "cause": null, "model": null, "ms": LOG_MS,
+        "tokens_in": null, "tokens_out": null,
+    })
+}
+
+fn checkpoint_row(w: &World, r: u32) -> Value {
+    let folder = format!("/data/{CHECKPOINT_MARK}");
+    json!({
+        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(r), "seq": 1, "day": w.host.day,
+        "at": at(w, 17), "folder": [folder], "workbook": [format!("{folder}/book-{r}.xlsx")],
+        "copy": [format!("book-{r}.halvo-checkpoint-{}.xlsx", run(r))], "sha256": null, "bytes": null,
+        "state": "planned", "left": null,
+    })
+}
+
+fn message(r: u32) -> String {
+    format!("msg-{REPLY_MARK}-{r}")
+}
+
+fn reply_row(w: &World, r: u32) -> Value {
+    json!({
+        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(r), "seq": 1, "day": w.host.day,
+        "at": at(w, 19), "message": message(r), "draft": format!("draft-{REPLY_MARK}-{r}"),
+        "effect": null, "state": "drafted",
+    })
+}
+
+fn failed_record(w: &World, r: u32) -> Value {
+    json!({
+        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(r), "day": w.host.day,
+        "mode": "replay", "outcome": "failed", "playbook": null, "steps": 3, "prompts": 0,
+        "handbacks": 0, "confirmations": 0, "effects": 1, "unknown": 0, "model_calls": 0,
+        "tokens_in": 0, "tokens_out": 0, "wall_s": RUN_WALL_S, "model": null,
+        "before_start": null, "cut": null, "no_key": null, "not_to_account": null,
+        "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
+        "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
+    })
+}
+
+/// Sends one runner body through `LearnHandlers::runner` and keeps the JSON of its reply under its op.
+fn answer(w: &mut World, op: &str, body: Value, replies: &mut Vec<(String, String)>) -> String {
+    assert_eq!(body["op"], json!(op));
+    let reply = w.runner(body);
+    let Ok(reply) = reply else {
+        panic!("the body {op} is refused: {reply:?}");
+    };
+    let text = reply.to_json().expect("the reply's JSON");
+    replies.push((op.to_owned(), text.clone()));
+    text
+}
+
+/// The bodies of the replay `r` that store a row: its session, an effect, a log line, a checkpoint, a reply row and
+/// its `finish` with the outcome `failed`, since the effect stays `held`.
+fn put_bodies(w: &mut World, r: u32, replies: &mut Vec<(String, String)>) {
+    let a = agent(1);
+    let bodies = [
+        json!({"op": "put_session", "agent": a, "run": run(r), "origin": ORIGIN, "rev": r, "part": 1, "of": 1, "data": [SESSION_MARK]}),
+        json!({"op": "effect", "agent": a, "run": run(r), "record": effect_row(w, r)}),
+        json!({"op": "log", "agent": a, "run": run(r), "records": [log_line(w, r)]}),
+        json!({"op": "checkpoint", "agent": a, "run": run(r), "record": checkpoint_row(w, r)}),
+        json!({"op": "reply_row", "agent": a, "run": run(r), "record": reply_row(w, r)}),
+    ];
+    for body in bodies {
+        let op = body["op"].as_str().expect("an op").to_owned();
+        answer(w, &op, body, replies);
+    }
+}
+
+#[test]
+fn a_runner_body_answers_no_kind_outside_the_closed_list() {
+    let mut steps = compiled();
+    steps[2] = click(3, &format!("button Next {PLAYBOOK_MARK}"), vec![next()]);
+    let mut w = active_world_with(steps);
+    let reply = w.coordinator(json!({
+        "op": "set_bindings", "workflow": wf(1), "agent": agent(1),
+        "slots": [{"name": "payee", "value": [BINDINGS_MARK]}],
+    }));
+    assert!(reply.is_ok(), "set_bindings: {reply:?}");
+    w.learn(
+        2,
+        2,
+        &format!("button Pay {EDIT_MARK}"),
+        vec![loc("Pay e7"), pay()],
+    );
+    let edits = w.host.edits();
+    assert_eq!(edits.len(), 1, "the replay of run 2 kept one edit");
+    let edit = edits[0].edit.as_str().to_owned();
+
+    let mut planting = Vec::new();
+    w.start(3, "replay");
+    let a = agent(1);
+    answer(
+        &mut w,
+        "load",
+        json!({"op": "load", "agent": a, "run": run(3)}),
+        &mut planting,
+    );
+    let body =
+        json!({"op": "load_steps", "agent": a, "run": run(3), "number": w.loaded, "from": 1});
+    answer(&mut w, "load_steps", body, &mut planting);
+    put_bodies(&mut w, 3, &mut planting);
+    let body = json!({"op": "finish", "agent": a, "run": run(3), "record": failed_record(&w, 3)});
+    answer(&mut w, "finish", body, &mut planting);
+
+    let mut learn_run: Value =
+        serde_json::from_str(&w.host.learn_rows("learn_run")[0]).expect("a learn_run row");
+    learn_run["run"] = json!(run(LEARN_RUN));
+    let learn_run = learn_run.to_string();
+    assert!(LearnRun::parse(learn_run.as_bytes()).is_ok());
+    w.host.put_raw("learn_run", &learn_run);
+    let mut routine = w.host.routines()[0].clone();
+    let mut text: Value =
+        serde_json::from_str(&routine.to_json().expect("a routine's JSON")).expect("JSON");
+    text["app"] = json!(ROUTINE_MARK);
+    text["rev"] = json!(routine.rev.get() + 1);
+    routine = LearnRoutine::parse(text.to_string().as_bytes()).expect("a routine row");
+    w.host.put_raw(
+        "learn_routine",
+        &routine.to_json().expect("a routine's JSON"),
+    );
+
+    let outside = [
+        ("agent_run", json!(RUN_WALL_S)),
+        ("agent_effect", json!(EFFECT_MARK)),
+        ("agent_log", json!(LOG_MS)),
+        ("agent_checkpoint", json!(CHECKPOINT_MARK)),
+        ("learn_run", json!(run(LEARN_RUN))),
+        ("learn_routine", json!(ROUTINE_MARK)),
+        ("learn_edit", json!(edit)),
+    ];
+    let kinds: Vec<&str> = halvo_schema::executable::KINDS
+        .iter()
+        .chain(halvo_schema::learning::KINDS)
+        .map(|k| k.name)
+        .collect();
+    assert_eq!(kinds.len(), 14);
+    for kind in &kinds {
+        assert!(!every_row(&w, kind).is_empty(), "no row of the kind {kind}");
+        assert!(
+            ANSWERED.contains(kind) || outside.iter().any(|(k, _)| k == kind),
+            "the kind {kind} is neither in the closed list nor marked"
+        );
+    }
+    for (kind, marker) in &outside {
+        for other in &kinds {
+            let held = every_row(&w, other)
+                .iter()
+                .any(|row| text_holds(row, marker));
+            assert_eq!(
+                held,
+                other == kind,
+                "the marker {marker} of {kind} in the rows of {other}"
+            );
+        }
+    }
+
+    let mut replies = Vec::new();
+    w.start(4, "replay");
+    answer(
+        &mut w,
+        "load",
+        json!({"op": "load", "agent": a, "run": run(4)}),
+        &mut replies,
+    );
+    let body =
+        json!({"op": "load_steps", "agent": a, "run": run(4), "number": w.loaded, "from": 1});
+    let served: Value =
+        serde_json::from_str(&answer(&mut w, "load_steps", body, &mut replies)).expect("JSON");
+    let body = json!({"op": "load_session", "agent": a, "run": run(4), "origin": ORIGIN, "rev": 3, "part": 1});
+    answer(&mut w, "load_session", body, &mut replies);
+    let proposal = with_locators(
+        served["steps"][1].clone(),
+        "button Pay again",
+        vec![loc("Pay z"), pay()],
+    );
+    let body = json!({"op": "put_playbook", "agent": a, "run": run(4), "number": w.loaded, "steps": [proposal]});
+    answer(&mut w, "put_playbook", body, &mut replies);
+    put_bodies(&mut w, 4, &mut replies);
+    let body = json!({"op": "load_replies", "agent": a, "run": run(4), "message_ids": [message(3), message(4)]});
+    answer(&mut w, "load_replies", body, &mut replies);
+    let body = json!({"op": "finish", "agent": a, "run": run(4), "record": failed_record(&w, 4)});
+    answer(&mut w, "finish", body, &mut replies);
+
+    let mut ops: Vec<&str> = replies.iter().map(|(op, _)| op.as_str()).collect();
+    ops.sort_unstable();
+    ops.dedup();
+    assert_eq!(ops.len(), 11, "the bodies of run 4: {ops:?}");
+    for (op, text) in planting.iter().chain(&replies) {
+        for (kind, marker) in &outside {
+            assert!(
+                !text_holds(text, marker),
+                "the reply of {op} holds {marker}, the marker of {kind}: {text}"
+            );
+        }
+    }
+    for (op, marker) in [
+        ("load", BINDINGS_MARK),
+        ("load_steps", EDIT_MARK),
+        ("load_steps", PLAYBOOK_MARK),
+        ("load_session", SESSION_MARK),
+        ("load_replies", REPLY_MARK),
+    ] {
+        let seen = replies
+            .iter()
+            .any(|(o, text)| o == op && text_holds(text, &json!(marker)));
+        assert!(seen, "the reply of {op} holds no {marker}");
+    }
 }
