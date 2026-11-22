@@ -74,6 +74,12 @@ fn main() -> ExitCode {
         #[cfg(all(debug_assertions, not(any(target_os = "macos", windows))))]
         Ok(Mode::DeleteAllOfADataDir { .. }) => status(exit::USAGE),
         #[cfg(any(debug_assertions, target_os = "macos", windows))]
+        Ok(Mode::DefaultDataDir { data_dir }) => status(daemon::default_data_dir_answer(
+            &data_dir,
+            &mut std::io::stdout().lock(),
+            &mut std::io::stderr(),
+        )),
+        #[cfg(any(debug_assertions, target_os = "macos", windows))]
         Ok(Mode::Ctl(ctl)) => status(daemon::ctl(
             &ctl,
             &mut std::io::stdout().lock(),
