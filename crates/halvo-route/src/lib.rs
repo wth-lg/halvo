@@ -2,6 +2,7 @@
 
 pub mod admit;
 pub mod cap;
+pub mod count;
 pub mod leave;
 pub mod line;
 pub mod pick;

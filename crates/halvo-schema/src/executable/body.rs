@@ -1036,10 +1036,12 @@ object_type! {
     /// null, its effects whose newest row is `unknown`, `refused_run` (the id of the agent's newest started run
     /// where that run's log holds `step_failed` with the cause `unauthorized`, or null), `reply_unknown` (`yes` when
     /// the run of `last` left a reply in the state `unknown`), `refused_slots` (the names of the slots of those
-    /// bindings that their one reader refuses) and `last_cause` (the cause that the `stopped` row of the agent's
+    /// bindings that their one reader refuses), `last_cause` (the cause that the `stopped` row of the agent's
     /// newest started run holds, or null where that run has not ended, ended with no cause or holds a cause that is no
-    /// name of the list). The four last keys hold a run id, a yes or no, slot names and a name of the closed list of
-    /// causes alone: never a slot's value, no secret and no text, of a page, of a site or of an error. A run record of
+    /// name of the list) and `window` (`yes` where the agent's next run needs a browser window, `no` where it needs
+    /// none, read from the agent's own rows). The five last keys hold a run id, a yes or no, slot names, a name of the
+    /// closed list of causes and a yes or no alone: never a slot's value, no site, no count, no secret and no text, of
+    /// a page, of a site or of an error. An entry that lacks a key is refused, `window` among them. A run record of
     /// another agent is refused, and `reply_unknown` `yes` beside `last` null.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct ListedAgent {
@@ -1053,6 +1055,7 @@ object_type! {
         pub reply_unknown: YesNo = "reply_unknown" => from_json,
         pub refused_slots: Vec<Name> = "refused_slots" => list(from_json),
         pub last_cause: Option<Cause> = "last_cause" => opt(from_json),
+        pub window: YesNo = "window" => from_json,
     }
     rules(a) {
         if a
