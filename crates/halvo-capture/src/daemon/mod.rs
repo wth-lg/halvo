@@ -1986,12 +1986,17 @@ pub mod seam {
         let _ = writeln!(std::io::stderr(), "{FIRST_LINE}");
         #[cfg(target_os = "macos")]
         {
-            super::serve_the_mac_with(dir, writer, None, |_| ScriptedSources)
+            super::serve_the_mac_with(dir, writer, None, |_| scripted_parts())
         }
         #[cfg(not(target_os = "macos"))]
         {
             super::service_run(dir, writer)
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(crate) fn scripted_parts() -> super::ServiceParts<ScriptedSources> {
+        super::ServiceParts::of(ScriptedSources)
     }
 }
 
@@ -2002,8 +2007,20 @@ fn serve_the_mac(
     lifeline: Option<lease::lifeline::Lifeline>,
 ) -> i32 {
     serve_the_mac_with(dir, writer, lifeline, |(writer, reader, turns)| {
-        sources::ServiceSources::new(writer, reader, turns)
+        system_parts(sources::ServiceSources::new(writer, reader, turns))
     })
+}
+
+#[cfg(target_os = "macos")]
+fn system_parts<F: supervisor::SystemSources>(factory: F) -> ServiceParts<F> {
+    let probe: Box<dyn permissions::ProbeRunner> = match children::own_dir() {
+        Ok(dir) => Box::new(permissions::ChildProbe::new(dir, permissions::PROGRAM)),
+        Err(_) => Box::new(permissions::Unanswered),
+    };
+    ServiceParts {
+        probe: Some(probe),
+        ..ServiceParts::of(factory)
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -2018,7 +2035,7 @@ fn serve_the_mac_with<F: supervisor::SystemSources>(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
     lifeline: Option<lease::lifeline::Lifeline>,
-    factory_of: impl FnOnce(FrontParts) -> F,
+    parts_of: impl FnOnce(FrontParts) -> ServiceParts<F>,
 ) -> i32 {
     use std::io::Write as _;
     let mut run_loop = match crate::macos::run_loop::MainRunLoop::claim() {
@@ -2035,7 +2052,7 @@ fn serve_the_mac_with<F: supervisor::SystemSources>(
         );
         return halvo_control::exit::ERROR;
     };
-    let factory = factory_of((front_writer, front_reader, run_loop.turns()));
+    let parts = parts_of((front_writer, front_reader, run_loop.turns()));
     let main_loop = ServiceLoop {
         run_loop,
         started: std::time::Instant::now(),
@@ -2047,10 +2064,7 @@ fn serve_the_mac_with<F: supervisor::SystemSources>(
         signal::flag(),
         std::sync::Arc::new(main_loop::ExitNow),
         &mut std::io::stderr(),
-        ServiceParts {
-            lifeline,
-            ..ServiceParts::of(factory)
-        },
+        ServiceParts { lifeline, ..parts },
     )
 }
 
@@ -2114,13 +2128,14 @@ pub(crate) fn serve<L: main_loop::MainLoop>(
 
 /// What a service run serves beside its data directory: the factory of its
 /// sources, which start only while the run condition holds, the lifeline of
-/// a run started with `--lifeline`, and in a test build the lease that the
-/// run starts with and a call that gets the last settle of its shutdown
-/// entry.
+/// a run started with `--lifeline`, the probe whose answers the supervisor
+/// reads, and in a test build the lease that the run starts with and a call
+/// that gets the last settle of its shutdown entry.
 #[cfg(target_os = "macos")]
 pub(crate) struct ServiceParts<F> {
     pub(crate) factory: F,
     pub(crate) lifeline: Option<lease::lifeline::Lifeline>,
+    pub(crate) probe: Option<Box<dyn permissions::ProbeRunner>>,
     #[cfg(test)]
     pub(crate) lease: lease::Lease,
     #[cfg(test)]
@@ -2139,6 +2154,7 @@ impl<F: supervisor::SystemSources> ServiceParts<F> {
         ServiceParts {
             factory,
             lifeline: None,
+            probe: None,
             #[cfg(test)]
             lease: lease::Lease::NONE,
             #[cfg(test)]
@@ -2284,6 +2300,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         .serve_from(supervisor.shared_state(), facts);
     if let Some(lifeline) = parts.lifeline {
         supervisor = supervisor.with_parent(Box::new(lifeline));
+    }
+    if let Some(probe) = parts.probe {
+        supervisor = supervisor.with_probe(probe);
     }
     #[cfg(test)]
     supervisor.set_lease(parts.lease, None);

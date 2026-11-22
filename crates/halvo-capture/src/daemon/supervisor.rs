@@ -704,7 +704,16 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.ctx = Some(ctx.clone());
         self.wanted = wanted.to_vec();
         self.board.enabled = wanted.to_vec();
-        let answers = self.sources.start(&mut self.factory, ctx, wanted);
+        let begun: Vec<SourceName> = if self.reads_grants() {
+            wanted
+                .iter()
+                .copied()
+                .filter(|name| !self.withheld(*name))
+                .collect()
+        } else {
+            wanted.to_vec()
+        };
+        let answers = self.sources.start(&mut self.factory, ctx, &begun);
         #[cfg(feature = "r2")]
         super::r2::start_children(self);
         let now = self.main_loop.now();
@@ -948,7 +957,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             .wanted
             .iter()
             .copied()
-            .filter(|name| !self.missing_permission(*name) && !self.stopped_by_user(*name))
+            .filter(|name| !self.withheld(*name) && !self.stopped_by_user(*name))
             .collect();
         for name in wanted {
             if let Some(Err(error)) = self.sources.start_one(&mut self.factory, &ctx, name) {
@@ -1032,7 +1041,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             return;
         };
         for backoff in due {
-            if self.missing_permission(backoff.name) {
+            if self.withheld(backoff.name) {
                 continue;
             }
             if self.sources.holds(backoff.name) {
@@ -1063,6 +1072,32 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 *answered == permission && *grant == GrantState::NotGranted
             })
         })
+    }
+
+    fn reads_grants(&self) -> bool {
+        self.served.is_some() && self.probe.is_some()
+    }
+
+    fn withheld(&self, name: SourceName) -> bool {
+        if !self.reads_grants() {
+            return self.missing_permission(name);
+        }
+        required_permission(self.platform, name).is_some_and(|permission| {
+            !self
+                .board
+                .permissions
+                .contains(&(permission, GrantState::Granted))
+        })
+    }
+
+    fn waits_for_a_grant(&self, name: SourceName) -> bool {
+        self.reads_grants()
+            && required_permission(self.platform, name).is_some()
+            && !self.sources.holds(name)
+            && self
+                .sources
+                .state(name)
+                .is_some_and(|(state, _)| *state == SourceState::Off)
     }
 
     fn required(&self) -> Vec<Permission> {
@@ -1097,6 +1132,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             Probed::Failed => {
                 self.probe_asked = false;
                 self.probe_retry_at = Some(now + PROBE_INTERVAL_MISSING);
+                if self.reads_grants() {
+                    return self.stop_without_permission(owner);
+                }
                 return None;
             }
             Probed::Answered(answers) => answers,
@@ -1161,7 +1199,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         let names: Vec<SourceName> = stop_order(self.platform)
             .iter()
             .copied()
-            .filter(|name| self.wanted.contains(name) && self.missing_permission(*name))
+            .filter(|name| self.wanted.contains(name) && self.withheld(*name))
             .collect();
         let in_play = self.held(&names);
         let armed = owner.is_some()
@@ -1496,8 +1534,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                     }
                 )
             });
-            if lost_its_grant
-                && !self.missing_permission(name)
+            if (lost_its_grant || self.waits_for_a_grant(name))
+                && !self.withheld(name)
                 && !self.sources.holds(name)
                 && !self.backoff.iter().any(|backoff| backoff.name == name)
             {
@@ -1731,6 +1769,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             Capture::NoIndicator
         } else if self.stopped_for_drain {
             Capture::Stopped
+        } else if self.capturing && self.wanted.iter().any(|name| self.waits_for_a_grant(*name)) {
+            Capture::Starting
         } else {
             self.board.capture_of(&self.wanted)
         };

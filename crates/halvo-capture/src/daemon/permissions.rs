@@ -18,6 +18,9 @@ pub const PROBE_DEADLINE: Duration = Duration::from_secs(5);
 /// How long the request child may run before its starter ends it.
 pub const REQUEST_DEADLINE: Duration = Duration::from_secs(60);
 
+/// The binary whose two permission modes the daemon starts as its children.
+pub const PROGRAM: &str = "halvo-capture";
+
 /// The lines of `--probe-permissions`: `permission name=<P> grant=<G>` for each
 /// permission of `permissions`, in their order, and a check of no other.
 pub fn probe_lines(probe: &dyn PermissionProbe, permissions: &[Permission]) -> String {
@@ -89,6 +92,11 @@ pub trait ProbeRunner {
 
     /// What the probe answered since its start.
     fn poll(&mut self) -> Probed;
+
+    /// The program that the probe starts as its child, if it starts one.
+    fn program(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// The probe child: `halvo-capture --probe-permissions P...` started from the
@@ -135,6 +143,23 @@ impl ProbeRunner for ChildProbe {
             } => Probed::Answered(read_probe_lines(&out)),
             Ended::Exited { .. } | Ended::Deadline => Probed::Failed,
         }
+    }
+
+    fn program(&self) -> Option<&str> {
+        Some(&self.program)
+    }
+}
+
+/// The probe of a daemon that cannot name its own directory: it starts
+/// nothing and every poll answers [`Probed::Failed`], so no answer ever reads
+/// a grant.
+pub struct Unanswered;
+
+impl ProbeRunner for Unanswered {
+    fn start(&mut self, _permissions: &[Permission]) {}
+
+    fn poll(&mut self) -> Probed {
+        Probed::Failed
     }
 }
 
