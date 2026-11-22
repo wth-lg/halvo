@@ -1705,6 +1705,87 @@ fn drop_sessions_is_refused_while_a_run_of_the_agent_is_open() {
 }
 
 #[test]
+fn a_drop_is_refused_with_day_while_a_kept_row_of_the_origin_lies_after_today() {
+    const ORIGIN: &str = "http://utility.test:18090";
+    let tomorrow = at(NOW.at.0 + NANOS_PER_DAY);
+    let mut store = store_with("utility_bill_payment");
+    assert_eq!(
+        runner_at(&mut store, tomorrow, session_part(1, 1, ORIGIN, 1, 1, 1)),
+        Ok(stored(1)),
+        "a part kept while the clock stood a day ahead"
+    );
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    let before = every_row(&store);
+    assert_eq!(
+        coordinator(&mut store, drop_sessions_of(1, 1)),
+        Err(declared("day")),
+        "a drop row of today would leave the read a day before the part"
+    );
+    assert_eq!(every_row(&store), before, "a refused body stores nothing");
+    assert_eq!(
+        coordinator_at(&mut store, tomorrow, drop_sessions_of(1, 1)),
+        Ok(stored_reply(1)),
+        "taken on the part's day"
+    );
+    let sessions = |store: &MemoryStore| -> Vec<Value> {
+        rows(store, "agent_session")
+            .iter()
+            .map(|r| serde_json::from_str(r).expect("a session row"))
+            .collect()
+    };
+    let drop_row = json!({"v": 1, "workflow": wf(1), "agent": agent(1), "origin": ORIGIN, "rev": 2, "part": 1, "of": 1, "day": TODAY + 1, "data": ["="]});
+    assert!(
+        sessions(&store).contains(&drop_row),
+        "the drop row takes the day of its request"
+    );
+    store.set_clock(at(NOW.at.0 + 35 * NANOS_PER_DAY).at);
+    assert_eq!(
+        sessions(&store).len(),
+        2,
+        "on the day a drop row of the first request would have left the read, the drop stands with the part"
+    );
+    assert_eq!(roster(&mut store)["agents"][0]["session"], json!("no"));
+    store.set_clock(at(NOW.at.0 + 36 * NANOS_PER_DAY).at);
+    assert_eq!(
+        sessions(&store),
+        Vec::<Value>::new(),
+        "on the day the drop's own bound ends, the part is out of the read too"
+    );
+}
+
+#[test]
+fn after_a_drop_a_run_that_names_the_older_revision_by_its_number_is_refused() {
+    const ORIGIN: &str = "http://utility.test:18090";
+    let read = |store: &mut MemoryStore, r: u32, rev: u32| {
+        runner(
+            store,
+            json!({"op": "load_session", "agent": agent(1), "run": run(r), "origin": ORIGIN, "rev": rev, "part": 1}),
+        )
+    };
+    let mut store = store_with("utility_bill_payment");
+    assert_eq!(
+        runner(&mut store, session_part(1, 1, ORIGIN, 1, 1, 1)),
+        Ok(stored(1))
+    );
+    assert!(read(&mut store, 1, 1).is_ok(), "the listed revision");
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    assert_eq!(
+        coordinator(&mut store, drop_sessions_of(1, 1)),
+        Ok(stored_reply(1))
+    );
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of a later run");
+    assert_eq!(
+        read(&mut store, 2, 1),
+        Err(declared("binding")),
+        "the kept revision, named by its number after the drop"
+    );
+    let Ok(RunnerReply::Session(listed)) = read(&mut store, 2, 2) else {
+        panic!("the drop row's own part, which load lists")
+    };
+    assert!(listed.data.is_dropped());
+}
+
+#[test]
 fn the_roster_names_each_effect_whose_newest_row_is_unknown() {
     let mut store = store_with("utility_bill_payment");
     let unknown = |store: &mut MemoryStore| roster(store)["agents"][0]["unknown"].clone();

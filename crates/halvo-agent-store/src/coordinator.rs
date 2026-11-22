@@ -138,13 +138,16 @@ use crate::{bind, bindings, checkpoint, day, end, runner};
 /// - `drop_sessions`: `no_workflow`; `binding` unless the workflow's agent is the body's; `state` while a run of the
 ///   agent is open: a start row of the agent (`start_accepted`) stands in the store's read as the runner bodies read
 ///   one, from 93 days back to two days ahead of the request's day, and no `agent_run` record of its run is stored;
-///   after `end_run` of that run the body is taken. Else, in one commit, it stores the drop row of `drop_session`, by
-///   that body's one writer, for each origin of the agent, bound or no longer bound, whose newest whole revision, as
-///   `load` lists it, is not in the drop form, and answers the count of rows stored, 0 at a repeat. So `list_agents`
+///   after `end_run` of that run the body is taken; `day` while a row of an origin that it would drop stands with a
+///   day after the request's day, as `drop_session` refuses it, and then it stores no row of any origin. Else, in one
+///   commit, it stores the drop row of `drop_session`, by that body's one writer, for each origin of the agent, bound
+///   or no longer bound, whose newest whole revision, as `load` lists it, is not in the drop form, and answers the
+///   count of rows stored, 0 at a repeat. So `list_agents`
 ///   reads `session` `no`, and no row of another agent changes. Halvo stops using the sign-ins; what it kept stays
 ///   under the store's key until its own day, at most 35 days. An origin whose stored revision is incomplete gets no
-///   row: nothing of it is in use. A named limit: a run that never gets its record keeps the body refused until its
-///   `end_run`, or until its start row leaves the store's read.
+///   row: nothing of it is in use. Named limits: a run that never gets its record keeps the body refused until its
+///   `end_run`, or until its start row leaves the store's read; only after a clock that was set back, and for at
+///   most two days, the body is refused with `day`.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,

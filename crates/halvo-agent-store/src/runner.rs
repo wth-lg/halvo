@@ -40,7 +40,10 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 /// - `load_steps`: `playbook` where the number is not finished, by `finished`, or no step of it is stored; else the
 ///   agent of the stored steps of that number, read before the cut by `from`, and at most 16 stored steps from the
 ///   one numbered `from`, in order and with no gap, none past the count of steps that the compile finished.
-/// - `load_session`: `binding` where the part is not stored; else the part with the agent of its row.
+/// - `load_session`: `binding` where the revision is not the one that `load` lists for that origin, its newest whole
+///   revision, a revision in the drop form among them, and where the part is not stored; else the part with the agent
+///   of its row. So a run reads no revision older than a drop row while that row stands: Halvo stops using the kept
+///   sign-in at the store's own door too.
 /// - `put_playbook`: `playbook` unless the number is the newest stored number or the next one (1 for the first),
 ///   for a first step after a gap in the steps of that number, and for a step whose number and `n` hold another
 ///   stored step; where `check_playbook` refuses the steps of that number that would be held, `playbook` for its
@@ -51,7 +54,9 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 /// - `drop_session`: it stores, with the request's day, one more revision of the origin, numbered after every
 ///   stored revision of that origin, of one part in the drop form (`SessionData::dropped`), unless the newest whole
 ///   revision of that origin is in that form already, and answers 1. `load` lists that revision as the origin's
-///   newest; the parts before it stay stored until their own bound.
+///   newest; the parts before it stay stored until their own bound. `day` where it would store that revision while
+///   a row of the origin stands with a day after the request's day, so that the drop row never leaves the read
+///   before a row that it covers.
 /// - `log`: `effect` for a body with a record of the event `start_accepted` or of `seq` 1, the start row's place;
 ///   else it stores each record that is not stored and answers the count of the body's records.
 /// - `effect`: `binding` where a stored row of the effect id names another workflow, agent or run. A row equal to
@@ -297,9 +302,19 @@ fn load_session(host: &dyn Host, now: Now, b: &LoadSession) -> Result<RunnerRepl
     bind::runner_agent(host, &b.agent)?;
     bind::own_run(host, now, &b.run, &b.agent)?;
     bind::open_run(host, &b.run)?;
-    let row = own_sessions(host, &b.agent)?
+    let held: Vec<AgentSession> = own_sessions(host, &b.agent)?
         .into_iter()
-        .find(|s| s.origin == b.origin && s.rev == b.rev && s.part == b.part)
+        .filter(|s| s.origin == b.origin)
+        .collect();
+    if newest_sessions(&held)
+        .first()
+        .is_none_or(|listed| listed.rev != b.rev)
+    {
+        return Err(Own::Binding.into());
+    }
+    let row = held
+        .into_iter()
+        .find(|s| s.rev == b.rev && s.part == b.part)
         .ok_or(Own::Binding)?;
     Ok(RunnerReply::Session(SessionReply {
         agent: row.agent,
@@ -413,7 +428,11 @@ fn drop_session(host: &mut dyn Host, now: Now, b: &DropSession) -> Result<Runner
 /// every stored revision of it, of one part in the drop form (`SessionData::dropped`), with the workflow and the
 /// request's day, unless the newest whole revision of that origin is in that form already; every row in one commit.
 /// It answers the count of rows stored. `load` lists such a revision as the origin's newest, so Halvo stops using
-/// the kept sign-in; the parts before it stay stored until their own bound.
+/// the kept sign-in; the parts before it stay stored until their own bound. It refuses with `day`, and stores no row
+/// of any origin, where a row of an origin that it would drop stands in the store's read with a day after the
+/// request's day, as a row stored while the clock stood ahead does: a drop row of the request's day would leave the
+/// read before that row, and the store keeps no row of a day after today. From that row's day on the drop is taken
+/// with the request's day, so a drop row never leaves the read before a row that it covers.
 pub(crate) fn drop_rows(
     host: &mut dyn Host,
     now: Now,
@@ -422,6 +441,7 @@ pub(crate) fn drop_rows(
     origins: &[WebOrigin],
 ) -> Result<usize, ErrorName> {
     let own = own_sessions(&*host, agent)?;
+    let today = day::of(&*host, now);
     let mut records = Vec::new();
     for origin in origins {
         let held: Vec<AgentSession> = own
@@ -435,6 +455,9 @@ pub(crate) fn drop_rows(
         {
             continue;
         }
+        if held.iter().any(|s| s.day > today) {
+            return Err(Own::Day.into());
+        }
         let rev = match held.iter().map(|s| s.rev).max() {
             Some(newest) => newest.checked_add(1).ok_or(Own::Length)?,
             None => NonZeroU32::MIN,
@@ -447,7 +470,7 @@ pub(crate) fn drop_rows(
             rev,
             part: NonZeroU32::MIN,
             of: NonZeroU32::MIN,
-            day: day::of(&*host, now),
+            day: today,
             data: SessionData::dropped(),
         };
         records.push(record(rows::AGENT_SESSION, row.to_json())?);
