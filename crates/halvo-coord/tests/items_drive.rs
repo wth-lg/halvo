@@ -1732,6 +1732,12 @@ fn every_form() -> Vec<What> {
         What::HoldCleared {
             cause: Cleared::Failures,
         },
+        What::HoldSet {
+            cause: HoldSetCause::SignInRefused { run: run.clone() },
+        },
+        What::HoldCleared {
+            cause: Cleared::SignInRefused { run: run.clone() },
+        },
         What::HoldCleared {
             cause: Cleared::Check {
                 run,
