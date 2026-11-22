@@ -19,6 +19,7 @@ mod poller;
 mod quit;
 #[cfg(target_os = "macos")]
 mod remove;
+mod stop_hook;
 mod tray;
 mod view_state;
 
@@ -39,6 +40,7 @@ pub fn open_pane(permission: Permission) -> Result<(), String> {
 fn main() {
     #[cfg(windows)]
     app::take_engine_arguments_out_of_the_environment();
+    stop_hook::install(stop_hook::system);
     let started = std::time::Instant::now();
     match launch::parse(std::env::args_os().skip(1)) {
         Ok(launch::Launch::Version) => println!("{}", app::VERSION),
@@ -189,6 +191,7 @@ fn run(background: bool, given: Option<PathBuf>) {
         Ok(app) => app,
         Err(e) => {
             eprintln!("halvo: the app did not start: {e}");
+            stop_hook::stopped();
             std::process::exit(1);
         }
     };
