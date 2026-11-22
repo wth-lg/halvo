@@ -22,7 +22,7 @@ const HEADINGS = {
   not_running: "Capture service not running",
   held_unreachable: "Halvo's capture service is not answering. Capture may still be running. Halvo keeps trying.",
   status_refused: "Halvo's capture service reported a state that Halvo cannot rely on. Capture may be running.",
-  unsupported: "Capture is not available on Windows in this version.",
+  unsupported: "Capture service not running",
   another_version: "Halvo's capture service is of another version. Update Halvo.",
   not_started: "Halvo is not recording yet.",
   data_dir_unusable: "Halvo cannot use its data folder: the folder, or a folder above it, is a shortcut that leads nowhere, is not a folder, or cannot be read. Halvo started nothing and changed nothing there. Put the folder back in its place, or ask the person who set up this computer, then open Halvo again.",
@@ -117,7 +117,7 @@ test("a faulted status reaches the page with its reason", async () => {
   assert.equal(p.text("capture-reason"), "A permission that capture needs is off.");
 });
 
-test("RR-app-ui-30: a failed source gets a row with its steps, a failing drain gets its line, Unsupported says that capture is not available on Windows, and a login item that launchd does not hold gets its line", async () => {
+test("RR-app-ui-30: a failed source gets a row with its steps, a failing drain gets its line, Unsupported reads as not running, and a login item that launchd does not hold gets its line", async () => {
   const failed = await page(fixture("capture_status-failed-source"));
   const items = failed.byId("failed-sources").children.map((li) => li.textContent);
   assert.deepEqual(items, ["Typing and the pointer has stopped. The steps under Permissions turn it back on."]);
@@ -127,7 +127,7 @@ test("RR-app-ui-30: a failed source gets a row with its steps, a failing drain g
   assert.match(expiry.text("expiry-line"), /^Old capture is not being deleted: a read or a write failed\./);
   assert.equal(offered(expiry), true);
   const unsupported = await page(fixture("capture_status-unsupported"));
-  assert.equal(unsupported.text("state"), "Capture is not available on Windows in this version.");
+  assert.equal(unsupported.text("state"), "Capture service not running");
   const notAtLogin = await page({ ...fixture("capture_status-not-running"), login_item_loaded: false });
   assert.equal(notAtLogin.text("login-line"), "Halvo should start by itself when you log in. If it does not, open System Settings, then General, then Login Items, and turn Halvo on.");
   for (const loaded of [true, null]) assert.equal((await page({ ...fixture("capture_status-running"), login_item_loaded: loaded })).text("login-line"), "", String(loaded));

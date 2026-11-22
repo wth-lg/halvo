@@ -2211,12 +2211,13 @@ impl main_loop::MainLoop for ServiceLoop {
 }
 
 /// The answer of a Windows run whose first step failed: its line on standard
-/// error and exit 1, before any read of the key or of the store.
+/// error and the exit status of its own, 6, before any read of the key or of
+/// the store.
 #[cfg(windows)]
 fn refused_start(refused: crate::windows::FaultReportsOn) -> i32 {
     use std::io::Write as _;
     let _ = writeln!(std::io::stderr(), "halvo-capture: {refused}");
-    halvo_control::exit::ERROR
+    halvo_control::exit::FAULT_REPORTS_ON
 }
 
 /// The service run on Windows: the session window first, whose messages of

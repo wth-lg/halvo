@@ -67,6 +67,10 @@ pub mod exit {
     /// A service run ended itself because a source did not stop when a stop asked for
     /// capture to be off.
     pub const SOURCE_NOT_STOPPED: i32 = 5;
+    /// A Windows service run whose first step did not take the program out of Windows Error
+    /// Reporting, before any read of the key or of the store; the app starts no child again by
+    /// itself after it.
+    pub const FAULT_REPORTS_ON: i32 = 6;
     pub const USAGE: i32 = 64;
     pub const UNREACHABLE: i32 = 69;
     pub const BUSY: i32 = 75;

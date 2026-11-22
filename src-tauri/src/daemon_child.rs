@@ -141,8 +141,9 @@ pub struct Restarts {
 /// restart a start at once; 0 of a child that answered as the app's own, with no such ask, no
 /// start until a person's press; 0 of a child that never answered as the app's own the attach
 /// to the daemon that holds the directory, and a start once no daemon answers; 4 after a life
-/// of 60 s or more a start at once; 5 the backoff, and no child after the third 5 in a row; 1,
-/// a 4 within 60 s of its start, a status that this list does not name, an end by a signal and
+/// of 60 s or more a start at once; 5 the backoff, and no child after the third 5 in a row; 6,
+/// a Windows run that was not taken out of Windows Error Reporting, no child again until a
+/// person's press; 1, a 4 within 60 s of its start, a status that this list does not name, an end by a signal and
 /// a failed start the backoff, which doubles from 1 s to 60 s and starts again from 1 s after a
 /// 4 that starts at once and after a child that lived 60 s.
 pub fn next(ending: Ending, clean: Clean, lived: Duration, before: Restarts) -> (Next, Restarts) {
@@ -162,6 +163,7 @@ pub fn next(ending: Ending, clean: Clean, lived: Duration, before: Restarts) -> 
         Ending::Status(exit::RESTART) if lived >= BACKOFF_MAX => {
             (Next::StartNow, Restarts::default())
         }
+        Ending::Status(exit::FAULT_REPORTS_ON) => (Next::NoMoreChild, Restarts::default()),
         _ if fives >= FIVES_IN_A_ROW => (
             Next::NoMoreChild,
             Restarts {
