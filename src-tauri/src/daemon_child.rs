@@ -4591,6 +4591,10 @@ mod tests {
         ) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
+
+        fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
     }
 
     /// A status of a Windows run with the switch screen_activity on and the screen source in
