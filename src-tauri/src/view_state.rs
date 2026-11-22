@@ -978,8 +978,8 @@ pub enum ActionError {
     DeleteHeld {
         looked_in: String,
     },
-    /// The program of the offline delete did not start, or the app has none to start: nothing
-    /// was deleted.
+    /// The program of the offline delete did not start, the app has none to start, or it could
+    /// not use its data directory (exit 66): nothing was deleted.
     DeleteNotStarted,
     /// The offline delete ended in a way that tells nothing of what it removed: another exit
     /// status, a signal, lines that do not read, or no end within its wait.
@@ -1494,10 +1494,11 @@ enum Printed {
 /// The answer of the offline delete by how its program ended and what it printed (contracts.md
 /// C3.3 and C10.5): `looked_in` is its `data_dir=`. An end with 0 and `no_store`, and an end with
 /// 0 or 1 and the `deleted` line, are its outcome, and an end with 1 is never a whole delete,
-/// whatever the line reads; an end with 75 deleted nothing; any other end tells nothing of what
-/// was removed, an end with 1 that printed no `deleted` line among them, which halvo-capture
-/// gives both where it could not use the directory and where its walk removed entries before
-/// the store's own delete failed with no report.
+/// whatever the line reads; an end with 75 deleted nothing, and so did an end with 66 that
+/// printed `data_dir=` alone, which halvo-capture gives where it could not use the directory,
+/// before any removal; any other end tells nothing of what was removed, an end with 1 that
+/// printed no `deleted` line among them, which halvo-capture gives where the write of its own
+/// lines failed.
 pub fn offline_view(
     end: &OfflineEnd,
     roots_dir: Option<&std::path::Path>,
@@ -1533,6 +1534,9 @@ pub fn offline_view(
             code == exit::ERROR,
         )),
         (exit::BUSY, Printed::Nothing) => removed_nothing(ActionError::DeleteHeld { looked_in }),
+        (exit::DATA_DIR_UNUSABLE, Printed::Nothing) => {
+            removed_nothing(ActionError::DeleteNotStarted)
+        }
         _ => not_known(Some(looked_in)),
     }
 }

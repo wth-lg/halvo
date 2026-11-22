@@ -615,7 +615,8 @@ fn ask_once(
 
 /// What the app does before a delete of everything goes out, at either door: every registered
 /// module is told (`Registration::before_delete_all`), and then the agents' runs are held, the
-/// runs at work stopped within the core's grace, until the delete has ended.
+/// runs at work stopped within the core's grace, until the view of a poll made after the
+/// delete's end is drawn (`agents::RunsHold`).
 #[derive(Clone)]
 pub struct Before {
     pub modules: Vec<&'static dyn Registration>,
@@ -639,8 +640,8 @@ impl Before {
     }
 
     /// Tells every module, waiting for them at most STOP_WAIT_MS, and holds the agents' runs;
-    /// the hold of this delete is lifted when the answer is dropped, also where the hold's own
-    /// call unwinds.
+    /// this delete ends in the hold when the answer is dropped, also where the hold's own call
+    /// unwinds, and the hold stands on until the view of a poll made after that end is drawn.
     pub fn tell(&self) -> HeldForADelete {
         tell_before_delete_all(
             &self.modules,
@@ -652,8 +653,17 @@ impl Before {
     }
 }
 
-/// The hold of the agents' runs for one delete of everything, until it is dropped.
+/// One delete of everything in the hold of the agents' runs, until it is dropped; from then on
+/// the hold owes a reading (`agents::RunsHold::delete_ends`).
 pub struct HeldForADelete(Before);
+
+impl HeldForADelete {
+    /// Tells the hold, at this moment and before the drop, that the answer of this delete passed
+    /// its deadline (`agents::RunsHold::answer_passed_its_deadline`).
+    pub fn answer_passed_its_deadline(&self) {
+        self.0.runs.answer_passed_its_deadline(Instant::now());
+    }
+}
 
 impl Drop for HeldForADelete {
     fn drop(&mut self) {
@@ -662,8 +672,9 @@ impl Drop for HeldForADelete {
 }
 
 /// The flow of a person's press at the service's door: `Before::tell`, then `ask_to_delete`;
-/// behind a deleted answer, where the view of the moment reads a Windows run, one plain Status,
-/// and where it reads the screen spent ONE renewal of the screen, as at a Resume.
+/// where the flow ended in a deadline, the guard tells the hold so before it drops; behind a
+/// deleted answer, where the view of the moment reads a Windows run, one plain Status, and where
+/// it reads the screen spent ONE renewal of the screen, as at a Resume.
 pub fn delete_everything(
     before: &Before,
     control: &dyn Control,
@@ -673,8 +684,17 @@ pub fn delete_everything(
 ) -> DeleteAsked {
     let pauses = views.hold().pauses();
     let asked = {
-        let _held = before.tell();
-        ask_to_delete(control, views, armed, waits)
+        let held = before.tell();
+        let asked = ask_to_delete(control, views, armed, waits);
+        if matches!(
+            &asked.end,
+            DeleteEnd::Answered(Err(ClientError::Deadline { .. }))
+                | DeleteEnd::NoLifeAnswered(ClientError::Deadline { .. })
+                | DeleteEnd::FirstNotKnown(ClientError::Deadline { .. })
+        ) {
+            held.answer_passed_its_deadline();
+        }
+        asked
     };
     if matches!(
         asked.end,
