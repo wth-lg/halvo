@@ -1067,6 +1067,7 @@ pub(crate) mod tests {
         };
         let tick = OsTick::new(now_tick());
         let probe = PasswordFieldProbe::default();
+        let gate = clear_gate();
         let clock = crate::event::EventClock::system();
         let keep = floor
             .keep::<kind::ForegroundApp>(&front, PrivateWindow::Unknown, &probe)
@@ -1074,8 +1075,14 @@ pub(crate) mod tests {
         producer.push(FloorEvent::foreground_app(keep, tick.age(), clock));
         let title = (format!("Inbox {MARKER}"), TitleWhy::TitleChange);
         producer.push(
-            window_title::title_event(&floor, None, (&front, PrivateWindow::Unknown), title, tick)
-                .expect("a title"),
+            window_title::title_event(
+                &floor,
+                Some(&gate),
+                (&front, PrivateWindow::Unknown),
+                title,
+                tick,
+            )
+            .expect("a title"),
         );
         let keep = floor
             .keep::<kind::Keystroke>(&front, PrivateWindow::Unknown, &probe)
@@ -1101,7 +1108,21 @@ pub(crate) mod tests {
         for due in folds.due(now_tick(), true).into_iter().flatten() {
             input::emit_due(&floor, producer, &mut folds, due);
         }
-        producer.push(screen::frame_event(&floor, None, &front).expect("a frame"));
+        producer.push(screen::frame_event(&floor, Some(&gate), &front).expect("a frame"));
+    }
+
+    /// A gate whose content reading is Clear, by a native edit control that
+    /// answered that it is no password field.
+    fn clear_gate() -> crate::secure_input::windows::PasswordGate {
+        use crate::secure_input::windows::{FocusRead, Kind, PasswordGate};
+        let gate = PasswordGate::new();
+        let read = FocusRead::Answered {
+            is_password: false,
+            protected: false,
+            kind: Kind::NativeEdit,
+        };
+        gate.focus_read_at(now_tick(), read, false);
+        gate
     }
 
     fn shape(record: &crate::floor::record::DecodedRecord) -> String {
@@ -1186,29 +1207,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_content_probe_of_a_gate_reads_its_field_state() {
-        use crate::secure_input::windows::{FieldState, PasswordGate};
-        use crate::secure_input::{check, SecureInputReading, Withheld};
-        let reading = |gate: &PasswordGate| match check(&gate.content_probe(), None) {
-            Ok(_) => SecureInputReading::Inactive,
-            Err(Withheld::Active) => SecureInputReading::Active,
-            Err(Withheld::Unknown | Withheld::Late) => SecureInputReading::Unknown,
-        };
-        let gate = PasswordGate::new();
-        assert_eq!(reading(&gate), SecureInputReading::Unknown);
-        for (state, wanted) in [
-            (FieldState::Password, SecureInputReading::Active),
-            (FieldState::Clear, SecureInputReading::Inactive),
-            (FieldState::Unknown, SecureInputReading::Unknown),
-            (FieldState::Password, SecureInputReading::Active),
-        ] {
-            gate.field_at(now_tick(), state);
-            assert_eq!(gate.field_now(), state);
-            assert_eq!(reading(&gate), wanted, "{state:?}");
-        }
-    }
-
-    #[test]
     fn a_front_whose_process_cannot_be_read_gives_no_event_of_any_kind() {
         use crate::floor::exclude::{FloorHandle, NoLineage};
         use crate::floor::{kind, Switches};
@@ -1254,7 +1252,6 @@ pub(crate) mod tests {
     fn a_listed_app_in_front_drops_every_kind_and_counts_each_drop() {
         use crate::floor::exclude::{FloorHandle, NoLineage};
         use crate::floor::{kind, Switches};
-        use crate::secure_input::windows::PasswordFieldProbe;
         let mut switches = Switches::default();
         switches.set(Switch::ScreenActivity, true);
         let drops = Arc::new(DropCounts::default());
@@ -1270,7 +1267,7 @@ pub(crate) mod tests {
             pid: 78,
             path: Some("C:\\Program Files\\Notes\\notes.exe".to_string()),
         };
-        let probe = PasswordFieldProbe::default();
+        let probe = clear_gate().content_probe();
         let window = PrivateWindow::Unknown;
         for front in [&listed, &other] {
             let kept = [

@@ -193,6 +193,12 @@ const WORDS = {
   HELD_START: "This happened three times in a row, so Halvo did not start its capture service again. Press Start to turn capture back on.",
   START: "Start",
   LOGIN_ITEM_OFF: "Halvo should start by itself when you log in. If it does not, open System Settings, then General, then Login Items, and turn Halvo on.",
+  FIRST_RUN_HEADING: "Halvo is not recording yet.",
+  FIRST_RUN_INTRO: "When you press Start, Halvo starts recording on this computer and opens by itself each time you log in. What Halvo records:",
+  DATA_DIR_UNUSABLE: "Halvo cannot use its data folder: the folder, or a folder above it, is a shortcut that leads nowhere, is not a folder, or cannot be read. Halvo started nothing and changed nothing there. Put the folder back in its place, or ask the person who set up this computer, then open Halvo again.",
+  START_STEPS_OPEN: "Capture is set up but does not record yet: macOS needs the permissions below first. Turn them on, then press Resume.",
+  START_NO_ANSWER: "Halvo's capture service did not answer within {seconds} seconds, so capture is not on yet. When it answers, press Resume to turn capture on.",
+  LOGIN_ITEM_NOT_WRITTEN: "Halvo could not set itself to open when you log in. Capture runs now, but after you log in again you need to open Halvo yourself.",
 };
 
 const OWNER = {

@@ -20,6 +20,11 @@ use crate::view_state::{
     InventoryView, LastDelete, OutcomeError, StatusView,
 };
 
+/// What the consent click calls first to write the login item through the manager of
+/// login_item.rs: whether the plist stands written, false where the manager refused the program
+/// or the write failed.
+pub type LoginItemWriter = Arc<dyn Fn() -> bool + Send + Sync>;
+
 pub struct AppState {
     pub control: Arc<dyn Control>,
     pub views: Arc<Views>,
@@ -27,6 +32,8 @@ pub struct AppState {
     pub open_pane: fn(Permission) -> Result<(), String>,
     pub tray_installed: AtomicBool,
     pub last_delete: Mutex<LastDelete>,
+    /// The login item that the consent click writes: none with --data-dir and off macOS.
+    pub login_item: Option<LoginItemWriter>,
 }
 
 impl AppState {
@@ -61,6 +68,7 @@ impl AppState {
             open_pane,
             tray_installed: AtomicBool::new(false),
             last_delete: Mutex::new(LastDelete::None),
+            login_item: None,
         }
     }
 }
@@ -86,6 +94,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         open_permission_pane,
         last_delete,
         acknowledge_lost_permission,
+        start_capture,
     ];
     handle(invoke)
 }
@@ -180,17 +189,7 @@ fn start_and_resume(
     within: Duration,
 ) -> (Result<DaemonStatus, ClientError>, u64) {
     let until = Instant::now() + within;
-    let answered = hold.wait_for_the_asked_child(until)
-        && loop {
-            if control.status(control.places().make(), false).is_ok() {
-                break true;
-            }
-            let left = until.saturating_duration_since(Instant::now());
-            if left.is_zero() {
-                break false;
-            }
-            std::thread::sleep(left.min(START_STATUS_STEP));
-        };
+    let answered = hold.wait_for_the_asked_child(until) && status_until(control, until).is_some();
     let made = control.places().make();
     let call = made.number();
     if !answered {
@@ -202,6 +201,92 @@ fn start_and_resume(
         );
     }
     (control.resume(made), call)
+}
+
+fn status_until(control: &dyn Control, until: Instant) -> Option<DaemonStatus> {
+    loop {
+        if let Ok(status) = control.status(control.places().make(), false) {
+            return Some(status);
+        }
+        let left = until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return None;
+        }
+        std::thread::sleep(left.min(START_STATUS_STEP));
+    }
+}
+
+/// The consent click, `start_capture` (contracts.md C10.7), in this order: it writes the login
+/// item through `login_item`, where one is given; asks the supervisor for one child where it
+/// awaits the consent, none where a child lives, a daemon answers or another click is in
+/// flight; asks for a Status until one is answered or `within` has passed; reads the open
+/// steps from it through `onboarding_shown`; and sends one Resume only when no step is open.
+/// It answers the view: that of the Resume, or of the Status with an open step; with no Status
+/// it answers the deadline of `within`, and no Resume goes out. Where the hold stands after an
+/// end with 5 its press is the hold's, and the click, like one on a data directory that reads
+/// its own cause or one while another is in flight, does nothing and answers the view of the
+/// moment.
+pub fn consent(
+    control: &dyn Control,
+    views: &Views,
+    login_item: Option<&dyn Fn() -> bool>,
+    within: Duration,
+) -> Result<StatusView, ActionError> {
+    let hold = views.hold();
+    let Some(_click) = hold.begin_consent() else {
+        return Ok(views.view());
+    };
+    if let Some(write) = login_item {
+        hold.login_item_written(write());
+    }
+    let until = Instant::now() + within;
+    let status = if views.status().is_none() && hold.ask_consent() {
+        if hold.wait_for_the_asked_child(until) {
+            status_until(control, until)
+        } else {
+            None
+        }
+    } else {
+        control.status(control.places().make(), false).ok()
+    };
+    let Some(status) = status else {
+        return Err(ActionError::Deadline {
+            seconds: within.as_secs(),
+        });
+    };
+    if !onboarding_shown(&status).walkback.is_empty() {
+        return Ok(views.marked(StatusView::of(&status)));
+    }
+    let made = control.places().make();
+    let call = made.number();
+    let answer = control.resume(made);
+    let next_number_at_answer = control.places().next_number();
+    capture_set(
+        views,
+        call,
+        next_number_at_answer,
+        CaptureChange::Resume,
+        answer,
+    )
+    .map(|set| set.view)
+}
+
+/// The eleventh command, the consent click: `consent` off the main thread, then a draw of the
+/// views.
+#[tauri::command]
+pub async fn start_capture(state: State<'_, AppState>) -> Result<StatusView, ActionError> {
+    let control = Arc::clone(&state.control);
+    let views = Arc::clone(&state.views);
+    let login_item = state.login_item.clone();
+    let answer = off_the_main_thread(move || {
+        let write = login_item
+            .as_deref()
+            .map(|write| write as &dyn Fn() -> bool);
+        consent(control.as_ref(), &views, write, START_ANSWER_WAIT)
+    })
+    .await?;
+    draw_off_the_main_thread(&state.views).await;
+    answer
 }
 
 /// Sorts the answer of a press of Pause or Resume, for the page's command and for the tray's

@@ -1,12 +1,16 @@
 //! The owner slot on Windows: the channel is two anonymous pipes whose owner's ends the child inherits and finds by
 //! their handle values, as it does its two ends of a worker's channel; the start time of a process is the creation
-//! time of `GetProcessTimes`; an orphan is ended by `TerminateProcess` on the handle whose creation time was read.
+//! time of `GetProcessTimes`; an orphan is ended by `TerminateProcess` on the handle whose creation time was read. A
+//! write of the slot on the channel blocks at most as long as a call waits for its reply: a write that has not
+//! returned by then is cancelled from a watching thread and fails, as a write on a Mac fails at its timeout.
 
 use std::fs::{self, File, Metadata, OpenOptions};
-use std::io::{self, ErrorKind, PipeReader, PipeWriter};
-use std::os::windows::io::AsRawHandle;
+use std::io::{self, ErrorKind, PipeReader, PipeWriter, Write};
+use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::path::Path;
 use std::process::{Child, Command};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::time::Duration;
 
 use windows_sys::Win32::Foundation::{
     CloseHandle, GetLastError, SetHandleInformation, ERROR_ACCESS_DENIED, FILETIME, HANDLE,
@@ -17,11 +21,75 @@ use windows_sys::Win32::System::Threading::{
     PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
 };
 
-use super::{Holder, Owner, ORPHAN_TERM_WAIT};
+use super::{Holder, Owner, ORPHAN_TERM_WAIT, POLL, REPLY_WAIT};
 
-/// The slot's end of the channel on which it writes, and the end that its reader thread reads.
-pub(super) type Writes = PipeWriter;
+/// The slot's end of the channel on which it writes: each write that has not returned within [`REPLY_WAIT`] is
+/// cancelled and fails with an error of kind `TimedOut`.
+pub(super) struct Writes(PipeWriter);
+
+/// The end of the channel that the slot's reader thread reads.
 pub(super) type Reads = PipeReader;
+
+impl Write for Writes {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let pipe = &mut self.0;
+        within(REPLY_WAIT, || pipe.write(buf))
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
+}
+
+/// Runs `call`, a synchronous call of this thread, while a watching thread waits for it: once `bound` has passed
+/// with the call not returned, the watcher cancels the synchronous I/O of this thread, and does so once more at each
+/// step of [`POLL`] until the call returns. A call that fails after a cancel fails with an error of kind `TimedOut`.
+/// No call is made where the watcher cannot start.
+fn within<T>(bound: Duration, call: impl FnOnce() -> io::Result<T>) -> io::Result<T> {
+    let thread = this_thread()?;
+    let (done, ended) = mpsc::channel::<()>();
+    std::thread::scope(|scope| {
+        let watcher = std::thread::Builder::new()
+            .name("halvo-owner-channel-write".to_owned())
+            .spawn_scoped(scope, move || cancel_after(&thread, &ended, bound))?;
+        let result = call();
+        drop(done);
+        let cancelled = watcher.join().unwrap_or(true);
+        match result {
+            Err(_) if cancelled => Err(ErrorKind::TimedOut.into()),
+            other => other,
+        }
+    })
+}
+
+/// A handle of this thread with the right to cancel its synchronous I/O.
+fn this_thread() -> io::Result<OwnedHandle> {
+    use windows::Win32::System::Threading::{GetCurrentThreadId, OpenThread, THREAD_TERMINATE};
+    // SAFETY: GetCurrentThreadId takes nothing; OpenThread takes plain values and returns a new handle, owned at once.
+    let thread = unsafe { OpenThread(THREAD_TERMINATE, false, GetCurrentThreadId()) }
+        .map_err(io::Error::other)?;
+    // SAFETY: `thread` is a new handle that nothing else owns or closes.
+    Ok(unsafe { OwnedHandle::from_raw_handle(thread.0) })
+}
+
+/// The watcher of [`within`]: true when it cancelled, which it does from `bound` on, at each step of [`POLL`], until
+/// `ended` reads the end of the call.
+fn cancel_after(thread: &OwnedHandle, ended: &Receiver<()>, bound: Duration) -> bool {
+    use windows::Win32::System::IO::CancelSynchronousIo;
+    if !matches!(ended.recv_timeout(bound), Err(RecvTimeoutError::Timeout)) {
+        return false;
+    }
+    loop {
+        // SAFETY: the handle is open, with THREAD_TERMINATE, for the life of the watcher; a thread that waits for no
+        // synchronous I/O makes the call fail, and that failure is dropped.
+        let _ = unsafe {
+            CancelSynchronousIo(windows::Win32::Foundation::HANDLE(thread.as_raw_handle()))
+        };
+        if !matches!(ended.recv_timeout(POLL), Err(RecvTimeoutError::Timeout)) {
+            return true;
+        }
+    }
+}
 
 /// The slot's ends of a new channel.
 pub(super) struct Channel {
@@ -62,7 +130,13 @@ pub(super) fn launch(
     drop(owner_reads);
     drop(owner_writes);
     drop(worker);
-    Ok((child?, Channel { writes, reads }))
+    Ok((
+        child?,
+        Channel {
+            writes: Writes(writes),
+            reads,
+        },
+    ))
 }
 
 /// Closes the slot's end on which it writes: the owner reads the end of its channel.
@@ -163,5 +237,107 @@ pub(super) fn end(owner: Owner) -> bool {
     // SAFETY: the handle is open with the rights to end the process and to wait for it.
     unsafe {
         TerminateProcess(process.0, 1) != 0 && WaitForSingleObject(process.0, wait) == WAIT_OBJECT_0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::{spawn_reader, Caller, OwnerSlot, Place, Running, STOP_WAIT};
+    use super::*;
+    use crate::custody::StoreKey;
+    use halvo_control::r2::OwnerChannel;
+    use halvo_control::wire::REQUEST_MAX_BYTES;
+    use std::process::Stdio;
+    use std::sync::Arc;
+    use std::time::Instant;
+
+    /// A daemon that gives no key and reads no store; the test starts no owner through it.
+    struct Silent;
+
+    impl Caller for Silent {
+        fn key(&self) -> Option<StoreKey> {
+            None
+        }
+
+        fn first_live(&self) -> u64 {
+            0
+        }
+
+        fn deleting(&self) -> bool {
+            false
+        }
+
+        fn report(&self, _: &[u8]) {}
+    }
+
+    /// The round's rule (F1 of pr-review-44): on an owner that takes no frame from its channel, the slot's write ends
+    /// within the bound of a Mac with an error of kind `TimedOut`, the turn ends the owner, and the stop after it gets
+    /// its end. The stand-in owner is this test, which holds the owner's two ends of the channel and never reads or
+    /// writes them, with a ping.exe of the system as the owner's process for the slot to end. A guard drops the held
+    /// end after 20 s, so a write with no bound fails here and does not wait without end.
+    #[test]
+    fn a_write_to_an_owner_that_takes_no_frame_ends_within_the_bound() {
+        let dir = tempfile::tempdir().unwrap();
+        let place = Place {
+            program_dir: dir.path().to_path_buf(),
+            data_dir: dir.path().to_path_buf(),
+            idle_ms: None,
+        };
+        let mut slot = OwnerSlot::new(place, Arc::new(Silent));
+        let (owner_reads, writes) = std::io::pipe().unwrap();
+        let (reads, owner_writes) = std::io::pipe().unwrap();
+        let (release, held) = mpsc::channel::<()>();
+        let guard = std::thread::spawn(move || {
+            let _ = held.recv_timeout(Duration::from_secs(20));
+            drop((owner_reads, owner_writes));
+        });
+        let ping = Path::new(&std::env::var_os("SystemRoot").unwrap()).join(r"System32\PING.EXE");
+        let child = Command::new(ping)
+            .args(["-n", "60", "127.0.0.1"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        slot.running = Some(Running {
+            child,
+            line: String::new(),
+            writes: Some(Writes(writes)),
+            frames: spawn_reader(reads, Arc::new(Silent)).unwrap(),
+            owed: 0,
+            ended: false,
+            reaped: false,
+        });
+        let frame = vec![b' '; REQUEST_MAX_BYTES];
+        let mut turn = slot.turn().unwrap();
+        let mut taken = 0;
+        let (took, failed) = loop {
+            let started = Instant::now();
+            match turn.send(&frame) {
+                Ok(()) => taken += 1,
+                Err(error) => break (started.elapsed(), error),
+            }
+            assert!(taken < 64, "the channel took {taken} frames of 4,096 bytes");
+        };
+        assert_eq!(
+            failed.kind(),
+            ErrorKind::TimedOut,
+            "the write failed after {took:?}: {failed}"
+        );
+        assert!(
+            took < REPLY_WAIT + Duration::from_secs(1),
+            "the write ended after {took:?}"
+        );
+        let stopping = Instant::now();
+        drop(turn);
+        slot.stop();
+        let stopped = stopping.elapsed();
+        assert!(
+            stopped < STOP_WAIT + Duration::from_secs(2),
+            "the turn's end and the stop took {stopped:?}"
+        );
+        assert_eq!(slot.pid(), None, "the owner's process was not reaped");
+        let _ = release.send(());
+        guard.join().unwrap();
     }
 }
