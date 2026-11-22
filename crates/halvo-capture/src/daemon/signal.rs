@@ -1,26 +1,26 @@
 #![deny(clippy::undocumented_unsafe_blocks)]
 
 use std::io;
-#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+#[cfg(any(target_os = "macos", windows))]
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+#[cfg(any(target_os = "macos", windows))]
 static SIGNALLED: AtomicBool = AtomicBool::new(false);
 
-#[cfg(all(windows, debug_assertions))]
+#[cfg(windows)]
 static SESSION_ENDING: AtomicBool = AtomicBool::new(false);
 
 /// The stop flag of a run: on macOS SIGINT and SIGTERM set it, and on
 /// Windows the session window and a console's Ctrl-C and Ctrl-Break do.
-#[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
+#[cfg(any(target_os = "macos", windows))]
 pub fn flag() -> &'static AtomicBool {
     &SIGNALLED
 }
 
 /// Ends the run through its one shutdown entry, as a stop request does: the
 /// session window's WM_CLOSE sets the stop flag.
-#[cfg(all(windows, debug_assertions))]
+#[cfg(windows)]
 pub fn end_on_request() {
     SIGNALLED.store(true, Ordering::SeqCst);
 }
@@ -28,7 +28,7 @@ pub fn end_on_request() {
 /// Ends the run for a session's end: the mark that gives the shutdown entry
 /// the session's budget, then the stop flag. The session window's
 /// WM_QUERYENDSESSION and WM_ENDSESSION call it, however often.
-#[cfg(all(windows, debug_assertions))]
+#[cfg(windows)]
 pub fn end_for_the_session() {
     SESSION_ENDING.store(true, Ordering::SeqCst);
     SIGNALLED.store(true, Ordering::SeqCst);
@@ -38,7 +38,7 @@ pub fn end_for_the_session() {
 /// once the session window marked one (contracts.md C14 item 6), and none on
 /// every other run, every test of the library among them.
 pub fn session_end_budget() -> Option<Duration> {
-    #[cfg(all(windows, debug_assertions))]
+    #[cfg(windows)]
     if SESSION_ENDING.load(Ordering::SeqCst) {
         return Some(Duration::from_millis(halvo_control::SESSION_END_BUDGET_MS));
     }

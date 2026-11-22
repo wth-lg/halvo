@@ -1,4 +1,4 @@
-#![cfg(all(windows, debug_assertions))]
+#![cfg(windows)]
 
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader};
@@ -310,8 +310,44 @@ fn a_windows_run_ends_inside_the_budget_when_the_session_ends() {
     assert!(took <= budget, "the run took {took:?}");
 }
 
+#[cfg(not(debug_assertions))]
+#[test]
+fn a_release_build_on_windows_answers_the_gate_modes_with_usage() {
+    let dir = scratch_data_dir("release");
+    let store_dir = dir.join("store-dir");
+    let (d, s) = (dir.to_str().unwrap(), store_dir.to_str().unwrap());
+    for line in [
+        &["--timed-run", "5", "--store-dir", s][..],
+        &[
+            "--verify-store",
+            "--store-dir",
+            s,
+            "--marker",
+            "M4rker.release",
+        ][..],
+        &["--verify-deletion", "--store-dir", s][..],
+        &["--delete-all", "--store-dir", s][..],
+        &["--delete-all", "--data-dir", d][..],
+        &["--self-check", "run-loop"][..],
+        &["--service-run", "--data-dir", d, "--scripted-sources"][..],
+    ] {
+        let output = Command::new(BIN)
+            .args(line)
+            .output()
+            .expect("the binary runs");
+        assert_eq!(
+            output.status.code(),
+            Some(64),
+            "{line:?}: {}",
+            text(&output)
+        );
+    }
+    assert!(!dir.exists(), "a refused line made {}", dir.display());
+}
+
 /// Gives this process a console when it has none, with its standard handles
 /// kept, so that a Ctrl-Break can reach a child that shares it.
+#[cfg(debug_assertions)]
 fn a_console() {
     use windows::Win32::System::Console::{
         AllocConsole, GetStdHandle, SetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE,
@@ -337,6 +373,7 @@ fn a_console() {
     });
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn a_timed_run_on_windows_ends_on_ctrl_break_with_its_report_and_exit_2() {
     use std::os::windows::process::CommandExt;
