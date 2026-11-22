@@ -444,7 +444,8 @@ impl TailReport {
     /// answered through its not-opened report for another cause: the root left
     /// with no id, and store.key, the database and one file read as not removed
     /// because the tail never looked. A removal that left exactly those three
-    /// and read no root id reads the same.
+    /// and read no root id reads the same, and so does a tail refused the lock
+    /// that read exactly those three standing and no root id.
     fn not_opened(&self) -> bool {
         self.root == TailRoot::Left(None)
             && !self.key_file_gone
@@ -478,7 +479,8 @@ impl TailReport {
     /// What stays, for standard error: first, on Windows, a lock file that
     /// another program keeps open behind its mark; the root files and partial
     /// root files by their names in the folder roots, every other entry there
-    /// by kind; then the store's files, each count behind its words.
+    /// by kind; then the store's files, the count of its other files behind
+    /// its words.
     fn what_stays(&self) -> String {
         let mut stays = Vec::new();
         if self.lock_file_kept {

@@ -3508,9 +3508,10 @@ fn finished(report: DeleteReport) -> StoreResult<DeleteReport> {
     }
 }
 
-/// The report of a tail that could not open the store directory, or could not
-/// take its lock for a reason other than a holder: the root step as it went,
-/// and the store's files as left.
+/// The report of a tail that did not look at the store's files: one that could
+/// not open the store directory, or that ran the root step alone at a name
+/// that Windows trims. The root step as it went, and the store's files as
+/// left.
 fn not_opened(root: RootReading, roots: RootsLeft) -> DeleteReport {
     DeleteReport {
         keyed_segments: None,
@@ -3529,10 +3530,11 @@ fn not_opened(root: RootReading, roots: RootsLeft) -> DeleteReport {
 /// its lock for a reason other than a holder: the root step as it went, and
 /// the store's files read by their names as they stand, none removed.
 /// `files_left` counts the entries of the segments tree, the pending mark and
-/// its temporary file and, on Windows, the lock file, read by the store's one
-/// reader of that name. On Windows `lock_file_kept` says whether the lock file
-/// stands marked for removal while another handle keeps it open, which is
-/// what refuses the take there behind a delete that marked it.
+/// its temporary file and, on Windows, the lock file, read by the reader of
+/// that name that the tail's count behind its close asks too. On Windows
+/// `lock_file_kept` says whether the lock file stands marked for removal while
+/// another handle keeps it open, which is what refuses the take there behind a
+/// delete that marked it.
 fn as_the_store_files_stand(store: &Dir, root: RootReading, roots: RootsLeft) -> DeleteReport {
     let stands = |name: &str| !matches!(store.entry(OsStr::new(name)), Err(e) if e.kind() == ErrorKind::NotFound);
     let database_left = [DATABASE_FILE]

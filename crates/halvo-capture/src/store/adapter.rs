@@ -508,8 +508,8 @@ impl DataDirStore {
     }
 
     /// Whether the store's lock file stands in the store folder, read by the
-    /// store's one reader of that name, which the tail asks behind its close
-    /// too: only no such entry, of the lock file or of a folder above it,
+    /// reader of that name that the tail asks behind its close too: only no
+    /// such entry, of the lock file or of a folder above it,
     /// reads as gone. A link at the data directory's own name is followed.
     #[cfg(windows)]
     pub fn lock_file_stands(&self) -> bool {

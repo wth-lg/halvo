@@ -665,9 +665,9 @@ fn open_for_the_delete(
 /// segments and the root that the handle named, comes from the handle's
 /// report. On Windows a finished delete of the handle marked the store's
 /// lock file, which goes when the handle closes; where its name still stands
-/// behind the close, read by the store's one reader of that name, the delete
-/// is not finished, with that file counted as left, and no tail runs behind
-/// it.
+/// behind the close, read by the reader of that name that the tail asks too,
+/// the delete is not finished, with that file counted as left, and no tail
+/// runs behind it.
 fn delete_the_store(host: &DataDirStore, handle: Option<Handle>) -> TailAnswer {
     let Some(mut handle) = handle else {
         return host.delete();
