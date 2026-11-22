@@ -88,6 +88,7 @@ capture check 51-macos-stall scheduled wed 197 s in the macos job
 
 billing target halvo-route/prices_rules gate
 billing target halvo-route/refusal_spend gate
+billing target halvo-route/count_row gate
 billing target halvo-route/formal_traces scheduled tue the group B; 15 s in the macos job, 10 s in the windows job
 billing units halvo-route-gate scheduled tue the group B; 13 s in the macos job, 9 s in the windows job
 billing units halvo-coord-app::present::tests::native_hub gate
