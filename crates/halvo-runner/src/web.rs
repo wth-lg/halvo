@@ -15,8 +15,9 @@
 //! target, or the target of one of its conditions, is marked `credential` act on nothing: each reads the page when
 //! the browser runs, and is done after a handback that ended in a bind; a step of the verb `handback` with no
 //! credential field on the page, or before any browser runs, is done; every other answers `step_failed`. A step with
-//! the effect `request` answers `step_failed` before any browser starts. `Mode::Hold`, the request maker and the web
-//! steps of an effect class are the second part's.
+//! the effect `request`, a web step of an effect class (`payment`, `purchase`, `submit`, `sign`), is the browser's
+//! request maker's (crate::web::maker), which this build holds under the feature `loopback` alone: without it such a
+//! step answers `step_failed` before any browser starts, and `Live` lets no held request through.
 
 use std::collections::HashMap;
 use std::num::{NonZeroU32, NonZeroU64};
@@ -35,6 +36,8 @@ use halvo_schema::executable::{
 };
 use halvo_schema::SeedCategory;
 use halvo_sheet::Value;
+#[cfg(feature = "loopback")]
+use halvo_web::cdp::HeldRequest;
 use halvo_web::cdp::{
     self, CrashMeans, Executor, Fault, Mode, PausedRequest, Resolved, SessionState, Sign,
     StartOptions,
@@ -45,6 +48,11 @@ use std::collections::BTreeSet;
 
 use crate::link::Broken;
 use crate::run::{Failure, Runner, Stop};
+
+#[cfg(feature = "loopback")]
+mod maker;
+#[cfg(all(test, feature = "loopback"))]
+pub(crate) use maker::amounts_named;
 
 /// The name of the profile directory in `<data directory>/agents/profiles/<run id>/` (A8.3); the executor's start
 /// makes it and its temporary directory beside it.
@@ -105,6 +113,42 @@ pub(crate) trait Page: Send {
     fn export(&mut self, origin: &WebOrigin) -> Result<SessionState, ()>;
     /// Sets the cookies of `state` and the localStorage of each of its origins.
     fn import(&mut self, state: &SessionState) -> Result<(), ()>;
+    /// Arms the request rule in `Mode::Hold` with `origins`, as `arm` arms it in `Mode::Fail`: a state-changing
+    /// request to one of them stays held until `let_through` or `fail_held` (crate::web::maker). These six methods
+    /// stand in a build with the feature `loopback` alone; their defaults, which the stand-ins of the unit tests of
+    /// crate::handback and crate::session take, hold nothing and let nothing leave.
+    #[cfg(feature = "loopback")]
+    fn arm_hold(&mut self, _origins: &[WebOrigin]) -> Result<(), ()> {
+        Err(())
+    }
+    /// The state-changing requests that the rule holds now, each with the executor's id.
+    #[cfg(feature = "loopback")]
+    fn held(&mut self) -> Vec<HeldRequest> {
+        Vec::new()
+    }
+    /// Lets the held request `id` leave, once.
+    #[cfg(feature = "loopback")]
+    fn let_through(&mut self, _id: u64) -> Result<(), ()> {
+        Err(())
+    }
+    /// The HTTP status of the response of the request that `let_through` let leave, none before it (the coordinator's
+    /// ruling of log line 14732).
+    #[cfg(feature = "loopback")]
+    fn released_status(&mut self) -> Option<i64> {
+        None
+    }
+    /// Every amount that the page after the reply names, in minor units, read once the top document that `arm_hold`
+    /// noted has given way to a loaded one.
+    #[cfg(feature = "loopback")]
+    fn page_amounts(&mut self) -> Result<Vec<u64>, ()> {
+        Err(())
+    }
+    /// The executor's cause word of the newest `carry_out` that failed, none before one; the browser's maker writes
+    /// it on its line of a failed read.
+    #[cfg(feature = "loopback")]
+    fn last_fault(&mut self) -> Option<&'static str> {
+        None
+    }
 }
 
 /// The run's browser: the browser of a run, or in a unit test a stand-in of the executor.
@@ -123,7 +167,18 @@ struct Live {
     loaded: BTreeSet<String>,
     /// The origins of the newest arm in `Mode::Fail`, whose loopback hosts keep their mark in the handback's mode.
     armed: Vec<WebOrigin>,
+    /// The wait for the top document that replaces the one that the page held at `arm_hold`, before the act, run once
+    /// by `page_amounts`.
+    #[cfg(feature = "loopback")]
+    after_release: Option<AfterRelease>,
+    /// The cause word of the newest `carry_out` that failed (`Page::last_fault`).
+    #[cfg(feature = "loopback")]
+    fault: Option<&'static str>,
 }
+
+/// The wait for the top document that replaces the one noted at `arm_hold`.
+#[cfg(feature = "loopback")]
+type AfterRelease = Box<dyn FnOnce(&Executor, &tokio::runtime::Runtime) -> Result<(), ()> + Send>;
 
 /// The cause of the run's end for a start that failed: `no_channel` for a browser that lived and gave no first
 /// reply, `browser_start` for every other failure of the start (A11.1, U1.8 (b)).
@@ -180,6 +235,15 @@ pub(crate) fn acts(category: SeedCategory, step: &ExecutableStep) -> bool {
             class_of(category, step),
             ActionClass::Read | ActionClass::Prepare
         )
+}
+
+/// Whether the step is a web step of an effect class: its class, as `class_of` gives it from the step's own keys for
+/// the agent's category, is `payment`, `purchase`, `submit` or `sign`, the classes of a step with the effect `request`.
+fn of_an_effect_class(category: SeedCategory, step: &ExecutableStep) -> bool {
+    matches!(
+        class_of(category, step),
+        ActionClass::Payment | ActionClass::Purchase | ActionClass::Submit | ActionClass::Sign
+    )
 }
 
 /// Whether the step's own target, or the target of one of its conditions, is marked `credential`.
@@ -468,7 +532,13 @@ fn of_the_page(request: &PausedRequest) -> bool {
 /// Whether the rule failed a request of the run's page (A9.2). A request of the browser's own level that the rule
 /// failed stays failed, and nothing of it left, but it sets no outcome: the person's site never made it.
 fn refused_by_the_page(requests: &[PausedRequest]) -> bool {
-    requests.iter().any(|r| !r.let_through && of_the_page(r))
+    requests.iter().any(|r| failed(r) && of_the_page(r))
+}
+
+/// Whether the rule failed a request of its record: it was not let through, and it is not one that `Mode::Hold`
+/// holds (crate::web::maker), whose record says `held` until it is let through or failed.
+fn failed(request: &PausedRequest) -> bool {
+    !request.let_through && request.outcome != cdp::Outcome::Held
 }
 
 /// The line on standard error for a request that the rule failed: its method, origin, resource type and level
@@ -548,12 +618,40 @@ impl Live {
                 told: 0,
                 loaded: BTreeSet::new(),
                 armed: Vec::new(),
+                #[cfg(feature = "loopback")]
+                after_release: None,
+                #[cfg(feature = "loopback")]
+                fault: None,
             }),
             Err(cause) => {
                 let _ = std::fs::remove_dir(&run_dir);
                 Err(cause)
             }
         }
+    }
+
+    /// Sets the relay's list to exactly the host and port of each origin, each bound by the person's own word, which
+    /// closes every open tunnel to another host and port, and arms the request rule with the origins in `mode`.
+    fn arm_in(&mut self, origins: &[WebOrigin], mode: Mode) -> Result<(), ()> {
+        let requests = self.executor.requests();
+        self.note_loaded(&requests);
+        let handle = self.relay.handle();
+        let mut hosts = BTreeSet::new();
+        let mut allowed = Vec::with_capacity(origins.len());
+        for origin in origins {
+            let (host, port) = cdp::host_port(origin.as_str()).ok_or(())?;
+            hosts.insert((host, port));
+            allowed.push(rule_origin(origin));
+        }
+        handle.set_list(List::Hosts(hosts.clone()));
+        for (host, port) in &hosts {
+            handle.allow(host, *port, Entry::BoundLoopback);
+        }
+        self.armed = origins.to_vec();
+        let executor = &mut self.executor;
+        self.runtime
+            .block_on(executor.arm_rule(allowed, mode))
+            .map_err(drop)
     }
 
     /// Notes the origin of every request of the rule's record that the rule let through.
@@ -588,25 +686,79 @@ impl Page for Live {
     /// Sets the relay's list to exactly the host and port of each origin, each bound by the person's own word, which
     /// closes every open tunnel to another host and port, and arms the request rule with the origins in `Mode::Fail`.
     fn arm(&mut self, origins: &[WebOrigin]) -> Result<(), ()> {
-        let requests = self.executor.requests();
-        self.note_loaded(&requests);
-        let handle = self.relay.handle();
-        let mut hosts = BTreeSet::new();
-        let mut allowed = Vec::with_capacity(origins.len());
-        for origin in origins {
-            let (host, port) = cdp::host_port(origin.as_str()).ok_or(())?;
-            hosts.insert((host, port));
-            allowed.push(rule_origin(origin));
-        }
-        handle.set_list(List::Hosts(hosts.clone()));
-        for (host, port) in &hosts {
-            handle.allow(host, *port, Entry::BoundLoopback);
-        }
-        self.armed = origins.to_vec();
+        self.arm_in(origins, Mode::Fail)
+    }
+
+    #[cfg(feature = "loopback")]
+    /// Arms the rule in `Mode::Hold`, then notes the top document while the page is idle, before the act: the
+    /// executor's read of the frame tree fails while the page's navigation is held (the hosted macos job of run
+    /// 45028032532, `call=let_through cause=frame`), so `page_amounts` waits for the document that replaces the one
+    /// noted here.
+    fn arm_hold(&mut self, origins: &[WebOrigin]) -> Result<(), ()> {
+        self.arm_in(origins, Mode::Hold)?;
+        let executor = &self.executor;
+        let done = self.runtime.block_on(async move {
+            let frame = executor.main_frame().await?;
+            let before = executor.loader(&frame).await?;
+            Ok::<_, Fault>((frame, before))
+        });
+        let (frame, before) = told("arm_hold", done)?;
+        self.after_release = Some(Box::new(move |executor, runtime| {
+            told(
+                "page_after",
+                runtime.block_on(executor.wait_loaded_after(&frame, Some(&before))),
+            )
+        }));
+        Ok(())
+    }
+
+    #[cfg(feature = "loopback")]
+    fn held(&mut self) -> Vec<HeldRequest> {
+        self.executor.paused()
+    }
+
+    #[cfg(feature = "loopback")]
+    /// Lets the held request leave and sends the page no other command: a read of the page fails while its
+    /// navigation is held.
+    fn let_through(&mut self, id: u64) -> Result<(), ()> {
         let executor = &mut self.executor;
-        self.runtime
-            .block_on(executor.arm_rule(allowed, Mode::Fail))
-            .map_err(drop)
+        told(
+            "let_through",
+            self.runtime.block_on(executor.let_through(id)),
+        )
+    }
+
+    #[cfg(feature = "loopback")]
+    fn released_status(&mut self) -> Option<i64> {
+        self.executor.released_status()
+    }
+
+    #[cfg(feature = "loopback")]
+    fn last_fault(&mut self) -> Option<&'static str> {
+        self.fault
+    }
+
+    /// The names and values of every line of the page's snapshot (the top document and every frame in it), each read
+    /// by `maker::amounts_named`.
+    #[cfg(feature = "loopback")]
+    fn page_amounts(&mut self) -> Result<Vec<u64>, ()> {
+        let wait = self.after_release.take().ok_or(())?;
+        wait(&self.executor, &self.runtime)?;
+        let executor = &mut self.executor;
+        let lines = told("snapshot", self.runtime.block_on(executor.snapshot()))?;
+        Ok(lines
+            .iter()
+            .flat_map(|line| {
+                let mut named = maker::amounts_named(&line.name);
+                named.extend(
+                    line.value
+                        .as_deref()
+                        .map(maker::amounts_named)
+                        .unwrap_or_default(),
+                );
+                named
+            })
+            .collect())
     }
 
     fn carry_out(
@@ -623,17 +775,22 @@ impl Page for Live {
                 hold(executor, post).await?;
                 Ok(read)
             })
-            .map_err(|_: Fault| ())
+            .map_err(|_fault: Fault| {
+                #[cfg(feature = "loopback")]
+                {
+                    self.fault = Some(_fault.0);
+                }
+            })
     }
 
     /// The rule's record; one line on standard error (`failed_line`) for each request in it that the rule failed
-    /// and that no earlier line named.
+    /// (`failed`) and that no earlier line named.
     fn record(&mut self) -> Vec<PausedRequest> {
         let requests = self.executor.requests();
         if requests.len() < self.told {
             self.told = 0;
         }
-        for request in requests[self.told..].iter().filter(|r| !r.let_through) {
+        for request in requests[self.told..].iter().filter(|r| failed(r)) {
             crate::line(&failed_line(request));
         }
         self.told = requests.len();
@@ -773,6 +930,10 @@ impl Runner {
     /// fails and a condition of `post` that does not hold fail the step with `step_failed`. At the step's end a
     /// request of the run's page that the rule failed ends the run `refused` with the cause `origin` (A9.2,
     /// `end_of_step`), the record read again for `REFUSAL_WAIT` after a step that failed or that acted on a control.
+    /// An `extract` that kept a value notes its target and its parse under the value's name, so that the browser's
+    /// maker reads the value again right before its act. A web step of an effect class goes to the browser's
+    /// maker (`Runner::effect_step`, crate::web::maker) in a build with the feature `loopback`, and answers
+    /// `step_failed` before any browser starts in every other build.
     pub(crate) fn web_step(
         &mut self,
         step: &ExecutableStep,
@@ -794,6 +955,12 @@ impl Runner {
             } else {
                 Err(failed())
             };
+        }
+        if of_an_effect_class(loaded.config.category, step) {
+            #[cfg(feature = "loopback")]
+            return self.effect_step(step, loaded);
+            #[cfg(not(feature = "loopback"))]
+            return Err(failed());
         }
         if !acts(loaded.config.category, step) {
             return Err(failed());
@@ -837,7 +1004,10 @@ impl Runner {
                 return Ok(());
             }
         }
-        if let (Some((name, _)), Some(value)) = (as_parsed, end_of_step(done, &record)?) {
+        if let (Some((name, parse)), Some(value)) = (as_parsed, end_of_step(done, &record)?) {
+            if let Act::Extract(target) = act {
+                self.extracts.insert(name.clone(), (target.clone(), parse));
+            }
             self.kept.insert(name, vec![vec![value]]);
         }
         Ok(())
@@ -1187,9 +1357,11 @@ mod tests {
     const HANDBACK: &str = r#"{"v":1,"n":1,"kind":"web","verb":"handback","target":null,"args":[{"name":"reason","from":"const","value":"sign_in","key":null}],"pre":[],"post":[],"effect":"none","class":"credential"}"#;
 
     /// U4.1w part 1 (5), U5.1: a web step acts where halvo-policy classes it `read` or `prepare`; a target with
-    /// `credential` `yes` (of the step or of a condition) and a step with the effect `request` answer `step_failed`
-    /// from the runner before any browser starts, and a step of the verb `handback` is done with no page to read: no
-    /// frame, no browser, where the runner has a data directory and a start would end the run with `browser_start`.
+    /// `credential` `yes` (of the step or of a condition) answers `step_failed` from the runner before any browser
+    /// starts, and a step of the verb `handback` is done with no page to read: no frame, no browser, where the runner
+    /// has a data directory and a start would end the run with `browser_start`. A step with the effect `request` does
+    /// not act either; in this test build, which has the feature `loopback`, it is the browser's maker's
+    /// (crate::web::maker), and in a build without the feature it answers `step_failed` before any browser starts.
     #[test]
     fn only_read_and_prepare_steps_act() {
         let step = |json: &str| ExecutableStep::parse(json.as_bytes()).expect("a step");
@@ -1252,7 +1424,7 @@ mod tests {
             Box::new(|| {}),
         );
         let mut runner = Runner::new(args, link);
-        for json in [CREDENTIAL_FILL, CREDENTIAL_CONDITION, REQUEST] {
+        for json in [CREDENTIAL_FILL, CREDENTIAL_CONDITION] {
             let got = runner.web_step(&step(json), &loaded);
             assert!(
                 matches!(got, Err(Failure::Step(Cause::StepFailed))),

@@ -87,7 +87,10 @@ The seconds of each check as a check of the merge gate, from its `seconds` line:
 | 24-r7-wall | 27 | 12 |
 | 25-r7-backend-licenses | 1 | - |
 | 27-r7-metering-self | 4 | 4 |
+| 72-notices | 4 | - |
 | sum of the lines | 611 | 672 |
+
+The row of 72-notices, which joined the gate of the macos job with the unit package-notices, has its seconds from the run by hand 45028615506 (the input checks), and the sum leaves it out.
 
 12-test took 302 s in the macos job (two builds of 68 s and 65 s, and 123 s for the unit tests of halvo-capture) and 496 s in the windows job (builds of 185 s and 87 s, and 159 s for those unit tests). In its first form, which kept every test target under about 6 s and every unit test of halvo-capture, it took 749 s and 1,029 s in the push run 44893237714, whose jobs took 1,257 s and 1,661 s. What left the merge gate for it: the test targets of 18 packages, 7 more test targets and the unit tests of 6 packages by name, 8 slow groups of the unit tests of halvo-capture, and the doc-tests. A check leaves a job of the merge gate when the job has no room for it: 60-r6-egress and 20-app-links-no-store are in the gate of the macos job alone, and 62-build, 10-egress and 80-r6-absent left the gate of the macos job with the slices, so that the macos job has room under 900 s. Each of them runs in a slice.
 
@@ -155,11 +158,13 @@ Seven slices hold what CI runs outside the merge gate. The workflow `ci` runs on
 |---|---|---|
 | mon | group A of the slow tests (the store); 31-store-full-volume | group A; 24-hook-imports; 20-app-links-no-store; 10-r7-account |
 | tue | group B (the test targets of the agent and coordinator packages, the target formal_traces, the unit tests of five packages) | group B |
-| wed | group E (the one target macos_stall_fixture, which 51-macos-stall reads from the list of 12-test); 51-macos-stall; 30-core-boundary-proofs; 55-r6-formal | 50-windows-functional; 60-r6-egress |
-| thu | 62-build; 32-app-check-page; 38-app-engine-routes; 60-release-dry-run; 10-egress; 20-r6-gateway; 80-r6-absent | 52-windows-browser; 10-egress |
+| wed | group E (the one target macos_stall_fixture, which 51-macos-stall reads from the list of 12-test); 51-macos-stall; 30-core-boundary-proofs; 55-r6-formal; 32-app-check-page; 38-app-engine-routes | 50-windows-functional; 60-r6-egress |
+| thu | 62-build; 60-release-dry-run; 10-egress; 20-r6-gateway; 80-r6-absent | 52-windows-browser; 10-egress |
 | fri | 23 self-tests; group C (eight name parts of the unit tests of halvo-capture, and the doc-tests); the step `Self-tests that commit in throwaway repositories`; the self-test of the lockfile step | 15 self-tests; group C; the step `Scripts and hook in a core.autocrlf=true clone`; the self-test of the lockfile step |
 | sat | 16-shell-lint; group D (the test targets of seven more packages and two targets by name); 10-r7-account | 32-app-check-page; 38-app-engine-routes; 34-app-windows-start; 20-r6-gateway; 80-r6-absent; group D |
 | sun | 62-build; 70-package-macos | 62-build; 70-package-windows |
+
+The slice fri of the macos job also runs the self-test of 72-notices, which the unit package-notices added; the table counts its 23 self-tests from before it.
 
 The measured jobs, from the start of a job to its end, at the commit a67865ec of the branch that brought the slices: the slice mon took 797 s in the macos job and 678 s in the windows job (run 44914747180). The slice tue, when it still held the groups B and D as one, took 926 s and 1,062 s (run 44917046290), 273 s and 445 s of it builds of test executables that the merge gate does not build; that is why the group was cut in two and the week has a seventh slice. A job spends about 180 s outside the step `ci.d slice`. The other five slices ran by hand on main on 2026-11-21, macos job and windows job: wed 474 s and 709 s (run 44926287592, the macos job red: 51-macos-stall found no list of 12-test, which is why the group E now runs before it), thu 641 s and 729 s (44927653778), fri 614 s and 1,008 s (44929074934), sat 531 s and 1,091 s (44930942501, the macos job red at 10-r7-account), sun 602 s and 568 s (44932752458, the windows job red at 60-r6-egress). After those runs 10-egress, 206 s in the windows job of sat, moved to sun. The schedule's slice sun of 2026-11-22 took 1,265 s in the macos job and 1,170 s in the windows job (run 45018181317), over the bound of 1,200 s of a job: so the group C, 367 s there, moved to the macos job of fri, whose windows job runs it too, 10-egress, 174 s there, to the windows job of thu, and 60-r6-egress, 122 s there, to the windows job of wed. Each of the two egress checks builds the program that it runs and reads nothing that 62-build built. The windows job of fri stays over 900 s: its self-tests took 251 s, the group C 434 s, the clone step 89 s and the lockfile step 41 s, and no slice of the windows job has room for the group C.
 

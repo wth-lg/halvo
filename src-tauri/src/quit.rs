@@ -444,12 +444,12 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn run_mark(
             &self,
             _: Made,
@@ -458,7 +458,7 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         fn defer(&self, _: Made, _: i64) -> Result<Option<i64>, ClientError> {
             Err(ClientError::Unsupported)
         }

@@ -116,8 +116,8 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 ///   `reply_senders`, a slot with no reader never; `last_cause`, the cause of the end of the agent's newest started
 ///   run, as `refused_run` finds that run, else null: null until the run's `agent_run` record stands, then the cause
 ///   of the run's `stopped` row with no step, else of its `stopped` row with a step, each whose cause is not in
-///   `GOES_ON_AFTER` (`not_selected`, a step after which the run goes on, and `session_size`, a state over the limit
-///   that the run's end does not store), else null; a name of the closed list of
+///   `GOES_ON_AFTER` (`not_selected` and `amount_unread`, steps after which the run goes on, and `session_size`, a
+///   state over the limit that the run's end does not store), else null; a name of the closed list of
 ///   causes alone, never a text of a page, of a site or of an error. A `stopped` row
 ///   whose stored cause is no name of the list reads with the cause null, so it gives `last_cause` null and does not
 ///   refuse the roster; every other `agent_log` row that the typed reader refuses refuses it with `store`. Each key
@@ -339,11 +339,12 @@ fn newest_start<'a>(starts: &'a [AgentLog], agent: &AgentId) -> Option<&'a Agent
 }
 
 /// The causes of a step's `stopped` row after which the runner goes on with its run: `not_selected`, the row of a
-/// send whose message the reply rule no longer selects, and `session_size`, the row with no step that the runner writes
-/// at its end, before its own end row, for a state over the limit that it does not store (r3 U5.2). `last_cause` of
-/// `list_agents` never reads such a row as the row of a run's end. The list is the runner's knowledge held by name: a
-/// second such cause of the runner reads as the cause of an end until it stands here.
-pub const GOES_ON_AFTER: &[Cause] = &[Cause::NotSelected, Cause::SessionSize];
+/// send whose message the reply rule no longer selects; `session_size`, the row with no step that the runner writes
+/// at its end, before its own end row, for a state over the limit that it does not store (r3 U5.2); and
+/// `amount_unread`, the row of a committed payment or purchase whose page after the reply names no amount (r3 U4.1w-2).
+/// `last_cause` of `list_agents` never reads such a row as the row of a run's end. The list is the runner's knowledge
+/// held by name: a second such cause of the runner reads as the cause of an end until it stands here.
+pub const GOES_ON_AFTER: &[Cause] = &[Cause::NotSelected, Cause::SessionSize, Cause::AmountUnread];
 
 /// The cause of the end of the run of the agent's newest start row, none where that run has not ended or ended with
 /// no cause. The run has ended where its `agent_run` record of the agent stands. The cause of its end is that of the

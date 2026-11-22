@@ -51,7 +51,7 @@ test("the page draws every state fixture: the heading follows service and captur
     assert.equal(p.text("toggle"), toggle, name);
     assert.equal(p.byId("toggle").disabled, !consent && !notRunning && status.desired === null, name);
     const store = status.store;
-    const offer = notRunning || (status.service === "running" && store !== null && store.state !== "deleting" && store.error !== "locked" && !(store.state === "opening" && store.id === null));
+    const offer = notRunning || (status.service === "running" && store !== null && (store.state !== "deleting" || store.delete_unfinished === true) && store.error !== "locked" && !(store.state === "opening" && store.id === null));
     assert.equal(offered(p), offer, name);
     if (status.service !== "running") {
       assert.deepEqual(FOUR.filter((w) => visibleText(p.document.body).includes(w)), [], name);

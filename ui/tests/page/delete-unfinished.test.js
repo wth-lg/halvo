@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const { openPage, fixture, KEPT_AT_MS } = require("../lib/page.js");
 
 const FOLDER = "/scratch/halvo-data";
-const NOT_FINISHED = "The delete did not finish. Press Delete everything again to finish it. If the button cannot be pressed, quit Halvo and open it again: Halvo then tries the delete again.";
+const NOT_FINISHED = "The delete did not finish. Press Delete everything again to finish it.";
 const AGAIN = `The delete did not finish a second time in a row. Something is still left in Halvo's data folder, ${FOLDER}.`;
 
 const notRunning = () => ({ ...fixture("capture_status-not-running"), data_folder: FOLDER });
@@ -90,14 +90,18 @@ test("a second unfinished delete says that something is left", async () => {
   assert.ok(!second.text("delete-result").includes(NOT_FINISHED));
 });
 
-test("behind the running service an unfinished delete stands beside the disabled control", async () => {
-  const page = await openPage({
-    replies: {
-      capture_status: () => fixture("capture_status-store-deleting"),
-      last_delete: () => ({ state: "answered", at_ms: KEPT_AT_MS, answer: leftSomething(1) }),
-    },
+test("behind the running service a delete that did not finish offers Delete everything and its state line says to press it", async () => {
+  const kept = () => ({ state: "answered", at_ms: KEPT_AT_MS, answer: leftSomething(1) });
+  const unfinished = await openPage({
+    replies: { capture_status: () => fixture("capture_status-store-deleting-unfinished"), last_delete: kept },
   });
-  assert.equal(page.byId("delete").disabled, true, "the store reads deleting, so Delete everything cannot be pressed");
-  assert.ok(page.text("delete-result").includes(NOT_FINISHED), "the sentence names the way that is left");
-  assert.ok(!page.text("delete-result").includes(AGAIN));
+  assert.equal(unfinished.byId("delete").disabled, false, "the last delete did not finish, so Delete everything can be pressed again");
+  assert.equal(unfinished.text("store-state"), "The last delete did not finish. Press Delete everything to finish it.");
+  assert.ok(unfinished.text("delete-result").includes(NOT_FINISHED), "the kept answer says to press again");
+  assert.ok(!unfinished.text("delete-result").includes(AGAIN));
+  const deleting = await openPage({
+    replies: { capture_status: () => fixture("capture_status-store-deleting"), last_delete: kept },
+  });
+  assert.equal(deleting.byId("delete").disabled, true, "a delete runs, so Delete everything cannot be pressed");
+  assert.equal(deleting.text("store-state"), "Halvo is deleting everything.");
 });

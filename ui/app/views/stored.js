@@ -37,7 +37,7 @@
       case "opening":
         return [w.STORE_OPENING, ""];
       case "deleting":
-        return [w.STORE_DELETING, ""];
+        return [store.delete_unfinished === true ? w.STORE_DELETE_UNFINISHED : w.STORE_DELETING, ""];
       case "sealed":
         return [store.error === "custody_kind" ? w.STORE_SEALED_CUSTODY : w.STORE_SEALED, ""];
       case "no_release_custody":
