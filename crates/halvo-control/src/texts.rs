@@ -7,11 +7,12 @@ use crate::proto::{
     SourceState, SwitchLine, SwitchName,
 };
 
-/// Typing on a Mac: whether a source that the product builds asks its tap for key events. Off
-/// until the owner answers item I-83 point 2, so a Mac build notes no typing. The capture
-/// crate's macOS input source reads it as its one switch of key events, and [`first_run`] as
-/// its row on typing.
-pub const TYPING_ON_MAC: bool = false;
+/// Typing on a Mac: whether a source that the product builds asks its tap for key events. On
+/// by the owner's word of 2026-11-22 (typing is on in the first build on both systems: never
+/// which key, and nothing at a password field), so a Mac build notes what kind of key is
+/// pressed while the switch key_class is on. The capture crate's macOS input source reads it as
+/// its one switch of key events, and [`first_run`] as its row on typing.
+pub const TYPING_ON_MAC: bool = true;
 
 /// The row on typing where no typing is recorded: on a Mac whose build takes no typing
 /// ([`TYPING_ON_MAC`]) in the first-run text, and on Windows while the keyboard source line

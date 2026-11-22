@@ -7940,24 +7940,38 @@ mod tests {
     }
 
     #[test]
-    fn typing_on_a_mac_stays_off_until_the_owner_answers_item_i_83_point_2() {
-        let (_fg_writer, reader) = foreground_state_for_test();
-        let source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
-        let key_types: Vec<u32> = source
-            .start_events()
-            .into_iter()
-            .filter(|&etype| {
-                matches!(
-                    tap_class(etype),
-                    Some(TapClass::KeyPress | TapClass::OtherKey)
-                )
-            })
-            .map(|etype| etype as u32)
+    fn a_source_of_new_asks_its_tap_for_the_key_types_while_key_class_is_on_and_for_none_while_it_is_off(
+    ) {
+        let is_key = |etype: CGEventType| {
+            matches!(
+                tap_class(etype),
+                Some(TapClass::KeyPress | TapClass::OtherKey)
+            )
+        };
+        let key_types = |key_class: bool| -> Vec<u32> {
+            source_switched(switches_with(key_class, true))
+                .start_events()
+                .into_iter()
+                .filter(|&etype| is_key(etype))
+                .map(|etype| etype as u32)
+                .collect()
+        };
+        let every_key_type: Vec<u32> = TAP_EVENTS
+            .iter()
+            .filter(|&&(etype, _)| is_key(etype))
+            .map(|&(etype, _)| etype as u32)
             .collect();
-        assert!(
-            key_types.is_empty(),
-            "typing on a Mac is switched on only by the owner's answer (1) to item I-83 \
-             point 2; a source of InputSource::new asks its tap for the key types {key_types:?}"
+        assert!(!every_key_type.is_empty());
+        assert_eq!(
+            key_types(true),
+            every_key_type,
+            "typing on a Mac is on by the owner's word of 2026-11-22: with key_class on a source \
+             of InputSource::new asks its tap for every key type"
+        );
+        assert_eq!(
+            key_types(false),
+            Vec::<u32>::new(),
+            "with key_class off a source of InputSource::new asks its tap for no key type"
         );
     }
 
@@ -8527,7 +8541,7 @@ mod tests {
     }
 
     #[test]
-    fn a_source_of_new_with_the_default_switches_starts_without_the_grant_for_key_events_and_asks_no_key_type(
+    fn a_source_of_new_with_the_default_switches_refuses_with_the_permission_error_and_makes_no_tap_where_listen_access_is_denied(
     ) {
         let (handle, _writer) = sink::channel(4);
         let asked = Arc::new(Mutex::new(Vec::new()));
@@ -8536,14 +8550,24 @@ mod tests {
         let begun = source.begin_with(handle, AskedMaker(asked.clone()), || {});
         assert_eq!(
             begun,
-            Ok(Started::Running),
-            "a Mac build asks no grant for key events"
+            Err(CaptureError::PermissionDenied(Modality::Keystroke)),
+            "a Mac build with typing on asks the grant for key events"
         );
-        let asked = mask_of(&asked.lock().unwrap_or_else(PoisonError::into_inner));
-        assert_eq!(
-            asked, 0x0E40_00FE,
-            "the tap is asked for every pointer type and no key type"
+        assert!(
+            asked
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .is_empty(),
+            "no tap was asked for"
         );
+        assert!(source.tap.is_none(), "no tap thread");
+        assert!(matches!(
+            source.health().state,
+            SourceState::Failed {
+                reason: HealthReason::Permission,
+                ..
+            }
+        ));
         assert!(!source.counters.figures().keys_withheld);
         assert_eq!(source.shutdown(), Ok(()));
     }
