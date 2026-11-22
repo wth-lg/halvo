@@ -1,0 +1,1 @@
+- Added: halvo-runner answers `--version` with its version; check 62 builds it as a shipped program and refuses a shipped file built with the loopback route of halvo-connect, and check 21 fails when the runner's tree on a shipped target holds a store crate or a network client beyond the trees of halvo-connect and halvo-web.

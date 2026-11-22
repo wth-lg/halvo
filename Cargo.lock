@@ -1580,13 +1580,17 @@ dependencies = [
  "halvo-agent-client",
  "halvo-agent-store",
  "halvo-checkpoint",
+ "halvo-control",
  "halvo-derived",
  "halvo-owner",
  "halvo-policy",
  "halvo-schema",
+ "halvo-seam",
  "halvo-sheet",
  "halvo-test-dir",
+ "libc",
  "serde_json",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

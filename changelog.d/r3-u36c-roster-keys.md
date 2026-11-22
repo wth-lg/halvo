@@ -1,0 +1,1 @@
+- Added: Each entry of the agents roster (`list_agents`) holds `refused_run`, the newest started run whose sign-in the site refused, `reply_unknown`, whether the run of `last` left a reply unknown, and `refused_slots`, the names of the stored slots that their reader refuses.

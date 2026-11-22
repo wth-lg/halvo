@@ -19,6 +19,7 @@
   },
   "last_exit": null,
   "lease": "none",
+  "login_item_loaded": null,
   "loss": {
     "events_lost": 0,
     "events_pending": 0,
@@ -54,7 +55,7 @@
     },
     {
       "error": null,
-      "name": "input",
+      "name": "pointer",
       "reason": null,
       "state": "stopped"
     },
@@ -84,15 +85,11 @@
     "backup_limit": null,
     "custody": "This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.",
     "limits": "A copy of Halvo's data made earlier, such as a backup, keeps what it held: expiry does not reach it, and after a delete-all a copy of the whole data folder can still be read.",
-    "passwords": "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.",
+    "passwords": "",
     "recorded": [
       {
         "switch": "title_text",
         "text": "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private."
-      },
-      {
-        "switch": "key_class",
-        "text": "Halvo records a class for each key you press, never the character."
       },
       {
         "switch": "pointer_class",
@@ -103,8 +100,7 @@
         "text": "Screen activity is not recorded."
       }
     ],
-    "storage": "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that.",
-    "typed_ahead": "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password."
+    "storage": "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
   },
   "window": {
     "first_report_day": 7,

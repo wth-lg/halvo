@@ -1,0 +1,1 @@
+- Added: `agent-gate task fill` takes `--link product --workflow ID [--data-dir DIR]` and plays the task through the product's owner on an owner stream of its own, with no gate host; its line holds `store=owner`.

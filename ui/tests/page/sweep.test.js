@@ -42,6 +42,7 @@ const NOT_READ = {
   last_stop_sources: NOT_DRAWN,
   last_exit: "the status of the child's last exit, which app-3 fills",
   hold: "read only while the app holds capture off after an end with 5; held-after-stop.test.js holds it",
+  login_item_loaded: "read only where launchd does not hold the login item while its plist stands; states.test.js holds it",
   ext: "the sections of a later run, which app-3 draws",
   first_report_day: "R1 ships no report",
   lease: NOT_DRAWN,

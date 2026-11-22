@@ -12,7 +12,7 @@ use halvo_coord::words;
 use halvo_coord_app::{Agents, Core, Reply};
 use serde_json::Value;
 use tauri::ipc::Invoke;
-use tauri::{Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 
 use super::control::Control;
 use super::names::{Names, AGENTS};
@@ -47,32 +47,36 @@ pub type Start = Box<dyn FnOnce() + Send>;
 
 /// The one place where the app makes its `Core`, and the steps of its start. On a Mac with a data
 /// directory it is the hub over the product's ports (`halvo_coord_app::product`), whose count of
-/// agents that need the person goes to `tray`: its owner streams, relay and run marks go through
-/// `control`, its runs live under the data directory, and its start's steps are
-/// `halvo_coord_app::product::start`. Elsewhere, and on Windows until the capture run's win-5 cut
-/// 2, it is `NoService`, and nothing calls `tray`.
-pub fn core(
+/// agents that need the person goes to `tray` and whose confirmations that only a native dialog
+/// answers are shown in the system's dialog of `app` (`halvo_coord_app::System`): its owner
+/// streams, relay and run marks go through `control`, its runs live under the data directory,
+/// and its start's steps are `halvo_coord_app::product::start`. Elsewhere, and on Windows until
+/// the capture run's win-5 cut 2, it is `NoService`, and nothing calls `tray`.
+pub fn core<R: Runtime>(
+    app: &AppHandle<R>,
     tray: Box<dyn Fn(u32) + Send + Sync>,
     control: &Arc<dyn Control>,
     data_dir: Option<&DataDir>,
 ) -> (Agents, Start) {
     #[cfg(target_os = "macos")]
     if let Some(dir) = data_dir {
-        let hub = product_hub(tray, control, dir);
+        let hub = product_hub(app, tray, control, dir);
         let started = Arc::clone(&hub);
         return (
             Agents(hub),
             Box::new(move || halvo_coord_app::product::start(&started)),
         );
     }
-    let _ = (tray, control, data_dir);
+    let _ = (app, tray, control, data_dir);
     (Agents(Arc::new(NoService)), Box::new(|| {}))
 }
 
-/// The hub over the product's ports: the runner and the browser stand beside the app's own
-/// executable, absolute, as the supervisor library takes them.
+/// The hub over the product's ports, whose native confirmations are shown in the system's dialog
+/// of `app`: the runner and the browser stand beside the app's own executable, absolute, as the
+/// supervisor library takes them.
 #[cfg(target_os = "macos")]
-fn product_hub(
+fn product_hub<R: Runtime>(
+    app: &AppHandle<R>,
     tray: Box<dyn Fn(u32) + Send + Sync>,
     control: &Arc<dyn Control>,
     dir: &DataDir,
@@ -88,7 +92,8 @@ fn product_hub(
         browser: beside.join("halvo-browser"),
         model: None,
     };
-    let (streams, relayed, marked) = (
+    let (streams, relayed, marked, deferred) = (
+        Arc::clone(control),
         Arc::clone(control),
         Arc::clone(control),
         Arc::clone(control),
@@ -97,19 +102,10 @@ fn product_hub(
         owner_stream: Arc::new(move || streams.owner_stream(streams.places().make())),
         relay: Arc::new(move |request: &[u8]| relayed.relay(relayed.places().make(), request)),
         mark: Arc::new(move |edge| marked.run_mark(marked.places().make(), edge)),
+        defer: Arc::new(move |until| deferred.defer(deferred.places().make(), until)),
     };
-    halvo_coord_app::product::hub(calls, places, tray, Box::new(NoDialog))
-}
-
-/// The presenter of the product's hub, which shows no native dialog: a confirmation reaches the
-/// person in the page alone, and one that only a native dialog answers (I4.5) lapses at its wait
-/// limit with its effects rejected (a named limit of U5.4a).
-#[cfg(target_os = "macos")]
-struct NoDialog;
-
-#[cfg(target_os = "macos")]
-impl halvo_coord_app::Present for NoDialog {
-    fn present(&self, _dialog: halvo_coord_app::Native) {}
+    let dialog = Arc::new(halvo_coord_app::System::new(app.clone()));
+    halvo_coord_app::product::hub(calls, places, tray, dialog)
 }
 
 /// The `Core` of the app until U5.4: `agents_snapshot` answers the stand-in state (`seq` 0,

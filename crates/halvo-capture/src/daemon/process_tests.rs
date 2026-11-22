@@ -9,6 +9,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use halvo_control::instance_lock::{self, LockRead};
 use halvo_control::model::{StorageCap, UtcDay};
+use halvo_control::onboarding::{GrantState, Permission};
 use halvo_control::paths::DataDir;
 
 use super::custody_policy::{select, Custody, System};
@@ -19,6 +20,7 @@ use super::maintenance::{Clocks, Upkeep, MAINTENANCE_INTERVAL, SHRED_CHUNK};
 use super::model_store::{foreground, noon, open_floor, ManualClocks, APP, AT_NOON};
 use super::owner::open::{try_open, CreateRule, Held};
 use super::owner::{Answer, Owner, OwnerHandle, OwnerParts};
+use super::permissions::{ProbeRunner, Probed, RequestStarter};
 use super::port::{
     Access, ByteBound, CaptureStore, DataDirStore, EntryKind, KindEntry, MaintFault, MaintainStore,
     Opened, Pass, SegmentId, SegmentWrite, StoreHost, Usage, WriteFault, Written,
@@ -1865,5 +1867,704 @@ fn a_pause_in_an_ending_life_is_answered_and_the_next_start_reads_paused() {
         state.state().desired,
         super::state::Desired::Paused,
         "the state file as the next start reads it"
+    );
+}
+
+#[derive(Clone, Default)]
+struct StandInProbe {
+    answers: Arc<Mutex<std::collections::VecDeque<Probed>>>,
+    asked: Arc<Mutex<Vec<Vec<Permission>>>>,
+}
+
+impl ProbeRunner for StandInProbe {
+    fn start(&mut self, permissions: &[Permission]) {
+        self.asked.lock().unwrap().push(permissions.to_vec());
+    }
+
+    fn poll(&mut self) -> Probed {
+        self.answers
+            .lock()
+            .unwrap()
+            .pop_front()
+            .unwrap_or(Probed::Running)
+    }
+}
+
+impl StandInProbe {
+    fn answer(&self, permission: Permission, grant: GrantState) {
+        self.answers
+            .lock()
+            .unwrap()
+            .push_back(Probed::Answered(vec![(permission, grant)]));
+    }
+
+    fn asked(&self) -> Vec<Vec<Permission>> {
+        self.asked.lock().unwrap().clone()
+    }
+}
+
+struct JumpLoop {
+    started: Instant,
+    jump: Arc<Mutex<Duration>>,
+}
+
+impl MainLoop for JumpLoop {
+    fn turn(&mut self, wait: Duration) {
+        std::thread::sleep(wait);
+    }
+
+    fn now(&self) -> Duration {
+        self.started.elapsed() + *self.jump.lock().unwrap()
+    }
+}
+
+struct StopOnPanic(Arc<AtomicBool>);
+
+impl Drop for StopOnPanic {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+}
+
+type Start = (String, Vec<String>, Duration);
+
+#[derive(Clone, Default)]
+struct StandInStarter {
+    starts: Arc<Mutex<Vec<Start>>>,
+    runs: Arc<AtomicBool>,
+}
+
+impl RequestStarter for StandInStarter {
+    fn start(&mut self, program: &str, args: &[&str], deadline: Duration) -> io::Result<()> {
+        self.starts.lock().unwrap().push((
+            program.to_owned(),
+            args.iter().map(|arg| (*arg).to_owned()).collect(),
+            deadline,
+        ));
+        self.runs.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+
+    fn running(&mut self) -> bool {
+        self.runs.load(Ordering::SeqCst)
+    }
+}
+
+impl StandInStarter {
+    fn starts(&self) -> Vec<Start> {
+        self.starts.lock().unwrap().clone()
+    }
+}
+
+struct Probing {
+    probe: StandInProbe,
+    starter: StandInStarter,
+    jump: Arc<Mutex<Duration>>,
+    stop: Arc<AtomicBool>,
+}
+
+impl Probing {
+    fn new() -> Probing {
+        let stop = Arc::new(AtomicBool::new(false));
+        let late = stop.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(180));
+            late.store(true, Ordering::SeqCst);
+        });
+        Probing {
+            probe: StandInProbe::default(),
+            starter: StandInStarter::default(),
+            jump: Arc::default(),
+            stop,
+        }
+    }
+
+    fn serve(&self, dir: &Path, factory: super::sources::tests::Factory) -> (i32, String) {
+        let parts = super::ServiceParts {
+            lease: super::lease::Lease::never_lapsing(),
+            probe: Some(Box::new(self.probe.clone())),
+            requests: Some(Box::new(self.starter.clone())),
+            typing: true,
+            ..super::ServiceParts::of(factory)
+        };
+        let mut err = Vec::new();
+        let status = super::serve_on(
+            &data_dir(dir),
+            Box::new(TestWrite::default()),
+            JumpLoop {
+                started: Instant::now(),
+                jump: self.jump.clone(),
+            },
+            &self.stop,
+            Arc::new(Recorded),
+            &mut err,
+            parts,
+        );
+        (status, String::from_utf8(err).unwrap())
+    }
+}
+
+fn status_until(
+    dir: &Path,
+    what: &str,
+    done: impl Fn(&halvo_control::proto::DaemonStatus) -> bool,
+) -> halvo_control::proto::DaemonStatus {
+    asked_status_until(dir, false, what, done)
+}
+
+fn asked_status_until(
+    dir: &Path,
+    indicator: bool,
+    what: &str,
+    done: impl Fn(&halvo_control::proto::DaemonStatus) -> bool,
+) -> halvo_control::proto::DaemonStatus {
+    use halvo_control::proto::{Reply, Request};
+    let started = Instant::now();
+    loop {
+        if let Ok(Reply::Status(status)) = ask(dir, &Request::Status { indicator }) {
+            if done(&status) {
+                return status;
+            }
+        }
+        assert!(
+            started.elapsed() < READY_WITHIN,
+            "{what} within {READY_WITHIN:?}"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+fn grant_row(
+    status: &halvo_control::proto::DaemonStatus,
+    permission: Permission,
+) -> halvo_control::proto::PermissionLine {
+    *status
+        .fields()
+        .permissions
+        .iter()
+        .find(|line| line.name == permission)
+        .unwrap()
+}
+
+fn source_row(
+    status: &halvo_control::proto::DaemonStatus,
+    name: super::SourceName,
+) -> halvo_control::proto::SourceState {
+    status
+        .fields()
+        .sources
+        .iter()
+        .find(|line| line.name == name)
+        .unwrap()
+        .state
+        .clone()
+}
+
+fn once_granted_in(dir: &Path) -> Vec<Permission> {
+    StateFile::open(StateDir::open(dir).unwrap(), Box::new(TestWrite::default()))
+        .state()
+        .permissions_once_granted
+        .clone()
+}
+
+#[test]
+fn a_service_run_reads_the_grants_from_its_probe_and_ends_with_4_at_a_new_grant() {
+    use halvo_control::proto::{Reason, SourceState as Line};
+    let (dir, _) = running_dir(false);
+    let first = Probing::new();
+    let factory = super::sources::tests::Factory::new();
+    let calls = factory.calls.clone();
+    let reading = {
+        let (dir, probe, jump, stop) = (
+            dir.clone(),
+            first.probe.clone(),
+            first.jump.clone(),
+            first.stop.clone(),
+        );
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop);
+            wait_until(READY_WITHIN, "the foreground source began", || {
+                !calls.of("begin foreground").is_empty()
+            });
+            wait_until(READY_WITHIN, "the probe was started", || {
+                !probe.asked().is_empty()
+            });
+            let begun_before_the_answer = calls.of("begin");
+            probe.answer(Permission::InputMonitoring, GrantState::NotGranted);
+            let read = status_until(&dir, "the status reads the probe's answer", |status| {
+                grant_row(status, Permission::InputMonitoring).grant == GrantState::NotGranted
+                    && matches!(
+                        source_row(status, super::SourceName::Input),
+                        Line::Failed {
+                            reason: Reason::Permission,
+                            ..
+                        }
+                    )
+            });
+            probe.answer(Permission::InputMonitoring, GrantState::Granted);
+            *jump.lock().unwrap() += super::supervisor::PROBE_INTERVAL + Duration::from_secs(1);
+            (begun_before_the_answer, read)
+        })
+    };
+    let (status, err) = first.serve(&dir, factory);
+    let (begun_before_the_answer, read) = reading.join().unwrap();
+    assert!(
+        begun_before_the_answer.contains(&"begin foreground".to_owned())
+            && !begun_before_the_answer.contains(&"begin input".to_owned()),
+        "the sources begun before the probe's first answer: {begun_before_the_answer:?}"
+    );
+    assert_eq!(
+        grant_row(&read, Permission::InputMonitoring).at_start,
+        GrantState::NotGranted
+    );
+    let asked = first.probe.asked();
+    assert!(
+        asked.len() >= 2
+            && asked
+                .iter()
+                .all(|named| named == &[Permission::InputMonitoring]),
+        "what the probe was asked: {asked:?}"
+    );
+    assert_eq!(
+        status,
+        halvo_control::exit::RESTART,
+        "the life at a new grant: {err}"
+    );
+    assert!(
+        once_granted_in(&dir).is_empty(),
+        "the life that ended at the new grant left the state file as it is"
+    );
+
+    let second = Probing::new();
+    second
+        .probe
+        .answer(Permission::InputMonitoring, GrantState::Granted);
+    let factory = super::sources::tests::Factory::new();
+    let calls = factory.calls.clone();
+    let watching = {
+        let (dir, stop) = (dir.clone(), second.stop.clone());
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            wait_until(READY_WITHIN, "the input source began", || {
+                calls.of("begin input").len() == 1
+            });
+            wait_until(READY_WITHIN, "the state file holds the grant", || {
+                once_granted_in(&dir) == [Permission::InputMonitoring]
+            });
+            stop.store(true, Ordering::SeqCst);
+        })
+    };
+    let (status, err) = second.serve(&dir, factory);
+    watching.join().unwrap();
+    assert_eq!(status, halvo_control::exit::CLEAN, "the second life: {err}");
+    assert_eq!(once_granted_in(&dir), [Permission::InputMonitoring]);
+
+    assert_eq!(
+        (
+            super::system_parts(super::NoSources)
+                .probe
+                .as_deref()
+                .and_then(|probe| probe.program().map(str::to_owned)),
+            super::seam::scripted_parts().probe.is_none(),
+        ),
+        (Some("halvo-capture".to_owned()), true),
+        "the probe of the service's own parts, and none in the seam's"
+    );
+}
+
+fn lost_row(status: &halvo_control::proto::DaemonStatus, permission: Permission) -> bool {
+    status
+        .fields()
+        .onboarding
+        .permissions
+        .iter()
+        .find(|row| row.permission == permission)
+        .unwrap()
+        .lost
+}
+
+fn state_bytes(dir: &Path) -> Vec<u8> {
+    std::fs::read(dir.join(halvo_control::paths::STATE_FILE)).unwrap()
+}
+
+fn corrupt_dir() -> PathBuf {
+    let dir = kept_dir("permission-tests-").join("data");
+    std::fs::create_dir(&dir).unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    std::fs::write(dir.join(halvo_control::paths::STATE_FILE), b"{\"v\":").unwrap();
+    dir
+}
+
+#[test]
+fn an_acknowledged_lost_grant_leaves_the_record_and_its_row_reads_lost_no_more() {
+    use halvo_control::proto::{ErrorCode, Reply, Request};
+    let (dir, _) = running_dir(false);
+    StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    )
+    .update(|state| state.permissions_once_granted = vec![Permission::InputMonitoring])
+    .unwrap();
+    let life = Probing::new();
+    let asking = {
+        let (dir, probe, jump, stop) = (
+            dir.clone(),
+            life.probe.clone(),
+            life.jump.clone(),
+            life.stop.clone(),
+        );
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            let not_lost = |status: &halvo_control::proto::DaemonStatus| {
+                !lost_row(status, Permission::InputMonitoring)
+                    && status.fields().onboarding.lost_grants.is_empty()
+                    && grant_row(status, Permission::InputMonitoring).once_granted
+            };
+            status_until(&dir, "the store is open", |status| {
+                status.fields().store == halvo_control::proto::StoreState::Open
+            });
+            wait_until(READY_WITHIN, "the probe was started", || {
+                !probe.asked().is_empty()
+            });
+            let unanswered = status_until(&dir, "a status before the first answer", |_| true);
+            assert!(
+                not_lost(&unanswered),
+                "before the first answer: {unanswered:?}"
+            );
+            probe.answers.lock().unwrap().push_back(Probed::Failed);
+            wait_until(READY_WITHIN, "the failed probe was read", || {
+                probe.answers.lock().unwrap().is_empty()
+            });
+            let failed = status_until(&dir, "a status after a failed probe", |_| true);
+            assert!(not_lost(&failed), "after a failed probe: {failed:?}");
+            probe.answer(Permission::InputMonitoring, GrantState::NotGranted);
+            *jump.lock().unwrap() +=
+                super::supervisor::PROBE_INTERVAL_MISSING + Duration::from_secs(1);
+            let lost = status_until(&dir, "the row reads lost", |status| {
+                grant_row(status, Permission::InputMonitoring).grant == GrantState::NotGranted
+            });
+            let acknowledged = ask(
+                &dir,
+                &Request::AcknowledgeLostPermission {
+                    permission: Permission::InputMonitoring,
+                },
+            );
+            let record = once_granted_in(&dir);
+            let before = state_bytes(&dir);
+            let not_held = ask(
+                &dir,
+                &Request::AcknowledgeLostPermission {
+                    permission: Permission::ScreenAndSystemAudioRecording,
+                },
+            );
+            let after = state_bytes(&dir);
+            stop.store(true, Ordering::SeqCst);
+            (lost, acknowledged, record, not_held, before == after)
+        })
+    };
+    let (status, err) = life.serve(&dir, super::sources::tests::Factory::new());
+    let (lost, acknowledged, record, not_held, unchanged) = asking.join().unwrap();
+    assert!(lost_row(&lost, Permission::InputMonitoring), "{lost:?}");
+    match &acknowledged {
+        Ok(Reply::Status(status)) => assert!(
+            !lost_row(status, Permission::InputMonitoring),
+            "the reply's row: {status:?}"
+        ),
+        other => panic!("the acknowledge: {other:?}"),
+    }
+    assert!(record.is_empty(), "the record after it: {record:?}");
+    assert!(matches!(not_held, Ok(Reply::Status(_))), "{not_held:?}");
+    assert!(
+        unchanged,
+        "an acknowledge of a permission that the record does not hold wrote the file"
+    );
+    assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+
+    let corrupt = corrupt_dir();
+    let life = Probing::new();
+    let asking = {
+        let (dir, stop) = (corrupt.clone(), life.stop.clone());
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            status_until(&dir, "the status of a life on a corrupt file", |_| true);
+            let acknowledged = ask(
+                &dir,
+                &Request::AcknowledgeLostPermission {
+                    permission: Permission::InputMonitoring,
+                },
+            );
+            stop.store(true, Ordering::SeqCst);
+            acknowledged
+        })
+    };
+    let (status, err) = life.serve(&corrupt, super::sources::tests::Factory::new());
+    let acknowledged = asking.join().unwrap();
+    assert_eq!(
+        acknowledged.as_ref().ok().and_then(Reply::code),
+        Some(ErrorCode::StateFile),
+        "{acknowledged:?}"
+    );
+    assert_eq!(
+        state_bytes(&corrupt),
+        b"{\"v\":",
+        "the file that does not load"
+    );
+    assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+}
+
+fn asked_in(dir: &Path) -> Vec<Permission> {
+    StateFile::open(StateDir::open(dir).unwrap(), Box::new(TestWrite::default()))
+        .state()
+        .permissions_asked
+        .clone()
+}
+
+#[test]
+fn an_ask_records_the_permission_starts_one_request_child_and_answers_requested() {
+    use halvo_control::onboarding::RequestOutcome;
+    use halvo_control::proto::{ErrorCode, PermissionRequested, Reply, Request};
+    fn outcome_of(
+        reply: &Result<Reply, halvo_control::client::ClientError>,
+    ) -> Option<RequestOutcome> {
+        match reply {
+            Ok(Reply::PermissionRequested(PermissionRequested { outcome })) => Some(*outcome),
+            _ => None,
+        }
+    }
+    let request = |permission| Request::RequestPermission { permission };
+    let (dir, _) = running_dir(false);
+    let life = Probing::new();
+    let asking = {
+        let (dir, probe, starter, stop) = (
+            dir.clone(),
+            life.probe.clone(),
+            life.starter.clone(),
+            life.stop.clone(),
+        );
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            status_until(&dir, "the store is open", |status| {
+                status.fields().store == halvo_control::proto::StoreState::Open
+            });
+            wait_until(READY_WITHIN, "the probe was started", || {
+                !probe.asked().is_empty()
+            });
+            let first = ask(&dir, &request(Permission::Accessibility));
+            assert_eq!(
+                outcome_of(&first),
+                Some(RequestOutcome::Requested),
+                "{first:?}"
+            );
+            let one_start = (
+                super::permissions::PROGRAM.to_owned(),
+                vec![
+                    "--request-permission".to_owned(),
+                    "accessibility".to_owned(),
+                ],
+                Duration::from_secs(60),
+            );
+            assert_eq!(starter.starts(), std::slice::from_ref(&one_start));
+            assert_eq!(asked_in(&dir), [Permission::Accessibility]);
+            let next = status_until(&dir, "a status after the ask", |_| true);
+            assert!(
+                grant_row(&next, Permission::Accessibility).asked,
+                "{next:?}"
+            );
+
+            let again = ask(&dir, &request(Permission::Accessibility));
+            assert_eq!(
+                outcome_of(&again),
+                Some(RequestOutcome::Requested),
+                "{again:?}"
+            );
+            let other = ask(&dir, &request(Permission::ScreenAndSystemAudioRecording));
+            assert_eq!(
+                other.as_ref().ok().and_then(Reply::code),
+                Some(ErrorCode::Busy),
+                "{other:?}"
+            );
+            assert_eq!(starter.starts(), [one_start], "a start while one runs");
+            assert_eq!(asked_in(&dir), [Permission::Accessibility]);
+
+            probe.answer(Permission::InputMonitoring, GrantState::Granted);
+            status_until(&dir, "the row reads granted", |status| {
+                grant_row(status, Permission::InputMonitoring).grant == GrantState::Granted
+            });
+            let before = state_bytes(&dir);
+            let granted = ask(&dir, &request(Permission::InputMonitoring));
+            assert_eq!(
+                outcome_of(&granted),
+                Some(RequestOutcome::AlreadyGranted),
+                "{granted:?}"
+            );
+            assert_eq!(
+                state_bytes(&dir),
+                before,
+                "an ask of a granted permission wrote"
+            );
+            assert_eq!(
+                starter.starts().len(),
+                1,
+                "a start for a granted permission"
+            );
+
+            let other_form = ask(
+                &dir,
+                &Request::PermissionAsked {
+                    permission: Permission::InputMonitoring,
+                },
+            );
+            assert_eq!(
+                other_form.as_ref().ok().and_then(Reply::code),
+                Some(ErrorCode::UnsupportedOp),
+                "{other_form:?}"
+            );
+            stop.store(true, Ordering::SeqCst);
+        })
+    };
+    let (status, err) = life.serve(&dir, super::sources::tests::Factory::new());
+    asking.join().unwrap();
+    assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+
+    let corrupt = corrupt_dir();
+    let life = Probing::new();
+    let asking = {
+        let (dir, stop) = (corrupt.clone(), life.stop.clone());
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            status_until(&dir, "the status of a life on a corrupt file", |_| true);
+            let refused = ask(&dir, &request(Permission::Accessibility));
+            stop.store(true, Ordering::SeqCst);
+            refused
+        })
+    };
+    let (status, err) = life.serve(&corrupt, super::sources::tests::Factory::new());
+    let refused = asking.join().unwrap();
+    assert_eq!(
+        refused.as_ref().ok().and_then(Reply::code),
+        Some(ErrorCode::StateFile),
+        "{refused:?}"
+    );
+    assert!(
+        life.starter.starts().is_empty(),
+        "a start on a corrupt file"
+    );
+    assert_eq!(state_bytes(&corrupt), b"{\"v\":");
+    assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+}
+
+#[test]
+fn a_paused_service_reads_the_grants_of_its_switches_and_ends_with_4_at_a_new_grant() {
+    use halvo_control::proto::{Capture, Request};
+    let screen = Permission::ScreenAndSystemAudioRecording;
+    let input = Permission::InputMonitoring;
+    let both =
+        move |on_screen, on_input| Probed::Answered(vec![(screen, on_screen), (input, on_input)]);
+    let (dir, _) = running_dir(true);
+    StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    )
+    .update(|state| state.desired = super::state::Desired::Paused)
+    .unwrap();
+    let life = Probing::new();
+    let queue = life.probe.answers.clone();
+    queue
+        .lock()
+        .unwrap()
+        .push_back(both(GrantState::NotGranted, GrantState::NotGranted));
+    let asking = {
+        let (dir, probe, jump, stop) = (
+            dir.clone(),
+            life.probe.clone(),
+            life.jump.clone(),
+            life.stop.clone(),
+        );
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop);
+            let jump_by = |by: Duration| *jump.lock().unwrap() += by;
+            let page = || ask(&dir, &Request::Status { indicator: false });
+            let a_few_ticks = || std::thread::sleep(Duration::from_millis(400));
+            asked_status_until(&dir, true, "the rows read the first answer", |status| {
+                status.fields().capture == Capture::Paused
+                    && grant_row(status, screen).grant == GrantState::NotGranted
+                    && grant_row(status, input).grant == GrantState::NotGranted
+            });
+            let first = probe.asked();
+            assert!(
+                first.len() == 1
+                    && first[0].len() == 2
+                    && first[0].contains(&screen)
+                    && first[0].contains(&input),
+                "what a paused service asks first: {first:?}"
+            );
+
+            jump_by(Duration::from_secs(4));
+            a_few_ticks();
+            let _ = asked_status_until(&dir, true, "a claim", |_| true);
+            a_few_ticks();
+            assert_eq!(
+                probe.asked().len(),
+                1,
+                "a probe within 60 s with claims alone"
+            );
+
+            queue
+                .lock()
+                .unwrap()
+                .push_back(both(GrantState::NotGranted, GrantState::NotGranted));
+            let _ = page();
+            jump_by(Duration::from_secs(4));
+            wait_until(READY_WITHIN, "a probe 3 s after the page's Status", || {
+                probe.asked().len() == 2
+            });
+            wait_until(READY_WITHIN, "the second answer was read", || {
+                queue.lock().unwrap().is_empty()
+            });
+
+            jump_by(super::supervisor::CLIENT_POLL_WINDOW + Duration::from_secs(1));
+            a_few_ticks();
+            let _ = asked_status_until(&dir, true, "a claim", |_| true);
+            a_few_ticks();
+            assert_eq!(
+                probe.asked().len(),
+                2,
+                "a probe within 60 s once the window had passed"
+            );
+
+            queue
+                .lock()
+                .unwrap()
+                .push_back(both(GrantState::Granted, GrantState::NotGranted));
+            let _ = page();
+            jump_by(Duration::from_secs(4));
+            probe.asked()
+        })
+    };
+    let (status, err) = life.serve(&dir, super::sources::tests::Factory::new());
+    let asked = asking.join().unwrap();
+    assert!(
+        asked
+            .iter()
+            .all(|named| !named.contains(&Permission::Accessibility)),
+        "{asked:?}"
+    );
+    assert_eq!(status, halvo_control::exit::RESTART, "{err}");
+    let state = StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    );
+    assert_eq!(
+        (
+            state.state().desired,
+            state.state().permissions_once_granted.clone()
+        ),
+        (super::state::Desired::Paused, Vec::new()),
+        "the life that ended at the new grant left the state file as it is"
     );
 }
