@@ -6,13 +6,14 @@ use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::Cancel;
 use halvo_schema::executable::names::{Autonomy, FieldName, HandbackReason, LogEvent};
 use halvo_schema::executable::{
-    ActionClass, Cause, EffectState, ExecutableStep, FromRunner, Outcome, ToRunner,
+    ActionClass, AgentLog, Cause, EffectState, ExecutableStep, FromRunner, Outcome, RunnerCall,
+    ToRunner,
 };
 use halvo_schema::Category;
 
 use support::{
     is_effect, is_op, now_nanos, offset_of_another_day, offset_of_another_day_at, range_texts,
-    store_error, Act, FillFiles, Supervisor, LONG,
+    store_error, Act, FillFiles, Seen, Supervisor, LONG,
 };
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
@@ -787,6 +788,168 @@ fn a_finish_that_the_store_refuses_still_ends_with_done_and_the_status_1() {
     assert_eq!(seen.done(), Some(Outcome::Completed));
     assert_eq!(seen.code(), Some(1), "the run's record was not stored");
     assert!(seen.stderr.contains("finish=no"), "{}", seen.stderr);
+}
+
+/// The run's end row that a body carries: the `stopped` line of a `log` body.
+fn end_row(call: &RunnerCall) -> Option<AgentLog> {
+    match call {
+        RunnerCall::Log(b) => b
+            .records
+            .iter()
+            .find(|r| r.event == LogEvent::Stopped)
+            .cloned(),
+        _ => None,
+    }
+}
+
+fn is_end_row(frame: &FromRunner) -> bool {
+    matches!(frame, FromRunner::Store(s) if end_row(s.request.body()).is_some())
+}
+
+/// The request id and what `take` takes from the body of each `store` frame, in the order that the runner sent them.
+fn sent<T>(seen: &Seen, take: impl Fn(&RunnerCall) -> Option<T>) -> Vec<(String, T)> {
+    seen.frames
+        .iter()
+        .filter_map(|f| match f {
+            FromRunner::Store(s) => {
+                take(s.request.body()).map(|t| (s.request.id().as_str().to_string(), t))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The frames from the first end row on, each as `support::named` names it.
+fn from_the_end_row(seen: &Seen) -> Vec<String> {
+    let first = seen.frames.iter().position(is_end_row).expect("an end row");
+    seen.frames[first..].iter().map(support::named).collect()
+}
+
+/// A7.5, CP-178 (1): the end row of a run that ends with a cause, here `steps`, is sent again after a fault of the
+/// store as the same request with the same record, `seq` and `at` among its keys, so that the store's handler of
+/// `log`, which keeps a record only when no held row equals it, keeps the row once; then come `finish` and `done`.
+#[test]
+fn an_end_row_that_meets_a_store_fault_is_sent_again_and_stands_once() {
+    let files = FillFiles::new("end-row-again", 1);
+    let mut sup = fill(64, &files);
+    sup.config.limits.steps = 1;
+    let faults = std::cell::Cell::new(0);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_end_row(frame) && faults.get() < 1 {
+                faults.set(faults.get() + 1);
+                Act::With(store_error(frame, "store"))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    let rows = sent(&seen, end_row);
+    assert_eq!(
+        rows.len(),
+        2,
+        "frames with the end row: the first send and one repeat after the fault"
+    );
+    assert_eq!(rows[0], rows[1], "one request id and one record");
+    let mut held: Vec<AgentLog> = Vec::new();
+    for line in seen.logs() {
+        if !held.contains(&line) {
+            held.push(line);
+        }
+    }
+    let kept: Vec<Option<Cause>> = held
+        .iter()
+        .filter(|l| l.event == LogEvent::Stopped)
+        .map(|l| l.cause)
+        .collect();
+    assert_eq!(
+        kept,
+        [Some(Cause::Steps)],
+        "the handler's rule keeps one row"
+    );
+    assert_eq!(
+        from_the_end_row(&seen),
+        ["store log", "store log", "store finish", "done"]
+    );
+    assert_eq!(seen.done(), Some(Outcome::Limit));
+}
+
+/// A7.5: after the third fault the runner sends the end row no more and goes on to its `finish` and `done`.
+#[test]
+fn an_end_row_whose_every_send_meets_a_fault_is_sent_three_times_and_the_run_finishes() {
+    let files = FillFiles::new("end-row-faults", 1);
+    let mut sup = fill(65, &files);
+    sup.config.limits.steps = 1;
+    let seen = sup.serve(
+        |frame, _| {
+            if is_end_row(frame) {
+                Act::With(store_error(frame, "internal"))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    let rows = sent(&seen, end_row);
+    assert_eq!(
+        rows.len(),
+        3,
+        "frames with the end row: the first send and two repeats"
+    );
+    assert!(
+        rows.windows(2).all(|w| w[0] == w[1]),
+        "one request id and one record"
+    );
+    assert_eq!(
+        from_the_end_row(&seen),
+        [
+            "store log",
+            "store log",
+            "store log",
+            "store finish",
+            "done"
+        ]
+    );
+    assert_eq!(seen.done(), Some(Outcome::Limit));
+    assert_eq!(seen.code(), Some(0), "the store took the run's record");
+}
+
+/// A7.5, CP-132 (e): a `finish` that meets a fault of the store is sent again as the same request with the same
+/// record, which the store answers as the first; the run ends with `done` and the status 0.
+#[test]
+fn a_finish_that_meets_a_store_fault_is_sent_again_with_its_request_id() {
+    let files = FillFiles::new("finish-again", 1);
+    let sup = fill(66, &files);
+    let faults = std::cell::Cell::new(0);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_op(frame, "finish") && faults.get() < 1 {
+                faults.set(faults.get() + 1);
+                Act::With(store_error(frame, "store"))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    let finishes = sent(&seen, |c| match c {
+        RunnerCall::Finish(b) => Some(b.record.clone()),
+        _ => None,
+    });
+    assert_eq!(
+        finishes.len(),
+        2,
+        "finish frames: the first send and one repeat after the fault"
+    );
+    assert_eq!(finishes[0], finishes[1], "one request id and one record");
+    assert_eq!(seen.done(), Some(Outcome::Completed));
+    assert_eq!(
+        seen.code(),
+        Some(0),
+        "the store took the run's record: {}",
+        seen.stderr
+    );
 }
 
 #[test]
