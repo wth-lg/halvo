@@ -1,20 +1,15 @@
 //! The mark of a run: the file `<data directory>/agents/marks/<run id>`, written before the runner starts and
-//! completed with the runner's line after it, so that a later life of the library finds what may still run.
+//! completed with the runner's line after it, so that a later life of the library finds what may still run. Its
+//! lines are read by halvo-control's `marks`, their one reader, which the capture service's delete uses too.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 
+use halvo_control::marks as reader;
+pub use halvo_control::marks::Group;
 use halvo_schema::executable::text::{CreationTime, RunId};
-
-/// The process group of a line: on macOS the group whose leader is the line's process, on Windows `job`, the job
-/// object of the library's own that holds the runner and every process that it starts.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Group {
-    Leader(NonZeroU32),
-    Job,
-}
 
 /// One line `runner ...` or `browser ...` of a mark: the process number, the creation time as the process table
 /// records it, and the group.
@@ -48,7 +43,7 @@ pub fn marks_dir(data_dir: &Path) -> PathBuf {
 
 /// The text of the first line.
 pub fn first_line(run: &RunId) -> String {
-    format!("mark run={run}\n")
+    reader::first_line(run.as_str())
 }
 
 /// The text of a `runner` or `browser` line.
@@ -63,51 +58,25 @@ pub fn proc_line(word: &str, line: &ProcLine) -> String {
     )
 }
 
-fn count(s: &str) -> Option<NonZeroU32> {
-    if s.is_empty() || s.starts_with('0') || !s.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
+impl From<reader::Line> for ProcLine {
+    fn from(line: reader::Line) -> ProcLine {
+        ProcLine {
+            pid: line.pid,
+            created: CreationTime::from_micros(line.created),
+            group: line.group,
+        }
     }
-    s.parse().ok()
 }
 
-fn read_proc_line(word: &str, line: &str) -> Option<ProcLine> {
-    let mut parts = line.split(' ');
-    if parts.next()? != word {
-        return None;
-    }
-    let pid = count(parts.next()?.strip_prefix("pid=")?)?;
-    let created = CreationTime::parse(parts.next()?.strip_prefix("created=")?).ok()?;
-    let group = match parts.next()?.strip_prefix("group=")? {
-        "job" => Group::Job,
-        g => Group::Leader(count(g)?),
-    };
-    if parts.next().is_some() {
-        return None;
-    }
-    Some(ProcLine {
-        pid,
-        created,
-        group,
-    })
-}
-
-/// Reads the text of a mark whose file name is `run`: the first line must name that run, and a line that does
-/// not end in a newline is not there yet. `None` when the first line is not whole or names another run.
+/// Reads the text of a mark whose file name is `run` by [`halvo_control::marks::read`]: the first line must name
+/// that run, and a line that does not end in a newline is not there yet. `None` when the first line is not whole or
+/// names another run.
 pub fn parse(run: &RunId, text: &str) -> Option<Mark> {
-    let mut lines = text
-        .split_inclusive('\n')
-        .filter_map(|l| l.strip_suffix('\n'));
-    if lines.next()? != first_line(run).trim_end_matches('\n') {
-        return None;
-    }
-    let runner = lines.next().and_then(|l| read_proc_line("runner", l));
-    let browser = runner
-        .and(lines.next())
-        .and_then(|l| read_proc_line("browser", l));
+    let lines = reader::read(run.as_str(), text)?;
     Some(Mark {
         run: run.clone(),
-        runner,
-        browser,
+        runner: lines.runner.map(ProcLine::from),
+        browser: lines.browser.map(ProcLine::from),
     })
 }
 
@@ -270,47 +239,6 @@ mod tests {
         assert_eq!(parse(&r, &three).unwrap().browser, Some(browser));
         let job = format!("{first}{}", proc_line("runner", &line(4, "77", Group::Job)));
         assert_eq!(parse(&r, &job).unwrap().runner.unwrap().group, Group::Job);
-    }
-
-    #[test]
-    fn a_line_that_is_not_whole_is_not_there() {
-        let r = run();
-        let first = first_line(&r);
-        let cut = format!("{first}runner pid=812 created=17629");
-        assert_eq!(parse(&r, &cut).unwrap().runner, None);
-        assert_eq!(parse(&r, &first[..first.len() - 1]), None);
-        let other = RunId::parse("ffffffffffffffffffffffffffffffff").unwrap();
-        assert_eq!(parse(&other, &first), None);
-    }
-
-    #[test]
-    fn a_line_out_of_its_form_is_not_read_as_a_process() {
-        let r = run();
-        let first = first_line(&r);
-        for bad in [
-            "runner pid=0 created=1 group=1\n",
-            "runner pid=812 created=0 group=812\n",
-            "runner pid=812 created=01 group=812\n",
-            "runner pid=812 created=1 group=0\n",
-            "runner pid=812 created=1 group=jobs\n",
-            "runner pid=812 created=1 group=812 \n",
-            "runner pid=+812 created=1 group=812\n",
-            "runner pid=0812 created=1 group=812\n",
-            "runner pid=812 created=1 group=0812\n",
-            "runner  pid=812 created=1 group=812\n",
-            "runner pid=812 group=812 created=1\n",
-            "browser pid=812 created=1 group=812\n",
-            "runner pid=812 created=123456789012345678901 group=812\n",
-        ] {
-            let text = format!("{first}{bad}");
-            assert_eq!(parse(&r, &text).unwrap().runner, None, "{bad:?}");
-        }
-        let twice = format!(
-            "{first}{}{}",
-            proc_line("runner", &line(5, "6", Group::Job)),
-            proc_line("runner", &line(5, "6", Group::Job))
-        );
-        assert_eq!(parse(&r, &twice).unwrap().browser, None);
     }
 
     #[test]
