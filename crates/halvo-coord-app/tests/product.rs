@@ -19,6 +19,7 @@ fn main() {
 #[cfg(target_os = "macos")]
 mod mac {
     use std::io::{PipeReader, PipeWriter, Write};
+    use std::num::NonZeroU32;
     use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd};
     use std::os::unix::net::UnixStream;
     use std::path::{Path, PathBuf};
@@ -788,7 +789,9 @@ mod mac {
 
     /// U5.4a sentence 5: a run that died is ended once. A mark under `agents/marks/` of the scratch data directory, as
     /// a killed app leaves it, with the run's `run_started` stored: after the next start the run's record reads
-    /// `interrupted` and the stand-in server has taken one mark `run_end` for it.
+    /// `interrupted` and the stand-in server has taken one mark `run_end` for it. A mark whose runner the reap answers
+    /// `alive` gets no end mark: a third life finds a mark that names a process that lives, the test's own owner child
+    /// with its creation time and no group of its own, which the reap neither signals nor can find gone.
     fn a_run_of_an_earlier_life_left_by_a_killed_app_is_ended_interrupted_with_one_end_mark() {
         let mut world = World::new("killed");
         let (workflow, agent) = world.agent();
@@ -834,6 +837,36 @@ mod mac {
         assert!(!marks.join(&run).exists(), "the mark is gone");
         std::thread::sleep(Duration::from_millis(300));
         assert_eq!(world.marks.ends.load(Ordering::SeqCst), 1, "one end mark");
+        assert_eq!(
+            world.marks.starts.load(Ordering::SeqCst),
+            0,
+            "no start mark"
+        );
+
+        drop(hub);
+        let alive = format!("{:032x}", 0xd2);
+        let owner = world.child.id();
+        let line = halvo_agent_client::marks::proc_line(
+            "runner",
+            &halvo_agent_client::marks::ProcLine {
+                pid: NonZeroU32::new(owner).unwrap(),
+                created: halvo_agent_client::process::creation_time(owner).unwrap(),
+                group: halvo_agent_client::marks::Group::Job,
+            },
+        );
+        std::fs::write(marks.join(&alive), format!("mark run={alive}\n{line}")).unwrap();
+        let next = world.hub();
+        product::start(&next);
+        assert!(
+            marks.join(&alive).exists(),
+            "the mark of a runner that lives stays"
+        );
+        std::thread::sleep(Duration::from_millis(300));
+        assert_eq!(
+            world.marks.ends.load(Ordering::SeqCst),
+            1,
+            "no end mark for a run that the reap answers alive"
+        );
         assert_eq!(
             world.marks.starts.load(Ordering::SeqCst),
             0,

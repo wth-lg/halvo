@@ -116,8 +116,8 @@ pub fn hub(
 }
 
 /// The steps of the app's start, in their order: the library's reap of what an earlier life left (it ends what is
-/// left of each such run and removes its mark), and one mark `run_end` where it answered a run and no run of this
-/// life is live; the hub's first tick, whose recovery takes that reap's answers and ends each such run with its
+/// left of each such run and removes its mark), and one mark `run_end` where it answered a run gone, none alive,
+/// and no run of this life is live; the hub's first tick, whose recovery takes that reap's answers and ends each such run with its
 /// store; then the removal of the checkpoints that may go, once, before any start of a run (a start inside that
 /// first tick removes them first).
 pub fn start(hub: &ProductHub) {
@@ -730,14 +730,21 @@ impl Product {
     }
 
     /// The library's reap of what an earlier life left, kept for the first `Runs::reap`, and the caller's own mark
-    /// `run_end` where it answered a run and no run of this life is live: the library's reap calls no `MarkSink`.
+    /// `run_end` where it answered a run `gone`, answered none `alive` and no run of this life is live: the library's
+    /// reap calls no `MarkSink`, and a runner that the reap answers `alive` still acts, so the level is not that no
+    /// run is live.
     fn reap_earlier_life(&self) {
         let Ok(answers) = self.supervisor.reap() else {
             return;
         };
-        let any = !answers.is_empty();
+        let gone = answers
+            .iter()
+            .any(|a| a.answer == halvo_agent_client::Reaped::Gone);
+        let alive = answers
+            .iter()
+            .any(|a| a.answer == halvo_agent_client::Reaped::Alive);
         *lock(&self.reaped) = Some(answers);
-        if any && self.marks.live.load(Ordering::SeqCst) == 0 {
+        if gone && !alive && self.marks.live.load(Ordering::SeqCst) == 0 {
             *lock(&self.marks.owed) = Some(RunEdge::End);
             self.marks.send_now();
         }
