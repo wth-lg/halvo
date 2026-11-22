@@ -132,7 +132,7 @@ fn total_events(dir: &Path) -> u64 {
 }
 
 #[cfg(debug_assertions)]
-fn grows_to(dir: &Path, want: u64) {
+fn grows_to(dir: &Path, case: &str, want: u64) {
     let reached = until(Duration::from_secs(20), || {
         let total = total_events(dir);
         (total >= want).then_some(total)
@@ -140,7 +140,7 @@ fn grows_to(dir: &Path, want: u64) {
     assert_eq!(
         reached,
         Some(want),
-        "the inventory total did not reach {want}"
+        "{case}: the inventory total did not reach {want}"
     );
 }
 
@@ -297,7 +297,7 @@ fn scripted_service_run() {
     assert_eq!(resumed.status.code(), Some(0), "case 2: {}", text(&resumed));
     let claimed = ctl(&dir, &["status", "--indicator"]);
     assert_eq!(claimed.status.code(), Some(0), "case 2: {}", text(&claimed));
-    grows_to(&dir, before + EVENTS_A_START);
+    grows_to(&dir, "case 2", before + EVENTS_A_START);
 
     let paused = ctl(&dir, &["pause"]);
     assert_eq!(paused.status.code(), Some(0), "case 3: {}", text(&paused));
@@ -387,12 +387,12 @@ fn scripted_service_run() {
     );
 
     let before = total_events(&dir);
-    let resumed = ctl(&dir, &["resume"]);
-    assert_eq!(resumed.status.code(), Some(0), "case 5: {}", text(&resumed));
     let claimed = ctl(&dir, &["status", "--indicator"]);
     let last_claim = Instant::now();
     assert_eq!(claimed.status.code(), Some(0), "case 5: {}", text(&claimed));
-    grows_to(&dir, before + EVENTS_A_START);
+    let resumed = ctl(&dir, &["resume"]);
+    assert_eq!(resumed.status.code(), Some(0), "case 5: {}", text(&resumed));
+    grows_to(&dir, "case 5", before + EVENTS_A_START);
     let lapse =
         Duration::from_millis(halvo_control::INDICATOR_LEASE_MS + TICK_MS + LAPSE_MARGIN_MS);
     std::thread::sleep(lapse.saturating_sub(last_claim.elapsed()));
