@@ -1766,16 +1766,16 @@ impl Executor {
     }
 
     /// Clears, for each of `origins`, what a page can keep for later (`KEPT_FOR_LATER`: the stores
-    /// that scripts write, the workers and their caches) and keeps its cookies (A6.4).
+    /// that scripts write, the workers and their caches) and keeps its cookies (A6.4). The call goes
+    /// on the session of the executor's page, whose storage partition is the run's.
     pub async fn clear_stores(&self, origins: &[String]) -> Res<()> {
         for origin in origins {
-            self.wire
-                .call(
-                    None,
-                    ClearDataForOriginParams::new(origin.clone(), KEPT_FOR_LATER),
-                )
-                .await
-                .map_err(|f| Fault::new("clear", f.1))?;
+            self.exec(
+                &Place::Page,
+                "clear",
+                ClearDataForOriginParams::new(origin.clone(), KEPT_FOR_LATER),
+            )
+            .await?;
         }
         Ok(())
     }

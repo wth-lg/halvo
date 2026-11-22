@@ -543,6 +543,12 @@ impl Live {
     }
 }
 
+/// `Err(())` for a fault of the executor in the call `call` of the handback, after one line on standard error that
+/// names the call and the fault's cause word, and no detail of it.
+fn told<T>(call: &str, done: cdp::Res<T>) -> Result<T, ()> {
+    done.map_err(|fault| crate::line(&format!("run page=failed call={call} cause={}", fault.0)))
+}
+
 impl Page for Live {
     /// The frame `browser` of the browser's first process: its number, creation time and, on macOS, group.
     fn frame(&self) -> Option<FromRunner> {
@@ -631,26 +637,26 @@ impl Page for Live {
 
     fn sign(&mut self) -> Result<Option<Sign>, ()> {
         let executor = &mut self.executor;
-        self.runtime.block_on(executor.sign()).map_err(drop)
+        told("sign", self.runtime.block_on(executor.sign()))
     }
 
     fn fail_held(&mut self) -> Result<(), ()> {
         let executor = &mut self.executor;
-        self.runtime
-            .block_on(async move {
-                for held in executor.paused() {
-                    executor.fail(held.id).await?;
-                }
-                Ok(())
-            })
-            .map_err(|_: Fault| ())
+        let done = self.runtime.block_on(async move {
+            for held in executor.paused() {
+                executor.fail(held.id).await?;
+            }
+            Ok(())
+        });
+        told("fail_held", done)
     }
 
     fn close_others(&mut self) -> Result<(), ()> {
         let executor = &self.executor;
-        self.runtime
-            .block_on(executor.close_other_pages())
-            .map_err(drop)
+        told(
+            "close_others",
+            self.runtime.block_on(executor.close_other_pages()),
+        )
     }
 
     fn clear_stores(&mut self) -> Result<(), ()> {
@@ -658,14 +664,15 @@ impl Page for Live {
         self.note_loaded(&requests);
         let origins: Vec<String> = self.loaded.iter().cloned().collect();
         let executor = &self.executor;
-        self.runtime
-            .block_on(executor.clear_stores(&origins))
-            .map_err(drop)
+        told(
+            "clear_stores",
+            self.runtime.block_on(executor.clear_stores(&origins)),
+        )
     }
 
     fn load_again(&mut self) -> Result<(), ()> {
         let executor = &mut self.executor;
-        self.runtime.block_on(executor.load_again()).map_err(drop)
+        told("load_again", self.runtime.block_on(executor.load_again()))
     }
 
     /// Sets the relay's list to every host and port, the loopback hosts of the newest arm keeping their mark, and
@@ -681,19 +688,20 @@ impl Page for Live {
             }
         }
         let executor = &mut self.executor;
-        self.runtime
-            .block_on(executor.arm_rule(Vec::new(), Mode::Handback))
-            .map_err(drop)
+        told(
+            "pass_all",
+            self.runtime
+                .block_on(executor.arm_rule(Vec::new(), Mode::Handback)),
+        )
     }
 
     fn address(&mut self) -> Result<String, ()> {
         let executor = &self.executor;
-        self.runtime
-            .block_on(async move {
-                let frame = executor.main_frame().await?;
-                executor.frame_url(&frame).await
-            })
-            .map_err(|_: Fault| ())
+        let done = self.runtime.block_on(async move {
+            let frame = executor.main_frame().await?;
+            executor.frame_url(&frame).await
+        });
+        told("address", done)
     }
 }
 
