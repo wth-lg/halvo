@@ -690,6 +690,41 @@ impl Executor {
             }
             tokio::time::sleep(POLL).await;
         }
+        // U4.1wm: the probe leaves the page on its failed load, which the browser loads again by
+        // itself about a second later, after the runner has armed its own rule; so the page opens
+        // about:blank, and the start waits for its load within `STEP_TIMEOUT`, before it arms.
+        const BLANK_LOADED: &str =
+            "location.href === 'about:blank' && document.readyState === 'complete'";
+        let blank = async {
+            wire.call(Some(&home), NavigateParams::new("about:blank"))
+                .await?;
+            let loaded = EvaluateParams::builder()
+                .expression(BLANK_LOADED)
+                .return_by_value(true)
+                .build()
+                .map_err(|e| Fault::new("start", e))?;
+            let deadline = Instant::now() + STEP_TIMEOUT;
+            loop {
+                let reply = wire.call(Some(&home), loaded.clone()).await;
+                if matches!(&reply, Ok(r) if r.exception_details.is_none()
+                    && r.result.value == Some(serde_json::Value::Bool(true)))
+                {
+                    return Ok(());
+                }
+                if Instant::now() > deadline {
+                    return Err(Fault::new("start", "about:blank did not load"));
+                }
+                tokio::time::sleep(POLL).await;
+            }
+        }
+        .await;
+        if let Err(f) = blank {
+            return Err(fail(
+                &mut child,
+                &wire_task,
+                Fault::new("start", format!("blank {}", f.1)),
+            ));
+        }
         // CP-176 A1 (d): no request before a rule: the rule is armed with no origin in the mode
         // that fails before the start returns.
         let armed = wire

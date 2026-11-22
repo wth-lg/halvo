@@ -2,9 +2,9 @@
 //! executor behind a relay of its own, the runner's own binary as the relay's guard (`--relay-guard`, `crate::main`).
 //! Once the browser runs and before any page loads, the runner writes the frame `browser` and reads
 //! `browser_reply`; then it arms the request rule with the origins of the bindings in `Mode::Fail`, the one mode of
-//! this build, so that a request that the rule fails, a load outside those origins or a state-changing request, ends
-//! the run `refused` with the cause `origin`. At every end of the run it stops the browser and removes the
-//! directories that its start made.
+//! this build: the rule fails every load outside those origins and every state-changing request, and a request of
+//! the run's page that it failed ends the run `refused` with the cause `origin` (`end_of_step`). At every end of the
+//! run it stops the browser and removes the directories that its start made.
 //!
 //! A web step acts only where its class is `read` or `prepare` (`acts`): `navigate`, `extract`, `wait`, and `click`,
 //! `fill`, `select`, `press` and `upload` with the effect `none`. Its conditions `pre` are read fresh before the act
@@ -30,7 +30,9 @@ use halvo_schema::executable::{
 };
 use halvo_schema::SeedCategory;
 use halvo_sheet::Value;
-use halvo_web::cdp::{self, CrashMeans, Executor, Fault, Mode, Resolved, StartOptions};
+use halvo_web::cdp::{
+    self, CrashMeans, Executor, Fault, Mode, PausedRequest, Resolved, StartOptions,
+};
 use halvo_web::guard::GuardProgram;
 use halvo_web::relay::{Entry, Names, Relay};
 
@@ -52,6 +54,8 @@ pub(crate) struct Web {
     relay: Relay,
     run_dir: PathBuf,
     runtime: tokio::runtime::Runtime,
+    /// How many entries of the rule's record the lines on standard error have read.
+    told: usize,
 }
 
 /// The cause of the run's end for a start that failed: `no_channel` for a browser that lived and gave no first
@@ -345,6 +349,49 @@ async fn carry(executor: &mut Executor, act: &Act<'_>) -> cdp::Res<Option<String
     Ok(None)
 }
 
+/// Whether a request in the rule's record is of the run's page: its record carries a frame. The record's frame is
+/// the `frameId` of the browser's paused event as the browser gave it (`decide` in halvo-web's `cdp/wire.rs`), so
+/// every frame that the browser names counts as the page's: the main frame of the executor's page, a frame inside
+/// it, or the frame of another tab, which in the run's browser only the page opens; a request of a worker of the
+/// page counts where the browser names a frame for it; and a request for which the browser names no frame counts as
+/// the browser's own level. That a real browser names no frame for its own requests is not shown by a test here:
+/// `failed_line` writes the level of each failed request, so that a hosted run shows it.
+fn of_the_page(request: &PausedRequest) -> bool {
+    !request.frame.is_empty()
+}
+
+/// Whether the rule failed a request of the run's page (A9.2). A request of the browser's own level that the rule
+/// failed stays failed, and nothing of it left, but it sets no outcome: the person's site never made it.
+fn refused_by_the_page(requests: &[PausedRequest]) -> bool {
+    requests.iter().any(|r| !r.let_through && of_the_page(r))
+}
+
+/// The line on standard error for a request that the rule failed: its method, origin, resource type and level
+/// (`page` or `browser`), and no path, no query and no header.
+fn failed_line(request: &PausedRequest) -> String {
+    format!(
+        "run request=failed method={} origin={} resource={} level={}",
+        request.method,
+        request.origin,
+        request.resource,
+        if of_the_page(request) {
+            "page"
+        } else {
+            "browser"
+        }
+    )
+}
+
+/// The end of a web step from what the step did and the rule's record at its end: the run `refused` with the cause
+/// `origin` where the record holds a failed request of the run's page (`refused_by_the_page`), whatever the step
+/// did; else the step's own end, `step_failed` for a fault.
+fn end_of_step<T>(done: Result<T, ()>, record: &[PausedRequest]) -> Result<T, Failure> {
+    if refused_by_the_page(record) {
+        return Err(Stop::End(Outcome::Refused, Some(Cause::Origin)).into());
+    }
+    done.map_err(|()| Failure::Step(Cause::StepFailed))
+}
+
 impl Web {
     /// Starts the browser `browser` with its profile `<data directory>/agents/profiles/<run id>/profile`, headless
     /// unless `headed`, behind a new relay that reaches nothing until `arm`; the cause of the run's end when the start
@@ -393,6 +440,7 @@ impl Web {
                 relay,
                 run_dir,
                 runtime,
+                told: 0,
             }),
             Err(cause) => {
                 let _ = std::fs::remove_dir(&run_dir);
@@ -450,22 +498,30 @@ impl Web {
             .map_err(|_: Fault| ())
     }
 
-    /// Whether the rule failed a request since it was armed: a request to an origin outside the list, or a
-    /// state-changing request, which `Mode::Fail` fails to every origin.
-    fn refused(&self) -> bool {
-        self.executor.requests().iter().any(|r| !r.let_through)
+    /// The rule's record of every request that it paused since it was armed, each with whether it was let through;
+    /// one line on standard error (`failed_line`) for each request in it that the rule failed and that no earlier
+    /// line named.
+    fn record(&mut self) -> Vec<PausedRequest> {
+        let requests = self.executor.requests();
+        if requests.len() < self.told {
+            self.told = 0;
+        }
+        for request in requests[self.told..].iter().filter(|r| !r.let_through) {
+            crate::line(&failed_line(request));
+        }
+        self.told = requests.len();
+        requests
     }
 
-    /// `refused`, read again until `REFUSAL_WAIT` has passed: the executor records a request that it failed once the
-    /// browser has answered the fail, which can be after the step that the fail made fail has returned.
-    fn refused_after_a_fault(&self) -> bool {
+    /// `record`, read again until it holds a failed request of the run's page or `REFUSAL_WAIT` has passed: the
+    /// executor records a request that it failed once the browser has answered the fail, which can be after the
+    /// step that the fail made fail has returned.
+    fn record_after_a_fault(&mut self) -> Vec<PausedRequest> {
         let until = std::time::Instant::now() + REFUSAL_WAIT;
         loop {
-            if self.refused() {
-                return true;
-            }
-            if std::time::Instant::now() >= until {
-                return false;
+            let requests = self.record();
+            if refused_by_the_page(&requests) || std::time::Instant::now() >= until {
+                return requests;
             }
             std::thread::sleep(Duration::from_millis(20));
         }
@@ -479,6 +535,7 @@ impl Web {
             relay,
             run_dir,
             runtime,
+            ..
         } = self;
         let stopped = runtime.block_on(executor.stop_and_remove());
         relay.stop();
@@ -493,8 +550,8 @@ impl Runner {
     /// the executor takes. The browser starts at the first step that acts.
     /// A condition of `pre` that does not hold acts on nothing; a control that the locators do not find, an act that
     /// fails and a condition of `post` that does not hold fail the step with `step_failed`. At the step's end a
-    /// request that the rule failed ends the run `refused` with the cause `origin` (A9.2), read again for
-    /// `REFUSAL_WAIT` after a step that failed or that acted on a control.
+    /// request of the run's page that the rule failed ends the run `refused` with the cause `origin` (A9.2,
+    /// `end_of_step`), the record read again for `REFUSAL_WAIT` after a step that failed or that acted on a control.
     pub(crate) fn web_step(
         &mut self,
         step: &ExecutableStep,
@@ -520,15 +577,12 @@ impl Runner {
         };
         let web = self.browser(loaded)?;
         let done = web.carry_out(&pre, &act, &post);
-        let refused = if done.is_err() || act.on_a_control() {
-            web.refused_after_a_fault()
+        let record = if done.is_err() || act.on_a_control() {
+            web.record_after_a_fault()
         } else {
-            web.refused()
+            web.record()
         };
-        if refused {
-            return Err(Stop::End(Outcome::Refused, Some(Cause::Origin)).into());
-        }
-        let read = done.map_err(|()| failed())?;
+        let read = end_of_step(done, &record)?;
         if let (Some((name, parse)), Some(text)) = (as_parsed, read) {
             let value = match parse.as_str() {
                 "text" => Value::Text(text),
@@ -597,6 +651,7 @@ mod tests {
 
     use halvo_policy::preset;
     use halvo_schema::{AgentId, Category, WorkflowId};
+    use halvo_web::cdp::Outcome as Answered;
 
     use crate::link::Link;
 
@@ -763,5 +818,114 @@ mod tests {
             assert!(runner.web.is_none(), "no browser for {json}");
         }
         assert!(out.lock().expect("lock").is_empty(), "no frame");
+    }
+
+    /// A request of the rule's record: `method` to `origin` at `path`, made in `frame` (empty: the browser's own
+    /// level), let through or failed by the rule.
+    fn request(
+        method: &str,
+        origin: &str,
+        path: &str,
+        frame: &str,
+        let_through: bool,
+    ) -> PausedRequest {
+        PausedRequest {
+            id: None,
+            method: method.to_string(),
+            origin: origin.to_string(),
+            path: path.to_string(),
+            frame: frame.to_string(),
+            resource: if frame.is_empty() {
+                "Other"
+            } else {
+                "Document"
+            }
+            .to_string(),
+            let_through,
+            outcome: if let_through {
+                Answered::Continued
+            } else {
+                Answered::Failed
+            },
+        }
+    }
+
+    /// The page's own load of its bound origin, let through.
+    fn the_page_s_load() -> PausedRequest {
+        request("GET", "http://127.0.0.1:8080", "/read", "F1", true)
+    }
+
+    /// U4.1wm (1): a request of the browser's own level to an origin outside the bindings is failed, and its record
+    /// says so, but the step ends as the step did: a navigate that loaded ends well and the run goes on to its end.
+    #[test]
+    fn a_failed_request_of_the_browser_s_own_level_leaves_the_run_completed() {
+        let own = request("GET", "https://accounts.example.com", "/list", "", false);
+        assert!(!own.let_through && own.outcome == Answered::Failed);
+        let record = [the_page_s_load(), own];
+        assert!(!refused_by_the_page(&record));
+        assert!(matches!(end_of_step(Ok(()), &record), Ok(())));
+        assert!(matches!(
+            end_of_step::<()>(Err(()), &record),
+            Err(Failure::Step(Cause::StepFailed))
+        ));
+    }
+
+    /// U4.1wm (2): a request of the page that the rule failed, a load outside the bindings or a state-changing
+    /// request, ends the run `refused` with the cause `origin`, as before, also where a failed request of the
+    /// browser's own level stands beside it, and whatever the step did.
+    #[test]
+    fn a_failed_request_of_the_page_ends_the_run_refused() {
+        for failed in [
+            request("GET", "http://127.0.0.1:9090", "/read", "F1", false),
+            request("POST", "http://127.0.0.1:8080", "/sink", "F2", false),
+        ] {
+            let own = request("GET", "https://accounts.example.com", "/list", "", false);
+            let record = [the_page_s_load(), own, failed];
+            assert!(refused_by_the_page(&record));
+            for done in [Ok(()), Err(())] {
+                assert!(matches!(
+                    end_of_step(done, &record),
+                    Err(Failure::Stop(Stop::End(
+                        Outcome::Refused,
+                        Some(Cause::Origin)
+                    )))
+                ));
+            }
+        }
+    }
+
+    /// U4.1wm, the line on standard error: method, origin, resource type and level, and nothing of the path, the
+    /// query or a header.
+    #[test]
+    fn the_line_of_a_failed_request_names_no_path() {
+        let page = request(
+            "POST",
+            "https://pay.example.com",
+            "/a/b?card=4111",
+            "F2",
+            false,
+        );
+        assert_eq!(
+            failed_line(&page),
+            "run request=failed method=POST origin=https://pay.example.com resource=Document level=page"
+        );
+        let own = request(
+            "GET",
+            "https://accounts.example.com",
+            "/list?x=1",
+            "",
+            false,
+        );
+        let line = failed_line(&own);
+        assert_eq!(
+            line,
+            "run request=failed method=GET origin=https://accounts.example.com resource=Other level=browser"
+        );
+        for part in ["/list", "x=1", "/a/b", "card"] {
+            assert!(
+                !line.contains(part) && !failed_line(&page).contains(part),
+                "{part}"
+            );
+        }
     }
 }
