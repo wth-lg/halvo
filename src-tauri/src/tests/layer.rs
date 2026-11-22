@@ -452,6 +452,8 @@ struct Fake {
     places: Arc<Places>,
     answers: Mutex<VecDeque<Result<DaemonStatus, ClientError>>>,
     claims: Mutex<Vec<bool>>,
+    resets: Mutex<VecDeque<Result<DaemonStatus, ClientError>>>,
+    reset_calls: AtomicUsize,
 }
 
 impl Fake {
@@ -540,6 +542,81 @@ impl Control for Fake {
     ) -> Result<DaemonStatus, ClientError> {
         Err(ClientError::Unsupported)
     }
+
+    fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+        self.reset_calls.fetch_add(1, Ordering::SeqCst);
+        self.resets
+            .lock()
+            .unwrap()
+            .pop_front()
+            .unwrap_or(Err(ClientError::Unsupported))
+    }
+}
+
+#[test]
+fn the_reset_command_sends_one_reset_and_answers_its_view() {
+    use crate::commands::capture::reset;
+    use crate::view_state::ActionError;
+    use halvo_control::model::CaptureState;
+    use halvo_control::proto::{Cap, ErrorCode, ErrorReply};
+    let paused = |f: &mut halvo_control::proto::StatusFields| {
+        f.desired = CaptureState::Paused;
+        f.capture = Capture::Paused;
+        stopped(f);
+    };
+    let unread = status_with(Platform::Macos, |f| {
+        paused(f);
+        f.state_file = StateFile::Corrupt;
+        f.cap_bytes = Cap::Unknown;
+    });
+    let after = status_with(Platform::Macos, |f| {
+        paused(f);
+        f.cap_bytes = Cap::Unknown;
+    });
+    let views = Views::default();
+    let fake = Fake {
+        resets: Mutex::new(vec![Ok(after)].into()),
+        ..Fake::default()
+    };
+    let view = reset(&fake, &views).expect("the view of the reset");
+    assert_eq!(fake.reset_calls.load(Ordering::SeqCst), 1);
+    let wire = serde_json::to_value(&view).expect("the view writes");
+    assert_eq!(wire["service"], json!("running"));
+    assert_eq!(wire["capture"], json!("paused"));
+    assert_eq!(wire["store_cap_bytes"], Value::Null);
+    for key in ["state_file", "reset_recorded", "login_item_written"] {
+        assert_eq!(wire.get(key), None, "{key}: {wire}");
+    }
+    assert_eq!(
+        running_view(views.view()).state_file,
+        None,
+        "the views did not take the reset's answer"
+    );
+
+    let refusing = Fake {
+        resets: Mutex::new(
+            vec![Err(ClientError::Daemon(ErrorReply::new(
+                ErrorCode::StateFile,
+                "the state file loads, so the settings were not reset",
+            )))]
+            .into(),
+        ),
+        ..Fake::default()
+    };
+    assert_eq!(reset(&refusing, &views), Err(ActionError::StateFile));
+    assert_eq!(
+        refusing.reset_calls.load(Ordering::SeqCst),
+        1,
+        "a refused reset was sent again"
+    );
+
+    let shown = serde_json::to_value(StatusView::of(&unread)).expect("the view writes");
+    assert_eq!(shown["state_file"], json!("corrupt"));
+    assert_eq!(
+        shown["reset_recorded"],
+        serde_json::to_value(halvo_control::texts::first_run(Platform::Macos).recorded).unwrap(),
+        "the view of a file that cannot be read carries the first run's rows"
+    );
 }
 
 #[test]
@@ -928,6 +1005,11 @@ impl Control for RecordingControl {
         _: Permission,
     ) -> Result<DaemonStatus, ClientError> {
         self.record("acknowledge_lost_permission");
+        Err(ClientError::Unsupported)
+    }
+
+    fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+        self.record("reset_settings");
         Err(ClientError::Unsupported)
     }
 }

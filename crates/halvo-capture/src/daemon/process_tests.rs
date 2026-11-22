@@ -1442,6 +1442,103 @@ fn a_state_file_that_does_not_load_gives_no_bound_until_a_valid_cap_is_set() {
 }
 
 #[test]
+fn after_a_settings_reset_a_store_above_the_default_cap_keeps_every_row() {
+    let old = vec![b'o'; 256 * 1024];
+    let clocks = ManualClocks::at(noon());
+    let dir = kept_dir("cap-tests-");
+    let mut store = made_store(&dir);
+    for hours in (1..=4).rev() {
+        segment_at(&mut *store, noon() - hours * 3600 * SECOND, &old);
+    }
+    drop(store);
+    std::fs::write(
+        dir.join(halvo_control::paths::STATE_FILE),
+        b"{\"storage_cap_bytes\":",
+    )
+    .unwrap();
+    StateFile::open(StateDir::open(&dir).unwrap(), super::DurableState::writer())
+        .reset_settings()
+        .unwrap();
+    let mut state = StateFile::open(StateDir::open(&dir).unwrap(), super::DurableState::writer());
+    assert_eq!(
+        state.health(),
+        super::state::StateHealth::Ok,
+        "the next start did not load the file that the reset wrote"
+    );
+    let bound = super::cap_bound(state.state().storage_cap);
+    let evictions = Arc::new(Mutex::new(Vec::new()));
+    let mut upkeep = Upkeep::new(
+        Above {
+            store: reopened(&dir),
+            evictions: evictions.clone(),
+        },
+        clocks.clone(),
+        bound,
+    );
+    for _ in 0..3 {
+        upkeep.turn();
+        clocks.advance(MAINTENANCE_INTERVAL);
+    }
+    drop(upkeep);
+    assert_eq!(
+        *evictions.lock().unwrap(),
+        [],
+        "a maintenance pass behind a reset ran an eviction"
+    );
+    let read = DataDirStore::at(&dir).read_back();
+    assert!(
+        read.len() == 4 && read.iter().all(Option::is_some),
+        "a row was shredded at the maintenance pass behind a reset"
+    );
+    let (mut owner, handle, sink) = owner_over(
+        Above {
+            store: reopened(&dir),
+            evictions: evictions.clone(),
+        },
+        &clocks,
+        bound,
+    );
+    flushed_once(&mut owner, &handle, &sink);
+    let disk = owner.snapshot().disk_bytes.unwrap();
+    assert!(
+        disk > ABOVE,
+        "the stand-in store stands at {disk}, not above the default cap"
+    );
+    assert_eq!(
+        *evictions.lock().unwrap(),
+        [],
+        "the start behind a reset ran an eviction"
+    );
+
+    let cap = StorageCap::from_bytes(disk - 1).unwrap();
+    let (written, bound) = super::set_cap(&mut state, cap);
+    assert!(
+        written.is_ok(),
+        "a cap set behind a reset was not written: {written:?}"
+    );
+    assert_eq!(bound, Some(ByteBound::of_cap(cap)));
+    assert!(matches!(
+        asked(&mut owner, &handle, super::owner::Command::SetBound(bound)),
+        Answer::BoundSet
+    ));
+    for _ in 0..2 {
+        assert!(owner.pass(Duration::ZERO), "the owner stopped");
+    }
+    drop(owner);
+    let read = DataDirStore::at(&dir).read_back();
+    assert_eq!(read.len(), 5, "the flush stored no segment");
+    assert_eq!(
+        evictions.lock().unwrap().first(),
+        Some(&ByteBound::of_cap(cap)),
+        "the pass after the cap was set did not evict to it"
+    );
+    assert!(
+        read[0].is_none() && read[1..].iter().all(Option::is_some),
+        "the pass after the cap was set did not evict the oldest segment alone"
+    );
+}
+
+#[test]
 fn a_wait_with_no_window_reads_the_stop_flag_and_serves_a_queued_request() {
     let dir = kept_dir("wait-tests-");
     let listening = super::server::unix::Listening::bind(&data_dir(&dir)).unwrap();
@@ -2691,6 +2788,198 @@ fn an_acknowledged_lost_grant_leaves_the_record_and_its_row_reads_lost_no_more()
         "the file that does not load"
     );
     assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+}
+
+#[test]
+fn a_settings_reset_writes_the_defaults_with_no_cap_and_is_refused_where_the_file_reads() {
+    use halvo_control::proto::{Cap as Shown, Capture, ErrorCode, Reply, Request, StoreState};
+    let corrupt = corrupt_dir();
+    drop(made_store(&corrupt));
+    let key = std::fs::read(corrupt.join("store").join("store.key")).unwrap();
+    let life = Probing::new();
+    let asking = {
+        let (dir, stop) = (corrupt.clone(), life.stop.clone());
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            status_until(
+                &dir,
+                "the store of a life on a corrupt file is open",
+                |status| status.fields().store == StoreState::Open,
+            );
+            let before = store_bytes(&dir);
+            let reset = ask(&dir, &Request::ResetSettings);
+            let after = store_bytes(&dir);
+            if !matches!(reset, Ok(Reply::Status(_))) {
+                stop.store(true, Ordering::SeqCst);
+            }
+            (reset, before == after)
+        })
+    };
+    let (status, err) = life.serve(&corrupt, super::sources::tests::Factory::new());
+    let (reset, unchanged) = asking.join().unwrap();
+    match &reset {
+        Ok(Reply::Status(status)) => {
+            let f = status.fields();
+            assert_eq!(f.state_file, halvo_control::proto::StateFile::Ok, "{f:?}");
+            assert_eq!(f.desired, halvo_control::model::CaptureState::Paused);
+            assert_eq!(f.capture, Capture::Paused);
+            assert_eq!(f.cap_bytes, Shown::Unknown);
+        }
+        other => panic!("the reset on a file that does not load answered {other:?}"),
+    }
+    assert!(unchanged, "the reset changed a byte of the store");
+    assert_eq!(
+        std::fs::read(corrupt.join("store").join("store.key")).unwrap(),
+        key,
+        "the store's key changed"
+    );
+    assert_eq!(
+        status,
+        halvo_control::exit::RESTART,
+        "the life did not end for a new start: {err}"
+    );
+    let written: serde_json::Value = serde_json::from_slice(&state_bytes(&corrupt)).unwrap();
+    assert_eq!(written["storage_cap_bytes"], 0, "{written}");
+    let loaded = StateFile::open(
+        StateDir::open(&corrupt).unwrap(),
+        Box::new(TestWrite::default()),
+    );
+    assert_eq!(loaded.health(), super::state::StateHealth::Ok);
+    assert_eq!(
+        loaded.state(),
+        &DaemonState {
+            desired: super::state::Desired::Paused,
+            storage_cap: Cap::OutOfRange(0),
+            permissions_once_granted: Vec::new(),
+            permissions_asked: Vec::new(),
+            switches: crate::floor::Switches::default(),
+            store_made: true,
+        }
+    );
+
+    for (name, file) in [
+        ("a file that loads", &b"{\"store_made\":true}"[..]),
+        ("a file of a newer version", &b"{\"version\":2}"[..]),
+    ] {
+        let dir = corrupt_dir();
+        std::fs::write(dir.join(halvo_control::paths::STATE_FILE), file).unwrap();
+        let life = Probing::new();
+        let asking = {
+            let (dir, stop) = (dir.clone(), life.stop.clone());
+            std::thread::spawn(move || {
+                let _stop = StopOnPanic(stop.clone());
+                status_until(&dir, "a status before the reset", |_| true);
+                let before = state_bytes(&dir);
+                let refused = ask(&dir, &Request::ResetSettings);
+                let after = state_bytes(&dir);
+                stop.store(true, Ordering::SeqCst);
+                (refused, before == after)
+            })
+        };
+        let (status, err) = life.serve(&dir, super::sources::tests::Factory::new());
+        let (refused, unchanged) = asking.join().unwrap();
+        assert_eq!(
+            refused.as_ref().ok().and_then(Reply::code),
+            Some(ErrorCode::StateFile),
+            "{name}: {refused:?}"
+        );
+        assert!(unchanged, "{name}: the refused reset changed the file");
+        assert_eq!(state_bytes(&dir), file, "{name}");
+        assert_eq!(status, halvo_control::exit::CLEAN, "{name}: {err}");
+    }
+}
+
+#[test]
+fn behind_a_settings_reset_capture_is_paused_until_a_resume() {
+    use halvo_control::model::CaptureState;
+    use halvo_control::proto::{
+        reaches_the_end, Capture, CaptureChange, OnOff, Reply, Request, SourceState, StoreState,
+    };
+    let dir = corrupt_dir();
+    drop(made_store(&dir));
+    let first = Probing::new();
+    let asking = {
+        let (dir, stop) = (dir.clone(), first.stop.clone());
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            status_until(
+                &dir,
+                "the store of the life on a corrupt file is open",
+                |status| status.fields().store == StoreState::Open,
+            );
+            let resumed = ask(&dir, &Request::Resume);
+            let reset = ask(&dir, &Request::ResetSettings);
+            if !matches!(reset, Ok(Reply::Status(_))) {
+                stop.store(true, Ordering::SeqCst);
+            }
+            (resumed, reset)
+        })
+    };
+    let (ended, err) = first.serve(&dir, super::sources::tests::Factory::new());
+    let (resumed, reset) = asking.join().unwrap();
+    match &resumed {
+        Ok(Reply::CaptureChanged(status)) => assert!(
+            !reaches_the_end(CaptureChange::Resume, status),
+            "a Resume was taken on a file that does not load: {status:?}"
+        ),
+        other => panic!("the Resume on a file that does not load answered {other:?}"),
+    }
+    assert!(
+        matches!(reset, Ok(Reply::Status(_))),
+        "the reset: {reset:?}"
+    );
+    assert_eq!(ended, halvo_control::exit::RESTART, "{err}");
+
+    let next = Probing::new();
+    let asking = {
+        let (dir, stop) = (dir.clone(), next.stop.clone());
+        std::thread::spawn(move || {
+            let _stop = StopOnPanic(stop.clone());
+            let paused = status_until(&dir, "the store of the next life is open", |status| {
+                status.fields().store == StoreState::Open
+            });
+            let resumed = ask(&dir, &Request::Resume);
+            stop.store(true, Ordering::SeqCst);
+            (paused, resumed)
+        })
+    };
+    let (status, err) = next.serve(&dir, super::sources::tests::Factory::new());
+    let (paused, resumed) = asking.join().unwrap();
+    let f = paused.fields();
+    assert_eq!(f.state_file, halvo_control::proto::StateFile::Ok, "{f:?}");
+    assert_eq!(
+        (f.desired, f.capture),
+        (CaptureState::Paused, Capture::Paused)
+    );
+    assert!(
+        f.sources
+            .iter()
+            .all(|line| matches!(line.state, SourceState::Off | SourceState::Stopped { .. })),
+        "a source is on behind a reset: {:?}",
+        f.sources
+    );
+    let Ok(Reply::CaptureChanged(resumed)) = &resumed else {
+        panic!("the Resume behind a reset answered {resumed:?}");
+    };
+    assert!(
+        reaches_the_end(CaptureChange::Resume, resumed),
+        "the Resume behind a reset was not taken: {resumed:?}"
+    );
+    for line in &resumed.fields().switches {
+        let default = if line.name.default_on() {
+            OnOff::On
+        } else {
+            OnOff::Off
+        };
+        assert_eq!(line.value, default, "{:?}", line.name);
+    }
+    assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+    let loaded = StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    );
+    assert_eq!(loaded.state().desired, super::state::Desired::Running);
+    assert_eq!(loaded.state().switches, DaemonState::default().switches);
 }
 
 fn asked_in(dir: &Path) -> Vec<Permission> {

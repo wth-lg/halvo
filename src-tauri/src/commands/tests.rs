@@ -386,6 +386,10 @@ impl Control for Relayed {
     ) -> Result<DaemonStatus, ClientError> {
         Err(ClientError::Unsupported)
     }
+
+    fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
 }
 
 fn owner_reply(key: &str, value: Value) -> Result<Vec<u8>, ClientError> {

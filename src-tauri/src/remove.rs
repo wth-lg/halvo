@@ -71,7 +71,7 @@ const OLD_CONSENT_FILE: &str = "consent.json";
 
 const DATA_FOLDER_NAME: &str = MACOS_DATA_DIR[2];
 
-const ROWS: [Row; 6] = [
+const ROWS: [Row; 7] = [
     Row {
         step: Step::LoginItem,
         parents: &MACOS_LAUNCH_AGENTS_DIR,
@@ -90,6 +90,13 @@ const ROWS: [Row; 6] = [
         step: Step::AppFiles,
         parents: &[LIBRARY, "WebKit"],
         last: Last::Id,
+        kind: Kind::Tree,
+        at_start: false,
+    },
+    Row {
+        step: Step::AppFiles,
+        parents: &[LIBRARY, "Saved Application State"],
+        last: Last::IdThen(".savedState"),
         kind: Kind::Tree,
         at_start: false,
     },
@@ -116,10 +123,11 @@ const ROWS: [Row; 6] = [
     },
 ];
 
-const KEPT: [&[&str]; 5] = [
+const KEPT: [&[&str]; 6] = [
     &[LIBRARY],
     &[LIBRARY, "Caches"],
     &[LIBRARY, "WebKit"],
+    &[LIBRARY, "Saved Application State"],
     &[LIBRARY, APPLICATION_SUPPORT],
     &MACOS_LAUNCH_AGENTS_DIR,
 ];
@@ -795,6 +803,17 @@ mod tests {
         );
         write(&library(home, &["WebKit", ID, "WebsiteData", "x"]), "web");
         write(
+            &library(
+                home,
+                &[
+                    "Saved Application State",
+                    &format!("{ID}.savedState"),
+                    "windows.plist",
+                ],
+            ),
+            "state",
+        );
+        write(
             &library(home, &[APPLICATION_SUPPORT, ID, OLD_CONSENT_FILE]),
             "{}",
         );
@@ -999,6 +1018,14 @@ mod tests {
         let placed = [
             library(home, &["Caches", other, "cached"]),
             library(home, &["WebKit", other, "WebsiteData"]),
+            library(
+                home,
+                &[
+                    "Saved Application State",
+                    &format!("{other}.savedState"),
+                    "windows.plist",
+                ],
+            ),
             library(home, &["LaunchAgents", &format!("{other}.plist")]),
             library(home, &[APPLICATION_SUPPORT, "notes of the person.txt"]),
             library(home, &[APPLICATION_SUPPORT, other, "settings.json"]),
@@ -1016,6 +1043,10 @@ mod tests {
             library(home, &["LaunchAgents", &format!("{ID}.plist")]),
             library(home, &["Caches", ID]),
             library(home, &["WebKit", ID]),
+            library(
+                home,
+                &["Saved Application State", &format!("{ID}.savedState")],
+            ),
             library(home, &[APPLICATION_SUPPORT, ID, OLD_CONSENT_FILE]),
             library(home, &["Caches", "Halvo"]),
             data.state_file(),

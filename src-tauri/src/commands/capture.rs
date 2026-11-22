@@ -26,9 +26,9 @@ use crate::view_state::{
     Hold, InventoryView, LastDelete, OfflineEnd, OutcomeError, StatusView,
 };
 
-/// What the consent click calls first to write the login item through the manager of
-/// login_item.rs: whether the plist stands written, false where the manager refused the program
-/// or the write failed.
+/// What the consent click calls first to write the login item through login_item.rs, the plist
+/// on macOS and the Run value on Windows: whether it stands written, false where the app's own
+/// path makes none or the write failed.
 pub type LoginItemWriter = Arc<dyn Fn() -> bool + Send + Sync>;
 
 pub struct AppState {
@@ -38,7 +38,8 @@ pub struct AppState {
     pub open_pane: fn(Permission) -> Result<(), String>,
     pub tray_installed: AtomicBool,
     pub last_delete: Mutex<LastDelete>,
-    /// The login item that the consent click writes: none with --data-dir and off macOS.
+    /// The login item that the consent click writes, the plist on macOS and the Run value on
+    /// Windows: none with --data-dir and on other systems.
     pub login_item: Option<LoginItemWriter>,
     /// What the offline delete runs, set once the app has started the supervisor of its child;
     /// main holds the same cell from before the state moves into the app, so that it sets it
@@ -127,6 +128,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         start_capture,
         delete_offline,
         remove_halvo,
+        reset_settings,
     ];
     handle(invoke)
 }
@@ -1020,6 +1022,29 @@ pub async fn acknowledge_lost_permission(
         .take_mutation(call, next_number_at_answer, &status);
     draw_off_the_main_thread(&state.views).await;
     Ok(onboarding_shown(&status))
+}
+
+/// The reset of the settings alone, the command `reset_settings`: one reset_settings request,
+/// whose status the views take as the answer of a mutation, and its view. It writes nothing of
+/// its own, no login item among it: the file that the service writes is the record of what was
+/// asked. A refusal is answered as the command's error, and no second request goes out.
+pub fn reset(control: &dyn Control, views: &Views) -> Result<StatusView, ActionError> {
+    let made = control.places().make();
+    let call = made.number();
+    let answer = control.reset_settings(made);
+    let next_number_at_answer = control.places().next_number();
+    let status = answer.map_err(|error| not_taken(&error))?;
+    views.take_mutation(call, next_number_at_answer, &status);
+    Ok(views.marked(StatusView::of(&status)))
+}
+
+#[tauri::command]
+pub async fn reset_settings(state: State<'_, AppState>) -> Result<StatusView, ActionError> {
+    let control = Arc::clone(&state.control);
+    let views = Arc::clone(&state.views);
+    let answer = off_the_main_thread(move || reset(control.as_ref(), &views)).await?;
+    draw_off_the_main_thread(&state.views).await;
+    answer
 }
 
 fn not_taken(error: &ClientError) -> ActionError {
