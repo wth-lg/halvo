@@ -380,19 +380,24 @@ fn a_run_fills_a_form_and_reads_it_back() {
 /// A name field, a password field that holds `SECRET`, a field that becomes a password field when it is focused,
 /// and a field whose focus hands the focus on to the password field, each of which, at each input, asks its own
 /// origin for `/typed` by a synchronous GET, a request that changes no state and that the rule lets through to a
-/// bound origin, so that the fixture sees each act on a field.
-const TYPED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" value="halvo-runner-secret-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="turns" aria-label="Code" onfocus="this.type = 'password'" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="hands" aria-label="Pin" onfocus="document.querySelector('[data-testid=secret]').focus()" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
+/// bound origin, so that the fixture sees each act on a field; and a field with no input of its own whose focus
+/// hands the focus on into the password field of `INNER`, which an object element shows.
+const TYPED: &str = r#"<!doctype html><title>typed</title><input data-testid="name" aria-label="Name" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input type="password" data-testid="secret" aria-label="Password" value="halvo-runner-secret-marker" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="turns" aria-label="Code" onfocus="this.type = 'password'" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="hands" aria-label="Pin" onfocus="document.querySelector('[data-testid=secret]').focus()" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}"><input data-testid="into" aria-label="Note" onfocus="document.querySelector('object').contentDocument.querySelector('input').focus()"><object data="/inner" type="text/html"></object>"#;
+
+/// The document of the object element of `TYPED`: a password field that asks `/typed` at each input.
+const INNER: &str = r#"<!doctype html><title>inner</title><input type="password" aria-label="Password" oninput="var x = new XMLHttpRequest(); try { x.open('GET', '/typed', false); x.send(); } catch (e) {}">"#;
 
 /// The value of the password field of `TYPED`.
 const SECRET: &str = "halvo-runner-secret-marker";
 
 /// U4.1w part 1 (3): a step whose `post` fails after it acted, a step whose locator finds no control, a step whose
 /// `pre` fails, a step stored with `credential` `no` whose locator finds a password field, one whose field becomes a
-/// password field at the focus that the fill makes, and one whose field hands the focus on to the password field
-/// each log one `step_failed` row with the cause `step_failed`, never `timeout`, and the run is handed back; the
-/// step with the failing `pre` and the three that would reach a password field act on nothing, the one with the
-/// failing `post` acted, and no frame and no line of the runner holds the password field's value (A4.3: the fresh
-/// read marks the target credential before the act, and the element that holds the focus before the insert).
+/// password field at the focus that the fill makes, one whose field hands the focus on to the password field, and
+/// one whose field hands it on into an object's document each log one `step_failed` row with the cause
+/// `step_failed`, never `timeout`, and the run is handed back; the step with the failing `pre` and the four that
+/// would reach a password field act on nothing, the one with the failing `post` acted, and no frame and no line of
+/// the runner holds the password field's value (A4.3: the fresh read marks the target credential before the act,
+/// and the runner types only into an element that holds the focus of the four kinds that it reads whole).
 #[test]
 fn a_post_condition_that_fails_logs_step_failed() {
     let Some(browser) = hosted("a_post_condition_that_fails_logs_step_failed") else {
@@ -463,9 +468,14 @@ fn a_post_condition_that_fails_logs_step_failed() {
             step(2, "fill", Some("hands"), &[konst("text", "Ada")], &[], &[]),
             false,
         ),
+        (
+            249,
+            step(2, "fill", Some("into"), &[konst("text", "Ada")], &[], &[]),
+            false,
+        ),
     ];
     for (n, second, acted) in cases {
-        let fixture = Fixture::start(&[("/typed-form", TYPED)]);
+        let fixture = Fixture::start(&[("/typed-form", TYPED), ("/inner", INNER)]);
         let mut sup = web_agent(n, &fixture);
         sup.steps = vec![navigate(1, &fixture.url("/typed-form")), second];
         let seen = serve_with(&sup, &browser, reply_to_browser, LONG);

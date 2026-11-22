@@ -328,9 +328,10 @@ async fn hold(executor: &mut Executor, conds: &[(&Cond, Option<String>)]) -> cdp
     Ok(())
 }
 
-/// Carries out the act on the page; the text of the control that `extract` reads. `fill` and `press` read the mark
-/// of the element that holds the focus immediately before their one insert or their key, the element that the text
-/// reaches, and send nothing where it reads credential or cannot be read (`Executor::fill_unless_credential`,
+/// Carries out the act on the page; the text of the control that `extract` reads. `fill` and `press` read the
+/// element that holds the focus immediately before their one insert or their key, the element that the text
+/// reaches, and send nothing unless it is an input, a textarea, a select or an element editable by its own
+/// attribute that reads no credential mark (`Executor::fill_unless_credential`,
 /// `Executor::press_unless_credential`).
 async fn carry(executor: &mut Executor, act: &Act<'_>) -> cdp::Res<Option<String>> {
     match act {
