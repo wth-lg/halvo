@@ -339,7 +339,7 @@ fn f4_a_refused_log_body_of_a_run_whose_workflow_is_gone_drops_its_facts() {
     let line = json!({
         "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(2), "seq": 2, "day": DAY,
         "at": 1_794_500_000_000_000_000_i64, "event": "step_ok", "step": 2, "cause": null,
-        "model": null, "ms": null, "tokens_in": null, "tokens_out": null,
+        "model": null, "ms": null, "tokens_in": null, "tokens_out": null, "page_amount": null,
     });
     let body = json!({"op": "log", "agent": agent(1), "run": run(2), "records": [line]});
     assert!(w.runner(body).is_err());

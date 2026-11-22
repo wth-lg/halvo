@@ -23,7 +23,7 @@ use super::suite::{
     request_bytes, run_path, send_bytes, slot, slot_changed_at_the_load_before_the_begin,
     stopped_between_begin_and_commit, Case, Fixture, Maker, Plan, Record,
 };
-use super::{Left, MakerFacts, Paused, ReadPage, Replied};
+use super::{Left, MakerFacts, PageAfter, Paused, ReadPage, Replied};
 use crate::web::amounts_named;
 
 /// How long the stand-in waits for the reply of a request that left.
@@ -71,12 +71,16 @@ impl Left for Sent {
     }
 
     /// The reply as `replied` reads its status, and for a reply read as made the read of its page: every amount
-    /// that the body names (`amounts_named`).
+    /// that the body names (`amounts_named`), no failed request and no condition.
     fn reply_and_page(self: Box<Self>) -> (Replied, Option<ReadPage>) {
         let answer = answer_of(self.0, REPLY_WAIT);
         let made = replied(self.1, answer.as_ref().map(|a| a.status));
         let page: Option<ReadPage> = match (made, answer) {
-            (Replied::Made, Some(answer)) => Some(Box::new(move || amounts_named(&answer.body))),
+            (Replied::Made, Some(answer)) => Some(Box::new(move |_| PageAfter {
+                amounts: Ok(amounts_named(&answer.body)),
+                refused: false,
+                post_held: true,
+            })),
             _ => None,
         };
         (made, page)
@@ -403,8 +407,8 @@ fn rows(record: &Record) -> Vec<(LogEvent, Option<u32>, Option<Cause>)> {
 
 /// r3 U4.1w-2 (5): the fixture charges another amount than the person was shown (the variant `amount_changes`, whose
 /// `/change` the supervisor sends when it reads the `begin` row, after the runner read the amount again) and its page
-/// after the reply names that amount: the effect stays `committed`, the step's `stopped` row holds `amount_differs`,
-/// and the run ends `failed` with that cause in its `stopped` row with no step, the row that the roster's
+/// after the reply names that amount: the effect stays `committed`, the step's `stopped` row holds `amount_differs`
+/// and that amount as `page_amount` (r3 U5.10-B), and the run ends `failed` with that cause in its `stopped` row with no step, the row that the roster's
 /// `last_cause` reads; one payment stands in the fixture, with the other amount.
 #[test]
 fn a_page_that_names_another_amount_ends_the_run() {
@@ -456,6 +460,16 @@ fn a_page_that_names_another_amount_ends_the_run() {
             (LogEvent::Stopped, Some(1), Some(Cause::AmountDiffers)),
             (LogEvent::Stopped, None, Some(Cause::AmountDiffers)),
         ]
+    );
+    assert_eq!(
+        record
+            .logs()
+            .iter()
+            .filter(|l| l.event == LogEvent::Stopped)
+            .map(|l| (l.step.map(NonZeroU32::get), l.page_amount))
+            .collect::<Vec<_>>(),
+        [(Some(1), u32::try_from(due + 100).ok()), (None, None)],
+        "the step's stopped row holds the amount that the page named, as the runner wrote it"
     );
     assert_eq!(record.done(), Some(Outcome::Failed));
     assert_eq!(record.finish().map(|f| f.outcome), Some(Outcome::Failed));

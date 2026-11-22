@@ -148,8 +148,9 @@ const AGENT_LOG: KindEntry = KindEntry {
         ("ms", Count),
         ("tokens_in", Count),
         ("tokens_out", Count),
+        ("page_amount", Count),
     ],
-    example: r#"{"v":1,"workflow":"10000000000000000000000000000001","agent":"30000000000000000000000000000001","run":"40000000000000000000000000000001","seq":7,"day":20767,"at":1794339000000000000,"event":"model_call","step":4,"cause":null,"model":"local_small","ms":850,"tokens_in":1200,"tokens_out":80}"#,
+    example: r#"{"v":1,"workflow":"10000000000000000000000000000001","agent":"30000000000000000000000000000001","run":"40000000000000000000000000000001","seq":7,"day":20767,"at":1794339000000000000,"event":"model_call","step":4,"cause":null,"model":"local_small","ms":850,"tokens_in":1200,"tokens_out":80,"page_amount":null}"#,
 };
 
 const AGENT_SESSION: KindEntry = KindEntry {
@@ -315,7 +316,7 @@ const OTHER_STATES: [(&str, &str); 11] = [
     ),
     (
         "agent_log",
-        r#"{"v":1,"workflow":"10000000000000000000000000000001","agent":"30000000000000000000000000000001","run":"40000000000000000000000000000001","seq":8,"day":20767,"at":1794339000000000000,"event":"stopped","step":null,"cause":"session_size","model":null,"ms":null,"tokens_in":null,"tokens_out":null}"#,
+        r#"{"v":1,"workflow":"10000000000000000000000000000001","agent":"30000000000000000000000000000001","run":"40000000000000000000000000000001","seq":8,"day":20767,"at":1794339000000000000,"event":"stopped","step":null,"cause":"session_size","model":null,"ms":null,"tokens_in":null,"tokens_out":null,"page_amount":null}"#,
     ),
     (
         "agent_session",

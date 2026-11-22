@@ -181,7 +181,7 @@ jobs:
           name: ci-artifacts-macos
           path: target/ci-artifacts/
       - name: Keep one Rust cache
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit == 'false'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -312,7 +312,7 @@ jobs:
           name: ci-artifacts-windows
           path: target/ci-artifacts/
       - name: Keep one Rust cache
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit == 'false'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

@@ -92,7 +92,7 @@ billing target halvo-route/formal_traces scheduled tue the group B; 15 s in the 
 billing units halvo-route-gate scheduled tue the group B; 13 s in the macos job, 9 s in the windows job
 billing units halvo-coord-app::present::tests::native_hub gate
 billing check 40-r6-policy gate
-billing check 21-r7-backend-test gate macos job, which alone has the check, 72 s there in the push run 44895970784; the ledger and the metering tests of the backend
+billing check 21-r7-backend-test gate macos job, which alone has the check, 72 s there in the push run 44895970784; the ledger and the metering tests of the backend, on a push always, and on a pull request when it changes a path under the two roots of scripts/r7/backend-roots.sh, a file that decides the run or the root's .gitattributes, or when the check cannot tell and so runs them (an unknown or unset event, a HEAD with one parent, a list of changed paths that git cannot make or that names none, a name that git quotes); otherwise one line that says so and PASS
 billing check 24-r7-wall gate
 billing check 27-r7-metering-self gate
 billing check 55-r6-formal scheduled wed 108 s in the macos job
