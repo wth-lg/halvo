@@ -353,10 +353,6 @@ fn a_timed_run_on_windows_ends_on_ctrl_break_with_its_report_and_exit_2() {
             &["--switch", "key_class=on"][..],
             "--switch key_class=on is refused on Windows",
         ),
-        (
-            &["--switch", "screen_activity=on"][..],
-            "--switch screen_activity=on is refused on Windows",
-        ),
     ] {
         let refused = Command::new(BIN)
             .args(["--timed-run", "5", "--store-dir"])

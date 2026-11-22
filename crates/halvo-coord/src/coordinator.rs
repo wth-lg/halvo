@@ -1,9 +1,9 @@
 use crate::guard::{self, EffectRecord, Policy, Refusal, Table};
 use crate::items::drive::{self as items, Held, HeldBind, Ledger, SetupDone};
 use crate::items::{
-    admits, compose_check, compose_link_account, compose_plain, native_card, params, raise_confirm,
-    raise_step, ConfirmAnswer, ConfirmMove, ConfirmState, NativeCard, Plain, Raise, Setup,
-    SetupInput, SetupParam, Source,
+    admits, compose_check, compose_link_account, compose_plain, compose_sign_in, native_card,
+    params, raise_confirm, raise_step, ConfirmAnswer, ConfirmMove, ConfirmState, NativeCard, Plain,
+    Raise, Setup, SetupInput, SetupParam, Source,
 };
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Senders, Tray};
 use crate::roster::{self, Placed};
@@ -3812,7 +3812,14 @@ where
                 .and_then(|i| i.said_by(name).ok()),
             ItemKind::SignIn => match st.binds.iter().find(|b| b.item() == item) {
                 Some(b) => b.page_item(name).ok(),
-                None => plain(Plain::SignIn),
+                None => {
+                    let origin = st
+                        .handbacks
+                        .iter()
+                        .find(|(i, _)| i == item)
+                        .and_then(|(_, a)| a.origin.as_ref());
+                    compose_sign_in(item, agent, name, origin).ok()
+                }
             },
             ItemKind::LinkAccount => st
                 .handbacks

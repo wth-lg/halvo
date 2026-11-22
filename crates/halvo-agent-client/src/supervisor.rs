@@ -5,7 +5,7 @@ use std::path::Path;
 use std::process::{ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -35,6 +35,10 @@ use crate::wire::{read_frame, write_frame};
 
 const TICK: Duration = Duration::from_millis(100);
 
+/// How long `Supervisor::kill` waits for the run's end to come to the removal of the run's profile directory: the
+/// 5 s of the wait of `RunProc::all_gone`.
+const PROFILE_WAIT: Duration = Duration::from_secs(5);
+
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
@@ -54,6 +58,22 @@ pub(crate) struct Slot {
     events: Mutex<Option<Sender<Event>>>,
     ended: AtomicBool,
     cancelled: AtomicBool,
+    profile: Mutex<ProfileEnd>,
+    profile_moved: Condvar,
+}
+
+/// Where the run's end stands with the removal of the run's profile directory: `finish_run` moves it and
+/// `Supervisor::kill` waits for it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ProfileEnd {
+    /// The run's end has not come to the removal.
+    Pending,
+    /// The run's end removes the profile directory now.
+    Removing,
+    /// The run's end removed the profile directory or gave it up.
+    Settled,
+    /// A kill stopped waiting before the run's end came to the removal, which the run's end then gives up.
+    Abandoned,
 }
 
 impl Slot {
@@ -65,7 +85,58 @@ impl Slot {
             events: Mutex::new(None),
             ended: AtomicBool::new(false),
             cancelled: AtomicBool::new(false),
+            profile: Mutex::new(ProfileEnd::Pending),
+            profile_moved: Condvar::new(),
         }
+    }
+
+    /// Waits until the run's end has removed the run's profile directory or given it up: at most `wait` for the
+    /// run's end to come to the removal, and then until the removal ends. When `wait` passes first, it marks the
+    /// removal `Abandoned`, so that no removal of the run's end begins after this wait.
+    fn wait_profile(&self, wait: Duration) {
+        let deadline = Instant::now() + wait;
+        let mut state = lock(&self.profile);
+        loop {
+            state = match *state {
+                ProfileEnd::Settled | ProfileEnd::Abandoned => return,
+                ProfileEnd::Removing => self
+                    .profile_moved
+                    .wait(state)
+                    .unwrap_or_else(|e| e.into_inner()),
+                ProfileEnd::Pending => {
+                    let left = deadline.saturating_duration_since(Instant::now());
+                    if left.is_zero() {
+                        *state = ProfileEnd::Abandoned;
+                        return;
+                    }
+                    self.profile_moved
+                        .wait_timeout(state, left)
+                        .unwrap_or_else(|e| e.into_inner())
+                        .0
+                }
+            };
+        }
+    }
+
+    /// Moves a `Pending` removal to `Removing` when `gone`, else to `Settled`; true when the run's end is to remove
+    /// the profile directory now. An `Abandoned` removal stays given up.
+    fn begin_removal(&self, gone: bool) -> bool {
+        let mut state = lock(&self.profile);
+        if *state != ProfileEnd::Pending {
+            return false;
+        }
+        *state = if gone {
+            ProfileEnd::Removing
+        } else {
+            ProfileEnd::Settled
+        };
+        self.profile_moved.notify_all();
+        gone
+    }
+
+    fn end_removal(&self) {
+        *lock(&self.profile) = ProfileEnd::Settled;
+        self.profile_moved.notify_all();
     }
 
     pub(crate) fn ended(&self) -> bool {
@@ -140,6 +211,15 @@ pub(crate) struct Inner {
     reap_hook: Mutex<Option<ReapHook>>,
 }
 
+impl Inner {
+    fn reap_step(&self, step: ReapStep) {
+        let hook = lock(&self.reap_hook).clone();
+        if let Some(hook) = hook {
+            hook(step);
+        }
+    }
+}
+
 /// The supervisor library: it starts runners, relays their store requests, answers their frames through the
 /// caller's traits, and ends their processes.
 #[derive(Clone)]
@@ -185,17 +265,11 @@ impl Supervisor {
         }
     }
 
-    /// Sets the hook that `reap` calls at each `ReapStep`: a seam of the crate's tests, which the app does not call.
+    /// Sets the hook that `reap`, and the removal of a profile directory at a run's end, call at each `ReapStep`: a
+    /// seam of the crate's tests, which the app does not call.
     #[doc(hidden)]
     pub fn set_reap_hook(&self, hook: Option<ReapHook>) {
         *lock(&self.inner.reap_hook) = hook;
-    }
-
-    fn reap_step(&self, step: ReapStep) {
-        let hook = lock(&self.inner.reap_hook).clone();
-        if let Some(hook) = hook {
-            hook(step);
-        }
     }
 
     fn slot(&self, run: &RunId) -> Result<Arc<Slot>, CallError> {
@@ -378,11 +452,19 @@ impl Supervisor {
     }
 
     /// Ends every process of `run` that the library may end and waits for the runner to be gone; success also for a
-    /// run whose runner has ended.
+    /// run whose runner has ended. Then it waits until the run's end, in the run's own thread (`finish_run`), has
+    /// removed the run's profile directory or given it up: at most `PROFILE_WAIT` (5 s) for the run's end to come to
+    /// the removal, and then until the removal ends; when those 5 s pass first, the run's end gives the removal up,
+    /// so no removal of the run's end runs after the answer. So a kill answers up to 5 s later than its processes'
+    /// end, and later by the time of a removal that has begun; a run whose thread stands inside a call into the app
+    /// for those 5 s keeps its profile until the reap at the next start of the app.
     pub fn kill(&self, run: &RunId) -> Result<(), CallError> {
         let slot = self.slot(run)?;
         match slot.with_proc(RunProc::kill) {
-            Some(()) => Ok(()),
+            Some(()) => {
+                slot.wait_profile(PROFILE_WAIT);
+                Ok(())
+            }
             None if slot.ended() => Ok(()),
             None => Err(CallError::UnknownRun),
         }
@@ -433,7 +515,7 @@ impl Supervisor {
             .filter(|a| a.answer == Reaped::Alive)
             .map(|a| a.run.clone())
             .collect();
-        self.reap_step(ReapStep::Answered);
+        self.inner.reap_step(ReapStep::Answered);
         remove_profiles(
             data_dir,
             |run| {
@@ -442,7 +524,7 @@ impl Supervisor {
                         .get(run)
                         .is_some_and(|slot| !slot.ended())
             },
-            |step| self.reap_step(step),
+            |step| self.inner.reap_step(step),
         );
         Ok(answers)
     }
@@ -790,7 +872,14 @@ impl Running<'_> {
 
 /// Closes the link, gives the runner `link_end` (`LINK_END` by default) to end by itself and then ends what is
 /// left, and reports the end. For a runner that outlived its stored `finish` this close comes `link_end` after the
-/// `finish`, so the library ends such a runner once twice `link_end` has passed since its `finish`.
+/// `finish`, so the library ends such a runner once twice `link_end` has passed since its `finish`. Every run of this
+/// life whose runner was made ends here, also after `Supervisor::kill`. Before `MarkSink::end` it removes the run's
+/// directory under `<data directory>/agents/profiles/` by `remove_profiles`, at the steps of the reap hook, when
+/// `RunProc::all_gone` says that every process of the run that the library can see is gone and no kill has given up
+/// its wait for that removal; a kill waits for it (`Slot::wait_profile`). Named limits: a tree that is not gone
+/// within that wait of at most 5 s, or a directory that cannot be removed, keeps its profile until the reap at the
+/// next start of the app, and such an end reaches `MarkSink::end` up to 5 s later; on macOS a process that left both
+/// the runner's group and the browser's is not seen, as in `Supervisor::reap`.
 fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
     slot.close_link();
     let deadline = Instant::now() + inner.config.link_end;
@@ -806,6 +895,15 @@ fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
                 break;
             }
         }
+    }
+    let gone = slot.with_proc(|p| p.all_gone()) == Some(true);
+    if slot.begin_removal(gone) {
+        remove_profiles(
+            &inner.config.data_dir,
+            |run| run != &slot.spec.run,
+            |step| inner.reap_step(step),
+        );
+        slot.end_removal();
     }
     let end_run = if ending.finish.is_some() {
         EndRun::NotOwed

@@ -5,13 +5,13 @@ use std::path::{Path, PathBuf};
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
     Accepted, AddOrigin, AgentHistory, AgentsReply, CheckpointsReply, CoordinatorCall,
-    CoordinatorReply, CreateAgent, EndRun, Finish, HistoryReply, HistoryRun, ListAgents,
-    ListCheckpoints, ListOverlaps, ListedAgent, ListedCheckpoint, Load, LoadReplies,
-    LoadRepliesReply, LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook,
-    LoadedSession, MarkCheckpoint, Overlap, OverlapsReply, PastCheckpoint, PastEffect,
-    PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession, RevReply, RunnerCall,
-    RunnerReply, SessionReply, SetBindings, SetState, StartRun, StateReply, StepsReply, Stored,
-    UnknownEffect,
+    CoordinatorReply, CreateAgent, DropSession, DropSessions, EndRun, Finish, HistoryReply,
+    HistoryRun, ListAgents, ListCheckpoints, ListOverlaps, ListedAgent, ListedCheckpoint, Load,
+    LoadReplies, LoadRepliesReply, LoadReply, LoadSession, LoadSteps, LoadedBindings,
+    LoadedPlaybook, LoadedSession, MarkCheckpoint, Overlap, OverlapsReply, PastCheckpoint,
+    PastEffect, PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession, RevReply,
+    RunnerCall, RunnerReply, SessionReply, SetBindings, SetState, StartRun, StateReply, StepsReply,
+    Stored, UnknownEffect,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -834,6 +834,11 @@ fn runner_bodies() -> Vec<RunnerCall> {
                 .map(|m| ProviderId::parse(&format!("msg-{m}")).unwrap())
                 .collect(),
         }),
+        RunnerCall::DropSession(DropSession {
+            agent: agent(),
+            run: run(),
+            origin: origin(UTILITY),
+        }),
     ]
 }
 
@@ -944,6 +949,10 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             workflow: workflow(),
             agent: agent(),
             runs: 5,
+        }),
+        CoordinatorCall::DropSessions(DropSessions {
+            workflow: workflow(),
+            agent: agent(),
         }),
     ]
 }

@@ -213,8 +213,8 @@ pub(crate) fn make_dirs(profile: &Path) -> Res<(PathBuf, PathBuf)> {
             Err(e) => return Err(Fault::new("start", e.to_string())),
         }
     }
-    std::fs::create_dir(profile).map_err(|e| Fault::new("start", e.to_string()))?;
-    if let Err(e) = std::fs::create_dir(&temp) {
+    own_dir(profile).map_err(|e| Fault::new("start", e.to_string()))?;
+    if let Err(e) = own_dir(&temp) {
         let _ = std::fs::remove_dir(profile);
         return Err(Fault::new("start", e.to_string()));
     }
@@ -226,6 +226,15 @@ pub(crate) fn make_dirs(profile: &Path) -> Res<(PathBuf, PathBuf)> {
             Err(Fault::new("start", "canonical path"))
         }
     }
+}
+
+/// Makes the directory `dir` the person's alone: mode 0700 on a system of modes (A8.3, the coordinator's ruling of
+/// log line 13918 (P2)); on Windows it takes the access list of the directory above it.
+fn own_dir(dir: &Path) -> std::io::Result<()> {
+    let builder = &mut std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(builder, 0o700);
+    builder.create(dir)
 }
 
 fn gone(dir: &Path) -> bool {

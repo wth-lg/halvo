@@ -851,24 +851,11 @@ mod gate {
             .ok_or(Usage("--timed-run needs SECONDS"))?;
         let flags = Flags::read(flags, &["--store-dir", "--hold-secure-input", "--switch"])?;
         let seconds = seconds_of(seconds)?;
-        if cfg!(target_os = "windows") {
-            for (switch, on) in &flags.switches.0 {
-                match (switch, on) {
-                    (Switch::KeyClass, true) => {
-                        return Err(Usage(
-                            "--switch key_class=on is refused on Windows: this build starts no keyboard source",
-                        )
-                        .into());
-                    }
-                    (Switch::ScreenActivity, true) => {
-                        return Err(Usage(
-                            "--switch screen_activity=on is refused on Windows: this build starts no screen source",
-                        )
-                        .into());
-                    }
-                    _ => {}
-                }
-            }
+        if cfg!(target_os = "windows") && flags.switches.0.contains(&(Switch::KeyClass, true)) {
+            return Err(Usage(
+                "--switch key_class=on is refused on Windows: this build starts no keyboard source",
+            )
+            .into());
         }
         let secure_input = if flags.hold {
             if cfg!(target_os = "windows") {
@@ -3902,6 +3889,38 @@ mod tests {
         assert_eq!(
             run(vec![(Switch::ScreenActivity, true)]).kind(),
             flagged(false)
+        );
+    }
+
+    #[cfg(all(windows, debug_assertions))]
+    #[test]
+    fn a_windows_timed_run_takes_the_screen_switch_and_refuses_the_key_switch() {
+        use halvo_control::proto::Platform;
+        let dirs = dirs();
+        let d = dirs.store.as_str();
+        let Ok(Mode::TimedRun(run)) = timed(
+            &dirs,
+            &["5", "--store-dir", d, "--switch", "screen_activity=on"],
+        ) else {
+            panic!("the screen switch was refused");
+        };
+        let wanted = sources::starting(Platform::Windows, run.kind(), run.switches.applied());
+        let refused = timed(&dirs, &["5", "--store-dir", d, "--switch", "key_class=on"]);
+        let mut err = Vec::new();
+        let status = refused
+            .as_ref()
+            .map_or_else(|refusal| usage_answer(refusal, &mut err), |_| 0);
+        let text = String::from_utf8(err).unwrap();
+        assert_eq!(
+            run.switches.set_by_flags(),
+            [(Switch::ScreenActivity, true)]
+        );
+        assert!(wanted.contains(&SourceName::Screen), "{wanted:?}");
+        assert!(!wanted.contains(&SourceName::Keyboard), "{wanted:?}");
+        assert_eq!(status, exit::USAGE, "{refused:?}: {text}");
+        assert!(
+            text.contains("--switch key_class=on is refused on Windows"),
+            "{text}"
         );
     }
 

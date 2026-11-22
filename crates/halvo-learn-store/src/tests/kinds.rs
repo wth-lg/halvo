@@ -814,6 +814,8 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
     let body = json!({"op": "put_playbook", "agent": a, "run": run(4), "number": w.loaded, "steps": [proposal]});
     answer(&mut w, "put_playbook", body, &mut replies);
     put_bodies(&mut w, 4, &mut replies);
+    let body = json!({"op": "drop_session", "agent": a, "run": run(4), "origin": ORIGIN});
+    answer(&mut w, "drop_session", body, &mut replies);
     let body = json!({"op": "load_replies", "agent": a, "run": run(4), "message_ids": [message(3), message(4)]});
     answer(&mut w, "load_replies", body, &mut replies);
     let body = json!({"op": "finish", "agent": a, "run": run(4), "record": failed_record(&w, 4)});
@@ -822,7 +824,7 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
     let mut ops: Vec<&str> = replies.iter().map(|(op, _)| op.as_str()).collect();
     ops.sort_unstable();
     ops.dedup();
-    assert_eq!(ops.len(), 11, "the bodies of run 4: {ops:?}");
+    assert_eq!(ops.len(), 12, "the bodies of run 4: {ops:?}");
     for (op, text) in planting.iter().chain(&replies) {
         for (kind, marker) in &outside {
             assert!(
