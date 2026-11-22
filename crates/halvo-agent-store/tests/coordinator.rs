@@ -1904,6 +1904,43 @@ fn the_roster_names_no_cause_of_a_step_after_which_the_run_went_on() {
     );
 }
 
+/// verifier-100's case of r3 U5.2: the runner's `stopped` row of a state over the limit (no step, the cause
+/// `session_size`, written by the run's end before its own end row) is no row of the run's end: a run that then ends
+/// `completed` reads `last_cause` null, and a run that ends with a cause after that row reads its own cause.
+#[test]
+fn a_completed_run_whose_state_was_over_the_limit_reads_no_cause() {
+    let mut store = store_with("email");
+    log_line(
+        &mut store,
+        1,
+        1,
+        stopped_line(1, 1, 1, None, "session_size"),
+    );
+    finish_of(&mut store, 1, 1, 1, "completed");
+    assert_eq!(
+        causes(&mut store),
+        [Some(Value::Null)],
+        "the run ended completed"
+    );
+
+    let mut store = store_with("email");
+    log_line(
+        &mut store,
+        1,
+        1,
+        stopped_line(1, 1, 1, None, "session_size"),
+    );
+    let mut end = stopped_line(1, 1, 1, None, "step_failed");
+    end["seq"] = json!(3);
+    log_line(&mut store, 1, 1, end);
+    finish_of(&mut store, 1, 1, 1, "failed");
+    assert_eq!(
+        causes(&mut store),
+        [Some(json!("step_failed"))],
+        "the run's own end row"
+    );
+}
+
 /// The runner's `reply_row` of the agent's first message, `drafted` and then `begun`, in the run `r`.
 fn begun_reply(store: &mut MemoryStore, r: u32) {
     for (seq, effect_n, state) in [(1, None, "drafted"), (2, Some(1), "begun")] {

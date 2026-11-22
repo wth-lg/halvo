@@ -16,7 +16,9 @@
 //! the address of the page on which the handback opened and sends its origin in the frame `bind`; after
 //! `bind_reply` with `bound=yes` it first arms `Mode::Fail` with the origins of the bindings and every origin bound
 //! in this run, then closes the pages that were opened meanwhile, so that no page loads outside the rule (the
-//! coordinator's ruling of log line 14127 (3), (4)), and the run goes on.
+//! coordinator's ruling of log line 14127 (3), (4)), and the run goes on. Since the opening clears what the pages of
+//! every site keep for later, the run then stores anew at its end only a site bound at a handback after it
+//! (crate::session, the coordinator's ruling of log line 14366).
 //!
 //! Every other end binds nothing and makes no further step: the runner first lets no request through (the rule in
 //! `Mode::Fail` with no origin, the relay with no host), fails every request that it holds paused and closes the
@@ -80,6 +82,7 @@ impl Runner {
         }
         page.fail_held().map_err(failed)?;
         page.close_others().map_err(failed)?;
+        self.sessions.cleared();
         page.clear_stores().map_err(failed)?;
         page.load_again().map_err(failed)?;
         if page.pass_all().is_err() {
@@ -92,6 +95,7 @@ impl Runner {
         {
             Ok((origin, YesNo::Yes)) => {
                 self.sessions.at_field = None;
+                self.sessions.keep(&origin);
                 if !self.bound.contains(&origin) {
                     self.bound.push(origin);
                 }
