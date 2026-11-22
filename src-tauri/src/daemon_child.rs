@@ -3773,6 +3773,35 @@ mod tests {
     }
 
     #[test]
+    fn the_agents_runs_stay_held_while_the_store_reads_deleting_with_the_field() {
+        use crate::commands::agents::RunsHold;
+        use crate::view_state::StatusView;
+        use halvo_control::proto::StoreState;
+
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        fields.store = StoreState::Deleting;
+        fields.store_id = None;
+        fields.store_delete_unfinished = true;
+        let view = StatusView::of(&DaemonStatus::new(fields).expect("a status that holds"));
+        let StatusView::Running(running) = &view else {
+            panic!("a status reads as a running view");
+        };
+        assert_eq!(
+            (running.store.state, running.store.delete_unfinished),
+            (StoreState::Deleting, true),
+            "the view carries the field"
+        );
+        let runs = RunsHold::default();
+        runs.delete_begins(None);
+        runs.view_reads(None, RunsHold::bars(&view));
+        runs.delete_ends(None);
+        assert!(
+            runs.stands(),
+            "no run of an agent starts while the store reads deleting with the field"
+        );
+    }
+
+    #[test]
     fn an_offline_end_with_1_and_a_clean_deleted_line_is_no_whole_delete() {
         use crate::view_state::{offline_view, OfflineEnd};
         use std::sync::atomic::{AtomicU32, Ordering};
