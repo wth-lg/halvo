@@ -568,7 +568,7 @@ fn run_to_end(
             agent,
             workflow,
             mode: Mode::Replay,
-            browser: start.browser,
+            browser: Some(start.browser),
             model: None,
             headed: false,
             utc_offset_s: start.utc_offset_s,

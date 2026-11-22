@@ -457,8 +457,7 @@ mod mac {
             let exe = std::env::current_exe().unwrap();
             let places = Places {
                 data_dir: self.dir.clone(),
-                runner: exe.clone(),
-                browser: exe,
+                runner: exe,
                 model: None,
             };
             product::hub(self.calls(), places, Box::new(|_| {}), Arc::new(Unseen))

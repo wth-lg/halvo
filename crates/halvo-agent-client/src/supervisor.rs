@@ -349,12 +349,13 @@ impl Supervisor {
             .arg(spec.workflow.as_str())
             .arg("--mode")
             .arg(spec.mode.as_str())
-            .arg("--browser")
-            .arg(&spec.browser)
             .arg("--utc-offset")
             .arg(spec.utc_offset_s.to_string())
             .arg("--data-dir")
             .arg(&self.inner.config.data_dir);
+        if let Some(browser) = &spec.browser {
+            cmd.arg("--browser").arg(browser);
+        }
         if let Some(model) = &spec.model {
             cmd.arg("--model").arg(model);
         }
@@ -1104,7 +1105,7 @@ mod tests {
                 agent: AgentId::from_random([8; 16]),
                 workflow: WorkflowId::from_random([9; 16]),
                 mode: Mode::Replay,
-                browser: root.join("script"),
+                browser: Some(root.join("script")),
                 model: None,
                 headed: false,
                 utc_offset_s: 0,
