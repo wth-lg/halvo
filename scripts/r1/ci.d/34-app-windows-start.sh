@@ -292,10 +292,10 @@ fixture() {
   child_start_s=10
   answer_s=10
   own_answer_s=1
-  stop_hold_s=2
-  kill_end_s=3
+  stop_hold_s=3
+  kill_end_s=4
   end_s=3
-  poll_pause_s=0.2
+  poll_pause_s=0.5
   list_processes() {
     for file in "$STUB_PROCS"/*; do
       [ -f "$file" ] || continue
@@ -305,6 +305,8 @@ fixture() {
   }
   end_process() {
     kill -9 "$1" 2>/dev/null
+    wait "$1" 2>/dev/null
+    return 0
   }
   native_path() {
     printf '%s\n' "$1"
@@ -328,8 +330,7 @@ check() {
     *"$3"*) ;;
     *) got=$got-without-the-text ;;
   esac
-  left=$(for file in "$work/$mode/procs"/*; do [ -f "$file" ] && kill -0 "${file##*/}" 2>/dev/null && printf '%s ' "${file##*/}"; done)
-  [ -z "$left" ] || got=$got-with-processes-left
+  [ ! -s "$work/$mode.left" ] || got=$got-with-processes-left
   printf 'case %s/%s want=%s got=%s\n' "$name" "$mode" "$want" "$got"
   if [ "$got" != "$want" ]; then
     printf '%s\n' "$out" | sed "s/^/  $mode: /"
@@ -366,7 +367,7 @@ else
 fi
 again=yes
 while :; do
-  sleep 0.2
+  sleep 1
   if [ -n "$last" ] && ! kill -0 "$last" 2>/dev/null; then
     case $STUB_MODE:$again in
       restart:yes)
@@ -408,19 +409,38 @@ window=0
 [ "$STUB_MODE" = linger ] && trap '' TERM
 printf 'halvo-capture.exe %s %s %s halvo-capture.exe --service-run --lifeline --data-dir %s\n' "$$" "$parent" "$window" "$4" >"$STUB_PROCS/$$"
 while [ "$STUB_MODE" = orphan ] || kill -0 "$PPID" 2>/dev/null; do
-  sleep 0.2
+  sleep 1
 done
 EOF
   chmod +x "$work/bin/halvo" "$work/bin/halvo-capture" || exit 2
   modes="good early two window parent store dead-app restart stop-ends-app linger orphan"
+  fixture_limit_s=120
   for mode in $modes; do
     mkdir -p "$work/$mode/procs" || exit 2
-    (
-      STUB_MODE=$mode STUB_BIN=$work/bin STUB_PROCS=$work/$mode/procs sh "$self" --fixture "$work/bin" "$work/$mode" >"$work/$mode.out" 2>&1
-      printf '%s\n' "$?" >"$work/$mode.code"
-    ) &
+    STUB_MODE=$mode STUB_BIN=$work/bin STUB_PROCS=$work/$mode/procs sh "$self" --fixture "$work/bin" "$work/$mode" >"$work/$mode.out" 2>&1 &
+    fixture=$!
+    began=$(date +%s) || exit 2
+    waited=0
+    while kill -0 "$fixture" 2>/dev/null && [ "$waited" -lt "$fixture_limit_s" ]; do
+      sleep 0.2
+      waited=$(seconds_since "$began") || exit 2
+    done
+    if kill -0 "$fixture" 2>/dev/null; then
+      kill -9 "$fixture" 2>/dev/null
+      printf 'the fixture ran past %s s and was ended\n' "$fixture_limit_s" >>"$work/$mode.out"
+    fi
+    wait "$fixture"
+    printf '%s\n' "$?" >"$work/$mode.code"
+    took=$(seconds_since "$began") || exit 2
+    printf 'fixture %s: %s s\n' "$mode" "$took"
+    : >"$work/$mode.left"
+    for file in "$work/$mode/procs"/*; do
+      if [ -f "$file" ] && kill -0 "${file##*/}" 2>/dev/null; then
+        printf '%s ' "${file##*/}" >>"$work/$mode.left"
+        kill -9 "${file##*/}" 2>/dev/null
+      fi
+    done
   done
-  wait
   wrong=
   rejected=0
   check good PASS 'case stop: no halvo-capture.exe of the provisioned directory'
