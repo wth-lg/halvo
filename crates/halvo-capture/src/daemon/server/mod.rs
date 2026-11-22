@@ -8,6 +8,11 @@ pub mod unix;
 #[cfg(windows)]
 pub mod windows;
 
+#[cfg(target_os = "macos")]
+pub use unix::Listening;
+#[cfg(windows)]
+pub use windows::Listening;
+
 use std::io::{ErrorKind, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -168,9 +173,9 @@ impl EndingLife {
                 parts.desired = Desired::Paused;
             }
         }
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
         let facts = RunFacts {
-            rss_peak_bytes: unix::rss_peak_bytes(),
+            rss_peak_bytes: rss_peak_bytes(),
             ..facts
         };
         Some(match (status_of(&parts, &facts), request) {
@@ -466,6 +471,33 @@ pub const TYPING: Option<bool> = Some(crate::macos::input::TYPING_ON_MAC);
 #[cfg(not(target_os = "macos"))]
 pub const TYPING: Option<bool> = None;
 
+/// The peak of this process's memory in bytes, as a status reports it: on a
+/// Mac the peak resident size that getrusage reports, on Windows the peak
+/// working set that GetProcessMemoryInfo reports; 0 when the call fails.
+#[cfg(target_os = "macos")]
+pub fn rss_peak_bytes() -> u64 {
+    unix::rss_peak_bytes()
+}
+
+/// The peak of this process's memory in bytes, as a status reports it: on a
+/// Mac the peak resident size that getrusage reports, on Windows the peak
+/// working set that GetProcessMemoryInfo reports; 0 when the call fails.
+#[cfg(windows)]
+pub fn rss_peak_bytes() -> u64 {
+    use ::windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+    use ::windows::Win32::System::Threading::GetCurrentProcess;
+    let mut counters = PROCESS_MEMORY_COUNTERS::default();
+    let size = u32::try_from(std::mem::size_of::<PROCESS_MEMORY_COUNTERS>()).unwrap_or(0);
+    // SAFETY: GetCurrentProcess returns the pseudo handle of this process,
+    // and the call writes at most `size` bytes into `counters`, which is one
+    // PROCESS_MEMORY_COUNTERS that lives across the call.
+    let read = unsafe { GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, size) };
+    match read {
+        Ok(()) => u64::try_from(counters.PeakWorkingSetSize).unwrap_or(u64::MAX),
+        Err(_) => 0,
+    }
+}
+
 /// What a status reads of the life beside the supervisor: its start, whether a
 /// parent is watched, the reading of the run marker at its start and the peak
 /// of its resident memory.
@@ -495,9 +527,12 @@ pub struct StatusParts {
     pub held: bool,
 }
 
-/// The status of a service run on a Mac (contracts.md C2.1, C2.3), built from
-/// `parts` and `facts`; a status whose fields do not hold together is the
-/// error of its rule.
+/// The status of a service run (contracts.md C2.1, C2.3) on the system of
+/// its board, built from `parts` and `facts`; a status whose fields do not
+/// hold together is the error of its rule. On Windows it names the platform
+/// windows, lists no permission, reports no secure-input count, the custody
+/// dpapi and the password guard `none` while the keyboard source reads off
+/// (contracts.md C10.2).
 pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, StatusError> {
     let board = &parts.board;
     let snapshot = board.snapshot;
@@ -525,7 +560,9 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         .filter(|line| line.state != proto::SourceState::Off)
         .map(|line| line.name)
         .collect();
-    let permissions: Vec<PermissionLine> = Permission::R1_MACOS
+    let platform = board.platform;
+    let guard = guard_of(board, &lines);
+    let permissions: Vec<PermissionLine> = required_of(platform)
         .iter()
         .map(|&name| PermissionLine {
             name,
@@ -543,7 +580,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
             once_granted: parts.once_granted.contains(&name),
         })
         .collect();
-    let onboarding = onboarding_of(&permissions, parts.switches);
+    let onboarding = onboarding_of(platform, &permissions, parts.switches);
     DaemonStatus::new(StatusFields {
         daemon_version: env!("CARGO_PKG_VERSION").parse().unwrap_or(DaemonVersion {
             major: 0,
@@ -588,7 +625,8 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         tap_disabled_user_input: figures.tap_disabled_user_input,
         late_events: figures.late_events > 0,
         max_lag_ms: figures.max_lag_ms,
-        secure_input_keystrokes: Some(figures.secure_input_keystrokes > 0),
+        secure_input_keystrokes: (platform == Platform::Macos)
+            .then_some(figures.secure_input_keystrokes > 0),
         typing: TYPING,
         keys_withheld: figures.keys_withheld,
         title_read_errors: figures.title_read_errors,
@@ -608,7 +646,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
             StateHealth::NewerVersion(_) => proto::StateFile::NewerVersion,
             StateHealth::WriteFailed(_) => proto::StateFile::WriteFailed,
         },
-        platform: Platform::Macos,
+        platform,
         enabled_sources,
         switches: SwitchName::ALL
             .iter()
@@ -631,11 +669,13 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
                 refused: 0,
             })
             .collect(),
-        password_guard: board.password_guard,
-        password_guard_bound_ms: (board.password_guard != PasswordGuard::None)
-            .then_some(MAC_GUARD_BOUND_MS),
+        password_guard: guard,
+        password_guard_bound_ms: (guard != PasswordGuard::None).then_some(MAC_GUARD_BOUND_MS),
         screen_filter_excludes_app: None,
-        custody: Custody::RootFile,
+        custody: match platform {
+            Platform::Macos => Custody::RootFile,
+            Platform::Windows => Custody::Dpapi,
+        },
         onboarding,
         ext: Vec::new(),
     })
@@ -712,7 +752,29 @@ fn store_of(
     )
 }
 
-fn onboarding_of(lines: &[PermissionLine], switches: Switches) -> OnboardingState {
+fn required_of(platform: Platform) -> &'static [Permission] {
+    match platform {
+        Platform::Macos => &Permission::R1_MACOS,
+        Platform::Windows => &[],
+    }
+}
+
+fn guard_of(board: &Board, lines: &[SourceLine]) -> PasswordGuard {
+    let keyboard_off = lines.iter().any(|line| {
+        line.name == proto::SourceName::Keyboard && line.state == proto::SourceState::Off
+    });
+    if board.platform == Platform::Windows && keyboard_off {
+        PasswordGuard::None
+    } else {
+        board.password_guard
+    }
+}
+
+fn onboarding_of(
+    platform: Platform,
+    lines: &[PermissionLine],
+    switches: Switches,
+) -> OnboardingState {
     let set = |pick: fn(&PermissionLine) -> bool| -> PermissionSet {
         lines
             .iter()
@@ -724,7 +786,7 @@ fn onboarding_of(lines: &[PermissionLine], switches: Switches) -> OnboardingStat
         grants.with(line.name, line.grant)
     });
     onboarding::assess(&AssessInput {
-        required: &Permission::R1_MACOS,
+        required: required_of(platform),
         now,
         granted_at_capture_start: set(|line| line.at_start == GrantState::Granted),
         asked: set(|line| line.asked),
@@ -828,5 +890,83 @@ mod tests {
         assert!(serve_connection(&mut stream, Some(own), own, &admitting, &hand).is_none());
         assert!(stream.reads > 0, "the own user's request was not read");
         assert_eq!(stream.reply().code(), Some(ErrorCode::Busy));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn the_status_of_a_windows_run_names_windows_and_holds_the_keyboard_off() {
+        use halvo_control::model::{StorageCap, UtcSecond};
+        use halvo_control::proto::{SourceName, SourceState};
+
+        let mut switches = Switches::default();
+        for switch in Switch::ALL {
+            switches.set(switch, true);
+        }
+        let running = [
+            SourceName::Foreground,
+            SourceName::Pointer,
+            SourceName::WindowTitle,
+        ];
+        let mut board = Board::new(Platform::Windows);
+        for name in running {
+            board.set_source(name, &crate::source::SourceState::Running, false);
+        }
+        board.enabled = running.to_vec();
+        board.capture = BoardCapture::Running;
+        let parts = StatusParts {
+            board,
+            desired: Desired::Running,
+            lease: proto::Lease::Fresh,
+            slot: Slot::Opening,
+            obstructed: None,
+            health: StateHealth::Ok,
+            cap: StateCap::Known(StorageCap::DEFAULT),
+            switches,
+            once_granted: Vec::new(),
+            asked: Vec::new(),
+            held: false,
+        };
+        let facts = RunFacts {
+            started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+            parent: proto::Parent::None,
+            last_stop: proto::LastStop::None,
+            rss_peak_bytes: 0,
+        };
+        let status = status_of(&parts, &facts).unwrap();
+        let fields = status.fields();
+        assert_eq!(fields.platform, Platform::Windows);
+        let names: Vec<SourceName> = fields.sources.iter().map(|line| line.name).collect();
+        assert_eq!(names, SourceName::WINDOWS);
+        for line in &fields.sources {
+            let off = !running.contains(&line.name);
+            assert_eq!(line.state == SourceState::Off, off, "{:?}", line.name);
+        }
+        assert_eq!(fields.password_guard, PasswordGuard::None);
+        assert_eq!(fields.password_guard_bound_ms, None);
+        assert!(!fields.keys_withheld);
+        assert_eq!(fields.secure_input_keystrokes, None);
+        assert_eq!(fields.typing, None);
+        assert!(fields.permissions.is_empty());
+        assert_eq!(fields.custody, Custody::Dpapi);
+
+        let text = halvo_control::ctl_text::status_text(&status);
+        for wanted in [
+            "platform=windows",
+            "source name=keyboard state=off",
+            "source name=screen state=off",
+            "source name=system_audio state=off",
+            "keys_withheld=no",
+        ] {
+            assert!(
+                text.lines().any(|line| line == wanted),
+                "no line {wanted} in:\n{text}"
+            );
+        }
+        let json = serde_json::to_value(&status).unwrap();
+        for (key, value) in json.as_object().unwrap() {
+            if key.contains("key") {
+                assert!(!value.is_number(), "a count of keys: {key}={value}");
+            }
+        }
     }
 }
