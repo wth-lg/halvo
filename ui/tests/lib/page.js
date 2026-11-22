@@ -79,6 +79,7 @@ async function openPage(options = {}) {
   const { dir = APP, replies = {}, globalTauri = false, timezoneOffset } = options;
   const html = fs.readFileSync(path.join(dir, "index.html"), "utf8");
   const { document, scripts } = parse(html);
+  if (options.visibility) document.visibilityState = options.visibility;
   const clock = new Clock();
   const sent = [];
   const handlers = { ...defaultReplies(), ...replies };
