@@ -4455,12 +4455,15 @@ mod tests {
     }
 
     /// A control of a Windows run: a Resume and a delete each take the next status of `next`,
-    /// which a Status then answers; a delete answers deleted. It records each request.
+    /// which a Status then answers; a delete answers deleted; a Pause answers the last status.
+    /// A Status runs `on_status` once, where one is set, before it answers. It records each
+    /// request.
     struct WindowsRun {
         places: Arc<Places>,
         record: Record,
         next: Mutex<std::collections::VecDeque<DaemonStatus>>,
         last: Mutex<DaemonStatus>,
+        on_status: Mutex<Option<Box<dyn FnOnce() + Send>>>,
     }
 
     impl WindowsRun {
@@ -4483,6 +4486,10 @@ mod tests {
 
         fn status(&self, _: Made, claim: bool) -> Result<DaemonStatus, ClientError> {
             note(&self.record, if claim { "status, claim" } else { "status" });
+            let hook = self.on_status.lock().unwrap().take();
+            if let Some(hook) = hook {
+                hook();
+            }
             Ok(self.last.lock().unwrap().clone())
         }
 
@@ -4500,7 +4507,8 @@ mod tests {
         }
 
         fn pause(&self, _: Made) -> Result<DaemonStatus, ClientError> {
-            unreachable!("no Pause here")
+            note(&self.record, "pause");
+            Ok(self.last.lock().unwrap().clone())
         }
 
         fn resume(&self, _: Made) -> Result<DaemonStatus, ClientError> {
@@ -4626,6 +4634,7 @@ mod tests {
                     .collect(),
             ),
             last: Mutex::new(spent()),
+            on_status: Mutex::new(None),
         };
         let tray = crate::tray::installed_for_tests();
         let lines = || record.lock().unwrap().clone();
@@ -4718,6 +4727,161 @@ mod tests {
                 "resume",
             ],
             "behind a delete: one renewal"
+        );
+    }
+
+    /// Arms `control` to press Pause from a second thread inside its next Status, and to wait for
+    /// that press's end before the Status answers.
+    fn a_pause_inside_the_next_status(control: &Arc<WindowsRun>, views: &Arc<Views>) {
+        let (pressing, on) = (Arc::clone(control), Arc::clone(views));
+        *control.on_status.lock().unwrap() = Some(Box::new(move || {
+            let (paused, _) = std::thread::spawn(move || {
+                let made = pressing.places().make();
+                press(
+                    pressing.as_ref(),
+                    &on,
+                    made,
+                    CaptureChange::Pause,
+                    START_ANSWER_WAIT,
+                )
+            })
+            .join()
+            .expect("the Pause press ends");
+            assert!(paused.is_ok(), "{paused:?}");
+        }));
+    }
+
+    /// N1 of app-4b's review: a Pause that a person presses while a renewal of a spent Windows
+    /// screen waits for its new child is not undone; the renewal sends a plain Status in place of
+    /// its Resume.
+    #[test]
+    fn a_pause_pressed_while_a_renewal_waits_for_its_child_sends_no_resume() {
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let child = |pid| StandInChild {
+            ends_at_close: true,
+            ..StandInChild::new(pid, &clock, &record)
+        };
+        let spawner = StandInSpawner {
+            children: (1000..1002).map(child).collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let spent = || windows_screen(SourceState::Stopped { by_user: false });
+        let control = Arc::new(WindowsRun {
+            places: Arc::default(),
+            record: Arc::clone(&record),
+            next: Mutex::new([spent(), spent()].into_iter().collect()),
+            last: Mutex::new(spent()),
+            on_status: Mutex::new(None),
+        });
+        until("the first child starts", || pid.get() == Some(1000));
+        a_pause_inside_the_next_status(&control, &views);
+
+        let (answer, _) = press(
+            control.as_ref(),
+            &views,
+            control.places().make(),
+            CaptureChange::Resume,
+            START_ANSWER_WAIT,
+        );
+        assert!(answer.is_ok(), "{answer:?}");
+        assert_eq!(pid.get(), Some(1001), "the renewal's child lives");
+        let seen = record.lock().unwrap().clone();
+        drop(supervisor.close());
+        assert_eq!(
+            seen,
+            [
+                "start 1000",
+                "resume",
+                "closed descriptor",
+                "start 1001",
+                "status",
+                "pause",
+                "status",
+            ],
+            "the Pause pressed in the renewal's wait stands: no Resume after it"
+        );
+    }
+
+    /// N1 of app-4b's review, the Mac's twin: a Pause that a person presses while the Start after
+    /// the third end with 5 waits for its child is not undone; the Start sends a plain Status in
+    /// place of its Resume.
+    #[test]
+    fn a_pause_pressed_while_a_start_waits_for_its_child_sends_no_resume() {
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let child = |pid, ending| StandInChild {
+            ending,
+            ends_at_close: true,
+            ..StandInChild::new(pid, &clock, &record)
+        };
+        let five = Some(Ending::Status(5));
+        let spawner = StandInSpawner {
+            children: [
+                child(1000, five),
+                child(1001, five),
+                child(1002, five),
+                child(1003, None),
+            ]
+            .into_iter()
+            .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        until("the hold reads Start after the third 5", || {
+            views
+                .hold()
+                .view()
+                .is_some_and(|hold| hold.press == Press::Start)
+        });
+        let running = || windows_screen(SourceState::Running);
+        let control = Arc::new(WindowsRun {
+            places: Arc::default(),
+            record: Arc::clone(&record),
+            next: Mutex::new([running()].into_iter().collect()),
+            last: Mutex::new(running()),
+            on_status: Mutex::new(None),
+        });
+        a_pause_inside_the_next_status(&control, &views);
+
+        let (answer, _) = press(
+            control.as_ref(),
+            &views,
+            control.places().make(),
+            CaptureChange::Resume,
+            START_ANSWER_WAIT,
+        );
+        assert!(answer.is_ok(), "{answer:?}");
+        assert_eq!(pid.get(), Some(1003), "the Start's child lives");
+        let seen = record.lock().unwrap().clone();
+        drop(supervisor.close());
+        assert_eq!(
+            seen,
+            [
+                "start 1000",
+                "start 1001",
+                "start 1002",
+                "start 1003",
+                "status",
+                "pause",
+                "status",
+            ],
+            "the Pause pressed in the Start's wait stands: no Resume after it"
         );
     }
 }

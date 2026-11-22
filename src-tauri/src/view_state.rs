@@ -218,6 +218,7 @@ struct HoldState {
     login_item_written: Option<bool>,
     removing: bool,
     renewal_asked: Option<u64>,
+    pauses: u64,
     screen_spent: bool,
 }
 
@@ -240,6 +241,9 @@ impl Drop for Consenting<'_> {
 pub struct Hold {
     state: Mutex<HoldState>,
     changed: Condvar,
+    /// The turn under which a Pause press counts itself and sends its request, and under which
+    /// the Resume that a press sends behind a wait for a child reads that count and goes out.
+    turn: Mutex<()>,
 }
 
 impl Hold {
@@ -425,6 +429,27 @@ impl Hold {
     /// whose screen source does not run then says so.
     pub fn screen_renewed(&self, renewed: bool) {
         self.state().screen_spent = !renewed;
+    }
+
+    /// The count of a person's Pause presses in this life of the app.
+    pub fn pauses(&self) -> u64 {
+        self.state().pauses
+    }
+
+    /// A person's Pause press counts itself and holds the turn of the hold while its request goes
+    /// out, until the answer is dropped.
+    pub fn pause_pressed(&self) -> MutexGuard<'_, ()> {
+        let turn = self.turn.lock().unwrap_or_else(PoisonError::into_inner);
+        self.state().pauses += 1;
+        turn
+    }
+
+    /// The turn of the Resume that a press sends behind a wait for a child: some while the count
+    /// of Pause presses still reads `pauses`, that is while no Pause press came after the press or
+    /// the delete that read it; the Resume goes out while the answer is held.
+    pub fn no_pause_since(&self, pauses: u64) -> Option<MutexGuard<'_, ()>> {
+        let turn = self.turn.lock().unwrap_or_else(PoisonError::into_inner);
+        (self.state().pauses == pauses).then_some(turn)
     }
 
     /// What the consent click read of its write of the login item: whether the plist stands

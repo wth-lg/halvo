@@ -196,7 +196,8 @@ const START_STATUS_STEP: Duration = Duration::from_millis(250);
 /// toggle: the request of `change` in the place `made`, and in place of a Resume a Start where
 /// the hold reads that no further child starts, which waits for its child as
 /// `start_and_resume` says. A Resume that reached its end with a screen that `screen_spent`
-/// reads is followed by one renewal, `renew_the_screen`, whose Resume then answers the press.
+/// reads is followed by one renewal, `renew_the_screen`, whose Resume then answers the press. A
+/// Pause press counts itself in the hold, so that no Resume behind a wait undoes it.
 /// Answers its answer with the number of the call that it answers.
 pub fn press(
     control: &dyn Control,
@@ -205,19 +206,23 @@ pub fn press(
     change: CaptureChange,
     within: Duration,
 ) -> (Result<DaemonStatus, ClientError>, u64) {
+    let pauses = views.hold().pauses();
     if change == CaptureChange::Resume && views.hold().ask_start() {
         drop(made);
-        return start_and_resume(control, views.hold(), within);
+        return start_and_resume(control, views.hold(), within, pauses);
     }
     let call = made.number();
     let answer = match change {
-        CaptureChange::Pause => control.pause(made),
+        CaptureChange::Pause => {
+            let _turn = views.hold().pause_pressed();
+            control.pause(made)
+        }
         CaptureChange::Resume => control.resume(made),
     };
     if change == CaptureChange::Resume {
         if let Ok(status) = &answer {
             if holds(change, status) {
-                if let Some(renewed) = renew_where_spent(control, views.hold(), status) {
+                if let Some(renewed) = renew_where_spent(control, views.hold(), status, pauses) {
                     return renewed;
                 }
             }
@@ -254,59 +259,80 @@ pub fn screen_spent(status: &DaemonStatus) -> bool {
         })
 }
 
-/// A Status of `status` that reads the screen spent gets ONE renewal, `renew_the_screen`, and its
-/// answer; one that does not clears what the last renewal said, and gets none.
+/// A Status of `status` that reads the screen spent gets ONE renewal, `renew_the_screen`, for
+/// the press or the delete whose start read `pauses` Pause presses, and its answer; one that does
+/// not clears what the last renewal said, and gets none.
 fn renew_where_spent(
     control: &dyn Control,
     hold: &Hold,
     status: &DaemonStatus,
+    pauses: u64,
 ) -> Option<(Result<DaemonStatus, ClientError>, u64)> {
     if !screen_spent(status) {
         hold.screen_renewed(true);
         return None;
     }
-    renew_the_screen(control, hold, RENEWAL_WAIT)
+    renew_the_screen(control, hold, RENEWAL_WAIT, pauses)
 }
 
 /// The one renewal of a spent screen: it asks the supervisor to end the app's child with the mark
 /// of a wanted start (`Hold::ask_renewal`), waits until `within` for a later child that answers
-/// a plain Status, and sends that child one Resume, whose answer it answers with the number of
-/// its call; it tells the hold whether that answer still reads the screen spent. With no child
-/// of the app it runs nothing; with no later child in time it sends no Resume, and the hold
-/// reads the screen not renewed.
+/// a plain Status, and sends that child one Resume by `resume_unless_paused_since`, whose answer
+/// it answers with the number of its call; it tells the hold whether that answer still reads the
+/// screen spent. With no child of the app it runs nothing; with no later child in time it sends
+/// no Resume, and the hold reads the screen not renewed.
 pub fn renew_the_screen(
     control: &dyn Control,
     hold: &Hold,
     within: Duration,
+    pauses: u64,
 ) -> Option<(Result<DaemonStatus, ClientError>, u64)> {
     let life = hold.ask_renewal()?;
     if !a_later_life_answers(control, hold, life, Instant::now() + within) {
         hold.screen_renewed(false);
         return None;
     }
-    let made = control.places().make();
-    let call = made.number();
-    let answer = control.resume(made);
+    let (answer, call) = resume_unless_paused_since(control, hold, pauses);
     hold.screen_renewed(!answer.as_ref().is_ok_and(screen_spent));
     Some((answer, call))
+}
+
+/// The one Resume that a press sends behind a wait for a child, the Start's after the third end
+/// with 5 and a renewal's of a spent screen: it goes out only where no Pause press came after the
+/// press or the delete that it serves, whose start read `pauses` Pause presses, and under the
+/// turn of the hold, so that a Pause in the same moment goes out after it; else a plain Status
+/// goes out in its place. Answers the answer with the number of its call.
+fn resume_unless_paused_since(
+    control: &dyn Control,
+    hold: &Hold,
+    pauses: u64,
+) -> (Result<DaemonStatus, ClientError>, u64) {
+    let made = control.places().make();
+    let call = made.number();
+    let answer = match hold.no_pause_since(pauses) {
+        Some(_turn) => control.resume(made),
+        None => control.status(made, false),
+    };
+    (answer, call)
 }
 
 /// The press on Start after the third end with 5 in a row (contracts.md C14 item 4), once it
 /// has asked the supervisor for exactly one child: asks for a plain Status until one is answered
 /// or `within` has passed, the last Status keeping its own deadline of 2 s, and then sends the
-/// Resume; with no answer it answers the deadline of `within`, sends no Resume, and the hold
-/// stands. Where that child ends before a Status is answered, the asking goes on, and the
-/// Resume goes to the next child of the backoff.
+/// Resume by `resume_unless_paused_since`, so that a Pause pressed after the press whose start
+/// read `pauses` stands; with no answer it answers the deadline of `within`, sends no Resume,
+/// and the hold stands. Where that child ends before a Status is answered, the asking goes on,
+/// and the Resume goes to the next child of the backoff.
 fn start_and_resume(
     control: &dyn Control,
     hold: &Hold,
     within: Duration,
+    pauses: u64,
 ) -> (Result<DaemonStatus, ClientError>, u64) {
     let until = Instant::now() + within;
     let answered = hold.wait_for_the_asked_child(until) && status_until(control, until).is_some();
-    let made = control.places().make();
-    let call = made.number();
     if !answered {
+        let call = control.places().make().number();
         return (
             Err(ClientError::Deadline {
                 seconds: within.as_secs(),
@@ -314,7 +340,7 @@ fn start_and_resume(
             call,
         );
     }
-    (control.resume(made), call)
+    resume_unless_paused_since(control, hold, pauses)
 }
 
 fn status_until(control: &dyn Control, until: Instant) -> Option<DaemonStatus> {
@@ -643,6 +669,7 @@ pub fn delete_everything(
     armed: Option<StoreId>,
     waits: DeleteWaits,
 ) -> DeleteAsked {
+    let pauses = views.hold().pauses();
     let asked = {
         let _held = before.tell();
         ask_to_delete(control, views, armed, waits)
@@ -653,7 +680,7 @@ pub fn delete_everything(
     ) && views.view().platform() == Platform::Windows
     {
         if let Ok(status) = control.status(control.places().make(), false) {
-            let _ = renew_where_spent(control, views.hold(), &status);
+            let _ = renew_where_spent(control, views.hold(), &status, pauses);
         }
     }
     asked
