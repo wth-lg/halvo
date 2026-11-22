@@ -764,11 +764,27 @@ mod tests {
                 [true],
                 "{door}: a poll that passes its deadline is no reading and lifts nothing"
             );
+            read(Err(ClientError::Io(std::io::Error::other(
+                "a transport error before the request",
+            ))));
+            assert_eq!(
+                core.holds(),
+                [true],
+                "{door}: a poll that ends in a transport error has no reply and lifts nothing"
+            );
             read(Ok(deleting_with_the_field()));
             assert_eq!(
                 core.holds(),
                 [true],
                 "{door}: a poll that answers that the store still deletes lifts nothing"
+            );
+            read(Err(ClientError::Unreachable {
+                endpoint: String::new(),
+            }));
+            assert_eq!(
+                core.holds(),
+                [true],
+                "{door}: behind a status that bars, a poll that finds no service lifts nothing"
             );
             read(Ok(sample_status(Platform::Macos)));
             assert_eq!(

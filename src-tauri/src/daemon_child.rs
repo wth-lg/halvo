@@ -3809,6 +3809,16 @@ mod tests {
             Ok(DeleteView::NoStore { looked_in })
         );
         read_behind_the_answer();
+        assert_eq!(
+            record
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|seen| seen.as_str() == "lift")
+                .count(),
+            1,
+            "the offline door: the pass that finds no service lifts nothing"
+        );
         views.take_poll(
             control.places().make().number(),
             &Ok(sample_status(Platform::Macos)),
