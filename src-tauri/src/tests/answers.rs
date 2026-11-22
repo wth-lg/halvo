@@ -97,6 +97,10 @@ impl Control for AtTheMutation {
     ) -> Result<DaemonStatus, ClientError> {
         Err(ClientError::Unsupported)
     }
+
+    fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
 }
 
 fn app_with_mutations_answering(answer: fn() -> ClientError, name: &str) -> TestApp {
@@ -336,6 +340,8 @@ fn the_kept_delete_is_dropped_when_the_window_main_is_built_again() {
         test.app.handle(),
         #[cfg(windows)]
         None,
+        #[cfg(windows)]
+        crate::tests::environment_made::record,
     );
     assert_eq!(
         *test
@@ -688,6 +694,10 @@ impl Control for Reading {
         _: Made,
         _: Permission,
     ) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
         Err(ClientError::Unsupported)
     }
 }

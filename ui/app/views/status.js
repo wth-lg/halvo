@@ -15,6 +15,11 @@
   var firstRun;
   var settingsLine;
   var settingsReset;
+  var settingsDelete;
+  var resetRow;
+  var resetRecorded;
+  var asked = { armedAt: null, timer: null, box: null, point: null, pressed: false };
+  var resetting = false;
   var action = null;
   var pending = null;
   var shown = null;
@@ -167,10 +172,88 @@
     expiry.textContent =
       x && x.state === "failing" ? w.EXPIRY_FAILING + " " + (EXPIRY[x.error] || w.CAUSE_IO) + (x.last_at ? " " + w.EXPIRY_SINCE + " " + x.last_at + "." : "") : "";
     loginLine.textContent = s.login_item_written === false ? w.LOGIN_ITEM_NOT_WRITTEN : s.login_item_loaded === false ? w.LOGIN_ITEM_OFF : "";
-    var settings = SETTINGS[s.state_file] || "";
-    settingsLine.textContent = settings;
-    settingsReset.classList.toggle("hidden", settings === "");
+    settingsLine.textContent = SETTINGS[s.state_file] || "";
+    settingsReset.classList.toggle("hidden", !resetOffered(s));
+    settingsDelete.classList.toggle("hidden", s.state_file !== "newer_version");
     renderFirstRun(s);
+  }
+
+  function resetOffered(s) {
+    return s.state_file === "corrupt" && !(s.store && s.store.state === "deleting");
+  }
+
+  function boxOf(control) {
+    var box = control.getBoundingClientRect();
+    return { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
+  }
+
+  function disarmReset() {
+    var held = asked.armedAt !== null;
+    if (asked.timer !== null) clearTimeout(asked.timer);
+    asked = { armedAt: null, timer: null, box: null, point: null, pressed: false };
+    resetRow.classList.add("hidden");
+    settingsReset.disabled = resetting;
+    if (held) Halvo.views.release();
+  }
+
+  function armReset(event) {
+    var guard = Halvo.pressGuard;
+    if (asked.armedAt !== null || resetting || !resetOffered(last)) return;
+    var rows = Array.isArray(last.reset_recorded) ? last.reset_recorded : [];
+    resetRecorded.replaceChildren.apply(
+      resetRecorded,
+      rows.map(function (r) {
+        return Halvo.el("li", { text: r.text });
+      }),
+    );
+    asked = {
+      armedAt: performance.now(),
+      timer: setTimeout(disarmReset, guard.disarmAfterMs),
+      box: boxOf(settingsReset),
+      point: guard.hasPoint(event) ? { x: event.clientX, y: event.clientY } : null,
+      pressed: false,
+    };
+    Halvo.views.hold();
+    settingsReset.disabled = true;
+    resetRow.classList.remove("hidden");
+  }
+
+  function onResetPress() {
+    if (asked.armedAt !== null) asked.pressed = true;
+  }
+
+  function onResetYes(event) {
+    var guard = Halvo.pressGuard;
+    if (asked.armedAt === null) return Promise.resolve();
+    if (event && event.detail > 1) return Promise.resolve();
+    if (guard.hasPoint(event)) {
+      var fromPress = asked.pressed;
+      asked.pressed = false;
+      if (!fromPress || guard.atPlace(event, asked.box, asked.point)) return Promise.resolve();
+    }
+    var since = performance.now() - asked.armedAt;
+    if (since < guard.armDelayMs) return Promise.resolve();
+    disarmReset();
+    if (since >= guard.disarmAfterMs) return Promise.resolve();
+    return sendReset();
+  }
+
+  function sendReset() {
+    resetting = true;
+    settingsReset.disabled = true;
+    Halvo.showError("");
+    return Halvo.ipc
+      .call("reset_settings")
+      .then(function (view) {
+        Halvo.takeMutationReply(view);
+      })
+      .catch(function (e) {
+        Halvo.showError(e);
+      })
+      .then(function () {
+        resetting = false;
+        settingsReset.disabled = false;
+      });
   }
 
   function refresh() {
@@ -244,18 +327,35 @@
       loginLine = Halvo.el("p", { id: "login-line" });
       firstRun = Halvo.el("div", { id: "first-run", class: "hidden" });
       settingsLine = Halvo.el("span", { id: "settings-line" });
-      settingsReset = Halvo.el("button", { id: "settings-reset", class: "danger", text: w.DELETE_EVERYTHING });
+      settingsReset = Halvo.el("button", { id: "settings-reset", text: w.SETTINGS_RESET });
       settingsReset.classList.add("hidden");
-      settingsReset.onclick = function (event) {
-        Halvo.armDelete(event, settingsReset);
+      settingsReset.onclick = armReset;
+      settingsDelete = Halvo.el("button", { id: "settings-delete", class: "danger", text: w.DELETE_EVERYTHING });
+      settingsDelete.classList.add("hidden");
+      settingsDelete.onclick = function (event) {
+        Halvo.armDelete(event, settingsDelete);
       };
+      resetRecorded = Halvo.el("ul", { id: "settings-reset-recorded" });
+      var resetYes = Halvo.el("button", { id: "confirm-settings-reset", text: w.SETTINGS_RESET_YES });
+      var resetNo = Halvo.el("button", { id: "cancel-settings-reset", text: w.CANCEL });
+      resetYes.onclick = onResetYes;
+      resetYes.addEventListener("pointerdown", onResetPress);
+      resetYes.addEventListener("mousedown", onResetPress);
+      resetNo.onclick = disarmReset;
+      resetRow = Halvo.el("div", { id: "settings-reset-row", class: "confirm-row" }, [
+        Halvo.el("p", { id: "settings-reset-question", text: w.SETTINGS_RESET_QUESTION }),
+        resetRecorded,
+        Halvo.el("div", { class: "row" }, [resetYes, resetNo]),
+      ]);
+      resetRow.classList.add("hidden");
       el.append(
         Halvo.el("div", { class: "row status-row" }, [dot, Halvo.el("p", { class: "state-line" }, [state, " ", reason]), toggle]),
         failed,
         drain,
         expiry,
         loginLine,
-        Halvo.el("div", { class: "row" }, [settingsLine, settingsReset]),
+        Halvo.el("div", { class: "row" }, [settingsLine, settingsReset, settingsDelete]),
+        resetRow,
         firstRun,
       );
       status.on(function (s) {

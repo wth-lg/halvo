@@ -87,6 +87,8 @@ pub fn run(data_dir: PathBuf, within: Duration, started: Instant) -> i32 {
     let parts = app::Parts {
         #[cfg(windows)]
         webview_data_dir: Some(data_dir.join("webview")),
+        #[cfg(windows)]
+        webview_environment: app::system_environment,
         state: AppState::new(|| DataDir::from_flag(data_dir), crate::open_pane),
         tray: None,
         guard: engine::guard,

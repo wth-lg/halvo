@@ -690,6 +690,19 @@ impl ScriptedDaemon {
                 self.permission(permission, |line| line.once_granted = false);
                 Reply::Status(self.status.clone())
             }
+            Request::ResetSettings => {
+                if self.status.fields().state_file != StateFile::Corrupt {
+                    return error(
+                        ErrorCode::StateFile,
+                        "the state file loads or is of a newer version, so the settings were not reset",
+                    );
+                }
+                self.edit(|f| {
+                    f.state_file = StateFile::Ok;
+                    f.cap_bytes = Cap::Unknown;
+                });
+                Reply::Status(self.status.clone())
+            }
         }
     }
 
