@@ -98,7 +98,7 @@ pub(crate) struct Runner {
     pub(crate) approvals: Vec<ApprovalId>,
     pub(crate) kept: HashMap<String, Vec<Vec<Value>>>,
     /// The target and the parse of the `extract` that kept each value of `kept`, by its name, which the browser's
-    /// maker reads again while its request is held (crate::web::maker).
+    /// maker reads again right before the act of a web step of an effect class (crate::web::maker).
     pub(crate) extracts: HashMap<String, (WebTarget, String)>,
     pub(crate) read_under: Option<ReadUnder>,
     /// The newest row of each checkpoint of the run that the store took, by the workbook's path as the rows name it.

@@ -931,7 +931,7 @@ impl Runner {
     /// request of the run's page that the rule failed ends the run `refused` with the cause `origin` (A9.2,
     /// `end_of_step`), the record read again for `REFUSAL_WAIT` after a step that failed or that acted on a control.
     /// An `extract` that kept a value notes its target and its parse under the value's name, so that the browser's
-    /// maker reads the value again while its request is held. A web step of an effect class goes to the browser's
+    /// maker reads the value again right before its act. A web step of an effect class goes to the browser's
     /// maker (`Runner::effect_step`, crate::web::maker) in a build with the feature `loopback`, and answers
     /// `step_failed` before any browser starts in every other build.
     pub(crate) fn web_step(
