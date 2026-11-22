@@ -112,6 +112,10 @@
     armAt(event, offerButton, true);
   }
 
+  Halvo.armDelete = function (event, control) {
+    armAt(event, control || start, false);
+  };
+
   function armAt(event, control, stopFirst) {
     if (armedAt !== null || busy || !current) return;
     if (stopFirst ? refusedInARow < 2 : !offered(current)) return;

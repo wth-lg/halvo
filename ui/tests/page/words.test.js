@@ -132,6 +132,8 @@ const WORDS = {
   DELETE_NOT_USABLE: "This press deleted nothing, because Halvo could not use its data folder, {folder}.",
   DELETE_NOT_STARTED: "This press deleted nothing, because Halvo could not start its delete.",
   DELETE_LOOKED_IN: "The delete ran in Halvo's data folder, {folder}.",
+  SETTINGS_UNREADABLE: "Halvo cannot read its settings file. Delete everything resets it, and it also deletes everything that Halvo has recorded.",
+  SETTINGS_NEWER: "Halvo's settings file was saved by a newer version of Halvo. Update Halvo to read it, or use Delete everything, which resets it and also deletes everything that Halvo has recorded.",
   STORAGE_CAP: "Storage cap",
   SAVE: "Save",
   LOWER_CAP: "Lower the cap",

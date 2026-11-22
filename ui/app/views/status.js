@@ -11,6 +11,8 @@
   var drain;
   var expiry;
   var loginLine;
+  var settingsLine;
+  var settingsReset;
   var action = null;
   var pending = null;
   var shown = null;
@@ -38,6 +40,7 @@
     awaiting_resume: w.CAPTURE_AWAITING_RESUME,
     faulted: w.CAPTURE_FAULTED,
   };
+  var SETTINGS = { corrupt: w.SETTINGS_UNREADABLE, newer_version: w.SETTINGS_NEWER };
   var FAULT = { store: w.FAULT_STORE, drain: w.FAULT_DRAIN, no_source: w.FAULT_NO_SOURCE, permission: w.FAULT_PERMISSION };
   var DRAIN = { no_space: w.CAUSE_NO_SPACE, io: w.CAUSE_IO, db: w.CAUSE_DB, rejected: w.CAUSE_REJECTED };
   var EXPIRY = { io: w.CAUSE_IO, no_space: w.CAUSE_NO_SPACE, db: w.CAUSE_DB };
@@ -128,6 +131,9 @@
     expiry.textContent =
       x && x.state === "failing" ? w.EXPIRY_FAILING + " " + (EXPIRY[x.error] || w.CAUSE_IO) + (x.last_at ? " " + w.EXPIRY_SINCE + " " + x.last_at + "." : "") : "";
     loginLine.textContent = s.login_item_loaded === false ? w.LOGIN_ITEM_OFF : "";
+    var settings = SETTINGS[s.state_file] || "";
+    settingsLine.textContent = settings;
+    settingsReset.classList.toggle("hidden", settings === "");
   }
 
   function refresh() {
@@ -183,12 +189,19 @@
       drain = Halvo.el("p", { id: "drain-line" });
       expiry = Halvo.el("p", { id: "expiry-line" });
       loginLine = Halvo.el("p", { id: "login-line" });
+      settingsLine = Halvo.el("span", { id: "settings-line" });
+      settingsReset = Halvo.el("button", { id: "settings-reset", class: "danger", text: w.DELETE_EVERYTHING });
+      settingsReset.classList.add("hidden");
+      settingsReset.onclick = function (event) {
+        Halvo.armDelete(event, settingsReset);
+      };
       el.append(
         Halvo.el("div", { class: "row status-row" }, [dot, Halvo.el("p", { class: "state-line" }, [state, " ", reason]), toggle]),
         failed,
         drain,
         expiry,
         loginLine,
+        Halvo.el("div", { class: "row" }, [settingsLine, settingsReset]),
       );
       status.on(function (s) {
         last = s;

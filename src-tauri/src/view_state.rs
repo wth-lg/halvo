@@ -5,8 +5,8 @@ use halvo_control::onboarding::{GrantState, OnboardingState, Permission};
 use halvo_control::proto::{
     Cap, Capture, CaptureReason, DaemonStatus, DeleteFields, DeleteReport, DrainError, ErrorCode,
     ExpiryError, Health, InventoryReply, LastStop, Lease, LostRecord, OnOff, PasswordGuard,
-    Platform, RootDestroyed, Section, SourceName, SourceStateName, StopKind, StoreErrorKind,
-    StoreState, SwitchName,
+    Platform, RootDestroyed, Section, SourceName, SourceStateName, StateFile, StopKind,
+    StoreErrorKind, StoreState, SwitchName,
 };
 use halvo_control::texts::{texts, Texts};
 use serde::{Deserialize, Serialize};
@@ -96,6 +96,16 @@ impl NoStatusService {
     }
 }
 
+/// Why the service's settings file did not load (contracts.md C3.7), as a view names it: the
+/// page then says so in one sentence and offers the reset that Delete everything gives. A file
+/// that loaded, and one whose last write failed, give no such word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SettingsUnread {
+    Corrupt,
+    NewerVersion,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunningView {
     pub platform: Platform,
@@ -120,6 +130,7 @@ pub struct RunningView {
     pub hold: Option<HoldView>,
     pub login_item_loaded: Option<bool>,
     pub data_folder: Option<String>,
+    pub state_file: Option<SettingsUnread>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -441,6 +452,8 @@ struct WireView<'a> {
     ext: Option<&'a [Section]>,
     #[serde(skip_serializing_if = "Option::is_none")]
     data_folder: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    state_file: Option<SettingsUnread>,
 }
 
 impl Serialize for StatusView {
@@ -471,6 +484,7 @@ impl Serialize for StatusView {
                 texts: Some(&view.texts),
                 ext: Some(&view.ext),
                 data_folder: view.data_folder.as_deref(),
+                state_file: view.state_file,
             },
             StatusView::NoStatus(view) => WireView {
                 service: view.service.word(),
@@ -497,6 +511,7 @@ impl Serialize for StatusView {
                 texts: None,
                 ext: None,
                 data_folder: view.data_folder.as_deref(),
+                state_file: None,
             },
         };
         wire.serialize(serializer)
@@ -628,6 +643,11 @@ impl StatusView {
             hold: None,
             login_item_loaded: None,
             data_folder: None,
+            state_file: match f.state_file {
+                StateFile::Corrupt => Some(SettingsUnread::Corrupt),
+                StateFile::NewerVersion => Some(SettingsUnread::NewerVersion),
+                StateFile::Ok | StateFile::WriteFailed => None,
+            },
         }))
     }
 }
