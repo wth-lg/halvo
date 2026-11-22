@@ -926,7 +926,7 @@ pub fn onboarding_shown(status: &DaemonStatus) -> OnboardingState {
 /// Input Monitoring: its line reads failed, whatever the reason, or reads off while the
 /// status's row of Input Monitoring holds no grant. Its one tap takes the keys and the pointer
 /// actions both, so neither is recorded then. A line that may still run (marked unstopped), a
-/// paused one and a Windows status never read so.
+/// line that a pause stopped and a Windows status never read so.
 pub fn input_fails_or_waits_for_its_grant(status: &DaemonStatus) -> bool {
     let f = status.fields();
     let ungranted = || {
