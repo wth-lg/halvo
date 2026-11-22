@@ -2224,6 +2224,9 @@ fn an_acknowledged_lost_grant_leaves_the_record_and_its_row_reads_lost_no_more()
                     && status.fields().onboarding.lost_grants.is_empty()
                     && grant_row(status, Permission::InputMonitoring).once_granted
             };
+            status_until(&dir, "the store is open", |status| {
+                status.fields().store == halvo_control::proto::StoreState::Open
+            });
             wait_until(READY_WITHIN, "the probe was started", || {
                 !probe.asked().is_empty()
             });
