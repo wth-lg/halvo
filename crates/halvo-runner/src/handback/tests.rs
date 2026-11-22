@@ -814,7 +814,8 @@ fn after_bound_no_nothing_leaves() {
 /// handback in the order of a credential field's, and the request names the page's origin; so does a fill of a target
 /// marked `credential`, which fails where the page shows no credential field. Declined, the run ends `declined`. A
 /// click that does not fail on such a page acts, and makes no second reading; a payment whose condition's target is
-/// marked `credential` makes none either, and fails as before. Behind the person's `done` and the bind
+/// marked `credential` makes none either, and fails as before; and so does a failed step of a run with no window that
+/// imported a kept sign-in, which drops nothing. Behind the person's `done` and the bind
 /// the click's act is asked once more (the coordinator's ruling of log line 16106 (3)): end (i), it acts and the step
 /// is done; end (ii), it fails again and the step fails as before, with one handback at that step.
 #[test]
@@ -834,6 +835,24 @@ fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
         "{log:?}"
     );
     assert_eq!(log, ["read"]);
+
+    // The coordinator's ruling of log line 16376: a run with no window that imported a kept sign-in reads no sign, at
+    // either door, and the step fails as before; the log holds no second reading and no store frame, so no row of the
+    // cause `unauthorized` and no drop of a kept sign-in.
+    for (step, want) in [
+        (click(), &["read", "act click", "read"][..]),
+        (credential_fill(), &["read"][..]),
+    ] {
+        let mut bench = Bench::on_page(&[], BOUND, &[DECLINED], usize::MAX, &[], &page("Sign in"));
+        bench.runner.sessions.imported = true;
+        let got = bench.step(&step);
+        let log = bench.log();
+        assert!(
+            matches!(got, Err(Failure::Step(Cause::StepFailed))),
+            "{log:?}"
+        );
+        assert_eq!(log, want);
+    }
 
     let opening = [
         "address",
