@@ -1,5 +1,5 @@
-//! The product's ports of the coordinator on a Mac (contracts I5.10; unit U5.4a): the hub of the app runs over them
-//! in the place of the stand-in `NoService`.
+//! The product's ports of the coordinator on a Mac and on Windows (contracts I5.10; units U5.4a and U5.4w): the hub of
+//! the app runs over them in the place of the stand-in `NoService`.
 //!
 //! - `Owner` writes and reads as the role `coordinator` over an owner stream of the app's own (W-C24.13), through
 //!   the product's link of the supervisor library: `coord_log` and `coord_history` for the events, `list_agents`,
@@ -9,7 +9,7 @@
 //! - `Runs` is the supervisor library over a second owner stream: `start` hands the machine's zone offset of the
 //!   moment as `utc_offset_s`; the first `reap` of a life answers what the start's own reap answered.
 //! - `Analysis` sends the capture service the request `defer` of the core's deadline at each call (unit U5.4c).
-//! - `Clock` reads the system clock and the zone of the Mac, `Rng` the system's generator, `Policy` the table of
+//! - `Clock` reads the system clock and the system's zone, `Rng` the system's generator, `Policy` the table of
 //!   halvo-policy (`decide_row`) and `Senders` the schema's reader of `reply_senders`.
 //!
 //! The library's calls back (`MarkSink`, `Human`, `Confirmer`) reach the coordinator through one thread of their own,
@@ -21,9 +21,10 @@
 //! the owner acknowledged (`Coordinator::stored`). Each run of this life ends through `MarkSink::end`; a run
 //! of an earlier life that the start's reap answers is ended by the core's recovery, and the start sends the one
 //! mark `run_end` for it itself, because the library's reap calls no `MarkSink`.
-#![cfg(target_os = "macos")]
+#![cfg(any(target_os = "macos", windows))]
 
 use std::collections::HashMap;
+#[cfg(target_os = "macos")]
 use std::io::Read;
 use std::num::NonZeroU32;
 use std::path::PathBuf;
@@ -1194,6 +1195,52 @@ fn history_of(run: &Value) -> Option<RunHistory> {
     })
 }
 
+/// The rows of `agent_reply` of the run `run` of the agent, read by r3 U9.8's coordinator body `list_replies` through
+/// `call`, which sends one coordinator body and gives its result: from `after` null, then with the message id that
+/// the reply's `next` names, to `next` null. Each entry of `run` gives its state, in the reply's order: a name of
+/// `ReplyState` is `ReplyRow::Read` of it and any other is `ReplyRow::Unreadable`; an entry of another run is dropped.
+/// A refusal of the owner passes under its own name. A reply that the reader cannot trust is `no_service`, with no row
+/// of the pages before it: one whose `replies` is no list, an entry whose run is no run id or whose state is no text,
+/// and a `next` that is neither null nor a message id greater by its bytes than the `after` sent, since the reply
+/// ascends by message id; so a store that names the same page again ends the read.
+fn list_replies(
+    mut call: impl FnMut(&str) -> Result<Value, PortError>,
+    workflow: &WorkflowId,
+    agent: &AgentId,
+    run: &RunId,
+) -> Result<Vec<ReplyRow>, PortError> {
+    let mut rows = Vec::new();
+    let mut after: Option<String> = None;
+    loop {
+        let reply = call(&format!(
+            r#"{{"op":"list_replies","workflow":"{}","agent":"{}","after":{}}}"#,
+            workflow.as_str(),
+            agent.as_str(),
+            after.as_deref().map_or("null".to_owned(), json_str)
+        ))?;
+        for entry in reply["replies"].as_array().ok_or(PortError::NoService)? {
+            let of = entry["run"].as_str().and_then(|r| RunId::parse(r).ok());
+            let state = entry["state"].as_str();
+            let (Some(of), Some(state)) = (of, state) else {
+                return Err(PortError::NoService);
+            };
+            if of == *run {
+                rows.push(
+                    halvo_coord::types::ReplyState::parse(state)
+                        .map_or(ReplyRow::Unreadable, ReplyRow::Read),
+                );
+            }
+        }
+        match reply.get("next") {
+            Some(Value::Null) => return Ok(rows),
+            Some(Value::String(next)) if after.as_ref().is_none_or(|before| next > before) => {
+                after = Some(next.clone());
+            }
+            _ => return Err(PortError::NoService),
+        }
+    }
+}
+
 impl Owner for Product {
     type Config = AgentConfig;
 
@@ -1309,15 +1356,15 @@ impl Owner for Product {
             .ok_or(PortError::NoService)
     }
 
-    /// The rows of `agent_reply` are read by the read that serves `interface_read` alone (ruling RD-65 (d)), which
-    /// no request of the relay carries yet: the read does not answer.
+    /// The rows of `agent_reply` of the run `run`, read by `list_replies` with the body `list_replies` of r3 U9.8, a
+    /// `coordinator_write` on the app's own owner stream.
     fn replies(
         &self,
-        _workflow: &WorkflowId,
-        _agent: &AgentId,
-        _run: &RunId,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        run: &RunId,
     ) -> Result<Vec<ReplyRow>, PortError> {
-        Err(PortError::NoService)
+        list_replies(|body| self.coordinator(body), workflow, agent, run)
     }
 
     fn overlaps(
@@ -1519,6 +1566,7 @@ impl Analysis for Product {
 }
 
 /// The offset of the Mac's zone from UTC at `at`, in whole seconds east of UTC, as the system's zone gives it.
+#[cfg(target_os = "macos")]
 pub fn zone_offset_s(at: SystemTime) -> Option<i32> {
     use objc2_foundation::{NSDate, NSTimeZone};
     let seconds = at.duration_since(UNIX_EPOCH).ok()?.as_secs_f64();
@@ -1526,6 +1574,68 @@ pub fn zone_offset_s(at: SystemTime) -> Option<i32> {
     let zone = NSTimeZone::localTimeZone();
     let date = NSDate::dateWithTimeIntervalSince1970(seconds);
     i32::try_from(zone.secondsFromGMTForDate(&date)).ok()
+}
+
+/// The offset of the Windows zone from UTC at `at`, in whole seconds east of UTC: the local time that the system
+/// gives for the instant in the zone in force, less the instant's time in UTC.
+#[cfg(windows)]
+pub fn zone_offset_s(at: SystemTime) -> Option<i32> {
+    use windows::Win32::Foundation::{FILETIME, SYSTEMTIME};
+    use windows::Win32::System::Time::{FileTimeToSystemTime, SystemTimeToTzSpecificLocalTime};
+    const FROM_1601_TO_1970_S: u64 = 11_644_473_600;
+    let ticks = at
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_secs()
+        .checked_add(FROM_1601_TO_1970_S)?
+        .checked_mul(10_000_000)?;
+    let file = FILETIME {
+        dwLowDateTime: u32::try_from(ticks & u64::from(u32::MAX)).ok()?,
+        dwHighDateTime: u32::try_from(ticks >> 32).ok()?,
+    };
+    let mut utc = SYSTEMTIME::default();
+    let mut local = SYSTEMTIME::default();
+    // SAFETY: both pointers come from references to values on this stack that live for the call.
+    unsafe { FileTimeToSystemTime(&file, &mut utc) }.ok()?;
+    // SAFETY: no zone is given, so the system takes the one in force; both pointers come from references to
+    // values on this stack that live for the call.
+    unsafe { SystemTimeToTzSpecificLocalTime(None, &utc, &mut local) }.ok()?;
+    let wall = |t: SYSTEMTIME| Wall {
+        year: t.wYear,
+        month: t.wMonth,
+        day: t.wDay,
+        hour: t.wHour,
+        minute: t.wMinute,
+        second: t.wSecond,
+    };
+    Some(offset_between(wall(utc), wall(local)))
+}
+
+/// A calendar date and a time of day to the second, as a `SYSTEMTIME` of Windows holds them.
+#[cfg(any(test, windows))]
+#[derive(Clone, Copy, Debug)]
+struct Wall {
+    year: u16,
+    month: u16,
+    day: u16,
+    hour: u16,
+    minute: u16,
+    second: u16,
+}
+
+/// The offset of a zone from UTC in whole seconds east of UTC, from the time in UTC and the local time of one
+/// instant: the two dates differ by one day at most.
+#[cfg(any(test, windows))]
+fn offset_between(utc: Wall, local: Wall) -> i32 {
+    let date = |w: Wall| (w.year, w.month, w.day);
+    let of_day =
+        |w: Wall| i32::from(w.hour) * 3_600 + i32::from(w.minute) * 60 + i32::from(w.second);
+    let days = match date(local).cmp(&date(utc)) {
+        std::cmp::Ordering::Less => -1,
+        std::cmp::Ordering::Equal => 0,
+        std::cmp::Ordering::Greater => 1,
+    };
+    days * 86_400 + of_day(local) - of_day(utc)
 }
 
 impl Clock for Product {
@@ -1546,11 +1656,25 @@ impl Clock for Product {
 }
 
 impl Rng for Product {
+    /// Sixteen bytes of the system's generator: `/dev/urandom` on a Mac, the system's preferred generator of
+    /// `BCryptGenRandom` on Windows.
     fn bytes16(&self) -> Result<[u8; 16], PortError> {
         let mut bytes = [0u8; 16];
+        #[cfg(target_os = "macos")]
         std::fs::File::open("/dev/urandom")
             .and_then(|mut f| f.read_exact(&mut bytes))
             .map_err(|_| PortError::NoService)?;
+        #[cfg(windows)]
+        {
+            use windows::Win32::Security::Cryptography::{
+                BCryptGenRandom, BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+            };
+            // SAFETY: the buffer is a live slice that the call writes within its length; no algorithm handle is
+            // given, which the flag for the system's preferred generator asks.
+            unsafe { BCryptGenRandom(None, &mut bytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG) }
+                .ok()
+                .map_err(|_| PortError::NoService)?;
+        }
         Ok(bytes)
     }
 }
@@ -1792,6 +1916,102 @@ mod tests {
         assert_eq!(read, events.into_iter().map(Some).collect::<Vec<_>>());
     }
 
+    /// r4 U5.4r, sentence 1: the read of `Owner::replies` sends r3 U9.8's body `list_replies` with the keys `op`,
+    /// `workflow`, `agent` and `after` in that order, `after` null and then the `next` of the page before, to `next`
+    /// null, and keeps the states of the asked run in the reply's order: a state that the core lacks is `Unreadable`,
+    /// and an entry of another run is dropped.
+    #[test]
+    fn the_read_of_replies_pages_by_after_and_keeps_the_states_of_the_asked_run() {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let run = RunId::parse(&"d1".repeat(16)).unwrap();
+        let other = "d2".repeat(16);
+        let mut pages = std::collections::VecDeque::from([
+            format!(
+                r#"{{"replies":[{{"message":"m1","run":"{run}","state":"committed"}},{{"message":"m2","run":"{other}","state":"committed"}},{{"message":"m3","run":"{run}","state":"unknown"}}],"next":"m3"}}"#
+            ),
+            format!(
+                r#"{{"replies":[{{"message":"m4","run":"{run}","state":"sent"}}],"next":null}}"#
+            ),
+        ]);
+        let mut sent = Vec::new();
+        let rows = list_replies(
+            |body| {
+                sent.push(body.to_owned());
+                let page = pages.pop_front().ok_or(PortError::NoService)?;
+                Ok(serde_json::from_str(&page).unwrap())
+            },
+            &workflow,
+            &agent,
+            &run,
+        );
+        assert_eq!(
+            sent,
+            [
+                r#"{"op":"list_replies","workflow":"f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1","agent":"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1","after":null}"#,
+                r#"{"op":"list_replies","workflow":"f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1","agent":"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1","after":"m3"}"#,
+            ]
+        );
+        assert_eq!(
+            rows,
+            Ok(vec![
+                ReplyRow::Read(halvo_coord::types::ReplyState::Committed),
+                ReplyRow::Read(halvo_coord::types::ReplyState::Unknown),
+                ReplyRow::Unreadable,
+            ])
+        );
+    }
+
+    /// r4 U5.4r, sentence 2: no answer is never an empty list. The owner's refusal passes under its own name after one
+    /// call, a call that fails is `no_service`, and so is a reply that the reader cannot trust: one with no list
+    /// `replies`, and a `next` that is not greater than the `after` sent, which answers no row of the page before it.
+    #[test]
+    fn the_read_of_replies_passes_a_refusal_and_answers_no_service_for_a_reply_that_it_cannot_trust(
+    ) {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let run = RunId::parse(&"d1".repeat(16)).unwrap();
+        let read = |answers: Vec<Result<Value, PortError>>| {
+            let mut answers = std::collections::VecDeque::from(answers);
+            let mut calls = 0;
+            let rows = list_replies(
+                |_| {
+                    calls += 1;
+                    answers.pop_front().unwrap_or(Err(PortError::NoService))
+                },
+                &workflow,
+                &agent,
+                &run,
+            );
+            (rows, calls)
+        };
+        let page =
+            |text: &str| -> Result<Value, PortError> { Ok(serde_json::from_str(text).unwrap()) };
+        assert_eq!(
+            read(vec![Err(PortError::Refused(name("no_workflow")))]),
+            (Err(PortError::Refused(name("no_workflow"))), 1)
+        );
+        assert_eq!(
+            read(vec![Err(PortError::Refused(name("binding")))]),
+            (Err(PortError::Refused(name("binding"))), 1)
+        );
+        assert_eq!(
+            read(vec![Err(PortError::NoService)]),
+            (Err(PortError::NoService), 1)
+        );
+        assert_eq!(
+            read(vec![page(r#"{"next":null}"#)]),
+            (Err(PortError::NoService), 1)
+        );
+        let first = format!(
+            r#"{{"replies":[{{"message":"m1","run":"{run}","state":"committed"}},{{"message":"m2","run":"{run}","state":"lost"}}],"next":"m2"}}"#
+        );
+        assert_eq!(
+            read(vec![page(&first), page(r#"{"replies":[],"next":"m2"}"#)]),
+            (Err(PortError::NoService), 2)
+        );
+    }
+
     /// r4 U2.4y, sentence 3: the body `drop_sessions` goes out as r3 U5.2c built it, with the keys `op`,
     /// `workflow` and `agent` in that order and nothing else.
     #[test]
@@ -1850,6 +2070,28 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    /// U5.4w, sentence 3: the Windows zone's offset is the local time of an instant less its time in UTC, in whole
+    /// seconds east of UTC, also where the local date is the day before the date in UTC.
+    #[test]
+    fn the_offset_of_the_windows_zone_is_the_local_time_less_the_time_in_utc() {
+        let at = |year, month, day, hour, minute| Wall {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second: 0,
+        };
+        let noon = at(2026, 11, 22, 12, 0);
+        assert_eq!(offset_between(noon, at(2026, 11, 22, 13, 0)), 3_600);
+        assert_eq!(offset_between(noon, at(2026, 11, 22, 7, 0)), -18_000);
+        assert_eq!(offset_between(noon, at(2026, 11, 22, 17, 30)), 19_800);
+        assert_eq!(
+            offset_between(at(2026, 1, 1, 2, 0), at(2025, 12, 31, 21, 0)),
+            -18_000
+        );
     }
 
     /// A dialog that is never on screen and answers `reject`: no native confirmation is answered.

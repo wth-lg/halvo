@@ -613,7 +613,7 @@ pub async fn delete_all<R: Runtime>(
         DeleteEnd::FirstNotKnown(first) => (delete_view(Err(first), roots.as_deref()), false),
     };
     if let Ok(answer) = &mut view {
-        answer.count_unfinished(&state.unfinished_in_a_row);
+        answer.count_at_the_services_door(&state.unfinished_in_a_row, state.data_dir.as_ref());
     }
     match &view {
         Ok(

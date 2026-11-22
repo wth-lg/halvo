@@ -50,15 +50,21 @@ pub(crate) trait Paused {
     fn reply(&self) -> Option<&Reply> {
         None
     }
-    /// The step of the adapter's call that the request makes, whose row `step_failed` with the cause
-    /// `unauthorized` the runner writes after an answer 401 (A8.6): the send step of a reply, the delete step of an
-    /// event; none for a request of the browser.
+    /// The step that makes the request: the step of the adapter's call, whose row `step_failed` with the cause
+    /// `unauthorized` the runner writes after an answer 401 (A8.6), the send step of a reply and the delete step of an
+    /// event; and the web step of an effect class, whose `stopped` row holds the cause of the read after the reply
+    /// (crate::web::maker).
     fn step(&self) -> Option<NonZeroU32> {
         self.reply().map(|reply| reply.step)
     }
     /// Whether the request is one of `calendar_delete`, which always asks in this release (`always_asks`); the
     /// maker of that op alone answers yes.
     fn deletes_an_event(&self) -> bool {
+        false
+    }
+    /// Whether the request is the one held request of a web step of an effect class, which always asks in this
+    /// release (`always_asks`); the browser's maker (crate::web::maker) alone answers yes.
+    fn of_a_web_step(&self) -> bool {
         false
     }
 }
@@ -88,13 +94,14 @@ impl Reply {
     }
 }
 
-/// Whether `request` always asks in this release: a request of the class `send`, which `mail_send` alone makes, and
-/// a request of `calendar_delete` (A5.1, the coordinator's ruling of 2026-11-21T20:16:11Z, log line 11974, point
-/// (3)). The runner lets no such request through without an `approved` row whose digest it has read again, whatever
-/// the policy clears. The delete is named by its maker and not by the class `delete`, which the stand-in makers of
-/// the port's tests take for effects that the policy clears and lets through.
+/// Whether `request` always asks in this release: a request of the class `send`, which `mail_send` alone makes, a
+/// request of `calendar_delete` (A5.1, the coordinator's ruling of 2026-11-21T20:16:11Z, log line 11974, point
+/// (3)), and the held request of a web step of an effect class (the coordinator's ruling of log line 14717, point
+/// (7)). The runner lets no such request through without an `approved` row whose digest it has read again, whatever
+/// the policy clears. The delete and the web step are named by their makers and not by a class, which the stand-in
+/// makers of the port's tests take for effects that the policy clears and lets through.
 fn always_asks(request: &dyn Paused) -> bool {
-    request.class() == ActionClass::Send || request.deletes_an_event()
+    request.class() == ActionClass::Send || request.deletes_an_event() || request.of_a_web_step()
 }
 
 /// The facts of A9.3 that a request maker gives: no maker can name an origin of the bindings or a new origin.
@@ -105,11 +112,41 @@ pub(crate) struct MakerFacts {
     pub(crate) senders: Vec<String>,
 }
 
+/// The read of the page after a reply that the maker reads as made: every amount that the page names, in minor
+/// units, none where it names none or cannot be read. The runner calls it after its `commit` row, for a `payment` and
+/// a `purchase` alone.
+pub(crate) type ReadPage = Box<dyn FnOnce() -> Vec<u64>>;
+
 /// A request of an effect that left.
 pub(crate) trait Left {
     /// Waits for the request's reply, within the maker's own bound: whether it came, and whether the maker reads it
     /// as made.
     fn reply(self: Box<Self>) -> Replied;
+    /// `reply`, and the read of the page after it where the maker reads one: none for a maker that reads no page,
+    /// which the runner takes as a page that names no amount.
+    fn reply_and_page(self: Box<Self>) -> (Replied, Option<ReadPage>) {
+        (self.reply(), None)
+    }
+}
+
+/// The cause of the read of the page after the reply of a committed `payment` or `purchase` (contracts.md, the
+/// pull request that first links a payment or purchase maker; the coordinator's ruling of log line 14717, points (1)
+/// and (2)): `amount_unread` where the page names no amount; `amount_differs` where it names an amount that is not
+/// the kept `amount` of `bound`, each amount read in minor units by `extract_amount`; none where every amount that it
+/// names is the kept one. The record keeps no amount of the page.
+fn amount_cause(bound: &Bound, named: &[u64]) -> Option<Cause> {
+    let kept = bound
+        .fields()
+        .iter()
+        .find(|f| f.name == FieldName::Amount)
+        .and_then(|f| halvo_web::extract_amount(&f.value.joined()));
+    if named.is_empty() {
+        return Some(Cause::AmountUnread);
+    }
+    if named.iter().any(|n| Some(*n) != kept) {
+        return Some(Cause::AmountDiffers);
+    }
+    None
 }
 
 /// What came of a request that left: an answer that the maker reads as made, from the one success status that its
@@ -286,6 +323,12 @@ impl Runner {
     /// another effect gives after the reject is the run's end. After a reject this outcome says that one effect or
     /// more of the run was ended by a `reject_once`, the person's or the one that a lapse of its card sent, and says
     /// nothing of the other effects, which the effect rows show; such a run is never `completed` (A6.5).
+    ///
+    /// For a `payment` or a `purchase` whose reply the maker reads as made, the runner reads the page after its
+    /// `commit` row (`amount_cause`): where the page names another amount than the kept `amount`, the step's `stopped`
+    /// row holds `amount_differs`, the effect stays `committed`, and the run makes no further step and ends `failed`
+    /// with that cause; where it names no amount, the row holds `amount_unread` and the run goes on (the coordinator's
+    /// ruling of log line 14717, points (1) and (2)).
     pub(crate) fn release(&mut self, requests: Vec<Box<dyn Paused>>) -> Result<(), Stop> {
         let loaded = self.load()?;
         let mut open = VecDeque::new();
@@ -480,10 +523,20 @@ impl Runner {
                     self.reply_moved(one.at, reply.as_ref(), ReplyState::Drafted)?;
                     return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)));
                 };
-                return match left.reply() {
+                let (replied, page) = left.reply_and_page();
+                return match replied {
                     Replied::Made => {
                         self.advance(one.at, EffectMove::Commit)?;
                         self.reply_moved(one.at, reply.as_ref(), ReplyState::Committed)?;
+                        if matches!(class, ActionClass::Payment | ActionClass::Purchase) {
+                            let named = page.map_or_else(Vec::new, |read| read());
+                            if let Some(cause) = amount_cause(&now, &named) {
+                                self.log(LogEvent::Stopped, step, Some(cause))?;
+                                if cause == Cause::AmountDiffers {
+                                    return Err(failed(cause));
+                                }
+                            }
+                        }
                         Ok(Through::Left)
                     }
                     Replied::NotMade(case) => {

@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: windows
 # rule: the built app on Windows starts its capture service as its own child and nothing before the Start step, a stop holds and a kill of the app ends the child: started with --background on a data directory that is not provisioned it runs with no halvo-capture.exe of that directory after 5 s and the directory holds no store; on a provisioned directory one halvo-capture.exe of that directory runs as a child of the app with no window of its own; after halvo-capture.exe ctl stop no halvo-capture.exe of that directory starts for 10 s while its app runs; and after a kill of the app no halvo-capture.exe of its directory runs inside 12 s
+# lane: alone
 set -u
 name=34-app-windows-start
 state_file='daemon-state.json'

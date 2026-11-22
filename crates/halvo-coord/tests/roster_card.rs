@@ -560,6 +560,76 @@ fn rd85_with_no_row_of_a_no_the_entry_says_only_that_it_was_not_done() {
 }
 
 #[test]
+fn u24o_a_no_at_the_sign_in_question_of_this_run_says_you_said_no_and_the_row_stays_plain() {
+    use halvo_coord::roster::status_of;
+    use halvo_coord::types::{
+        BindAnswer, BindResult, DoneAnswer, Origin, OtherLapse, SignInAnswer, StatusLine,
+    };
+    let item = ItemId::parse(&format!("{:032x}", 0x61)).unwrap();
+    let mut base = facts(State::Card).remove(0);
+    row(
+        &mut base,
+        What::RunEnded {
+            run: run_of(2),
+            cause: RunEnd::Declined,
+            defers: None,
+        },
+    );
+    let second = |answer: BindResult| What::ItemAnswered {
+        item: item.clone(),
+        answer: Answered::SignIn(SignInAnswer::Second(BindAnswer {
+            answer,
+            origin: Origin::parse("https://site1.example:443").unwrap(),
+        })),
+    };
+    let with = |run: RunId, last: What| {
+        let mut f = base.clone();
+        let raised = Raised::SignIn(run);
+        let item = item.clone();
+        row(&mut f, What::ItemRaised { item, raised });
+        row(&mut f, last);
+        f
+    };
+    let said_no = with(run_of(2), second(BindResult::Decline));
+    let (keys, text, _) = declined_card(&said_no, vec![]);
+    assert!(keys.is_empty(), "a run with no effect");
+    assert_eq!(text, line("line.run.declined"));
+    let first = Answered::SignIn(SignInAnswer::First(DoneAnswer::Decline));
+    let lapsed = Lapsed::SignIn(OtherLapse::WaitLimit);
+    for (case, f) in [
+        ("allow", with(run_of(2), second(BindResult::Allow))),
+        (
+            "the first step's decline",
+            with(
+                run_of(2),
+                What::ItemAnswered {
+                    item: item.clone(),
+                    answer: first,
+                },
+            ),
+        ),
+        ("another run", with(run_of(3), second(BindResult::Decline))),
+        (
+            "a lapse",
+            with(
+                run_of(2),
+                What::ItemLapsed {
+                    item: item.clone(),
+                    lapsed,
+                },
+            ),
+        ),
+    ] {
+        let text = declined_card(&f, vec![]).1;
+        assert_eq!(text, line("line.run.stopped"), "{case}");
+    }
+    let limits = Limits::PRODUCT;
+    let plain = status_of(&base, &limits, None, false);
+    assert_eq!(plain, StatusLine::StoppedEarly);
+    assert_eq!(status_of(&said_no, &limits, None, false), plain);
+}
+
+#[test]
 fn rd85_two_cards_in_one_run_a_no_on_the_first_and_a_lapse_of_the_second() {
     let mut f = facts(State::Card).remove(0);
     raised(&mut f, 0x51, &run_of(2));

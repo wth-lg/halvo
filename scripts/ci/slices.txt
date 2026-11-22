@@ -29,13 +29,13 @@ wed macos tests E
 wed macos check 51-macos-stall
 wed macos check 30-core-boundary-proofs
 wed macos check 55-r6-formal
+wed macos check 32-app-check-page
+wed macos check 38-app-engine-routes
 wed macos check 25-advisories
 wed windows check 50-windows-functional
 wed windows check 60-r6-egress
 
 thu macos check 62-build
-thu macos check 32-app-check-page
-thu macos check 38-app-engine-routes
 thu macos check 60-release-dry-run
 thu macos check 10-egress
 thu macos check 20-r6-gateway
@@ -67,6 +67,7 @@ fri macos self-test 40-r6-policy
 fri macos self-test 55-r6-formal
 fri macos self-test 21-r7-backend-test
 fri macos self-test 27-r7-metering-self
+fri macos self-test 72-notices
 fri macos tests C
 fri macos check 25-advisories
 fri windows self-test 12-test
