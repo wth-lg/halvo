@@ -65,13 +65,13 @@ fn main() -> ExitCode {
             &data_dir,
             daemon::DurableState::writer(),
         )),
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         Ok(Mode::DeleteAllOfADataDir { data_dir }) => status(daemon::delete_all::offline(
             &data_dir,
             &mut std::io::stdout().lock(),
             &mut std::io::stderr(),
         )),
-        #[cfg(all(not(target_os = "macos"), any(debug_assertions, windows)))]
+        #[cfg(all(debug_assertions, not(any(target_os = "macos", windows))))]
         Ok(Mode::DeleteAllOfADataDir { .. }) => status(exit::USAGE),
         #[cfg(any(debug_assertions, target_os = "macos", windows))]
         Ok(Mode::Ctl(ctl)) => status(daemon::ctl(
