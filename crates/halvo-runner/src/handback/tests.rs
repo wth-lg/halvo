@@ -866,40 +866,49 @@ fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
     // asked once more, after the reading of the fields before an act. End (i): the act acts, and the step goes on with
     // what it gives. End (ii): the act fails again, and the step fails as before this unit: the reading of the fields
     // after a failed act, no second reading, and no second handback at that step.
+    // Both ends in one assertion: the step's end, the log behind the bind, and how many acts, second readings and
+    // handbacks of the reason `sign_in` the step made.
+    let mut ends = Vec::new();
+    let mut want = Vec::new();
     for again in [false, true] {
         let fails = if again { 2 } else { 1 };
         let answers = [DONE, BOUND_YES];
         let mut bench = Bench::on_page(&[], BOUND, &answers, fails, &[], &page("Sign in"));
-        let got = bench.step(&click());
+        let end = match bench.step(&click()) {
+            Ok(()) => "done",
+            Err(Failure::Step(Cause::StepFailed)) => "step_failed",
+            Err(_) => "another end",
+        };
         let log = bench.log();
-        if again {
-            assert!(
-                matches!(got, Err(Failure::Step(Cause::StepFailed))),
-                "{log:?}"
-            );
-        } else {
-            assert!(got.is_ok(), "{log:?}");
-        }
-        let replied = at(&log, "bind_reply yes");
-        let after: Vec<&str> = log[replied + 1..]
+        let replied = log.iter().position(|l| l == "bind_reply yes");
+        let after: Vec<String> = log[replied.map_or(log.len(), |at| at + 1)..]
             .iter()
             .filter(|l| !l.starts_with("frame store"))
-            .map(String::as_str)
+            .cloned()
             .collect();
-        let mut want = vec![
+        let counts = [
+            count(&log, "act click"),
+            count(&log, "read sign-in"),
+            count(&log, "frame handback sign_in"),
+        ];
+        ends.push((end, after, counts));
+        let mut behind = vec![
             "arm fail [http://127.0.0.1:8080]",
             "close others",
             "read",
             "act click",
         ];
         if again {
-            want.push("read");
+            behind.push("read");
         }
-        assert_eq!(after, want, "{log:?}");
-        assert_eq!(count(&log, "act click"), 2, "{log:?}");
-        assert_eq!(count(&log, "read sign-in"), 1, "{log:?}");
-        assert_eq!(count(&log, "frame handback sign_in"), 1, "{log:?}");
+        let behind: Vec<String> = behind.into_iter().map(String::from).collect();
+        want.push((
+            if again { "step_failed" } else { "done" },
+            behind,
+            [2, 1, 1],
+        ));
     }
+    assert_eq!(ends, want, "end (i), then end (ii)");
 }
 
 /// r3 U5.14: on a page that shows no credential field and no link or button that asks for a sign-in by its name, a web
