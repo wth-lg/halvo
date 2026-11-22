@@ -69,11 +69,17 @@ impl Guarded {
     /// Runs `agent-gate` as `run` does, with `tmp` as the system's temporary directory, under which the command
     /// makes its own, and ends it when it has not ended within `wait`.
     pub fn run_in(args: &[&str], tmp: &Path, wait: Duration) -> Output {
+        Guarded::run_in_with(args, tmp, wait, &[])
+    }
+
+    /// Runs `agent-gate` as `run_in` does, with the variables `env` set beside the temporary directory.
+    pub fn run_in_with(args: &[&str], tmp: &Path, wait: Duration, env: &[(&str, &str)]) -> Output {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_agent-gate"));
         cmd.args(args)
             .env("TMPDIR", tmp)
             .env("TMP", tmp)
-            .env("TEMP", tmp);
+            .env("TEMP", tmp)
+            .envs(env.iter().copied());
         Guarded::run_command(cmd, wait)
     }
 

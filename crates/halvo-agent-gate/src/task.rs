@@ -32,6 +32,10 @@
 //!
 //! Over the product link the same set-up goes to the owner on the command's end of the stream, as
 //! `coordinator_write` requests, from `create_agent` on, and the runner's requests go there through the library.
+//! There the runner stamps the day of each row with the offset of this system's clock from UTC at the start of the
+//! play, which the binary reads by the system's time zone as the owner reads its local calendar, since the owner
+//! refuses a row whose day is not its local day of the row's instant; over the host link the offset is 0, by which the
+//! gate host's memory store counts.
 //!
 //! After the run's end the counts and the result come from the run's record: in the gate host's store, or, over the
 //! product link, the record of the run's `finish` that the owner acknowledged, as the library hands it to the gate's
@@ -364,8 +368,11 @@ pub(crate) enum Event {
     End,
 }
 
-/// Plays `fill` from start to end.
-pub fn play(fill: &Fill) -> Result<Line, Refused> {
+/// Plays `fill` from start to end. `utc_offset_s` is the offset of this system's clock from UTC, in seconds east of
+/// UTC, at the start of the play, as the product's owner reads its local calendar: over the product link the runner
+/// stamps the day of each row with it, because the owner refuses a row whose day is not its local day of the row's
+/// instant. The host link hands the runner 0, the offset by which the gate host's memory store counts its days.
+pub fn play(fill: &Fill, utc_offset_s: i32) -> Result<Line, Refused> {
     let rows = seed_rows(fill.seed)?;
     let runner = runner_beside()?;
     let dir = make_dir()?;
@@ -388,6 +395,10 @@ pub fn play(fill: &Fill) -> Result<Line, Refused> {
         data: data.clone(),
         browser: dir.join("no-browser"),
         run: run.clone(),
+        utc_offset_s: match fill.link {
+            Link::Host => 0,
+            Link::Product { .. } => utc_offset_s,
+        },
     };
     let played = match &fill.link {
         Link::Host => on_host(start, slots)?,
@@ -410,13 +421,15 @@ pub fn play(fill: &Fill) -> Result<Line, Refused> {
 }
 
 /// What the start of the runner takes beside the link: the runner's binary, the library's data directory, the
-/// browser path that `fill` does not open, and the run.
+/// browser path that `fill` does not open, the run, and the offset from UTC by which the runner stamps its days.
 struct Start {
     runner: PathBuf,
     data: PathBuf,
     /// `fill` opens no browser, and the runner checks no more than the form of its `--browser`.
     browser: PathBuf,
     run: RunId,
+    /// The offset of the clock by which the store behind the link counts its days, in seconds east of UTC.
+    utc_offset_s: i32,
 }
 
 /// What one run left: its record, and whether the library called the gate's `MarkSink` with its start and then its
@@ -558,7 +571,7 @@ fn run_to_end(
             browser: start.browser,
             model: None,
             headed: false,
-            utc_offset_s: 0,
+            utc_offset_s: start.utc_offset_s,
         })
         .map_err(|e| {
             usage(format!(

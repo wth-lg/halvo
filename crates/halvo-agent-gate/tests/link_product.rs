@@ -127,11 +127,11 @@ fn is_report(frame: &[u8]) -> bool {
         .is_some_and(|object| object.len() == 1 && object.contains_key("report"))
 }
 
-/// Starts the owner's binary `binary` on `dir` with the key on standard input, with a starter's channel on which an
-/// end of a stream travels (one socket pair, whose one end and a copy of it by `dup` are the owner's two ends, as
+/// Starts the owner's binary `binary` on `dir` with the key on standard input, and with `zone` as its variable `TZ`
+/// where one is given, with a starter's channel on which an end of a stream travels (one socket pair, whose one end and a copy of it by `dup` are the owner's two ends, as
 /// owner.rs of halvo-owner has it) and a worker's channel of two pipes.
 #[cfg(target_os = "macos")]
-fn start_owner(binary: &Path, dir: &Path) -> Owner {
+fn start_owner(binary: &Path, dir: &Path, zone: Option<&str>) -> Owner {
     use std::os::fd::{AsRawFd, OwnedFd};
     use std::os::unix::net::UnixStream;
     use std::os::unix::process::CommandExt;
@@ -158,6 +158,9 @@ fn start_owner(binary: &Path, dir: &Path) -> Owner {
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit());
+    if let Some(zone) = zone {
+        cmd.env("TZ", zone);
+    }
     // SAFETY: the closure runs in the child between fork and exec and calls fcntl and dup2 alone, which are
     // async-signal-safe; it first copies each end above 9, so that no dup2 writes over an end before it is copied.
     unsafe {
@@ -195,7 +198,7 @@ fn start_owner(binary: &Path, dir: &Path) -> Owner {
 /// handle values, as owner.rs of halvo-owner has it: on Windows the frame `stream` names the two handles of an end, so
 /// the starter's channel is two pipes.
 #[cfg(windows)]
-fn start_owner(binary: &Path, dir: &Path) -> Owner {
+fn start_owner(binary: &Path, dir: &Path, zone: Option<&str>) -> Owner {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::{SetHandleInformation, HANDLE_FLAG_INHERIT};
     let (owner_reads, requests) = std::io::pipe().expect("a pipe");
@@ -227,6 +230,9 @@ fn start_owner(binary: &Path, dir: &Path) -> Owner {
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit());
+    if let Some(zone) = zone {
+        cmd.env("TZ", zone);
+    }
     let mut child = cmd.spawn().expect("the owner starts");
     drop((owner_reads, owner_writes, worker_reads, worker_writes));
     let mut stdin = child.stdin.take().expect("the owner's standard input");
@@ -663,24 +669,25 @@ fn listed_checkpoints(data_dir: &Path) -> Vec<ListedCheckpoint> {
     }
 }
 
-/// U9.4 sentence 1: over the product link, with a stand-in server that calls `dispatch_unknown` in front of the
-/// owner's binary, the command prints for `fill`, seed 1, the one line of A14.5, its keys in its order, with
-/// `store=owner` and `result=completed`. It makes no gate host and no store of its own: the owner's store holds the
+/// The play of test 1: the owner's binary behind a stand-in server that calls `dispatch_unknown`, an approved
+/// workflow made through the owner's own channels, and the command's fill of seed 1 over the product link, with the
+/// variable `TZ` of the owner's process and of the command set to `zone` where one is given. It asserts the one line
+/// of A14.5, its keys in its order, with `store=owner` and `result=completed`, and that the owner's store holds the
 /// checkpoint of the command's run of the workflow and the run's record, as `list_checkpoints` reads them afterwards.
-#[test]
-fn a_fill_over_the_product_link_reaches_the_owner_and_prints_store_owner() {
+fn fill_over_the_owner(name: &str, zone: Option<&str>) {
     common::build_beside("halvo-runner", "halvo-runner");
     let owner_binary = common::build_beside("halvo-owner", "halvo-owner");
-    let root = scratch("link-product-fill");
+    let root = scratch(name);
     let tmp = dir_in(&root, "tmp");
-    let mut owner = start_owner(&owner_binary, &dir_in(&root, "owner"));
+    let mut owner = start_owner(&owner_binary, &dir_in(&root, "owner"), zone);
     let workflow = approved_workflow(&mut owner);
     let (data_dir, listener) = control_dir(&root);
     let data_dir_text = data_dir.to_str().expect("a UTF-8 path");
+    let env: Vec<(&str, &str)> = zone.map(|zone| ("TZ", zone)).into_iter().collect();
 
     let ((out, checkpoints), served) = with_server(&listener, Answer::Dispatch(&mut owner), || {
         let form = fill_over_product(workflow.as_str(), data_dir_text);
-        let out = Guarded::run_in(&form, &tmp, PLAY);
+        let out = Guarded::run_in_with(&form, &tmp, PLAY, &env);
         (out, listed_checkpoints(&data_dir))
     });
 
@@ -722,12 +729,46 @@ fn a_fill_over_the_product_link_reaches_the_owner_and_prints_store_owner() {
     );
 }
 
+/// U9.4 sentence 1: over the product link, with a stand-in server that calls `dispatch_unknown` in front of the
+/// owner's binary, the command prints for `fill`, seed 1, the one line of A14.5, its keys in its order, with
+/// `store=owner` and `result=completed`. It makes no gate host and no store of its own: the owner's store holds the
+/// checkpoint of the command's run of the workflow and the run's record, as `list_checkpoints` reads them afterwards.
+#[test]
+fn a_fill_over_the_product_link_reaches_the_owner_and_prints_store_owner() {
+    fill_over_the_owner("link-product-fill", None);
+}
+
+/// A fixed zone whose date is not the UTC date at this moment: twelve hours west of UTC before 12:00 UTC, fourteen
+/// hours east of it from 12:00 UTC on.
+#[cfg(target_os = "macos")]
+fn zone_off_the_utc_date() -> &'static str {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("a clock after 1970");
+    if now.as_secs() % 86_400 < 43_200 {
+        "<-12>12"
+    } else {
+        "<+14>-14"
+    }
+}
+
+/// U9.4 round 1: the owner counts the day of a row by the local calendar of its system, so the runner over the
+/// product link stamps the days of its rows with the offset of that clock: test 1's play, with the variable `TZ` of
+/// the owner's process and of the command set to a fixed zone whose date is not the UTC date, completes as test 1
+/// does. On macOS, where the owner reads `TZ`.
+#[cfg(target_os = "macos")]
+#[test]
+fn a_fill_over_the_product_link_completes_where_the_local_date_is_not_the_utc_date() {
+    fill_over_the_owner("link-product-zone", Some(zone_off_the_utc_date()));
+}
+
 /// U9.4 sentence 2: against a server that answers `owner_stream` as an unknown request, as the capture service's
 /// server does, the command prints no line with `result=completed`: it refuses with `usage`, prints no line on
 /// standard output, and exits 2. On macOS alone, the system of the capture service's server on main.
 #[cfg(target_os = "macos")]
 #[test]
 fn a_server_that_does_not_serve_owner_stream_gives_no_completed_line() {
+    common::build_beside("halvo-runner", "halvo-runner");
     let root = scratch("link-product-unknown");
     let tmp = dir_in(&root, "tmp");
     let (data_dir, listener) = control_dir(&root);
