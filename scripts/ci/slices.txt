@@ -17,6 +17,7 @@
 
 mon macos tests A
 mon macos check 31-store-full-volume
+mon macos check 63-maker-marker
 mon macos check 25-advisories
 mon windows tests A
 mon windows check 24-hook-imports
@@ -61,6 +62,7 @@ fri macos self-test 39-store-no-analyze
 fri macos self-test 51-macos-stall
 fri macos self-test 55-sqlcipher-unmended
 fri macos self-test 62-build
+fri macos self-test 63-maker-marker
 fri macos self-test 70-package-macos
 fri macos self-test 10-egress
 fri macos self-test 22-redact
@@ -95,6 +97,7 @@ sat macos check 10-r7-account
 sat macos check 25-advisories
 sat windows check 32-app-check-page
 sat windows check 38-app-engine-routes
+sat windows check 34-app-windows-start
 sat windows check 20-r6-gateway
 sat windows check 80-r6-absent
 sat windows tests D

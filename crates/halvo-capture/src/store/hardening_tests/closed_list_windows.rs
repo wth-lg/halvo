@@ -11,6 +11,8 @@ use crate::custody::KeyLabel;
 
 const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
 const FILE_SHARE_READ: u32 = 0x1;
+const FILE_SHARE_WRITE: u32 = 0x2;
+const FILE_SHARE_DELETE: u32 = 0x4;
 const ERROR_SHARING_VIOLATION: i32 = 32;
 
 fn hold_file(path: &Path, share: u32) -> std::fs::File {
@@ -438,6 +440,51 @@ fn an_open_while_another_handle_holds_the_lock_file_without_sharing_answers_lock
     println!("WIN-LOCK-SHARING open={opened} raw_error_of_a_second_open={raw:?}");
     assert_eq!(raw, Some(ERROR_SHARING_VIOLATION));
     assert_eq!(opened, "Locked");
+}
+
+/// Sentence 4 of win-delete-lock: another handle, open on writer.lock with
+/// every sharing before the tail, keeps the file that the tail's lock marked
+/// past the lock's close; the tail counts it as a file left and answers not
+/// finished. Once that handle closes the name is gone, and a second tail
+/// answers Ok.
+#[test]
+fn the_tail_counts_a_lock_file_that_another_handle_keeps_past_its_close_and_answers_not_finished() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+    let lock = store_dir.join("writer.lock");
+    let kept = hold_file(
+        &lock,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+    );
+    let answer = tail(&store_dir, &roots_dir);
+    drop(kept);
+    let named_after = std::fs::symlink_metadata(&lock)
+        .map(drop)
+        .map_err(|e| e.kind());
+    let again = tail(&store_dir, &roots_dir);
+    println!(
+        "WIN-LOCK-KEPT {} named_after_the_other_handle={named_after:?} again={}",
+        report_line(&answer),
+        report_line(&again)
+    );
+    assert!(
+        matches!(
+            &answer,
+            Err(StoreError::DeleteIncomplete(r))
+                if r.files_left == 1
+                    && r.key_file_gone
+                    && !r.database_left
+                    && r.root_destroyed()
+        ),
+        "the tail beside a kept lock file answered {}",
+        report_line(&answer)
+    );
+    assert_eq!(named_after, Err(std::io::ErrorKind::NotFound));
+    assert!(
+        again.is_ok(),
+        "the second tail answered {}",
+        report_line(&again)
+    );
 }
 
 /// Ruling ST-45 H6 (a): verbatim_form builds its form from the path's parts.

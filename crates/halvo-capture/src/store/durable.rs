@@ -693,6 +693,34 @@ mod windows_dir {
     const FILE_SHARE_READ: u32 = 0x1;
     const FILE_SHARE_WRITE: u32 = 0x2;
     const FILE_SHARE_DELETE: u32 = 0x4;
+    const GENERIC_READ: u32 = 0x8000_0000;
+    const GENERIC_WRITE: u32 = 0x4000_0000;
+    const DELETE: u32 = 0x0001_0000;
+
+    /// Marks the file that `file` holds for removal when its last handle
+    /// closes, the classic disposition of Win32: the name stands until then,
+    /// and every open of the name in that time is refused with
+    /// ERROR_ACCESS_DENIED, so that no other process opens or makes a file at
+    /// it before the handle closes. The handle needs the right to delete.
+    pub(crate) fn remove_when_closed(file: &File) -> io::Result<()> {
+        use std::os::windows::io::AsRawHandle;
+        use windows::Win32::Foundation::HANDLE;
+        use windows::Win32::Storage::FileSystem::{
+            FileDispositionInfo, SetFileInformationByHandle, FILE_DISPOSITION_INFO,
+        };
+        let disposition = FILE_DISPOSITION_INFO { DeleteFile: true };
+        // SAFETY: the handle is open for as long as `file` is borrowed, and the
+        // pointer is to a live structure of the size that the call is given.
+        unsafe {
+            SetFileInformationByHandle(
+                HANDLE(file.as_raw_handle()),
+                FileDispositionInfo,
+                std::ptr::from_ref(&disposition).cast(),
+                std::mem::size_of::<FILE_DISPOSITION_INFO>() as u32,
+            )
+        }
+        .map_err(io::Error::from)
+    }
 
     fn kind_of(meta: &Metadata) -> EntryKind {
         if meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
@@ -972,10 +1000,22 @@ mod windows_dir {
             std::fs::hard_link(self.entry_path(from), self.entry_path(to))
         }
 
+        /// Opens or makes the lock file `name`, following no reparse point,
+        /// shared for reading and writing and not for deletion. The handle
+        /// also has the right to delete, so that the lock's own handle can
+        /// mark its file for removal at the end of a delete
+        /// ([`remove_when_closed`]). While it is open, Windows refuses with a
+        /// sharing violation every other open of the name that asks to read
+        /// or write the file and does not share deletion, another take of the
+        /// lock among them, and every open that asks for the right to delete;
+        /// an open that asks for the file's attributes alone is not refused.
+        /// An earlier open of the name that reads or writes the file and does
+        /// not share deletion refuses this one in the same way.
         pub(crate) fn open_lock_file(&self, name: &OsStr) -> io::Result<File> {
             let file = File::options()
                 .read(true)
                 .write(true)
+                .access_mode(GENERIC_READ | GENERIC_WRITE | DELETE)
                 .create(true)
                 .truncate(false)
                 .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
@@ -1162,7 +1202,7 @@ pub(crate) fn verbatim_form(path: &Path) -> Option<std::path::PathBuf> {
 }
 
 #[cfg(windows)]
-pub(crate) use windows_dir::{file_link_count, identity_of};
+pub(crate) use windows_dir::{file_link_count, identity_of, remove_when_closed};
 
 /// The identity of the file that `file` holds.
 #[cfg(unix)]
