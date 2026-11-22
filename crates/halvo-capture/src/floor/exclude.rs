@@ -637,4 +637,56 @@ mod tests {
         on.set(Switch::ScreenActivity, true);
         assert_eq!(handle(Some(APP), on).recheck(&frame), Ok(()));
     }
+
+    const RUNNER: u32 = 110;
+    const BROWSER: u32 = 111;
+    const BROWSER_CHILD: u32 = 112;
+    const BESIDE: u32 = 200;
+
+    fn every_switch_on() -> Switches {
+        let mut on = Switches::default();
+        for switch in Switch::ALL {
+            on.set(switch, true);
+        }
+        on
+    }
+
+    fn every_kind(floor: &FloorHandle, pid: u32) -> [Option<DropReason>; 5] {
+        let probe = inactive();
+        let unknown = PrivateWindow::Unknown;
+        let of = || Subject::new(app("com.google.Chrome"), ProcessId::new(pid));
+        [
+            reason(floor.decide::<kind::ForegroundApp>(of(), unknown, &probe)),
+            reason(floor.decide::<kind::WindowTitle>(of(), unknown, &probe)),
+            reason(floor.decide::<kind::Keystroke>(of(), unknown, &probe)),
+            reason(floor.decide::<kind::Pointer>(of(), unknown, &probe)),
+            reason(floor.decide::<kind::ScreenFrame>(of(), unknown, &probe)),
+        ]
+    }
+
+    #[test]
+    fn a_process_under_the_apps_runner_is_left_out_for_every_kind() {
+        let of = |pid| Parent::Of(ProcessId::new(pid));
+        let parents = Table(HashMap::from([
+            (1, Parent::None),
+            (APP, of(1)),
+            (RUNNER, of(APP)),
+            (BROWSER, of(RUNNER)),
+            (BROWSER_CHILD, of(BROWSER)),
+            (BESIDE, of(1)),
+        ]));
+        let floor = FloorHandle::new(
+            Some(ProcessId::new(APP)),
+            Arc::new(parents),
+            every_switch_on(),
+        );
+        for pid in [RUNNER, BROWSER, BROWSER_CHILD] {
+            assert_eq!(
+                every_kind(&floor, pid),
+                [Some(DropReason::ExclusionTree); 5],
+                "pid {pid}"
+            );
+        }
+        assert_eq!(every_kind(&floor, BESIDE), [None; 5]);
+    }
 }
