@@ -1639,14 +1639,15 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// is `status`.
     ///
     /// At a Windows session's end, which [`super::signal::session_end_budget`]
-    /// reads, the entry takes SESSION_END_BUDGET_MS from its start (contracts.md
-    /// C14 item 6): the watchdog is armed for that budget with `status`, no
-    /// stop turns the arm into 5, the first settle is skipped and the last one
-    /// is cut to what is left of the budget. A source that does not stop in
-    /// its one pass is let go with its line, and no second ask and no ending
-    /// call follow, so the exit status stays that of the last settle. The arm
-    /// stays at the entry's end with the entry's answer, so that what follows
-    /// the entry also ends inside the budget.
+    /// reads, the entry takes what is left of SESSION_END_BUDGET_MS since the
+    /// session's first message (contracts.md C14 item 6): the watchdog is
+    /// armed for that budget with `status`, no stop turns the arm into 5, the
+    /// first settle is skipped and the last one is cut to what is left of the
+    /// budget. A source that does not stop in its one pass is let go with its
+    /// line, and no second ask and no ending call follow, so the exit status
+    /// stays that of the last settle. The arm stays at the entry's end with
+    /// the entry's answer, so that what follows the entry also ends inside the
+    /// budget.
     pub fn shutdown_entry(
         &mut self,
         owner: Option<&dyn OwnerLink>,
