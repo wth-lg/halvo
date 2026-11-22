@@ -5,7 +5,7 @@
 
 use std::fmt;
 use std::marker::PhantomData;
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError, RwLock};
 
 use super::kind::Recorded;
 use super::{switch_of, Switch, Switches};
@@ -83,6 +83,85 @@ impl Lineage for NoLineage {
     }
 }
 
+/// A process that a run's mark names: its id and its creation time in
+/// microseconds since the epoch, as the mark's line holds it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Marked {
+    pub pid: ProcessId,
+    pub created: u64,
+}
+
+/// What one listing of the runs' marks gave: the processes that the marks
+/// name, and whether the folder of the marks or the bytes of a mark could not
+/// be read.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Listing {
+    pub named: Vec<Marked>,
+    pub unread: bool,
+}
+
+/// The creation time of a process in microseconds since the epoch, as the
+/// process table of the system records it, or `None` when no process of that
+/// id runs.
+pub trait CreationTime: Send + Sync {
+    fn created_of(&self, pid: ProcessId) -> Option<u64>;
+}
+
+/// A creation time that knows no process. With no mark nothing asks it.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NoCreationTime;
+
+impl CreationTime for NoCreationTime {
+    fn created_of(&self, _pid: ProcessId) -> Option<u64> {
+        None
+    }
+}
+
+/// The processes that the runs' marks name, as the last listing left them,
+/// one set for every clone of a [`FloorHandle`]: each decision reads the set
+/// and only a listing replaces it, so no decision lists the marks.
+pub struct Marks {
+    last: RwLock<Arc<Listing>>,
+    created: Box<dyn CreationTime>,
+}
+
+impl Marks {
+    /// A set that names no process until its first listing; `created` reads
+    /// the creation time of a process that the set names, for the decision
+    /// and for each listing.
+    pub fn new(created: Box<dyn CreationTime>) -> Marks {
+        Marks {
+            last: RwLock::new(Arc::new(Listing::default())),
+            created,
+        }
+    }
+
+    /// Takes one listing: the set names what the listing names, and also each
+    /// process that it named before whose creation time still reads the same,
+    /// so that a process stays in the set after its mark is removed until it
+    /// is gone. The set is unread when the listing is.
+    pub fn take(&self, listing: Listing) {
+        let held = self.last();
+        let mut named = listing.named;
+        for marked in &held.named {
+            if !named.contains(marked)
+                && self.created.created_of(marked.pid) == Some(marked.created)
+            {
+                named.push(*marked);
+            }
+        }
+        let listing = Arc::new(Listing {
+            named,
+            unread: listing.unread,
+        });
+        *self.last.write().unwrap_or_else(PoisonError::into_inner) = listing;
+    }
+
+    fn last(&self) -> Arc<Listing> {
+        Arc::clone(&self.last.read().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
 /// The subject of an event: the app and the process it belongs to.
 pub struct Subject {
     app: AppIdentity,
@@ -120,7 +199,8 @@ pub enum DropReason {
     SwitchOff,
     /// The app in front is on the static list.
     ListedApp,
-    /// The process is the exclusion root or under it.
+    /// The process is the exclusion root, a process that a run's mark names,
+    /// or under either.
     ExclusionTree,
     /// The lineage walk could not end: a parent unknown, a loop, or too deep.
     UnknownLineage,
@@ -170,13 +250,14 @@ pub enum Verdict<K: Recorded> {
 }
 
 /// What a source needs for the decision: the exclusion root, the lineage
-/// probe, the static list and the switches. A source gets it through its
-/// context value.
+/// probe, the static list, the switches and the set of the runs' marks. A
+/// source gets it through its context value.
 #[derive(Clone)]
 pub struct FloorHandle {
     root: Option<ProcessId>,
     lineage: Arc<dyn Lineage>,
     switches: Switches,
+    marks: Arc<Marks>,
 }
 
 impl Default for FloorHandle {
@@ -197,7 +278,8 @@ impl fmt::Debug for FloorHandle {
 
 impl FloorHandle {
     /// `root` is the process that started the daemon with `--lifeline`, or
-    /// `None` in a run without it.
+    /// `None` in a run without it. The handle names no mark until
+    /// [`FloorHandle::with_marks`] gives it a set.
     pub fn new(
         root: Option<ProcessId>,
         lineage: Arc<dyn Lineage>,
@@ -207,7 +289,13 @@ impl FloorHandle {
             root,
             lineage,
             switches,
+            marks: Arc::new(Marks::new(Box::new(NoCreationTime))),
         }
+    }
+
+    /// The same handle over the set `marks`, which each of its clones reads.
+    pub fn with_marks(self, marks: Arc<Marks>) -> FloorHandle {
+        FloorHandle { marks, ..self }
     }
 
     pub fn switches(&self) -> Switches {
@@ -216,8 +304,9 @@ impl FloorHandle {
 
     /// The owner's second line over a received value: the rules that need no
     /// live state (the switches, the static list and the tree rule over the
-    /// stored subject pid). Here an unknown lineage keeps the event, because
-    /// the source decided on the live process table.
+    /// stored subject pid and the set of the marks). Here an unknown lineage
+    /// and an unread set keep the event, because the source decided on the
+    /// live process table.
     pub fn recheck(&self, event: &FloorEvent) -> Result<(), DropReason> {
         if switch_of(event.kind()).is_some_and(|switch| !self.switches.is_on(switch)) {
             return Err(DropReason::SwitchOff);
@@ -225,12 +314,10 @@ impl FloorHandle {
         if is_listed(event.app()) {
             return Err(DropReason::ListedApp);
         }
-        match self
-            .root
-            .map(|root| walk(root, event.pid(), &*self.lineage))
-        {
-            Some(Tree::In) => Err(DropReason::ExclusionTree),
-            Some(Tree::Out | Tree::Unknown) | None => Ok(()),
+        let marks = self.marks.last();
+        match tree(&self.rules(&marks), event.pid()) {
+            Tree::In => Err(DropReason::ExclusionTree),
+            Tree::Out | Tree::Unknown => Ok(()),
         }
     }
 
@@ -248,15 +335,22 @@ impl FloorHandle {
         window: PrivateWindow,
         probe: &dyn SecureInputProbe,
     ) -> Verdict<K> {
-        let rules = Rules {
-            root: self.root,
-            lineage: &*self.lineage,
-            switches: self.switches,
-        };
+        let marks = self.marks.last();
+        let rules = self.rules(&marks);
         let reading = || probe.read();
         match decide(&rules, K::KIND, &subject.app, subject.pid, window, reading) {
             Ok(()) => Verdict::Keep(Keep::issue(subject, self.switches.is_on(Switch::SiteRead))),
             Err(reason) => Verdict::Drop(reason),
+        }
+    }
+
+    fn rules<'a>(&'a self, marks: &'a Listing) -> Rules<'a> {
+        Rules {
+            root: self.root,
+            lineage: &*self.lineage,
+            switches: self.switches,
+            marks,
+            created: &*self.marks.created,
         }
     }
 }
@@ -265,6 +359,27 @@ struct Rules<'a> {
     root: Option<ProcessId>,
     lineage: &'a dyn Lineage,
     switches: Switches,
+    marks: &'a Listing,
+    created: &'a dyn CreationTime,
+}
+
+impl Rules<'_> {
+    /// Whether a mark names `pid` by its id and by the creation time that the
+    /// process table reads for it now; the time is read only for an id that a
+    /// mark names.
+    fn marked(&self, pid: ProcessId) -> bool {
+        let mut named = self
+            .marks
+            .named
+            .iter()
+            .filter(|marked| marked.pid == pid)
+            .peekable();
+        named.peek().is_some()
+            && self
+                .created
+                .created_of(pid)
+                .is_some_and(|created| named.any(|marked| marked.created == created))
+    }
 }
 
 /// The one decision, over its arguments and the lineage that it reads.
@@ -282,10 +397,10 @@ fn decide(
     if is_listed(app) {
         return Err(DropReason::ListedApp);
     }
-    match rules.root.map(|root| walk(root, pid, rules.lineage)) {
-        Some(Tree::In) => return Err(DropReason::ExclusionTree),
-        Some(Tree::Unknown) => return Err(DropReason::UnknownLineage),
-        Some(Tree::Out) | None => {}
+    match tree(rules, pid) {
+        Tree::In => return Err(DropReason::ExclusionTree),
+        Tree::Unknown => return Err(DropReason::UnknownLineage),
+        Tree::Out => {}
     }
     if kind == Modality::WindowTitle && window == PrivateWindow::Private {
         return Err(DropReason::PrivateWindow);
@@ -308,18 +423,25 @@ enum Tree {
     Unknown,
 }
 
-fn walk(root: ProcessId, pid: ProcessId, lineage: &dyn Lineage) -> Tree {
+fn tree(rules: &Rules<'_>, pid: ProcessId) -> Tree {
+    match rules.root {
+        Some(_) => walk(rules, pid),
+        None => Tree::Out,
+    }
+}
+
+fn walk(rules: &Rules<'_>, pid: ProcessId) -> Tree {
     let mut seen = [ProcessId(0); LINEAGE_WALK_MAX_STEPS];
     let mut current = pid;
     for step in 0..LINEAGE_WALK_MAX_STEPS {
-        if current == root {
+        if Some(current) == rules.root || rules.marked(current) {
             return Tree::In;
         }
         if seen[..step].contains(&current) {
             return Tree::Unknown;
         }
         seen[step] = current;
-        current = match lineage.parent_of(current) {
+        current = match rules.lineage.parent_of(current) {
             Parent::Of(parent) => parent,
             Parent::None => return Tree::Out,
             Parent::Unknown => return Tree::Unknown,
@@ -688,5 +810,89 @@ mod tests {
             );
         }
         assert_eq!(every_kind(&floor, BESIDE), [None; 5]);
+    }
+
+    #[cfg(target_os = "macos")]
+    const RUN: &str = "0123456789abcdef0123456789abcdef";
+
+    #[cfg(target_os = "macos")]
+    #[derive(Clone, Default)]
+    struct Created(Arc<std::sync::Mutex<HashMap<u32, u64>>>);
+
+    #[cfg(target_os = "macos")]
+    impl Created {
+        fn set(&self, pid: u32, created: Option<u64>) {
+            let mut table = self.0.lock().unwrap();
+            match created {
+                Some(created) => table.insert(pid, created),
+                None => table.remove(&pid),
+            };
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    impl CreationTime for Created {
+        fn created_of(&self, pid: ProcessId) -> Option<u64> {
+            self.0.lock().unwrap().get(&pid.get()).copied()
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn write_mark(folder: &std::path::Path, text: &str) {
+        std::fs::create_dir_all(folder).unwrap();
+        std::fs::write(folder.join(RUN), text).unwrap();
+    }
+
+    #[cfg(target_os = "macos")]
+    fn list(folder: &std::path::Path) -> Listing {
+        crate::daemon::agent_marks::list(folder)
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_process_that_a_mark_names_by_id_and_creation_time_is_left_out_and_another_creation_time_is_not(
+    ) {
+        const STARTED: u64 = 1_763_812_800_000_001;
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("agents").join("marks");
+        let of = |pid| Parent::Of(ProcessId::new(pid));
+        let parents = Table(HashMap::from([
+            (1, Parent::None),
+            (APP, of(1)),
+            (BROWSER, of(1)),
+            (BROWSER_CHILD, of(BROWSER)),
+            (BESIDE, of(1)),
+        ]));
+        let created = Created::default();
+        created.set(BROWSER, Some(STARTED));
+        let marks = Arc::new(Marks::new(Box::new(created.clone())));
+        let floor = FloorHandle::new(
+            Some(ProcessId::new(APP)),
+            Arc::new(parents),
+            every_switch_on(),
+        )
+        .with_marks(Arc::clone(&marks));
+        write_mark(
+            &folder,
+            &format!(
+                "mark run={RUN}\nrunner pid={RUNNER} created=7 group={RUNNER}\nbrowser pid={BROWSER} created={STARTED} group={BROWSER}\n"
+            ),
+        );
+        marks.take(list(&folder));
+        let out = [Some(DropReason::ExclusionTree); 5];
+        assert_eq!(every_kind(&floor, BROWSER), out, "the mark names it");
+        assert_eq!(every_kind(&floor, BROWSER_CHILD), out, "its child");
+        assert_eq!(every_kind(&floor, BESIDE), [None; 5], "beside it");
+        created.set(BROWSER, Some(STARTED + 1));
+        assert_eq!(every_kind(&floor, BROWSER), [None; 5], "another time");
+        created.set(BROWSER, Some(STARTED));
+        std::fs::remove_file(folder.join(RUN)).unwrap();
+        marks.take(list(&folder));
+        assert_eq!(every_kind(&floor, BROWSER), out, "its mark removed");
+        created.set(BROWSER, None);
+        marks.take(list(&folder));
+        assert_eq!(marks.last().named, []);
+        created.set(BROWSER, Some(STARTED));
+        assert_eq!(every_kind(&floor, BROWSER), [None; 5], "gone");
     }
 }
