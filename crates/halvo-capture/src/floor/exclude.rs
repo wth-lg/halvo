@@ -202,7 +202,8 @@ pub enum DropReason {
     /// The process is the exclusion root, a process that a run's mark names,
     /// or under either.
     ExclusionTree,
-    /// The lineage walk could not end: a parent unknown, a loop, or too deep.
+    /// The lineage walk could not end: a parent unknown, a loop, or too deep;
+    /// or the set of the runs' marks is unread.
     UnknownLineage,
     /// A title of a window that the source told as private.
     PrivateWindow,
@@ -423,10 +424,18 @@ enum Tree {
     Unknown,
 }
 
+/// Where `pid` stands against the tree of the root and of the processes that
+/// the marks name. With no root and no mark no parent is read; while the set
+/// is unread, a process outside the tree is unknown.
 fn tree(rules: &Rules<'_>, pid: ProcessId) -> Tree {
-    match rules.root {
-        Some(_) => walk(rules, pid),
-        None => Tree::Out,
+    let tree = if rules.root.is_none() && rules.marks.named.is_empty() {
+        Tree::Out
+    } else {
+        walk(rules, pid)
+    };
+    match tree {
+        Tree::Out if rules.marks.unread => Tree::Unknown,
+        tree => tree,
     }
 }
 
@@ -894,5 +903,65 @@ mod tests {
         assert_eq!(marks.last().named, []);
         created.set(BROWSER, Some(STARTED));
         assert_eq!(every_kind(&floor, BROWSER), [None; 5], "gone");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn with_no_root_a_process_under_a_marked_runner_is_left_out() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        struct Counted(Table, AtomicUsize);
+
+        impl Lineage for Counted {
+            fn parent_of(&self, pid: ProcessId) -> Parent {
+                self.1.fetch_add(1, Ordering::Relaxed);
+                self.0.parent_of(pid)
+            }
+        }
+
+        const STARTED: u64 = 1_763_812_800_000_007;
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("agents").join("marks");
+        let of = |pid| Parent::Of(ProcessId::new(pid));
+        let parents = Table(HashMap::from([
+            (1, Parent::None),
+            (RUNNER, of(1)),
+            (BROWSER, of(RUNNER)),
+            (BROWSER_CHILD, of(BROWSER)),
+            (BESIDE, of(1)),
+        ]));
+        let lineage = Arc::new(Counted(parents, AtomicUsize::new(0)));
+        let created = Created::default();
+        created.set(RUNNER, Some(STARTED));
+        let marks = Arc::new(Marks::new(Box::new(created)));
+        let floor = FloorHandle::new(None, lineage.clone(), every_switch_on())
+            .with_marks(Arc::clone(&marks));
+        marks.take(list(&folder));
+        for pid in [RUNNER, BROWSER, BROWSER_CHILD, BESIDE] {
+            assert_eq!(every_kind(&floor, pid), [None; 5], "no mark, pid {pid}");
+        }
+        assert_eq!(lineage.1.load(Ordering::Relaxed), 0, "no parent read");
+        write_mark(
+            &folder,
+            &format!("mark run={RUN}\nrunner pid={RUNNER} created={STARTED} group={RUNNER}\n"),
+        );
+        marks.take(list(&folder));
+        let out = [Some(DropReason::ExclusionTree); 5];
+        for pid in [RUNNER, BROWSER, BROWSER_CHILD] {
+            assert_eq!(every_kind(&floor, pid), out, "marked runner, pid {pid}");
+        }
+        assert_eq!(every_kind(&floor, BESIDE), [None; 5], "beside it");
+        std::fs::remove_file(folder.join(RUN)).unwrap();
+        std::fs::remove_dir(&folder).unwrap();
+        std::fs::write(&folder, "").unwrap();
+        marks.take(list(&folder));
+        let unknown = [Some(DropReason::UnknownLineage); 5];
+        assert_eq!(every_kind(&floor, BESIDE), unknown, "unread, beside it");
+        assert_eq!(every_kind(&floor, BROWSER), out, "unread, its browser");
+        std::fs::remove_file(&folder).unwrap();
+        std::fs::create_dir(&folder).unwrap();
+        std::fs::write(folder.join("notes.txt"), "not a mark\n").unwrap();
+        marks.take(list(&folder));
+        assert_eq!(every_kind(&floor, BESIDE), [None; 5], "a stray file");
     }
 }
