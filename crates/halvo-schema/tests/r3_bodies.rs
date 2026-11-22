@@ -2049,17 +2049,18 @@ fn a_runner_reply_one_byte_over_its_bound_is_refused_before_any_byte_of_it_is_re
     }
 }
 
-/// The four keys of an entry whose newest started run a site refused and that run stopped with the cause
-/// `step_failed`, whose run of `last` left a reply `unknown`, and of whose stored slots one is refused by its reader.
+/// The five keys of an entry whose newest started run a site refused and that run stopped with the cause
+/// `step_failed`, whose run of `last` left a reply `unknown`, of whose stored slots one is refused by its reader, and
+/// whose next run needs a window.
 fn refused_signs() -> String {
     format!(
-        r#""refused_run":"{R}","reply_unknown":"yes","refused_slots":["instrument"],"last_cause":"step_failed""#
+        r#""refused_run":"{R}","reply_unknown":"yes","refused_slots":["instrument"],"last_cause":"step_failed","window":"yes""#
     )
 }
 
-/// The four keys of an entry with no such sign.
+/// The five keys of an entry with no such sign, whose next run needs no window.
 const NO_SIGNS: &str =
-    r#""refused_run":null,"reply_unknown":"no","refused_slots":[],"last_cause":null"#;
+    r#""refused_run":null,"reply_unknown":"no","refused_slots":[],"last_cause":null,"window":"no""#;
 
 fn listed_agent(agent: &str, last: &str, signs: &str) -> String {
     let config = swap(
@@ -2162,6 +2163,7 @@ fn list_agents_is_a_body_and_its_reply_reads_back() {
         "reply_unknown",
         "refused_slots",
         "last_cause",
+        "window",
     ] {
         let held = refused_signs()
             .split(',')
