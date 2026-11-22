@@ -6,7 +6,7 @@ use halvo_schema_core::kinds::{self, KindEntry, Origin, RetentionClass, KINDS};
 use halvo_schema_core::record::{RowRead, TypedRecord};
 use serde_json::value::RawValue;
 
-use crate::db::{one, reading, Db, NewRow, Now};
+use crate::db::{one, reading, Db, NewRow, Now, Tx};
 use crate::error::{db_fault, Fault};
 use crate::handler::{Cause, Committed, Refusal};
 use crate::sql;
@@ -96,86 +96,95 @@ pub(crate) fn typed_commit(
     records: &[TypedRecord],
 ) -> Result<Committed, Refusal> {
     let now = db.now();
-    db.write(|tx| {
-        let mark = tx.mark()?;
-        let mut out = Committed::default();
-        for (index, record) in records.iter().enumerate() {
-            let refuse = |cause: Cause| Refusal { index, cause };
-            let entry: &'static KindEntry = db
-                .entries
-                .iter()
-                .copied()
-                .find(|entry| entry.name == record.kind)
-                .ok_or_else(|| refuse(Cause::UnknownKind))?;
-            if KINDS.contains(entry) || entry.family == "workflow" {
-                return Err(refuse(Cause::WorkflowRun));
-            }
-            if entry.family != family {
-                return Err(refuse(Cause::OtherFamily));
-            }
-            if entry.origin == Origin::Own && !writer.may_write_own() {
-                return Err(refuse(Cause::OwnOrigin));
-            }
-            kinds::check_record(entry, &record.json).map_err(|e| refuse(Cause::Record(e)))?;
-            let keys = rule_keys(entry, &record.json).ok_or_else(|| {
-                refuse(Cause::Record(format!(
-                    "{}: the rule keys: unreadable",
-                    entry.name
-                )))
-            })?;
-            if let Some(workflow) = &keys.workflow {
-                let stored = one(tx.conn, sql::WORKFLOW_ROW, [workflow.as_str()], |r| {
-                    r.get::<_, i64>(0)
-                })
-                .map_err(|fault| refuse(Cause::Fault(fault)))?;
-                if stored.is_none() {
-                    return Err(refuse(Cause::NoWorkflow));
-                }
-            }
-            let keeps = match entry.class {
-                RetentionClass::Bounded { days } => {
-                    let day = keys.day.ok_or_else(|| {
-                        refuse(Cause::Record(format!(
-                            "{}: the rule keys: unreadable",
-                            entry.name
-                        )))
-                    })?;
-                    match now.day_fault(days, day) {
-                        None => true,
-                        Some(fault) if writer.refuses_day() => {
-                            return Err(refuse(Cause::Day(fault)))
-                        }
-                        Some(_) => false,
-                    }
-                }
-                RetentionClass::Window => {
-                    keys.expires
-                        .is_some_and(|expires| now.keeps_expiry(expires))
-                        && !tx
-                            .names_purged(mark, &keys.segments)
-                            .map_err(|fault| refuse(Cause::Fault(fault)))?
-                }
-                RetentionClass::Kept => true,
-            };
-            if !keeps {
-                out.dropped += 1;
-                continue;
-            }
-            tx.insert(&NewRow {
-                entry,
-                day: keys.day,
-                expires: keys.expires,
-                workflow: keys.workflow.as_ref().map(|w| w.as_str()),
-                summary: None,
-                wkey: None,
-                body: &record.json,
-                segments: &keys.segments,
+    db.write(|tx| store_records(db, tx, now, family, writer, records))
+}
+
+/// The typed commit's work inside a transaction that its caller holds open and commits: `typed_commit`'s own, or the
+/// one write of the removal call (`HandlerCx::remove_under`).
+pub(crate) fn store_records(
+    db: &Db,
+    tx: &Tx<'_>,
+    now: Now,
+    family: &str,
+    writer: Writer,
+    records: &[TypedRecord],
+) -> Result<Committed, Refusal> {
+    let mark = tx.mark()?;
+    let mut out = Committed::default();
+    for (index, record) in records.iter().enumerate() {
+        let refuse = |cause: Cause| Refusal { index, cause };
+        let entry: &'static KindEntry = db
+            .entries
+            .iter()
+            .copied()
+            .find(|entry| entry.name == record.kind)
+            .ok_or_else(|| refuse(Cause::UnknownKind))?;
+        if KINDS.contains(entry) || entry.family == "workflow" {
+            return Err(refuse(Cause::WorkflowRun));
+        }
+        if entry.family != family {
+            return Err(refuse(Cause::OtherFamily));
+        }
+        if entry.origin == Origin::Own && !writer.may_write_own() {
+            return Err(refuse(Cause::OwnOrigin));
+        }
+        kinds::check_record(entry, &record.json).map_err(|e| refuse(Cause::Record(e)))?;
+        let keys = rule_keys(entry, &record.json).ok_or_else(|| {
+            refuse(Cause::Record(format!(
+                "{}: the rule keys: unreadable",
+                entry.name
+            )))
+        })?;
+        if let Some(workflow) = &keys.workflow {
+            let stored = one(tx.conn, sql::WORKFLOW_ROW, [workflow.as_str()], |r| {
+                r.get::<_, i64>(0)
             })
             .map_err(|fault| refuse(Cause::Fault(fault)))?;
-            out.stored += 1;
+            if stored.is_none() {
+                return Err(refuse(Cause::NoWorkflow));
+            }
         }
-        Ok(out)
-    })
+        let keeps = match entry.class {
+            RetentionClass::Bounded { days } => {
+                let day = keys.day.ok_or_else(|| {
+                    refuse(Cause::Record(format!(
+                        "{}: the rule keys: unreadable",
+                        entry.name
+                    )))
+                })?;
+                match now.day_fault(days, day) {
+                    None => true,
+                    Some(fault) if writer.refuses_day() => return Err(refuse(Cause::Day(fault))),
+                    Some(_) => false,
+                }
+            }
+            RetentionClass::Window => {
+                keys.expires
+                    .is_some_and(|expires| now.keeps_expiry(expires))
+                    && !tx
+                        .names_purged(mark, &keys.segments)
+                        .map_err(|fault| refuse(Cause::Fault(fault)))?
+            }
+            RetentionClass::Kept => true,
+        };
+        if !keeps {
+            out.dropped += 1;
+            continue;
+        }
+        tx.insert(&NewRow {
+            entry,
+            day: keys.day,
+            expires: keys.expires,
+            workflow: keys.workflow.as_ref().map(|w| w.as_str()),
+            summary: None,
+            wkey: None,
+            body: &record.json,
+            segments: &keys.segments,
+        })
+        .map_err(|fault| refuse(Cause::Fault(fault)))?;
+        out.stored += 1;
+    }
+    Ok(out)
 }
 
 impl From<Fault> for Refusal {

@@ -7,7 +7,8 @@
 mod app;
 mod check_page;
 mod commands;
-#[cfg(any(target_os = "macos", test))]
+mod console;
+#[cfg(any(target_os = "macos", windows, test))]
 mod daemon_child;
 mod engine;
 mod instance;
@@ -15,10 +16,11 @@ mod launch;
 #[cfg(target_os = "macos")]
 mod login_item;
 mod poller;
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 mod quit;
 #[cfg(target_os = "macos")]
 mod remove;
+mod stop_hook;
 mod tray;
 mod view_state;
 
@@ -39,9 +41,10 @@ pub fn open_pane(permission: Permission) -> Result<(), String> {
 fn main() {
     #[cfg(windows)]
     app::take_engine_arguments_out_of_the_environment();
+    stop_hook::install(stop_hook::system);
     let started = std::time::Instant::now();
     match launch::parse(std::env::args_os().skip(1)) {
-        Ok(launch::Launch::Version) => println!("{}", app::VERSION),
+        Ok(launch::Launch::Version) => console::print_version(app::VERSION),
         Ok(launch::Launch::Run {
             background,
             data_dir,
@@ -152,7 +155,7 @@ fn run(background: bool, given: Option<PathBuf>) {
     }
     let pid = Arc::<ChildPid>::default();
     let (control, data_dir) = control_of_child(|| resolved, Arc::clone(&pid));
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     let child_dir = data_dir.clone();
     #[cfg(target_os = "macos")]
     let login_dir = data_dir.clone();
@@ -164,7 +167,7 @@ fn run(background: bool, given: Option<PathBuf>) {
     {
         state.login_item = login_item::at_the_click(given.is_some(), the_login_item);
     }
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     let views = Arc::clone(&state.views);
     #[cfg(target_os = "macos")]
     let login_views = Arc::clone(&state.views);
@@ -181,14 +184,17 @@ fn run(background: bool, given: Option<PathBuf>) {
         engine_rules_dir: None,
         #[cfg(windows)]
         webview_data_dir: None,
+        #[cfg(windows)]
+        webview_environment: app::system_environment,
     };
     let builder = tauri::Builder::default().manage(tray::QuitNotice::default());
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     let builder = quit::installed(builder);
     let app = match app::build(builder, parts).build(app::context()) {
         Ok(app) => app,
         Err(e) => {
             eprintln!("halvo: the app did not start: {e}");
+            stop_hook::stopped();
             std::process::exit(1);
         }
     };
@@ -196,7 +202,7 @@ fn run(background: bool, given: Option<PathBuf>) {
         let handle = app.handle().clone();
         lock.show_on_ask(move || tray::show_main_window(&handle));
     }
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     let supervisor = start_the_daemon(child_dir, given.is_some(), pid, views);
     #[cfg(target_os = "macos")]
     set_the_offline_delete(&offline, &offline_views, supervisor.clone(), offline_dir);
@@ -214,7 +220,7 @@ fn run(background: bool, given: Option<PathBuf>) {
             remove::run(&wiring, data_dir, offline, before)
         }));
     }
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(any(target_os = "macos", windows, test))]
     tauri::Manager::manage(
         &app,
         quit::AppChildren(supervisor.map(|children| children as Arc<dyn quit::Children>)),
@@ -358,7 +364,7 @@ fn daemon_program() -> Option<PathBuf> {
 }
 
 /// The app's own supervisor of its daemon child.
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 type AppSupervisor = daemon_child::Supervisor<daemon_child::Running, daemon_child::SystemClock>;
 
 /// The offline delete of the app (contracts.md C10.5): halvo-capture beside the app's own
@@ -394,7 +400,7 @@ fn set_the_offline_delete(
     });
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 fn start_the_daemon(
     data_dir: Option<DataDir>,
     given: bool,

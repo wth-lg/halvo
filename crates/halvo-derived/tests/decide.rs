@@ -345,6 +345,39 @@ fn delete_removes_the_agent_finished_rows_of_the_workflow_with_its_agent_s_other
     assert_eq!(bodies(&scratch, "agent_finished").len(), 0);
 }
 
+#[test]
+fn delete_removes_the_agent_session_rows_of_the_workflow_a_drop_row_among_them() {
+    let scratch = Scratch::new("delete-agent-session");
+    let clock = TestClock::at_day(DAY);
+    let (store, id) = proposed(&scratch, &clock);
+    drop(store);
+    let agent = "40404040404040404040404040404040";
+    let row = |rev: u32, data: &str| {
+        format!(
+            r#"{{"v":1,"workflow":"{}","agent":"{agent}","origin":"http://utility.test:18090","rev":{rev},"part":1,"of":1,"day":{DAY},"data":["{data}"]}}"#,
+            id.as_str()
+        )
+    };
+    raw(&scratch)
+        .execute(
+            "INSERT INTO rows (kind, family, class, day, body) VALUES ('agent_session', 'agent', 1, ?1, ?2), \
+             ('agent_session', 'agent', 1, ?1, ?3)",
+            (DAY, row(1, "eyJjb29raWVzIjpbXX0="), row(2, "=")),
+        )
+        .unwrap();
+    drop(open_host(&scratch, host(&clock, Grouping { min: 3 })).unwrap());
+    assert_eq!(
+        bodies(&scratch, "agent_session").len(),
+        2,
+        "both stand after an open"
+    );
+    let mut store = open_host(&scratch, host(&clock, Grouping { min: 3 })).unwrap();
+    assert_eq!(delete(&mut store, &id), Ok(()));
+    drop(store);
+    assert_eq!(workflows(&scratch).len(), 0);
+    assert_eq!(bodies(&scratch, "agent_session").len(), 0);
+}
+
 fn common_proposal(ids: &[u64]) -> Proposal {
     Proposal {
         category: halvo_schema_core::category::SeedCategory::UtilityBillPayment,

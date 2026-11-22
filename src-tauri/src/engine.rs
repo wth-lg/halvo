@@ -790,6 +790,14 @@ mod platform {
             )));
             return;
         };
+        // SAFETY: on the main thread, which `mtm` proves; wry hands the closure the pointer of the
+        // NSWindow that holds the view, alive while the closure runs, or null, which is passed
+        // over; the message takes a BOOL and returns nothing.
+        unsafe {
+            if let Some(window) = webview.ns_window().cast::<AnyObject>().as_ref() {
+                let _: () = msg_send![window, setRestorable: false];
+            }
+        }
         let pointer = webview.inner().cast::<WKWebView>();
         // SAFETY: wry hands with_webview's closure the pointer of the WKWebView that it owns,
         // alive while the closure runs on the main thread; retaining it here keeps the view alive
@@ -1307,6 +1315,61 @@ mod tests {
         ] {
             assert_eq!(macos.matches(text).count(), count, "{text}");
         }
+    }
+
+    #[test]
+    fn on_macos_the_install_makes_the_window_not_restorable_once_and_nowhere_else() {
+        let source = src_file_with_lf_line_ends("engine.rs");
+        let macos = platform_module(&source, "#[cfg(target_os = \"macos\")]\nmod platform {");
+        assert_eq!(macos.matches("setRestorable").count(), 1);
+        let install = &macos[macos.find("    pub fn install(").expect("the install")..];
+        let marker = install
+            .find("let Some(mtm) = MainThreadMarker::new() else {")
+            .expect("the main-thread marker");
+        let pointer = install
+            .find("let pointer = webview.inner().cast::<WKWebView>();")
+            .expect("the view's pointer");
+        let between = &install[marker..pointer];
+        let marker_end = "            return;\n        };\n";
+        let after =
+            &between[between.find(marker_end).expect("the marker's end") + marker_end.len()..];
+        let (comment, call) = after.split_at(after.find("        unsafe {\n").expect("the call"));
+        assert!(comment.starts_with("        // SAFETY: "), "{comment}");
+        assert!(
+            comment.lines().all(|line| line.starts_with("        // ")),
+            "{comment}"
+        );
+        assert_eq!(
+            call,
+            "        unsafe {\n            if let Some(window) = webview.ns_window().cast::<AnyObject>().as_ref() {\n                let _: () = msg_send![window, setRestorable: false];\n            }\n        }\n        "
+        );
+        let app = &source[..source
+            .find("\n#[cfg(test)]\nmod tests {")
+            .expect("the tests")];
+        assert_eq!(app.matches("setRestorable").count(), 1);
+        fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(dir).expect("a source directory") {
+                let path = entry.expect("an entry").path();
+                if path.is_dir() {
+                    walk(&path, out);
+                } else {
+                    out.push(path);
+                }
+            }
+        }
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+        walk(&src, &mut files);
+        assert!(files.contains(&src.join("engine.rs")));
+        let elsewhere: Vec<_> = files
+            .iter()
+            .filter(|path| **path != src.join("engine.rs"))
+            .filter(|path| {
+                String::from_utf8_lossy(&std::fs::read(path).expect("a source file reads"))
+                    .contains("setRestorable")
+            })
+            .collect();
+        assert!(elsewhere.is_empty(), "{elsewhere:?}");
     }
 
     #[test]
