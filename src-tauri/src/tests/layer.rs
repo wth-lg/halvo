@@ -74,8 +74,8 @@ fn the_app_state_of_a_failing_resolver_builds_and_its_set_up_returns_ok() {
 
 /// The app's state over this system's connector builds and the set-up returns ok. Its data
 /// directory is one of the test's own, never the account's: the set-up runs the hub's start over
-/// the data directory, whose reap ends the runs that its marks name, and the app's poller asks the
-/// service of that directory.
+/// the data directory, whose reap ends the runs that its marks name and whose first tick asks the
+/// service of that directory for an owner stream.
 #[test]
 fn the_app_state_of_this_systems_environment_builds_and_its_set_up_returns_ok() {
     let data = scratch_dir("environment-data");
