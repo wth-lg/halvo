@@ -1,0 +1,2 @@
+- Added: On a Mac the app starts an agent's run itself through the supervisor library and keeps the run's record in the owner's store, removes the checkpoints that may go at its start and ends a run that a killed app left once; until the relay of the workflows run is on main a person still reads that Halvo cannot show the agents.
+- Changed: A workflow's delete waits while a run of it is live and goes after the run's end.

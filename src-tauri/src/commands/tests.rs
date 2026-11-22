@@ -561,3 +561,106 @@ fn a_row_names_no_app_id_and_no_day() {
         assert_eq!(row["app"], Value::Null);
     }
 }
+
+/// The daemon's end of the control channel as a stand-in: each connection keeps the bytes that
+/// the client writes and reads `reply` as one frame.
+#[derive(Clone)]
+struct OtherEnd {
+    written: Arc<Mutex<Vec<u8>>>,
+    reply: Vec<u8>,
+}
+
+struct OtherEndStream {
+    written: Arc<Mutex<Vec<u8>>>,
+    reply: std::io::Cursor<Vec<u8>>,
+}
+
+impl std::io::Read for OtherEndStream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        std::io::Read::read(&mut self.reply, buf)
+    }
+}
+
+impl std::io::Write for OtherEndStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.written
+            .lock()
+            .expect("the written bytes")
+            .extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl halvo_control::client::Transport for OtherEndStream {
+    fn set_timeout(&mut self, _: Duration) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn end_request(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Connector for OtherEnd {
+    type Transport = OtherEndStream;
+
+    fn endpoint(&self) -> String {
+        "the other end".to_string()
+    }
+
+    fn connect(&self, _: Duration) -> Result<OtherEndStream, ClientError> {
+        let mut framed = Vec::new();
+        halvo_control::wire::write_frame(
+            &mut framed,
+            &self.reply,
+            halvo_control::wire::REPLY_MAX_BYTES,
+        )
+        .expect("the reply fits a frame");
+        Ok(OtherEndStream {
+            written: Arc::clone(&self.written),
+            reply: std::io::Cursor::new(framed),
+        })
+    }
+}
+
+#[test]
+fn the_gated_control_relays_one_request() {
+    use halvo_schema_core::request::{InterfaceRead, InterfaceRole};
+    let request = InterfaceRead::workflows(
+        &InterfaceRole::claim(),
+        halvo_schema_core::RequestId::from_random([0x5a; 16]),
+        None,
+    )
+    .to_bytes()
+    .expect("an interface read serializes");
+    let reply = page(Vec::new(), None).expect("a reply of the owner");
+    let other_end = OtherEnd {
+        written: Arc::default(),
+        reply: halvo_control::r2::Relayed::encode(&reply).expect("a frame of relayed"),
+    };
+    let gated = Gated::new(other_end.clone());
+    let made = gated.places().make();
+    assert_eq!(
+        gated.relay(made, &request).expect("the owner's reply"),
+        reply
+    );
+    let mut sent = Vec::new();
+    halvo_control::wire::write_frame(
+        &mut sent,
+        &halvo_control::r2::Relay::encode(&request).expect("a frame of relay"),
+        halvo_control::wire::REQUEST_MAX_BYTES,
+    )
+    .expect("the request fits a frame");
+    assert_eq!(*other_end.written.lock().expect("the written bytes"), sent);
+    assert_eq!(gated.places().in_flight(), 0);
+
+    let no_daemon = Gated::new(Timeouts::default());
+    assert_eq!(
+        as_the_page_gets_it(read(&no_daemon)),
+        json!({"state": "not_running"})
+    );
+}

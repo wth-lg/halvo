@@ -1,0 +1,4 @@
+package=halvo-analysis
+bin=halvo-analysis
+manifest=crates/halvo-analysis/Cargo.toml
+version=none

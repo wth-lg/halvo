@@ -41,7 +41,7 @@ targets halvo-cap D 4 test targets: 6 s macos, 6 s windows
 targets halvo-checkpoint D 10 test targets: 13 s macos, 3 s windows
 targets halvo-connect D 8 test targets: 24 s macos, 19 s windows
 targets halvo-coord B 40 test targets: 17 s macos, 11 s windows
-targets halvo-coord-app B 12 test targets: 21 s macos, 16 s windows
+targets halvo-coord-app B 13 test targets: 21 s macos, 16 s windows
 targets halvo-coord-store B 8 test targets: under 1 s in each job
 targets halvo-policy B 10 test targets: under 1 s in each job
 targets halvo-runner B 10 test targets: 9 s macos, 9 s windows
@@ -65,6 +65,7 @@ units halvo-sqlcipher A 27 s macos, 32 s windows
 units halvo-web B 24 s macos, 7 s windows
 units halvo-control B 16 s macos, 10 s windows
 kept halvo-control _windows::tests:: windows the two peer checks of the Windows control channel: client_windows::tests::the_pipe_client_refuses_a_server_of_another_user and child_windows::tests::a_child_inherits_the_listed_handles_and_no_other; the windows job alone has them
+kept halvo-control r2:: the unit tests of the module r2, which the package builds by default: the five of the request relay and the four of protocol version 2, the owner stream and the run marks; nine tests on a Mac and six in the windows job, where the three that serve a request on a socket pair are not built
 units halvo-route-gate B 13 s macos, 9 s windows
 units halvo-learn-store B 7 s macos, 5 s windows
 test daemon::supervisor::tests::stress_cases C halvo-capture 88 s macos, 38 s windows, 48 tests

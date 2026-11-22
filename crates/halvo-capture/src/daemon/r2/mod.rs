@@ -57,6 +57,7 @@ pub(super) fn tick(now: std::time::Duration) {
     when::tick(now);
 }
 pub mod daemon_caller;
+mod defer;
 pub mod owner_slot;
 pub mod service;
 pub mod when;
