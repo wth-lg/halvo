@@ -825,12 +825,12 @@ fn streaming(connector: ToChild) -> Gated<ToChild> {
     Gated::new(connector)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn expecting(connector: SystemConnector, pid: u32) -> SystemConnector {
     connector.expecting_pid(pid)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn expecting(connector: SystemConnector, pid: u32) -> SystemConnector {
     let _ = pid;
     connector
