@@ -1442,6 +1442,103 @@ fn a_state_file_that_does_not_load_gives_no_bound_until_a_valid_cap_is_set() {
 }
 
 #[test]
+fn after_a_settings_reset_a_store_above_the_default_cap_keeps_every_row() {
+    let old = vec![b'o'; 256 * 1024];
+    let clocks = ManualClocks::at(noon());
+    let dir = kept_dir("cap-tests-");
+    let mut store = made_store(&dir);
+    for hours in (1..=4).rev() {
+        segment_at(&mut *store, noon() - hours * 3600 * SECOND, &old);
+    }
+    drop(store);
+    std::fs::write(
+        dir.join(halvo_control::paths::STATE_FILE),
+        b"{\"storage_cap_bytes\":",
+    )
+    .unwrap();
+    StateFile::open(StateDir::open(&dir).unwrap(), super::DurableState::writer())
+        .reset_settings()
+        .unwrap();
+    let mut state = StateFile::open(StateDir::open(&dir).unwrap(), super::DurableState::writer());
+    assert_eq!(
+        state.health(),
+        super::state::StateHealth::Ok,
+        "the next start did not load the file that the reset wrote"
+    );
+    let bound = super::cap_bound(state.state().storage_cap);
+    let evictions = Arc::new(Mutex::new(Vec::new()));
+    let mut upkeep = Upkeep::new(
+        Above {
+            store: reopened(&dir),
+            evictions: evictions.clone(),
+        },
+        clocks.clone(),
+        bound,
+    );
+    for _ in 0..3 {
+        upkeep.turn();
+        clocks.advance(MAINTENANCE_INTERVAL);
+    }
+    drop(upkeep);
+    assert_eq!(
+        *evictions.lock().unwrap(),
+        [],
+        "a maintenance pass behind a reset ran an eviction"
+    );
+    let read = DataDirStore::at(&dir).read_back();
+    assert!(
+        read.len() == 4 && read.iter().all(Option::is_some),
+        "a row was shredded at the maintenance pass behind a reset"
+    );
+    let (mut owner, handle, sink) = owner_over(
+        Above {
+            store: reopened(&dir),
+            evictions: evictions.clone(),
+        },
+        &clocks,
+        bound,
+    );
+    flushed_once(&mut owner, &handle, &sink);
+    let disk = owner.snapshot().disk_bytes.unwrap();
+    assert!(
+        disk > ABOVE,
+        "the stand-in store stands at {disk}, not above the default cap"
+    );
+    assert_eq!(
+        *evictions.lock().unwrap(),
+        [],
+        "the start behind a reset ran an eviction"
+    );
+
+    let cap = StorageCap::from_bytes(disk - 1).unwrap();
+    let (written, bound) = super::set_cap(&mut state, cap);
+    assert!(
+        written.is_ok(),
+        "a cap set behind a reset was not written: {written:?}"
+    );
+    assert_eq!(bound, Some(ByteBound::of_cap(cap)));
+    assert!(matches!(
+        asked(&mut owner, &handle, super::owner::Command::SetBound(bound)),
+        Answer::BoundSet
+    ));
+    for _ in 0..2 {
+        assert!(owner.pass(Duration::ZERO), "the owner stopped");
+    }
+    drop(owner);
+    let read = DataDirStore::at(&dir).read_back();
+    assert_eq!(read.len(), 5, "the flush stored no segment");
+    assert_eq!(
+        evictions.lock().unwrap().first(),
+        Some(&ByteBound::of_cap(cap)),
+        "the pass after the cap was set did not evict to it"
+    );
+    assert!(
+        read[0].is_none() && read[1..].iter().all(Option::is_some),
+        "the pass after the cap was set did not evict the oldest segment alone"
+    );
+}
+
+#[test]
 fn a_wait_with_no_window_reads_the_stop_flag_and_serves_a_queued_request() {
     let dir = kept_dir("wait-tests-");
     let listening = super::server::unix::Listening::bind(&data_dir(&dir)).unwrap();
