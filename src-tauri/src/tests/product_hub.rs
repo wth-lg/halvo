@@ -92,6 +92,10 @@ impl Control for Refusing {
         self.refuse("acknowledge_lost_permission")
     }
 
+    fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+        self.refuse("reset_settings")
+    }
+
     fn owner_stream(&self, _: Made) -> Result<OwnerStreamEnd, ClientError> {
         self.refuse("owner_stream")
     }
