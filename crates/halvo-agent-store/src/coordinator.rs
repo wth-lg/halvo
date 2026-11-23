@@ -140,8 +140,9 @@ use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 ///   step's item whose `step_failed` row the store refused reads as a sign-in's, and a sign-in's row that is the last
 ///   hand-back row of a run that ended `effect_unknown`, because the store refused that run's item row, reads as the
 ///   item; it reads `yes` after every run that did not complete, also with a sign-in kept, and once the agent's start
-///   rows leave the read after 93 days. `agreement` (r3 U7.7) is the agent's standing ceiling by the store's one
-///   function `rows::standing_agreement`, its tier and its triples, null for `on_device` and for a hosted tier with
+///   rows leave the read after 93 days. `agreement` (r3 U7.7) is the agent's standing ceiling by the rule of the
+///   store's one function `rows::standing_agreement`, `rows::standing_under`, over the set-up rows and the agreement
+///   rows read once a request (r3 U7.7b), its tier and its triples, null for `on_device` and for a hosted tier with
 ///   no agreement row of that tier; a stored agreement row that the typed reader refuses refuses the whole roster
 ///   with `store` only while an agent of the roster stands at a hosted tier, since no agreement row is read for an
 ///   agent at `on_device` or with no set-up. A page holds whole entries
@@ -358,8 +359,11 @@ fn open_run_of(host: &dyn Host, now: Now, agent: &AgentId) -> Result<bool, Error
 
 fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, ErrorName> {
     let rows = host.rows();
+    let configs = rows::configs(rows)?;
+    let set_ups = rows::newest_configs(&configs);
+    let mut agreement_rows = rows::AgreementRows::new(rows);
     let mut newest: BTreeMap<AgentId, AgentConfig> = BTreeMap::new();
-    for config in rows::configs(rows)? {
+    for config in &configs {
         if b.after.as_ref().is_some_and(|after| &config.agent <= after) {
             continue;
         }
@@ -367,7 +371,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
             .get(&config.agent)
             .is_none_or(|held| held.rev < config.rev)
         {
-            newest.insert(config.agent.clone(), config);
+            newest.insert(config.agent.clone(), config.clone());
         }
     }
     let bindings = rows::bindings(rows)?;
@@ -414,10 +418,13 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
         let reply_unknown = reply_unknown(&replies, last.as_ref());
         let last_cause = last_cause(&logs, &starts, &runs, &agent);
         let window = window(&logs, &starts, &runs, &agent, session);
-        let agreement = rows::standing_agreement(rows, &agent)?.map(|a| ListedAgreement {
-            tier: a.tier,
-            hosts: a.hosts,
-        });
+        let agreement =
+            rows::standing_under(set_ups.get(&agent).copied(), &agent, &mut agreement_rows)?.map(
+                |a| ListedAgreement {
+                    tier: a.tier,
+                    hosts: a.hosts,
+                },
+            );
         entries.push(ListedAgent {
             config,
             state,

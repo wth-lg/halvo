@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use halvo_schema::executable::{
     AgentAgreement, AgentBindings, AgentCheckpoint, AgentConfig, AgentEffect, AgentFinished,
     AgentLog, AgentPlaybook, AgentReply, AgentRun, AgentSession, AgentStart, ModelKey, ModelTier,
@@ -108,10 +110,26 @@ pub(crate) fn newest_config(
     rows: &dyn RowRead,
     agent: &AgentId,
 ) -> Result<Option<AgentConfig>, ErrorName> {
-    Ok(configs(rows)?
+    let configs = configs(rows)?;
+    Ok(newest_of(configs.iter().filter(|c| &c.agent == agent)).cloned())
+}
+
+/// Each agent's newest set-up among `configs`, the rows of `configs` in their order, by the rule of `newest_config`
+/// (r3 U7.7b): the roster builds it once a request.
+pub(crate) fn newest_configs(configs: &[AgentConfig]) -> BTreeMap<&AgentId, &AgentConfig> {
+    let mut of_agent: BTreeMap<&AgentId, Vec<&AgentConfig>> = BTreeMap::new();
+    for config in configs {
+        of_agent.entry(&config.agent).or_default().push(config);
+    }
+    of_agent
         .into_iter()
-        .filter(|c| &c.agent == agent)
-        .max_by_key(|c| c.rev))
+        .filter_map(|(agent, set_ups)| newest_of(set_ups).map(|newest| (agent, newest)))
+        .collect()
+}
+
+/// The newest of an agent's set-ups in the order of the rows: the greatest `rev`, the last of equal ones.
+fn newest_of<'c>(set_ups: impl IntoIterator<Item = &'c AgentConfig>) -> Option<&'c AgentConfig> {
+    set_ups.into_iter().max_by_key(|c| c.rev)
 }
 
 /// The rows of the persons' yes to a hosted model, at most one for an agent (r3 U7.7).
@@ -121,21 +139,54 @@ pub(crate) fn agreements(rows: &dyn RowRead) -> Result<Vec<AgentAgreement>, Erro
 
 /// The agent's standing ceiling, the one function that answers it (r3 U7.7): the agent's `agent_agreement` row under
 /// the workflow of its newest set-up where that row's tier is the tier of that set-up, a hosted tier; none for an
-/// agent with no set-up, for `on_device`, and for a hosted tier with no row of that tier. The roster reads it; the
-/// check of a `model_hold` will. For an agent whose newest set-up holds a hosted tier it reads every agreement row,
-/// and a row that the typed reader refuses, of any agent, answers `store`; for an agent with no set-up or at
-/// `on_device` it reads no agreement row.
+/// agent with no set-up, for `on_device`, and for a hosted tier with no row of that tier. The check of a `model_hold`
+/// reads it; the roster shares its rule, `standing_under`, with the rows read once a request (r3 U7.7b). For an agent
+/// whose newest set-up holds a hosted tier it reads every agreement row, and a row that the typed reader refuses, of
+/// any agent, answers `store`; for an agent with no set-up or at `on_device` it reads no agreement row.
 pub(crate) fn standing_agreement(
     rows: &dyn RowRead,
     agent: &AgentId,
 ) -> Result<Option<AgentAgreement>, ErrorName> {
-    let Some(newest) = newest_config(rows, agent)? else {
+    let newest = newest_config(rows, agent)?;
+    standing_under(newest.as_ref(), agent, &mut AgreementRows::new(rows))
+}
+
+/// The agreement rows of one request, read at the first call of `standing_under` that needs them and held for the
+/// rest of that request alone (r3 U7.7b).
+pub(crate) struct AgreementRows<'r> {
+    rows: &'r dyn RowRead,
+    held: Option<Vec<AgentAgreement>>,
+}
+
+impl<'r> AgreementRows<'r> {
+    pub(crate) fn new(rows: &'r dyn RowRead) -> Self {
+        Self { rows, held: None }
+    }
+}
+
+/// The rule of the standing ceiling, which `standing_agreement` and the roster share (r3 U7.7b): none where `newest`,
+/// the agent's newest set-up by the rule of `newest_config`, is none or holds `on_device`; else the last agreement row
+/// of the agent under that set-up's workflow with its tier. Only then are the agreement rows read, at the first such
+/// call of a request, and a row that the typed reader refuses, of any agent, answers `store`.
+pub(crate) fn standing_under(
+    newest: Option<&AgentConfig>,
+    agent: &AgentId,
+    agreement_rows: &mut AgreementRows<'_>,
+) -> Result<Option<AgentAgreement>, ErrorName> {
+    let Some(newest) = newest else {
         return Ok(None);
     };
     if newest.tier == ModelTier::OnDevice {
         return Ok(None);
     }
-    Ok(agreements(rows)?
-        .into_iter()
-        .rfind(|a| &a.agent == agent && a.workflow == newest.workflow && a.tier == newest.tier))
+    if agreement_rows.held.is_none() {
+        agreement_rows.held = Some(agreements(agreement_rows.rows)?);
+    }
+    Ok(agreement_rows
+        .held
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .rfind(|a| &a.agent == agent && a.workflow == newest.workflow && a.tier == newest.tier)
+        .cloned())
 }
