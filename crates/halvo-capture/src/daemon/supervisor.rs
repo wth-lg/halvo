@@ -477,9 +477,12 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     client_polls: bool,
     polled_until: Option<Duration>,
     typing: bool,
-    /// The latch of the key types: set while the board does not read the grant
-    /// of Input Monitoring, so that every input source begun meanwhile asks its
-    /// tap for the pointer types alone ([`SystemSources::refuse_keys`]).
+    /// The latch of the key types: set at a probe's answer, or a failed probe,
+    /// that leaves the grant of Input Monitoring unread as granted while the
+    /// switch pointer_class is on (never before the first answer of a run),
+    /// and let go at an answer that reads it granted again; while it is set
+    /// every input source begun asks its tap for the pointer types alone
+    /// ([`SystemSources::refuse_keys`]).
     keys_refused: bool,
     ending: Option<Ending>,
     entered: bool,
@@ -502,6 +505,10 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     held_paused: bool,
     held: bool,
     life: Option<Arc<super::server::EndingLife>>,
+    /// The input source's line as the last publish gave it, for a test that
+    /// reads what the service said at the moment of a begin.
+    #[cfg(test)]
+    published_input: Option<Arc<Mutex<Option<SourceState>>>>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -551,6 +558,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             held_paused: false,
             held: false,
             life: None,
+            #[cfg(test)]
+            published_input: None,
         }
     }
 
@@ -567,6 +576,17 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// parts of the status from which a connection of an ending life answers.
     pub fn with_life(mut self, life: Arc<super::server::EndingLife>) -> Supervisor<F, L> {
         self.life = Some(life);
+        self
+    }
+
+    /// The supervisor that copies the input source's line into `slot` at each
+    /// publish.
+    #[cfg(test)]
+    pub(crate) fn publishing_the_input_line_to(
+        mut self,
+        slot: Arc<Mutex<Option<SourceState>>>,
+    ) -> Supervisor<F, L> {
+        self.published_input = Some(slot);
         self
     }
 
@@ -1170,11 +1190,16 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             if self.withheld(backoff.name) {
                 continue;
             }
+            let turns_to_keys = self.turns_to_keys(backoff.name);
             if self.sources.holds(backoff.name) {
                 let answer = self.sources.stop_one(backoff.name);
                 if answer.as_ref().is_some_and(|answer| !is_a_stop(answer)) {
                     continue;
                 }
+            }
+            if turns_to_keys {
+                self.sources.set_state(backoff.name, SourceState::Running);
+                self.publish();
             }
             self.remember_delay(backoff.name, backoff.delay);
             if let Some(Err(error)) = self
@@ -1185,6 +1210,25 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 self.schedule_restart(backoff.name, now);
             }
         }
+    }
+
+    /// Whether a start of `name` may ask its tap for the key types behind a line
+    /// that says that its tap holds none (impaired with the reason permission):
+    /// the input source while typing and key_class are on and the latch of the
+    /// key types is not set. Such a start is published as running before it
+    /// begins, so that what the service says is never less than what the tap
+    /// takes; a start that comes back with the pointer types alone turns the
+    /// line back at the next publish.
+    fn turns_to_keys(&self, name: SourceName) -> bool {
+        name == SourceName::Input
+            && self.holds_keys()
+            && !self.keys_refused
+            && self.sources.state(name).is_some_and(|(state, _)| {
+                *state
+                    == SourceState::Impaired {
+                        reason: HealthReason::Permission,
+                    }
+            })
     }
 
     fn remember_delay(&mut self, name: SourceName, delay: Duration) {
@@ -1774,7 +1818,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// and whose grant the board reads again. Where the latch of the key types
     /// was set and the board reads the grant of Input Monitoring again, the
     /// latch is let go and an input source whose line reads impaired with the
-    /// reason permission is begun again, asking for the key types.
+    /// reason permission is begun again, published as running before it
+    /// begins (`restart_due`); that start asks for the key types
+    /// only where the service's own reading then allows listening, and
+    /// otherwise asks for the pointer types alone again, so that typing stays
+    /// off until the service starts again.
     fn restart_granted_again(&mut self, now: Duration) {
         let keys_back = self.keys_refused && !self.grant_missing(SourceName::Input);
         if keys_back {
@@ -2077,6 +2125,13 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         for (name, state, unstopped) in self.sources.states() {
             let state = state.clone();
             self.board.set_source(name, &state, unstopped);
+        }
+        #[cfg(test)]
+        if let Some(slot) = &self.published_input {
+            *slot.lock().unwrap_or_else(PoisonError::into_inner) = self
+                .sources
+                .state(SourceName::Input)
+                .map(|(state, _)| state.clone());
         }
         self.board.capture = if self.pausing {
             Capture::Pausing
@@ -3205,6 +3260,54 @@ mod tests {
             .borrow()
             .iter()
             .all(|named| named == &[Permission::InputMonitoring]));
+    }
+
+    #[test]
+    fn a_turn_to_the_key_types_is_published_before_the_tap_that_asks_for_them_begins() {
+        let published: Arc<Mutex<Option<SourceState>>> = Arc::default();
+        let at_begins: Arc<Mutex<Vec<Option<SourceState>>>> = Arc::default();
+        let (slot, seen) = (published.clone(), at_begins.clone());
+        let factory = Factory::adjusting(move |source| {
+            if source.name == SourceName::Input {
+                let (slot, seen) = (slot.clone(), seen.clone());
+                let hook: Hook = Box::new(move |_| {
+                    let now = slot.lock().unwrap_or_else(PoisonError::into_inner).clone();
+                    seen.lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .push(now);
+                });
+                source.on_begin = Some(hook);
+            }
+        });
+        let (mut f, answers, _) = probed(fixture(factory));
+        f.supervisor = f.supervisor.publishing_the_input_line_to(published);
+        for grant in [GrantState::Granted, GrantState::NotGranted] {
+            answers.borrow_mut().push_back(input_monitoring(grant));
+        }
+        f.start(&two());
+        f.tick();
+        f.later(PROBE_INTERVAL);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        f.later(PROBE_INTERVAL);
+        f.tick();
+        let seen = at_begins
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        assert_eq!(
+            f.supervisor.factory().calls.of("begin input").len(),
+            3,
+            "the first begin, the begin with the pointer types alone, the begin with the key types: {seen:?}"
+        );
+        assert_ne!(
+            seen.last().cloned().flatten(),
+            Some(SourceState::Impaired {
+                reason: HealthReason::Permission
+            }),
+            "the published line at the begin that asks for the key types: {seen:?}"
+        );
     }
 
     #[test]

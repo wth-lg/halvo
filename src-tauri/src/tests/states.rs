@@ -250,6 +250,27 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
             })),
         ),
         (
+            "lost-grant-source-pointer-alone",
+            of(status_with(mac, |f| {
+                let line = f
+                    .permissions
+                    .iter_mut()
+                    .find(|p| p.name == Permission::InputMonitoring)
+                    .expect("the permission has a line");
+                line.grant = GrantState::NotGranted;
+                line.at_start = GrantState::Granted;
+                line.once_granted = true;
+                source(
+                    f,
+                    SourceName::Input,
+                    SourceState::Impaired {
+                        reason: Reason::Permission,
+                        error: None,
+                    },
+                );
+            })),
+        ),
+        (
             "cap-unknown",
             of(status_with(mac, |f| f.cap_bytes = Cap::Unknown)),
         ),

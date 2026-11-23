@@ -215,6 +215,28 @@ test("RR-app-ui-11: with a lost grant whose source still runs the banner does no
   assert.match(stoppedSource.text("lost-banner"), /has stopped/);
 });
 
+test("pointer-alone: behind a lost grant of Input Monitoring the banner says that the part has stopped while the input line reads impaired for the grant, and that it keeps running while the line reads running", async () => {
+  const base = fixture("onboarding_state-lost");
+  const lost = {
+    ...base,
+    lost_grants: ["input_monitoring"],
+    permissions: base.permissions.map((p) =>
+      p.permission === "input_monitoring" ? { ...p, lost: true, grant: "not_granted" } : { ...p, lost: false, grant: "granted" },
+    ),
+  };
+  const pane = lost.permissions.find((p) => p.permission === "input_monitoring").pane_name;
+  const banner = async (name) => {
+    const p = await openPage({ replies: { capture_status: () => fixture(name), onboarding_state: () => lost } });
+    const w = p.window.Halvo.words;
+    assert.equal(p.visible("lost-banner"), true, name);
+    return [p.text("lost-banner"), w.LOST_STOPPED.replace("{names}", pane), w.LOST_RUNNING.replace("{names}", pane)];
+  };
+  const [alone, stopped] = await banner("capture_status-lost-grant-source-pointer-alone");
+  assert.equal(alone, stopped, "an input line impaired for the grant: the part of the keys has stopped");
+  const [running, , keepsRunning] = await banner("capture_status-lost-grant-source-running");
+  assert.equal(running, keepsRunning, "an input line that reads running: the part keeps running");
+});
+
 test("control-2b: a service of another version reads update Halvo, with none of the four claims and never not running", async () => {
   const p = await page(fixture("capture_status-another-version"));
   assert.equal(p.text("state"), "Halvo's capture service is of another version. Update Halvo.");
