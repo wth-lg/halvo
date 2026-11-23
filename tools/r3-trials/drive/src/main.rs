@@ -2,6 +2,7 @@ mod action;
 mod body;
 mod drive;
 mod fixture;
+mod host;
 mod lines;
 mod model;
 mod step;
@@ -15,6 +16,8 @@ use drive::{Ctx, End, Prompts, Stop};
 use lines::{Cell, Kind, Run};
 
 const USAGE: &str = "r3-drive --repo DIR --model TOKEN --weights FILE --child FILE --settings FILE --task bill|order|reply --seed 1|2|3 --browser PATH --port N --machine NAME --run-dir DIR [--compile-variant NAME]";
+
+const ROUND_USAGE: &str = "r3-drive --round --repo DIR --model TOKEN --settings FILE --browser PATH --port N --machine NAME --run-dir DIR --door FILE --tier low_cost_hosted|frontier --ceiling MINOR --key-file FILE --origin ORIGIN [--egress-list FILE] [--standin-host PORT]";
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Args {
@@ -191,7 +194,15 @@ fn now_us() -> u64 {
         .unwrap_or(0)
 }
 
-async fn cell(args: Args, ctx: Ctx) -> ExitCode {
+/// One cell: its lines go to `out`; it gives the cause of its `notrun` line, or none when it ran.
+/// `plant` is a test's seam alone: a marked word that it adds to each stored target after the
+/// compile, which a cell of the trial never passes.
+async fn cell(
+    args: Args,
+    ctx: Ctx,
+    out: &dyn Fn(&str),
+    plant: Option<&str>,
+) -> Option<&'static str> {
     let cell = Cell {
         model: &args.model,
         machine: &args.machine,
@@ -204,7 +215,7 @@ async fn cell(args: Args, ctx: Ctx) -> ExitCode {
         Err(e) => {
             ctx.trace(&format!("fixture: {e}"));
             out(&lines::notrun(&cell, "fixture"));
-            return ExitCode::from(1);
+            return Some("fixture");
         }
     };
     ctx.trace(&format!("fixture pid={}", server.pid()));
@@ -225,13 +236,25 @@ async fn cell(args: Args, ctx: Ctx) -> ExitCode {
         }
         let mut runs: Vec<Run> = Vec::new();
         before(Kind::Compile, 1);
-        let (compiled, steps) = drive::compile(&ctx).await?;
+        let (compiled, mut steps) = drive::compile(&ctx).await?;
         out(&lines::attempt(&cell, &compiled));
         runs.push(compiled);
         let playbook: Vec<String> = steps.iter().map(|s| s.to_json(&args.task)).collect();
         let text: String = playbook.iter().map(|l| format!("{l}\n")).collect();
         let _ = std::fs::write(ctx.run_dir.join("playbook.jsonl"), text);
         let parses = step::playbook_parses(&playbook, step::category(&args.task));
+        if let Some(word) = plant {
+            for s in steps.iter_mut().filter(|s| s.target.is_some()) {
+                if let Some(t) = s.target.as_mut() {
+                    t.name = format!("{} {word}", t.name);
+                }
+                for a in s.args.iter_mut() {
+                    if let step::Source::Const(v) = &mut a.from {
+                        *v = format!("{v} {word}");
+                    }
+                }
+            }
+        }
         for (kind, i) in [
             (Kind::Replay, 1),
             (Kind::Replay, 2),
@@ -257,14 +280,14 @@ async fn cell(args: Args, ctx: Ctx) -> ExitCode {
         "stop fixture_gone={gone} model_children_ended={ended}"
     ));
     match result {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(()) => None,
         Err(End::Signal) => {
             out(&lines::notrun(&cell, "signal"));
-            ExitCode::from(1)
+            Some("signal")
         }
         Err(End::NotRun(cause)) => {
             out(&lines::notrun(&cell, cause));
-            ExitCode::from(1)
+            Some(cause)
         }
     }
 }
@@ -273,15 +296,18 @@ fn read(path: &std::path::Path) -> Option<String> {
     std::fs::read_to_string(path).ok()
 }
 
-fn main() -> ExitCode {
-    let argv: Vec<String> = std::env::args().skip(1).collect();
-    let args = match parse(&argv) {
-        Ok(a) => a,
-        Err(e) => {
-            eprintln!("REFUSED usage: {e}; {USAGE}");
-            return ExitCode::from(2);
-        }
-    };
+/// What a cell reads before it starts: its prompt files, its seed file, the two values of the level
+/// `medium` and a new trace file in its directory.
+struct Inputs {
+    goal: String,
+    boundary: String,
+    data: serde_json::Value,
+    recoveries: u32,
+    reply_tokens: u64,
+    trace: std::fs::File,
+}
+
+fn inputs(args: &Args) -> Result<Inputs, &'static str> {
     let prompts_dir = args.repo.join("tools/r3-trials/drive/prompts");
     let goal = read(&prompts_dir.join(format!("goal-{}.txt", args.task)));
     let boundary = read(&prompts_dir.join("boundary.txt"));
@@ -298,21 +324,406 @@ fn main() -> ExitCode {
     let (Some(goal), Some(boundary), Some(data), Some(recoveries), Some(reply_tokens)) =
         (goal, boundary, data, recoveries, reply_tokens)
     else {
-        eprintln!(
-            "REFUSED usage: a prompt file, the seed file or the settings file cannot be read"
-        );
-        return ExitCode::from(2);
+        return Err("a prompt file, the seed file or the settings file cannot be read");
     };
-    let trace = match std::fs::OpenOptions::new()
+    let trace = std::fs::OpenOptions::new()
         .create_new(true)
         .write(true)
         .open(args.run_dir.join("trace.txt"))
-    {
-        Ok(f) => f,
-        Err(_) => {
-            eprintln!("REFUSED usage: --run-dir must be a directory with no trace.txt");
+        .map_err(|_| "--run-dir must be a directory with no trace.txt")?;
+    Ok(Inputs {
+        goal,
+        boundary,
+        data,
+        recoveries,
+        reply_tokens,
+        trace,
+    })
+}
+
+fn ctx_of(args: &Args, inputs: Inputs, model: model::Spec, stop: Stop) -> Ctx {
+    Ctx {
+        port: args.port,
+        seed: args.seed,
+        data: inputs.data,
+        task: args.task.clone(),
+        browser: args.browser.clone(),
+        run_dir: args.run_dir.clone(),
+        model,
+        prompts: Prompts {
+            boundary: inputs.boundary,
+            goal: inputs.goal,
+        },
+        recoveries: inputs.recoveries,
+        reply_tokens: inputs.reply_tokens,
+        compile_variants: args.compile_variant.clone().into_iter().collect(),
+        stop,
+        trace: std::sync::Mutex::new(inputs.trace),
+        began: std::time::Instant::now(),
+        clock: Box::new(drive::SystemClock),
+    }
+}
+
+/// The cells of a round, in the order of A13.6: `bill` and `order`, seeds 1 to 3, then `reply`.
+const CELLS: [(&str, u8); 9] = [
+    ("bill", 1),
+    ("bill", 2),
+    ("bill", 3),
+    ("order", 1),
+    ("order", 2),
+    ("order", 3),
+    ("reply", 1),
+    ("reply", 2),
+    ("reply", 3),
+];
+
+/// The hosted round (unit U0.8): every cell of A13.6 in one process, with the door `halvo-model` as
+/// the child, the key read once, and one count whose cap is the ceiling.
+#[derive(Debug, Default)]
+struct Round {
+    repo: PathBuf,
+    model: String,
+    settings: PathBuf,
+    browser: PathBuf,
+    port: u16,
+    machine: String,
+    run_dir: PathBuf,
+    door: PathBuf,
+    tier: String,
+    ceiling: u64,
+    key_file: PathBuf,
+    origin: String,
+    egress_list: Option<PathBuf>,
+    standin_host: Option<u16>,
+    cells: Vec<(&'static str, u8)>,
+}
+
+fn parse_round(argv: &[String]) -> Result<Round, String> {
+    let mut r = Round {
+        cells: CELLS.to_vec(),
+        ..Round::default()
+    };
+    let mut seen: Vec<&str> = Vec::new();
+    let mut it = argv.iter();
+    while let Some(flag) = it.next() {
+        let value = it.next().ok_or_else(|| format!("{flag} has no value"))?;
+        if seen.contains(&flag.as_str()) {
+            return Err(format!("{flag} is given twice"));
+        }
+        seen.push(flag.as_str());
+        let port = |v: &str| v.parse::<u16>().ok().filter(|p| *p >= 1024);
+        match flag.as_str() {
+            "--repo" => r.repo = PathBuf::from(value),
+            "--model" if action::is_name(value) && value != "none" && value != "synthetic" => {
+                r.model = value.clone()
+            }
+            "--settings" => r.settings = PathBuf::from(value),
+            "--browser" => r.browser = PathBuf::from(value),
+            "--port" => r.port = port(value).ok_or("--port takes 1024 to 65535")?,
+            "--machine" if action::is_name(&value.replace('-', "_")) => r.machine = value.clone(),
+            "--run-dir" => r.run_dir = PathBuf::from(value),
+            "--door" => r.door = PathBuf::from(value),
+            "--tier" if matches!(value.as_str(), "low_cost_hosted" | "frontier") => {
+                r.tier = value.clone()
+            }
+            "--ceiling" => {
+                r.ceiling = value
+                    .parse()
+                    .ok()
+                    .filter(|c| (1..=100_000_000).contains(c) && !value.starts_with('0'))
+                    .ok_or("--ceiling takes 1 to 100000000 minor units")?
+            }
+            "--key-file" => r.key_file = PathBuf::from(value),
+            "--origin"
+                if value.starts_with("https://") || value.starts_with("http://127.0.0.1:") =>
+            {
+                r.origin = value.clone()
+            }
+            "--egress-list" => r.egress_list = Some(PathBuf::from(value)),
+            "--standin-host" => {
+                r.standin_host = Some(port(value).ok_or("--standin-host takes 1024 to 65535")?)
+            }
+            "--model" | "--machine" | "--tier" | "--origin" => {
+                return Err(format!("{flag} takes no {value}"))
+            }
+            other => return Err(format!("unknown argument {other}")),
+        }
+    }
+    let wanted = [
+        "--repo",
+        "--model",
+        "--settings",
+        "--browser",
+        "--port",
+        "--machine",
+        "--run-dir",
+        "--door",
+        "--tier",
+        "--ceiling",
+        "--key-file",
+        "--origin",
+    ];
+    if let Some(missing) = wanted.iter().find(|w| !seen.contains(w)) {
+        return Err(format!("{missing} is missing"));
+    }
+    Ok(r)
+}
+
+/// The key of the file that the command names, read once.
+fn read_key(path: &std::path::Path) -> Result<model::Key, &'static str> {
+    let bytes = std::fs::read(path).map_err(|_| "the key file cannot be read")?;
+    model::Key::of(&bytes)
+}
+
+/// The door's command: `halvo-model --tier T --ceiling T --consent recorded`, with
+/// `--loopback-port P` for the scripted host, under `sh scripts/egress/check.sh LIST --` when the
+/// round names a list.
+fn door_command(r: &Round, loopback: Option<u16>) -> (PathBuf, Vec<std::ffi::OsString>) {
+    let mut door: Vec<std::ffi::OsString> = [
+        "--tier",
+        r.tier.as_str(),
+        "--ceiling",
+        r.tier.as_str(),
+        "--consent",
+        "recorded",
+    ]
+    .iter()
+    .map(Into::into)
+    .collect();
+    if let Some(port) = loopback {
+        door.push("--loopback-port".into());
+        door.push(port.to_string().into());
+    }
+    match &r.egress_list {
+        Some(list) => {
+            let mut args: Vec<std::ffi::OsString> = vec![
+                "scripts/egress/check.sh".into(),
+                list.clone().into_os_string(),
+                "--".into(),
+                r.door.clone().into_os_string(),
+            ];
+            args.extend(door);
+            (PathBuf::from("sh"), args)
+        }
+        None => (r.door.clone(), door),
+    }
+}
+
+/// `egress list=<list> origin=<origin> starts=<n> runs=<n> denied=<n>`: the door's starts of the
+/// round, the egress lines that the check wrote into the door's standard error of each cell,
+/// counted, with their `denied` summed (a line whose count cannot be read counts as one denied);
+/// and whether the lines are as many as the starts, without which the round gives no verdict.
+fn egress_line(
+    list: &std::path::Path,
+    origin: &str,
+    starts: u64,
+    dirs: &[PathBuf],
+) -> (String, bool) {
+    let (mut runs, mut denied) = (0u64, 0u64);
+    for dir in dirs {
+        let text = read(&dir.join("model-stderr.txt")).unwrap_or_default();
+        for line in text.lines().filter(|l| l.starts_with("egress mode=")) {
+            runs += 1;
+            denied += line
+                .split(' ')
+                .find_map(|w| w.strip_prefix("denied="))
+                .and_then(|n| n.parse::<u64>().ok())
+                .unwrap_or(1);
+        }
+    }
+    (
+        format!(
+            "egress list={} origin={origin} starts={starts} runs={runs} denied={denied}",
+            list.display()
+        ),
+        runs == starts,
+    )
+}
+
+/// Runs the round's cells in order and stops at the first that prints `notrun`; then writes the
+/// `spend` line and, with a list, the `egress` line. Gives the cause of the `notrun` line, if any.
+/// `loopback` is the port of the scripted host, which the door's stand-in form takes.
+async fn round(
+    r: &Round,
+    key: model::Key,
+    spend: std::sync::Arc<std::sync::Mutex<model::Spend>>,
+    stop: Stop,
+    out: &dyn Fn(&str),
+    loopback: Option<u16>,
+    plant: Option<&str>,
+) -> Option<&'static str> {
+    let (program, door_args) = door_command(r, loopback);
+    let starts = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let mut stopped = None;
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    for (task, seed) in &r.cells {
+        let dir = r.run_dir.join(format!("{task}-seed-{seed}"));
+        let args = Args {
+            repo: r.repo.clone(),
+            model: r.model.clone(),
+            weights: PathBuf::new(),
+            child: r.door.clone(),
+            settings: r.settings.clone(),
+            task: task.to_string(),
+            seed: *seed,
+            browser: r.browser.clone(),
+            port: r.port,
+            machine: r.machine.clone(),
+            run_dir: dir.clone(),
+            compile_variant: None,
+        };
+        let cell_lines = Cell {
+            model: &r.model,
+            machine: &r.machine,
+            task,
+            seed: *seed,
+        };
+        let made = std::fs::create_dir(&dir)
+            .map_err(|_| "the cell's directory cannot be made")
+            .and_then(|()| inputs(&args));
+        let inputs = match made {
+            Ok(i) => i,
+            Err(e) => {
+                eprintln!("{e}");
+                out(&lines::notrun(&cell_lines, "usage"));
+                stopped = Some("usage");
+                break;
+            }
+        };
+        let spec = model::Spec {
+            program: program.clone(),
+            args: door_args.clone(),
+            stderr: dir.join("model-stderr.txt"),
+            hosted: Some(model::Hosted {
+                key: key.clone(),
+                spend: spend.clone(),
+                dir: r.repo.clone(),
+                starts: starts.clone(),
+            }),
+        };
+        let mut ctx = ctx_of(&args, inputs, spec, stop.clone());
+        ctx.reply_tokens = u64::from(halvo_route_wire::MAX_OUTPUT_TOKENS);
+        let began = std::time::Instant::now();
+        let cause = cell(args, ctx, out, plant).await;
+        eprintln!(
+            "round cell task={task} seed={seed} ms={}",
+            began.elapsed().as_millis()
+        );
+        dirs.push(dir);
+        if cause.is_some() {
+            stopped = cause;
+            break;
+        }
+    }
+    if let Ok(s) = spend.lock() {
+        out(&s.line());
+        let _ = std::fs::write(r.run_dir.join("count.txt"), s.row());
+        if !s.within() {
+            eprintln!("the count's sum is above the ceiling");
+        }
+    }
+    if let Some(list) = &r.egress_list {
+        let started = starts.load(std::sync::atomic::Ordering::SeqCst);
+        let (line, agree) = egress_line(list, &r.origin, started, &dirs);
+        out(&line);
+        if !agree {
+            eprintln!(
+                "the egress check's lines are not as many as the door's {started} starts: the round gives no verdict"
+            );
+            stopped = stopped.or(Some("egress"));
+        }
+    }
+    stopped
+}
+
+fn round_main(argv: &[String]) -> ExitCode {
+    let r = match parse_round(argv) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("REFUSED usage: {e}; {ROUND_USAGE}");
             return ExitCode::from(2);
         }
+    };
+    let key = match read_key(&r.key_file) {
+        Ok(k) => k,
+        Err(e) => {
+            eprintln!("REFUSED key: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let tier = halvo_route::tier::Tier::parse(&r.tier).ok();
+    let spend = match tier.map(|t| model::Spend::new(t, r.ceiling)) {
+        Some(Ok(s)) => std::sync::Arc::new(std::sync::Mutex::new(s)),
+        _ => {
+            eprintln!("REFUSED usage: no count for the tier and the ceiling; {ROUND_USAGE}");
+            return ExitCode::from(2);
+        }
+    };
+    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        eprintln!("the runtime cannot start");
+        return ExitCode::from(1);
+    };
+    rt.block_on(async move {
+        let Ok(stop) = watch_signals() else {
+            eprintln!("the signals cannot be watched");
+            return ExitCode::from(1);
+        };
+        let host = match r.standin_host {
+            Some(port) => {
+                match host::Host::start(
+                    port,
+                    Some(r.run_dir.join("host-requests.txt")),
+                    host::Walk::Right,
+                ) {
+                    Ok(h) => Some(h),
+                    Err(e) => {
+                        eprintln!("the scripted host cannot listen on 127.0.0.1:{port}: {e}");
+                        return ExitCode::from(1);
+                    }
+                }
+            }
+            None => None,
+        };
+        let loopback = host.as_ref().map(host::Host::port);
+        match round(&r, key, spend, stop, &out, loopback, None).await {
+            None => ExitCode::SUCCESS,
+            Some(_) => ExitCode::from(1),
+        }
+    })
+}
+
+fn main() -> ExitCode {
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    if argv.first().map(String::as_str) == Some("--round") {
+        return round_main(&argv[1..]);
+    }
+    let args = match parse(&argv) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("REFUSED usage: {e}; {USAGE}");
+            return ExitCode::from(2);
+        }
+    };
+    let inputs = match inputs(&args) {
+        Ok(i) => i,
+        Err(e) => {
+            eprintln!("REFUSED usage: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let cell_of = |args: &Args| {
+        lines::notrun(
+            &Cell {
+                model: &args.model,
+                machine: &args.machine,
+                task: &args.task,
+                seed: args.seed,
+            },
+            "runtime",
+        )
     };
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -320,15 +731,7 @@ fn main() -> ExitCode {
     {
         Ok(rt) => rt,
         Err(_) => {
-            out(&lines::notrun(
-                &Cell {
-                    model: &args.model,
-                    machine: &args.machine,
-                    task: &args.task,
-                    seed: args.seed,
-                },
-                "runtime",
-            ));
+            out(&cell_of(&args));
             return ExitCode::from(1);
         }
     };
@@ -336,41 +739,26 @@ fn main() -> ExitCode {
         let stop = match watch_signals() {
             Ok(s) => s,
             Err(_) => {
-                out(&lines::notrun(
-                    &Cell {
-                        model: &args.model,
-                        machine: &args.machine,
-                        task: &args.task,
-                        seed: args.seed,
-                    },
-                    "runtime",
-                ));
+                out(&cell_of(&args));
                 return ExitCode::from(1);
             }
         };
-        let ctx = Ctx {
-            port: args.port,
-            seed: args.seed,
-            data,
-            task: args.task.clone(),
-            browser: args.browser.clone(),
-            run_dir: args.run_dir.clone(),
-            model: model::Spec {
-                program: args.child.clone(),
-                weights: args.weights.clone(),
-                settings: args.settings.clone(),
-                stderr: args.run_dir.join("model-stderr.txt"),
-            },
-            prompts: Prompts { boundary, goal },
-            recoveries,
-            reply_tokens,
-            compile_variants: args.compile_variant.clone().into_iter().collect(),
-            stop,
-            trace: std::sync::Mutex::new(trace),
-            began: std::time::Instant::now(),
-            clock: Box::new(drive::SystemClock),
+        let spec = model::Spec {
+            program: args.child.clone(),
+            args: vec![
+                "--weights".into(),
+                args.weights.clone().into_os_string(),
+                "--settings".into(),
+                args.settings.clone().into_os_string(),
+            ],
+            stderr: args.run_dir.join("model-stderr.txt"),
+            hosted: None,
         };
-        cell(args, ctx).await
+        let ctx = ctx_of(&args, inputs, spec, stop);
+        match cell(args, ctx, &out, None).await {
+            None => ExitCode::SUCCESS,
+            Some(_) => ExitCode::from(1),
+        }
     })
 }
 
@@ -462,6 +850,363 @@ mod tests {
         assert!(
             r3_web::procs::fence::is_on(),
             "the fence is off in the test target of r3-drive"
+        );
+    }
+
+    /// The setting of a hosted round against the scripted host: the repository, the door built in
+    /// its stand-in form, a browser and a run directory of the test's own.
+    struct Bench {
+        repo: PathBuf,
+        door: PathBuf,
+        browser: PathBuf,
+        dir: PathBuf,
+    }
+
+    /// The door `halvo-model` built once a process, with the feature `loopback` that its own tests
+    /// build with (the coordinator's log line 13133), at the root of the repository.
+    fn door(repo: &std::path::Path) -> PathBuf {
+        static DOOR: std::sync::OnceLock<Result<PathBuf, String>> = std::sync::OnceLock::new();
+        DOOR.get_or_init(|| {
+            let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+            let built = std::process::Command::new(cargo)
+                .args([
+                    "build",
+                    "--locked",
+                    "-p",
+                    "halvo-model",
+                    "--features",
+                    "loopback",
+                ])
+                .current_dir(repo)
+                .status()
+                .map_err(|e| e.to_string())?;
+            let path = repo.join(format!(
+                "target/debug/halvo-model{}",
+                std::env::consts::EXE_SUFFIX
+            ));
+            (built.success() && path.is_file())
+                .then_some(path)
+                .ok_or_else(|| format!("the door was not built: {built}"))
+        })
+        .clone()
+        .expect("the door in its stand-in form")
+    }
+
+    /// The directory for a test's files: the caller's TMPDIR when it names a directory (the CI
+    /// driver gives each check one), else the system's.
+    fn scratch() -> PathBuf {
+        std::env::var_os("TMPDIR")
+            .map(PathBuf::from)
+            .filter(|p| p.is_dir())
+            .unwrap_or_else(std::env::temp_dir)
+    }
+
+    fn bench(name: &str) -> Bench {
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("..");
+        let browser = std::env::var_os("HALVO_BROWSER").map_or_else(
+            || {
+                PathBuf::from(if cfg!(windows) {
+                    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+                } else {
+                    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+                })
+            },
+            PathBuf::from,
+        );
+        let dir = scratch().join(format!(
+            "r3-drive-test-{name}-{}-{}",
+            std::process::id(),
+            now_us()
+        ));
+        std::fs::create_dir_all(&dir).expect("the test's run directory");
+        Bench {
+            door: door(&repo),
+            repo,
+            browser,
+            dir,
+        }
+    }
+
+    fn round_of(b: &Bench, port: u16, cells: &[(&'static str, u8)]) -> Round {
+        Round {
+            repo: b.repo.clone(),
+            model: "standin_host".into(),
+            settings: b.repo.join("docs/r3/model-settings.toml"),
+            browser: b.browser.clone(),
+            port,
+            machine: "test".into(),
+            run_dir: b.dir.clone(),
+            door: b.door.clone(),
+            tier: "frontier".into(),
+            ceiling: 2000,
+            key_file: PathBuf::new(),
+            origin: "http://127.0.0.1:47201".into(),
+            egress_list: None,
+            standin_host: None,
+            cells: cells.to_vec(),
+        }
+    }
+
+    /// Runs a round against `host` and gives its lines and the cause of its `notrun` line; with
+    /// `bound`, the round's bound of requests is that number in the place of `REQUESTS_MAX`.
+    fn run(
+        r: &Round,
+        key: model::Key,
+        host: &host::Host,
+        plant: Option<&str>,
+        bound: Option<u64>,
+    ) -> (Vec<String>, Option<&'static str>) {
+        let tier = halvo_route::tier::Tier::parse(&r.tier).expect("a tier");
+        let spend = model::Spend::new(tier, r.ceiling).expect("a count");
+        let spend = std::sync::Arc::new(std::sync::Mutex::new(match bound {
+            Some(n) => spend.bounded(n),
+            None => spend,
+        }));
+        let lines = std::cell::RefCell::new(Vec::new());
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime");
+        let (_keep, rx) = tokio::sync::watch::channel(false);
+        let cause = rt.block_on(round(
+            r,
+            key,
+            spend,
+            Stop(rx),
+            &|l: &str| lines.borrow_mut().push(l.to_string()),
+            Some(host.port()),
+            plant,
+        ));
+        (lines.into_inner(), cause)
+    }
+
+    fn files(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+            let path = entry.path();
+            match entry.file_type() {
+                Ok(t) if t.is_dir() => files(&path, out),
+                Ok(t) if t.is_file() => out.push(path),
+                _ => {}
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
+    fn a_cell_past_the_ceiling_ends_notrun_and_sends_nothing() {
+        let b = bench("ceiling");
+        let host = host::Host::start(0, None, host::Walk::Right).expect("the scripted host");
+        let r = Round {
+            ceiling: 1,
+            ..round_of(&b, 18491, &CELLS)
+        };
+        let key = model::Key::of(b"u08-test-key-made-up-not-a-host-key").expect("a key");
+        let (lines, cause) = run(&r, key, &host, None, None);
+        assert_eq!(
+            (cause, lines, host.received().len()),
+            (
+                Some("ceiling"),
+                vec![
+                    "notrun model=standin_host machine=test task=bill seed=1 cause=ceiling"
+                        .to_string(),
+                    "spend tier=frontier requests=0 spent_micro=0 ceiling_minor=1".to_string()
+                ],
+                0
+            )
+        );
+    }
+
+    #[test]
+    #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
+    fn no_request_of_a_cell_holds_a_word_of_a_stored_step() {
+        let mark = "u08markedword";
+        let b = bench("stored");
+        let host = host::Host::start(0, None, host::Walk::Right).expect("the scripted host");
+        let r = round_of(&b, 18492, &[("bill", 1)]);
+        let key = model::Key::of(b"u08-test-key-made-up-not-a-host-key").expect("a key");
+        let (lines, cause) = run(&r, key, &host, Some(mark), None);
+        let texts: Vec<String> = host
+            .received()
+            .iter()
+            .map(|q| format!("{}\n{}", q.head, String::from_utf8_lossy(&q.body)))
+            .collect();
+        let recovery = texts
+            .iter()
+            .filter(|t| t.contains(words::REPAIR_HOSTED))
+            .count();
+        let holding: Vec<&String> = texts.iter().filter(|t| t.contains(mark)).collect();
+        assert_eq!(
+            (
+                cause,
+                lines.iter().any(|l| l.starts_with("drive ")),
+                recovery > 0,
+                holding
+            ),
+            (None, true, true, Vec::<&String>::new()),
+            "lines: {lines:?}"
+        );
+    }
+
+    #[test]
+    fn the_rule_file_states_the_bound_of_requests_that_the_round_holds() {
+        let rule = include_str!("../../../../docs/r3/trials/driver-hosted.md");
+        let folded = rule.split_whitespace().collect::<Vec<_>>().join(" ");
+        let compiles = 6 * drive::CALLS_MAX as u64;
+        let replies = 6;
+        let sentence = format!(
+            "One round makes at most {} requests: {compiles} in compiles, {} in recoveries, {replies} for replies.",
+            model::REQUESTS_MAX,
+            model::REQUESTS_MAX - compiles - replies
+        );
+        assert!(folded.contains(&sentence), "{sentence}");
+    }
+
+    #[test]
+    fn the_egress_line_holds_its_runs_against_the_door_starts() {
+        let dir = scratch().join(format!(
+            "r3-drive-test-egress-{}-{}",
+            std::process::id(),
+            now_us()
+        ));
+        let (read, empty) = (dir.join("bill-seed-1"), dir.join("reply-seed-1"));
+        std::fs::create_dir_all(&read).expect("a cell's directory");
+        std::fs::create_dir_all(&empty).expect("a cell's directory");
+        let check =
+            "egress mode=sandbox list=l.txt command=0 denied=0 log=target/egress/1/denied.log\n";
+        std::fs::write(read.join("model-stderr.txt"), check.repeat(2)).expect("a door's file");
+        std::fs::write(empty.join("model-stderr.txt"), "").expect("a door's file");
+        let list = std::path::Path::new("l.txt");
+        let o = "http://127.0.0.1:47201";
+        assert_eq!(
+            [
+                egress_line(list, o, 2, &[read.clone(), empty.clone()]),
+                egress_line(list, o, 3, &[read.clone(), empty.clone()]),
+                egress_line(list, o, 15, std::slice::from_ref(&empty)),
+            ],
+            [
+                (
+                    format!("egress list=l.txt origin={o} starts=2 runs=2 denied=0"),
+                    true
+                ),
+                (
+                    format!("egress list=l.txt origin={o} starts=3 runs=2 denied=0"),
+                    false
+                ),
+                (
+                    format!("egress list=l.txt origin={o} starts=15 runs=0 denied=0"),
+                    false
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
+    fn a_round_sends_no_request_past_its_bound() {
+        let b = bench("bound");
+        let host = host::Host::start(0, None, host::Walk::FirstRecoveryRefused)
+            .expect("the scripted host");
+        let r = round_of(&b, 18494, &CELLS);
+        let key = model::Key::of(b"u08-test-key-made-up-not-a-host-key").expect("a key");
+        // The right walk whose first recovery answer at each failed step is refused needs 54
+        // requests: 30 in compiles, 18 in recoveries, 6 for replies; the test's bound is one fewer,
+        // so the second body of reply seed 3 is the request past it.
+        let (lines, cause) = run(&r, key, &host, None, Some(53));
+        let received = host.received();
+        let recovery = received
+            .iter()
+            .filter(|q| String::from_utf8_lossy(&q.body).contains(words::REPAIR_HOSTED))
+            .count();
+        let drives = lines
+            .iter()
+            .filter(|l| {
+                l.starts_with("drive ")
+                    && l.contains(" compile=ok replays_ok=3 of=3 recover=ok ")
+                    && l.ends_with(" typed_credential=0 effects_without_confirm=0")
+            })
+            .count();
+        let replies = lines
+            .iter()
+            .filter(|l| l.starts_with("reply ") && l.contains(" bodies=2 of=2 "))
+            .count();
+        let tail: Vec<&str> = lines
+            .iter()
+            .rev()
+            .take(2)
+            .rev()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            (
+                cause,
+                received.len(),
+                recovery,
+                drives,
+                replies,
+                tail.first().copied(),
+                tail.last()
+                    .is_some_and(|l| l.starts_with("spend tier=frontier requests=53 "))
+            ),
+            (
+                Some("requests"),
+                53,
+                18,
+                6,
+                2,
+                Some("notrun model=standin_host machine=test task=reply seed=3 cause=requests"),
+                true
+            ),
+            "lines: {lines:?}"
+        );
+    }
+
+    #[test]
+    #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
+    fn the_key_stands_in_no_line_and_no_file_of_a_cell() {
+        let key = "u08-test-key-made-up-not-a-host-key";
+        let b = bench("key");
+        let keys = scratch().join(format!(
+            "r3-drive-test-key-file-{}-{}",
+            std::process::id(),
+            now_us()
+        ));
+        std::fs::create_dir_all(&keys).expect("the key's own directory");
+        std::fs::write(keys.join("key.txt"), format!("{key}\n")).expect("the key file");
+        let read = read_key(&keys.join("key.txt")).expect("the key, read once");
+        let host = host::Host::start(0, None, host::Walk::Right).expect("the scripted host");
+        let r = round_of(&b, 18493, &[("bill", 1), ("reply", 1)]);
+        let (lines, cause) = run(&r, read, &host, None, None);
+        let sent = host
+            .received()
+            .iter()
+            .filter(|q| q.head.contains(&format!("x-api-key: {key}")))
+            .count();
+        let mut all = Vec::new();
+        files(&b.dir, &mut all);
+        let holding: Vec<&PathBuf> = all
+            .iter()
+            .filter(|p| {
+                std::fs::read(p)
+                    .unwrap_or_default()
+                    .windows(key.len())
+                    .any(|w| w == key.as_bytes())
+            })
+            .collect();
+        assert_eq!(
+            (
+                cause,
+                lines.iter().any(|l| l.starts_with("drive ")),
+                lines.iter().any(|l| l.starts_with("reply ")),
+                sent > 0,
+                lines.iter().filter(|l| l.contains(key)).count(),
+                all.iter().any(|p| p.ends_with("bodies.txt")),
+                holding
+            ),
+            (None, true, true, true, 0, true, Vec::<&PathBuf>::new()),
+            "lines: {lines:?}"
         );
     }
 
