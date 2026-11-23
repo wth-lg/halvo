@@ -692,6 +692,7 @@ pub const KEYS: &[(&str, &str)] = &[
         "The data file must be in the same folder as the spreadsheet file.",
     ),
     ("param_typed.choose", "Choose a file"),
+    ("param_typed.needs_answer", "This question needs an answer."),
     (
         "param_hint.workbook_mac",
         "Type the full path of an Excel workbook (.xlsx), for example /Users/ana/Documents/Budget.xlsx.",

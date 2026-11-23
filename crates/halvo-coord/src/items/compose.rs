@@ -758,6 +758,11 @@ pub(crate) fn setup_on(
                 String::new()
             },
             hint: param_hint(p.param, system)?,
+            needs_answer: if typed {
+                say("param_typed.needs_answer")?
+            } else {
+                String::new()
+            },
             choose: match p.param {
                 Param::Workbook | Param::Source if typed => Some(say("param_typed.choose")?),
                 _ => None,

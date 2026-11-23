@@ -1045,6 +1045,11 @@ pub struct ParamEntry {
     /// shows under the question's words and above its line (r4 U3.22a); empty for every parameter
     /// that the words table gives no hint.
     pub hint: String,
+    /// `needs_answer`: for a parameter with `typed` `yes` the sentence of
+    /// `param_typed.needs_answer`, which the card shows below the typed line where it stands
+    /// empty at a press of the choice `choose`, until the line changes (r4 U3.22b); empty for
+    /// every other parameter.
+    pub needs_answer: String,
     /// `choose`: for Which spreadsheet file and Where the data comes from, the label of the
     /// control beside the typed line that opens the system's own chooser of a file, the sentence
     /// of `param_typed.choose` (r4 U3.22b); the key is left out for every other parameter.

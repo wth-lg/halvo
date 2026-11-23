@@ -881,6 +881,11 @@ fn param(param: Param, candidate: Option<&str>) -> ParamEntry {
             String::new()
         },
         hint: crate::items::param_hint(param, super::System::HOST).expect("the words table"),
+        needs_answer: if candidate.is_none() {
+            t("param_typed.needs_answer")
+        } else {
+            String::new()
+        },
         choose: match param {
             Param::Workbook | Param::Source if candidate.is_none() => Some(t("param_typed.choose")),
             _ => None,
