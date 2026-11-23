@@ -369,11 +369,15 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::thread::JoinHandle;
 
+    use halvo_identify::{episode_step, Call, Carry, StageA};
+    use halvo_schema_core::ids::SummaryId;
     use halvo_schema_core::record::{Instant, Text};
     use halvo_schema_core::site::AppId;
     use halvo_seam::client::StreamLink;
     use halvo_seam::fixture::FixtureTransport;
-    use halvo_seam::record::{CaptureRecord, KeyClass, RecordId, Seq, Title};
+    use halvo_seam::record::{
+        Button, CaptureRecord, Count, KeyClass, Motion, RecordId, Seq, Title,
+    };
 
     use super::*;
 
@@ -441,8 +445,13 @@ mod tests {
     type Seen = Option<(Position, usize)>;
 
     /// The batch that a worker reads from the first index of the segment `from_seg` of a store whose segments below
-    /// `first_live` are shredded, and the window that it carries: the position of the title record and the reach.
-    fn carried(name: &str, segments: &[&[Line]], first_live: u64, from_seg: u64) -> Seen {
+    /// `first_live` are shredded, with the window that it carries.
+    fn read_back(
+        name: &str,
+        segments: &[&[Line]],
+        first_live: u64,
+        from_seg: u64,
+    ) -> (Taken, Option<Carried>) {
         let (_scratch, paths) = files(name, segments);
         let mut transport = FixtureTransport::open(&paths, first_live, None).unwrap();
         let store = transport.store().clone();
@@ -458,10 +467,16 @@ mod tests {
         };
         let taken = take(&mut client, Some((store, from)), &|_| 0)
             .unwrap_or_else(|fault| panic!("the batch was not read: {fault}"));
-        let carried = carry(&mut client, &taken).map(|carried| (carried.title.pos, carried.until));
+        let carried = carry(&mut client, &taken);
         drop(client);
         serving.join().unwrap();
-        carried
+        (taken, carried)
+    }
+
+    /// The window that such a batch carries: the position of the title record and the reach.
+    fn carried(name: &str, segments: &[&[Line]], first_live: u64, from_seg: u64) -> Seen {
+        let (_, carried) = read_back(name, segments, first_live, from_seg);
+        carried.map(|carried| (carried.title.pos, carried.until))
     }
 
     /// The control of the rule: a `foreground_app` record of the same app in front of the batch's keys, which a
@@ -489,6 +504,62 @@ mod tests {
             ),
             Some((Position { seg: 1, idx: 0 }, 3))
         );
+    }
+
+    /// A record of another app in front of the title record's app's own records takes no window and does not end the
+    /// carry. On Windows a click and a pointer fold hold the app of the top-level window under the pointer, so a
+    /// pointer that crosses the taskbar or another program on its way back to the workbook writes such records. Here
+    /// a fold and a click of another app stand in front of five keys and a click of Numbers: the carry reaches all
+    /// eight records, and the one episode that the step makes holds the six records of Numbers alone, each with the
+    /// carried title.
+    #[test]
+    fn a_record_of_another_app_takes_no_window_and_does_not_end_the_carry() {
+        let pointer = |seq, app, pointer| Line(seq, app, Payload::Pointer(pointer));
+        let batch = [
+            pointer(3, OTHER, Pointer::Motion(Motion::Move, Count::new(4))),
+            pointer(4, OTHER, Pointer::Click(Some(Button::Primary))),
+            key(5, NUMBERS),
+            key(6, NUMBERS),
+            pointer(7, NUMBERS, Pointer::Click(Some(Button::Primary))),
+            key(8, NUMBERS),
+            key(9, NUMBERS),
+            key(10, NUMBERS),
+        ];
+        let before: &[Line] = &[title(1), key(2, NUMBERS)];
+        let (taken, carried) = read_back("carry-other-app", &[before, &batch], 1, 2);
+        let carried = carried.expect("the batch carries no window");
+        assert_eq!(
+            (carried.title.pos, carried.until),
+            (Position { seg: 1, idx: 0 }, 8)
+        );
+        let mut n = 0u8;
+        let mut ids = || {
+            n += 1;
+            SummaryId::from_random([n; 16])
+        };
+        let call = Call {
+            entries: &taken.entries,
+            expiry: &taken.expiry,
+            utc_offset_s: 0,
+            carry: Some(Carry {
+                title: &carried.title,
+                until: carried.until,
+            }),
+        };
+        let episodes = episode_step(&call, &StageA, &mut ids).episodes;
+        assert_eq!(episodes.len(), 1);
+        let steps = &episodes[0].steps;
+        assert_eq!(steps.len(), 6);
+        for step in steps {
+            assert_eq!(
+                step.app.as_ref().map(|app| app.value.as_str()),
+                Some(NUMBERS)
+            );
+            assert_eq!(
+                step.title.as_ref().map(|title| title.value.as_str()),
+                Some("Budget")
+            );
+        }
     }
 
     /// Each break that the store marks ends the carry where it stands: a `seq` that is not one above, a `seq` that
