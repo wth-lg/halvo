@@ -236,6 +236,14 @@ pub trait SystemSources: SourceFactory {
     fn hold_refusal(&self) -> Option<DaemonError> {
         None
     }
+
+    /// The input source that this factory makes from now on asks its tap for
+    /// no key type while `refused`, whatever the system says of listening: the
+    /// supervisor's latch while the probe reads the grant of Input Monitoring
+    /// missing.
+    fn refuse_keys(&mut self, refused: bool) {
+        let _ = refused;
+    }
 }
 
 /// The answer of a client's request for the system's question about one
@@ -469,6 +477,10 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     client_polls: bool,
     polled_until: Option<Duration>,
     typing: bool,
+    /// The latch of the key types: set while the board does not read the grant
+    /// of Input Monitoring, so that every input source begun meanwhile asks its
+    /// tap for the pointer types alone ([`SystemSources::refuse_keys`]).
+    keys_refused: bool,
     ending: Option<Ending>,
     entered: bool,
     err: Box<dyn Write + Send>,
@@ -517,6 +529,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             client_polls: false,
             polled_until: None,
             typing: super::server::TYPING == Some(true),
+            keys_refused: false,
             ending: None,
             entered: false,
             err: Box::new(std::io::stderr()),
@@ -1210,7 +1223,10 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.served.is_some() && self.probe.is_some()
     }
 
-    fn withheld(&self, name: SourceName) -> bool {
+    /// Whether the board does not read the permission that `name` needs as
+    /// granted: in a run that reads grants any answer but granted, or no answer
+    /// yet; in another run an answer of not granted.
+    fn grant_missing(&self, name: SourceName) -> bool {
         if !self.reads_grants() {
             return self.missing_permission(name);
         }
@@ -1220,6 +1236,45 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 .permissions
                 .contains(&(permission, GrantState::Granted))
         })
+    }
+
+    /// Whether `name` begins without its grant: the input source while the
+    /// switch pointer_class is on, whose start asks its tap for the pointer
+    /// types alone where the key types are not allowed, so that a missing grant
+    /// takes its keys and never the source.
+    fn begins_without_its_grant(&self, name: SourceName) -> bool {
+        name == SourceName::Input && self.switches().is_on(crate::floor::Switch::PointerClass)
+    }
+
+    /// Whether `name` waits for its grant before it begins: a source whose
+    /// permission the board does not read as granted, but not one that begins
+    /// without its grant.
+    fn withheld(&self, name: SourceName) -> bool {
+        self.grant_missing(name) && !self.begins_without_its_grant(name)
+    }
+
+    /// The input source whose tap may hold key types although the board does
+    /// not read the grant of Input Monitoring: held, begun before the latch of
+    /// the key types was set, and its line not impaired with the reason
+    /// permission (the line of a tap whose start asked for the pointer types
+    /// alone).
+    fn keys_without_the_grant(&self) -> Option<SourceName> {
+        let name = SourceName::Input;
+        let pointer_alone = matches!(
+            self.sources.state(name),
+            Some((
+                SourceState::Impaired {
+                    reason: HealthReason::Permission
+                },
+                _
+            ))
+        );
+        (!self.keys_refused
+            && self.begins_without_its_grant(name)
+            && self.grant_missing(name)
+            && self.sources.holds(name)
+            && !pointer_alone)
+            .then_some(name)
     }
 
     fn waits_for_a_grant(&self, name: SourceName) -> bool {
@@ -1350,12 +1405,29 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         None
     }
 
+    /// The stop of every wanted source that the board does not read as
+    /// granted (contracts.md C14 item 9), and of an input source whose tap may
+    /// hold key types without the grant of Input Monitoring. While that grant
+    /// is missing the latch of the key types is set first, and such an input
+    /// source, once stopped, is begun again at once, its tap asking for the
+    /// pointer types alone; any other source stopped so reads failed with the
+    /// reason permission.
     fn stop_without_permission(&mut self, owner: Option<&dyn OwnerLink>) -> Option<Ending> {
+        let keys = self.keys_without_the_grant();
         let names: Vec<SourceName> = stop_order(self.platform)
             .iter()
             .copied()
-            .filter(|name| self.wanted.contains(name) && self.withheld(*name))
+            .filter(|name| {
+                self.wanted.contains(name) && (self.withheld(*name) || keys == Some(*name))
+            })
             .collect();
+        if !self.keys_refused
+            && self.begins_without_its_grant(SourceName::Input)
+            && self.grant_missing(SourceName::Input)
+        {
+            self.keys_refused = true;
+            self.factory.refuse_keys(true);
+        }
         let in_play = self.held(&names);
         let armed = owner.is_some()
             && !in_play.is_empty()
@@ -1364,6 +1436,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if armed {
             self.arm_entry(&in_play, exit::SOURCE_NOT_STOPPED);
         }
+        let mut again = Vec::new();
         for name in names {
             self.backoff.retain(|backoff| backoff.name != name);
             let error = CaptureError::Os {
@@ -1382,17 +1455,30 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                     continue;
                 }
             }
-            self.sources.set_state(
-                name,
-                SourceState::Failed {
-                    reason: HealthReason::Permission,
-                    error: error.clone(),
-                },
-            );
+            if keys == Some(name) {
+                again.push(name);
+            } else {
+                self.sources.set_state(
+                    name,
+                    SourceState::Failed {
+                        reason: HealthReason::Permission,
+                        error: error.clone(),
+                    },
+                );
+            }
             self.board.record_failure(name, error);
         }
         if armed {
             self.disarm();
+        }
+        if let Some(ctx) = self.ctx.clone().filter(|_| !self.stopped_for_drain) {
+            let now = self.main_loop.now();
+            for name in again {
+                if let Some(Err(error)) = self.sources.start_one(&mut self.factory, &ctx, name) {
+                    self.board.record_failure(name, error);
+                    self.schedule_restart(name, now);
+                }
+            }
         }
         None
     }
@@ -1684,7 +1770,17 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
     }
 
+    /// The restart of every wanted source that lost its grant or waits for it
+    /// and whose grant the board reads again. Where the latch of the key types
+    /// was set and the board reads the grant of Input Monitoring again, the
+    /// latch is let go and an input source whose line reads impaired with the
+    /// reason permission is begun again, asking for the key types.
     fn restart_granted_again(&mut self, now: Duration) {
+        let keys_back = self.keys_refused && !self.grant_missing(SourceName::Input);
+        if keys_back {
+            self.keys_refused = false;
+            self.factory.refuse_keys(false);
+        }
         if self.stopped_for_drain {
             return;
         }
@@ -1699,9 +1795,19 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                     }
                 )
             });
-            if (lost_its_grant || self.waits_for_a_grant(name))
+            let pointer_alone = keys_back
+                && name == SourceName::Input
+                && self.sources.holds(name)
+                && self.sources.state(name).is_some_and(|(state, _)| {
+                    *state
+                        == SourceState::Impaired {
+                            reason: HealthReason::Permission,
+                        }
+                });
+            if ((lost_its_grant || self.waits_for_a_grant(name))
                 && !self.withheld(name)
                 && !self.sources.holds(name)
+                || pointer_alone)
                 && !self.backoff.iter().any(|backoff| backoff.name == name)
             {
                 self.backoff.push(Backoff {
@@ -2190,7 +2296,11 @@ mod tests {
         }
     }
 
-    impl SystemSources for Factory {}
+    impl SystemSources for Factory {
+        fn refuse_keys(&mut self, refused: bool) {
+            self.keys_refused = refused;
+        }
+    }
 
     #[derive(Clone, Default)]
     struct Out(Arc<Mutex<Vec<u8>>>);
@@ -2352,6 +2462,10 @@ mod tests {
 
     fn two() -> [SourceName; 2] {
         [SourceName::Foreground, SourceName::Input]
+    }
+
+    fn with_screen() -> [SourceName; 2] {
+        [SourceName::Foreground, SourceName::Screen]
     }
 
     struct Panicking {
@@ -3026,8 +3140,13 @@ mod tests {
         Probed::Answered(vec![(Permission::InputMonitoring, grant)])
     }
 
+    fn screen_recording(grant: GrantState) -> Probed {
+        Probed::Answered(vec![(Permission::ScreenAndSystemAudioRecording, grant)])
+    }
+
     #[test]
-    fn input_monitoring_not_granted_stops_the_input_source_in_the_same_tick() {
+    fn a_lost_grant_stops_the_tap_with_the_key_types_and_begins_the_input_source_again_with_the_pointer_types_alone(
+    ) {
         let (mut f, answers, asked) = probed(fixture(Factory::new()));
         answers
             .borrow_mut()
@@ -3035,29 +3154,52 @@ mod tests {
         f.start(&two());
         f.tick();
         assert_eq!(f.state(SourceName::Input), SourceState::Running);
+        let counts = |f: &Fixture<Factory>| {
+            (
+                f.supervisor.factory().calls.of("stop input").len(),
+                f.supervisor.factory().calls.of("begin input").len(),
+                f.state(SourceName::Input),
+                f.supervisor.factory().keys_refused,
+            )
+        };
+        let pointer_alone = SourceState::Impaired {
+            reason: HealthReason::Permission,
+        };
         answers
             .borrow_mut()
             .push_back(input_monitoring(GrantState::NotGranted));
         f.later(PROBE_INTERVAL);
-        assert!(
-            matches!(
-                f.state(SourceName::Input),
-                SourceState::Failed {
-                    reason: HealthReason::Permission,
-                    ..
-                }
-            ),
-            "{:?}",
-            f.state(SourceName::Input)
+        assert_eq!(
+            counts(&f),
+            (1, 2, pointer_alone.clone(), true),
+            "one stop, then one begin with the key types refused, although the factory's own \
+             reading of listening allows them"
         );
-        assert_eq!(f.supervisor.factory().calls.of("stop input").len(), 1);
         for _ in 0..5 {
             answers
                 .borrow_mut()
                 .push_back(input_monitoring(GrantState::NotGranted));
             f.later(PROBE_INTERVAL);
         }
-        assert_eq!(f.supervisor.factory().calls.of("begin input").len(), 1);
+        assert_eq!(
+            counts(&f),
+            (1, 2, pointer_alone, true),
+            "five more answers without the grant stop and begin nothing"
+        );
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        assert_eq!(
+            f.later(PROBE_INTERVAL),
+            None,
+            "a grant held at the start ends nothing"
+        );
+        f.tick();
+        assert_eq!(
+            counts(&f),
+            (2, 3, SourceState::Running, false),
+            "the grant back: the latch let go and the source begun again with the key types"
+        );
         assert_eq!(f.state(SourceName::Foreground), SourceState::Running);
         assert!(asked
             .borrow()
@@ -3585,45 +3727,63 @@ mod tests {
     }
 
     #[test]
-    fn a_pointer_only_input_source_needs_no_grant_and_one_with_keys_waits_for_it() {
-        for typing in [false, true] {
-            let (mut f, answers, asked) = probed(fixture(Factory::new()));
-            f.supervisor = f.supervisor.with_typing(typing);
-            answers
-                .borrow_mut()
-                .push_back(input_monitoring(GrantState::NotGranted));
-            let ctx = f.ctx.clone();
-            f.supervisor.serve_sources(ctx, two().to_vec());
-            f.start(&two());
-            let begun_at_the_start = f.supervisor.factory().calls.of("begin input").len();
-            f.tick();
-            let begun = f.supervisor.factory().calls.of("begin input").len();
-            if typing {
-                assert_eq!(
-                    (begun_at_the_start, begun, asked.borrow().clone()),
-                    (0, 0, vec![vec![Permission::InputMonitoring]]),
-                    "an input source with keys"
-                );
-                assert!(
-                    matches!(
-                        f.state(SourceName::Input),
-                        SourceState::Failed {
-                            reason: HealthReason::Permission,
-                            ..
-                        }
-                    ),
-                    "{:?}",
-                    f.state(SourceName::Input)
-                );
-            } else {
-                assert_eq!(
-                    (begun_at_the_start, begun, asked.borrow().clone()),
-                    (1, 1, Vec::<Vec<Permission>>::new()),
-                    "a pointer-only input source"
-                );
-                assert_eq!(f.state(SourceName::Input), SourceState::Running);
-            }
-        }
+    fn a_served_run_begins_the_input_source_without_the_grant_and_its_capture_word_reads_running() {
+        let (mut f, answers, asked) = probed(fixture(Factory::new()));
+        f.supervisor = f.supervisor.with_typing(false);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::NotGranted));
+        let ctx = f.ctx.clone();
+        f.supervisor.serve_sources(ctx, two().to_vec());
+        f.start(&two());
+        f.tick();
+        assert_eq!(
+            (
+                f.supervisor.factory().calls.of("begin input").len(),
+                asked.borrow().clone(),
+                f.state(SourceName::Input),
+            ),
+            (1, Vec::<Vec<Permission>>::new(), SourceState::Running),
+            "with typing off the input source needs no grant and the probe asks for none"
+        );
+        let mut factory = Factory::new();
+        factory.listen_denied = true;
+        let (mut f, answers, asked) = probed(fixture(factory));
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::NotGranted));
+        let ctx = f.ctx.clone();
+        f.supervisor.serve_sources(ctx, two().to_vec());
+        f.start(&two());
+        let begun_at_the_start = f.supervisor.factory().calls.of("begin input").len();
+        f.tick();
+        assert_eq!(
+            (
+                begun_at_the_start,
+                f.supervisor.factory().calls.of("begin input").len(),
+                f.supervisor.factory().calls.of("stop input").len(),
+                asked.borrow().clone(),
+            ),
+            (1, 1, 0, vec![vec![Permission::InputMonitoring]]),
+            "begun before the probe's answer and not stopped at it; the probe asks Input Monitoring"
+        );
+        assert_eq!(
+            (f.state(SourceName::Input), f.supervisor.board().capture),
+            (
+                SourceState::Impaired {
+                    reason: HealthReason::Permission
+                },
+                Capture::Running
+            )
+        );
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        assert_eq!(
+            f.later(PROBE_INTERVAL),
+            Some(Ending::Restart),
+            "the grant ends the run with the restart, as today"
+        );
     }
 
     #[test]
@@ -4800,31 +4960,31 @@ mod tests {
         // sequence if the run still wants its sources". The run wants input, but its grant reads
         // NotGranted: the start on DrainHealthy must not begin a second input source.
         #[test]
-        fn the_start_on_drain_healthy_skips_an_input_source_whose_grant_reads_not_granted() {
+        fn the_start_on_drain_healthy_skips_a_screen_source_whose_grant_reads_not_granted() {
             let store = ModelStore::new();
             let (mut f, answers, _) = probed(fixture_on_owner(Factory::new(), store.clone()));
             answers
                 .borrow_mut()
-                .push_back(input_monitoring(GrantState::Granted));
-            f.start(&two());
+                .push_back(screen_recording(GrantState::Granted));
+            f.start(&with_screen());
             f.tick();
-            assert_eq!(f.state(SourceName::Input), SourceState::Running);
+            assert_eq!(f.state(SourceName::Screen), SourceState::Running);
             answers
                 .borrow_mut()
-                .push_back(input_monitoring(GrantState::NotGranted));
+                .push_back(screen_recording(GrantState::NotGranted));
             f.later(PROBE_INTERVAL);
             assert!(
                 matches!(
-                    f.state(SourceName::Input),
+                    f.state(SourceName::Screen),
                     SourceState::Failed {
                         reason: HealthReason::Permission,
                         ..
                     }
                 ),
                 "{:?}",
-                f.state(SourceName::Input)
+                f.state(SourceName::Screen)
             );
-            assert_eq!(f.supervisor.factory().calls.of("begin input").len(), 1);
+            assert_eq!(f.supervisor.factory().calls.of("begin screen").len(), 1);
             drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
             f.tick();
             assert_eq!(f.supervisor.board().capture, Capture::Stopped);
@@ -4838,9 +4998,9 @@ mod tests {
                 "the drain did not recover in this test"
             );
             assert_eq!(
-                f.supervisor.factory().calls.of("begin input").len(),
+                f.supervisor.factory().calls.of("begin screen").len(),
                 1,
-                "DrainHealthy began an input source whose Input Monitoring grant reads not granted"
+                "DrainHealthy began a screen source whose screen recording grant reads not granted"
             );
         }
 
@@ -4848,18 +5008,18 @@ mod tests {
         // went away must not fire after the drain recovers either (restarts scheduled before a drain
         // stop do not fire while stopped, and the permission still reads not granted after it).
         #[test]
-        fn an_input_restart_scheduled_before_the_grant_went_away_does_not_fire_after_drain_recovery(
+        fn a_screen_restart_scheduled_before_the_grant_went_away_does_not_fire_after_drain_recovery(
         ) {
             let store = ModelStore::new();
             let (mut f, answers, _) = probed(fixture_on_owner(Factory::new(), store.clone()));
             answers
                 .borrow_mut()
-                .push_back(input_monitoring(GrantState::Granted));
-            f.start(&two());
+                .push_back(screen_recording(GrantState::Granted));
+            f.start(&with_screen());
             f.tick();
             f.supervisor
                 .factory()
-                .health_of(SourceName::Input)
+                .health_of(SourceName::Screen)
                 .set(SourceState::Failed {
                     reason: HealthReason::ItemClosed,
                     error: CaptureError::Os {
@@ -4871,12 +5031,12 @@ mod tests {
             f.tick();
             answers
                 .borrow_mut()
-                .push_back(input_monitoring(GrantState::NotGranted));
+                .push_back(screen_recording(GrantState::NotGranted));
             f.later(PROBE_INTERVAL);
             // The restart due at 1 s fires in this same tick before the probe answer is read, and the
             // answer then stops it: count the begins from here on.
-            let begun = f.supervisor.factory().calls.of("begin input").len();
-            assert!(!f.supervisor.factory().calls.of("stop input").is_empty());
+            let begun = f.supervisor.factory().calls.of("begin screen").len();
+            assert!(!f.supervisor.factory().calls.of("stop screen").is_empty());
             drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
             f.tick();
             store.fail_every_write(None);
@@ -4885,9 +5045,9 @@ mod tests {
             f.tick();
             f.later(RESTART_MAX);
             assert_eq!(
-                f.supervisor.factory().calls.of("begin input").len(),
+                f.supervisor.factory().calls.of("begin screen").len(),
                 begun,
-                "an input source began again while its grant reads not granted"
+                "a screen source began again while its grant reads not granted"
             );
         }
 
@@ -5163,28 +5323,28 @@ mod tests {
             let (mut f, answers, _) = probed(fixture(Factory::new()));
             answers
                 .borrow_mut()
-                .push_back(input_monitoring(GrantState::Granted));
-            f.start(&two());
+                .push_back(screen_recording(GrantState::Granted));
+            f.start(&with_screen());
             f.tick();
-            assert_eq!(f.state(SourceName::Input), SourceState::Running);
+            assert_eq!(f.state(SourceName::Screen), SourceState::Running);
             answers
                 .borrow_mut()
-                .push_back(input_monitoring(GrantState::NotGranted));
+                .push_back(screen_recording(GrantState::NotGranted));
             f.later(PROBE_INTERVAL);
             assert!(
                 matches!(
-                    f.state(SourceName::Input),
+                    f.state(SourceName::Screen),
                     SourceState::Failed {
                         reason: HealthReason::Permission,
                         ..
                     }
                 ),
                 "{:?}",
-                f.state(SourceName::Input)
+                f.state(SourceName::Screen)
             );
             answers
                 .borrow_mut()
-                .push_back(input_monitoring(GrantState::Granted));
+                .push_back(screen_recording(GrantState::Granted));
             let mut ending = f.later(PROBE_INTERVAL);
             for _ in 0..4 {
                 if ending.is_some() {
@@ -5192,14 +5352,14 @@ mod tests {
                 }
                 ending = f.later(RESTART_MAX);
             }
-            let begun = f.supervisor.factory().calls.of("begin input").len();
+            let begun = f.supervisor.factory().calls.of("begin screen").len();
             assert!(
         ending == Some(Ending::Restart)
-            || (begun == 2 && f.state(SourceName::Input) == SourceState::Running),
-        "the probe read granted again, yet the input source stays down: ending {:?}, begins {}, state {:?}",
+            || (begun == 2 && f.state(SourceName::Screen) == SourceState::Running),
+        "the probe read granted again, yet the screen source stays down: ending {:?}, begins {}, state {:?}",
         ending,
         begun,
-        f.state(SourceName::Input)
+        f.state(SourceName::Screen)
     );
         }
 
@@ -5214,19 +5374,19 @@ mod tests {
             let (mut f, answers, _) = probed(fixture_on_owner(Factory::new(), store.clone()));
             answers
                 .borrow_mut()
-                .push_back(input_monitoring(GrantState::NotGranted));
-            f.start(&two());
+                .push_back(screen_recording(GrantState::NotGranted));
+            f.start(&with_screen());
             f.tick();
             assert!(
                 matches!(
-                    f.state(SourceName::Input),
+                    f.state(SourceName::Screen),
                     SourceState::Failed {
                         reason: HealthReason::Permission,
                         ..
                     }
                 ),
                 "{:?}",
-                f.state(SourceName::Input)
+                f.state(SourceName::Screen)
             );
             drain_fails(&f, &store, WriteFault::Io(std::io::ErrorKind::Other));
             f.tick();
@@ -5240,20 +5400,20 @@ mod tests {
                 f.supervisor.factory().calls.of("begin ")
             );
             assert_eq!(
-        f.supervisor.factory().calls.of("begin input").len(),
+        f.supervisor.factory().calls.of("begin screen").len(),
         1,
-        "the drain recovery started the input source while Input Monitoring reads not_granted"
+        "the drain recovery started the screen source while Screen and System Audio Recording reads not_granted"
     );
             assert!(
                 matches!(
-                    f.state(SourceName::Input),
+                    f.state(SourceName::Screen),
                     SourceState::Failed {
                         reason: HealthReason::Permission,
                         ..
                     }
                 ),
                 "{:?}",
-                f.state(SourceName::Input)
+                f.state(SourceName::Screen)
             );
         }
 
@@ -5264,36 +5424,36 @@ mod tests {
         #[test]
         fn a_source_whose_start_failed_shows_reason_permission_once_the_probe_reads_not_granted() {
             let (mut f, answers, _) = probed(fixture(Factory::adjusting(|source| {
-                if source.name == SourceName::Input {
+                if source.name == SourceName::Screen {
                     source.begin = Err(CaptureError::Start("the tap was not made".to_owned()));
                 }
             })));
             answers
                 .borrow_mut()
-                .push_back(input_monitoring(GrantState::NotGranted));
-            f.start(&two());
+                .push_back(screen_recording(GrantState::NotGranted));
+            f.start(&with_screen());
             f.tick();
             assert!(
                 matches!(
-                    f.state(SourceName::Input),
+                    f.state(SourceName::Screen),
                     SourceState::Failed {
                         reason: HealthReason::Permission,
                         ..
                     }
                 ),
-                "Input Monitoring reads not_granted, yet the input line is {:?}",
-                f.state(SourceName::Input)
+                "Screen and System Audio Recording reads not_granted, yet the screen line is {:?}",
+                f.state(SourceName::Screen)
             );
             for _ in 0..3 {
                 answers
                     .borrow_mut()
-                    .push_back(input_monitoring(GrantState::NotGranted));
+                    .push_back(screen_recording(GrantState::NotGranted));
                 f.later(PROBE_INTERVAL);
             }
             assert_eq!(
-                f.supervisor.factory().calls.of("begin input").len(),
+                f.supervisor.factory().calls.of("begin screen").len(),
                 1,
-                "the input source was started again while the answer stays not_granted"
+                "the screen source was started again while the answer stays not_granted"
             );
         }
 

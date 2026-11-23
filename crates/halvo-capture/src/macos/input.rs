@@ -520,6 +520,21 @@ fn events_of_interest(switches: Switches, typing: bool) -> Vec<CGEventType> {
         .collect()
 }
 
+/// `events` without the key types: the mask of a start that may not listen
+/// to keys.
+fn without_keys(events: &[CGEventType]) -> Vec<CGEventType> {
+    events
+        .iter()
+        .copied()
+        .filter(|&etype| {
+            !matches!(
+                tap_class(etype),
+                Some(TapClass::KeyPress | TapClass::OtherKey)
+            )
+        })
+        .collect()
+}
+
 fn mask_of(events: &[CGEventType]) -> u64 {
     events
         .iter()
@@ -628,6 +643,7 @@ trait TapMaker {
     fn enable(tap: Self::Tap, port: TapPort) -> Result<Self::Enabled, CaptureError>;
 }
 
+#[derive(Clone)]
 struct SystemTapMaker;
 
 impl TapMaker for SystemTapMaker {
@@ -848,6 +864,10 @@ struct TapContext {
     folds: Mutex<Folds>,
     fold_timer: Mutex<Option<ReadingTimer>>,
     held_phase: Arc<AtomicBool>,
+    /// Whether the start of this context asked its tap for key types: a key
+    /// event that reaches a context whose start asked for none makes no record,
+    /// whatever sent it.
+    keys_asked: bool,
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
     drops: Option<DropCounts>,
 }
@@ -1578,7 +1598,9 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
         return;
     }
     let kind = match kind_of(event.etype, key_code, event.flags, autorepeat) {
-        Kind::Key(_) if !ctx.floor.switches().is_on(Switch::KeyClass) => Kind::Reading,
+        Kind::Key(_) if !ctx.keys_asked || !ctx.floor.switches().is_on(Switch::KeyClass) => {
+            Kind::Reading
+        }
         kind => kind,
     };
     if kind == Kind::Ignore {
@@ -1732,6 +1754,7 @@ fn tap_context(
         folds: Mutex::new(Folds::default()),
         fold_timer: Mutex::new(None),
         held_phase: Arc::new(AtomicBool::new(false)),
+        keys_asked: true,
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
         drops: None,
     }
@@ -2168,11 +2191,19 @@ impl TapThread {
     }
 }
 
+/// The call that a start makes on its tap thread before its run loop runs,
+/// kept for the one start of a begin that installs its tap.
+type BeforeRun = Arc<Mutex<Option<Box<dyn FnOnce() + Send>>>>;
+
 pub struct InputSource {
     foreground: ForegroundReader,
     floor: FloorHandle,
     off: bool,
     keys_missing: Arc<AtomicBool>,
+    /// Every start asks its tap for no key type, whatever the system says of
+    /// listening: the supervisor's word after a probe read the grant of Input
+    /// Monitoring missing ([`InputSource::with_keys_refused`]).
+    keys_refused: bool,
     #[cfg(any(test, debug_assertions))]
     typed: fn() -> u32,
     counters: InputCounters,
@@ -2266,6 +2297,7 @@ impl InputSource {
             floor: FloorHandle::default(),
             off: false,
             keys_missing: Arc::new(AtomicBool::new(false)),
+            keys_refused: false,
             #[cfg(any(test, debug_assertions))]
             typed: hid_key_downs,
             counters,
@@ -2293,6 +2325,14 @@ impl InputSource {
         }
     }
 
+    /// The source whose every start asks its tap for the pointer types alone
+    /// while `refused`, whatever the system says of listening, and reads
+    /// impaired with the reason permission where the key types would be asked.
+    pub fn with_keys_refused(mut self, refused: bool) -> Self {
+        self.keys_refused = refused;
+        self
+    }
+
     /// The status with which the system refused the hold of the plan, once the
     /// tap thread asked for it.
     pub fn hold_refusal(&self) -> Option<SecureInputRefused> {
@@ -2312,7 +2352,14 @@ impl InputSource {
         events_of_interest(switches, TYPING_ON_MAC)
     }
 
-    fn begin_with<M: TapMaker + Send + 'static>(
+    /// A start: with the key types where they are asked, neither refused
+    /// ([`InputSource::with_keys_refused`]) nor denied by the system's reading
+    /// of listening, and the tap that the system makes holds them; otherwise a
+    /// start whose tap asks for the pointer types alone (a tap that the system
+    /// made without the key types is let go first), which reads impaired with
+    /// the reason permission, or fails as a refused start when nothing else is
+    /// asked or that tap is not made either.
+    fn begin_with<M: TapMaker + Clone + Send + 'static>(
         &mut self,
         sink: SinkHandle,
         maker: M,
@@ -2334,11 +2381,36 @@ impl InputSource {
             self.failure = None;
             return Ok(Started::Off);
         }
-        if mask_of(&events) & KEY_EVENTS != 0 && M::preflight_denied() {
-            let refused = CaptureError::PermissionDenied(Modality::Keystroke);
-            self.failure = Some(refused.clone());
-            return Err(refused);
+        let before_run: BeforeRun = Arc::new(Mutex::new(Some(Box::new(before_run))));
+        let pointer = without_keys(&events);
+        let keys = pointer.len() < events.len();
+        if keys && !self.keys_refused && !M::preflight_denied() {
+            match self.start_tap(sink.clone(), maker.clone(), events, before_run.clone()) {
+                Err(_) if self.keys_missing.load(Ordering::SeqCst) => {}
+                answer => return answer,
+            }
         }
+        if keys {
+            self.keys_missing.store(true, Ordering::SeqCst);
+            if pointer.is_empty() {
+                let refused = CaptureError::PermissionDenied(Modality::Keystroke);
+                self.failure = Some(refused.clone());
+                return Err(refused);
+            }
+        }
+        self.start_tap(sink, maker, pointer, before_run)
+    }
+
+    /// One tap of `events` on its own thread, with the notice thread where the
+    /// maker watches the focus.
+    fn start_tap<M: TapMaker + Send + 'static>(
+        &mut self,
+        sink: SinkHandle,
+        maker: M,
+        events: Vec<CGEventType>,
+        before_run: BeforeRun,
+    ) -> Result<Started, CaptureError> {
+        let keys_asked = without_keys(&events).len() < events.len();
         let settings = TapSettings {
             session: self.session,
             events,
@@ -2357,6 +2429,7 @@ impl InputSource {
         ctx.step = self.step;
         ctx.floor = self.floor.clone();
         ctx.port = TapPort::with_enable(self.tap_enable);
+        ctx.keys_asked = keys_asked;
         let port = ctx.port.clone();
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
         {
@@ -2409,7 +2482,15 @@ impl InputSource {
             },
             stop,
             port,
-            before_run,
+            move || {
+                let run = before_run
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .take();
+                if let Some(run) = run {
+                    run();
+                }
+            },
         );
         match started {
             Ok(tap) => {
@@ -2505,20 +2586,21 @@ impl CaptureSource for InputSource {
     /// keys first; with no mark it sets it. The figure max_lag_ms is the
     /// largest age in ms of a key at its arrival, from its OS time to its
     /// entry (`note_lag`); a pointer event, and a key whose times give no age
-    /// (untimed, asleep, unclocked or noticed), leave it as it is.
+    /// (untimed, asleep, unclocked or noticed), leave it as it is. A tap whose
+    /// start asked for the pointer types alone where typing and key_class would
+    /// ask for the key types reads impaired with the reason permission, before
+    /// any other reason, so that its line tells that it holds no key type; a
+    /// tap whose start asked for the key types never reads so.
     fn health(&self) -> SourceHealth {
         let state = match (&self.tap, &self.failure) {
             (Some(tap), _) if tap.ended() => source_failure(CaptureError::ThreadEnded),
+            (Some(_), _) if self.keys_missing.load(Ordering::SeqCst) => SourceState::Impaired {
+                reason: HealthReason::Permission,
+            },
             (Some(_), _) if self.counters.stalled() => SourceState::Impaired {
                 reason: HealthReason::RunLoopStalled,
             },
             (Some(_), _) => SourceState::Running,
-            (None, Some(error)) if self.keys_missing.load(Ordering::SeqCst) => {
-                SourceState::Failed {
-                    reason: HealthReason::NoKeyEvents,
-                    error: error.clone(),
-                }
-            }
             (None, Some(error)) => source_failure(error.clone()),
             (None, None) if self.off => SourceState::Off,
             (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
@@ -6472,6 +6554,7 @@ mod tests {
         assert_eq!(after.0, after.1, "after the hold: (reader, session)");
     }
 
+    #[derive(Clone)]
     struct CountingMaker(Arc<AtomicUsize>);
 
     impl TapMaker for CountingMaker {
@@ -6513,6 +6596,7 @@ mod tests {
         crate::secure_input_macos::hold_with(timed_take, timed_give_back)
     }
 
+    #[derive(Clone)]
     struct TimingMaker;
 
     impl TapMaker for TimingMaker {
@@ -6741,6 +6825,7 @@ mod tests {
     type KeptCallback =
         Box<dyn Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send>;
 
+    #[derive(Clone)]
     struct KeepingMaker(Arc<Mutex<Option<KeptCallback>>>);
 
     impl TapMaker for KeepingMaker {
@@ -7195,6 +7280,7 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
     struct FakeMaker(std::sync::mpsc::Sender<()>);
 
     impl TapMaker for FakeMaker {
@@ -7387,6 +7473,7 @@ mod tests {
         );
     }
 
+    #[derive(Clone)]
     struct PortMaker(std::sync::mpsc::Sender<()>, *mut c_void);
 
     // SAFETY: the pointer is a made-up address that only the recording enable
@@ -7874,29 +7961,7 @@ mod tests {
         assert!(key_events_granted(0x0E40_00FE, 0));
     }
 
-    struct DeniedMaker(Arc<AtomicUsize>);
-
-    impl TapMaker for DeniedMaker {
-        type Tap = ();
-        type Enabled = ();
-
-        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
-        where
-            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
-        {
-            self.0.fetch_add(1, Ordering::SeqCst);
-            Err(())
-        }
-
-        fn listen_denied() -> bool {
-            true
-        }
-
-        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
-            Ok(())
-        }
-    }
-
+    #[derive(Clone)]
     struct MadeMaker(Arc<AtomicUsize>);
 
     impl TapMaker for MadeMaker {
@@ -7928,27 +7993,6 @@ mod tests {
     }
 
     #[test]
-    fn a_start_without_the_grant_for_key_events_fails_with_the_permission_error_and_makes_no_tap() {
-        let (handle, _writer) = sink::channel(4);
-        let made = Arc::new(AtomicUsize::new(0));
-        let mut source = source_switched(switches_with(true, true));
-        source.typing_kept_on = true;
-        let begun = source.begin_with(handle, DeniedMaker(made.clone()), || {});
-        assert_eq!(
-            begun,
-            Err(CaptureError::PermissionDenied(Modality::Keystroke))
-        );
-        assert_eq!(made.load(Ordering::SeqCst), 0, "no tap was asked for");
-        assert!(matches!(
-            source.health().state,
-            SourceState::Failed {
-                reason: HealthReason::Permission,
-                ..
-            }
-        ));
-    }
-
-    #[test]
     fn with_both_switches_off_the_source_answers_off_and_makes_no_tap() {
         let (handle, _writer) = sink::channel(4);
         let made = Arc::new(AtomicUsize::new(0));
@@ -7960,57 +8004,90 @@ mod tests {
         assert_eq!(source.shutdown(), Ok(()));
     }
 
-    struct KeylessMaker;
+    type TapLog = Arc<Mutex<Vec<(&'static str, u64)>>>;
+
+    #[derive(Clone)]
+    struct KeylessMaker(TapLog);
 
     impl TapMaker for KeylessMaker {
-        type Tap = ();
+        type Tap = TapLog;
         type Enabled = ();
 
-        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        fn make<F>(self, settings: TapSettings, _callback: F) -> Result<TapLog, ()>
         where
             F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
         {
-            Ok(())
+            self.0
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(("make", mask_of(&settings.events)));
+            Ok(self.0)
         }
 
         fn listen_denied() -> bool {
             false
         }
 
-        fn granted_events(_tap: &(), _requested: u64) -> u64 {
-            0x0E40_10FE
+        fn granted_events(_tap: &TapLog, requested: u64) -> u64 {
+            requested & !KEY_EVENTS
         }
 
-        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
-            panic!("a tap granted without key events is not enabled")
+        fn enable(tap: TapLog, _port: TapPort) -> Result<(), CaptureError> {
+            tap.lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(("enable", 0));
+            Ok(())
         }
     }
 
     #[test]
-    fn a_tap_granted_without_the_key_types_fails_its_start_and_reads_no_key_events() {
-        let held = held(100);
-        let Held { ctx, .. } = held;
-        let missing = Arc::new(AtomicBool::new(false));
-        let settings = TapSettings {
-            events: events_of_interest(Switches::default(), true),
-            ..stand_in_settings()
-        };
-        let installed = install_tap(*ctx, settings, KeylessMaker, missing.clone());
+    fn a_tap_that_the_system_made_without_the_key_types_is_let_go_for_one_that_asks_for_the_pointer_types_alone(
+    ) {
+        let (handle, _writer) = sink::channel(4);
+        let log = TapLog::default();
+        let both = switches_with(true, true);
+        let mut source = source_switched(both);
+        let begun = source.begin_with(handle, KeylessMaker(log.clone()), || {});
+        let state = source.health().state;
+        let stopped = source.shutdown();
         assert_eq!(
-            installed.err(),
-            Some(CaptureError::PermissionDenied(Modality::Keystroke))
+            begun,
+            Ok(Started::Running),
+            "the tap of the pointer types runs"
         );
-        assert!(missing.load(Ordering::SeqCst));
-        let mut source = source_switched(switches_with(true, true));
-        source.keys_missing = missing;
-        source.failure = Some(CaptureError::PermissionDenied(Modality::Keystroke));
-        assert!(matches!(
-            source.health().state,
-            SourceState::Failed {
-                reason: HealthReason::NoKeyEvents,
-                ..
+        assert_eq!(
+            *log.lock().unwrap_or_else(PoisonError::into_inner),
+            [
+                ("make", mask_of(&events_of_interest(both, true))),
+                ("make", mask_of(&events_of_interest(both, false))),
+                ("enable", 0),
+            ],
+            "the tap that asked for the key types is not enabled; the one that runs asked for none"
+        );
+        assert_eq!(
+            state,
+            SourceState::Impaired {
+                reason: HealthReason::Permission
             }
-        ));
+        );
+        assert_eq!(stopped, Ok(()));
+    }
+
+    #[test]
+    fn a_key_event_at_a_context_whose_start_asked_for_no_key_type_makes_no_record() {
+        let mut records = Vec::new();
+        for keys_asked in [true, false] {
+            let mut held = held(100);
+            held.ctx.keys_asked = keys_asked;
+            key_down(&held.ctx);
+            ticks(&held.ctx, 200);
+            records.push(keystrokes(&held.writer));
+        }
+        assert_eq!(
+            records,
+            [1, 0],
+            "a key-down at a context whose start asked for the key types, then for none"
+        );
     }
 
     #[test]
@@ -8362,6 +8439,7 @@ mod tests {
         );
     }
 
+    #[derive(Clone)]
     struct GrantlessMaker(Arc<AtomicUsize>);
 
     impl TapMaker for GrantlessMaker {
@@ -8404,9 +8482,10 @@ mod tests {
         assert_eq!(source.shutdown(), Ok(()));
     }
 
-    struct AskedMaker(Arc<Mutex<Vec<CGEventType>>>);
+    #[derive(Clone)]
+    struct AskedMaker<const DENIED: bool>(Arc<Mutex<Vec<CGEventType>>>);
 
-    impl TapMaker for AskedMaker {
+    impl<const DENIED: bool> TapMaker for AskedMaker<DENIED> {
         type Tap = ();
         type Enabled = ();
 
@@ -8419,7 +8498,7 @@ mod tests {
         }
 
         fn listen_denied() -> bool {
-            true
+            DENIED
         }
 
         fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
@@ -8428,55 +8507,57 @@ mod tests {
     }
 
     #[test]
-    fn a_source_of_new_with_the_default_switches_refuses_with_the_permission_error_and_makes_no_tap_where_listen_access_is_denied(
+    fn a_start_asks_its_tap_for_the_pointer_types_alone_and_reads_impaired_for_permission_where_the_key_types_are_not_allowed(
     ) {
         let (handle, _writer) = sink::channel(4);
         let asked = Arc::new(Mutex::new(Vec::new()));
         let (_fg_writer, reader) = foreground_state_for_test();
         let mut source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
-        let begun = source.begin_with(handle, AskedMaker(asked.clone()), || {});
-        assert_eq!(
-            begun,
-            Err(CaptureError::PermissionDenied(Modality::Keystroke)),
-            "a Mac build with typing on asks the grant for key events"
-        );
-        assert!(
-            asked
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .is_empty(),
-            "no tap was asked for"
-        );
-        assert!(source.tap.is_none(), "no tap thread");
-        assert!(matches!(
-            source.health().state,
-            SourceState::Failed {
-                reason: HealthReason::Permission,
-                ..
-            }
-        ));
-        assert!(!source.counters.figures().keys_withheld);
-        assert_eq!(source.shutdown(), Ok(()));
-    }
-
-    #[test]
-    fn a_refused_start_after_a_keyless_refusal_reads_the_reason_permission() {
-        let (handle, _writer) = sink::channel(4);
-        let made = Arc::new(AtomicUsize::new(0));
-        let mut source = source_switched(switches_with(true, true));
-        source.typing_kept_on = true;
-        source.keys_missing.store(true, Ordering::SeqCst);
-        let begun = source.begin_with(handle, DeniedMaker(made.clone()), || {});
-        assert_eq!(
-            begun,
-            Err(CaptureError::PermissionDenied(Modality::Keystroke))
-        );
-        assert_eq!(made.load(Ordering::SeqCst), 0, "no tap was asked for");
-        let reason = match source.health().state {
-            SourceState::Failed { reason, .. } => Some(reason),
-            _ => None,
+        let both = switches_with(true, true);
+        let types = |events: &[CGEventType]| events.iter().map(|&e| e as u32).collect::<Vec<_>>();
+        let pointer = types(&events_of_interest(both, false));
+        let keys = types(&events_of_interest(both, true));
+        let start = |source: &mut InputSource, denied: bool| {
+            let begun = if denied {
+                source.begin_with(handle.clone(), AskedMaker::<true>(asked.clone()), || {})
+            } else {
+                source.begin_with(handle.clone(), AskedMaker::<false>(asked.clone()), || {})
+            };
+            let state = source.health().state;
+            assert_eq!(source.shutdown(), Ok(()));
+            let events = std::mem::take(&mut *asked.lock().unwrap_or_else(PoisonError::into_inner));
+            (begun, types(&events), state)
         };
-        assert_eq!(reason, Some(HealthReason::Permission));
+        let impaired = SourceState::Impaired {
+            reason: HealthReason::Permission,
+        };
+        assert_eq!(
+            start(&mut source, true),
+            (Ok(Started::Running), pointer.clone(), impaired.clone()),
+            "listening not allowed"
+        );
+        assert_eq!(
+            start(&mut source, false),
+            (Ok(Started::Running), keys, SourceState::Running),
+            "listening allowed, after a start without it"
+        );
+        source.keys_refused = true;
+        assert_eq!(
+            start(&mut source, false),
+            (Ok(Started::Running), pointer.clone(), impaired),
+            "the key types refused while the system allows listening"
+        );
+        source.keys_refused = false;
+        source.floor = FloorHandle::new(
+            None,
+            Arc::new(crate::floor::exclude::NoLineage),
+            switches_with(false, true),
+        );
+        assert_eq!(
+            start(&mut source, true),
+            (Ok(Started::Running), pointer, SourceState::Running),
+            "the switch of keys off: nothing asked is missing"
+        );
     }
 
     fn fold_fifty(ctx: &TapContext) {
@@ -8547,6 +8628,7 @@ mod tests {
         phase.end();
     }
 
+    #[derive(Clone)]
     struct CallbackMaker(Arc<Mutex<Option<KeptCallback>>>);
 
     impl TapMaker for CallbackMaker {
@@ -8820,6 +8902,7 @@ mod tests {
         crate::secure_input_macos::hold_with(shim_refuse, shim_disable)
     }
 
+    #[derive(Clone)]
     struct LoggingMaker;
 
     struct LoggedTap;
@@ -8954,6 +9037,7 @@ mod tests {
         assert_eq!(source.hold_refusal(), None);
     }
 
+    #[derive(Clone)]
     struct FailingMaker;
 
     impl TapMaker for FailingMaker {

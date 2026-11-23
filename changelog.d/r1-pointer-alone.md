@@ -1,0 +1,1 @@
+- Changed: On a Mac where Input Monitoring is not allowed, Halvo records clicks and scrolling as before and no typing, and its list says "Halvo does not record what you type." until you allow it. Before, Halvo recorded neither clicks nor scrolling there and its list said nothing of either.
