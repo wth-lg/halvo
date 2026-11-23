@@ -245,6 +245,13 @@ const WORDS = {
   MODEL_KEY_LABEL: "Key for {host}",
   MODEL_KEY_TEXT: "Paste the key from your account at {host}. Halvo keeps it on this computer, protected in the same way as your recordings, and sends it to {host} alone.",
   MODEL_KEY_SAVE: "Save the key",
+  MODEL_KEY_SAVED: "A key is saved.",
+  MODEL_KEY_NONE: "No key is saved.",
+  MODEL_KEY_NOT_KNOWN: "Halvo cannot tell just now whether a key is saved.",
+  MODEL_KEY_REMOVE: "Remove the key",
+  MODEL_KEY_REMOVE_QUESTION: "Remove the key? Agents that use an AI model at {host} then stop and hand their work back to you until you add a key.",
+  MODEL_KEY_KEEP: "Keep the key",
+  MODEL_KEY_REMOVE_FAILED: "Halvo could not finish this. If this page still says that a key is saved, choose Remove the key again.",
 };
 
 const OWNER = {
