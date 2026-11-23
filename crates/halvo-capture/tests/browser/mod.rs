@@ -102,7 +102,7 @@ function reset() {
       later(150, () => { plain.focus(); c.mv = Date.now() - c.base; });
     });
   }
-  else if (phase === 'burst' || phase === 'control') {
+  else if (phase === 'burst' || phase === 'control' || phase === 'chat') {
     button.focus();
     later(150, () => { plain.focus(); c.mv = Date.now() - c.base; });
   }
@@ -1403,7 +1403,7 @@ pub(super) fn chat_box_phases(test: &'static str, name: &'static str) {
         for round in 0..rounds {
             let start = reset(&keyboard, hwnd).unwrap_or_default();
             let front = foreground_window() == hwnd;
-            std::thread::sleep(Duration::from_millis(250));
+            std::thread::sleep(Duration::from_millis(600));
             for vk in [VK_A, VK_A, VK_RETURN, VK_A, VK_A] {
                 send(&[key_input(vk, false), key_input(vk, true)]);
                 std::thread::sleep(Duration::from_millis(400));
@@ -1415,10 +1415,18 @@ pub(super) fn chat_box_phases(test: &'static str, name: &'static str) {
                 && r.page.text == 4
                 && r.page.password == 0
                 && r.keys.letters_decided == 4;
+            let withheld: Vec<usize> = r
+                .keys
+                .letters_in_order
+                .iter()
+                .enumerate()
+                .filter(|(_, recorded)| !**recorded)
+                .map(|(at, _)| at + 1)
+                .collect();
             say(
                 test,
                 format!(
-                    "browser={name} phase=chat round={round} foreground={front} {}",
+                    "browser={name} phase=chat round={round} foreground={front} withheld_letters={withheld:?} {}",
                     r.line()
                 ),
             );

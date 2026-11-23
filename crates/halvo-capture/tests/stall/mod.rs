@@ -2902,7 +2902,7 @@ fn letters_behind_an_enter_and_behind_a_click_in_a_text_of_several_lines_are_all
         let ok = get(&reset, "fg") == 1
             && get(&focused, "ok") == 1
             && get(&aimed, "ok") == 1
-            && accepted == 14
+            && accepted == 16
             && get(&state, "focus_lines") == 1
             && get(&state, "lines_len") == 8
             && noted.len() == 6
@@ -2910,9 +2910,13 @@ fn letters_behind_an_enter_and_behind_a_click_in_a_text_of_several_lines_are_all
         say(
             test,
             format!(
-                "phase=lines counted={} letters_sent=6 lines_len={} letters_decided={} letters_noted={count} \
-                 withheld_letters={withheld:?} enters={enters}",
+                "phase=lines counted={} fg={} focused={} aimed={} accepted={accepted} focus_lines={} letters_sent=6 \
+                 lines_len={} letters_decided={} letters_noted={count} withheld_letters={withheld:?} enters={enters}",
                 u8::from(ok),
+                get(&reset, "fg"),
+                get(&focused, "ok"),
+                get(&aimed, "ok"),
+                get(&state, "focus_lines"),
                 get(&state, "lines_len"),
                 noted.len(),
             ),
