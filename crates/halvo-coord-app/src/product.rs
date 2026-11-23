@@ -1232,12 +1232,12 @@ fn entry_of(entry: &Value) -> Option<(Agent<AgentConfig>, Option<Agreement>)> {
 /// handed to that read, and the read calls none of those commands. That memory guards the start of a new count, and
 /// only an answer of the part itself may move it (the coordinator's log line 18047).
 #[derive(Debug, Default)]
-struct RowsMemory(Memory);
+pub(crate) struct RowsMemory(Memory);
 
 /// What one list of the agents read of this build's host for the agents' rows (r4 U3.17b): the host, the model words
 /// that a yes covers, whether a key is saved (none where its state does not read) and the person's spending limit.
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct Hosting {
+pub(crate) struct Hosting {
     host: String,
     models: String,
     key: Option<bool>,
@@ -1250,7 +1250,7 @@ struct Hosting {
 /// ONE body `model_room`, through `ModelLimit` with `memory`, the rows' own memory, never a memory of the limit's
 /// part. Where no agent asks a model nothing is read and the states stand as not read, which no row shows: no row then
 /// offers the question.
-fn hosting(
+pub(crate) fn hosting(
     link: &Arc<dyn OwnerLink>,
     memory: &RowsMemory,
     host: Option<String>,
@@ -2594,51 +2594,5 @@ mod tests {
         let (ask, _) = halvo_coord::roster::use_model_ask(&model).expect("the words");
         let ask = ask.expect("the question");
         assert_eq!(ask.text.last(), Some(&shown));
-    }
-
-    /// r4 U3.17b sentence 8: the read of the key's and the count's states for the agents' rows goes through
-    /// `ModelLimit` with a memory of its own (`RowsMemory`), so that it never moves the memory of the limit's part.
-    /// Behind a part whose last answer was the state made from the fault of the store's read (set), a read for the
-    /// rows that meets a room leaves it set: a press whose own read faults again still starts a new count. Behind a
-    /// part whose last answer was a room (clear), a read for the rows that meets the fault leaves it clear: a press
-    /// whose read faults answers failed and starts none.
-    #[test]
-    fn a_read_for_the_rows_leaves_the_memory_of_the_limits_part_as_it_was() {
-        const FAULT: OpAnswer = ("model_room", Err("internal"));
-        const NEW: OpAnswer = (
-            "new_model_count",
-            Ok(r#"{"cap_minor":2500,"new_count":"yes"}"#),
-        );
-        let host = "hosted-model.test";
-        for (part_last, rows_meet, starts) in [(FAULT, ROOM, true), (ROOM, FAULT, false)] {
-            let part = Memory::new();
-            let last: Arc<dyn OwnerLink> = Ops::new(&[part_last]);
-            ModelLimit::new(last, &part).state(host);
-            let rows = Ops::new(&[SAVED, rows_meet]);
-            let link: Arc<dyn OwnerLink> = rows.clone();
-            let read = hosting(
-                &link,
-                &RowsMemory::default(),
-                Some(host.to_owned()),
-                &["test-model-small"],
-                true,
-            );
-            assert!(read.is_some(), "{starts}");
-            assert_eq!(*lock(&rows.asked), ["model_key_state", "model_room"]);
-            let press = Ops::new(&[FAULT, NEW]);
-            let to: Arc<dyn OwnerLink> = press.clone();
-            let answer = ModelLimit::new(to, &part).set("25");
-            let asked = lock(&press.asked).clone();
-            assert_eq!(
-                asked.iter().any(|op| op == "new_model_count"),
-                starts,
-                "{asked:?}"
-            );
-            assert_eq!(
-                matches!(answer, LimitReply::Set { .. }),
-                starts,
-                "{answer:?}"
-            );
-        }
     }
 }
