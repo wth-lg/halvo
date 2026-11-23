@@ -2378,6 +2378,22 @@ mod tests {
         }
     }
 
+    /// r4 U3.22a at its take-in (the coordinator's log lines 18826 and 18902): each of the thirteen causes whose
+    /// sentence a row says for an agent of the runtime file (`roster::FILE_CAUSES`) is a name of the agent store's
+    /// closed list of causes, read by halvo-schema's own parse of that list; the test names each that the list lacks.
+    #[test]
+    fn every_cause_that_a_file_row_says_is_a_name_of_the_stores_closed_list() {
+        let lacking: Vec<&str> = halvo_coord::roster::FILE_CAUSES
+            .iter()
+            .map(|c| c.name())
+            .filter(|name| halvo_schema::executable::names::Cause::parse(name).is_err())
+            .collect();
+        assert!(
+            lacking.is_empty(),
+            "the store's closed list of causes lacks {lacking:?}"
+        );
+    }
+
     /// U5.4w, sentence 3: the Windows zone's offset is the local time of an instant less its time in UTC, in whole
     /// seconds east of UTC, also where the local date is the day before the date in UTC.
     #[test]
