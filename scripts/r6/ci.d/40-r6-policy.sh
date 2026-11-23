@@ -14,7 +14,7 @@ pinned_path=scripts/r6/ci.d/80-r6-absent.sh
 pinned_blob=fd19aa4e9717a87e2dbc44071a13919d45f5c5a7
 env_keys='SQLCIPHER_LIB_DIR SQLCIPHER_NO_PKG_CONFIG'
 specimen=crates/halvo-route-gate/tests/data/specimen.tsv
-cap_line='default_cap amount=2000 period=month status=provisional'
+cap_line='default_cap amount=2000 currency=usd period=month status=provisional'
 case $0 in
   /*) self=$0 ;;
   *) self=$(pwd)/$0 ;;

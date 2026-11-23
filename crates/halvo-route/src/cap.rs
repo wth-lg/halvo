@@ -1,4 +1,5 @@
-//! The default cap of contract T10.4: the line `default_cap amount=<n> period=<word> status=<word>`.
+//! The default cap of contract T10.4: the line
+//! `default_cap amount=<n> currency=<word> period=<word> status=<word>`.
 
 use crate::tier::ParseError;
 
@@ -23,6 +24,38 @@ impl Period {
         Period::ALL
             .into_iter()
             .find(|period| period.as_str() == text)
+            .ok_or(ParseError)
+    }
+}
+
+/// The currency of the cap's amount and of every figure of the count, the word that the cap line
+/// holds directly behind the amount. The list is closed and holds one currency.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum Currency {
+    Usd,
+}
+
+impl Currency {
+    pub const ALL: [Currency; 1] = [Currency::Usd];
+
+    /// The word of the cap line.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Currency::Usd => "usd",
+        }
+    }
+
+    /// The word in capitals, as a person reads it beside an amount.
+    pub const fn code(self) -> &'static str {
+        match self {
+            Currency::Usd => "USD",
+        }
+    }
+
+    pub fn parse(text: &str) -> Result<Currency, ParseError> {
+        Currency::ALL
+            .into_iter()
+            .find(|currency| currency.as_str() == text)
             .ok_or(ParseError)
     }
 }
@@ -57,6 +90,7 @@ impl CapStatus {
 pub enum CapError {
     Form,
     Amount,
+    Currency,
     Period,
     Status,
 }
@@ -66,31 +100,38 @@ impl CapError {
         match self {
             CapError::Form => "form",
             CapError::Amount => "amount",
+            CapError::Currency => "currency",
             CapError::Period => "period",
             CapError::Status => "status",
         }
     }
 }
 
-/// The cap that a user has until the user sets one: `amount` minor units each `period`.
+/// The cap that a user has until the user sets one: `amount` minor units of `currency` each
+/// `period`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct DefaultCap {
     pub amount: u64,
+    pub currency: Currency,
     pub period: Period,
     pub status: CapStatus,
 }
 
 impl DefaultCap {
-    /// Reads `default_cap amount=<decimal digits> period=<word> status=<word>` with single spaces
-    /// and returns the first error of this order: `form`, `amount` (outside 1 to 100,000,000),
-    /// `period`, `status`.
+    /// Reads `default_cap amount=<decimal digits> currency=<word> period=<word> status=<word>`
+    /// with single spaces and returns the first error of this order: `form` (a line without the
+    /// currency word among them), `amount` (outside 1 to 100,000,000), `currency` (a word that is
+    /// not of `Currency::ALL`), `period`, `status`.
     pub fn parse(line: &str) -> Result<DefaultCap, CapError> {
         let mut fields = line.split(' ');
-        let (Some("default_cap"), Some(amount), Some(period), Some(status), None) = (
+        let (Some("default_cap"), Some(amount), Some(currency), Some(period), Some(status), None) = (
             fields.next(),
             fields
                 .next()
                 .and_then(|field| field.strip_prefix("amount=")),
+            fields
+                .next()
+                .and_then(|field| field.strip_prefix("currency=")),
             fields
                 .next()
                 .and_then(|field| field.strip_prefix("period=")),
@@ -101,17 +142,19 @@ impl DefaultCap {
         ) else {
             return Err(CapError::Form);
         };
-        if !is_decimal(amount) || !is_word(period) || !is_word(status) {
+        if !is_decimal(amount) || !is_word(currency) || !is_word(period) || !is_word(status) {
             return Err(CapError::Form);
         }
         let amount = match amount.parse::<u64>() {
             Ok(amount) if (AMOUNT_MIN..=AMOUNT_MAX).contains(&amount) => amount,
             _ => return Err(CapError::Amount),
         };
+        let currency = Currency::parse(currency).map_err(|_| CapError::Currency)?;
         let period = Period::parse(period).map_err(|_| CapError::Period)?;
         let status = CapStatus::parse(status).map_err(|_| CapError::Status)?;
         Ok(DefaultCap {
             amount,
+            currency,
             period,
             status,
         })
@@ -139,12 +182,13 @@ mod tests {
     use super::*;
     use crate::tier::assert_closed;
 
-    const LINE: &str = "default_cap amount=2000 period=month status=provisional";
+    const LINE: &str = "default_cap amount=2000 currency=usd period=month status=provisional";
 
     fn line_of(cap: &DefaultCap) -> String {
         format!(
-            "default_cap amount={} period={} status={}",
+            "default_cap amount={} currency={} period={} status={}",
             cap.amount,
+            cap.currency.as_str(),
             cap.period.as_str(),
             cap.status.as_str()
         )
@@ -152,6 +196,9 @@ mod tests {
 
     #[test]
     fn cap_lists_are_closed() {
+        assert_closed(&Currency::ALL.map(|v| (v, v.as_str())), Currency::parse);
+        assert_eq!(Currency::ALL.map(Currency::as_str), ["usd"]);
+        assert_eq!(Currency::ALL.map(Currency::code), ["USD"]);
         assert_closed(&Period::ALL.map(|v| (v, v.as_str())), Period::parse);
         assert_eq!(Period::ALL.map(Period::as_str), ["week", "month"]);
         assert_closed(&CapStatus::ALL.map(|v| (v, v.as_str())), CapStatus::parse);
@@ -163,11 +210,12 @@ mod tests {
             [
                 CapError::Form,
                 CapError::Amount,
+                CapError::Currency,
                 CapError::Period,
                 CapError::Status
             ]
             .map(CapError::as_str),
-            ["form", "amount", "period", "status"]
+            ["form", "amount", "currency", "period", "status"]
         );
     }
 
@@ -177,25 +225,26 @@ mod tests {
             DefaultCap::parse(LINE),
             Ok(DefaultCap {
                 amount: 2000,
+                currency: Currency::Usd,
                 period: Period::Month,
                 status: CapStatus::Provisional,
             })
         );
         for (line, amount, period, status) in [
             (
-                "default_cap amount=1 period=week status=recorded",
+                "default_cap amount=1 currency=usd period=week status=recorded",
                 1,
                 Period::Week,
                 CapStatus::Recorded,
             ),
             (
-                "default_cap amount=100000000 period=month status=recorded",
+                "default_cap amount=100000000 currency=usd period=month status=recorded",
                 100_000_000,
                 Period::Month,
                 CapStatus::Recorded,
             ),
             (
-                "default_cap amount=99999999 period=week status=provisional",
+                "default_cap amount=99999999 currency=usd period=week status=provisional",
                 99_999_999,
                 Period::Week,
                 CapStatus::Provisional,
@@ -205,6 +254,7 @@ mod tests {
                 DefaultCap::parse(line),
                 Ok(DefaultCap {
                     amount,
+                    currency: Currency::Usd,
                     period,
                     status
                 }),
@@ -215,75 +265,88 @@ mod tests {
 
     #[test]
     fn default_cap_refusals() {
-        use CapError::{Amount, Form, Period as P, Status as S};
+        use CapError::{Amount, Currency as C, Form, Period as P, Status as S};
         let cases: &[(&str, CapError)] = &[
+            ("default_cap amount=2000 period=month status=provisional", Form),
+            ("default_cap currency=usd amount=2000 period=month status=provisional", Form),
+            ("default_cap amount=2000 period=month currency=usd status=provisional", Form),
+            ("default_cap amount=2000 currency= period=month status=provisional", Form),
+            ("default_cap amount=2000 currency=USD period=month status=provisional", Form),
+            ("default_cap amount=2000 currency=u-sd period=month status=provisional", Form),
+            ("default_cap amount=2000 currency usd period=month status=provisional", Form),
+            ("default_cap amount=2000 currency=usd currency=usd period=month status=provisional", Form),
+            ("default_cap amount=0 currency=eur period=month status=provisional", Amount),
+            ("default_cap amount=2000 currency=eur period=month status=provisional", C),
+            ("default_cap amount=2000 currency=usd_ period=month status=provisional", C),
+            ("default_cap amount=2000 currency=dollar period=year status=final", C),
+            ("default_cap amount=2000 currency=month period=month status=provisional", C),
             ("", Form),
             ("default_cap", Form),
-            ("default_cap amount=2000 period=month", Form),
-            ("default_cap amount=2000 period=month status=provisional x", Form),
-            ("default_cap amount=2000 period=month status=provisional ", Form),
-            (" default_cap amount=2000 period=month status=provisional", Form),
-            ("default_cap  amount=2000 period=month status=provisional", Form),
-            ("default_cap\tamount=2000 period=month status=provisional", Form),
-            ("default_cap amount=2000 period=month status=provisional\n", Form),
-            ("default_cap amount=2000 period=month status=provisional\r", Form),
-            ("\u{feff}default_cap amount=2000 period=month status=provisional", Form),
-            ("Default_cap amount=2000 period=month status=provisional", Form),
-            ("default-cap amount=2000 period=month status=provisional", Form),
-            ("cap amount=2000 period=month status=provisional", Form),
-            ("default_cap period=month amount=2000 status=provisional", Form),
-            ("default_cap amount=2000 status=provisional period=month", Form),
-            ("default_cap amount 2000 period=month status=provisional", Form),
-            ("default_cap amount= period=month status=provisional", Form),
-            ("default_cap amount=02000 period=month status=provisional", Form),
-            ("default_cap amount=00 period=month status=provisional", Form),
-            ("default_cap amount=+2000 period=month status=provisional", Form),
-            ("default_cap amount=-1 period=month status=provisional", Form),
-            ("default_cap amount=2,000 period=month status=provisional", Form),
-            ("default_cap amount=2000.0 period=month status=provisional", Form),
-            ("default_cap amount=\u{0662}000 period=month status=provisional", Form),
-            ("default_cap amount=2000 period= status=provisional", Form),
-            ("default_cap amount=2000 period=month status=", Form),
-            ("default_cap amount=2000 period=Month status=provisional", Form),
-            ("default_cap amount=2000 period=month status=Provisional", Form),
-            ("default_cap amount=2000 period=mon-th status=provisional", Form),
-            ("default_cap amount=2000 period=month status=provisional=1", Form),
+            ("default_cap amount=2000 currency=usd period=month", Form),
+            ("default_cap amount=2000 currency=usd period=month status=provisional x", Form),
+            ("default_cap amount=2000 currency=usd period=month status=provisional ", Form),
+            (" default_cap amount=2000 currency=usd period=month status=provisional", Form),
+            ("default_cap  amount=2000 currency=usd period=month status=provisional", Form),
+            ("default_cap\tamount=2000 currency=usd period=month status=provisional", Form),
+            ("default_cap amount=2000 currency=usd period=month status=provisional\n", Form),
+            ("default_cap amount=2000 currency=usd period=month status=provisional\r", Form),
+            ("\u{feff}default_cap amount=2000 currency=usd period=month status=provisional", Form),
+            ("Default_cap amount=2000 currency=usd period=month status=provisional", Form),
+            ("default-cap amount=2000 currency=usd period=month status=provisional", Form),
+            ("cap amount=2000 currency=usd period=month status=provisional", Form),
+            ("default_cap period=month amount=2000 currency=usd status=provisional", Form),
+            ("default_cap amount=2000 currency=usd status=provisional period=month", Form),
+            ("default_cap amount 2000 currency=usd period=month status=provisional", Form),
+            ("default_cap amount= currency=usd period=month status=provisional", Form),
+            ("default_cap amount=02000 currency=usd period=month status=provisional", Form),
+            ("default_cap amount=00 currency=usd period=month status=provisional", Form),
+            ("default_cap amount=+2000 currency=usd period=month status=provisional", Form),
+            ("default_cap amount=-1 currency=usd period=month status=provisional", Form),
+            ("default_cap amount=2,000 currency=usd period=month status=provisional", Form),
+            ("default_cap amount=2000.0 currency=usd period=month status=provisional", Form),
+            ("default_cap amount=\u{0662}000 currency=usd period=month status=provisional", Form),
+            ("default_cap amount=2000 currency=usd period= status=provisional", Form),
+            ("default_cap amount=2000 currency=usd period=month status=", Form),
+            ("default_cap amount=2000 currency=usd period=Month status=provisional", Form),
+            ("default_cap amount=2000 currency=usd period=month status=Provisional", Form),
+            ("default_cap amount=2000 currency=usd period=mon-th status=provisional", Form),
+            ("default_cap amount=2000 currency=usd period=month status=provisional=1", Form),
             (
-                "default_cap amount=2000 period=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa status=provisional",
+                "default_cap amount=2000 currency=usd period=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa status=provisional",
                 Form,
             ),
             (
-                "default_cap amount=2000 period=month status=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "default_cap amount=2000 currency=usd period=month status=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 Form,
             ),
-            ("default_cap amount=0 period=x status=y", Amount),
-            ("default_cap amount=0 period=month status=provisional", Amount),
-            ("default_cap amount=100000001 period=month status=provisional", Amount),
-            ("default_cap amount=4294967296 period=month status=provisional", Amount),
+            ("default_cap amount=0 currency=usd period=x status=y", Amount),
+            ("default_cap amount=0 currency=usd period=month status=provisional", Amount),
+            ("default_cap amount=100000001 currency=usd period=month status=provisional", Amount),
+            ("default_cap amount=4294967296 currency=usd period=month status=provisional", Amount),
             (
-                "default_cap amount=18446744073709551615 period=month status=provisional",
+                "default_cap amount=18446744073709551615 currency=usd period=month status=provisional",
                 Amount,
             ),
             (
-                "default_cap amount=18446744073709551616 period=month status=provisional",
+                "default_cap amount=18446744073709551616 currency=usd period=month status=provisional",
                 Amount,
             ),
             (
-                "default_cap amount=99999999999999999999999999 period=month status=provisional",
+                "default_cap amount=99999999999999999999999999 currency=usd period=month status=provisional",
                 Amount,
             ),
-            ("default_cap amount=2000 period=day status=provisional", P),
-            ("default_cap amount=2000 period=year status=y", P),
-            ("default_cap amount=2000 period=weeks status=provisional", P),
-            ("default_cap amount=2000 period=provisional status=provisional", P),
+            ("default_cap amount=2000 currency=usd period=day status=provisional", P),
+            ("default_cap amount=2000 currency=usd period=year status=y", P),
+            ("default_cap amount=2000 currency=usd period=weeks status=provisional", P),
+            ("default_cap amount=2000 currency=usd period=provisional status=provisional", P),
             (
-                "default_cap amount=2000 period=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa status=provisional",
+                "default_cap amount=2000 currency=usd period=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa status=provisional",
                 P,
             ),
-            ("default_cap amount=2000 period=month status=final", S),
-            ("default_cap amount=2000 period=week status=provisional_", S),
-            ("default_cap amount=2000 period=month status=week", S),
-            ("default_cap amount=1 period=month status=0", S),
+            ("default_cap amount=2000 currency=usd period=month status=final", S),
+            ("default_cap amount=2000 currency=usd period=week status=provisional_", S),
+            ("default_cap amount=2000 currency=usd period=month status=week", S),
+            ("default_cap amount=1 currency=usd period=month status=0", S),
         ];
         for (line, error) in cases {
             assert_eq!(DefaultCap::parse(line), Err(*error), "{line:?}");
@@ -291,7 +354,8 @@ mod tests {
         let word_byte = |b: u8| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_';
         for byte in 0..=127u8 {
             let c = char::from(byte);
-            let line = format!("default_cap amount=2{c}00 period=month status=provisional");
+            let line =
+                format!("default_cap amount=2{c}00 currency=usd period=month status=provisional");
             match DefaultCap::parse(&line) {
                 Ok(cap) => assert!(
                     byte.is_ascii_digit() && cap.amount == 2000 + 100 * u64::from(byte - b'0'),
@@ -299,18 +363,25 @@ mod tests {
                 ),
                 Err(error) => assert!(!byte.is_ascii_digit() && error == Form, "{line:?}"),
             }
-            let line = format!("default_cap amount=2000 period=mo{c}nth status=provisional");
+            let line =
+                format!("default_cap amount=2000 currency=u{c}sd period=month status=provisional");
+            let want = if word_byte(byte) { C } else { Form };
+            assert_eq!(DefaultCap::parse(&line), Err(want), "{line:?}");
+            let line =
+                format!("default_cap amount=2000 currency=usd period=mo{c}nth status=provisional");
             let want = if word_byte(byte) { P } else { Form };
             assert_eq!(DefaultCap::parse(&line), Err(want), "{line:?}");
-            let line = format!("default_cap amount=2000 period=month status=provi{c}sional");
+            let line =
+                format!("default_cap amount=2000 currency=usd period=month status=provi{c}sional");
             let want = if word_byte(byte) { S } else { Form };
             assert_eq!(DefaultCap::parse(&line), Err(want), "{line:?}");
         }
         for c in ['\u{e9}', '\u{ff10}', '\u{0662}'] {
             for line in [
-                format!("default_cap amount=2{c}00 period=month status=provisional"),
-                format!("default_cap amount=2000 period=mo{c}nth status=provisional"),
-                format!("default_cap amount=2000 period=month status=provi{c}sional"),
+                format!("default_cap amount=2{c}00 currency=usd period=month status=provisional"),
+                format!("default_cap amount=2000 currency=u{c}sd period=month status=provisional"),
+                format!("default_cap amount=2000 currency=usd period=mo{c}nth status=provisional"),
+                format!("default_cap amount=2000 currency=usd period=month status=provi{c}sional"),
             ] {
                 assert_eq!(DefaultCap::parse(&line), Err(Form), "{line:?}");
             }
