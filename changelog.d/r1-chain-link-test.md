@@ -1,0 +1,1 @@
+- Added: A test reads the whole way from records in a capture store to a suggestion: work in a Numbers workbook on three occasions, written into a real capture store, is read by the built analysis program through the store's own reader once the conditions for a pass hold, and the page's read then gets one proposed row, Filling in a spreadsheet in Numbers, seen three times.

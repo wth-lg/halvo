@@ -518,7 +518,8 @@ fn the_documentation_of_prepare_states_what_its_lock_holds() {
 
 /// E5 of CP-124, the verifier's M47 and case K2: when the carry fails (the folder's inherited
 /// access entry denies writing an extended attribute), `prepare` removes the file that it made
-/// and the folder is as it was.
+/// and the folder is as it was. The system refuses the write for the permission, so the cause is
+/// `no_access` (r3 U11.4).
 #[cfg(target_os = "macos")]
 #[test]
 fn a_carry_that_fails_leaves_the_folder_as_it_was() {
@@ -552,7 +553,7 @@ fn a_carry_that_fails_leaves_the_folder_as_it_was() {
     drop(answer);
     let after = scratch.names("");
     println!("cp124 k2 cause={cause:?} before={before:?} after={after:?}");
-    assert_eq!(cause, Some(Cause::StepFailed));
+    assert_eq!(cause, Some(Cause::NoAccess));
     assert_eq!(before, after, "the folder after a carry that failed");
 }
 

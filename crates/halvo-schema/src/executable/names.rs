@@ -236,7 +236,10 @@ names! {
     /// path; `data_outside`, a data file outside the workbook's folder; `data_form`, a data file out of its form;
     /// `read_only`, a workbook that the person cannot write. Each stands in the `step_failed` line of the file step
     /// and in the run's `stopped` line, and in no row of an effect. `not_replaced` stands there too where the system
-    /// refused the rename of the edit's replace, as for a workbook that another program holds open.
+    /// refused the rename of the edit's replace, as for a workbook that another program holds open. `no_access`
+    /// stands there where the system refused, for the permission, the open or the read of the workbook or of the
+    /// data file, the walk to it, or the making of a file in the workbook's folder (r3 U11.4); a refused rename
+    /// keeps `not_replaced`.
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -284,6 +287,7 @@ names! {
         DataOutside = "data_outside",
         DataForm = "data_form",
         ReadOnly = "read_only",
+        NoAccess = "no_access",
     }
 }
 

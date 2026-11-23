@@ -117,7 +117,8 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
             "no_data_file",
             "data_outside",
             "data_form",
-            "read_only"
+            "read_only",
+            "no_access"
         ]
     );
     assert_eq!(
