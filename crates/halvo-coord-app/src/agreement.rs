@@ -125,8 +125,9 @@ mod tests {
 
     /// r4 U3.17a sentence 1: an agreement stands for a hosted tier only where it holds a triple of that tier whose
     /// origin and model word equal the row of that tier by their bytes; not at a null agreement, with no triple of
-    /// that tier, where one byte differs, where the table has no row of that tier, and for `on_device`. With main's
-    /// table of hosts nothing stands.
+    /// that tier (also where the other tier's only triple holds the row's origin and model word), where one byte
+    /// differs, where the table has no row of that tier, and for `on_device`. With main's table of hosts nothing
+    /// stands.
     #[test]
     fn an_agreement_stands_only_where_its_triple_of_the_tier_equals_the_row_by_its_bytes() {
         let both = Agreement {
@@ -144,6 +145,10 @@ mod tests {
             ceiling: Tier::OnDevice,
             hosts: vec![triple(Tier::OnDevice, ORIGIN, SMALL)],
         };
+        let other = Agreement {
+            ceiling: Tier::LowCostHosted,
+            hosts: vec![triple(Tier::LowCostHosted, ORIGIN, LARGE)],
+        };
         let rows = [
             (
                 Some(&both),
@@ -154,6 +159,7 @@ mod tests {
             (Some(&both), Tier::Frontier, Some((ORIGIN, LARGE)), true),
             (None, Tier::Frontier, Some((ORIGIN, LARGE)), false),
             (Some(&low), Tier::Frontier, Some((ORIGIN, LARGE)), false),
+            (Some(&other), Tier::Frontier, Some((ORIGIN, LARGE)), false),
             (
                 Some(&both),
                 Tier::Frontier,
@@ -195,8 +201,9 @@ mod tests {
     }
 
     /// r4 U3.17a sentence 3: the start names the agent's kept tier where it is a hosted tier and the agreement of the
-    /// newest list stands for it, and none in every other case: a null agreement, the other tier's triple alone, a
-    /// row that differs, an agent that no list named, and `on_device`.
+    /// newest list stands for it, and none in every other case: a null agreement, the other tier's triple alone (also
+    /// one that holds the row's origin and model word), a row that differs, an agent that no list named, and
+    /// `on_device`.
     #[test]
     fn the_start_names_the_kept_tier_only_where_the_newest_agreement_stands_for_it() {
         let low = Agreement {
@@ -209,6 +216,10 @@ mod tests {
                 triple(Tier::LowCostHosted, ORIGIN, SMALL),
                 triple(Tier::Frontier, ORIGIN, LARGE),
             ],
+        };
+        let other = Agreement {
+            ceiling: Tier::LowCostHosted,
+            hosts: vec![triple(Tier::LowCostHosted, ORIGIN, LARGE)],
         };
         let kept = |tier, agreement: Option<&Agreement>| {
             Some(KeptAgent {
@@ -231,6 +242,11 @@ mod tests {
             (kept(Tier::Frontier, None), Some((ORIGIN, LARGE)), None),
             (
                 kept(Tier::Frontier, Some(&low)),
+                Some((ORIGIN, LARGE)),
+                None,
+            ),
+            (
+                kept(Tier::Frontier, Some(&other)),
                 Some((ORIGIN, LARGE)),
                 None,
             ),

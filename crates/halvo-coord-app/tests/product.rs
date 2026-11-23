@@ -72,7 +72,7 @@ mod mac {
         if args.first().map(String::as_str) == Some("--run") {
             std::process::exit(runner(&args));
         }
-        let tests: [(&str, fn()); 6] = [
+        let tests: [(&str, fn()); 7] = [
             (
                 "a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record",
                 a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record,
@@ -96,6 +96,10 @@ mod mac {
             (
                 "a_run_of_an_agent_with_no_standing_agreement_gets_no_key_though_one_is_saved",
                 a_run_of_an_agent_with_no_standing_agreement_gets_no_key_though_one_is_saved,
+            ),
+            (
+                "a_run_of_an_agent_whose_stored_yes_does_not_stand_gets_no_key",
+                a_run_of_an_agent_whose_stored_yes_does_not_stand_gets_no_key,
             ),
         ];
         let exact = args.iter().any(|a| a == "--exact");
@@ -966,5 +970,61 @@ mod mac {
             "the answer to the runner's frame secret for model_key: {runs:?}"
         );
         assert_eq!(key.state(), KeyState::Saved, "the key stays saved");
+    }
+
+    /// r4 U3.17a sentence 5, with a stored yes (verifier-104, its second issue): a stored yes alone hands no key. The
+    /// test writes a yes for the agent into the store by the body `set_model`, the tier `frontier` with its triple,
+    /// and the roster's entry of the agent holds that agreement; main's table of hosts holds no row, so it does not
+    /// stand. A key is saved, a Run now starts the runner through the hub, and the stand-in runner's frame `secret`
+    /// for `model_key` is answered none stored. The key is a made-up text that names itself as a test value. The test's
+    /// own link goes before the hub starts: the owner holds four streams at most, and the key's link, the hub's two and
+    /// each read of the runs hold one.
+    fn a_run_of_an_agent_whose_stored_yes_does_not_stand_gets_no_key() {
+        let mut world = World::new("yes-not-standing");
+        let (workflow, agent) = world.agent();
+        let link = world.link();
+        let hosts = json!([{
+            "tier": "frontier", "origin": "https://hosted-model.test", "model": "test-model-large",
+        }]);
+        let yes = format!(
+            r#"{{"op":"set_model","workflow":"{workflow}","agent":"{agent}","tier":"frontier","agreement":{hosts}}}"#
+        );
+        let stored = world.ask(&link, "coordinator_write", &yes);
+        assert!(stored["rev"].as_u64().is_some(), "{stored}");
+        let listed = world.ask(
+            &link,
+            "coordinator_write",
+            r#"{"op":"list_agents","workflow":null,"agent":null,"after":null}"#,
+        );
+        let entry = listed["agents"].as_array().and_then(|entries| {
+            entries
+                .iter()
+                .find(|e| e["config"]["agent"] == agent.as_str())
+        });
+        assert_eq!(
+            entry.map(|e| e["agreement"].clone()),
+            Some(json!({"tier": "frontier", "hosts": hosts})),
+            "{listed}"
+        );
+        drop(link);
+        let key = ModelKey::over(world.calls().owner_stream);
+        assert_eq!(
+            key.save("test-value-not-a-model-key-saved"),
+            Ok(KeyState::Saved)
+        );
+        let hub = world.hub();
+        product::start(&hub);
+        run_now(&hub, &agent);
+        until("the run's record in the store", || {
+            Core::tick(&*hub);
+            !world.runs(&workflow, &agent).is_empty()
+        });
+        let runs = world.runs(&workflow, &agent);
+        assert_eq!(runs.len(), 1, "{runs:?}");
+        assert_eq!(runs[0]["run"]["outcome"], "completed", "{runs:?}");
+        assert_eq!(
+            runs[0]["run"]["model"], "none",
+            "the answer to the runner's frame secret for model_key: {runs:?}"
+        );
     }
 }
