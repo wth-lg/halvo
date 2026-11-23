@@ -51,6 +51,10 @@ pub struct Row {
     /// which sends nothing, or null on a row with no such control or where a sentence stands in
     /// its place (r4 U3.17b).
     pub ask_use_model: Option<Ask>,
+    /// `note_use_model`: the one sentence that a press on the row's `use_model` shows in place of
+    /// its question, where no key is saved, no limit is set, or a state could not be read, or null
+    /// (r4 U3.17b).
+    pub note_use_model: Option<String>,
 }
 
 /// What the question of a row's Delete or of its `stop_sign_in` is (ruling RD-19 (c) rules (3)

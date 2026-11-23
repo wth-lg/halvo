@@ -706,6 +706,7 @@ fn row(b: &Built) -> Row {
         ask,
         ask_stop_sign_in,
         ask_use_model: None,
+        note_use_model: None,
     }
 }
 

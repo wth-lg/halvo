@@ -152,3 +152,45 @@ fn the_yes_of_use_model_sends_one_body_and_a_refusal_says_that_halvo_could_not_f
         );
     }
 }
+
+/// r4 U3.17b sentence 3: where no key is saved, where no limit is set, and where the key's state
+/// or the count's state could not be read, the row that offers Use an AI model carries ONE
+/// sentence in place of the question and no question, and the action of the yes is refused with
+/// `state` and sends nothing.
+#[test]
+fn with_no_key_no_limit_or_a_state_that_does_not_read_the_row_says_one_sentence_and_sends_no_yes() {
+    let first = "Save a key and set a spending limit under AI model first.";
+    let stands = ready(false).limit;
+    let rows = [
+        ("no key saved", Some(false), stands.clone(), first),
+        ("no limit set", Some(true), SpendLimit::NotSet, first),
+        ("the key's state", None, stands, USE_NOT_FINISHED),
+        (
+            "the count's state",
+            Some(true),
+            SpendLimit::Unread,
+            USE_NOT_FINISHED,
+        ),
+    ];
+    for (case, key, limit, sentence) in rows {
+        let c = world(
+            Tier::OnDevice,
+            ModelUse {
+                key,
+                limit,
+                ..ready(false)
+            },
+        );
+        let r = row(&c);
+        assert!(offers(&c, Control::UseModel), "{case}");
+        assert_eq!(r.ask_use_model, None, "{case}: no question");
+        assert_eq!(r.note_use_model.as_deref(), Some(sentence), "{case}");
+        let m = mark(&c);
+        assert_eq!(
+            c.control(&agent(), Action::UseModel),
+            Err(Cause::State),
+            "{case}"
+        );
+        assert!(sets(&c, m).is_empty(), "{case}: nothing sent");
+    }
+}

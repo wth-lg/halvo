@@ -364,9 +364,9 @@ fn row_with<C: ConfigView>(
     } else {
         None
     };
-    let ask_use_model = match facts.config.model() {
-        Some(model) if offered.contains(&Control::UseModel) => use_model_ask(&model)?.0,
-        _ => None,
+    let (ask_use_model, note_use_model) = match facts.config.model() {
+        Some(model) if offered.contains(&Control::UseModel) => use_model_ask(&model)?,
+        _ => (None, None),
     };
     Ok(Row {
         agent: facts.agent.clone(),
@@ -391,6 +391,7 @@ fn row_with<C: ConfigView>(
         ask,
         ask_stop_sign_in,
         ask_use_model,
+        note_use_model,
     })
 }
 
@@ -498,8 +499,10 @@ pub fn stop_sign_in_ask(name: &str) -> Result<Ask, Cause> {
     })
 }
 
-/// What a press on the row's `use_model` opens in the page, which sends nothing (r4 U3.17b): the
-/// question `use_model` where a key is saved and a limit stands. Its title asks whether the agent
+/// What a press on the row's `use_model` opens in the page, which sends nothing (r4 U3.17b): ONE
+/// sentence in place of the question, `ask.use_model.first`, where no key is saved or no limit is
+/// set, and else, where the key's state or the count's state could not be read, the sentence of
+/// `refused.use_model_not_finished`; else the question `use_model`. Its title asks whether the agent
 /// may use an AI model on someone else's computers; its texts say that it would send the text of
 /// the page or the message to the host, that it would use the models there, what it never sends,
 /// and that the host bills the person's key while Halvo stops at the limit's amount a period, as
@@ -507,7 +510,13 @@ pub fn stop_sign_in_ask(name: &str) -> Result<Ask, Cause> {
 /// sends `agents_control` with `use_model`.
 pub fn use_model_ask(model: &ModelUse) -> Result<(Option<Ask>, Option<String>), Cause> {
     let (Some(true), SpendLimit::Stands { amount, period }) = (model.key, &model.limit) else {
-        return Ok((None, None));
+        let first = model.key == Some(false) || model.limit == SpendLimit::NotSet;
+        let key = if first {
+            "ask.use_model.first"
+        } else {
+            "refused.use_model_not_finished"
+        };
+        return Ok((None, Some(text(key, &[])?)));
     };
     let host = [("host", model.host.as_str())];
     let ask = Ask {

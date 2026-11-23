@@ -679,6 +679,10 @@ pub const KEYS: &[(&str, &str)] = &[
     ("ask.use_model.keep", "Not now"),
     ("ask.use_model.allow", "Allow for this agent"),
     (
+        "ask.use_model.first",
+        "Save a key and set a spending limit under AI model first.",
+    ),
+    (
         "ask.effect.payment",
         "Halvo does not know whether it made this payment.",
     ),
