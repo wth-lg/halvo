@@ -385,6 +385,19 @@ pub(crate) mod tests_support {
             reader,
         )
     }
+
+    /// The product's writer and reader over the product's read of the app in
+    /// front, the call that `foreground_state` makes, answered as the poll's
+    /// first answer is: the writer makes one read through the poll's reader and
+    /// stores it when it names an app; the drop of the writer clears the state.
+    pub(crate) fn answered_by_the_system() -> (super::ForegroundWriter, super::ForegroundReader) {
+        let (writer, reader) = super::writer_and_reader(std::sync::Arc::new(super::read_frontmost));
+        let mut read = writer.poll_reader();
+        if let Some(front) = read() {
+            writer.set(Some(front));
+        }
+        (writer, reader)
+    }
 }
 
 impl Drop for ForegroundWriter {
