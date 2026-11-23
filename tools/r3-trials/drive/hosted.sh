@@ -123,7 +123,8 @@ esac
 [ "${#port}" -le 5 ] && [ "$port" -ge 1024 ] && [ "$port" -le 65535 ] || refuse port "--port takes a number from 1024 to 65535"
 [ "$port" != 47201 ] || refuse port "47201 is the scripted host's port"
 [ -n "$browser" ] || refuse usage "--browser is missing"
-browser_name=$(basename -- "$browser")
+browser_name=${browser##*/}
+browser_name=${browser_name##*\\}
 case $browser_name in
   'Google Chrome' | 'Google Chrome for Testing' | chrome.exe | chrome | 'Microsoft Edge' | msedge.exe | msedge) ;;
   *) refuse browser "the file name is no Chrome or Edge binary" ;;

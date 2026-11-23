@@ -869,11 +869,20 @@ mod tests {
         .expect("the door in its stand-in form")
     }
 
+    /// The directory for a test's files: the caller's TMPDIR when it names a directory (the CI
+    /// driver gives each check one), else the system's.
+    fn scratch() -> PathBuf {
+        std::env::var_os("TMPDIR")
+            .map(PathBuf::from)
+            .filter(|p| p.is_dir())
+            .unwrap_or_else(std::env::temp_dir)
+    }
+
     fn bench(name: &str) -> Bench {
         let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../..")
-            .canonicalize()
-            .expect("the repository");
+            .join("..")
+            .join("..")
+            .join("..");
         let browser = std::env::var_os("HALVO_BROWSER").map_or_else(
             || {
                 PathBuf::from(if cfg!(windows) {
@@ -884,7 +893,7 @@ mod tests {
             },
             PathBuf::from,
         );
-        let dir = std::env::temp_dir().join(format!(
+        let dir = scratch().join(format!(
             "r3-drive-test-{name}-{}-{}",
             std::process::id(),
             now_us()
@@ -1019,7 +1028,7 @@ mod tests {
     fn the_key_stands_in_no_line_and_no_file_of_a_cell() {
         let key = "u08-test-key-made-up-not-a-host-key";
         let b = bench("key");
-        let keys = std::env::temp_dir().join(format!(
+        let keys = scratch().join(format!(
             "r3-drive-test-key-file-{}-{}",
             std::process::id(),
             now_us()
