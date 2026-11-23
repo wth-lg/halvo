@@ -1,0 +1,1 @@
+- Fixed: The rows that Halvo derived from captured work now go when their source segment is shredded: the owner of the derived store that runs gets the shredded ordinals at the driver's next turn, and each start of an owner removes the rows of the segments shredded out of the order of their ordinals, which stayed up to 14 days before.
