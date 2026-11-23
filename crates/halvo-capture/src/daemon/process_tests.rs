@@ -1979,24 +1979,100 @@ fn a_stop_request_finds_the_line_stop_in_the_marker_when_its_answer_arrives() {
             (reply, marker_of(&dir))
         })
     };
+    let decided = Arc::new(Mutex::new(None));
+    let parts = {
+        let (dir, decided) = (dir.clone(), decided.clone());
+        super::ServiceParts {
+            settled: Some(Box::new(move |_| {
+                *decided.lock().unwrap() = Some(marker_of(&dir));
+            })),
+            ..super::ServiceParts::of(super::NoSources)
+        }
+    };
     let stop = AtomicBool::new(false);
     let mut err = Vec::new();
-    let status = serve(
+    let status = super::serve_on(
         &data_dir(&dir),
         Box::new(TestWrite::default()),
         SleepLoop(Instant::now()),
         &stop,
         Arc::new(Recorded),
         &mut err,
+        parts,
     );
     let err = String::from_utf8(err).unwrap();
     let (reply, at_the_answer) = client.join().unwrap();
     assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
     assert!(matches!(reply, Ok(Reply::Stopped(_))), "{reply:?}: {err}");
     assert_eq!(
+        decided.lock().unwrap().take().flatten(),
+        Some(format!("pid={}\nended=stop\n", std::process::id())),
+        "the decision beside the process line, before the end's write: {err}"
+    );
+    assert_eq!(
         at_the_answer.as_deref(),
         Some("ended=stop\n"),
         "the line stands before the answer, and so before the lock is given up: {err}"
+    );
+}
+
+#[test]
+fn a_signal_that_the_run_reads_leaves_its_decision_beside_the_process_line_before_the_end_and_a_failed_end_after_a_move_removes_it_in_the_held_folder(
+) {
+    use super::run_marker::{last_end, LastEnd, NoPress};
+    use halvo_control::proto::StopKind;
+    let (dir, _marks) = running_dir(false);
+    let moved = dir.with_file_name("moved");
+    let read = Arc::new(Mutex::new(None));
+    let parts = {
+        let (dir, moved, read) = (dir.clone(), moved.clone(), read.clone());
+        super::ServiceParts {
+            settled: Some(Box::new(move |_| {
+                *read.lock().unwrap() = Some((marker_of(&dir), last_end(&data_dir(&dir))));
+                std::fs::rename(&dir, &moved).unwrap();
+                std::fs::create_dir(&dir).unwrap();
+                std::fs::create_dir(moved.join("run").join("running.new")).unwrap();
+            })),
+            ..super::ServiceParts::of(super::NoSources)
+        }
+    };
+    let stop = AtomicBool::new(true);
+    let mut err = Vec::new();
+    let status = super::serve_on(
+        &data_dir(&dir),
+        Box::new(TestWrite::default()),
+        SleepLoop(Instant::now()),
+        &stop,
+        Arc::new(Recorded),
+        &mut err,
+        parts,
+    );
+    let err = String::from_utf8(err).unwrap();
+    let (decision, read_by_a_start) = read
+        .lock()
+        .unwrap()
+        .take()
+        .unwrap_or_else(|| panic!("the life made no settled call: {err}"));
+    assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+    assert_eq!(
+        decision,
+        Some(format!("pid={}\nended=signal\n", std::process::id())),
+        "the decision beside the process line, before the end's write: {err}"
+    );
+    assert_eq!(read_by_a_start, LastEnd::Ended(StopKind::Signal), "{err}");
+    assert_eq!(read_by_a_start.no_press(), NoPress::WaitsForAPress, "{err}");
+    assert!(
+        !moved.join("run").join("running").exists(),
+        "the end's failed write left the marker in the held folder: {err}"
+    );
+    assert_eq!(
+        names(&dir),
+        Vec::<String>::new(),
+        "nothing at the name: {err}"
+    );
+    assert!(
+        err.contains("halvo-capture: the run marker's line of the end was not written: "),
+        "{err}"
     );
 }
 
