@@ -707,3 +707,22 @@ fn u322a_a_set_up_put_up_again_offers_no_start_now_and_its_start_ends_no_hold() 
         assert_eq!(sheet_row(&c).line, said, "{hold:?}: the hold is as it was");
     }
 }
+
+/// r4 U3.22a round 1, item (4): a typed line of Which sheet, a question with no rule of a line,
+/// goes to the owner as it was typed, the spaces around it and among it kept.
+#[test]
+fn u322a_a_line_of_which_sheet_keeps_the_spaces_around_it() {
+    let (c, item) = all_answered_but(Param::Sheet);
+    let typed = "  Rent  2026 ";
+    let m = mark(&c);
+    assert_eq!(
+        c.setup_typed(item.item(), Param::Sheet, typed, item.step()),
+        Ok(())
+    );
+    let sent = set_bindings(&c, m);
+    assert_eq!(sent.len(), 1);
+    assert_eq!(
+        slot_of(&sent[0], Param::Sheet),
+        Some(vec![typed.to_owned()])
+    );
+}
