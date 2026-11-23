@@ -5,7 +5,7 @@
   var host = null;
   var state = null;
   var section = null;
-  var label, text, field, stateLine, said, removeButton, removeRow, removeQuestion, partsBox;
+  var label, text, field, saveButton, stateLine, said, removeButton, confirmRemove, removeRow, removeQuestion, partsBox;
   var parts = [];
   var mounted = 0;
   var lines = [];
@@ -87,6 +87,13 @@
     );
   }
 
+  /** From the press that sends save_model_key or remove_model_key until its reply or its failure, the three controls send nothing. */
+  function inFlight(on) {
+    [saveButton, removeButton, confirmRemove].forEach(function (button) {
+      button.disabled = on;
+    });
+  }
+
   function failed(words) {
     said.textContent = words;
     read();
@@ -97,8 +104,10 @@
     var pasted = field.value;
     field.value = "";
     said.textContent = "";
+    inFlight(true);
     Halvo.ipc.call("save_model_key", { key: pasted }).then(
       function (reply) {
+        inFlight(false);
         if (reply && reply.state === "saved") {
           state = "saved";
           draw();
@@ -109,6 +118,7 @@
         }
       },
       function () {
+        inFlight(false);
         failed(w.MODEL_KEY_SAVE_FAILED);
       },
     );
@@ -117,8 +127,10 @@
   function onRemove() {
     removeRow.classList.add("hidden");
     said.textContent = "";
+    inFlight(true);
     Halvo.ipc.call("remove_model_key").then(
       function (reply) {
+        inFlight(false);
         if (reply && reply.state === "none") {
           state = "none";
           draw();
@@ -127,6 +139,7 @@
         }
       },
       function () {
+        inFlight(false);
         failed(w.MODEL_KEY_REMOVE_FAILED);
       },
     );
@@ -147,8 +160,8 @@
       field.setAttribute("autocorrect", "off");
       field.setAttribute("autocapitalize", "off");
       field.setAttribute("spellcheck", "false");
-      var save = Halvo.el("button", { id: "model-key-save", text: w.MODEL_KEY_SAVE });
-      save.onclick = onSave;
+      saveButton = Halvo.el("button", { id: "model-key-save", text: w.MODEL_KEY_SAVE });
+      saveButton.onclick = onSave;
       stateLine = Halvo.el("p", { id: "model-key-state" });
       said = Halvo.el("p", { id: "model-key-said" });
       said.setAttribute("role", "status");
@@ -161,7 +174,7 @@
       keep.onclick = function () {
         removeRow.classList.add("hidden");
       };
-      var confirmRemove = Halvo.el("button", { id: "model-key-confirm-remove", class: "danger", text: w.MODEL_KEY_REMOVE });
+      confirmRemove = Halvo.el("button", { id: "model-key-confirm-remove", class: "danger", text: w.MODEL_KEY_REMOVE });
       confirmRemove.onclick = onRemove;
       removeQuestion = Halvo.el("p", { id: "model-key-remove-question" });
       removeRow = Halvo.el("div", { id: "model-key-remove-row", class: "hidden" }, [
@@ -170,7 +183,7 @@
       ]);
       removeRow.classList.add("confirm-row");
       partsBox = Halvo.el("div", { id: "model-key-parts" });
-      [label, text, Halvo.el("div", { class: "row" }, [field, save]), stateLine, said, removeButton, removeRow, partsBox].forEach(function (child) {
+      [label, text, Halvo.el("div", { class: "row" }, [field, saveButton]), stateLine, said, removeButton, removeRow, partsBox].forEach(function (child) {
         element.appendChild(child);
       });
       draw();

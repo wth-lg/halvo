@@ -17,6 +17,12 @@ const stateOf = (state) => (state === null ? { host: null } : { host: HOST, stat
 /** A page whose model_key_state answers `state` and whose other replies are `more`. */
 const pageAt = (state, more = {}) => openPage({ replies: { model_key_state: () => stateOf(state), ...more } });
 
+/** A reply that the test holds: each call waits in `waiting` with its args until the test settles it. */
+function held() {
+  const waiting = [];
+  return { waiting, reply: (args) => new Promise((resolve, reject) => waiting.push({ args, resolve, reject })) };
+}
+
 /** Every 4-byte part of `text`. */
 const partsOf = (text) => Array.from({ length: text.length - 3 }, (_, i) => text.slice(i, i + 4));
 
@@ -195,4 +201,26 @@ test("the_three_questions_name_the_key_only_while_one_is_saved", async () => {
     assert.equal(shown(reset, "settings-reset-model-key-line"), named, `Reset settings ${at}`);
     if (named) assert.equal(reset.text("settings-reset-model-key-line"), stays);
   }
+});
+
+test("while_a_save_is_in_flight_the_controls_of_the_key_send_nothing", async () => {
+  const save = held();
+  const page = await pageAt("saved", { save_model_key: save.reply, remove_model_key: () => ({ state: "none" }) });
+  const pasted = "Zq7Wx9Kp2Vm4Jt8Rb5";
+  await page.click("model-key-remove");
+  await page.type("model-key-field", pasted);
+  await page.click("model-key-save");
+  await page.click("model-key-save");
+  await page.click("model-key-remove");
+  await page.click("model-key-confirm-remove");
+  assert.deepEqual(page.calls("save_model_key").map((c) => c.args), [{ key: pasted }], "two fast presses send one command");
+  assert.equal(page.calls("remove_model_key").length, 0, "the removal and its answer send nothing while the save is in flight");
+  for (const id of ["model-key-save", "model-key-remove", "model-key-confirm-remove"]) assert.equal(page.byId(id).disabled, true, id);
+
+  for (const call of save.waiting) call.resolve(call.args.key === "" ? { error: "no_key" } : { state: "saved" });
+  await page.settle();
+  assert.equal(page.text("model-key-state"), STATE.saved);
+  assert.equal(page.text("model-key-said"), "", "no sentence for a text that is no key");
+  for (const id of ["model-key-save", "model-key-remove", "model-key-confirm-remove"]) assert.equal(page.byId(id).disabled, false, id);
+  assert.equal(page.visible("model-key-remove"), true);
 });
