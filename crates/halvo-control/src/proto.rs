@@ -409,6 +409,7 @@ const REPLY_LISTS: &[UnknownSpellingOf] = &[
     unknown_spelling_of::<OnOff>,
     unknown_spelling_of::<PasswordGuard>,
     unknown_spelling_of::<TypingGate>,
+    unknown_spelling_of::<TypingOffUnsaved>,
     unknown_spelling_of::<Custody>,
     unknown_spelling_of::<Modality>,
     unknown_spelling_of::<Permission>,
@@ -1579,6 +1580,17 @@ pub enum TypingGate {
 
 one_spelling!(TypingGate, "typing gate", [Ok => "ok", FieldUnknown => "field_unknown", LatchOpen => "latch_open"]);
 
+/// Why typing reads off though the state file did not take a person's turn of typing to off:
+/// the capture service's note keeps the turn across its starts until a turn on, or it holds
+/// the turn in the memory of this life alone, where the note could not be written either.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TypingOffUnsaved {
+    Kept,
+    ThisLife,
+}
+
+one_spelling!(TypingOffUnsaved, "unsaved turn of typing", [Kept => "kept", ThisLife => "this_life"]);
+
 /// The key custody of the running build (contracts.md C20).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Custody {
@@ -1688,6 +1700,11 @@ pub struct StatusFields {
     pub platform: Platform,
     pub enabled_sources: Vec<SourceName>,
     pub switches: Vec<SwitchLine>,
+    /// Beside the switch line key_class off alone: a turn of typing to off that the state file
+    /// did not take. It crosses the wire only while it stands, so that a status of a daemon that
+    /// sends none reads none; the protocol number does not move for it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub typing_off_unsaved: Option<TypingOffUnsaved>,
     pub permissions: Vec<PermissionLine>,
     pub sources: Vec<SourceLine>,
     pub kinds: Vec<KindLine>,
@@ -1799,6 +1816,13 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     let switches: Vec<SwitchName> = f.switches.iter().map(|s| s.name).collect();
     if switches != SwitchName::ALL {
         return fail("the switch lines are the five switches in their order");
+    }
+    if f.typing_off_unsaved.is_some()
+        && f.switches
+            .iter()
+            .any(|line| line.name == SwitchName::KeyClass && line.value == OnOff::On)
+    {
+        return fail("an unsaved turn of typing to off stands beside key_class off alone");
     }
     let kinds: Vec<Modality> = f.kinds.iter().map(|k| k.name).collect();
     if kinds != Modality::ALL {
@@ -3367,6 +3391,51 @@ stopped/kind body
         );
         let words: Vec<&str> = TypingGate::ALL.iter().map(|g| g.as_str()).collect();
         assert_eq!(words, ["ok", "field_unknown", "latch_open"]);
+    }
+
+    #[test]
+    fn typing_off_unsaved_is_optional_on_the_wire_and_stands_beside_key_class_off_alone() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut off = status_json(platform);
+            assert!(
+                off.get("typing_off_unsaved").is_none(),
+                "{platform:?}: absent where no turn is unsaved"
+            );
+            for line in off["switches"].as_array_mut().unwrap() {
+                if line["name"] == "key_class" {
+                    line["value"] = "off".into();
+                }
+            }
+            for word in ["kept", "this_life"] {
+                let mut json = off.clone();
+                json["typing_off_unsaved"] = word.into();
+                let read = serde_json::from_value::<DaemonStatus>(json).unwrap();
+                assert_eq!(
+                    serde_json::to_value(&read).unwrap()["typing_off_unsaved"],
+                    word,
+                    "{platform:?}: the word crosses the wire"
+                );
+            }
+            let mut beside_on = status_json(platform);
+            beside_on["typing_off_unsaved"] = "kept".into();
+            assert!(
+                serde_json::from_value::<DaemonStatus>(beside_on).is_err(),
+                "{platform:?}: never beside key_class on"
+            );
+            for refused in [
+                serde_json::json!(true),
+                serde_json::json!(1),
+                "unsaved".into(),
+            ] {
+                let mut json = off.clone();
+                json["typing_off_unsaved"] = refused.clone();
+                assert!(
+                    serde_json::from_value::<DaemonStatus>(json).is_err(),
+                    "{platform:?}: {refused}"
+                );
+            }
+        }
+        assert_eq!(PROTOCOL_VERSION, 1, "the protocol number does not move");
     }
 
     #[test]
