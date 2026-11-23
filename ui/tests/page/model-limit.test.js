@@ -122,6 +122,14 @@ test("the_state_not_known_shows_its_sentences_and_no_other", async () => {
   const failed = await pageAt(() => Promise.reject(new Error("no answer")));
   assert.deepEqual(shownLines(failed), ["Halvo cannot tell just now what it has counted."]);
   assert.equal(failed.visible("model-limit-control"), false);
+
+  const states = [stateOf("ok"), reply];
+  const behind = await pageAt(() => states.shift(), { set_model_limit: () => ({ error: "failed" }) });
+  await behind.type("model-limit-field", "25");
+  await behind.click("model-limit-set");
+  assert.deepEqual(shownLines(behind), ["Halvo cannot tell just now what it has counted."], "behind a press that failed");
+  assert.equal(behind.visible("model-limit-control"), false, "no control behind a press that failed");
+  assert.equal(behind.text("model-limit-said"), "", "no sentence that names the hidden control");
 });
 
 test("a_text_that_is_no_amount_shows_its_one_sentence", async () => {

@@ -77,6 +77,7 @@
     });
   }
 
+  /** Draws the state's sentences. The state not_known shows its sentence alone: no control, and no answer of a press, whose words name the control. */
   function draw() {
     var keys = shownKeys();
     lines.replaceChildren();
@@ -86,6 +87,7 @@
     var known = keys[0] !== "not_known";
     controlRow.classList.toggle("hidden", !known);
     label.textContent = known ? filled(w.MODEL_LIMIT_FIELD) : "";
+    if (!known) said.textContent = "";
     controls();
   }
 
