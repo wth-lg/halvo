@@ -2,11 +2,12 @@
 //! (contracts.md C3.2 step 5 and its stop, D-05): read at the start to set
 //! `last_stop`, written anew for the life that starts, and written once more
 //! by a life that ends in order, with the line `ended=` and the trigger of
-//! that end in the words of contracts.md C2.3 (C14 item 4). It holds the
-//! process id of its life, and the hold of ruling PL-3 part (5) while that
-//! stands: a record of a life that a source which did not stop ended, or the
-//! line `hold=yes` that carries such a record's hold on through the lives
-//! after it until a Resume lifts it.
+//! that end in the words of contracts.md C2.3 (C14 item 4), and by a life
+//! that a Stop request or a signal ends with 1, with that line beside its
+//! process line. It holds the process id of its life, and the hold of ruling
+//! PL-3 part (5) while that stands: a record of a life that a source which
+//! did not stop ended, or the line `hold=yes` that carries such a record's
+//! hold on through the lives after it until a Resume lifts it.
 
 use std::io::{self, Read, Write};
 #[cfg(target_os = "macos")]
@@ -64,12 +65,13 @@ pub enum NoPress {
 
 impl LastEnd {
     /// The one table of what a start with `--no-press` does behind each end
-    /// (the coordinator's rulings of log lines 17942, 17965 and 18046): behind
-    /// a Stop request or a signal, and where the marker does not tell, it
-    /// waits for a press, erring toward no capture; behind the lifeline's
-    /// end, a session's end, a delete's end, and a life that did not end in
-    /// order, it serves as any start does. The other kinds of C2.3 end no
-    /// life with 0 and so stand in no line; a line that names one serves.
+    /// (the coordinator's rulings of log lines 17942, 17965, 18046 and
+    /// 18137): behind a Stop request or a signal, with 0 or with 1, and where
+    /// the marker does not tell, it waits for a press, erring toward no
+    /// capture; behind the lifeline's end, a session's end, a delete's end,
+    /// and a process line alone or a record, it serves as any start does. The
+    /// other kinds of C2.3 end no life with 0 or 1 and so stand in no line; a
+    /// line that names one serves.
     pub fn no_press(self) -> NoPress {
         match self {
             LastEnd::Ended(kind) => match kind {
@@ -161,10 +163,30 @@ pub fn held(dir: &DataDir) -> bool {
 }
 
 /// What the end of a life leaves in its marker, by its exit status and the
-/// trigger of its end (contracts.md C3.2 Stop, C14 item 4): at 0 [`end`].
+/// trigger of its end (contracts.md C3.2 Stop, C14 item 4): at 0 [`end`]; at
+/// 1 where a Stop request or a signal began the end, the process line of the
+/// life, the hold while it stands and the line of that trigger, by the
+/// durable write, so that the next start reads it unclean, as before, and a
+/// start that no press stands behind reads the trigger; at every other end
+/// the marker stays as the life left it: its process line alone, or the
+/// record of ruling PL-3 at an end with 5. Where the marker cannot be read
+/// or the write at 1 fails, the marker stays as it stands, the process line
+/// alone and the hold kept.
 pub fn at_the_end(dir: &DataDir, status: i32, ended_by: Option<StopKind>) -> io::Result<()> {
-    match status {
-        halvo_control::exit::CLEAN => end(dir, ended_by),
+    match (status, ended_by) {
+        (halvo_control::exit::CLEAN, _) => end(dir, ended_by),
+        (halvo_control::exit::ERROR, Some(kind @ (StopKind::Stop | StopKind::Signal))) => {
+            let found = read(dir)?;
+            let mut text = format!("{PID}{}\n", std::process::id());
+            if found.as_deref().is_some_and(holds_the_hold) {
+                text.push_str(HOLD_LINE);
+                text.push('\n');
+            }
+            text.push_str(ENDED);
+            text.push_str(kind.as_str());
+            text.push('\n');
+            replace(dir, text.as_bytes())
+        }
         _ => Ok(()),
     }
 }
