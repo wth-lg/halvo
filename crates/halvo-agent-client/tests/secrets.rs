@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use common::{id16, Rig};
 use halvo_agent_client::wire::FRAME_MAX;
+use halvo_agent_client::{Hosted, RunSpec};
 use halvo_schema::executable::frame::SecretReply;
 use halvo_schema::executable::names::Unreadable;
 use halvo_schema::executable::text::{Name, SecretText};
@@ -172,5 +173,56 @@ fn a_secret_frame_with_an_agent_key_is_refused_and_its_run_ends_with_no_read_mad
         !script.log().contains("tok_other_agent"),
         "{}",
         script.log()
+    );
+}
+
+const MODEL_KEY_ASK: &str = r#"ask {"t":"secret","ref":"model_key"}"#;
+
+/// The person's key that the secret store holds in the model key's test: a made-up text that names itself as a test
+/// value.
+const TEST_MODEL_KEY: &str = "test-value-not-a-model-key";
+
+/// In a run whose start names `hosted`, with a secret store that holds the test's key for every agent and name: the
+/// reply that the runner gets to the frame `secret` of the reserved name `model_key`, the reads that the store got,
+/// and the run's agent.
+fn model_key_reply(hosted: Option<Hosted>) -> (String, Vec<(AgentId, Name)>, AgentId) {
+    let rig = Rig::new("model-key");
+    *rig.vault.other.lock().unwrap() = stored(TEST_MODEL_KEY);
+    let script = rig.script(&["hello", MODEL_KEY_ASK, "log asked", "idle"]);
+    let spec = RunSpec {
+        hosted,
+        ..rig.spec(&script)
+    };
+    let run = spec.run.clone();
+    let agent = spec.agent.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("asked", SHORT), "{}", script.log());
+    rig.sup.kill(&run).unwrap();
+    let replies = script.replies();
+    assert_eq!(replies.len(), 1, "{}", script.log());
+    let calls = rig.vault.calls.lock().unwrap().clone();
+    (replies[0].clone(), calls, agent)
+}
+
+/// r3 U7.6, sentence (4) (the coordinator's log lines 16422, point 4, and 16823, its point (2)): a run whose start
+/// names no hosted tier gets no model key: the library answers the frame `secret` of the reserved name `model_key`
+/// with none stored and reads nothing from the secret store, which holds a key. A run whose start names a hosted tier
+/// gets the store's answer, read once for the run's agent and that name.
+#[test]
+fn a_run_whose_start_names_no_hosted_row_gets_no_model_key() {
+    let (refused, reads, _) = model_key_reply(None);
+    assert_eq!(
+        (refused.as_str(), reads),
+        (r#"{"t":"secret_reply","answer":"none"}"#, Vec::new()),
+        "a run whose start names no hosted tier"
+    );
+    let (given, reads, agent) = model_key_reply(Some(Hosted::LowCostHosted));
+    assert_eq!(
+        (given, reads),
+        (
+            format!(r#"{{"t":"secret_reply","answer":"stored","value":"{TEST_MODEL_KEY}"}}"#),
+            vec![(agent, name("model_key"))]
+        ),
+        "a run whose start names a hosted tier"
     );
 }

@@ -11,7 +11,8 @@ use halvo_schema::{
 use crate::day;
 use crate::host::Host;
 
-/// The kinds of the family `agent` with their origin (A7.3), each with the workflow id under the key `workflow`.
+/// The kinds of the family `agent` with their origin (A7.3), each with the workflow id under the key `workflow` but
+/// `model_key`, the person's key, of origin person, which names no workflow (r3 U7.6).
 /// The memory store takes rows of these kinds alone. Where the registry holds the entry of a kind, the store checks a record against it with `check_record` and takes the kind's origin from it; the six kinds of
 /// origin own have no entry until U3.3 adds them, and until then this table gives their origin.
 pub const AGENT_KINDS: &[(&str, Origin)] = &[
@@ -26,6 +27,7 @@ pub const AGENT_KINDS: &[(&str, Origin)] = &[
     ("agent_reply", Origin::Own),
     ("agent_start", Origin::Own),
     ("agent_finished", Origin::Own),
+    ("model_key", Origin::Person),
 ];
 
 /// Why the typed commit of the memory store refused a whole list (W-C25.3): the first record that breaks a rule.
@@ -33,12 +35,12 @@ pub const AGENT_KINDS: &[(&str, Origin)] = &[
 pub enum CommitRefused {
     /// The kind is not one of `AGENT_KINDS`.
     Kind,
-    /// The record fails `check_record` against the kind's entry, or it is no JSON object whose key `workflow`
-    /// holds a workflow id.
+    /// The record fails `check_record` against the kind's entry, or, of a kind whose entry gives a workflow key, it is
+    /// no JSON object whose key `workflow` holds a workflow id.
     Record,
     /// The record names a workflow that is not stored.
     Workflow,
-    /// A step returned a record of a kind of origin own, which only a handler of a request stores.
+    /// A step returned a record of a kind of origin own or person, which only a handler of a request stores.
     OwnFromStep,
 }
 
@@ -57,8 +59,8 @@ impl SummaryRead for NoSummaries {
 /// The store in memory behind the handler calls (A7.6's `memory-store`): the workflows that a test host puts, the
 /// rows of the family `agent`, and the host's steps. Its typed commit is the commit of a handler; `after_batch`
 /// runs the steps as the derived store does after a committed batch, and refuses a record of origin own that a step
-/// returns. It removes rows by `Host::remove_under` alone. Its local calendar is UTC shifted by a fixed offset, 0
-/// unless `with_utc_offset` sets one.
+/// returns. It removes rows by `Host::remove_under` and `Host::remove_person` alone. Its local calendar is UTC shifted
+/// by a fixed offset, 0 unless `with_utc_offset` sets one.
 #[derive(Default)]
 pub struct MemoryStore {
     workflows: BTreeMap<WorkflowId, Workflow>,
@@ -145,11 +147,14 @@ impl MemoryStore {
             .ok_or(CommitRefused::Kind)?;
         let entry = registry().find(|e| e.name == kind);
         let origin = entry.map_or(table_origin, |e| e.origin);
-        if caller == Caller::Step && origin == Origin::Own {
+        if caller == Caller::Step && origin != Origin::Capture {
             return Err(CommitRefused::OwnFromStep);
         }
         if let Some(entry) = entry {
             check_record(entry, &record.json).map_err(|_| CommitRefused::Record)?;
+        }
+        if entry.is_some_and(|e| e.workflow_key.is_none()) {
+            return Ok(kind);
         }
         let workflow = workflow_of(&record.json).ok_or(CommitRefused::Record)?;
         if !self.workflows.contains_key(&workflow) {
@@ -224,6 +229,29 @@ impl Host for MemoryStore {
             self.rows.entry(into).or_default().push(json);
         }
         Ok(removed)
+    }
+
+    /// Answers `store` for a kind that is not one of `AGENT_KINDS` of origin person and for a record that the typed
+    /// commit refuses, and then changes nothing; else it removes every row of the kind, stores the records and answers
+    /// how many rows it removed. It does not know the request's role, so it removes under the body of a runner as well;
+    /// the derived store refuses there.
+    fn remove_person(&mut self, kind: &str, records: Vec<TypedRecord>) -> Result<u64, ErrorName> {
+        let &(kind, _) = AGENT_KINDS
+            .iter()
+            .find(|(name, origin)| *name == kind && *origin == Origin::Person)
+            .ok_or(ErrorName::Store)?;
+        let mut checked = Vec::with_capacity(records.len());
+        for record in records {
+            let into = self
+                .check(Caller::Handler, &record)
+                .map_err(|_| ErrorName::Store)?;
+            checked.push((into, record.json));
+        }
+        let removed = self.rows.remove(kind).map_or(0, |rows| rows.len());
+        for (into, json) in checked {
+            self.rows.entry(into).or_default().push(json);
+        }
+        Ok(u64::try_from(removed).unwrap_or(u64::MAX))
     }
 
     fn set_state(

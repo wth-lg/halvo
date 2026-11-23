@@ -18,7 +18,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use super::control::{Control, Places};
 use super::names::{Names, AGENTS};
 use super::Registration;
-use crate::poller::{Polled, Views};
+use crate::poller::{PollEnd, Polled, Views};
 use halvo_control::paths::DataDir;
 
 pub struct Module;
@@ -45,11 +45,11 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
 
 /// The app's hold on the agents' runs (the coordinator's lines 12397 and 12465 of the capture
 /// run): it stands while a delete of everything runs at any door, behind the end of such a
-/// delete until the view of a poll made after that end is drawn (`Owed`), and while the view's
-/// store reads deleting or error locked, and is lifted once none of these stands. The core's
-/// `hold_runs` refuses every start while it stands, the person's, the queue's and a tick's, and
-/// stops the runs at work; calls to the core go one at a time, each with what is wanted at its
-/// turn.
+/// delete until a reading of a poll made after that end is drawn whose view does not bar
+/// (`Owed`), and while the view's store reads deleting or error locked, and is lifted once none
+/// of these stands. The core's `hold_runs` refuses every start while it stands, the person's,
+/// the queue's and a tick's, and stops the runs at work; calls to the core go one at a time,
+/// each with what is wanted at its turn.
 #[derive(Debug, Default)]
 pub struct RunsHold {
     wanted: Mutex<Wanted>,
@@ -57,14 +57,17 @@ pub struct RunsHold {
 }
 
 /// What the hold wants at a moment: it stands while a delete runs, while the newest view drawn
-/// bars, or while a reading is owed. `late` is the moment at which the answer of a delete passed
-/// its deadline, until a reading clears it.
+/// bars, or while a reading is owed. `late` is the moment at which the answer of a delete left
+/// the service maybe still deleting, and `no_service` the moment at which a delete ended at a
+/// door that ended the service's child or may end it; each stands until a reading whose view
+/// does not bar clears it, and a reading whose view bars sets its moment anew (`Owed`).
 #[derive(Debug, Default)]
 struct Wanted {
     deletes: usize,
     barred: bool,
     owed: Owed,
     late: Option<Instant>,
+    no_service: Option<Instant>,
 }
 
 impl Wanted {
@@ -72,14 +75,20 @@ impl Wanted {
         self.deletes > 0 || self.barred || self.owed != Owed::Nothing
     }
 
-    /// Whether `poll` is a reading at `now`: a poll that answered always is; a poll that passed
-    /// its deadline is not while a late answer stands and less than `Deadlines::V1.delete_all`
-    /// has passed since it.
+    /// Whether `poll` is a reading at `now`: a status always is; every other end of a poll, a
+    /// deadline, a reply of the service that carries no status and no reply of the service, is
+    /// not while either mark stands, each mark standing until `Deadlines::V1.delete_all` has
+    /// passed since its moment.
     fn reads(&self, poll: Polled, now: Instant) -> bool {
-        !poll.passed_its_deadline
-            || self
-                .late
-                .is_none_or(|late| now.saturating_duration_since(late) >= Deadlines::V1.delete_all)
+        let stands = |mark: Option<Instant>| {
+            mark.is_some_and(|at| now.saturating_duration_since(at) < Deadlines::V1.delete_all)
+        };
+        match poll.end {
+            PollEnd::Status => true,
+            PollEnd::Deadline | PollEnd::ReplyWithoutStatus | PollEnd::NoReply => {
+                !stands(self.late) && !stands(self.no_service)
+            }
+        }
     }
 }
 
@@ -94,27 +103,40 @@ impl Wanted {
 ///    was made after the end, and so after the answer. No view that a draw reads before a poll
 ///    at or past the fence lifts the hold: the view of a poll made before the end, Connecting
 ///    behind a delete's answer, and the view of before drawn again behind a refusal.
-/// 3. The reading: the first draw whose views hold the view of a poll at or past the fence
-///    clears it, and the hold lifts there unless that view bars.
+/// 3. The reading: the first draw whose views hold the view of a poll at or past the fence that
+///    is a reading (`Wanted::reads`) clears it, and the hold lifts there, unless that view bars:
+///    then the reading stays owed, the marks stay, and their moment becomes that draw's.
 ///
-/// Behind a late answer the reading waits longer. At the service's door, a delete whose own
-/// answer passed its deadline is marked (`answer_passed_its_deadline`, from the door's guard
-/// before its drop): the service may still delete, and it answers no status while it does. Then
-/// a poll that passes its deadline is no reading, and the first poll at or past the fence that
-/// answers, with a status or another error, is the reading and clears the mark. Once
-/// `Deadlines::V1.delete_all` (120 s, the wait for a delete's answer) has passed since the mark,
-/// a poll that passes its deadline is a reading again. The offline door and Remove Halvo's list
-/// take no answer of the service and are never marked.
+/// Two marks make the reading wait longer. A door's guard sets each before its drop, at the
+/// moment of that end, and while either stands only a status is a reading.
+/// - `late`, at the service's door (`may_still_delete`): the delete's own answer passed its
+///   deadline, the client's transport failed (behind the sent request, or before it, where the
+///   mark holds the hold longer than it must) or it could not take what came back, or the
+///   service answered with anything but a finished delete, so the service may still delete, and
+///   it answers no status while it deletes.
+/// - `no_service`, at the offline door, behind a list of Remove Halvo that stopped, and at the
+///   service's door behind a deleted answer where the view reads a Windows run, whose child the
+///   app may renew (`ended_with_no_service`): the door ended the service's child, or may end it,
+///   and a child answers again, if at all, only behind that end.
 ///
-/// It cannot stand for good while the poller runs: the door draws behind its answer and each
-/// round of the poller draws, so the fence comes at the first of these draws; the woken
-/// poller's next poll is made after it, and its answer is taken as a view, a status or any
-/// error, no service among them. Two answers are not taken. One is a poll made before a newer
-/// answer of a mutation, and the poller's next poll follows it. The other is a deadline while a
-/// delete of the app is in flight, and that delete's own end owes a new reading. Behind a late
-/// answer, a poll that passes its deadline is a reading again once the bound has passed. Where
-/// no poller runs, as in the launch form `--delete-all` and in a test app, nothing clears it,
-/// and at a quit the process may end first: there the hold stands until the process ends.
+/// The rule in one sentence: behind a delete's end the hold stands until a poll at or past the
+/// fence is a reading whose view does not bar, where a status is always a reading, every other
+/// end of a poll (a deadline, a reply of the service that carries no status, no reply of the
+/// service) is none while either mark stands, and each mark stands for 120 s
+/// (`Deadlines::V1.delete_all`, the wait for a delete's answer) from its moment, which every
+/// reading whose view bars sets anew. Once both marks' 120 s have passed, every poll is a
+/// reading again.
+///
+/// It cannot stand for good while the poller runs, unless the service reads its store deleting
+/// or locked without end: the door draws behind its answer and each round of the poller draws,
+/// so the fence comes at the first of these draws; the woken poller's next poll is made after
+/// it, and its answer is taken as a view, a status or any error, no service among them. Two
+/// answers are not taken. One is a poll made before a newer answer of a mutation, and the
+/// poller's next poll follows it. The other is a deadline while a delete of the app is in
+/// flight, and that delete's own end owes a new reading. Behind a mark, the poll that it holds
+/// back is a reading again once the bound has passed. Where no poller runs, as in the launch
+/// form `--delete-all` and in a test app, nothing clears it, and at a quit the process may end
+/// first: there the hold stands until the process ends.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum Owed {
     /// No reading is owed.
@@ -138,11 +160,27 @@ impl RunsHold {
         self.apply(core);
     }
 
-    /// The answer of a delete of everything that runs passed its deadline at `at`, while the
-    /// service may still delete: from its end on, a poll that passes its deadline is no reading
-    /// until a poll answers or `Deadlines::V1.delete_all` has passed since `at` (`Owed`).
-    pub fn answer_passed_its_deadline(&self, at: Instant) {
+    /// The answer of a delete of everything that runs left the service maybe still deleting at
+    /// `at`: it passed its deadline, the transport failed (behind the request, or before it, where
+    /// the mark holds the hold longer than it must) or the client could not take what came back,
+    /// or the service answered with anything but a finished delete.
+    /// From the delete's end on, every poll but a status (a deadline, a reply of the service that
+    /// carries no status, no reply of the service) is no reading until a reading clears the mark
+    /// or `Deadlines::V1.delete_all` has passed since the mark's moment, which is `at` until a
+    /// reading whose view bars moves it to that draw's moment (`Owed`).
+    pub fn may_still_delete(&self, at: Instant) {
         self.wanted().late = Some(at);
+    }
+
+    /// A delete of everything that runs ends at `at` at a door that ended the service's child or
+    /// may end it: the offline door, a list of Remove Halvo that stopped, or a deleted answer at
+    /// the service's door where the app may renew a Windows run's child. From that end on, every
+    /// poll but a status (a deadline, a reply of the service that carries no status, no reply of
+    /// the service) is no reading until a reading clears the mark or `Deadlines::V1.delete_all`
+    /// has passed since the mark's moment, which is `at` until a reading whose view bars moves
+    /// it to that draw's moment (`Owed`).
+    pub fn ended_with_no_service(&self, at: Instant) {
+        self.wanted().no_service = Some(at);
     }
 
     /// A delete of everything ended: a reading is owed (`Owed`), and the hold stands on until
@@ -169,7 +207,8 @@ impl RunsHold {
 
     /// What a draw at `now` tells the hold, from `views` at that moment: whether their view
     /// bars, and, behind a delete's end, the fence at the next call number of `places` or the
-    /// reading (`Owed`). Returns whether what is wanted changed, for `apply`.
+    /// reading (`Owed`), which clears nothing where the view bars and sets the marks' moment to
+    /// `now`. Returns whether what is wanted changed, for `apply`.
     fn told_by_a_draw(&self, views: &Views, places: &Places, now: Instant) -> bool {
         let (view, poll) = views.reading();
         let mut wanted = self.wanted();
@@ -184,8 +223,14 @@ impl RunsHold {
             Owed::From(fence)
                 if poll.is_some_and(|poll| poll.number >= fence && wanted.reads(poll, now)) =>
             {
-                wanted.owed = Owed::Nothing;
-                wanted.late = None;
+                if wanted.barred {
+                    wanted.late = wanted.late.map(|_| now);
+                    wanted.no_service = wanted.no_service.map(|_| now);
+                } else {
+                    wanted.owed = Owed::Nothing;
+                    wanted.late = None;
+                    wanted.no_service = None;
+                }
             }
             Owed::Nothing | Owed::From(_) => {}
         }
@@ -383,12 +428,13 @@ impl Core for NoService {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use std::sync::{Arc, Condvar, Mutex, PoisonError};
     use std::time::{Duration, Instant};
 
     use halvo_control::client::{ClientError, Deadlines};
     use halvo_control::paths::DataDir;
-    use halvo_control::proto::{DaemonStatus, Platform, StoreState};
+    use halvo_control::proto::{DaemonStatus, ErrorCode, ErrorReply, Platform, StoreState};
     use halvo_control::testing::{sample_status, ScriptedConnector, ScriptedDaemon};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord::types::{AgentId, Cause, ItemId, RunId};
@@ -398,9 +444,12 @@ mod tests {
     use tauri::{App, Manager};
 
     use super::{hold_by_the_view, RunsHold};
-    use crate::commands::capture::{delete_everything, AppState, Before, DeleteEnd, DELETE_WAITS};
+    use crate::commands::capture::{
+        delete_everything, run_offline, AppState, Before, DeleteEnd, Offline, DELETE_WAITS,
+    };
     use crate::commands::control::{Control, Gated, Places};
     use crate::poller::Views;
+    use crate::view_state::OfflineEnd;
 
     /// A core that records every `hold_runs` that reaches it.
     #[derive(Default)]
@@ -603,7 +652,7 @@ mod tests {
             );
         };
         runs.delete_begins(Some(&core));
-        runs.answer_passed_its_deadline(late);
+        runs.may_still_delete(late);
         runs.delete_ends(Some(&core));
         runs.drawn_at(Some(&core), &views, &places, late);
         a_poll_past_its_deadline();
@@ -625,5 +674,490 @@ mod tests {
             [true, false],
             "at the bound, a poll that passed its deadline is a reading again and lifts the hold once"
         );
+    }
+
+    /// The offline delete of a stand-in program that finds no store, with no child to end: its
+    /// data folder is absolute on each system, a drive and a name on Windows, a root and a name
+    /// elsewhere, and no file is touched.
+    fn an_offline_run() -> Offline {
+        let folder = if cfg!(windows) {
+            r"C:\stand-in\data"
+        } else {
+            "/stand-in/data"
+        };
+        let dir = DataDir::from_flag(folder).expect("an absolute directory");
+        let printed = format!("data_dir={}\nno_store\n", dir.path().display());
+        Offline {
+            program: PathBuf::from("/stand-in/halvo-capture"),
+            data_dir: dir,
+            children: None,
+            run: Arc::new(move |_, _| OfflineEnd::Exited {
+                code: 0,
+                out: printed.clone(),
+            }),
+        }
+    }
+
+    /// The answers of a poll that finds no service: nothing listens, the data folder is held
+    /// with nothing listening, or the system has no control channel.
+    fn no_service() -> [ClientError; 3] {
+        [
+            ClientError::Unreachable {
+                endpoint: String::new(),
+            },
+            ClientError::DataDirInUse {
+                endpoint: String::new(),
+            },
+            ClientError::Unsupported,
+        ]
+    }
+
+    /// The hold of `core` before a door, with no module.
+    fn before_of(core: &Arc<Told>) -> Before {
+        Before {
+            modules: Vec::new(),
+            runs: Arc::new(RunsHold::default()),
+            core: Some(Arc::clone(core) as Arc<dyn Core>),
+        }
+    }
+
+    #[test]
+    fn behind_the_offline_door_and_a_windows_deleted_answer_no_service_and_a_deadline_are_no_reading(
+    ) {
+        type Door = fn(&Before, &Gated<ScriptedConnector>, &Views);
+        let doors: [(&str, Door); 2] = [
+            ("the offline door", |before, _, _| {
+                let _ = run_offline(&an_offline_run(), before);
+            }),
+            (
+                "the service's door, a deleted answer where the view reads Windows",
+                |before, control, views| {
+                    let windows = sample_status(Platform::Windows);
+                    views.take_poll(control.places().make().number(), &Ok(windows.clone()));
+                    let asked = delete_everything(
+                        before,
+                        control,
+                        views,
+                        windows.fields().store_id,
+                        DELETE_WAITS,
+                    );
+                    assert!(
+                        matches!(asked.end, DeleteEnd::Answered(Ok(_))),
+                        "the service answered the delete: {:?}",
+                        asked.end
+                    );
+                    views.take_delete(asked.call, asked.next_number_at_answer);
+                },
+            ),
+        ];
+        for (door, end) in doors {
+            let core = Arc::new(Told::default());
+            let before = before_of(&core);
+            let control = Gated::new(ScriptedConnector::new(ScriptedDaemon::new(sample_status(
+                Platform::Windows,
+            ))));
+            let views = Views::default();
+            let read = |answer: Result<DaemonStatus, ClientError>| {
+                views.take_poll(control.places().make().number(), &answer);
+                before
+                    .runs
+                    .drawn(before.core.as_deref(), &views, control.places());
+            };
+            end(&before, &control, &views);
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+            for found in no_service() {
+                let named = format!("{found:?}");
+                read(Err(found));
+                assert_eq!(
+                    core.holds(),
+                    [true],
+                    "{door}: a poll that finds no service ({named}) is no reading and lifts nothing"
+                );
+            }
+            read(Err(ClientError::Deadline { seconds: 2 }));
+            assert_eq!(
+                core.holds(),
+                [true],
+                "{door}: a poll that passes its deadline is no reading and lifts nothing"
+            );
+            read(Err(ClientError::Io(std::io::Error::other(
+                "a transport error before the request",
+            ))));
+            assert_eq!(
+                core.holds(),
+                [true],
+                "{door}: a poll that ends in a transport error has no reply and lifts nothing"
+            );
+            read(Ok(deleting_with_the_field()));
+            assert_eq!(
+                core.holds(),
+                [true],
+                "{door}: a poll that answers that the store still deletes lifts nothing"
+            );
+            read(Err(ClientError::Unreachable {
+                endpoint: String::new(),
+            }));
+            assert_eq!(
+                core.holds(),
+                [true],
+                "{door}: behind a status that bars, a poll that finds no service lifts nothing"
+            );
+            read(Ok(sample_status(Platform::Macos)));
+            assert_eq!(
+                core.holds(),
+                [true, false],
+                "{door}: the first poll that answers with the store open lifts the hold once"
+            );
+        }
+    }
+
+    #[test]
+    fn behind_the_offline_doors_end_a_poll_that_finds_no_service_lifts_the_hold_at_the_bound_and_not_before_it(
+    ) {
+        let core = Arc::new(Told::default());
+        let before = before_of(&core);
+        let views = Views::default();
+        let places = Arc::<Places>::default();
+        let bound = Deadlines::V1.delete_all;
+        let a_poll_that_finds_no_service_drawn_at = |now: Instant| {
+            views.take_poll(
+                places.make().number(),
+                &Err(ClientError::Unreachable {
+                    endpoint: String::new(),
+                }),
+            );
+            before
+                .runs
+                .drawn_at(before.core.as_deref(), &views, &places, now);
+        };
+        let begun = Instant::now();
+        let _ = run_offline(&an_offline_run(), &before);
+        let ended = Instant::now();
+        before
+            .runs
+            .drawn_at(before.core.as_deref(), &views, &places, ended);
+        a_poll_that_finds_no_service_drawn_at(begun + bound - Duration::from_millis(1));
+        assert_eq!(
+            core.holds(),
+            [true],
+            "before the bound, a poll that finds no service lifts nothing"
+        );
+        a_poll_that_finds_no_service_drawn_at(ended + bound);
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "once the bound has passed since the end, a poll that finds no service is a reading again and lifts the hold once"
+        );
+    }
+
+    #[test]
+    fn behind_a_delete_that_the_service_answered_busy_a_poll_past_its_deadline_is_no_reading() {
+        let core = Arc::new(Told::default());
+        let mut busy = ScriptedDaemon::new(sample_status(Platform::Macos));
+        busy.set_mutation_in_flight(true);
+        let control = Gated::new(ScriptedConnector::new(busy));
+        let views = Views::default();
+        let before = before_of(&core);
+        let drawn = || {
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+        };
+        let asked = delete_everything(&before, &control, &views, None, DELETE_WAITS);
+        assert!(
+            matches!(
+                &asked.end,
+                DeleteEnd::Answered(Err(ClientError::Daemon(reply))) if reply.code() == ErrorCode::Busy
+            ),
+            "the service answered the delete busy: {:?}",
+            asked.end
+        );
+        views.take_refusal(asked.next_number_at_answer);
+        drawn();
+        let number = control.places().make().number();
+        views.take_poll(number, &Err(ClientError::Deadline { seconds: 2 }));
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true],
+            "behind a busy answer, a poll that passed its deadline is no reading and lifts nothing"
+        );
+        let number = control.places().make().number();
+        views.take_poll(number, &Ok(sample_status(Platform::Macos)));
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first poll behind it that answers, the store open, lifts the hold once"
+        );
+    }
+
+    /// The reply of a service in either of its two fault states: an error with the code
+    /// internal, which carries no status. The app reads the code alone; `text` is the service's.
+    fn internal(text: &str) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Daemon(ErrorReply::new(
+            ErrorCode::Internal,
+            text,
+        )))
+    }
+
+    #[test]
+    fn behind_the_offline_doors_end_a_reply_that_carries_no_status_is_no_reading() {
+        let core = Arc::new(Told::default());
+        let before = before_of(&core);
+        let views = Views::default();
+        let places = Arc::<Places>::default();
+        let read = |answer: Result<DaemonStatus, ClientError>| {
+            views.take_poll(places.make().number(), &answer);
+            before.runs.drawn(before.core.as_deref(), &views, &places);
+        };
+        let _ = run_offline(&an_offline_run(), &before);
+        before.runs.drawn(before.core.as_deref(), &views, &places);
+        read(internal("the capture service is not serving"));
+        assert_eq!(
+            core.holds(),
+            [true],
+            "the reply of a connection that still serves when the loop takes no request carries no status: no reading, no lift"
+        );
+        read(Ok(sample_status(Platform::Macos)));
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first status that does not bar lifts the hold once"
+        );
+    }
+
+    #[test]
+    fn behind_a_late_answer_a_reply_that_carries_no_status_is_no_reading() {
+        let core = Arc::new(Told::default());
+        let mut silent = ScriptedDaemon::new(sample_status(Platform::Macos));
+        silent.set_silent(true);
+        let control = Gated::new(ScriptedConnector::new(silent));
+        let views = Views::default();
+        let before = before_of(&core);
+        let drawn = || {
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+        };
+        let asked = delete_everything(&before, &control, &views, None, DELETE_WAITS);
+        assert!(
+            matches!(
+                asked.end,
+                DeleteEnd::Answered(Err(ClientError::Deadline { .. }))
+            ),
+            "the delete's own answer passed its deadline: {:?}",
+            asked.end
+        );
+        views.take_delete(asked.call, asked.next_number_at_answer);
+        drawn();
+        let number = control.places().make().number();
+        views.take_poll(
+            number,
+            &internal("a status whose parts break a rule of the status type"),
+        );
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true],
+            "the reply to a Status whose parts break a rule carries no status: no reading, no lift"
+        );
+        let number = control.places().make().number();
+        views.take_poll(number, &Ok(sample_status(Platform::Macos)));
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first status that does not bar lifts the hold once"
+        );
+    }
+
+    #[test]
+    fn behind_a_delete_that_the_service_answered_with_an_error_a_poll_without_a_status_is_no_reading(
+    ) {
+        let core = Arc::new(Told::default());
+        let body = halvo_control::proto::encode_reply(&halvo_control::proto::Reply::Error(
+            ErrorReply::new(
+                ErrorCode::Internal,
+                "the delete did not finish and its report could not be read; delete-all.intent stays",
+            ),
+        ));
+        let mut frame = u32::try_from(body.len())
+            .expect("a short frame")
+            .to_be_bytes()
+            .to_vec();
+        frame.extend(body);
+        let mut failing = ScriptedDaemon::new(sample_status(Platform::Macos));
+        failing.set_raw_reply(frame);
+        let control = Gated::new(ScriptedConnector::new(failing));
+        let views = Views::default();
+        let before = before_of(&core);
+        let read = |answer: Result<DaemonStatus, ClientError>| {
+            views.take_poll(control.places().make().number(), &answer);
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+        };
+        let asked = delete_everything(&before, &control, &views, None, DELETE_WAITS);
+        assert!(
+            matches!(
+                &asked.end,
+                DeleteEnd::Answered(Err(ClientError::Daemon(reply))) if reply.code() == ErrorCode::Internal
+            ),
+            "the service answered the delete with the error internal: {:?}",
+            asked.end
+        );
+        views.take_delete(asked.call, asked.next_number_at_answer);
+        before
+            .runs
+            .drawn(before.core.as_deref(), &views, control.places());
+        for (found, answer) in [
+            (
+                "a poll that finds no service",
+                Err(ClientError::Unreachable {
+                    endpoint: String::new(),
+                }),
+            ),
+            (
+                "a poll past its deadline",
+                Err(ClientError::Deadline { seconds: 2 }),
+            ),
+            (
+                "a reply that carries no status",
+                internal("the capture service is not serving"),
+            ),
+        ] {
+            read(answer);
+            assert_eq!(
+                core.holds(),
+                [true],
+                "behind a delete that the service did not finish, {found} lifts nothing"
+            );
+        }
+        read(Ok(sample_status(Platform::Macos)));
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first status that does not bar lifts the hold once"
+        );
+    }
+
+    /// A connector whose transport takes the whole request and then fails when the client reads
+    /// the reply: a transport that fails behind a sent request.
+    #[derive(Clone)]
+    struct FailsBehindTheRequest;
+
+    struct FailingTransport;
+
+    impl std::io::Read for FailingTransport {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::ErrorKind::ConnectionReset.into())
+        }
+    }
+
+    impl std::io::Write for FailingTransport {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl halvo_control::client::Transport for FailingTransport {
+        fn set_timeout(&mut self, _: Duration) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn end_request(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl halvo_control::client::Connector for FailsBehindTheRequest {
+        type Transport = FailingTransport;
+
+        fn endpoint(&self) -> String {
+            "a stand-in".to_owned()
+        }
+
+        fn connect(&self, _: Duration) -> Result<FailingTransport, ClientError> {
+            Ok(FailingTransport)
+        }
+    }
+
+    #[test]
+    fn behind_a_delete_whose_transport_failed_or_whose_reply_could_not_be_taken_a_poll_without_a_status_is_no_reading(
+    ) {
+        let mut unreadable = ScriptedDaemon::new(sample_status(Platform::Macos));
+        let body = b"not a reply".to_vec();
+        let mut frame = u32::try_from(body.len())
+            .expect("a short frame")
+            .to_be_bytes()
+            .to_vec();
+        frame.extend(body);
+        unreadable.set_raw_reply(frame);
+        type Ends = fn(&ClientError) -> bool;
+        let doors: [(&str, Box<dyn Control>, Ends); 2] = [
+            (
+                "a transport that fails behind the sent request",
+                Box::new(Gated::new(FailsBehindTheRequest)),
+                |error| matches!(error, ClientError::Io(_)),
+            ),
+            (
+                "a reply that the client cannot take",
+                Box::new(Gated::new(ScriptedConnector::new(unreadable))),
+                |error| matches!(error, ClientError::Protocol(_)),
+            ),
+        ];
+        for (door, control, ends) in doors {
+            let core = Arc::new(Told::default());
+            let views = Views::default();
+            let before = before_of(&core);
+            let read = |answer: Result<DaemonStatus, ClientError>| {
+                views.take_poll(control.places().make().number(), &answer);
+                before
+                    .runs
+                    .drawn(before.core.as_deref(), &views, control.places());
+            };
+            let asked = delete_everything(&before, control.as_ref(), &views, None, DELETE_WAITS);
+            assert!(
+                matches!(&asked.end, DeleteEnd::Answered(Err(error)) if ends(error)),
+                "{door}: the delete ends so: {:?}",
+                asked.end
+            );
+            views.take_delete(asked.call, asked.next_number_at_answer);
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+            for (found, answer) in [
+                (
+                    "a poll that finds no service",
+                    Err(ClientError::Unreachable {
+                        endpoint: String::new(),
+                    }),
+                ),
+                (
+                    "a poll past its deadline",
+                    Err(ClientError::Deadline { seconds: 2 }),
+                ),
+                (
+                    "a reply that carries no status",
+                    internal("the capture service is not serving"),
+                ),
+            ] {
+                read(answer);
+                assert_eq!(core.holds(), [true], "{door}: {found} lifts nothing");
+            }
+            read(Ok(sample_status(Platform::Macos)));
+            assert_eq!(
+                core.holds(),
+                [true, false],
+                "{door}: the first status that does not bar lifts the hold once"
+            );
+        }
     }
 }

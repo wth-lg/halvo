@@ -85,14 +85,23 @@ impl RetentionClass {
     }
 }
 
-/// The origin of a kind, fixed when its entry is added and never changed: capture, or own, a bounded or kept kind
-/// that may hold an instant and a text that capture did not supply, names a workflow and is written only for a
-/// `runner` or a `coordinator_write` request. It has no serde form and no name.
+/// The origin of a kind, fixed when its entry is added and never changed: capture; own, a bounded or kept kind that
+/// may hold an instant and a text that capture did not supply, names a workflow and is written only for a `runner`
+/// or a `coordinator_write` request; or person, a kept kind of the person and of no workflow, whose name stands on
+/// the closed list `PERSON_KINDS`, which may hold a text that capture did not supply, gives no workflow key and is
+/// written only for a `coordinator_write` request. It has no serde form and no name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Origin {
     Capture,
     Own,
+    Person,
 }
+
+/// The kinds of origin person, a closed list: `model_key`, the person's key for a model's host (r3 U7.6, the
+/// coordinator's log lines 16422 and 16823). A row of such a kind names no workflow, so it outlives every workflow's
+/// delete; it goes with its own removal call (`HandlerCx::remove_person` of the derived store), with the delete of
+/// everything and with the removal of the data folder.
+pub const PERSON_KINDS: &[&str] = &["model_key"];
 
 /// The entry of one record kind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -256,9 +265,11 @@ fn keys_in_order(entry: &KindEntry) -> Vec<&'static str> {
 /// the key `day` and another type; a window entry without the pair of the key `expires` and the type `Instant` or
 /// the key `segments` and the type `Ordinal`, or with a pair of either key and another type; a `workflow_key` that
 /// is no key of the fields with the type `Id`, or whose key has a pair of another type; an entry of origin own of the
-/// class window or without a `workflow_key`; a bounded or kept entry of origin capture with a field of the type
-/// `Instant`, `Ordinal`, `Token`, `Text` or `OwnText`; an entry of origin own with a field of the type `Ordinal`,
-/// `Token` or `Text`; a window entry with a field of the type `OwnText`; an example that `check_record` refuses;
+/// class window or without a `workflow_key`; an entry of origin person whose name is not on `PERSON_KINDS`, of another
+/// class than kept or with a `workflow_key`, and a name of `PERSON_KINDS` in an entry of another origin; a bounded or
+/// kept entry of origin capture with a field of the type `Instant`, `Ordinal`, `Token`, `Text` or `OwnText`; an entry
+/// of origin own or person with a field of the type `Ordinal`, `Token` or `Text`; a window entry with a field of the
+/// type `OwnText`; an example that `check_record` refuses;
 /// and an example whose top-level keys are not the keys of the fields in their order.
 pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
     let mut reports = Vec::new();
@@ -389,6 +400,27 @@ pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
                 ));
             }
         }
+        if entry.origin == Origin::Person {
+            if !PERSON_KINDS.contains(&entry.name) {
+                reports.push(format!(
+                    "{kind}: a kind of origin person whose name is not on PERSON_KINDS"
+                ));
+            }
+            if entry.class != RetentionClass::Kept {
+                reports.push(format!(
+                    "{kind}: a kind of origin person of another class than kept"
+                ));
+            }
+            if entry.workflow_key.is_some() {
+                reports.push(format!(
+                    "{kind}: a kind of origin person with a workflow_key"
+                ));
+            }
+        } else if PERSON_KINDS.contains(&entry.name) {
+            reports.push(format!(
+                "{kind}: a name of PERSON_KINDS in a kind of another origin than person"
+            ));
+        }
         let capture_stored =
             entry.origin == Origin::Capture && entry.class != RetentionClass::Window;
         for (key, field_type) in &pairs {
@@ -407,6 +439,11 @@ pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
                 (
                     entry.origin == Origin::Own,
                     "a kind of origin own",
+                    &[FieldType::Ordinal, FieldType::Token, FieldType::Text][..],
+                ),
+                (
+                    entry.origin == Origin::Person,
+                    "a kind of origin person",
                     &[FieldType::Ordinal, FieldType::Token, FieldType::Text][..],
                 ),
                 (

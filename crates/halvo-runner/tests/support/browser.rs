@@ -897,3 +897,73 @@ fn forward(
     out.extend_from_slice(&body);
     let _ = stream.write_all(&out);
 }
+
+/// A step `click` of the control with the test id `id` inside the frames `frame`, with the effect `request`, of the
+/// class `payment`, number `n`: the payee and the instrument from their slots, the amount from the value that an
+/// earlier extract kept as `amount`, the origin `origin`, and its conditions `post` (r3 U5.10-B part two).
+pub fn framed_pay_click(
+    n: u32,
+    id: &str,
+    frame: &[&WebOrigin],
+    origin: &str,
+    post: &[String],
+) -> ExecutableStep {
+    let json = format!(
+        r#"{{"v":1,"n":{n},"kind":"web","verb":"click","target":{},"args":[{},{{"name":"amount","from":"extract","value":null,"key":"amount"}},{},{}],"pre":[],"post":[{}],"effect":"request","class":"payment"}}"#,
+        framed_target(id, frame),
+        from_slot("payee", "payee"),
+        from_slot("instrument", "instrument"),
+        konst("origin", origin),
+        post.join(",")
+    );
+    ExecutableStep::parse(json.as_bytes()).expect("a payment step in a frame")
+}
+
+/// A listener on a loopback port of its own that takes each connection and never answers it, holding it open until
+/// the value is dropped: a resource of it never ends loading (r3 U5.10-B part two). It counts the connections.
+pub struct Hang {
+    port: u16,
+    held: Arc<Mutex<Vec<TcpStream>>>,
+    stop: Arc<AtomicBool>,
+}
+
+impl Hang {
+    pub fn start() -> Hang {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind the listener");
+        let port = listener.local_addr().expect("the listener's port").port();
+        let held = Arc::new(Mutex::new(Vec::new()));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (keep, stopped) = (Arc::clone(&held), Arc::clone(&stop));
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                if stopped.load(Ordering::SeqCst) {
+                    return;
+                }
+                if let Ok(stream) = stream {
+                    keep.lock().expect("the held connections").push(stream);
+                }
+            }
+        });
+        Hang { port, held, stop }
+    }
+
+    pub fn origin(&self) -> WebOrigin {
+        WebOrigin::parse(&format!("http://127.0.0.1:{}", self.port)).expect("an origin")
+    }
+
+    pub fn url(&self, path: &str) -> String {
+        format!("http://127.0.0.1:{}{path}", self.port)
+    }
+
+    /// How many connections it took.
+    pub fn taken(&self) -> usize {
+        self.held.lock().expect("the held connections").len()
+    }
+}
+
+impl Drop for Hang {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        let _ = TcpStream::connect((Ipv4Addr::LOCALHOST, self.port));
+    }
+}

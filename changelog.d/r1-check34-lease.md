@@ -1,0 +1,1 @@
+- Changed: Check 34 (scripts/r1/ci.d/34-app-windows-start.sh) no longer sleeps a fixed 4 s before its ctl stop of the provisioned directory: it asks ctl status of that directory until the line lease=fresh shows that the app has read its child, and fails at 30 s with the status's lines; its line names the seconds that the wait took.

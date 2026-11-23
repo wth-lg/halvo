@@ -1,5 +1,5 @@
 //! The handlers of the agent-setup run in the owner's host (contract A7.5, the workflow run's C25.7): an adapter that
-//! gives `halvo_agent_store::runner` and `halvo_agent_store::coordinator` the six calls of `halvo_agent_store::Host`
+//! gives `halvo_agent_store::runner` and `halvo_agent_store::coordinator` the seven calls of `halvo_agent_store::Host`
 //! from the `HandlerCx` of the request and from the host's clock.
 
 use std::cell::Cell;
@@ -16,7 +16,7 @@ use serde_json::value::RawValue;
 /// The family of the rows that the two handlers read and store.
 pub(crate) const FAMILY: &str = "agent";
 
-/// The `op` names of `CoordinatorCall`, all thirteen, which the handler of `coordinator_write` takes. A fourteenth
+/// The `op` names of `CoordinatorCall`, all seventeen, which the handler of `coordinator_write` takes. An eighteenth
 /// `op` is answered `unsupported` by the store until it is named here.
 pub(crate) const OPS: &[&str] = &[
     "create_agent",
@@ -32,6 +32,10 @@ pub(crate) const OPS: &[&str] = &[
     "agent_history",
     "drop_sessions",
     "list_replies",
+    "put_model_key",
+    "drop_model_key",
+    "model_key_state",
+    "read_model_key",
 ];
 
 /// The body that a handler answers.
@@ -94,7 +98,7 @@ impl Handler for Agent {
     }
 }
 
-/// The six calls of `halvo_agent_store::Host` for one request.
+/// The seven calls of `halvo_agent_store::Host` for one request.
 struct Cx<'c, 'x> {
     cx: &'c mut HandlerCx<'x>,
     clock: &'c dyn Clock,
@@ -120,6 +124,16 @@ impl Host for Cx<'_, '_> {
         records: Vec<TypedRecord>,
     ) -> Result<u64, ErrorName> {
         match self.cx.remove_under(kind, workflow, &records) {
+            Ok(done) => Ok(done.removed),
+            Err(RemoveRefusal::Role) => Err(ErrorName::Role),
+            Err(_) => Err(ErrorName::Store),
+        }
+    }
+
+    /// `HandlerCx::remove_person`: `role` under a request that is no `coordinator_write`, and every other refusal, a
+    /// fault among them, as `store`, as `remove_under` answers it.
+    fn remove_person(&mut self, kind: &str, records: Vec<TypedRecord>) -> Result<u64, ErrorName> {
+        match self.cx.remove_person(kind, &records) {
             Ok(done) => Ok(done.removed),
             Err(RemoveRefusal::Role) => Err(ErrorName::Role),
             Err(_) => Err(ErrorName::Store),

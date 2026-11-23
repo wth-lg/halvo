@@ -18,15 +18,63 @@ struct Latest {
     status: Option<DaemonStatus>,
     mutation_mark: u64,
     poll_number: Option<u64>,
-    poll_passed_its_deadline: bool,
+    poll_end: PollEnd,
 }
 
 /// The poll whose view stands at or past the mark, as `Views::reading` gives it: the number of
-/// its call, and whether its answer passed its deadline.
+/// its call, and how its answer ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Polled {
     pub number: u64,
-    pub passed_its_deadline: bool,
+    pub end: PollEnd,
+}
+
+/// How the answer of a poll ended, as the agents' hold reads it (`agents::RunsHold`): while a
+/// mark of the hold stands, a status alone is a reading, and every other end waits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollEnd {
+    /// A status of the service.
+    Status,
+    /// A reply of the service that carries no status: a frame that the service sent and that
+    /// the client read whole, an error reply or one that it cannot take.
+    ReplyWithoutStatus,
+    /// No reply within its deadline.
+    Deadline,
+    /// No reply of the service: nothing listens at the endpoint (`Unreachable`), the data folder
+    /// is held and nothing listens (`DataDirInUse`), the system has no control channel
+    /// (`Unsupported`), the client refused the peer before it sent the request
+    /// (`PeerRejected`), the transport failed (`Io`), or the client could not take what came
+    /// back (`Protocol`): mostly no whole frame, a stream that ended before any byte among them,
+    /// and in two cases a whole frame, one with a byte behind it and one that the client cannot
+    /// decode, which wait here too.
+    NoReply,
+}
+
+impl PollEnd {
+    #[deny(clippy::wildcard_enum_match_arm)]
+    fn of(answer: &Result<DaemonStatus, ClientError>) -> PollEnd {
+        match answer {
+            Err(ClientError::Deadline { .. }) => PollEnd::Deadline,
+            Err(
+                ClientError::Unreachable { .. }
+                | ClientError::DataDirInUse { .. }
+                | ClientError::Unsupported
+                | ClientError::PeerRejected(_)
+                | ClientError::Io(_)
+                | ClientError::Protocol(_),
+            ) => PollEnd::NoReply,
+            Ok(_) => PollEnd::Status,
+            Err(
+                ClientError::Daemon(_)
+                | ClientError::ServiceEnding(_)
+                | ClientError::ReplyOfAnotherVersion { .. }
+                | ClientError::ValueUnknownToV1(_)
+                | ClientError::StateDoesNotHoldTogether(_)
+                | ClientError::UnexpectedReply { .. }
+                | ClientError::AlreadyDeletedToThisRequest(_),
+            ) => PollEnd::ReplyWithoutStatus,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +143,7 @@ impl Default for Views {
                 status: None,
                 mutation_mark: 0,
                 poll_number: None,
-                poll_passed_its_deadline: false,
+                poll_end: PollEnd::Status,
             }),
             woken: Mutex::new(false),
             wake: Condvar::new(),
@@ -172,7 +220,7 @@ impl Views {
         latest.view = view_of(answer);
         latest.status = answer.as_ref().ok().cloned();
         latest.poll_number = Some(latest.poll_number.map_or(number, |n| n.max(number)));
-        latest.poll_passed_its_deadline = matches!(answer, Err(ClientError::Deadline { .. }));
+        latest.poll_end = PollEnd::of(answer);
         PollAnswer::Stands
     }
 
@@ -260,7 +308,7 @@ impl Views {
                     .filter(|number| *number >= latest.mutation_mark)
                     .map(|number| Polled {
                         number,
-                        passed_its_deadline: latest.poll_passed_its_deadline,
+                        end: latest.poll_end,
                     }),
             )
         };

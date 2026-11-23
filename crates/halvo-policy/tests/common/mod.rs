@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use halvo_schema::executable::names::YesNo;
+use halvo_schema::executable::names::{StepEffect, YesNo};
 use halvo_schema::executable::{
     ActionClass, AgentConfig, Bound, BoundField, Caps, Digest, EffectId, ExecutableStep,
 };
@@ -114,22 +114,29 @@ pub fn web_request(n: u32, verb: &str, class: ActionClass) -> ExecutableStep {
     ))
 }
 
-/// A web `click` on a target that the executor reported as a credential field.
+/// A web `click` on a target that the executor reported as a credential field. With the effect `request` the step
+/// parser refuses it (`effect_with_credential`, r3 U5.10-S), so that one is built past the parser: parsed with the
+/// effect `none`, then given the effect `request` by its public field.
 pub fn web_credential(n: u32, effect: &str, class: ActionClass) -> ExecutableStep {
-    let args = if effect == "request" {
+    let request = effect == "request";
+    let args = if request {
         bound_args(class)
     } else {
         Vec::new()
     };
-    parse_step(&step_json(
+    let mut step = parse_step(&step_json(
         n,
         "web",
         "click",
         Some(web_target("yes")),
         &args,
-        effect,
+        if request { "none" } else { effect },
         class,
-    ))
+    ));
+    if request {
+        step.effect = StepEffect::Request;
+    }
+    step
 }
 
 /// An api step of `op`, stored with `class`.

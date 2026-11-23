@@ -414,6 +414,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
             state: AgentState::Active,
             slots: Vec::new(),
             session: true,
+            window: false,
             last: Some(record),
             unknown: Vec::new(),
             refused_run: None,

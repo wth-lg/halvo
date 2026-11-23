@@ -1550,6 +1550,11 @@ const CHECKPOINTED_WRITES: &[(&str, &str, &str)] = &[
         "remove_under",
         "a_handler_removes_the_rows_of_one_kind_under_one_workflow_and_nothing_else",
     ),
+    (
+        "src/handler.rs",
+        "remove_person",
+        "a_handler_removes_the_rows_of_a_persons_kind_at_rest",
+    ),
     ("src/purge.rs", "purge", "privacy_scrub"),
     ("src/purge.rs", "purge_below", "privacy_scrub"),
     ("src/report.rs", "expire", "privacy_scrub"),
@@ -1573,6 +1578,7 @@ const REMOVALS: &[(&str, &str, &str, &str)] = &[
     ("src/decide.rs", "delete", "remove", "src/decide.rs decide, the delete"),
     ("src/decide.rs", "delete", "remove", "src/decide.rs decide, the delete"),
     ("src/handler.rs", "remove_under", "remove", "src/handler.rs remove_under, the removal call"),
+    ("src/handler.rs", "remove_person", "remove", "src/handler.rs remove_person, the removal call of a person's kind"),
     (
         "src/propose.rs",
         "set_support",
@@ -2586,6 +2592,7 @@ fn removed_rows_leave_no_text_in_the_gap_of_a_page_built_again() {
 enum Act {
     Commit(Vec<TypedRecord>),
     Remove(&'static str, String, Vec<TypedRecord>),
+    RemovePerson(&'static str, Vec<TypedRecord>),
 }
 
 /// A handler that makes, in its own family, the act that the test put in `act`, and keeps the answer of a removal call
@@ -2610,6 +2617,11 @@ impl Handler for Acting {
                 self.removals
                     .borrow_mut()
                     .push(cx.remove_under(kind, &id, &list));
+            }
+            Some(Act::RemovePerson(kind, list)) => {
+                self.removals
+                    .borrow_mut()
+                    .push(cx.remove_person(kind, &list));
             }
             None => {}
         }
@@ -2820,5 +2832,134 @@ fn a_handler_removes_the_rows_of_one_kind_under_one_workflow_and_nothing_else() 
             row(&w1, of_call),
         ],
         "the rows that stand after the call, by the test's own connection"
+    );
+}
+
+const PERSON_FIRST: &str = "qzpersona9201";
+const PERSON_SECOND: &str = "qzpersonb9202";
+const KEPT_OWN: &str = "qzpersonw9203";
+
+/// A row of the person's key, of the kind `model_key`, whose key is a test value that holds `marker`.
+fn person_row(marker: &str) -> TypedRecord {
+    TypedRecord {
+        kind: "model_key",
+        json: format!(r#"{{"v":1,"key":"test-value-{marker}"}}"#),
+    }
+}
+
+/// The removal call of a person's kind, `HandlerCx::remove_person` (r3 U7.6; the coordinator's log line 16823, its
+/// condition (iv)): on a keyless store with no workflow, the handler of the family `agent` stores a `model_key` row
+/// whose key holds a first marker, and the search finds the marker in the files. A call under a `coordinator_write`
+/// with the row of a second marker removes the first row and stores the second in one write, and answers one row
+/// removed and one stored; right after it, behind its checkpoint, the first marker is in no entry of `derived/` and the
+/// second is found. A call with no record then removes the second row and answers one row removed; right after it the
+/// second marker is in no entry of `derived/`.
+#[test]
+fn a_handler_removes_the_rows_of_a_persons_kind_at_rest() {
+    let scratch = Scratch::new("remove-person");
+    let clock = TestClock::at_day(DAY);
+    let act = Rc::new(RefCell::new(None));
+    let removals = Rc::new(RefCell::new(Vec::new()));
+    let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 })).handler(
+        "agent",
+        Takes::Coordinator(&["test"]),
+        Box::new(Acting {
+            act: Rc::clone(&act),
+            removals: Rc::clone(&removals),
+        }),
+    );
+    let mut store = keyless(&scratch, &with(&[]), host);
+    let mut send = |next: Act| {
+        *act.borrow_mut() = Some(next);
+        store
+            .handle(&raw_request("coordinator_write", r#"{"op":"test"}"#))
+            .unwrap();
+    };
+    send(Act::Commit(vec![person_row(PERSON_FIRST)]));
+    assert!(
+        !holding(&scratch, PERSON_FIRST).is_empty(),
+        "the search finds {PERSON_FIRST} while its row is stored"
+    );
+    send(Act::RemovePerson(
+        "model_key",
+        vec![person_row(PERSON_SECOND)],
+    ));
+    assert_eq!(
+        holding(&scratch, PERSON_FIRST),
+        Vec::<String>::new(),
+        "right after the write over, the entries that hold {PERSON_FIRST}, whose row is removed"
+    );
+    assert!(
+        !holding(&scratch, PERSON_SECOND).is_empty(),
+        "right after the write over, the search finds {PERSON_SECOND}, whose row is stored"
+    );
+    send(Act::RemovePerson("model_key", Vec::new()));
+    assert_eq!(
+        holding(&scratch, PERSON_SECOND),
+        Vec::<String>::new(),
+        "right after the drop, the entries that hold {PERSON_SECOND}, whose row is removed"
+    );
+    assert_eq!(
+        removals.borrow().clone(),
+        vec![
+            Ok(Removed {
+                removed: 1,
+                committed: Committed {
+                    stored: 1,
+                    dropped: 0
+                }
+            }),
+            Ok(Removed {
+                removed: 1,
+                committed: Committed::default()
+            }),
+        ]
+    );
+}
+
+/// The removal call of a person's kind refuses a kind that has a workflow key (r3 U7.6; the coordinator's log line
+/// 16823, its condition (ii)): on a keyless store, the handler of the family `test` stores a `test_own` row under a
+/// stored workflow, a kind whose entry gives a workflow key; `remove_person` of that kind under a `coordinator_write`
+/// answers `WorkflowKey`, and the row's marker is still found in the files.
+#[test]
+fn the_removal_of_a_persons_kind_refuses_a_kind_with_a_workflow_key() {
+    let scratch = Scratch::new("remove-person-refused");
+    let clock = TestClock::at_day(DAY);
+    let act = Rc::new(RefCell::new(None));
+    let removals = Rc::new(RefCell::new(Vec::new()));
+    let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 })).handler(
+        "test",
+        Takes::Coordinator(&["test"]),
+        Box::new(Acting {
+            act: Rc::clone(&act),
+            removals: Rc::clone(&removals),
+        }),
+    );
+    let mut store = keyless(&scratch, &with(&[&OWN]), host);
+    store
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY, None)],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    let workflow = listed(&store)[0].workflow.id().as_str().to_owned();
+    let mut send = |next: Act| {
+        *act.borrow_mut() = Some(next);
+        store
+            .handle(&raw_request("coordinator_write", r#"{"op":"test"}"#))
+            .unwrap();
+    };
+    let rest = format!(r#""note":"Call {KEPT_OWN}","at":1794339000000000000"#);
+    send(Act::Commit(vec![record("test_own", &workflow, &rest)]));
+    send(Act::RemovePerson("test_own", Vec::new()));
+    assert_eq!(
+        removals.borrow().clone(),
+        vec![Err(RemoveRefusal::WorkflowKey)]
+    );
+    assert!(
+        !holding(&scratch, KEPT_OWN).is_empty(),
+        "after the refused call, the search finds {KEPT_OWN}"
     );
 }

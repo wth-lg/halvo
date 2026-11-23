@@ -616,8 +616,8 @@ fn ask_once(
 
 /// What the app does before a delete of everything goes out, at either door: every registered
 /// module is told (`Registration::before_delete_all`), and then the agents' runs are held, the
-/// runs at work stopped within the core's grace, until the view of a poll made after the
-/// delete's end is drawn (`agents::RunsHold`).
+/// runs at work stopped within the core's grace, until a reading of a poll made after the
+/// delete's end is drawn whose view does not bar (`agents::RunsHold`).
 #[derive(Clone)]
 pub struct Before {
     pub modules: Vec<&'static dyn Registration>,
@@ -642,7 +642,8 @@ impl Before {
 
     /// Tells every module, waiting for them at most STOP_WAIT_MS, and holds the agents' runs;
     /// this delete ends in the hold when the answer is dropped, also where the hold's own call
-    /// unwinds, and the hold stands on until the view of a poll made after that end is drawn.
+    /// unwinds, and the hold stands on until a reading of a poll made after that end is drawn
+    /// whose view does not bar.
     pub fn tell(&self) -> HeldForADelete {
         tell_before_delete_all(
             &self.modules,
@@ -659,10 +660,19 @@ impl Before {
 pub struct HeldForADelete(Before);
 
 impl HeldForADelete {
-    /// Tells the hold, at this moment and before the drop, that the answer of this delete passed
-    /// its deadline (`agents::RunsHold::answer_passed_its_deadline`).
-    pub fn answer_passed_its_deadline(&self) {
-        self.0.runs.answer_passed_its_deadline(Instant::now());
+    /// Tells the hold, at this moment and before the drop, that the answer of this delete left
+    /// the service maybe still deleting: it passed its deadline, the transport failed (behind the
+    /// request, or before it, where the mark holds the hold longer than it must) or the client
+    /// could not take what came back, or the service answered with anything but a finished
+    /// delete (`agents::RunsHold::may_still_delete`).
+    pub fn may_still_delete(&self) {
+        self.0.runs.may_still_delete(Instant::now());
+    }
+
+    /// Tells the hold, at this moment and before the drop, that this delete ends at a door that
+    /// ended the service's child or may end it (`agents::RunsHold::ended_with_no_service`).
+    pub fn ends_with_no_service(&self) {
+        self.0.runs.ended_with_no_service(Instant::now());
     }
 }
 
@@ -672,10 +682,51 @@ impl Drop for HeldForADelete {
     }
 }
 
+/// Whether the flow of a delete ended where the service may still delete, so that the guard
+/// marks the hold late: its end is a deadline, a transport that failed (`Io`: behind the sent
+/// request, or before it, where no request reached a service and the mark holds the hold up to
+/// 120 s longer than it must), a reply that the client could not take (`Protocol`), or an answer
+/// of the service that is no finished delete: a deleted answer whose run ended not whole, an
+/// already deleted, a refusal, an error reply of any code, the busy of an ending life, or a
+/// reply that the client read whole and cannot take. A finished delete marks nothing, and nor
+/// does an end at which the client knows that no request reached a service: nothing listens, or
+/// the client refused the peer before it sent.
+#[deny(clippy::wildcard_enum_match_arm)]
+fn marks_the_hold_late(end: &DeleteEnd) -> bool {
+    let error = match end {
+        DeleteEnd::Answered(Ok(DeleteOutcome::Deleted(deleted))) => return deleted.unfinished,
+        DeleteEnd::Answered(Ok(DeleteOutcome::AlreadyDeleted(_) | DeleteOutcome::Refused)) => {
+            return true
+        }
+        DeleteEnd::Answered(Err(error))
+        | DeleteEnd::NoLifeAnswered(error)
+        | DeleteEnd::FirstNotKnown(error) => error,
+    };
+    match error {
+        ClientError::Deadline { .. }
+        | ClientError::Daemon(_)
+        | ClientError::ServiceEnding(_)
+        | ClientError::ReplyOfAnotherVersion { .. }
+        | ClientError::ValueUnknownToV1(_)
+        | ClientError::StateDoesNotHoldTogether(_)
+        | ClientError::UnexpectedReply { .. }
+        | ClientError::AlreadyDeletedToThisRequest(_)
+        | ClientError::Io(_)
+        | ClientError::Protocol(_) => true,
+        ClientError::Unreachable { .. }
+        | ClientError::DataDirInUse { .. }
+        | ClientError::Unsupported
+        | ClientError::PeerRejected(_) => false,
+    }
+}
+
 /// The flow of a person's press at the service's door: `Before::tell`, then `ask_to_delete`;
-/// where the flow ended in a deadline, the guard tells the hold so before it drops; behind a
-/// deleted answer, where the view of the moment reads a Windows run, one plain Status, and where
-/// it reads the screen spent ONE renewal of the screen, as at a Resume.
+/// where the flow ended in a deadline, a failed transport, a reply that it could not take or an
+/// answer of the service that is no finished delete (`marks_the_hold_late`), the guard tells the
+/// hold so before it drops; behind a deleted answer, where the view of the moment reads a
+/// Windows run, the guard tells the hold that this delete ends with no service before it drops,
+/// and then one plain Status goes out, and where it reads the screen spent ONE renewal of the
+/// screen, as at a Resume.
 pub fn delete_everything(
     before: &Before,
     control: &dyn Control,
@@ -684,24 +735,22 @@ pub fn delete_everything(
     waits: DeleteWaits,
 ) -> DeleteAsked {
     let pauses = views.hold().pauses();
-    let asked = {
+    let (asked, may_renew) = {
         let held = before.tell();
         let asked = ask_to_delete(control, views, armed, waits);
-        if matches!(
-            &asked.end,
-            DeleteEnd::Answered(Err(ClientError::Deadline { .. }))
-                | DeleteEnd::NoLifeAnswered(ClientError::Deadline { .. })
-                | DeleteEnd::FirstNotKnown(ClientError::Deadline { .. })
-        ) {
-            held.answer_passed_its_deadline();
+        if marks_the_hold_late(&asked.end) {
+            held.may_still_delete();
         }
-        asked
+        let may_renew = matches!(
+            asked.end,
+            DeleteEnd::Answered(Ok(DeleteOutcome::Deleted(_)))
+        ) && views.view().platform() == Platform::Windows;
+        if may_renew {
+            held.ends_with_no_service();
+        }
+        (asked, may_renew)
     };
-    if matches!(
-        asked.end,
-        DeleteEnd::Answered(Ok(DeleteOutcome::Deleted(_)))
-    ) && views.view().platform() == Platform::Windows
-    {
+    if may_renew {
         if let Ok(status) = control.status(control.places().make(), false) {
             let _ = renew_where_spent(control, views.hold(), &status, pauses);
         }
@@ -869,9 +918,11 @@ pub fn ask_offline(
 
 /// The run of the offline delete, the one entry of the command and of the launch form
 /// `--delete-all`: `Before::tell`, the app's child ended, the program run on the data directory,
-/// its lines mapped, and the supervisor then on by its rule.
+/// its lines mapped, and the supervisor then on by its rule; behind the run, and before its
+/// guard drops, it tells the hold that this delete ends with no service
+/// (`HeldForADelete::ends_with_no_service`).
 pub fn run_offline(offline: &Offline, before: &Before) -> Result<DeleteView, OutcomeError> {
-    let _held = before.tell();
+    let held = before.tell();
     let args = offline_arguments(&offline.data_dir);
     let mut end = OfflineEnd::NotStarted;
     let mut run = || end = (offline.run)(&offline.program, &args);
@@ -879,6 +930,7 @@ pub fn run_offline(offline: &Offline, before: &Before) -> Result<DeleteView, Out
         Some(children) => children.without_the_child_then_a_start(&mut run),
         None => run(),
     }
+    held.ends_with_no_service();
     offline_view(&end, Some(&offline.data_dir.roots_dir()))
 }
 

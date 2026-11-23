@@ -17,3 +17,7 @@
 {"op":"agent_history","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","runs":5}
 {"op":"drop_sessions","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040"}
 {"op":"list_replies","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","after":null}
+{"op":"put_model_key","workflow":null,"agent":null,"key":"test-value-not-a-model-key"}
+{"op":"drop_model_key","workflow":null,"agent":null}
+{"op":"model_key_state","workflow":null,"agent":null}
+{"op":"read_model_key","workflow":null,"agent":null}

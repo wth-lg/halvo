@@ -12,17 +12,18 @@
 //! (crate::handback): where the page shows a credential field it hands the browser to the person, and acts only
 //! after a sign-in that ended in a bind. Its conditions `pre` are read fresh before the act and its conditions `post`
 //! after it, and `holds` decides each on what the executor read. A step of the verb `handback` and a step whose
-//! target, or the target of one of its conditions, is marked `credential` act on nothing: each reads the page when
-//! the browser runs, and is done after a handback that ended in a bind; a step of the verb `handback` with no
-//! credential field on the page, or before any browser runs, is done; every other answers `step_failed`. A web step
+//! target, or the target of one of its conditions, is marked `credential` answer `step_failed` before any call to the
+//! browser where their effect is not `none` (r3 U5.10-S), and with the effect `none` act on nothing: each reads the
+//! page when the browser runs, and is done after a handback that ended in a bind; a step of the verb `handback` with
+//! no credential field on the page, or before any browser runs, is done; every other answers `step_failed`. A web step
 //! that fails on the run's page, its act or a step marked `credential` of no effect class, reads the page a second
 //! time before its failure is written, and hands back with the reason `sign_in` where a link or a button asks for a
 //! sign-in by its name (r3 U5.14, `Runner::asked_at_a_failure`), but in a run with no window, imported or not (r3
 //! U5.15r); behind the bind of that handback the act that failed is asked once more, and a second failure fails the
-//! step as before. A step with the effect `request`, a web step of an effect class (`payment`, `purchase`, `submit`,
-//! `sign`), is the browser's request maker's (crate::web::maker), which this build holds under the feature `loopback`
-//! alone: without it such a step answers `step_failed` before any browser starts, and `Live` lets no held request
-//! through.
+//! step as before. Every other step with the effect `request`, a web step of an effect class (`payment`, `purchase`,
+//! `submit`, `sign`), is the browser's request maker's (crate::web::maker), which this build holds under the feature
+//! `loopback` alone: without it such a step answers `step_failed` before any browser starts, and `Live` lets no held
+//! request through.
 
 use std::collections::HashMap;
 use std::num::{NonZeroU32, NonZeroU64};
@@ -33,7 +34,7 @@ use halvo_control::paths::DataDir;
 use halvo_policy::class_of;
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::frame::Browser;
-use halvo_schema::executable::names::{Check, LocatorBy, Source, Verb, YesNo};
+use halvo_schema::executable::names::{Check, LocatorBy, Source, StepEffect, Verb, YesNo};
 use halvo_schema::executable::step::{Arg, Cond, Locator, Target, WebTarget};
 use halvo_schema::executable::text::CreationTime;
 use halvo_schema::executable::{
@@ -125,11 +126,13 @@ pub(crate) trait Page: Send {
     /// Sets the cookies of `state` and the localStorage of each of its origins.
     fn import(&mut self, state: &SessionState) -> Result<(), ()>;
     /// Arms the request rule in `Mode::Hold` with `origins`, as `arm` arms it in `Mode::Fail`: a state-changing
-    /// request to one of them stays held until `let_through` or `fail_held` (crate::web::maker). These six methods
-    /// stand in a build with the feature `loopback` alone; their defaults, which the stand-ins of the unit tests of
+    /// request to one of them stays held until `let_through` or `fail_held` (crate::web::maker); and notes, before the
+    /// act, the top document and, where `frame` names the frame of the step's target, that frame's document, so that
+    /// the read after the reply waits in the frame of the released request (r3 U5.10-B). These six methods stand in a
+    /// build with the feature `loopback` alone; their defaults, which the stand-ins of the unit tests of
     /// crate::handback and crate::session take, hold nothing and let nothing leave.
     #[cfg(feature = "loopback")]
-    fn arm_hold(&mut self, _origins: &[WebOrigin]) -> Result<(), ()> {
+    fn arm_hold(&mut self, _origins: &[WebOrigin], _frame: &[WebOrigin]) -> Result<(), ()> {
         Err(())
     }
     /// The state-changing requests that the rule holds now, each with the executor's id.
@@ -148,8 +151,9 @@ pub(crate) trait Page: Send {
     fn released_status(&mut self) -> Option<i64> {
         None
     }
-    /// Every amount that the page after the reply names, in minor units, read once the top document that `arm_hold`
-    /// noted has given way to a loaded one.
+    /// Every amount that the page after the reply names, in minor units, read once the document that `arm_hold`
+    /// noted in the frame of the request that `let_through` let leave has given way to a loaded one; none where that
+    /// frame is not one that `arm_hold` noted.
     #[cfg(feature = "loopback")]
     fn page_amounts(&mut self) -> Result<Vec<u64>, ()> {
         Err(())
@@ -178,18 +182,23 @@ struct Live {
     loaded: BTreeSet<String>,
     /// The origins of the newest arm in `Mode::Fail`, whose loopback hosts keep their mark in the handback's mode.
     armed: Vec<WebOrigin>,
-    /// The wait for the top document that replaces the one that the page held at `arm_hold`, before the act, run once
-    /// by `page_amounts`.
+    /// The wait for the document that replaces the one that `arm_hold` noted, before the act, in the frame of the
+    /// released request, run once by `page_amounts`.
     #[cfg(feature = "loopback")]
     after_release: Option<AfterRelease>,
+    /// The frame of the request that `let_through` let leave, as the browser named it in its paused event.
+    #[cfg(feature = "loopback")]
+    released: Option<String>,
     /// The cause word of the newest `carry_out` that failed (`Page::last_fault`).
     #[cfg(feature = "loopback")]
     fault: Option<&'static str>,
 }
 
-/// The wait for the top document that replaces the one noted at `arm_hold`.
+/// The wait for the document that replaces the one noted at `arm_hold` in the frame that the browser names by the
+/// given id, the frame of the released request; a failure where that frame is not a noted one.
 #[cfg(feature = "loopback")]
-type AfterRelease = Box<dyn FnOnce(&Executor, &tokio::runtime::Runtime) -> Result<(), ()> + Send>;
+type AfterRelease =
+    Box<dyn FnOnce(&Executor, &tokio::runtime::Runtime, Option<&str>) -> Result<(), ()> + Send>;
 
 /// The cause of the run's end for a start that failed: `no_channel` for a browser that lived and gave no first
 /// reply, `browser_start` for every other failure of the start (A11.1, U1.8 (b)).
@@ -654,6 +663,8 @@ impl Live {
                 #[cfg(feature = "loopback")]
                 after_release: None,
                 #[cfg(feature = "loopback")]
+                released: None,
+                #[cfg(feature = "loopback")]
                 fault: None,
             }),
             Err(cause) => {
@@ -723,23 +734,38 @@ impl Page for Live {
     }
 
     #[cfg(feature = "loopback")]
-    /// Arms the rule in `Mode::Hold`, then notes the top document while the page is idle, before the act: the
-    /// executor's read of the frame tree fails while the page's navigation is held (the hosted macos job of run
-    /// 45028032532, `call=let_through cause=frame`), so `page_amounts` waits for the document that replaces the one
-    /// noted here.
-    fn arm_hold(&mut self, origins: &[WebOrigin]) -> Result<(), ()> {
+    /// Arms the rule in `Mode::Hold`, then notes, while the page is idle and before the act, the top document and,
+    /// where `frame` names the frame of the step's target, that frame with the document whose origin the walk of
+    /// `Executor::frame_and_loader_in` read there: the executor's read of the frame tree fails while the page's
+    /// navigation is held (the hosted macos job of run 45028032532, `call=let_through cause=frame`), so
+    /// `page_amounts` waits, in the frame of the released request, for the document that replaces the one noted
+    /// here (r3 U5.10-B, the coordinator's ruling of log line 16745).
+    fn arm_hold(&mut self, origins: &[WebOrigin], frame: &[WebOrigin]) -> Result<(), ()> {
         self.arm_in(origins, Mode::Hold)?;
+        self.released = None;
+        let path: Vec<String> = frame.iter().map(rule_origin).collect();
         let executor = &self.executor;
         let done = self.runtime.block_on(async move {
-            let frame = executor.main_frame().await?;
-            let before = executor.loader(&frame).await?;
-            Ok::<_, Fault>((frame, before))
+            let top = executor.main_frame().await?;
+            let before = executor.loader(&top).await?;
+            let mut noted = vec![(top, before)];
+            if !path.is_empty() {
+                let path: Vec<&str> = path.iter().map(String::as_str).collect();
+                noted.push(executor.frame_and_loader_in(&path).await?);
+            }
+            Ok::<_, Fault>(noted)
         });
-        let (frame, before) = told("arm_hold", done)?;
-        self.after_release = Some(Box::new(move |executor, runtime| {
+        let noted = told("arm_hold", done)?;
+        self.after_release = Some(Box::new(move |executor, runtime, released| {
+            let Some((frame, before)) =
+                released.and_then(|id| noted.iter().find(|(frame, _)| frame.inner() == id))
+            else {
+                crate::line("run page=failed call=page_after cause=frame");
+                return Err(());
+            };
             told(
                 "page_after",
-                runtime.block_on(executor.wait_loaded_after(&frame, Some(&before))),
+                runtime.block_on(executor.wait_loaded_after(frame, Some(before))),
             )
         }));
         Ok(())
@@ -752,13 +778,22 @@ impl Page for Live {
 
     #[cfg(feature = "loopback")]
     /// Lets the held request leave and sends the page no other command: a read of the page fails while its
-    /// navigation is held.
+    /// navigation is held. It notes the frame that the browser named for that request, in which `page_amounts`
+    /// reads the page after the reply.
     fn let_through(&mut self, id: u64) -> Result<(), ()> {
+        let frame = self
+            .executor
+            .paused()
+            .into_iter()
+            .find(|held| held.id == id)
+            .map(|held| held.frame);
         let executor = &mut self.executor;
         told(
             "let_through",
             self.runtime.block_on(executor.let_through(id)),
-        )
+        )?;
+        self.released = frame;
+        Ok(())
     }
 
     #[cfg(feature = "loopback")]
@@ -776,7 +811,7 @@ impl Page for Live {
     #[cfg(feature = "loopback")]
     fn page_amounts(&mut self) -> Result<Vec<u64>, ()> {
         let wait = self.after_release.take().ok_or(())?;
-        wait(&self.executor, &self.runtime)?;
+        wait(&self.executor, &self.runtime, self.released.as_deref())?;
         let executor = &mut self.executor;
         let lines = told("snapshot", self.runtime.block_on(executor.snapshot()))?;
         Ok(lines
@@ -956,15 +991,21 @@ impl Web {
 }
 
 impl Runner {
-    /// A web step. A step of the verb `handback`, or one that marks a credential (`marks_a_credential`), acts on
-    /// nothing: where the browser runs it reads the page (crate::handback), and it is done after a handback that
-    /// ended in a bind; a step of the verb `handback` is done where the page shows no credential field or no browser
+    /// A web step. A step of the verb `handback`, or one that marks a credential (`marks_a_credential`), whose effect
+    /// is not `none` answers `step_failed` before any call to the page, so that no step of an effect is done without
+    /// its act (r3 U5.10-S; the step parser refuses each such step). Every other step of the verb `handback`, or one
+    /// that marks a credential, acts on nothing: where the browser runs it reads the page (crate::handback), and it is
+    /// done after a handback that ended in a bind; a step of the verb `handback` is done where the page shows no credential field or no browser
     /// runs; every other such step answers `step_failed`. Every other step that does not act (`acts`) answers
     /// `step_failed` before any browser starts, and so does one whose args or targets, or those of its conditions,
     /// cannot be read or have no locator that the executor takes. A target, of the step or of a condition, inside a
     /// frame is found in the document of the frame that its frame origins name (`frame_origins`); a `fill`, a `press`
-    /// or an `upload` whose target names a frame (`Act::of`) and a step of an effect class that reaches into a frame
-    /// (`reaches_a_frame`) answer `step_failed` before any act. The browser
+    /// or an `upload` whose target names a frame (`Act::of`) and a step of an effect class that reaches into a frame by
+    /// a way that the browser's maker does not take (`reaches_a_frame_beyond_the_maker`) answer `step_failed` before any
+    /// act; a step of an effect class whose own target or a condition `post`'s target names a frame, or whose arg takes a
+    /// value read in one, goes to the maker in a build with the feature `loopback`, which acts only where the top page's
+    /// origin and every origin of every frame path that the step names are origins of the run (r3 U5.10-B part two), and
+    /// answers `step_failed` in every other build. The browser
     /// starts at the first step that acts, and the runner reads the page before each act, which goes on only after a
     /// handback that ended in a bind, or where the page shows no credential field. After an act that failed, with no
     /// failed request of the page in the rule's record, it reads the page again, so that a field that turned into a
@@ -993,6 +1034,9 @@ impl Runner {
     ) -> Result<(), Failure> {
         let failed = || Failure::Step(Cause::StepFailed);
         let handback = step.verb == Verb::Handback;
+        if step.effect != StepEffect::None && (handback || marks_a_credential(step)) {
+            return Err(failed());
+        }
         if handback || marks_a_credential(step) {
             let handed = match self.web.take() {
                 Some(mut web) => {
@@ -1013,7 +1057,7 @@ impl Runner {
             };
         }
         if of_an_effect_class(loaded.config.category, step) {
-            if self.reaches_a_frame(step) {
+            if self.reaches_a_frame_beyond_the_maker(step) {
                 return Err(failed());
             }
             #[cfg(feature = "loopback")]
@@ -1108,33 +1152,77 @@ impl Runner {
         read
     }
 
-    /// Whether the step reaches into a frame: its target or the target of one of its conditions names a frame, or one
-    /// of its args or of the args of its conditions takes a value that an `extract` of this run read in a frame
-    /// (`extracts`; the coordinator's ruling of log line 16325, point 1). A web step of an effect class that does
-    /// answers `step_failed` before any act (the coordinator's ruling of log line 15706, NOT BUILT):
-    /// this build makes no effect in a frame, and the browser's maker, which reads such a value again right before its
-    /// act, records the top document's address as the origin of that read (crate::web::maker, `read_again`).
+    /// Whether an `extract` of this run read the value of `arg` in a frame (`extracts`).
+    fn read_in_a_frame(&self, arg: &Arg) -> bool {
+        matches!(arg.from, Source::Extract)
+            && arg
+                .key
+                .as_ref()
+                .and_then(|key| self.extracts.get(key.as_str()))
+                .is_some_and(|(target, _)| !target.frame.is_empty())
+    }
+
+    /// Every frame path that the step names, each from the top document inward: its own target's, the target's of
+    /// each of its conditions, and the target's of each `extract` of this run whose value one of its args or of its
+    /// conditions' args takes (`extracts`); a path of the top document is empty (r3 U5.10-B part two, the coordinator's
+    /// ruling of log line 17176).
+    #[cfg(feature = "loopback")]
+    fn frame_paths<'s>(&'s self, step: &'s ExecutableStep) -> Vec<&'s [WebOrigin]> {
+        let mut paths = Vec::new();
+        if let Some(Target::Web(target)) = &step.target {
+            paths.push(&target.frame[..]);
+        }
+        let conds = || step.pre.iter().chain(&step.post);
+        paths.extend(
+            conds()
+                .filter_map(|cond| cond.target.as_ref())
+                .map(|t| &t.frame[..]),
+        );
+        let args = step
+            .args
+            .iter()
+            .chain(conds().filter_map(|cond| cond.arg.as_ref()));
+        for arg in args.filter(|arg| matches!(arg.from, Source::Extract)) {
+            if let Some((target, _)) = arg
+                .key
+                .as_ref()
+                .and_then(|key| self.extracts.get(key.as_str()))
+            {
+                paths.push(&target.frame[..]);
+            }
+        }
+        paths
+    }
+
+    /// Whether the step reaches into a frame: one of the frame paths that it names (`frame_paths`) is not empty, its
+    /// target or the target of one of its conditions naming a frame, or one of its args or of the args of its
+    /// conditions taking a value that an `extract` of this run read in a frame (the coordinator's ruling of log line
+    /// 16325, point 1). The browser's maker then reads the top page's address before any read of a value, any arm and
+    /// any act, and acts only where its origin and every origin of every frame path that the step names are origins
+    /// of the run (the coordinator's rulings of log lines 16745, point 2, and 17176; crate::web::maker).
+    #[cfg(feature = "loopback")]
     fn reaches_a_frame(&self, step: &ExecutableStep) -> bool {
-        let framed = |target: &WebTarget| !target.frame.is_empty();
-        matches!(&step.target, Some(Target::Web(target)) if framed(target))
+        self.frame_paths(step).iter().any(|path| !path.is_empty())
+    }
+
+    /// Whether the step reaches into a frame by a way that the browser's maker does not take (r3 U5.10-B part two, the
+    /// coordinator's ruling of log line 16745: the maker takes the ways that its three real-browser tests walk, and no
+    /// other): the target of one of its conditions `pre` names a frame, or the arg of one of its conditions, `pre` or
+    /// `post`, takes a value that an `extract` of this run read in a frame. A web step of an effect class that does
+    /// answers `step_failed` before any act; one whose own target or a condition `post`'s target names a frame, or
+    /// whose arg takes a value read in a frame, goes to the maker, which records the frame document's origin for such
+    /// a value (`read_again`). A `fill`, a `press` and an `upload` whose target names a frame fail in `Act::of`.
+    fn reaches_a_frame_beyond_the_maker(&self, step: &ExecutableStep) -> bool {
+        step.pre
+            .iter()
+            .filter_map(|cond| cond.target.as_ref())
+            .any(|target| !target.frame.is_empty())
             || step
                 .pre
                 .iter()
                 .chain(&step.post)
-                .filter_map(|cond| cond.target.as_ref())
-                .any(framed)
-            || step
-                .args
-                .iter()
-                .chain(
-                    step.pre
-                        .iter()
-                        .chain(&step.post)
-                        .filter_map(|cond| cond.arg.as_ref()),
-                )
-                .filter(|arg| matches!(arg.from, Source::Extract))
-                .filter_map(|arg| self.extracts.get(arg.key.as_ref()?.as_str()))
-                .any(|(target, _)| framed(target))
+                .filter_map(|cond| cond.arg.as_ref())
+                .any(|arg| self.read_in_a_frame(arg))
     }
 
     /// The run's browser, started at the first call: the frame `browser` once it runs, its `browser_reply`, the
@@ -1779,12 +1867,12 @@ mod tests {
     /// that holds it by the frame's origins, from the top document inward, is carried to the page with that target, as
     /// a step on the top document is, and so is a condition on such a target: the extract of the amount with a
     /// condition `present` on it, the select of the payment method, and a click in a frame inside the frame. The page
-    /// is read first, as before each act, and the extract keeps its amount. A step of an effect class whose target
-    /// names a frame, whose amount is the value read in the frame, whose condition's target names the frame, or whose
-    /// condition's arg is a text read in the frame, and a `fill`, a `press` and an `upload` whose target names a
-    /// frame, each answer `step_failed`, and the stand-in page sees no read and no act of them (the coordinator's words
-    /// on this unit: no effect in a frame is built, no web step of an effect class takes anything read in a frame, and
-    /// no text, key or file goes into a frame).
+    /// is read first, as before each act, and the extract keeps its amount. A step of an effect class whose condition
+    /// `pre`'s target names the frame, or whose condition's arg is a text read in the frame, and a `fill`, a `press`
+    /// and an `upload` whose target names a frame, each answer `step_failed`, and the stand-in page sees no read and no
+    /// act of them (the coordinator's words on this unit: no text, key or file goes into a frame; r3 U5.10-B part two
+    /// gives the browser's maker a step of an effect class whose own target or condition `post`'s target names a
+    /// frame, or whose amount is a value read in one, by the coordinator's ruling of log line 16745).
     #[test]
     fn a_step_acts_on_a_target_inside_the_frame_that_its_step_names() {
         let amount = framed(r#"{"by":"test_id","value":"amount","name":null}"#, &[PAY]);
@@ -1891,20 +1979,7 @@ mod tests {
             Some(&vec![vec![Value::Number(12.34)]])
         );
 
-        let pay = |target: &str, amount: &str| {
-            format!(
-                r#"{{"v":1,"n":4,"kind":"web","verb":"click","target":{target},"args":[{{"name":"payee","from":"const","value":"p","key":null}},{amount},{{"name":"instrument","from":"const","value":"i","key":null}},{{"name":"origin","from":"const","value":"{PAY}","key":null}}],"pre":[],"post":[],"effect":"request","class":"payment"}}"#
-            )
-        };
         let pay_now = r#"{"by":"test_id","value":"pay-now","name":null}"#;
-        let in_the_frame = pay(
-            &framed(pay_now, &[PAY]),
-            r#"{"name":"amount","from":"const","value":"12.34","key":null}"#,
-        );
-        let read_in_the_frame = pay(
-            &framed(pay_now, &[]),
-            r#"{"name":"amount","from":"extract","value":null,"key":"amount"}"#,
-        );
         let judged_by_the_frame = format!(
             r#"{{"v":1,"n":4,"kind":"web","verb":"click","target":{},"args":[{{"name":"payee","from":"const","value":"p","key":null}},{{"name":"amount","from":"const","value":"12.34","key":null}},{{"name":"instrument","from":"const","value":"i","key":null}},{{"name":"origin","from":"const","value":"{PAY}","key":null}}],"pre":[{{"check":"text_is","target":{},"arg":{{"name":"arg","from":"extract","value":null,"key":"payee_text"}}}}],"post":[],"effect":"request","class":"payment"}}"#,
             framed(pay_now, &[]),
@@ -1933,8 +2008,6 @@ mod tests {
             r#"{"name":"file","from":"slot","value":null,"key":"document"}"#,
         );
         for json in [
-            &in_the_frame,
-            &read_in_the_frame,
             &judged_by_the_frame,
             &judged_in_the_frame,
             &fill,
@@ -1948,6 +2021,177 @@ mod tests {
                 matches!(got, Err(Failure::Step(Cause::StepFailed))) && now == log,
                 "a step that this build makes no act of in a frame fails before any act: {got:?}, {now:?}, {json}"
             );
+        }
+    }
+
+    /// The stand-in of the executor of `a_step_with_an_effect_that_marks_a_credential_fails_before_any_act`: its
+    /// reading shows a credential field, its page asks for a sign-in by a link, and every call is one line of the log.
+    struct SignInPage(Arc<Mutex<Vec<String>>>);
+
+    impl SignInPage {
+        fn note(&self, call: &str) -> Result<(), ()> {
+            self.0.lock().expect("the log").push(call.to_string());
+            Ok(())
+        }
+    }
+
+    impl Page for SignInPage {
+        fn frame(&self) -> Option<FromRunner> {
+            None
+        }
+
+        fn arm(&mut self, _: &[WebOrigin]) -> Result<(), ()> {
+            self.note("arm")
+        }
+
+        fn carry_out(
+            &mut self,
+            _: &[(&Cond, Option<String>)],
+            act: &Act<'_>,
+            _: &[(&Cond, Option<String>)],
+        ) -> Result<Option<String>, ()> {
+            self.note(&format!("act {}", act.verb())).map(|()| None)
+        }
+
+        fn record(&mut self) -> Vec<PausedRequest> {
+            let _ = self.note("record");
+            Vec::new()
+        }
+
+        fn stop(self: Box<Self>) -> bool {
+            true
+        }
+
+        fn sign(&mut self) -> Result<Option<Sign>, ()> {
+            self.note("read").map(|()| Some(Sign::Secret))
+        }
+
+        fn asks_for_a_sign_in(&mut self) -> Result<bool, ()> {
+            self.note("read sign-in").map(|()| true)
+        }
+
+        fn fail_held(&mut self) -> Result<(), ()> {
+            self.note("fail held")
+        }
+
+        fn close_others(&mut self) -> Result<(), ()> {
+            self.note("close others")
+        }
+
+        fn clear_stores(&mut self) -> Result<(), ()> {
+            self.note("clear stores")
+        }
+
+        fn load_again(&mut self) -> Result<(), ()> {
+            self.note("load again")
+        }
+
+        fn pass_all(&mut self) -> Result<(), ()> {
+            self.note("pass all")
+        }
+
+        fn address(&mut self) -> Result<String, ()> {
+            self.note("address")
+                .map(|()| "http://127.0.0.1:8080/pay".to_string())
+        }
+
+        fn export(&mut self, _: &WebOrigin) -> Result<SessionState, ()> {
+            self.note("export").and(Err(()))
+        }
+
+        fn import(&mut self, _: &SessionState) -> Result<(), ()> {
+            self.note("import").and(Err(()))
+        }
+    }
+
+    /// r3 U5.10-S (the coordinator's ruling of log line 16728, point 2, and its carrier's answer (c)): a payment, a web
+    /// step with the effect `request`, that marks a credential by its own target, by the target of a condition `pre` or
+    /// by that of a condition `post`, and a step of the verb `handback` with the effect `request`, each of which the
+    /// parser refuses and which this test builds past it by the step's public fields, answer `step_failed` before any
+    /// call to the page: on a page that shows a credential field and asks for a sign-in by a link, no reading, no
+    /// handback and no frame.
+    #[test]
+    fn a_step_with_an_effect_that_marks_a_credential_fails_before_any_act() {
+        let step = |json: &str| ExecutableStep::parse(json.as_bytes()).expect("a step");
+        let condition = step(CREDENTIAL_CONDITION).pre;
+        let own = ExecutableStep {
+            target: step(CREDENTIAL_FILL).target,
+            ..step(REQUEST)
+        };
+        let pre = ExecutableStep {
+            pre: condition.clone(),
+            ..step(REQUEST)
+        };
+        let post = ExecutableStep {
+            post: condition,
+            ..step(REQUEST)
+        };
+        let handback = ExecutableStep {
+            effect: halvo_schema::executable::names::StepEffect::Request,
+            ..step(HANDBACK)
+        };
+        let (workflow, agent) = (
+            WorkflowId::from_random([7; 16]),
+            AgentId::from_random([6; 16]),
+        );
+        let config = preset(
+            Category::UtilityBillPayment,
+            workflow.clone(),
+            agent.clone(),
+        )
+        .expect("a preset");
+        let loaded = LoadReply {
+            config,
+            playbook: None,
+            next_playbook: NonZeroU32::MIN,
+            bindings: None,
+            sessions: Vec::new(),
+            start: None,
+        };
+        let run = "0f".repeat(16);
+        let words = [
+            "--run",
+            &run,
+            "--agent",
+            agent.as_str(),
+            "--workflow",
+            workflow.as_str(),
+            "--mode",
+            "replay",
+            "--browser",
+            "none",
+            "--utc-offset",
+            "0",
+        ];
+        let words: Vec<OsString> = words.iter().map(OsString::from).collect();
+        let args = crate::args::parse(&words).expect("the arguments");
+        let out = Arc::new(Mutex::new(Vec::new()));
+        let link = Link::start(
+            Box::new(std::io::empty()),
+            Box::new(Out(Arc::clone(&out))),
+            Box::new(|| {}),
+        );
+        let mut runner = Runner::new(args, link);
+        let page_log = Arc::new(Mutex::new(Vec::new()));
+        runner.web = Some(Web(Box::new(SignInPage(Arc::clone(&page_log)))));
+        let doors = [
+            ("own target", own),
+            ("pre", pre),
+            ("post", post),
+            ("handback", handback),
+        ];
+        for (door, step) in doors {
+            let got = runner.web_step(&step, &loaded);
+            let log = page_log.lock().expect("the log").clone();
+            assert!(
+                matches!(got, Err(Failure::Step(Cause::StepFailed))) && log.is_empty(),
+                "{door}: {got:?}, the page's log {log:?}"
+            );
+            assert!(
+                out.lock().expect("the frames").is_empty(),
+                "{door}: a frame"
+            );
+            assert!(step.rules().is_err(), "{door}: the parser takes the step");
         }
     }
 }

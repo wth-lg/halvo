@@ -21,6 +21,7 @@ pub use api::{
     RelativePath, RunEnd, RunSpec, RunnerExit, Secrets, StartError, SystemValue, LINK_END,
     START_WAIT,
 };
+pub use api::{Hosted, MODEL_KEY};
 #[doc(hidden)]
 pub use api::{ReapHook, ReapStep};
 pub use supervisor::Supervisor;

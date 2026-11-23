@@ -12,7 +12,9 @@ pub struct RunSpec {
     pub workflow: WorkflowId,
     /// `compile` or `replay`.
     pub mode: Mode,
-    /// Whether the runner's browser is headed.
+    /// Whether the runner is headed, which tells it that a person can answer: always for a
+    /// runtime that is not `web`, and for `web` where the mode is `compile` or the roster's
+    /// `window` says yes.
     pub headed: bool,
 }
 

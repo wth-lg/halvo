@@ -1502,3 +1502,154 @@ fn drop_sessions_leaves_no_session_row_of_the_agent_at_rest() {
     assert_eq!(sessions, ("no".to_owned(), "yes".to_owned()));
     assert_eq!(dropped, r#"{"stored":0}"#);
 }
+
+/// The coordinator body `op` of the person's key for a model's host, with `workflow` and `agent` null and the keys
+/// `more`, sent on the stream, and the text of its result.
+fn key_body(stream: &mut Stream, op: &str, more: &str) -> String {
+    let body = format!(r#"{{"op":"{op}","workflow":null,"agent":null{more}}}"#);
+    agent_body(stream, "coordinator_write", &body)
+}
+
+/// The keys of `put_model_key` that write `key`.
+fn key_of(key: &str) -> String {
+    format!(r#","key":{}"#, serde_json::to_string(key).unwrap())
+}
+
+/// The bodies of the rows of the kind `model_key` in the store under `dir`, read by SQL with the store's key and with
+/// no condition of the store's reads, once its owner has ended.
+fn model_key_rows(dir: &Path) -> Vec<String> {
+    halvo_sqlcipher::initialize().unwrap();
+    let hex: String = KEY.iter().map(|b| format!("{b:02x}")).collect();
+    let conn = Connection::open(dir.join("derived").join("derived.db")).unwrap();
+    conn.execute_batch(&format!("PRAGMA key = \"x'{hex}'\";"))
+        .unwrap();
+    let mut rows = conn
+        .prepare("SELECT body FROM rows WHERE kind = 'model_key'")
+        .unwrap();
+    rows.query_map([], |row| row.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect()
+}
+
+/// r3 U7.6, sentence (3) (the coordinator's log line 16422, point 4): a dropped key is gone from the store's files. The
+/// owner's program runs on a scratch store with no workflow, and the person's key for a model's host goes through the
+/// owner's adapter in two coordinator bodies; each key is a made-up text that names itself as a test value. The first
+/// owner writes the first key and then the second over it; read by SQL with the store's key and with no condition of
+/// the store's reads once that owner has ended, ONE `model_key` row stands, it holds the second key, and no row holds
+/// the first. A second owner on the same store drops the key, and then no `model_key` row stands. The write-ahead log,
+/// read right after the reply of each write and of the drop while the owner runs, is empty behind the checkpoint.
+#[test]
+fn a_dropped_model_key_is_gone_from_the_stores_files() {
+    const FIRST: &str = "test-value-not-a-model-key-first";
+    const SECOND: &str = "test-value-not-a-model-key-second-of-another-length";
+    let scratch = Scratch::new("owner-model-key");
+    let wal = || {
+        std::fs::metadata(scratch.0.join("derived").join("derived.db-wal")).map_or(0, |m| m.len())
+    };
+    let started = || start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+
+    let mut owner = started();
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let written: Vec<(String, u64)> = [FIRST, SECOND]
+        .into_iter()
+        .map(|key| (key_body(&mut stream, "put_model_key", &key_of(key)), wal()))
+        .collect();
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    let after_write = model_key_rows(&scratch.0);
+
+    let mut owner = started();
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let dropped = (key_body(&mut stream, "drop_model_key", ""), wal());
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    let after_drop = model_key_rows(&scratch.0);
+
+    let stored = |n: u32| (format!(r#"{{"stored":{n}}}"#), 0);
+    assert_eq!(
+        written,
+        vec![stored(1), stored(1)],
+        "(the reply, the bytes of the write-ahead log) of each write"
+    );
+    assert_eq!(
+        (
+            after_write.len(),
+            after_write.iter().filter(|row| row.contains(SECOND)).count(),
+            after_write.iter().filter(|row| row.contains(FIRST)).count(),
+        ),
+        (1, 1, 0),
+        "(model_key rows, rows that hold the second key, rows that hold the first) after the write over"
+    );
+    assert_eq!(
+        dropped,
+        stored(0),
+        "(the reply, the bytes of the write-ahead log) of the drop"
+    );
+    assert_eq!(
+        after_drop,
+        Vec::<String>::new(),
+        "model_key rows after the drop"
+    );
+}
+
+/// r3 U7.6, sentence (2) (the coordinator's log lines 16422, point 4, and 16823, its condition (v)): after Delete
+/// everything a read of the key answers none, on the harness of `a_delete_during_a_batch_leaves_nothing` of crash.rs. A
+/// capture store is made in the data directory under the root file's custody, whose root wraps the derived store's
+/// key in derived/master.key; the owner's program on that key writes the person's key, a made-up text that names
+/// itself as a test value, and ends; the product's offline delete runs on the data directory and destroys that root;
+/// a capture store made again gives the derived store's key of the next start, and the owner started on it answers
+/// `read_model_key` with no key.
+#[cfg(all(target_os = "macos", debug_assertions))]
+#[test]
+fn a_model_key_row_is_gone_after_delete_everything() {
+    use halvo_capture::daemon::custody_policy::Custody;
+    use halvo_capture::daemon::delete_all::offline;
+    use halvo_capture::daemon::port::{DataDirStore, Opened, StoreHost};
+    const BEFORE: &str = "test-value-not-a-model-key-before-the-delete";
+    let scratch = Scratch::new("owner-model-key-delete-all");
+    let derived_key = || -> [u8; 32] {
+        let host = DataDirStore::at(&scratch.0);
+        let Opened::ReadWrite { store, .. } = host.create(Custody::RootFile) else {
+            panic!("no capture store was made in {}", scratch.0.display());
+        };
+        drop(store);
+        let key = host
+            .derived_store_key()
+            .unwrap_or_else(|fault| panic!("no key of the derived store: {fault:?}"));
+        *key.expose()
+    };
+
+    let mut owner = start_on(stream_channel(), &scratch.0, derived_key(), 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let written = key_body(&mut stream, "put_model_key", &key_of(BEFORE));
+    let before = key_body(&mut stream, "model_key_state", "");
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    assert_eq!(
+        (written.as_str(), before.as_str()),
+        (r#"{"stored":1}"#, r#"{"stands":"yes"}"#)
+    );
+
+    let data_dir = halvo_control::paths::DataDir::from_flag(scratch.0.clone()).unwrap();
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let status = offline(&data_dir, &mut out, &mut err);
+    let printed = format!(
+        "status {status}, out: {}, err: {}",
+        String::from_utf8_lossy(&out),
+        String::from_utf8_lossy(&err)
+    );
+    assert_eq!(status, 0, "{printed}");
+
+    let mut owner = start_on(stream_channel(), &scratch.0, derived_key(), 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    assert_eq!(
+        key_body(&mut stream, "read_model_key", ""),
+        r#"{"key":null}"#,
+        "{printed}"
+    );
+}

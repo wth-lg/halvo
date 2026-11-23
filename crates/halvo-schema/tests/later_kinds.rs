@@ -366,3 +366,17 @@ fn a_row_of_each_kind_of_the_later_runs_passes_check_record_in_each_state_of_its
         assert_eq!(check_record(entry, row), Ok(()), "{name}");
     }
 }
+
+/// r3 U7.6 (the coordinator's log line 16823, its condition (i)): the closed list of the kinds of origin person holds
+/// ONE name, `model_key`, and the kinds of origin person of the registry are those of the list.
+#[test]
+fn the_kinds_of_origin_person_are_model_key_alone() {
+    use halvo_schema::kinds::{registry, PERSON_KINDS};
+    assert_eq!(PERSON_KINDS.len(), 1, "{PERSON_KINDS:?}");
+    assert_eq!(PERSON_KINDS, ["model_key"]);
+    let person: Vec<&str> = registry()
+        .filter(|entry| entry.origin == Origin::Person)
+        .map(|entry| entry.name)
+        .collect();
+    assert_eq!(person, PERSON_KINDS);
+}

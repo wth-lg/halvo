@@ -436,6 +436,7 @@ fn setup_agent() -> (Coordinator<Both>, AgentId, ItemId) {
         state: halvo_coord::types::AgentState::Approved,
         slots: vec![],
         session: false,
+        window: false,
         last: None,
         unknown: vec![],
         refused_run: None,

@@ -7,6 +7,7 @@ use halvo_schema::executable::{
 };
 use halvo_schema::kinds::{
     check_entries, check_record, check_registry, registry, KindEntry, Origin, RetentionClass,
+    PERSON_KINDS,
 };
 
 const OWN: [&str; 9] = [
@@ -67,7 +68,8 @@ fn swap(text: &str, from: &str, to: &str) -> String {
 #[test]
 fn the_file_registers_its_kinds_of_origin_own_after_its_two_kinds_of_origin_capture() {
     let names: Vec<&str> = executable::KINDS.iter().map(|k| k.name).collect();
-    assert_eq!(names[2..], OWN);
+    assert_eq!(names[2..2 + OWN.len()], OWN);
+    assert_eq!(names[2 + OWN.len()..], ["model_key"]);
     for (name, class) in CLASSES {
         let kind = entry(name);
         assert_eq!(kind.class, class, "{name}");
@@ -302,7 +304,9 @@ fn every_kind_name_family_and_field_key_of_kinds_stands_in_names_and_names_holds
     let named: BTreeSet<&str> = executable::NAMES
         .iter()
         .copied()
-        .filter(|name| prefixes.iter().any(|p| name.starts_with(p.as_str())))
+        .filter(|name| {
+            prefixes.iter().any(|p| name.starts_with(p.as_str())) || PERSON_KINDS.contains(name)
+        })
         .filter(|name| *name != "agent_history")
         .collect();
     assert_eq!(named, kinds);
