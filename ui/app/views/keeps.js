@@ -15,9 +15,8 @@
   var offNotSaved = false;
   var shownOn = null;
 
-  function notSavedText(control) {
+  function notSavedText(word) {
     if (shownOn !== false) return "";
-    var word = control && typeof control.not_saved === "string" ? control.not_saved : "";
     if (word === "kept") return w.TYPING_OFF_KEPT;
     if (word === "this_life" || offNotSaved) return w.TYPING_OFF_NOT_SAVED;
     return "";
@@ -25,8 +24,9 @@
 
   function renderTyping(control) {
     shownOn = control ? control.on === true : null;
-    if (shownOn === true) offNotSaved = false;
-    var notSaved = notSavedText(control);
+    var word = control && typeof control.not_saved === "string" ? control.not_saved : "";
+    if (shownOn === true || word !== "") offNotSaved = false;
+    var notSaved = notSavedText(word);
     notSavedLine.textContent = notSaved;
     notSavedLine.classList.toggle("hidden", notSaved === "");
     if (!control) {
