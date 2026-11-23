@@ -351,6 +351,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-route"
+version = "0.0.0"
+
+[[package]]
+name = "halvo-route-wire"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "halvo-schema"
 version = "0.0.0"
 dependencies = [
@@ -699,6 +711,8 @@ version = "0.0.0"
 dependencies = [
  "chromiumoxide",
  "halvo-cap",
+ "halvo-route",
+ "halvo-route-wire",
  "halvo-schema",
  "icu_properties",
  "r3-web",
