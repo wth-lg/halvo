@@ -1,5 +1,7 @@
 //! The acts with the person's answer: a confirmation, a handback, and the second step of a sign-in, with the
-//! `add_origin` that each of the three ways sends, again until the owner acknowledges it or the run ends.
+//! `add_origin` that each of the three ways sends, again until the owner acknowledges it, the library gives it up at
+//! the third reply that it cannot read, a cancel drops it as the add of an open bind, the person declines its origin
+//! at the bind question (with a cancel written or not), or the run ends.
 
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -209,7 +211,10 @@ impl Running<'_> {
     /// `captcha` of the run; any other `bind` is a frame out of turn, for which the library asks nobody, sends no
     /// `add_origin` and ends the run as a lost flow (contracts.md A6.6, ruling CP-135 (7)). A cancel that the library
     /// writes while it stands in `Human::allow_origin` drops the bind (ruling CP-193 item 3); a cancel written after
-    /// the check that follows `allow_origin` does not stop the first `add_origin`, a named limit.
+    /// the check that follows `allow_origin` does not stop the first `add_origin`, a named limit. A decline drops every
+    /// waiting `add_origin` of the origin before the check of a written cancel, so also where the library wrote
+    /// `cancel` while the question was open and writes no `bound=no`; an add that the owner took before the decline
+    /// stays stored, a named limit.
     pub(crate) fn bind(&mut self, origin: WebOrigin) -> Flow {
         if !std::mem::take(&mut self.acts.bind_turn) {
             return Flow::Lost;
@@ -222,6 +227,9 @@ impl Running<'_> {
             .parts
             .human
             .allow_origin(&self.slot.spec.run, &origin);
+        if let OriginAnswer::Decline = answer {
+            self.acts.adds.retain(|p| p.origin != origin);
+        }
         if self.slot.cancelled() {
             self.acts.waiting = Waiting::CancelledBind;
             return Flow::Go;
