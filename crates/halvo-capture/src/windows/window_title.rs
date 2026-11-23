@@ -519,10 +519,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_title_leaves_no_event_while_the_gate_reads_password_or_unknown_and_one_while_it_reads_clear(
+    fn a_title_leaves_no_event_while_the_gate_reads_password_or_unknown_and_one_while_it_reads_clear_or_no_answer(
     ) {
         use crate::floor::exclude::FloorHandle;
-        use crate::secure_input::windows::{FocusRead, Kind};
+        use crate::secure_input::windows::{ContentReading, FocusRead, Kind};
         let drops = Arc::new(DropCounts::default());
         let floor = Floor::new(FloorHandle::default(), Arc::clone(&drops));
         let front = FrontApp {
@@ -551,7 +551,21 @@ mod tests {
         assert!(!title(Some(&gate)), "a title while the gate reads Password");
         gate.focus_read_at(super::super::now_tick(), read(false), false);
         assert!(title(Some(&gate)), "a title while the gate reads Clear");
-        assert_eq!(drops.read().secure_input, 3);
+        let no_answer = |protected| FocusRead::NoAnswer { protected };
+        gate.focus_read_at(super::super::now_tick(), no_answer(false), false);
+        assert_eq!(gate.content_reading(), ContentReading::NoAnswer);
+        assert!(
+            title(Some(&gate)),
+            "a title while the program gives no answer"
+        );
+        gate.focus_read_at(super::super::now_tick(), no_answer(true), false);
+        assert!(
+            !title(Some(&gate)),
+            "a title at no answer with protected set"
+        );
+        gate.focus_read_at(super::super::now_tick(), no_answer(false), true);
+        assert!(!title(Some(&gate)), "a title at no answer in Firefox");
+        assert_eq!(drops.read().secure_input, 5);
         let private = title_event(
             &floor,
             None,

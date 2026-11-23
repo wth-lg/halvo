@@ -407,14 +407,16 @@ fn content_reads_clear(test: &str, gate: &PasswordGate, limit: Duration) -> bool
 }
 
 /// The count of the content readings that the sources asked of the gate:
-/// in all, Clear by the kind that answered, and Unknown by its cause.
+/// in all, Clear by the kind that answered, no answer, where a title is kept
+/// and a frame is not, and Unknown by its cause.
 fn gate_readings(test: &str, gate: &PasswordGate) {
     let readings = gate.readings();
     say(
         test,
         format!(
-            "gate_readings clear={} password_field={} unknown={}",
+            "gate_readings clear={} no_answer={} password_field={} unknown={}",
             readings.clear(),
+            readings.no_answer,
             readings.password_field,
             readings.unknown()
         ),
@@ -429,11 +431,9 @@ fn gate_readings(test: &str, gate: &PasswordGate) {
     say(
         test,
         format!(
-            "gate_unknown_by before_first_read={} firefox={} no_answer={} unreadable={} \
-             desktop_switch={}",
+            "gate_unknown_by before_first_read={} firefox={} unreadable={} desktop_switch={}",
             readings.before_first_read,
             readings.firefox,
-            readings.no_answer,
             readings.unreadable,
             readings.desktop_switch
         ),

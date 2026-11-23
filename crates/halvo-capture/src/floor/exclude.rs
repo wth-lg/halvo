@@ -207,8 +207,8 @@ pub enum DropReason {
     UnknownLineage,
     /// A title of a window that the source told as private.
     PrivateWindow,
-    /// A title or a frame while the secure-input reading is active or
-    /// unknown.
+    /// A title while the secure-input reading is active or unknown; a frame
+    /// while it is active, unknown, or the program gave no answer.
     SecureInput,
 }
 
@@ -330,9 +330,10 @@ impl FloorHandle {
 
     /// The decision for one event of kind `K` about `subject`. `window` counts
     /// for a window_title event only. `probe` is read for a window_title or a
-    /// screen_frame event only: an active or an unknown reading drops it
-    /// (contracts.md C13.8), so such an event is kept only while the reading
-    /// is inactive.
+    /// screen_frame event only: an active or an unknown reading drops either
+    /// (contracts.md C13.8); a reading where the program gave no answer drops a
+    /// screen_frame and keeps a window_title. So a frame is kept only while
+    /// the reading is inactive.
     /// The verdict holds for the instant of this call: the caller decides, and
     /// checks a key's clearance, right before each build, because a held
     /// verdict or clearance outlives a change of the reading.
@@ -412,11 +413,34 @@ fn decide(
     if kind == Modality::WindowTitle && window == PrivateWindow::Private {
         return Err(DropReason::PrivateWindow);
     }
-    let content = matches!(kind, Modality::WindowTitle | Modality::ScreenFrame);
-    if content && reading() != SecureInputReading::Inactive {
+    if !kept_at_the_reading(kind, reading) {
         return Err(DropReason::SecureInput);
     }
     Ok(())
+}
+
+/// Whether the secure-input reading keeps a record of `kind`: a window title
+/// at Inactive and where the program gave no answer, a screen frame at
+/// Inactive alone. The reading is read for those two kinds alone; every other
+/// kind is kept whatever it would read.
+fn kept_at_the_reading(kind: Modality, reading: impl FnOnce() -> SecureInputReading) -> bool {
+    use SecureInputReading::{Active, Inactive, NoAnswer, Unknown};
+    match kind {
+        Modality::WindowTitle => match reading() {
+            Inactive | NoAnswer => true,
+            Active | Unknown => false,
+        },
+        Modality::ScreenFrame => match reading() {
+            Inactive => true,
+            Active | NoAnswer | Unknown => false,
+        },
+        Modality::Keystroke
+        | Modality::Pointer
+        | Modality::ForegroundApp
+        | Modality::SystemAudio
+        | Modality::Microphone
+        | Modality::Camera => true,
+    }
 }
 
 fn is_listed(app: &AppIdentity) -> bool {
@@ -696,21 +720,23 @@ mod tests {
     }
 
     #[test]
-    fn a_title_and_a_frame_are_kept_only_at_inactive() {
+    fn a_title_is_kept_at_inactive_and_at_no_answer_and_a_frame_at_inactive_alone() {
         let mut on = Switches::default();
         on.set(Switch::ScreenActivity, true);
         let floor = handle(None, on);
         let unknown = PrivateWindow::Unknown;
-        for (reading, expected) in [
-            (SecureInputReading::Active, Some(DropReason::SecureInput)),
-            (SecureInputReading::Inactive, None),
-            (SecureInputReading::Unknown, Some(DropReason::SecureInput)),
+        let dropped = Some(DropReason::SecureInput);
+        for (reading, title_reason, frame_reason) in [
+            (SecureInputReading::Active, dropped, dropped),
+            (SecureInputReading::Inactive, None, None),
+            (SecureInputReading::NoAnswer, None, dropped),
+            (SecureInputReading::Unknown, dropped, dropped),
         ] {
             let probe = FixedProbe(reading);
             let title = floor.decide::<kind::WindowTitle>(subject(200), unknown, &probe);
-            assert_eq!(reason(title), expected, "title {reading:?}");
+            assert_eq!(reason(title), title_reason, "title {reading:?}");
             let frame = floor.decide::<kind::ScreenFrame>(subject(200), unknown, &probe);
-            assert_eq!(reason(frame), expected, "frame {reading:?}");
+            assert_eq!(reason(frame), frame_reason, "frame {reading:?}");
             let app = floor.decide::<kind::ForegroundApp>(subject(200), unknown, &probe);
             assert_eq!(reason(app), None, "foreground app {reading:?}");
             let key = floor.decide::<kind::Keystroke>(subject(200), unknown, &probe);
@@ -718,6 +744,21 @@ mod tests {
             let pointer = floor.decide::<kind::Pointer>(subject(200), unknown, &probe);
             assert_eq!(reason(pointer), None, "pointer {reading:?}");
         }
+        let no_answer = FixedProbe(SecureInputReading::NoAnswer);
+        let private =
+            floor.decide::<kind::WindowTitle>(subject(200), PrivateWindow::Private, &no_answer);
+        assert_eq!(
+            reason(private),
+            Some(DropReason::PrivateWindow),
+            "the title of a private window at NoAnswer"
+        );
+        let listed = Subject::new(app("com.apple.Passwords"), ProcessId::new(200));
+        let listed = floor.decide::<kind::WindowTitle>(listed, unknown, &no_answer);
+        assert_eq!(
+            reason(listed),
+            Some(DropReason::ListedApp),
+            "the title of a listed app at NoAnswer"
+        );
     }
 
     #[test]

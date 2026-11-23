@@ -53,14 +53,18 @@ pub enum SecureInputError {
     NotImplemented(&'static str),
 }
 
-/// One reading of a probe. No answer is [`SecureInputReading::Unknown`], never
-/// [`SecureInputReading::Inactive`].
+/// One reading of a probe. A probe that could not read the state reads
+/// [`SecureInputReading::Unknown`], never [`SecureInputReading::Inactive`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecureInputReading {
     /// A password field has the focus, or the system withholds keys for it.
     Active,
     /// The probe read the state and no password field has the focus.
     Inactive,
+    /// The program in front gave no answer on whether its focused field is a
+    /// password field. Only the Windows gate reads it; the macOS probe never
+    /// does.
+    NoAnswer,
     /// The probe could not read the state.
     Unknown,
 }
@@ -110,7 +114,7 @@ impl KeystrokeClearance {
 pub enum Withheld {
     /// The reading was active: counted in `secure_input_keystrokes`.
     Active,
-    /// The reading was unknown.
+    /// The reading was unknown, or the program gave no answer.
     Unknown,
     /// The key was handled more than [`LATE_KEY_MAX`] after its OS time:
     /// counted in `late_events`.
@@ -131,7 +135,7 @@ pub fn check(
     match probe.read() {
         SecureInputReading::Inactive => Ok(KeystrokeClearance::issue(key_age)),
         SecureInputReading::Active => Err(Withheld::Active),
-        SecureInputReading::Unknown => Err(Withheld::Unknown),
+        SecureInputReading::NoAnswer | SecureInputReading::Unknown => Err(Withheld::Unknown),
     }
 }
 
@@ -163,7 +167,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn active_unknown_and_late_yield_no_clearance() {
+    fn active_no_answer_unknown_and_late_yield_no_clearance() {
         let on_time = [None, Some(Duration::ZERO), Some(LATE_KEY_MAX)];
         for age in on_time {
             let inactive = FixedProbe(SecureInputReading::Inactive);
@@ -172,6 +176,12 @@ mod tests {
             assert_eq!(
                 check(&active, age).unwrap_err(),
                 Withheld::Active,
+                "{age:?}"
+            );
+            let no_answer = FixedProbe(SecureInputReading::NoAnswer);
+            assert_eq!(
+                check(&no_answer, age).unwrap_err(),
+                Withheld::Unknown,
                 "{age:?}"
             );
             let unknown = FixedProbe(SecureInputReading::Unknown);
@@ -189,6 +199,7 @@ mod tests {
         for reading in [
             SecureInputReading::Inactive,
             SecureInputReading::Active,
+            SecureInputReading::NoAnswer,
             SecureInputReading::Unknown,
         ] {
             assert_eq!(
