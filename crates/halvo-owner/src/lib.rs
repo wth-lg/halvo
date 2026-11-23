@@ -60,6 +60,23 @@
 //! socket down on macOS, which ends the reader at once; on Windows the handle that reads stays open, with its place,
 //! until the far end closes the handle on which it writes.
 //!
+//! # The purge
+//!
+//! The starter names the ordinals of segments that the capture store has shredded with the frame `purge` on its
+//! channel, a JSON object whose one key is `purge`, read before the request decoder as the frame `stream` is; on the
+//! worker's channel or on a stream such a frame is a request like any other. The owner calls `Store::purge` with them
+//! and answers with one frame on the starter's channel, after the report of what it committed:
+//!
+//! ```text
+//! {"purge":[<n>,..]}     1 to 64 ordinals, each an integer of at most 2^63 - 1
+//! {"purge":"done"}       every window row that names one of them is removed; a second purge of one ordinal
+//!                        changes nothing
+//! {"purge":"fault"}      the store failed: one line on standard error names the fault and no ordinal
+//! {"purge":"refused"}    the frame does not name 1 to 64 ordinals; nothing is removed
+//! ```
+//!
+//! The owner goes on after each of the three answers.
+//!
 //! # The report
 //!
 //! After every committed transaction the store hands the owner its report, and the owner writes it as one frame on
@@ -417,6 +434,31 @@ fn stream_frame(bytes: &[u8]) -> Option<Handles> {
     })
 }
 
+/// The most ordinals that one frame `purge` names.
+const PURGE_MAX: usize = 64;
+
+/// Reads a frame of the starter's channel as a frame `purge`: a JSON object whose one key is `purge`. Its value names
+/// the ordinals, 1 to `PURGE_MAX` integers of at most 2^63 - 1; for any other value the inner answer is none, which
+/// the owner refuses. Any other frame is no frame `purge`, and this function returns none for it.
+fn purge_frame(bytes: &[u8]) -> Option<Option<Vec<Ordinal>>> {
+    let frame: Value = serde_json::from_slice(bytes).ok()?;
+    let purge = frame
+        .as_object()
+        .filter(|keys| keys.len() == 1)?
+        .get("purge")?;
+    Some(
+        purge
+            .as_array()
+            .filter(|values| (1..=PURGE_MAX).contains(&values.len()))
+            .and_then(|values| {
+                values
+                    .iter()
+                    .map(|value| value.as_u64().and_then(|n| Ordinal::new(n).ok()))
+                    .collect()
+            }),
+    )
+}
+
 /// A stream that the owner holds. Its place is taken from the answer `taken` until its reader thread has ended.
 struct Stream {
     id: u64,
@@ -601,13 +643,17 @@ impl Owner {
                 Ok(Event::Frame(Source::Stream(id), ..)) if !self.writes_on(id) => {}
                 Ok(Event::Frame(source, bytes, came)) => {
                     quiet_since = Mono::now();
-                    let handles = match source {
-                        Source::Starter => stream_frame(&bytes),
-                        Source::Worker | Source::Stream(_) => None,
+                    let (handles, purge) = match source {
+                        Source::Starter => (stream_frame(&bytes), purge_frame(&bytes)),
+                        Source::Worker | Source::Stream(_) => (None, None),
                     };
-                    let done = match handles {
-                        Some(handles) => self.take_stream(handles, came, tx),
-                        None => {
+                    let done = match (handles, purge) {
+                        (Some(handles), _) => self.take_stream(handles, came, tx),
+                        (None, Some(ordinals)) => {
+                            drop(came);
+                            self.purge(ordinals)
+                        }
+                        (None, None) => {
                             drop(came);
                             self.answer(source, &bytes)
                         }
@@ -740,6 +786,27 @@ impl Owner {
             }
         };
         let frame = format!(r#"{{"stream":"{answer}"}}"#);
+        write_frame(&mut self.starter, frame.as_bytes(), SERVER_FRAME_MAX).map_err(|_| {
+            eprintln!("halvo-owner: an answer cannot be written on the starter's channel");
+            exit::CHANNEL
+        })
+    }
+
+    /// Answers a frame `purge` with one frame on the starter's channel, after the reports of what it committed: `done`
+    /// once `Store::purge` has removed every window row that names one of its ordinals, `fault` when the store failed,
+    /// with one line on standard error that names the fault and no ordinal, and `refused` for a frame that does not
+    /// name 1 to `PURGE_MAX` ordinals. The owner goes on in each case.
+    fn purge(&mut self, ordinals: Option<Vec<Ordinal>>) -> Result<(), i32> {
+        let answer = match ordinals.map(|ordinals| self.store.purge(&ordinals)) {
+            Some(Ok(_)) => "done",
+            Some(Err(fault)) => {
+                eprintln!("halvo-owner: the purge of named ordinals failed: {fault}");
+                "fault"
+            }
+            None => "refused",
+        };
+        self.flush_reports()?;
+        let frame = format!(r#"{{"purge":"{answer}"}}"#);
         write_frame(&mut self.starter, frame.as_bytes(), SERVER_FRAME_MAX).map_err(|_| {
             eprintln!("halvo-owner: an answer cannot be written on the starter's channel");
             exit::CHANNEL

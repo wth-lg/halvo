@@ -14,6 +14,14 @@
 //!   longer than that write and no key between two starts. An owner that ends, after a refused key (exit 65 or 77)
 //!   or for any cause, is reaped and its pid file removed before a call starts the next, and the call that finds the
 //!   end answers `store_unavailable`. At most one owner lives.
+//! - After the key and before any request, the slot hands the owner the ordinals of shredded segments that the caller
+//!   names for a start ([`Caller::gone`]) at or above that start's `--first-live`, in frames `{"purge":[<n>,..]}` of
+//!   at most 64 (halvo-control's `purge_frame`), each answer awaited for 4 s; an answer other than
+//!   `{"purge":"done"}` ends that owner, and the call answers `store_unavailable`. The keyless ordinals among them are
+//!   those of the newest read from ordinal 0, which can be up to about a minute old; the passes' own list comes
+//!   beside them.
+//! - [`OwnerSlot::hand_over`] hands the owner that runs, in the same frames, the ordinals that passes of the capture
+//!   store's maintenance shredded since the last hand-over ([`Caller::shredded`]). It starts no owner and stops none.
 //! - When the slot is made it reads a `derived/owner.pid` that an earlier daemon left. A file of another user or of a
 //!   mode wider than 0600, a whole line that is not the slot's line, and a process of this user with that pid whose
 //!   start time cannot be read are trusted for nothing: no signal, no unlink, and the slot starts no owner
@@ -42,7 +50,7 @@ use std::time::{Duration, Instant};
 
 use halvo_control::paths::DERIVED;
 use halvo_control::proto::{ErrorCode, ErrorReply};
-use halvo_control::r2::OwnerChannel;
+use halvo_control::r2::{purge_frame, OwnerChannel, PURGED, PURGE_MAX};
 use halvo_control::wire::{
     read_frame, write_frame, FrameError, REPLY_MAX_BYTES, REQUEST_MAX_BYTES,
 };
@@ -99,6 +107,21 @@ pub trait Caller: Send + Sync {
     /// `store_unavailable`. A caller that reads no store answers yes.
     fn read_stands(&self) -> bool {
         true
+    }
+
+    /// The ordinals of segments that the capture store has shredded, for a start: those of the keyless segments
+    /// above the lowest live one as the newest read from ordinal 0 found them, which can be up to about a minute old,
+    /// and those that passes shredded since the last hand-over, which the call takes. Asked at each start once the
+    /// key is written; the slot hands the owner those at or above the `--first-live` of that start before its first
+    /// request. A caller that reads no store names none.
+    fn gone(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    /// Takes the ordinals of the segments that passes shredded since the last hand-over, for the owner that runs
+    /// ([`OwnerSlot::hand_over`]). A caller that reads no store names none.
+    fn shredded(&self) -> Vec<u64> {
+        Vec::new()
     }
 }
 
@@ -297,6 +320,26 @@ impl OwnerSlot {
         }
     }
 
+    /// Hands the owner that runs the ordinals that passes shredded since the last hand-over ([`Caller::shredded`]), in
+    /// frames `purge` of at most 64, each answer awaited for 4 s. It starts no owner and stops none. With no owner
+    /// running, during the delete of everything and with a pid file trusted for nothing it takes no ordinal, so that
+    /// the next start hands them on. What a frame named is not sent again when the owner answers other than `done`,
+    /// and that owner keeps the rows until its next start: the capture store keeps a shredded segment's row with no
+    /// key, and a start sends the keyless ordinals above the lowest live one as the newest read from ordinal 0 left
+    /// them, which can be up to about a minute old (`daemon_caller::ASK_EVERY`), beside the passes' own list.
+    pub fn hand_over(&mut self) {
+        if self.caller.deleting() || self.distrust.is_some() {
+            return;
+        }
+        let Some(running) = self.running.as_mut() else {
+            return;
+        };
+        if running.over() {
+            return;
+        }
+        purge(running, &self.caller.shredded());
+    }
+
     /// Closes the channel, waits 2 s for the owner's exit, then kills it, reaps it and removes its pid file.
     pub fn stop(&mut self) {
         if let Some(mut running) = self.running.take() {
@@ -336,10 +379,11 @@ impl OwnerSlot {
             .map_err(|_| unavailable("the folder derived cannot be made private"))?;
         let mut data_dir = OsString::from("--data-dir=");
         data_dir.push(&self.data_dir);
+        let first_live = self.caller.first_live();
         let mut command = Command::new(&self.program);
         command
             .arg(data_dir)
-            .arg(format!("--first-live={}", self.caller.first_live()));
+            .arg(format!("--first-live={first_live}"));
         if let Some(ms) = self.idle_ms {
             command.arg(format!("--idle-ms={ms}"));
         }
@@ -385,6 +429,14 @@ impl OwnerSlot {
         if written.is_err() {
             running.finish(&self.pid_file, Duration::ZERO);
             return Err(ended());
+        }
+        let mut gone = self.caller.gone();
+        gone.retain(|ordinal| *ordinal >= first_live);
+        if !purge(&mut running, &gone) {
+            running.finish(&self.pid_file, Duration::ZERO);
+            return Err(unavailable(
+                "the owner of the derived store did not purge the shredded segments",
+            ));
         }
         Ok(running)
     }
@@ -543,6 +595,15 @@ impl Running {
         remove_ours(pid_file, &self.line);
         self.reaped = true;
     }
+}
+
+/// Sends `ordinals` to the owner in frames `purge` of at most 64, in their order, each answer awaited for 4 s, and
+/// stops at the first frame that is not answered `done`: true when every frame was. No ordinal sends no frame.
+fn purge(running: &mut Running, ordinals: &[u64]) -> bool {
+    ordinals.chunks(PURGE_MAX).all(|chunk| {
+        running.write(&purge_frame(chunk)).is_ok()
+            && matches!(running.answer(REPLY_WAIT), Ok(Some(answer)) if answer == PURGED)
+    })
 }
 
 /// Removes the pid file where it still holds `line`, the line that one start of this slot wrote.

@@ -6,13 +6,14 @@
 //! ```
 //!
 //! The request is `{"v":2,"body":{"op":"relay","request":{..}}}` and the reply
-//! `{"v":2,"body":{"kind":"relayed","reply":{..}}}`; the request names no role. The handler reads one name inside the
-//! object of `request` and nothing else of it: the key of the daemon's own frame `stream` on the owner's channel,
-//! `STREAM_KEY` of owner_stream.rs, which the owner reads before its request decoder. Any other object it sends to the
-//! owner as one frame on the owner's channel, and the owner decodes it strictly and takes the role from that channel,
-//! which admits the role interface alone. A refusal is an error reply of v1: `invalid_argument` for a body with a key
-//! beside `op` and `request`, for a `request` that is no JSON object, for an object that holds the key of the frame
-//! `stream` at its top level, and for an object whose frame to the owner would hold more than 4,096 bytes;
+//! `{"v":2,"body":{"kind":"relayed","reply":{..}}}`; the request names no role. The handler reads two names inside the
+//! object of `request` and nothing else of it: the keys of the daemon's own frames `stream` and `purge` on the owner's
+//! channel, `STREAM_KEY` and `PURGE_KEY` of owner_stream.rs, which the owner reads before its request decoder. Any
+//! other object it sends to the owner as one frame on the owner's channel, and the owner decodes it strictly and takes
+//! the role from that channel, which admits the role interface alone. A refusal is an error reply of v1:
+//! `invalid_argument` for a body with a key beside `op` and `request`, for a `request` that is no JSON object, for an
+//! object that holds the key of the frame `stream` or of the frame `purge` at its top level, and for an object whose
+//! frame to the owner would hold more than 4,096 bytes;
 //! `store_unavailable` at the end of the owner's channel, at the write or at the answer; and `internal` when the owner
 //! does not answer within 4 s of the handler's start, when its frame is no JSON object or would not fit the reply
 //! frame, and for any other failure of the channel.
@@ -23,7 +24,9 @@ use std::time::Instant;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
-use super::owner_stream::{v1_answer, CLIENT_DEADLINE, OWNER_ANSWER_WAIT, STREAM_KEY};
+use super::owner_stream::{
+    v1_answer, CLIENT_DEADLINE, OWNER_ANSWER_WAIT, PURGE_KEY, STREAM_KEY,
+};
 use super::{Connection, OwnerChannel};
 use crate::client::{is_timeout, read_reply, Client, ClientError, Connector, Timed};
 use crate::proto::{encode_reply, ErrorCode, ErrorReply, Reply, UnknownRequest};
@@ -109,8 +112,8 @@ impl Relay {
     /// The frame that the handler hands to the owner for a body that the server decoded as unknown: the object of
     /// `request` as serde_json writes it again, since the server keeps the decoded body and not the client's bytes. A
     /// body with a key beside `op` and `request`, a `request` that is no JSON object, an object that holds the key of
-    /// the daemon's own frame `stream` at its top level, which the owner would read as that frame, and an object whose
-    /// frame would hold more than 4,096 bytes are refused with `invalid_argument`.
+    /// the daemon's own frame `stream` or `purge` at its top level, which the owner would read as that frame, and an
+    /// object whose frame would hold more than 4,096 bytes are refused with `invalid_argument`.
     pub fn from_request(request: &UnknownRequest) -> Result<Vec<u8>, ErrorReply> {
         let body = request.body();
         let object = match body.get("request") {
@@ -126,6 +129,11 @@ impl Relay {
         if object.contains_key(STREAM_KEY) {
             return Err(invalid_argument(
                 "the relayed request holds the key of the daemon's own frame stream",
+            ));
+        }
+        if object.contains_key(PURGE_KEY) {
+            return Err(invalid_argument(
+                "the relayed request holds the key of the daemon's own frame purge",
             ));
         }
         let frame = serde_json::to_vec(object).expect("a map of JSON values always serializes");
@@ -402,6 +410,28 @@ mod tests {
                 "the key stream beside another key",
             ),
         ] {
+            let mut owner = Channel::answering(Ok(Some(b"{}".to_vec())));
+            let answer = reply_to(&unknown(&frame), &mut owner, answer_by());
+            assert!(owner.sent.is_empty(), "{why}: the owner got a frame");
+            assert_eq!(
+                answer.unwrap_err().code(),
+                ErrorCode::InvalidArgument,
+                "{why}"
+            );
+        }
+    }
+
+    /// The deletion's promise: an object that holds at its top level the key of the daemon's own frame `purge`, which
+    /// the owner would read as that frame and remove rows by, is `invalid_argument` as one with the key `stream` is,
+    /// and the owner gets no frame.
+    #[test]
+    fn an_object_with_the_key_of_the_frame_purge_is_refused() {
+        for (object, why) in [
+            (&br#"{"purge":[1]}"#[..], "the frame purge"),
+            (br#"{"purge":"done"}"#, "the answer done"),
+            (br#"{"v":1,"purge":[2]}"#, "the key purge beside another key"),
+        ] {
+            let frame = Relay::encode(object).unwrap();
             let mut owner = Channel::answering(Ok(Some(b"{}".to_vec())));
             let answer = reply_to(&unknown(&frame), &mut owner, answer_by());
             assert!(owner.sent.is_empty(), "{why}: the owner got a frame");

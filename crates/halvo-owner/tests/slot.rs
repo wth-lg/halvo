@@ -13,8 +13,16 @@ use halvo_capture::daemon::r2::owner_slot::{
     Caller, Distrust, Holder, OwnerSlot, Place, ProcessTable,
 };
 use halvo_control::proto::ErrorCode;
-use halvo_schema_core::ids::RequestId;
-use halvo_schema_core::request::{decode_reply, ErrorName, InterfaceRead, InterfaceRole};
+use halvo_schema_core::category::SeedCategory;
+use halvo_schema_core::ids::{Position, RequestId, StoreId, SummaryId, WorkflowId};
+use halvo_schema_core::record::{
+    Episode, FloorLayer, Instant, ObservedStep, Ordinal, Part, Tagged, Text,
+};
+use halvo_schema_core::request::{
+    decode_reply, AnalysisRole, AnalysisWrite, ErrorName, InterfaceRead, InterfaceRole, ReplyResult,
+};
+use halvo_schema_core::site::AppId;
+use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
 
 const KEY: [u8; 32] = [7; 32];
 const OTHER_KEY: [u8; 32] = [8; 32];
@@ -53,12 +61,14 @@ struct Seen {
     folder_mode: u32,
 }
 
-/// The test's daemon: a key source that reads the pid file when it is asked, and the flag of the delete.
+/// The test's daemon: a key source that reads the pid file when it is asked, the flag of the delete, and the ordinals
+/// of shredded segments that it names for a start.
 struct Daemon {
     key: [u8; 32],
     pid_file: PathBuf,
     deleting: AtomicBool,
     seen: Mutex<Vec<Seen>>,
+    gone: Mutex<Vec<u64>>,
 }
 
 impl Daemon {
@@ -68,6 +78,7 @@ impl Daemon {
             pid_file: scratch.pid_file(),
             deleting: AtomicBool::new(false),
             seen: Mutex::new(Vec::new()),
+            gone: Mutex::new(Vec::new()),
         })
     }
 
@@ -114,6 +125,10 @@ impl Caller for Daemon {
     }
 
     fn report(&self, _: &[u8]) {}
+
+    fn gone(&self) -> Vec<u64> {
+        self.gone.lock().unwrap().clone()
+    }
 }
 
 /// The place of a slot over `scratch` that starts the built owner.
@@ -502,4 +517,123 @@ fn a_delete_of_everything_leaves_no_entry_under_derived() {
     assert!(left.is_empty(), "derived holds {left:?}: {printed}");
     assert_eq!(status, 0, "{printed}");
     drop(slot);
+}
+
+/// An episode of the segment `n` alone, with the summary id of `n`, of one key for every `n`, two days before today.
+fn episode(n: u8) -> Episode {
+    const DAY_NS: i64 = 86_400_000_000_000;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap();
+    let day = u32::try_from(i64::try_from(now.as_nanos()).unwrap().div_euclid(DAY_NS)).unwrap() - 2;
+    let start = i64::from(day) * DAY_NS + 64_800_000_000_000 + i64::from(n);
+    Episode {
+        id: SummaryId::from_random([n; 16]),
+        category: SeedCategory::UtilityBillPayment,
+        site: None,
+        app: AppId::parse("com.example.browser").unwrap(),
+        day,
+        part: Part::Evening,
+        minutes: 5,
+        keys: None,
+        pointer: None,
+        segments: vec![Ordinal::new(u64::from(n)).unwrap()],
+        expires: Instant(9_000_000_000_000_000_000),
+        start: Instant(start),
+        end: Instant(start + 1_000),
+        steps: vec![ObservedStep {
+            app: None,
+            title: Some(Tagged {
+                value: Text::parse("Pay bill").unwrap(),
+                layer: FloorLayer::Floor,
+            }),
+            input: None,
+            site: None,
+            text: None,
+        }],
+    }
+}
+
+/// The ids of the workflows that the owner's reply to a read of the workflows names.
+fn workflows(reply: &[u8]) -> Vec<WorkflowId> {
+    match decode_reply(reply).unwrap().outcome {
+        Ok(ReplyResult::Workflows(page)) => page
+            .workflows
+            .iter()
+            .map(|item| item.workflow.id().clone())
+            .collect(),
+        other => panic!("the read of the workflows answers {other:?}"),
+    }
+}
+
+/// The ordinals that each evidence row of the owner's reply to a read of the evidence names.
+fn evidence_segments(reply: &[u8]) -> Vec<Vec<u64>> {
+    match decode_reply(reply).unwrap().outcome {
+        Ok(ReplyResult::Evidence(page)) => page
+            .evidence
+            .iter()
+            .map(|row| row.segments.iter().map(|o| o.get()).collect())
+            .collect(),
+        other => panic!("the read of the evidence answers {other:?}"),
+    }
+}
+
+fn read_evidence(workflow: &WorkflowId) -> Vec<u8> {
+    InterfaceRead::evidence(
+        &InterfaceRole::claim(),
+        request_id(),
+        workflow.clone(),
+        None,
+    )
+    .to_bytes()
+    .unwrap()
+}
+
+/// The start with none alive (the deletion's promise): an owner started for a worker commits the evidence rows of the
+/// segments 1, 2 and 3; the daemon then names the segment 2, above the lowest live one 1, as shredded, and the next
+/// start hands it to its owner before the first request, whose answer names the rows of the segments 1 and 3 alone.
+#[test]
+fn a_start_hands_its_owner_the_shredded_ordinals_before_the_first_request() {
+    let scratch = Scratch::new("slot-gone");
+    let daemon = Daemon::new(&scratch, KEY);
+    let mut slot = slot(&scratch, &daemon, None);
+    let (owner_reads, mut worker_writes) = std::io::pipe().unwrap();
+    let (mut worker_reads, owner_writes) = std::io::pipe().unwrap();
+    slot.start_with_worker((owner_reads, owner_writes)).unwrap();
+    let store = StoreId::parse(&"1".repeat(32)).unwrap();
+    let mut write = AnalysisWrite::new(&AnalysisRole::claim(), request_id(), store);
+    for n in 1..=3 {
+        write.push(episode(n)).unwrap();
+    }
+    write.commit(Position { seg: 4, idx: 0 });
+    write_frame(
+        &mut worker_writes,
+        &write.to_bytes().unwrap(),
+        CLIENT_FRAME_MAX,
+    )
+    .unwrap();
+    let reply = read_frame(&mut worker_reads, SERVER_FRAME_MAX)
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        decode_reply(&reply).unwrap().outcome,
+        Ok(ReplyResult::Null)
+    ));
+    let ids = workflows(&slot.relay(&read_workflows()).unwrap());
+    assert_eq!(
+        ids.len(),
+        1,
+        "the three summaries of one key make one workflow"
+    );
+    let read = read_evidence(&ids[0]);
+    assert_eq!(
+        evidence_segments(&slot.relay(&read).unwrap()),
+        [[1], [2], [3]]
+    );
+    slot.stop();
+    drop((worker_writes, worker_reads));
+
+    *daemon.gone.lock().unwrap() = vec![2];
+    let read = read_evidence(&ids[0]);
+    assert_eq!(evidence_segments(&slot.relay(&read).unwrap()), [[1], [3]]);
 }

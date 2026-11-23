@@ -18,14 +18,20 @@
 //!   yes into a no: the slot ends a living worker by its kill, with the line `analysis end=ended`, and starts none,
 //!   and the owner that ran keeps running. A pass that held the lock at the request can still start one worker,
 //!   which the next pass ends.
+//! - THE SHREDDED SEGMENTS. Before the slot's own pass, each pass of the driver hands the owner that runs the
+//!   ordinals that the store's maintenance shredded since the last hand-over (`OwnerSlot::hand_over`), under the
+//!   lock, whatever the maintenance pass that shredded them answered: it starts no owner and stops none, so a
+//!   worker's batch goes on. With no owner running they wait for the next start, which hands them on before its
+//!   first request. An [`open`] or a [`delete`] makes the cell forget them; the next start then takes those
+//!   segments by `purge_below` or by the keyless list of the fresh read from ordinal 0.
 //! - THE SOURCE. The form's source gives what [`DaemonCaller::reading`] gives at the clock's reading of the call:
 //!   the origin, with the watermark as the one that a yes carries; none with no slot in the form.
-//! - [`open`], at each open of the capture store: the cell of the cursor's reads forgets its figures and its ask
-//!   (`daemon_caller::cell`), and a new caller and a new slot over the data directory go into the form, so neither
-//!   the cell nor the caller of a fresh store keeps a figure or a position of an earlier one: no owner starts before
-//!   a read of the store that is open. Its first call in a life of the daemon makes the driver and starts its thread
-//!   ([`Driver::run`]). Where the directory of the programs cannot be read or the driver's thread does not start, it
-//!   writes one line and makes nothing, and the service runs on:
+//! - [`open`], at each open of the capture store: the cell of the cursor's reads forgets its figures, its ask and the
+//!   passes' ordinals (`daemon_caller::cell`), and a new caller and a new slot over the data directory go into the
+//!   form, so neither the cell nor the caller of a fresh store keeps a figure or a position of an earlier one: no
+//!   owner starts before a read of the store that is open. Its first call in a life of the daemon makes the driver
+//!   and starts its thread ([`Driver::run`]). Where the directory of the programs cannot be read or the driver's
+//!   thread does not start, it writes one line and makes nothing, and the service runs on:
 //!
 //!   ```text
 //!   halvo-capture: analysis is not made: <the fault>
@@ -168,6 +174,7 @@ impl Slot for &'static Form {
         }
         match held.open.as_mut() {
             Some(open) => {
+                open.slot.owner().hand_over();
                 let may_run = self.deferred.may_run(may_run, Instant::now());
                 open.slot.pass(now, may_run, origin)
             }
@@ -225,10 +232,10 @@ impl Write for Lines {
 
 /// Makes the worker slot of the capture store that opened over `data_dir`, with the programs in `program_dir` (the
 /// daemon's own, `children::own_dir`), and `log` as the writer of the lines of the slot, of its caller and of this
-/// call. The cell forgets its figures and its ask, a new caller and a new slot go into the form, the slot that stood
-/// there is dropped, and the mark of a delete is cleared. The first call in a life makes the driver over `readings`
-/// and starts its thread; a later call drops `readings`. Where `program_dir` is an error, or the driver's thread does
-/// not start, the call writes one line and makes nothing.
+/// call. The cell forgets its figures, its ask and the passes' ordinals, a new caller and a new slot go into the form,
+/// the slot that stood there is dropped, and the mark of a delete is cleared. The first call in a life makes the
+/// driver over `readings` and starts its thread; a later call drops `readings`. Where `program_dir` is an error, or
+/// the driver's thread does not start, the call writes one line and makes nothing.
 pub fn open<R: Readings + 'static>(
     data_dir: &Path,
     program_dir: io::Result<PathBuf>,
@@ -291,7 +298,7 @@ pub fn stop() {
 
 /// The delete of everything, after the capture store is closed and before the delete's steps: the mark is set before
 /// the lock is asked for and once more under it, the slot leaves the form and is dropped as [`stop`] drops it, and
-/// then the cell forgets its figures and its ask.
+/// then the cell forgets its figures, its ask and the passes' ordinals.
 pub fn delete() {
     FORM.deleting.store(true, Ordering::SeqCst);
     let mut held = FORM.held();

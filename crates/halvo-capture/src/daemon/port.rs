@@ -254,6 +254,15 @@ pub trait MaintainStore {
 
     fn usage(&mut self) -> Result<Usage, MaintFault>;
 
+    /// Takes the ordinals of the segments whose keys this handle's
+    /// `expire_due` and `evict_to` cleared and committed since the last take,
+    /// whatever those calls answered, and empties the list: a call that
+    /// answers an error can have shredded first. A handle that notes nothing
+    /// names none.
+    fn take_shredded(&mut self) -> Vec<Ordinal> {
+        Vec::new()
+    }
+
     /// Deletes the store of this handle, root first, and refuses every write
     /// from its first step on (contracts.md C11.4). A handle with no delete
     /// of its own answers that the delete failed, so that its caller runs
@@ -275,6 +284,11 @@ pub struct SegmentRead {
     /// None for a store that has given no ordinal.
     pub highest: Option<Ordinal>,
     pub segment: Option<LiveSegment>,
+    /// On a read from ordinal 0 with a live segment, the ordinals above that
+    /// segment's whose key the store has destroyed, in ascending order: the
+    /// segments that it shredded out of the order of their ordinals. Empty
+    /// on every other read.
+    pub gone: Vec<Ordinal>,
 }
 
 /// One live segment as its store read it: the plain lines of its payload,
@@ -325,6 +339,10 @@ impl<S: MaintainStore + ?Sized> MaintainStore for Box<S> {
 
     fn usage(&mut self) -> Result<Usage, MaintFault> {
         (**self).usage()
+    }
+
+    fn take_shredded(&mut self) -> Vec<Ordinal> {
+        (**self).take_shredded()
     }
 
     fn delete_all(&mut self) -> TailAnswer {

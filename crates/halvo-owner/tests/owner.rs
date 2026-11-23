@@ -286,6 +286,19 @@ impl Owner {
         }
     }
 
+    /// The owner's answer to a frame `purge`: the text of the next frame on the starter's channel that is no report.
+    fn purge_answer(&mut self) -> String {
+        loop {
+            let frame = self
+                .frames
+                .recv_timeout(WAIT)
+                .expect("the owner answers no frame `purge`");
+            if is_report(&frame).is_none() {
+                return String::from_utf8(frame).unwrap();
+            }
+        }
+    }
+
     /// The next frame on the worker's channel.
     fn worker_reply(&mut self) -> Reply {
         let frames = self.worker_frames.as_ref().unwrap();
@@ -990,6 +1003,44 @@ fn the_owner_purges_below_the_lowest_live_ordinal_before_its_first_read() {
         second.requests.is_some(),
         "the channel was open when the owner exited"
     );
+}
+
+/// The reader's gap G2 of the deletion's promise: the evidence row of a carried stretch names its own segment and its
+/// title record's segment; the frame `purge` with the title record's segment takes that row, and the rows of the
+/// segments that the frame does not name stay.
+#[test]
+fn a_purge_of_the_title_records_segment_takes_the_row_of_a_carried_stretch() {
+    let scratch = Scratch::new("owner-purge-named");
+    let day = two_days_ago();
+    let mut carried = episode(3, day, FAR);
+    carried.segments = vec![Ordinal::new(1).unwrap(), Ordinal::new(3).unwrap()];
+
+    let mut owner = start(&scratch.0, KEY, 1, true, &[]);
+    owner.write(&analysis_write(
+        vec![carried, episode(4, day, FAR), episode(5, day, FAR)],
+        Position { seg: 6, idx: 0 },
+    ));
+    assert!(matches!(
+        owner.worker_reply().outcome,
+        Ok(ReplyResult::Null)
+    ));
+    owner.send(&read_workflows());
+    let ids = workflows(owner.reply());
+    assert_eq!(
+        ids.len(),
+        1,
+        "the three summaries of one key make one workflow"
+    );
+    owner.send(&read_evidence(&ids[0]));
+    assert_eq!(
+        evidence_segments(owner.reply()),
+        [vec![1, 3], vec![4], vec![5]]
+    );
+
+    owner.send(br#"{"purge":[1]}"#);
+    assert_eq!(owner.purge_answer(), r#"{"purge":"done"}"#);
+    owner.send(&read_evidence(&ids[0]));
+    assert_eq!(evidence_segments(owner.reply()), [[4], [5]]);
 }
 
 /// Rule 4 and the other half of rule 5: a report with the four values follows a commit; with no request the owner

@@ -536,6 +536,7 @@ fn a_pass_whose_first_commit_meets_an_unlinked_log_answers_obstructed_and_its_cl
     std::fs::remove_file(store_dir.join("store.db-wal")).unwrap();
     let database_before = std::fs::read(store_dir.join("store.db")).unwrap();
     let pass = store.crypto_shred_expired();
+    let taken = store.take_shredded();
     let other = random_segment_id().unwrap();
     let write_after = write(&mut store, &other, noon_today());
     let read_after = store.read_segment(id, &mut Vec::new()).map(|_| ());
@@ -550,6 +551,10 @@ fn a_pass_whose_first_commit_meets_an_unlinked_log_answers_obstructed_and_its_cl
     assert!(
         matches!(&pass, Err(e) if the_log_obstructed(e)),
         "the pass answered {pass:?}"
+    );
+    assert!(
+        taken.is_empty(),
+        "the take behind the refused pass names {taken:?}"
     );
     assert!(
         !held(&write_after),
