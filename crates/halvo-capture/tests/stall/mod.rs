@@ -19,7 +19,8 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetFocus, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN,
-    MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEINPUT, MOUSE_EVENT_FLAGS, VK_A, VK_MENU, VK_TAB,
+    MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEINPUT, MOUSE_EVENT_FLAGS, VK_A, VK_MENU, VK_P,
+    VK_TAB,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
@@ -29,13 +30,13 @@ use windows::Win32::UI::WindowsAndMessaging::{
     TranslateMessage, UnregisterClassW, WindowFromPoint, ES_PASSWORD, MSG, MWMO_INPUTAVAILABLE,
     PEEK_MESSAGE_REMOVE_TYPE, PM_NOREMOVE, PM_QS_SENDMESSAGE, QS_SENDMESSAGE, SC_KEYMENU,
     SM_CXSCREEN, SM_CYSCREEN, SW_MINIMIZE, SW_RESTORE, SW_SHOW, WINDOW_EX_STYLE, WINDOW_STYLE,
-    WM_APP, WM_KEYDOWN, WM_SYSCOMMAND, WNDCLASSW, WS_CHILD, WS_OVERLAPPEDWINDOW, WS_TABSTOP,
-    WS_VISIBLE,
+    WM_APP, WM_CHAR, WM_KEYDOWN, WM_SYSCOMMAND, WM_SYSKEYDOWN, WNDCLASSW, WS_CHILD,
+    WS_OVERLAPPEDWINDOW, WS_TABSTOP, WS_VISIBLE,
 };
 
 use super::{
-    capture, focus_on, foreground_window, key_input, pump_thread, say, send, source_built_by_test,
-    start_report, stop_counted, with_deadline, Events, Field,
+    capture, focus_on, foreground_window, key_input, powershell_line, pump_thread, say, send,
+    source_built_by_test, start_report, stop_counted, with_deadline, Events, Field,
 };
 
 mod kinds;
@@ -61,6 +62,7 @@ const CMD_WANDER: usize = 7;
 const CMD_AIM: usize = 8;
 const CMD_MASK: usize = 9;
 const CMD_NOTIFY_FOCUS: usize = 10;
+const CMD_LAYOUT: usize = 11;
 const ARG_SELF_FOCUS: usize = 0x1_0000;
 const ARG_AIM: usize = 0x2_0000;
 const ARG_SERVE_SENT: usize = 0x4_0000;
@@ -69,7 +71,27 @@ const ARG_OTHER_FRONT: usize = 0x10_0000;
 const ARG_TWO_STEP: usize = 0x20_0000;
 const ARG_SECOND: usize = 0x1;
 const ARG_START_IN_PASSWORD: usize = 0x2;
+const ARG_SILENT_PASSWORD: usize = 0x4;
 const TWO_STEP_MS: u64 = 200;
+const ARG_LATE_MOVE: usize = 0x40_0000;
+const ARG_OWN_CHANGE: usize = 0x80_0000;
+const LATE_MOVE_WORK_MS: u64 = 200;
+const ARG_TAKE_ONE: usize = 0x100_0000;
+/// A round's word: after its stall the fixture takes one click, then works
+/// and moves the focus to its password field.
+const ARG_TAKE_CLICK: usize = 0x200_0000;
+/// With ARG_TAKE_CLICK: the fixture pastes into its plain field when it
+/// takes the click.
+const ARG_POINTER_CHANGE: usize = 0x400_0000;
+/// A round's word: after its stall the fixture moves the focus to its
+/// password field, takes one key there, moves the focus back to its plain
+/// field and takes one key there.
+const ARG_THERE_AND_BACK: usize = 0x800_0000;
+/// CMD_AIM's word for an empty place of the fixture's window.
+const AIM_EMPTY: usize = 4;
+/// With ARG_TAKE_ONE or ARG_LATE_MOVE: the fixture does not move the focus
+/// itself, so that a Tab typed ahead makes the move when the fixture takes it.
+const ARG_NO_MOVE: usize = 0x1000_0000;
 
 const LETTER_STEP: Duration = Duration::from_millis(60);
 const FORM_ENV: &str = "HALVO_WF_FORM";
@@ -347,12 +369,24 @@ fn mouse_input(dx: i32, dy: i32, flags: MOUSE_EVENT_FLAGS) -> INPUT {
 }
 
 fn aim_at(target: HWND) -> bool {
+    aim_inside(target, |rect| {
+        ((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2)
+    })
+}
+
+/// Puts the pointer 24 pixels inside the lower right corner of the window,
+/// where the fixture has no control.
+fn aim_at_empty(window: HWND) -> bool {
+    aim_inside(window, |rect| (rect.right - 24, rect.bottom - 24))
+}
+
+fn aim_inside(target: HWND, place: fn(&RECT) -> (i32, i32)) -> bool {
     let mut rect = RECT::default();
     // SAFETY: `rect` is a live RECT that the call fills.
     if unsafe { GetWindowRect(target, &mut rect) }.is_err() {
         return false;
     }
-    let (x, y) = ((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2);
+    let (x, y) = place(&rect);
     // SAFETY: GetSystemMetrics reads a system value and takes no pointer.
     let (cx, cy) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
     if cx < 2 || cy < 2 || x < 0 || y < 0 || x >= cx || y >= cy {
@@ -428,6 +462,7 @@ enum FixtureField {
     Plain = 0,
     Password = 1,
     Second = 2,
+    Lines = 3,
 }
 
 impl FixtureField {
@@ -439,6 +474,7 @@ impl FixtureField {
         match wire {
             1 => FixtureField::Password,
             2 => FixtureField::Second,
+            3 => FixtureField::Lines,
             _ => FixtureField::Plain,
         }
     }
@@ -457,6 +493,9 @@ fn fixture_main() {
     let plain = window.edit(WS_TABSTOP, 10);
     let second = window.edit(WS_TABSTOP, 78);
     let password = window.edit(WS_TABSTOP | WINDOW_STYLE(ES_PASSWORD as u32), 44);
+    // ES_MULTILINE, ES_AUTOVSCROLL and ES_WANTRETURN: a classic edit control
+    // of several lines, which takes Enter as a new line.
+    let lines = window.edit(WINDOW_STYLE(0x0004 | 0x0040 | 0x1000), 112);
     const EM_GETPASSWORDCHAR: u32 = 0x00D2;
     // SAFETY: SendMessageW passes plain values to this thread's edit control.
     let mask = unsafe { SendMessageW(password, EM_GETPASSWORDCHAR, None, None) }.0 as usize;
@@ -476,6 +515,7 @@ fn fixture_main() {
     let field = |wire: usize| match FixtureField::of_wire(wire) {
         FixtureField::Password => password,
         FixtureField::Second => second,
+        FixtureField::Lines => lines,
         FixtureField::Plain => plain,
     };
     pump_thread(Duration::from_millis(300));
@@ -517,6 +557,7 @@ fn fixture_main() {
     let mut letters = [0u32; 4];
     let mut tabs = [0u32; 4];
     let mut wander: Option<Wander> = None;
+    let mut silent_password = false;
     let mut msg = MSG::default();
     loop {
         // SAFETY: `msg` is a live MSG that GetMessageW fills.
@@ -585,6 +626,7 @@ fn fixture_main() {
                     clear_text(plain);
                     clear_text(second);
                     clear_text(password);
+                    clear_text(lines);
                     enable_second(arg & ARG_SECOND != 0);
                     let start = if arg & ARG_START_IN_PASSWORD != 0 {
                         password
@@ -593,6 +635,7 @@ fn fixture_main() {
                     };
                     let focused = focus_on(start);
                     letters = [0; 4];
+                    silent_password = arg & ARG_SILENT_PASSWORD != 0;
                     tabs = [0; 4];
                     println!(
                         "STALLC reset fg={} focused={} reactivated={}",
@@ -606,7 +649,7 @@ fn fixture_main() {
                         "STALLC state fg={} focus_plain={} focus_password={} plain_len={} \
                          password_len={} second_len={} letters_plain={} letters_password={} \
                          letters_second={} letters_other={} tabs_plain={} tabs_password={} \
-                         tabs_second={} tabs_other={} password_masked={}",
+                         tabs_second={} tabs_other={} password_masked={} focus_lines={} lines_len={}",
                         flag(window.is_foreground()),
                         flag(focus == plain),
                         flag(focus == password),
@@ -621,7 +664,9 @@ fn fixture_main() {
                         tabs[1],
                         tabs[2],
                         tabs[3],
-                        flag(masked(password))
+                        flag(masked(password)),
+                        flag(focus == lines),
+                        text_len(lines)
                     );
                 }
                 CMD_FOCUS => {
@@ -662,8 +707,23 @@ fn fixture_main() {
                     }
                     println!("STALLC notified ok=1");
                 }
+                CMD_LAYOUT => {
+                    use windows::Win32::UI::Input::KeyboardAndMouse::{
+                        LoadKeyboardLayoutW, KLF_ACTIVATE,
+                    };
+                    // SAFETY: LoadKeyboardLayoutW takes a live HSTRING and a
+                    // flag; it loads a layout of the system for this thread.
+                    let loaded =
+                        unsafe { LoadKeyboardLayoutW(&HSTRING::from("00000407"), KLF_ACTIVATE) }
+                            .is_ok_and(|layout| layout.0 as usize & 0xFFFF == 0x0407);
+                    println!("STALLC layout ok={}", flag(loaded));
+                }
                 CMD_AIM => {
-                    let aimed = aim_at(field(arg));
+                    let aimed = if arg == AIM_EMPTY {
+                        aim_at_empty(window.hwnd)
+                    } else {
+                        aim_at(field(arg))
+                    };
                     println!("STALLC aimed ok={}", flag(aimed));
                 }
                 CMD_WANDER => {
@@ -713,6 +773,71 @@ fn fixture_main() {
                     if arg & ARG_SELF_FOCUS != 0 {
                         focus_on(password);
                     }
+                    if arg & ARG_TAKE_ONE != 0 {
+                        take_one_key(
+                            window.hwnd,
+                            &mut letters,
+                            &mut tabs,
+                            [plain, password, second],
+                        );
+                        stall(LATE_MOVE_WORK_MS, Wait::ServesSent);
+                        if arg & ARG_NO_MOVE == 0 {
+                            focus_on(password);
+                        }
+                    }
+                    if arg & ARG_TAKE_CLICK != 0 {
+                        take_a_click(
+                            window.hwnd,
+                            &mut letters,
+                            &mut tabs,
+                            [plain, password, second],
+                        );
+                        if arg & ARG_POINTER_CHANGE != 0 {
+                            const EM_REPLACESEL: u32 = 0x00C2;
+                            let text = HSTRING::from("x");
+                            // SAFETY: SendMessageW passes this thread's edit
+                            // control a live string that ends in a NUL.
+                            unsafe {
+                                let _ = SendMessageW(
+                                    plain,
+                                    EM_REPLACESEL,
+                                    Some(WPARAM(1)),
+                                    Some(LPARAM(text.as_ptr() as isize)),
+                                );
+                            }
+                        }
+                        stall(LATE_MOVE_WORK_MS, Wait::ServesSent);
+                        focus_on(password);
+                    }
+                    if arg & ARG_THERE_AND_BACK != 0 {
+                        focus_on(password);
+                        take_one_key(
+                            window.hwnd,
+                            &mut letters,
+                            &mut tabs,
+                            [plain, password, second],
+                        );
+                        focus_on(plain);
+                        take_one_key(
+                            window.hwnd,
+                            &mut letters,
+                            &mut tabs,
+                            [plain, password, second],
+                        );
+                    }
+                    if arg & ARG_LATE_MOVE != 0 {
+                        if arg & ARG_OWN_CHANGE != 0 {
+                            // SAFETY: SetWindowTextW takes this thread's edit
+                            // control and a live HSTRING.
+                            unsafe {
+                                let _ = SetWindowTextW(plain, &HSTRING::from("x"));
+                            }
+                        }
+                        stall(LATE_MOVE_WORK_MS, Wait::ServesSent);
+                        if arg & ARG_NO_MOVE == 0 {
+                            focus_on(password);
+                        }
+                    }
                     if let Some(other) = other {
                         let _ = other.join();
                     }
@@ -723,6 +848,13 @@ fn fixture_main() {
                     unsafe { PostQuitMessage(0) };
                 }
             }
+            continue;
+        }
+        if silent_password && msg.message == WM_CHAR && msg.hwnd == password {
+            continue;
+        }
+        if msg.message == WM_SYSKEYDOWN && msg.wParam.0 == usize::from(VK_P.0) {
+            focus_on(password);
             continue;
         }
         count_key(&msg, &mut letters, &mut tabs, [plain, password, second]);
@@ -789,6 +921,72 @@ fn dispatch_until_a_tab(dialog: HWND, tabs: &mut [u32; 4], fields: [HWND; 3]) {
             }
         }
         if tab_down {
+            return;
+        }
+    }
+}
+
+fn take_one_key(dialog: HWND, letters: &mut [u32; 4], tabs: &mut [u32; 4], fields: [HWND; 3]) {
+    let end = Instant::now() + Duration::from_secs(1);
+    let mut msg = MSG::default();
+    while Instant::now() < end {
+        // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the same
+        // value goes to IsDialogMessageW, TranslateMessage and
+        // DispatchMessageW.
+        let got = unsafe {
+            PeekMessageW(
+                &mut msg,
+                None,
+                0,
+                0,
+                windows::Win32::UI::WindowsAndMessaging::PM_REMOVE,
+            )
+        };
+        if !got.as_bool() {
+            std::thread::sleep(Duration::from_millis(1));
+            continue;
+        }
+        count_key(&msg, letters, tabs, fields);
+        let typed = msg.message == WM_CHAR;
+        // SAFETY: as above.
+        unsafe {
+            if !IsDialogMessageW(dialog, &msg).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        if typed {
+            return;
+        }
+    }
+}
+
+/// Takes the queued messages up to and with the first button-down of the
+/// pointer, as a program does that answers a click before the keys typed
+/// behind it.
+fn take_a_click(dialog: HWND, letters: &mut [u32; 4], tabs: &mut [u32; 4], fields: [HWND; 3]) {
+    use windows::Win32::UI::WindowsAndMessaging::{PM_REMOVE, WM_LBUTTONDOWN};
+    let end = Instant::now() + Duration::from_secs(1);
+    let mut msg = MSG::default();
+    while Instant::now() < end {
+        // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the same
+        // value goes to IsDialogMessageW, TranslateMessage and
+        // DispatchMessageW.
+        let got = unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) };
+        if !got.as_bool() {
+            std::thread::sleep(Duration::from_millis(1));
+            continue;
+        }
+        count_key(&msg, letters, tabs, fields);
+        let clicked = msg.message == WM_LBUTTONDOWN;
+        // SAFETY: as above.
+        unsafe {
+            if !IsDialogMessageW(dialog, &msg).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        if clicked {
             return;
         }
     }
@@ -1069,7 +1267,7 @@ struct Decisions {
     first_tab_rule: Option<seam::Rule>,
 }
 
-const RULES: [seam::Rule; 10] = [
+const RULES: [seam::Rule; 11] = [
     seam::Rule::PasswordEdit,
     seam::Rule::NotClearedInTime,
     seam::Rule::AnotherThreadInFront,
@@ -1080,6 +1278,7 @@ const RULES: [seam::Rule; 10] = [
     seam::Rule::ElementNotTheSame,
     seam::Rule::MarksLost,
     seam::Rule::ClicksNotForwarded,
+    seam::Rule::LandingAfterTheLatch,
 ];
 
 fn rule_index(rule: Option<seam::Rule>) -> i64 {
@@ -1215,6 +1414,11 @@ fn run_rounds(
         if phase.other_front {
             arg |= ARG_OTHER_FRONT;
         }
+        match phase.lead {
+            Lead::LateMove => arg |= ARG_LATE_MOVE,
+            Lead::OwnChangeThenLateMove => arg |= ARG_LATE_MOVE | ARG_OWN_CHANGE,
+            _ => {}
+        }
         let ack = fixture.ask(CMD_ROUND, arg, "ack");
         let sent_at = Instant::now();
         let mut letters_sent = 0u32;
@@ -1229,6 +1433,12 @@ fn run_rounds(
                     burst.push(mouse_input(0, 0, MOUSEEVENTF_LEFTUP));
                 }
                 Lead::Enter => burst.extend(key_pair(VK_RETURN)),
+                Lead::AccessKey => burst.extend([
+                    key_input(VK_MENU, false),
+                    key_input(VK_P, false),
+                    key_input(VK_P, true),
+                    key_input(VK_MENU, true),
+                ]),
                 Lead::TabTab => {
                     accepted += send(&key_pair(VK_TAB));
                     inputs += 2;
@@ -1237,7 +1447,7 @@ fn run_rounds(
                     inputs += 2;
                     std::thread::sleep(Duration::from_millis(30));
                 }
-                Lead::Nothing => {}
+                Lead::Nothing | Lead::LateMove | Lead::OwnChangeThenLateMove => {}
             }
             burst.extend(key_pair(VK_A));
             accepted += send(&burst);
@@ -1265,6 +1475,19 @@ fn run_rounds(
         let keystroke_events = seen
             .iter()
             .filter(|e| e.modality == Modality::Keystroke)
+            .count() as u32;
+        let records_beyond_time_app_and_class = seen
+            .iter()
+            .filter(|e| e.modality == Modality::Keystroke)
+            .filter(|e| {
+                e.foreground_app.is_empty()
+                    || !e.view.as_ref().is_some_and(|view| {
+                        view.key_class.is_some()
+                            && view.click.is_none()
+                            && view.fold.is_none()
+                            && view.title.is_none()
+                    })
+            })
             .count() as u32;
         let landed_key = match phase.landing {
             Landing::Password => "letters_password",
@@ -1376,6 +1599,7 @@ fn run_rounds(
         totals.rounds += 1;
         totals.sink_differs += u32::from(sink_differs);
         totals.keystroke_events += keystroke_events;
+        totals.records_beyond_time_app_and_class += records_beyond_time_app_and_class;
         totals.late_moved += late_moved;
         totals.withheld_set += u32::from(withheld_set);
         if counted {
@@ -1690,9 +1914,6 @@ fn the_round_count_of_the_stall_tests() {
         println!(
             "left_out the rounds of every other stall phase but one, of phase E but one, of each browser stall and swap phase but one, of the fixtures' phases E and F but one, of the letter and Tab out of a swapped field but one, and of each held page of the self-move but one; each phase and each wait still runs once"
         );
-        println!(
-            "left_out the known defects held swaps (Chrome, Edge) and the stall self-focus, which run in the long form alone and print their ledger id"
-        );
     }
 }
 
@@ -1730,6 +1951,121 @@ fn a_second_field_and_a_window_of_another_thread_while_the_program_waits_300_ms(
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn enter_a_tab_out_and_a_focus_move_in_two_steps_record_no_letter() {
     kind_test(Kind::EnterTabOutAndTwoStep);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn an_access_key_that_moves_the_focus_while_the_program_waits_records_no_letter() {
+    kind_test(Kind::AccessKey);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn letters_at_a_password_edit_that_makes_no_event_then_a_tab_and_a_letter_record_none_of_them() {
+    let test = "stall-silent-password";
+    with_deadline(test, Duration::from_secs(200), move || {
+        source_built_by_test(test, "keyboard");
+        let mut fixture = Fixture::open(test, false);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        start_report(test, "keyboard", &start);
+        assert!(
+            start.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start: {start:?}"
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let before = control(test, "before", &mut fixture, &events);
+        let mut rounds = 0;
+        let mut counted = 0;
+        let mut recorded_at_the_password = 0;
+        for (wait, stall_ms) in [
+            (Wait::Sleeps, 0),
+            (Wait::ServesSent, 300),
+            (Wait::Sleeps, 300),
+        ] {
+            for round in 0..rounds_for(2, 5) {
+                let reset = fixture.ask(
+                    CMD_RESET,
+                    ARG_START_IN_PASSWORD | ARG_SILENT_PASSWORD,
+                    "reset",
+                );
+                let _ = events.drain_for(Duration::from_millis(400));
+                let _ = seam::take();
+                let mut arg = usize::try_from(stall_ms).unwrap_or(0) & 0xFFFF;
+                if wait == Wait::ServesSent {
+                    arg |= ARG_SERVE_SENT;
+                }
+                let ack = fixture.ask(CMD_ROUND, arg, "ack");
+                let mut accepted = 0;
+                for _ in 0..3 {
+                    accepted += send(&key_pair(VK_A));
+                    std::thread::sleep(LETTER_STEP);
+                }
+                accepted += send(&key_pair(VK_TAB));
+                std::thread::sleep(LETTER_STEP);
+                accepted += send(&key_pair(VK_A));
+                let _ = fixture.expect("woke", Duration::from_secs(10));
+                let _ = events.drain_for(Duration::from_millis(900));
+                let state = fixture.ask(CMD_STATE, 0, "state");
+                let letters: Vec<bool> = seam::take()
+                    .iter()
+                    .filter(|key| key.class == KeyClass::Printable)
+                    .map(|key| key.verdict == Verdict::Recorded)
+                    .collect();
+                let at_the_password = letters.iter().take(3).filter(|r| **r).count();
+                let in_the_plain_field = letters.get(3).copied().unwrap_or(false);
+                let ok = get(&reset, "fg") == 1
+                    && get(&ack, "focus_password") == 1
+                    && accepted == 10
+                    && get(&state, "letters_password") == 3
+                    && get(&state, "letters_plain") == 1
+                    && get(&state, "password_len") == 0
+                    && letters.len() == 4;
+                say(
+                    test,
+                    format!(
+                        "phase=silent_password wait={wait:?} stall_ms={stall_ms} round={round} counted={} \
+                         letters_password={} letters_plain={} password_len={} letters_decided={} \
+                         recorded_at_the_password={at_the_password} recorded_in_the_plain_field={}",
+                        u8::from(ok),
+                        get(&state, "letters_password"),
+                        get(&state, "letters_plain"),
+                        get(&state, "password_len"),
+                        letters.len(),
+                        u8::from(in_the_plain_field),
+                    ),
+                );
+                rounds += 1;
+                counted += u32::from(ok);
+                recorded_at_the_password += at_the_password;
+            }
+        }
+        let after = control(test, "after", &mut fixture, &events);
+        let late = keyboard.health().counters.late_events;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        drop(fixture);
+        say(
+            test,
+            format!(
+                "form={} rounds={rounds} counted_rounds={counted} recorded_at_the_password={recorded_at_the_password} \
+                 control_before={before} control_after={after}",
+                form().word()
+            ),
+        );
+        assert_eq!(
+            recorded_at_the_password, 0,
+            "a letter typed at the password edit that makes no event was recorded"
+        );
+        assert_eq!(late, 0, "the source's late value moved");
+        assert_eq!(
+            (before, after),
+            (CONTROL_LETTERS, CONTROL_LETTERS),
+            "a control recorded another number of letters in the plain field"
+        );
+        assert_eq!(counted, rounds, "INCONCLUSIVE: not every round counted");
+    });
 }
 
 #[test]
@@ -1886,6 +2222,883 @@ fn a_masked_edit_and_a_focus_notice_that_the_system_does_not_deliver_record_no_l
             failures.join(";")
         );
     });
+}
+
+pub(super) fn the_programs_own_change_of_the_focused_field_before_a_late_move(
+) -> (u32, u64, u32, u32) {
+    run_kind(Kind::OwnChangeThenLateMove).iter().fold(
+        (0, 0, 0, 0),
+        |(recorded, late, records, beyond), run| match run.outcome {
+            Outcome::Rounds { totals, .. } => (
+                recorded + totals.letters_recorded,
+                late + totals.late_moved,
+                records + totals.keystroke_events,
+                beyond + totals.records_beyond_time_app_and_class,
+            ),
+            Outcome::Native { .. } => (recorded, late, records, beyond),
+        },
+    )
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_key_behind_an_earlier_keys_landing_and_a_late_move_records_nothing() {
+    let test = "stall-earlier-key";
+    with_deadline(test, Duration::from_secs(200), move || {
+        source_built_by_test(test, "keyboard");
+        let mut fixture = Fixture::open(test, false);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        start_report(test, "keyboard", &start);
+        assert!(
+            start.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start: {start:?}"
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let before = control(test, "before", &mut fixture, &events);
+        let rounds = rounds_for(3, 10);
+        let mut counted = 0;
+        let mut recorded_at_the_password = 0;
+        for round in 0..rounds {
+            let reset = fixture.ask(CMD_RESET, 0, "reset");
+            let _ = events.drain_for(Duration::from_millis(400));
+            let _ = seam::take();
+            let ack = fixture.ask(CMD_ROUND, 50 | ARG_SERVE_SENT | ARG_TAKE_ONE, "ack");
+            let accepted = send(&[
+                key_input(VK_A, false),
+                key_input(VK_A, true),
+                key_input(VK_A, false),
+                key_input(VK_A, true),
+            ]);
+            let _ = fixture.expect("woke", Duration::from_secs(10));
+            let _ = events.drain_for(Duration::from_millis(900));
+            let state = fixture.ask(CMD_STATE, 0, "state");
+            let letters: Vec<bool> = seam::take()
+                .iter()
+                .filter(|key| key.class == KeyClass::Printable)
+                .map(|key| key.verdict == Verdict::Recorded)
+                .collect();
+            let at_the_password = u32::from(letters.get(1).copied().unwrap_or(false));
+            let ok = get(&reset, "fg") == 1
+                && get(&ack, "focus_plain") == 1
+                && accepted == 4
+                && get(&state, "letters_plain") == 1
+                && get(&state, "letters_password") == 1
+                && letters.len() == 2;
+            say(
+                test,
+                format!(
+                    "phase=earlier_key round={round} counted={} letters_plain={} letters_password={} \
+                     letters_decided={} recorded_in_the_plain_field={} recorded_at_the_password={at_the_password}",
+                    u8::from(ok),
+                    get(&state, "letters_plain"),
+                    get(&state, "letters_password"),
+                    letters.len(),
+                    u8::from(letters.first().copied().unwrap_or(false)),
+                ),
+            );
+            counted += u32::from(ok);
+            recorded_at_the_password += at_the_password;
+        }
+        let after = control(test, "after", &mut fixture, &events);
+        let late = keyboard.health().counters.late_events;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        drop(fixture);
+        say(
+            test,
+            format!(
+                "form={} rounds={rounds} counted_rounds={counted} recorded_at_the_password={recorded_at_the_password} \
+                 control_before={before} control_after={after}",
+                form().word()
+            ),
+        );
+        assert!(
+            recorded_at_the_password == 0,
+            "{recorded_at_the_password} letters that an earlier letter's landing cleared were recorded in the password field"
+        );
+        assert!(late == 0, "the source's late value moved: {late}");
+        assert!(
+            before == CONTROL_LETTERS && after == CONTROL_LETTERS,
+            "a control recorded {before} and {after} letters of the plain field"
+        );
+        assert!(
+            counted == rounds,
+            "INCONCLUSIVE: {counted} rounds of {rounds} counted"
+        );
+    });
+}
+
+fn a_chord_then_a_letter_before_a_late_move(
+    test: &'static str,
+    chord: Vec<INPUT>,
+    prepare: fn(&mut Fixture) -> bool,
+) {
+    with_deadline(test, Duration::from_secs(200), move || {
+        source_built_by_test(test, "keyboard");
+        let mut fixture = Fixture::open(test, false);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        start_report(test, "keyboard", &start);
+        assert!(
+            start.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start: {start:?}"
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let prepared = prepare(&mut fixture);
+        say(test, format!("prepared={}", flag(prepared)));
+        assert!(
+            prepared,
+            "INCONCLUSIVE: the fixture or the clipboard could not be prepared"
+        );
+        let before = control(test, "before", &mut fixture, &events);
+        let rounds = rounds_for(3, 10);
+        let mut counted = 0;
+        let mut recorded_at_the_password = 0;
+        for round in 0..rounds {
+            let reset = fixture.ask(CMD_RESET, 0, "reset");
+            let _ = events.drain_for(Duration::from_millis(400));
+            let _ = seam::take();
+            let ack = fixture.ask(CMD_ROUND, 50 | ARG_SERVE_SENT | ARG_TAKE_ONE, "ack");
+            let mut accepted = send(&chord);
+            std::thread::sleep(Duration::from_millis(30));
+            accepted += send(&key_pair(VK_A));
+            let inputs = chord.len() + 2;
+            let _ = fixture.expect("woke", Duration::from_secs(10));
+            let _ = events.drain_for(Duration::from_millis(900));
+            let state = fixture.ask(CMD_STATE, 0, "state");
+            let keys = seam::take();
+            let letter =
+                u32::from(keys.iter().any(|key| {
+                    key.class == KeyClass::Printable && key.verdict == Verdict::Recorded
+                }));
+            let chord_recorded = keys
+                .iter()
+                .any(|key| key.class != KeyClass::Printable && key.verdict == Verdict::Recorded);
+            let ok = get(&reset, "fg") == 1
+                && get(&ack, "focus_plain") == 1
+                && accepted as usize == inputs
+                && get(&state, "letters_password") == 1
+                && get(&state, "plain_len") > 0;
+            say(
+                test,
+                format!(
+                    "phase=chord_then_a_letter round={round} counted={} plain_len={} letters_password={} \
+                     chord_recorded={} recorded_at_the_password={letter}",
+                    u8::from(ok),
+                    get(&state, "plain_len"),
+                    get(&state, "letters_password"),
+                    u8::from(chord_recorded),
+                ),
+            );
+            counted += u32::from(ok);
+            recorded_at_the_password += letter;
+        }
+        let after = control(test, "after", &mut fixture, &events);
+        let late = keyboard.health().counters.late_events;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        drop(fixture);
+        say(
+            test,
+            format!(
+                "form={} rounds={rounds} counted_rounds={counted} recorded_at_the_password={recorded_at_the_password} \
+                 control_before={before} control_after={after}",
+                form().word()
+            ),
+        );
+        assert!(
+            recorded_at_the_password == 0,
+            "{recorded_at_the_password} letters behind the landing of a key of another class were recorded in the password field"
+        );
+        assert!(late == 0, "the source's late value moved: {late}");
+        assert!(
+            counted == rounds,
+            "INCONCLUSIVE: {counted} rounds of {rounds} counted"
+        );
+    });
+}
+
+/// One step of a row of keys typed ahead into the frozen fixture: a letter,
+/// a Tab, a click at an empty place of the fixture's window, or a pause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Ahead {
+    Letter,
+    Tab,
+    Click,
+    Pause(u64),
+}
+
+/// One native row of keys typed ahead: the round's word to the fixture, its
+/// steps, which of its letters lands in the password field, and where the
+/// fixture must have taken them for the round to count.
+#[derive(Debug, Clone, Copy)]
+struct AheadRow {
+    test: &'static str,
+    phase: &'static str,
+    arg: usize,
+    steps: &'static [Ahead],
+    at_the_password: usize,
+    letters_plain: i64,
+    plain_len: i64,
+}
+
+/// What a row of keys typed ahead read.
+#[derive(Debug, Default, Clone, Copy)]
+pub(super) struct AheadRead {
+    pub(super) counted: u32,
+    pub(super) recorded: u32,
+    pub(super) late: u64,
+    pub(super) records: u32,
+    pub(super) beyond: u32,
+}
+
+fn typed_ahead(row: AheadRow) -> AheadRead {
+    let out = Arc::new(Mutex::new(AheadRead::default()));
+    let kept = Arc::clone(&out);
+    let test = row.test;
+    with_deadline(test, Duration::from_secs(240), move || {
+        source_built_by_test(test, "keyboard");
+        let mut fixture = Fixture::open(test, false);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        start_report(test, "keyboard", &start);
+        assert!(
+            start.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start: {start:?}"
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let before = control(test, "before", &mut fixture, &events);
+        let rounds = rounds_for(3, 10);
+        let mut read = AheadRead::default();
+        let phase = row.phase;
+        for round in 0..rounds {
+            let reset = fixture.ask(CMD_RESET, 0, "reset");
+            let _ = events.drain_for(Duration::from_millis(400));
+            let _ = seam::take();
+            let aimed = !row.steps.contains(&Ahead::Click)
+                || get(&fixture.ask(CMD_AIM, AIM_EMPTY, "aimed"), "ok") == 1;
+            let ack = fixture.ask(CMD_ROUND, row.arg, "ack");
+            let mut accepted = 0;
+            for step in row.steps {
+                accepted += match *step {
+                    Ahead::Letter => send(&key_pair(VK_A)),
+                    Ahead::Tab => send(&key_pair(VK_TAB)),
+                    Ahead::Click => send(&[
+                        mouse_input(0, 0, MOUSEEVENTF_LEFTDOWN),
+                        mouse_input(0, 0, MOUSEEVENTF_LEFTUP),
+                    ]),
+                    Ahead::Pause(ms) => {
+                        std::thread::sleep(Duration::from_millis(ms));
+                        0
+                    }
+                };
+            }
+            let sent_letters = row
+                .steps
+                .iter()
+                .filter(|step| **step == Ahead::Letter)
+                .count();
+            let tabs = row.steps.iter().filter(|step| **step == Ahead::Tab).count();
+            let _ = fixture.expect("woke", Duration::from_secs(10));
+            let seen = events.drain_for(Duration::from_millis(900));
+            let state = fixture.ask(CMD_STATE, 0, "state");
+            let keys = seam::take();
+            let letters: Vec<_> = keys
+                .iter()
+                .filter(|key| key.class == KeyClass::Printable)
+                .collect();
+            let at_the_password = letters.get(row.at_the_password);
+            let recorded =
+                u32::from(at_the_password.is_some_and(|key| key.verdict == Verdict::Recorded));
+            let keystrokes: Vec<_> = seen
+                .iter()
+                .filter(|e| e.modality == Modality::Keystroke)
+                .collect();
+            let beyond = keystrokes
+                .iter()
+                .filter(|e| {
+                    e.foreground_app.is_empty()
+                        || !e.view.as_ref().is_some_and(|view| {
+                            view.key_class.is_some()
+                                && view.click.is_none()
+                                && view.fold.is_none()
+                                && view.title.is_none()
+                        })
+                })
+                .count() as u32;
+            let inputs = 2 * row
+                .steps
+                .iter()
+                .filter(|step| !matches!(step, Ahead::Pause(_)))
+                .count() as u32;
+            let ok = get(&reset, "fg") == 1
+                && aimed
+                && get(&ack, "focus_plain") == 1
+                && accepted == inputs
+                && get(&state, "letters_plain") == row.letters_plain
+                && get(&state, "letters_password") == 1
+                && get(&state, "plain_len") == row.plain_len
+                && get(&state, "tabs_plain") == tabs as i64
+                && letters.len() == sent_letters;
+            say(
+                test,
+                format!(
+                    "phase={phase} round={round} counted={} letters_plain={} letters_password={} plain_len={} \
+                     letters_decided={} recorded_at_the_password={recorded} rule_at_the_password={:?} \
+                     keystroke_records={} records_beyond_time_app_and_class={beyond}",
+                    u8::from(ok),
+                    get(&state, "letters_plain"),
+                    get(&state, "letters_password"),
+                    get(&state, "plain_len"),
+                    letters.len(),
+                    at_the_password.and_then(|key| key.rule),
+                    keystrokes.len(),
+                ),
+            );
+            read.counted += u32::from(ok);
+            if ok {
+                read.recorded += recorded;
+            }
+            read.records += keystrokes.len() as u32;
+            read.beyond += beyond;
+        }
+        let after = control(test, "after", &mut fixture, &events);
+        read.late = keyboard.health().counters.late_events;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        drop(fixture);
+        say(
+            test,
+            format!(
+                "form={} phase={phase} rounds={rounds} counted_rounds={} recorded_at_the_password={} \
+                 keystroke_records={} records_beyond_time_app_and_class={} control_before={before} \
+                 control_after={after}",
+                form().word(),
+                read.counted,
+                read.recorded,
+                read.records,
+                read.beyond,
+            ),
+        );
+        assert!(
+            before == CONTROL_LETTERS && after == CONTROL_LETTERS,
+            "INCONCLUSIVE: a control recorded {before} and {after} letters of the plain field"
+        );
+        assert!(
+            read.counted == rounds,
+            "INCONCLUSIVE: {} rounds of {rounds} counted",
+            read.counted
+        );
+        *kept
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = read;
+    });
+    let read = *out
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    read
+}
+
+/// The open native row of a frozen program and its twin: the first letter
+/// typed ahead into a fixture that is frozen for 400 ms, longer than the
+/// letter's 250 ms, and the second 330 ms after it; the twin freezes for 200
+/// ms and types the second letter 50 ms after the first. Each round: the
+/// fixture takes the first letter in its plain field, works for 200 ms,
+/// moves the focus to its password field and takes the second letter there.
+pub(super) fn frozen_program(longer_than_the_bound: bool) -> AheadRead {
+    let (test, stall_ms) = if longer_than_the_bound {
+        ("stall-frozen", 400)
+    } else {
+        ("stall-frozen-shorter", 200)
+    };
+    typed_ahead(AheadRow {
+        test,
+        phase: "frozen_then_late_move",
+        arg: stall_ms | ARG_SERVE_SENT | ARG_TAKE_ONE,
+        steps: if longer_than_the_bound {
+            &[Ahead::Letter, Ahead::Pause(330), Ahead::Letter]
+        } else {
+            &[Ahead::Letter, Ahead::Pause(50), Ahead::Letter]
+        },
+        at_the_password: 1,
+        letters_plain: 1,
+        plain_len: 1,
+    })
+}
+
+/// The open native row of a change by the pointer and its twin: a click at
+/// an empty place of the fixture's window, which keeps the focus in its plain
+/// field, and a letter typed 30 ms behind it. The fixture takes the click,
+/// pastes into the plain field in its handler (the twin does not), works for
+/// 200 ms, moves the focus to its password field and takes the letter there.
+pub(super) fn change_by_the_pointer(change: bool) -> AheadRead {
+    let (test, arg) = if change {
+        ("stall-pointer-change", ARG_POINTER_CHANGE)
+    } else {
+        ("stall-pointer-no-change", 0)
+    };
+    typed_ahead(AheadRow {
+        test,
+        phase: "click_then_late_move",
+        arg: 50 | ARG_SERVE_SENT | ARG_TAKE_CLICK | arg,
+        steps: &[Ahead::Click, Ahead::Pause(30), Ahead::Letter],
+        at_the_password: 0,
+        letters_plain: 0,
+        plain_len: i64::from(change),
+    })
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_program_frozen_shorter_than_the_bound_while_a_person_types_ahead_records_nothing() {
+    let read = frozen_program(false);
+    assert!(
+        read.late == 0,
+        "the source's late value moved: {}",
+        read.late
+    );
+    assert!(
+        read.beyond == 0,
+        "{} keystroke records held more than a time, an app and a class",
+        read.beyond
+    );
+    assert!(
+        read.recorded == 0,
+        "{} letters that the fixture took in its password field were recorded",
+        read.recorded
+    );
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_click_that_changes_nothing_before_a_late_move_records_nothing() {
+    let read = change_by_the_pointer(false);
+    assert!(
+        read.late == 0,
+        "the source's late value moved: {}",
+        read.late
+    );
+    assert!(
+        read.beyond == 0,
+        "{} keystroke records held more than a time, an app and a class",
+        read.beyond
+    );
+    assert!(
+        read.recorded == 0,
+        "{} letters that the fixture took in its password field were recorded",
+        read.recorded
+    );
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_key_at_the_password_edit_between_two_own_moves_of_the_program_records_nothing() {
+    let read = typed_ahead(AheadRow {
+        test: "stall-there-and-back",
+        phase: "there_and_back",
+        arg: 50 | ARG_SERVE_SENT | ARG_THERE_AND_BACK,
+        steps: &[Ahead::Letter, Ahead::Pause(20), Ahead::Letter],
+        at_the_password: 0,
+        letters_plain: 1,
+        plain_len: 1,
+    });
+    assert!(
+        read.late == 0,
+        "the source's late value moved: {}",
+        read.late
+    );
+    assert!(
+        read.beyond == 0,
+        "{} keystroke records held more than a time, an app and a class",
+        read.beyond
+    );
+    assert!(
+        read.recorded == 0,
+        "{} letters that the fixture took in its password field between its two moves were recorded",
+        read.recorded
+    );
+}
+
+fn extended_key(
+    key: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY,
+    released: bool,
+) -> INPUT {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
+    };
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: key,
+                wScan: 0,
+                dwFlags: if released {
+                    KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP
+                } else {
+                    KEYEVENTF_EXTENDEDKEY
+                },
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+/// The ruling's twin of the frozen row with a Tab in front, and its own
+/// twin: a letter and a Tab typed into a fixture frozen for 480 ms, and a
+/// letter 400 ms behind the Tab. On wake the fixture takes the first letter
+/// in its plain field and works for 200 ms; then it takes the Tab, which
+/// moves the focus to its password field, and the letter there. The twin
+/// sends no first letter and lets the fixture take the Tab when it wakes.
+pub(super) fn frozen_program_behind_a_tab(earlier_key: bool) -> AheadRead {
+    if earlier_key {
+        typed_ahead(AheadRow {
+            test: "stall-frozen-tab",
+            phase: "frozen_behind_a_tab",
+            arg: 480 | ARG_SERVE_SENT | ARG_TAKE_ONE | ARG_NO_MOVE,
+            steps: &[
+                Ahead::Letter,
+                Ahead::Pause(30),
+                Ahead::Tab,
+                Ahead::Pause(400),
+                Ahead::Letter,
+            ],
+            at_the_password: 1,
+            letters_plain: 1,
+            plain_len: 1,
+        })
+    } else {
+        typed_ahead(AheadRow {
+            test: "stall-frozen-tab-no-key",
+            phase: "frozen_behind_a_tab",
+            arg: 480 | ARG_SERVE_SENT,
+            steps: &[Ahead::Tab, Ahead::Pause(400), Ahead::Letter],
+            at_the_password: 0,
+            letters_plain: 0,
+            plain_len: 0,
+        })
+    }
+}
+
+/// The ruling's twin of the own-change row with a Tab in front, and its own
+/// twin: a Tab typed into a fixture frozen for 450 ms and a letter 400 ms
+/// behind it. On wake the fixture sets its plain field's text itself (the
+/// twin does not), works for 200 ms, then takes the Tab, which moves the
+/// focus to its password field, and the letter there.
+pub(super) fn own_change_behind_a_tab(change: bool) -> AheadRead {
+    let (test, arg) = if change {
+        ("stall-own-change-tab", ARG_OWN_CHANGE)
+    } else {
+        ("stall-own-change-tab-none", 0)
+    };
+    typed_ahead(AheadRow {
+        test,
+        phase: "own_change_behind_a_tab",
+        arg: 450 | ARG_SERVE_SENT | ARG_LATE_MOVE | ARG_NO_MOVE | arg,
+        steps: &[Ahead::Tab, Ahead::Pause(400), Ahead::Letter],
+        at_the_password: 0,
+        letters_plain: 0,
+        plain_len: i64::from(change),
+    })
+}
+
+fn nothing_recorded(read: AheadRead) {
+    assert!(
+        read.late == 0,
+        "the source's late value moved: {}",
+        read.late
+    );
+    assert!(
+        read.beyond == 0,
+        "{} keystroke records held more than a time, an app and a class",
+        read.beyond
+    );
+    assert!(
+        read.recorded == 0,
+        "{} letters that the fixture took in its password field were recorded",
+        read.recorded
+    );
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_tab_and_a_key_typed_ahead_into_a_frozen_program_with_no_earlier_key_record_nothing() {
+    nothing_recorded(frozen_program_behind_a_tab(false));
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_tab_and_a_key_typed_ahead_into_a_program_that_changes_nothing_record_nothing() {
+    nothing_recorded(own_change_behind_a_tab(false));
+}
+
+/// Under the ruling's (L2) a key behind a latch that no move closes is
+/// noted on its own landing: in a classic edit control of several lines,
+/// two letters, an Enter that makes a new line, two letters, a click into
+/// the text and two letters more, 400 ms between the keys, are all noted.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn letters_behind_an_enter_and_behind_a_click_in_a_text_of_several_lines_are_all_noted() {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_RETURN;
+    let test = "stall-lines";
+    with_deadline(test, Duration::from_secs(200), move || {
+        source_built_by_test(test, "keyboard");
+        let mut fixture = Fixture::open(test, false);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        start_report(test, "keyboard", &start);
+        assert!(
+            start.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start: {start:?}"
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let reset = fixture.ask(CMD_RESET, 0, "reset");
+        let focused = fixture.ask(CMD_FOCUS, FixtureField::Lines.wire(), "focused");
+        let _ = events.drain_for(Duration::from_millis(400));
+        let _ = seam::take();
+        let step = Duration::from_millis(400);
+        let mut accepted = 0;
+        for key in [VK_A, VK_A, VK_RETURN, VK_A, VK_A] {
+            accepted += send(&key_pair(key));
+            std::thread::sleep(step);
+        }
+        let aimed = fixture.ask(CMD_AIM, FixtureField::Lines.wire(), "aimed");
+        accepted += send(&[
+            mouse_input(0, 0, MOUSEEVENTF_LEFTDOWN),
+            mouse_input(0, 0, MOUSEEVENTF_LEFTUP),
+        ]);
+        for _ in 0..2 {
+            std::thread::sleep(step);
+            accepted += send(&key_pair(VK_A));
+        }
+        let _ = events.drain_for(Duration::from_millis(900));
+        let state = fixture.ask(CMD_STATE, 0, "state");
+        let keys = seam::take();
+        let noted: Vec<bool> = keys
+            .iter()
+            .filter(|key| key.class == KeyClass::Printable)
+            .map(|key| key.verdict == Verdict::Recorded)
+            .collect();
+        let enters = keys
+            .iter()
+            .filter(|key| key.class == KeyClass::Enter)
+            .count();
+        let withheld: Vec<usize> = noted
+            .iter()
+            .enumerate()
+            .filter(|(_, recorded)| !**recorded)
+            .map(|(at, _)| at + 1)
+            .collect();
+        let count = noted.iter().filter(|recorded| **recorded).count();
+        let late = keyboard.health().counters.late_events;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        drop(fixture);
+        let ok = get(&reset, "fg") == 1
+            && get(&focused, "ok") == 1
+            && get(&aimed, "ok") == 1
+            && accepted == 16
+            && get(&state, "focus_lines") == 1
+            && get(&state, "lines_len") == 8
+            && noted.len() == 6
+            && enters == 1;
+        say(
+            test,
+            format!(
+                "phase=lines counted={} fg={} focused={} aimed={} accepted={accepted} focus_lines={} letters_sent=6 \
+                 lines_len={} letters_decided={} letters_noted={count} withheld_letters={withheld:?} enters={enters}",
+                u8::from(ok),
+                get(&reset, "fg"),
+                get(&focused, "ok"),
+                get(&aimed, "ok"),
+                get(&state, "focus_lines"),
+                get(&state, "lines_len"),
+                noted.len(),
+            ),
+        );
+        assert!(
+            ok,
+            "INCONCLUSIVE: the keys did not reach the field of several lines whole"
+        );
+        assert!(late == 0, "the source's late value moved: {late}");
+        assert!(
+            count == 6,
+            "{count} of 6 letters noted behind an Enter and a click; withheld: {withheld:?}"
+        );
+    });
+}
+
+/// The cost of the debt as it is: 'hello', the Right arrow at the end of the
+/// text (no landing and no latch), then 'world', 50 ms between keys. When
+/// 'world' begins 50 ms behind the arrow, the arrow holds the landing of its
+/// w, each letter after it holds the next one's, and the d, the tenth
+/// letter, is withheld: nine of ten. When it begins 400 ms behind the arrow,
+/// the arrow's debt has lapsed and all ten are noted.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_burst_inside_250_ms_behind_a_key_with_no_landing_loses_its_last_letter_and_a_later_burst_loses_none(
+) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_RIGHT};
+    let test = "stall-cost";
+    with_deadline(test, Duration::from_secs(200), move || {
+        source_built_by_test(test, "keyboard");
+        let mut fixture = Fixture::open(test, false);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        start_report(test, "keyboard", &start);
+        assert!(
+            start.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start: {start:?}"
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let letter = |byte: u8| key_pair(VIRTUAL_KEY(u16::from(byte.to_ascii_uppercase())));
+        let mut read = Vec::new();
+        for (phase, pause_ms) in [("inside", 50u64), ("after", 400u64)] {
+            let reset = fixture.ask(CMD_RESET, 0, "reset");
+            let _ = events.drain_for(Duration::from_millis(400));
+            let _ = seam::take();
+            let mut accepted = 0;
+            for byte in *b"hello" {
+                accepted += send(&letter(byte));
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            accepted += send(&[extended_key(VK_RIGHT, false), extended_key(VK_RIGHT, true)]);
+            for (at, byte) in b"world".iter().enumerate() {
+                let pause = if at == 0 { pause_ms } else { 50 };
+                std::thread::sleep(Duration::from_millis(pause));
+                accepted += send(&letter(*byte));
+            }
+            let _ = events.drain_for(Duration::from_millis(900));
+            let state = fixture.ask(CMD_STATE, 0, "state");
+            let keys = seam::take();
+            let noted: Vec<bool> = keys
+                .iter()
+                .filter(|key| key.class == KeyClass::Printable)
+                .map(|key| key.verdict == Verdict::Recorded)
+                .collect();
+            let arrows = keys
+                .iter()
+                .filter(|key| key.class == KeyClass::Navigation)
+                .count();
+            let arrow_recorded = keys
+                .iter()
+                .any(|key| key.class == KeyClass::Navigation && key.verdict == Verdict::Recorded);
+            let withheld: Vec<usize> = noted
+                .iter()
+                .enumerate()
+                .filter(|(_, recorded)| !**recorded)
+                .map(|(at, _)| at + 1)
+                .collect();
+            let count = noted.iter().filter(|recorded| **recorded).count();
+            let ok = get(&reset, "fg") == 1
+                && get(&state, "focus_plain") == 1
+                && accepted == 22
+                && get(&state, "plain_len") == 10
+                && noted.len() == 10
+                && arrows == 1;
+            say(
+                test,
+                format!(
+                    "phase={phase} counted={} pause_ms={pause_ms} letters_sent=10 plain_len={} letters_decided={} \
+                     letters_noted={count} withheld_letters={withheld:?} arrow_recorded={}",
+                    u8::from(ok),
+                    get(&state, "plain_len"),
+                    noted.len(),
+                    u8::from(arrow_recorded),
+                ),
+            );
+            assert!(
+                ok,
+                "INCONCLUSIVE: the {phase} burst did not reach the plain field whole"
+            );
+            read.push((count, withheld));
+        }
+        let late = keyboard.health().counters.late_events;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        drop(fixture);
+        let (inside, after) = (&read[0], &read[1]);
+        assert!(late == 0, "the source's late value moved: {late}");
+        assert!(
+            inside.0 == 9 && inside.1 == [10],
+            "the burst 50 ms behind the arrow noted {} letters and withheld {:?}, not nine with the tenth withheld",
+            inside.0,
+            inside.1
+        );
+        assert!(
+            after.0 == 10 && after.1.is_empty(),
+            "the burst 400 ms behind the arrow noted {} letters and withheld {:?}, not all ten",
+            after.0,
+            after.1
+        );
+    });
+}
+
+fn altgr(released: bool) -> INPUT {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
+        VK_RMENU,
+    };
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VK_RMENU,
+                wScan: 0,
+                dwFlags: if released {
+                    KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP
+                } else {
+                    KEYEVENTF_EXTENDEDKEY | KEYBD_EVENT_FLAGS(0)
+                },
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_paste_before_a_late_move_records_no_letter_of_the_password_field() {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{VK_CONTROL, VK_V};
+    a_chord_then_a_letter_before_a_late_move(
+        "stall-paste",
+        vec![
+            key_input(VK_CONTROL, false),
+            key_input(VK_V, false),
+            key_input(VK_V, true),
+            key_input(VK_CONTROL, true),
+        ],
+        |_| powershell_line("Set-Clipboard -Value 'pq'; Get-Clipboard") == "pq",
+    );
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn an_altgr_character_before_a_late_move_records_no_letter_of_the_password_field() {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_Q;
+    a_chord_then_a_letter_before_a_late_move(
+        "stall-altgr",
+        vec![
+            altgr(false),
+            key_input(VK_Q, false),
+            key_input(VK_Q, true),
+            altgr(true),
+        ],
+        |fixture| get(&fixture.ask(CMD_LAYOUT, 0, "layout"), "ok") == 1,
+    );
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_key_queued_before_a_late_move_to_the_password_field_records_nothing() {
+    kind_test(Kind::LateMove);
 }
 
 pub(super) fn no_focus_key_and_the_program_moves_the_focus_itself() -> (u32, u64) {

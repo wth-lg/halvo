@@ -2,15 +2,15 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use halvo_schema::executable::{
-    self, AgentBindings, AgentCheckpoint, AgentEffect, AgentFinished, AgentLog, AgentPlaybook,
-    AgentReply, AgentSession, AgentStart,
+    self, AgentAgreement, AgentBindings, AgentCheckpoint, AgentEffect, AgentFinished, AgentLog,
+    AgentPlaybook, AgentReply, AgentSession, AgentStart,
 };
 use halvo_schema::kinds::{
     check_entries, check_record, check_registry, registry, KindEntry, Origin, RetentionClass,
     PERSON_KINDS,
 };
 
-const OWN: [&str; 9] = [
+const OWN: [&str; 10] = [
     "agent_playbook",
     "agent_bindings",
     "agent_effect",
@@ -20,9 +20,10 @@ const OWN: [&str; 9] = [
     "agent_reply",
     "agent_start",
     "agent_finished",
+    "agent_agreement",
 ];
 
-const CLASSES: [(&str, RetentionClass); 9] = [
+const CLASSES: [(&str, RetentionClass); 10] = [
     ("agent_playbook", RetentionClass::Kept),
     ("agent_bindings", RetentionClass::Kept),
     ("agent_effect", RetentionClass::Bounded { days: 93 }),
@@ -32,6 +33,7 @@ const CLASSES: [(&str, RetentionClass); 9] = [
     ("agent_reply", RetentionClass::Kept),
     ("agent_start", RetentionClass::Kept),
     ("agent_finished", RetentionClass::Kept),
+    ("agent_agreement", RetentionClass::Kept),
 ];
 
 const LEFT_OUT: [&str; 6] = ["tier", "amount", "period", "week", "month", "role"];
@@ -55,6 +57,7 @@ fn strict(name: &str, text: &str) -> Result<String, String> {
         "agent_reply" => AgentReply::parse(b).and_then(|v| v.to_json()),
         "agent_start" => AgentStart::parse(b).and_then(|v| v.to_json()),
         "agent_finished" => AgentFinished::parse(b).and_then(|v| v.to_json()),
+        "agent_agreement" => AgentAgreement::parse(b).and_then(|v| v.to_json()),
         _ => panic!("the kind {name} has no strict reader"),
     };
     read.map_err(|e| e.to_string())
@@ -199,6 +202,12 @@ fn a_row_that_names_a_key_outside_its_shape_or_holds_a_value_of_another_type_is_
             r#""steps":2"#,
             r#""steps":true"#,
             "steps: boolean",
+        ),
+        (
+            "agent_agreement",
+            r#""at":1794339000000000011"#,
+            r#""at":"2026-11-13T00:00:00Z""#,
+            "at: string_form",
         ),
     ];
     for (name, from, to, rule) in cases {

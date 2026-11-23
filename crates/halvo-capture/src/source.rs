@@ -253,6 +253,9 @@ pub struct SourceCounters {
     pub secure_window_pointer: u64,
     /// Whether the key counter of the system advanced in the held phase.
     pub secure_window_keys_typed: bool,
+    /// The Windows keyboard source's reading of whether typing is being noted right now;
+    /// none from every other source.
+    pub typing_gate: Option<halvo_control::proto::TypingGate>,
 }
 
 /// Key events suppressed in the held phase, by type.
@@ -948,6 +951,7 @@ mod tests {
             secure_input_held: HeldSamples { held: 0, taken: 0 },
             secure_window_pointer: 0,
             secure_window_keys_typed: false,
+            typing_gate: None,
         };
         assert_eq!(SourceCounters::default(), zero);
         let health = SourceHealth::default();

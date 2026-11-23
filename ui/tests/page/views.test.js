@@ -10,7 +10,7 @@ const { parse } = require("../lib/dom.js");
 
 const VIEWS = path.join(APP, "views");
 const SEVEN = ["status.js", "keeps.js", "permissions.js", "stored.js", "cap.js", "delete.js", "proposals.js"];
-const TWO = ["needs.js", "agents.js"];
+const TWO = ["needs.js", "agents.js", "model-key.js"];
 const BEFORE_TWO = ["confirm.js"].filter((f) => fs.existsSync(path.join(VIEWS, f)));
 
 const filesUnder = (dir) =>
@@ -39,7 +39,7 @@ test("the frame renders one section per view in ascending order, each under a le
   const sections = page.document.querySelectorAll("section");
   assert.deepEqual(
     sections.map((s) => s.id),
-    ["status-section", "keeps-section", "permissions-section", "stored-section", "storage-cap-section", "delete-everything-section", "needs-section", "agents-section", "proposals-section"],
+    ["status-section", "keeps-section", "permissions-section", "stored-section", "storage-cap-section", "delete-everything-section", "needs-section", "agents-section", "model-key-section", "proposals-section"],
   );
   for (const section of sections) {
     const heading = section.firstElementChild;
@@ -48,7 +48,7 @@ test("the frame renders one section per view in ascending order, each under a le
   }
   assert.deepEqual(
     sections.map((s) => s.firstElementChild.textContent),
-    ["Capture", "What Halvo keeps", "Permissions", "Stored on this computer", "Storage cap", "Delete everything", "What needs you", "Your agents", "What Halvo noticed"],
+    ["Capture", "What Halvo keeps", "Permissions", "Stored on this computer", "Storage cap", "Delete everything", "What needs you", "Your agents", "AI model", "What Halvo noticed"],
   );
 });
 
@@ -77,7 +77,7 @@ test("a tenth view file renders with one line added to the view list and no edit
   assert.equal(sections.at(-1).id, "extra-section");
   assert.equal(sections.at(-1).firstElementChild.textContent, "An extra view.");
   assert.equal(page.byId("extra-section").textContent.endsWith("extra body"), true);
-  assert.equal(sections.length, 10);
+  assert.equal(sections.length, 11);
   for (const file of [...SEVEN, ...TWO]) {
     assert.equal(fs.readFileSync(path.join(copy, "views", file), "utf8"), fs.readFileSync(path.join(VIEWS, file), "utf8"), file);
   }

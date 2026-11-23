@@ -205,6 +205,7 @@ also have test ids, so that a playbook can read them.
 | `/pay` | `<iframe title="Payment">` | frame `Payment` | none |
 | frame | the amount after the text `Amount` | text | `amount` |
 | frame | `<select name="instrument">`, one option per instrument, value equal to the text | combobox `Payment method` | `payment-method` |
+| frame, with `form_amount` or `form_amount_other` | `<input type="hidden" name="amount">` in the form, its value as the variant says; none without them | none | none |
 | frame, kind `bill` | `<button>` | button `Pay now` | `pay-now` |
 | frame, kind `order` | `<button>` | button `Place order` | `place-order` |
 | frame after `/charge` | `<h1>` | heading `Payment received` or `Order placed` | none |
@@ -362,6 +363,8 @@ the variants in the order of this table, each once.
 | `reply_listed_id` | createReply makes no draft and answers 201 with a draft whose `id` is the id of the message that it answers, an id that the inbox list holds; a PATCH or a send that names that id gets 400 or 404 as for any inbox message |
 | `amount_changes` | turns on the control call `POST /change`: after it, the amount that the payment frame shows and the amount that `/charge` records are the seed's amount plus 100 minor units, until the next reset. Without this variant `/change` gets 404 |
 | `charged_no_amount` | the frame after a `/charge` that is recorded shows its heading alone and names no amount charged |
+| `form_amount` | the payment frame's form, of both kinds, carries one more hidden field, `amount`, whose value is the amount that the frame shows, written as a page amount; `/charge` reads no posted amount and records the amount that the token stands for |
+| `form_amount_other` | as `form_amount`, but the field carries the shown amount with 100 minor units added, as `amount_changes` adds them, while the frame still shows the amount that the token stands for, and `/charge` records that amount. Choice: where both are on, this variant wins |
 
 Two variants serve the runner's own cases of A5.4, which the port's suite of U4.2 runs
 (`crates/halvo-runner/src/release/suite.rs`): `no_reply` holds the request of the case
@@ -490,11 +493,15 @@ error, with nothing on standard output, and exit 2.
 
 So these cases give 120 + 12 + 4 + 16 + 12 + 12 + 4 = 180. The cases of the server's lifetime
 (U0.1b) add 7 on a system with `sh` and 5 on Windows, where the case of an anonymous pipe behind
-`sh` and the case of an input that a reset ends do not run. The walk cases now cover eleven
+`sh` and the case of an input that a reset ends do not run. The walk cases now cover thirteen
 variant sets (no variant and each variant of the self-test's own list but `no_reply`, a list
-that holds neither `slow_charge` nor the variants of the drafts), less `amount_changes` with
-`reply` and `cleanup`: 3 x 4 x 11 - 6 = 126, and later units added protocol cases that the list
-above does not name one by one. With all of them `k` is 225, or 223 on Windows. The self-test names
+that holds neither `slow_charge` nor the variants of the drafts), less the three that change the
+payment frame alone (`amount_changes`, `form_amount`, `form_amount_other`) with `reply` and
+`cleanup`: 3 x 4 x 13 - 18 = 138. In a walk case of `bill` or `order` the self-test reads the
+frame form's hidden field `amount` (none, the shown amount, or the shown amount with 100 minor
+units added), posts it as a browser would, and `checkEnd` holds the recorded payment at the
+amount that the token stands for. Later units added protocol cases that the list above does not
+name one by one. With all of them `k` is 237, or 235 on Windows. The self-test names
 both counts and fails when another number of cases ran. A walk case runs one variant alone. Only two cases
 reset with two variants: `session-expiry-device` signs in under `second_factor` with
 `session_expiry`, and `reset-rules` reads the state object only. A trial that combines other
