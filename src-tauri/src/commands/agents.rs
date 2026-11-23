@@ -1041,4 +1041,121 @@ mod tests {
             "the first status that does not bar lifts the hold once"
         );
     }
+
+    /// A connector whose transport takes the whole request and then fails when the client reads
+    /// the reply: a transport that fails behind a sent request.
+    #[derive(Clone)]
+    struct FailsBehindTheRequest;
+
+    struct FailingTransport;
+
+    impl std::io::Read for FailingTransport {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::ErrorKind::ConnectionReset.into())
+        }
+    }
+
+    impl std::io::Write for FailingTransport {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl halvo_control::client::Transport for FailingTransport {
+        fn set_timeout(&mut self, _: Duration) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn end_request(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl halvo_control::client::Connector for FailsBehindTheRequest {
+        type Transport = FailingTransport;
+
+        fn endpoint(&self) -> String {
+            "a stand-in".to_owned()
+        }
+
+        fn connect(&self, _: Duration) -> Result<FailingTransport, ClientError> {
+            Ok(FailingTransport)
+        }
+    }
+
+    #[test]
+    fn behind_a_delete_whose_transport_failed_or_whose_reply_could_not_be_taken_a_poll_without_a_status_is_no_reading(
+    ) {
+        let mut unreadable = ScriptedDaemon::new(sample_status(Platform::Macos));
+        let body = b"not a reply".to_vec();
+        let mut frame = u32::try_from(body.len())
+            .expect("a short frame")
+            .to_be_bytes()
+            .to_vec();
+        frame.extend(body);
+        unreadable.set_raw_reply(frame);
+        type Ends = fn(&ClientError) -> bool;
+        let doors: [(&str, Box<dyn Control>, Ends); 2] = [
+            (
+                "a transport that fails behind the sent request",
+                Box::new(Gated::new(FailsBehindTheRequest)),
+                |error| matches!(error, ClientError::Io(_)),
+            ),
+            (
+                "a reply that the client cannot take",
+                Box::new(Gated::new(ScriptedConnector::new(unreadable))),
+                |error| matches!(error, ClientError::Protocol(_)),
+            ),
+        ];
+        for (door, control, ends) in doors {
+            let core = Arc::new(Told::default());
+            let views = Views::default();
+            let before = before_of(&core);
+            let read = |answer: Result<DaemonStatus, ClientError>| {
+                views.take_poll(control.places().make().number(), &answer);
+                before
+                    .runs
+                    .drawn(before.core.as_deref(), &views, control.places());
+            };
+            let asked = delete_everything(&before, control.as_ref(), &views, None, DELETE_WAITS);
+            assert!(
+                matches!(&asked.end, DeleteEnd::Answered(Err(error)) if ends(error)),
+                "{door}: the delete ends so: {:?}",
+                asked.end
+            );
+            views.take_delete(asked.call, asked.next_number_at_answer);
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+            for (found, answer) in [
+                (
+                    "a poll that finds no service",
+                    Err(ClientError::Unreachable {
+                        endpoint: String::new(),
+                    }),
+                ),
+                (
+                    "a poll past its deadline",
+                    Err(ClientError::Deadline { seconds: 2 }),
+                ),
+                (
+                    "a reply that carries no status",
+                    internal("the capture service is not serving"),
+                ),
+            ] {
+                read(answer);
+                assert_eq!(core.holds(), [true], "{door}: {found} lifts nothing");
+            }
+            read(Ok(sample_status(Platform::Macos)));
+            assert_eq!(
+                core.holds(),
+                [true, false],
+                "{door}: the first status that does not bar lifts the hold once"
+            );
+        }
+    }
 }
