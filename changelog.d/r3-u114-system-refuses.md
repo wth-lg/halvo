@@ -1,0 +1,1 @@
+- Changed: A spreadsheet agent's run that the system does not allow to open or read its spreadsheet or data file, or to write beside the spreadsheet, now records that with a name of its own, instead of a failed step or a missing spreadsheet file.
