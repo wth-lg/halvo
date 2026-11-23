@@ -125,10 +125,17 @@ Where a sentence names a unit, that unit makes it true.
   program gives no answer, Halvo records the window title, also while you type a
   password into a box that such a program draws by itself. It records no key there.
   On Windows, for a moment after you switch to another window, Halvo still goes by the
-  field that had the cursor in the window you left. If Halvo was recording that window's
-  titles, it can record the title of the new window too, even where the cursor starts in
-  a password field there. The same holds for screen activity, where that is switched on.
-  It records no key.
+  field that had the cursor in the window you left. If that field was not a password
+  field, or its program gave no answer, Halvo can record the title of the new window,
+  even where the cursor starts in a password field there. The same holds for screen
+  activity, where that is switched on and the field you left was not a password field.
+  It records no key. In Chrome and Edge, a page's title that changes in the instant in
+  which the page takes the cursor can be recorded although the cursor lands in a
+  password field.
+- Some programs show what you type in the title of their window, for example the name of
+  a document or the words of a search. Halvo records such a title like any other. It
+  holds a title back while it can tell that the cursor is in a password field, and on
+  Windows it cannot tell that in a program that gives no answer.
 - A terminal that does not assert secure input gets no protection, so key classes
   and the window title are recorded while a password is typed there (macos-4).
 - A box that a web page only draws as dots, without telling the system that it is
