@@ -110,7 +110,7 @@ fn control_names_are_the_nine_of_i2_5() {
 }
 
 #[test]
-fn action_names_are_the_six_of_agents_control_in_i8_1() {
+fn action_names_are_the_seven_of_agents_control_in_i8_1() {
     assert_eq!(
         names(Action::ALL, Action::name),
         [
@@ -119,7 +119,8 @@ fn action_names_are_the_six_of_agents_control_in_i8_1() {
             "take_back",
             "switch_off",
             "switch_on",
-            "stop_sign_in"
+            "stop_sign_in",
+            "use_model"
         ]
     );
 }

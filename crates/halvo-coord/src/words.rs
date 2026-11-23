@@ -798,6 +798,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "refused.sign_in_not_finished",
         "Halvo could not finish this. If this agent still shows Stop using its sign-in, choose it again.",
     ),
+    (
+        "refused.use_model_not_finished",
+        "Halvo could not finish this. If this agent still shows Use an AI model, choose it again.",
+    ),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {

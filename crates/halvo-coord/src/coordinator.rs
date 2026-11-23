@@ -156,6 +156,10 @@ struct State<C> {
     /// taken by the `control_reply` of that same call, which answers it with
     /// `Refusal::SignInNotFinished` (r4 U3.16).
     sign_in_unfinished: bool,
+    /// Set by a `use_model` whose body the owner refused or that got no reply, and taken by the
+    /// `control_reply` of that same call, which answers it with the refusal of that action that
+    /// says that Halvo could not finish this (r4 U3.17b).
+    model_unfinished: Option<Action>,
     deleting: Vec<Deleting>,
     /// The agents that ask first whose queued start the person took back, each with the `ready`
     /// item that a later tick raised for it since, or none until then: that item's row says
@@ -506,6 +510,7 @@ where
                 held_off: Vec::new(),
                 refused_on: Vec::new(),
                 sign_in_unfinished: false,
+                model_unfinished: None,
                 deleting: Vec::new(),
                 taken_back: Vec::new(),
                 checks: Vec::new(),
@@ -615,7 +620,9 @@ where
             && match action {
                 None | Some(Action::TakeBack | Action::Stop) => true,
                 Some(Action::SwitchOff) => !off,
-                Some(Action::RunNow | Action::SwitchOn | Action::StopSignIn) => false,
+                Some(Action::RunNow | Action::SwitchOn | Action::StopSignIn | Action::UseModel) => {
+                    false
+                }
             }
     }
 
@@ -2761,6 +2768,7 @@ where
         let kept = Self::still_on(&st, agent);
         let out = self.control_in(&mut st, agent, action);
         let unfinished = std::mem::take(&mut st.sign_in_unfinished);
+        let model = st.model_unfinished.take();
         let stopped = off && out.is_err() && !kept && Self::still_on(&st, agent);
         let shared = (matches!(action, Action::SwitchOn) && out.is_err())
             .then(|| Self::switch_on_shared(&st, agent))
@@ -2787,6 +2795,9 @@ where
         out.map_err(|cause| match overlap {
             _ if stopped => crate::types::Refusal::SwitchNotSaved(cause),
             _ if unfinished => crate::types::Refusal::SignInNotFinished(cause),
+            _ if model == Some(Action::UseModel) => {
+                crate::types::Refusal::UseModelNotFinished(cause)
+            }
             Some(say) => crate::types::Refusal::Overlap(say),
             None => crate::types::Refusal::Cause(cause),
         })
@@ -3006,6 +3017,7 @@ where
             ),
             Action::Stop => self.stop_in(st, i),
             Action::StopSignIn => self.stop_sign_in(st, i),
+            Action::UseModel => self.use_model(st, i),
             Action::TakeBack => {
                 self.schedule(
                     st,
@@ -3053,6 +3065,35 @@ where
                 Err(Cause::NoService)
             }
             Err(e) => Err(cause_of(&e)),
+        }
+    }
+
+    /// The person's `use_model`, the answer Allow for this agent of the question `use_model` (r4
+    /// U3.17b): after the quit's first step, and where the agent's row offers no `use_model` with
+    /// its question (no host, no runtime, a yes that stands for a hosted tier, no key saved, no
+    /// limit set, or a state that could not be read), it answers `state` and sends nothing; else
+    /// the schedule's `set_model` sends ONE body, the yes `agree_hosted`. Where the owner refuses it or no
+    /// reply comes, it marks the call, so that its reply says that Halvo could not finish this,
+    /// and the agent's member stays as it was.
+    fn use_model(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
+        if st.quitting {
+            return Err(Cause::State);
+        }
+        let board = st.board.as_mut().ok_or(Cause::NoService)?;
+        let config = &board.members[i].facts.config;
+        let asks = roster::model_controls(config).contains(&crate::types::Control::UseModel)
+            && config
+                .model()
+                .is_some_and(|model| matches!(roster::use_model_ask(&model), Ok((Some(_), _))));
+        if !asks {
+            return Err(Cause::State);
+        }
+        match schedule::set_model(&self.ports, board, i, true) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                st.model_unfinished = Some(Action::UseModel);
+                Err(cause_of(&e))
+            }
         }
     }
 
@@ -3866,3 +3907,6 @@ impl<P: Owner> std::fmt::Debug for Coordinator<P> {
             .finish_non_exhaustive()
     }
 }
+
+#[cfg(test)]
+mod tests;

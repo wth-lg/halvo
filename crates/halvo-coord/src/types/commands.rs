@@ -107,13 +107,14 @@ const PARAMS: [&str; 9] = [
     "seller",
 ];
 
-const ACTIONS: [&str; 6] = [
+const ACTIONS: [&str; 7] = [
     "run_now",
     "stop",
     "take_back",
     "switch_off",
     "switch_on",
     "stop_sign_in",
+    "use_model",
 ];
 
 const fn arg(name: &'static str, kind: ArgType) -> Arg {

@@ -117,6 +117,7 @@ names! {
         SwitchOff = "switch_off",
         SwitchOn = "switch_on",
         StopSignIn = "stop_sign_in",
+        UseModel = "use_model",
     }
 }
 
