@@ -58,8 +58,9 @@ impl Adapter {
 /// deadline, taken once before the connect, bounds the connect, the wait for the answer's head and
 /// every read of its body, each of which gets what is left of it: the request's own timeout, which
 /// reqwest 0.13.5 carries into its request as one total deadline that also bounds the body, and a
-/// look at the deadline after each read. The client itself has no timer. At the deadline the
-/// adapter gives `NoAnswer` and sends nothing again.
+/// look at the deadline after each read. The client's own default timer is never used, because
+/// every request carries its own timeout. At the deadline the adapter gives `NoAnswer` and sends
+/// nothing again.
 pub const TIME_LIMIT: Duration = Duration::from_secs(90);
 
 /// The headers of a request, a closed list: the client adds no other.
