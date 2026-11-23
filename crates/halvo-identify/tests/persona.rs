@@ -151,6 +151,7 @@ fn persona_s001() {
             entries: &entries,
             expiry: &expiry,
             utc_offset_s: 0,
+            carry: None,
         };
         let outcome = episode_step(&call, &StageA, &mut ids);
         assert!(!outcome.run_open, "day {day} ends inside a run");
