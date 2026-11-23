@@ -353,6 +353,7 @@ measure() {
   image=$(image_of "$bundle_dir/dmg" "$work/build-started") || fail "$image"
   bytes=$(wc -c <"$image" | tr -d ' ')
   printf 'disk image: %s, bytes: %s\n' "${image##*/}" "$bytes"
+  cp "$image" "$CI_D_ARTIFACTS/" || fail "cp could not copy the disk image to the artifacts"
   mkdir "$work/mount" "$work/copy" || fail "mkdir could not make the mount point and the copy's directory"
   hdiutil attach -readonly -nobrowse -noautoopen -mountpoint "$work/mount" "$image" >"$CI_D_ARTIFACTS/attach.txt" 2>&1 || fail "hdiutil could not attach the disk image ${image##*/}; see attach.txt"
   attached=$work/mount
