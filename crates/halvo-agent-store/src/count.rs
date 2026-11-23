@@ -2,8 +2,9 @@
 //! kind `model_count` of origin person for all agents together, which holds the count's text as halvo-route's
 //! `Count::row` writes it and the instant that anchors its cap period. The four bodies that read and change it, and
 //! nothing else, stand here: `model_room` and `set_model_cap` of the coordinator, `model_hold` and `model_settle` of
-//! the runner. Every figure of the count comes from the functions of `halvo_route::count`; this module makes none and
-//! reads none from the text. Its only time is the request's `Now`.
+//! the runner. This module makes no figure of money and parses none from the count's text: every amount, cap and sum
+//! comes from the functions of `halvo_route::count`. It makes two figures of time, the end of a cap period from the
+//! anchor and the end of a hold's life from the request's instant, and its only time is the request's `Now`.
 
 use halvo_route::count::{Count, HoldId, Usage};
 use halvo_route::prices::Prices;

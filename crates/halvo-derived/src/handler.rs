@@ -306,11 +306,12 @@ impl HandlerCx<'_> {
     ///
     /// It answers `RemoveRefusal::Role`, before any statement, while the handler answers a request that is no
     /// `coordinator_write`, but for a `runner` request whose `kind` is a name of the closed list
-    /// `kinds::RUNNER_PERSON_KINDS` (r7 8.1L: the store's handler of the runner bodies `model_hold` and `model_settle`
-    /// replaces the person's count in one write); then a refusal of `RemoveRefusal` for a kind that the store was not
+    /// `kinds::RUNNER_PERSON_KINDS` (r7 8.1L); then a refusal of `RemoveRefusal` for a kind that the store was not
     /// opened with, a kind of the workflow run, a kind of another family and a kind that is not of origin person
     /// (`WorkflowKey`), in that order. It removes no row of another kind. Under a `runner` request the records of the
-    /// list are stored by the rules of the typed commit for that request. Before all of these, behind a read of this
+    /// list are stored by the rules of the typed commit for that request, any number of them, as under a
+    /// `coordinator_write`: the call keeps no kind to one row. The agent store's handler of the runner bodies
+    /// `model_hold` and `model_settle` passes ONE record of the person's count, and that keeps its row to one. Before all of these, behind a read of this
     /// request that met a fault of the store, it answers that fault as `RemoveRefusal::Commit` and removes and stores
     /// nothing.
     pub fn remove_person(
