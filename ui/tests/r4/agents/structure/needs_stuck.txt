@@ -11,7 +11,7 @@
             - {"name":"Paying a utility bill on Site1","role":"button"}
           - {"role":"paragraph","text":"Needs you"}
           - {"role":"paragraph","text":"Standard"}
-          - {"role":"paragraph","text":"It is stuck and needs your help with one step."}
+          - {"role":"paragraph","text":"It could not get past one step and waits for your answer."}
           - {"name":"Stop","role":"button"}
           - {"name":"Switch off","role":"button"}
           - {"name":"Delete","role":"button"}

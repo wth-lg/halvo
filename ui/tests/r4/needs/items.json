@@ -404,8 +404,8 @@
           "armed": "no",
           "say_new": "“Paying a utility bill on Site1” has a new question for you.",
           "say_gone": "“Paying a utility bill on Site1” no longer has a question for you.",
-          "title": "Help “Paying a utility bill on Site1” with one step",
-          "text": "Do the next step in its own window and choose Done, or choose Stop this time.",
+          "title": "“Paying a utility bill on Site1” could not get past one step",
+          "text": "You can finish the task yourself in its own window, then choose Done, or choose Stop this time. Either way it tries again next time.",
           "fields": [],
           "params": [],
           "choices": [
