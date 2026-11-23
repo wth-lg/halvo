@@ -1,0 +1,1 @@
+- Added: The variants fixture server takes the variants form_amount and form_amount_other: its payment frame's form carries a hidden field amount with the amount that the frame shows, or with that amount and 1.00 more, while /charge still records the amount that the token stands for.
