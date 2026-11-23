@@ -85,16 +85,26 @@ pub enum PathRefusal {
     TooLong,
 }
 
-/// Why a source file is not of the form of contracts.md A1.2: one row per line, ended by LF,
-/// cells separated by commas, no header and no quoting.
+/// Why a source file is not of the form that [`crate::Folder::read_source`] takes: RFC 4180 with
+/// the comma as the one separator, one row per line ended by LF or CRLF, no header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceRefusal {
     /// The file is not UTF-8.
     Encoding,
-    /// The file starts with a byte-order mark.
-    ByteOrderMark,
-    /// The file holds a carriage return.
+    /// The file holds a carriage return that no line feed follows, inside a quoted field or
+    /// outside one.
     CarriageReturn,
+    /// A quoted field that starts on this line (counted from 1) holds a line break, LF or CRLF.
+    QuotedLineBreak { line: usize },
+    /// A field on this line (counted from 1) begins with a double quote, and text follows the
+    /// quote that closes it, or no quote closes it by the end of the file. A double quote inside
+    /// a field that does not begin with one is text.
+    Quote { line: usize },
+    /// The file reads as a table by another separator than the comma: in every line that is not
+    /// empty, read as a row of semicolons, the semicolons outside its quoted fields are one or
+    /// more and as many; or the same for tabs. A double quote at the line's start or right
+    /// behind the sign opens such a field.
+    OtherSeparator,
     /// The row on this line (counted from 1) has another number of cells than the first row.
     Ragged { line: usize },
 }
@@ -353,12 +363,22 @@ mod tests {
                 "data_form",
             ),
             (
-                Error::Source(SourceRefusal::ByteOrderMark),
+                Error::Source(SourceRefusal::CarriageReturn),
                 "data_form",
                 "data_form",
             ),
             (
-                Error::Source(SourceRefusal::CarriageReturn),
+                Error::Source(SourceRefusal::QuotedLineBreak { line: 2 }),
+                "data_form",
+                "data_form",
+            ),
+            (
+                Error::Source(SourceRefusal::Quote { line: 2 }),
+                "data_form",
+                "data_form",
+            ),
+            (
+                Error::Source(SourceRefusal::OtherSeparator),
                 "data_form",
                 "data_form",
             ),

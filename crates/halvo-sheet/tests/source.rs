@@ -126,7 +126,7 @@ fn a_quote_is_text_and_an_empty_file_has_no_row() {
     let scratch = Scratch::new("source-quote");
     assert_eq!(
         read(&scratch, b"\"a\",b\"\n"),
-        Ok(vec![vec![t("\"a\""), t("b\"")]])
+        Ok(vec![vec![t("a"), t("b\"")]])
     );
     assert_eq!(read(&scratch, b""), Ok(Vec::new()));
     assert_eq!(read(&scratch, b"\n"), Ok(vec![vec![t("")]]));
@@ -147,8 +147,8 @@ fn a_source_out_of_the_form_is_refused_and_names_no_cell() {
         "a field too long for a number is a text"
     );
     let cases: [(&[u8], SourceRefusal); 5] = [
-        (b"secret,1\r\n", SourceRefusal::CarriageReturn),
-        (b"\xef\xbb\xbfsecret,1\n", SourceRefusal::ByteOrderMark),
+        (b"secret,1\r", SourceRefusal::CarriageReturn),
+        (b"\"secret,1", SourceRefusal::Quote { line: 1 }),
         (b"secret,\xff\n", SourceRefusal::Encoding),
         (b"secret,1\nsecret\n", SourceRefusal::Ragged { line: 2 }),
         (b"a,b\nsecret,1,2\n", SourceRefusal::Ragged { line: 2 }),
