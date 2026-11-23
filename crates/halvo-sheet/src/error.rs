@@ -234,8 +234,10 @@ impl Error {
     /// value that a workbook cannot hold, a refused name, a lock, a checkpoint, a copy over the
     /// bounds and a `replace` that kept the workbook for another reason than a refused rename give
     /// `step_failed` (r3 U11.3). A file or a folder that the system refuses for the permission
-    /// (`PermissionDenied`) at an open, a read, the walk or the making of a file is `no_access`;
-    /// a refused rename keeps `not_replaced`, whatever its kind (r3 U11.4).
+    /// (`PermissionDenied`) at an open, a read, the walk or the making of a file is `no_access`, and
+    /// so is a lock of `prepare` that the system refuses for the permission, as for the open of the
+    /// workbook's folder that the lock's key needs; a lock held for the whole wait stays
+    /// `step_failed`, and a refused rename keeps `not_replaced`, whatever its kind (r3 U11.4).
     pub fn cause(&self) -> Cause {
         match self {
             Error::Workbook(_) => Cause::Workbook,
@@ -243,7 +245,8 @@ impl Error {
             Error::Folder
             | Error::Io(io::ErrorKind::NotFound)
             | Error::Path(PathRefusal::NotFile | PathRefusal::Directory) => Cause::NoWorkbook,
-            Error::Io(io::ErrorKind::PermissionDenied) => Cause::NoAccess,
+            Error::Io(io::ErrorKind::PermissionDenied)
+            | Error::Lock(LockError::Io(io::ErrorKind::PermissionDenied)) => Cause::NoAccess,
             Error::NoSheet => Cause::NoSheet,
             Error::Range => Cause::NoRange,
             Error::Shape => Cause::DataShape,
