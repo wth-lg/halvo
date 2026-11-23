@@ -33,13 +33,17 @@
 //! no whether a row of one kind of its own family under one workflow id lies more than two days after the clock's day;
 //! `HandlerCx::remove_under`, under a `coordinator_write` alone, the removal of every row of one kind of its own family
 //! under one workflow id, in one write with a typed commit, by the path of the delete cascade;
-//! `HandlerCx::remove_person`, under a `coordinator_write` alone, the same removal of every row of one kind of origin
-//! person of its own family, a kind whose rows name no workflow (r3 U7.6); `HandlerCx::rows`, the
+//! `HandlerCx::remove_person`, under a `coordinator_write`, and under a `runner` request for a kind of the closed list
+//! `kinds::RUNNER_PERSON_KINDS` alone (r7 8.1L), the same removal of every row of one kind of origin person of its own
+//! family, a kind whose rows name no workflow (r3 U7.6); `HandlerCx::rows`, the
 //! read of the rows of its own family, of one kind whole or of one kind under one workflow id
 //! (`Rows::for_each_under`); and `HandlerCx::workflow` and `HandlerCx::evidence`, the interface read of one stored
 //! workflow. The store knows for which request it runs a typed commit and takes it from no argument: a record of a kind
 //! of origin own is stored for a `runner` request and a `coordinator_write`, and refused from a step and for a request
-//! of a further role; a record of a kind of origin person is stored for a `coordinator_write` alone.
+//! of a further role; a record of a kind of origin person is stored for a `coordinator_write`, and for a `runner`
+//! request where its kind is a name of `kinds::RUNNER_PERSON_KINDS`. Behind a read of the same request that met a
+//! fault of the store, the four calls that write (the typed commit, the two removal calls and the state call) answer
+//! that fault and write nothing, for every handler of the request (r7 8.1L).
 //!
 //! A delete guard (`DeleteGuard`) is a closure of a run whose rows can show that an agent still works under a workflow.
 //! The delete of a stored workflow (`Store::decide`) calls each guard, in the order in which the host added them,

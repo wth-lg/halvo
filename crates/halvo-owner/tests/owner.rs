@@ -1518,15 +1518,20 @@ fn key_of(key: &str) -> String {
 /// The bodies of the rows of the kind `model_key` in the store under `dir`, read by SQL with the store's key and with
 /// no condition of the store's reads, once its owner has ended.
 fn model_key_rows(dir: &Path) -> Vec<String> {
+    kind_rows(dir, "model_key")
+}
+
+/// The bodies of the rows of `kind` in the store under `dir`, read as `model_key_rows` reads them.
+fn kind_rows(dir: &Path, kind: &str) -> Vec<String> {
     halvo_sqlcipher::initialize().unwrap();
     let hex: String = KEY.iter().map(|b| format!("{b:02x}")).collect();
     let conn = Connection::open(dir.join("derived").join("derived.db")).unwrap();
     conn.execute_batch(&format!("PRAGMA key = \"x'{hex}'\";"))
         .unwrap();
     let mut rows = conn
-        .prepare("SELECT body FROM rows WHERE kind = 'model_key'")
+        .prepare("SELECT body FROM rows WHERE kind = ?1")
         .unwrap();
-    rows.query_map([], |row| row.get(0))
+    rows.query_map([kind], |row| row.get(0))
         .unwrap()
         .map(Result::unwrap)
         .collect()
@@ -1862,5 +1867,388 @@ fn the_agreement_row_is_gone_after_delete_everything() {
         bodies_of(&scratch.0, next, "agent_agreement"),
         Vec::<String>::new(),
         "{printed}"
+    );
+}
+
+/// The milliseconds of now by the test's clock, the computer's clock that the owner's program reads too.
+fn now_ms() -> u64 {
+    u64::try_from(now_ns() / 1_000_000).unwrap()
+}
+
+/// r7 8.1L, sentence (3) (the coordinator's log lines 16775 and 17277): an open hold counts after a restart until its
+/// life ends, on the keyed store through the owner's adapter. The owner's program runs on a scratch store with one
+/// approved workflow whose agent has a started run; the runner's body `model_hold` holds the cost of one model request,
+/// and the owner ends with the hold open. Read by SQL with the store's key once that owner has ended, ONE `model_count`
+/// row stands, and its text holds the one hold of the request, whose life ends 120,000 ms behind the instant of the
+/// request. A second owner on the same store answers `model_room` with that hold's amount held and nothing spent,
+/// read before the hold's life ends. The owner reads the computer's clock, so the expiry at the end of the life,
+/// 120 s later, is not waited for here: `a_hold_that_ended_in_the_old_period_counts_there_and_the_new_period_starts_at_nothing`
+/// of halvo-agent-store holds it.
+#[test]
+fn an_open_hold_counts_after_a_restart_until_its_life_ends() {
+    const A: &str = "40000000000000000000000000000003";
+    const RUN: &str = "50000000000000000000000000000003";
+    const REQUEST: &str = "c0000000000000000000000000000001";
+    let scratch = Scratch::new("owner-count-restart");
+    let mut owner = start_on(
+        stream_channel(),
+        &scratch.0,
+        KEY,
+        1,
+        true,
+        &["--check-ms=60000"],
+    );
+    let day = two_days_ago();
+    let episodes: Vec<Episode> = (1..=3).map(|n| episode(n, day, FAR)).collect();
+    owner.write(&analysis_write(episodes, Position { seg: 7, idx: 0 }));
+    assert!(matches!(
+        owner.worker_reply().outcome,
+        Ok(ReplyResult::Null)
+    ));
+    owner.send(&read_workflows());
+    let ids = workflows(owner.reply());
+    assert_eq!(ids.len(), 1, "the episodes make one workflow");
+    let approve = halvo_schema_core::request::InterfaceDecision::approve(
+        &InterfaceRole::claim(),
+        request_id(),
+        ids[0].clone(),
+    );
+    owner.send(&approve.to_bytes().unwrap());
+    assert!(matches!(owner.reply().outcome, Ok(ReplyResult::Null)));
+    let workflow = ids[0].as_str();
+
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let s = &mut stream;
+    assert_eq!(
+        coordinator(s, workflow, A, "create_agent", ""),
+        r#"{"rev":1}"#
+    );
+    assert_eq!(
+        coordinator(s, workflow, A, "set_model", YES),
+        r#"{"rev":2}"#
+    );
+    let start = format!(r#","run":"{RUN}","mode":"compile""#);
+    assert_eq!(
+        coordinator(s, workflow, A, "start_run", &start),
+        r#"{"ok":"yes"}"#
+    );
+    let hold = serde_json::json!({
+        "op": "model_hold", "agent": A, "run": RUN, "request": REQUEST, "tier": "frontier",
+        "body_bytes": 10_000, "output_limit": 1_000,
+    });
+    let before_ms = now_ms();
+    let held = agent_body(s, "runner", &hold.to_string());
+    let after_ms = now_ms();
+    let first: Value = serde_json::from_str(&key_body(s, "model_room", "")).unwrap();
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    let rows = kind_rows(&scratch.0, "model_count");
+
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let second: Value = serde_json::from_str(&key_body(&mut stream, "model_room", "")).unwrap();
+    let read_ms = now_ms();
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+
+    assert_eq!(held, r#"{"stored":1}"#);
+    assert_eq!(rows.len(), 1, "model_count rows after the first owner");
+    let row: Value = serde_json::from_str(&rows[0]).unwrap();
+    let text: String = row["count"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|piece| piece.as_str().unwrap())
+        .collect();
+    let holds: Vec<&str> = text
+        .lines()
+        .filter(|line| line.starts_with("hold "))
+        .collect();
+    assert_eq!(holds.len(), 1, "the holds of the row: {text}");
+    assert!(
+        holds[0].starts_with(&format!("hold id={REQUEST} tier=frontier ")),
+        "{text}"
+    );
+    let field = |key: &str| -> u64 {
+        holds[0]
+            .split(' ')
+            .find_map(|word| word.strip_prefix(key))
+            .unwrap()
+            .parse()
+            .unwrap()
+    };
+    let (amount, ends) = (field("amount="), field("ends_ms="));
+    assert!(
+        (before_ms + 120_000..=after_ms + 120_000).contains(&ends),
+        "the hold's life ends at {ends}, the request was answered between {before_ms} and {after_ms}"
+    );
+    assert!(
+        read_ms < ends,
+        "the second owner read at {read_ms}, the hold's life ends at {ends}"
+    );
+    for (read, value) in [("first", &first), ("second", &second)] {
+        assert_eq!(
+            (&value["room"], &value["spent"], &value["held"]),
+            (&Value::from("reads"), &Value::from(0), &Value::from(amount)),
+            "the room of the {read} owner: {value}"
+        );
+    }
+}
+
+/// r7 8.1L, sentence (8) (the coordinator's log line 17277): Delete everything takes the count's row, on the harness of
+/// `a_model_key_row_is_gone_after_delete_everything`. The owner's program on the derived store's key of a capture
+/// store under the root file's custody sets the person's cap and ends; the product's offline delete runs on the data
+/// directory and destroys that root; the owner started on the key of a capture store made again answers `model_room`
+/// with no count: nothing spent, nothing held, no period end, and not the cap that the person set.
+#[cfg(all(target_os = "macos", debug_assertions))]
+#[test]
+fn the_count_row_is_gone_after_delete_everything() {
+    use halvo_capture::daemon::custody_policy::Custody;
+    use halvo_capture::daemon::delete_all::offline;
+    use halvo_capture::daemon::port::{DataDirStore, Opened, StoreHost};
+    let scratch = Scratch::new("owner-count-delete-all");
+    let derived_key = || -> [u8; 32] {
+        let host = DataDirStore::at(&scratch.0);
+        let Opened::ReadWrite { store, .. } = host.create(Custody::RootFile) else {
+            panic!("no capture store was made in {}", scratch.0.display());
+        };
+        drop(store);
+        let key = host
+            .derived_store_key()
+            .unwrap_or_else(|fault| panic!("no key of the derived store: {fault:?}"));
+        *key.expose()
+    };
+
+    let mut owner = start_on(stream_channel(), &scratch.0, derived_key(), 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let set = key_body(&mut stream, "set_model_cap", r#","cap_minor":4321"#);
+    let before: Value = serde_json::from_str(&key_body(&mut stream, "model_room", "")).unwrap();
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    assert_eq!(set, r#"{"cap_minor":4321,"new_count":"yes"}"#);
+    assert_eq!(
+        (&before["room"], &before["cap_minor"]),
+        (&Value::from("reads"), &Value::from(4321)),
+        "{before}"
+    );
+
+    let data_dir = halvo_control::paths::DataDir::from_flag(scratch.0.clone()).unwrap();
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let status = offline(&data_dir, &mut out, &mut err);
+    let printed = format!(
+        "status {status}, out: {}, err: {}",
+        String::from_utf8_lossy(&out),
+        String::from_utf8_lossy(&err)
+    );
+    assert_eq!(status, 0, "{printed}");
+
+    let mut owner = start_on(stream_channel(), &scratch.0, derived_key(), 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let after: Value = serde_json::from_str(&key_body(&mut stream, "model_room", "")).unwrap();
+    assert_eq!(
+        (
+            &after["room"],
+            &after["spent"],
+            &after["held"],
+            &after["period_end_ms"]
+        ),
+        (
+            &Value::from("none"),
+            &Value::from(0),
+            &Value::from(0),
+            &Value::Null
+        ),
+        "{after} {printed}"
+    );
+    assert_ne!(after["cap_minor"], Value::from(4321), "{after}");
+}
+
+/// The request `name` with `body`, sent on the stream: the text of its result, or the name of its error.
+fn agent_outcome(stream: &mut Stream, name: &str, body: &str) -> Result<String, String> {
+    let id = serde_json::to_string(&request_id()).unwrap();
+    let request = format!(r#"{{"v":1,"id":{id},"request":"{name}","body":{body}}}"#);
+    stream.send(request.as_bytes());
+    match stream.reply().outcome {
+        Ok(ReplyResult::Raw(raw)) => Ok(raw.get().to_owned()),
+        Ok(other) => panic!("the request {name} answers {other:?}"),
+        Err(error) => Err(error.as_str().to_owned()),
+    }
+}
+
+/// The bytes of the bodies of the rows of the kind `model_count` in the store under `dir`, read by SQL with the
+/// store's key once its owner has ended.
+fn count_bytes(dir: &Path) -> Vec<Vec<u8>> {
+    halvo_sqlcipher::initialize().unwrap();
+    let hex: String = KEY.iter().map(|b| format!("{b:02x}")).collect();
+    let conn = Connection::open(dir.join("derived").join("derived.db")).unwrap();
+    conn.execute_batch(&format!("PRAGMA key = \"x'{hex}'\";"))
+        .unwrap();
+    let mut rows = conn
+        .prepare("SELECT CAST(body AS BLOB) FROM rows WHERE kind = 'model_count'")
+        .unwrap();
+    rows.query_map([], |row| row.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect()
+}
+
+/// Writes `bytes` as the body of the one row of the kind `model_count` in the store under `dir`, by SQL with the
+/// store's key, as text, once its owner has ended.
+fn set_count_bytes(dir: &Path, bytes: &[u8]) {
+    halvo_sqlcipher::initialize().unwrap();
+    let hex: String = KEY.iter().map(|b| format!("{b:02x}")).collect();
+    let conn = Connection::open(dir.join("derived").join("derived.db")).unwrap();
+    conn.execute_batch(&format!("PRAGMA key = \"x'{hex}'\";"))
+        .unwrap();
+    let changed = conn
+        .execute(
+            "UPDATE rows SET body = CAST(?1 AS TEXT) WHERE kind = 'model_count'",
+            [bytes],
+        )
+        .unwrap();
+    assert_eq!(changed, 1, "count rows written by the test");
+}
+
+/// r7 8.1L, round 1 (verifier-53; the coordinator's log lines 16775 (4) and 17560): a count whose read meets a fault
+/// of the store keeps its row and admits no hold. The owner's program runs on a scratch store with one approved
+/// workflow whose agent has a started run; the person sets a cap and one model request is held and settled, so that
+/// something is spent. With the owner ended, the test writes the count's row again by SQL with one byte that is no
+/// UTF-8 inside its text, so that the store's own reader of the kind meets a fault, as the derived store's test of a
+/// handler's faulted read makes it. A second owner answers `model_hold` and `set_model_cap` each with an error, and
+/// the row's bytes are the same after them. With the row's own bytes put back, a third owner reads the count as the
+/// first owner read it: the person's cap, the amount spent, nothing held.
+#[test]
+fn a_count_whose_read_meets_a_fault_keeps_its_row_and_admits_no_hold() {
+    const A: &str = "40000000000000000000000000000004";
+    const RUN: &str = "50000000000000000000000000000004";
+    let scratch = Scratch::new("owner-count-fault");
+    let mut owner = start_on(
+        stream_channel(),
+        &scratch.0,
+        KEY,
+        1,
+        true,
+        &["--check-ms=60000"],
+    );
+    let day = two_days_ago();
+    let episodes: Vec<Episode> = (1..=3).map(|n| episode(n, day, FAR)).collect();
+    owner.write(&analysis_write(episodes, Position { seg: 7, idx: 0 }));
+    assert!(matches!(
+        owner.worker_reply().outcome,
+        Ok(ReplyResult::Null)
+    ));
+    owner.send(&read_workflows());
+    let ids = workflows(owner.reply());
+    assert_eq!(ids.len(), 1, "the episodes make one workflow");
+    let approve = halvo_schema_core::request::InterfaceDecision::approve(
+        &InterfaceRole::claim(),
+        request_id(),
+        ids[0].clone(),
+    );
+    owner.send(&approve.to_bytes().unwrap());
+    assert!(matches!(owner.reply().outcome, Ok(ReplyResult::Null)));
+    let workflow = ids[0].as_str();
+    let hold = |request: &str| {
+        serde_json::json!({
+            "op": "model_hold", "agent": A, "run": RUN, "request": request, "tier": "frontier",
+            "body_bytes": 10_000, "output_limit": 1_000,
+        })
+        .to_string()
+    };
+
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let s = &mut stream;
+    assert_eq!(
+        coordinator(s, workflow, A, "create_agent", ""),
+        r#"{"rev":1}"#
+    );
+    assert_eq!(
+        coordinator(s, workflow, A, "set_model", YES),
+        r#"{"rev":2}"#
+    );
+    let start = format!(r#","run":"{RUN}","mode":"compile""#);
+    assert_eq!(
+        coordinator(s, workflow, A, "start_run", &start),
+        r#"{"ok":"yes"}"#
+    );
+    assert_eq!(
+        key_body(s, "set_model_cap", r#","cap_minor":4321"#),
+        r#"{"cap_minor":4321,"new_count":"yes"}"#
+    );
+    let first = "c0000000000000000000000000000001";
+    assert_eq!(agent_body(s, "runner", &hold(first)), r#"{"stored":1}"#);
+    let settle = serde_json::json!({
+        "op": "model_settle", "agent": A, "run": RUN, "request": first,
+        "usage": {"tokens_in": 5_000, "tokens_out": 300},
+    });
+    assert_eq!(
+        agent_body(s, "runner", &settle.to_string()),
+        r#"{"stored":1}"#
+    );
+    let before: Value = serde_json::from_str(&key_body(s, "model_room", "")).unwrap();
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    assert_eq!(
+        (&before["room"], &before["cap_minor"], &before["held"]),
+        (&Value::from("reads"), &Value::from(4321), &Value::from(0)),
+        "{before}"
+    );
+    assert!(
+        before["spent"].as_u64().is_some_and(|spent| spent > 0),
+        "{before}"
+    );
+
+    let stored = count_bytes(&scratch.0);
+    assert_eq!(stored.len(), 1, "count rows after the first owner");
+    let own = stored[0].clone();
+    let at = own.len() - 3;
+    assert_eq!(&own[at..], br#""]}"#, "the end of the row's text");
+    let mut faulty = own[..at].to_vec();
+    faulty.push(0xff);
+    faulty.extend_from_slice(br#""]}"#);
+    set_count_bytes(&scratch.0, &faulty);
+
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let held = agent_outcome(
+        &mut stream,
+        "runner",
+        &hold("c0000000000000000000000000000002"),
+    );
+    let set = agent_outcome(
+        &mut stream,
+        "coordinator_write",
+        r#"{"op":"set_model_cap","workflow":null,"agent":null,"cap_minor":555}"#,
+    );
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    let after = count_bytes(&scratch.0);
+
+    set_count_bytes(&scratch.0, &own);
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let again: Value = serde_json::from_str(&key_body(&mut stream, "model_room", "")).unwrap();
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+
+    assert!(
+        held.is_err() && set.is_err(),
+        "the answers of model_hold and set_model_cap under the faulted read: {held:?}, {set:?}"
+    );
+    assert_eq!(
+        after,
+        vec![faulty],
+        "the count rows after the two requests, by their bytes ({held:?}, {set:?})"
+    );
+    assert_eq!(
+        again, before,
+        "the room once the row's own bytes stand again"
     );
 }

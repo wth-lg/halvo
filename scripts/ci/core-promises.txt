@@ -14,7 +14,7 @@
 #                       for a test: 12-test runs it in the form of the merge gate)
 #            scheduled  a slice runs it, once a week and in a run by hand (scripts/ci/slices.txt; for a
 #                       test: 12-test runs it in the group form, by its group in scripts/ci/slow-tests.txt)
-#   clause   for scheduled, first the slice (mon, tue, wed, thu, fri, sat or sun), then the job when the
+#   clause   for scheduled, first the slice (mon, tue, wed, wed2, thu, fri, sat or sun), then the job when the
 #            jobs differ, then the reason; for gate, the job when one job alone has the check or the group
 #
 # A check has one line for each place: a check that is in the gate of one job alone has a second
@@ -22,7 +22,7 @@
 # under about 6 s stays in the gate, and so does a check under about 60 s where the job has room.
 # What holds the rule on egress in the gate: 21-tree-bans in both jobs, 60-r6-egress in the macos job
 # and the tests of 12-test; 10-egress, 80-r6-absent, 38-app-engine-routes and 20-r6-gateway run in
-# slices. Before a release the seven slices are run by hand at the commit of the release
+# slices. Before a release the eight slices are run by hand at the commit of the release
 # (scripts/ci/README.md, The slices). The seconds of a check are those of the pull request run
 # 44877874023, which ran the whole table, unless the clause names another run; those of a group of
 # unit tests are the gaps before its lines in a job of the push run 44893237714.
@@ -55,6 +55,7 @@ store units halvo-capture::custody gate
 store units halvo-capture::daemon::delete_all::process_tests gate macos job
 store units halvo-sqlcipher scheduled mon the group A; 27 s in the macos job, 32 s in the windows job
 store target halvo-derived/crash_model gate
+store target halvo-derived/typed gate its test no_write_call_of_a_handler_goes_through_behind_a_read_that_met_a_fault: behind a read of a request that met a fault of the store, the typed commit, the two removal calls and the state call write nothing (r7 8.1L, round 1)
 store target halvo-learn-gate/delete_cli gate
 store units halvo-learn-gate::tests::privacy gate the deletion of learned rows; the line kept of scripts/ci/slow-tests.txt names the part, which the tests of the privacy command in privacy::tests hold too, and the package's other unit tests run in the group B
 store units halvo-agent-gate::tests::privacy gate the deletion of the agent's rows with their workflow; no units line of scripts/ci/slow-tests.txt names the package, so 12-test runs its unit tests as they are
@@ -62,7 +63,7 @@ store units halvo-owner::steps::tests::a_workflows_delete_waits_while_its_run_is
 store target halvo/page_guard gate
 store target halvo-seam/conformance scheduled mon the group A; 30 s in the macos job, 20 s in the windows job
 store target halvo-seam/suite_controls scheduled mon the group A; 11 s in the macos job, 7 s in the windows job
-store target halvo-derived/privacy scheduled mon the group A; 52 s in the macos job, 60 s in the windows job
+store target halvo-derived/privacy scheduled mon the group A; 52 s in the macos job, 60 s in the windows job; among its tests a_runner_request_stores_no_model_key_and_removes_none: a runner's request stores no model_key record and removes none, while the store takes a runner's request for model_count, the one kind of origin person of kinds::RUNNER_PERSON_KINDS (r7 8.1L)
 store check 39-store-no-analyze gate
 store check 55-sqlcipher-unmended gate it builds only when the commit changes crates/halvo-sqlcipher, and then took 66 s and 77 s
 store check 19-control-links-no-store gate
@@ -89,33 +90,39 @@ capture check 51-macos-stall scheduled wed 197 s in the macos job
 billing target halvo-route/prices_rules gate
 billing target halvo-route/refusal_spend gate
 billing target halvo-route/count_row gate
+billing target halvo-owner/owner gate its tests an_open_hold_counts_after_a_restart_until_its_life_ends and a_count_whose_read_meets_a_fault_keeps_its_row_and_admits_no_hold, in both jobs, and the_count_row_is_gone_after_delete_everything, built for macOS in the debug profile alone, so the macos job; no targets line of scripts/ci/slow-tests.txt names the package (r7 8.1L)
 billing target halvo-route/formal_traces scheduled tue the group B; 15 s in the macos job, 10 s in the windows job
 billing units halvo-route-gate scheduled tue the group B; 13 s in the macos job, 9 s in the windows job
 billing units halvo-coord-app::present::tests::native_hub gate
+billing units halvo-agent-store::count::tests gate in both jobs, as the unit tests of a package that no units line of scripts/ci/slow-tests.txt names; the person's count in its one row: a hold above the room left, a settle at the reported usage, expiry before the turn, a hold whose life ends in the new period, the calendar month of the period and a row that does not read; under 1 s in a local run (r7 8.1L)
+billing units halvo-learn-store::tests::kinds::no_runner_body_but_the_hold_and_the_settle_changes_the_count scheduled tue the group B, by the line units halvo-learn-store of scripts/ci/slow-tests.txt; no runner body but model_hold and model_settle changes the person's count; under 1 s in a local run (r7 8.1L)
 billing check 40-r6-policy gate
 billing check 21-r7-backend-test gate macos job, which alone has the check, 72 s there in the push run 44895970784; the ledger and the metering tests of the backend, on a push always, and on a pull request when it changes a path under the two roots of scripts/r7/backend-roots.sh, a file that decides the run or the root's .gitattributes, or when the check cannot tell and so runs them (an unknown or unset event, a HEAD with one parent, a list of changed paths that git cannot make or that names none, a name that git quotes); otherwise one line that says so and PASS
 billing check 24-r7-wall gate
 billing check 27-r7-metering-self gate
 billing check 55-r6-formal scheduled wed 108 s in the macos job
 billing check 10-r7-account scheduled sat the macos job, 55 s there
-billing check 10-r7-account scheduled mon the windows job, 38 s there
+billing check 10-r7-account scheduled wed2 the windows job, 124 s on an AMD EPYC 7763 in the slice mon of the run 45050615172
 
 egress check 60-r6-egress gate macos job, 69 s there in the push run 44895970784
-egress check 60-r6-egress scheduled wed the windows job, 123 s there as a check of the merge gate in the push run 44893237714
+egress check 60-r6-egress scheduled wed2 the windows job, 167 s on an AMD EPYC 7763 in the slice wed of the run 45096596639
 egress check 21-tree-bans gate
 egress target halvo-route/no_grant_in_release gate under the release data no build makes a grant; a ruling made for a test names http://127.0.0.1:<port> alone; no Rust file but the maker's own and the listed test files names the maker of that ruling; the pins of five files
 egress units halvo-route::leave gate under a hosted ruling a grant is made for the origin of the row of its tier alone, by equal bytes, and names that row
 egress units halvo-route::ruling gate ruling=hosted over a table of hosts with no row reads as none
 egress target halvo-model/door gate the door halvo-model holds a grant before any byte leaves and sends one request to the granted origin alone; what leaves is the closed fields alone; no line of the door holds a byte of a key or of a refused request; each row of the release table names an adapter of the door; the adapter's one operation stands in the door's files alone, and no file of the runner names a grant
+egress check 64-model-egress scheduled sun the macos job, 33 s there in the run by hand 45105491927; the built door in its stand-in form reaches the granted loopback origin alone under the egress check
+egress check 64-model-egress scheduled sun the windows job, 39 s there in the run by hand 45105491927
+egress check 62-build scheduled thu and sun the macos job and sun the windows job, 566 s and 474 s in the two jobs of the slice sun in the run by hand 45105491927, 52 s and 68 s of them the build call of halvo-model; no shipped file, the door halvo-model's among them, holds the marker of the loopback route of halvo-connect
 egress check 10-egress scheduled thu the macos job, 33 s there in the push run 44895970784
-egress check 10-egress scheduled thu the windows job, 206 s there in the run 44930942501
+egress check 10-egress scheduled wed2 the windows job, 215 s on an AMD EPYC 7763 in the slice thu of the run 45086425387
 egress check 80-r6-absent scheduled thu the macos job, 20 s there in the push run 44895970784
-egress check 80-r6-absent scheduled sat the windows job, 22 s there
+egress check 80-r6-absent scheduled wed2 the windows job, 52 s on an AMD EPYC 7763 in the slice sat of the run 45098472482
 egress check 38-app-engine-routes scheduled wed the macos job, 127 s there; the engine of the window opens no connection
-egress check 38-app-engine-routes scheduled sat the windows job, 115 s there
+egress check 38-app-engine-routes scheduled wed2 the windows job, 197 s on an AMD EPYC 7763 in the slice sat of the run 45098472482
 egress check 20-r6-gateway scheduled thu the macos job, 8 s there; the closed body from which every request to a model's host is made holds six keys
 egress check 20-r6-gateway scheduled sat the windows job, 6 s there
 
 licences check 23-licences gate macos job, which alone has the check
 licences check 25-r7-backend-licenses gate macos job, which alone has the check
-licences check 10-r7-account scheduled sat the macos job and mon the windows job; cargo deny over the account workspace, which the root workspace does not hold
+licences check 10-r7-account scheduled sat the macos job and wed2 the windows job; cargo deny over the account workspace, which the root workspace does not hold
