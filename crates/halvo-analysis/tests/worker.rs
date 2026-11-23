@@ -25,7 +25,7 @@ use halvo_schema_core::site::{AppId, Domain, SiteValue};
 use halvo_seam::fixture::FixtureTransport;
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
 use halvo_seam::message::decode_client;
-use halvo_seam::record::{CaptureRecord, Edge, Payload, RecordId, Seq, Title, LINE_MAX};
+use halvo_seam::record::{CaptureRecord, Edge, KeyClass, Payload, RecordId, Seq, Title, LINE_MAX};
 
 /// The worker's exit codes, as the module `exit` of its source names them.
 const COMMITTED: i32 = 0;
@@ -779,6 +779,87 @@ fn three_days_of_a_persona_give_one_proposal() {
         }
         assert_eq!(owner.end(), Some(halvo_owner::exit::END), "start {n}");
     }
+}
+
+/// Three occasions of work in a Numbers workbook on one local day, each the window's title record, which holds no
+/// word of a rule, and six key records, with a pause behind the first two so that each occasion is an episode of
+/// its own: the built worker sends three episodes and the built owner proposes one workflow of `spreadsheet_fill`
+/// in the app, with the three summaries.
+#[test]
+fn real_shaped_work_in_a_spreadsheet_program_gives_one_proposal() {
+    let scratch = Scratch::new("worker-sheet");
+    let numbers = AppId::parse("com.apple.iWork.Numbers").unwrap();
+    let title = Payload::WindowTitle(Title {
+        text: Text::parse("Budget").unwrap(),
+        cut: Some(false),
+        why: None,
+        site: None,
+    });
+    let keys = [
+        KeyClass::Printable,
+        KeyClass::Printable,
+        KeyClass::Tab,
+        KeyClass::Printable,
+        KeyClass::Enter,
+        KeyClass::Navigation,
+    ];
+    let payloads: Vec<Payload> = std::iter::once(title)
+        .chain(keys.map(|class| Payload::Keystroke(Some(class))))
+        .collect();
+    let mut occasion = Vec::new();
+    for (n, payload) in (1u64..).zip(payloads) {
+        let id = RecordId::parse(&format!("00000000-0000-7000-8000-{n:012x}")).unwrap();
+        let at = Instant(i64::try_from(n).unwrap() * SECOND_NS);
+        let record =
+            CaptureRecord::new(id, at, Seq::new(n).unwrap(), Some(numbers.clone()), payload);
+        occasion.extend(record.unwrap().to_line());
+    }
+    let per = 1 + keys.len();
+    let file = scratch.0.join("sheet.jsonl");
+    let day = local_today() - 1;
+    feed_repeated(&file, &occasion, 3 * per, day, &[per, 2 * per], &[], false);
+    let data = scratch.0.join("data");
+    std::fs::create_dir(&data).unwrap();
+
+    let (worker_read, server) = channel();
+    let (worker_owner, owner_worker) = channel();
+    let mut owner = start_owner(&data, owner_worker);
+    let serving = serve(&[file], server, None);
+    let left = left(start_worker(worker_read, worker_owner, None));
+    serving.join().unwrap();
+    assert_eq!(left.code, Some(COMMITTED), "{}", left.log);
+    let values = batch_line(left.log.trim_end()).expect(&left.log);
+    assert_eq!((values[0], values[4]), ("newest", "3"), "{}", left.log);
+    let page = match owner.workflows().outcome {
+        Ok(ReplyResult::Workflows(page)) => page,
+        other => panic!("the read of the workflows answers {other:?}"),
+    };
+    let proposed: Vec<_> = page
+        .workflows
+        .iter()
+        .map(|item| match &item.workflow {
+            Workflow::Full(w) => (
+                w.state,
+                w.category,
+                w.site.is_none(),
+                w.app.as_str().to_owned(),
+                w.recurrence.count,
+            ),
+            Workflow::Dismissed(w) => panic!("a dismissed workflow: {w:?}"),
+        })
+        .collect();
+    assert_eq!(
+        proposed,
+        [(
+            WorkflowState::Proposed,
+            SeedCategory::SpreadsheetFill,
+            true,
+            numbers.as_str().to_owned(),
+            3
+        )]
+    );
+    assert_eq!(page.workflows[0].summaries.len(), 3);
+    assert_eq!(owner.end(), Some(halvo_owner::exit::END));
 }
 
 /// Rule 4: for one fed day the worker writes nothing on standard output and one line on standard error, of the
