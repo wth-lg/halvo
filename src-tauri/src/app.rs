@@ -477,11 +477,18 @@ pub fn crash_report_folder(config: &tauri::Config) -> Option<PathBuf> {
     ))
 }
 
+/// The parts of the path from the web view's data folder, the folder of the app's id, down to the
+/// folder of its crash reports. Every removal of the reports refuses a link at that folder and at
+/// each part above it, up to the folder of the app's id.
+pub(crate) const REPORT_PARTS: [&str; 3] = ["EBWebView", "Crashpad", "reports"];
+
 /// The folder of the crash reports under the web view's data folder `data`, which the web view's
 /// environment answers (test 2 of win-crash-reports).
-#[cfg(windows)]
+#[cfg(any(windows, test))]
 fn reports_under(data: &std::path::Path) -> PathBuf {
-    data.join("EBWebView").join("Crashpad").join("reports")
+    REPORT_PARTS
+        .iter()
+        .fold(data.to_path_buf(), |path, part| path.join(part))
 }
 
 /// The system's maker of the web view's environment, on the main thread as the runtime's own:
@@ -574,7 +581,9 @@ pub(crate) fn after_the_reports_go<T>(
     make: impl FnOnce() -> T,
 ) -> T {
     if let Some(folder) = folder {
-        if !crate::commands::capture::every_file_goes(folder, &|file| std::fs::remove_file(file)) {
+        if !crate::commands::capture::every_file_goes(folder, REPORT_PARTS.len(), &|file| {
+            std::fs::remove_file(file)
+        }) {
             views
                 .hold()
                 .set_crash_reports_left(halvo_control::paths::one_line(&folder.to_string_lossy()));
@@ -588,21 +597,23 @@ pub(crate) fn after_the_reports_go<T>(
 /// `remove`, folders kept. Its one line, `crash_reports folder=<path> removed=<n> left=<n>`, and
 /// its end: 0 where nothing was there or every file went, 1 where one stays. `left` counts the
 /// files that stand under the folder after the walk; a folder or an entry that cannot be read
-/// counts as one.
+/// counts as one, and so does a link at the folder or at a part above it, behind which nothing
+/// is read or removed.
 #[cfg(any(windows, test))]
 pub fn crash_reports_form(
     folder: &std::path::Path,
     remove: &dyn Fn(&std::path::Path) -> std::io::Result<()>,
 ) -> (String, Exit) {
     let removed = std::cell::Cell::new(0u64);
-    let every_file_went = crate::commands::capture::every_file_goes(folder, &|file| {
-        let gone = remove(file);
-        if gone.is_ok() {
-            removed.set(removed.get() + 1);
-        }
-        gone
-    });
-    let left = match files_under(folder) {
+    let every_file_went =
+        crate::commands::capture::every_file_goes(folder, REPORT_PARTS.len(), &|file| {
+            let gone = remove(file);
+            if gone.is_ok() {
+                removed.set(removed.get() + 1);
+            }
+            gone
+        });
+    let left = match files_under(folder, REPORT_PARTS.len()) {
         0 if !every_file_went => 1,
         left => left,
     };
@@ -620,14 +631,18 @@ pub fn crash_reports_form(
 }
 
 /// The files that stand under `dir`, in every folder below it, folders not counted; a folder
-/// that stands and cannot be read, and an entry that cannot be read, count as one each.
+/// that stands and cannot be read, and an entry that cannot be read, count as one each. A link at
+/// `dir` or at one of the `above` folders above it counts as one, and nothing behind it is read.
 #[cfg(any(windows, test))]
-fn files_under(dir: &std::path::Path) -> u64 {
+fn files_under(dir: &std::path::Path, above: usize) -> u64 {
+    if crate::commands::capture::a_link_on_the_way(dir, above) {
+        return 1;
+    }
     match std::fs::read_dir(dir) {
         Ok(entries) => entries
             .map(
                 |entry| match entry.and_then(|e| Ok((e.path(), e.file_type()?))) {
-                    Ok((path, kind)) if kind.is_dir() => files_under(&path),
+                    Ok((path, kind)) if kind.is_dir() => files_under(&path, 0),
                     _ => 1,
                 },
             )
@@ -846,6 +861,63 @@ mod tests {
         let (said, exit) = crash_reports_form(&folder, &refuses_b);
         assert_eq!((said, exit.code()), (line(1, 1), 1), "one stays");
         assert!(!a.exists() && b.exists());
+    }
+
+    /// Makes `at` a link to the folder `to`: on Windows a junction, which a person makes without
+    /// any right, by cmd's mklink /J.
+    fn link(to: &Path, at: &Path) {
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(to, at).expect("a link");
+        #[cfg(windows)]
+        {
+            let made = std::process::Command::new("cmd")
+                .args(["/d", "/c", "mklink", "/J"])
+                .arg(at)
+                .arg(to)
+                .output()
+                .expect("cmd starts");
+            assert!(
+                made.status.success(),
+                "mklink /J made no junction: {made:?}"
+            );
+        }
+    }
+
+    /// Sentence 7 of uninstall-other-account: the one walk of the crash reports refuses a link at
+    /// the folder's own path and at a part above it, up to the folder of the app's id. Nothing
+    /// behind either link goes, and the form says that a report stays: left=1 and exit 1.
+    #[test]
+    fn a_link_at_the_folder_of_the_reports_or_above_it_removes_nothing_behind_it_and_a_report_stays(
+    ) {
+        let root = scratch("link-crash-reports");
+        let behind = |name: &str| {
+            let folder = root.join(name).join("Crashpad").join("reports");
+            std::fs::create_dir_all(&folder).expect("a folder behind the link");
+            let file = folder.join("a.dmp");
+            std::fs::write(&file, b"a file that is not the window's").expect("a file behind it");
+            (root.join(name), folder, file)
+        };
+        let own = root.join("at-the-folder");
+        let (_, own_target, own_file) = behind("behind-the-folder");
+        std::fs::create_dir_all(own.join("EBWebView").join("Crashpad")).expect("the parts above");
+        link(&own_target, &reports_under(&own));
+        let above = root.join("above-the-folder");
+        let (above_target, _, above_file) = behind("behind-a-part-above");
+        std::fs::create_dir_all(&above).expect("the folder of the app's id");
+        link(&above_target, &above.join("EBWebView"));
+        let remove = |file: &Path| std::fs::remove_file(file);
+        for (data, file) in [(&own, &own_file), (&above, &above_file)] {
+            let folder = reports_under(data);
+            let (said, exit) = crash_reports_form(&folder, &remove);
+            let shown = halvo_control::paths::one_line(&folder.to_string_lossy());
+            assert_eq!(
+                (said, exit.code()),
+                (format!("crash_reports folder={shown} removed=0 left=1"), 1),
+                "a link on the way to {}",
+                folder.display()
+            );
+            assert!(file.exists(), "the file behind the link stays");
+        }
     }
 
     /// What the web view's environment answers as the folder of its crash reports
