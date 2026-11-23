@@ -21,12 +21,30 @@ use halvo_schema::executable::day::day_of;
 use crate::clock::now;
 use crate::run::{cause_of, Failure, Runner, Stop};
 
-/// The cause of A7.4 that an error of the sheet executor gives: `workbook` and `sheet` are its own, every other
-/// error is `step_failed` (A11.3).
+/// The cause of A7.4 that an error of the sheet executor gives, by the executor's own map (A11.3, r3 U11.3):
+/// `Error::cause` for a call on the workbook or its folder.
 fn sheet_cause(error: &halvo_sheet::Error) -> Cause {
-    match error.cause() {
+    cause_of_sheet(error.cause())
+}
+
+/// The cause of A7.4 that an error of `read_source`, the one call on the data file, gives (r3 U11.3).
+fn source_cause(error: &halvo_sheet::Error) -> Cause {
+    cause_of_sheet(error.source_cause())
+}
+
+fn cause_of_sheet(cause: halvo_sheet::Cause) -> Cause {
+    match cause {
         halvo_sheet::Cause::Workbook => Cause::Workbook,
         halvo_sheet::Cause::Sheet => Cause::Sheet,
+        halvo_sheet::Cause::NoWorkbook => Cause::NoWorkbook,
+        halvo_sheet::Cause::NoSheet => Cause::NoSheet,
+        halvo_sheet::Cause::NoRange => Cause::NoRange,
+        halvo_sheet::Cause::DataShape => Cause::DataShape,
+        halvo_sheet::Cause::NoDataFile => Cause::NoDataFile,
+        halvo_sheet::Cause::DataOutside => Cause::DataOutside,
+        halvo_sheet::Cause::DataForm => Cause::DataForm,
+        halvo_sheet::Cause::ReadOnly => Cause::ReadOnly,
+        halvo_sheet::Cause::NotReplaced => Cause::NotReplaced,
         halvo_sheet::Cause::StepFailed => Cause::StepFailed,
     }
 }
@@ -250,7 +268,7 @@ impl Runner {
         let source = slot_path(loaded, &target.file)?;
         let rows = folder
             .read_source(&source)
-            .map_err(|e| Failure::Step(sheet_cause(&e)))?;
+            .map_err(|e| Failure::Step(source_cause(&e)))?;
         self.kept.insert(name.as_str().to_string(), rows);
         self.read_under = Some(ReadUnder {
             slot: target.file.clone(),
