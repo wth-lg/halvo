@@ -70,6 +70,28 @@
     read();
   }
 
+  /** Sends the field's text in ONE command and empties the field at the press, before any answer. */
+  function onSave() {
+    var pasted = field.value;
+    field.value = "";
+    said.textContent = "";
+    Halvo.ipc.call("save_model_key", { key: pasted }).then(
+      function (reply) {
+        if (reply && reply.state === "saved") {
+          state = "saved";
+          draw();
+        } else if (reply && reply.error === "no_key") {
+          said.textContent = w.MODEL_KEY_NOT_A_KEY;
+        } else {
+          failed(w.MODEL_KEY_SAVE_FAILED);
+        }
+      },
+      function () {
+        failed(w.MODEL_KEY_SAVE_FAILED);
+      },
+    );
+  }
+
   function onRemove() {
     removeRow.classList.add("hidden");
     said.textContent = "";
@@ -104,6 +126,7 @@
       field.setAttribute("autocapitalize", "off");
       field.setAttribute("spellcheck", "false");
       var save = Halvo.el("button", { id: "model-key-save", text: w.MODEL_KEY_SAVE });
+      save.onclick = onSave;
       stateLine = Halvo.el("p", { id: "model-key-state" });
       said = Halvo.el("p", { id: "model-key-said" });
       said.setAttribute("role", "status");

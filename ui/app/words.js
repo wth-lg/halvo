@@ -243,6 +243,8 @@
     MODEL_KEY_SAVED: "A key is saved.",
     MODEL_KEY_NONE: "No key is saved.",
     MODEL_KEY_NOT_KNOWN: "Halvo cannot tell just now whether a key is saved.",
+    MODEL_KEY_NOT_A_KEY: "That does not look like a key. Paste the key alone, with nothing before or after it.",
+    MODEL_KEY_SAVE_FAILED: "Halvo could not finish this. Paste the key and choose Save the key again.",
     MODEL_KEY_REMOVE: "Remove the key",
     MODEL_KEY_REMOVE_QUESTION: "Remove the key? Agents that use an AI model at {host} then stop and hand their work back to you until you add a key.",
     MODEL_KEY_KEEP: "Keep the key",

@@ -17,6 +17,45 @@ const stateOf = (state) => (state === null ? { host: null } : { host: HOST, stat
 /** A page whose model_key_state answers `state` and whose other replies are `more`. */
 const pageAt = (state, more = {}) => openPage({ replies: { model_key_state: () => stateOf(state), ...more } });
 
+/** Every 4-byte part of `text`. */
+const partsOf = (text) => Array.from({ length: text.length - 3 }, (_, i) => text.slice(i, i + 4));
+
+/** Every text that the walk from `root` reaches through own values, keys and DOM nodes, functions left closed. */
+function textsFrom(root) {
+  const seen = new Set();
+  const texts = [];
+  const walk = (value) => {
+    if (typeof value === "string") return void texts.push(value);
+    if (value === null || (typeof value !== "object" && typeof value !== "function") || seen.has(value)) return;
+    seen.add(value);
+    for (const key of Object.getOwnPropertyNames(value)) {
+      texts.push(key);
+      const described = Object.getOwnPropertyDescriptor(value, key);
+      if (described && "value" in described) walk(described.value);
+    }
+  };
+  walk(root);
+  return texts;
+}
+
+/** The field is empty, and no part of `pasted` stands in the document's text, in any field's value or in what Halvo reaches. */
+function nothingHolds(page, pasted) {
+  assert.equal(page.byId("model-key-field").value, "", "the field is empty after the press");
+  const texts = [
+    page.document.documentElement.textContent,
+    ...page.document.querySelectorAll("input").map((field) => field.value),
+    ...page.document.querySelectorAll("textarea").map((field) => field.value),
+    ...textsFrom(page.window.Halvo),
+  ];
+  for (const part of partsOf(pasted)) {
+    assert.deepEqual(
+      texts.filter((text) => text.includes(part)),
+      [],
+      `a part of the pasted text stands on the page: ${part}`,
+    );
+  }
+}
+
 test("the_section_shows_only_at_a_host_with_its_texts_behind_the_agents", async () => {
   const none = await pageAt(null);
   const ours = [...none.document.elements()].filter((el) => el.id.startsWith("model-key") || el.textContent === "AI model");
@@ -47,6 +86,27 @@ test("the_key_field_is_a_password_field", async () => {
   assert.equal(field.getAttribute("autocorrect"), "off");
   assert.equal(field.getAttribute("autocapitalize"), "off");
   assert.equal(field.getAttribute("spellcheck"), "false");
+});
+
+test("the_key_field_is_empty_after_the_press_and_no_state_holds_the_key", async () => {
+  const answers = [{ state: "saved" }, { error: "no_key" }, { error: "not_finished" }];
+  const page = await pageAt("none", { save_model_key: () => answers.shift() });
+  const presses = [
+    ["Zq7Wx9Kp2Vm4Jt8Rb5", STATE.saved, "model-key-state"],
+    ["Hn3Lc6Yf1Qs0Dg7Ue2 ", "That does not look like a key. Paste the key alone, with nothing before or after it.", "model-key-said"],
+    ["Pw8Tk5Ma9Xe4Bj6Nr3", "Halvo could not finish this. Paste the key and choose Save the key again.", "model-key-said"],
+  ];
+  for (const [index, [pasted, sentence, line]] of presses.entries()) {
+    const reads = page.calls("model_key_state").length;
+    await page.type("model-key-field", pasted);
+    await page.click("model-key-save");
+    const sent = page.calls("save_model_key");
+    assert.equal(sent.length, index + 1, "one command a press");
+    assert.deepEqual(sent[index].args, { key: pasted });
+    nothingHolds(page, pasted);
+    assert.equal(page.text(line), sentence);
+    assert.equal(page.calls("model_key_state").length, reads + (index === 2 ? 1 : 0), "a failed save reads the state again");
+  }
 });
 
 test("the_state_line_and_the_removal_with_its_question", async () => {
