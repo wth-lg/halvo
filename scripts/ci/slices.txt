@@ -43,8 +43,9 @@ wed windows check 50-windows-functional
 # 45050615172); with 141 to 156 s of steps the job is reckoned at 896 to 911 s on that kind. Its run by
 # hand 45108441992 took 876 s on an Intel Xeon Platinum 8573C. Its macos job (129 s in that run) took
 # from the merge gate of the macos job the lint 11-clippy (77, 93 and 141 s in the pull request runs
-# 45111247085, 45112524657 and 45111386498) and the group F (about 101 s of tests in the third, before
-# its builds); it is reckoned at about 600 s on a Mac as slow as in the third run.
+# 45111247085, 45112524657 and 45111386498) and the group F (about 81 s of tests in the third, before
+# its builds); with them, and the test targets of halvo-owner then in F, it took 523 s in the run by
+# hand 45118372937, the step ci.d slice 371 s.
 wed2 macos check 11-clippy
 wed2 macos tests F
 wed2 macos check 25-advisories
