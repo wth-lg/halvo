@@ -572,6 +572,7 @@ fn run_to_end(
             model: None,
             headed: false,
             utc_offset_s: start.utc_offset_s,
+            hosted: None,
         })
         .map_err(|e| {
             usage(format!(

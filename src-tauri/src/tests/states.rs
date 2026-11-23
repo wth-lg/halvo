@@ -707,6 +707,92 @@ fn a_mac_status_with_typing_off_gets_none_of_the_four() {
 }
 
 #[test]
+fn a_mac_view_names_no_row_of_keys_or_pointer_actions_while_the_input_source_fails_or_waits_for_its_grant(
+) {
+    let keys = halvo_control::texts::recorded_when_on(SwitchName::KeyClass);
+    let pointer = halvo_control::texts::recorded_when_on(SwitchName::PointerClass);
+    let others = [
+        halvo_control::texts::APP_IN_FRONT,
+        halvo_control::texts::recorded_when_on(SwitchName::TitleText),
+        halvo_control::texts::SCREEN_ACTIVITY_NOT_RECORDED,
+    ];
+    for (case, capture, input, grant, shown) in [
+        (
+            "the grant refused",
+            Capture::Partial,
+            SourceState::Failed {
+                reason: Reason::Permission,
+                error: None,
+            },
+            GrantState::NotGranted,
+            false,
+        ),
+        (
+            "the grant not yet given",
+            Capture::Starting,
+            SourceState::Off,
+            GrantState::NotDetermined,
+            false,
+        ),
+        (
+            "a tap thread that ended",
+            Capture::Partial,
+            SourceState::Failed {
+                reason: Reason::ThreadEnded,
+                error: None,
+            },
+            GrantState::Granted,
+            false,
+        ),
+        (
+            "the grant given",
+            Capture::Running,
+            SourceState::Running,
+            GrantState::Granted,
+            true,
+        ),
+    ] {
+        let status = status_with(Platform::Macos, |f| {
+            f.capture = capture;
+            if matches!(input, SourceState::Off) {
+                f.enabled_sources.retain(|&name| name != SourceName::Input);
+            }
+            source(f, SourceName::Input, input);
+            if let Some(line) = f
+                .permissions
+                .iter_mut()
+                .find(|line| line.name == Permission::InputMonitoring)
+            {
+                line.grant = grant;
+            }
+        });
+        let StatusView::Running(view) = StatusView::of(&status) else {
+            panic!("{case}: a status makes a running view")
+        };
+        let rows: Vec<&str> = view.texts.recorded.iter().map(|row| row.text).collect();
+        assert_eq!(rows.contains(&keys), shown, "{case}: the row of keys");
+        assert_eq!(
+            rows.contains(&pointer),
+            shown,
+            "{case}: the row of pointer actions"
+        );
+        for row in others {
+            assert!(rows.contains(&row), "{case}: {row}");
+        }
+        assert_eq!(
+            !view.texts.passwords.is_empty(),
+            shown,
+            "{case}: the sentence on passwords"
+        );
+        assert_eq!(
+            view.texts.typed_ahead.is_some(),
+            shown,
+            "{case}: the sentence on a key pressed early"
+        );
+    }
+}
+
+#[test]
 fn an_acknowledged_lost_grant_reads_lost_no_more_on_the_row_and_the_tray() {
     use tauri::Manager;
     let grant = |once_granted: bool| {

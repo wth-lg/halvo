@@ -116,9 +116,22 @@ impl SystemValue {
     }
 }
 
+/// The reserved name of the supervisor's `Secrets` for the person's key for a model's host (r3 U7.6): the library
+/// reads it only for a run whose start names a hosted tier (`RunSpec::hosted`).
+pub const MODEL_KEY: &str = "model_key";
+
+/// A hosted tier that a start names, a closed list of the library's own: the two hosted tiers of the routing
+/// contract's list of tiers, `low_cost_hosted` and `frontier` (r3 U7.6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Hosted {
+    LowCostHosted,
+    Frontier,
+}
+
 /// What a start gives the runner: its arguments `--run`, `--agent`, `--workflow`, `--mode`, `--browser` as the
 /// caller gave it, `--utc-offset`, `--model` and `--headed`. The start also gives `--data-dir` with
-/// `Config::data_dir`, the data directory under whose `agents/locks/` the runner locks a workbook's folder.
+/// `Config::data_dir`, the data directory under whose `agents/locks/` the runner locks a workbook's folder. `hosted`
+/// is the library's own and no argument of the runner.
 #[derive(Clone, Debug)]
 pub struct RunSpec {
     pub run: RunId,
@@ -135,6 +148,10 @@ pub struct RunSpec {
     /// The runner refuses a value outside -50,400 to 50,400, and the start then answers `not_started` with the
     /// runner's exit.
     pub utc_offset_s: i32,
+    /// The hosted tier of the run's model, which the caller sets, or none (r3 U7.6). The library answers the frame
+    /// `secret` of the reserved name `MODEL_KEY` with `Secrets::read` only for a run whose start names one; to every
+    /// other run it answers none stored for that name and calls no `Secrets`. On main no caller sets it.
+    pub hosted: Option<Hosted>,
 }
 
 /// The failure of one request on the owner link: the link returns it for the request in flight and does not
@@ -185,7 +202,9 @@ pub trait Human: Send + Sync {
     fn progress(&self, run: &RunId, step: NonZeroU32, of: NonZeroU32);
 }
 
-/// The supervisor's secret store: the secret, none stored, or unreadable with its member.
+/// The supervisor's secret store: the secret, none stored, or unreadable with its member. For the reserved name
+/// `MODEL_KEY` the library calls `read` only for a run whose start names a hosted tier, and an implementor answers it
+/// with the person's key for a model's host, which is no agent's (r3 U7.6).
 pub trait Secrets: Send + Sync {
     /// Reads `name` for `agent`, the agent of the run that sent the frame `secret`, as the library started that run
     /// and never a value of the frame. An implementor answers none stored for a name that the agent's own set-up
@@ -421,6 +440,7 @@ mod tests {
             model,
             headed: false,
             utc_offset_s: 0,
+            hosted: None,
         }
     }
 

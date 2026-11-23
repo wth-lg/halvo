@@ -26,7 +26,7 @@ use crate::acts::Acts;
 use crate::api::{
     absolute_paths, CallError, Config, EndRun, ForcedPath, ListFailed, NotStarted, Parts,
     ReapAnswer, ReapHook, ReapStep, Reaped, RelativePath, RunEnd, RunSpec, RunnerExit, StartError,
-    SystemValue,
+    SystemValue, MODEL_KEY,
 };
 use crate::checkpoints;
 use crate::marks::{self, proc_line, Created, MarkFile};
@@ -869,11 +869,19 @@ impl Running<'_> {
     }
 
     /// Writes the answer of `Secrets::read` for the run's agent as the answer of the same name, but one that no frame
-    /// can carry as `unreadable` with `fault`.
+    /// can carry as `unreadable` with `fault`. For the reserved name `MODEL_KEY`, the person's key for a model's host,
+    /// it reads only for a run whose start names a hosted tier (`RunSpec::hosted`); to every other run it answers none
+    /// stored for that name and calls no `Secrets` (r3 U7.6).
     fn secret(&mut self, name: &Name) -> Flow {
         let fault = ToRunner::SecretReply(SecretReply::Unreadable(Unreadable::Fault));
         let secrets = &self.inner.parts.secrets;
-        let reply = ToRunner::SecretReply(secrets.read(&self.slot.spec.agent, name));
+        let spec = &self.slot.spec;
+        let answer = if name.as_str() == MODEL_KEY && spec.hosted.is_none() {
+            SecretReply::None
+        } else {
+            secrets.read(&spec.agent, name)
+        };
+        let reply = ToRunner::SecretReply(answer);
         let reply = if reply.to_json().is_ok() {
             reply
         } else {
@@ -1292,6 +1300,7 @@ mod tests {
                 model: None,
                 headed: false,
                 utc_offset_s: 0,
+                hosted: None,
             };
             let answer = sup.start(spec);
             assert!(

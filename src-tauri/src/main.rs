@@ -58,6 +58,9 @@ fn main() {
         Ok(launch::Launch::DeleteAll { data_dir }) => {
             std::process::exit(delete_all_of_a_scratch_dir(&data_dir).code())
         }
+        Ok(launch::Launch::RemoveCrashReports) => {
+            std::process::exit(remove_the_crash_reports().code())
+        }
         Err(usage) => {
             eprintln!("halvo: {usage}\n{}", launch::USAGE);
             std::process::exit(launch::Exit::Usage.code());
@@ -123,6 +126,29 @@ fn delete_all_of_a_scratch_dir(data_dir: &Path) -> launch::Exit {
     }
 }
 
+/// The launch form `--remove-crash-reports`, which the uninstaller calls: the crash reports of the
+/// web view of Halvo's own window go from the folder of the one function, with no window, no web
+/// view, no lock and no read of the data directory, and one line on standard output tells it.
+/// Where the account names no local data folder the line names none and the form ends with 1; a
+/// Mac keeps no such folder, so there it ends with 0.
+fn remove_the_crash_reports() -> launch::Exit {
+    #[cfg(windows)]
+    let (line, exit) = match app::crash_report_folder(app::context::<tauri::Wry>().config()) {
+        Some(folder) => app::crash_reports_form(&folder, &|file| std::fs::remove_file(file)),
+        None => (
+            "crash_reports folder=- removed=0 left=-".to_string(),
+            launch::Exit::ReportsRemoved { one_stays: true },
+        ),
+    };
+    #[cfg(not(windows))]
+    let (line, exit) = (
+        "crash_reports folder=- removed=0 left=0".to_string(),
+        launch::Exit::ReportsRemoved { one_stays: false },
+    );
+    console::print_line(&line);
+    exit
+}
+
 #[cfg(not(target_os = "macos"))]
 fn write_login_item(label: &str, data_dir: &Path) -> launch::Exit {
     eprintln!(
@@ -153,6 +179,9 @@ fn run(background: bool, given: Option<PathBuf>) {
     if let (None, Ok(dir)) = (&given, &resolved) {
         remove::old_consent_at_start(&halvo_control::paths::SystemAccount, dir);
     }
+    let context = app::context();
+    #[cfg(windows)]
+    let crash_reports = app::crash_report_folder(context.config());
     let pid = Arc::<ChildPid>::default();
     let (control, data_dir) = control_of_child(|| resolved, Arc::clone(&pid));
     #[cfg(any(target_os = "macos", windows, test))]
@@ -165,6 +194,10 @@ fn run(background: bool, given: Option<PathBuf>) {
     let start_dir = data_dir.clone();
     #[cfg_attr(not(any(target_os = "macos", windows)), allow(unused_mut))]
     let mut state = commands::capture::AppState::with_control(control, data_dir, open_pane);
+    #[cfg(windows)]
+    if let Some(folder) = &crash_reports {
+        let _ = state.crash_reports.set(folder.clone());
+    }
     #[cfg(target_os = "macos")]
     {
         state.login_item = login_item::at_the_click(given.is_some(), the_login_item);
@@ -202,7 +235,13 @@ fn run(background: bool, given: Option<PathBuf>) {
     let builder = tauri::Builder::default().manage(tray::QuitNotice::default());
     #[cfg(any(target_os = "macos", windows, test))]
     let builder = quit::installed(builder);
-    let app = match app::build(builder, parts).build(app::context()) {
+    #[cfg(windows)]
+    let built = app::after_the_reports_go(crash_reports.as_deref(), &views, || {
+        app::build(builder, parts).build(context)
+    });
+    #[cfg(not(windows))]
+    let built = app::build(builder, parts).build(context);
+    let app = match built {
         Ok(app) => app,
         Err(e) => {
             eprintln!("halvo: the app did not start: {e}");
