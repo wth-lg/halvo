@@ -333,7 +333,9 @@ sh tools/r3-trials/drive/hosted.sh --tier frontier --ceiling MINOR --browser PAT
   task and shows nothing of what a model does. The check `scripts/r3/ci.d/65-drive-hosted.sh` runs
   the tool's tests, the three whole rounds of its tests against the scripted host
   (`cargo test --locked -- --ignored`), the paid form's refusal on the fixture rates and
-  `--standin`.
+  `--standin`. It joins no slice and no merge gate (the coordinator's log line 17943): it runs by
+  hand with named checks, the windows job alone, before the paid round and at each change of the
+  trial tool or of the door.
 
 ## Revisions
 

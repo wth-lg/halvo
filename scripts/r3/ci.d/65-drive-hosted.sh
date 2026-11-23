@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The hosted form of the driver trial (r3 U0.8) holds against its scripted host on 127.0.0.1: the tests of tools/r3-trials/drive pass, its three whole rounds pass (a cell past the ceiling sends nothing, no request holds a word of a stored step, the key stands in no line and no file of a cell), the paid form of hosted.sh refuses with REFUSED prices on the fixture rates of the build before it starts anything, and hosted.sh --standin reads as expected with the door under the egress check; no run reaches a host.
+# rule: The hosted form of the driver trial (r3 U0.8) holds against its scripted host on 127.0.0.1: the tests of tools/r3-trials/drive pass, its three whole rounds pass (a cell past the ceiling sends nothing, no request holds a word of a stored step, the key stands in no line and no file of a cell), the paid form of hosted.sh refuses with REFUSED prices on the fixture rates of the build before it starts anything, and hosted.sh --standin reads as expected with the door under the egress check; no run reaches a host. It joins no slice and no merge gate: it runs by hand with named checks, the windows job alone, before the paid round and at each change of the trial tool or of the door.
 # lane: alone
 # limit: 2400
 set -u
