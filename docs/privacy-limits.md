@@ -161,7 +161,7 @@ docs-2 confirms each sentence of this section against the merged code.
 A person's agent runs in a program of its own, halvo-runner. That program links
 no crate that opens a store (check 21, `scripts/r1/ci.d/21-tree-bans.sh`), and
 no client of the capture service, which can pause the capture and delete
-everything. The stored records that it gets are the answers to the twelve
+everything. The stored records that it gets are the answers to the fourteen
 runner bodies that its supervisor answers, and a runner body answers records of
 these kinds alone:
 
@@ -170,7 +170,8 @@ these kinds alone:
 - the target of a `learn_edit` row, laid on a step of `load_steps`.
 
 The twelfth body, `drop_session`, answers no record: it makes Halvo stop using
-the kept sign-in of one site of the agent.
+the kept sign-in of one site of the agent. Two bodies more answer no record:
+they hold and settle the cost of one model request against the person's cap.
 
 For an agent that the person allowed to use a hosted model, the supervisor also
 hands the run the key of that model's host. No build starts such a run yet.

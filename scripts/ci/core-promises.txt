@@ -63,6 +63,7 @@ store target halvo/page_guard gate
 store target halvo-seam/conformance scheduled mon the group A; 30 s in the macos job, 20 s in the windows job
 store target halvo-seam/suite_controls scheduled mon the group A; 11 s in the macos job, 7 s in the windows job
 store target halvo-derived/privacy scheduled mon the group A; 52 s in the macos job, 60 s in the windows job
+store target halvo-derived/privacy scheduled mon the group A, its test a_runner_request_stores_no_model_key_and_removes_none: a runner's request stores no model_key record and removes none, while the store takes a runner's request for model_count, the one kind of origin person of kinds::RUNNER_PERSON_KINDS (r7 8.1L)
 store check 39-store-no-analyze gate
 store check 55-sqlcipher-unmended gate it builds only when the commit changes crates/halvo-sqlcipher, and then took 66 s and 77 s
 store check 19-control-links-no-store gate
@@ -89,9 +90,12 @@ capture check 51-macos-stall scheduled wed 197 s in the macos job
 billing target halvo-route/prices_rules gate
 billing target halvo-route/refusal_spend gate
 billing target halvo-route/count_row gate
+billing target halvo-owner/owner gate its tests an_open_hold_counts_after_a_restart_until_its_life_ends, in both jobs, and the_count_row_is_gone_after_delete_everything, built for macOS in the debug profile alone, so the macos job; no targets line of scripts/ci/slow-tests.txt names the package (r7 8.1L)
 billing target halvo-route/formal_traces scheduled tue the group B; 15 s in the macos job, 10 s in the windows job
 billing units halvo-route-gate scheduled tue the group B; 13 s in the macos job, 9 s in the windows job
 billing units halvo-coord-app::present::tests::native_hub gate
+billing units halvo-agent-store::count::tests gate in both jobs, as the unit tests of a package that no units line of scripts/ci/slow-tests.txt names; the person's count in its one row: a hold above the room left, a settle at the reported usage, expiry before the turn, the calendar month of the period and a row that does not read; under 1 s in a local run (r7 8.1L)
+billing units halvo-learn-store::tests::kinds::no_runner_body_but_the_hold_and_the_settle_changes_the_count scheduled tue the group B, by the line units halvo-learn-store of scripts/ci/slow-tests.txt; no runner body but model_hold and model_settle changes the person's count; under 1 s in a local run (r7 8.1L)
 billing check 40-r6-policy gate
 billing check 21-r7-backend-test gate macos job, which alone has the check, 72 s there in the push run 44895970784; the ledger and the metering tests of the backend, on a push always, and on a pull request when it changes a path under the two roots of scripts/r7/backend-roots.sh, a file that decides the run or the root's .gitattributes, or when the check cannot tell and so runs them (an unknown or unset event, a HEAD with one parent, a list of changed paths that git cannot make or that names none, a name that git quotes); otherwise one line that says so and PASS
 billing check 24-r7-wall gate

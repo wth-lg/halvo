@@ -18,6 +18,7 @@ pub(crate) const AGENT_REPLY: &str = "agent_reply";
 pub(crate) const AGENT_START: &str = "agent_start";
 pub(crate) const AGENT_FINISHED: &str = "agent_finished";
 pub(crate) const MODEL_KEY: &str = "model_key";
+pub(crate) const MODEL_COUNT: &str = "model_count";
 
 pub(crate) fn parsed<T>(
     rows: &dyn RowRead,

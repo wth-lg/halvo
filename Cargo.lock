@@ -1600,6 +1600,7 @@ name = "halvo-agent-store"
 version = "0.0.0"
 dependencies = [
  "halvo-policy",
+ "halvo-route",
  "halvo-schema",
  "serde_json",
 ]

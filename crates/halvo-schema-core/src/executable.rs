@@ -1,8 +1,12 @@
 use crate::kinds::{FieldType, KindEntry, Origin, RetentionClass};
 
 /// The error names that this run's handlers answer, in the reply form of the workflow run.
+/// The last five are those of the person's count (r7 8.1L): `over_cap`, a hold that does not fit the room left;
+/// `no_cap`, a hold under no cap; `repeat`, a hold of a request id that is open already; `no_hold`, a settle of a
+/// request id that is not open; `unread`, a count whose stored row does not read.
 pub const ERROR_NAMES: &[&str] = &[
-    "binding", "playbook", "config", "class", "length", "effect", "day", "overlap",
+    "binding", "playbook", "config", "class", "length", "effect", "day", "overlap", "over_cap",
+    "no_cap", "repeat", "no_hold", "unread",
 ];
 
 /// The kinds of this run, family `agent`, each with the workflow id under the key `workflow`: of origin capture
@@ -14,7 +18,11 @@ pub const ERROR_NAMES: &[&str] = &[
 /// workflow: `model_key`, of origin person (`kinds::PERSON_KINDS`), kept, ONE row for the person and none for an
 /// agent, which holds the person's key for a model's host under `key` (r3 U7.6). That row outlives every workflow's
 /// delete, and it goes with its own drop (`drop_model_key`), with the delete of everything, which destroys the custody
-/// root first so that it no longer decrypts, and with the removal of the data folder.
+/// root first so that it no longer decrypts, and with the removal of the data folder. One kind more names no workflow
+/// either: `model_count`, of origin person, kept, ONE row for the person and all agents together, which holds the
+/// count of hosted calls under `count`, its text in pieces of at most 1,024 bytes, and the instant that anchors its cap
+/// period under `anchor` (r7 8.1L). No request removes it alone; it goes with the delete of everything and with the
+/// removal of the data folder, and Reset settings keeps it.
 pub const KINDS: &[KindEntry] = &[
     KindEntry {
         name: "agent_config",
@@ -272,5 +280,18 @@ pub const KINDS: &[KindEntry] = &[
         workflow_key: None,
         fields: &[("v", FieldType::Version), ("key", FieldType::OwnText)],
         example: r#"{"v":1,"key":"test-value-not-a-model-key"}"#,
+    },
+    KindEntry {
+        name: "model_count",
+        class: RetentionClass::Kept,
+        origin: Origin::Person,
+        family: "agent",
+        workflow_key: None,
+        fields: &[
+            ("v", FieldType::Version),
+            ("anchor", FieldType::Instant),
+            ("count", FieldType::OwnText),
+        ],
+        example: r#"{"v":1,"anchor":1794500000000000000,"count":["halvo_count form=1 cap=default active=yes spent=0 held=0 period_end_ms=1797092000000\n"]}"#,
     },
 ];

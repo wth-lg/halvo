@@ -27,16 +27,17 @@ pub use frame::{
 pub use json::{Refusal, RefusalCause};
 pub use names::{
     ActionClass, AllowedClass, Autonomy, Cause, CheckpointState, EffectState, LeftReason,
-    ListedState, MarkState, ModelTier, Outcome, Reasoning, ReplyState, Runtime, Way,
+    ListedState, MarkState, ModelTier, Outcome, Reasoning, ReplyState, RoomState, Runtime, Way,
 };
 pub use record::{
     AgentBindings, AgentCheckpoint, AgentEffect, AgentFinished, AgentLog, AgentPlaybook,
-    AgentReply, AgentRun, AgentSession, AgentStart, ModelKey,
+    AgentReply, AgentRun, AgentSession, AgentStart, ModelCount, ModelKey,
 };
 pub use senders::{is_sender, reply_senders, same_address, Senders, SendersError};
 pub use step::{ExecutableStep, Playbook};
 pub use text::{
-    ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, ProviderId, RunId, WebOrigin,
+    ApprovalId, Digest, EffectId, ModelRequestId, Name, OwnText, OwnValue, ProviderId, RunId,
+    WebOrigin,
 };
 
 pub use ::halvo_schema_core::executable::{ERROR_NAMES, KINDS};
@@ -334,4 +335,21 @@ record::run_list! { names_with_run_list
     "model_key_state",
     "read_model_key",
     "stands",
+    "model_count",
+    "anchor",
+    "count",
+    "model_hold",
+    "model_settle",
+    "body_bytes",
+    "output_limit",
+    "usage",
+    "model_room",
+    "set_model_cap",
+    "cap_minor",
+    "new_count",
+    "room",
+    "spent",
+    "period_end_ms",
+    "reads",
+    "unread",
 }

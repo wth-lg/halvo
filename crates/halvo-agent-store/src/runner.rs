@@ -17,7 +17,7 @@ use halvo_schema::{AgentId, ErrorName, RowRead, WorkflowId};
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
-use crate::{bind, checkpoint, day, effect, end, reply};
+use crate::{bind, checkpoint, count, day, effect, end, reply};
 
 /// Answers one runner body of A7.1, read from its bytes with the typed parser: the reply, or the error name of the
 /// first check that refuses it, with nothing stored. A body that is not the form is `malformed`, and one past a
@@ -123,6 +123,22 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   in `blocked_withheld` each other id for which another agent's newest row is `withheld`; no row and no key of
 ///   another agent. `internal` for a reply that does not answer the body or that its writer refuses, so that no
 ///   reply holds fewer rows than the store has for the ids asked.
+/// - `model_hold` and `model_settle` (r7 8.1L; the coordinator's log lines 16775, 17277 and 17330) answer no record:
+///   they hold and settle the cost of one model request against the person's count, ONE row of the kind
+///   `model_count` for all agents together, which they replace by the host's removal call of a person's kind in one
+///   write, the one way by which a runner's request changes a row of origin person; no other runner body changes it.
+///   Each takes the count at the request's instant: every hold whose life ended at or before it expires first, at
+///   its full amount, and the cap period turns second, only where the instant is at or behind the period's end.
+///   `model_hold` holds the cost that the build's prices give the tier, the body's bytes and the limit of output
+///   tokens, under the request's id, for a life of 120,000 ms behind the request's instant; where no row stands it
+///   starts a count at nothing under the build's default cap, anchored at the request's instant. `model_settle`
+///   settles the hold of the id at the usage reported, or at nothing for a request of which nothing was sent. Both
+///   answer `{"stored":1}`. Refusals, after the checks of every runner body: `unread` where the row does
+///   not read; `over_cap` for a hold that does not fit the room left, the build's prices that do not parse among
+///   them; `no_cap` for a hold under no cap; `repeat` for a hold of an id that is open already; `no_hold` for a settle
+///   of an id that is not open, a hold whose life ended among them; `length` where the count's text would not fit its
+///   row. A refused body writes nothing. Named limit: the count rests on the usage that the runner hands on from the
+///   door's answer.
 pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply, ErrorName> {
     match RunnerCall::parse(body).map_err(refused)? {
         RunnerCall::Load(b) => load(&*host, now, &b),
@@ -137,6 +153,8 @@ pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply,
         RunnerCall::ReplyRow(b) => reply::put(host, now, &b),
         RunnerCall::LoadReplies(b) => reply::load(&*host, now, &b),
         RunnerCall::DropSession(b) => drop_session(host, now, &b),
+        RunnerCall::ModelHold(b) => count::hold(host, now, &b),
+        RunnerCall::ModelSettle(b) => count::settle(host, now, &b),
     }
 }
 

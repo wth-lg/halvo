@@ -99,10 +99,11 @@ pub enum Origin {
 }
 
 /// The kinds of origin person, a closed list: `model_key`, the person's key for a model's host (r3 U7.6, the
-/// coordinator's log lines 16422 and 16823). A row of such a kind names no workflow, so it outlives every workflow's
-/// delete; it goes with its own removal call (`HandlerCx::remove_person` of the derived store), with the delete of
-/// everything and with the removal of the data folder.
-pub const PERSON_KINDS: &[&str] = &["model_key"];
+/// coordinator's log lines 16422 and 16823), and `model_count`, the person's count of hosted calls for all agents
+/// together (r7 8.1L, the coordinator's log line 17277). A row of such a kind names no workflow, so it outlives every
+/// workflow's delete; it goes with its own removal call (`HandlerCx::remove_person` of the derived store), with the
+/// delete of everything and with the removal of the data folder.
+pub const PERSON_KINDS: &[&str] = &["model_key", "model_count"];
 
 /// The kinds of origin person that a `runner` request may write, a closed list: `model_count`, the person's count of
 /// hosted calls, which the store's handler of the runner bodies `model_hold` and `model_settle` changes (r7 8.1L, the

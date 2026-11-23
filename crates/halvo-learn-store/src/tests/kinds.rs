@@ -582,6 +582,8 @@ const REPLY_MARK: &str = "reply-mark-m7";
 const EFFECT_MARK: &str = "effect-mark-k7";
 const CHECKPOINT_MARK: &str = "checkpoint-mark-c7";
 const MODEL_KEY_MARK: &str = "test-value-model-key-mark-y7";
+/// The cap of the person's count in the test, as the row's text writes it.
+const COUNT_MARK: &str = "cap=7340051";
 const ROUTINE_MARK: &str = "com.example.routinemark";
 const RUN_WALL_S: u32 = 7_340_033;
 const LOG_MS: u32 = 7_340_047;
@@ -719,6 +721,10 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
         "op": "put_model_key", "workflow": null, "agent": null, "key": MODEL_KEY_MARK,
     }));
     assert!(reply.is_ok(), "put_model_key: {reply:?}");
+    let reply = w.coordinator(json!({
+        "op": "set_model_cap", "workflow": null, "agent": null, "cap_minor": 7_340_051,
+    }));
+    assert!(reply.is_ok(), "set_model_cap: {reply:?}");
     w.learn(
         2,
         2,
@@ -768,6 +774,7 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
         ("agent_log", json!(LOG_MS)),
         ("agent_checkpoint", json!(CHECKPOINT_MARK)),
         ("model_key", json!(MODEL_KEY_MARK)),
+        ("model_count", json!(COUNT_MARK)),
         ("learn_run", json!(run(LEARN_RUN))),
         ("learn_routine", json!(ROUTINE_MARK)),
         ("learn_edit", json!(edit)),
@@ -777,7 +784,7 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
         .chain(halvo_schema::learning::KINDS)
         .map(|k| k.name)
         .collect();
-    assert_eq!(kinds.len(), 15);
+    assert_eq!(kinds.len(), 16);
     for kind in &kinds {
         assert!(!every_row(&w, kind).is_empty(), "no row of the kind {kind}");
         assert!(
@@ -820,6 +827,10 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
     let body = json!({"op": "put_playbook", "agent": a, "run": run(4), "number": w.loaded, "steps": [proposal]});
     answer(&mut w, "put_playbook", body, &mut replies);
     put_bodies(&mut w, 4, &mut replies);
+    let body = json!({"op": "model_hold", "agent": a, "run": run(4), "request": id('c', 4), "tier": "frontier", "body_bytes": 2_000, "output_limit": 500});
+    answer(&mut w, "model_hold", body, &mut replies);
+    let body = json!({"op": "model_settle", "agent": a, "run": run(4), "request": id('c', 4), "usage": {"tokens_in": 1_000, "tokens_out": 100}});
+    answer(&mut w, "model_settle", body, &mut replies);
     let body = json!({"op": "drop_session", "agent": a, "run": run(4), "origin": ORIGIN});
     answer(&mut w, "drop_session", body, &mut replies);
     let body = json!({"op": "load_replies", "agent": a, "run": run(4), "message_ids": [message(3), message(4)]});
@@ -830,7 +841,7 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
     let mut ops: Vec<&str> = replies.iter().map(|(op, _)| op.as_str()).collect();
     ops.sort_unstable();
     ops.dedup();
-    assert_eq!(ops.len(), 12, "the bodies of run 4: {ops:?}");
+    assert_eq!(ops.len(), 14, "the bodies of run 4: {ops:?}");
     for (op, text) in planting.iter().chain(&replies) {
         for (kind, marker) in &outside {
             assert!(
@@ -851,4 +862,64 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
             .any(|(o, text)| o == op && text_holds(text, &json!(marker)));
         assert!(seen, "the reply of {op} holds no {marker}");
     }
+}
+
+/// r7 8.1L, sentence (7) (the coordinator's log line 17277): no body of a runner but `model_hold` and `model_settle`
+/// changes the person's count. The person's set of the cap stores the count's row; then a replay sends each of the
+/// fourteen runner bodies once through the real handlers, and the rows of the kind `model_count` are read before and
+/// after each body: they change at the hold and at the settle alone.
+#[test]
+fn no_runner_body_but_the_hold_and_the_settle_changes_the_count() {
+    let mut w = active_world_with(compiled());
+    let reply = w.coordinator(json!({
+        "op": "set_model_cap", "workflow": null, "agent": null, "cap_minor": 500,
+    }));
+    assert!(reply.is_ok(), "set_model_cap: {reply:?}");
+    assert_eq!(every_row(&w, "model_count").len(), 1, "the count's row");
+    w.start(3, "replay");
+    let (a, r) = (agent(1), run(3));
+    let mut replies = Vec::new();
+    let mut changed = Vec::new();
+    let mut send = |w: &mut World, body: Value| -> String {
+        let op = body["op"].as_str().expect("an op").to_owned();
+        let before = every_row(w, "model_count");
+        let text = answer(w, &op, body, &mut replies);
+        if every_row(w, "model_count") != before {
+            changed.push(op);
+        }
+        text
+    };
+    let loaded: Value =
+        serde_json::from_str(&send(&mut w, json!({"op": "load", "agent": a, "run": r})))
+            .expect("JSON");
+    let number = loaded["playbook"]["number"].clone();
+    let body = json!({"op": "load_steps", "agent": a, "run": r, "number": number, "from": 1});
+    let served: Value = serde_json::from_str(&send(&mut w, body)).expect("JSON");
+    let proposal = with_locators(
+        served["steps"][1].clone(),
+        "button Pay again",
+        vec![loc("Pay z"), pay()],
+    );
+    let bodies = [
+        json!({"op": "put_session", "agent": a, "run": r, "origin": ORIGIN, "rev": 1, "part": 1, "of": 1, "data": [SESSION_MARK]}),
+        json!({"op": "load_session", "agent": a, "run": r, "origin": ORIGIN, "rev": 1, "part": 1}),
+        json!({"op": "put_playbook", "agent": a, "run": r, "number": number, "steps": [proposal]}),
+        json!({"op": "effect", "agent": a, "run": r, "record": effect_row(&w, 3)}),
+        json!({"op": "log", "agent": a, "run": r, "records": [log_line(&w, 3)]}),
+        json!({"op": "checkpoint", "agent": a, "run": r, "record": checkpoint_row(&w, 3)}),
+        json!({"op": "reply_row", "agent": a, "run": r, "record": reply_row(&w, 3)}),
+        json!({"op": "model_hold", "agent": a, "run": r, "request": id('c', 3), "tier": "low_cost_hosted", "body_bytes": 2_000, "output_limit": 500}),
+        json!({"op": "model_settle", "agent": a, "run": r, "request": id('c', 3), "usage": {"tokens_in": 1_000, "tokens_out": 100}}),
+        json!({"op": "drop_session", "agent": a, "run": r, "origin": ORIGIN}),
+        json!({"op": "load_replies", "agent": a, "run": r, "message_ids": [message(3)]}),
+        json!({"op": "finish", "agent": a, "run": r, "record": failed_record(&w, 3)}),
+    ];
+    for body in bodies {
+        send(&mut w, body);
+    }
+    let mut ops: Vec<&str> = replies.iter().map(|(op, _)| op.as_str()).collect();
+    ops.sort_unstable();
+    ops.dedup();
+    assert_eq!(ops.len(), 14, "the bodies of the replay: {ops:?}");
+    assert_eq!(changed, ["model_hold", "model_settle"]);
 }

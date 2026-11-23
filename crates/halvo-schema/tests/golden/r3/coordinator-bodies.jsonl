@@ -21,3 +21,5 @@
 {"op":"drop_model_key","workflow":null,"agent":null}
 {"op":"model_key_state","workflow":null,"agent":null}
 {"op":"read_model_key","workflow":null,"agent":null}
+{"op":"model_room","workflow":null,"agent":null}
+{"op":"set_model_cap","workflow":null,"agent":null,"cap_minor":2000}
