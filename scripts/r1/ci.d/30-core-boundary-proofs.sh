@@ -1,12 +1,15 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every proof line of the content floor, of the daemon's port and of the store's boundary (the store's database type, its key file, its segment files, its modules expiry and verify and DEFAULT_RETENTION cannot be named outside crate::store, by a path, a glob, a re-export or a macro) fails to build with its named error code and its twin builds, the daemon's in the macos job alone, where a build without tests holds src/daemon/. In the macos job every file under the crate's src/daemon/ that the dep-info of the lib's test build lists is listed by the dep-info of its product build too, or is one of the test-support files model_store.rs, owner_props.rs, process_tests.rs, scripted.rs and stop_tests.rs.The name searches read the tracked files of HEAD through git: the synthetic doors stand only at their two definitions, in the proof file, in daemon/prefill.rs and in this check and the changelog; TextFilterPoint only under the crate's src/floor/ and src/daemon/ and in those two files; SecureInputProbe only in its five files and those two; and the proof file holds every proof and its twin. The tests of crates/halvo-capture/tests/source_rules.rs read as tokens every file that the compiler can read there: TextFilterPoint has at most one implementor outside floor/cases.rs, under src/daemon/, SecureInputProbe has implementors only in the secure_input tree and the proof file, neither trait is renamed with as or stands inside an attribute or a macro, and #[path] and the include macros stand only at their listed uses; and the macOS entry hands the binary's signal flag to its one call of run_timed; and the binary's usage arm returns what usage_answer gives and its run arm what outcome_answer gives; and over a walk of its own through the whole tree, a maker of the account's own data directory (for_current_user, or for_account with SystemAccount) stands only in the files of its list MAKER_USES, each at its listed count.
+# rule: Every proof line of the content floor, of the daemon's port and of the store's boundary (the store's database type, its key file, its segment files, its modules expiry and verify and DEFAULT_RETENTION cannot be named outside crate::store, by a path, a glob, a re-export or a macro) fails to build with its named error code and its twin builds, the daemon's in the macos job alone, where a build without tests holds src/daemon/. In the macos job every file under the crate's src/daemon/ that the dep-info of the lib's test build lists is listed by the dep-info of its product build too, or is one of the test-support files model_store.rs, owner_props.rs, process_tests.rs, scripted.rs and stop_tests.rs.The name searches read the tracked files of HEAD through git: the synthetic doors stand only at their two definitions, in the proof file, in daemon/prefill.rs, in the one test file crates/halvo-analysis/tests/daemon_stream.rs and in this check and the changelog; TextFilterPoint only under the crate's src/floor/ and src/daemon/ and in those two files; SecureInputProbe only in its five files and those two; and the proof file holds every proof and its twin. The tests of crates/halvo-capture/tests/source_rules.rs read as tokens every file that the compiler can read there: TextFilterPoint has at most one implementor outside floor/cases.rs, under src/daemon/, SecureInputProbe has implementors only in the secure_input tree and the proof file, neither trait is renamed with as or stands inside an attribute or a macro, and #[path] and the include macros stand only at their listed uses; and the macOS entry hands the binary's signal flag to its one call of run_timed; and the binary's usage arm returns what usage_answer gives and its run arm what outcome_answer gives; and over a walk of its own through the whole tree, a maker of the account's own data directory (for_current_user, or for_account with SystemAccount) stands only in the files of its list MAKER_USES, each at its listed count.
 set -u
 name=30-core-boundary-proofs
 crate=crates/halvo-capture
 src=$crate/src
 proofs_file=$src/floor/boundary_proofs.rs
 prefill=$src/daemon/prefill.rs
+# The one test file outside the crate that may call the synthetic doors: the walk from records in a capture store
+# to a proposed row, whose test only a build with debug assertions holds, as it holds the doors.
+door_test=crates/halvo-analysis/tests/daemon_stream.rs
 # The files that are no code and may name the guarded items.
 nocode="scripts/r1/ci.d/$name.sh CHANGELOG.md"
 # The definitions of the two synthetic doors, each a file and its whole line.
@@ -151,7 +154,7 @@ scan() {
   code=$?
   [ "$code" -le 1 ] || return 18
   printf '%s\n' "$hits" | awk -v clearance="$clearance_door" -v keep="$keep_door" -v nocode="$nocode" \
-    -v proofs="$proofs_file" -v prefill="$prefill" -v floor="$src/floor/" -v daemon="$src/daemon/" \
+    -v proofs="$proofs_file" -v prefill="$prefill" -v door_test="$door_test" -v floor="$src/floor/" -v daemon="$src/daemon/" \
     -v probes="$probe_files" '
     BEGIN {
       n = split(nocode, list, " ")
@@ -172,7 +175,7 @@ scan() {
       whole = file ":" text
       if (text ~ /synthetic_(clearance|keep)/ && whole != clearance && whole != keep && file != proofs) {
         callers++
-        if (file != prefill) doors = doors " " file ":" line
+        if (file != prefill && file != door_test) doors = doors " " file ":" line
       }
       if (text ~ /TextFilterPoint/ && index(file, floor) != 1 && index(file, daemon) != 1) points = points " " file ":" line
       if (text ~ /SecureInputProbe/ && !(file in probe)) probes_at = probes_at " " file ":" line
@@ -192,7 +195,7 @@ scan() {
 
 scan_cause() {
   case $1 in
-    13) printf 'a synthetic door has a caller outside daemon/prefill.rs' ;;
+    13) printf 'a synthetic door has a caller outside daemon/prefill.rs and crates/halvo-analysis/tests/daemon_stream.rs' ;;
     15) printf 'TextFilterPoint is named outside src/floor/ and src/daemon/' ;;
     16) printf 'SecureInputProbe is named outside its five files' ;;
     17) printf 'the proof file lacks a proof or a twin' ;;
@@ -542,6 +545,8 @@ fn twin<P: super::text::TextFilterPoint>() {}"
   case_of the-tree-at-this-unit PASS tree_case clean '' ''
   case_of a-door-caller-outside-prefill FAIL tree_case second-door "$src/macos/input.rs" '    let clearance = crate::secure_input::synthetic_clearance(None);'
   case_of a-door-caller-in-prefill PASS tree_case prefill "$prefill" '    let keep = crate::floor::exclude::synthetic_keep::<kind::Keystroke>(subject);'
+  case_of a-door-caller-in-the-chain-test PASS tree_case chain-test "$door_test" '                    FloorEvent::keystroke(keep, synthetic_clearance(None), class, &CLOCK)'
+  case_of a-door-caller-in-another-test-file FAIL tree_case other-test crates/halvo-analysis/tests/daemon_children.rs '    let keep = halvo_capture::floor::exclude::synthetic_keep::<kind::Keystroke>(subject);'
   case_of a-door-caller-in-src-tauri FAIL tree_case tauri-door src-tauri/src/main.rs '    let clearance = halvo_capture::secure_input::synthetic_clearance(None);'
   case_of a-function-named-after-a-door-beside-its-definition FAIL tree_case door-prefix "$src/floor/exclude.rs" "${keep_door#*:}
 pub fn synthetic_keep_any<K: Recorded>(subject: Subject) -> Keep<K> { synthetic_keep(subject) }"

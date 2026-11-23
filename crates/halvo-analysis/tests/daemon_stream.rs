@@ -1,12 +1,16 @@
 //! The tests of the line of the daemon's control server that hands a request of protocol v2 to the worker slot's
 //! form (halvo-capture, daemon::server and daemon::r2::service::serve). Each opens the slot over a new data
 //! directory that holds a capture store, with the directory of the built owner as the place of the programs, as
-//! tests/daemon_children.rs does, and writes the figures of a read into the cell, so that an owner could start. The
-//! test then asks on one connection of the control server. On macOS a thread serves one end of a socket pair with the
-//! server's `serve_connection`, and the test asks on the other end. On Windows the rig is the product's: the server's
-//! `Listening` over the rig's data directory, with its accepting thread, its peer check and its overlapped instances,
-//! and a client over `PipeConnector::for_data_dir`; the client is the test's own process. No test ticks the driver,
-//! so no worker starts. The process has one form, so one lock keeps the tests apart.
+//! tests/daemon_children.rs does, and asks on one connection of the control server. On macOS a thread serves one end
+//! of a socket pair with the server's `serve_connection`, and the test asks on the other end. On Windows the rig is
+//! the product's: the server's `Listening` over the rig's data directory, with its accepting thread, its peer check
+//! and its overlapped instances, and a client over `PipeConnector::for_data_dir`; the client is the test's own
+//! process. Every test but the one of the module `chain` writes the figures of a read into the cell, so that an owner
+//! could start, and ticks no driver, so no worker starts. The test of `chain`, in a build with debug assertions alone,
+//! keeps its capture store open under the product's store owner thread (`owner::spawn`), whose every pass serves the
+//! cursor, writes records into it through the product's sink, ticks the driver, so that the slot starts the built
+//! worker and owner, and reads the proposed row through the server's line. The process has one form, one cell and
+//! one driver, so one lock keeps the tests apart.
 
 #![cfg(any(target_os = "macos", windows))]
 
@@ -21,7 +25,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use halvo_capture::daemon::custody_policy::Custody;
-use halvo_capture::daemon::port::{DataDirStore, Opened, StoreHost};
+use halvo_capture::daemon::port::{self, CaptureStore, DataDirStore, Opened, StoreHost};
 use halvo_capture::daemon::r2::daemon_caller::cell;
 use halvo_capture::daemon::r2::service;
 use halvo_capture::daemon::r2::when::{Reading, Readings};
@@ -179,16 +183,22 @@ impl Rig {
     /// Makes a capture store in a new data directory under the root file's custody and drops it, as `Rig::new` of
     /// tests/daemon_children.rs does; on Windows it then binds the control server's pipe of that directory.
     fn new(name: &str) -> Rig {
+        let (rig, store, _) = Rig::with_store(name);
+        drop(store);
+        rig
+    }
+
+    /// Makes the rig as `Rig::new` does and keeps its capture store open: the rig, the store and the store's id.
+    fn with_store(name: &str) -> (Rig, Box<dyn CaptureStore + Send>, port::StoreId) {
         let one = ONE_AT_A_TIME.lock().unwrap_or_else(PoisonError::into_inner);
         let scratch = Scratch::new(name);
         let host = DataDirStore::at(&scratch.0);
-        let Opened::ReadWrite { store, .. } = host.create(Custody::RootFile) else {
+        let Opened::ReadWrite { store, id } = host.create(Custody::RootFile) else {
             panic!("no capture store was made in {}", scratch.0.display());
         };
-        drop(store);
         #[cfg(windows)]
         let dir = DataDir::from_flag(&scratch.0).unwrap();
-        Rig {
+        let rig = Rig {
             lines: Lines::default(),
             #[cfg(windows)]
             listening: Listening::bind(&dir).unwrap(),
@@ -196,7 +206,8 @@ impl Rig {
             dir,
             scratch,
             _one: one,
-        }
+        };
+        (rig, store, id)
     }
 
     /// The open of the store in the service's run, with the directory of the built programs, and then the figures
@@ -476,4 +487,302 @@ fn a_defer_starts_no_owner() {
     assert!(!rig.owner_pid_stands(), "an owner started after the delete");
 
     assert_eq!(defer(&rig, wall_nanos() - 1_000_000_000).unwrap(), None);
+}
+
+/// The worker's own code for unix, for the offset of local time alone: the test of `chain` puts its records at
+/// local noon by the system's time zone, which the worker reads too.
+#[cfg(all(unix, debug_assertions))]
+#[allow(dead_code)]
+#[path = "../src/unix.rs"]
+mod sys;
+
+/// The worker's own code for Windows, for the offset of local time alone, as tests/worker.rs takes it.
+#[cfg(all(windows, debug_assertions))]
+#[allow(dead_code)]
+#[path = "../src/windows.rs"]
+mod sys;
+
+/// The whole link from records in a capture store to a proposed row, with the built programs. Its records are made
+/// with the two synthetic doors of halvo-capture, the keep verdict and the keystroke clearance with no reading of the
+/// system, which a build with debug assertions alone holds; check 30 admits this file as their one caller outside the
+/// crate.
+#[cfg(debug_assertions)]
+mod chain {
+    use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+    use halvo_capture::daemon::maintenance::{SystemClocks, SHRED_CHUNK};
+    use halvo_capture::daemon::owner::{self, Answer, Command, OwnerParts, OwnerThread};
+    use halvo_capture::daemon::port::{ByteBound, CaptureStore};
+    use halvo_capture::daemon::r2::daemon_caller::cell;
+    use halvo_capture::daemon::r2::{service, when};
+    use halvo_capture::event::{AppIdentity, EventClock, FloorEvent};
+    use halvo_capture::floor::exclude::{
+        synthetic_keep, FloorHandle, NoLineage, ProcessId, Subject,
+    };
+    use halvo_capture::floor::kind;
+    use halvo_capture::floor::payload::{KeyClass, Title, TitleWhy};
+    use halvo_capture::floor::Switches;
+    use halvo_capture::secure_input::synthetic_clearance;
+    use halvo_capture::sink::{self, Emitted, SinkHandle};
+    use halvo_control::model::StorageCap;
+    use halvo_control::proto::Request;
+    use halvo_schema_core::category::SeedCategory;
+    use halvo_schema_core::ids::RequestId;
+    use halvo_schema_core::record::{Workflow, WorkflowState};
+    use halvo_schema_core::request::{decode_reply, InterfaceRead, InterfaceRole, ReplyResult};
+
+    use super::{owner_binary, relay, sys, Allowed, Rig, WAIT};
+
+    /// The app of the records: Numbers, a spreadsheet program, by its bundle id.
+    const NUMBERS: &str = "com.apple.iWork.Numbers";
+
+    /// The title of its window: a workbook's name, with no site and no word of a rule, as Numbers shows it.
+    const WORKBOOK: &str = "Budget";
+
+    /// The keys of one occasion after its title record, as the case of tests/worker.rs has them.
+    const KEYS: [KeyClass; 6] = [
+        KeyClass::Printable,
+        KeyClass::Printable,
+        KeyClass::Tab,
+        KeyClass::Printable,
+        KeyClass::Enter,
+        KeyClass::Navigation,
+    ];
+
+    /// The occasions of the work: three, the count of one key that makes a proposal.
+    const OCCASIONS: i64 = 3;
+
+    /// The seconds between the last record of an occasion and the title of the next: one second more than the 331 s
+    /// of the episode step's `GAP` and `LOOK_BACK` together, as `PAUSE_S` of tests/worker.rs.
+    const PAUSE_S: i64 = 332;
+
+    const DAY_S: i64 = 86_400;
+    const SECOND_NS: i64 = 1_000_000_000;
+
+    /// The line of a worker's end that the slot writes for an exit 0.
+    const COMMITTED: &str = "halvo-capture: analysis end=committed code=0 peak_bytes=";
+
+    /// The instant that the next floor event is stamped with, in nanoseconds since 1970.
+    static STAMP: AtomicI64 = AtomicI64::new(0);
+
+    /// The reading of the chain's clock: the instant that the test set last.
+    fn stamped() -> SystemTime {
+        UNIX_EPOCH + Duration::from_nanos(u64::try_from(STAMP.load(Ordering::SeqCst)).unwrap())
+    }
+
+    /// The clock of the chain's floor events, which reads [`STAMP`].
+    static CLOCK: EventClock = EventClock::new(stamped);
+
+    /// The loop's time, in seconds, of the next tick: past the 240 s of idle time that the driver counts inside this
+    /// life of the daemon.
+    static LOOP_SECONDS: AtomicU64 = AtomicU64::new(1_000);
+
+    /// One tick of the supervisor, 1 s of the loop's time after the last.
+    fn tick() {
+        when::tick(Duration::from_secs(
+            LOOP_SECONDS.fetch_add(1, Ordering::SeqCst),
+        ));
+    }
+
+    /// The second of local noon, by the system's time zone, of the day before today, in seconds since 1970.
+    fn noon_of_yesterday() -> i64 {
+        let since = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        let now = i64::try_from(since.as_secs()).unwrap();
+        let offset =
+            |secs| i64::from(sys::utc_offset(secs).expect("the system gives a local time"));
+        let yesterday = (now + offset(now)).div_euclid(DAY_S) - 1;
+        let local_noon = yesterday * DAY_S + DAY_S / 2;
+        local_noon - offset(local_noon - offset(now))
+    }
+
+    /// The subject of every record: Numbers, in a process of its own.
+    fn numbers() -> Subject {
+        Subject::new(
+            AppIdentity::bundle_id(NUMBERS.to_owned()),
+            ProcessId::new(4_242),
+        )
+    }
+
+    /// Hands one floor event, stamped at the second `at_s`, to the sink.
+    fn emit(sink: &SinkHandle, at_s: i64, event: impl FnOnce() -> FloorEvent) {
+        STAMP.store(at_s * SECOND_NS, Ordering::SeqCst);
+        assert_eq!(sink.emit_event(event()), Emitted::Queued);
+    }
+
+    /// Writes `occasions` occasions of work in the workbook through the sink, from the second `first_s` on: each the
+    /// window's title record and the six key records, one second apart, with `PAUSE_S` seconds before the title of
+    /// each occasion after the first. Returns the records written.
+    fn write_occasions(sink: &SinkHandle, first_s: i64, occasions: i64) -> u64 {
+        let per = 1 + i64::try_from(KEYS.len()).unwrap();
+        let mut written = 0;
+        for occasion in 0..occasions {
+            let start_s = first_s + occasion * (per - 1 + PAUSE_S);
+            emit(sink, start_s, || {
+                let title = Title::new(WORKBOOK.to_owned(), TitleWhy::AppChange, None);
+                let keep = synthetic_keep::<kind::WindowTitle>(numbers());
+                FloorEvent::window_title(keep, title, None, &CLOCK)
+            });
+            for (n, class) in (1..).zip(KEYS) {
+                emit(sink, start_s + n, || {
+                    let keep = synthetic_keep::<kind::Keystroke>(numbers());
+                    FloorEvent::keystroke(keep, synthetic_clearance(None), class, &CLOCK)
+                });
+            }
+            written += u64::try_from(per).unwrap();
+        }
+        written
+    }
+
+    /// The capture store under the product's store owner thread, with the sink that feeds it. The drop stops the
+    /// worker slot's form, as the service's ending does before its store owner, then shuts the owner down.
+    struct Capture {
+        owner: Option<OwnerThread>,
+        sink: SinkHandle,
+    }
+
+    impl Capture {
+        /// Starts the store owner over `store` with the parts that the daemon gives it (`capture_owner` of
+        /// halvo-capture's daemon), no exclusion root and the default switches, and ends its first pause.
+        fn start(store: Box<dyn CaptureStore + Send>) -> Capture {
+            let (sink, writer) = sink::channel(owner::QUEUE_SLOTS);
+            let owner = owner::spawn(OwnerParts {
+                writer,
+                store,
+                clocks: SystemClocks::new(),
+                floor: FloorHandle::new(None, Arc::new(NoLineage), Switches::default()),
+                cap: Some(ByteBound::of_cap(StorageCap::DEFAULT)),
+                shred_chunk: SHRED_CHUNK,
+            })
+            .expect("the store owner starts");
+            let resumed = owner.handle.call(Command::ClosePause);
+            assert!(matches!(resumed, Ok(Answer::Resumed(_))), "{resumed:?}");
+            Capture {
+                owner: Some(owner),
+                sink,
+            }
+        }
+
+        /// Flushes what the sink holds into the store and returns the events that the owner wrote in this life.
+        fn settle(&self) -> u64 {
+            let owner = self.owner.as_ref().unwrap();
+            match owner.handle.call(Command::Settle) {
+                Ok(Answer::Settled(snapshot)) => {
+                    assert_eq!(snapshot.events_lost, 0, "{snapshot:?}");
+                    snapshot.events_persisted
+                }
+                other => panic!("the store owner answered the settle with {other:?}"),
+            }
+        }
+    }
+
+    impl Drop for Capture {
+        fn drop(&mut self) {
+            service::stop();
+            if let Some(owner) = self.owner.take() {
+                let _ = owner.handle.call(Command::Shutdown);
+                let _ = owner.join();
+            }
+        }
+    }
+
+    /// Records of real-shaped work in a spreadsheet program become one proposed row. Three occasions of the work in a
+    /// Numbers workbook, each its window's title record and six key records, go through the product's sink into a real
+    /// capture store under the product's store owner thread; the times of the records alone tell the occasions
+    /// apart, so one pass of the worker cuts three episodes. The driver gets the readings of an idle computer on mains
+    /// and the app's liveness signal; the first tick asks a read, which the store owner's pass serves into the cell,
+    /// and the next one lets the slot start the built worker and owner; the ticks after it run until the pass that
+    /// sees the worker's end. The interface read `workflows`, relayed as the page's command relays it, then gives one
+    /// proposed row of `spreadsheet_fill` in Numbers with three summaries. The cell's figures name the store that the
+    /// test made and a live segment below the watermark: the worker read through that store's cursor.
+    #[test]
+    fn spreadsheet_work_in_the_capture_store_becomes_one_proposed_row() {
+        let (rig, store, id) = Rig::with_store("stream-chain");
+        let capture = Capture::start(store);
+        let written = write_occasions(&capture.sink, noon_of_yesterday(), OCCASIONS);
+        assert_eq!(capture.settle(), written, "the store holds other records");
+
+        service::open(
+            &rig.scratch.0,
+            Ok(owner_binary().parent().unwrap().to_path_buf()),
+            Allowed,
+            Box::new(rig.lines.clone()),
+        );
+        assert_eq!(cell().figures(), None, "the open left figures in the cell");
+        service::seen(&Request::Status { indicator: true });
+        tick();
+        let until = Instant::now() + WAIT;
+        let figures = loop {
+            if let Some(figures) = cell().figures() {
+                break figures;
+            }
+            assert!(
+                Instant::now() < until,
+                "the store owner served no read: {}",
+                rig.lines.text()
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        assert_eq!(figures.store.as_str(), id.to_string());
+        assert!(
+            figures.first_live < figures.watermark.seg,
+            "the read found no live segment: {figures:?}"
+        );
+
+        while !rig.lines.text().contains("halvo-capture: analysis ") {
+            assert!(
+                Instant::now() < until,
+                "no worker ended: {}",
+                rig.lines.text()
+            );
+            tick();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let lines = rig.lines.text();
+        assert!(lines.starts_with(COMMITTED), "{lines}");
+        assert_eq!(cell().figures().map(|kept| kept.store), Some(figures.store));
+
+        let request = RequestId::from_random([0x86; 16]);
+        let read = InterfaceRead::workflows(&InterfaceRole::claim(), request.clone(), None)
+            .to_bytes()
+            .unwrap();
+        let reply = relay(&rig, &read).unwrap_or_else(|error| {
+            panic!("the relay answered no reply: {error:?}; the slot wrote: {lines}")
+        });
+        let reply = decode_reply(&reply).unwrap();
+        assert_eq!(reply.id, Some(request));
+        let page = match reply.outcome {
+            Ok(ReplyResult::Workflows(page)) => page,
+            other => panic!("the read of the workflows answers {other:?}"),
+        };
+        let rows: Vec<_> = page
+            .workflows
+            .iter()
+            .map(|item| match &item.workflow {
+                Workflow::Full(w) => (
+                    w.state,
+                    w.category,
+                    w.site.is_none(),
+                    w.app.as_str().to_owned(),
+                    w.recurrence.count,
+                    item.summaries.len(),
+                ),
+                Workflow::Dismissed(w) => panic!("a dismissed workflow: {w:?}"),
+            })
+            .collect();
+        assert_eq!(
+            rows,
+            [(
+                WorkflowState::Proposed,
+                SeedCategory::SpreadsheetFill,
+                true,
+                NUMBERS.to_owned(),
+                3,
+                3
+            )],
+            "the slot wrote: {lines}"
+        );
+        drop(capture);
+    }
 }
