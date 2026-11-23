@@ -430,7 +430,7 @@ mod tests {
 
     use halvo_control::client::{ClientError, Deadlines};
     use halvo_control::paths::DataDir;
-    use halvo_control::proto::{DaemonStatus, ErrorCode, Platform, StoreState};
+    use halvo_control::proto::{DaemonStatus, ErrorCode, ErrorReply, Platform, StoreState};
     use halvo_control::testing::{sample_status, ScriptedConnector, ScriptedDaemon};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord::types::{AgentId, Cause, ItemId, RunId};
@@ -887,6 +887,83 @@ mod tests {
             core.holds(),
             [true, false],
             "the first poll behind it that answers, the store open, lifts the hold once"
+        );
+    }
+
+    /// The reply of a service in either of its two fault states: an error with the code
+    /// internal, which carries no status. The app reads the code alone; `text` is the service's.
+    fn internal(text: &str) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Daemon(ErrorReply::new(ErrorCode::Internal, text)))
+    }
+
+    #[test]
+    fn behind_the_offline_doors_end_a_reply_that_carries_no_status_is_no_reading() {
+        let core = Arc::new(Told::default());
+        let before = before_of(&core);
+        let views = Views::default();
+        let places = Arc::<Places>::default();
+        let read = |answer: Result<DaemonStatus, ClientError>| {
+            views.take_poll(places.make().number(), &answer);
+            before.runs.drawn(before.core.as_deref(), &views, &places);
+        };
+        let _ = run_offline(&an_offline_run(), &before);
+        before.runs.drawn(before.core.as_deref(), &views, &places);
+        read(internal("the capture service is not serving"));
+        assert_eq!(
+            core.holds(),
+            [true],
+            "the reply of a connection that still serves when the loop takes no request carries no status: no reading, no lift"
+        );
+        read(Ok(sample_status(Platform::Macos)));
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first status that does not bar lifts the hold once"
+        );
+    }
+
+    #[test]
+    fn behind_a_late_answer_a_reply_that_carries_no_status_is_no_reading() {
+        let core = Arc::new(Told::default());
+        let mut silent = ScriptedDaemon::new(sample_status(Platform::Macos));
+        silent.set_silent(true);
+        let control = Gated::new(ScriptedConnector::new(silent));
+        let views = Views::default();
+        let before = before_of(&core);
+        let drawn = || {
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+        };
+        let asked = delete_everything(&before, &control, &views, None, DELETE_WAITS);
+        assert!(
+            matches!(
+                asked.end,
+                DeleteEnd::Answered(Err(ClientError::Deadline { .. }))
+            ),
+            "the delete's own answer passed its deadline: {:?}",
+            asked.end
+        );
+        views.take_delete(asked.call, asked.next_number_at_answer);
+        drawn();
+        let number = control.places().make().number();
+        views.take_poll(
+            number,
+            &internal("a status whose parts break a rule of the status type"),
+        );
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true],
+            "the reply to a Status whose parts break a rule carries no status: no reading, no lift"
+        );
+        let number = control.places().make().number();
+        views.take_poll(number, &Ok(sample_status(Platform::Macos)));
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first status that does not bar lifts the hold once"
         );
     }
 }
