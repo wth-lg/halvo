@@ -3078,11 +3078,11 @@ where
 
     /// The person's `use_model`, the answer Allow for this agent of the question `use_model` (r4
     /// U3.17b): after the quit's first step, and where the agent's row offers no `use_model` with
-    /// its question (no host, no runtime, a yes that stands for a hosted tier, no key saved, no
-    /// limit set, or a state that could not be read), it answers `state` and sends nothing; else
-    /// the schedule's `set_model` sends ONE body, the yes `agree_hosted`. Where the owner refuses
-    /// it or no reply comes, it marks the call, so that its reply says that Halvo could not finish
-    /// this, and the agent's member stays as it was.
+    /// its question (no host, a runtime outside the ONE list `roster::MODEL_RUNTIMES`, a yes that
+    /// stands for a hosted tier, no key saved, no limit set, or a state that could not be read),
+    /// it answers `state` and sends nothing; else the schedule's `set_model` sends ONE body, the
+    /// yes `agree_hosted`. Where the owner refuses it or no reply comes, it marks the call, so that
+    /// its reply says that Halvo could not finish this, and the agent's member stays as it was.
     fn use_model(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
         if st.quitting {
             return Err(Cause::State);
