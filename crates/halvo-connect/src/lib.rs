@@ -10,6 +10,7 @@ mod error;
 mod graph;
 mod list;
 mod mail;
+pub mod model;
 mod token;
 
 pub use address::{reply_senders, same_address, Senders, SendersError};
