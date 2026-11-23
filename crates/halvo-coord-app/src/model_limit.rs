@@ -728,16 +728,29 @@ mod tests {
     /// r7 8.1L view, THE READERS' FIRST CLAIM: no other file of the tree names the body `new_model_count` or its type,
     /// so no other line sends it. The files that may name it: its schema (the body, the list of names, the two golden
     /// files and the golden test), the agent store's handler and dispatch, the owner's list of ops with its test, and
-    /// this file, its one sender. Read over the files that git tracks.
+    /// this file, its one sender. Read by `git grep` over the files that git tracks.
     #[test]
     fn no_other_file_of_the_tree_names_the_new_body() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let listed = std::process::Command::new("git")
-            .args(["ls-files", "-z"])
+            .args([
+                "grep",
+                "-l",
+                "-z",
+                "--no-color",
+                "-F",
+                "-e",
+                "new_model_count",
+            ])
+            .args(["-e", "NewModelCount"])
             .current_dir(&root)
             .output()
-            .expect("git lists the tracked files");
-        assert!(listed.status.success(), "git ls-files");
+            .expect("git searches the tracked files");
+        assert_eq!(
+            listed.status.code(),
+            Some(0),
+            "git grep finds the body's own files"
+        );
         let allowed = [
             "crates/halvo-schema/src/executable/body.rs",
             "crates/halvo-schema/src/executable.rs",
@@ -750,20 +763,13 @@ mod tests {
             "crates/halvo-owner/tests/owner.rs",
             "crates/halvo-coord-app/src/model_limit.rs",
         ];
-        let words: [&[u8]; 2] = [b"new_model_count", b"NewModelCount"];
-        let mut named = Vec::new();
-        for path in listed.stdout.split(|b| *b == 0).filter(|p| !p.is_empty()) {
-            let path = String::from_utf8_lossy(path).into_owned();
-            let Ok(bytes) = std::fs::read(root.join(&path)) else {
-                continue;
-            };
-            let names = words
-                .iter()
-                .any(|word| bytes.windows(word.len()).any(|w| w == *word));
-            if names && !allowed.contains(&path.as_str()) {
-                named.push(path);
-            }
-        }
+        let named: Vec<String> = listed
+            .stdout
+            .split(|b| *b == 0)
+            .filter(|p| !p.is_empty())
+            .map(|p| String::from_utf8_lossy(p).into_owned())
+            .filter(|path| !allowed.contains(&path.as_str()))
+            .collect();
         assert_eq!(named, Vec::<String>::new(), "files that name the new body");
     }
 
