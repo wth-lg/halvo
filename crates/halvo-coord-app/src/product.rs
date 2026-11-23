@@ -1228,9 +1228,9 @@ fn entry_of(entry: &Value) -> Option<(Agent<AgentConfig>, Option<Agreement>)> {
 }
 
 /// The memory of the limit's part (`model_limit::Memory`) that the read for the agents' rows keeps (r4 U3.17b): a
-/// type of its own, so that no memory of the part, the static of the app's command `model_limit_state` among them, can
-/// be handed to that read. That memory guards the start of a new count, and only an answer of the part itself may move
-/// it (the coordinator's log line 18047).
+/// type of its own, so that no memory of the part, the static of the part's own commands in the app among them, can be
+/// handed to that read, and the read calls none of those commands. That memory guards the start of a new count, and
+/// only an answer of the part itself may move it (the coordinator's log line 18047).
 #[derive(Debug, Default)]
 struct RowsMemory(Memory);
 
