@@ -1,8 +1,8 @@
 //! The door's case under the egress check: the built program of this test build (with the stand-in
 //! form), started by sh scripts/egress/check.sh with the list scripts/egress/lists/loopback.txt,
 //! whose one entry, 127.0.0.1:47201, is the stand-in host that this test starts. It runs outside
-//! the merge gate, run by its check 64-model-egress, which no job runs yet, and speaks to nothing
-//! but that listener.
+//! the merge gate, run by its check 64-model-egress in the slice sun of both jobs, and speaks to
+//! nothing but that listener.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -59,7 +59,7 @@ fn answer_one(stream: &mut TcpStream) {
 }
 
 #[test]
-#[ignore = "the case of the door under the egress check: run by its check 64-model-egress, with --ignored --exact; no job runs that check yet"]
+#[ignore = "the case of the door under the egress check: run by its check 64-model-egress in the slice sun, with --ignored --exact"]
 fn the_built_door_under_the_egress_check_reaches_the_granted_loopback_origin_alone() {
     let listener = TcpListener::bind(("127.0.0.1", PORT)).expect("the list's port on the loopback");
     let accepted = Arc::new(AtomicUsize::new(0));

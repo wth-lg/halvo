@@ -4,14 +4,15 @@ use std::path::{Path, PathBuf};
 
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
-    Accepted, AddOrigin, AgentHistory, AgentsReply, CheckpointsReply, CoordinatorCall,
+    Accepted, AddOrigin, AgentHistory, AgentsReply, CapReply, CheckpointsReply, CoordinatorCall,
     CoordinatorReply, CreateAgent, DropModelKey, DropSession, DropSessions, EndRun, Finish,
     HistoryReply, HistoryRun, KeyReply, ListAgents, ListCheckpoints, ListOverlaps, ListReplies,
     ListedAgent, ListedAgreement, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply,
     LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint,
-    ModelKeyState, Overlap, OverlapsReply, PastCheckpoint, PastEffect, PutCheckpoint, PutEffect,
-    PutLog, PutModelKey, PutPlaybook, PutReplyRow, PutSession, ReadModelKey, RevReply, RunnerCall,
-    RunnerReply, SessionReply, SetBindings, SetModel, SetState, StandsReply, StartRun, StateReply,
+    ModelHold, ModelKeyState, ModelRoom, ModelSettle, ModelUsage, Overlap, OverlapsReply,
+    PastCheckpoint, PastEffect, PutCheckpoint, PutEffect, PutLog, PutModelKey, PutPlaybook,
+    PutReplyRow, PutSession, ReadModelKey, RevReply, RoomReply, RunnerCall, RunnerReply,
+    SessionReply, SetBindings, SetModel, SetModelCap, SetState, StandsReply, StartRun, StateReply,
     StepsReply, Stored, UnknownEffect,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
@@ -31,8 +32,8 @@ use halvo_schema::executable::step::{
     ApiTarget, Arg, Cond, ExecutableStep, FileTarget, Locator, Playbook, Target, WebTarget,
 };
 use halvo_schema::executable::text::{
-    ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, Null, OwnText, OwnValue,
-    ProviderId, RunId, SecretText, SessionData, WebOrigin, V1,
+    ApprovalId, CreationTime, Digest, EffectId, Endpoint, ModelRequestId, Name, Null, OwnText,
+    OwnValue, ProviderId, RunId, SecretText, SessionData, WebOrigin, V1,
 };
 use halvo_schema::executable::{self, ERROR_NAMES, NAMES};
 use halvo_schema::record::Instant;
@@ -842,6 +843,23 @@ fn runner_bodies() -> Vec<RunnerCall> {
             run: run(),
             origin: origin(UTILITY),
         }),
+        RunnerCall::ModelHold(ModelHold {
+            agent: agent(),
+            run: run(),
+            request: ModelRequestId::from_random([0xc1; 16]),
+            tier: ModelTier::Frontier,
+            body_bytes: 10_000,
+            output_limit: 1_000,
+        }),
+        RunnerCall::ModelSettle(ModelSettle {
+            agent: agent(),
+            run: run(),
+            request: ModelRequestId::from_random([0xc1; 16]),
+            usage: Some(ModelUsage {
+                tokens_in: 5_000,
+                tokens_out: 300,
+            }),
+        }),
     ]
 }
 
@@ -990,6 +1008,15 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             agent: agent(),
             tier: ModelTier::OnDevice,
             agreement: None,
+        }),
+        CoordinatorCall::ModelRoom(ModelRoom {
+            workflow: Null,
+            agent: Null,
+        }),
+        CoordinatorCall::SetModelCap(SetModelCap {
+            workflow: Null,
+            agent: Null,
+            cap_minor: 2_000,
         }),
     ]
 }
@@ -1197,6 +1224,31 @@ fn coordinator_replies() -> Vec<CoordinatorReply> {
         CoordinatorReply::Agents(AgentsReply {
             agents: vec![agreed_agent()],
             next: None,
+        }),
+        CoordinatorReply::Room(RoomReply {
+            room: RoomState::None,
+            cap_minor: Some(2_000),
+            spent: Some(0),
+            held: Some(0),
+            period_end_ms: None,
+        }),
+        CoordinatorReply::Room(RoomReply {
+            room: RoomState::Reads,
+            cap_minor: Some(2_000),
+            spent: Some(0),
+            held: Some(233_500),
+            period_end_ms: Some(1_797_092_000_000),
+        }),
+        CoordinatorReply::Room(RoomReply {
+            room: RoomState::Unread,
+            cap_minor: None,
+            spent: None,
+            held: None,
+            period_end_ms: None,
+        }),
+        CoordinatorReply::Cap(CapReply {
+            cap_minor: 2_000,
+            new_count: YesNo::Yes,
         }),
     ]
 }
@@ -1467,6 +1519,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for kind in executable::KINDS {
         derived.insert(kind.name.to_owned());
         derived.insert(kind.family.to_owned());
+        derived.extend(kind.fields.iter().map(|(key, _)| (*key).to_owned()));
     }
     derived.extend(["yes", "no", "reply_body"].map(str::to_owned));
     macro_rules! all {
@@ -1501,7 +1554,8 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
         ListedState,
         MarkState,
         LeftReason,
-        ReplyState
+        ReplyState,
+        RoomState
     );
     for class in ActionClass::ALL {
         derived.extend(
@@ -1530,7 +1584,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in ["binding", "length", "overlap"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    assert_eq!(executable::KINDS.len(), 13);
+    assert_eq!(executable::KINDS.len(), 14);
 }
 
 #[test]

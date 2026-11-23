@@ -2648,3 +2648,129 @@ fn held_ahead_answers_other_family_for_a_kind_of_another_family_with_a_key_or_wi
         vec![Err(HeldRefusal::OtherFamily), Err(HeldRefusal::OtherFamily)]
     );
 }
+
+/// r7 8.1L, round 1 (the coordinator's log line 17560): no write call of a handler stores or removes anything behind a
+/// read of the same request that met a fault of the store. A handler of the family `agent` stores a `model_key` row
+/// under a `coordinator_write`; the test then writes that row's text again with one byte that is no UTF-8, by its own
+/// connection, so that the store's reader of the kind meets a fault. In the next request the handler reads the kind,
+/// which hands out no row and sets the request's fault, and then makes the four write calls: the typed commit of a
+/// second key's row, the removal call under a workflow id, the removal call of a person's kind with the second row,
+/// and the state call. Each answers the fault before any statement, the request answers the fault, and the store's
+/// rows of the kind are the one faulty row's bytes and nothing more.
+#[test]
+fn no_write_call_of_a_handler_goes_through_behind_a_read_that_met_a_fault() {
+    let scratch = Scratch::new("faulted-read-writes");
+    let clock = TestClock::at_day(DAY);
+    let answers: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let key_row = |marker: &str| TypedRecord {
+        kind: "model_key",
+        json: format!(r#"{{"v":1,"key":"test-value-{marker}"}}"#),
+    };
+    let first = key_row("qzfaultk9301");
+    let second = key_row("qzfaultk9302");
+    let workflow = WorkflowId::parse(&"3".repeat(32)).unwrap();
+    let host = || {
+        let (answers, first, second, workflow) = (
+            Rc::clone(&answers),
+            first.clone(),
+            second.clone(),
+            workflow.clone(),
+        );
+        base(&clock, Grouping { min: 1 }).handler(
+            "agent",
+            Takes::Coordinator(&["test"]),
+            Box::new(FnHandler(
+                move |request: &RawRequest, cx: &mut HandlerCx<'_>| {
+                    if request.body().get().contains("store") {
+                        cx.commit(std::slice::from_ref(&first)).unwrap();
+                        return Ok(reply("null"));
+                    }
+                    let mut seen = 0;
+                    cx.rows().for_each("model_key", &mut |_| seen += 1);
+                    let mut out = answers.borrow_mut();
+                    out.push(format!("rows {seen}"));
+                    out.push(format!("{:?}", cx.commit(std::slice::from_ref(&second))));
+                    out.push(format!(
+                        "{:?}",
+                        cx.remove_under("agent_log", &workflow, &[])
+                    ));
+                    out.push(format!(
+                        "{:?}",
+                        cx.remove_person("model_key", std::slice::from_ref(&second))
+                    ));
+                    out.push(format!(
+                        "{:?}",
+                        cx.state(&workflow, halvo_derived::MoveTo::Approved, None)
+                    ));
+                    Ok(reply("null"))
+                },
+            )),
+        )
+    };
+    let mut store = open_entries(&scratch, host(), &[]).unwrap();
+    store
+        .handle(&raw_request(
+            "coordinator_write",
+            r#"{"op":"test","do":"store"}"#,
+        ))
+        .unwrap();
+    drop(store);
+    let mut bytes = br#"{"v":1,"key":"test-value-qzfaultk9301"#.to_vec();
+    bytes.push(0xff);
+    bytes.extend_from_slice(br#""}"#);
+    let changed = common::raw(&scratch)
+        .execute(
+            "UPDATE rows SET body = CAST(?1 AS TEXT) WHERE kind = 'model_key'",
+            [&bytes],
+        )
+        .unwrap();
+    assert_eq!(changed, 1);
+    let mut store = open_entries(&scratch, host(), &[]).unwrap();
+    let answer = store.handle(&raw_request("coordinator_write", r#"{"op":"test"}"#));
+    drop(store);
+    let stored: Vec<Vec<u8>> = {
+        let conn = common::raw(&scratch);
+        let mut rows = conn
+            .prepare("SELECT CAST(body AS BLOB) FROM rows WHERE kind = 'model_key'")
+            .unwrap();
+        rows.query_map([], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    };
+    let fault = Refusal {
+        index: usize::MAX,
+        cause: Cause::Fault(halvo_derived::Fault::Row),
+    };
+    assert_eq!(
+        answers.borrow().clone(),
+        vec![
+            "rows 0".to_owned(),
+            format!("{:?}", Err::<Committed, _>(fault.clone())),
+            format!(
+                "{:?}",
+                Err::<halvo_derived::Removed, _>(halvo_derived::RemoveRefusal::Commit(
+                    fault.clone()
+                ))
+            ),
+            format!(
+                "{:?}",
+                Err::<halvo_derived::Removed, _>(halvo_derived::RemoveRefusal::Commit(fault))
+            ),
+            format!(
+                "{:?}",
+                Err::<(), _>(Error::Fault(halvo_derived::Fault::Row))
+            ),
+        ],
+        "the read, then the commit, the two removal calls and the state call"
+    );
+    assert!(
+        matches!(answer, Err(Error::Fault(halvo_derived::Fault::Row))),
+        "the request's answer: {answer:?}"
+    );
+    assert_eq!(
+        stored,
+        vec![bytes],
+        "the rows of the kind model_key, by their bytes"
+    );
+}

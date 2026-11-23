@@ -487,7 +487,7 @@ fn the_reply_answers_list_overlaps_alone_and_never_names_the_asking_workflow_or_
         .map(|b| b.op())
         .filter(|op| *op != "list_overlaps")
         .collect();
-    assert_eq!(others.len(), 17, "{others:?}");
+    assert_eq!(others.len(), 19, "{others:?}");
     for call in &bodies {
         assert_eq!(
             overlaps.answers(call),

@@ -28,4 +28,4 @@ LangString webview2DownloadSuccess ${LANG_ENGLISH} "WebView2 bootstrapper downlo
 LangString webview2Downloading ${LANG_ENGLISH} "Downloading WebView2 bootstrapper..."
 LangString webview2InstallError ${LANG_ENGLISH} "Error: Installing WebView2 failed with exit code $1"
 LangString webview2InstallSuccess ${LANG_ENGLISH} "WebView2 installed successfully"
-LangString deleteAppData ${LANG_ENGLISH} "Also delete everything that Halvo has stored on this computer"
+LangString deleteAppData ${LANG_ENGLISH} "Also delete Halvo's data. Copies next to your files stay."

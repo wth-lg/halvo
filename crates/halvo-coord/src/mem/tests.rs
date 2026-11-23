@@ -436,6 +436,16 @@ fn owner_answers_each_body_as_a_a7_2_says() {
             value: vec!["City Power".to_owned()],
         }],
     };
+    let (yes, back) = (
+        Body::AgreeHosted {
+            workflow: w.clone(),
+            agent: a.clone(),
+        },
+        Body::WithdrawHosted {
+            workflow: w.clone(),
+            agent: a.clone(),
+        },
+    );
     let start = Body::StartRun {
         workflow: w,
         agent: a,
@@ -446,6 +456,10 @@ fn owner_answers_each_body_as_a_a7_2_says() {
     assert_eq!(p.send(&bind).unwrap(), serde_json::json!({"rev": 1}));
     assert_eq!(p.send(&bind).unwrap(), serde_json::json!({"rev": 2}));
     assert_eq!(p.send(&start).unwrap(), serde_json::json!({"ok": "yes"}));
+    assert_eq!(
+        (p.send(&yes).unwrap(), p.send(&back).unwrap()),
+        (serde_json::json!({"rev": 3}), serde_json::json!({"rev": 4}))
+    );
 }
 
 fn event(seq: u32, agent: u8) -> Event {

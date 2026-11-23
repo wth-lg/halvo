@@ -14,7 +14,7 @@ use halvo_policy::preset;
 use halvo_schema::executable::body::{LoadReply, LoadedBindings, LoadedSession};
 use halvo_schema::executable::frame::Browser;
 use halvo_schema::executable::names::LogEvent;
-use halvo_schema::executable::step::Cond;
+use halvo_schema::executable::step::{Cond, Target};
 use halvo_schema::executable::text::{CreationTime, SessionData};
 use halvo_schema::executable::{Cause, ExecutableStep, FromRunner, Outcome, RunnerCall, WebOrigin};
 use halvo_schema::{AgentId, Category, WorkflowId};
@@ -478,9 +478,10 @@ struct World {
 /// One run: the browser's jar as the stand-in starts it, the bound origins, the readings, the page's address, the
 /// answers to handback requests and binds, whether the act fails, whether the run has a window, whether a run with no
 /// window gets the switch of the tests by which a stand-in person answers its handbacks (`STAND_IN_PERSON`), the
-/// state that the person signs in to while a handback is open, whether the import fails, and the site that the first
-/// act goes to.
+/// state that the person signs in to while a handback is open, whether the import fails, the site that the first
+/// act goes to, and the category of the agent, whose preset the load gives.
 struct Run<'a> {
+    category: Category,
     jar: SessionState,
     bound: &'a [&'a str],
     signs: &'a [Option<Sign>],
@@ -497,6 +498,7 @@ struct Run<'a> {
 impl Run<'_> {
     fn new<'a>(jar: SessionState, bound: &'a [&'a str]) -> Run<'a> {
         Run {
+            category: Category::UtilityBillPayment,
             jar,
             bound,
             signs: &[],
@@ -613,7 +615,9 @@ impl World {
         })
     }
 
-    /// `run`, with a failed step ended by `failed`.
+    /// `run`, with a failed step ended by `failed`. A file step goes to `Runner::file_read`, as `Runner::step` sends a
+    /// file step of the class `read` (these tests give no other file step); every other step goes to
+    /// `Runner::web_step`.
     fn run_ending(
         &self,
         run: &Run<'_>,
@@ -678,7 +682,7 @@ impl World {
             import_fails: run.import_fails,
             next_site: run.next_site.clone(),
         })));
-        let config = preset(Category::UtilityBillPayment, workflow, agent).expect("a preset");
+        let config = preset(run.category, workflow, agent).expect("a preset");
         let loaded = LoadReply {
             config,
             playbook: None,
@@ -693,7 +697,11 @@ impl World {
         };
         let mut end = Ok(Outcome::Completed);
         for step in steps {
-            match runner.web_step(step, &loaded) {
+            let done = match &step.target {
+                Some(Target::File(target)) => runner.file_read(step, target, &loaded),
+                _ => runner.web_step(step, &loaded),
+            };
+            match done {
                 Ok(()) => {}
                 Err(Failure::Stop(stop)) => {
                     end = Err(stop);
@@ -1627,6 +1635,61 @@ fn a_failed_step_of_a_run_where_no_person_can_answer_ends_handed_back_with_no_ha
     assert!(
         lines(&ran.log, "frame handback").is_empty(),
         "no handback request: {:?}",
+        ran.log
+    );
+}
+
+/// A file step of the class `read`: the rows of the source of the slot `source`, kept as `rows`.
+fn file_read() -> ExecutableStep {
+    ExecutableStep::parse(
+        br#"{"v":1,"n":1,"kind":"file","verb":"read","target":{"file":"source","sheet":null,"range":null},"args":[{"name":"as","from":"const","value":"rows","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}"#,
+    )
+    .expect("a file step")
+}
+
+/// r3 U5.15e (the coordinator's rulings of log lines 17621 and 17650 (1)): in a run where a person can answer
+/// (`--headed`), a failed step of the class `read` or `prepare` opens the handback of `step_failed` only where the run's
+/// browser runs. A file agent starts none: its read, which fails with `step_failed` before it opens any file because
+/// the bindings hold no slot, writes its `step_failed` row, no `handback` row and no handback request, no frame
+/// `browser` is written, and the run ends `handed_back` with the cause `step_failed`. The supervisor holds an answer,
+/// so that a handback that opened would be answered and not wait. Beside it, a web agent's click that fails after its
+/// browser (the stand-in) started still opens the handback of `step_failed`.
+#[test]
+fn a_failed_read_of_a_file_agent_with_a_person_and_no_browser_ends_handed_back_with_no_handback() {
+    let world = World::default();
+    let mut file = Run::new(SessionState::default(), &[]);
+    file.category = Category::SpreadsheetFill;
+    file.headed = true;
+    file.answers = &[DECLINED];
+    let ran = world.run_to_its_end(&file, &[file_read()]);
+    assert_eq!(
+        (
+            ran.seen.finish,
+            ran.seen.logs.clone(),
+            lines(&ran.log, "frame handback"),
+            lines(&ran.log, "frame browser"),
+        ),
+        (
+            Some(Outcome::HandedBack),
+            vec![
+                (LogEvent::StepFailed, Some(1), Some(Cause::StepFailed)),
+                (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+            ],
+            vec![],
+            vec![],
+        ),
+        "{:?}",
+        ran.log
+    );
+    let mut web = Run::new(SessionState::default(), &[A]);
+    web.headed = true;
+    web.act_fails = true;
+    web.answers = &[DECLINED];
+    let ran = world.run_to_its_end(&web, &[click()]);
+    assert_eq!(
+        lines(&ran.log, "frame handback"),
+        ["frame handback step_failed"],
+        "{:?}",
         ran.log
     );
 }

@@ -17,7 +17,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use halvo_agent_store::{Host as AgentHost, Now};
-use halvo_derived::{Clock, Error, Handler, HandlerCx, MoveTo, Takes};
+use halvo_derived::{Clock, Error, Handler, HandlerCx, MoveTo, RemoveRefusal, Takes};
 use halvo_learn_store::{Clock as Today, LearnHandlers, LearnHost, LearnStep};
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::{
@@ -87,6 +87,8 @@ enum Call {
     State(WorkflowId, MoveTo, Option<AgentId>),
     Rows(String),
     Workflow(WorkflowId),
+    /// The removal call of a person's kind, which the runner bodies `model_hold` and `model_settle` make (r7 8.1L).
+    RemovePerson(String, Vec<TypedRecord>),
 }
 
 /// What `Behind` answers a call.
@@ -96,6 +98,8 @@ enum Answer {
     Workflow(Option<WorkflowItem>),
     /// The read of the workflow met a fault of the store.
     Failed,
+    /// The rows that the removal call of a person's kind removed, or its refusal.
+    Removed(Result<u64, ErrorName>),
 }
 
 /// The call in flight between the handlers in front and `Behind`, and whether a call went unanswered in the request.
@@ -141,6 +145,13 @@ impl Handler for Behind {
                     Error::Refused(name) => name,
                     Error::Fault(_) => ErrorName::Store,
                 }))
+            }
+            Call::RemovePerson(kind, records) => {
+                Answer::Removed(match cx.remove_person(&kind, &records) {
+                    Ok(done) => Ok(done.removed),
+                    Err(RemoveRefusal::Role) => Err(ErrorName::Role),
+                    Err(_) => Err(ErrorName::Store),
+                })
             }
             Call::Rows(kind) => {
                 let mut rows = Vec::new();
@@ -214,6 +225,14 @@ impl AgentHost for Bridge<'_, '_, '_> {
         let call = Call::State(workflow.clone(), move_to(state), agent.cloned());
         match self.ask(call) {
             Some(Answer::Done(done)) => done,
+            _ => Err(ErrorName::Internal),
+        }
+    }
+
+    /// `HandlerCx::remove_person` behind, answered as the agent store's handler of the list answers it (`agent`).
+    fn remove_person(&mut self, kind: &str, records: Vec<TypedRecord>) -> Result<u64, ErrorName> {
+        match self.ask(Call::RemovePerson(kind.to_owned(), records)) {
+            Some(Answer::Removed(done)) => done,
             _ => Err(ErrorName::Internal),
         }
     }
