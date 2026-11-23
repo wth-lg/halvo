@@ -281,8 +281,8 @@ fn scripted_service_run() {
     let status = String::from_utf8_lossy(&status.stdout).into_owned();
     assert!(status.contains("\nplatform=macos\n"), "case 1: {status}");
     assert!(
-        status.contains("\ntyping=off\n"),
-        "case 1: no typing line: {status}"
+        status.contains("\ntyping=on\n"),
+        "case 1: the typing line: {status}"
     );
     until(Duration::from_secs(20), || {
         let output = ctl(&dir, &["status"]);

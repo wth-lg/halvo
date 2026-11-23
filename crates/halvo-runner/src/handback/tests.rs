@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use halvo_policy::preset;
 use halvo_schema::executable::body::{LoadReply, LoadedBindings};
-use halvo_schema::executable::names::{LogEvent, Verb};
+use halvo_schema::executable::names::{LogEvent, Verb, YesNo};
 use halvo_schema::executable::step::Cond;
 use halvo_schema::executable::{
     Cause, ExecutableStep, FromRunner, Outcome, RunnerCall, ToRunner, WebOrigin,
@@ -471,11 +471,16 @@ fn credential_fill() -> ExecutableStep {
     )
 }
 
-/// A payment, a step of an effect class, whose condition has a target marked `credential`.
+/// A payment, a step of an effect class, whose condition has a target marked `credential`: a step that the parser
+/// refuses (r3 U5.10-S), built past it by its public fields.
 fn payment_with_a_credential_condition() -> ExecutableStep {
-    web_step(
-        r#"{"v":1,"n":2,"kind":"web","verb":"click","target":{"desc":"the pay button","frame":[],"credential":"no","locators":[{"by":"test_id","value":"pay","name":null}]},"args":[{"name":"payee","from":"const","value":"p","key":null},{"name":"amount","from":"const","value":"1.00","key":null},{"name":"instrument","from":"const","value":"i","key":null},{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null}],"pre":[{"check":"value_is","target":{"desc":"the password field","frame":[],"credential":"yes","locators":[{"by":"test_id","value":"password","name":null}]},"arg":{"name":"text","from":"const","value":"x","key":null}}],"post":[],"effect":"request","class":"payment"}"#,
-    )
+    let mut step = web_step(
+        r#"{"v":1,"n":2,"kind":"web","verb":"click","target":{"desc":"the pay button","frame":[],"credential":"no","locators":[{"by":"test_id","value":"pay","name":null}]},"args":[{"name":"payee","from":"const","value":"p","key":null},{"name":"amount","from":"const","value":"1.00","key":null},{"name":"instrument","from":"const","value":"i","key":null},{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null}],"pre":[{"check":"value_is","target":{"desc":"the password field","frame":[],"credential":"no","locators":[{"by":"test_id","value":"password","name":null}]},"arg":{"name":"text","from":"const","value":"x","key":null}}],"post":[],"effect":"request","class":"payment"}"#,
+    );
+    for target in step.pre.iter_mut().filter_map(|cond| cond.target.as_mut()) {
+        target.credential = YesNo::Yes;
+    }
+    step
 }
 
 /// A case of `each_end_without_a_bind_ends_the_run`: the readings, the address, the answers, the end, and how many
@@ -868,7 +873,8 @@ fn after_bound_no_nothing_leaves() {
 /// handback in the order of a credential field's, and the request names the page's origin; so does a fill of a target
 /// marked `credential`, which fails where the page shows no credential field. Declined, the run ends `declined`. A
 /// click that does not fail on such a page acts, and makes no second reading; a payment whose condition's target is
-/// marked `credential` makes none either, and fails as before (a run with no window makes none either:
+/// marked `credential` makes none either, and fails as before, by the guard of r3 U5.10-S, which holds this sentence
+/// now: it reads nothing of the page (a run with no window makes none either:
 /// `a_failed_step_of_a_run_with_no_window_reads_no_sign`). Behind the person's `done` and the bind
 /// the click's act is asked once more (the coordinator's ruling of log line 16106 (3)): end (i), it acts and the step
 /// is done; end (ii), it fails again and the step fails as before, with one handback at that step.
@@ -880,7 +886,8 @@ fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
     assert_eq!(bench.log(), ["read", "act click"]);
 
     // The coordinator's ruling of log line 16292: a step of an effect class makes no second reading, whatever its
-    // targets: a payment whose condition's target is marked `credential` fails on that page with `step_failed`.
+    // targets: a payment whose condition's target is marked `credential` fails on that page with `step_failed`, and
+    // since r3 U5.10-S before any reading of the page.
     let mut bench = Bench::on_page(&[], BOUND, &[DECLINED], 0, &[], &page("Sign in"));
     let got = bench.step(&payment_with_a_credential_condition());
     let log = bench.log();
@@ -888,7 +895,7 @@ fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
         matches!(got, Err(Failure::Step(Cause::StepFailed))),
         "{log:?}"
     );
-    assert_eq!(log, ["read"]);
+    assert!(log.is_empty(), "{log:?}");
 
     let opening = [
         "address",

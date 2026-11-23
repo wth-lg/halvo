@@ -124,10 +124,6 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 #[cfg(windows)]
                 parts.webview_environment,
             );
-            #[cfg(windows)]
-            if let Ok(window) = &window {
-                keep_the_crash_report_folder(window, &app.state::<AppState>().crash_reports);
-            }
             match window {
                 Ok(window) => match engine_site(app.handle(), parts.engine_rules_dir) {
                     Ok(site) => (parts.guard)(&window, site, sender),
@@ -377,42 +373,6 @@ pub(crate) fn main_window<R: Runtime>(
     builder.build()
 }
 
-/// Keeps the folder in which the web view of `window` writes its crash reports, as its
-/// environment names it (ICoreWebView2Environment11::FailureReportFolderPath), in `folder`, for
-/// the end of a whole Delete everything; where it cannot be read the cell stays empty.
-#[cfg(windows)]
-fn keep_the_crash_report_folder<R: Runtime>(
-    window: &tauri::WebviewWindow<R>,
-    folder: &Arc<std::sync::OnceLock<PathBuf>>,
-) {
-    use webview2_com::Microsoft::Web::WebView2::Win32::{
-        ICoreWebView2Environment11, ICoreWebView2_2,
-    };
-    use windows_core::{Interface, PWSTR};
-    let folder = Arc::clone(folder);
-    let _ = window.with_webview(move |webview| {
-        let read = || -> windows_core::Result<PathBuf> {
-            // SAFETY: wry keeps the controller alive as long as the web view, and with_webview
-            // hands it to this closure on the thread that created it, the one thread WebView2 lets
-            // call it; each returned interface holds its own reference.
-            let core = unsafe { webview.controller().CoreWebView2() }?;
-            // SAFETY: as above, on the window's thread; the environment comes back with a
-            // reference of its own.
-            let environment = unsafe { core.cast::<ICoreWebView2_2>()?.Environment() }?;
-            let environment: ICoreWebView2Environment11 = environment.cast()?;
-            let mut path = PWSTR::null();
-            // SAFETY: on the window's thread; on success the call writes a string allocated with
-            // CoTaskMemAlloc that this caller owns, and take_pwstr frees it once with
-            // CoTaskMemFree; on an error `path` stays null and is not read.
-            unsafe { environment.FailureReportFolderPath(&mut path) }?;
-            Ok(PathBuf::from(webview2_com::take_pwstr(path)))
-        };
-        if let Ok(path) = read() {
-            let _ = folder.set(path);
-        }
-    });
-}
-
 #[cfg(windows)]
 pub const ENGINE_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND\" --proxy-server=http://255.255.255.255:9 --proxy-bypass-list=<-loopback> --webrtc-ip-handling-policy=disable_non_proxied_udp";
 
@@ -482,6 +442,28 @@ fn engine_folder<R: Runtime>(
         Some(dir) => Ok(dir.to_path_buf()),
         None => app.path().app_local_data_dir(),
     }
+}
+
+/// The folder in which the web view of Halvo's own window writes its crash reports, by the rule
+/// of its data folder with none given (`engine_folder`): the app's local data folder as tauri
+/// 2.12.5 names it (src/path/desktop.rs lines 265 to 271: the account's LocalAppData known
+/// folder, then the app's identifier), then EBWebView, Crashpad, reports. None where the account
+/// names no LocalAppData. The one function of both removals: the start empties the folder before
+/// the app is built, and the form `--remove-crash-reports` empties it with no window.
+#[cfg(windows)]
+pub fn crash_report_folder(config: &tauri::Config) -> Option<PathBuf> {
+    use halvo_control::paths::AccountLookup;
+    let local = halvo_control::paths::SystemAccount.base_dir().ok()??;
+    Some(reports_under(
+        &PathBuf::from(local).join(&config.identifier),
+    ))
+}
+
+/// The folder of the crash reports under the web view's data folder `data`, which the web view's
+/// environment answers (test 2 of win-crash-reports).
+#[cfg(windows)]
+fn reports_under(data: &std::path::Path) -> PathBuf {
+    data.join("EBWebView").join("Crashpad").join("reports")
 }
 
 /// The system's maker of the web view's environment, on the main thread as the runtime's own:
@@ -560,6 +542,81 @@ pub fn blank() -> Url {
 pub fn app_url() -> Url {
     let (scheme, host) = APP_ORIGIN;
     Url::parse(&format!("{scheme}://{host}/index.html")).expect("the app's address is an address")
+}
+
+/// The step of a start before the app and its window are built: every file under `folder`, the
+/// folder of the crash reports of the web view of Halvo's own window, goes by app-4b's
+/// `every_file_goes`, folders kept, and only then `make` builds the app, whose setup makes the
+/// window. Where a file stays, every view of `views` names the folder, so that the page says it.
+/// With no folder nothing is removed.
+#[cfg(any(windows, test))]
+pub(crate) fn after_the_reports_go<T>(
+    folder: Option<&std::path::Path>,
+    views: &poller::Views,
+    make: impl FnOnce() -> T,
+) -> T {
+    if let Some(folder) = folder {
+        if !crate::commands::capture::every_file_goes(folder, &|file| std::fs::remove_file(file)) {
+            views
+                .hold()
+                .set_crash_reports_left(halvo_control::paths::one_line(&folder.to_string_lossy()));
+        }
+    }
+    make()
+}
+
+/// The launch form `--remove-crash-reports` on `folder`, the folder of the crash reports of the web
+/// view of Halvo's own window, with no window and no web view: every file under it goes by
+/// `remove`, folders kept. Its one line, `crash_reports folder=<path> removed=<n> left=<n>`, and
+/// its end: 0 where nothing was there or every file went, 1 where one stays. `left` counts the
+/// files that stand under the folder after the walk; a folder or an entry that cannot be read
+/// counts as one.
+#[cfg(any(windows, test))]
+pub fn crash_reports_form(
+    folder: &std::path::Path,
+    remove: &dyn Fn(&std::path::Path) -> std::io::Result<()>,
+) -> (String, Exit) {
+    let removed = std::cell::Cell::new(0u64);
+    let every_file_went = crate::commands::capture::every_file_goes(folder, &|file| {
+        let gone = remove(file);
+        if gone.is_ok() {
+            removed.set(removed.get() + 1);
+        }
+        gone
+    });
+    let left = match files_under(folder) {
+        0 if !every_file_went => 1,
+        left => left,
+    };
+    let line = format!(
+        "crash_reports folder={} removed={} left={left}",
+        halvo_control::paths::one_line(&folder.to_string_lossy()),
+        removed.get()
+    );
+    (
+        line,
+        Exit::ReportsRemoved {
+            one_stays: left > 0,
+        },
+    )
+}
+
+/// The files that stand under `dir`, in every folder below it, folders not counted; a folder
+/// that stands and cannot be read, and an entry that cannot be read, count as one each.
+#[cfg(any(windows, test))]
+fn files_under(dir: &std::path::Path) -> u64 {
+    match std::fs::read_dir(dir) {
+        Ok(entries) => entries
+            .map(
+                |entry| match entry.and_then(|e| Ok((e.path(), e.file_type()?))) {
+                    Ok((path, kind)) if kind.is_dir() => files_under(&path),
+                    _ => 1,
+                },
+            )
+            .sum(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0,
+        Err(_) => 1,
+    }
 }
 
 fn engine_site<R: Runtime>(
@@ -653,4 +710,165 @@ fn load<R: Runtime>(app: &AppHandle<R>, visible: bool) -> tauri::Result<()> {
         window.show()?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    use super::*;
+
+    /// A new, empty folder under target/tmp, by the test's `name`, the test binary's own name and
+    /// this process. This module is compiled again by tests/page_guard.rs, which has no
+    /// `crate::tests` and runs in the same job as the bin's tests; Windows gives a process id out
+    /// again at once, so the binary's name keeps the two targets apart, and a folder of that name
+    /// that an earlier process left goes first, as tests.rs's scratch_dir does.
+    fn scratch(name: &str) -> PathBuf {
+        let exe = std::env::current_exe().expect("the test binary has a path");
+        let binary = exe
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .and_then(|stem| stem.split('-').next())
+            .expect("the test binary has a name")
+            .to_string();
+        let target = exe
+            .ancestors()
+            .nth(3)
+            .expect("the test binary sits under target/<profile>/deps")
+            .to_path_buf();
+        let dir = target
+            .join("tmp")
+            .join(format!("halvo-app-{name}-{binary}-{}", std::process::id()));
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).expect("an old scratch folder can be removed");
+        }
+        std::fs::create_dir_all(&dir).expect("the scratch folder can be made");
+        dir
+    }
+
+    /// The files under `dir`, in every folder below it; folders are not listed.
+    fn files_in(dir: &Path) -> Vec<PathBuf> {
+        let mut files = Vec::new();
+        for entry in std::fs::read_dir(dir).expect("the folder reads") {
+            let path = entry.expect("an entry reads").path();
+            if path.is_dir() {
+                files.extend(files_in(&path));
+            } else {
+                files.push(path);
+            }
+        }
+        files
+    }
+
+    /// Test 1 of win-crash-reports: at a start, the crash reports of an earlier session go before
+    /// the window is made. When the maker of the window is called, no file stands under the
+    /// folder, also in a folder below it, and the folders stay.
+    #[test]
+    fn every_crash_report_of_an_earlier_session_is_gone_before_the_maker_of_the_window_is_called() {
+        let folder = scratch("start-crash-reports");
+        std::fs::create_dir_all(folder.join("below")).expect("a folder below");
+        for file in ["a.dmp", "below/b.dmp"] {
+            std::fs::write(folder.join(file), b"a dump of the window").expect("a report");
+        }
+        let views = poller::Views::default();
+        let at_the_maker = after_the_reports_go(Some(&folder), &views, || files_in(&folder));
+        assert_eq!(
+            at_the_maker,
+            Vec::<PathBuf>::new(),
+            "files under the folder when the maker of the window is called"
+        );
+        assert!(folder.join("below").is_dir(), "the folders stay");
+    }
+
+    /// Test 3 of win-crash-reports: the form `--remove-crash-reports`, given alone, on a stand-in
+    /// folder: its one line and its end where nothing is there, where every file goes, and where
+    /// a file stays.
+    #[test]
+    fn the_form_tells_in_one_line_what_went_and_what_stays_and_ends_with_0_or_1() {
+        use crate::launch::{parse, Launch, Usage};
+        let args = |list: &[&str]| -> Vec<std::ffi::OsString> {
+            list.iter().map(std::ffi::OsString::from).collect()
+        };
+        assert_eq!(
+            parse(args(&["--remove-crash-reports"])),
+            Ok(Launch::RemoveCrashReports)
+        );
+        assert_eq!(
+            parse(args(&["--remove-crash-reports", "--background"])),
+            Err(Usage::Extra("--remove-crash-reports".into()))
+        );
+        let folder = scratch("form-crash-reports").join("reports");
+        let shown = halvo_control::paths::one_line(&folder.to_string_lossy());
+        let line = |removed: u64, left: u64| {
+            format!("crash_reports folder={shown} removed={removed} left={left}")
+        };
+        let remove = |file: &Path| std::fs::remove_file(file);
+        let (said, exit) = crash_reports_form(&folder, &remove);
+        assert_eq!((said, exit.code()), (line(0, 0), 0), "nothing there");
+        std::fs::create_dir_all(folder.join("below")).expect("a folder below");
+        let report = |name: &str| {
+            let file = folder.join(name);
+            std::fs::write(&file, b"a dump of the window").expect("a report");
+            file
+        };
+        report("a.dmp");
+        report("below/b.dmp");
+        let (said, exit) = crash_reports_form(&folder, &remove);
+        assert_eq!((said, exit.code()), (line(2, 0), 0), "every file went");
+        let (a, b) = (report("a.dmp"), report("b.dmp"));
+        let refuses_b = |file: &Path| {
+            if file == b.as_path() {
+                Err(std::io::Error::other("held by the web view"))
+            } else {
+                std::fs::remove_file(file)
+            }
+        };
+        let (said, exit) = crash_reports_form(&folder, &refuses_b);
+        assert_eq!((said, exit.code()), (line(1, 1), 1), "one stays");
+        assert!(!a.exists() && b.exists());
+    }
+
+    /// What the web view's environment answers as the folder of its crash reports
+    /// (ICoreWebView2Environment11::FailureReportFolderPath), on the thread that made it.
+    #[cfg(windows)]
+    fn failure_report_folder(
+        environment: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment,
+    ) -> windows_core::Result<PathBuf> {
+        use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment11;
+        use windows_core::{Interface, PWSTR};
+        let environment: ICoreWebView2Environment11 = environment.cast()?;
+        let mut path = PWSTR::null();
+        // SAFETY: on the thread that made the environment; on success the call writes a string
+        // allocated with CoTaskMemAlloc that this caller owns, and take_pwstr frees it once with
+        // CoTaskMemFree; on an error `path` stays null and is not read.
+        unsafe { environment.FailureReportFolderPath(&mut path) }?;
+        Ok(PathBuf::from(webview2_com::take_pwstr(path)))
+    }
+
+    /// Test 2 of win-crash-reports: the one function names the folder that the web view's
+    /// environment answers. Its data folder is the one that `engine_folder` gives the window with
+    /// none given; and an environment made as the app makes it, with the app's options, answers
+    /// EBWebView, Crashpad, reports under its data folder (made on a scratch folder, so that no
+    /// web view of the account's own folder starts).
+    #[cfg(windows)]
+    #[test]
+    fn the_one_function_names_the_folder_of_the_crash_reports_that_the_web_views_environment_answers(
+    ) {
+        let app = tauri::test::mock_builder()
+            .build(context())
+            .expect("the app builds on the mock runtime");
+        let data = engine_folder(app.handle(), None).expect("the app's local data folder");
+        assert_eq!(
+            crash_report_folder(app.config()),
+            Some(reports_under(&data))
+        );
+        let folder = scratch("environment-crash-reports");
+        let environment = system_environment(engine_options(), &folder)
+            .expect("the environment is made")
+            .expect("an environment");
+        assert_eq!(
+            failure_report_folder(&environment).expect("the environment answers its folder"),
+            reports_under(&folder)
+        );
+    }
 }

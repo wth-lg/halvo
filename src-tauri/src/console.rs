@@ -1,12 +1,17 @@
-//! The launch form `--version` in a console.
+//! The launch forms `--version` and `--remove-crash-reports` in a console.
 
-/// Prints the version on standard output. Where the app has no standard output, as for the
+/// Prints the version on standard output, by `print_line`.
+pub fn print_version(version: &str) {
+    print_line(version);
+}
+
+/// Prints `line` on standard output. Where the app has no standard output, as for the
 /// windows-subsystem build started from a console, it first attaches to the console of its
 /// parent, so that the line reaches that console; where standard output is given, it attaches to
 /// nothing.
-pub fn print_version(version: &str) {
+pub fn print_line(line: &str) {
     attach_where_no_output();
-    println!("{version}");
+    println!("{line}");
 }
 
 #[cfg(windows)]
