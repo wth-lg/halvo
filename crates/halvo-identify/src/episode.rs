@@ -634,6 +634,83 @@ mod tests {
         )
     }
 
+    fn step(entries: &[Entry], expiry: &[Expiry], carry: Option<Carry>) -> Outcome {
+        let keeper = Keeper(RefCell::new(Vec::new()));
+        let mut n = 0u8;
+        let mut ids = || {
+            n += 1;
+            SummaryId::from_random([n; 16])
+        };
+        let call = Call {
+            entries,
+            expiry,
+            utc_offset_s: 0,
+            carry,
+        };
+        episode_step(&call, &keeper, &mut ids)
+    }
+
+    fn at_segment(mut entry: Entry, seg: u64) -> Entry {
+        entry.pos.seg = seg;
+        entry
+    }
+
+    /// The row of a stretch names the segment of the title record that names its window and counts that segment's
+    /// expiry, so that a purge of that segment removes the row: the workflows contract's C2.7 has a row live no longer
+    /// than its source segments, and halvo-derived's purge removes every row that names one of the purged ordinals.
+    /// A carried title record in segment 7, whose expiry comes before the batch's, gives the carried stretch's
+    /// episode the segments 1 and 7 and that earlier expiry, and adds no step and no instant: the episode still begins
+    /// at its first key. Inside one batch, a stretch behind a pause whose window's title record lies in an earlier
+    /// segment names that segment and counts its expiry too.
+    #[test]
+    fn a_stretch_names_the_segment_of_its_title_record_and_counts_its_expiry() {
+        let soon = Instant(5_000 * SECOND);
+        let ordinals = |segs: &[u64]| -> Vec<Ordinal> {
+            segs.iter().map(|&seg| Ordinal::new(seg).unwrap()).collect()
+        };
+
+        let before = at_segment(page(90, 100, "sheet.test"), 7);
+        let keys = [key(0, 1_000), key(1, 1_001)];
+        let expiry = [
+            Expiry {
+                seg: 1,
+                at: Instant(i64::MAX),
+            },
+            Expiry { seg: 7, at: soon },
+        ];
+        let carry = Carry {
+            title: &before,
+            until: 2,
+        };
+        let outcome = step(&keys, &expiry, Some(carry));
+        assert_eq!(outcome.episodes.len(), 1);
+        let episode = &outcome.episodes[0];
+        assert_eq!(episode.segments, ordinals(&[1, 7]));
+        assert_eq!(episode.expires, soon);
+        assert_eq!(episode.start, Instant(1_000 * SECOND));
+        assert_eq!(episode.steps.len(), 2);
+
+        let entries = [
+            at_segment(page(0, 100, "sheet.test"), 2),
+            at_segment(key(1, 110), 2),
+            at_segment(key(2, 1_000), 3),
+            at_segment(key(3, 1_001), 3),
+        ];
+        let expiry = [
+            Expiry { seg: 2, at: soon },
+            Expiry {
+                seg: 3,
+                at: Instant(i64::MAX),
+            },
+        ];
+        let outcome = step(&entries, &expiry, None);
+        assert_eq!(outcome.episodes.len(), 2);
+        let behind = &outcome.episodes[1];
+        assert_eq!(behind.segments, ordinals(&[2, 3]));
+        assert_eq!(behind.expires, soon);
+        assert_eq!(behind.start, Instant(1_000 * SECOND));
+    }
+
     /// The window that a batch carries names its key records in front of its first title record, and the carried
     /// title record adds nothing of its own: the episode begins at the instant of the batch's first key, ends one
     /// second after its last, and holds the batch's three keys as its steps alone, each with the carried window's
