@@ -125,6 +125,24 @@ pub(crate) fn asks_version(args: &[OsString]) -> bool {
     matches!(args, [only] if only == VERSION_FLAG)
 }
 
+/// The flag of the runner's mode that prints the names of a workbook's worksheets and ends (r4 U3.22c,
+/// crate::names): `--sheet-names <full path>`, the two as the only arguments, beside no argument of a run.
+pub(crate) const SHEET_NAMES_FLAG: &str = "--sheet-names";
+
+/// The workbook of the mode `--sheet-names`, where the first argument is its flag: the one argument after the flag,
+/// or the detail of the refusal `usage` where no path follows it or more stands beside it; none for every other
+/// call, which `parse` reads.
+pub(crate) fn asks_sheet_names(args: &[OsString]) -> Option<Result<&OsString, Usage>> {
+    match args {
+        [flag, ..] if flag != SHEET_NAMES_FLAG => None,
+        [] => None,
+        [_, workbook] => Some(Ok(workbook)),
+        _ => Some(Err(
+            "--sheet-names takes one full path and nothing beside it",
+        )),
+    }
+}
+
 /// Reads the arguments, or the detail of the refusal `usage`.
 pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
     let mut values: [Option<&OsString>; 8] = [None; 8];
