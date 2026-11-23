@@ -1,12 +1,26 @@
 use crate::kinds::{FieldType, KindEntry, Origin, RetentionClass};
 
 /// The error names that this run's handlers answer, in the reply form of the workflow run.
-/// The last five are those of the person's count (r7 8.1L): `over_cap`, a hold that does not fit the room left;
+/// Five are those of the person's count (r7 8.1L): `over_cap`, a hold that does not fit the room left;
 /// `no_cap`, a hold under no cap; `repeat`, a hold of a request id that is open already; `no_hold`, a settle of a
-/// request id that is not open; `unread`, a count whose stored row does not read.
+/// request id that is not open; `unread`, a count whose stored row does not read. The last, `slot_form`, is the
+/// refusal of a slot of `set_bindings` for its own form, a `workbook` that is no absolute path in one spelling
+/// (r3 U11.3); `binding` stays the name of an agent that is not the workflow's.
 pub const ERROR_NAMES: &[&str] = &[
-    "binding", "playbook", "config", "class", "length", "effect", "day", "overlap", "over_cap",
-    "no_cap", "repeat", "no_hold", "unread",
+    "binding",
+    "playbook",
+    "config",
+    "class",
+    "length",
+    "effect",
+    "day",
+    "overlap",
+    "over_cap",
+    "no_cap",
+    "repeat",
+    "no_hold",
+    "unread",
+    "slot_form",
 ];
 
 /// The kinds of this run, family `agent`, each with the workflow id under the key `workflow`: of origin capture

@@ -229,7 +229,14 @@ names! {
     /// `amount_unread` where the page names no amount, after which the run goes on. `page_unread` stands in that
     /// `stopped` line where the page after the reply could not be read at all (no new document within the step's
     /// time, or a failed read of it), after which the run makes no further step and ends with that cause
-    /// (r3 U5.10-B).
+    /// (r3 U5.10-B). Eight names are the causes of a run of the runtime `file` that ends `failed` at the fact that
+    /// each names (r3 U11.3): `no_workbook`, no file or folder at the workbook's path, or a path that is no absolute
+    /// path; `no_sheet`, no sheet of that name; `no_range`, cells that are no range; `data_shape`, data that has not
+    /// the cells' rows and columns; `no_data_file`, no file at the data file's path, or a path that is no absolute
+    /// path; `data_outside`, a data file outside the workbook's folder; `data_form`, a data file out of its form;
+    /// `read_only`, a workbook that the person cannot write. Each stands in the `step_failed` line of the file step
+    /// and in the run's `stopped` line, and in no row of an effect. `not_replaced` stands there too where the system
+    /// refused the rename of the edit's replace, as for a workbook that another program holds open.
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -269,6 +276,14 @@ names! {
         AmountDiffers = "amount_differs",
         AmountUnread = "amount_unread",
         PageUnread = "page_unread",
+        NoWorkbook = "no_workbook",
+        NoSheet = "no_sheet",
+        NoRange = "no_range",
+        DataShape = "data_shape",
+        NoDataFile = "no_data_file",
+        DataOutside = "data_outside",
+        DataForm = "data_form",
+        ReadOnly = "read_only",
     }
 }
 

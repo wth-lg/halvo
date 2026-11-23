@@ -1,0 +1,2 @@
+- Fixed: A spreadsheet file typed without its full path no longer takes the agent off the page: the store refuses that answer with its own name and Halvo asks the questions again.
+- Changed: A spreadsheet agent's run that stops records which of eight facts stopped it (no spreadsheet file, no such sheet, cells that are no range, data of another size than the cells, no data file, a data file outside the spreadsheet's folder, a data file out of its form, a read-only spreadsheet), and a run whose data file cannot be read ends failed instead of handed back.

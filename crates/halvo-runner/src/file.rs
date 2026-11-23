@@ -21,12 +21,30 @@ use halvo_schema::executable::day::day_of;
 use crate::clock::now;
 use crate::run::{cause_of, Failure, Runner, Stop};
 
-/// The cause of A7.4 that an error of the sheet executor gives: `workbook` and `sheet` are its own, every other
-/// error is `step_failed` (A11.3).
+/// The cause of A7.4 that an error of the sheet executor gives, by the executor's own map (A11.3, r3 U11.3):
+/// `Error::cause` for a call on the workbook or its folder.
 fn sheet_cause(error: &halvo_sheet::Error) -> Cause {
-    match error.cause() {
+    cause_of_sheet(error.cause())
+}
+
+/// The cause of A7.4 that an error of `read_source`, the one call on the data file, gives (r3 U11.3).
+fn source_cause(error: &halvo_sheet::Error) -> Cause {
+    cause_of_sheet(error.source_cause())
+}
+
+fn cause_of_sheet(cause: halvo_sheet::Cause) -> Cause {
+    match cause {
         halvo_sheet::Cause::Workbook => Cause::Workbook,
         halvo_sheet::Cause::Sheet => Cause::Sheet,
+        halvo_sheet::Cause::NoWorkbook => Cause::NoWorkbook,
+        halvo_sheet::Cause::NoSheet => Cause::NoSheet,
+        halvo_sheet::Cause::NoRange => Cause::NoRange,
+        halvo_sheet::Cause::DataShape => Cause::DataShape,
+        halvo_sheet::Cause::NoDataFile => Cause::NoDataFile,
+        halvo_sheet::Cause::DataOutside => Cause::DataOutside,
+        halvo_sheet::Cause::DataForm => Cause::DataForm,
+        halvo_sheet::Cause::ReadOnly => Cause::ReadOnly,
+        halvo_sheet::Cause::NotReplaced => Cause::NotReplaced,
         halvo_sheet::Cause::StepFailed => Cause::StepFailed,
     }
 }
@@ -41,11 +59,12 @@ fn slot_text(loaded: &LoadReply, name: Option<&Name>) -> Result<String, Failure>
         .ok_or(Failure::Step(Cause::StepFailed))
 }
 
-/// The absolute path that a slot holds.
-fn slot_path(loaded: &LoadReply, name: &Name) -> Result<PathBuf, Failure> {
+/// The absolute path that a slot holds; a path that is no absolute path fails the step with `relative`, the cause of
+/// the slot's file (r3 U11.3).
+fn slot_path(loaded: &LoadReply, name: &Name, relative: Cause) -> Result<PathBuf, Failure> {
     let path = PathBuf::from(slot_text(loaded, Some(name))?);
     if !path.is_absolute() {
-        return Err(Failure::Step(Cause::StepFailed));
+        return Err(Failure::Step(relative));
     }
     Ok(path)
 }
@@ -75,7 +94,7 @@ fn workbook_of(loaded: &LoadReply, slot: &Name) -> Result<(PathBuf, PathBuf), Fa
     if !loaded.config.permissions.contains(&Permission::UserFiles) {
         return Err(Failure::Step(Cause::StepFailed));
     }
-    let workbook = slot_path(loaded, slot)?;
+    let workbook = slot_path(loaded, slot, Cause::NoWorkbook)?;
     let dir = workbook.parent().unwrap_or(Path::new("")).to_path_buf();
     Ok((workbook, dir))
 }
@@ -104,7 +123,7 @@ fn edit_bound(workbook: &Path, range: &str) -> Option<Bound> {
 /// The digest of the bound object that `loaded` gives for the edit of `target`; none where a slot is missing or
 /// the object cannot be built.
 fn digest_of(loaded: &LoadReply, target: &FileTarget) -> Option<Digest> {
-    let workbook = slot_path(loaded, &target.file).ok()?;
+    let workbook = slot_path(loaded, &target.file, Cause::NoWorkbook).ok()?;
     let range = slot_text(loaded, target.range.as_ref()).ok()?;
     digest(&edit_bound(&workbook, &range)?).ok()
 }
@@ -247,10 +266,10 @@ impl Runner {
         let slot = Name::parse(WORKBOOK).map_err(|_| Failure::Step(Cause::StepFailed))?;
         let (_, dir) = workbook_of(loaded, &slot)?;
         let folder = folder_at(&dir, self.args.data_dir.as_ref())?;
-        let source = slot_path(loaded, &target.file)?;
+        let source = slot_path(loaded, &target.file, Cause::NoDataFile)?;
         let rows = folder
             .read_source(&source)
-            .map_err(|e| Failure::Step(sheet_cause(&e)))?;
+            .map_err(|e| Failure::Step(source_cause(&e)))?;
         self.kept.insert(name.as_str().to_string(), rows);
         self.read_under = Some(ReadUnder {
             slot: target.file.clone(),
@@ -425,7 +444,7 @@ impl Runner {
     ) -> Result<Turn, Failure> {
         let (workbook, dir) = workbook_of(loaded, &target.file)?;
         if let Some(read) = &self.read_under {
-            slot_path(loaded, &read.slot)?;
+            slot_path(loaded, &read.slot, Cause::StepFailed)?;
             let source = slot_text(loaded, Some(&read.slot))?;
             if source != read.source || dir != read.folder {
                 return Err(Stop::End(Outcome::Failed, Some(Cause::Changed)).into());

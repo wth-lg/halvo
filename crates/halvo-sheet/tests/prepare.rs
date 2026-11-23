@@ -262,7 +262,11 @@ fn prepare_refuses_a_shape_or_a_sheet_that_does_not_fit_before_it_writes() {
     for (sheet, range, values, want) in cases {
         let got = folder.prepare(Path::new("values.xlsx"), &run(), sheet, range, &values);
         assert_eq!(got.err(), Some(want.clone()), "{sheet} {values:?}");
-        assert_eq!(want.cause(), Cause::StepFailed);
+        let named = match want {
+            Error::NoSheet => Cause::NoSheet,
+            _ => Cause::DataShape,
+        };
+        assert_eq!(want.cause(), named, "r3 U11.3");
         assert_eq!(scratch.names(""), vec!["values.xlsx".to_string()]);
     }
 }
@@ -646,7 +650,7 @@ fn a_workbook_that_the_person_cannot_write_is_refused_before_any_write() {
     let names = scratch.names("");
     set_read_only(&workbook, false);
     assert_eq!(got.as_ref().err(), Some(&Error::ReadOnly));
-    assert_eq!(got.err().map(|e| e.cause()), Some(Cause::StepFailed));
+    assert_eq!(got.err().map(|e| e.cause()), Some(Cause::ReadOnly));
     assert_eq!(names, vec!["values.xlsx".to_string()]);
 }
 
