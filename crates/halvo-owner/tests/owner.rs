@@ -2252,3 +2252,80 @@ fn a_count_whose_read_meets_a_fault_keeps_its_row_and_admits_no_hold() {
         "the room once the row's own bytes stand again"
     );
 }
+
+/// r7 8.1L view, sentence (7) (the coordinator's log line 17696 (b)): behind the fault of the store's read of the
+/// count, `new_model_count` starts a count at nothing with the person's cap, and `model_room` reads the new count. The
+/// owner's program runs on a scratch store where the person set the cap 4,321; with the owner ended, the test writes
+/// the count's row again with one byte that is no UTF-8 inside its text, as the test
+/// `a_count_whose_read_meets_a_fault_keeps_its_row_and_admits_no_hold` makes it. A second owner answers `model_room`
+/// with the fault (`internal`), `new_model_count` of the cap 555 as a new count, and `model_room` then with that cap,
+/// nothing spent and nothing held. One row of the count stands, and it is not the faulted row.
+#[test]
+fn behind_a_faulted_read_a_new_count_starts_at_nothing_with_the_persons_cap() {
+    let scratch = Scratch::new("owner-count-new");
+    let mut owner = start_on(
+        stream_channel(),
+        &scratch.0,
+        KEY,
+        1,
+        true,
+        &["--check-ms=60000"],
+    );
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    assert_eq!(
+        key_body(&mut stream, "set_model_cap", r#","cap_minor":4321"#),
+        r#"{"cap_minor":4321,"new_count":"yes"}"#
+    );
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    let own = count_bytes(&scratch.0)[0].clone();
+    let at = own.len() - 3;
+    assert_eq!(&own[at..], br#""]}"#, "the end of the row's text");
+    let mut faulty = own[..at].to_vec();
+    faulty.push(0xff);
+    faulty.extend_from_slice(br#""]}"#);
+    set_count_bytes(&scratch.0, &faulty);
+
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let room = r#"{"op":"model_room","workflow":null,"agent":null}"#;
+    let faulted = agent_outcome(&mut stream, "coordinator_write", room);
+    let new = agent_outcome(
+        &mut stream,
+        "coordinator_write",
+        r#"{"op":"new_model_count","workflow":null,"agent":null,"cap_minor":555}"#,
+    );
+    let after = agent_outcome(&mut stream, "coordinator_write", room);
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    let rows = count_bytes(&scratch.0);
+
+    assert_eq!(
+        faulted,
+        Err("internal".to_owned()),
+        "model_room behind the fault"
+    );
+    assert_eq!(new, Ok(r#"{"cap_minor":555,"new_count":"yes"}"#.to_owned()));
+    let after: Value =
+        serde_json::from_str(&after.expect("model_room behind the new count")).unwrap();
+    assert_eq!(
+        (
+            &after["room"],
+            &after["cap_minor"],
+            &after["spent"],
+            &after["held"]
+        ),
+        (
+            &Value::from("reads"),
+            &Value::from(555),
+            &Value::from(0),
+            &Value::from(0)
+        ),
+        "{after}"
+    );
+    assert!(after["period_end_ms"].as_u64().is_some(), "{after}");
+    assert_eq!(rows.len(), 1, "count rows behind the new count");
+    assert_ne!(rows[0], faulty, "the faulted row is gone");
+}

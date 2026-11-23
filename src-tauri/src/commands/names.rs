@@ -70,4 +70,11 @@ pub const MODEL_KEY: Names = Names {
     reads: &[],
 };
 
-pub const MODULES: &[&Names] = &[&CAPTURE, &AGENTS, &WORKFLOWS, &MODEL_KEY];
+pub const MODEL_LIMIT: Names = Names {
+    #[cfg(test)]
+    module: "model_limit",
+    commands: &["model_limit_state", "set_model_limit"],
+    reads: &[],
+};
+
+pub const MODULES: &[&Names] = &[&CAPTURE, &AGENTS, &WORKFLOWS, &MODEL_KEY, &MODEL_LIMIT];

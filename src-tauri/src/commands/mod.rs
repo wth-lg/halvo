@@ -6,6 +6,7 @@ pub mod agents;
 pub mod capture;
 pub mod control;
 pub mod model_key;
+pub mod model_limit;
 pub mod names;
 pub mod workflows;
 
@@ -29,7 +30,7 @@ pub trait Registration: Send + Sync {
 
     /// Told before a delete of everything goes out, at either door (contracts.md C10.1), off
     /// the calling thread; the caller waits for it at most for STOP_WAIT_MS and then goes on.
-    /// None of the four modules implements it today, so a module that holds what a delete
+    /// None of the five modules implements it today, so a module that holds what a delete
     /// removes stops nothing here unless it does: the agents' runs are held by the command
     /// itself (`agents::RunsHold`), and behind that the delete walk ends every runner that a
     /// mark names.
@@ -92,6 +93,10 @@ pub fn table<R: Runtime>() -> Vec<Module<R>> {
         Module {
             registration: &model_key::Module,
             handler: model_key::handler::<R>,
+        },
+        Module {
+            registration: &model_limit::Module,
+            handler: model_limit::handler::<R>,
         },
     ]
 }

@@ -10,7 +10,7 @@ const { parse } = require("../lib/dom.js");
 
 const VIEWS = path.join(APP, "views");
 const SEVEN = ["status.js", "keeps.js", "permissions.js", "stored.js", "cap.js", "delete.js", "proposals.js"];
-const TWO = ["needs.js", "agents.js", "model-key.js"];
+const TWO = ["needs.js", "agents.js", "model-key.js", "model-limit.js"];
 const BEFORE_TWO = ["confirm.js"].filter((f) => fs.existsSync(path.join(VIEWS, f)));
 
 const filesUnder = (dir) =>

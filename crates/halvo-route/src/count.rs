@@ -285,7 +285,7 @@ impl Count {
 
 fn person_cap(cap_minor: u64) -> Result<Cap, CapError> {
     DefaultCap::parse(&format!(
-        "default_cap amount={cap_minor} period=month status=provisional"
+        "default_cap amount={cap_minor} currency=usd period=month status=provisional"
     ))
     .map(|_| Cap::Person(cap_minor))
 }
