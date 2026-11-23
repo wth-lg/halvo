@@ -790,6 +790,7 @@ fn a_start_whose_retry_is_again_not_whole_sets_the_field_too() {
         asked: Vec::new(),
         input_keys: false,
         held: false,
+        typing_off_unsaved: None,
     };
     let facts = crate::daemon::server::RunFacts {
         started_at: halvo_control::model::UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),

@@ -121,6 +121,13 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
         ("running-windows", of(sample_status(Platform::Windows))),
         ("typing-off", of(status_with(mac, typing_off))),
         (
+            "typing-off-kept",
+            of(status_with(mac, |f| {
+                typing_off(f);
+                f.typing_off_unsaved = Some(halvo_control::proto::TypingOffUnsaved::Kept);
+            })),
+        ),
+        (
             "typing-off-windows",
             of(status_with(Platform::Windows, |f| {
                 typing_off(f);

@@ -252,6 +252,7 @@
     MODEL_KEY_GOES: "Halvo also removes your key for {host}.",
     MODEL_KEY_STAYS: "Your key for {host} and what each agent may send stay as they are.",
     TYPING_OFF_NOT_SAVED: "Typing is off for now, but Halvo could not save that. After Halvo starts again, turn it off once more.",
+    TYPING_OFF_KEPT: "Typing is off. Halvo could not save that in its settings, but typing stays off until you turn it on again.",
     MODEL_LIMIT_HEADING: "Spending limit",
     MODEL_LIMIT_LIMIT: "Limit: {cap} a {period}.",
     MODEL_LIMIT_SPENT: "Counted so far: {spent}.",
