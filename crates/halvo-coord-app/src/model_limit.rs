@@ -653,9 +653,9 @@ mod tests {
         }
     }
 
-    /// r7 8.1L view, the guard's second side (the coordinator's log line 18047): one passing fault at a press behind
-    /// a good count starts nothing, and two faults at two presses, with the state answer between them, start the
-    /// count. (a) The state reads a good count; the press meets the fault: it sends `model_room` alone and answers
+    /// r7 8.1L view, the guard's second side (the coordinator's log lines 18047 and 18224): one passing fault at a
+    /// press behind a good count starts nothing, and a state read that answers the fault, then ONE press whose own read
+    /// faults again, starts the count. (a) The state reads a good count; the press meets the fault: it sends `model_room` alone and answers
     /// `failed`, and the state then reads the count as before; a press then sends `set_model_cap`. (b) The state reads
     /// a good count; a press meets the fault and answers `failed`; the state meets the fault (`unread`); the next
     /// press meets it again and sends `new_model_count`, answered as a new count. Behind it the memory is clear: one
