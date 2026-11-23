@@ -180,6 +180,9 @@ fn a_run_given_no_browser_starts_the_one_it_finds() {
 /// U4.1w (3): with the bindings' origins armed in `Mode::Fail`, a load of an origin outside them fails and ends the
 /// run `refused` with the cause `origin`, and that origin's fixture gets no connection; a page of a bound origin
 /// that sends a POST while it loads has it failed, no byte of it reaches the fixture, and the run ends the same way.
+/// A connection on which no request came is no request, since a browser may open a connection and send nothing on it
+/// (run 45083944176, its windows job): the check of the method reads the connections that carried a request, and the
+/// check of the POST's body reads every connection.
 #[test]
 fn a_state_changing_request_reaches_no_fixture() {
     let Some(browser) = hosted("a_state_changing_request_reaches_no_fixture") else {
@@ -214,7 +217,10 @@ fn a_state_changing_request_reaches_no_fixture() {
         .collect();
     assert!(named.contains(&("GET", "/post")), "{named:?}");
     assert!(
-        named.iter().all(|(method, _)| *method == "GET"),
+        named
+            .iter()
+            .filter(|(method, _)| !method.is_empty())
+            .all(|(method, _)| *method == "GET"),
         "a request other than GET reached the fixture: {named:?}"
     );
     assert!(
