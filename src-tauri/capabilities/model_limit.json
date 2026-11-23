@@ -1,0 +1,11 @@
+{
+  "identifier": "model_limit",
+  "description": "The commands of the person's limit for hosted models, for the window main of the app's own origin.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-model-limit-state",
+    "allow-set-model-limit"
+  ]
+}

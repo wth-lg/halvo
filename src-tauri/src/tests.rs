@@ -685,8 +685,8 @@ fn the_built_context_holds_the_capability_file_and_no_other_capability() {
         .collect();
     assert_eq!(
         identifiers,
-        ["agents", "capture", "model_key", "workflows"],
-        "the build holds the capabilities {identifiers:?} beside agents, capture, model_key and workflows"
+        ["agents", "capture", "model_key", "model_limit", "workflows"],
+        "the build holds the capabilities {identifiers:?} beside agents, capture, model_key, model_limit and workflows"
     );
     let agents = &built["agents"];
     assert_eq!(agents["windows"], serde_json::json!(["main"]), "{agents}");
@@ -738,7 +738,7 @@ fn is_refused(reply: &Result<Value, Value>) -> bool {
 #[test]
 fn every_command_of_the_manifests_answers_from_the_window_main_at_the_app_origin_alone() {
     let commands = manifest_commands();
-    assert_eq!(commands.len(), 195, "commands of the generated manifests");
+    assert_eq!(commands.len(), 197, "commands of the generated manifests");
     let test = test_app(scratch_dir("every-command"));
     let main = main_window(&test.app);
     let other = WebviewWindowBuilder::new(
@@ -817,6 +817,9 @@ fn widening(labels: &[&str], identifier: &str) -> String {
             .chain(WORKFLOWS_PERMISSIONS.iter().map(|p| p.to_string()))
             .chain(permission_names(
                 &read_json(&src_tauri().join("capabilities/model_key.json"))["permissions"],
+            ))
+            .chain(permission_names(
+                &read_json(&src_tauri().join("capabilities/model_limit.json"))["permissions"],
             ))
             .collect::<Vec<String>>(),
     })
