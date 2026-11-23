@@ -873,7 +873,7 @@ mod tests {
 
     #[test]
     fn the_note_of_typing_off_reads_none_only_where_nothing_stands_at_its_two_names() {
-        let (root, dir) = scratch();
+        let (_root, dir) = scratch();
         std::fs::create_dir_all(dir.path()).unwrap();
         let no_run = HeldRun::of(&StateDir::open(dir.path()).unwrap());
         assert!(!typing_kept(&no_run), "no run/ stands, so no note can");
@@ -906,7 +906,7 @@ mod tests {
             std::fs::remove_dir(&at).unwrap();
             #[cfg(unix)]
             {
-                std::os::unix::fs::symlink(root.path().join("nowhere"), &at).unwrap();
+                std::os::unix::fs::symlink(dir.path().join("nowhere"), &at).unwrap();
                 assert!(kept(&run), "a link at {name}");
                 let_typing_go(&run).unwrap();
             }
@@ -914,7 +914,7 @@ mod tests {
         #[cfg(target_os = "macos")]
         {
             keep_typing_off(&run).unwrap();
-            let moved = root.path().join("moved");
+            let moved = dir.path().with_file_name("moved");
             std::fs::rename(dir.path(), &moved).unwrap();
             assert!(
                 kept(&run),
