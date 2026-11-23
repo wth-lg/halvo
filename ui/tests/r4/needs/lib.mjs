@@ -145,6 +145,42 @@ export async function read(h) {
   });
 }
 
+/** A press by coordinates whose point lies off its control: its case fails with <case>:point_off_control. */
+export class OffControl extends Error {
+  constructor(tag, under) {
+    super(tag + ':point_off_control');
+    this.fault = tag + ':point_off_control';
+    this.under = under;
+  }
+}
+
+/**
+ * The point of every press by coordinates of the suite: the centre of the control's box, given only
+ * where the element under it (document.elementFromPoint) is the control or lies inside it; else it
+ * throws OffControl, so that the case presses nothing. A press begun before its control is there
+ * hands in `at`, the point that an earlier page gave for that control, read here once it is there.
+ */
+export async function aim(h, locator, tag, at) {
+  const got = await locator.evaluate((el, given) => {
+    const box = el.getBoundingClientRect();
+    const p = given || { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+    const under = document.elementFromPoint(p.x, p.y);
+    const name = under ? under.tagName + ':' + (under.getAttribute('data-act') || under.getAttribute('role') || '-') : 'null';
+    return { x: p.x, y: p.y, on: under !== null && el.contains(under), under: name };
+  }, at || null);
+  if (!got.on) {
+    console.log('aim case=' + tag + ' point=' + got.x + ',' + got.y + ' under=' + got.under);
+    throw new OffControl(tag, got.under);
+  }
+  return { x: got.x, y: got.y };
+}
+
+/** The fault of a case that a press off its control ended; any other error goes on up. */
+export function pressFault(err) {
+  if (err instanceof OffControl) return err.fault;
+  throw err;
+}
+
 export function callsOf(out) {
   const file = join(out, 'calls.jsonl');
   if (!existsSync(file)) return [];
