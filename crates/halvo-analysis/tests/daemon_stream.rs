@@ -529,7 +529,7 @@ mod chain {
     use halvo_control::model::StorageCap;
     use halvo_control::proto::Request;
     use halvo_schema_core::category::SeedCategory;
-    use halvo_schema_core::ids::RequestId;
+    use halvo_schema_core::ids::{Position, RequestId};
     use halvo_schema_core::record::{Workflow, WorkflowState};
     use halvo_schema_core::request::{decode_reply, InterfaceRead, InterfaceRole, ReplyResult};
 
@@ -615,24 +615,137 @@ mod chain {
     /// window's title record and the six key records, one second apart, with `PAUSE_S` seconds before the title of
     /// each occasion after the first. Returns the records written.
     fn write_occasions(sink: &SinkHandle, first_s: i64, occasions: i64) -> u64 {
-        let per = 1 + i64::try_from(KEYS.len()).unwrap();
-        let mut written = 0;
-        for occasion in 0..occasions {
-            let start_s = first_s + occasion * (per - 1 + PAUSE_S);
+        (0..occasions)
+            .map(|occasion| write_stretch(sink, stretch_start(first_s, occasion), true))
+            .sum()
+    }
+
+    /// The second of the first record of the stretch `n`, counted from 0: `PAUSE_S` seconds after the last record of
+    /// the stretch before it.
+    fn stretch_start(first_s: i64, n: i64) -> i64 {
+        first_s + n * (i64::try_from(KEYS.len()).unwrap() + PAUSE_S)
+    }
+
+    /// Writes one stretch of work in the workbook through the sink from the second `start_s` on: with `titled` the
+    /// window's title record first, then the six key records, one second apart. Returns the records written.
+    fn write_stretch(sink: &SinkHandle, start_s: i64, titled: bool) -> u64 {
+        if titled {
             emit(sink, start_s, || {
                 let title = Title::new(WORKBOOK.to_owned(), TitleWhy::AppChange, None);
                 let keep = synthetic_keep::<kind::WindowTitle>(numbers());
                 FloorEvent::window_title(keep, title, None, &CLOCK)
             });
-            for (n, class) in (1..).zip(KEYS) {
-                emit(sink, start_s + n, || {
-                    let keep = synthetic_keep::<kind::Keystroke>(numbers());
-                    FloorEvent::keystroke(keep, synthetic_clearance(None), class, &CLOCK)
-                });
-            }
-            written += u64::try_from(per).unwrap();
         }
-        written
+        for (n, class) in (1..).zip(KEYS) {
+            emit(sink, start_s + n, || {
+                let keep = synthetic_keep::<kind::Keystroke>(numbers());
+                FloorEvent::keystroke(keep, synthetic_clearance(None), class, &CLOCK)
+            });
+        }
+        u64::try_from(KEYS.len()).unwrap() + u64::from(titled)
+    }
+
+    /// One proposed row as the test reads it: its state, its category, whether it has no site, its app's id, its
+    /// count and its summaries.
+    type Row = (WorkflowState, SeedCategory, bool, String, u32, usize);
+
+    /// The row that three occasions of the work in Numbers give.
+    fn numbers_row() -> Row {
+        (
+            WorkflowState::Proposed,
+            SeedCategory::SpreadsheetFill,
+            true,
+            NUMBERS.to_owned(),
+            3,
+            3,
+        )
+    }
+
+    /// The rows of the interface read `workflows`, relayed through the control server's line as the page's command
+    /// relays it, with `byte` as each byte of its request id.
+    fn proposed_rows(rig: &Rig, byte: u8) -> Vec<Row> {
+        let request = RequestId::from_random([byte; 16]);
+        let read = InterfaceRead::workflows(&InterfaceRole::claim(), request.clone(), None)
+            .to_bytes()
+            .unwrap();
+        let reply = relay(rig, &read).unwrap_or_else(|error| {
+            panic!(
+                "the relay answered no reply: {error:?}; the slot wrote: {}",
+                rig.lines.text()
+            )
+        });
+        let reply = decode_reply(&reply).unwrap();
+        assert_eq!(reply.id, Some(request));
+        let page = match reply.outcome {
+            Ok(ReplyResult::Workflows(page)) => page,
+            other => panic!("the read of the workflows answers {other:?}"),
+        };
+        page.workflows
+            .iter()
+            .map(|item| match &item.workflow {
+                Workflow::Full(w) => (
+                    w.state,
+                    w.category,
+                    w.site.is_none(),
+                    w.app.as_str().to_owned(),
+                    w.recurrence.count,
+                    item.summaries.len(),
+                ),
+                Workflow::Dismissed(w) => panic!("a dismissed workflow: {w:?}"),
+            })
+            .collect()
+    }
+
+    /// The opens of the store in the service's run with the directory of the built programs, the app's liveness
+    /// signal and one tick, and then the figures of the read that the store owner's pass serves into the cell.
+    fn open_and_read(rig: &Rig) -> halvo_capture::daemon::r2::daemon_caller::Figures {
+        service::open(
+            &rig.scratch.0,
+            Ok(owner_binary().parent().unwrap().to_path_buf()),
+            Allowed,
+            Box::new(rig.lines.clone()),
+        );
+        assert_eq!(cell().figures(), None, "the open left figures in the cell");
+        service::seen(&Request::Status { indicator: true });
+        tick();
+        let until = Instant::now() + WAIT;
+        loop {
+            if let Some(figures) = cell().figures() {
+                return figures;
+            }
+            assert!(
+                Instant::now() < until,
+                "the store owner served no read: {}",
+                rig.lines.text()
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// The ends of workers that the slot has written; each is the end of an exit 0, or the call fails with the lines.
+    fn ends(rig: &Rig) -> usize {
+        let lines = rig.lines.text();
+        let ends = lines
+            .lines()
+            .filter(|line| line.starts_with("halvo-capture: analysis "))
+            .inspect(|line| assert!(line.starts_with(COMMITTED), "{lines}"))
+            .count();
+        assert_eq!(ends, lines.lines().count(), "{lines}");
+        ends
+    }
+
+    /// Ticks until the slot has written `count` ends of workers.
+    fn tick_until_ends(rig: &Rig, count: usize) {
+        let until = Instant::now() + WAIT;
+        while ends(rig) < count {
+            assert!(
+                Instant::now() < until,
+                "{count} workers did not end: {}",
+                rig.lines.text()
+            );
+            tick();
+            std::thread::sleep(Duration::from_millis(20));
+        }
     }
 
     /// The capture store under the product's store owner thread, with the sink that feeds it. The drop stops the
@@ -703,85 +816,71 @@ mod chain {
         let written = write_occasions(&capture.sink, noon_of_yesterday(), OCCASIONS);
         assert_eq!(capture.settle(), written, "the store holds other records");
 
-        service::open(
-            &rig.scratch.0,
-            Ok(owner_binary().parent().unwrap().to_path_buf()),
-            Allowed,
-            Box::new(rig.lines.clone()),
-        );
-        assert_eq!(cell().figures(), None, "the open left figures in the cell");
-        service::seen(&Request::Status { indicator: true });
-        tick();
-        let until = Instant::now() + WAIT;
-        let figures = loop {
-            if let Some(figures) = cell().figures() {
-                break figures;
-            }
-            assert!(
-                Instant::now() < until,
-                "the store owner served no read: {}",
-                rig.lines.text()
-            );
-            std::thread::sleep(Duration::from_millis(10));
-        };
+        let figures = open_and_read(&rig);
         assert_eq!(figures.store.as_str(), id.to_string());
         assert!(
             figures.first_live < figures.watermark.seg,
             "the read found no live segment: {figures:?}"
         );
 
-        while !rig.lines.text().contains("halvo-capture: analysis ") {
-            assert!(
-                Instant::now() < until,
-                "no worker ended: {}",
-                rig.lines.text()
-            );
-            tick();
-            std::thread::sleep(Duration::from_millis(20));
-        }
-        let lines = rig.lines.text();
-        assert!(lines.starts_with(COMMITTED), "{lines}");
+        tick_until_ends(&rig, 1);
         assert_eq!(cell().figures().map(|kept| kept.store), Some(figures.store));
 
-        let request = RequestId::from_random([0x86; 16]);
-        let read = InterfaceRead::workflows(&InterfaceRole::claim(), request.clone(), None)
-            .to_bytes()
-            .unwrap();
-        let reply = relay(&rig, &read).unwrap_or_else(|error| {
-            panic!("the relay answered no reply: {error:?}; the slot wrote: {lines}")
-        });
-        let reply = decode_reply(&reply).unwrap();
-        assert_eq!(reply.id, Some(request));
-        let page = match reply.outcome {
-            Ok(ReplyResult::Workflows(page)) => page,
-            other => panic!("the read of the workflows answers {other:?}"),
-        };
-        let rows: Vec<_> = page
-            .workflows
-            .iter()
-            .map(|item| match &item.workflow {
-                Workflow::Full(w) => (
-                    w.state,
-                    w.category,
-                    w.site.is_none(),
-                    w.app.as_str().to_owned(),
-                    w.recurrence.count,
-                    item.summaries.len(),
-                ),
-                Workflow::Dismissed(w) => panic!("a dismissed workflow: {w:?}"),
-            })
-            .collect();
         assert_eq!(
-            rows,
-            [(
-                WorkflowState::Proposed,
-                SeedCategory::SpreadsheetFill,
-                true,
-                NUMBERS.to_owned(),
-                3,
-                3
-            )],
-            "the slot wrote: {lines}"
+            proposed_rows(&rig, 0x86),
+            [numbers_row()],
+            "the slot wrote: {}",
+            rig.lines.text()
+        );
+        drop(capture);
+    }
+
+    /// Work in ONE window across two passes becomes one proposed row. Three stretches of work in the Numbers workbook
+    /// go through the product's sink into the capture store, with ONE title record, at the first, as a source writes
+    /// it for a window that stays in front; between two stretches the driver lets a pass run and the worker commits,
+    /// and the next stretch comes after that. The batch of the second and of the third stretch so begins at the
+    /// committed position with key records in front of any title record, and the third one's title record lies two
+    /// batches back. The interface read `workflows`, relayed as the page's command relays it, then gives one proposed
+    /// row of `spreadsheet_fill` in Numbers with three summaries.
+    ///
+    /// From a slot with no worker each stretch makes two ends of workers: the one that reads and commits it, and the
+    /// one that the commit lets start at once and that finds nothing, so the test waits for two more ends after each
+    /// settle. A worker that found nothing starts the next one only when the cell's watermark has passed the
+    /// committed position; the daemon's caller asks the store owner for that read 60 s after its last ask, and the
+    /// test writes the watermark of the store's next segment into the cell in its place, as the cursor does. The last
+    /// read of the walk, by the worker's own cursor, leaves that same watermark in the cell.
+    #[test]
+    fn work_in_one_window_across_two_passes_becomes_one_proposed_row() {
+        let (rig, store, id) = Rig::with_store("stream-same-window");
+        let capture = Capture::start(store);
+        let first = noon_of_yesterday();
+        let mut written = 0;
+        let mut next = None;
+        for stretch in 0..OCCASIONS {
+            written += write_stretch(&capture.sink, stretch_start(first, stretch), stretch == 0);
+            assert_eq!(capture.settle(), written, "the store holds other records");
+            let ended = ends(&rig);
+            if stretch == 0 {
+                let figures = open_and_read(&rig);
+                assert_eq!(figures.store.as_str(), id.to_string());
+            } else {
+                let figures = cell().figures().expect("a read stands in the cell");
+                let watermark = Position {
+                    seg: figures.watermark.seg + 1,
+                    idx: 0,
+                };
+                cell().keep(figures.store, watermark, None);
+                next = Some(watermark);
+            }
+            tick_until_ends(&rig, ended + 2);
+        }
+        assert_eq!(cell().figures().map(|kept| kept.watermark), next);
+
+        assert_eq!(
+            proposed_rows(&rig, 0x87),
+            [numbers_row()],
+            "the slot wrote: {}",
+            rig.lines.text()
         );
         drop(capture);
     }
