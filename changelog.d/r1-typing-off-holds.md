@@ -1,0 +1,1 @@
+- Fixed: When Halvo cannot save that you turned typing off, typing now stays off until you turn it on again, also after Halvo starts again, and the page of what Halvo keeps goes on saying so each time you open it.

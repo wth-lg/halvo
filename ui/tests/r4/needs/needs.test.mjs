@@ -3,10 +3,12 @@ import { join } from 'node:path';
 import vm from 'node:vm';
 import {
   CONFIRM,
+  OffControl,
   ROOT,
   VIEW,
   VIEW_FILE,
   act,
+  aim,
   callFaults,
   callsOf,
   commands,
@@ -18,6 +20,7 @@ import {
   open,
   outDir,
   pageConfirms,
+  pressFault,
   read,
   settled,
   trail,
@@ -379,7 +382,7 @@ function sel(act, param) {
   return '[data-act="' + act + '"][data-param="' + param + '"]';
 }
 
-async function presses(h, how, locator) {
+async function presses(h, how, locator, tag) {
   if (how === 'slow_held_enter') {
     await locator.focus();
     await h.page.keyboard.down('Enter');
@@ -388,10 +391,8 @@ async function presses(h, how, locator) {
     await h.page.keyboard.down('Enter');
     await h.page.keyboard.up('Enter');
   } else if (how === 'slow_double_click') {
-    const box = await locator.boundingBox();
-    const x = box.x + box.width / 2;
-    const y = box.y + box.height / 2;
-    await h.page.mouse.click(x, y);
+    const at = await aim(h, locator, tag);
+    await h.page.mouse.click(at.x, at.y);
     await frames(h);
     await frames(h);
     await h.page.mouse.down({ clickCount: 2 });
@@ -442,11 +443,13 @@ async function once(origin, dir) {
       const h = await open({ origin, state, views: [CONFIRM, VIEW], out });
       try {
         for (const a of prepare(item)) await act(h, a);
-        await presses(h, how, h.page.locator(sel(choice, item.item)));
+        await presses(h, how, h.page.locator(sel(choice, item.item)), state + ':' + choice + ':' + how);
         await waitCalls(h, out, want.length);
         const got = callsOf(out).map((c) => ({ call: c.call, args: c.args }));
         seen.presses += 1;
         if (firstDiff(got, want) >= 0) faults.push(state + ':' + choice + ':' + how + ':calls=' + got.length + ':want=' + want.length);
+      } catch (err) {
+        faults.push(pressFault(err));
       } finally {
         await h.close();
       }
@@ -679,6 +682,12 @@ async function confirms(origin, dir) {
   const a = withId(base, 'a'.repeat(32));
   const b = withId(base, 'b'.repeat(32));
   writeState(dir, 'test_two_page', [a, b]);
+  // The confirmation of the five presses by coordinates: the tracked one with its first three fields,
+  // whose answers stand in the harness's window at the open. With its nine fields the tracked one
+  // holds them under its fold, where a press by coordinates meets no control.
+  const inView = (item) => ({ ...item, fields: item.fields.slice(0, 3) });
+  const shortA = inView(a);
+  writeState(dir, 'test_short_page', [inView(base)]);
   const keyed = async (tag, steps, want) => {
     const out = outDir();
     const h = await open({ origin, state: 'test_two_page', views: [CONFIRM, VIEW], out });
@@ -817,44 +826,76 @@ async function confirms(origin, dir) {
     await h.close();
   }
   out = outDir();
-  h = await open({ origin, state: 'needs_confirm_page', views: [CONFIRM, VIEW], out });
+  h = await open({ origin, state: 'test_short_page', views: [CONFIRM, VIEW], out });
   try {
-    const box = await h.page.locator(sel('allow', base.item)).boundingBox();
-    await h.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const allow = h.page.locator(sel('allow', base.item));
+    const at = await aim(h, allow, 'pressed_then_reopened');
+    await h.page.mouse.move(at.x, at.y);
     await h.page.mouse.down();
     await h.page.evaluate(() => document.querySelector('[role="alertdialog"]').close());
     await frames(h);
     const again = await openDialog(h);
     if (!again) faults.push('pressed_then_reopened:not_reopened');
+    await aim(h, allow, 'pressed_then_reopened', at);
     await h.page.mouse.up();
     await frames(h);
     if (answersOf(out).length !== 0) faults.push('pressed_then_reopened:calls=' + said(out).join(','));
+  } catch (err) {
+    faults.push(pressFault(err));
   } finally {
     await keep(h);
     await h.close();
   }
   const allowA = { call: 'agents_answer', args: { item: a.item, step: a.step, choice: 'allow' }, reply: { ok: 'yes' } };
   const doneSign = { call: 'agents_answer', args: { item: sign.item, step: sign.step, choice: 'done' }, reply: { ok: 'yes' } };
-  let point = null;
+  const allowOf = (k) => k.page.locator(sel('allow', a.item));
+  const earlier = async (tag) => {
+    const k = await open({ origin, replies: [{ state: snap(1, [sign, shortA]) }, shownLine(shortA)], views: [CONFIRM, VIEW] });
+    try {
+      return await aim(k, allowOf(k), tag);
+    } finally {
+      await k.close();
+    }
+  };
   h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }, shownLine(a)], views: [CONFIRM, VIEW] });
   try {
-    const box = await h.page.locator(sel('allow', a.item)).boundingBox();
-    point = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+    const covered = h.page.locator(sel('done', sign.item));
+    const inWindow = await covered.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const x = r.x + r.width / 2;
+      const y = r.y + r.height / 2;
+      return x >= 0 && y >= 0 && x < innerWidth && y < innerHeight;
+    });
+    if (!(await openDialog(h))) faults.push('aim_refuses_a_covered_control:no_confirmation');
+    if (!inWindow) faults.push('aim_refuses_a_covered_control:not_in_the_window');
+    const given = await aim(h, covered, 'aim_refuses_a_covered_control').then(
+      () => true,
+      (err) => {
+        pressFault(err);
+        return false;
+      },
+    );
+    if (given) faults.push('aim_refuses_a_covered_control:point_given');
   } finally {
+    await keep(h);
     await h.close();
   }
   const opens = (k) => k.page.waitForFunction(() => Boolean(document.querySelector('[role="alertdialog"]:modal')), null, { timeout: 10000 }).then(() => true, () => false);
   out = outDir();
-  h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
+  h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, shortA]) }, shownLine(shortA), allowA], views: [CONFIRM, VIEW], out });
   try {
-    await h.page.mouse.move(point.x, point.y);
+    const at = await earlier('mouse_before_open');
+    await h.page.mouse.move(at.x, at.y);
     await h.page.mouse.down();
     await h.page.evaluate((id) => document.querySelector('[data-act="done"][data-param="' + id + '"]').click(), sign.item);
     if (!(await opens(h))) faults.push('mouse_before_open:not_opened');
+    await aim(h, allowOf(h), 'mouse_before_open', at);
     await h.page.mouse.up();
     await frames(h);
     await frames(h);
     if (said(out).join(',') !== 'agents_answer:done:0') faults.push('mouse_before_open:calls=' + said(out).join(','));
+  } catch (err) {
+    faults.push(pressFault(err));
   } finally {
     await keep(h);
     await h.close();
@@ -862,54 +903,65 @@ async function confirms(origin, dir) {
   if (engineOf(h) !== 'chromium') {
     console.log('confirms touch: not run on ' + engineOf(h) + ', which takes no touch input through the browser\'s protocol in this harness');
   } else {
-    const touch = async (k, type) => {
+    const touch = async (k) => {
       const cdp = await k.page.context().newCDPSession(k.page);
       await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
-      return (kind) => cdp.send('Input.dispatchTouchEvent', kind === 'start' ? { type: 'touchStart', touchPoints: [point] } : { type: 'touchEnd', touchPoints: [] });
+      return (kind, at) => cdp.send('Input.dispatchTouchEvent', kind === 'start' ? { type: 'touchStart', touchPoints: [at] } : { type: 'touchEnd', touchPoints: [] });
     };
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, shortA]) }, shownLine(shortA), allowA], views: [CONFIRM, VIEW], out });
     try {
+      const at = await earlier('touch_before_open');
       const send = await touch(h);
-      await send('start');
+      await send('start', at);
       await h.page.evaluate((id) => document.querySelector('[data-act="done"][data-param="' + id + '"]').click(), sign.item);
       if (!(await opens(h))) faults.push('touch_before_open:not_opened');
+      await aim(h, allowOf(h), 'touch_before_open', at);
       await send('end');
       await frames(h);
       await frames(h);
       seen.touches += 1;
       if (said(out).join(',') !== 'agents_answer:done:0') faults.push('touch_before_open:calls=' + said(out).join(','));
+    } catch (err) {
+      faults.push(pressFault(err));
     } finally {
       await keep(h);
       await h.close();
     }
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, shortA]) }, shownLine(shortA), allowA], views: [CONFIRM, VIEW], out });
     try {
+      const at = await earlier('pen_before_open');
       const cdp = await h.page.context().newCDPSession(h.page);
-      const pen = (type) => cdp.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: 'left', clickCount: 1, pointerType: 'pen' });
+      const pen = (type) => cdp.send('Input.dispatchMouseEvent', { type, x: at.x, y: at.y, button: 'left', clickCount: 1, pointerType: 'pen' });
       await pen('mousePressed');
       await h.page.evaluate((id) => document.querySelector('[data-act="done"][data-param="' + id + '"]').click(), sign.item);
       if (!(await opens(h))) faults.push('pen_before_open:not_opened');
+      await aim(h, allowOf(h), 'pen_before_open', at);
       await pen('mouseReleased');
       await frames(h);
       await frames(h);
       seen.touches += 1;
       if (said(out).join(',') !== 'agents_answer:done:0') faults.push('pen_before_open:calls=' + said(out).join(','));
+    } catch (err) {
+      faults.push(pressFault(err));
     } finally {
       await keep(h);
       await h.close();
     }
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign, shortA]) }, shownLine(shortA), allowA], views: [CONFIRM, VIEW], out });
     try {
       const send = await touch(h);
-      await send('start');
+      const at = await aim(h, allowOf(h), 'touch_after_open');
+      await send('start', at);
       await send('end');
       await frames(h);
       await frames(h);
       seen.touches += 1;
       if (said(out).join(',') !== 'agents_answer:allow:a') faults.push('touch_after_open:calls=' + (said(out).join(',') || '-'));
+    } catch (err) {
+      faults.push(pressFault(err));
     } finally {
       await keep(h);
       await h.close();
@@ -973,8 +1025,7 @@ async function crossed(origin, dir) {
     out = outDir();
     h = await open({ origin, replies: [{ state: snap(1, [a, b]) }, gate, { state: snap(2, [b]) }, answer, answer], views: [CONFIRM, VIEW], out });
     try {
-      const box = await h.page.locator(sel(choice, a.item)).boundingBox();
-      const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const point = await aim(h, h.page.locator(sel(choice, a.item)), 'touch_' + choice);
       const cdp = await h.page.context().newCDPSession(h.page);
       await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
       const touch = (kind) => cdp.send('Input.dispatchTouchEvent', kind === 'start' ? { type: 'touchStart', touchPoints: [point] } : { type: 'touchEnd', touchPoints: [] });
@@ -997,6 +1048,8 @@ async function crossed(origin, dir) {
       await frames(h);
       const fresh = callsOf(out).filter((c) => c.call === 'agents_answer').map((c) => c.call + ':' + c.args.choice + ':' + c.args.item.slice(0, 1)).join(',');
       if (fresh !== 'agents_answer:' + choice + ':b') faults.push('touch_fresh_' + choice + ':calls=' + (fresh || '-'));
+    } catch (err) {
+      faults.push(pressFault(err));
     } finally {
       await h.close();
     }
@@ -1910,7 +1963,7 @@ async function press(origin, dir) {
     try {
       await fn(h, out, pageKit(h, engineOf(h)));
     } catch (err) {
-      faults.push(tag + ':throws=' + String((err && err.message) || err).split('\n')[0].slice(0, 80));
+      faults.push(err instanceof OffControl ? err.fault : tag + ':throws=' + String((err && err.message) || err).split('\n')[0].slice(0, 80));
     } finally {
       await h.close();
     }
@@ -1919,9 +1972,9 @@ async function press(origin, dir) {
     const got = typedSent(out);
     if (JSON.stringify(got.map((s) => Buffer.byteLength(s))) !== JSON.stringify(want)) faults.push(tag + ':sent=' + bytesOf(got));
   };
-  const mousePress = async (h, sel) => {
-    const box = await h.page.locator(sel).boundingBox();
-    await h.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const mousePress = async (h, sel, tag) => {
+    const at = await aim(h, h.page.locator(sel), tag);
+    await h.page.mouse.click(at.x, at.y);
     await settled(h);
   };
   const protocolOnly = (h, tag) => {
@@ -1942,7 +1995,7 @@ async function press(origin, dir) {
     }, line);
     const cdp = await h.page.context().newCDPSession(h.page);
     for (const s of [KANA2.slice(0, 1), KANA2]) await cdp.send('Input.imeSetComposition', { text: s, selectionStart: s.length, selectionEnd: s.length });
-    await mousePress(h, choose);
+    await mousePress(h, choose, t);
     const order = await h.page.evaluate(() => window.r4order.join(','));
     console.log('press p1 order=' + order);
     const kit = pageKit(h, engineOf(h));
@@ -1950,7 +2003,7 @@ async function press(origin, dir) {
     expectSent(t + '_first', out, []);
     if (Buffer.byteLength(f.value) !== 1006) faults.push(t + ':line_holds=' + Buffer.byteLength(f.value));
     if (!(await kit.activeIs(line))) faults.push(t + ':focus_not_on_the_line');
-    await mousePress(h, choose);
+    await mousePress(h, choose, t);
     expectSent(t + '_second', out, [1006]);
   });
   await run('p2_a_press_through_the_protocol_on_a_composition_that_does_not_fit(pin)', async (h, out) => {
@@ -1959,11 +2012,11 @@ async function press(origin, dir) {
     await h.page.locator(line).fill(xs(1018));
     const cdp = await h.page.context().newCDPSession(h.page);
     for (let i = 1; i <= 4; i++) await cdp.send('Input.imeSetComposition', { text: KANA4.slice(0, i), selectionStart: i, selectionEnd: i });
-    await mousePress(h, choose);
+    await mousePress(h, choose, t);
     expectSent(t + '_first', out, []);
     const f = await pageKit(h, engineOf(h)).line(line);
     if (f.note !== p.too_long) faults.push(t + ':sentence=' + (f.note === null ? 'none' : 'other'));
-    await mousePress(h, choose);
+    await mousePress(h, choose, t);
     expectSent(t + '_second', out, [1018]);
   });
   await run('p3_a_pointer_press_through_the_protocol_ends_a_script_composition', async (h, out, k) => {
@@ -1971,13 +2024,13 @@ async function press(origin, dir) {
     await h.page.locator(line).fill(xs(1000));
     await k.begin(line, [KANA2.slice(0, 1), KANA2]);
     await k.endOnBlur(line, KANA2);
-    await mousePress(h, choose);
+    await mousePress(h, choose, t);
     expectSent(t + '_first', out, []);
     const f = await k.line(line);
     if (f.value !== xs(1000) + KANA2) faults.push(t + ':line_holds=' + Buffer.byteLength(f.value));
     if (JSON.stringify(f.caret) !== '[1002,1002]') faults.push(t + ':selection=' + f.caret.join('-'));
     if (!(await k.activeIs(line))) faults.push(t + ':focus_not_on_the_line');
-    await mousePress(h, choose);
+    await mousePress(h, choose, t);
     expectSent(t + '_second', out, [1006]);
   });
   await run('p3_the_same_order_by_a_script', async (h, out, k) => {
@@ -2177,9 +2230,9 @@ async function press(origin, dir) {
     const cdp = await h.page.context().newCDPSession(h.page);
     await cdp.send('Input.imeSetComposition', { text: KANA2, selectionStart: 2, selectionEnd: 2 });
     await cdp.send('Input.insertText', { text: KANA2 });
-    await mousePress(h, choose);
+    await mousePress(h, choose, t);
     expectSent(t + '_first', out, []);
-    await mousePress(h, choose);
+    await mousePress(h, choose, t);
     expectSent(t + '_second', out, [1006]);
   });
   return faults;
@@ -2723,10 +2776,10 @@ async function guard(origin, dir) {
   const holds = (h, act) => control(h, act).evaluate((b) => b.getAnimations().some((a) => a.playState === 'running'));
   const answers = (h) => h.page.evaluate(() => window.r4calls.filter((c) => c.call === 'agents_answer').map((c) => c.args.choice).join(',') || '-');
   const ended = (h) => h.page.evaluate(() => document.querySelectorAll('dialog[open] [data-act]').forEach((b) => b.getAnimations().forEach((a) => a.finish())));
-  const over = async (h, act) => {
+  const over = async (h, act, tag) => {
     await control(h, act).scrollIntoViewIfNeeded();
-    const box = await control(h, act).boundingBox();
-    await h.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const at = await aim(h, control(h, act), tag);
+    await h.page.mouse.move(at.x, at.y);
   };
   const secondPointer = (h) =>
     h.page.evaluate(() => {
@@ -2741,7 +2794,7 @@ async function guard(origin, dir) {
   try {
     await paint(h);
     if (!(await holds(h, reject)) || !(await holds(h, allow))) faults.push('no_hold_at_the_show');
-    await over(h, reject);
+    await over(h, reject, 'reject_begun_in_the_hold');
     await h.page.mouse.down();
     await ended(h);
     await h.page.mouse.up();
@@ -2754,7 +2807,7 @@ async function guard(origin, dir) {
     await expect(reject, 'reject_after_the_hold');
     if ((await control(h, allow).count()) !== 1) throw new Error('not shown again');
     if (!(await holds(h, allow))) faults.push('no_hold_at_the_second_show');
-    await over(h, allow);
+    await over(h, allow, 'allow_begun_in_the_hold');
     await h.page.mouse.down();
     await h.page.mouse.up();
     await paint(h);
@@ -2777,7 +2830,7 @@ async function guard(origin, dir) {
     await paint(h);
     await expect(reject + ',' + allow + ',' + allow, 'a_key_in_the_hold');
   } catch (err) {
-    faults.push('throws_' + String((err && err.message) || err).split('\n')[0].replace(/\s+/g, '_'));
+    faults.push(err instanceof OffControl ? err.fault : 'throws_' + String((err && err.message) || err).split('\n')[0].replace(/\s+/g, '_'));
   } finally {
     await h.close();
   }
