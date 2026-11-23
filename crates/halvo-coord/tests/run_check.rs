@@ -2460,6 +2460,7 @@ fn the_creations_facts_take_the_roster_key_of_the_newest_run() {
         state: halvo_coord::types::AgentState::Approved,
         slots: vec![],
         session: false,
+        window: false,
         last: Some(halvo_coord::types::PastRun {
             run: run.clone(),
             day: DAY - 1,
@@ -2782,6 +2783,7 @@ fn the_creation_reads_the_reply_rows_of_an_email_agent_with_a_record() {
         state: halvo_coord::types::AgentState::Approved,
         slots: vec![Name::parse("reply_senders").unwrap()],
         session: false,
+        window: false,
         last: Some(halvo_coord::types::PastRun {
             run: run.clone(),
             day: DAY - 1,
@@ -3300,6 +3302,7 @@ fn the_creation_takes_the_key_before_it_reads_the_reply_rows() {
         state: halvo_coord::types::AgentState::Approved,
         slots: vec![Name::parse("reply_senders").unwrap()],
         session: false,
+        window: false,
         last: Some(halvo_coord::types::PastRun {
             run: run.clone(),
             day: DAY - 1,

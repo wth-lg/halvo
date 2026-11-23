@@ -85,7 +85,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("card.read_again", "Try again"),
     (
         "line.problem.sign_in_refused",
-        "The site did not let it sign in.",
+        "This agent needs you to sign in at the site.",
     ),
     (
         "line.problem.site_declined",

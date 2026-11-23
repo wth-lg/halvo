@@ -37,8 +37,8 @@ pub struct Around {
     pub model_held: bool,
     /// The starts that wait in the queue.
     pub queued: u32,
-    /// Whether the agent has a stored session.
-    pub session: bool,
+    /// Whether the agent's next run needs a browser window: the roster's `window` (I6.1).
+    pub window: bool,
     /// Whether this is the agent's own start leaving the queue: its queued start does not fail
     /// step 3, a failed step 4 keeps it at the head of the queue, and a start of the person
     /// ends no hold.
@@ -66,7 +66,9 @@ pub struct Go {
     pub slot: Option<u32>,
     /// `compile` for the runtime `web` with no playbook, `replay` otherwise.
     pub mode: Mode,
-    /// Whether the runner's browser is headed: the mode is `compile` or no session is stored.
+    /// Whether the runner is headed, which tells it that a person can answer: always for a
+    /// runtime that is not `web`, and for `web` where the mode is `compile` or the roster's
+    /// `window` says yes.
     pub headed: bool,
     /// Whether the run holds the on-device model.
     pub holds_model: bool,
@@ -185,7 +187,9 @@ pub fn start_step<C: ConfigView>(
         verdict: Verdict::Go(Go {
             slot,
             mode,
-            headed: mode == Mode::Compile || !around.session,
+            headed: facts.config.runtime() != Runtime::Web
+                || mode == Mode::Compile
+                || around.window,
             holds_model,
             defer_ms: facts
                 .config

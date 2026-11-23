@@ -162,14 +162,17 @@ struct Dropped {
     refusal: String,
 }
 
-/// One agent on the board: its facts (I5.1) and whether it has a stored session, which the
-/// head of a run reads (I5.5).
+/// One agent on the board: its facts (I5.1), whether it has a stored session, which the control
+/// Stop using its sign-in reads, and whether its next run needs a window, which the head of a run
+/// reads (I5.5).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Member<C> {
     /// The facts of I5.1; the board keeps their day and their run state.
     pub facts: Facts<C>,
     /// Whether the agent has a stored session (I6.1 `session`).
     pub session: bool,
+    /// Whether the agent's next run needs a browser window (I6.1 `window`).
+    pub window: bool,
 }
 
 /// The stop of a live run: when it came, in milliseconds of `Clock::now`, and its cause,

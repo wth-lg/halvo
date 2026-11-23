@@ -78,6 +78,7 @@ fn ports(agents: &[(WorkflowState, &str, &[&str], &[HoldSetCause])]) -> Ports<Co
             state: AgentState::Paused,
             slots: vec![name("account_address"), name("reply_senders")],
             session: true,
+            window: false,
             last: None,
             unknown: vec![],
             refused_run: None,
