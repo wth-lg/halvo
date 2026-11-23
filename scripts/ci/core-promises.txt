@@ -122,6 +122,9 @@ egress check 38-app-engine-routes scheduled wed the macos job, 127 s there; the 
 egress check 38-app-engine-routes scheduled wed2 the windows job, 197 s on an AMD EPYC 7763 in the slice sat of the run 45098472482
 egress check 20-r6-gateway scheduled thu the macos job, 8 s there; the closed body from which every request to a model's host is made holds six keys
 egress check 20-r6-gateway scheduled sat the windows job, 6 s there
+egress units halvo-coord-app::agreement gate a run's start names a hosted tier, the one case in which the library reads the person's key for a model's host, only where the agent's stored triple of that tier equals the row of that tier in the release table of hosts by its bytes, and never for on_device or an agent that no list named; no units line of scripts/ci/slow-tests.txt names the package; under 0.01 s in a local run (r4 U3.17a)
+egress target halvo-coord-app/agreement_tree scheduled tue the group B, by the line targets halvo-coord-app of scripts/ci/slow-tests.txt; under the app crate's src and src-tauri/src only agreement.rs names a hosted tier of the library and one line, the start's, writes the field hosted of a RunSpec; every row of the release table of hosts names one origin; under 0.1 s in a local run (r4 U3.17a)
+egress target halvo-coord-app/product scheduled tue the macos job, which alone runs its tests, the group B, by the line targets halvo-coord-app of scripts/ci/slow-tests.txt; its tests a_run_of_an_agent_with_no_standing_agreement_gets_no_key_though_one_is_saved and a_run_of_an_agent_whose_stored_yes_does_not_stand_gets_no_key: against the owner of the derived store, a run of an agent whose agreement does not stand, also one with a yes stored, gets none stored for model_key though a key is saved; under 1 s together in a local run (r4 U3.17a)
 
 licences check 23-licences gate macos job, which alone has the check
 licences check 25-r7-backend-licenses gate macos job, which alone has the check
