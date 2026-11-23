@@ -4242,6 +4242,23 @@ mod tests {
             Ok(DeleteView::NoStore { looked_in })
         );
         read_behind_the_answer();
+        assert_eq!(
+            record
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|seen| seen.as_str() == "lift")
+                .count(),
+            1,
+            "the offline door: the pass that finds no service lifts nothing"
+        );
+        views.take_poll(
+            control.places().make().number(),
+            &Ok(sample_status(Platform::Macos)),
+        );
+        before
+            .runs
+            .drawn(before.core.as_deref(), &views, control.places());
         let seen = record.lock().unwrap().clone();
         assert_eq!(seen.len(), 10, "{seen:?}");
         for (door, part, request) in [
@@ -4258,7 +4275,7 @@ mod tests {
             assert_eq!(
                 part[2..],
                 ["stop", request, "lift"],
-                "{door}: the stop, then the request, then the lift, at the latest at the first poll read behind the answer"
+                "{door}: the stop, then the request, then the lift, at the first poll behind the answer that is a reading"
             );
         }
 
