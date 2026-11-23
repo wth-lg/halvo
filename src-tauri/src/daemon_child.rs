@@ -1357,6 +1357,10 @@ mod tests {
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
     }
 
     /// The status of a new life that no claim has reached: desired running, no indicator.
@@ -1927,6 +1931,10 @@ mod tests {
         }
 
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
     }
@@ -2762,6 +2770,10 @@ mod tests {
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
     }
 
     struct EachItsOwn {
@@ -2841,6 +2853,10 @@ mod tests {
 
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
             own("reset_settings")
+        }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+            own("set_typing")
         }
 
         #[cfg(any(target_os = "macos", windows))]
@@ -3425,6 +3441,10 @@ mod tests {
         }
 
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
 
@@ -4168,6 +4188,10 @@ mod tests {
             }
 
             fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+                Err(ClientError::Unsupported)
+            }
+
+            fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
                 Err(ClientError::Unsupported)
             }
 
@@ -5064,6 +5088,10 @@ mod tests {
         }
 
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
     }

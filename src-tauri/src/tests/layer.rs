@@ -487,6 +487,8 @@ struct Fake {
     claims: Mutex<Vec<bool>>,
     resets: Mutex<VecDeque<Result<DaemonStatus, ClientError>>>,
     reset_calls: AtomicUsize,
+    typings: Mutex<VecDeque<Result<DaemonStatus, ClientError>>>,
+    typing_calls: Mutex<Vec<bool>>,
 }
 
 impl Fake {
@@ -584,6 +586,64 @@ impl Control for Fake {
             .pop_front()
             .unwrap_or(Err(ClientError::Unsupported))
     }
+
+    fn set_typing(&self, _: Made, on: bool) -> Result<DaemonStatus, ClientError> {
+        self.typing_calls.lock().unwrap().push(on);
+        self.typings
+            .lock()
+            .unwrap()
+            .pop_front()
+            .unwrap_or(Err(ClientError::Unsupported))
+    }
+}
+
+#[test]
+fn the_typing_command_sends_one_set_typing_and_reads_a_service_of_before_as_update_the_app() {
+    use crate::commands::capture::typing;
+    use crate::view_state::ActionError;
+    use halvo_control::proto::{ErrorCode, ErrorReply, OnOff, SwitchName};
+    let off = status_with(Platform::Macos, |f| {
+        for line in &mut f.switches {
+            if line.name == SwitchName::KeyClass {
+                line.value = OnOff::Off;
+            }
+        }
+    });
+    let views = Views::default();
+    let fake = Fake {
+        typings: Mutex::new(
+            vec![
+                Ok(off),
+                Err(ClientError::Daemon(ErrorReply::new(
+                    ErrorCode::UnsupportedOp,
+                    "the op is not in the request table of protocol version 1",
+                ))),
+            ]
+            .into(),
+        ),
+        ..Fake::default()
+    };
+    let view = typing(&fake, &views, false).expect("the view of the turn");
+    let wire = serde_json::to_value(&view).expect("the view writes");
+    assert_eq!(
+        wire["typing_switch"],
+        json!({
+            "label": "Record typing",
+            "on": false,
+            "if_on": "If you turn this on:",
+            "row": "Halvo records each key you press, when and in which app, and what kind of key it is: a letter, digit or sign, a delete key, an arrow or page key, Return or Enter, Tab, a shortcut, or another key. It never records which letter, digit or sign."
+        }),
+        "{wire}"
+    );
+    assert!(
+        matches!(typing(&fake, &views, true), Err(ActionError::UpdateTheApp)),
+        "a service of before answers unsupported_op, which the page reads as update_the_app"
+    );
+    assert_eq!(
+        *fake.typing_calls.lock().unwrap(),
+        [false, true],
+        "one request each"
+    );
 }
 
 #[test]
@@ -1074,6 +1134,11 @@ impl Control for RecordingControl {
 
     fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
         self.record("reset_settings");
+        Err(ClientError::Unsupported)
+    }
+
+    fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+        self.record("set_typing");
         Err(ClientError::Unsupported)
     }
 }
