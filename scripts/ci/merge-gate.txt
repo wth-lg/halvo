@@ -6,8 +6,8 @@
 # Every other check that CI runs, and every self-test, stands in a slice of scripts/ci/slices.txt.
 # The run of both jobs ends in under 1,200 s. Before you add a line, name the seconds of the check
 # in that job and what it protects; scripts/ci/README.md, The merge gate, holds the measured seconds.
+# 11-clippy stands in the windows list alone; the lint of the macos job runs in the slice wed2.
 macos 10-format
-macos 11-clippy
 macos 12-test
 macos 17-workflow-lint
 macos 18-hook-scan

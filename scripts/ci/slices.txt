@@ -41,7 +41,12 @@ wed windows check 50-windows-functional
 # AMD EPYC 7763, each with its seconds there: 60-r6-egress 167 (wed, run 45096596639), 10-egress 215 (thu,
 # 45086425387), 38-app-engine-routes 197 and 80-r6-absent 52 (sat, 45098472482), 10-r7-account 124 (mon,
 # 45050615172); with 141 to 156 s of steps the job is reckoned at 896 to 911 s on that kind. Its run by
-# hand 45108441992 took 876 s on an Intel Xeon Platinum 8573C.
+# hand 45108441992 took 876 s on an Intel Xeon Platinum 8573C. Its macos job (129 s in that run) took
+# from the merge gate of the macos job the lint 11-clippy (77, 93 and 141 s in the pull request runs
+# 45111247085, 45112524657 and 45111386498) and the group F (about 101 s of tests in the third, before
+# its builds); it is reckoned at about 600 s on a Mac as slow as in the third run.
+wed2 macos check 11-clippy
+wed2 macos tests F
 wed2 macos check 25-advisories
 wed2 windows check 38-app-engine-routes
 wed2 windows check 10-egress
