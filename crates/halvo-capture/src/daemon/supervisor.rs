@@ -2684,6 +2684,104 @@ impl<F: SystemSources, L: MainLoop> Waits for Supervisor<F, L> {
     }
 }
 
+/// The one panic hook of this crate's test binary. A panic that a test makes on
+/// purpose goes through [`panic_on_purpose`](planned_panics::panic_on_purpose),
+/// carries a [`Planned`](planned_panics::Planned) and prints nothing; every other
+/// panic, on any thread and at any time, is handed to the hook that stood before,
+/// which prints the line that a failed test's block shows. The hook is set once
+/// and never taken back, and no test of this crate takes or sets the process's
+/// panic hook, beside the one test of this module under the three conditions
+/// that its doc states.
+#[cfg(test)]
+pub(super) mod planned_panics {
+    use std::panic::PanicHookInfo;
+    use std::sync::{Arc, Mutex, Once, PoisonError};
+
+    /// A panic hook of the process, as `std::panic::take_hook` gives it back.
+    type Hook = Box<dyn Fn(&PanicHookInfo<'_>) + Sync + Send + 'static>;
+
+    /// What a stand-in of a test panics with on purpose: the words of its panic.
+    pub(crate) struct Planned(pub(crate) &'static str);
+
+    /// Whether the one hook of the binary stands.
+    static INSTALLED: Once = Once::new();
+
+    /// Sets the one hook of the binary over the hook that stands at the first
+    /// call, once; it is never taken back.
+    pub(crate) fn install() {
+        INSTALLED.call_once(|| std::panic::set_hook(handing_on(std::panic::take_hook())));
+    }
+
+    /// Panics with `words` inside a [`Planned`], once the one hook stands.
+    pub(crate) fn panic_on_purpose(words: &'static str) -> ! {
+        install();
+        std::panic::panic_any(Planned(words))
+    }
+
+    /// The hook that prints nothing for a [`Planned`] and hands every other
+    /// panic to `before`.
+    pub(crate) fn handing_on(_before: Hook) -> Hook {
+        Box::new(|_| {})
+    }
+
+    /// While a planned panic is quiet, the panic of another thread is handed
+    /// on to the hook that stood before. Its own swap of the process's hook
+    /// keeps three conditions: it calls [`install`] first, so that the `Once`
+    /// has run and no other swap of the binary falls between its own; for its
+    /// whole stretch every panic that is not a [`Planned`] is handed on,
+    /// through its counting hook, to the hook that it took; and it puts back a
+    /// hook that does what the taken one did before it asserts anything. It
+    /// writes what its counting hook saw on a line of its own, so that its
+    /// failure never needs the hook to say why.
+    #[test]
+    fn a_panic_of_another_thread_is_handed_on_beside_a_planned_one() {
+        const WORDS: &str = "the planned thread of this case panics";
+        install();
+        let taken: Arc<Hook> = Arc::new(std::panic::take_hook());
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let (hand, record) = (taken.clone(), seen.clone());
+        std::panic::set_hook(handing_on(Box::new(move |info| {
+            let name = std::thread::current().name().map(str::to_owned);
+            record
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(name);
+            hand(info);
+        })));
+        let planned = std::thread::Builder::new()
+            .name("planned-panics-quiet".to_owned())
+            .spawn(|| {
+                panic_on_purpose(WORDS);
+            });
+        let other = std::thread::Builder::new()
+            .name("planned-panics-other".to_owned())
+            .spawn(|| {
+                panic!("the other thread of this case panics");
+            });
+        let planned = planned.map(std::thread::JoinHandle::join);
+        let other = other.map(std::thread::JoinHandle::join);
+        std::panic::set_hook(Box::new(move |info| taken(info)));
+        let seen = seen.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        eprintln!("planned-panics: the counting hook saw the threads {seen:?}");
+        assert!(
+            matches!(&planned, Ok(Err(payload)) if payload.downcast_ref::<Planned>().map(|p| p.0) == Some(WORDS)),
+            "the planned thread did not panic with its Planned"
+        );
+        assert!(
+            matches!(other, Ok(Err(_))),
+            "the other thread did not panic"
+        );
+        assert!(
+            seen.contains(&Some("planned-panics-other".to_owned())),
+            "the panic of the other thread was not handed on: {seen:?}"
+        );
+        assert!(
+            !seen.contains(&Some("planned-panics-quiet".to_owned())),
+            "the planned panic was handed on: {seen:?}"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::cell::{Cell, RefCell};
