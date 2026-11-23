@@ -354,6 +354,8 @@ mod tests {
             b"Water;41,20;3,50\r\nPower;63,05;7,25\r\n",
             b"\xef\xbb\xbfWater;41,20;3,50\r\nPower;63,05;7,25\r\n",
             b"Water;41,20;3\r\nPower;63;7\r\n",
+            b"1;Water;41,20\r\n2;\"Power; gas\";63,05\r\n",
+            b"Water;gas\r\nPower;light\r\n\r\n",
         ]);
     }
 
