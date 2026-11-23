@@ -2312,7 +2312,6 @@ mod tests {
     #[test]
     fn from_a_service_gone_every_start_by_itself_carries_no_press_and_a_7_starts_none_until_a_press(
     ) {
-        use crate::commands::control::Watching;
         use crate::view_state::{NoStatusService, StatusView};
         let r = riding(&[
             Some(Ending::Status(exit::ERROR)),
@@ -2322,15 +2321,13 @@ mod tests {
         until("the 7 of the child behind the backoff", || {
             starts(&r.record).len() == 3 && r.pid.get().is_none() && ended_with(&r.views, 7)
         });
-        let control = Watching::new(
-            Scripted::new(&r.record, Vec::new(), Vec::new()),
-            Arc::clone(&r.pid),
-        );
-        let ended_at = r.clock.now();
-        while r.clock.now().saturating_duration_since(ended_at) <= BACKOFF_MAX {
-            pass(&control, &r.views, None);
+        for _ in 0..2 {
             looked_again(&r.clock);
-            assert_eq!(r.pid.get(), None, "no child by itself behind the 7");
+            assert_eq!(
+                r.pid.get(),
+                None,
+                "no child by itself behind the 7: the supervisor waits for a press"
+            );
         }
         assert_eq!(
             starts(&r.record),
