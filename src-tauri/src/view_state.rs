@@ -586,13 +586,15 @@ impl Hold {
     }
 
     /// The supervisor starts a child: an ask of a Start between two children is taken by it.
+    /// Answers whether one stood, so that a person's press stands behind that start.
     #[cfg(any(target_os = "macos", windows, test))]
-    pub fn take_the_ask(&self) {
+    pub fn take_the_ask(&self) -> bool {
         let mut state = self.state();
-        state.start_asked = false;
+        let asked = std::mem::take(&mut state.start_asked);
         state.between = false;
         drop(state);
         self.changed.notify_all();
+        asked
     }
 
     /// A run of Remove Halvo's door ends: an ask of a Start that stands from before that end is
