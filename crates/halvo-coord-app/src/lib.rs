@@ -10,6 +10,7 @@
 #[cfg(test)]
 extern crate self as halvo_coord_app;
 
+mod agreement;
 mod args;
 mod attention;
 mod bell;

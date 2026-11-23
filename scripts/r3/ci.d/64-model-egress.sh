@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The door halvo-model, built in its stand-in form with the feature loopback and started by sh scripts/egress/check.sh with the list scripts/egress/lists/loopback.txt, sends its one granted request to the stand-in host on the list's one entry, 127.0.0.1:47201, writes the reply line, and reaches nothing else: the egress line of the check reads command=0 denied=0, as the ignored test the_built_door_under_the_egress_check_reaches_the_granted_loopback_origin_alone of crates/halvo-model/tests/egress.rs shows when this check runs it alone by its exact name; the shipped build of the door, which has no loopback port, is not run here, and no shipped-file check reads it yet.
+# rule: The door halvo-model, built in its stand-in form with the feature loopback and started by sh scripts/egress/check.sh with the list scripts/egress/lists/loopback.txt, sends its one granted request to the stand-in host on the list's one entry, 127.0.0.1:47201, writes the reply line, and reaches nothing else: the egress line of the check reads command=0 denied=0, as the ignored test the_built_door_under_the_egress_check_reaches_the_granted_loopback_origin_alone of crates/halvo-model/tests/egress.rs shows when this check runs it alone by its exact name; the shipped build of the door, which has no loopback port, is not run here (62-build reads it for the markers).
 # lane: alone
 set -u
 name=64-model-egress

@@ -1,0 +1,1 @@
+- Fixed: On Windows the egress check now puts a program that its command names by a drive-letter path (D:/... or D:\...) into its per-program block rules, so a stray connection of that program is blocked there and not only seen.

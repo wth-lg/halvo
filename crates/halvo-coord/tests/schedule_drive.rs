@@ -405,6 +405,9 @@ fn act(call: &Call) -> Option<String> {
         Call::Send(Body::SetBindings { .. }) => "set_bindings".into(),
         Call::Send(Body::EndRun { run }) => format!("end_run {run}"),
         Call::Send(Body::DropSessions { agent, .. }) => format!("drop_sessions {agent}"),
+        Call::Send(Body::AgreeHosted { agent, .. } | Body::WithdrawHosted { agent, .. }) => {
+            format!("set_model {agent}")
+        }
         Call::Start(spec) => format!("start {}", spec.agent),
         Call::Cancel(run) => format!("cancel {run}"),
         Call::Kill(run) => format!("kill {run}"),

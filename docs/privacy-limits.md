@@ -168,8 +168,11 @@ The first-run text and the data view quote these three sentences word for word.
 The owner approves them once, in the table of user-visible sentences for each
 system; until then they are the recommended text.
 
-- `Halvo does not record what you type.` win-3 keeps the Windows
-  keyboard source out of the default source set.
+- `Halvo does not record what you type.` It shows where Halvo records no
+  typing: on Windows while the keyboard source line reads off, as while the
+  switch `key_class` is off. A Windows service run starts the keyboard source
+  while `key_class` is on (typing-on-win, the constant `TYPING_ON_WINDOWS`), and
+  the Windows bullets on typing above say what it records.
 - `Screen activity is not recorded.` core-2 builds the switch `screen_activity`
   with the default off; the sentence holds while the switch is off.
 - For an unsigned macOS build: `This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.`

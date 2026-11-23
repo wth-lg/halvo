@@ -911,7 +911,7 @@ mod gate {
         let seconds = seconds_of(seconds)?;
         if cfg!(target_os = "windows") && flags.switches.0.contains(&(Switch::KeyClass, true)) {
             return Err(Usage(
-                "--switch key_class=on is refused on Windows: this build starts no keyboard source",
+                "--switch key_class=on is refused on Windows: a timed run starts no keyboard source",
             )
             .into());
         }
@@ -2338,9 +2338,6 @@ impl main_loop::MainLoop for WindowsLoop {
         self.started.elapsed()
     }
 }
-
-#[cfg(windows)]
-impl supervisor::SystemSources for crate::windows::sources::ServiceSet {}
 
 #[cfg(any(target_os = "macos", windows))]
 pub(crate) type Lifeline = lease::lifeline::Lifeline;

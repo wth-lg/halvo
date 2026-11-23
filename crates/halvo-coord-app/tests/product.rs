@@ -72,7 +72,7 @@ mod mac {
         if args.first().map(String::as_str) == Some("--run") {
             std::process::exit(runner(&args));
         }
-        let tests: [(&str, fn()); 5] = [
+        let tests: [(&str, fn()); 7] = [
             (
                 "a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record",
                 a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record,
@@ -92,6 +92,14 @@ mod mac {
             (
                 "against_the_owner_a_save_a_second_key_and_a_removal_hold_together",
                 against_the_owner_a_save_a_second_key_and_a_removal_hold_together,
+            ),
+            (
+                "a_run_of_an_agent_with_no_standing_agreement_gets_no_key_though_one_is_saved",
+                a_run_of_an_agent_with_no_standing_agreement_gets_no_key_though_one_is_saved,
+            ),
+            (
+                "a_run_of_an_agent_whose_stored_yes_does_not_stand_gets_no_key",
+                a_run_of_an_agent_whose_stored_yes_does_not_stand_gets_no_key,
             ),
         ];
         let exact = args.iter().any(|a| a == "--exact");
@@ -133,8 +141,18 @@ mod mac {
         }
     }
 
-    /// The stand-in runner: `hello`, `load`, `finish` with a record of the outcome `completed` on the local day of
-    /// its `--utc-offset`, and `done`. A store reply that is no success makes it say `done` with `failed`.
+    /// The next frame of the stand-in runner's input as JSON, none where none reads.
+    fn reply(input: &mut impl std::io::Read) -> Option<Value> {
+        halvo_agent_client::wire::read_frame(input)
+            .ok()
+            .flatten()
+            .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+    }
+
+    /// The stand-in runner: `hello`, `load`, the frame `secret` for `MODEL_KEY`, `finish` with a record of the outcome
+    /// `completed` on the local day of its `--utc-offset`, and `done`. Its record keeps the answer to `secret` as
+    /// `model`: `stored`, `none` or `unreadable`, and `lost` where no answer reads (r4 U3.17a). A store reply that is no
+    /// success makes it say `done` with `failed`.
     fn runner(args: &[String]) -> i32 {
         let arg = |name: &str| {
             args.iter()
@@ -164,37 +182,49 @@ mod mac {
             .unwrap()
             .as_secs();
         let day = (i64::try_from(now).unwrap() + offset).div_euclid(86_400);
-        let record = json!({
-            "v": 1, "workflow": workflow, "agent": agent, "run": run, "day": day,
-            "mode": mode, "outcome": "completed", "playbook": null,
-            "steps": 0, "prompts": 0, "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0,
-            "model_calls": 0, "tokens_in": 0, "tokens_out": 0, "wall_s": 1, "model": null,
-            "before_start": null, "cut": null, "no_key": null, "not_to_account": null,
-            "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
-            "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
-        });
-        let bodies = [
+        let store = |n: u8, body: String| {
+            format!(
+                r#"{{"t":"store","request":{{"v":1,"id":"{n:032x}","request":"runner","body":{body}}}}}"#
+            )
+        };
+        let stored = |reply: Option<Value>| {
+            reply.is_some_and(|r| r["t"] == "store_reply" && r["reply"].get("ok").is_some())
+        };
+        if !send(store(
+            1,
             format!(r#"{{"op":"load","agent":"{agent}","run":"{run}"}}"#),
-            format!(r#"{{"op":"finish","agent":"{agent}","run":"{run}","record":{record}}}"#),
-        ];
-        let mut outcome = "completed";
-        for (n, body) in bodies.iter().enumerate() {
-            let frame = format!(
-                r#"{{"t":"store","request":{{"v":1,"id":"{:032x}","request":"runner","body":{body}}}}}"#,
-                n + 1
-            );
-            if !send(frame) {
+        )) {
+            return 1;
+        }
+        let mut outcome = if stored(reply(&mut input)) {
+            "completed"
+        } else {
+            "failed"
+        };
+        if outcome == "completed" {
+            if !send(format!(r#"{{"t":"secret","ref":"{MODEL_KEY}"}}"#)) {
                 return 1;
             }
-            let reply = halvo_agent_client::wire::read_frame(&mut input)
-                .ok()
-                .flatten()
-                .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok());
-            let stored =
-                reply.is_some_and(|r| r["t"] == "store_reply" && r["reply"].get("ok").is_some());
-            if !stored {
+            let answer = reply(&mut input)
+                .filter(|r| r["t"] == "secret_reply")
+                .and_then(|r| r["answer"].as_str().map(str::to_owned))
+                .unwrap_or_else(|| "lost".to_owned());
+            let record = json!({
+                "v": 1, "workflow": workflow, "agent": agent, "run": run, "day": day,
+                "mode": mode, "outcome": "completed", "playbook": null,
+                "steps": 0, "prompts": 0, "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0,
+                "model_calls": 0, "tokens_in": 0, "tokens_out": 0, "wall_s": 1, "model": answer,
+                "before_start": null, "cut": null, "no_key": null, "not_to_account": null,
+                "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
+                "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
+            });
+            let finish =
+                format!(r#"{{"op":"finish","agent":"{agent}","run":"{run}","record":{record}}}"#);
+            if !send(store(2, finish)) {
+                return 1;
+            }
+            if !stored(reply(&mut input)) {
                 outcome = "failed";
-                break;
             }
         }
         if !send(format!(r#"{{"t":"done","outcome":"{outcome}"}}"#)) {
@@ -911,5 +941,90 @@ mod mac {
         );
         assert_eq!(key.remove(), Ok(KeyState::None));
         assert_eq!(key.state(), KeyState::None);
+    }
+
+    /// r4 U3.17a sentence 5: a run of an agent with no standing agreement gets no key, though one is saved. A key is
+    /// saved through `ModelKey`, a Run now of a switched-on agent starts its runner through the hub, and the stand-in
+    /// runner's frame `secret` for `model_key` is answered none stored: the app's arm of `Secrets`, which reads the
+    /// saved key, is not asked. The key is a made-up text that names itself as a test value.
+    fn a_run_of_an_agent_with_no_standing_agreement_gets_no_key_though_one_is_saved() {
+        let mut world = World::new("no-agreement");
+        let (workflow, agent) = world.agent();
+        let key = ModelKey::over(world.calls().owner_stream);
+        assert_eq!(
+            key.save("test-value-not-a-model-key-saved"),
+            Ok(KeyState::Saved)
+        );
+        let hub = world.hub();
+        product::start(&hub);
+        run_now(&hub, &agent);
+        until("the run's record in the store", || {
+            Core::tick(&*hub);
+            !world.runs(&workflow, &agent).is_empty()
+        });
+        let runs = world.runs(&workflow, &agent);
+        assert_eq!(runs.len(), 1, "{runs:?}");
+        assert_eq!(runs[0]["run"]["outcome"], "completed", "{runs:?}");
+        assert_eq!(
+            runs[0]["run"]["model"], "none",
+            "the answer to the runner's frame secret for model_key: {runs:?}"
+        );
+        assert_eq!(key.state(), KeyState::Saved, "the key stays saved");
+    }
+
+    /// r4 U3.17a sentence 5, with a stored yes (verifier-104, its second issue): a stored yes alone hands no key. The
+    /// test writes a yes for the agent into the store by the body `set_model`, the tier `frontier` with its triple,
+    /// and the roster's entry of the agent holds that agreement; main's table of hosts holds no row, so it does not
+    /// stand. A key is saved, a Run now starts the runner through the hub, and the stand-in runner's frame `secret`
+    /// for `model_key` is answered none stored. The key is a made-up text that names itself as a test value. The test's
+    /// own link goes before the hub starts: the owner holds four streams at most, and the key's link, the hub's two and
+    /// each read of the runs hold one.
+    fn a_run_of_an_agent_whose_stored_yes_does_not_stand_gets_no_key() {
+        let mut world = World::new("yes-not-standing");
+        let (workflow, agent) = world.agent();
+        let link = world.link();
+        let hosts = json!([{
+            "tier": "frontier", "origin": "https://hosted-model.test", "model": "test-model-large",
+        }]);
+        let yes = format!(
+            r#"{{"op":"set_model","workflow":"{workflow}","agent":"{agent}","tier":"frontier","agreement":{hosts}}}"#
+        );
+        let stored = world.ask(&link, "coordinator_write", &yes);
+        assert!(stored["rev"].as_u64().is_some(), "{stored}");
+        let listed = world.ask(
+            &link,
+            "coordinator_write",
+            r#"{"op":"list_agents","workflow":null,"agent":null,"after":null}"#,
+        );
+        let entry = listed["agents"].as_array().and_then(|entries| {
+            entries
+                .iter()
+                .find(|e| e["config"]["agent"] == agent.as_str())
+        });
+        assert_eq!(
+            entry.map(|e| e["agreement"].clone()),
+            Some(json!({"tier": "frontier", "hosts": hosts})),
+            "{listed}"
+        );
+        drop(link);
+        let key = ModelKey::over(world.calls().owner_stream);
+        assert_eq!(
+            key.save("test-value-not-a-model-key-saved"),
+            Ok(KeyState::Saved)
+        );
+        let hub = world.hub();
+        product::start(&hub);
+        run_now(&hub, &agent);
+        until("the run's record in the store", || {
+            Core::tick(&*hub);
+            !world.runs(&workflow, &agent).is_empty()
+        });
+        let runs = world.runs(&workflow, &agent);
+        assert_eq!(runs.len(), 1, "{runs:?}");
+        assert_eq!(runs[0]["run"]["outcome"], "completed", "{runs:?}");
+        assert_eq!(
+            runs[0]["run"]["model"], "none",
+            "the answer to the runner's frame secret for model_key: {runs:?}"
+        );
     }
 }
