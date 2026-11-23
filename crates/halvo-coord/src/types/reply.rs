@@ -47,6 +47,14 @@ pub struct Row {
     /// `ask_stop_sign_in`: the question that a press on the row's `stop_sign_in` opens in the
     /// page, which sends nothing, or null on a row with no such control (r4 U2.4y).
     pub ask_stop_sign_in: Option<Ask>,
+    /// `ask_use_model`: the question that a press on the row's `use_model` opens in the page,
+    /// which sends nothing, or null on a row with no such control or where a sentence stands in
+    /// its place (r4 U3.17b).
+    pub ask_use_model: Option<Ask>,
+    /// `note_use_model`: the one sentence that a press on the row's `use_model` shows in place of
+    /// its question, where no key is saved, no limit is set, or a state could not be read, or null
+    /// (r4 U3.17b).
+    pub note_use_model: Option<String>,
 }
 
 /// What the question of a row's Delete or of its `stop_sign_in` is (ruling RD-19 (c) rules (3)
@@ -63,6 +71,9 @@ pub enum AskKind {
     /// `stop_sign_in`: the question asks whether Halvo stops using the sign-in that it keeps for
     /// the agent.
     StopSignIn,
+    /// `use_model`: the question asks whether the agent may use an AI model at the host that it
+    /// names, with the models and the person's spending limit (r4 U3.17b).
+    UseModel,
 }
 
 /// The `data-act` of a control of the question: `reject`, the safe control that leaves the
@@ -1200,6 +1211,16 @@ pub enum Refusal {
     /// with the cause of that refusal: the sentence of `refused.sign_in_not_finished`, which says
     /// that Halvo could not finish this and names neither (r4 U3.16).
     SignInNotFinished(Cause),
+    /// A `use_model` whose body, the yes `agree_hosted`, the owner refused or that got no reply,
+    /// with the cause of that answer: the sentence of `refused.use_model_not_finished`, which says
+    /// that Halvo could not finish this and to choose Use an AI model again where the row still
+    /// shows it (r4 U3.17b).
+    UseModelNotFinished(Cause),
+    /// A `this_computer_only` whose body, the way back `withdraw_hosted`, the owner refused or
+    /// that got no reply, with the cause of that answer: the sentence of
+    /// `refused.this_computer_not_finished`, which says that Halvo could not finish this and to
+    /// choose Use this computer only again where the row still shows it (r4 U3.17b).
+    ThisComputerNotFinished(Cause),
     /// A Switch on whose state the owner refused with `overlap`, the cause `overlap`, with what
     /// the read that followed gave to say: the sentence of `Overlapping::refused`, which names
     /// the other agent and the shared senders where the read named them, and is the sentence of
@@ -1213,7 +1234,9 @@ impl Refusal {
         match self {
             Refusal::Cause(cause)
             | Refusal::SwitchNotSaved(cause)
-            | Refusal::SignInNotFinished(cause) => *cause,
+            | Refusal::SignInNotFinished(cause)
+            | Refusal::UseModelNotFinished(cause)
+            | Refusal::ThisComputerNotFinished(cause) => *cause,
             Refusal::Overlap(_) => Cause::Overlap,
         }
     }
@@ -1224,6 +1247,10 @@ impl Refusal {
             Refusal::Cause(cause) => ErrorReply { error: *cause }.text(),
             Refusal::SwitchNotSaved(_) => words::text("refused.switch_not_saved", &[]),
             Refusal::SignInNotFinished(_) => words::text("refused.sign_in_not_finished", &[]),
+            Refusal::UseModelNotFinished(_) => words::text("refused.use_model_not_finished", &[]),
+            Refusal::ThisComputerNotFinished(_) => {
+                words::text("refused.this_computer_not_finished", &[])
+            }
             Refusal::Overlap(say) => say.refused(),
         }
     }

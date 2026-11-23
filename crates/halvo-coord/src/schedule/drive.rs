@@ -619,6 +619,40 @@ pub fn drop_sessions<P: Owner, C>(
     Ok(())
 }
 
+/// The person's yes to an AI model, or the way back from it (r4 U3.17b): sends ONE body of the
+/// agent of member `i` through `Owner::send`, the yes `Body::AgreeHosted` where `yes` holds and the
+/// way back `Body::WithdrawHosted` otherwise. At the owner's success it reads the list of the
+/// agents once and takes the member's configuration from the agent's entry, where the read
+/// answers and names it, so that the row that the call publishes reads the stored tier and yes;
+/// at any other answer the member stays as it was.
+pub fn set_model<P: Owner<Config = C>, C>(
+    ports: &P,
+    board: &mut Board<C>,
+    i: usize,
+    yes: bool,
+) -> Result<(), PortError> {
+    let facts = &board.members[i].facts;
+    let (workflow, agent) = (facts.workflow.id.clone(), facts.agent.clone());
+    let body = if yes {
+        Body::AgreeHosted {
+            workflow,
+            agent: agent.clone(),
+        }
+    } else {
+        Body::WithdrawHosted {
+            workflow,
+            agent: agent.clone(),
+        }
+    };
+    ports.send(&body)?;
+    if let Ok(agents) = ports.agents() {
+        if let Some(entry) = agents.into_iter().find(|a| a.agent == agent) {
+            board.members[i].facts.config = entry.config;
+        }
+    }
+    Ok(())
+}
+
 /// Sends `set_state` and reads its answer: the owner's acknowledgement, `{"state":"<state>"}`
 /// with the state sent, writes that state into the agent's facts, so that every later step of the
 /// move reads it (ruling RD-67 1.3 (a); I5.1); any other reply is no acknowledgement and answers

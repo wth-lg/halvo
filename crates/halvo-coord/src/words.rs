@@ -216,6 +216,14 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.level.medium", "Standard"),
     ("line.level.high", "Thorough"),
     ("line.runs_on.on_device", "It runs on this computer."),
+    (
+        "line.runs_on.hosted",
+        "It may use an AI model at {host}: {models}.",
+    ),
+    (
+        "line.runs_on.asks_again",
+        "The AI model for this agent is now at {host}. Allow it again?",
+    ),
     ("line.asks.observe", "It only looks and never acts for you."),
     (
         "line.asks.draft_and_confirm",
@@ -252,6 +260,8 @@ pub const KEYS: &[(&str, &str)] = &[
     ("control.take_back", "Cancel this start"),
     ("control.switch_off", "Switch off"),
     ("control.switch_on", "Switch on"),
+    ("control.use_model", "Use an AI model"),
+    ("control.this_computer_only", "Use this computer only"),
     ("control.stop_sign_in", "Stop using its sign-in"),
     ("control.delete", "Delete"),
     ("item.sign_in.title", "Sign in for “{name}”"),
@@ -658,6 +668,29 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     ("ask.stop_sign_in.keep", "Keep the sign-in"),
     (
+        "ask.use_model.title",
+        "Let this agent use an AI model on someone else's computers?",
+    ),
+    (
+        "ask.use_model.sends",
+        "To work out a step, this agent would send the text of the page that it has open, or of the message that it is answering, to {host}.",
+    ),
+    ("ask.use_model.models", "It would use {models} there."),
+    (
+        "ask.use_model.never",
+        "It never sends what is in a password field, your saved sign-ins or anything that Halvo recorded of your own work.",
+    ),
+    (
+        "ask.use_model.bills",
+        "{host} bills the key that you gave Halvo. Halvo counts what its own requests cost and stops at {amount} a {period}.",
+    ),
+    ("ask.use_model.keep", "Not now"),
+    ("ask.use_model.allow", "Allow for this agent"),
+    (
+        "ask.use_model.first",
+        "Save a key and set a spending limit under AI model first.",
+    ),
+    (
         "ask.effect.payment",
         "Halvo does not know whether it made this payment.",
     ),
@@ -776,6 +809,14 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "refused.sign_in_not_finished",
         "Halvo could not finish this. If this agent still shows Stop using its sign-in, choose it again.",
+    ),
+    (
+        "refused.use_model_not_finished",
+        "Halvo could not finish this. If this agent still shows Use an AI model, choose it again.",
+    ),
+    (
+        "refused.this_computer_not_finished",
+        "Halvo could not finish this. If this agent still shows Use this computer only, choose it again.",
     ),
 ];
 

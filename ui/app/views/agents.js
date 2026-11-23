@@ -1,7 +1,8 @@
 (function () {
   var ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
-  var CONTROL = { run_now: true, stop: true, take_back: true, switch_off: true, switch_on: true, stop_sign_in: true, delete: true };
-  var ASKED = { delete: 'ask', stop_sign_in: 'ask_stop_sign_in' };
+  var CONTROL = { run_now: true, stop: true, take_back: true, switch_off: true, switch_on: true, use_model: true, this_computer_only: true, stop_sign_in: true, delete: true };
+  var ASKED = { delete: 'ask', stop_sign_in: 'ask_stop_sign_in', use_model: 'ask_use_model' };
+  var NOTED = { use_model: 'note_use_model' };
   var CARD_TRIES = 3;
 
   var root = null;
@@ -168,7 +169,9 @@
       if (event.detail > 1 || !pressedOn(b, event) || busy[row.agent]) return;
       if (ASKED[c.control]) {
         if (drop(row.agent)) render();
-        ask(row, c.control);
+        var noted = NOTED[c.control] ? row[NOTED[c.control]] : null;
+        if (!isAsk(row[ASKED[c.control]]) && isText(noted) && noted !== '') answer(row.agent, c.control, noted, false);
+        else ask(row, c.control);
         return;
       }
       press(row, c.control, 'agents_control', { agent: row.agent, action: c.control }, true).then(reread);
@@ -214,7 +217,7 @@
       controls: asked.controls,
       param: agent,
       answer: function (act) {
-        if (act === 'allow' && control === 'stop_sign_in') press(row, control, 'agents_control', { agent: agent, action: control }, true).then(reread);
+        if (act === 'allow' && control !== 'delete') press(row, control, 'agents_control', { agent: agent, action: control }, true).then(reread);
         else if (act === 'allow') send(agent, 'agents_delete', { agent: agent }).then(reread);
         else if (act === 'stop') send(agent, 'agents_control', { agent: agent, action: 'stop' }).then(reread);
       },

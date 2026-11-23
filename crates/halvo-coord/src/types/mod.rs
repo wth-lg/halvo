@@ -17,7 +17,7 @@ pub(crate) mod strict;
 mod workflow;
 
 pub use cause::Cause;
-pub use config::{Budget, ConfigView};
+pub use config::{Budget, ConfigView, ModelUse, SpendLimit};
 pub use event::{
     Answered, BindAnswer, BindResult, Body, CheckAnswer, Cleared, Defers, DoneAnswer, Event,
     ItemLapseCause, Lapsed, LinkAnswer, OtherLapse, Raised, ReadyAnswer, Reply, SetupAnswer,

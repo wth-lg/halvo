@@ -984,4 +984,54 @@ mod tests {
         assert_eq!(PERIOD.as_str(), "month");
         assert_eq!(release::cap().map(|cap| cap.period), Some(PERIOD));
     }
+
+    /// r4 U3.17b sentence 8, here because the tree scan of the body that starts a new count allows this file: the read
+    /// of the key's and the count's states for the agents' rows (`crate::product::hosting`) goes through `ModelLimit`
+    /// with a memory of its own (`crate::product::RowsMemory`), so that it never moves the memory of the limit's part.
+    /// Behind a part whose last answer was the state made from the fault of the store's read (set), a read for the
+    /// rows that meets a room leaves it set: a press whose own read faults again still starts a new count. Behind a
+    /// part whose last answer was a room (clear), a read for the rows that meets the fault leaves it clear: a press
+    /// whose read faults answers failed and starts none.
+    #[test]
+    fn a_read_for_the_rows_leaves_the_memory_of_the_limits_part_as_it_was() {
+        let fault = || Answer::Refused(FAULT);
+        let room = || {
+            result(
+                r#"{"room":"reads","cap_minor":2000,"spent":0,"held":0,"period_end_ms":1800000000000}"#,
+            )
+        };
+        let host = "hosted-model.test";
+        for (part_last, rows_meet, starts) in [(fault(), room(), true), (room(), fault(), false)] {
+            let part = Memory::new();
+            let last = Stand::new();
+            last.then([part_last]);
+            ModelLimit::new(last, &part).state(host);
+            let rows = Stand::new();
+            rows.then([result(r#"{"stands":"yes"}"#), rows_meet]);
+            let link: Arc<dyn OwnerLink> = rows.clone();
+            let read = crate::product::hosting(
+                &link,
+                &crate::product::RowsMemory::default(),
+                Some(host.to_owned()),
+                &["test-model-small"],
+                true,
+            );
+            assert!(read.is_some(), "{starts}");
+            assert_eq!(rows.ops(), ["model_key_state", "model_room"]);
+            let press = Stand::new();
+            press.then([fault(), cap_reply(2_500, "yes")]);
+            let answer = ModelLimit::new(press.clone(), &part).set("25");
+            let ops = press.ops();
+            assert_eq!(
+                ops.iter().any(|op| op == "new_model_count"),
+                starts,
+                "{ops:?}"
+            );
+            assert_eq!(
+                matches!(answer, LimitReply::Set { .. }),
+                starts,
+                "{answer:?}"
+            );
+        }
+    }
 }

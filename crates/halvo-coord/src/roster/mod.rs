@@ -12,6 +12,7 @@ use crate::types::{
     RunId, Runtime, SignInAnswer, StatusLine, System, Tier, Trigger, What,
 };
 use crate::types::{Ask, AskAct, AskControl, AskEffect, AskKind, Class, Kept};
+use crate::types::{ModelUse, SpendLimit};
 use crate::words;
 
 /// The status of the agent of `facts` with the case of its line (I1.3): the first row that fits
@@ -112,7 +113,12 @@ fn text(key: &str, pairs: &[(&str, &str)]) -> Result<String, Cause> {
 
 /// The settings lines of a configuration (I2.2), in the order of the table, each whose
 /// condition holds and whose words entry exists: `level`, `runs_on`, `asks`, `time` with the
-/// minutes of `wall_s` rounded up, `files` and `spend`.
+/// minutes of `wall_s` rounded up, `files` and `spend`. The line `runs_on` says that the agent
+/// runs on this computer where its stored tier is `on_device` or its runtime asks no model
+/// (`asks_a_model`); where the tier is a hosted tier, the runtime asks a model and the app hands
+/// the agent's model, that it may use an AI model at the host, with the models, where its stored
+/// yes stands, and that the AI model is now at the host and asks again where it does not (r4
+/// U3.17b); such an agent with no model handed has no such line.
 pub fn lines<C: ConfigView>(config: &C) -> Vec<CardLine> {
     let mut out = Vec::new();
     let mut add = |key: LineKey, words_key: &str, pairs: &[(&str, &str)]| {
@@ -125,11 +131,21 @@ pub fn lines<C: ConfigView>(config: &C) -> Vec<CardLine> {
         &format!("line.level.{}", config.reasoning().name()),
         &[],
     );
-    add(
-        LineKey::RunsOn,
-        &format!("line.runs_on.{}", config.tier().name()),
-        &[],
-    );
+    match (config.tier(), config.model()) {
+        (Tier::OnDevice, _) => add(LineKey::RunsOn, "line.runs_on.on_device", &[]),
+        _ if !asks_a_model(config) => add(LineKey::RunsOn, "line.runs_on.on_device", &[]),
+        (_, Some(model)) if model.stands => add(
+            LineKey::RunsOn,
+            "line.runs_on.hosted",
+            &[("host", &model.host), ("models", &model.models)],
+        ),
+        (_, Some(model)) => add(
+            LineKey::RunsOn,
+            "line.runs_on.asks_again",
+            &[("host", &model.host)],
+        ),
+        (_, None) => {}
+    }
     add(
         LineKey::Asks,
         &format!("line.asks.{}", config.autonomy().name()),
@@ -264,6 +280,52 @@ pub fn with_stop_sign_in<C>(
     offered
 }
 
+/// THE ONE LIST of the runtimes whose runs ask a model (r4 U3.17b, the coordinator's ruling of
+/// log line 18496): only an agent of one of them is offered Use an AI model and is said to be able
+/// to use one. A file agent and a calendar agent replay a built-in playbook and ask no model. The
+/// unit that lets another runtime ask a model adds it here.
+pub const MODEL_RUNTIMES: [Runtime; 2] = [Runtime::Web, Runtime::GraphMail];
+
+/// Whether the agent of `config` has a runtime of `MODEL_RUNTIMES`.
+pub fn asks_a_model<C: ConfigView>(config: &C) -> bool {
+    MODEL_RUNTIMES.contains(&config.runtime())
+}
+
+/// The controls of an agent's use of an AI model (r4 U3.17b), in the order of `Control`: none
+/// where the app hands no `ModelUse` (this build's table of hosts holds no row, or its rows name
+/// two origins); `use_model` where the agent's runtime asks a model (`MODEL_RUNTIMES`) and its
+/// stored tier is `on_device` or its stored yes does not stand; `this_computer_only` where its
+/// stored tier is a hosted tier, whatever its runtime: the way back is never withheld.
+pub fn model_controls<C: ConfigView>(config: &C) -> Vec<Control> {
+    let Some(model) = config.model() else {
+        return Vec::new();
+    };
+    let hosted = config.tier() != Tier::OnDevice;
+    let mut out = Vec::new();
+    if asks_a_model(config) && (!hosted || !model.stands) {
+        out.push(Control::UseModel);
+    }
+    if hosted {
+        out.push(Control::ThisComputerOnly);
+    }
+    out
+}
+
+/// `offered` with the `model_controls` of the agent before `stop_sign_in` and `delete`, where
+/// `offered` holds `delete`: a row of a gone workflow or of an agent that is being deleted gets
+/// none (r4 U3.17b).
+pub fn with_model<C: ConfigView>(facts: &Facts<C>, mut offered: Vec<Control>) -> Vec<Control> {
+    if offered.contains(&Control::Delete) {
+        if let Some(at) = offered
+            .iter()
+            .position(|c| matches!(c, Control::StopSignIn | Control::Delete))
+        {
+            offered.splice(at..at, model_controls(&facts.config));
+        }
+    }
+    offered
+}
+
 fn started_by_the_schedule<C: ConfigView>(facts: &Facts<C>, limits: &Limits) -> bool {
     !needs_person(&facts.config) && finished(facts) && slot_due(facts, limits).is_some()
 }
@@ -284,8 +346,9 @@ pub fn row<C: ConfigView>(
 }
 
 /// The row of `row`, where `session` says whether the board's member of the agent holds a stored
-/// session (I6.1 `session`): its controls are those of `with_stop_sign_in`, so that the row of
-/// `problem.record` offers no `stop_sign_in` (r4 U2.4y).
+/// session (I6.1 `session`): its controls are those of `with_stop_sign_in` and `with_model`, so
+/// that the row of `problem.record` offers no `stop_sign_in` (r4 U2.4y) and neither control of
+/// an AI model (r4 U3.17b).
 pub fn row_with_session<C: ConfigView>(
     facts: &Facts<C>,
     session: bool,
@@ -294,7 +357,8 @@ pub fn row_with_session<C: ConfigView>(
     waiting: Option<Trigger>,
     limits: &Limits,
 ) -> Result<Row, Cause> {
-    let offered = with_stop_sign_in(facts, session, controls(facts, waiting, limits))
+    let offered = with_stop_sign_in(facts, session, controls(facts, waiting, limits));
+    let offered = with_model(facts, offered)
         .into_iter()
         .filter(|c| line != StatusLine::Record || matches!(c, Control::Stop | Control::Delete))
         .collect();
@@ -327,6 +391,10 @@ fn row_with<C: ConfigView>(
     } else {
         None
     };
+    let (ask_use_model, note_use_model) = match facts.config.model() {
+        Some(model) if offered.contains(&Control::UseModel) => use_model_ask(&model)?,
+        _ => (None, None),
+    };
     Ok(Row {
         agent: facts.agent.clone(),
         workflow: facts.workflow.id.clone(),
@@ -349,6 +417,8 @@ fn row_with<C: ConfigView>(
             .collect::<Result<_, _>>()?,
         ask,
         ask_stop_sign_in,
+        ask_use_model,
+        note_use_model,
     })
 }
 
@@ -454,6 +524,52 @@ pub fn stop_sign_in_ask(name: &str) -> Result<Ask, Cause> {
             ask_control(AskAct::Allow, "control.stop_sign_in")?,
         ],
     })
+}
+
+/// What a press on the row's `use_model` opens in the page, which sends nothing (r4 U3.17b): ONE
+/// sentence in place of the question, `ask.use_model.first`, where no key is saved or no limit is
+/// set, and else, where the key's state or the count's state could not be read, the sentence of
+/// `refused.use_model_not_finished`; else the question `use_model`. Its title asks whether the agent
+/// may use an AI model on someone else's computers; its texts say that it would send the text of
+/// the page or the message to the host, that it would use the models there, what it never sends,
+/// and that the host bills the person's key while Halvo stops at the limit's amount a period, as
+/// the limit's view writes them; then the safe control Not now, and Allow for this agent, which
+/// sends `agents_control` with `use_model`.
+pub fn use_model_ask(model: &ModelUse) -> Result<(Option<Ask>, Option<String>), Cause> {
+    let (Some(true), SpendLimit::Stands { amount, period }) = (model.key, &model.limit) else {
+        let first = model.key == Some(false) || model.limit == SpendLimit::NotSet;
+        let key = if first {
+            "ask.use_model.first"
+        } else {
+            "refused.use_model_not_finished"
+        };
+        return Ok((None, Some(text(key, &[])?)));
+    };
+    let host = [("host", model.host.as_str())];
+    let ask = Ask {
+        kind: AskKind::UseModel,
+        title: text("ask.use_model.title", &[])?,
+        text: vec![
+            text("ask.use_model.sends", &host)?,
+            text("ask.use_model.models", &[("models", &model.models)])?,
+            text("ask.use_model.never", &[])?,
+            text(
+                "ask.use_model.bills",
+                &[
+                    ("host", &model.host),
+                    ("amount", amount),
+                    ("period", period),
+                ],
+            )?,
+        ],
+        effects: Vec::new(),
+        record: None,
+        controls: vec![
+            ask_control(AskAct::Reject, "ask.use_model.keep")?,
+            ask_control(AskAct::Allow, "ask.use_model.allow")?,
+        ],
+    };
+    Ok((Some(ask), None))
 }
 
 fn unknown_effects<C: ConfigView>(facts: &Facts<C>, name: &str) -> Result<Vec<AskEffect>, Cause> {
@@ -815,3 +931,6 @@ pub fn raised_at<C>(facts: &Facts<C>) -> Option<u64> {
         _ => None,
     })
 }
+
+#[cfg(test)]
+mod tests;

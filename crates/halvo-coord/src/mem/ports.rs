@@ -1199,6 +1199,16 @@ impl<C> Runs for Ports<C> {
     }
 }
 
+/// The stand-in's own answer to the guard: as a memory `Policy` with no row, never `run`, so that a
+/// coordinator can run over the stand-in owner alone in a unit test (r4 U3.17b).
+impl<C: ConfigView> crate::guard::Policy for Ports<C> {
+    type Config = C;
+
+    fn gives_run(&self, _config: &C, _class: crate::types::Class) -> Result<bool, PortError> {
+        Ok(false)
+    }
+}
+
 impl<C> Analysis for Ports<C> {
     fn defer(&self, until: u64) -> Result<(), PortError> {
         self.checked(Method::Defer, &Call::Defer(until))?;
