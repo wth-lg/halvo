@@ -15,15 +15,124 @@ pub enum Value {
 /// The rows of a source file, in the form that [`crate::Folder::read_source`] states: RFC 4180
 /// (its section 2) with one separator, the comma, the semicolon or the tab, after one byte-order
 /// mark at the first byte. No line break stands inside a field, so a row is a line and a refusal
-/// names the line. A file that is not UTF-8 is refused first; then a file whose separator is in
-/// doubt (`separator`); then a fault of the form stops the read where it stands; then rows of
-/// unequal length are refused. Each field's value is told last, by the file's numbers
-/// (`Numbers::of`).
+/// names the line. A file that is not UTF-8 is refused first; then the file's separator is told
+/// and the file is read by it (`reading`), where a file whose separator is in doubt is refused, a
+/// fault of the form stops the read where it stands, and rows of unequal length are refused. Each
+/// field's value is told last, by the file's numbers (`Numbers::of`).
 pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
     let text = std::str::from_utf8(bytes).map_err(|_| Error::Source(SourceRefusal::Encoding))?;
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
-    let separator = separator(text)?;
-    let mut rows: Vec<Vec<Cow<'_, str>>> = Vec::new();
+    let (separator, rows) = reading(text)?;
+    let numbers = Numbers::of(separator, &rows);
+    Ok(rows
+        .iter()
+        .map(|row| row.iter().map(|cell| numbers.value(cell)).collect())
+        .collect())
+}
+
+/// The fields of a file's rows, as `read` gives them.
+type Rows<'a> = Vec<Vec<Cow<'a, str>>>;
+
+/// The separator of a file and its rows by it (r3 U11.5, r3 U11.6). A sign holds where every
+/// line that is not empty holds one or more of it outside its quoted fields and as many as every
+/// other such line (`holds`); an empty line counts for nothing. A file in which the semicolon and
+/// the tab both hold is refused, as its separator is in doubt; a file in which neither holds is
+/// read by commas, as before r3 U11.5; a file in which the semicolon or the tab holds and the
+/// comma does not is read by that sign. Where the semicolon (or the tab) and the comma both hold,
+/// the file has two readings and is told by what it holds, never by a fixed order alone:
+/// (1) by the semicolon where every comma outside its quoted fields stands between two digits
+/// (`in_numbers`), told by the signs before any read, so that a fault of that read refuses the
+/// file and the comma is not tried; (2) else each is read whole, a reading that meets a fault of
+/// the form or rows of unequal length is none, one reading that is left is taken, and of two the
+/// one in which more fields of the whole file are numbers (`numbers`); where both fault, the
+/// semicolon's fault is named; (3) where the numbers are as many, the semicolon.
+fn reading(text: &str) -> Result<(u8, Rows<'_>), Error> {
+    let sign = match (holds(text, b';'), holds(text, b'\t')) {
+        (true, true) => return Err(Error::Source(SourceRefusal::TwoSeparators)),
+        (true, false) => b';',
+        (false, true) => b'\t',
+        (false, false) => return Ok((b',', read(text, b',')?)),
+    };
+    if !holds(text, b',') || in_numbers(text, sign) {
+        return Ok((sign, read(text, sign)?));
+    }
+    match (read(text, sign), read(text, b',')) {
+        (Ok(theirs), Ok(commas)) if numbers(b',', &commas) > numbers(sign, &theirs) => {
+            Ok((b',', commas))
+        }
+        (Ok(theirs), _) => Ok((sign, theirs)),
+        (Err(_), Ok(commas)) => Ok((b',', commas)),
+        (Err(error), Err(_)) => Err(error),
+    }
+}
+
+/// The lines of `text` that are not empty, each without its line end.
+fn lines(text: &str) -> impl Iterator<Item = &str> {
+    text.split('\n')
+        .map(|line| line.strip_suffix('\r').unwrap_or(line))
+        .filter(|line| !line.is_empty())
+}
+
+/// Whether `sign` holds in `text`: every line that is not empty holds one or more of it outside
+/// its quoted fields (`outside_quotes`), and as many as every other such line.
+fn holds(text: &str, sign: u8) -> bool {
+    let mut counts = lines(text).map(|line| {
+        outside_quotes(line, sign)
+            .filter(|&at| line.as_bytes()[at] == sign)
+            .count()
+    });
+    counts
+        .next()
+        .is_some_and(|first| first > 0 && counts.all(|count| count == first))
+}
+
+/// Whether every comma of `text` outside its quoted fields, each line read as fields separated by
+/// `sign`, stands between two digits, as in a number with a decimal comma or a thousands comma
+/// (`41,20`, `1,234`, `1.234,56`), and not in a text (`Müller, Hans`) nor at a field's edge
+/// (`,5`). Step (1) of `reading`.
+fn in_numbers(text: &str, sign: u8) -> bool {
+    lines(text).all(|line| {
+        let bytes = line.as_bytes();
+        let digit = |at: usize| bytes.get(at).is_some_and(u8::is_ascii_digit);
+        outside_quotes(line, sign)
+            .filter(|&at| bytes[at] == b',')
+            .all(|at| at > 0 && digit(at - 1) && digit(at + 1))
+    })
+}
+
+/// The places of the bytes of `line` that stand outside its quoted fields, the line read as
+/// fields separated by `sign`: a double quote at the line's start or right behind `sign` opens a
+/// quoted field, and the next double quote that no second one follows closes it. The quotes
+/// themselves are not among the places.
+fn outside_quotes(line: &str, sign: u8) -> impl Iterator<Item = usize> + '_ {
+    let mut start = true;
+    let mut quoted = false;
+    let mut bytes = line.bytes().enumerate().peekable();
+    std::iter::from_fn(move || {
+        while let Some((at, byte)) = bytes.next() {
+            if quoted {
+                if byte == b'"' && bytes.next_if(|&(_, next)| next == b'"').is_none() {
+                    quoted = false;
+                }
+            } else if byte == sign {
+                start = true;
+                return Some(at);
+            } else {
+                quoted = start && byte == b'"';
+                start = false;
+                if !quoted {
+                    return Some(at);
+                }
+            }
+        }
+        None
+    })
+}
+
+/// The rows of `text` read by `separator` (`row`): a fault of the form stops the read where it
+/// stands; then rows of unequal length are refused, the first row of another length named.
+fn read(text: &str, separator: u8) -> Result<Rows<'_>, Error> {
+    let mut rows = Vec::new();
     let mut at = 0;
     while at < text.len() {
         let (row, next) = row(text, at, rows.len() + 1, separator)?;
@@ -33,63 +142,20 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
     let ragged = rows
         .first()
         .and_then(|first| rows.iter().position(|row| row.len() != first.len()));
-    if let Some(at) = ragged {
-        return Err(Error::Source(SourceRefusal::Ragged { line: at + 1 }));
-    }
-    let numbers = Numbers::of(separator, &rows);
-    Ok(rows
-        .iter()
-        .map(|row| row.iter().map(|cell| numbers.value(cell)).collect())
-        .collect())
-}
-
-/// The separator of a file (r3 U11.5): the semicolon where every line that is not empty holds
-/// one or more semicolons outside its quoted fields and as many as every other such line
-/// (`outside_quotes`), the tab by the same rule for tabs, and the comma in every other file. A
-/// file in which both the semicolon and the tab hold is refused, as its separator is in doubt;
-/// an empty line counts for nothing. A file that reads by commas reads as it did before r3 U11.5,
-/// which refused every file in which the semicolon or the tab holds.
-fn separator(text: &str) -> Result<u8, Error> {
-    let lines = text
-        .split('\n')
-        .map(|line| line.strip_suffix('\r').unwrap_or(line))
-        .filter(|line| !line.is_empty());
-    let holds = |sign: u8| {
-        let mut counts = lines.clone().map(|line| outside_quotes(line, sign));
-        counts
-            .next()
-            .is_some_and(|first| first > 0 && counts.all(|count| count == first))
-    };
-    match (holds(b';'), holds(b'\t')) {
-        (true, true) => Err(Error::Source(SourceRefusal::TwoSeparators)),
-        (true, false) => Ok(b';'),
-        (false, true) => Ok(b'\t'),
-        (false, false) => Ok(b','),
+    match ragged {
+        Some(at) => Err(Error::Source(SourceRefusal::Ragged { line: at + 1 })),
+        None => Ok(rows),
     }
 }
 
-/// The signs `sign` of `line` that stand outside its quoted fields, the line read as fields
-/// separated by `sign`: a double quote at the line's start or right behind `sign` opens a quoted
-/// field, and the next double quote that no second one follows closes it.
-fn outside_quotes(line: &str, sign: u8) -> usize {
-    let mut count = 0;
-    let mut start = true;
-    let mut quoted = false;
-    let mut bytes = line.bytes().peekable();
-    while let Some(byte) = bytes.next() {
-        if quoted {
-            if byte == b'"' && bytes.next_if_eq(&b'"').is_none() {
-                quoted = false;
-            }
-        } else if byte == sign {
-            count += 1;
-            start = true;
-        } else {
-            quoted = start && byte == b'"';
-            start = false;
-        }
-    }
-    count
+/// How many fields of the whole file `rows`, read by `separator`, are numbers, each told by the
+/// file's numbers for that separator (`Numbers::of`). Step (2) of `reading`.
+fn numbers(separator: u8, rows: &Rows<'_>) -> usize {
+    let numbers = Numbers::of(separator, rows);
+    rows.iter()
+        .flatten()
+        .filter(|cell| numbers.number(cell).is_some())
+        .count()
 }
 
 /// The fields of the line `line` that starts at the byte `at` of `text`, separated by
@@ -189,13 +255,17 @@ impl Numbers {
         }
     }
 
-    fn value(self, cell: &str) -> Value {
-        let number = match self {
+    /// The number of `cell` in such a file, or none where it is a text.
+    fn number(self, cell: &str) -> Option<f64> {
+        match self {
             Numbers::Points => point_number(cell),
             Numbers::Sign(sign) => whole_number(cell).or_else(|| with_sign(cell, sign)),
             Numbers::Whole => whole_number(cell),
-        };
-        match number {
+        }
+    }
+
+    fn value(self, cell: &str) -> Value {
+        match self.number(cell) {
             Some(x) => Value::Number(x),
             None => Value::Text(cell.to_string()),
         }
@@ -620,11 +690,10 @@ mod tests {
     /// number in any file.
     #[test]
     fn a_decimal_comma_in_a_file_of_semicolons_or_tabs_is_its_number_and_in_doubt_a_text() {
-        let alone: [(&str, Value); 30] = [
+        let alone: [(&str, Value); 29] = [
             ("3,5", n(3.5)),
             ("41,20", n(41.2)),
             ("-0,5", n(-0.5)),
-            (",5", t(",5")),
             ("5,", t("5,")),
             ("1.234,56", t("1.234,56")),
             ("1,234", t("1,234")),
@@ -652,7 +721,8 @@ mod tests {
             ("-7", n(-7.0)),
             ("007", t("007")),
         ];
-        let mixed: [(&[&str], Vec<Value>); 5] = [
+        let mixed: [(&[&str], Vec<Value>); 6] = [
+            (&[",5", "12"], vec![t(",5"), n(12.0)]),
             (&["3,5", "4.5"], vec![t("3,5"), t("4.5")]),
             (&["0,125", "41.20"], vec![t("0,125"), t("41.20")]),
             (&["3,5", "1.234"], vec![n(3.5), t("1.234")]),
@@ -678,6 +748,173 @@ mod tests {
                 if got != Ok(want) {
                     wrong.push(format!("{}: got {got:?}", text.escape_debug()));
                 }
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.6, the coordinator's ruling (its log line 19549): a file that holds by the
+    /// semicolon, or by the tab, and by the comma (each sign as many times outside quoted fields
+    /// in every line that is not empty) has two readings, and it is read by what it holds, never
+    /// by a fixed order alone (`reading`). Each row of the builder's table is a file here, named
+    /// by what it is and by the step that tells it, with the rows that it reads to or its
+    /// refusal; R14 and R15 hold by one sign alone and read as before.
+    #[test]
+    fn a_file_that_holds_by_the_comma_and_by_the_semicolon_or_the_tab_reads_by_what_it_holds() {
+        fn file(lines: &[&str], end: &str) -> String {
+            lines.iter().map(|line| format!("{line}{end}")).collect()
+        }
+        fn five(row: Vec<Value>) -> Vec<Vec<Value>> {
+            vec![row; 5]
+        }
+        let water = vec![
+            vec![t("Wasser"), n(41.2), n(3.5)],
+            vec![t("Strom"), n(63.05), n(7.25)],
+        ];
+        type Read = Result<Vec<Vec<Value>>, Error>;
+        let cases: Vec<(&str, String, Read)> = vec![
+            (
+                "R1, step (2), a comma file with one semicolon a row in a text",
+                file(&["Item 1; note,1.50,1"; 5], "\n"),
+                Ok(five(vec![t("Item 1; note"), n(1.5), n(1.0)])),
+            ),
+            (
+                "R2, step (2), a comma file with two semicolons a row in a text",
+                file(&["Item 1; note; more,1.50,1"; 5], "\n"),
+                Ok(five(vec![t("Item 1; note; more"), n(1.5), n(1.0)])),
+            ),
+            (
+                "R3, step (1), a semicolon file with decimal commas",
+                file(&["Item 1 note;1,50;1"; 5], "\r\n"),
+                Ok(five(vec![t("Item 1 note"), n(1.5), n(1.0)])),
+            ),
+            (
+                "R4, step (1), a semicolon file with a decimal comma in every number",
+                file(&["Wasser;41,20;3,50", "Strom;63,05;7,25"], "\r\n"),
+                Ok(water.clone()),
+            ),
+            (
+                "R5, step (2), a semicolon file with a comma in a text and decimal commas",
+                file(&["Müller, Hans;41,20;7", "Schmidt, Eva;12,00;3"], "\r\n"),
+                Ok(vec![
+                    vec![t("Müller, Hans"), n(41.2), n(7.0)],
+                    vec![t("Schmidt, Eva"), n(12.0), n(3.0)],
+                ]),
+            ),
+            (
+                "R6, step (3), a semicolon file of texts with a comma in every row",
+                file(&["Müller, Hans;Berlin", "Schmidt, Eva;Köln"], "\r\n"),
+                Ok(vec![
+                    vec![t("Müller, Hans"), t("Berlin")],
+                    vec![t("Schmidt, Eva"), t("Köln")],
+                ]),
+            ),
+            (
+                "R7, step (3), its named rest: a comma file of texts with a semicolon in every row",
+                file(&["Berlin; Mitte,Hans", "Köln; Ehrenfeld,Eva"], "\n"),
+                Ok(vec![
+                    vec![t("Berlin"), t(" Mitte,Hans")],
+                    vec![t("Köln"), t(" Ehrenfeld,Eva")],
+                ]),
+            ),
+            (
+                "R8, step (1), a semicolon file with a comma in a thousands shape",
+                file(&["Miete;1,234", "Strom;2,500"], "\r\n"),
+                Ok(vec![
+                    vec![t("Miete"), t("1,234")],
+                    vec![t("Strom"), t("2,500")],
+                ]),
+            ),
+            (
+                "R9, step (2), a semicolon file with a comma in a text and decimal points",
+                file(&["Wasser, kalt;41.20", "Strom, Tag;63.05"], "\r\n"),
+                Ok(vec![
+                    vec![t("Wasser, kalt"), n(41.2)],
+                    vec![t("Strom, Tag"), n(63.05)],
+                ]),
+            ),
+            (
+                "R10, step (1), a semicolon file with a comma in a quoted text",
+                file(
+                    &["\"Müller, Hans\";41,20", "\"Schmidt, Eva\";12,00"],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("Müller, Hans"), n(41.2)],
+                    vec![t("Schmidt, Eva"), n(12.0)],
+                ]),
+            ),
+            (
+                "R11, one reading, a comma file with a semicolon in a quoted text",
+                file(&["\"a;b\",1.50", "\"c;d\",2.50"], "\n"),
+                Ok(vec![vec![t("a;b"), n(1.5)], vec![t("c;d"), n(2.5)]]),
+            ),
+            (
+                "R12, step (2), a comma file with two tabs a row in a text",
+                file(&["Item 1\tnote\tmore,1.50,1"; 5], "\n"),
+                Ok(five(vec![t("Item 1\tnote\tmore"), n(1.5), n(1.0)])),
+            ),
+            (
+                "R13, step (1), a tab file with a decimal comma in every number",
+                file(&["Wasser\t41,20\t3,50", "Strom\t63,05\t7,25"], "\r\n"),
+                Ok(water),
+            ),
+            (
+                "R14, one reading, one column of decimal commas: two columns of whole numbers",
+                file(&["3,5", "41,20"], "\r\n"),
+                Ok(vec![vec![n(3.0), n(5.0)], vec![n(41.0), n(20.0)]]),
+            ),
+            (
+                "R15, one reading, a semicolon file with rows of different lengths",
+                file(&["Wasser;41,20;3", "Strom;12,00"], "\r\n"),
+                Ok(vec![
+                    vec![t("Wasser;41"), t("20;3")],
+                    vec![t("Strom;12"), t("00")],
+                ]),
+            ),
+            (
+                "R16, step (1), its named rest: a comma file whose commas stand between digits",
+                file(&["Room 1; Floor 2,450", "Room 2; Floor 3,380"], "\n"),
+                Ok(vec![
+                    vec![t("Room 1"), t(" Floor 2,450")],
+                    vec![t("Room 2"), t(" Floor 3,380")],
+                ]),
+            ),
+            (
+                "R17, step (2), a semicolon file with a decimal comma at a field's edge",
+                file(&["Wasser;,5"], "\r\n"),
+                Ok(vec![vec![t("Wasser;"), n(5.0)]]),
+            ),
+            (
+                "R18, step (2), a semicolon file with one decimal comma at a field's edge",
+                file(&["Wasser;0,5", "Strom;,75"], "\r\n"),
+                Ok(vec![
+                    vec![t("Wasser;0"), n(5.0)],
+                    vec![t("Strom;"), n(75.0)],
+                ]),
+            ),
+            (
+                "R19, step (1), a semicolon file with text behind a closing quote: refused",
+                file(&["Wasser;\"a\"b;41,20", "Strom;\"c\"d;63,05"], "\r\n"),
+                Err(Error::Source(SourceRefusal::Quote { line: 1 })),
+            ),
+            (
+                "R20, step (2), its named clause: a comma in a text and a fault of the quotes",
+                file(
+                    &["Müller, Hans;\"Haus\"A;7", "Schmidt, Eva;\"Haus\"B;3"],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("Müller"), t(" Hans;\"Haus\"A;7")],
+                    vec![t("Schmidt"), t(" Eva;\"Haus\"B;3")],
+                ]),
+            ),
+        ];
+        let mut wrong = Vec::new();
+        for (name, text, want) in cases {
+            let got = parse(text.as_bytes());
+            if got != want {
+                wrong.push(format!("{name}: {}: got {got:?}", text.escape_debug()));
             }
         }
         assert!(wrong.is_empty(), "{wrong:#?}");
