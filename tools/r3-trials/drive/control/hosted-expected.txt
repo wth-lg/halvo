@@ -1,0 +1,45 @@
+line attempt model=standin_host machine=* task=bill seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line attempt model=standin_host machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=bill seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line drive model=standin_host machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
+line attempt model=standin_host machine=* task=bill seed=2 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line attempt model=standin_host machine=* task=bill seed=2 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=bill seed=2 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=bill seed=2 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=bill seed=2 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line drive model=standin_host machine=* task=bill seed=2 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
+line attempt model=standin_host machine=* task=bill seed=3 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line attempt model=standin_host machine=* task=bill seed=3 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=bill seed=3 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=bill seed=3 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=bill seed=3 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line drive model=standin_host machine=* task=bill seed=3 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
+line attempt model=standin_host machine=* task=order seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line attempt model=standin_host machine=* task=order seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=order seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=order seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=order seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line drive model=standin_host machine=* task=order seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
+line attempt model=standin_host machine=* task=order seed=2 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line attempt model=standin_host machine=* task=order seed=2 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=order seed=2 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=order seed=2 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=order seed=2 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line drive model=standin_host machine=* task=order seed=2 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
+line attempt model=standin_host machine=* task=order seed=3 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line attempt model=standin_host machine=* task=order seed=3 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=order seed=3 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=order seed=3 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+line attempt model=standin_host machine=* task=order seed=3 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
+line drive model=standin_host machine=* task=order seed=3 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
+line attempt model=standin_host machine=* task=reply seed=1 kind=write i=1 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
+line reply model=standin_host machine=* seed=1 bodies=2 of=2 wall_s=* model_tokens=*
+line attempt model=standin_host machine=* task=reply seed=2 kind=write i=1 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
+line reply model=standin_host machine=* seed=2 bodies=2 of=2 wall_s=* model_tokens=*
+line attempt model=standin_host machine=* task=reply seed=3 kind=write i=1 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
+line reply model=standin_host machine=* seed=3 bodies=2 of=2 wall_s=* model_tokens=*
+line spend tier=* requests=* spent_micro=* ceiling_minor=*
+line egress list=scripts/egress/lists/loopback.txt origin=http://127.0.0.1:47201 runs=15 denied=0
+line host tier=* origin=http://127.0.0.1:47201 model=stand-in-model adapter=anthropic-messages-2026-10-21

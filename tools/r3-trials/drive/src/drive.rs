@@ -353,11 +353,16 @@ async fn ask(
         let reply = child.ask(&system, &prompt, snapshot.as_deref(), grammar);
         (child, reply)
     });
-    tokio::select! {
+    let (child, reply) = tokio::select! {
         biased;
-        _ = ctx.stop.wait() => Err(End::Signal),
-        done = job => done.map_err(|_| End::NotRun("model")),
+        _ = ctx.stop.wait() => return Err(End::Signal),
+        done = job => done.map_err(|_| End::NotRun("model"))?,
+    };
+    if reply == Err(model::Fault::Ceiling) {
+        ctx.trace("ceiling: the next hold does not fit; nothing was sent");
+        return Err(End::NotRun("ceiling"));
     }
+    Ok((child, reply))
 }
 
 async fn guarded<T>(
@@ -1166,6 +1171,7 @@ async fn replay_steps(
     began: Instant,
 ) -> Result<bool, End> {
     let mut kept: HashMap<String, String> = HashMap::new();
+    let mut done: Vec<String> = Vec::new();
     for s in steps {
         within_wall(ctx, began, tally)?;
         tally.steps += 1;
@@ -1191,12 +1197,14 @@ async fn replay_steps(
                     ctx.trace(&format!("step {} navigate: {e}", s.n));
                     return Ok(false);
                 }
+                done.push(words::NAVIGATE_START.into());
             }
             Verb::Handback => {
                 if let Err(e) = sign_in(ex, ctx).await? {
                     ctx.trace(&format!("step {} handback: {e}", s.n));
                     return Ok(false);
                 }
+                done.push(words::HANDBACK.into());
             }
             _ => {
                 let Some(t) = &s.target else { return Ok(false) };
@@ -1209,7 +1217,7 @@ async fn replay_steps(
                         if child.is_none() {
                             return Ok(false);
                         }
-                        match repair(ex, ctx, child, s, &kept, tally, began).await? {
+                        match repair(ex, ctx, child, s, &kept, &done, tally, began).await? {
                             Some(l) => l,
                             None => return Ok(false),
                         }
@@ -1217,7 +1225,7 @@ async fn replay_steps(
                 };
                 let action = with_reference(&wanted, &line.reference);
                 match carry_out(ex, ctx, tally, &mut kept, &action, &line, s.request).await? {
-                    Done::Step(..) => {}
+                    Done::Step(.., request) => done.push(words::carried_here(&action, request)),
                     Done::Refused(why) => {
                         ctx.trace(&format!("step {} refused: {why}", s.n));
                         return Ok(false);
@@ -1288,18 +1296,59 @@ pub fn same_step(stored: &Action, given: &Action) -> bool {
     with_reference(stored, "e1") == with_reference(given, "e1")
 }
 
+/// The prompt of a recovery request. On the machine: the kept names, the repair's own refusals and
+/// the question that names the stored step. Hosted (A12.7): no word of a stored step, so the names
+/// of A9.4 that the run kept, this run's own lines of what it did and then the repair's refusals, and
+/// the fixed question.
+pub fn repair_prompt(
+    ctx: &Ctx,
+    s: &Step,
+    kept: &HashMap<String, String>,
+    done: &[String],
+    history: &[String],
+) -> String {
+    if ctx.model.hosted.is_some() {
+        let fixed: Vec<String> = needed_extracts(&ctx.task)
+            .iter()
+            .filter(|n| kept.contains_key(**n))
+            .map(|n| n.to_string())
+            .collect();
+        let lines: Vec<String> = done.iter().chain(history).cloned().collect();
+        return words::frame(
+            &ctx.prompts.goal,
+            &slot_names(ctx),
+            &fixed,
+            &lines,
+            words::REPAIR_HOSTED,
+        );
+    }
+    let wanted = action_of(s);
+    let desc = s.target.as_ref().map(|t| t.desc()).unwrap_or_default();
+    words::frame(
+        &ctx.prompts.goal,
+        &slot_names(ctx),
+        &kept_names(kept),
+        history,
+        &words::repair_question(s.n, wanted.word(), &desc),
+    )
+}
+
 /// Asks the model, at most `recoveries` times, which control of this page does the step that
 /// found none: the line that it names, when its action is the step's.
+#[allow(clippy::too_many_arguments)]
 async fn repair(
     ex: &mut Executor,
     ctx: &Ctx,
     child: &mut Option<Child>,
     s: &Step,
     kept: &HashMap<String, String>,
+    done: &[String],
     tally: &mut Tally,
     began: Instant,
 ) -> Result<Option<SnapshotLine>, End> {
-    let Some(t) = &s.target else { return Ok(None) };
+    if s.target.is_none() {
+        return Ok(None);
+    }
     let wanted = action_of(s);
     let mut history: Vec<String> = Vec::new();
     for attempt in 1..=ctx.recoveries {
@@ -1311,14 +1360,7 @@ async fn repair(
             }
         };
         let text = snapshot_text(&lines);
-        let ask_text = words::repair_question(s.n, wanted.word(), &t.desc());
-        let prompt = words::frame(
-            &ctx.prompts.goal,
-            &slot_names(ctx),
-            &kept_names(kept),
-            &history,
-            &ask_text,
-        );
+        let prompt = repair_prompt(ctx, s, kept, done, &history);
         within_wall(ctx, began, tally)?;
         let taken = child.take().ok_or(End::NotRun("model"))?;
         let (back, reply) = ask(ctx, taken, prompt, Some(text.clone()), "action").await?;

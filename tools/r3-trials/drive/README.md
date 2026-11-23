@@ -9,17 +9,19 @@ the task `reply`. Its result file is `docs/r3/trials/driver.md`.
 | File | What it is |
 |---|---|
 | `run.sh` | The entry script: builds the two binaries and runs one cell (`--help`) |
+| `hosted.sh` | The hosted form (unit U0.8): every cell of A13.6 with the door `halvo-model` as the child, under the egress check and a ceiling; `--standin` against the scripted host (`--help`) |
 | `src/main.rs` | `r3-drive`: the arguments, the fixture server, the runs of one cell in order, the lines |
 | `src/drive.rs` | The compile, replay, recovery and write runs on the cdp library of `tools/r3-trials/web` |
 | `src/action.rs` | The reader of a reply of the grammar `action` (A12.4), with the fields of each action |
 | `src/step.rs` | The steps of A3 that a compile writes, the trial's own shape check and its copy of A4.3's table |
-| `src/model.rs` | The child `r3-model` under the cap of halvo-cap, one request line and one reply line at a time |
+| `src/model.rs` | The child `r3-model` under the cap of halvo-cap, one request line and one reply line at a time; in the hosted form the door, its key, and the count that holds the ceiling |
+| `src/host.rs` | The scripted host of the hosted form's stand-in: answers in the form of the door's adapter by a right driver's walk |
 | `src/fixture.rs` | The fixture server with a pipe on its input, its reset and state, and the mail face |
 | `src/body.rs` | The reply rule and the rule that counts a body |
 | `src/lines.rs` | The line forms of A13.6 and of this trial's `load` line |
 | `verdict.py` | The verdict rule over the lines of the result file (`--check`, `--write`, `--self-test`); `--check` also refuses each pair of files that `route-gate import` refuses, with its detail |
 | `rebuild.py` | Makes the block again from the raw cell files, the helper's log and the job log (`--compare`) |
-| `control.sh`, `control/` | The control: one cell with the stand-in child, its five mode files and the expected lines |
+| `control.sh`, `control/` | The control: one cell with the stand-in child, its five mode files and the expected lines; `control/hosted-expected.txt`, the lines of `hosted.sh --standin` |
 | `src/bin/r3-standin.rs` | The stand-in child: no model, one action of the grammar per request, by role and name |
 | `prompts/` | The boundary text and the three goal texts of A9.5 |
 
@@ -284,6 +286,54 @@ The script reads the lines against `control/expected.txt` and prints
 At d3472bf the right walk passed `bill` and failed every replay of `order` on `mac` and on
 `hosted-win`, which showed that no driver could have passed `order`; the mend of 4d1020c, the
 stored place, makes it pass.
+
+## The hosted form (unit U0.8)
+
+`sh tools/r3-trials/drive/hosted.sh` runs the nine cells of A13.6 (`bill` and `order`, seeds 1 to 3,
+then `reply`, seeds 1 to 3) in one process, `r3-drive --round`, with the door `halvo-model` of
+`crates/halvo-model` (A12.6) in the place of `r3-model`: no weights, no model lock, no cap and no
+settings file for the child. Its rule, written before the paid round, is
+`docs/r3/trials/driver-hosted.md`.
+
+```sh
+sh tools/r3-trials/drive/hosted.sh --standin --tier frontier --ceiling 2000 \
+  --browser "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --port 18471
+sh tools/r3-trials/drive/hosted.sh --tier frontier --ceiling MINOR --browser PATH --port N \
+  --model TOKEN --list FILE --key-file FILE    # the paid round: not run by this unit
+```
+
+- The door starts under `sh scripts/egress/check.sh` with a list of one origin, for each run that
+  asks the model (a compile, a recovery, a write). The key is read once from the key file by
+  `r3-drive` and goes to the door as its first line behind its length line; the door writes no
+  ready line. A refusal line of the door ends the run, with its cause in the trace.
+- Before each request the harness reserves a hold on the count of `crates/halvo-route`
+  (`count.rs`) whose cap is the ceiling in minor units, at the prices of the build
+  (`crates/halvo-route/data/prices.tsv`), for the bytes of the body that the door makes and 2,048
+  output tokens. A hold that does not fit ends the cell with `notrun` and the cause `ceiling` before
+  a byte of the request is written, and the round stops. After the answer the hold settles at the
+  token counts of the door's reply line; after a refusal it settles at 0 where nothing left, and at
+  the whole hold for `no_answer`, `status` and `answer`, after which the request may have left.
+- The paid form refuses to start (`REFUSED prices`) while the rate of its tier in the tracked price
+  file has a source that begins `fixture:`, before it reads the key or starts a browser, a door or
+  a count (the coordinator's log line 17658).
+- The recovery ask of the hosted form names no stored step (A12.7): its question is
+  `words::REPAIR_HOSTED`, `Kept:` lists the names of A9.4 that the run kept, and `Done so far:` the
+  steps that the run carried out, as the verb and the page's own reference, then the run's refused
+  replies. The model is asked for the next action and the harness takes it when it is the step's.
+- The door's limit of 2,048 output tokens takes the place of the level's `reply_tokens` in the reply
+  rule; the level and the grammar do not leave the door.
+- After the cells the round prints `spend tier=.. requests=.. spent_micro=.. ceiling_minor=..` and
+  `egress list=.. origin=.. runs=.. denied=..`, and the script prints the row of the table of hosts
+  that the door used, `host tier=.. origin=.. model=.. adapter=..`. `r3-drive` writes one line
+  `round cell task=.. seed=.. ms=..` a cell on standard error.
+- `--standin` starts the scripted host of `src/host.rs` on 127.0.0.1:47201, the one entry of
+  `scripts/egress/lists/loopback.txt`, builds the door with its feature `loopback`, uses a made-up
+  key, reads the lines against `control/hosted-expected.txt` and prints
+  `control mode=hosted machine=.. result=..`. The scripted host answers as a right driver walks the
+  task and shows nothing of what a model does. The check `scripts/r3/ci.d/65-drive-hosted.sh` runs
+  the tool's tests, the three whole rounds of its tests against the scripted host
+  (`cargo test --locked -- --ignored`), the paid form's refusal on the fixture rates and
+  `--standin`.
 
 ## Revisions
 
