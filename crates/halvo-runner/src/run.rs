@@ -7,7 +7,7 @@ use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::{
     Done, Handback, HandbackReply, Hello, Progress, ReplyError, Store, StoreReplyFrame,
 };
-use halvo_schema::executable::names::{HandbackReason, LogEvent, StepKind};
+use halvo_schema::executable::names::{HandbackReason, LogEvent, Runtime, StepKind};
 use halvo_schema::executable::step::{Target, WebTarget};
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
@@ -198,7 +198,9 @@ impl Runner {
             match self.step(step, &loaded) {
                 Ok(()) => self.log(LogEvent::StepOk, Some(step.n), None)?,
                 Err(Failure::Stop(stop)) => return Err(stop),
-                Err(Failure::Step(cause)) => return Err(self.failed_step(step, cause)),
+                Err(Failure::Step(cause)) => {
+                    return Err(self.failed_step(step, cause, loaded.config.runtime))
+                }
             }
         }
         Ok(Outcome::Completed)
@@ -242,12 +244,21 @@ impl Runner {
     /// no item, and the run ends `handed_back` all the same, the runner's outcome where it cannot ask. So a file, mail
     /// or calendar agent, which starts no browser, and a web step that fails before its run's browser started raise
     /// no item that names a window where none is open (r3 U5.15d and U5.15e, the coordinator's rulings of log lines
-    /// 16917, 16922, 17038, 17621 and 17650).
-    pub(crate) fn failed_step(&mut self, step: &ExecutableStep, cause: Cause) -> Stop {
+    /// 16917, 16922, 17038, 17621 and 17650). A run of the runtime `file` (`runtime`, of the run's load) hands no step
+    /// back: its failed `read` ends the run `failed` with the step's cause, as its failed write does, since such a
+    /// run has no step that a person takes over (r3 U11.3, the coordinator's log line 18746 (2)).
+    pub(crate) fn failed_step(
+        &mut self,
+        step: &ExecutableStep,
+        cause: Cause,
+        runtime: Runtime,
+    ) -> Stop {
         if let Err(Stop::Link(broken)) = self.log(LogEvent::StepFailed, Some(step.n), Some(cause)) {
             return Stop::Link(broken);
         }
-        if !matches!(step.class, ActionClass::Read | ActionClass::Prepare) {
+        if runtime == Runtime::File
+            || !matches!(step.class, ActionClass::Read | ActionClass::Prepare)
+        {
             return Stop::End(Outcome::Failed, Some(cause));
         }
         if !self.args.person || self.web.is_none() {

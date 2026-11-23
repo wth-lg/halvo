@@ -756,8 +756,20 @@ fn a_store_reply_takes_the_nine_error_names_and_those_of_this_run() {
     assert_eq!(
         ERROR_NAMES,
         [
-            "binding", "playbook", "config", "class", "length", "effect", "day", "overlap",
-            "over_cap", "no_cap", "repeat", "no_hold", "unread", "slot_form",
+            "binding",
+            "playbook",
+            "config",
+            "class",
+            "length",
+            "effect",
+            "day",
+            "overlap",
+            "over_cap",
+            "no_cap",
+            "repeat",
+            "no_hold",
+            "unread",
+            "slot_form",
         ]
     );
     for name in ERROR_NAMES {

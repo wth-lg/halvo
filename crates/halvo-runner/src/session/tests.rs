@@ -13,7 +13,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use halvo_policy::preset;
 use halvo_schema::executable::body::{LoadReply, LoadedBindings, LoadedSession};
 use halvo_schema::executable::frame::Browser;
-use halvo_schema::executable::names::LogEvent;
+use halvo_schema::executable::names::{LogEvent, Runtime};
 use halvo_schema::executable::step::{Cond, Target};
 use halvo_schema::executable::text::{CreationTime, SessionData};
 use halvo_schema::executable::{Cause, ExecutableStep, FromRunner, Outcome, RunnerCall, WebOrigin};
@@ -603,15 +603,15 @@ impl World {
     /// Carries out `steps` as the run's loop does, on a runner whose browser start gives the stand-in, then ends the
     /// run as `Runner::run` ends it; a failed step ends the run `failed` with its cause.
     fn run(&self, run: &Run<'_>, steps: &[ExecutableStep]) -> Ran {
-        self.run_ending(run, steps, |_, _, cause| {
+        self.run_ending(run, steps, |_, _, cause, _| {
             Stop::End(Outcome::Failed, Some(cause))
         })
     }
 
     /// `run`, with a failed step ended as the runner's loop ends it (`Runner::failed_step`).
     fn run_to_its_end(&self, run: &Run<'_>, steps: &[ExecutableStep]) -> Ran {
-        self.run_ending(run, steps, |runner, step, cause| {
-            runner.failed_step(step, cause)
+        self.run_ending(run, steps, |runner, step, cause, runtime| {
+            runner.failed_step(step, cause, runtime)
         })
     }
 
@@ -622,7 +622,7 @@ impl World {
         &self,
         run: &Run<'_>,
         steps: &[ExecutableStep],
-        failed: impl Fn(&mut Runner, &ExecutableStep, Cause) -> Stop,
+        failed: impl Fn(&mut Runner, &ExecutableStep, Cause, Runtime) -> Stop,
     ) -> Ran {
         let log: Log = Arc::default();
         let seen: Arc<Mutex<Seen>> = Arc::default();
@@ -708,7 +708,7 @@ impl World {
                     break;
                 }
                 Err(Failure::Step(cause)) => {
-                    end = Err(failed(&mut runner, step, cause));
+                    end = Err(failed(&mut runner, step, cause, loaded.config.runtime));
                     break;
                 }
             }

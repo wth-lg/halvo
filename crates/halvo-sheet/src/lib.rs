@@ -147,7 +147,7 @@ impl Folder {
     /// refuse); a workbook that holds a kind of the
     /// executor's refused list
     /// ([`Refusal::Kinds`]: `pivot`, `macro`, `validation`); a sheet that the workbook lacks
-    /// ([`Error::NoSheet`], with the cause `step_failed`); a sheet whose used cells and the range
+    /// ([`Error::NoSheet`], with the cause `no_sheet`); a sheet whose used cells and the range
     /// together span more than 1,000,000 cells ([`Refusal::Size`]); a cell of the range in the
     /// header row of a table ([`Refusal::TableHeader`]); a worksheet part that the writer cannot
     /// take ([`Refusal::Part`]); a cell of the range in a shared formula

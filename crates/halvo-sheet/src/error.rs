@@ -214,21 +214,30 @@ pub enum Error {
 }
 
 impl Error {
-    /// The cause of A7.4 that this error gives.
+    /// The cause of A7.4 that this error of a call on the workbook or its folder gives: a missing
+    /// folder or file is the workbook's (`no_workbook`). A range over 100,000 cells, a link, a
+    /// value that a workbook cannot hold, a refused name, a lock, a checkpoint, a copy over the
+    /// bounds and a `replace` that kept the workbook for another reason than a refused rename give
+    /// `step_failed` (r3 U11.3).
     pub fn cause(&self) -> Cause {
         match self {
             Error::Workbook(_) => Cause::Workbook,
             Error::Sheet => Cause::Sheet,
             Error::Folder
-            | Error::Path(_)
+            | Error::Io(io::ErrorKind::NotFound)
+            | Error::Path(PathRefusal::NotFile | PathRefusal::Directory) => Cause::NoWorkbook,
+            Error::NoSheet => Cause::NoSheet,
+            Error::Range => Cause::NoRange,
+            Error::Shape => Cause::DataShape,
+            Error::Source(_) => Cause::DataForm,
+            Error::ReadOnly => Cause::ReadOnly,
+            Error::NotReplaced(Kept::Rename(_)) | Error::CopyLeft(Kept::Rename(_)) => {
+                Cause::NotReplaced
+            }
+            Error::Path(_)
             | Error::Io(_)
-            | Error::Source(_)
-            | Error::Range
-            | Error::NoSheet
-            | Error::Shape
             | Error::Value
             | Error::RangeSize
-            | Error::ReadOnly
             | Error::FillSize
             | Error::Checkpoint
             | Error::Lock(_)
@@ -237,9 +246,17 @@ impl Error {
         }
     }
 
-    /// The cause of A7.4 that this error of [`crate::Folder::read_source`] gives.
+    /// The cause of A7.4 that this error of [`crate::Folder::read_source`], the one call on the
+    /// data file, gives: a missing file at the data file's path is `no_data_file`, a path outside
+    /// the workbook's folder `data_outside`; every other error as [`Error::cause`] gives it
+    /// (r3 U11.3).
     pub fn source_cause(&self) -> Cause {
-        self.cause()
+        match self {
+            Error::Io(io::ErrorKind::NotFound)
+            | Error::Path(PathRefusal::NotFile | PathRefusal::Directory) => Cause::NoDataFile,
+            Error::Path(PathRefusal::Outside) => Cause::DataOutside,
+            _ => self.cause(),
+        }
     }
 }
 
@@ -301,19 +318,55 @@ mod tests {
         };
         let mut table: Vec<(Error, &str, &str)> = vec![
             (Error::Folder, "no_workbook", "no_workbook"),
-            (Error::Path(PathRefusal::Outside), "step_failed", "data_outside"),
+            (
+                Error::Path(PathRefusal::Outside),
+                "step_failed",
+                "data_outside",
+            ),
             (Error::Path(PathRefusal::Link), "step_failed", "step_failed"),
-            (Error::Path(PathRefusal::Directory), "no_workbook", "no_data_file"),
-            (Error::Path(PathRefusal::NotFile), "no_workbook", "no_data_file"),
+            (
+                Error::Path(PathRefusal::Directory),
+                "no_workbook",
+                "no_data_file",
+            ),
+            (
+                Error::Path(PathRefusal::NotFile),
+                "no_workbook",
+                "no_data_file",
+            ),
             (Error::Path(PathRefusal::Name), "step_failed", "step_failed"),
-            (Error::Path(PathRefusal::OwnFile), "step_failed", "step_failed"),
-            (Error::Path(PathRefusal::TooLong), "step_failed", "step_failed"),
+            (
+                Error::Path(PathRefusal::OwnFile),
+                "step_failed",
+                "step_failed",
+            ),
+            (
+                Error::Path(PathRefusal::TooLong),
+                "step_failed",
+                "step_failed",
+            ),
             (Error::Io(NotFound), "no_workbook", "no_data_file"),
             (Error::Io(PermissionDenied), "step_failed", "step_failed"),
-            (Error::Source(SourceRefusal::Encoding), "data_form", "data_form"),
-            (Error::Source(SourceRefusal::ByteOrderMark), "data_form", "data_form"),
-            (Error::Source(SourceRefusal::CarriageReturn), "data_form", "data_form"),
-            (Error::Source(SourceRefusal::Ragged { line: 2 }), "data_form", "data_form"),
+            (
+                Error::Source(SourceRefusal::Encoding),
+                "data_form",
+                "data_form",
+            ),
+            (
+                Error::Source(SourceRefusal::ByteOrderMark),
+                "data_form",
+                "data_form",
+            ),
+            (
+                Error::Source(SourceRefusal::CarriageReturn),
+                "data_form",
+                "data_form",
+            ),
+            (
+                Error::Source(SourceRefusal::Ragged { line: 2 }),
+                "data_form",
+                "data_form",
+            ),
             (Error::Range, "no_range", "no_range"),
             (Error::NoSheet, "no_sheet", "no_sheet"),
             (Error::Workbook(Refusal::Unreadable), "workbook", "workbook"),
