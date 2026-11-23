@@ -1010,7 +1010,7 @@ fn set_bindings_that_would_overlap_a_live_agent_is_refused_with_overlap_and_stor
     let before = every_row(&store);
     assert_eq!(
         set_bindings(&mut store, 2, with_book),
-        Err(declared("binding"))
+        Err(declared("slot_form"))
     );
     assert_eq!(every_row(&store), before);
 
@@ -2122,7 +2122,7 @@ fn the_roster_names_the_stored_slots_that_their_reader_refuses() {
     let relative = slot("workbook", "books/bills.xlsx");
     assert_eq!(
         set_bindings(&mut store, 1, json!([relative.clone()])),
-        Err(declared("binding")),
+        Err(declared("slot_form")),
         "set_bindings refuses the workbook, so its row is put as stored"
     );
     put_bindings(

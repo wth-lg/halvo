@@ -95,6 +95,14 @@ fn the_cause_list_holds_unauthorized_not_selected_and_no_start_in_the_order_of_t
             "amount_differs",
             "amount_unread",
             "page_unread",
+            "no_workbook",
+            "no_sheet",
+            "no_range",
+            "data_shape",
+            "no_data_file",
+            "data_outside",
+            "data_form",
+            "read_only",
         ]
     );
     for cause in Cause::ALL {

@@ -72,7 +72,7 @@ mod mac {
         if args.first().map(String::as_str) == Some("--run") {
             std::process::exit(runner(&args));
         }
-        let tests: [(&str, fn()); 7] = [
+        let tests: [(&str, fn()); 8] = [
             (
                 "a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record",
                 a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record,
@@ -100,6 +100,10 @@ mod mac {
             (
                 "a_run_of_an_agent_whose_stored_yes_does_not_stand_gets_no_key",
                 a_run_of_an_agent_whose_stored_yes_does_not_stand_gets_no_key,
+            ),
+            (
+                "a_workbook_that_is_no_absolute_path_is_asked_again_and_the_agents_row_stays",
+                a_workbook_that_is_no_absolute_path_is_asked_again_and_the_agents_row_stays,
             ),
         ];
         let exact = args.iter().any(|a| a == "--exact");
@@ -528,8 +532,22 @@ mod mac {
         /// one day two days back by the analysis, so that it has no period and no schedule, and approved by the person, and its agent created and switched on, as an earlier life of the
         /// app leaves them: the workflow and the agent.
         fn agent(&mut self) -> (String, String) {
+            let (workflow, agent) = self.agent_of(SeedCategory::CalendarCleanup);
+            let link = self.link();
+            let head = format!(r#""workflow":"{workflow}","agent":"{agent}""#);
+            self.ask(
+                &link,
+                "coordinator_write",
+                &format!(r#"{{"op":"set_state",{head},"state":"active"}}"#),
+            );
+            (workflow, agent)
+        }
+
+        /// A workflow of `category` proposed and approved as `agent` makes it, and its agent created and not
+        /// switched on: the workflow and the agent.
+        fn agent_of(&mut self, category: SeedCategory) -> (String, String) {
             let day = u32::try_from(now_ns().div_euclid(DAY_NS)).unwrap() - 2;
-            let episodes = (1u8..=3).map(|n| episode(n, day)).collect();
+            let episodes = (1u8..=3).map(|n| episode(n, day, category)).collect();
             let write = analysis_write(self.request_id(), episodes, Position { seg: 4, idx: 0 });
             write_frame(&mut self.worker, &write, REQUEST_MAX_BYTES).unwrap();
             let reply = self.worker_frames.recv_timeout(WAIT).unwrap();
@@ -573,11 +591,6 @@ mod mac {
                     &format!(r#"{{"op":"create_agent",{head}}}"#)
                 ),
                 json!({"rev": 1})
-            );
-            self.ask(
-                &link,
-                "coordinator_write",
-                &format!(r#"{{"op":"set_state",{head},"state":"active"}}"#),
             );
             (workflow.as_str().to_owned(), agent)
         }
@@ -642,12 +655,12 @@ mod mac {
         write.to_bytes().unwrap()
     }
 
-    /// An episode of the segment `n` of the category `calendar_cleanup`, of one key for every `n`.
-    fn episode(n: u8, day: u32) -> Episode {
+    /// An episode of the segment `n` of `category`, of one key for every `n`.
+    fn episode(n: u8, day: u32, category: SeedCategory) -> Episode {
         let start = i64::from(day) * DAY_NS + 43_200_000_000_000 + i64::from(n);
         Episode {
             id: SummaryId::from_random([n; 16]),
-            category: SeedCategory::CalendarCleanup,
+            category,
             site: None,
             app: AppId::parse("com.example.calendar").unwrap(),
             day,
@@ -1025,6 +1038,81 @@ mod mac {
         assert_eq!(
             runs[0]["run"]["model"], "none",
             "the answer to the runner's frame secret for model_key: {runs:?}"
+        );
+    }
+
+    /// The open set-up item of `agent` in the reply of `agents_snapshot`, none where none stands.
+    fn setup_item(hub: &ProductHub, agent: &str) -> Option<Value> {
+        let snapshot = serde_json::to_value(hub.call("agents_snapshot", Some(&json!({})))).unwrap();
+        snapshot["items"]
+            .as_array()?
+            .iter()
+            .find(|i| i["kind"] == "setup" && i["agent"] == agent)
+            .cloned()
+    }
+
+    /// r3 U11.3 part one: a workbook that is no absolute path, typed into the set-up item of a spreadsheet agent,
+    /// reaches the owner's store, which refuses that slot with `slot_form`. The core then asks every question again in
+    /// the same item, with the line `item.setup.not_taken`, and the agent's row stays on the page. On main before the
+    /// unit the store answered `binding`, which the core reads as an agent that is not the workflow's: the item ended
+    /// and the row left the page until Halvo started again.
+    fn a_workbook_that_is_no_absolute_path_is_asked_again_and_the_agents_row_stays() {
+        let mut world = World::new("slot-form");
+        let (_, agent) = world.agent_of(SeedCategory::SpreadsheetFill);
+        let hub = world.hub();
+        product::start(&hub);
+        let mut item = None;
+        until("the set-up item of the spreadsheet agent", || {
+            Core::tick(&*hub);
+            item = setup_item(&hub, &agent);
+            item.is_some()
+        });
+        let item = item.unwrap();
+        let id = item["item"].as_str().unwrap().to_owned();
+        let params: Vec<Value> = item["params"].as_array().unwrap().clone();
+        let names: Vec<&str> = params.iter().map(|p| p["name"].as_str().unwrap()).collect();
+        assert_eq!(names, ["workbook", "sheet", "range", "source"], "{item}");
+        let mut replies = Vec::new();
+        for param in &params {
+            let name = param["name"].as_str().unwrap();
+            let step = setup_item(&hub, &agent)
+                .and_then(|now| now["step"].as_u64())
+                .expect("the item takes answers");
+            let reply = if param["typed"] == "yes" {
+                let text = match name {
+                    "workbook" => "Budget.xlsx",
+                    "sheet" => "Sheet1",
+                    "range" => "A2:C11",
+                    _ => "receipts.csv",
+                };
+                hub.call(
+                    "agents_setup_typed",
+                    Some(&json!({"item": id, "step": step, "param": name, "text": text})),
+                )
+            } else {
+                assert_ne!(name, "workbook", "the workbook is a typed line: {item}");
+                hub.call(
+                    "agents_answer",
+                    Some(&json!({"item": id, "step": step, "choice": "choose", "param": name, "n": 1})),
+                )
+            };
+            replies.push((name, reply));
+        }
+        Core::tick(&*hub);
+        let (row, snapshot) = row_of(&hub, &agent);
+        assert!(row.is_some(), "the agent's row stays: {snapshot}");
+        let again = setup_item(&hub, &agent).expect("the item asks again");
+        assert_eq!(again["item"], id.as_str(), "the same item: {again}");
+        let not_taken = halvo_coord::words::text("item.setup.not_taken", &[]).unwrap();
+        assert!(
+            again["fields"]
+                .as_array()
+                .is_some_and(|f| f.iter().any(|f| f["label"] == not_taken.as_str())),
+            "{again}"
+        );
+        assert!(
+            replies.iter().all(|(_, reply)| *reply == Reply::Ok),
+            "{replies:?}"
         );
     }
 }

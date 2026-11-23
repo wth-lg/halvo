@@ -13,7 +13,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use halvo_policy::preset;
 use halvo_schema::executable::body::{LoadReply, LoadedBindings, LoadedSession};
 use halvo_schema::executable::frame::Browser;
-use halvo_schema::executable::names::LogEvent;
+use halvo_schema::executable::names::{LogEvent, Runtime};
 use halvo_schema::executable::step::{Cond, Target};
 use halvo_schema::executable::text::{CreationTime, SessionData};
 use halvo_schema::executable::{Cause, ExecutableStep, FromRunner, Outcome, RunnerCall, WebOrigin};
@@ -603,15 +603,15 @@ impl World {
     /// Carries out `steps` as the run's loop does, on a runner whose browser start gives the stand-in, then ends the
     /// run as `Runner::run` ends it; a failed step ends the run `failed` with its cause.
     fn run(&self, run: &Run<'_>, steps: &[ExecutableStep]) -> Ran {
-        self.run_ending(run, steps, |_, _, cause| {
+        self.run_ending(run, steps, |_, _, cause, _| {
             Stop::End(Outcome::Failed, Some(cause))
         })
     }
 
     /// `run`, with a failed step ended as the runner's loop ends it (`Runner::failed_step`).
     fn run_to_its_end(&self, run: &Run<'_>, steps: &[ExecutableStep]) -> Ran {
-        self.run_ending(run, steps, |runner, step, cause| {
-            runner.failed_step(step, cause)
+        self.run_ending(run, steps, |runner, step, cause, runtime| {
+            runner.failed_step(step, cause, runtime)
         })
     }
 
@@ -622,7 +622,7 @@ impl World {
         &self,
         run: &Run<'_>,
         steps: &[ExecutableStep],
-        failed: impl Fn(&mut Runner, &ExecutableStep, Cause) -> Stop,
+        failed: impl Fn(&mut Runner, &ExecutableStep, Cause, Runtime) -> Stop,
     ) -> Ran {
         let log: Log = Arc::default();
         let seen: Arc<Mutex<Seen>> = Arc::default();
@@ -708,7 +708,7 @@ impl World {
                     break;
                 }
                 Err(Failure::Step(cause)) => {
-                    end = Err(failed(&mut runner, step, cause));
+                    end = Err(failed(&mut runner, step, cause, loaded.config.runtime));
                     break;
                 }
             }
@@ -1651,11 +1651,12 @@ fn file_read() -> ExecutableStep {
 /// (`--headed`), a failed step of the class `read` or `prepare` opens the handback of `step_failed` only where the run's
 /// browser runs. A file agent starts none: its read, which fails with `step_failed` before it opens any file because
 /// the bindings hold no slot, writes its `step_failed` row, no `handback` row and no handback request, no frame
-/// `browser` is written, and the run ends `handed_back` with the cause `step_failed`. The supervisor holds an answer,
-/// so that a handback that opened would be answered and not wait. Beside it, a web agent's click that fails after its
-/// browser (the stand-in) started still opens the handback of `step_failed`.
+/// `browser` is written, and the run ends `failed` with the cause `step_failed`, since a failed read of a run of the
+/// runtime `file` is never handed back (r3 U11.3, the coordinator's log line 18746 (2)). The supervisor holds an
+/// answer, so that a handback that opened would be answered and not wait. Beside it, a web agent's click that fails
+/// after its browser (the stand-in) started still opens the handback of `step_failed`.
 #[test]
-fn a_failed_read_of_a_file_agent_with_a_person_and_no_browser_ends_handed_back_with_no_handback() {
+fn a_failed_read_of_a_file_agent_with_a_person_and_no_browser_ends_failed_with_no_handback() {
     let world = World::default();
     let mut file = Run::new(SessionState::default(), &[]);
     file.category = Category::SpreadsheetFill;
@@ -1670,7 +1671,7 @@ fn a_failed_read_of_a_file_agent_with_a_person_and_no_browser_ends_handed_back_w
             lines(&ran.log, "frame browser"),
         ),
         (
-            Some(Outcome::HandedBack),
+            Some(Outcome::Failed),
             vec![
                 (LogEvent::StepFailed, Some(1), Some(Cause::StepFailed)),
                 (LogEvent::Stopped, None, Some(Cause::StepFailed)),

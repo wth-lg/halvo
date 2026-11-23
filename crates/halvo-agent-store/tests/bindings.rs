@@ -220,6 +220,8 @@ fn bindings_refusals_store_nothing() {
     assert!(bindings(&store).is_empty());
 }
 
+/// r3 U11.3: such a slot is refused with `slot_form`, a name of its own, after which the core asks the question again;
+/// `binding` stays the name of an agent that is not the workflow's (`bindings_refusals_store_nothing`).
 #[test]
 fn set_bindings_refuses_a_workbook_that_is_no_absolute_path_in_one_spelling() {
     let mut store = store_with("spreadsheet_fill");
@@ -239,7 +241,7 @@ fn set_bindings_refuses_a_workbook_that_is_no_absolute_path_in_one_spelling() {
                 1,
                 vec![slot("range", "A1:B2"), slot("workbook", &refused)]
             ),
-            Err(declared("binding")),
+            Err(declared("slot_form")),
             "{refused}"
         );
     }

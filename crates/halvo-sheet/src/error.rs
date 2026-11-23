@@ -3,8 +3,10 @@ use std::io;
 
 use halvo_checkpoint::LockError;
 
-/// A cause of the closed list of contracts.md A7.4 that an error of this crate gives the runner.
-/// Two errors have a cause of their own; every other error gives `step_failed`.
+/// A cause of the closed list of contracts.md A7.4 that an error of this crate gives the runner:
+/// [`Error::cause`] for a call on the workbook or its folder, [`Error::source_cause`] for
+/// [`crate::Folder::read_source`], the one call on the data file. Each fact on which a person acts
+/// differently has a cause of its own (r3 U11.3); every other error gives `step_failed`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cause {
     /// `workbook`: the cause of [`Error::Workbook`] alone. The crate refused the workbook before
@@ -13,6 +15,25 @@ pub enum Cause {
     /// `sheet`: the cause of [`Error::Sheet`] alone. The prepared copy differed from what the
     /// write allows, or did not read back with the new values (A11.3).
     Sheet,
+    /// `no_workbook`: no folder or no file at the workbook's path.
+    NoWorkbook,
+    /// `no_sheet`: the workbook has no sheet of that name.
+    NoSheet,
+    /// `no_range`: the text of the cells is no range.
+    NoRange,
+    /// `data_shape`: the data has not the rows and columns of the cells.
+    DataShape,
+    /// `no_data_file`: no file at the data file's path.
+    NoDataFile,
+    /// `data_outside`: the data file lies outside the workbook's folder.
+    DataOutside,
+    /// `data_form`: the data file is out of its form.
+    DataForm,
+    /// `read_only`: the person cannot write the workbook.
+    ReadOnly,
+    /// `not_replaced`: the system refused the rename of `replace`, as for a workbook that another
+    /// program holds open, and the workbook stays as it was.
+    NotReplaced,
     /// `step_failed`: the cause of every other error.
     StepFailed,
 }
@@ -23,6 +44,15 @@ impl Cause {
         match self {
             Cause::Workbook => "workbook",
             Cause::Sheet => "sheet",
+            Cause::NoWorkbook => "no_workbook",
+            Cause::NoSheet => "no_sheet",
+            Cause::NoRange => "no_range",
+            Cause::DataShape => "data_shape",
+            Cause::NoDataFile => "no_data_file",
+            Cause::DataOutside => "data_outside",
+            Cause::DataForm => "data_form",
+            Cause::ReadOnly => "read_only",
+            Cause::NotReplaced => "not_replaced",
             Cause::StepFailed => "step_failed",
         }
     }
@@ -184,26 +214,48 @@ pub enum Error {
 }
 
 impl Error {
-    /// The cause of A7.4 that this error gives.
+    /// The cause of A7.4 that this error of a call on the workbook or its folder gives: a missing
+    /// folder or file is the workbook's (`no_workbook`). A range over 100,000 cells, a link, a
+    /// value that a workbook cannot hold, a refused name, a lock, a checkpoint, a copy over the
+    /// bounds and a `replace` that kept the workbook for another reason than a refused rename give
+    /// `step_failed` (r3 U11.3).
     pub fn cause(&self) -> Cause {
         match self {
             Error::Workbook(_) => Cause::Workbook,
             Error::Sheet => Cause::Sheet,
             Error::Folder
-            | Error::Path(_)
+            | Error::Io(io::ErrorKind::NotFound)
+            | Error::Path(PathRefusal::NotFile | PathRefusal::Directory) => Cause::NoWorkbook,
+            Error::NoSheet => Cause::NoSheet,
+            Error::Range => Cause::NoRange,
+            Error::Shape => Cause::DataShape,
+            Error::Source(_) => Cause::DataForm,
+            Error::ReadOnly => Cause::ReadOnly,
+            Error::NotReplaced(Kept::Rename(_)) | Error::CopyLeft(Kept::Rename(_)) => {
+                Cause::NotReplaced
+            }
+            Error::Path(_)
             | Error::Io(_)
-            | Error::Source(_)
-            | Error::Range
-            | Error::NoSheet
-            | Error::Shape
             | Error::Value
             | Error::RangeSize
-            | Error::ReadOnly
             | Error::FillSize
             | Error::Checkpoint
             | Error::Lock(_)
             | Error::NotReplaced(_)
             | Error::CopyLeft(_) => Cause::StepFailed,
+        }
+    }
+
+    /// The cause of A7.4 that this error of [`crate::Folder::read_source`], the one call on the
+    /// data file, gives: a missing file at the data file's path is `no_data_file`, a path outside
+    /// the workbook's folder `data_outside`; every other error as [`Error::cause`] gives it
+    /// (r3 U11.3).
+    pub fn source_cause(&self) -> Cause {
+        match self {
+            Error::Io(io::ErrorKind::NotFound)
+            | Error::Path(PathRefusal::NotFile | PathRefusal::Directory) => Cause::NoDataFile,
+            Error::Path(PathRefusal::Outside) => Cause::DataOutside,
+            _ => self.cause(),
         }
     }
 }
@@ -242,3 +294,110 @@ impl fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// r3 U11.3: every error of the crate, with the name that a call on the workbook gives it (`Error::cause`) and
+    /// the name that `read_source`, the one call on the data file, gives it (`Error::source_cause`). A missing file
+    /// is the workbook's at the first and the data file's at the second.
+    #[test]
+    fn each_error_gives_the_name_of_its_fact_on_the_workbook_and_on_the_data_file() {
+        use io::ErrorKind::{NotFound, PermissionDenied};
+        let kept = [
+            Kept::Workbook,
+            Kept::Checkpoint,
+            Kept::Copy,
+            Kept::Rename(PermissionDenied),
+            Kept::Lock(LockError::Busy),
+        ];
+        let not_replaced = |kept: Kept| match kept {
+            Kept::Rename(_) => "not_replaced",
+            _ => "step_failed",
+        };
+        let mut table: Vec<(Error, &str, &str)> = vec![
+            (Error::Folder, "no_workbook", "no_workbook"),
+            (
+                Error::Path(PathRefusal::Outside),
+                "step_failed",
+                "data_outside",
+            ),
+            (Error::Path(PathRefusal::Link), "step_failed", "step_failed"),
+            (
+                Error::Path(PathRefusal::Directory),
+                "no_workbook",
+                "no_data_file",
+            ),
+            (
+                Error::Path(PathRefusal::NotFile),
+                "no_workbook",
+                "no_data_file",
+            ),
+            (Error::Path(PathRefusal::Name), "step_failed", "step_failed"),
+            (
+                Error::Path(PathRefusal::OwnFile),
+                "step_failed",
+                "step_failed",
+            ),
+            (
+                Error::Path(PathRefusal::TooLong),
+                "step_failed",
+                "step_failed",
+            ),
+            (Error::Io(NotFound), "no_workbook", "no_data_file"),
+            (Error::Io(PermissionDenied), "step_failed", "step_failed"),
+            (
+                Error::Source(SourceRefusal::Encoding),
+                "data_form",
+                "data_form",
+            ),
+            (
+                Error::Source(SourceRefusal::ByteOrderMark),
+                "data_form",
+                "data_form",
+            ),
+            (
+                Error::Source(SourceRefusal::CarriageReturn),
+                "data_form",
+                "data_form",
+            ),
+            (
+                Error::Source(SourceRefusal::Ragged { line: 2 }),
+                "data_form",
+                "data_form",
+            ),
+            (Error::Range, "no_range", "no_range"),
+            (Error::NoSheet, "no_sheet", "no_sheet"),
+            (Error::Workbook(Refusal::Unreadable), "workbook", "workbook"),
+            (Error::Shape, "data_shape", "data_shape"),
+            (Error::Value, "step_failed", "step_failed"),
+            (Error::RangeSize, "step_failed", "step_failed"),
+            (Error::ReadOnly, "read_only", "read_only"),
+            (Error::FillSize, "step_failed", "step_failed"),
+            (Error::Checkpoint, "step_failed", "step_failed"),
+            (Error::Lock(LockError::Busy), "step_failed", "step_failed"),
+            (Error::Sheet, "sheet", "sheet"),
+        ];
+        for kept in kept {
+            let name = not_replaced(kept);
+            table.push((Error::NotReplaced(kept), name, name));
+            table.push((Error::CopyLeft(kept), name, name));
+        }
+        let got: Vec<(String, &str, &str)> = table
+            .iter()
+            .map(|(error, _, _)| {
+                (
+                    format!("{error:?}"),
+                    error.cause().name(),
+                    error.source_cause().name(),
+                )
+            })
+            .collect();
+        let want: Vec<(String, &str, &str)> = table
+            .iter()
+            .map(|(error, workbook, source)| (format!("{error:?}"), *workbook, *source))
+            .collect();
+        assert_eq!(got, want);
+    }
+}

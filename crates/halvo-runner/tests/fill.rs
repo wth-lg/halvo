@@ -56,9 +56,9 @@ fn a_file_step_locks_under_the_data_directory_that_the_harness_gives() {
 
 /// U4.7, A6.1: a runner started with no `--data-dir` has no directory to lock under. Its first file step, the read of
 /// step 1, ends with `step_failed` before it opens a lock, no effect is proposed, and the workbook's folder holds the
-/// names that it held before. The run's browser never started, so the run ends `handed_back` with no handback (r3
-/// U5.15e). Run it only at a head whose runner takes no default data directory (see
-/// `Runner::start_without_data_dir`).
+/// names that it held before. A failed read of a run of the runtime `file` ends the run `failed` with its cause and
+/// no handback (r3 U11.3, the coordinator's log line 18746 (2)). Run it only at a head whose runner takes no default
+/// data directory (see `Runner::start_without_data_dir`).
 #[test]
 fn a_file_step_with_no_data_dir_fails_with_step_failed_and_makes_no_file() {
     let files = FillFiles::new("no-data-dir", 1);
@@ -83,7 +83,7 @@ fn a_file_step_with_no_data_dir_fails_with_step_failed_and_makes_no_file() {
         seen.stderr
     );
     assert!(seen.handbacks().is_empty(), "no browser runs: no handback");
-    assert_eq!(seen.done(), Some(Outcome::HandedBack));
+    assert_eq!(seen.done(), Some(Outcome::Failed));
     assert!(seen.effects().is_empty());
     assert_eq!(files.names(), names);
     assert_eq!(files.workbook_bytes(), before);
@@ -1021,9 +1021,23 @@ fn an_agent_without_the_permission_user_files_touches_no_file() {
         seen.handbacks().is_empty(),
         "the read fails, and no browser runs: no handback (r3 U5.15e)"
     );
-    assert_eq!(seen.done(), Some(Outcome::HandedBack));
+    assert_eq!(
+        seen.done(),
+        Some(Outcome::Failed),
+        "a file run's failed read ends failed (r3 U11.3)"
+    );
     assert_eq!(files.workbook_bytes(), before);
     assert_eq!(files.names(), ["formulas.xlsx", "source.csv"]);
+}
+
+/// The step at which a file run failed and the cause of its end: the `step_failed` line's step and cause, and the
+/// cause of the run's `stopped` line.
+fn failed_at(seen: &Seen) -> Vec<(LogEvent, Option<u32>, Option<Cause>)> {
+    seen.logs()
+        .iter()
+        .filter(|l| matches!(l.event, LogEvent::StepFailed | LogEvent::Stopped))
+        .map(|l| (l.event, l.step.map(|s| s.get()), l.cause))
+        .collect()
 }
 
 #[test]
@@ -1038,7 +1052,16 @@ fn a_workbook_slot_that_holds_a_relative_path_is_refused() {
         seen.handbacks().is_empty(),
         "no browser runs: no handback (r3 U5.15e)"
     );
-    assert_eq!(seen.done(), Some(Outcome::HandedBack));
+    assert_eq!(seen.done(), Some(Outcome::Failed), "r3 U11.3");
+    assert_eq!(
+        failed_at(&seen),
+        [
+            (LogEvent::StepFailed, Some(1), Some(Cause::NoWorkbook)),
+            (LogEvent::Stopped, None, Some(Cause::NoWorkbook))
+        ],
+        "{}",
+        seen.stderr
+    );
     assert!(seen.effects().is_empty());
     assert_eq!(files.workbook_bytes(), before);
 }
@@ -1159,7 +1182,16 @@ fn a_source_slot_that_holds_a_relative_path_is_refused() {
         seen.handbacks().is_empty(),
         "no browser runs: no handback (r3 U5.15e)"
     );
-    assert_eq!(seen.done(), Some(Outcome::HandedBack));
+    assert_eq!(seen.done(), Some(Outcome::Failed), "r3 U11.3");
+    assert_eq!(
+        failed_at(&seen),
+        [
+            (LogEvent::StepFailed, Some(1), Some(Cause::NoDataFile)),
+            (LogEvent::Stopped, None, Some(Cause::NoDataFile))
+        ],
+        "{}",
+        seen.stderr
+    );
     assert!(seen.effects().is_empty());
     assert_eq!(files.workbook_bytes(), before);
 }
