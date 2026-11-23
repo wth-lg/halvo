@@ -22,7 +22,7 @@ use halvo_route::leave::LeaveGrant;
 use halvo_route_wire::{Body, Role};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderValue, ACCEPT, CONTENT_TYPE};
-use reqwest::{redirect, retry, Url};
+use reqwest::{redirect, retry, Method, Url};
 use serde_json::Value;
 
 /// The forms of a host's interface that this crate writes, each named by the adapter word of a row
@@ -200,7 +200,7 @@ impl Host {
         let deadline = start + self.limit;
         let response = self
             .client
-            .post(self.url.clone())
+            .request(Method::POST, self.url.clone())
             .header(CONTENT_TYPE, "application/json")
             .header(ACCEPT, "application/json")
             .header("x-api-key", key)
