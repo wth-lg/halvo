@@ -9,11 +9,11 @@ use halvo_schema::executable::body::{
     HistoryReply, HistoryRun, KeyReply, ListAgents, ListCheckpoints, ListOverlaps, ListReplies,
     ListedAgent, ListedAgreement, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply,
     LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint,
-    ModelHold, ModelKeyState, ModelRoom, ModelSettle, ModelUsage, Overlap, OverlapsReply,
-    PastCheckpoint, PastEffect, PutCheckpoint, PutEffect, PutLog, PutModelKey, PutPlaybook,
-    PutReplyRow, PutSession, ReadModelKey, RevReply, RoomReply, RunnerCall, RunnerReply,
-    SessionReply, SetBindings, SetModel, SetModelCap, SetState, StandsReply, StartRun, StateReply,
-    StepsReply, Stored, UnknownEffect,
+    ModelHold, ModelKeyState, ModelRoom, ModelSettle, ModelUsage, NewModelCount, Overlap,
+    OverlapsReply, PastCheckpoint, PastEffect, PutCheckpoint, PutEffect, PutLog, PutModelKey,
+    PutPlaybook, PutReplyRow, PutSession, ReadModelKey, RevReply, RoomReply, RunnerCall,
+    RunnerReply, SessionReply, SetBindings, SetModel, SetModelCap, SetState, StandsReply, StartRun,
+    StateReply, StepsReply, Stored, UnknownEffect,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -1014,6 +1014,11 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             agent: Null,
         }),
         CoordinatorCall::SetModelCap(SetModelCap {
+            workflow: Null,
+            agent: Null,
+            cap_minor: 2_000,
+        }),
+        CoordinatorCall::NewModelCount(NewModelCount {
             workflow: Null,
             agent: Null,
             cap_minor: 2_000,

@@ -1,8 +1,8 @@
-//! The person's count of hosted calls (r7 8.1L; the coordinator's log lines 16775, 17277 and 17330): ONE row of the
-//! kind `model_count` of origin person for all agents together, which holds the count's text as halvo-route's
-//! `Count::row` writes it and the instant that anchors its cap period. The four bodies that read and change it, and
-//! nothing else, stand here: `model_room` and `set_model_cap` of the coordinator, `model_hold` and `model_settle` of
-//! the runner. This module makes no figure of money and parses none from the count's text: every amount, cap and sum
+//! The person's count of hosted calls (r7 8.1L; the coordinator's log lines 16775, 17277, 17330 and 17696): ONE row of
+//! the kind `model_count` of origin person for all agents together, which holds the count's text as halvo-route's
+//! `Count::row` writes it and the instant that anchors its cap period. The five bodies that read and change it, and
+//! nothing else, stand here: `model_room`, `set_model_cap` and `new_model_count` of the coordinator, `model_hold` and
+//! `model_settle` of the runner. This module makes no figure of money and parses none from the count's text: every amount, cap and sum
 //! comes from the functions of `halvo_route::count`. It makes two figures of time, the end of a cap period from the
 //! anchor and the end of a hold's life from the request's instant, and its only time is the request's `Now`.
 
@@ -11,7 +11,7 @@ use halvo_route::prices::Prices;
 use halvo_route::spend::SpendCause;
 use halvo_route::tier::Tier;
 use halvo_schema::executable::body::{
-    CapReply, ModelHold, ModelSettle, RoomReply, SetModelCap, Stored,
+    CapReply, ModelHold, ModelSettle, NewModelCount, RoomReply, SetModelCap, Stored,
 };
 use halvo_schema::executable::names::{ModelTier, RoomState, YesNo};
 use halvo_schema::executable::{CoordinatorReply, ModelCount, ModelRequestId, RunnerReply};
@@ -368,6 +368,26 @@ pub(crate) fn set_cap(
     Ok(CoordinatorReply::Cap(CapReply {
         cap_minor: b.cap_minor,
         new_count: new_count_word,
+    }))
+}
+
+/// `new_model_count` (the coordinator's log line 17696 (b)): ONE count at nothing with the person's cap, anchored at
+/// the request's instant, in the place of every row of the kind, by `write` with no read of a row before it, so that a
+/// row which the store's read meets with a fault stands in its way no more. It answers as `set_cap` answers a new
+/// count; `length` for a cap outside the bounds of a cap line.
+pub(crate) fn start_anew(
+    host: &mut dyn Host,
+    now: Now,
+    b: &NewModelCount,
+) -> Result<CoordinatorReply, ErrorName> {
+    let (anchor, count) = new_count(now)?;
+    let next = count
+        .set_cap(u64::from(b.cap_minor))
+        .map_err(|_| ErrorName::from(Own::Length))?;
+    write(host, anchor, &next)?;
+    Ok(CoordinatorReply::Cap(CapReply {
+        cap_minor: b.cap_minor,
+        new_count: YesNo::Yes,
     }))
 }
 
@@ -832,5 +852,112 @@ mod tests {
         );
         assert_eq!(count_rows(&store).len(), 1, "one count row");
         assert_eq!(NOW, at_s(NOW_S));
+    }
+
+    /// A host over a memory store whose reads fault: a read of rows records that it was asked and hands out no row, as
+    /// the derived store's read hands out none where it meets a fault. Every write call is handed on.
+    struct Blind<'a> {
+        store: &'a mut MemoryStore,
+        read: std::cell::Cell<bool>,
+    }
+
+    impl RowRead for Blind<'_> {
+        fn for_each(&self, _kind: &str, _visit: &mut dyn FnMut(&str)) {
+            self.read.set(true);
+        }
+    }
+
+    impl Host for Blind<'_> {
+        fn commit(&mut self, records: Vec<TypedRecord>) -> Result<(), ErrorName> {
+            self.store.commit(records)
+        }
+
+        fn remove_under(
+            &mut self,
+            kind: &str,
+            workflow: &halvo_schema::WorkflowId,
+            records: Vec<TypedRecord>,
+        ) -> Result<u64, ErrorName> {
+            self.store.remove_under(kind, workflow, records)
+        }
+
+        fn remove_person(
+            &mut self,
+            kind: &str,
+            records: Vec<TypedRecord>,
+        ) -> Result<u64, ErrorName> {
+            self.store.remove_person(kind, records)
+        }
+
+        fn set_state(
+            &mut self,
+            workflow: &halvo_schema::WorkflowId,
+            state: halvo_schema::executable::names::AgentState,
+            agent: Option<&halvo_schema::AgentId>,
+        ) -> Result<(), ErrorName> {
+            self.store.set_state(workflow, state, agent)
+        }
+
+        fn rows(&self) -> &dyn RowRead {
+            self
+        }
+
+        fn workflow(&self, id: &halvo_schema::WorkflowId) -> Option<halvo_schema::WorkflowItem> {
+            self.store.workflow(id)
+        }
+
+        fn day(&self, at: Instant) -> u32 {
+            self.store.day(at)
+        }
+    }
+
+    /// r7 8.1L view, sentence (7) (the coordinator's log line 17696 (b)): `new_model_count` starts a count at nothing
+    /// with the person's cap and reads no row. A count stands with the person's cap of 4,321 and something spent; the
+    /// body with the cap 555 goes through a host whose reads fault, 61 s after the first period's end. It answers as a
+    /// new count, the host was asked for no row, and `model_room` then reads the new count: the cap 555, nothing spent
+    /// or held, and a period anchored at the body's instant. One row of the kind stands.
+    #[test]
+    fn a_new_count_starts_at_nothing_with_the_persons_cap_and_reads_no_row() {
+        let mut store = store_with();
+        assert_eq!(
+            set_cap(&mut store, NOW, 4_321),
+            Ok(json!({"cap_minor": 4_321, "new_count": "yes"}))
+        );
+        assert_eq!(
+            hold(&mut store, NOW, 1, "frontier", 10_000, 1_000),
+            Ok(json!({"stored": 1}))
+        );
+        assert_eq!(
+            settle(
+                &mut store,
+                NOW,
+                1,
+                json!({"tokens_in": 5_000, "tokens_out": 300})
+            ),
+            Ok(json!({"stored": 1}))
+        );
+        let spent = room(&mut store, NOW)["spent"].clone();
+        assert!(spent.as_u64().is_some_and(|spent| spent > 0), "{spent}");
+
+        let later = at_s(FIRST_END_S + 61);
+        let body =
+            json!({"op": "new_model_count", "workflow": null, "agent": null, "cap_minor": 555});
+        let mut blind = Blind {
+            store: &mut store,
+            read: std::cell::Cell::new(false),
+        };
+        let reply = crate::coordinator(&mut blind, later, body.to_string().as_bytes())
+            .map(|reply| reply.to_json().expect("the reply's JSON"));
+        let read = blind.read.get();
+        assert_eq!(
+            reply.as_deref(),
+            Ok(r#"{"cap_minor":555,"new_count":"yes"}"#)
+        );
+        assert!(!read, "new_model_count asked the host for rows");
+        assert_eq!(
+            room(&mut store, later),
+            json!({"room": "reads", "cap_minor": 555, "spent": 0, "held": 0, "period_end_ms": ms(SECOND_END_S + 61)})
+        );
+        assert_eq!(count_rows(&store).len(), 1, "one count row");
     }
 }

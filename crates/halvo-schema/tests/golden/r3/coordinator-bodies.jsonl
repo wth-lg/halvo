@@ -25,3 +25,4 @@
 {"op":"set_model","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","tier":"on_device","agreement":null}
 {"op":"model_room","workflow":null,"agent":null}
 {"op":"set_model_cap","workflow":null,"agent":null,"cap_minor":2000}
+{"op":"new_model_count","workflow":null,"agent":null,"cap_minor":2000}

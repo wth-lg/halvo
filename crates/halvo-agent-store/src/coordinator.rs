@@ -229,6 +229,12 @@ use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 ///   new count at nothing with that cap, anchored at the request's instant, and answers `"new_count":"yes"`. It
 ///   replaces the row by the host's removal call of a person's kind in one write. No request removes the row alone:
 ///   it goes with the delete of everything and with the data folder, and Reset settings keeps it.
+/// - `new_model_count` (r7 8.1L; the coordinator's log line 17696 (b)): ONE count at nothing with the body's cap,
+///   anchored at the request's instant, in the place of every row of the kind `model_count`, by the same one write and
+///   with no read before it, so that a row which the store's read meets with a fault stands in its way no more. It
+///   answers as `set_model_cap` answers a new count, `{"cap_minor":N,"new_count":"yes"}`, and `length` for a cap
+///   outside the bounds of a cap line. It lifts what is counted: the app sends it only where `model_room` answered the
+///   fault of the store's read (halvo-coord-app's `model_limit`), and no other caller of the tree sends it.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -255,6 +261,7 @@ pub fn coordinator(
         CoordinatorCall::SetModel(b) => set_model(host, now, &b),
         CoordinatorCall::ModelRoom(_) => count::room(&*host, now),
         CoordinatorCall::SetModelCap(b) => count::set_cap(host, now, &b),
+        CoordinatorCall::NewModelCount(b) => count::start_anew(host, now, &b),
     }
 }
 
