@@ -968,7 +968,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// alone and the Windows keyboard source reads off; at on the status
     /// says on before the tap asks for the key types. A stop that does not
     /// stop at a turn off ends the process with 5 by the end routine, as a
-    /// Pause's stop does; at a turn on it begins nothing. A turn on in a life
+    /// Pause's stop does, and so does a turn off that finds that source held
+    /// unstopped by an earlier stop (the drain's among them): the context
+    /// stays on; at a turn on it begins nothing. A turn on in a life
     /// whose owner drops every key (its floor read key_class off) begins
     /// nothing and ends the life with status 4.
     #[cfg(any(target_os = "macos", windows))]
@@ -1004,6 +1006,20 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         turned
     }
 
+    /// The error of the stop that `name` did not answer as a stop, while the
+    /// supervisor still holds it (an earlier stop, the drain's among them,
+    /// left it unstopped): its source may still run with what it was begun
+    /// with.
+    #[cfg(any(target_os = "macos", windows))]
+    fn held_unstopped(&self, name: SourceName) -> Option<CaptureError> {
+        match self.sources.state(name) {
+            Some((SourceState::Failed { error, .. }, true)) if self.sources.holds(name) => {
+                Some(error.clone())
+            }
+            _ => None,
+        }
+    }
+
     #[cfg(any(target_os = "macos", windows))]
     fn begin_with_the_keys(
         &mut self,
@@ -1018,6 +1034,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         let ctx = self.ctx.clone()?;
         if ctx.floor().switches().is_on(crate::floor::Switch::KeyClass) == keys {
             return None;
+        }
+        if let (false, Some(error)) = (keys, self.held_unstopped(name)) {
+            let answer = Err(error);
+            self.answered_unstopped(name, &answer);
+            let owner = owner?;
+            self.arm_unstopped(name, &answer);
+            self.end_after_unstopped(owner, StopKind::Pause, reply);
+            return Some(TypingTurn::Ended);
         }
         if self.stopped_for_drain || self.pausing || self.entered || !self.wanted.contains(&name) {
             self.ctx = Some(with_keys(&ctx, keys));
@@ -3650,6 +3674,65 @@ mod tests {
             "a turn on in a life whose owner drops every key ends the life with 4"
         );
         assert!(f.supervisor.factory().calls.of("begin input").is_empty());
+    }
+
+    #[test]
+    fn a_turn_off_over_a_source_of_keys_that_the_drain_left_unstopped_keeps_the_status_on_and_ends_with_5(
+    ) {
+        let store = ModelStore::new();
+        let f = fixture_on_owner(
+            Factory::adjusting(|source| {
+                if source.name == SourceName::Input {
+                    source.stop = Err(timeout());
+                }
+            }),
+            store.clone(),
+        );
+        let (mut f, dir, _writer) = with_state_file(f);
+        let recorder = Recorder::default();
+        f.supervisor = std::mem::replace(
+            &mut f.supervisor,
+            Supervisor::new(
+                Platform::Macos,
+                Factory::new(),
+                TestLoop {
+                    now: Rc::default(),
+                    harness: None,
+                    real: Duration::ZERO,
+                    hook: None,
+                },
+            ),
+        )
+        .with_ending(Arc::new(recorder.clone()));
+        f.start(&two());
+        f.tick();
+        drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
+        f.tick();
+        assert_eq!(
+            f.supervisor.board().capture,
+            Capture::Stopped,
+            "the drain stopped the sources"
+        );
+        assert!(
+            f.supervisor.sources.holds(SourceName::Input),
+            "the tap with the key types did not answer the drain's stop"
+        );
+        let mut answered = false;
+        let link = f.link.as_ref().map(|link| link as &dyn OwnerLink);
+        let turned = f
+            .supervisor
+            .set_typing(false, link, &mut |_| answered = true);
+        assert!(
+            keys_of(&f),
+            "the status reads on over a tap that may still take keys"
+        );
+        assert!(!keys_in_the_file(dir.path()), "the switch is written off");
+        assert!(
+            matches!(turned, TypingTurn::Ended),
+            "the end routine: {turned:?}"
+        );
+        assert!(answered, "the request is answered from the end routine");
+        assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
     }
 
     type AtBegins = Arc<Mutex<Vec<(Option<SourceState>, Option<bool>)>>>;
