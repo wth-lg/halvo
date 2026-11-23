@@ -40,7 +40,8 @@ wed windows check 50-windows-functional
 # wed2 runs at 04:47 UTC on Wednesday. Its windows checks came from the days that were over 1,000 s on an
 # AMD EPYC 7763, each with its seconds there: 60-r6-egress 167 (wed, run 45096596639), 10-egress 215 (thu,
 # 45086425387), 38-app-engine-routes 197 and 80-r6-absent 52 (sat, 45098472482), 10-r7-account 124 (mon,
-# 45050615172); with about 143 s of steps the job is reckoned at about 898 s on that kind.
+# 45050615172); with 141 to 156 s of steps the job is reckoned at 896 to 911 s on that kind. Its run by
+# hand 45108441992 took 876 s on an Intel Xeon Platinum 8573C.
 wed2 macos check 25-advisories
 wed2 windows check 38-app-engine-routes
 wed2 windows check 10-egress
