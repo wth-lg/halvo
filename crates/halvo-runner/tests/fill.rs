@@ -1195,3 +1195,83 @@ fn a_source_slot_that_holds_a_relative_path_is_refused() {
     assert!(seen.effects().is_empty());
     assert_eq!(files.workbook_bytes(), before);
 }
+
+/// r3 U11.4: a file run whose data file, whose workbook or whose workbook's folder the system refuses for the
+/// permission ends `failed` with `no_access`, each refusal made by a mode: a data file of mode 000 at the read
+/// (step 1); a workbook of mode 200 at the prepare (step 2), past the check of `read_only`, which a mode without the
+/// owner's write bit meets first; the workbook's folder inside a folder of mode 000 at the read (step 1), where the
+/// folder's walk fails and the stat of the folder tells the refusal from a folder that is not there; the workbook's
+/// folder of mode 300, searched and written but not read, at the prepare (step 2), where the lock's open of the
+/// folder is the first call that the system refuses, before any file is written. Each mode is set back before the
+/// asserts.
+#[cfg(unix)]
+#[test]
+fn a_file_or_a_folder_that_the_system_refuses_for_the_permission_ends_the_run_with_no_access() {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = |path: &std::path::Path, bits: u32| {
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(bits)).expect("chmod");
+    };
+    let no_access = |step: u32| {
+        [
+            (LogEvent::StepFailed, Some(step), Some(Cause::NoAccess)),
+            (LogEvent::Stopped, None, Some(Cause::NoAccess)),
+        ]
+    };
+
+    let files = FillFiles::new("no-access-source", 1);
+    mode(&files.source, 0o000);
+    let refused = std::fs::read(&files.source).is_err();
+    let seen = fill(67, &files).serve(|_, _| Act::Answer, LONG);
+    mode(&files.source, 0o600);
+    assert!(refused, "the data file cannot be read");
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(failed_at(&seen), no_access(1), "{}", seen.stderr);
+    assert!(seen.effects().is_empty());
+
+    let files = FillFiles::new("no-access-workbook", 1);
+    let before = files.workbook_bytes();
+    mode(&files.workbook, 0o200);
+    let refused = std::fs::File::open(&files.workbook).is_err();
+    let seen = fill(68, &files).serve(|_, _| Act::Answer, LONG);
+    mode(&files.workbook, 0o600);
+    assert!(refused, "the workbook cannot be opened");
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(failed_at(&seen), no_access(2), "{}", seen.stderr);
+    assert!(seen.effects().is_empty());
+    assert_eq!(files.workbook_bytes(), before);
+    assert_eq!(files.names(), ["formulas.xlsx", "source.csv"]);
+
+    let files = FillFiles::new("no-access-folder", 1);
+    let shut = files.dir.join("shut");
+    let inner = shut.join("inner");
+    std::fs::create_dir_all(&inner).expect("make the folders");
+    let workbook = inner.join("formulas.xlsx");
+    let source = inner.join("source.csv");
+    std::fs::rename(&files.workbook, &workbook).expect("move the workbook");
+    std::fs::rename(&files.source, &source).expect("move the data file");
+    let mut slots = files.slots();
+    slots[0] = support::slot("workbook", &workbook.to_string_lossy());
+    slots[1] = support::slot("source", &source.to_string_lossy());
+    mode(&shut, 0o000);
+    let refused = std::fs::metadata(&inner).is_err();
+    let sup = Supervisor::new(69, Category::SpreadsheetFill, slots);
+    let seen = sup.serve(|_, _| Act::Answer, LONG);
+    mode(&shut, 0o700);
+    assert!(refused, "the workbook's folder cannot be reached");
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(failed_at(&seen), no_access(1), "{}", seen.stderr);
+    assert!(seen.effects().is_empty());
+
+    let files = FillFiles::new("no-access-folder-read", 1);
+    let before = files.workbook_bytes();
+    mode(&files.dir, 0o300);
+    let refused = std::fs::File::open(&files.dir).is_err();
+    let seen = fill(70, &files).serve(|_, _| Act::Answer, LONG);
+    mode(&files.dir, 0o700);
+    assert!(refused, "the workbook's folder cannot be opened");
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(failed_at(&seen), no_access(2), "{}", seen.stderr);
+    assert!(seen.effects().is_empty());
+    assert_eq!(files.workbook_bytes(), before);
+    assert_eq!(files.names(), ["formulas.xlsx", "source.csv"]);
+}

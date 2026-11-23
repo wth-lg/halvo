@@ -6,7 +6,7 @@ use halvo_checkpoint::LockError;
 /// A cause of the closed list of contracts.md A7.4 that an error of this crate gives the runner:
 /// [`Error::cause`] for a call on the workbook or its folder, [`Error::source_cause`] for
 /// [`crate::Folder::read_source`], the one call on the data file. Each fact on which a person acts
-/// differently has a cause of its own (r3 U11.3); every other error gives `step_failed`.
+/// differently has a cause of its own (r3 U11.3, U11.4); every other error gives `step_failed`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cause {
     /// `workbook`: the cause of [`Error::Workbook`] alone. The crate refused the workbook before
@@ -31,6 +31,10 @@ pub enum Cause {
     DataForm,
     /// `read_only`: the person cannot write the workbook.
     ReadOnly,
+    /// `no_access`: the system refused, for the permission, the open or the read of the workbook
+    /// or of the data file, the walk to it, or the making of a file in the workbook's folder
+    /// (r3 U11.4). A refused rename keeps `not_replaced`.
+    NoAccess,
     /// `not_replaced`: the system refused the rename of `replace`, as for a workbook that another
     /// program holds open, and the workbook stays as it was.
     NotReplaced,
@@ -52,6 +56,7 @@ impl Cause {
             Cause::DataOutside => "data_outside",
             Cause::DataForm => "data_form",
             Cause::ReadOnly => "read_only",
+            Cause::NoAccess => "no_access",
             Cause::NotReplaced => "not_replaced",
             Cause::StepFailed => "step_failed",
         }
@@ -228,7 +233,11 @@ impl Error {
     /// folder or file is the workbook's (`no_workbook`). A range over 100,000 cells, a link, a
     /// value that a workbook cannot hold, a refused name, a lock, a checkpoint, a copy over the
     /// bounds and a `replace` that kept the workbook for another reason than a refused rename give
-    /// `step_failed` (r3 U11.3).
+    /// `step_failed` (r3 U11.3). A file or a folder that the system refuses for the permission
+    /// (`PermissionDenied`) at an open, a read, the walk or the making of a file is `no_access`, and
+    /// so is a lock of `prepare` that the system refuses for the permission, as for the open of the
+    /// workbook's folder that the lock's key needs; a lock held for the whole wait stays
+    /// `step_failed`, and a refused rename keeps `not_replaced`, whatever its kind (r3 U11.4).
     pub fn cause(&self) -> Cause {
         match self {
             Error::Workbook(_) => Cause::Workbook,
@@ -236,6 +245,8 @@ impl Error {
             Error::Folder
             | Error::Io(io::ErrorKind::NotFound)
             | Error::Path(PathRefusal::NotFile | PathRefusal::Directory) => Cause::NoWorkbook,
+            Error::Io(io::ErrorKind::PermissionDenied)
+            | Error::Lock(LockError::Io(io::ErrorKind::PermissionDenied)) => Cause::NoAccess,
             Error::NoSheet => Cause::NoSheet,
             Error::Range => Cause::NoRange,
             Error::Shape => Cause::DataShape,
@@ -259,7 +270,7 @@ impl Error {
     /// The cause of A7.4 that this error of [`crate::Folder::read_source`], the one call on the
     /// data file, gives: a missing file at the data file's path is `no_data_file`, a path outside
     /// the workbook's folder `data_outside`; every other error as [`Error::cause`] gives it
-    /// (r3 U11.3).
+    /// (r3 U11.3), a refusal for the permission `no_access` among them (r3 U11.4).
     pub fn source_cause(&self) -> Cause {
         match self {
             Error::Io(io::ErrorKind::NotFound)
@@ -311,7 +322,9 @@ mod tests {
 
     /// r3 U11.3: every error of the crate, with the name that a call on the workbook gives it (`Error::cause`) and
     /// the name that `read_source`, the one call on the data file, gives it (`Error::source_cause`). A missing file
-    /// is the workbook's at the first and the data file's at the second.
+    /// is the workbook's at the first and the data file's at the second. r3 U11.4: a file or a folder that the
+    /// system refuses for the permission is `no_access` at both, the lock's open of the workbook's folder among
+    /// them, and a refused rename stays `not_replaced`.
     #[test]
     fn each_error_gives_the_name_of_its_fact_on_the_workbook_and_on_the_data_file() {
         use io::ErrorKind::{NotFound, PermissionDenied};
@@ -356,7 +369,7 @@ mod tests {
                 "step_failed",
             ),
             (Error::Io(NotFound), "no_workbook", "no_data_file"),
-            (Error::Io(PermissionDenied), "step_failed", "step_failed"),
+            (Error::Io(PermissionDenied), "no_access", "no_access"),
             (
                 Error::Source(SourceRefusal::Encoding),
                 "data_form",
@@ -397,6 +410,11 @@ mod tests {
             (Error::FillSize, "step_failed", "step_failed"),
             (Error::Checkpoint, "step_failed", "step_failed"),
             (Error::Lock(LockError::Busy), "step_failed", "step_failed"),
+            (
+                Error::Lock(LockError::Io(PermissionDenied)),
+                "no_access",
+                "no_access",
+            ),
             (Error::Sheet, "sheet", "sheet"),
         ];
         for kept in kept {
