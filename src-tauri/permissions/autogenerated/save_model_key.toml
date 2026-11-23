@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-model-key"
+description = "Enables the save_model_key command without any pre-configured scope."
+commands.allow = ["save_model_key"]
+
+[[permission]]
+identifier = "deny-save-model-key"
+description = "Denies the save_model_key command without any pre-configured scope."
+commands.deny = ["save_model_key"]

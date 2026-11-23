@@ -63,4 +63,11 @@ pub const WORKFLOWS: Names = Names {
     reads: &[],
 };
 
-pub const MODULES: &[&Names] = &[&CAPTURE, &AGENTS, &WORKFLOWS];
+pub const MODEL_KEY: Names = Names {
+    #[cfg(test)]
+    module: "model_key",
+    commands: &["model_key_state", "save_model_key", "remove_model_key"],
+    reads: &[],
+};
+
+pub const MODULES: &[&Names] = &[&CAPTURE, &AGENTS, &WORKFLOWS, &MODEL_KEY];

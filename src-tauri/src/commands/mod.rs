@@ -5,6 +5,7 @@
 pub mod agents;
 pub mod capture;
 pub mod control;
+pub mod model_key;
 pub mod names;
 pub mod workflows;
 
@@ -87,6 +88,10 @@ pub fn table<R: Runtime>() -> Vec<Module<R>> {
         Module {
             registration: &workflows::Workflows,
             handler: workflows::handler::<R>,
+        },
+        Module {
+            registration: &model_key::Module,
+            handler: model_key::handler::<R>,
         },
     ]
 }

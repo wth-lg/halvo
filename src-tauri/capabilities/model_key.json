@@ -1,0 +1,12 @@
+{
+  "identifier": "model_key",
+  "description": "The commands of the person's key for a model's host, for the window main of the app's own origin.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-model-key-state",
+    "allow-save-model-key",
+    "allow-remove-model-key"
+  ]
+}

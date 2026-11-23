@@ -236,6 +236,10 @@
     SETTINGS_RESET: "Reset settings",
     SETTINGS_RESET_QUESTION: "Reset Halvo's settings? Halvo keeps everything that it has recorded. It stays paused until you press Resume, and from then on it records what a new start records:",
     SETTINGS_RESET_YES: "Yes, reset settings",
+    MODEL_HEADING: "AI model",
+    MODEL_KEY_LABEL: "Key for {host}",
+    MODEL_KEY_TEXT: "Paste the key from your account at {host}. Halvo keeps it on this computer, protected in the same way as your recordings, and sends it to {host} alone.",
+    MODEL_KEY_SAVE: "Save the key",
   };
 
   Halvo.errorWords = function (e) {
