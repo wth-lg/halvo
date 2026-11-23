@@ -5814,6 +5814,106 @@ mod known_defect {
     }
 
     #[test]
+    #[ignore = "known defect: win-6, a change by the pointer behind its own button-down before a late move"]
+    fn stall_a_change_by_the_pointer_behind_its_own_button_down_before_a_late_move() {
+        let read = stall::change_by_the_pointer(true);
+        assert!(
+            read.late == 0,
+            "the source's late value moved: {}",
+            read.late
+        );
+        assert!(
+            read.beyond == 0,
+            "{} keystroke records held more than a time, an app and a class",
+            read.beyond
+        );
+        defect!(
+            "W6-pointer-change",
+            read.recorded == 0,
+            format!(
+                "TF stall-pointer-change letters_recorded_that_landed_in_the_password_field={} \
+                 keystroke_records={} records_beyond_time_app_and_class={}",
+                read.recorded, read.records, read.beyond
+            )
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: win-6, a program frozen longer than the bound while a person types ahead"]
+    fn stall_a_program_frozen_longer_than_the_bound_while_a_person_types_ahead() {
+        let read = stall::frozen_program(true);
+        assert!(
+            read.late == 0,
+            "the source's late value moved: {}",
+            read.late
+        );
+        assert!(
+            read.beyond == 0,
+            "{} keystroke records held more than a time, an app and a class",
+            read.beyond
+        );
+        defect!(
+            "W6-frozen",
+            read.recorded == 0,
+            format!(
+                "TF stall-frozen letters_recorded_that_landed_in_the_password_field={} \
+                 keystroke_records={} records_beyond_time_app_and_class={}",
+                read.recorded, read.records, read.beyond
+            )
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: win-6, a program frozen longer than the bound behind a Tab while a person types ahead"]
+    fn stall_a_program_frozen_longer_than_the_bound_behind_a_tab_while_a_person_types_ahead() {
+        let read = stall::frozen_program_behind_a_tab(true);
+        assert!(
+            read.late == 0,
+            "the source's late value moved: {}",
+            read.late
+        );
+        assert!(
+            read.beyond == 0,
+            "{} keystroke records held more than a time, an app and a class",
+            read.beyond
+        );
+        defect!(
+            "W6-frozen-tab",
+            read.recorded == 0,
+            format!(
+                "TF stall-frozen-tab letters_recorded_that_landed_in_the_password_field={} \
+                 keystroke_records={} records_beyond_time_app_and_class={}",
+                read.recorded, read.records, read.beyond
+            )
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: win-6, the program's own change behind a Tab before the Tab's late move"]
+    fn stall_the_programs_own_change_behind_a_tab_before_the_tabs_late_move() {
+        let read = stall::own_change_behind_a_tab(true);
+        assert!(
+            read.late == 0,
+            "the source's late value moved: {}",
+            read.late
+        );
+        assert!(
+            read.beyond == 0,
+            "{} keystroke records held more than a time, an app and a class",
+            read.beyond
+        );
+        defect!(
+            "W6-own-change-tab",
+            read.recorded == 0,
+            format!(
+                "TF stall-own-change-tab letters_recorded_that_landed_in_the_password_field={} \
+                 keystroke_records={} records_beyond_time_app_and_class={}",
+                read.recorded, read.records, read.beyond
+            )
+        );
+    }
+
+    #[test]
     #[ignore = "known defect: win-6, the program's own change of the focused field before a late move"]
     fn stall_the_programs_own_change_of_the_focused_field_before_a_late_move() {
         with_deadline("stall-own-change", Duration::from_secs(300), || {

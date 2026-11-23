@@ -70,6 +70,9 @@ password.addEventListener('input', () => {
 plain.addEventListener('input', () => {
   if (armed && phase === 'take-one') { armed = false; setTimeout(() => { busy(300); password.focus(); freed(); show(); }, 0); }
 });
+plain.addEventListener('keydown', (e) => {
+  if (phase === 'chat' && e.key === 'Enter') { e.preventDefault(); plain.value = ''; show(); }
+});
 plain.addEventListener('keyup', (e) => {
   if (e.key !== 'F24' && armed && phase === 'swap-keyup') { armed = false; swap(); }
 });
@@ -114,6 +117,9 @@ function reset() {
   if (phase === 'self') later(600, () => { busy(hold); password.focus(); freed(); });
   if (phase === 'other') timers.push(setInterval(() => { plain.value = String(Date.now() % 100000); }, 30));
   if (phase === 'take-none') later(600, () => { busy(300); password.focus(); freed(); });
+  if (phase === 'own-change' || phase === 'own-none') later(600, () => {
+    busy(300); if (phase === 'own-change') plain.value = 'x'; busy(300); password.focus(); freed();
+  });
   if (phase === 'there-and-back') { back = true; later(600, () => { busy(300); password.focus(); freed(); }); }
   show();
 }
@@ -1329,6 +1335,7 @@ pub(super) fn there_and_back_phases(test: &'static str, name: &'static str) {
             let start = reset(&keyboard, hwnd).unwrap_or_default();
             let front = foreground_window() == hwnd;
             std::thread::sleep(Duration::from_millis(250));
+            let _ = seam::take_marks();
             send(&[
                 key_input(VK_A, false),
                 key_input(VK_A, true),
@@ -1336,6 +1343,7 @@ pub(super) fn there_and_back_phases(test: &'static str, name: &'static str) {
                 key_input(VK_A, true),
             ]);
             let mut r = end_round(&keyboard, hwnd, 2, front);
+            let marks = seam::take_marks();
             r.why.extend(not_in_front(front));
             r.counted = front
                 && start.focus == "plain"
@@ -1345,8 +1353,9 @@ pub(super) fn there_and_back_phases(test: &'static str, name: &'static str) {
             say(
                 test,
                 format!(
-                    "browser={name} phase=there-and-back round={round} foreground={front} {}",
-                    r.line()
+                    "browser={name} phase=there-and-back round={round} foreground={front} {} marks={}",
+                    r.line(),
+                    marks_with_kinds(&marks)
                 ),
             );
             counted += usize::from(r.counted);
@@ -1371,7 +1380,90 @@ pub(super) fn there_and_back_phases(test: &'static str, name: &'static str) {
     });
 }
 
+/// Under the ruling's (L2): a chat's box that keeps the focus behind Enter.
+/// Two letters, an Enter on which the page empties the box, and two letters
+/// more, 400 ms between the keys: every letter is noted.
+pub(super) fn chat_box_phases(test: &'static str, name: &'static str) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_RETURN;
+    with_deadline(test, Duration::from_secs(240), move || {
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
+        let hwnd = browser
+            .open(test, "chat", 0)
+            .expect("INCONCLUSIVE: no page window");
+        let rounds = super::stall::rounds_for(1, 3);
+        let mut counted = 0;
+        let mut noted = 0;
+        for round in 0..rounds {
+            let start = reset(&keyboard, hwnd).unwrap_or_default();
+            let front = foreground_window() == hwnd;
+            std::thread::sleep(Duration::from_millis(250));
+            for vk in [VK_A, VK_A, VK_RETURN, VK_A, VK_A] {
+                send(&[key_input(vk, false), key_input(vk, true)]);
+                std::thread::sleep(Duration::from_millis(400));
+            }
+            let mut r = end_round(&keyboard, hwnd, 4, front);
+            r.why.extend(not_in_front(front));
+            r.counted = front
+                && start.focus == "plain"
+                && r.page.text == 4
+                && r.page.password == 0
+                && r.keys.letters_decided == 4;
+            say(
+                test,
+                format!(
+                    "browser={name} phase=chat round={round} foreground={front} {}",
+                    r.line()
+                ),
+            );
+            counted += usize::from(r.counted);
+            if r.counted {
+                noted += r.keys.letters;
+            }
+        }
+        say(
+            test,
+            format!("phase=chat counted={counted} counted_rounds={counted} letters_noted={noted}"),
+        );
+        assert!(
+            counted >= usize::try_from(rounds).unwrap_or(1),
+            "INCONCLUSIVE: the chat phase counted {counted} rounds of {rounds}"
+        );
+        assert!(
+            noted == 4 * counted,
+            "{noted} of {} letters noted in a chat's box behind Enter",
+            4 * counted
+        );
+    });
+}
+
 pub(super) fn earlier_key_phases(test: &'static str, name: &'static str, earlier_key: bool) -> i64 {
+    let phase = if earlier_key { "take-one" } else { "take-none" };
+    held_page_rounds(test, name, phase, earlier_key)
+}
+
+/// The page row of order 10 and its twin: the page holds its main thread
+/// for 300 ms while one letter is typed into its plain input, sets that
+/// input's value itself (the twin does not), holds 300 ms more, and moves the
+/// focus to its password input, where the letter lands. All of it is one
+/// task of the page.
+pub(super) fn own_change_phases(test: &'static str, name: &'static str, change: bool) -> i64 {
+    let phase = if change { "own-change" } else { "own-none" };
+    held_page_rounds(test, name, phase, false)
+}
+
+fn held_page_rounds(
+    test: &'static str,
+    name: &'static str,
+    phase: &'static str,
+    earlier_key: bool,
+) -> i64 {
     let total = Arc::new(AtomicI64::new(0));
     let out = Arc::clone(&total);
     with_deadline(test, Duration::from_secs(240), move || {
@@ -1383,11 +1475,10 @@ pub(super) fn earlier_key_phases(test: &'static str, name: &'static str, earlier
             "the keyboard source must start: {:?}",
             keyboard.start
         );
-        let phase = if earlier_key { "take-one" } else { "take-none" };
         let hwnd = browser
             .open(test, phase, 0)
             .expect("INCONCLUSIVE: no page window");
-        let rounds = super::stall::rounds_for(2, 5);
+        let rounds = super::stall::rounds_for(4, 8);
         let mut counted = 0;
         let mut recorded = 0;
         let mut records = 0;
@@ -1395,13 +1486,11 @@ pub(super) fn earlier_key_phases(test: &'static str, name: &'static str, earlier
         for round in 0..rounds {
             let start = reset(&keyboard, hwnd).unwrap_or_default();
             let front = foreground_window() == hwnd;
+            let gap_ms = [0, 4, 8, 12][round as usize % 4];
             let sent = if earlier_key {
-                send(&[
-                    key_input(VK_A, false),
-                    key_input(VK_A, true),
-                    key_input(VK_A, false),
-                    key_input(VK_A, true),
-                ]);
+                send(&[key_input(VK_A, false), key_input(VK_A, true)]);
+                std::thread::sleep(Duration::from_millis(gap_ms));
+                send(&[key_input(VK_A, false), key_input(VK_A, true)]);
                 2
             } else {
                 std::thread::sleep(Duration::from_millis(250));
@@ -1440,7 +1529,8 @@ pub(super) fn earlier_key_phases(test: &'static str, name: &'static str, earlier
             say(
                 test,
                 format!(
-                    "browser={name} phase={phase} round={round} foreground={front} records_beyond_time_app_and_class={round_beyond} {}",
+                    "browser={name} phase={phase} round={round} gap_ms={gap_ms} foreground={front} \
+                     records_beyond_time_app_and_class={round_beyond} {}",
                     r.line()
                 ),
             );
@@ -1462,8 +1552,13 @@ pub(super) fn earlier_key_phases(test: &'static str, name: &'static str, earlier
             beyond, 0,
             "a keystroke record held more than its time, its app and its class"
         );
+        let wanted = if earlier_key {
+            1
+        } else {
+            usize::try_from(rounds).unwrap_or(1)
+        };
         assert!(
-            counted >= usize::try_from(rounds).unwrap_or(1),
+            counted >= wanted,
             "INCONCLUSIVE: {phase} counted {counted} rounds of {rounds}"
         );
         out.store(recorded, Ordering::SeqCst);
@@ -3016,6 +3111,18 @@ fn another_field_that_changes_its_value_by_itself_records_no_password_letter_in_
 
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn every_letter_in_a_chat_box_that_keeps_the_focus_behind_enter_is_noted_in_chrome() {
+    chat_box_phases("browser-chat-chrome", "chrome");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn every_letter_in_a_chat_box_that_keeps_the_focus_behind_enter_is_noted_in_edge() {
+    chat_box_phases("browser-chat-edge", "edge");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
 fn a_key_at_the_password_input_between_two_moves_of_the_page_records_nothing_in_chrome() {
     there_and_back_phases("browser-there-and-back-chrome", "chrome");
 }
@@ -3024,6 +3131,38 @@ fn a_key_at_the_password_input_between_two_moves_of_the_page_records_nothing_in_
 #[ignore = "functional: needs an interactive Windows desktop and Edge"]
 fn a_key_at_the_password_input_between_two_moves_of_the_page_records_nothing_in_edge() {
     there_and_back_phases("browser-there-and-back-edge", "edge");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop with Chrome"]
+fn the_pages_own_change_of_the_focused_input_before_its_late_move_records_nothing_in_chrome() {
+    own_change_row("browser-own-change-chrome", "chrome", true);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop with Edge"]
+fn the_pages_own_change_of_the_focused_input_before_its_late_move_records_nothing_in_edge() {
+    own_change_row("browser-own-change-edge", "edge", true);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop with Chrome"]
+fn a_held_page_that_changes_nothing_before_its_late_move_records_nothing_in_chrome() {
+    own_change_row("browser-own-none-chrome", "chrome", false);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop with Edge"]
+fn a_held_page_that_changes_nothing_before_its_late_move_records_nothing_in_edge() {
+    own_change_row("browser-own-none-edge", "edge", false);
+}
+
+fn own_change_row(test: &'static str, name: &'static str, change: bool) {
+    let recorded = own_change_phases(test, name, change);
+    assert!(
+        recorded == 0,
+        "{recorded} letters that the page took at its password input after its own change were recorded"
+    );
 }
 
 #[test]
