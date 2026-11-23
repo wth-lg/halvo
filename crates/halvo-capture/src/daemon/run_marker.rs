@@ -83,13 +83,15 @@ impl HeldRun {
         Ok(HeldRun { fd })
     }
 
-    /// run/ of the held folder `folder`, by its path, where it stands; where
-    /// none stands it makes none and answers NotFound.
+    /// run/ of the held folder `folder`, by its path, where it stands as a
+    /// folder; where none stands it makes none and answers NotFound; a run/
+    /// whose entry cannot be read answers that error, and one that is no
+    /// folder NotADirectory, as the open of the descriptor does on macOS.
     #[cfg(windows)]
     pub fn of(folder: &StateDir) -> io::Result<HeldRun> {
         let path = folder.path().join(halvo_control::paths::RUN.name());
-        if !std::fs::symlink_metadata(&path).is_ok_and(|meta| meta.is_dir()) {
-            return Err(io::ErrorKind::NotFound.into());
+        if !std::fs::symlink_metadata(&path)?.is_dir() {
+            return Err(io::ErrorKind::NotADirectory.into());
         }
         Ok(HeldRun { path })
     }
@@ -868,6 +870,19 @@ mod tests {
             last_end(&dir),
             LastEnd::Untold,
             "a marker that cannot be read"
+        );
+    }
+
+    #[test]
+    fn a_run_that_is_no_folder_reads_kept_and_no_run_reads_none_on_both_systems() {
+        let (_root, dir) = scratch();
+        std::fs::create_dir_all(dir.path()).unwrap();
+        let opened = || HeldRun::of(&StateDir::open(dir.path()).unwrap());
+        assert!(!typing_kept(&opened()), "no run/ stands: none");
+        std::fs::write(dir.run_dir(), "").unwrap();
+        assert!(
+            typing_kept(&opened()),
+            "a run/ that is no folder cannot be read: kept"
         );
     }
 

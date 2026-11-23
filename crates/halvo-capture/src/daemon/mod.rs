@@ -3466,7 +3466,7 @@ fn typing_turn<F: supervisor::SystemSources, L: main_loop::MainLoop>(
             ErrorCode::Internal,
             "the capture service holds no state file",
         )),
-        supervisor::TypingTurn::NotWritten(error) if !on => Reply::Error(ErrorReply::new(
+        supervisor::TypingTurn::NotWritten(error) if !on || supervisor.typing_note_stands() => Reply::Error(ErrorReply::new(
             ErrorCode::StateFile,
             format!("the switch of keys was not written, and typing stays off until a turn on, as the capture service's note run/typing-off holds it: {error}"),
         )),

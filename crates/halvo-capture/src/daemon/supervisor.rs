@@ -433,34 +433,39 @@ pub trait TypingNote {
 }
 
 /// The note in run/ of the folder that the instance lock holds
-/// (`run_marker::keep_typing_off`, `run_marker::let_typing_go`); with no
-/// held run/ it can be neither kept nor let go.
+/// (`run_marker::keep_typing_off`, `run_marker::let_typing_go`). Where no
+/// run/ stood at the start no note can stand, so a let-go has nothing to
+/// remove; a run/ that could not be opened for another cause can be neither
+/// kept nor let go.
 #[cfg(any(target_os = "macos", windows))]
 pub struct NoteInRun {
-    run: Option<super::run_marker::HeldRun>,
+    run: Result<super::run_marker::HeldRun, std::io::ErrorKind>,
 }
 
 #[cfg(any(target_os = "macos", windows))]
 impl NoteInRun {
     pub fn new(run: std::io::Result<super::run_marker::HeldRun>) -> NoteInRun {
-        NoteInRun { run: run.ok() }
-    }
-
-    fn run(&self) -> std::io::Result<&super::run_marker::HeldRun> {
-        self.run
-            .as_ref()
-            .ok_or_else(|| std::io::ErrorKind::NotFound.into())
+        NoteInRun {
+            run: run.map_err(|error| error.kind()),
+        }
     }
 }
 
 #[cfg(any(target_os = "macos", windows))]
 impl TypingNote for NoteInRun {
     fn keep(&mut self) -> std::io::Result<()> {
-        super::run_marker::keep_typing_off(self.run()?)
+        match &self.run {
+            Ok(run) => super::run_marker::keep_typing_off(run),
+            Err(kind) => Err((*kind).into()),
+        }
     }
 
     fn let_go(&mut self) -> std::io::Result<()> {
-        super::run_marker::let_typing_go(self.run()?)
+        match &self.run {
+            Ok(run) => super::run_marker::let_typing_go(run),
+            Err(std::io::ErrorKind::NotFound) => Ok(()),
+            Err(kind) => Err((*kind).into()),
+        }
     }
 }
 
@@ -841,19 +846,27 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         kept
     }
 
+    /// Removes both names of the note at every saved turn and at a saved try
+    /// of a start, whether or not this life knows of a note, so that no
+    /// leftover of a write that did not end outlives a person's saved turn; a
+    /// supervisor built with no note removes nothing.
     #[cfg(any(target_os = "macos", windows))]
     fn let_the_note_go(&mut self) -> std::io::Result<()> {
-        if !self.note_stands {
-            return Ok(());
-        }
-        let gone = self.typing_note.as_mut().map_or_else(
-            || Err(std::io::ErrorKind::NotFound.into()),
-            |note| note.let_go(),
-        );
+        let gone = self
+            .typing_note
+            .as_mut()
+            .map_or(Ok(()), |note| note.let_go());
         if gone.is_ok() {
             self.note_stands = false;
         }
         gone
+    }
+
+    /// Whether the note keeps a turn of typing to off beyond this life, as
+    /// this life knows it.
+    #[cfg(any(target_os = "macos", windows))]
+    pub(crate) fn typing_note_stands(&self) -> bool {
+        self.note_stands
     }
 
     /// The status that the watchdog is armed with, if it is.
@@ -3893,11 +3906,22 @@ mod tests {
     struct Note {
         stands: Rc<Cell<bool>>,
         fails: Rc<Cell<bool>>,
+        torn: Rc<Cell<bool>>,
+        new: Rc<Cell<bool>>,
+    }
+
+    impl Note {
+        fn read(&self) -> bool {
+            self.stands.get() || self.new.get()
+        }
     }
 
     impl TypingNote for Note {
         fn keep(&mut self) -> io::Result<()> {
             if self.fails.get() {
+                if self.torn.get() {
+                    self.new.set(true);
+                }
                 return Err(io::ErrorKind::StorageFull.into());
             }
             self.stands.set(true);
@@ -3909,6 +3933,7 @@ mod tests {
                 return Err(io::ErrorKind::PermissionDenied.into());
             }
             self.stands.set(false);
+            self.new.set(false);
             Ok(())
         }
     }
@@ -3928,7 +3953,7 @@ mod tests {
         f.supervisor = f
             .supervisor
             .with_state(state)
-            .with_typing_note(Box::new(note.clone()), note.stands.get());
+            .with_typing_note(Box::new(note.clone()), note.read());
         f
     }
 
@@ -4213,6 +4238,33 @@ mod tests {
             word(&parts),
             Some(TypingOffUnsaved::Kept),
             "the status that the page reads carries the kept turn"
+        );
+    }
+
+    #[test]
+    fn a_saved_turn_on_removes_a_note_whose_write_did_not_end_and_the_next_life_records_typing() {
+        let note = Note::default();
+        let (mut f, dir, writer) = with_state_file(fixture(Factory::new()));
+        f.supervisor = f.supervisor.with_typing_note(Box::new(note.clone()), false);
+        writer.failing.store(true, Ordering::SeqCst);
+        note.fails.set(true);
+        note.torn.set(true);
+        assert!(matches!(
+            f.supervisor.set_typing(false, None, &mut |_| {}),
+            TypingTurn::NoteNotWritten(..)
+        ));
+        assert!(note.new.get(), "the failed write of the note left its .new");
+        writer.failing.store(false, Ordering::SeqCst);
+        note.fails.set(false);
+        assert!(matches!(
+            f.supervisor.set_typing(true, None, &mut |_| {}),
+            TypingTurn::Written
+        ));
+        assert!(!note.read(), "a saved turn on removes both names");
+        let next = next_life(Platform::Macos, Factory::new(), dir.path(), &writer, &note);
+        assert!(
+            keys_in_the_file(dir.path()) && keys_of(&next),
+            "the next life records typing, as the person's saved turn on says"
         );
     }
 
