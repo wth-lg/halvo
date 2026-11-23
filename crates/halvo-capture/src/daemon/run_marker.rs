@@ -171,8 +171,8 @@ pub fn held(dir: &DataDir) -> bool {
 /// and a start that no press stands behind reads the trigger; at every other
 /// end the marker stays as the life left it: its process line alone, the
 /// form of the decision, or the record of ruling PL-3 at an end with 5.
-/// Where the marker cannot be read or the write at 1 fails, the marker stays
-/// as it stands.
+/// At 1 a marker that cannot be read, or a write that fails, gives what
+/// [`decided`] gives.
 pub fn at_the_end(dir: &DataDir, status: i32, ended_by: Option<StopKind>) -> io::Result<()> {
     match (status, ended_by) {
         (halvo_control::exit::CLEAN, _) => end(dir, ended_by),
@@ -190,8 +190,10 @@ pub fn at_the_end(dir: &DataDir, status: i32, ended_by: Option<StopKind>) -> io:
 /// durable write. An end with 0 writes its clean form over it ([`end`]); an
 /// end with 1, the watchdog's end and a kill leave it, which the next start
 /// reads unclean and a start that no press stands behind reads as `kind`.
-/// Where the marker cannot be read, or the write fails, the marker stays as
-/// it stands, the hold kept.
+/// Where the marker cannot be read, or the write fails before its rename,
+/// the marker stays as it stands, the hold kept; where only the sync of run/
+/// behind the rename fails, on a Mac, the decision stands and the call
+/// answers that error.
 pub fn decided(dir: &DataDir, kind: StopKind) -> io::Result<()> {
     let found = read(dir)?;
     let mut text = format!("{PID}{}\n", std::process::id());
@@ -208,9 +210,9 @@ pub fn decided(dir: &DataDir, kind: StopKind) -> io::Result<()> {
 /// Ends the marker of a life that ended in order: in its place the hold,
 /// while it stands, and the line of `ended_by`, the trigger of the end, by
 /// the durable write. With no trigger, or where that write fails while no
-/// hold stands, the marker is removed and run/ synced, as an end in order
-/// did before the line, which a start that no press stands behind reads as
-/// an end that does not tell.
+/// hold stands, a removal of the marker and a sync of run/ are tried, as an
+/// end in order did before the line, which a start that no press stands
+/// behind reads, where the removal was made, as an end that does not tell.
 pub fn end(dir: &DataDir, ended_by: Option<StopKind>) -> io::Result<()> {
     let hold = held(dir);
     let mut text = String::new();
