@@ -2541,7 +2541,6 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     }
     let mut rule = owner::open::CreateRule::of(state.health(), state.state().store_made);
     let held_cap = cap_bound(state.state().storage_cap);
-    let switches = state.state().switches;
     if let Err(error) = lock.exclude_from_backup() {
         let _ = writeln!(
             err,
@@ -2769,6 +2768,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                     Some(wrap) => wrap(store),
                     None => store,
                 };
+                let switches = supervisor.start_switches();
                 match capture_owner(store, held_cap, switches, root, dir.path()) {
                     Ok(owner) => {
                         let wanted = sources::starting(
@@ -2984,6 +2984,10 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         }
         Request::Pause | Request::Resume => {
             capture_change(asked, supervisor, serving, store);
+            return;
+        }
+        Request::SetTyping { on } => {
+            typing_turn(asked, on, supervisor, serving, store);
             return;
         }
         _ => Reply::Error(ErrorReply::new(
@@ -3292,6 +3296,68 @@ fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     if let Some(asked) = pending {
         let _ = asked.answer(changed(&supervisor.status_parts(serving.obstructed)));
     }
+}
+
+/// A client's turn of the switch key_class: the status after the turn, or
+/// state_file with the text of the failed write, which names the file and
+/// behind which typing is off in this life. Where the stop of the source that
+/// holds keys does not stop, the answer goes out from the end routine, as a
+/// Pause's does; where the turn ends the life with status 4, the answer goes
+/// out first and is waited for.
+#[cfg(any(target_os = "macos", windows))]
+fn typing_turn<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    asked: server::Asked,
+    on: bool,
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+    store: &HeldStore,
+) {
+    use halvo_control::proto::{ErrorCode, ErrorReply, Reply};
+    let facts = server::RunFacts {
+        rss_peak_bytes: server::rss_peak_bytes(),
+        ..*serving.facts
+    };
+    let status = |parts: &server::StatusParts| {
+        server::status_of(parts, &facts).map_or_else(
+            |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+            Reply::Status,
+        )
+    };
+    let before = supervisor.status_parts(serving.obstructed);
+    let mut pending = Some(asked);
+    let turned = supervisor.set_typing(on, store.link(), &mut |board| {
+        if let Some(asked) = pending.take() {
+            serving.listening.admitting().end_the_life();
+            let parts = server::StatusParts {
+                board: board.clone(),
+                ..before.clone()
+            };
+            let _ = asked.answer(status(&parts)).wait(WRITTEN_WAIT);
+        }
+    });
+    let Some(asked) = pending else {
+        return;
+    };
+    let reply = match turned {
+        supervisor::TypingTurn::NoStateFile => Reply::Error(ErrorReply::new(
+            ErrorCode::Internal,
+            "the capture service holds no state file",
+        )),
+        supervisor::TypingTurn::NotWritten(error) => Reply::Error(ErrorReply::new(
+            ErrorCode::StateFile,
+            format!("the switch of keys was not written, and typing is off in this life: {error}"),
+        )),
+        supervisor::TypingTurn::Restart => {
+            serving.listening.admitting().end_the_life();
+            let reply = status(&supervisor.status_parts(serving.obstructed));
+            let _ = asked.answer(reply).wait(WRITTEN_WAIT);
+            return;
+        }
+        supervisor::TypingTurn::Written | supervisor::TypingTurn::Ended => {
+            status(&supervisor.status_parts(serving.obstructed))
+        }
+    };
+    let _ = asked.answer(reply);
 }
 
 #[cfg(any(target_os = "macos", windows))]
