@@ -16,7 +16,7 @@ use crate::proto::{
     IntentState, InventoryReply, KindLine, LastStop, Lease, Life, OnOff, Parent, PasswordGuard,
     PermissionForm, PermissionLine, PermissionRequested, Platform, Reason, Reply, Request,
     RootDestroyed, Section, SourceLine, SourceName, SourceState, StateFile, StatusFields, Stopped,
-    StoreErrorKind, StoreState, SwitchLine, SwitchName, Totals, PERMISSION_FORM,
+    StoreErrorKind, StoreState, SwitchLine, SwitchName, Totals, TypingGate, PERMISSION_FORM,
 };
 use crate::wire::{read_one_frame, write_frame, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
 
@@ -106,17 +106,18 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
             vec![
                 running(SourceName::Foreground),
                 off(SourceName::Screen),
-                off(SourceName::Keyboard),
+                running(SourceName::Keyboard),
                 running(SourceName::Pointer),
                 running(SourceName::WindowTitle),
                 off(SourceName::SystemAudio),
             ],
             vec![
                 SourceName::Foreground,
+                SourceName::Keyboard,
                 SourceName::Pointer,
                 SourceName::WindowTitle,
             ],
-            PasswordGuard::None,
+            PasswordGuard::Halvo,
             Custody::Dpapi,
         ),
     };
@@ -159,7 +160,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
         secure_input_keystrokes: secure,
         typing: None,
         keys_withheld: false,
-        typing_gate: None,
+        typing_gate: (platform == Platform::Windows).then_some(TypingGate::Ok),
         title_read_errors: 0,
         last_flush_at: Some(at("2026-11-12T09:00:05Z")),
         expiry: Health::Healthy,
@@ -196,7 +197,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
             })
             .collect(),
         password_guard: guard,
-        password_guard_bound_ms: (guard == PasswordGuard::Os).then_some(30_000),
+        password_guard_bound_ms: (guard != PasswordGuard::None).then_some(30_000),
         screen_filter_excludes_app: None,
         custody,
         onboarding,
@@ -1280,9 +1281,12 @@ mod tests {
             let mut f = sample_status(Platform::Windows).into_fields();
             for line in &mut f.sources {
                 if line.name == SourceName::Keyboard {
+                    line.state = SourceState::Off;
                     line.unstopped = true;
                 }
             }
+            f.enabled_sources
+                .retain(|name| *name != SourceName::Keyboard);
             f.capture = Capture::Pausing;
             let mut daemon = ScriptedDaemon::new(DaemonStatus::new(f).unwrap());
             daemon.set_stop_answer(SourceName::Keyboard, answer);

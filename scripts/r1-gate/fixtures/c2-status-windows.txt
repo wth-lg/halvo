@@ -27,6 +27,7 @@ tap_disabled_user_input=0
 late_events=no
 max_lag_ms=0
 keys_withheld=no
+typing_gate=ok
 title_read_errors=0
 last_flush_at=2026-11-12T09:00:05Z
 expiry=healthy
@@ -37,7 +38,7 @@ last_stop=clean
 last_stop_newest_capture=-
 state_file=ok
 platform=windows
-enabled_sources=foreground,pointer,window_title
+enabled_sources=foreground,keyboard,pointer,window_title
 switch name=title_text value=on
 switch name=key_class value=on
 switch name=pointer_class value=on
@@ -45,7 +46,7 @@ switch name=screen_activity value=off
 switch name=site_read value=off
 source name=foreground state=running
 source name=screen state=off
-source name=keyboard state=off
+source name=keyboard state=running
 source name=pointer state=running
 source name=window_title state=running
 source name=system_audio state=off
