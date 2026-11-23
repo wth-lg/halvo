@@ -1891,6 +1891,15 @@ impl Files for Product {
     fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError> {
         self.chooser.choose(folder)
     }
+
+    /// The names of the workbook's worksheets by the runner's program of `places` in its mode
+    /// `--sheet-names`, through the supervisor library (`halvo_agent_client::sheet_names`), as
+    /// every start of that program goes (r4 U3.22c): this process reads no byte of the
+    /// workbook. Every answer of not read is `no_service`.
+    fn sheets(&self, workbook: &str) -> Result<Vec<String>, PortError> {
+        halvo_agent_client::sheet_names(&self.places.runner, std::path::Path::new(workbook))
+            .map_err(|_| PortError::NoService)
+    }
 }
 
 impl Senders for Product {
@@ -2460,6 +2469,10 @@ mod tests {
     impl Files for Unseen {
         fn choose(&self, _: Option<&str>) -> Result<Chosen, PortError> {
             Ok(Chosen::Closed)
+        }
+
+        fn sheets(&self, _: &str) -> Result<Vec<String>, PortError> {
+            Err(PortError::NoService)
         }
     }
 

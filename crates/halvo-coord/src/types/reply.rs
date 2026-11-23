@@ -1043,12 +1043,15 @@ pub struct ParamEntry {
     /// `hint`: what to type, the sentence of `param_hint.<name>` of the parameter, with the
     /// `_mac` or `_windows` form of this build's system where the answer is a path, which the card
     /// shows under the question's words and above its line (r4 U3.22a); empty for every parameter
-    /// that the words table gives no hint.
+    /// that the words table gives no hint, and for every parameter with candidates, Which sheet
+    /// while it offers a workbook's names among them (r4 U3.22c).
     pub hint: String,
     /// `needs_answer`: for a parameter with `typed` `yes` the sentence of
     /// `param_typed.needs_answer`, which the card shows below the typed line where it stands
-    /// empty at a press of the choice `choose`, until the line changes (r4 U3.22b); empty for
-    /// every other parameter.
+    /// empty at a press of the choice `choose`, until the line changes (r4 U3.22b); the same
+    /// sentence for a parameter whose candidates come from `files`, the names of a workbook's
+    /// worksheets, which the card shows below the list where no entry is chosen at such a press
+    /// (r4 U3.22c); empty for every other parameter.
     pub needs_answer: String,
     /// `choose`: for Which spreadsheet file and Where the data comes from, the label of the
     /// control beside the typed line that opens the system's own chooser of a file, the sentence

@@ -13357,6 +13357,10 @@ mod clock_panics {
         fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError> {
             self.both.choose(folder)
         }
+
+        fn sheets(&self, workbook: &str) -> Result<Vec<String>, PortError> {
+            self.both.sheets(workbook)
+        }
     }
 }
 

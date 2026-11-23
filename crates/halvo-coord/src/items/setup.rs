@@ -1,13 +1,18 @@
-use super::chars::composed;
+use super::chars::{composed, no_form};
 use super::compose::setup_with_line;
 use super::{bound_field, value_bound, Marking, SetupParam};
 use crate::ports::{Refused, Shared};
 use crate::types::{
-    AgentId, Body, BoundFrom, Category, Cause, Class, Item, ItemId, Limits, Name, Overlapping,
-    Param, Slot, System, WorkflowId,
+    AgentId, Body, BoundFrom, CandidateFrom, Category, Cause, Class, Item, ItemId, Limits, Name,
+    Overlapping, Param, Slot, System, WorkflowId,
 };
 
 const TYPED_MAX: usize = 1024;
+
+/// The most names of a workbook's worksheets that Which sheet offers as its list (r4 U3.22c, the
+/// coordinator's ruling (C)): a bound of its own, the sheet crate's, where every other list keeps
+/// `setup_candidates`; a workbook of more names keeps the typed line.
+pub const SHEET_NAMES_MAX: usize = 64;
 
 /// The body of the setup flow (I3.5): the setup's `set_bindings` with one slot per parameter of
 /// the item, each with the value that the person chose or typed, in the order of the item's
@@ -71,6 +76,15 @@ pub enum SetupInput<'a> {
         param: Param,
         /// The text.
         text: &'a str,
+    },
+    /// `agents_setup_typed` of Which spreadsheet file for an item that asks Which sheet, with
+    /// the names of the worksheets that the read of its line answered (`Files::sheets`), none
+    /// where they were not read (r4 U3.22c). `Typed` of that question is this with none.
+    Book {
+        /// The text.
+        text: &'a str,
+        /// The names that the read answered, in the workbook's order.
+        sheets: Option<&'a [String]>,
     },
     /// The choice `none`: the hold stays and the item stays open, with its answers (I3.5,
     /// ruling RD-23 (b)).
@@ -333,6 +347,56 @@ impl Setup {
         Ok(item)
     }
 
+    /// The line of Which spreadsheet file whose worksheets' names the core reads before it takes
+    /// `text` as that question's answer (r4 U3.22c): where the item is open and asks Which sheet,
+    /// `param` is Which spreadsheet file, and `text` is a line that the core takes on this build's
+    /// system (`typed_line`) and that differs from the line that the item holds; none otherwise.
+    pub fn sheets_due(&self, param: Param, text: &str) -> Option<String> {
+        if param != Param::Workbook || self.state != SetupState::Open {
+            return None;
+        }
+        let (w, _) = (self.at(Param::Workbook).ok()?, self.at(Param::Sheet).ok()?);
+        typed(text).ok()?;
+        let line = typed_line(param, text, System::HOST).ok()?;
+        let held = self.given[w].as_ref().and_then(|g| g.first());
+        (held != Some(&line)).then_some(line)
+    }
+
+    /// Whether Which sheet offers the names of a workbook's worksheets as its list.
+    fn sheet_list(&self) -> Option<usize> {
+        let s = self.at(Param::Sheet).ok()?;
+        let list = &self.params[s].candidates;
+        (!list.is_empty() && list.iter().all(|(_, from)| *from == CandidateFrom::Files))
+            .then_some(s)
+    }
+
+    /// Which sheet after the item's line of Which spreadsheet file changed (r4 U3.22c): with
+    /// `names` that fit (`fit_names`), they are its list, in the workbook's order, and the sheet
+    /// that the item held is dropped, chosen or typed, so that the person chooses from the new
+    /// list; without them, a list of an older line goes with the sheet chosen from it, the typed
+    /// line comes back, and a typed sheet stays. Nothing for an item that does not ask it.
+    fn take_sheets(&mut self, names: Option<&[String]>) {
+        let Ok(s) = self.at(Param::Sheet) else {
+            return;
+        };
+        match names.filter(|names| fit_names(names)) {
+            Some(names) => {
+                self.params[s].candidates = names
+                    .iter()
+                    .map(|name| (vec![name.clone()], CandidateFrom::Files))
+                    .collect();
+                self.given[s] = None;
+                self.refused[s] = None;
+                self.untaken[s] = None;
+            }
+            None if self.sheet_list().is_some() => {
+                self.params[s].candidates.clear();
+                self.given[s] = None;
+            }
+            None => {}
+        }
+    }
+
     fn at(&self, param: Param) -> Result<usize, Cause> {
         self.params
             .iter()
@@ -418,6 +482,19 @@ fn typed(text: &str) -> Result<(), Cause> {
     } else {
         Err(Cause::Malformed)
     }
+}
+
+/// Whether the names of a workbook's worksheets fit Which sheet's list (r4 U3.22c, the
+/// coordinator's ruling (B), (C)): one to `SHEET_NAMES_MAX` names, each a line that a typed line
+/// could be (`typed`: one line of at most 1,024 bytes that holds something other than white
+/// space) with no character that has no visible form (`chars::no_form`: control and format
+/// characters, the direction marks among them). One name that does not fit, and there is no list:
+/// never a list that lacks a sheet.
+pub(crate) fn fit_names(names: &[String]) -> bool {
+    (1..=SHEET_NAMES_MAX).contains(&names.len())
+        && names
+            .iter()
+            .all(|name| typed(name).is_ok() && !name.chars().any(no_form))
 }
 
 /// The line that the core takes of a typed answer `text` of `param` on `system`, or why it does
@@ -601,6 +678,14 @@ fn folder_of(path: &str, system: System) -> &str {
 /// freed body (`Setup::waits`). An answer that it takes for a parameter ends the refusal by
 /// entry that the parameter carried, and a move after which the item asks every parameter again
 /// ends every such refusal (ruling RD-81 9.2).
+/// Which sheet of an item that asks it (r4 U3.22c): where a typed line of Which spreadsheet file
+/// changes the line that the item holds, `Book` with names that fit (`fit_names`) makes them Which
+/// sheet's list, in the workbook's order, and drops the sheet that the item held, chosen or typed;
+/// without such names (`Typed`, or `Book` with none) a list of an older line goes with the sheet
+/// chosen from it and the typed line comes back, while a typed sheet stays. While the list stands,
+/// `choose` of its entry gives that name, and a typed line of Which sheet is taken where it equals
+/// a name of the list and leaves the question with no answer otherwise, with no refusal. A move
+/// after which the item asks every parameter again drops the list.
 pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
     let mut next = setup.clone();
     if !matches!(mv, SetupMove::Input(SetupInput::None)) {
@@ -613,6 +698,7 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
         }
         (SetupState::Owed(_), SetupMove::Acknowledged) => next.state = SetupState::Closed,
         (SetupState::Owed(_), SetupMove::NotTaken) => {
+            next.take_sheets(None);
             next.given = vec![None; setup.params.len()];
             next.refused = vec![None; setup.params.len()];
             next.untaken = vec![None; setup.params.len()];
@@ -624,6 +710,7 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
             return Ok(next);
         }
         (SetupState::Owed(body), SetupMove::Overlap) => {
+            next.take_sheets(None);
             next.given = vec![None; setup.params.len()];
             next.refused = vec![None; setup.params.len()];
             next.untaken = vec![None; setup.params.len()];
@@ -665,34 +752,40 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
             next.refused[i] = None;
             next.untaken[i] = None;
         }
-        (SetupState::Open, SetupMove::Input(SetupInput::Typed { param, text })) => {
+        (SetupState::Open, SetupMove::Input(SetupInput::Typed { param, text }))
+            if param == Param::Sheet && setup.sheet_list().is_some() =>
+        {
             let i = setup.at(param)?;
-            if !setup.params[i].candidates.is_empty() {
-                return Err(Cause::Malformed);
-            }
             typed(text)?;
-            if !fits(setup.category, param, text) {
-                return Err(Cause::Malformed);
-            }
-            match typed_line(param, text, System::HOST) {
-                Ok(line) => {
-                    next.given[i] = Some(vec![line]);
-                    next.untaken[i] = None;
-                }
-                Err(why) => {
-                    next.given[i] = None;
-                    next.untaken[i] = Some(why);
-                }
-            }
+            let named = setup.params[i]
+                .candidates
+                .iter()
+                .find(|(value, _)| value.len() == 1 && value[0] == text);
+            next.given[i] = named.map(|(value, _)| value.clone());
             next.refused[i] = None;
-            if matches!(param, Param::Workbook | Param::Source) {
-                next.place_source(System::HOST);
+            next.untaken[i] = None;
+        }
+        (SetupState::Open, SetupMove::Input(SetupInput::Book { text, sheets })) => {
+            next = taken_line(setup, next, Param::Workbook, text)?;
+            let held = next.given(Param::Workbook).is_some();
+            if next.given(Param::Workbook) != setup.given(Param::Workbook) {
+                next.take_sheets(sheets.filter(|_| held));
+            }
+        }
+        (SetupState::Open, SetupMove::Input(SetupInput::Typed { param, text })) => {
+            next = taken_line(setup, next, param, text)?;
+            if param == Param::Workbook
+                && next.given(Param::Workbook) != setup.given(Param::Workbook)
+            {
+                next.take_sheets(None);
             }
         }
     }
     if matches!(
         mv,
-        SetupMove::Input(SetupInput::Choose { .. } | SetupInput::Typed { .. })
+        SetupMove::Input(
+            SetupInput::Choose { .. } | SetupInput::Typed { .. } | SetupInput::Book { .. }
+        )
     ) {
         if let Some(Shared::Unread { again }) = next.shared.as_mut() {
             *again = false;
@@ -704,6 +797,34 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
             next.kept = None;
             next.shared = None;
         }
+    }
+    Ok(next)
+}
+
+/// `next` with the typed line `text` of `param` taken as `setup_step` takes a typed line of a
+/// parameter with no candidate, or the refusal of that move.
+fn taken_line(setup: &Setup, mut next: Setup, param: Param, text: &str) -> Result<Setup, Cause> {
+    let i = setup.at(param)?;
+    if !setup.params[i].candidates.is_empty() {
+        return Err(Cause::Malformed);
+    }
+    typed(text)?;
+    if !fits(setup.category, param, text) {
+        return Err(Cause::Malformed);
+    }
+    match typed_line(param, text, System::HOST) {
+        Ok(line) => {
+            next.given[i] = Some(vec![line]);
+            next.untaken[i] = None;
+        }
+        Err(why) => {
+            next.given[i] = None;
+            next.untaken[i] = Some(why);
+        }
+    }
+    next.refused[i] = None;
+    if matches!(param, Param::Workbook | Param::Source) {
+        next.place_source(System::HOST);
     }
     Ok(next)
 }

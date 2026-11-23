@@ -77,6 +77,12 @@ impl<R: Runtime> Files for SystemChooser<R> {
             Ok(Chosen::Closed)
         }
     }
+
+    /// The system's chooser reads no names of a workbook: `Product` reads them by the runner's
+    /// program (r4 U3.22c) and never asks the chooser.
+    fn sheets(&self, _: &str) -> Result<Vec<String>, PortError> {
+        Err(PortError::NoService)
+    }
 }
 
 #[cfg(target_os = "macos")]

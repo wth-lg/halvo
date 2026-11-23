@@ -667,7 +667,11 @@ pub fn compose_check(
 /// after the owner refused its answers by a name after which another value can pass, one field
 /// whose label is `item.setup.not_taken`, with no value and `from` `halvo` (I3.4, ruling IG-34).
 /// `malformed` for more than `setup_params` parameters, more than `setup_candidates` candidates
-/// of one, or a piece of a value of more than 1,024 bytes.
+/// of one (for a list whose candidates all come from `files`, the names of a workbook's
+/// worksheets, more than `SHEET_NAMES_MAX`, r4 U3.22c), or a piece of a value of more than 1,024
+/// bytes. A parameter with candidates has no hint; one whose candidates come from `files` holds
+/// the sentence of `param_typed.needs_answer`, which the card shows under the list where no
+/// entry is chosen at a press of the choice `choose` (r4 U3.22c, the coordinator's ruling (E)).
 pub fn compose_setup(
     item: &ItemId,
     agent: &AgentId,
@@ -730,7 +734,16 @@ pub(crate) fn setup_on(
     let (title, text) = title_and_text(ItemKind::Setup, name)?;
     let mut entries = Vec::new();
     for p in params {
-        if p.candidates.len() > limits.setup_candidates as usize {
+        let names = !p.candidates.is_empty()
+            && p.candidates
+                .iter()
+                .all(|(_, from)| *from == CandidateFrom::Files);
+        let most = if names {
+            super::setup::SHEET_NAMES_MAX
+        } else {
+            limits.setup_candidates as usize
+        };
+        if p.candidates.len() > most {
             return Err(Cause::Malformed);
         }
         let mut candidates = Vec::new();
@@ -757,8 +770,12 @@ pub(crate) fn setup_on(
             } else {
                 String::new()
             },
-            hint: param_hint(p.param, system)?,
-            needs_answer: if typed {
+            hint: if typed {
+                param_hint(p.param, system)?
+            } else {
+                String::new()
+            },
+            needs_answer: if typed || names {
                 say("param_typed.needs_answer")?
             } else {
                 String::new()

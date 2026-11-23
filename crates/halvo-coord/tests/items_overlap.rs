@@ -173,6 +173,10 @@ impl Files for Raced<'_> {
     fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError> {
         self.inner.choose(folder)
     }
+
+    fn sheets(&self, workbook: &str) -> Result<Vec<String>, PortError> {
+        self.inner.sheets(workbook)
+    }
 }
 
 #[test]
