@@ -2514,8 +2514,10 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
 /// the owner's sink and floor. With [`Behind::NoPress`] it first reads why
 /// the last life ended and ends with WAITS_FOR_A_PRESS where the table of
 /// `run_marker::LastEnd` says so, before the marker's begin. A life that ends
-/// with 0 leaves the line of the trigger of its end in the run marker, before
-/// it answers a Stop request and before it gives the lock up.
+/// with 0 leaves the line of the trigger of its end in the run marker, and a
+/// life that a Stop request or a signal ends with 1 leaves it beside its
+/// process line, before it answers a Stop request and before it gives the
+/// lock up (`run_marker::at_the_end`).
 #[cfg(any(target_os = "macos", windows))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop>(
@@ -2941,8 +2943,9 @@ const WAITS_FOR_A_PRESS_LINE: &str = "halvo-capture: no press asked for this sta
 /// The trigger, in the words of contracts.md C2.3, of an end that the wait of
 /// the service run read: the Windows session's end, which marks itself
 /// before it sets the stop flag; the stop flag, which SIGINT and SIGTERM set
-/// on a Mac and the session window's WM_CLOSE and a console's Ctrl-C and
-/// Ctrl-Break set on Windows; and with neither, the lifeline's end.
+/// on a Mac and the session window's WM_CLOSE sets on Windows (a console's
+/// Ctrl-C and Ctrl-Break set it in a debug build alone; a release build
+/// installs no console handler); and with neither, the lifeline's end.
 #[cfg(any(target_os = "macos", windows))]
 fn trigger_of_the_wait(stop: &std::sync::atomic::AtomicBool) -> halvo_control::proto::StopKind {
     if signal::session_end_budget().is_some() {
