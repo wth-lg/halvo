@@ -146,6 +146,47 @@ fn a_bind_that_the_person_declines_is_answered_no_and_sends_no_add_origin() {
 }
 
 #[test]
+fn a_no_at_the_bind_question_drops_the_waiting_add_of_that_origin() {
+    let rig = Rig::new("bind-decline-drops-add");
+    rig.store
+        .fail_add_origin
+        .store(usize::MAX, Ordering::SeqCst);
+    *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
+    let other = confirm(Some("http://mail.test:18090")).replace(&"60".repeat(16), &"61".repeat(16));
+    let script = rig.script(&[
+        "hello",
+        &confirm(Some("http://pay.test:18090")),
+        &other,
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log declined",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(script.wait_log("declined", SHORT), "{}", script.log());
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"no"}"#]);
+    let to = |origin: &str| {
+        let way = format!(r#""origin":"{origin}","way":"new_origin""#);
+        adds(&rig).iter().filter(|b| b.contains(&way)).count()
+    };
+    let (pay, mail) = (to("http://pay.test:18090"), to("http://mail.test:18090"));
+    assert!(pay >= 1 && mail >= 1, "both adds were sent before the no");
+    assert!(
+        wait_until(SHORT, || to("http://mail.test:18090") >= mail + 2),
+        "the add of another origin is still sent; two more sends span more than one ADD_AGAIN"
+    );
+    assert_eq!(
+        to("http://pay.test:18090"),
+        pay,
+        "an add_origin of the declined origin was sent after the no"
+    );
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
 fn a_bind_of_an_origin_that_the_bindings_hold_is_answered_yes_at_once_with_no_question() {
     let rig = Rig::new("bind-held");
     rig.store
