@@ -104,19 +104,36 @@ pub fn past_bound(name: SourceName, answer: &Result<(), CaptureError>) -> Option
 /// the fixed order of the system's source names: the foreground source; the
 /// screen source only while `screen_activity` is on; on macOS the input
 /// source while `key_class` or `pointer_class` is on; on Windows the keyboard
-/// source only in a timed run whose flag set `key_class` on (contracts.md
-/// C13.8), the pointer source while `pointer_class` is on and the window_title
+/// source while `key_class` is on, in a service run while the build's
+/// `TYPING_ON_WINDOWS` is true and in a timed run whose flag set `key_class`
+/// on, the pointer source while `pointer_class` is on and the window_title
 /// source while `title_text` is on; never a system_audio or a microphone
 /// source.
 pub fn starting(platform: Platform, kind: RunKind, switches: Switches) -> Vec<SourceName> {
+    starting_with_typing(
+        platform,
+        kind,
+        switches,
+        halvo_control::texts::TYPING_ON_WINDOWS,
+    )
+}
+
+/// [`starting`] with `typing_on_windows` in the place of the build's
+/// `TYPING_ON_WINDOWS`.
+pub(crate) fn starting_with_typing(
+    platform: Platform,
+    kind: RunKind,
+    switches: Switches,
+    typing_on_windows: bool,
+) -> Vec<SourceName> {
     SourceName::of(platform)
         .iter()
         .copied()
-        .filter(|name| starts(*name, kind, switches))
+        .filter(|name| starts(*name, kind, switches, typing_on_windows))
         .collect()
 }
 
-fn starts(name: SourceName, kind: RunKind, switches: Switches) -> bool {
+fn starts(name: SourceName, kind: RunKind, switches: Switches, typing_on_windows: bool) -> bool {
     match name {
         SourceName::Foreground => true,
         SourceName::Screen => switches.is_on(Switch::ScreenActivity),
@@ -124,9 +141,11 @@ fn starts(name: SourceName, kind: RunKind, switches: Switches) -> bool {
             switches.is_on(Switch::KeyClass) || switches.is_on(Switch::PointerClass)
         }
         SourceName::Keyboard => {
-            kind == RunKind::Timed {
-                key_class_flag: true,
-            } && switches.is_on(Switch::KeyClass)
+            switches.is_on(Switch::KeyClass)
+                && match kind {
+                    RunKind::Timed { key_class_flag } => key_class_flag,
+                    RunKind::Service => typing_on_windows,
+                }
         }
         SourceName::Pointer => switches.is_on(Switch::PointerClass),
         SourceName::WindowTitle => switches.is_on(Switch::TitleText),
@@ -799,13 +818,24 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_windows_set_starts_the_keyboard_source_only_under_the_timed_run_flag() {
+    fn the_windows_set_starts_the_keyboard_source_in_a_service_run_while_key_class_is_on() {
         let cases = [
-            ("the default set", timed(), Switches::default(), false),
+            (
+                "a timed run with no flag",
+                timed(),
+                Switches::default(),
+                false,
+            ),
             (
                 "a service run whose state has key_class on",
                 RunKind::Service,
                 switches_with(Switch::KeyClass, true),
+                halvo_control::texts::TYPING_ON_WINDOWS,
+            ),
+            (
+                "a service run whose state has key_class off",
+                RunKind::Service,
+                switches_with(Switch::KeyClass, false),
                 false,
             ),
             (
@@ -842,6 +872,11 @@ pub(crate) mod tests {
         };
         let off = switches_with(Switch::KeyClass, false);
         assert!(!starting(Platform::Windows, flag_off, off).contains(&SourceName::Keyboard));
+        let on = switches_with(Switch::KeyClass, true);
+        assert!(
+            !starting(Platform::Macos, RunKind::Service, on).contains(&SourceName::Keyboard),
+            "a Mac has no keyboard source"
+        );
     }
 
     #[test]

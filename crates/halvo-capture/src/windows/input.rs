@@ -712,11 +712,14 @@ struct GateState {
     counts: Arc<GateCounts>,
 }
 
+/// What a keyboard source's gate counted: whether a key came late, whether a
+/// key was withheld, and the largest lag of a key. The Windows service set
+/// keeps one for the run, which its keyboard source writes.
 #[derive(Debug, Default)]
-struct GateCounts {
-    late: AtomicBool,
-    withheld: AtomicBool,
-    max_lag_ms: AtomicU64,
+pub(crate) struct GateCounts {
+    pub(crate) late: AtomicBool,
+    pub(crate) withheld: AtomicBool,
+    pub(crate) max_lag_ms: AtomicU64,
 }
 
 impl GateCounts {
@@ -1350,6 +1353,16 @@ impl RawInputSource {
     pub fn keyboard(_last_app: Arc<Mutex<Option<String>>>, gate: PasswordGate) -> Self {
         Self {
             gate: Some(Arc::new(gate)),
+            ..Self::new(RawDevice::Keyboard)
+        }
+    }
+
+    /// The keyboard source of the Windows service set, on the set's own gate,
+    /// counting in the set's counts.
+    pub(crate) fn keyboard_of_the_set(gate: Arc<PasswordGate>, counts: Arc<GateCounts>) -> Self {
+        Self {
+            gate: Some(gate),
+            gate_counts: counts,
             ..Self::new(RawDevice::Keyboard)
         }
     }

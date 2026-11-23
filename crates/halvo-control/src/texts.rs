@@ -15,6 +15,15 @@ use crate::proto::{
 /// typing.
 pub const TYPING_ON_MAC: bool = true;
 
+/// Typing on Windows: whether a service run of a Windows build starts the keyboard source,
+/// which notes a key only under the password gate of win-6. On by the owner's word of
+/// 2026-11-22 and the default of entry I-156, so a Windows build notes what kind of key is
+/// pressed while the switch key_class is on. It is read in three places: the Windows service
+/// set's make of the keyboard source, the start of a service run, and [`first_run`]. Set to
+/// false, a Windows build makes and starts no keyboard source and its first-run text says that
+/// it does not record what you type, as before this switch.
+pub const TYPING_ON_WINDOWS: bool = true;
+
 /// The row on typing where no typing is recorded: on a Mac whose build takes no typing
 /// ([`TYPING_ON_MAC`]) in the first-run text, and on Windows while the keyboard source line
 /// reads off.
@@ -323,23 +332,25 @@ pub fn onboarding_rows(status: &DaemonStatus) -> Vec<PermissionStatus> {
 /// of the default switches (contracts.md C13.5) with every source off, on a Mac with the row on
 /// typing by [`TYPING_ON_MAC`] behind the row on clicks; on a Mac with typing on also the
 /// sentence on secure input and [`KEY_TYPED_AHEAD_CAN_BE_NOTED`], since the press on Start is
-/// the consent to typing, and with typing off neither; on Windows, where no build records typing
-/// yet, the rows of a keyboard source that is off, and with typing on the rows of a keyboard
-/// source that runs under the gate: [`KEYS_RECORDED_ON_WINDOWS`] in the place of its typing row,
-/// the gate's passwords row and [`KEY_TYPED_AHEAD_ON_WINDOWS`]; the backup limit, the limits, the
-/// custody on which the platform's build captures, the storage of the default cap and the
-/// sentence on repeated tasks.
+/// the consent to typing, and with typing off neither; on Windows, by [`TYPING_ON_WINDOWS`],
+/// with typing on the rows of a keyboard source that runs under the gate:
+/// [`KEYS_RECORDED_ON_WINDOWS`] in the place of its typing row, the gate's passwords row and
+/// [`KEY_TYPED_AHEAD_ON_WINDOWS`], and with typing off the rows of a keyboard source that is
+/// off; the backup limit, the limits, the custody on which the platform's build captures, the
+/// storage of the default cap and the sentence on repeated tasks.
 pub fn first_run(platform: Platform) -> Texts {
     first_run_with(
         platform,
         match platform {
             Platform::Macos => TYPING_ON_MAC,
-            Platform::Windows => false,
+            Platform::Windows => TYPING_ON_WINDOWS,
         },
     )
 }
 
-fn first_run_with(platform: Platform, typing_on: bool) -> Texts {
+/// The first-run text of `platform` with typing on or off: [`first_run`] passes the build's
+/// constant, and a test passes the other value.
+pub fn first_run_with(platform: Platform, typing_on: bool) -> Texts {
     let switches: Vec<SwitchLine> = SwitchName::ALL
         .iter()
         .map(|&name| SwitchLine {
@@ -1666,7 +1677,7 @@ mod tests {
             );
         }
         assert_eq!(texts(&sample_status(Platform::Windows)).passwords, sentence);
-        assert_eq!(first_run(Platform::Windows).passwords, sentence);
+        assert_eq!(first_run_with(Platform::Windows, false).passwords, sentence);
     }
 
     /// A byte copy of the coordinator's file of U1's ruled sentences, kept beside the tests.
@@ -1957,10 +1968,14 @@ mod tests {
             "W1 in the place of the Windows typing row"
         );
         assert_eq!((on.passwords, on.typed_ahead), (PH, Some(TW)));
-        let today = first_run(Platform::Windows);
-        assert_eq!(today, first_run_with(Platform::Windows, false));
-        assert_eq!(rows(&today), [APP_IN_FRONT, TITLE_ON, K0, POINTER_ON, S0]);
-        assert_eq!((today.passwords, today.typed_ahead), (P0, None));
+        assert_eq!(
+            first_run(Platform::Windows),
+            first_run_with(Platform::Windows, TYPING_ON_WINDOWS),
+            "the first-run text reads the one constant"
+        );
+        let off = first_run_with(Platform::Windows, false);
+        assert_eq!(rows(&off), [APP_IN_FRONT, TITLE_ON, K0, POINTER_ON, S0]);
+        assert_eq!((off.passwords, off.typed_ahead), (P0, None));
         let mac = first_run(Platform::Macos);
         assert_eq!(mac, first_run_with(Platform::Macos, TYPING_ON_MAC));
         assert_eq!(
