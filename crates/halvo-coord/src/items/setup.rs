@@ -683,9 +683,11 @@ fn folder_of(path: &str, system: System) -> &str {
 /// sheet's list, in the workbook's order, and drops the sheet that the item held, chosen or typed;
 /// without such names (`Typed`, or `Book` with none) a list of an older line goes with the sheet
 /// chosen from it and the typed line comes back, while a typed sheet stays. While the list stands,
-/// `choose` of its entry gives that name, and a typed line of Which sheet is taken where it equals
-/// a name of the list and leaves the question with no answer otherwise, with no refusal. A move
-/// after which the item asks every parameter again drops the list.
+/// a pick of it reaches the core by the sheet's NAME, never by its place (the coordinator's ruling
+/// of its log line 19505): `choose` of Which sheet is refused with `malformed`, and a typed line of
+/// Which sheet is taken where it equals a name of the PRESENT list and leaves the question with no
+/// answer otherwise, with no refusal, so that no set-up ends. A move after which the item asks
+/// every parameter again drops the list.
 pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
     let mut next = setup.clone();
     if !matches!(mv, SetupMove::Input(SetupInput::None)) {
@@ -740,6 +742,11 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
             return Ok(next);
         }
         (SetupState::Open, SetupMove::Input(SetupInput::None)) => {}
+        (SetupState::Open, SetupMove::Input(SetupInput::Choose { param, .. }))
+            if param == Param::Sheet && setup.sheet_list().is_some() =>
+        {
+            return Err(Cause::Malformed);
+        }
         (SetupState::Open, SetupMove::Input(SetupInput::Choose { param, n })) => {
             let i = setup.at(param)?;
             let candidates = &setup.params[i].candidates;

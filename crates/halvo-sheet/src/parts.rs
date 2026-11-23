@@ -891,13 +891,22 @@ fn listed_sheet(tail: &str, state: Option<&str>) -> bool {
 /// finds it by name (r4 U3.22c): an element `sheet` whose relationship is of the type
 /// `worksheet`. A very hidden sheet (`state="veryHidden"`), which Excel shows nowhere, is left
 /// out, and so is a sheet of another type (a chart sheet, a dialog sheet, a macro sheet); a
-/// hidden one is a name like any other. Refused: an element `sheet` whose relationship is
-/// missing, marked `External`, or does not name its part as the reader reads it
-/// ([`Refusal::Relationship`]), and more than [`NAMES_MAX`] names or a name of more than
+/// hidden one is a name like any other. Refused: a workbook part that names two sheets alike,
+/// counted over EVERY element `sheet` (a very hidden one, a chart, dialog or macro sheet too) and
+/// compared as `part_of` compares a sheet to a name, the decoded name of `sheets` byte for byte,
+/// since `part_of` takes the first of them and a pick of the list could then name another sheet
+/// than the one that a run fills (the coordinator's ruling of its log line 19558)
+/// ([`Refusal::Relationship`]); an element `sheet` whose relationship is missing, marked
+/// `External`, or does not name its part as the reader reads it ([`Refusal::Relationship`]); and
+/// more than [`NAMES_MAX`] names or a name of more than
 /// [`NAME_BYTES_MAX`] bytes ([`Refusal::Size`]): never a list that lacks a worksheet.
 pub(crate) fn worksheet_names(entries: &Entries) -> Result<Vec<String>, Error> {
     let names = Names::new(entries);
     let found = sheets(&names)?;
+    let mut seen = BTreeSet::new();
+    if !found.iter().all(|sheet| seen.insert(sheet.name.as_str())) {
+        return Err(relationship());
+    }
     let (book, xml) = workbook(&names)?;
     let rels = match names.find(&rels_of(book)) {
         Some((_, rels)) => relationships(rels)?,

@@ -1031,14 +1031,14 @@ fn listed(names: &[&str]) -> Vec<(u32, Vec<String>, CandidateFrom)> {
 
 /// r4 U3.22c sentence 4: over the stand-in port of files, a taken line of Which spreadsheet file
 /// whose read answers three names makes Which sheet a list of the three, in the workbook's order,
-/// with no typed line and no hint; the choice of the second sends ONE set_bindings whose sheet
-/// slot holds that name. A line whose names were not read leaves the typed line with its hint. In
+/// with no typed line and no hint; the pick of the second, which reaches the core by its name,
+/// sends ONE set_bindings whose sheet slot holds that name. A line whose names were not read leaves the typed line with its hint. In
 /// an item that asks its answers again (Change its answers) a taken workbook line shows its
 /// workbook's list, and a second workbook line with other names replaces the list and drops the
 /// older choice, so that the other answers make no body.
 #[test]
 fn u322c_which_sheet_offers_the_names_that_the_read_of_the_workbook_answers_as_its_list() {
-    use crate::types::{Choice, YesNo};
+    use crate::types::YesNo;
     let path = |name: &str| {
         if cfg!(windows) {
             format!("C:\\Users\\ana\\Documents\\{name}")
@@ -1079,12 +1079,7 @@ fn u322c_which_sheet_offers_the_names_that_the_read_of_the_workbook_answers_as_i
     }
     let m = mark(&c);
     assert_eq!(
-        c.answer(
-            item.item(),
-            Choice::Choose,
-            Some((Param::Sheet, 2)),
-            item.step()
-        ),
+        c.setup_typed(item.item(), Param::Sheet, "February", item.step()),
         Ok(())
     );
     let sent = set_bindings(&c, m);
@@ -1105,12 +1100,7 @@ fn u322c_which_sheet_offers_the_names_that_the_read_of_the_workbook_answers_as_i
     );
     assert_eq!(sheet_list(&again), listed(&three), "its workbook's list");
     assert_eq!(
-        again.answer(
-            item.item(),
-            Choice::Choose,
-            Some((Param::Sheet, 1)),
-            item.step()
-        ),
+        again.setup_typed(item.item(), Param::Sheet, "January", item.step()),
         Ok(())
     );
     assert_eq!(

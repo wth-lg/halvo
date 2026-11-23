@@ -370,8 +370,10 @@ pub const SHEET_NAME_BYTES_MAX: usize = parts::NAME_BYTES_MAX;
 /// kind `PermissionDenied`); a path that the folder refuses; a file of more than 64 MiB, before
 /// it is read, and a package over the bounds of its entries ([`Refusal::Size`]); a file that is
 /// no workbook that the crate can read ([`Refusal::Unreadable`], [`Refusal::Relationship`],
-/// [`Refusal::Part`]); a sheet whose relationship does not name its part as the reader reads
-/// it ([`Refusal::Relationship`]); and more than [`SHEET_NAMES_MAX`] names or a name of more
+/// [`Refusal::Part`]); a workbook that names two sheets alike, counted over every sheet and
+/// compared as a run finds a sheet by its name, which takes the first of them
+/// ([`Refusal::Relationship`]); a sheet whose relationship does not name its part as the reader
+/// reads it ([`Refusal::Relationship`]); and more than [`SHEET_NAMES_MAX`] names or a name of more
 /// than [`SHEET_NAME_BYTES_MAX`] bytes ([`Refusal::Size`]): a refusal, never a cut list.
 pub fn sheet_names(workbook: &Path) -> Result<Vec<String>, Error> {
     let dir = workbook.parent().unwrap_or(Path::new(""));
@@ -392,7 +394,9 @@ mod names_tests {
     use super::{sheet_names, Error, Refusal};
 
     /// r4 U3.22c: the names of a workbook's worksheets come in the workbook's order, and a
-    /// workbook of more worksheets than the bound of the count is refused, with no name.
+    /// workbook of more worksheets than the bound of the count is refused, with no name; so is a
+    /// workbook that names two sheets alike, a very hidden sheet in front of a worksheet of the
+    /// same name among them (the coordinator's ruling of its log line 19558).
     #[test]
     fn the_names_come_in_the_workbooks_order_and_a_workbook_over_the_bound_of_the_count_is_refused()
     {
@@ -411,5 +415,25 @@ mod names_tests {
         let over = dir.join("over.xlsx");
         std::fs::write(&over, crate::made::workbook(&many)).expect("write the workbook");
         assert_eq!(sheet_names(&over), Err(Error::Workbook(Refusal::Size)));
+        let twice = crate::made::workbook(&["Data", "Data"]);
+        let mut hidden = crate::parts::entries(&twice).expect("the entries");
+        crate::testing::edit(
+            &mut hidden,
+            "xl/workbook.xml",
+            r#"<sheet name="Data" sheetId="1""#,
+            r#"<sheet name="Data" sheetId="1" state="veryHidden""#,
+        );
+        for (name, bytes) in [
+            ("twice.xlsx", twice),
+            ("hidden.xlsx", crate::testing::zipped(&hidden)),
+        ] {
+            let alike = dir.join(name);
+            std::fs::write(&alike, bytes).expect("write the workbook");
+            assert_eq!(
+                sheet_names(&alike),
+                Err(Error::Workbook(Refusal::Relationship)),
+                "{name}"
+            );
+        }
     }
 }

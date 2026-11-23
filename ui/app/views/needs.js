@@ -227,6 +227,10 @@
         radios.push({ input: input, n: c.n, value: value });
       });
       const unanswered = names ? needsUnder(set, radios, p.needs_answer) : null;
+      const gone = carried && carried.sent.has(p.name) && !radios.some(function (r) {
+        return r.value === carried.sent.get(p.name);
+      });
+      if (unanswered && gone) unanswered.needs();
       let typed = null;
       let line = null;
       if (p.typed === 'yes') {
@@ -318,7 +322,9 @@
       const picked = a.radios.filter(function (r) {
         return r.input.checked;
       })[0];
-      if (picked) {
+      if (picked && a.list) {
+        calls.push(['agents_setup_typed', { item: item.item, step: item.step, param: a.param, text: picked.value }]);
+      } else if (picked) {
         calls.push(['agents_answer', { item: item.item, step: item.step, choice: 'choose', param: a.param, n: picked.n }]);
       } else if (a.line && a.line.kept.trim() !== '') {
         (a.line.stored ? first : calls).push(['agents_setup_typed', { item: item.item, step: item.step, param: a.param, text: a.line.kept }]);
@@ -405,6 +411,12 @@
       })) return;
       const calls = chosen(item, card.answers);
       if (calls.length === 0) return;
+      card.answers.forEach(function (a) {
+        const picked = a.list && a.radios.filter(function (r) {
+          return r.input.checked;
+        })[0];
+        if (picked) card.sent.set(a.param, picked.value);
+      });
       const key = card.key;
       const went = [];
       held(card, calls.reduce(function (done, c) {
@@ -456,7 +468,7 @@
       })[0];
       if (picked) picks.set(a.param, picked.value);
     });
-    return { step: card.step, lines: lines, picks: picks };
+    return { step: card.step, lines: lines, picks: picks, sent: card.sent };
   }
 
   function input(event) {
@@ -494,7 +506,7 @@
   }
 
   function build(item, key, carry) {
-    const card = { id: item.item, item: item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
+    const card = { id: item.item, item: item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false, sent: new Map() };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {

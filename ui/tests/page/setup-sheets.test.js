@@ -84,8 +84,9 @@ function replies(item, extra = {}) {
   };
 }
 
-test("Which sheet with a list of three names draws three choices, each name as text, no typed line and no hint; a choice and Use these answers make the call of a choice with its number; a press with no choice shows the sentence of an empty line under the list with the focus on its first choice; without the list the typed line stands with its hint", async () => {
-  const listed = await openPage(replies(listItem));
+test("Which sheet with a list of three names draws three choices, each name as text, no typed line and no hint; a choice and Use these answers send the chosen sheet by its name; a press with no choice shows the sentence of an empty line under the list with the focus on its first choice; a sheet marked in the list of one workbook is not taken from the list of another workbook typed before the press; without the list the typed line stands with its hint", async () => {
+  const one = replies(listItem);
+  const listed = await openPage(one);
   const radios = radiosOf(listed, "sheet");
   assert.deepEqual(
     radios.map((r) => r.getAttribute("data-n")),
@@ -118,10 +119,42 @@ test("Which sheet with a list of three names draws three choices, each name as t
   await listed.settle();
   assert.equal(setOf(listed, "sheet").querySelectorAll("p.hn-full").length, 0, "a choice takes the sentence away");
   await press(listed, useAnswers(listed));
+  assert.equal(listed.calls("agents_answer").length, 0, "no choice goes by its number");
   assert.deepEqual(
-    listed.calls("agents_answer").map((c) => c.args),
-    [{ item: listItem.item, step: listItem.step, choice: "choose", param: "sheet", n: 2 }],
-    "the call of a choice with its number",
+    listed.calls("agents_setup_typed").slice(-1).map((c) => c.args),
+    [{ item: listItem.item, step: listItem.step, param: "sheet", text: NAMES[1] }],
+    "the chosen sheet goes by its name",
+  );
+
+  const sent = listed.calls("agents_setup_typed").length;
+  await typeLine(listed, "workbook", "/Volumes/work/Plan.xlsx");
+  await press(listed, useAnswers(listed));
+  assert.deepEqual(
+    listed.calls("agents_setup_typed").slice(sent).map((c) => [c.args.param, c.args.text]),
+    [
+      ["workbook", "/Volumes/work/Plan.xlsx"],
+      ["range", "A2:C11"],
+      ["source", "/Volumes/work/receipts.csv"],
+      ["sheet", NAMES[1]],
+    ],
+    "the marked sheet goes by its name behind the new workbook's line",
+  );
+  assert.equal(listed.calls("agents_answer").length, 0, "and never by its place");
+  one.next({ ...setup, items: [{ ...listItem, params: listItem.params.map((p) => (p.name === "sheet" ? listEntry(["Plan", "Actual", "Notes"]) : p)) }] });
+  await listed.settle();
+  assert.deepEqual(
+    radiosOf(listed, "sheet").map((r) => [r.parentNode.textContent, r.checked === true]),
+    [
+      ["Plan", false],
+      ["Actual", false],
+      ["Notes", false],
+    ],
+    "the second sheet of the new workbook is not taken",
+  );
+  assert.deepEqual(
+    setOf(listed, "sheet").querySelectorAll("p.hn-full").map((p) => p.textContent),
+    [words["param_typed.needs_answer"]],
+    "the question stands open under the new list with its sentence",
   );
 
   const typed = await openPage(replies(typedItem));
