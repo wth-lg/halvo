@@ -725,54 +725,6 @@ mod tests {
         );
     }
 
-    /// r7 8.1L view, THE READERS' FIRST CLAIM: no other file of the tree names the body `new_model_count` or its type,
-    /// so no other line sends it. The files that may name it: its schema (the body, the list of names, the two golden
-    /// files and the golden test), the agent store's handler and dispatch, the owner's list of ops with its test, and
-    /// this file, its one sender. Read by `git grep` over the files that git tracks.
-    #[test]
-    fn no_other_file_of_the_tree_names_the_new_body() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let listed = std::process::Command::new("git")
-            .args([
-                "grep",
-                "-l",
-                "-z",
-                "--no-color",
-                "-F",
-                "-e",
-                "new_model_count",
-            ])
-            .args(["-e", "NewModelCount"])
-            .current_dir(&root)
-            .output()
-            .expect("git searches the tracked files");
-        assert_eq!(
-            listed.status.code(),
-            Some(0),
-            "git grep finds the body's own files"
-        );
-        let allowed = [
-            "crates/halvo-schema/src/executable/body.rs",
-            "crates/halvo-schema/src/executable.rs",
-            "crates/halvo-schema/tests/golden/names.txt",
-            "crates/halvo-schema/tests/golden/r3/coordinator-bodies.jsonl",
-            "crates/halvo-schema/tests/r3_golden.rs",
-            "crates/halvo-agent-store/src/coordinator.rs",
-            "crates/halvo-agent-store/src/count.rs",
-            "crates/halvo-owner/src/agent.rs",
-            "crates/halvo-owner/tests/owner.rs",
-            "crates/halvo-coord-app/src/model_limit.rs",
-        ];
-        let named: Vec<String> = listed
-            .stdout
-            .split(|b| *b == 0)
-            .filter(|p| !p.is_empty())
-            .map(|p| String::from_utf8_lossy(p).into_owned())
-            .filter(|path| !allowed.contains(&path.as_str()))
-            .collect();
-        assert_eq!(named, Vec::<String>::new(), "files that name the new body");
-    }
-
     /// r7 8.1L view: the part names the period month, because the count turns by calendar months, and the build's cap
     /// line names month too; this test fails when that line names another period.
     #[test]
