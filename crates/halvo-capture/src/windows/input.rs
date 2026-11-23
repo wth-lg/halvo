@@ -1342,6 +1342,10 @@ pub struct RawInputSource {
     calls: StartCalls,
     removed: Removed,
     gate: Option<Arc<PasswordGate>>,
+    /// Whether the source attaches and detaches its gate's detector itself:
+    /// not the keyboard source of the Windows service set, whose holder of
+    /// the set's gate does.
+    attaches: bool,
     gate_counts: Arc<GateCounts>,
     window: Arc<std::sync::atomic::AtomicUsize>,
 }
@@ -1358,10 +1362,15 @@ impl RawInputSource {
     }
 
     /// The keyboard source of the Windows service set, on the set's own gate,
-    /// counting in the set's counts.
+    /// counting in the set's counts. It never attaches or detaches the gate's
+    /// detector: the set's holder of the gate does. At its begin it marks the
+    /// gate's clicks lost, as an attach does, so that the gate withholds its
+    /// keys until its click route is back also where the detector stayed
+    /// attached for the set's other holders.
     pub(crate) fn keyboard_of_the_set(gate: Arc<PasswordGate>, counts: Arc<GateCounts>) -> Self {
         Self {
             gate: Some(gate),
+            attaches: false,
             gate_counts: counts,
             ..Self::new(RawDevice::Keyboard)
         }
@@ -1382,6 +1391,7 @@ impl RawInputSource {
             calls: SYSTEM_CALLS,
             removed: Removed::default(),
             gate: None,
+            attaches: true,
             gate_counts: Arc::default(),
             window: Arc::default(),
         }
@@ -1694,10 +1704,16 @@ impl CaptureSource for RawInputSource {
         let window = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         self.window = Arc::clone(&window);
         if let Some(gate) = &self.gate {
-            let attached = gate.attach();
-            #[cfg(feature = "test-seam")]
-            seam::detector_attached(attached.as_ref().map(|_| ()).map_err(|e| format!("{e:?}")));
-            attached?;
+            if self.attaches {
+                let attached = gate.attach();
+                #[cfg(feature = "test-seam")]
+                seam::detector_attached(
+                    attached.as_ref().map(|_| ()).map_err(|e| format!("{e:?}")),
+                );
+                attached?;
+            } else {
+                gate.clicks_lost(super::now_tick());
+            }
         }
         let gate = self.gate.as_ref().map(|gate| GateState {
             gate: Arc::clone(gate),
@@ -1722,7 +1738,7 @@ impl CaptureSource for RawInputSource {
                     run_raw_input(state, (claim, removed, window), calls, ready, &signal)
                 })
             });
-        if begun.is_err() {
+        if begun.is_err() && self.attaches {
             if let Some(gate) = &self.gate {
                 let _ = gate.detach(super::INPUT_STOP_DEADLINE);
             }
@@ -1746,7 +1762,7 @@ impl CaptureSource for RawInputSource {
                 pointer_lets_mouse_go(route, super::now_tick());
             }
         }
-        let Some(gate) = &self.gate else {
+        let Some(gate) = self.gate.as_ref().filter(|_| self.attaches) else {
             return stopped;
         };
         match (stopped, gate.detach(super::INPUT_STOP_DEADLINE)) {

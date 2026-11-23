@@ -2370,6 +2370,7 @@ cap_set/status/store not a spelling of a store state
 cap_set/status/store_id body
 cap_set/status/switches/*/name not a spelling of a switch
 cap_set/status/switches/*/value not a spelling of a switch value
+cap_set/status/typing_gate not a spelling of a typing gate
 capture_changed/capture not a spelling of a capture state
 capture_changed/custody not a spelling of a custody
 capture_changed/daemon_version body
@@ -2476,6 +2477,7 @@ status/store_error not a spelling of a store error
 status/store_id body
 status/switches/*/name not a spelling of a switch
 status/switches/*/value not a spelling of a switch value
+status/typing_gate not a spelling of a typing gate
 stopped/kind body
 ";
 
@@ -3235,7 +3237,9 @@ stopped/kind body
     #[test]
     fn a_status_without_one_of_its_keys_is_refused() {
         for platform in [Platform::Macos, Platform::Windows] {
-            crate::model::every_key_is_read::<DaemonStatus>(&status_json(platform));
+            let mut json = status_json(platform);
+            json.as_object_mut().unwrap().remove("typing_gate");
+            crate::model::every_key_is_read::<DaemonStatus>(&json);
         }
     }
 
@@ -3253,7 +3257,7 @@ stopped/kind body
         assert_eq!(win["late_events"], false);
         assert!(win.get("secure_input_keystrokes").is_none());
         assert_eq!(win["permissions"], serde_json::json!([]));
-        assert_eq!(win["password_guard"], "none");
+        assert_eq!(win["password_guard"], "halvo");
         assert_eq!(mac["password_guard"], "os");
         assert_eq!(mac["custody"], "root_file");
         assert_eq!(win["custody"], "dpapi");
@@ -3287,8 +3291,9 @@ stopped/kind body
 
     #[test]
     fn typing_gate_is_windows_alone_optional_on_the_wire_and_never_a_count() {
-        let absent =
-            serde_json::from_value::<DaemonStatus>(status_json(Platform::Windows)).unwrap();
+        let mut without = status_json(Platform::Windows);
+        without.as_object_mut().unwrap().remove("typing_gate");
+        let absent = serde_json::from_value::<DaemonStatus>(without).unwrap();
         assert_eq!(absent.fields().typing_gate, None);
         assert!(serde_json::to_value(&absent)
             .unwrap()
@@ -3383,18 +3388,24 @@ stopped/kind body
         );
         assert_eq!(
             status_json(Platform::Windows)["password_guard_bound_ms"],
-            serde_json::Value::Null
+            30_000
         );
         let without = StatusError("a password guard reports its bound, and none reports none");
         let mut mac = sample_status(Platform::Macos).into_fields();
         mac.password_guard_bound_ms = None;
         assert_eq!(DaemonStatus::new(mac).map(|_| ()), Err(without));
-        let mut win = sample_status(Platform::Windows).into_fields();
+        let windows_with_no_guard = || {
+            let mut fields = sample_status(Platform::Windows).into_fields();
+            fields.password_guard = PasswordGuard::None;
+            fields.password_guard_bound_ms = None;
+            fields
+        };
+        let mut win = windows_with_no_guard();
         win.password_guard = PasswordGuard::Halvo;
         assert_eq!(DaemonStatus::new(win.clone()).map(|_| ()), Err(without));
         win.password_guard_bound_ms = Some(250);
         assert!(DaemonStatus::new(win).is_ok());
-        let mut none = sample_status(Platform::Windows).into_fields();
+        let mut none = windows_with_no_guard();
         none.password_guard_bound_ms = Some(250);
         assert_eq!(DaemonStatus::new(none).map(|_| ()), Err(without));
         let mut zero = sample_status(Platform::Macos).into_fields();

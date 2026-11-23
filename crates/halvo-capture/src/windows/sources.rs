@@ -1,6 +1,6 @@
 //! The source set of a Windows service run.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use halvo_control::proto::SourceName;
@@ -17,16 +17,21 @@ use crate::source::{
 };
 
 /// The factory of a Windows service run: the foreground source, the pointer
-/// source of Raw Input, the window_title source and the screen source, which
-/// the run asks for only while the switch `screen_activity` is on. It makes
-/// no keyboard source and no system_audio source for any name, whatever the
-/// state file's switches say: no service run takes typing (contracts.md
-/// C13.8). The supervisor holds at most one source of a name, so the run has
-/// one Raw Input registrant for the pointer and none for the keyboard.
+/// and the keyboard source of Raw Input, the window_title source and the
+/// screen source, which the run asks for only while the switch
+/// `screen_activity` is on. It makes the keyboard source while the build's
+/// one constant `TYPING_ON_WINDOWS` is true, and no system_audio source for
+/// any name. The supervisor holds at most one source of a name, so the run
+/// has one Raw Input registrant for each device.
 ///
-/// The set holds one password gate. Its detector runs on a thread of its own,
-/// with no keyboard source, from the begin of the set's first content source
-/// to the stop of its last one. The window_title and screen sources read it.
+/// The set holds one password gate. Its detector runs on a thread of its own
+/// from the begin of the first of the set's holders to the stop of the last:
+/// the keyboard, window_title and screen sources each hold the gate while they
+/// run, and none of them attaches or detaches the detector by itself, so a
+/// stop of one of them leaves the detector to the others. The window_title
+/// and screen sources read the gate, and the keyboard source notes a key only
+/// through it. The set keeps one set of counts for the run, which its
+/// keyboard source writes and its figures read.
 ///
 /// The set makes one screen source, at its first make of the name; every make
 /// behind it gives a spent source that starts nothing, so that a process
@@ -38,6 +43,7 @@ pub struct ServiceSet {
     last_app: Arc<Mutex<Option<String>>>,
     hold: Arc<GateHold>,
     counts: Arc<GateCounts>,
+    typing_holders: Arc<AtomicUsize>,
     screen_made: bool,
     screen_failed: Arc<Mutex<Option<CaptureError>>>,
     #[cfg(test)]
@@ -136,25 +142,68 @@ impl ServiceSet {
             source,
             hold: Arc::clone(&self.hold),
             holding: false,
+            typing: None,
+        }
+    }
+
+    /// The set's keyboard source: one more holder of the set's gate, which
+    /// counts in the set's counts, and whose begin fails where the gate has no
+    /// detector after its take.
+    fn gated_keyboard(&self) -> Gated<RawInputSource> {
+        Gated {
+            source: RawInputSource::keyboard_of_the_set(
+                self.password_gate(),
+                Arc::clone(&self.counts),
+            ),
+            hold: Arc::clone(&self.hold),
+            holding: false,
+            typing: Some(Arc::clone(&self.typing_holders)),
         }
     }
 }
 
-/// The set's gate and the number of its content sources that run.
+impl crate::daemon::supervisor::SystemSources for ServiceSet {
+    /// What the set's keyboard source counted in the run, and the reading of
+    /// the set's gate while a keyboard source holds it; nothing of typing
+    /// where no keyboard source ran.
+    fn figures(&self) -> SourceCounters {
+        SourceCounters {
+            late_events: u64::from(self.counts.late.load(Ordering::Relaxed)),
+            max_lag_ms: self.counts.max_lag_ms.load(Ordering::Relaxed),
+            keys_withheld: self.counts.withheld.load(Ordering::Relaxed),
+            typing_gate: (self.typing_holders.load(Ordering::Relaxed) > 0)
+                .then(|| self.hold.gate.typing_gate()),
+            ..SourceCounters::default()
+        }
+    }
+}
+
+/// The set's gate and its holders.
 #[derive(Debug, Default)]
 struct GateHold {
     gate: Arc<PasswordGate>,
-    holders: Mutex<usize>,
+    holders: Mutex<Holders>,
     said: AtomicBool,
     #[cfg(test)]
     lines_said: std::sync::atomic::AtomicU32,
 }
 
+/// The number of the set's sources that hold its gate, and the error of the
+/// detector's attach where the first of them could not attach it.
+#[derive(Debug, Default)]
+struct Holders {
+    count: usize,
+    failed: Option<CaptureError>,
+}
+
 impl GateHold {
-    fn take(&self) {
+    /// Takes one hold: the first attaches the detector. Answers the error of
+    /// that attach where the gate has no detector.
+    fn take(&self) -> Result<(), CaptureError> {
         let mut holders = self.holders.lock().unwrap_or_else(PoisonError::into_inner);
-        if *holders == 0 {
-            let line = match self.gate.attach_waiting() {
+        if holders.count == 0 {
+            let attached = self.gate.attach_waiting();
+            let line = match &attached {
                 Ok(Attached::Read) => None,
                 Ok(Attached::Late) => Some(
                     "halvo-capture: the password-field detector's first read is late; \
@@ -173,14 +222,18 @@ impl GateHold {
                     eprintln!("{line}");
                 }
             }
+            holders.failed = attached.err();
         }
-        *holders += 1;
+        holders.count += 1;
+        holders.failed.clone().map_or(Ok(()), Err)
     }
 
+    /// Gives one hold back: the last detaches the detector.
     fn give_back(&self) {
         let mut holders = self.holders.lock().unwrap_or_else(PoisonError::into_inner);
-        *holders = holders.saturating_sub(1);
-        if *holders == 0 {
+        holders.count = holders.count.saturating_sub(1);
+        if holders.count == 0 {
+            holders.failed = None;
             let _ = self.gate.detach(super::INPUT_STOP_DEADLINE);
         }
     }
@@ -193,6 +246,9 @@ pub struct Gated<S> {
     source: S,
     hold: Arc<GateHold>,
     holding: bool,
+    /// For the set's keyboard source alone: the count of the set's keyboard
+    /// sources that hold the gate, which the set's figures read.
+    typing: Option<Arc<AtomicUsize>>,
 }
 
 impl<S> Gated<S> {
@@ -203,6 +259,9 @@ impl<S> Gated<S> {
 
     fn give_back(&mut self) {
         if std::mem::take(&mut self.holding) {
+            if let Some(typing) = &self.typing {
+                typing.fetch_sub(1, Ordering::Relaxed);
+            }
             self.hold.give_back();
         }
     }
@@ -212,8 +271,15 @@ impl<S: CaptureSource> CaptureSource for Gated<S> {
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
         let took = !self.holding;
         if took {
-            self.hold.take();
+            let detector = self.hold.take();
             self.holding = true;
+            if let Some(typing) = &self.typing {
+                typing.fetch_add(1, Ordering::Relaxed);
+                if let Err(error) = detector {
+                    self.give_back();
+                    return Err(error);
+                }
+            }
         }
         let begun = self.source.begin(ctx);
         if took && !matches!(begun, Ok(Started::Running)) {
@@ -306,9 +372,7 @@ impl SourceFactory for ServiceSet {
             )))),
             SourceName::WindowTitle => Some(Box::new(self.gated_title(WindowTitleSource::new()))),
             SourceName::Screen => Some(self.screen()),
-            SourceName::Keyboard if self.typing_on() => Some(Box::new(
-                RawInputSource::keyboard_of_the_set(self.password_gate(), Arc::clone(&self.counts)),
-            )),
+            SourceName::Keyboard if self.typing_on() => Some(Box::new(self.gated_keyboard())),
             SourceName::Keyboard
             | SourceName::SystemAudio
             | SourceName::Input

@@ -494,14 +494,43 @@ fn a_second_press_while_another_handle_keeps_the_marked_lock_file_says_what_stan
     }
 }
 
+/// A service run whose state file says capture running, with the default
+/// switches, starts the keyboard source (TYPING_ON_WINDOWS): its status reads
+/// the keyboard line running and the gate's reading in a typing_gate line, and
+/// a stop answers and the run ends with 0, which it does only where each
+/// source answered its stop within its bound. Every wait is a state of the
+/// service within its bound.
 #[test]
 fn a_service_run_on_windows_answers_status_over_its_pipe_and_stops_on_request() {
     let dir = scratch_data_dir("status");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("daemon-state.json"), r#"{"desired":"running"}"#).unwrap();
     let mut daemon = start(&dir);
-    let status = first_status(&dir, &daemon, |_| true);
+    let status = until(START_WAIT, || {
+        let output = ctl(&dir, &["status", "--indicator"]);
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        let capturing = stdout
+            .lines()
+            .any(|line| line == "capture=running" || line == "capture=partial");
+        let typing = stdout
+            .lines()
+            .any(|line| line == "source name=keyboard state=running");
+        (output.status.code() == Some(0) && capturing && typing).then_some(stdout)
+    })
+    .unwrap_or_else(|| {
+        panic!(
+            "no Status with capture on and the keyboard line running within {START_WAIT:?}; the last:\n{}\nthe run's stderr:\n{}",
+            text(&ctl(&dir, &["status", "--indicator"])),
+            daemon.stderr()
+        )
+    });
     assert!(
         status.lines().any(|line| line == "platform=windows"),
         "{status}"
+    );
+    assert!(
+        status.lines().any(|line| line.starts_with("typing_gate=")),
+        "the reading of the keyboard source's gate reaches the status: {status}"
     );
     let peak: u64 = status
         .lines()

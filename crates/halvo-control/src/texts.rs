@@ -676,7 +676,7 @@ mod tests {
     }
 
     #[test]
-    fn a_default_status_on_windows_says_typing_is_not_observed_and_names_no_border() {
+    fn a_default_status_on_windows_says_what_it_records_of_typing_and_names_no_border() {
         let recorded = recorded(
             Platform::Windows,
             &sample_status(Platform::Windows).fields().switches,
@@ -686,7 +686,7 @@ mod tests {
             texts_of(&recorded),
             [
                 recorded_when_on(SwitchName::TitleText),
-                TYPING_NOT_RECORDED,
+                KEYS_RECORDED_ON_WINDOWS,
                 recorded_when_on(SwitchName::PointerClass),
                 SCREEN_ACTIVITY_NOT_RECORDED,
             ]
@@ -699,7 +699,7 @@ mod tests {
         let on = recorded(
             Platform::Windows,
             &switches(&[SwitchName::ScreenActivity]),
-            &sample_status(Platform::Windows).fields().sources,
+            &windows_keyboard_off().fields().sources,
         );
         assert_eq!(
             texts_of(&on),
@@ -887,7 +887,7 @@ mod tests {
 
     #[test]
     fn the_table_of_a_status_has_the_six_keys_of_the_view() {
-        let json = serde_json::to_value(texts(&sample_status(Platform::Windows))).unwrap();
+        let json = serde_json::to_value(texts(&windows_keyboard_off())).unwrap();
         let keys: Vec<&str> = json
             .as_object()
             .unwrap()
@@ -1206,7 +1206,7 @@ mod tests {
                         &[
                             vec![
                                 (TitleText, TITLE_ON),
-                                (KeyClass, K0),
+                                (KeyClass, KW),
                                 (PointerClass, POINTER_ON),
                             ],
                             screen_sentence_while_off
@@ -1676,7 +1676,7 @@ mod tests {
                 "{guard:?}"
             );
         }
-        assert_eq!(texts(&sample_status(Platform::Windows)).passwords, sentence);
+        assert_eq!(texts(&windows_keyboard_off()).passwords, sentence);
         assert_eq!(first_run_with(Platform::Windows, false).passwords, sentence);
     }
 
@@ -1824,6 +1824,19 @@ mod tests {
             Platform::Macos => PasswordGuard::Os,
             Platform::Windows => PasswordGuard::Halvo,
         }
+    }
+
+    /// The Windows sample status with its keyboard line off and no guard, as a run reads it
+    /// while key_class is off.
+    fn windows_keyboard_off() -> DaemonStatus {
+        status_beside(
+            Platform::Windows,
+            crate::proto::SourceName::Keyboard,
+            &crate::proto::SourceState::Off,
+            false,
+            &[SwitchName::TitleText, SwitchName::PointerClass],
+            PasswordGuard::None,
+        )
     }
 
     fn typing_of(platform: Platform) -> crate::proto::SourceName {
