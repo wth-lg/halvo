@@ -1,0 +1,1 @@
+- Fixed: On Windows, Choose a file opens the system's chooser in front of Halvo's window, where it stays until you pick a file or close it, and its window takes the display affinity at the first of its events that has a window.
