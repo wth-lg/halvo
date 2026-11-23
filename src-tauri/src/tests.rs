@@ -2233,3 +2233,81 @@ fn once_the_trays_quit_has_begun_every_command_of_the_page_gets_its_fixed_reply_
 fn the_usage_line_names_the_form_that_the_uninstaller_calls() {
     assert!(crate::launch::USAGE.ends_with(" | --remove-crash-reports"));
 }
+
+/// r7 8.1L view (the coordinator's log lines 18216 and 18047): a read of the limit's state moves the memory that guards
+/// the start of a new count, which is right for the part's own command and for nothing else. So the memory is reached
+/// by the two commands of their own module alone: (a) no file of ui/app but views/model-limit.js names the command
+/// `model_limit_state` or `set_model_limit`; (b) no Rust file but the command's module, names.rs and halvo-coord-app's
+/// model_limit.rs names them (this file aside); (c) the static `MEMORY` of the command's module is not public, it is
+/// named only where the module's one reply hands it to `ModelLimit`, and no function of the module names the type
+/// `Memory`. Read by `git grep` over the files that git tracks, and from the module's text.
+#[test]
+fn the_guards_memory_is_reached_by_the_two_commands_of_their_own_module_alone() {
+    let root = src_tauri().join("..");
+    let naming = |pathspec: &str| -> Vec<String> {
+        let out = std::process::Command::new("git")
+            .args(["grep", "-l", "-z", "--no-color", "-F"])
+            .args([
+                "-e",
+                "model_limit_state",
+                "-e",
+                "set_model_limit",
+                "--",
+                pathspec,
+            ])
+            .current_dir(&root)
+            .output()
+            .expect("git searches the tracked files");
+        assert!(
+            matches!(out.status.code(), Some(0 | 1)),
+            "git grep {pathspec}"
+        );
+        out.stdout
+            .split(|b| *b == 0)
+            .filter(|p| !p.is_empty())
+            .map(|p| String::from_utf8_lossy(p).into_owned())
+            .collect()
+    };
+    assert_eq!(
+        naming("ui/app"),
+        ["ui/app/views/model-limit.js"],
+        "(a) the files of ui/app that name the two commands"
+    );
+    let rust: Vec<String> = naming("*.rs")
+        .into_iter()
+        .filter(|path| path != "src-tauri/src/tests.rs")
+        .collect();
+    assert_eq!(
+        rust,
+        [
+            "crates/halvo-coord-app/src/model_limit.rs",
+            "src-tauri/src/commands/model_limit.rs",
+            "src-tauri/src/commands/names.rs",
+        ],
+        "(b) the Rust files that name the two commands"
+    );
+    let module = std::fs::read_to_string(src_tauri().join("src/commands/model_limit.rs"))
+        .expect("the command's module");
+    let code = || {
+        module
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.starts_with("//"))
+    };
+    assert_eq!(
+        code().filter(|l| l.contains("MEMORY")).collect::<Vec<_>>(),
+        [
+            "static MEMORY: halvo_coord_app::model_limit::Memory = halvo_coord_app::model_limit::Memory::new();",
+            "&MEMORY,",
+            "_ => ModelLimit::no_service(&MEMORY),",
+        ],
+        "(c) the lines of the module's code that name MEMORY"
+    );
+    assert_eq!(
+        code()
+            .filter(|l| l.contains("fn ") && l.contains("Memory"))
+            .collect::<Vec<_>>(),
+        Vec::<&str>::new(),
+        "(c) the functions of the module that name the type Memory"
+    );
+}
