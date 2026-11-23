@@ -79,9 +79,14 @@ fn i8_1() -> Value {
         {"command": "agents_setup_typed", "args": [
             arg("item", "id", None, None),
             arg("step", "count", None, None),
-            arg("param", "name", None, Some(params)),
+            arg("param", "name", None, Some(params.clone())),
             arg("text", "text", None, None)],
          "replies": ["reply-ok"], "errors": ["stale", "state", "unknown_item", "malformed", "no_service"]},
+        {"command": "agents_choose_file", "args": [
+            arg("item", "id", None, None),
+            arg("step", "count", None, None),
+            arg("param", "name", None, Some(params))],
+         "replies": ["reply-chosen", "reply-closed"], "errors": ["stale", "state", "unknown_item", "malformed", "no_service"]},
         {"command": "agents_present", "args": [arg("item", "id", None, None)], "replies": ["reply-ok"],
          "errors": ["stale", "presenter", "unknown_item", "no_service", "malformed"]},
         {"command": "agents_control", "args": [
@@ -149,7 +154,7 @@ fn the_closed_lists_of_the_arguments_are_the_types_lists() {
     let param = answer.args.iter().find(|a| a.name == "param").unwrap();
     let params: Vec<&str> = Param::ALL.iter().map(|p| p.name()).collect();
     assert_eq!(param.values.unwrap().to_vec(), params);
-    let action = LIST[6].args.iter().find(|a| a.name == "action").unwrap();
+    let action = LIST[7].args.iter().find(|a| a.name == "action").unwrap();
     let actions: Vec<&str> = Action::ALL.iter().map(|a| a.name()).collect();
     assert_eq!(action.values.unwrap().to_vec(), actions);
 }

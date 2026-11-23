@@ -40,9 +40,9 @@ pub use names::{
 };
 pub use reply::{Ask, AskAct, AskControl, AskEffect, AskKind};
 pub use reply::{
-    BusyHistory, Candidate, Card, CardEffect, CardLine, CardRun, ChoiceText, ClosedReply,
-    ControlText, ErrorReply, Field, Item, OkReply, Overlapping, ParamEntry, Refusal, Row, Snapshot,
-    Unread,
+    BusyHistory, Candidate, Card, CardEffect, CardLine, CardRun, ChoiceText, ChosenReply,
+    ClosedReply, ControlText, ErrorReply, Field, Item, OkReply, Overlapping, ParamEntry, Refusal,
+    Row, Snapshot, Unread,
 };
 pub use run::{
     Answer, AskedEffect, BindAsk, BoundField, ConfirmAsk, Decision, DecisionEntry, HandbackAsk,

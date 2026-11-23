@@ -626,6 +626,7 @@ mod tests {
             entries: &entries,
             expiry: &expiry,
             utc_offset_s: 0,
+            carry: None,
         };
         let mut n = 0u8;
         let mut ids = || {

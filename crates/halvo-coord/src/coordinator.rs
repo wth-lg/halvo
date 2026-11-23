@@ -5,7 +5,9 @@ use crate::items::{
     params, raise_confirm, raise_step, ConfirmAnswer, ConfirmMove, ConfirmState, NativeCard, Plain,
     Raise, Setup, SetupInput, SetupParam, Source,
 };
-use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Senders, Tray};
+use crate::ports::{
+    Analysis, Chosen, Clock, Files, Owner, Page, PortError, Rng, Runs, Senders, Tray,
+};
 use crate::roster::{self, Placed};
 use crate::run::{self, Act, Done, StopBy};
 use crate::schedule::{self, Board, Move, Report};
@@ -479,7 +481,16 @@ fn candidates(param: Param, workflow: &FullWorkflow) -> Vec<(Vec<String>, Candid
 
 impl<P> Coordinator<P>
 where
-    P: Owner + Runs + Analysis + Clock + Rng + Tray + Page + Policy<Config = Cfg<P>> + Senders,
+    P: Owner
+        + Runs
+        + Analysis
+        + Clock
+        + Rng
+        + Tray
+        + Page
+        + Policy<Config = Cfg<P>>
+        + Senders
+        + Files,
     Cfg<P>: ConfigView + Clone,
 {
     /// A coordinator of a new life over `ports` with `limits`, which recovers at its first
@@ -2540,6 +2551,39 @@ where
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
+    }
+
+    /// `agents_choose_file` (I8.1; r4 U3.22b): the system's own chooser of ONE file for the
+    /// question `param` of the open set-up item `item`, at the step mark `step` that the page
+    /// showed. The call is refused where `setup_typed` refuses a typed line of that question,
+    /// with the same cause (`no_service` while the item waits for the settle of RD-84, `stale`
+    /// for no such set-up item, `state` for another step mark or no board), and for every
+    /// question but Which spreadsheet file and Where the data comes from (`crate::items::choose_in`).
+    /// The chooser opens in the folder that `choose_in` gives, with the coordinator's lock
+    /// released, and the call answers what `Files::choose` answers, `no_service` or `busy` where
+    /// the port fails. It stores nothing, sends nothing to the owner and changes no item: a
+    /// picked path reaches the item only as a typed line, through `setup_typed`.
+    pub fn setup_choose(&self, item: &ItemId, param: Param, step: u32) -> Result<Chosen, Cause> {
+        let folder = {
+            let st = self.lock();
+            if Self::waits_on_item(&st, item) {
+                return Err(Cause::NoService);
+            }
+            let setup = st
+                .setups
+                .iter()
+                .find(|s| s.item() == item)
+                .ok_or(Cause::Stale)?;
+            if setup.step() != step {
+                return Err(Cause::State);
+            }
+            let board = st.board.as_ref().ok_or(Cause::State)?;
+            index(board, setup.agent()).ok_or(Cause::State)?;
+            crate::items::choose_in(setup, param, System::HOST)?
+        };
+        self.ports
+            .choose(folder.as_deref())
+            .map_err(|error| cause_of(&error))
     }
 
     /// `agents_present` (I8.1): a confirmation whose presenter is native; `presenter` for the

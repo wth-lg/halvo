@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Halvo's agent needs this to fill in the spreadsheet file that you named.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Halvo's agent needs this to fill in the spreadsheet file that you named.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Halvo's agent needs this to fill in the spreadsheet file that you named.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>Halvo's agent needs this to fill in the spreadsheet file that you named.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>Halvo's agent needs this to fill in the spreadsheet file that you named.</string>
+</dict>
+</plist>

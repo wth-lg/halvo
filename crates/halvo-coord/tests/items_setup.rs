@@ -7,7 +7,7 @@ use halvo_coord::items::{
     Source,
 };
 use halvo_coord::mem::{Call, Config, Ports};
-use halvo_coord::ports::{Clock, Owner, PortError, Reading, Refused, Senders};
+use halvo_coord::ports::{Chosen, Clock, Files, Owner, PortError, Reading, Refused, Senders};
 use halvo_coord::schedule::{holds, Hold};
 use halvo_coord::types::fixtures::{self, State};
 use halvo_coord::types::{
@@ -240,6 +240,12 @@ impl Clock for Lossy<'_> {
 impl Senders for Lossy<'_> {
     fn read(&self, text: &str) -> Result<Reading, PortError> {
         self.inner.read(text)
+    }
+}
+
+impl Files for Lossy<'_> {
+    fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError> {
+        self.inner.choose(folder)
     }
 }
 

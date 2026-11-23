@@ -17,6 +17,7 @@
   const opened = new Set();
   let pointerRead = [];
   let closing = false;
+  let choosing = false;
 
   function fresh() {
     serial += 1;
@@ -47,7 +48,7 @@
     return { start: start, gone: before.length - start - end, added: after.length - start - end };
   }
 
-  function limit(typed, full, tooLong, hintId, notTaken) {
+  function limit(typed, full, tooLong, hintId, notTaken, needsAnswer) {
     const line = { kept: '', composing: false, ended: false, held: false, stored: false, field: typed, sent: null, text: null };
     let mark = false;
     let shown = null;
@@ -56,6 +57,7 @@
     let start = null;
     let refused = notTaken || '';
     function textOf(which) {
+      if (which === 'needs') return needsAnswer || '';
       return which === 'full' ? full : which === 'too_long' ? tooLong : which === 'not_taken' ? refused : '';
     }
     function rest() {
@@ -99,6 +101,7 @@
         return false;
       }
       line.kept = now;
+      if (shown === 'needs') show(rest());
       if (change.added === 0) {
         mark = false;
         show(rest());
@@ -107,6 +110,12 @@
     }
     line.sent = function () {
       if (shown === 'too_long') show(rest());
+    };
+    line.needs = function () {
+      show('needs');
+    };
+    line.fill = function (text) {
+      if (judge(text, null)) typed.value = line.kept;
     };
     line.restore = function (text, stored) {
       typed.value = text;
@@ -222,13 +231,37 @@
         typed.setAttribute('autocapitalize', 'off');
         typed.setAttribute('spellcheck', 'false');
         set.appendChild(typed);
-        line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken);
+        line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken, p.needs_answer);
         const was = carry && carry.step === item.step ? carry.lines.get(p.name) : null;
         if (was) line.restore(was.text, was.stored && !p.not_taken);
+        if (p.choose) set.appendChild(chooser(item, p.name, p.choose));
       }
       box.appendChild(set);
       answers.push({ param: p.name, radios: radios, typed: typed, line: line });
     });
+  }
+
+  function chooser(item, param, label) {
+    const b = el('button', 'hn-choose', label);
+    b.type = 'button';
+    b.setAttribute('data-act', 'choose_file');
+    b.setAttribute('data-param', param);
+    b.addEventListener('click', function () {
+      if (choosing) return;
+      choosing = true;
+      call('agents_choose_file', { item: item.item, step: item.step, param: param }).then(function (reply) {
+        choosing = false;
+        if (!reply || typeof reply.path !== 'string') return;
+        const card = Array.from(cards.values()).filter(function (c) {
+          return c.id === item.item && c.step === item.step;
+        })[0];
+        const a = card && card.answers.filter(function (x) {
+          return x.param === param && x.line;
+        })[0];
+        if (a) a.line.fill(reply.path);
+      });
+    });
+    return b;
   }
 
   function chosen(item, answers) {
@@ -302,13 +335,16 @@
       return;
     }
     if (choice.choice === 'choose' && item.params.length > 0) {
-      const emptied = card.answers.filter(function (a) {
-        return a.line && a.line.stored && a.line.kept.trim() === '';
-      })[0];
-      if (emptied) {
-        emptied.line.field.focus();
-        return;
-      }
+      const empty = card.answers.filter(function (a) {
+        return a.line && a.line.kept.trim() === '';
+      });
+      empty.forEach(function (a) {
+        a.line.needs();
+      });
+      if (empty.length > 0) empty[0].line.field.focus();
+      if (empty.some(function (a) {
+        return a.line.stored;
+      })) return;
       const calls = chosen(item, card.answers);
       if (calls.length === 0) return;
       const key = card.key;

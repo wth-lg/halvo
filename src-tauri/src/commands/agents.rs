@@ -310,7 +310,8 @@ pub type Start = Box<dyn FnOnce() + Send>;
 /// Windows with a data directory it is the hub over the product's ports
 /// (`halvo_coord_app::product`), whose count of agents that need the person goes to `tray` and
 /// whose confirmations that only a native dialog answers are shown in the system's dialog of `app`
-/// (`halvo_coord_app::System`: the alert on a Mac, the task dialog on Windows): its owner
+/// (`halvo_coord_app::System`: the alert on a Mac, the task dialog on Windows), and whose chooser
+/// of a file is the system's own (`halvo_coord_app::SystemChooser`, r4 U3.22b): its owner
 /// streams, relay, run marks and defer go through `control`, its runs live under the data
 /// directory, and its start's steps are `halvo_coord_app::product::start`. Elsewhere, and with no
 /// data directory, it is `NoService`, and nothing calls `tray`.
@@ -373,7 +374,8 @@ fn product_hub<R: Runtime>(
         defer: Arc::new(move |until| deferred.defer(deferred.places().make(), until)),
     };
     let dialog = Arc::new(halvo_coord_app::System::new(app.clone()));
-    halvo_coord_app::product::hub(calls, places, tray, dialog)
+    let chooser = Arc::new(halvo_coord_app::SystemChooser::new(app.clone()));
+    halvo_coord_app::product::hub(calls, places, tray, dialog, chooser)
 }
 
 /// The `Core` of the app until U5.4: `agents_snapshot` answers the stand-in state (`seq` 0,

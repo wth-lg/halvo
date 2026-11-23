@@ -1,4 +1,5 @@
 mod card;
+mod chooser;
 mod guard;
 #[cfg(any(test, target_os = "macos"))]
 mod moment;
@@ -10,6 +11,7 @@ mod system;
 mod tests;
 
 pub use card::Card;
+pub use chooser::SystemChooser;
 pub use outcome::{decide, Outcome};
 #[cfg(feature = "scripted")]
 pub use scripted::Scripted;
@@ -18,7 +20,7 @@ pub use system::System;
 use crate::hub::{Hub, Native, Present};
 use halvo_coord::guard::Policy;
 use halvo_coord::items::ConfirmAnswer;
-use halvo_coord::ports::{Analysis, Clock, Owner, Rng, Runs, Senders};
+use halvo_coord::ports::{Analysis, Clock, Files, Owner, Rng, Runs, Senders};
 use halvo_coord::types::{Cause, ConfigView, ItemId, Limits};
 use std::cell::Cell;
 use std::sync::{Arc, OnceLock, Weak};
@@ -110,6 +112,7 @@ where
         + Rng
         + Policy<Config = <P as Owner>::Config>
         + Senders
+        + Files
         + Send
         + Sync
         + 'static,

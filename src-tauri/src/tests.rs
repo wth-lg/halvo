@@ -739,7 +739,7 @@ fn is_refused(reply: &Result<Value, Value>) -> bool {
 #[test]
 fn every_command_of_the_manifests_answers_from_the_window_main_at_the_app_origin_alone() {
     let commands = manifest_commands();
-    assert_eq!(commands.len(), 198, "commands of the generated manifests");
+    assert_eq!(commands.len(), 199, "commands of the generated manifests");
     let test = test_app(scratch_dir("every-command"));
     let main = main_window(&test.app);
     let other = WebviewWindowBuilder::new(
@@ -2311,4 +2311,34 @@ fn the_guards_memory_is_reached_by_the_two_commands_of_their_own_module_alone() 
         Vec::<&str>::new(),
         "(c) the functions of the module that name the type Memory"
     );
+}
+
+/// r4 U3.22b, the usage texts (the coordinator's ruling of its log line 19012, (B)): the file
+/// `Info.plist` beside `tauri.conf.json`, which Tauri merges into the plist of the app that it
+/// writes, read from the tree at the run, holds the usage text of Documents, the Desktop,
+/// Downloads, a removable volume and a network volume, each the one ruled sentence U1 byte for
+/// byte, and no other key.
+#[test]
+fn u322b_the_apps_plist_holds_the_five_folder_usage_texts_with_the_ruled_sentence() {
+    const U1: &str = "Halvo's agent needs this to fill in the spreadsheet file that you named.";
+    const KEYS: [&str; 5] = [
+        "NSDocumentsFolderUsageDescription",
+        "NSDesktopFolderUsageDescription",
+        "NSDownloadsFolderUsageDescription",
+        "NSRemovableVolumesUsageDescription",
+        "NSNetworkVolumesUsageDescription",
+    ];
+    let path = src_tauri().join("Info.plist");
+    let plist = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+    assert_eq!(plist.matches("<key>").count(), KEYS.len(), "{plist}");
+    for key in KEYS {
+        let named = format!("<key>{key}</key>");
+        let at = plist.find(&named).unwrap_or_else(|| panic!("no key {key}"));
+        let value = plist[at + named.len()..].trim_start();
+        assert!(
+            value.starts_with(&format!("<string>{U1}</string>")),
+            "{key}: {value}"
+        );
+    }
 }

@@ -10,6 +10,6 @@ pub mod episode;
 pub mod recurrence;
 pub mod stage;
 
-pub use episode::{episode_step, Call, Outcome, Stage, FLICKER, GAP, LOOK_BACK, RESOLUTION};
+pub use episode::{episode_step, Call, Carry, Outcome, Stage, FLICKER, GAP, LOOK_BACK, RESOLUTION};
 pub use recurrence::{Proposer, K};
 pub use stage::StageA;

@@ -139,7 +139,7 @@ const OK: &[&str] = &["reply-ok"];
 /// it opened a page confirmation at the step mark that it shows (ruling RD-80 5.1, 5.2).
 /// `agents_delete` is the person's yes to the question of a row's Delete, which removes the
 /// agent with its workflow (ruling RD-19 (c) rule 7).
-pub const LIST: [Command; 9] = [
+pub const LIST: [Command; 10] = [
     Command {
         name: "agents_snapshot",
         args: &[],
@@ -204,6 +204,25 @@ pub const LIST: [Command; 9] = [
             arg("text", ArgType::Text),
         ],
         replies: OK,
+        errors: &[
+            Cause::Stale,
+            Cause::State,
+            Cause::UnknownItem,
+            Cause::Malformed,
+            Cause::NoService,
+        ],
+    },
+    Command {
+        name: "agents_choose_file",
+        args: &[
+            ITEM,
+            STEP,
+            Arg {
+                values: Some(&PARAMS),
+                ..arg("param", ArgType::Name)
+            },
+        ],
+        replies: &["reply-chosen", "reply-closed"],
         errors: &[
             Cause::Stale,
             Cause::State,
