@@ -4,7 +4,8 @@
 # A row: the form, posix or windows; taken or refused; the line as typed; the line after the spaces around
 # it and then ONE pair of quotation marks around the whole of it are taken away, which is the line that the
 # core checks and, where taken, sends. Fields are separated by one tab. The store's rule takes the fourth
-# field exactly where the row says taken.
+# field exactly where the row says taken. The rows hold the store's own cases of its tests of the two
+# forms, a case that names a home folder there written with a path that names none here.
 posix	taken	/Users/ana/Documents/Budget.xlsx	/Users/ana/Documents/Budget.xlsx
 posix	taken	"/Users/ana/Documents/Budget.xlsx"	/Users/ana/Documents/Budget.xlsx
 posix	taken	  "/Users/ana/Documents/receipts.csv" 	/Users/ana/Documents/receipts.csv
@@ -23,6 +24,20 @@ posix	refused	"/Users/ana/Book.xlsx	"/Users/ana/Book.xlsx
 posix	refused	""/Users/ana/Book.xlsx""	"/Users/ana/Book.xlsx"
 posix	refused	" /Users/ana/Book.xlsx"	 /Users/ana/Book.xlsx
 posix	refused	C:\Users\ana\Book.xlsx	C:\Users\ana\Book.xlsx
+posix	taken	/Volumes/work/Book.xlsx	/Volumes/work/Book.xlsx
+posix	taken	/Volumes/work/.Book.xlsx	/Volumes/work/.Book.xlsx
+posix	taken	/a..b/c.	/a..b/c.
+posix	taken	/a\b	/a\b
+posix	taken	/a	/a
+posix	refused	./Book.xlsx	./Book.xlsx
+posix	refused	C:\Users\Book.xlsx	C:\Users\Book.xlsx
+posix	refused	//a	//a
+posix	refused	/a//b	/a//b
+posix	refused	/a/b/	/a/b/
+posix	refused	/a/./b	/a/./b
+posix	refused	/a/../b	/a/../b
+posix	refused	/..	/..
+posix	refused	/a/.	/a/.
 windows	taken	C:\Users\ana\Documents\Budget.xlsx	C:\Users\ana\Documents\Budget.xlsx
 windows	taken	"C:\Users\ana\Documents\Budget.xlsx"	C:\Users\ana\Documents\Budget.xlsx
 windows	taken	 "C:\Users\ana\Documents\receipts.csv"  	C:\Users\ana\Documents\receipts.csv
@@ -40,3 +55,22 @@ windows	refused	C:\Users\\Book.xlsx	C:\Users\\Book.xlsx
 windows	refused	C:\Users\Book.xlsx\	C:\Users\Book.xlsx\
 windows	refused	""	
 windows	refused	/Users/ana/Book.xlsx	/Users/ana/Book.xlsx
+windows	taken	C:\work\Book.xlsx	C:\work\Book.xlsx
+windows	taken	c:/work/Book.xlsx	c:/work/Book.xlsx
+windows	taken	Z:\a	Z:\a
+windows	taken	C:\a..b\.c	C:\a..b\.c
+windows	refused	Book.xlsx	Book.xlsx
+windows	refused	\work\Book.xlsx	\work\Book.xlsx
+windows	refused	/Volumes/work/Book.xlsx	/Volumes/work/Book.xlsx
+windows	refused	C:work\Book.xlsx	C:work\Book.xlsx
+windows	refused	1:\Book.xlsx	1:\Book.xlsx
+windows	refused	CC:\Book.xlsx	CC:\Book.xlsx
+windows	refused	C:	C:
+windows	refused	C:\	C:\
+windows	refused	C:\a\\b	C:\a\\b
+windows	refused	C:\a\/b	C:\a\/b
+windows	refused	C:/a//b	C:/a//b
+windows	refused	C:\a\	C:\a\
+windows	refused	C:\a\.\b	C:\a\.\b
+windows	refused	C:\a\..\b	C:\a\..\b
+windows	refused	C:/a/../b	C:/a/../b
