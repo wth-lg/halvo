@@ -10,7 +10,7 @@ const PINNED: [(&str, &str); 5] = [
     ),
     (
         "src/lib.rs",
-        "caf3c97c58d3719747740f6f7196495310a24441b06a876fa0a5f9ba819b3031",
+        "bb1b3a7974c4105beef6702d391e86599c23aa70d0c1725a05fc88870b1b4df8",
     ),
     (
         "src/ruling.rs",
@@ -94,9 +94,9 @@ fn no_grant_in_release() {
     assert_eq!(calls, 3 * 3 * 7 * 2 * 2);
 }
 
-const CRATE_MODULES: [&str; 12] = [
-    "admit", "cap", "count", "leave", "line", "pick", "policy", "prices", "release", "ruling",
-    "spend", "tier",
+const CRATE_MODULES: [&str; 13] = [
+    "admit", "amount", "cap", "count", "leave", "line", "pick", "policy", "prices", "release",
+    "ruling", "spend", "tier",
 ];
 
 #[test]

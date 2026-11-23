@@ -64,7 +64,7 @@ fn cap_of(text: &str) -> Option<DefaultCap> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cap::{CapStatus, Period};
+    use crate::cap::{CapStatus, Currency, Period};
     use crate::tier::Tier;
 
     fn with_line(text: &str, from: &str, to: &str) -> String {
@@ -270,11 +270,12 @@ mod tests {
 
     #[test]
     fn release_cap_fails_closed() {
-        let line = "default_cap amount=2000 period=month status=provisional";
+        let line = "default_cap amount=2000 currency=usd period=month status=provisional";
         assert_eq!(
             cap_of(&format!("{line}\n")),
             Some(DefaultCap {
                 amount: 2000,
+                currency: Currency::Usd,
                 period: Period::Month,
                 status: CapStatus::Provisional,
             })
@@ -293,9 +294,10 @@ mod tests {
             format!("{line}\t\n"),
             format!("{line} \n"),
             format!("\u{feff}{line}\n"),
-            "default_cap amount=0 period=month status=provisional\n".to_owned(),
-            "default_cap amount=2000 period=year status=provisional\n".to_owned(),
-            "default_cap amount=2000 period=month status=final\n".to_owned(),
+            "default_cap amount=0 currency=usd period=month status=provisional\n".to_owned(),
+            "default_cap amount=2000 currency=eur period=month status=provisional\n".to_owned(),
+            "default_cap amount=2000 currency=usd period=year status=provisional\n".to_owned(),
+            "default_cap amount=2000 currency=usd period=month status=final\n".to_owned(),
         ] {
             assert_eq!(cap_of(&text), None, "{text:?}");
         }

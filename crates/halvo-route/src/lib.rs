@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod admit;
+pub mod amount;
 pub mod cap;
 pub mod count;
 pub mod leave;

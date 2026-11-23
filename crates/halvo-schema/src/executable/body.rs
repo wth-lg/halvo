@@ -951,6 +951,21 @@ object_type! {
     rules(_b) { Ok(()) }
 }
 
+object_type! {
+    /// `new_model_count`: a new count of the person at nothing with the cap of `cap_minor` minor units, with `workflow`
+    /// and `agent` null (r7 8.1L; the coordinator's log line 17696 (b)). The store reads no row: it replaces every row
+    /// of the person's count by ONE count at nothing with that cap, anchored at the request's instant, and answers as
+    /// `set_model_cap` answers a new count. It lifts what is counted, so the app sends it in ONE place alone: where
+    /// `model_room` met the fault of the store's read, which no other body can mend.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct NewModelCount [op = "new_model_count"] {
+        pub workflow: Null = "workflow" => from_json,
+        pub agent: Null = "agent" => from_json,
+        pub cap_minor: u32 = "cap_minor" => from_json,
+    }
+    rules(_b) { Ok(()) }
+}
+
 op_enum! {
     /// The coordinator bodies of this run (`CoordinatorCall`): each holds `op` first, then `workflow` and `agent`,
     /// then its keys.
@@ -975,6 +990,7 @@ op_enum! {
         SetModel(SetModel) = "set_model",
         ModelRoom(ModelRoom) = "model_room",
         SetModelCap(SetModelCap) = "set_model_cap",
+        NewModelCount(NewModelCount) = "new_model_count",
     }
 }
 
@@ -1577,8 +1593,9 @@ impl CoordinatorReply {
     /// revision 1 alone, `set_bindings`, `add_origin` and `set_model` by any revision, `list_checkpoints`, `list_agents`,
     /// `agent_history` and `list_replies` by their lists, `mark_checkpoint` by `stored` 0 or 1, `drop_sessions` by any
     /// count stored, `put_model_key` by `stored` 1, `drop_model_key` by `stored` 0, `model_key_state` by `stands`,
-    /// `read_model_key` by `key`, `model_room` by `room`, `set_model_cap` by `new_count` with the body's cap, and
-    /// `list_overlaps` by its list only as `OverlapsReply::answers` says.
+    /// `read_model_key` by `key`, `model_room` by `room`, `set_model_cap` by `new_count` with the body's cap,
+    /// `new_model_count` by `new_count` `yes` with the body's cap, and `list_overlaps` by its list only as
+    /// `OverlapsReply::answers` says.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
         match (self, call) {
             (CoordinatorReply::Overlaps(r), CoordinatorCall::ListOverlaps(b)) => {
@@ -1590,6 +1607,9 @@ impl CoordinatorReply {
             (CoordinatorReply::Stored(r), CoordinatorCall::DropModelKey(_)) => r.stored == 0,
             (CoordinatorReply::Cap(r), CoordinatorCall::SetModelCap(b)) => {
                 r.cap_minor == b.cap_minor
+            }
+            (CoordinatorReply::Cap(r), CoordinatorCall::NewModelCount(b)) => {
+                r.cap_minor == b.cap_minor && r.new_count == YesNo::Yes
             }
             (
                 CoordinatorReply::Rev(_),
