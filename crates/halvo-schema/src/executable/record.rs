@@ -19,6 +19,9 @@ use super::Refusal;
 /// The most parts of the stored session of one origin.
 pub const SESSION_PARTS_MAX: u32 = 64;
 
+/// The most pieces of the text of the person's count in its row, `model_count`, each of at most `OWN_TEXT_MAX` bytes.
+pub const COUNT_PIECES_MAX: usize = 16;
+
 macro_rules! run_list {
     ($then:ident $($pass:tt)*) => {
         $then! {
@@ -480,6 +483,58 @@ object_type! {
             return Err(Refusal::length("ModelKey", "key_length").at("key"));
         }
         Ok(())
+    }
+}
+
+object_type! {
+    /// The person's count of hosted calls, kind `model_count` (r7 8.1L): ONE row for the person and all agents
+    /// together, which names no workflow and no agent. `anchor` is the instant that anchors the count's cap period;
+    /// `count` is the count's text as halvo-route's `Count::row` writes it, in 1 to `COUNT_PIECES_MAX` pieces of 1 to
+    /// `OWN_TEXT_MAX` bytes, whose joined text is the count's. This type reads no figure of the text.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ModelCount {
+        pub v: V1 = "v" => from_json,
+        pub anchor: Instant = "anchor" => json::instant,
+        pub count: Vec<OwnText> = "count" => list(from_json),
+    }
+    rules(r) {
+        if r.count.is_empty() || r.count.iter().any(|piece| piece.as_str().is_empty()) {
+            return Err(Refusal::malformed("ModelCount", "count_piece").at("count"));
+        }
+        if r.count.len() > COUNT_PIECES_MAX {
+            return Err(Refusal::length("ModelCount", "count_pieces").at("count"));
+        }
+        Ok(())
+    }
+}
+
+impl ModelCount {
+    /// The row of the count's text `text` with the anchor `anchor`: the text cut into pieces of at most `OWN_TEXT_MAX`
+    /// bytes, each at a boundary of a character; the refusal `count_piece` for an empty text and `count_pieces` for a
+    /// text that needs more than `COUNT_PIECES_MAX` pieces.
+    pub fn of(anchor: Instant, text: &str) -> Result<ModelCount, Refusal> {
+        let mut count = Vec::new();
+        let mut rest = text;
+        while !rest.is_empty() {
+            let mut end = rest.len().min(OWN_TEXT_MAX);
+            while !rest.is_char_boundary(end) {
+                end -= 1;
+            }
+            count.push(OwnText::parse(&rest[..end])?);
+            rest = &rest[end..];
+        }
+        let row = ModelCount {
+            v: V1,
+            anchor,
+            count,
+        };
+        row.rules()?;
+        Ok(row)
+    }
+
+    /// The count's text: its pieces joined.
+    pub fn text(&self) -> String {
+        self.count.iter().map(OwnText::as_str).collect()
     }
 }
 

@@ -368,15 +368,31 @@ fn a_row_of_each_kind_of_the_later_runs_passes_check_record_in_each_state_of_its
 }
 
 /// r3 U7.6 (the coordinator's log line 16823, its condition (i)): the closed list of the kinds of origin person holds
-/// ONE name, `model_key`, and the kinds of origin person of the registry are those of the list.
+/// the person's key, `model_key`, and the kinds of origin person of the registry are those of the list. Since r7 8.1L
+/// it holds TWO names, the person's count `model_count` the second (the coordinator's log line 17277: the count is a
+/// second kind of the origin person beside the key's kind).
 #[test]
-fn the_kinds_of_origin_person_are_model_key_alone() {
+fn the_kinds_of_origin_person_are_model_key_and_model_count() {
     use halvo_schema::kinds::{registry, PERSON_KINDS};
-    assert_eq!(PERSON_KINDS.len(), 1, "{PERSON_KINDS:?}");
-    assert_eq!(PERSON_KINDS, ["model_key"]);
+    assert_eq!(PERSON_KINDS.len(), 2, "{PERSON_KINDS:?}");
+    assert_eq!(PERSON_KINDS, ["model_key", "model_count"]);
     let person: Vec<&str> = registry()
         .filter(|entry| entry.origin == Origin::Person)
         .map(|entry| entry.name)
         .collect();
     assert_eq!(person, PERSON_KINDS);
+}
+
+/// r7 8.1L (the coordinator's log lines 17277 and 17330; the brief's point 10, condition (i)): the closed list of the
+/// kinds of origin person that a `runner` request may write holds ONE name, `model_count`, a name of `PERSON_KINDS`,
+/// and not `model_key`.
+#[test]
+fn the_kinds_of_origin_person_that_a_runner_may_write_are_model_count_alone() {
+    use halvo_schema::kinds::{PERSON_KINDS, RUNNER_PERSON_KINDS};
+    assert_eq!(RUNNER_PERSON_KINDS.len(), 1, "{RUNNER_PERSON_KINDS:?}");
+    assert_eq!(RUNNER_PERSON_KINDS, ["model_count"]);
+    assert!(!RUNNER_PERSON_KINDS.contains(&"model_key"));
+    assert!(RUNNER_PERSON_KINDS
+        .iter()
+        .all(|name| PERSON_KINDS.contains(name)));
 }

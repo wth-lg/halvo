@@ -16,7 +16,7 @@ use serde_json::value::RawValue;
 /// The family of the rows that the two handlers read and store.
 pub(crate) const FAMILY: &str = "agent";
 
-/// The `op` names of `CoordinatorCall`, all eighteen, which the handler of `coordinator_write` takes. A nineteenth
+/// The `op` names of `CoordinatorCall`, all twenty, which the handler of `coordinator_write` takes. A twenty-first
 /// `op` is answered `unsupported` by the store until it is named here.
 pub(crate) const OPS: &[&str] = &[
     "create_agent",
@@ -37,6 +37,8 @@ pub(crate) const OPS: &[&str] = &[
     "model_key_state",
     "read_model_key",
     "set_model",
+    "model_room",
+    "set_model_cap",
 ];
 
 /// The body that a handler answers.
@@ -131,8 +133,9 @@ impl Host for Cx<'_, '_> {
         }
     }
 
-    /// `HandlerCx::remove_person`: `role` under a request that is no `coordinator_write`, and every other refusal, a
-    /// fault among them, as `store`, as `remove_under` answers it.
+    /// `HandlerCx::remove_person`: `role` under a request that is no `coordinator_write`, but for a runner's request of
+    /// a kind of `kinds::RUNNER_PERSON_KINDS` (r7 8.1L), and every other refusal, a fault among them, as `store`, as
+    /// `remove_under` answers it.
     fn remove_person(&mut self, kind: &str, records: Vec<TypedRecord>) -> Result<u64, ErrorName> {
         match self.cx.remove_person(kind, &records) {
             Ok(done) => Ok(done.removed),

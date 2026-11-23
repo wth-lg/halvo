@@ -72,7 +72,7 @@ fn swap(text: &str, from: &str, to: &str) -> String {
 fn the_file_registers_its_kinds_of_origin_own_after_its_two_kinds_of_origin_capture() {
     let names: Vec<&str> = executable::KINDS.iter().map(|k| k.name).collect();
     assert_eq!(names[2..2 + OWN.len()], OWN);
-    assert_eq!(names[2 + OWN.len()..], ["model_key"]);
+    assert_eq!(names[2 + OWN.len()..], ["model_key", "model_count"]);
     for (name, class) in CLASSES {
         let kind = entry(name);
         assert_eq!(kind.class, class, "{name}");

@@ -12,7 +12,8 @@ use crate::day;
 use crate::host::Host;
 
 /// The kinds of the family `agent` with their origin (A7.3), each with the workflow id under the key `workflow` but
-/// `model_key`, the person's key, of origin person, which names no workflow (r3 U7.6).
+/// `model_key`, the person's key, and `model_count`, the person's count of hosted calls, of origin person, which name
+/// no workflow (r3 U7.6, r7 8.1L).
 /// The memory store takes rows of these kinds alone. Where the registry holds the entry of a kind, the store checks a record against it with `check_record` and takes the kind's origin from it; the six kinds of
 /// origin own have no entry until U3.3 adds them, and until then this table gives their origin.
 pub const AGENT_KINDS: &[(&str, Origin)] = &[
@@ -29,6 +30,7 @@ pub const AGENT_KINDS: &[(&str, Origin)] = &[
     ("agent_finished", Origin::Own),
     ("agent_agreement", Origin::Own),
     ("model_key", Origin::Person),
+    ("model_count", Origin::Person),
 ];
 
 /// Why the typed commit of the memory store refused a whole list (W-C25.3): the first record that breaks a rule.
@@ -235,7 +237,7 @@ impl Host for MemoryStore {
     /// Answers `store` for a kind that is not one of `AGENT_KINDS` of origin person and for a record that the typed
     /// commit refuses, and then changes nothing; else it removes every row of the kind, stores the records and answers
     /// how many rows it removed. It does not know the request's role, so it removes under the body of a runner as well;
-    /// the derived store refuses there.
+    /// the derived store refuses there, but for a kind of `kinds::RUNNER_PERSON_KINDS` (r7 8.1L).
     fn remove_person(&mut self, kind: &str, records: Vec<TypedRecord>) -> Result<u64, ErrorName> {
         let &(kind, _) = AGENT_KINDS
             .iter()
