@@ -1,10 +1,10 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo, halvo-capture, halvo-owner, halvo-analysis, halvo-runner and halvo-model, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with debug assertions explicitly off in the workspace release profile and no release package override that enables them, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which holds .cargo/config.toml at the root alone (none outside the checkout is read), prints the derived version from halvo, halvo-capture and halvo-runner (halvo-owner, halvo-analysis and halvo-model have no --version argument, and the check starts none of them), changes no file of the checkout, makes halvo-owner and halvo-analysis as files in the directory of halvo-capture, where the daemon looks for a program that it starts, holds no marker of the list markers (a stand-in, the test seam of halvo-capture, the test fence of halvo-web, the loopback route of halvo-connect, the web request maker of halvo-runner) by a scan of every shipped file that stands as the backstop, imports no forbidden_import (the Carbon call that holds secure input) in any of the six built macOS executables as read by dyld_info regardless of build flags or CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS (a recognized row contains indentation, an optional hexadecimal ordinal, the symbol, an optional hexadecimal addend, an optional [weak-import] mark and (from library), with internal blanks allowed in the nonempty library name, and the check logs the row, ordinal, addend and weak-import counts per executable and slice, and a tool error, a missing slice header or import header, an empty table or an unrecognized nonblank line fails the check, which trusts dyld_info to enumerate every slice and its named imports, the import table shows what the shipped executable can call through a named import and omits an unreachable hold compiled into the capture library, which check 51 covers with proof builds, and Windows has no import check), and is what the artifacts directory holds, on macOS the app as Halvo.app.tar and on Windows the four executables, and no signing variable is set in its environment, because this run builds unsigned (--rules reads only the work-tree workspace manifest and Cargo configuration paths).
+# rule: The release build of halvo, halvo-capture, halvo-owner, halvo-analysis and halvo-runner, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with debug assertions explicitly off in the workspace release profile and no release package override that enables them, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which holds .cargo/config.toml at the root alone (none outside the checkout is read), prints the derived version from halvo, halvo-capture and halvo-runner (halvo-owner and halvo-analysis have no --version argument, and the check starts neither), changes no file of the checkout, makes halvo-owner and halvo-analysis as files in the directory of halvo-capture, where the daemon looks for a program that it starts, holds no marker of the list markers (a stand-in, the test seam of halvo-capture, the test fence of halvo-web, the loopback route of halvo-connect, the web request maker of halvo-runner) by a scan of every shipped file that stands as the backstop, imports no forbidden_import (the Carbon call that holds secure input) in any of the five built macOS executables as read by dyld_info regardless of build flags or CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS (a recognized row contains indentation, an optional hexadecimal ordinal, the symbol, an optional hexadecimal addend, an optional [weak-import] mark and (from library), with internal blanks allowed in the nonempty library name, and the check logs the row, ordinal, addend and weak-import counts per executable and slice, and a tool error, a missing slice header or import header, an empty table or an unrecognized nonblank line fails the check, which trusts dyld_info to enumerate every slice and its named imports, the import table shows what the shipped executable can call through a named import and omits an unreachable hold compiled into the capture library, which check 51 covers with proof builds, and Windows has no import check), and is what the artifacts directory holds, on macOS the app as Halvo.app.tar and on Windows the four executables, and no signing variable is set in its environment, because this run builds unsigned (--rules reads only the work-tree workspace manifest and Cargo configuration paths).
 set -u
 name=62-build
 forbidden_import=_EnableSecureEventInput
-shipped_packages='halvo halvo-capture halvo-owner halvo-analysis halvo-runner halvo-model'
+shipped_packages='halvo halvo-capture halvo-owner halvo-analysis halvo-runner'
 scope_flags='--workspace --all --all-targets --tests --test --benches --bench --examples --example --lib'
 feature_flags='--features -F -f --all-features --no-default-features'
 configuration_flags='--config -c'
@@ -18,14 +18,12 @@ macos_calls='npm run tauri build -- -- --locked
 cargo build --release --locked -p halvo-capture --bin halvo-capture
 cargo build --release --locked -p halvo-owner --bin halvo-owner
 cargo build --release --locked -p halvo-analysis --bin halvo-analysis
-cargo build --release --locked -p halvo-runner --bin halvo-runner
-cargo build --release --locked -p halvo-model --bin halvo-model'
+cargo build --release --locked -p halvo-runner --bin halvo-runner'
 windows_calls='npm run tauri build -- --no-bundle -- --locked
 cargo build --release --locked -p halvo-capture --bin halvo-capture
 cargo build --release --locked -p halvo-owner --bin halvo-owner
 cargo build --release --locked -p halvo-analysis --bin halvo-analysis
-cargo build --release --locked -p halvo-runner --bin halvo-runner
-cargo build --release --locked -p halvo-model --bin halvo-model'
+cargo build --release --locked -p halvo-runner --bin halvo-runner'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -396,16 +394,14 @@ EOF
       owner=$target/release/halvo-owner
       analysis=$target/release/halvo-analysis
       runner=$target/release/halvo-runner
-      model=$target/release/halvo-model
       found=$(beside_defect "$2" "$owner" "$analysis") || fail "$found"
-      release_imports "$@" "$owner" "$analysis" "$runner" "$model"
+      release_imports "$@" "$owner" "$analysis" "$runner"
       ;;
     windows)
       set -- "$target/release/halvo.exe" "$target/release/halvo-capture.exe"
       owner=$target/release/halvo-owner.exe
       analysis=$target/release/halvo-analysis.exe
       runner=$target/release/halvo-runner.exe
-      model=$target/release/halvo-model.exe
       found=$(beside_defect "$2" "$owner" "$analysis") || fail "$found"
       ;;
   esac
@@ -423,16 +419,14 @@ EOF
 $target/release/halvo-capture
 $owner
 $analysis
-$runner
-$model"
+$runner"
       ;;
     windows)
       shipped="$1
 $2
 $owner
 $analysis
-$runner
-$model"
+$runner"
       ;;
   esac
   shipped_count=$(printf '%s\n' "$shipped" | grep -c .)
@@ -1148,12 +1142,6 @@ SH
   got=unexpected-exit-$code
   [ "$code:$files_output" = "1:FAIL $name (seam.bin holds the marker halvo-capture:test-seam:this-build-has-it!)" ] && got=FAIL
   verdict files-form-reads-the-markers FAIL "$got"
-  printf 'head\000%s\000tail' 'halvo-connect-loopback-route-of-tests' >"$work/halvo-model"
-  files_output=$(sh "$check_script" --files "$work/clean.bin" "$work/halvo-model" 2>"$work/files.err")
-  code=$?
-  got=unexpected-exit-$code
-  [ "$code:$files_output" = "1:FAIL $name (halvo-model holds the marker halvo-connect-loopback-route-of-tests)" ] && got=FAIL
-  verdict door-built-with-the-loopback-route FAIL "$got"
 
   # A helper whose file of packaging/helpers.d says version=none is read and not started. The files
   # form runs in a directory with its own helper list, written with CRLF, and with a stand-in

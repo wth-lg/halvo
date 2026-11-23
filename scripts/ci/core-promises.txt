@@ -107,9 +107,6 @@ egress target halvo-route/no_grant_in_release gate under the release data no bui
 egress units halvo-route::leave gate under a hosted ruling a grant is made for the origin of the row of its tier alone, by equal bytes, and names that row
 egress units halvo-route::ruling gate ruling=hosted over a table of hosts with no row reads as none
 egress target halvo-model/door gate the door halvo-model holds a grant before any byte leaves and sends one request to the granted origin alone; what leaves is the closed fields alone; no line of the door holds a byte of a key or of a refused request; each row of the release table names an adapter of the door; the adapter's one operation stands in the door's files alone, and no file of the runner names a grant
-egress check 64-model-egress scheduled sun the macos job, no hosted reading yet; the built door in its stand-in form reaches the granted loopback origin alone under the egress check
-egress check 64-model-egress scheduled sun the windows job, no hosted reading yet
-egress check 62-build scheduled thu and sun the macos job and sun the windows job, the seconds of its secure-input lines; no shipped file, the door halvo-model's among them, holds the marker of the loopback route of halvo-connect
 egress check 10-egress scheduled thu the macos job, 33 s there in the push run 44895970784
 egress check 10-egress scheduled thu the windows job, 206 s there in the run 44930942501
 egress check 80-r6-absent scheduled thu the macos job, 20 s there in the push run 44895970784

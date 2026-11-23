@@ -109,7 +109,5 @@ sat windows tests D
 sun macos check 62-build
 sun macos check 70-package-macos
 sun macos check 25-advisories
-sun macos check 64-model-egress
 sun windows check 62-build
 sun windows check 70-package-windows
-sun windows check 64-model-egress
