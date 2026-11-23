@@ -58,7 +58,7 @@ fn a_second_write_changes_no_file() {
         .iter()
         .map(|n| std::fs::read(dir.join(n)).unwrap())
         .collect();
-    assert_eq!(fixtures::write(&dir).unwrap(), 41);
+    assert_eq!(fixtures::write(&dir).unwrap(), 42);
     let second: Vec<Vec<u8>> = names(&dir)
         .iter()
         .map(|n| std::fs::read(dir.join(n)).unwrap())
@@ -83,6 +83,7 @@ fn the_files_are_those_of_i8_3() {
         .map(|s| s.to_string())
         .collect();
     want.insert("reply-closed.json".into());
+    want.insert("reply-chosen.json".into());
     want.insert("reply-next-same.json".into());
     for s in State::ALL {
         want.insert(format!("state-{}.json", s.name()));
@@ -106,7 +107,7 @@ fn the_files_are_those_of_i8_3() {
         want.insert(format!("reply-error-{c}.json"));
     }
     assert_eq!(State::ALL.len(), 22);
-    assert_eq!(want.len(), 41);
+    assert_eq!(want.len(), 42);
     assert_eq!(names(Path::new(TRACKED)), want);
     for command in LIST {
         for stem in command.replies {
@@ -237,6 +238,7 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                     "full",
                     "too_long",
                     "hint",
+                    "needs_answer",
                 ],
                 Some("n") => &["n", "value", "from"],
                 Some("choice") => &["choice", "text", "safe"],
