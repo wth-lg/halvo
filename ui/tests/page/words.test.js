@@ -241,6 +241,21 @@ const WORDS = {
   SETTINGS_RESET: "Reset settings",
   SETTINGS_RESET_QUESTION: "Reset Halvo's settings? Halvo keeps everything that it has recorded. It stays paused until you press Resume, and from then on it records what a new start records:",
   SETTINGS_RESET_YES: "Yes, reset settings",
+  MODEL_HEADING: "AI model",
+  MODEL_KEY_LABEL: "Key for {host}",
+  MODEL_KEY_TEXT: "Paste the key from your account at {host}. Halvo keeps it on this computer, protected in the same way as your recordings, and sends it to {host} alone.",
+  MODEL_KEY_SAVE: "Save the key",
+  MODEL_KEY_SAVED: "A key is saved.",
+  MODEL_KEY_NONE: "No key is saved.",
+  MODEL_KEY_NOT_KNOWN: "Halvo cannot tell just now whether a key is saved.",
+  MODEL_KEY_NOT_A_KEY: "That does not look like a key. Paste the key alone, with nothing before or after it.",
+  MODEL_KEY_SAVE_FAILED: "Halvo could not finish this. Paste the key and choose Save the key again.",
+  MODEL_KEY_REMOVE: "Remove the key",
+  MODEL_KEY_REMOVE_QUESTION: "Remove the key? Agents that use an AI model at {host} then stop and hand their work back to you until you add a key.",
+  MODEL_KEY_KEEP: "Keep the key",
+  MODEL_KEY_REMOVE_FAILED: "Halvo could not finish this. If this page still says that a key is saved, choose Remove the key again.",
+  MODEL_KEY_GOES: "Halvo also removes your key for {host}.",
+  MODEL_KEY_STAYS: "Your key for {host} and what each agent may send stay as they are.",
 };
 
 const OWNER = {

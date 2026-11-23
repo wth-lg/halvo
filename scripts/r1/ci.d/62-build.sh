@@ -246,10 +246,20 @@ second_calls() {
   return 0
 }
 
+# Runs the call $2 into build.txt and prints one line: the call's number $1, its seconds, the
+# number of crates that it compiled, and the call.
 run_call() {
+  call_number=$1
+  call_start=$(date +%s)
+  lines_before=$(wc -l <"$CI_D_ARTIFACTS/build.txt" | tr -d ' ')
   # shellcheck disable=SC2086
-  set -- $1
+  set -- $2
   "$@" >>"$CI_D_ARTIFACTS/build.txt" 2>&1
+  call_status=$?
+  call_seconds=$(($(date +%s) - call_start))
+  compiled=$(tail -n "+$((lines_before + 1))" "$CI_D_ARTIFACTS/build.txt" | grep -c '^ *Compiling ')
+  printf 'build call %s: %s s, %s crates compiled, exit %s: %s\n' "$call_number" "$call_seconds" "$compiled" "$call_status" "$*"
+  return "$call_status"
 }
 
 file_rules() {
@@ -374,8 +384,10 @@ EOF
   before=$(git status --porcelain --untracked-files=all) || fail "git status failed"
   : >"$CI_D_ARTIFACTS/build.txt"
   built=0
+  number=0
   while IFS= read -r call; do
-    run_call "$call" || { built=1; break; }
+    number=$((number + 1))
+    run_call "$number" "$call" || { built=1; break; }
   done <<EOF
 $calls
 EOF

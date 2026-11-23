@@ -238,6 +238,16 @@ jobs:
           prefix-key: v0-rust
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
         id: cache
+      - name: Restore the release build of the slice sun
+        if: steps.slice.outputs.name == 'sun' || steps.slice.outputs.name == 'tue'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            target/release/deps
+            target/release/build
+            target/release/.fingerprint
+          key: v0-release-windows-${{ hashFiles('rust-toolchain.toml') }}-${{ github.run_id }}
+          restore-keys: v0-release-windows-${{ hashFiles('rust-toolchain.toml') }}-
       - name: Processor
         shell: bash
         run: |
@@ -263,6 +273,15 @@ jobs:
           else
             sh scripts/ci/run-ci-d.sh windows --checks "$CHECKS"
           fi
+      - name: Save the release build of the slice sun
+        if: steps.slice.outputs.name == 'sun' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            target/release/deps
+            target/release/build
+            target/release/.fingerprint
+          key: v0-release-windows-${{ hashFiles('rust-toolchain.toml') }}-${{ github.run_id }}
       - name: Scripts and hook in a core.autocrlf=true clone
         if: steps.slice.outputs.name == 'fri'
         shell: bash

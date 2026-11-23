@@ -20,7 +20,11 @@ const VARIANTS = [
   'get_effect',
   'no_reply',
   'amount_changes',
+  'form_amount',
+  'form_amount_other',
 ];
+// The variants that change the payment frame alone, whose walk cases run the tasks bill and order.
+const FRAME_ONLY = ['amount_changes', 'form_amount', 'form_amount_other'];
 const SEEDS = [1, 2, 3];
 const TASKS = ['bill', 'order', 'reply', 'cleanup'];
 const CONTROL = 'control.agent.test';
@@ -184,8 +188,8 @@ function stopServer(s) {
 
 const GONE_MS = 5000;
 const UNIX = process.platform !== 'win32';
-const CASES_UNIX = 225;
-const CASES_WINDOWS = 223;
+const CASES_UNIX = 237;
+const CASES_WINDOWS = 235;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -602,8 +606,18 @@ async function payInFrame(env, b, c, url, kind, amount, instruments, instrument,
   const name = kind === 'bill' ? (renamed ? 'Submit payment' : 'Pay now') : renamed ? 'Complete purchase' : 'Place order';
   c.ok(tags(r.text, `${pre}${base}`)[0]?.inner === name, 'frame_button');
   c.ok(testids(r.text).every((t) => t.startsWith('chg-') === chg), 'frame_testids');
+  // r3 U5.10 cut C: the form's hidden field amount, which /charge never reads.
+  const fields = [...r.text.matchAll(/<input type="hidden" name="amount" value="([^"]*)">/g)].map((m) => m[1]);
+  if (vs.includes('form_amount_other')) {
+    c.ok(equal(fields, [money(amount + 100)]), 'frame_form_amount_other');
+  } else if (vs.includes('form_amount')) {
+    c.ok(equal(fields, [money(amount)]), 'frame_form_amount');
+  } else {
+    c.ok(fields.length === 0 && !r.text.includes('name="amount"'), 'frame_form_no_amount');
+  }
   const token = new URL(url).searchParams.get('token');
-  const done = await b.post(`${env.origin('pay')}/charge`, form({ token, kind, instrument }));
+  const posted = fields.length === 1 ? { token, kind, amount: fields[0], instrument } : { token, kind, instrument };
+  const done = await b.post(`${env.origin('pay')}/charge`, form(posted));
   const heading = kind === 'bill' ? 'Payment received' : 'Order placed';
   c.ok(done.status === 200 && done.text.includes(`<h1>${heading}</h1>`), 'charge_heading');
 }
@@ -941,7 +955,7 @@ async function walkCases(env) {
     for (const v of ['none', ...VARIANTS.filter((name) => name !== 'no_reply')]) {
       const vs = v === 'none' ? [] : [v];
       for (const task of TASKS) {
-        if (v === 'amount_changes' && (task === 'reply' || task === 'cleanup')) continue;
+        if (FRAME_ONLY.includes(v) && (task === 'reply' || task === 'cleanup')) continue;
         await run(`walk-seed${n}-${task}-${v}`, async (c) => {
           const r = await env.reset(n, vs);
           const st = JSON.parse(r.text);
