@@ -1,6 +1,7 @@
 use super::{clean, current_slot, finished, holds, slot_due, slot_open, Hold};
 use crate::types::{
-    AgentState, Cause, ConfigView, Doing, Facts, Limits, Mode, Runtime, Tier, Trigger, What,
+    AgentState, Cause, ConfigView, Doing, Facts, Limits, Mode, OwnItemKind, Runtime, Tier, Trigger,
+    What,
 };
 
 /// Whether the agent waits for the person in each run: `caps_external` is `yes` (I5.1).
@@ -99,8 +100,10 @@ pub struct StartStep {
 }
 
 /// Steps 0 to 4 of a start (I5.5), the first that fails giving the answer: (0) the workflow is
-/// in the owner's list, else `state`; a start of the person that does not leave the queue then
-/// ends the holds `failures` and `sign_in_refused`; (1) no hold stands, else `hold`, where a
+/// in the owner's list, and the agent holds no set-up item that Change its answers put up (an
+/// open set-up item with no hold `setup`, r4 U3.22a), else `state`, before any hold ends; a start
+/// of the person that does not leave the queue then ends the holds `failures` and
+/// `sign_in_refused`; (1) no hold stands, else `hold`, where a
 /// start of the person passes the hold `site_declined` with nothing stored or sent for it,
 /// because its own `run_started` ends that hold (r4 U2.4a); (2) fewer
 /// than `starts_per_day`
@@ -121,10 +124,12 @@ pub fn start_step<C: ConfigView>(
         clear,
         verdict: Verdict::Refused(cause),
     };
-    if !around.listed {
+    let mut standing = holds(facts);
+    let asked_again = matches!(&facts.doing, Doing::Idle(Some(open)) if open.kind == OwnItemKind::Setup)
+        && !standing.contains(&Hold::Setup);
+    if !around.listed || asked_again {
         return refused(None, Cause::State);
     }
-    let mut standing = holds(facts);
     let ends = |h: &Hold| matches!(h, Hold::Failures | Hold::SignInRefused);
     let clear = (trigger == Trigger::Person && !around.from_queue && standing.iter().any(ends))
         .then(|| Clear {
@@ -147,7 +152,7 @@ pub fn start_step<C: ConfigView>(
     if today >= limits.starts_per_day as usize {
         return refused(clear, Cause::Budget);
     }
-    let mine = match facts.doing {
+    let mine = match &facts.doing {
         Doing::Live(_) => true,
         Doing::Queued(_) => !around.from_queue,
         Doing::Idle(_) => false,

@@ -261,6 +261,12 @@ fn sheet(last_end: Outcome, line: StatusLine) -> Spec {
             },
         ],
         next: Some(20_764),
+        controls: vec![
+            Control::RunNow,
+            Control::SwitchOff,
+            Control::ChangeAnswers,
+            Control::Delete,
+        ],
         ..spec(Category::SpreadsheetFill, line)
     }
 }
@@ -874,7 +880,9 @@ fn param(param: Param, candidate: Option<&str>) -> ParamEntry {
         } else {
             String::new()
         },
+        hint: crate::items::param_hint(param, super::System::HOST).expect("the words table"),
         refused: None,
+        not_taken: None,
     }
 }
 

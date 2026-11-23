@@ -10,7 +10,7 @@ use crate::guard::Table;
 use crate::types::{
     AgentId, AskedEffect, BindResult, BoundField, BoundFrom, Candidate, CandidateFrom, CardEffect,
     Cause, Choice, ChoiceText, Class, ConfirmAsk, Field, FieldFrom, HandbackAsk, HandbackReason,
-    Item, ItemId, ItemKind, Limits, Origin, Param, ParamEntry, Presenter, Unknown, YesNo,
+    Item, ItemId, ItemKind, Limits, Origin, Param, ParamEntry, Presenter, System, Unknown, YesNo,
 };
 
 const PIECE_MAX: usize = 1024;
@@ -695,6 +695,35 @@ pub(crate) fn setup_with_line(
     line: Option<String>,
     limits: &Limits,
 ) -> Result<Item, Cause> {
+    setup_on(System::HOST, item, agent, name, params, line, limits)
+}
+
+/// What to type for `param` on `system` (r4 U3.22a): the sentence of `param_hint.<name>`, or of
+/// `param_hint.<name>_mac` or `param_hint.<name>_windows` where the answer is a path, whose
+/// example is a path of that system; the empty text for every other parameter.
+pub fn param_hint(param: Param, system: System) -> Result<String, Cause> {
+    let key = match (param, system) {
+        (Param::Workbook, System::Mac) => "param_hint.workbook_mac",
+        (Param::Workbook, System::Windows) => "param_hint.workbook_windows",
+        (Param::Sheet, _) => "param_hint.sheet",
+        (Param::Range, _) => "param_hint.range",
+        (Param::Source, System::Mac) => "param_hint.source_mac",
+        (Param::Source, System::Windows) => "param_hint.source_windows",
+        _ => return Ok(String::new()),
+    };
+    say(key)
+}
+
+/// `setup_with_line` with the hints of `system` (`param_hint`) in place of this build's.
+pub(crate) fn setup_on(
+    system: System,
+    item: &ItemId,
+    agent: &AgentId,
+    name: &str,
+    params: &[SetupParam],
+    line: Option<String>,
+    limits: &Limits,
+) -> Result<Item, Cause> {
     if params.len() > limits.setup_params as usize {
         return Err(Cause::Malformed);
     }
@@ -728,7 +757,9 @@ pub(crate) fn setup_with_line(
             } else {
                 String::new()
             },
+            hint: param_hint(p.param, system)?,
             refused: None,
+            not_taken: None,
         });
     }
     let line = line.map(halvo_said).transpose()?;

@@ -303,7 +303,7 @@ fn slots_of(body: &Body) -> Vec<(Name, Vec<String>)> {
 const CHOSEN: [(&str, &[&str]); 4] = [
     ("workbook", &["Rent 2026.xlsx"]),
     ("sheet", &["April", " and May"]),
-    ("range", &["A1 to C20"]),
+    ("range", &["A1:C20"]),
     ("source", &[ADDRESS]),
 ];
 
@@ -324,7 +324,7 @@ fn three_answers() -> Vec<SetupInput<'static>> {
         },
         SetupInput::Typed {
             param: Param::Range,
-            text: "A1 to C20",
+            text: "A1:C20",
         },
     ]
 }
@@ -1342,7 +1342,7 @@ fn every_body_of_any_sequence_of_answers_ticks_and_lost_acknowledgements_holds_t
         }),
         Step::Answer(SetupInput::Typed {
             param: Param::Range,
-            text: ADDRESS,
+            text: "A1:C20",
         }),
         Step::Answer(SetupInput::Choose {
             param: Param::Source,
@@ -1384,7 +1384,7 @@ fn every_body_of_any_sequence_of_answers_ticks_and_lost_acknowledgements_holds_t
                 let allowed: Vec<Vec<String>> = match n.as_str() {
                     "workbook" => vec![values(&["Rent 2026.xlsx"])],
                     "sheet" => vec![values(&["April", " and May"])],
-                    "range" => vec![values(&[ADDRESS])],
+                    "range" => vec![values(&["A1:C20"])],
                     "source" => vec![values(&[ADDRESS])],
                     other => panic!("sequence {code}: slot {other}"),
                 };
@@ -1402,8 +1402,9 @@ fn every_body_of_any_sequence_of_answers_ticks_and_lost_acknowledgements_holds_t
     assert!(bodies > 0 && closed > 0, "bodies={bodies} closed={closed}");
 }
 
-/// A typed value reaches the owner exactly as the person gave it, outer spaces included (I3.4,
-/// ruling IG-24; the verifier's M45).
+/// A typed value reaches the owner exactly as the person gave it, its lower case letters included
+/// (I3.4, ruling IG-24; the verifier's M45). Its value of Which cells held outer spaces until
+/// r4 U3.22a, under which the core takes only cells that the sheet crate reads.
 #[test]
 fn a_typed_value_reaches_the_owner_exactly_as_the_person_gave_it() {
     let f = facts(Category::SpreadsheetFill, "file", WorkflowState::Approved);
@@ -1411,7 +1412,7 @@ fn a_typed_value_reaches_the_owner_exactly_as_the_person_gave_it() {
     let p = Lossy::new(&inner);
     let mut s = spreadsheet();
     let mut l = ledger();
-    let given = "  A1 to C20 ";
+    let given = "a1:c20";
     let answers = [
         SetupInput::Choose {
             param: Param::Workbook,

@@ -101,6 +101,7 @@ names! {
         TakeBack = "take_back",
         SwitchOff = "switch_off",
         SwitchOn = "switch_on",
+        ChangeAnswers = "change_answers",
         UseModel = "use_model",
         ThisComputerOnly = "this_computer_only",
         StopSignIn = "stop_sign_in",
@@ -119,6 +120,7 @@ names! {
         StopSignIn = "stop_sign_in",
         UseModel = "use_model",
         ThisComputerOnly = "this_computer_only",
+        ChangeAnswers = "change_answers",
     }
 }
 
@@ -326,11 +328,27 @@ names! {
     /// The causes of the end of an agent's newest started run, of the roster's key `last_cause`
     /// (I6.1), for which the roster has a sentence: a part of the agent store's closed list of
     /// causes, whose other names the reader of the key takes as none (ruling of 2026-11-22
-    /// on `last_cause`).
+    /// on `last_cause`). The last thirteen are the causes of a failed run of the runtime file,
+    /// which the roster says for an agent of that runtime alone (r4 U3.22a, `roster::FILE_CAUSES`);
+    /// the nine from `no_workbook` on are the names of the agents run's unit r3 U11.3, which the
+    /// schema of this base does not hold yet.
     LastCause {
         NoChannel = "no_channel",
         BrowserStart = "browser_start",
         NoBrowser = "no_browser",
+        Workbook = "workbook",
+        Sheet = "sheet",
+        Changed = "changed",
+        StepFailed = "step_failed",
+        NoWorkbook = "no_workbook",
+        NoSheet = "no_sheet",
+        NoRange = "no_range",
+        DataShape = "data_shape",
+        NoDataFile = "no_data_file",
+        DataOutside = "data_outside",
+        DataForm = "data_form",
+        NotReplaced = "not_replaced",
+        ReadOnly = "read_only",
     }
 }
 

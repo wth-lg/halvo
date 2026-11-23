@@ -13,11 +13,13 @@ mod presenter;
 mod raise;
 mod setup;
 
+#[cfg(test)]
+pub(crate) use compose::setup_on;
 pub use compose::{
     admits, bound_field, class_fields, compose_bind, compose_check, compose_confirm,
     compose_link_account, compose_plain, compose_setup, compose_sign_in, field_from, kept_source,
-    native_card, native_lines, site_name, value_bound, Marking, NativeCard, Plain, SetupParam,
-    CARD_COLUMNS, CARD_LINES,
+    native_card, native_lines, param_hint, site_name, value_bound, Marking, NativeCard, Plain,
+    SetupParam, CARD_COLUMNS, CARD_LINES,
 };
 pub use confirm::{confirm_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 pub use key::Key;
@@ -26,4 +28,6 @@ pub use raise::{
     choices, handback_kind, handback_result, params, raise_confirm, raise_step, Raise, Source,
     CONFIRM_CLASSES,
 };
+#[cfg(test)]
+pub(crate) use setup::typed_line;
 pub use setup::{setup_step, Setup, SetupBody, SetupInput, SetupMove, SetupState};

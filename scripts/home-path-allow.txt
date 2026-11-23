@@ -18,3 +18,18 @@ crates/halvo-control/src/ctl_text.rs	/Users/example	a made-up account name, exam
 src-tauri/src/commands/tests.rs	/Users/someone	a made-up account name, someone, in the test of the places where an app's names are read
 src-tauri/src/commands/tests.rs	/System/Volumes/Data/Users/someone	a made-up account name, someone, in the test of the places where an app's names are read
 src-tauri/src/login_item.rs	C:\Users\a b	a made-up account name, a b, in the tests of the Run value of the app
+crates/halvo-coord/src/words.rs	/Users/ana	a made-up account name, ana, in an example path that the page shows a person: the spreadsheet agent's hints and sentences (r4 U3.22a)
+crates/halvo-coord/src/words.rs	C:\\Users\\ana	a made-up account name, ana, in an example path that the page shows a person: the spreadsheet agent's hints and sentences (r4 U3.22a)
+ui/tests/fixtures/coord/words.json	/Users/ana	a made-up account name, ana, in an example path that the page shows a person: the spreadsheet agent's hints and sentences (r4 U3.22a)
+ui/tests/fixtures/coord/words.json	C:\\Users\\ana	a made-up account name, ana, in an example path that the page shows a person: the spreadsheet agent's hints and sentences (r4 U3.22a)
+crates/halvo-coord/src/coordinator/setup_tests.rs	/Users/ana	a made-up account name, ana, in the tests that pin an example path that the page shows a person (r4 U3.22a)
+crates/halvo-coord/src/coordinator/setup_tests.rs	C:\\Users\\ana	a made-up account name, ana, in the tests that pin an example path that the page shows a person (r4 U3.22a)
+crates/halvo-coord/src/coordinator/tests.rs	/Users/ana	a made-up account name, ana, in the tests that pin an example path that the page shows a person (r4 U3.22a)
+crates/halvo-coord/src/coordinator/tests.rs	C:\\Users\\ana	a made-up account name, ana, in the tests that pin an example path that the page shows a person (r4 U3.22a)
+ui/tests/page/setup-answers.test.js	/Users/ana	a made-up account name, ana, in the tests that pin an example path that the page shows a person (r4 U3.22a)
+crates/halvo-coord/tests/typed/paths.txt	/Users/ana	a made-up account name, ana, in the table of typed paths that the tests of the example paths that the page shows a person read (r4 U3.22a)
+crates/halvo-coord/tests/typed/paths.txt	C:\Users\ana	a made-up account name, ana, in the table of typed paths that the tests of the example paths that the page shows a person read (r4 U3.22a)
+crates/halvo-coord/tests/typed/paths.txt	C:/Users/ana	a made-up account name, ana, in the table of typed paths that the tests of the example paths that the page shows a person read (r4 U3.22a)
+crates/halvo-coord/tests/typed/paths.txt	\Users\ana	a made-up account name, ana, in the table of typed paths that the tests of the example paths that the page shows a person read (r4 U3.22a)
+crates/halvo-coord/tests/typed/paths.txt	C:\Users\Book.xlsx	a made-up file name, Book.xlsx, right under the Users directory, in the table of typed paths that the tests of the example paths that the page shows a person read (r4 U3.22a)
+crates/halvo-coord/tests/typed/paths.txt	C:\Users\\Book.xlsx	a made-up file name, Book.xlsx, right under the Users directory, in the table of typed paths that the tests of the example paths that the page shows a person read (r4 U3.22a)

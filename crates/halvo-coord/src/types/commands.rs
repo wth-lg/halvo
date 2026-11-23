@@ -107,7 +107,7 @@ const PARAMS: [&str; 9] = [
     "seller",
 ];
 
-const ACTIONS: [&str; 8] = [
+const ACTIONS: [&str; 9] = [
     "run_now",
     "stop",
     "take_back",
@@ -116,6 +116,7 @@ const ACTIONS: [&str; 8] = [
     "stop_sign_in",
     "use_model",
     "this_computer_only",
+    "change_answers",
 ];
 
 const fn arg(name: &'static str, kind: ArgType) -> Arg {

@@ -61,3 +61,32 @@ fn drive(path: &str) -> Option<&str> {
         && matches!(bytes[2], b'\\' | b'/');
     rooted.then(|| &path[3..])
 }
+
+#[cfg(test)]
+mod core_table {
+    use super::{workbook_path, PathForm};
+
+    /// r4 U3.22a sentence 3: the core checks a typed path by this rule before anything is sent,
+    /// over ONE table that its own test reads too (crates/halvo-coord/tests/typed/paths.txt). For
+    /// every row of both forms, `workbook_path` takes the line that the core checks exactly where
+    /// the row says that the core takes it, so that no typed line of a person reaches the refusal
+    /// `binding` of `set_bindings`.
+    #[test]
+    fn workbook_path_takes_exactly_the_lines_that_the_cores_table_of_typed_paths_takes() {
+        let table = include_str!("../../halvo-coord/tests/typed/paths.txt");
+        let mut rows = 0;
+        for line in table.lines().filter(|l| !l.starts_with('#')) {
+            let f: Vec<&str> = line.split('\t').collect();
+            assert_eq!(f.len(), 4, "{line}");
+            let form = if f[0] == "windows" {
+                PathForm::Windows
+            } else {
+                assert_eq!(f[0], "posix", "{line}");
+                PathForm::Posix
+            };
+            assert_eq!(workbook_path(f[3], form).is_ok(), f[1] == "taken", "{line}");
+            rows += 1;
+        }
+        assert!(rows > 0, "the table holds rows");
+    }
+}

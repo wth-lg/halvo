@@ -1,6 +1,6 @@
 (function () {
   var ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
-  var CONTROL = { run_now: true, stop: true, take_back: true, switch_off: true, switch_on: true, use_model: true, this_computer_only: true, stop_sign_in: true, delete: true };
+  var CONTROL = { run_now: true, stop: true, take_back: true, switch_off: true, switch_on: true, change_answers: true, use_model: true, this_computer_only: true, stop_sign_in: true, delete: true };
   var ASKED = { delete: 'ask', stop_sign_in: 'ask_stop_sign_in', use_model: 'ask_use_model' };
   var NOTED = { use_model: 'note_use_model' };
   var CARD_TRIES = 3;

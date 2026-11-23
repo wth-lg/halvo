@@ -4,7 +4,7 @@ use super::{bound_field, value_bound, Marking, SetupParam};
 use crate::ports::{Refused, Shared};
 use crate::types::{
     AgentId, Body, BoundFrom, Category, Cause, Class, Item, ItemId, Limits, Name, Overlapping,
-    Param, Slot, WorkflowId,
+    Param, Slot, System, WorkflowId,
 };
 
 const TYPED_MAX: usize = 1024;
@@ -100,10 +100,34 @@ pub enum SetupMove<'a> {
     Again,
 }
 
+/// Why the core did not take a typed line of a parameter (r4 U3.22a): the parameter holds no
+/// value, and its entry carries the sentence of the reason until its next answer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NotTaken {
+    /// A line of Which spreadsheet file or Where the data comes from that is no full path of
+    /// the system in one spelling (`typed_line`).
+    Path,
+    /// A line of Which cells that names no cells as the sheet crate reads them (`typed_line`).
+    Cells,
+}
+
+impl NotTaken {
+    /// The words key of the sentence under the line on `system`.
+    fn key(self, system: System) -> &'static str {
+        match (self, system) {
+            (NotTaken::Path, System::Mac) => "param_typed.not_path_mac",
+            (NotTaken::Path, System::Windows) => "param_typed.not_path_windows",
+            (NotTaken::Cells, _) => "param_typed.not_cells",
+        }
+    }
+}
+
 /// A setup item that the coordinator holds: its item id, its workflow and agent, its
 /// parameters with their candidates, the value given for each so far, the refusal by entry that
-/// the reader of senders gave the newest answer for each, whether the owner refused its answers
-/// by a name after which another value can pass, and its state.
+/// the reader of senders gave the newest answer for each, the reason why the core did not take
+/// the newest typed line of each, whether the owner refused its answers by a name after which
+/// another value can pass, whether it asks again answers that its agent has stored, and its
+/// state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Setup {
     item: ItemId,
@@ -113,7 +137,9 @@ pub struct Setup {
     params: Vec<SetupParam>,
     given: Vec<Option<Vec<String>>>,
     refused: Vec<Option<Refused>>,
+    untaken: Vec<Option<NotTaken>>,
     not_taken: bool,
+    again: bool,
     step: u32,
     state: SetupState,
     kept: Option<SetupBody>,
@@ -147,14 +173,31 @@ impl Setup {
             category,
             given: vec![None; params.len()],
             refused: vec![None; params.len()],
+            untaken: vec![None; params.len()],
             params,
             not_taken: false,
+            again: false,
             step: 0,
             state: SetupState::Open,
             kept: None,
             shared: None,
             waits: None,
         })
+    }
+
+    /// The item as one that asks again the answers that its agent has stored, which the person's
+    /// Change its answers put up with no row (r4 U3.22a): the answer `none` closes it, so that
+    /// the stored answers stand.
+    pub fn asked_again(self) -> Setup {
+        Setup {
+            again: true,
+            ..self
+        }
+    }
+
+    /// Whether the item asks again the answers that its agent has stored (`asked_again`).
+    pub fn is_asked_again(&self) -> bool {
+        self.again
     }
 
     /// The body that the owner refused with `overlap`, kept in memory and never stored, which
@@ -253,8 +296,10 @@ impl Setup {
 
     /// The item as the page gets it (I3.4, I3.5), for the agent of the name `name` (I2.3):
     /// `compose_setup` of its parameters, with the line `item.setup.not_taken` while it asks
-    /// again and the key `refused` of each parameter whose newest answer the reader of senders
-    /// refused (ruling RD-81 9.3). Where the item holds what the read after the newest refusal
+    /// again, the key `refused` of each parameter whose newest answer the reader of senders
+    /// refused (ruling RD-81 9.3), and the key `not_taken` of each parameter whose newest typed
+    /// line the core did not take, with the sentence of its reason on this build's system (r4
+    /// U3.22a). Where the item holds what the read after the newest refusal
     /// `overlap` gave, the overlap sentence stands in the place of `item.setup.not_taken`, with
     /// the name of the other agent's row from `name_of` (I3.5 (c)).
     pub fn page_item(
@@ -270,11 +315,18 @@ impl Setup {
         };
         let item = setup_with_line(&self.item, &self.agent, name, &self.params, line, limits)?;
         let refused = self.params.iter().zip(&self.refused);
-        Ok(refused
+        let mut item = refused
             .filter_map(|(p, r)| r.map(|r| (p.param, r)))
             .fold(item.at_step(self.step), |item, (param, r)| {
                 item.refused_at(param, r)
-            }))
+            });
+        for (p, why) in self.params.iter().zip(&self.untaken) {
+            if let Some(why) = why {
+                let sentence = crate::words::text(why.key(System::HOST), &[])?;
+                item = item.not_taken_at(p.param, sentence);
+            }
+        }
+        Ok(item)
     }
 
     fn at(&self, param: Param) -> Result<usize, Cause> {
@@ -335,13 +387,94 @@ pub(super) fn fits(category: Category, param: Param, text: &str) -> bool {
 
 /// A typed answer: one line of at most 1,024 bytes that holds something other than white space
 /// (I3.5); else `malformed`.
-fn typed(text: &str) -> Result<Vec<String>, Cause> {
+fn typed(text: &str) -> Result<(), Cause> {
     let one_line = !text.contains(['\n', '\r']);
     if one_line && text.len() <= TYPED_MAX && !text.trim().is_empty() {
-        Ok(vec![text.to_owned()])
+        Ok(())
     } else {
         Err(Cause::Malformed)
     }
+}
+
+/// The line that the core takes of a typed answer `text` of `param` on `system`, or why it does
+/// not take it (r4 U3.22a). For Which spreadsheet file and Where the data comes from: the line
+/// without the spaces around it and then without ONE pair of quotation marks around the whole of
+/// it, where what is left is a full path of the system in one spelling (`full_path`), else
+/// `NotTaken::Path`. For Which cells: the line as it is typed, where it names cells as the sheet
+/// crate reads them (`cells`), else `NotTaken::Cells`. Every other parameter's line as it is
+/// typed.
+pub(crate) fn typed_line(param: Param, text: &str, system: System) -> Result<String, NotTaken> {
+    match param {
+        Param::Workbook | Param::Source => {
+            let line = text.trim();
+            let line = line
+                .strip_prefix('"')
+                .and_then(|l| l.strip_suffix('"'))
+                .unwrap_or(line);
+            if full_path(line, system) {
+                Ok(line.to_owned())
+            } else {
+                Err(NotTaken::Path)
+            }
+        }
+        Param::Range if cells(text) => Ok(text.to_owned()),
+        Param::Range => Err(NotTaken::Cells),
+        _ => Ok(text.to_owned()),
+    }
+}
+
+/// Whether `text` names cells as the sheet crate's `Range::parse` takes them (ONE table that a
+/// test of each crate reads, `tests/typed/cells.txt`): `B2:D6`, or one cell `B2`; a column of 1
+/// to 3 letters of either case up to `XFD`; a row from 1 to 1,048,576 with no leading zero; the
+/// first cell's row and column at most the last cell's.
+fn cells(text: &str) -> bool {
+    let (first, last) = text.split_once(':').unwrap_or((text, text));
+    match (cell(first), cell(last)) {
+        (Some(first), Some(last)) => first.0 <= last.0 && first.1 <= last.1,
+        _ => false,
+    }
+}
+
+/// The row and the column of one cell of the A1 form, each from 1.
+fn cell(text: &str) -> Option<(u32, u32)> {
+    let letters = text.bytes().take_while(u8::is_ascii_alphabetic).count();
+    let (column, row) = text.split_at(letters);
+    let digits = !row.is_empty() && row.bytes().all(|b| b.is_ascii_digit());
+    if !(1..=3).contains(&letters) || !digits || row.starts_with('0') {
+        return None;
+    }
+    let column = column.bytes().fold(0u32, |acc, b| {
+        acc * 26 + u32::from(b.to_ascii_uppercase() - b'A' + 1)
+    });
+    let row: u32 = row.parse().ok()?;
+    (column <= 16_384 && row <= 1_048_576).then_some((row, column))
+}
+
+/// Whether `path` is a full path of `system` in one spelling, by the agent store's own rule for
+/// the slot `workbook` (halvo-agent-store `workbook_path` in the native form; ONE table that a
+/// test of each crate reads, `tests/typed/paths.txt`): on a Mac it starts with `/`, whose
+/// separator is `/`; on Windows it starts with a drive letter, `:` and a separator, and its
+/// separators are `\` and `/`; and no step after the root is empty, `.` or `..`.
+fn full_path(path: &str, system: System) -> bool {
+    let (steps, separators): (Option<&str>, &[char]) = match system {
+        System::Mac => (path.strip_prefix('/'), &['/']),
+        System::Windows => (drive(path), &['/', '\\']),
+    };
+    steps.is_some_and(|steps| {
+        steps
+            .split(separators)
+            .all(|step| !step.is_empty() && step != "." && step != "..")
+    })
+}
+
+/// What follows the drive of a path of the Windows form: a letter, `:` and a separator.
+fn drive(path: &str) -> Option<&str> {
+    let bytes = path.as_bytes();
+    let rooted = bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'\\' | b'/');
+    rooted.then(|| &path[3..])
 }
 
 /// The decision of the setup flow (I3.5, I5.10, ruling IG-6c): the setup after `mv`, or the
@@ -352,10 +485,14 @@ fn typed(text: &str) -> Result<Vec<String>, Cause> {
 /// item, `not_taken` makes it open again with every answer cleared, its step mark one more, and
 /// the line `item.setup.not_taken` (ruling IG-34), and `gone` ends it. An open item refuses the
 /// acknowledgement and `not_taken` with `state`, keeps everything at `none` (I3.5, ruling RD-23
-/// (b)), and takes `choose` of a candidate that it shows, or a typed line for a parameter with no
+/// (b)) but for an item asked again, which `none` closes (`Setup::asked_again`, r4 U3.22a), and
+/// takes `choose` of a candidate that it shows, or a typed line for a parameter with no
 /// candidate that holds, for a parameter that binds a deciding field, to that field's predicate
 /// (`fits`; ruling RD-90 item 6) (`malformed` otherwise); a later answer for a parameter replaces
-/// the earlier one.
+/// the earlier one. Such a typed line goes in the form that `typed_line` gives on this build's
+/// system; a line that `typed_line` does not take is not taken: the parameter holds no value and
+/// carries the reason until its next answer, so that no body is made, and the move is no refusal
+/// (r4 U3.22a).
 /// While a parameter has no answer the item stays open; the answer that gives the last one makes
 /// the one body `set_bindings`, with the slots of the given values, which is owed from then on.
 /// `overlap` (I3.5 (a); ruling RD-67 3.2) makes an owed item open as `not_taken` does and keeps
@@ -380,6 +517,7 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
         (SetupState::Owed(_), SetupMove::NotTaken) => {
             next.given = vec![None; setup.params.len()];
             next.refused = vec![None; setup.params.len()];
+            next.untaken = vec![None; setup.params.len()];
             next.not_taken = true;
             next.step = setup.step.saturating_add(1);
             next.state = SetupState::Open;
@@ -390,6 +528,7 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
         (SetupState::Owed(body), SetupMove::Overlap) => {
             next.given = vec![None; setup.params.len()];
             next.refused = vec![None; setup.params.len()];
+            next.untaken = vec![None; setup.params.len()];
             next.not_taken = true;
             next.step = setup.step.saturating_add(1);
             next.state = SetupState::Open;
@@ -411,6 +550,10 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
         | (SetupState::Open, SetupMove::Acknowledged | SetupMove::NotTaken) => {
             return Err(Cause::State)
         }
+        (SetupState::Open, SetupMove::Input(SetupInput::None)) if setup.again => {
+            next.state = SetupState::Closed;
+            return Ok(next);
+        }
         (SetupState::Open, SetupMove::Input(SetupInput::None)) => {}
         (SetupState::Open, SetupMove::Input(SetupInput::Choose { param, n })) => {
             let i = setup.at(param)?;
@@ -422,17 +565,27 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
                 .ok_or(Cause::Malformed)?;
             next.given[i] = Some(value.clone());
             next.refused[i] = None;
+            next.untaken[i] = None;
         }
         (SetupState::Open, SetupMove::Input(SetupInput::Typed { param, text })) => {
             let i = setup.at(param)?;
             if !setup.params[i].candidates.is_empty() {
                 return Err(Cause::Malformed);
             }
-            let value = typed(text)?;
+            typed(text)?;
             if !fits(setup.category, param, text) {
                 return Err(Cause::Malformed);
             }
-            next.given[i] = Some(value);
+            match typed_line(param, text, System::HOST) {
+                Ok(line) => {
+                    next.given[i] = Some(vec![line]);
+                    next.untaken[i] = None;
+                }
+                Err(why) => {
+                    next.given[i] = None;
+                    next.untaken[i] = Some(why);
+                }
+            }
             next.refused[i] = None;
         }
     }

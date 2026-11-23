@@ -6,7 +6,7 @@
     - {"role":"list"}
       - {"role":"listitem"}
         - {"level":3,"name":"Answer a few questions for “Ordering from a shop on Site7”","role":"heading"}
-        - {"role":"paragraph","text":"Choose one answer for each question, then choose Use these answers."}
+        - {"role":"paragraph","text":"Answer each question, then choose Use these answers."}
         - {"name":"Where to start","role":"group"}
           - {"0":"W","1":"h","2":"e","3":"r","4":"e","5":" ","6":"t","7":"o","8":" ","9":"s","10":"t","11":"a","12":"r","13":"t"}
           - {"name":"site7.example","role":"radio"}

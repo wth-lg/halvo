@@ -1,0 +1,3 @@
+- Added: Each of the spreadsheet agent's four questions says what to type, with an example for this computer, and the agent's row offers Change its answers to answer them again.
+- Changed: Every set-up item says "Answer each question, then choose Use these answers." above its questions, and the row of a spreadsheet agent whose run failed says why, or that its new answers are saved.
+- Fixed: A spreadsheet file or data file that is not a full path, or cells not written like A2:C11, are refused at their line with a sentence before anything is sent, and the card keeps the other answers as typed.

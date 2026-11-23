@@ -68,6 +68,11 @@ pub enum StatusLine {
     /// `last_cause`, I6.1), in place of the failed run's line. `all` does not list it until its
     /// fixture state of I8.3 is written.
     LastCause(LastCause),
+    /// `problem.answers_saved`: the row of `Problem` and of `LastCause` for an agent whose rows
+    /// hold a set-up's `item_answered` behind the end of its newest run, which ended with a cause
+    /// of the failure class (r4 U3.22a, the coordinator's fifth ruling on its words). `all` does
+    /// not list it until its fixture state of I8.3 is written.
+    AnswersSaved,
     /// `all_set.tried_today`: a day with `starts_per_day` starts.
     TriedToday,
     /// `all_set.new`: no run of the agent has ended.
@@ -128,6 +133,7 @@ impl StatusLine {
             | StatusLine::Failures
             | StatusLine::Problem(_)
             | StatusLine::LastCause(_)
+            | StatusLine::AnswersSaved
             | StatusLine::Record => Status::Problem,
             StatusLine::Starting
             | StatusLine::Working
@@ -162,6 +168,7 @@ impl StatusLine {
             StatusLine::Store => "store",
             StatusLine::Problem(f) => f.name(),
             StatusLine::LastCause(c) => c.name(),
+            StatusLine::AnswersSaved => "answers_saved",
             StatusLine::TriedToday => "tried_today",
             StatusLine::New => "new",
             StatusLine::Done => "done",

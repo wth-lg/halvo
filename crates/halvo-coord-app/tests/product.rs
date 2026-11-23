@@ -1052,10 +1052,11 @@ mod mac {
     }
 
     /// r3 U11.3 part one: a workbook that is no absolute path, typed into the set-up item of a spreadsheet agent,
-    /// reaches the owner's store, which refuses that slot with `slot_form`. The core then asks every question again in
-    /// the same item, with the line `item.setup.not_taken`, and the agent's row stays on the page. On main before the
-    /// unit the store answered `binding`, which the core reads as an agent that is not the workflow's: the item ended
-    /// and the row left the page until Halvo started again.
+    /// leaves the agent's row on the page and the same item open. On main before that unit the store answered
+    /// `binding`, which the core reads as an agent that is not the workflow's: the item ended and the row left the
+    /// page until Halvo started again. Since r4 U3.22a the core refuses such a typed line at its line, before anything
+    /// goes to the store: the workbook's entry carries the sentence of a line that is not taken; the store's
+    /// `slot_form`, behind which the core asks every question again, stands behind that check.
     fn a_workbook_that_is_no_absolute_path_is_asked_again_and_the_agents_row_stays() {
         let mut world = World::new("slot-form");
         let (_, agent) = world.agent_of(SeedCategory::SpreadsheetFill);
@@ -1103,11 +1104,16 @@ mod mac {
         assert!(row.is_some(), "the agent's row stays: {snapshot}");
         let again = setup_item(&hub, &agent).expect("the item asks again");
         assert_eq!(again["item"], id.as_str(), "the same item: {again}");
-        let not_taken = halvo_coord::words::text("item.setup.not_taken", &[]).unwrap();
+        let key = if cfg!(windows) {
+            "param_typed.not_path_windows"
+        } else {
+            "param_typed.not_path_mac"
+        };
+        let not_a_full_path = halvo_coord::words::text(key, &[]).unwrap();
         assert!(
-            again["fields"]
-                .as_array()
-                .is_some_and(|f| f.iter().any(|f| f["label"] == not_taken.as_str())),
+            again["params"].as_array().is_some_and(|ps| ps
+                .iter()
+                .any(|p| p["name"] == "workbook" && p["not_taken"] == not_a_full_path.as_str())),
             "{again}"
         );
         assert!(

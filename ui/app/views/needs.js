@@ -47,28 +47,42 @@
     return { start: start, gone: before.length - start - end, added: after.length - start - end };
   }
 
-  function limit(typed, full, tooLong) {
-    const line = { kept: '', composing: false, ended: false, held: false, field: typed, sent: null, text: null };
+  function limit(typed, full, tooLong, hintId, notTaken) {
+    const line = { kept: '', composing: false, ended: false, held: false, stored: false, field: typed, sent: null, text: null };
     let mark = false;
     let shown = null;
     let note = null;
     let before = null;
     let start = null;
+    let refused = notTaken || '';
+    function textOf(which) {
+      return which === 'full' ? full : which === 'too_long' ? tooLong : which === 'not_taken' ? refused : '';
+    }
+    function rest() {
+      return refused ? 'not_taken' : null;
+    }
+    function describe() {
+      const ids = [hintId, note ? note.id : ''].filter(function (id) {
+        return id;
+      });
+      if (ids.length > 0) typed.setAttribute('aria-describedby', ids.join(' '));
+      else typed.removeAttribute('aria-describedby');
+    }
     function show(which) {
       if (shown === which) return;
       shown = which;
       if (note) {
         note.remove();
         note = null;
-        typed.removeAttribute('aria-describedby');
       }
-      const text = which === 'full' ? full : which === 'too_long' ? tooLong : '';
-      if (!text) return;
-      note = el('p', 'hn-full', text);
-      note.id = fresh();
-      typed.parentNode.insertBefore(note, typed.nextSibling);
-      typed.setAttribute('aria-describedby', note.id);
-      tell(text, line);
+      const text = textOf(which);
+      if (text) {
+        note = el('p', 'hn-full', text);
+        note.id = fresh();
+        typed.parentNode.insertBefore(note, typed.nextSibling);
+      }
+      describe();
+      if (text) tell(text, line);
     }
     function atBound() {
       return mark || bytes(line.kept) >= 1024;
@@ -87,15 +101,20 @@
       line.kept = now;
       if (change.added === 0) {
         mark = false;
-        show(null);
+        show(rest());
       }
       return true;
     }
     line.sent = function () {
-      if (shown === 'too_long') show(null);
+      if (shown === 'too_long') show(rest());
+    };
+    line.restore = function (text, stored) {
+      typed.value = text;
+      line.kept = text;
+      line.stored = stored;
     };
     line.text = function () {
-      return shown === 'full' ? full : shown === 'too_long' ? tooLong : '';
+      return textOf(shown);
     };
     typed.addEventListener('beforeinput', function () {
       before = [typed.selectionStart, typed.selectionEnd];
@@ -118,6 +137,8 @@
       before = null;
       judge(typed.value, was);
     });
+    describe();
+    show(rest());
     return line;
   }
 
@@ -157,13 +178,19 @@
     });
   }
 
-  function addParams(box, item, answers) {
+  function addParams(box, item, answers, carry) {
     item.params.forEach(function (p) {
       const set = el('fieldset', 'hn-param', '');
       const legend = el('legend', null, p.label);
       legend.id = fresh();
       const group = fresh();
       set.appendChild(legend);
+      let hint = null;
+      if (p.hint) {
+        hint = el('p', 'hn-hint', p.hint);
+        hint.id = fresh();
+        set.appendChild(hint);
+      }
       const radios = [];
       p.candidates.forEach(function (c) {
         const label = el('label', 'hn-choice', '');
@@ -195,7 +222,9 @@
         typed.setAttribute('autocapitalize', 'off');
         typed.setAttribute('spellcheck', 'false');
         set.appendChild(typed);
-        line = limit(typed, p.full, p.too_long);
+        line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken);
+        const was = carry && carry.step === item.step ? carry.lines.get(p.name) : null;
+        if (was) line.restore(was.text, was.stored && !p.not_taken);
       }
       box.appendChild(set);
       answers.push({ param: p.name, radios: radios, typed: typed, line: line });
@@ -203,6 +232,7 @@
   }
 
   function chosen(item, answers) {
+    const first = [];
     const calls = [];
     answers.forEach(function (a) {
       const picked = a.radios.filter(function (r) {
@@ -211,10 +241,10 @@
       if (picked) {
         calls.push(['agents_answer', { item: item.item, step: item.step, choice: 'choose', param: a.param, n: picked.n }]);
       } else if (a.line && a.line.kept.trim() !== '') {
-        calls.push(['agents_setup_typed', { item: item.item, step: item.step, param: a.param, text: a.line.kept }]);
+        (a.line.stored ? first : calls).push(['agents_setup_typed', { item: item.item, step: item.step, param: a.param, text: a.line.kept }]);
       }
     });
-    return calls;
+    return first.concat(calls);
   }
 
   function held(card, sent) {
@@ -272,13 +302,29 @@
       return;
     }
     if (choice.choice === 'choose' && item.params.length > 0) {
+      const emptied = card.answers.filter(function (a) {
+        return a.line && a.line.stored && a.line.kept.trim() === '';
+      })[0];
+      if (emptied) {
+        emptied.line.field.focus();
+        return;
+      }
       const calls = chosen(item, card.answers);
       if (calls.length === 0) return;
+      const key = card.key;
+      const went = [];
       held(card, calls.reduce(function (done, c) {
         return done.then(function (reply) {
-          return reply === null || reply.error ? reply : call(c[0], c[1]);
+          if (reply === null || reply.error) return reply;
+          return call(c[0], c[1]).then(function (r) {
+            if (r && !r.error && c[0] === 'agents_setup_typed') went.push(c[1].param);
+            return r;
+          });
         });
-      }, Promise.resolve({})));
+      }, Promise.resolve({})).then(function (reply) {
+        settle(key, item, went);
+        return reply;
+      }));
       card.answers.forEach(function (a) {
         if (a.line) a.line.sent();
       });
@@ -292,6 +338,26 @@
     held(card, call('agents_answer', { item: item.item, step: item.step, choice: choice.choice })).then(function (reply) {
       if ((!reply || reply.error) && answered.delete(item.item) && last) apply(last);
     });
+  }
+
+  function settle(key, item, went) {
+    const card = cards.get(key);
+    if (!card || card.item.step !== item.step) return;
+    card.answers.forEach(function (a) {
+      if (!a.line || went.indexOf(a.param) < 0) return;
+      const entry = card.item.params.filter(function (p) {
+        return p.name === a.param;
+      })[0];
+      a.line.stored = !(entry && entry.not_taken);
+    });
+  }
+
+  function kept(card) {
+    const lines = new Map();
+    card.answers.forEach(function (a) {
+      if (a.line) lines.set(a.param, { text: a.line.kept, stored: a.line.stored });
+    });
+    return { step: card.step, lines: lines };
   }
 
   function input(event) {
@@ -328,8 +394,8 @@
     });
   }
 
-  function build(item, key) {
-    const card = { id: item.item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
+  function build(item, key, carry) {
+    const card = { id: item.item, item: item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
@@ -342,7 +408,7 @@
     if (item.text) about.appendChild(el('p', 'hn-text', item.text));
     addFields(about, item.fields);
     box.appendChild(about);
-    addParams(box, item, card.answers);
+    addParams(box, item, card.answers, carry);
     const controls = el('div', 'hn-controls', '');
     const buttons = [];
     item.choices.forEach(function (c) {
@@ -422,8 +488,11 @@
     items.forEach(function (item, i) {
       now.set(keys[i], asHeld(item));
     });
+    const carried = new Map();
     Array.from(cards.keys()).forEach(function (key) {
-      if (now.get(key) !== cards.get(key).json) drop(key);
+      if (now.get(key) === cards.get(key).json) return;
+      if (now.has(key)) carried.set(key, kept(cards.get(key)));
+      drop(key);
     });
     const next = new Map();
     let ref = list.firstChild;
@@ -433,8 +502,9 @@
         if (newer) card.busy = false;
         ref = ref.nextSibling;
       } else {
+        const carry = card ? kept(card) : carried.get(keys[i]);
         if (card) drop(keys[i]);
-        card = build(item, keys[i]);
+        card = build(item, keys[i], carry);
         list.insertBefore(card.li, ref);
       }
       next.set(keys[i], card);
