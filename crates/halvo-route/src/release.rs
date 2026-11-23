@@ -120,6 +120,17 @@ mod tests {
                 );
             }
         }
+        let both = "tier\torigin\tmodel\tadapter\tsource\tdate\n\
+                    low_cost_hosted\thttps://low.invalid\tlow-model\tadapter-a\tpage:test\t2026-11-22\n\
+                    frontier\thttps://top.invalid\ttop-model\tadapter-b\tpage:test\t2026-11-22\n";
+        assert_eq!(ruling_of("ruling=hosted\n", both, &paid).rows().len(), 2);
+        for one_fixture in [&low, &top] {
+            assert_eq!(
+                ruling_of("ruling=hosted\n", both, one_fixture),
+                Ruling::None,
+                "{one_fixture:?}"
+            );
+        }
     }
 
     #[test]
