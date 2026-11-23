@@ -3,7 +3,7 @@ name: ci
 on:
   push:
     branches-ignore: ['land-*', 'land-*/**']
-    tags: ['**']
+    tags: ['**', '!dev-*']
   pull_request:
   schedule:
     - cron: '17 3 * * 1'
