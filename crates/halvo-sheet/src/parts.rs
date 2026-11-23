@@ -836,6 +836,84 @@ pub(crate) fn part_of(entries: &Entries, sheet: &str) -> Result<String, Error> {
     }
 }
 
+/// The most names that [`worksheet_names`] answers (r4 U3.22c).
+pub(crate) const NAMES_MAX: usize = 64;
+/// The most bytes of one name that [`worksheet_names`] answers (r4 U3.22c).
+pub(crate) const NAME_BYTES_MAX: usize = 255;
+
+/// The attribute `state` and the relationship of each element `sheet` of the workbook part, in
+/// its order, read as `sheet_elements` reads that element: the element `sheet` at any depth, its
+/// relationship by the last attribute `id` of any prefix.
+fn sheet_marks(xml: &[u8]) -> Result<Vec<(Option<String>, Option<String>)>, Error> {
+    let mut reader = new_reader(xml);
+    let mut buf = Vec::new();
+    let mut found = Vec::new();
+    loop {
+        let event = reader.read_event_into(&mut buf).map_err(|_| part())?;
+        match &event {
+            Event::Eof => break,
+            Event::Start(e) | Event::Empty(e) if local(e.name().as_ref()) == "sheet" => {
+                let mut state = None;
+                let mut id = None;
+                for attribute in e.attributes() {
+                    let attribute = attribute.map_err(|_| part())?;
+                    let key = attribute.key.as_ref();
+                    if key == "state" {
+                        state = Some(unescape(&attribute.value).map_err(|_| part())?.into_owned());
+                    } else if key == "id" || key.ends_with(":id") {
+                        id = Some(attribute.value.to_string());
+                    }
+                }
+                found.push((state, id));
+            }
+            _ => {}
+        }
+        buf.clear();
+    }
+    Ok(found)
+}
+
+/// The names of the workbook's worksheets, in the order of the workbook part, each as `part_of`
+/// finds it by name (r4 U3.22c): an element `sheet` whose relationship is of the type
+/// `worksheet`. A very hidden sheet (`state="veryHidden"`), which Excel shows nowhere, is left
+/// out, and so is a sheet of another type (a chart sheet, a dialog sheet, a macro sheet); a
+/// hidden one is a name like any other. Refused: an element `sheet` whose relationship is
+/// missing, marked `External`, or does not name its part as the reader reads it
+/// ([`Refusal::Relationship`]), and more than [`NAMES_MAX`] names or a name of more than
+/// [`NAME_BYTES_MAX`] bytes ([`Refusal::Size`]): never a list that lacks a worksheet.
+pub(crate) fn worksheet_names(entries: &Entries) -> Result<Vec<String>, Error> {
+    let names = Names::new(entries);
+    let found = sheets(&names)?;
+    let (book, xml) = workbook(&names)?;
+    let rels = match names.find(&rels_of(book)) {
+        Some((_, rels)) => relationships(rels)?,
+        None => Vec::new(),
+    };
+    let by_id: BTreeMap<&str, &Rel> = rels.iter().map(|rel| (rel.id.as_str(), rel)).collect();
+    let marks = sheet_marks(xml)?;
+    if marks.len() != found.len() {
+        return Err(part());
+    }
+    let mut listed = Vec::new();
+    for (sheet, (state, id)) in found.into_iter().zip(marks) {
+        let rel = id
+            .as_deref()
+            .and_then(|id| by_id.get(id))
+            .filter(|rel| !rel.external);
+        let Some(rel) = rel.filter(|_| sheet.part.is_some() && sheet.agrees) else {
+            return Err(relationship());
+        };
+        if rel.tail != "worksheet" || state.as_deref() == Some("veryHidden") {
+            continue;
+        }
+        if sheet.name.len() > NAME_BYTES_MAX || listed.len() == NAMES_MAX {
+            return Err(size());
+        }
+        listed.push(sheet.name);
+    }
+    Ok(listed)
+}
+
 #[cfg(test)]
 pub(crate) fn sheet_parts(entries: &Entries) -> Vec<String> {
     let names = Names::new(entries);
