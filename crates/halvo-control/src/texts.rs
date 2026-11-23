@@ -120,8 +120,9 @@ pub const fn keys_row(platform: Platform) -> &'static str {
     }
 }
 
-/// The control of typing in a view: its label, whether the status's key_class reads on, and
-/// while it reads off [`IF_YOU_TURN_THIS_ON`] with the row of keys of the system.
+/// The control of typing in a view: its label, whether the status's key_class reads on, while
+/// it reads off [`IF_YOU_TURN_THIS_ON`] with the row of keys of the system, and the status's word
+/// of a turn to off that the state file did not take, for the page's sentence of that turn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct TypingSwitch {
     pub label: &'static str,
@@ -130,6 +131,8 @@ pub struct TypingSwitch {
     pub if_on: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub row: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub not_saved: Option<crate::proto::TypingOffUnsaved>,
 }
 
 /// The control of typing for `status`, by its switch key_class alone.
@@ -144,6 +147,7 @@ pub fn typing_switch(status: &DaemonStatus) -> TypingSwitch {
         on,
         if_on: (!on).then_some(IF_YOU_TURN_THIS_ON),
         row: (!on).then_some(keys_row(f.platform)),
+        not_saved: f.typing_off_unsaved.filter(|_| !on),
     }
 }
 

@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use halvo_control::exit;
 use halvo_control::onboarding::{GrantState, Permission};
-use halvo_control::proto::{Platform, SourceName};
+use halvo_control::proto::{Platform, SourceName, TypingOffUnsaved};
 
 use super::board::{Board, Capture, Drain};
 use super::counters::Snapshot;
@@ -311,9 +311,16 @@ impl StopKind {
 pub enum TypingTurn {
     /// The state file holds the turn, and the sources follow it in this life.
     Written,
-    /// The write failed or the file does not load: typing stays off in this
-    /// life, a turn off and a turn on alike.
+    /// The write failed or the file does not load: typing stays off, a turn
+    /// off and a turn on alike; behind a turn off the note keeps it off until
+    /// a turn on.
     NotWritten(StateError),
+    /// A turn off whose write failed and whose note could not be written
+    /// either, where none stood: typing is off in this life alone.
+    NoteNotWritten(StateError, std::io::Error),
+    /// A turn on that the state file holds while the note of a turn off that
+    /// it did not take could not be let go: typing stays off.
+    NoteStands(std::io::Error),
     /// The supervisor holds no state file.
     NoStateFile,
     /// A turn on in a life whose owner drops every key: the file holds it,
@@ -413,6 +420,52 @@ pub trait Marker {
     /// PL-3 part (5)).
     fn clear_hold(&mut self) -> std::io::Result<()> {
         Ok(())
+    }
+}
+
+/// Where the supervisor keeps a turn of typing to off that the state file
+/// did not take, so that every later life starts with typing off until a
+/// turn on lets it go: the note of a service run in run/ of its held folder.
+pub trait TypingNote {
+    fn keep(&mut self) -> std::io::Result<()>;
+
+    fn let_go(&mut self) -> std::io::Result<()>;
+}
+
+/// The note in run/ of the folder that the instance lock holds
+/// (`run_marker::keep_typing_off`, `run_marker::let_typing_go`). Where no
+/// run/ stood at the start no note can stand, so a let-go has nothing to
+/// remove; a run/ that could not be opened for another cause can be neither
+/// kept nor let go.
+#[cfg(any(target_os = "macos", windows))]
+pub struct NoteInRun {
+    run: Result<super::run_marker::HeldRun, std::io::ErrorKind>,
+}
+
+#[cfg(any(target_os = "macos", windows))]
+impl NoteInRun {
+    pub fn new(run: std::io::Result<super::run_marker::HeldRun>) -> NoteInRun {
+        NoteInRun {
+            run: run.map_err(|error| error.kind()),
+        }
+    }
+}
+
+#[cfg(any(target_os = "macos", windows))]
+impl TypingNote for NoteInRun {
+    fn keep(&mut self) -> std::io::Result<()> {
+        match &self.run {
+            Ok(run) => super::run_marker::keep_typing_off(run),
+            Err(kind) => Err((*kind).into()),
+        }
+    }
+
+    fn let_go(&mut self) -> std::io::Result<()> {
+        match &self.run {
+            Ok(run) => super::run_marker::let_typing_go(run),
+            Err(std::io::ErrorKind::NotFound) => Ok(()),
+            Err(kind) => Err((*kind).into()),
+        }
     }
 }
 
@@ -525,9 +578,19 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     held: bool,
     life: Option<Arc<super::server::EndingLife>>,
     /// Typing held off in this life: set by a turn of key_class whose write
+    /// did not succeed, and at a start whose note stands where its one try
     /// did not succeed, so that memory differs from the file only toward not
-    /// capturing; let go by a turn whose write succeeded.
+    /// capturing; let go by a turn whose write succeeded, a turn on only with
+    /// the note let go.
     keys_held_off: bool,
+    /// The note of a turn of typing to off that the state file did not take.
+    typing_note: Option<Box<dyn TypingNote>>,
+    /// Whether the note stands, as the start read it and this life kept or
+    /// let it go since.
+    note_stands: bool,
+    /// Why typing reads off though the state file did not take a turn to
+    /// off: the note keeps it, or this life's memory alone.
+    off_unsaved: Option<TypingOffUnsaved>,
     /// Whether the owner of the served context keeps a key event: its floor
     /// holds key_class as it read at the owner's make.
     owner_keeps_keys: bool,
@@ -588,6 +651,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             held: false,
             life: None,
             keys_held_off: false,
+            typing_note: None,
+            note_stands: false,
+            off_unsaved: None,
             owner_keeps_keys: false,
             #[cfg(test)]
             published_input: None,
@@ -743,6 +809,66 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self
     }
 
+    /// The note of a turn of typing to off that the state file did not take,
+    /// with whether the start read it as standing (`kept`), behind
+    /// [`Self::with_state`]. Where it stands, the life makes one try at once,
+    /// before any source begins: key_class off written through the state
+    /// file's one writer; behind that write the file holds the turn and the
+    /// note is let go; where it fails, typing is held off in this life and
+    /// the note keeps it off until a turn on.
+    #[cfg(any(target_os = "macos", windows))]
+    pub fn with_typing_note(mut self, note: Box<dyn TypingNote>, kept: bool) -> Supervisor<F, L> {
+        self.typing_note = Some(note);
+        self.note_stands = kept;
+        if kept {
+            let saved = self.state_file().map(|mut state| {
+                state.update(|state| state.switches.set(crate::floor::Switch::KeyClass, false))
+            });
+            if matches!(saved, Some(Ok(()))) {
+                let _ = self.let_the_note_go();
+            } else {
+                self.keys_held_off = true;
+                self.off_unsaved = Some(TypingOffUnsaved::Kept);
+            }
+        }
+        self
+    }
+
+    #[cfg(any(target_os = "macos", windows))]
+    fn keep_the_note(&mut self) -> std::io::Result<()> {
+        let kept = self.typing_note.as_mut().map_or_else(
+            || Err(std::io::ErrorKind::NotFound.into()),
+            |note| note.keep(),
+        );
+        if kept.is_ok() {
+            self.note_stands = true;
+        }
+        kept
+    }
+
+    /// Removes both names of the note at every saved turn and at a saved try
+    /// of a start, whether or not this life knows of a note, so that no
+    /// leftover of a write that did not end outlives a person's saved turn; a
+    /// supervisor built with no note removes nothing.
+    #[cfg(any(target_os = "macos", windows))]
+    fn let_the_note_go(&mut self) -> std::io::Result<()> {
+        let gone = self
+            .typing_note
+            .as_mut()
+            .map_or(Ok(()), |note| note.let_go());
+        if gone.is_ok() {
+            self.note_stands = false;
+        }
+        gone
+    }
+
+    /// Whether the note keeps a turn of typing to off beyond this life, as
+    /// this life knows it.
+    #[cfg(any(target_os = "macos", windows))]
+    pub(crate) fn typing_note_stands(&self) -> bool {
+        self.note_stands
+    }
+
     /// The status that the watchdog is armed with, if it is.
     pub fn watchdog_armed(&self) -> Option<i32> {
         self.watchdog.as_ref().and_then(Watchdog::armed)
@@ -796,6 +922,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             asked: state.map_or_else(Vec::new, |state| state.permissions_asked.clone()),
             input_keys,
             held: self.held,
+            typing_off_unsaved: self.off_unsaved,
         }
     }
 
@@ -959,8 +1086,12 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     /// A client's turn of the switch key_class (`set_typing`): written
     /// through the state file's one writer; where the write fails typing is
-    /// held off in this life, so a turn on stands only behind its write. The
-    /// served context takes the switch. While the sources run and the
+    /// held off, so a turn on stands only behind its write. Behind a turn off
+    /// whose write failed the note is kept, before the source's stop, the
+    /// answer and an end with 5, so that every later life starts with typing
+    /// off; a turn off whose write succeeded lets the note go, and a turn on
+    /// stands only behind its write and the note let go. The served context
+    /// takes the switch. While the sources run and the
     /// source that holds keys (a Mac's input source, the Windows keyboard
     /// source) was begun with the other value, it is stopped, the context
     /// takes the switch only behind a stop, the status is published, and the
@@ -985,15 +1116,49 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }) else {
             return TypingTurn::NoStateFile;
         };
-        self.keys_held_off = written.is_err();
+        let turned = match (on, written) {
+            (false, Ok(())) => {
+                self.keys_held_off = false;
+                self.off_unsaved = None;
+                let _ = self.let_the_note_go();
+                TypingTurn::Written
+            }
+            (false, Err(error)) => {
+                self.keys_held_off = true;
+                let kept = self.keep_the_note();
+                if self.note_stands {
+                    self.off_unsaved = Some(TypingOffUnsaved::Kept);
+                    TypingTurn::NotWritten(error)
+                } else {
+                    self.off_unsaved = Some(TypingOffUnsaved::ThisLife);
+                    TypingTurn::NoteNotWritten(
+                        error,
+                        kept.err()
+                            .unwrap_or_else(|| std::io::ErrorKind::Other.into()),
+                    )
+                }
+            }
+            (true, Ok(())) => match self.let_the_note_go() {
+                Ok(()) => {
+                    self.keys_held_off = false;
+                    self.off_unsaved = None;
+                    TypingTurn::Written
+                }
+                Err(error) => {
+                    self.keys_held_off = true;
+                    self.off_unsaved = Some(TypingOffUnsaved::Kept);
+                    TypingTurn::NoteStands(error)
+                }
+            },
+            (true, Err(error)) => {
+                self.keys_held_off = true;
+                TypingTurn::NotWritten(error)
+            }
+        };
         let keys = self.held_switches().is_on(crate::floor::Switch::KeyClass);
         if let Some((ctx, _)) = self.served.as_mut() {
             *ctx = with_keys(ctx, keys);
         }
-        let turned = match written {
-            Ok(()) => TypingTurn::Written,
-            Err(error) => TypingTurn::NotWritten(error),
-        };
         if keys && self.served.is_some() && !self.owner_keeps_keys {
             self.ending = Some(Ending::Restart);
             self.publish();
@@ -3573,7 +3738,9 @@ mod tests {
         assert!(keys_of(&f));
         assert!(keys_in_the_file(dir.path()), "a new life reads on");
         writer.failing.store(true, Ordering::SeqCst);
-        let TypingTurn::NotWritten(error) = turn(&mut f, false) else {
+        let (TypingTurn::NotWritten(error) | TypingTurn::NoteNotWritten(error, _)) =
+            turn(&mut f, false)
+        else {
             panic!("a failed write of a turn off answers its error");
         };
         assert!(
@@ -3733,6 +3900,372 @@ mod tests {
         );
         assert!(answered, "the request is answered from the end routine");
         assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
+    }
+
+    #[derive(Clone, Default)]
+    struct Note {
+        stands: Rc<Cell<bool>>,
+        fails: Rc<Cell<bool>>,
+        torn: Rc<Cell<bool>>,
+        new: Rc<Cell<bool>>,
+    }
+
+    impl Note {
+        fn read(&self) -> bool {
+            self.stands.get() || self.new.get()
+        }
+    }
+
+    impl TypingNote for Note {
+        fn keep(&mut self) -> io::Result<()> {
+            if self.fails.get() {
+                if self.torn.get() {
+                    self.new.set(true);
+                }
+                return Err(io::ErrorKind::StorageFull.into());
+            }
+            self.stands.set(true);
+            Ok(())
+        }
+
+        fn let_go(&mut self) -> io::Result<()> {
+            if self.fails.get() {
+                return Err(io::ErrorKind::PermissionDenied.into());
+            }
+            self.stands.set(false);
+            self.new.set(false);
+            Ok(())
+        }
+    }
+
+    fn next_life<F: SystemSources>(
+        platform: Platform,
+        factory: F,
+        dir: &std::path::Path,
+        writer: &crate::daemon::state::tests::TestWrite,
+        note: &Note,
+    ) -> Fixture<F> {
+        let mut f = fixture_of(platform, factory);
+        let state = crate::daemon::state::StateFile::open(
+            crate::daemon::state::StateDir::open(dir).unwrap(),
+            Box::new(writer.clone()),
+        );
+        f.supervisor = f
+            .supervisor
+            .with_state(state)
+            .with_typing_note(Box::new(note.clone()), note.read());
+        f
+    }
+
+    fn serve_as_the_service<F: SystemSources>(
+        f: &mut Fixture<F>,
+    ) -> (Vec<SourceName>, crate::sink::SinkWriter) {
+        let switches = f.supervisor.start_switches();
+        let wanted = starting(f.supervisor.platform, RunKind::Service, switches);
+        let (handle, writer) = crate::sink::channel(8);
+        let owner = SourceContext::with_floor(
+            handle,
+            crate::floor::exclude::FloorHandle::new(
+                None,
+                Arc::new(crate::floor::exclude::NoLineage),
+                switches,
+            ),
+        );
+        f.supervisor.serve_sources(owner, wanted.clone());
+        (wanted, writer)
+    }
+
+    fn begin_the_served<F: SystemSources>(f: &mut Fixture<F>) {
+        let (ctx, wanted) = f.supervisor.served.clone().expect("served");
+        f.supervisor.start_sources(&ctx, &wanted);
+    }
+
+    fn keys_at_begins_of(platform: Platform) -> (Factory, Arc<Mutex<Vec<bool>>>) {
+        let keys_at_begins: Arc<Mutex<Vec<bool>>> = Arc::default();
+        let seen = keys_at_begins.clone();
+        let key_source =
+            halvo_control::proto::source_of(halvo_control::model::Modality::Keystroke, platform)
+                .expect("a source of keys");
+        let factory = Factory::adjusting(move |source| {
+            if source.name == key_source {
+                let seen = seen.clone();
+                let hook: Hook = Box::new(move |ctx| {
+                    seen.lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .push(ctx.floor().switches().is_on(crate::floor::Switch::KeyClass));
+                });
+                source.on_begin = Some(hook);
+            }
+        });
+        (factory, keys_at_begins)
+    }
+
+    fn unsaved_of<F: SystemSources>(f: &Fixture<F>) -> Option<TypingOffUnsaved> {
+        f.supervisor.status_parts(None).typing_off_unsaved
+    }
+
+    #[test]
+    fn behind_a_turn_off_whose_save_failed_the_next_life_begins_no_source_with_the_key_types_until_a_turn_on(
+    ) {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let key_source = halvo_control::proto::source_of(
+                halvo_control::model::Modality::Keystroke,
+                platform,
+            )
+            .expect("a source of keys");
+            let note = Note::default();
+            let (mut f, dir, writer) = with_state_file(fixture_of(platform, Factory::new()));
+            f.supervisor = f.supervisor.with_typing_note(Box::new(note.clone()), false);
+            writer.failing.store(true, Ordering::SeqCst);
+            assert!(
+                matches!(
+                    f.supervisor.set_typing(false, None, &mut |_| {}),
+                    TypingTurn::NotWritten(_)
+                ),
+                "{platform:?}"
+            );
+            assert!(
+                keys_in_the_file(dir.path()) && note.stands.get(),
+                "{platform:?}: the file kept on and the note keeps the turn"
+            );
+
+            let (factory, keys_at_begins) = keys_at_begins_of(platform);
+            let mut next = next_life(platform, factory, dir.path(), &writer, &note);
+            let (wanted, _sink) = serve_as_the_service(&mut next);
+            begin_the_served(&mut next);
+            assert!(
+                !keys_of(&next),
+                "{platform:?}: the next life reads typing off"
+            );
+            assert_eq!(
+                unsaved_of(&next),
+                Some(TypingOffUnsaved::Kept),
+                "{platform:?}"
+            );
+            let begun = keys_at_begins
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            match platform {
+                Platform::Macos => assert_eq!(
+                    begun,
+                    [false],
+                    "a Mac's input source begins without the key types"
+                ),
+                Platform::Windows => assert!(
+                    !wanted.contains(&key_source) && begun.is_empty(),
+                    "no keyboard source begins on Windows: {wanted:?}"
+                ),
+            }
+
+            writer.failing.store(false, Ordering::SeqCst);
+            assert!(
+                matches!(
+                    next.supervisor.set_typing(true, None, &mut |_| {}),
+                    TypingTurn::Restart
+                ),
+                "{platform:?}: a turn on lets the no go, behind the end with 4"
+            );
+            assert!(
+                !note.stands.get() && keys_in_the_file(dir.path()),
+                "{platform:?}"
+            );
+            let after = next_life(platform, Factory::new(), dir.path(), &writer, &note);
+            assert!(
+                after
+                    .supervisor
+                    .start_switches()
+                    .is_on(crate::floor::Switch::KeyClass),
+                "{platform:?}: the life behind the turn on records typing"
+            );
+        }
+    }
+
+    #[test]
+    fn the_note_goes_behind_a_saved_turn_or_a_saved_try_at_the_start_and_a_turn_on_that_cannot_let_it_go_keeps_typing_off(
+    ) {
+        let note = Note::default();
+        let (mut f, dir, writer) = with_state_file(fixture(Factory::new()));
+        f.supervisor = f.supervisor.with_typing_note(Box::new(note.clone()), false);
+        let turn =
+            |f: &mut Fixture<Factory>, on: bool| f.supervisor.set_typing(on, None, &mut |_| {});
+        writer.failing.store(true, Ordering::SeqCst);
+        assert!(matches!(turn(&mut f, false), TypingTurn::NotWritten(_)));
+        writer.failing.store(false, Ordering::SeqCst);
+        assert!(matches!(turn(&mut f, false), TypingTurn::Written));
+        assert!(
+            !note.stands.get() && !keys_in_the_file(dir.path()),
+            "a later turn off that is saved lets the note go"
+        );
+        assert_eq!(unsaved_of(&f), None);
+
+        assert!(matches!(turn(&mut f, true), TypingTurn::Written));
+        writer.failing.store(true, Ordering::SeqCst);
+        assert!(matches!(turn(&mut f, false), TypingTurn::NotWritten(_)));
+        writer.failing.store(false, Ordering::SeqCst);
+        note.fails.set(true);
+        assert!(matches!(turn(&mut f, true), TypingTurn::NoteStands(_)));
+        assert!(!keys_of(&f), "a turn on stands only behind the note let go");
+        assert!(keys_in_the_file(dir.path()), "the file took the turn on");
+        assert_eq!(unsaved_of(&f), Some(TypingOffUnsaved::Kept));
+        note.fails.set(false);
+
+        let next = next_life(Platform::Macos, Factory::new(), dir.path(), &writer, &note);
+        assert!(
+            !note.stands.get() && !keys_in_the_file(dir.path()),
+            "the start's one try saves the turn off and lets the note go"
+        );
+        assert!(!keys_of(&next));
+        assert_eq!(unsaved_of(&next), None, "a saved turn carries no word");
+
+        let mut next = next;
+        assert!(matches!(
+            next.supervisor.set_typing(true, None, &mut |_| {}),
+            TypingTurn::Written
+        ));
+        writer.failing.store(true, Ordering::SeqCst);
+        note.fails.set(true);
+        assert!(matches!(
+            next.supervisor.set_typing(false, None, &mut |_| {}),
+            TypingTurn::NoteNotWritten(..)
+        ));
+        assert!(!keys_of(&next), "off in this life");
+        assert_eq!(unsaved_of(&next), Some(TypingOffUnsaved::ThisLife));
+        note.fails.set(false);
+        writer.failing.store(false, Ordering::SeqCst);
+        let after = next_life(Platform::Macos, Factory::new(), dir.path(), &writer, &note);
+        assert!(
+            keys_of(&after),
+            "two failures at once: the life behind them records typing"
+        );
+    }
+
+    #[test]
+    fn a_failed_save_and_an_end_with_5_in_one_turn_leave_the_note_and_the_next_life_begins_without_the_key_types_behind_resume(
+    ) {
+        let store = ModelStore::new();
+        let f = fixture_on_owner(
+            Factory::adjusting(|source| {
+                if source.name == SourceName::Input {
+                    source.stop = Err(timeout());
+                }
+            }),
+            store.clone(),
+        );
+        let (mut f, dir, writer) = with_state_file(f);
+        let note = Note::default();
+        let recorder = Recorder::default();
+        f.supervisor = std::mem::replace(
+            &mut f.supervisor,
+            Supervisor::new(
+                Platform::Macos,
+                Factory::new(),
+                TestLoop {
+                    now: Rc::default(),
+                    harness: None,
+                    real: Duration::ZERO,
+                    hook: None,
+                },
+            ),
+        )
+        .with_ending(Arc::new(recorder.clone()))
+        .with_typing_note(Box::new(note.clone()), false);
+        f.start(&two());
+        f.tick();
+        drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
+        f.tick();
+        assert!(f.supervisor.sources.holds(SourceName::Input));
+        writer.failing.store(true, Ordering::SeqCst);
+        let link = f.link.as_ref().map(|link| link as &dyn OwnerLink);
+        let turned = f.supervisor.set_typing(false, link, &mut |_| {});
+        assert!(matches!(turned, TypingTurn::Ended), "{turned:?}");
+        assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
+        assert!(keys_in_the_file(dir.path()), "the save failed");
+        assert!(note.stands.get(), "the note was kept before the end with 5");
+
+        let (factory, keys_at_begins) = keys_at_begins_of(Platform::Macos);
+        let mut next = next_life(Platform::Macos, factory, dir.path(), &writer, &note);
+        next.supervisor = next.supervisor.with_hold(true);
+        let (_wanted, _sink) = serve_as_the_service(&mut next);
+        assert!(next.supervisor.held, "the next life waits for Resume");
+        assert!(!keys_of(&next));
+        assert_eq!(
+            unsaved_of(&next),
+            Some(TypingOffUnsaved::Kept),
+            "the kept turn stands from the first moment of the next life"
+        );
+        writer.failing.store(false, Ordering::SeqCst);
+        assert!(matches!(
+            next.supervisor
+                .set_desired(Desired::Running, None, &mut |_| {}),
+            Some(Ok(()))
+        ));
+        assert!(!next.supervisor.held, "Resume lifts the hold");
+        begin_the_served(&mut next);
+        assert_eq!(
+            *keys_at_begins
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
+            [false],
+            "behind Resume the input source begins without the key types"
+        );
+        assert_eq!(unsaved_of(&next), Some(TypingOffUnsaved::Kept));
+
+        let facts = super::super::server::RunFacts {
+            started_at: halvo_control::model::UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+            parent: halvo_control::proto::Parent::None,
+            last_stop: halvo_control::proto::LastStop::None,
+            rss_peak_bytes: 0,
+        };
+        let (mut plain, _dir, _writer) = with_state_file(fixture(Factory::new()));
+        plain.start(&two());
+        plain.tick();
+        let mut parts = plain.supervisor.status_parts(None);
+        parts.typing_off_unsaved = Some(TypingOffUnsaved::Kept);
+        let word = |parts: &super::super::server::StatusParts| {
+            super::super::server::status_of(parts, &facts)
+                .expect("the status holds together")
+                .fields()
+                .typing_off_unsaved
+        };
+        assert_eq!(
+            word(&parts),
+            None,
+            "never beside key_class on, as in the status of before that the ending life answers"
+        );
+        parts.switches.set(crate::floor::Switch::KeyClass, false);
+        assert_eq!(
+            word(&parts),
+            Some(TypingOffUnsaved::Kept),
+            "the status that the page reads carries the kept turn"
+        );
+    }
+
+    #[test]
+    fn a_saved_turn_on_removes_a_note_whose_write_did_not_end_and_the_next_life_records_typing() {
+        let note = Note::default();
+        let (mut f, dir, writer) = with_state_file(fixture(Factory::new()));
+        f.supervisor = f.supervisor.with_typing_note(Box::new(note.clone()), false);
+        writer.failing.store(true, Ordering::SeqCst);
+        note.fails.set(true);
+        note.torn.set(true);
+        assert!(matches!(
+            f.supervisor.set_typing(false, None, &mut |_| {}),
+            TypingTurn::NoteNotWritten(..)
+        ));
+        assert!(note.new.get(), "the failed write of the note left its .new");
+        writer.failing.store(false, Ordering::SeqCst);
+        note.fails.set(false);
+        assert!(matches!(
+            f.supervisor.set_typing(true, None, &mut |_| {}),
+            TypingTurn::Written
+        ));
+        assert!(!note.read(), "a saved turn on removes both names");
+        let next = next_life(Platform::Macos, Factory::new(), dir.path(), &writer, &note);
+        assert!(
+            keys_in_the_file(dir.path()) && keys_of(&next),
+            "the next life records typing, as the person's saved turn on says"
+        );
     }
 
     type AtBegins = Arc<Mutex<Vec<(Option<SourceState>, Option<bool>)>>>;

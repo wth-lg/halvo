@@ -186,6 +186,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
                 },
             })
             .collect(),
+        typing_off_unsaved: None,
         permissions,
         sources,
         kinds: Modality::ALL
