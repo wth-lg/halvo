@@ -320,7 +320,8 @@ mod tests {
     /// r3 U11.3: every error of the crate, with the name that a call on the workbook gives it (`Error::cause`) and
     /// the name that `read_source`, the one call on the data file, gives it (`Error::source_cause`). A missing file
     /// is the workbook's at the first and the data file's at the second. r3 U11.4: a file or a folder that the
-    /// system refuses for the permission is `no_access` at both, and a refused rename stays `not_replaced`.
+    /// system refuses for the permission is `no_access` at both, the lock's open of the workbook's folder among
+    /// them, and a refused rename stays `not_replaced`.
     #[test]
     fn each_error_gives_the_name_of_its_fact_on_the_workbook_and_on_the_data_file() {
         use io::ErrorKind::{NotFound, PermissionDenied};
@@ -406,6 +407,11 @@ mod tests {
             (Error::FillSize, "step_failed", "step_failed"),
             (Error::Checkpoint, "step_failed", "step_failed"),
             (Error::Lock(LockError::Busy), "step_failed", "step_failed"),
+            (
+                Error::Lock(LockError::Io(PermissionDenied)),
+                "no_access",
+                "no_access",
+            ),
             (Error::Sheet, "sheet", "sheet"),
         ];
         for kept in kept {
