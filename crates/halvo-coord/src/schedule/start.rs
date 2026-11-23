@@ -100,15 +100,16 @@ pub struct StartStep {
 }
 
 /// Steps 0 to 4 of a start (I5.5), the first that fails giving the answer: (0) the workflow is
-/// in the owner's list, else `state`; a start of the person that does not leave the queue then
-/// ends the holds `failures` and `sign_in_refused`; (1) no hold stands, else `hold`, where a
+/// in the owner's list, and the agent holds no set-up item that Change its answers put up (an
+/// open set-up item with no hold `setup`, r4 U3.22a), else `state`, before any hold ends; a start
+/// of the person that does not leave the queue then ends the holds `failures` and
+/// `sign_in_refused`; (1) no hold stands, else `hold`, where a
 /// start of the person passes the hold `site_declined` with nothing stored or sent for it,
 /// because its own `run_started` ends that hold (r4 U2.4a); (2) fewer
 /// than `starts_per_day`
 /// `run_started` events of the agent have the facts' day, else `budget`; (3) no run of the
-/// agent is live or queued, it holds no open set-up item (one that Change its answers put up
-/// stands with no hold, r4 U3.22a), the agent store has ended its newest run and no `run_ended`
-/// of the agent is owed, else `state`; for a
+/// agent is live or queued, the agent store has ended its newest run and no `run_ended` of the
+/// agent is owed, else `state`; for a
 /// start of the scheduler the slot rule of I5.3 then holds, for an agent that needs no person
 /// and has a finished run, else `state`; (4) fewer than `max_live_runs` runs are live and, for
 /// an agent that needs the model, no live run holds it, else `queued`, or `queue_full` when
@@ -123,10 +124,12 @@ pub fn start_step<C: ConfigView>(
         clear,
         verdict: Verdict::Refused(cause),
     };
-    if !around.listed {
+    let mut standing = holds(facts);
+    let asked_again = matches!(&facts.doing, Doing::Idle(Some(open)) if open.kind == OwnItemKind::Setup)
+        && !standing.contains(&Hold::Setup);
+    if !around.listed || asked_again {
         return refused(None, Cause::State);
     }
-    let mut standing = holds(facts);
     let ends = |h: &Hold| matches!(h, Hold::Failures | Hold::SignInRefused);
     let clear = (trigger == Trigger::Person && !around.from_queue && standing.iter().any(ends))
         .then(|| Clear {
@@ -152,7 +155,7 @@ pub fn start_step<C: ConfigView>(
     let mine = match &facts.doing {
         Doing::Live(_) => true,
         Doing::Queued(_) => !around.from_queue,
-        Doing::Idle(open) => open.as_ref().is_some_and(|o| o.kind == OwnItemKind::Setup),
+        Doing::Idle(_) => false,
     };
     if mine || !facts.store_ended || around.owed {
         return refused(clear, Cause::State);

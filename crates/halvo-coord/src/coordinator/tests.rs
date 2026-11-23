@@ -254,6 +254,16 @@ fn sheet_flow() -> WorkflowId {
 /// not due today; where `ran`, its one run ended `completed` yesterday, so that no item `ready`
 /// waits for its first run.
 fn sheet_world(slots: &[&str], ran: bool) -> Coordinator<Ports<Config>> {
+    sheet_world_holding(slots, ran, None)
+}
+
+/// `sheet_world` whose stored events end, after that run where `ran`, with a `hold_set` of
+/// `hold` where given.
+fn sheet_world_holding(
+    slots: &[&str],
+    ran: bool,
+    hold: Option<crate::types::HoldSetCause>,
+) -> Coordinator<Ports<Config>> {
     let ports: Ports<Config> = Ports::with_limits(T0, DAY, Limits::PRODUCT);
     let config = Config::parse(&format!(
         "{{\"v\":1,\"workflow\":\"{}\",\"agent\":\"{}\",\"rev\":1,\"category\":\"spreadsheet_fill\",\"tier\":\"on_device\",\"reasoning\":\"medium\",\"autonomy\":\"draft_and_confirm\",\"allow\":[],\"caps\":{{\"untrusted\":\"yes\",\"private\":\"yes\",\"external\":\"no\"}},\"limits\":{{\"steps\":20,\"wall_s\":120,\"model_tokens\":0}},\"budget\":null,\"permissions\":[\"user_files\"],\"runtime\":\"file\",\"playbook\":1}}",
@@ -287,21 +297,25 @@ fn sheet_world(slots: &[&str], ran: bool) -> Coordinator<Ports<Config>> {
         refused_run: None,
         last_cause: None,
     });
+    let mut stored = Vec::new();
     if ran {
         let run = RunId::parse(&format!("{:032x}", 0x71)).unwrap();
-        let ended = [
-            crate::types::What::RunStarted {
-                run: run.clone(),
-                trigger: crate::types::Trigger::Person,
-                slot: None,
-            },
-            crate::types::What::RunEnded {
-                run,
-                cause: RunEnd::Completed,
-                defers: None,
-            },
-        ];
-        for (n, what) in (1..).zip(ended) {
+        stored.push(crate::types::What::RunStarted {
+            run: run.clone(),
+            trigger: crate::types::Trigger::Person,
+            slot: None,
+        });
+        stored.push(crate::types::What::RunEnded {
+            run,
+            cause: RunEnd::Completed,
+            defers: None,
+        });
+    }
+    if let Some(cause) = hold {
+        stored.push(crate::types::What::HoldSet { cause });
+    }
+    {
+        for (n, what) in (1..).zip(stored) {
             ports.events.borrow_mut().push(crate::types::Event {
                 workflow: sheet_flow(),
                 agent: sheet_agent(),
@@ -645,4 +659,51 @@ fn u322a_change_its_answers_asks_again_with_nothing_sent_and_stores_all_four_in_
         !sheet_offers(&running, Control::ChangeAnswers),
         "a run under way"
     );
+}
+
+/// r4 U3.22a round 1, ruling (2) of the coordinator's log line 18909: the row of a spreadsheet
+/// agent whose set-up Change its answers put up again offers no Start now while that item is open,
+/// as a first set-up's row offers none, and a start by the person's call is refused with `state`
+/// before any hold ends: with the hold `failures` standing and with `sign_in_refused` standing, the
+/// refusal stores no row and sends no body, and behind Not now the row reads that hold again.
+#[test]
+fn u322a_a_set_up_put_up_again_offers_no_start_now_and_its_start_ends_no_hold() {
+    use crate::types::{Choice, HoldSetCause};
+    let run = RunId::parse(&format!("{:032x}", 0x71)).unwrap();
+    for (hold, line) in [
+        (HoldSetCause::Failures, "line.problem.failures"),
+        (
+            HoldSetCause::SignInRefused { run },
+            "line.problem.sign_in_refused",
+        ),
+    ] {
+        let c = sheet_world_holding(&SHEET_SLOTS, true, Some(hold.clone()));
+        let said = words::text(line, &[]).unwrap();
+        assert_eq!(sheet_row(&c).line, said, "{hold:?}: the hold stands");
+        assert_eq!(
+            c.control(&sheet_agent(), Action::ChangeAnswers),
+            Ok(()),
+            "{hold:?}"
+        );
+        let item = sheet_setup(&c).expect("the set-up item is up again");
+        assert!(
+            !sheet_offers(&c, Control::RunNow),
+            "{hold:?}: no Start now while the item is open"
+        );
+        let m = mark(&c);
+        assert_eq!(
+            c.control(&sheet_agent(), Action::RunNow),
+            Err(Cause::State),
+            "{hold:?}"
+        );
+        assert!(
+            sent_or_stored(&c, m).is_empty(),
+            "{hold:?}: no row stored, no body sent"
+        );
+        assert_eq!(
+            c.answer(item.item(), Choice::None, None, item.step()),
+            Ok(())
+        );
+        assert_eq!(sheet_row(&c).line, said, "{hold:?}: the hold is as it was");
+    }
 }

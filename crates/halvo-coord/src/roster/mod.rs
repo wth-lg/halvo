@@ -8,8 +8,8 @@ use crate::schedule::{finished, holds, needs_person, next_slot, slot_due, Hold};
 use crate::types::{
     Answered, BindResult, Card, CardEffect, CardLine, CardRun, Cause, Cleared, ConfigView, Control,
     ControlText, Doing, EffectAnswer, Event, Facts, FullWorkflow, HoldSetCause, ItemId, ItemKind,
-    LastCause, Limits, LineKey, LivePhase, PastEffect, PastRun, Permission, Raised, Row, RunEnd,
-    RunHistory, RunId, Runtime, SignInAnswer, StatusLine, System, Tier, Trigger, What,
+    LastCause, Limits, LineKey, LivePhase, OwnItemKind, PastEffect, PastRun, Permission, Raised,
+    Row, RunEnd, RunHistory, RunId, Runtime, SignInAnswer, StatusLine, System, Tier, Trigger, What,
 };
 use crate::types::{Ask, AskAct, AskControl, AskEffect, AskKind, Class, Kept};
 use crate::types::{ModelUse, SpendLimit};
@@ -246,7 +246,8 @@ pub fn names<C>(
 }
 
 /// The controls of a row (I2.5), in the order of `Control`: `run_now` while no hold but
-/// `failures`, `sign_in_refused` and `site_declined` stands and no run is live or queued; `stop`
+/// `failures`, `sign_in_refused` and `site_declined` stands, no run is live or queued and no
+/// set-up item is open, as one that Change its answers put up (r4 U3.22a); `stop`
 /// exactly while a run is live;
 /// `take_back` while the agent's start that waits in the queue, whose trigger `waiting` gives,
 /// does not come back without the person once taken back: a start of the person, whatever hold
@@ -262,8 +263,10 @@ pub fn controls<C: ConfigView>(
     let standing = holds(facts);
     let idle = matches!(facts.doing, Doing::Idle(_));
     let live = matches!(facts.doing, Doing::Live(_));
+    let set_up = matches!(&facts.doing, Doing::Idle(Some(open)) if open.kind == OwnItemKind::Setup);
     let mut out = Vec::new();
     if idle
+        && !set_up
         && standing
             .iter()
             .all(|h| matches!(h, Hold::Failures | Hold::SignInRefused | Hold::SiteDeclined))
