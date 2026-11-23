@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-model-limit"
+description = "Enables the set_model_limit command without any pre-configured scope."
+commands.allow = ["set_model_limit"]
+
+[[permission]]
+identifier = "deny-set-model-limit"
+description = "Denies the set_model_limit command without any pre-configured scope."
+commands.deny = ["set_model_limit"]

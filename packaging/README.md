@@ -148,10 +148,16 @@ string here too. The hooks hold every sentence that a person reads from them.
 Before an uninstall, and before an install over an installed copy, the hooks stop
 Halvo in this order: `halvo-capture.exe ctl stop` from the install folder (exit
 69, where no capture service runs, is no fault), then the end of `halvo.exe` by
-the template's own step, then a wait of at most 20 s until `halvo.exe` and each
-helper of `helpers.d` can be opened for writing. A file that is still held stops
-the uninstall or the install, before any file or value goes. Check 70 fails when
-`hooks.nsh` waits for no helper of `helpers.d`.
+the template's own step, which ends the processes of that file of the install
+folder alone, then a wait of at most 20 s until `halvo.exe` and each helper of
+`helpers.d` can be opened for writing. A file that is still held stops the
+uninstall with the sentence "Halvo is still running, so nothing was removed.
+...", and the install with its own, before any file or value goes. `ctl stop`
+names no data folder, so it reaches the capture service of the account that runs
+it: an uninstall under another account (below) makes no such stop. Check 70
+fails when `hooks.nsh` waits for no helper of `helpers.d`, or when its first
+hook of the uninstall calls `ctl stop` outside the test of the account's own
+install.
 
 Before the stop, the uninstall reads whose install it removes: the uninstall
 entry of the account that runs it, under `HKCU`, names its install folder in the
@@ -166,18 +172,62 @@ template's own step removes any Halvo data, the running account's own neither,
 and the program goes. A silent uninstall with `/DELETEALL` there shows nothing and
 stops before anything goes, with exit 2.
 
+Under another account the template's own steps still take away two things of the
+running person that are named by the product and not by the folder: their Run
+value `Halvo`, the start of their own Halvo at sign-in, and their own uninstall
+entry, its place in the list of installed apps. So the first hook of the
+uninstall, behind every point at which the hooks can still stop it and before
+those steps, holds both, and the last hook writes them back first, so that OK
+removes the program only, as the box's sentence says:
+
+- The Run value comes back with its text where the program that it names, cut
+  from between its first two quotes, or up to its first space where the text
+  starts with no quote, is not directly in the folder that goes; both folders are
+  held in the one spelling of the compare above. A value in the form that Halvo
+  writes, the program in quotes and with backslashes, that names the program in
+  the folder that goes stays away. Where there is no such value, or one
+  that the hooks cannot read as text, nothing is held, and the template's step
+  takes a value that stands, as before. Under another account the hooks' own line
+  no longer takes the value away, so an uninstall that the template's step still
+  stops, before it removes anything, loses nothing.
+- The uninstall entry goes by `reg.exe export` into one file of the uninstaller's
+  own folder in the temp folder, and comes back by `reg.exe import` from it; the
+  hooks remove the file behind the import, whatever it answered. Where the
+  account has no such entry, nothing is exported and nothing comes back. Where
+  the export fails, also where that file cannot be written, nothing is held, and
+  the template's step takes the entry, as before. Where the import fails, the
+  entry stays away and nothing says so.
+
+A file of the install folder that the session of the person who installed it
+still holds stops such an uninstall with the sentence "Halvo is still running, so
+nothing was removed. ..."; where the template's step finds that person's
+`halvo.exe` and cannot end it, the template's own text stops it first. Check 70
+fails when the hooks hold the two things anywhere but behind the delete in the
+first hook of the uninstall, write them back anywhere but first in the last hook,
+or hold the Run value where its program is in the folder that goes.
+
 What this way does not cover yet, each a named limit:
 
-- Under another account the uninstaller still takes two things of the running
-  person where they have a Halvo of their own: the hooks' own line and the
-  template's step each take their Run value `Halvo` away, and the template's step
-  takes their own uninstall entry, since that entry is named by the product and
-  not by the folder. So that person loses the start of their own Halvo at sign-in
-  and its entry in the list of installed apps; their program and their data stay,
-  and they can start it by hand and install it again over itself. In that one
-  case the box's sentence, which says that OK removes the program only, is not
-  yet true. The stop before the uninstall, `halvo-capture.exe ctl stop`, also
-  reaches the capture service of the running person's own Halvo where one runs.
+- A kill of the uninstaller under another account between the template's steps
+  and its last hook loses what the hooks held: the running person's start at
+  sign-in and their entry in the list of installed apps go, as before the
+  write-back, and the file of the entry stays in the temp folder.
+- The Run value stays away only in the form that Halvo writes. A text that
+  another hand wrote under that name comes back although its program is gone,
+  where it has no quotes and a space in its path, a forward slash before the
+  program's name, or the program in a folder below the folder that goes. Halvo
+  writes none of these, and at each start that a person agreed to it writes its
+  own text over another one; what Windows does with such a value at sign-in is
+  read in no run.
+- Under another account the template's own step still clears the jump list and
+  the recent destinations of the app's id for the running account, as before; no
+  line of Halvo sets a jump list.
+- The kinds of value: Halvo writes its Run value as a string, and the template
+  writes strings and numbers into the uninstall entry, which come back as they
+  were. A value of another kind that another program put into the entry comes
+  back as `reg.exe` exports it, which no run reads; under the name of the Run
+  value, an expandable string comes back as a plain string, and a value that is
+  not text is not held and goes, as before.
 - Two people who installed Halvo into one folder read as one account: whoever
   uninstalls reads as the one who installed it, so their ticked box deletes their
   own Halvo data, while the other person's data, start entry and uninstall entry
@@ -186,6 +236,20 @@ What this way does not cover yet, each a named limit:
   person who installed again into another folder and uninstalls the older copy:
   their ticked box deletes none of their Halvo data and they read the sentence;
   without the box the crash reports of their window stay too, with no sentence.
+  The hooks do not try to tell such a person from another account. The one who
+  installed again keeps the entry of their newer Halvo in the list of installed
+  apps, and its start at sign-in where the Run value names the newer copy, as
+  Halvo writes it at each start of that copy that the person agreed to; where
+  they never started the newer copy so, the value names the older copy and goes
+  with it.
+- Neither of those two people gets the stop of their capture service before the
+  uninstall of their own copy: where its app and its capture service run, the
+  template's step ends the app, with windows after it asks, and the capture
+  service ends by itself behind its app, which check 34 reads within 12 s of the
+  app's end, inside the wait of 20 s. Where a file of the folder is still held at
+  the end of that wait, they read "Halvo is still running, so nothing was
+  removed. ...", nothing goes, and a second try goes through once the service has
+  ended.
 
 Where the box is ticked at the account's own install, the uninstall first asks
 `halvo-capture.exe --default-data-dir` for the program's own default data
@@ -211,7 +275,9 @@ uninstall.exe /S /DELETEALL _?=<the install folder>
 ```
 
 Only this form, with `_?=` and the install folder last, gives the caller a
-readable exit: 0 where the uninstall went to its end, and 2 where it stopped. A
+readable exit: 0 where the uninstall went to its end, and 2 where it stopped.
+Under another account a silent run without `/DELETEALL` goes to its end with 0,
+also where the write-back of the uninstall entry failed. A
 silent run that left a report ends with exit 3, read with `_?=`: a silent run
 ends with 3 where a report or the folder of Halvo's window stays, with the box or
 without. A run with windows never ends with 3, since the template's own
@@ -247,7 +313,8 @@ ticked, delete nothing else that Halvo stored: Halvo's data folder and the web
 view's folder stay on the computer. An uninstall for an update (`/UPDATE`)
 deletes nothing, and calls no form. Every other uninstall
 takes the value `Halvo` away under `Software\Microsoft\Windows\CurrentVersion\Run`
-of the person's own registry, whatever its text.
+of the person's own registry, whatever its text; under another account it comes
+back, unless it names the program in the folder that goes.
 
 After an install, where none of the values that the template's own WebView2
 section reads is there, the installer says that the runtime is missing; a silent
@@ -264,12 +331,18 @@ nothing was installed. With a file at the name of the default data directory it
 reads exit 66 of the delete, and exit 2 of `uninstall.exe /S /DELETEALL` with
 nothing taken away. It plants two reports in the folder that `halvo.exe
 --remove-crash-reports` names, holds one open, and reads that `uninstall.exe /S`
-exits 3, removes the program and the other report; then it installs again. It
-starts the app on the runner account's default data directory, plants a file in
-`EBWebView` and the Run value, turns the folder that its own uninstall entry
-names, and reads exit 2 of `uninstall.exe /S /DELETEALL` with nothing taken away
-and the app still running; then it puts the entry back and runs `uninstall.exe
-/S /DELETEALL` while the app and its child run. It reads that no process from the
+exits 3, removes the program and the other report; then it installs again, and
+installs a second copy into a second folder, so that the uninstall entry names
+that folder. It starts the second copy's app on the runner account's default
+data directory, plants a file in `EBWebView` and the Run value, turns the folder
+that its own uninstall entry names, and reads exit 2 of the first copy's
+`uninstall.exe /S /DELETEALL` with nothing taken away and the app still running;
+then it puts the entry back. It runs the first copy's `uninstall.exe /S`, which
+reads as another account's install, and reads exit 0, no file in the first
+folder but `uninstall.exe`, the Run value and every value of the uninstall entry
+as they stood, and the second copy's app with the same capture child. Then it
+runs the second copy's `uninstall.exe /S /DELETEALL` while the app and its child
+run. It reads that no process from the second
 folder, no file there but `uninstall.exe`, no Run value, no uninstall entry, no
 default data directory and no planted file is left. It ends only the processes
 that it started, by their ids, and takes away what it planted, also where it

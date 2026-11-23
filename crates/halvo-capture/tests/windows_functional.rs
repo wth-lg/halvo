@@ -6424,7 +6424,12 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
             held_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
         }
         let _ = events.drain_for(Duration::from_millis(500));
-        let in_tree_keys = press_keys(5);
+        let (gate_read_clear_in_the_tree, gate_waited_in_the_tree) =
+            gate_reads_clear_in_front_of(&keyboard, foreground_pid());
+        let keyboard_tree_drops_before_the_letter = keyboard.drops().exclusion_tree;
+        let in_tree_keys = type_letters(1);
+        let (keyboard_tree_drops, keyboard_drop_waited) =
+            keyboard_tree_drops_above(&keyboard, keyboard_tree_drops_before_the_letter);
         let _ = point_at_front();
         let in_tree_moves = move_pointer(10);
         let in_tree = events.drain_for(Duration::from_millis(1_500));
@@ -6435,10 +6440,13 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
         );
         let _ = events.drain_for(Duration::from_millis(500));
         let outside_pid = foreground_pid();
-        let outside_keys = press_keys(5);
+        let (gate_read_clear_outside, gate_waited_outside) =
+            gate_reads_clear_in_front_of(&keyboard, outside_pid);
+        let outside_keys = type_letters(1);
+        let (mut outside, outside_record_waited) = events_until_a_keystroke(&events);
         let _ = point_at_front();
         let outside_moves = move_pointer(10);
-        let outside = events.drain_for(Duration::from_millis(2_000));
+        outside.extend(events.drain_for(Duration::from_millis(2_000)));
         let lineage = ProcessLineage::new();
         let mut walked = ProcessId::new(outside_pid);
         let mut walk_steps = 0;
@@ -6501,19 +6509,34 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
                 drops.switch_off + drops.listed_app + drops.private_window + drops.secure_input
             })
             .sum();
+        let outside_keystroke_classes: Vec<Option<KeyClass>> = outside
+            .iter()
+            .filter(|event| event.modality == Modality::Keystroke)
+            .map(|event| event.view.and_then(|view| view.key_class))
+            .collect();
         say(
             "tree",
             format!(
                 "starts_ok={} grandchild_window_in_front={held_in_front} still_in_front={still_in_front} \
-                 sendinput_key_events_accepted={in_tree_keys} sendinput_move_events_accepted={in_tree_moves} \
+                 gate_read_clear_in_the_tree={gate_read_clear_in_the_tree} gate_waited_in_the_tree_ms={} \
+                 sendinput_key_events_accepted={in_tree_keys} \
+                 keyboard_tree_drops_before_the_letter={keyboard_tree_drops_before_the_letter} \
+                 keyboard_tree_drops={keyboard_tree_drops} keyboard_drop_waited_ms={} \
+                 sendinput_move_events_accepted={in_tree_moves} \
                  events_in_the_tree={} exclusion_tree_drops={tree_drops} \
                  unknown_lineage_drops={unknown_lineage_drops} other_drops={other_drops} \
                  outside_walk_steps={walk_steps} outside_walk_end={walk_end} \
                  outside_walk_last_process_opened={last_opened} \
-                 outside_keys={outside_keys} outside_moves={outside_moves} events_outside={} \
-                 keystroke_events_outside={} pointer_events_outside={}",
+                 gate_read_clear_outside={gate_read_clear_outside} gate_waited_outside_ms={} \
+                 outside_keys={outside_keys} outside_record_waited_ms={} \
+                 outside_moves={outside_moves} events_outside={} keystroke_events_outside={} \
+                 outside_keystroke_classes={outside_keystroke_classes:?} pointer_events_outside={}",
                 starts.iter().all(Result::is_ok),
+                gate_waited_in_the_tree.as_millis(),
+                keyboard_drop_waited.as_millis(),
                 in_tree.len(),
+                gate_waited_outside.as_millis(),
+                outside_record_waited.as_millis(),
                 outside.len(),
                 count(&outside, Modality::Keystroke),
                 count(&outside, Modality::Pointer),
@@ -6525,15 +6548,87 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
             "INCONCLUSIVE: the window of the grandchild was not in front"
         );
         assert!(
+            gate_read_clear_in_the_tree && gate_read_clear_outside,
+            "INCONCLUSIVE: the gate did not read the plain edit in front as Clear before a letter"
+        );
+        assert!(
+            in_tree_keys == 2 && outside_keys == 2,
+            "INCONCLUSIVE: SendInput did not insert every key"
+        );
+        assert!(
             count(&outside, Modality::Pointer) >= 1,
             "no pointer event for a window outside the tree"
         );
+        assert!(
+            outside_keystroke_classes == [Some(KeyClass::Printable)],
+            "the letter in the plain edit of a window outside the tree gave not one keystroke record"
+        );
         flipped!(
             "P8",
-            in_tree.is_empty() && tree_drops > 0,
-            format!("TF tree events_in_the_tree={}", in_tree.len())
+            in_tree.is_empty() && keyboard_tree_drops > keyboard_tree_drops_before_the_letter,
+            format!(
+                "TF tree events_in_the_tree={} keyboard_tree_drops={keyboard_tree_drops}",
+                in_tree.len()
+            )
         );
     });
+}
+
+/// How long the tree test waits for each state around its letters: the
+/// gate's Clear of the plain edit in front, the keyboard's drop by the tree,
+/// and the one keystroke record of the window outside the tree.
+const TREE_STATE_WAIT: Duration = Duration::from_secs(3);
+
+/// Waits until the keyboard's gate reads Clear and the seam holds a Clear
+/// mark noted while a window of `front_pid` was in front, so that a Clear of
+/// the window before it does not pass: whether both held, and the wait.
+fn gate_reads_clear_in_front_of(keyboard: &RawInputSource, front_pid: u32) -> (bool, Duration) {
+    use halvo_capture::secure_input::windows::FieldState;
+    let began = Instant::now();
+    let mut clear_mark_in_front = false;
+    loop {
+        clear_mark_in_front |= seam::take_marks()
+            .iter()
+            .any(|mark| mark.front_pid == front_pid && mark.state == Some(FieldState::Clear));
+        let clear = clear_mark_in_front && keyboard.field_state() == Some(FieldState::Clear);
+        if clear || began.elapsed() >= TREE_STATE_WAIT {
+            return (clear, began.elapsed());
+        }
+        pump_thread(Duration::from_millis(20));
+    }
+}
+
+/// Waits until the keyboard's own count of drops by the tree is above
+/// `before`. The count rises only at a key that the gate cleared and the
+/// floor's tree then left out, so it cannot rise before such a key was
+/// decided. Answers the count and the wait.
+fn keyboard_tree_drops_above(keyboard: &RawInputSource, before: u64) -> (u64, Duration) {
+    let began = Instant::now();
+    loop {
+        let keyboard_tree_drops = keyboard.drops().exclusion_tree;
+        if keyboard_tree_drops > before || began.elapsed() >= TREE_STATE_WAIT {
+            return (keyboard_tree_drops, began.elapsed());
+        }
+        pump_thread(Duration::from_millis(20));
+    }
+}
+
+/// Takes events until the first keystroke record, at most for the tree
+/// test's wait: the events taken, that record the last of them, and the wait.
+fn events_until_a_keystroke(events: &Events) -> (Vec<Seen>, Duration) {
+    let began = Instant::now();
+    let mut taken = Vec::new();
+    while let Some(left) = TREE_STATE_WAIT.checked_sub(began.elapsed()) {
+        let Some(event) = events.first_within(left) else {
+            break;
+        };
+        let keystroke = event.modality == Modality::Keystroke;
+        taken.push(event);
+        if keystroke {
+            break;
+        }
+    }
+    (taken, began.elapsed())
 }
 
 fn key_press(keys: &[VIRTUAL_KEY]) -> u32 {

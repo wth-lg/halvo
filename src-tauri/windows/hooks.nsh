@@ -5,8 +5,9 @@
 ; of the files, NSIS_HOOK_POSTINSTALL at its end, NSIS_HOOK_PREUNINSTALL in Section Uninstall
 ; before its own CheckIfAppIsRunning and before any file or value goes, and
 ; NSIS_HOOK_POSTUNINSTALL at its end, behind the template's own removal of the folders of the app's
-; id where the box is ticked. The hooks use $R4 to $R9, which CheckIfAppIsRunning leaves alone, and
-; two variables of their own, which no step of the template reads.
+; id where the box is ticked, of the uninstall entry and of the Run value. The hooks use $R4 to $R9,
+; which CheckIfAppIsRunning leaves alone, and four variables of their own, which no step of the
+; template reads.
 
 !define HALVO_SENTENCE_RUNTIME "Halvo cannot open its window yet: the Microsoft Edge WebView2 Runtime is not on this computer. This installer downloads nothing. Install the runtime from Microsoft, then start Halvo."
 !define HALVO_SENTENCE_RUNNING "Halvo is still running, so nothing was removed. Quit Halvo from its icon near the clock, then run the uninstaller again."
@@ -31,12 +32,21 @@
 ; the template's own installer, at its step Uninstall before installing, starts the uninstaller
 ; with windows and _?= and reads every exit but 0 and 1 as a failed uninstall.
 !define HALVO_EXIT_REPORT_STAYS 3
+; The key of the person's own registry that holds the Run value Halvo, Halvo's start at sign-in.
+!define HALVO_RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
+; The one file of the plug-ins directory, in the temp folder, that holds the running account's
+; uninstall entry between the first hook and the last under another account.
+!define HALVO_ENTRY_FILE "halvo-uninstall-entry.reg"
 
 ; 1 where the uninstall entry of the account that runs the uninstaller names the install
 ; directory, 0 otherwise.
 Var HalvoOwnInstall
 ; The folder in which a crash report of Halvo's window stayed at the call of the app's form, or "".
 Var HalvoReportFolder
+; Under another account: 1 where the first hook of the uninstall held the running account's Run
+; value Halvo, whose text is then in HalvoRunValue; 0 otherwise.
+Var HalvoRunHeld
+Var HalvoRunValue
 
 ; Sets $R4 to NAME where $R4 is empty and the file NAME of the install directory stands and cannot
 ; be opened for writing, which Windows refuses while a process runs from it.
@@ -53,16 +63,24 @@ Var HalvoReportFolder
   ${EndIf}
 !macroend
 
-; Before an uninstall and before an install over a copy: first the capture service's stop over
-; its pipe (exit 69, where none runs, is no fault), then the app's end by the template's own step,
-; then a wait of at most 20 s until no process runs from halvo.exe or a helper of
-; packaging/helpers.d in the install directory. A file still held aborts with SENTENCE, sentence
-; (2) before an uninstall and sentence (6) before an install, before any file or value goes.
-!macro HALVO_STOP SENTENCE
+; Before an install over a copy, and before an uninstall of the account's own install: the capture
+; service's stop over its pipe (exit 69, where none runs, is no fault). The call names no data
+; directory, so it reaches the capture service of the account that runs it; under another account
+; that is the running person's own Halvo, so there the uninstall makes no such stop.
+!macro HALVO_STOP_SERVICE
   ${If} ${FileExists} "$INSTDIR\halvo-capture.exe"
     nsExec::Exec '"$INSTDIR\halvo-capture.exe" ctl stop'
     Pop $R4
   ${EndIf}
+!macroend
+
+; Before an uninstall and before an install over a copy, behind HALVO_STOP_SERVICE where it runs:
+; the app's end by the template's own step, which reaches the processes of the file halvo.exe of
+; the install directory alone, then a wait of at most 20 s until no process runs from halvo.exe or
+; a helper of packaging/helpers.d in the install directory. A file still held aborts with SENTENCE,
+; sentence (2) before an uninstall and sentence (6) before an install, before any file or value
+; goes.
+!macro HALVO_STOP SENTENCE
   !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
   StrCpy $R6 0
   ${Do}
@@ -253,7 +271,99 @@ Var HalvoReportFolder
   ${EndIf}
 !macroend
 
+; Sets $R4 to the folder of the program that the text $R9 of a Run value names, in the spelling of
+; HALVO_ONE_SPELLING: the text between its first two quotes where it starts with a quote, else its
+; text up to its first space, up to its last backslash. A text that names no folder, or a folder
+; that does not stand, gives "".
+!macro HALVO_FOLDER_OF_THE_RUN_VALUE
+  StrCpy $R6 0
+  StrCpy $R8 " "
+  StrCpy $R5 $R9 1
+  ${If} $R5 == '"'
+    StrCpy $R6 1
+    StrCpy $R8 '"'
+  ${EndIf}
+  StrLen $R7 $R9
+  StrCpy $R5 $R6
+  ${DoWhile} $R5 < $R7
+    StrCpy $R4 $R9 1 $R5
+    ${If} $R4 == $R8
+      ${Break}
+    ${EndIf}
+    IntOp $R5 $R5 + 1
+  ${Loop}
+  IntOp $R7 $R5 - $R6
+  StrCpy $R4 $R9 $R7 $R6
+  StrLen $R5 $R4
+  StrCpy $R6 ""
+  ${DoWhile} $R5 > 0
+    IntOp $R5 $R5 - 1
+    StrCpy $R6 $R4 1 $R5
+    ${If} $R6 == "\"
+      ${Break}
+    ${EndIf}
+  ${Loop}
+  ${If} $R6 == "\"
+    IntOp $R5 $R5 + 1
+    StrCpy $R4 $R4 $R5
+    !insertmacro HALVO_ONE_SPELLING $R4
+  ${Else}
+    StrCpy $R4 ""
+  ${EndIf}
+!macroend
+
+; Under another account, and not for an update, before the template's steps and behind every
+; abort of the hooks: the template's steps take away the Run value Halvo and the uninstall entry of
+; the account that runs the uninstaller, since both are named by the product and not by the folder,
+; so this hook holds them for the last hook. The Run value is held with its text where it names no
+; program in the folder that goes; a value that names one stays away. The uninstall entry goes by
+; reg.exe export into one file of the plug-ins directory; where the account has no entry, or the
+; export fails, no file stays and nothing comes back.
+!macro HALVO_HOLD_ENTRIES
+  StrCpy $HalvoRunHeld 0
+  ${If} $HalvoOwnInstall <> 1
+  ${AndIf} $UpdateMode <> 1
+    ClearErrors
+    ReadRegStr $R9 HKCU "${HALVO_RUN_KEY}" "Halvo"
+    ${IfNot} ${Errors}
+      StrCpy $HalvoRunValue $R9
+      !insertmacro HALVO_FOLDER_OF_THE_RUN_VALUE
+      StrCpy $R7 $INSTDIR
+      !insertmacro HALVO_ONE_SPELLING $R7
+      ${If} $R4 == ""
+      ${OrIf} $R4 != $R7
+        StrCpy $HalvoRunHeld 1
+      ${EndIf}
+    ${EndIf}
+    InitPluginsDir
+    Delete "$PLUGINSDIR\${HALVO_ENTRY_FILE}"
+    nsExec::Exec '"$SYSDIR\reg.exe" export "HKCU\${UNINSTKEY}" "$PLUGINSDIR\${HALVO_ENTRY_FILE}" /y'
+    Pop $R4
+    ${If} $R4 != "0"
+      Delete "$PLUGINSDIR\${HALVO_ENTRY_FILE}"
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+; First in the last hook, under another account and not for an update: what the first hook held
+; comes back, the Run value with its text and the uninstall entry by reg.exe import; the file of the
+; entry goes behind the import, whatever its exit.
+!macro HALVO_WRITE_BACK_ENTRIES
+  ${If} $HalvoOwnInstall <> 1
+  ${AndIf} $UpdateMode <> 1
+    ${If} $HalvoRunHeld = 1
+      WriteRegStr HKCU "${HALVO_RUN_KEY}" "Halvo" $HalvoRunValue
+    ${EndIf}
+    ${If} ${FileExists} "$PLUGINSDIR\${HALVO_ENTRY_FILE}"
+      nsExec::Exec '"$SYSDIR\reg.exe" import "$PLUGINSDIR\${HALVO_ENTRY_FILE}"'
+      Pop $R4
+      Delete "$PLUGINSDIR\${HALVO_ENTRY_FILE}"
+    ${EndIf}
+  ${EndIf}
+!macroend
+
 !macro NSIS_HOOK_PREINSTALL
+  !insertmacro HALVO_STOP_SERVICE
   !insertmacro HALVO_STOP "${HALVO_SENTENCE_RUNNING_INSTALL}"
 !macroend
 
@@ -283,23 +393,32 @@ Var HalvoReportFolder
   ${EndIf}
 !macroend
 
+; The account's own install alone takes the Run value away here; under another account the
+; template's own step takes it, behind the hold.
 !macro NSIS_HOOK_PREUNINSTALL
   !insertmacro HALVO_WHOSE_INSTALL
+  ${If} $HalvoOwnInstall = 1
+    !insertmacro HALVO_STOP_SERVICE
+  ${EndIf}
   !insertmacro HALVO_STOP "${HALVO_SENTENCE_RUNNING}"
   !insertmacro HALVO_DELETE_EVERYTHING
   !insertmacro HALVO_REMOVE_CRASH_REPORTS
+  !insertmacro HALVO_HOLD_ENTRIES
   ${If} $UpdateMode <> 1
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Halvo"
+  ${AndIf} $HalvoOwnInstall = 1
+    DeleteRegValue HKCU "${HALVO_RUN_KEY}" "Halvo"
   ${EndIf}
   Delete "$INSTDIR\${HALVO_RUNTIME_FILE}"
 !macroend
 
+; First, under another account: the running account's Run value and uninstall entry come back.
 ; With the box ticked and not for an update: the template's own step has removed the folder of the
 ; app's id, which holds the web view's folder EBWebView. Where it still stands, the step runs again
 ; for at most 20 s, since the web view's processes end a moment after the app; then sentence (5).
 ; Without the box: where the app's form left a crash report, the sentence that names its folder.
 ; Either way, where something of the window stays, a silent uninstall ends with exit 3.
 !macro NSIS_HOOK_POSTUNINSTALL
+  !insertmacro HALVO_WRITE_BACK_ENTRIES
   ${If} $DeleteAppDataCheckboxState = 1
   ${AndIf} $UpdateMode <> 1
     StrCpy $R6 0

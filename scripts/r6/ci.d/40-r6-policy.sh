@@ -14,7 +14,7 @@ pinned_path=scripts/r6/ci.d/80-r6-absent.sh
 pinned_blob=fd19aa4e9717a87e2dbc44071a13919d45f5c5a7
 env_keys='SQLCIPHER_LIB_DIR SQLCIPHER_NO_PKG_CONFIG'
 specimen=crates/halvo-route-gate/tests/data/specimen.tsv
-cap_line='default_cap amount=2000 period=month status=provisional'
+cap_line='default_cap amount=2000 currency=usd period=month status=provisional'
 case $0 in
   /*) self=$0 ;;
   *) self=$(pwd)/$0 ;;
@@ -682,7 +682,7 @@ PASS $name"
   check bar-missing "$base" FAIL "bar dev_min=- held_min=- ok=no"
   printf '# Bar\n\nLINE_DEV_MIN=4 and LINE_HELD_MIN=2.\n' >"$base/$bar" || exit 2
 
-  printf 'default_cap amount=2001 period=month status=provisional\n' >"$base/$cap" || exit 2
+  printf 'default_cap amount=2001 currency=usd period=month status=provisional\n' >"$base/$cap" || exit 2
   check cap-amount "$base" FAIL "cap line=differs"
   printf '%s' "$cap_line" >"$base/$cap" || exit 2
   check cap-without-lf "$base" FAIL "FAIL $name (cap)"
@@ -791,7 +791,7 @@ build = 'gen/make.rs'" crates/x/gen/make.rs "fn main() { println!(\"cargo:$build
   printf '[build]\n' >"$work/flags/untracked-config/.cargo/config.toml" || exit 2
   check untracked-config-file "$work/flags/untracked-config" PASS "PASS $name"
 
-  printf 'default_cap amount=2001 period=month status=provisional\n' >"$base/$cap" || exit 2
+  printf 'default_cap amount=2001 currency=usd period=month status=provisional\n' >"$base/$cap" || exit 2
   STUB_DERIVE_EXIT=2
   check two-causes-name-the-first "$base" FAIL "FAIL $name (derive)"
   printf '%s\n' "$cap_line" >"$base/$cap" || exit 2
@@ -807,7 +807,7 @@ build = 'gen/make.rs'" crates/x/gen/make.rs "fn main() { println!(\"cargo:$build
   mkdir -p "$both/.cargo" || exit 2
   printf '[build]\n' >"$both/.cargo/config.toml" || exit 2
   git -C "$both" add -- .cargo/config.toml || exit 2
-  printf 'default_cap amount=2001 period=month status=provisional\n' >"$both/$cap" || exit 2
+  printf 'default_cap amount=2001 currency=usd period=month status=provisional\n' >"$both/$cap" || exit 2
   check flags-and-cap-name-the-cap "$both" FAIL "FAIL $name (cap)"
 
   usage=$(sh "$self" --all 2>&1)
@@ -821,7 +821,7 @@ build = 'gen/make.rs'" crates/x/gen/make.rs "fn main() { println!(\"cargo:$build
   fi
 
   printf '%s\n' "$cap_line" >"$work/cap/line.txt" || exit 2
-  printf 'default_cap amount=02000 period=month status=provisional\n' >"$work/cap/zero.txt" || exit 2
+  printf 'default_cap amount=02000 currency=usd period=month status=provisional\n' >"$work/cap/zero.txt" || exit 2
   printf '%s\r\n' "$cap_line" >"$work/cap/crlf.txt" || exit 2
   : >"$work/cap/empty.txt" || exit 2
   cap_build committed "$cap" 'cap amount=2000 period=month status=provisional'

@@ -14,7 +14,7 @@
 #                       for a test: 12-test runs it in the form of the merge gate)
 #            scheduled  a slice runs it, once a week and in a run by hand (scripts/ci/slices.txt; for a
 #                       test: 12-test runs it in the group form, by its group in scripts/ci/slow-tests.txt)
-#   clause   for scheduled, first the slice (mon, tue, wed, wed2, thu, fri, sat or sun), then the job when the
+#   clause   for scheduled, first the slice (mon, tue, tue2, wed, wed2, thu, fri, sat or sun), then the job when the
 #            jobs differ, then the reason; for gate, the job when one job alone has the check or the group
 #
 # A check has one line for each place: a check that is in the gate of one job alone has a second
@@ -22,7 +22,7 @@
 # under about 6 s stays in the gate, and so does a check under about 60 s where the job has room.
 # What holds the rule on egress in the gate: 21-tree-bans in both jobs, 60-r6-egress in the macos job
 # and the tests of 12-test; 10-egress, 80-r6-absent, 38-app-engine-routes and 20-r6-gateway run in
-# slices. Before a release the eight slices are run by hand at the commit of the release
+# slices. Before a release the nine slices are run by hand at the commit of the release
 # (scripts/ci/README.md, The slices). The seconds of a check are those of the pull request run
 # 44877874023, which ran the whole table, unless the clause names another run; those of a group of
 # unit tests are the gaps before its lines in a job of the push run 44893237714.
@@ -90,11 +90,15 @@ capture check 51-macos-stall scheduled wed 197 s in the macos job
 billing target halvo-route/prices_rules gate
 billing target halvo-route/refusal_spend gate
 billing target halvo-route/count_row gate
-billing target halvo-owner/owner gate its tests an_open_hold_counts_after_a_restart_until_its_life_ends and a_count_whose_read_meets_a_fault_keeps_its_row_and_admits_no_hold, in both jobs, and the_count_row_is_gone_after_delete_everything, built for macOS in the debug profile alone, so the macos job; no targets line of scripts/ci/slow-tests.txt names the package (r7 8.1L)
-billing target halvo-route/formal_traces scheduled tue the group B; 15 s in the macos job, 10 s in the windows job
-billing units halvo-route-gate scheduled tue the group B; 13 s in the macos job, 9 s in the windows job
+billing target halvo-owner/owner gate its tests an_open_hold_counts_after_a_restart_until_its_life_ends, a_count_whose_read_meets_a_fault_keeps_its_row_and_admits_no_hold and behind_a_faulted_read_a_new_count_starts_at_nothing_with_the_persons_cap, in both jobs, and the_count_row_is_gone_after_delete_everything, built for macOS in the debug profile alone, so the macos job; no targets line of scripts/ci/slow-tests.txt names the package (r7 8.1L)
+billing target halvo-route/formal_traces scheduled tue2 the group G; 15 s in the macos job, 10 s in the windows job
+billing units halvo-route-gate scheduled tue2 the group G; 13 s in the macos job, 9 s in the windows job
 billing units halvo-coord-app::present::tests::native_hub gate
-billing units halvo-agent-store::count::tests gate in both jobs, as the unit tests of a package that no units line of scripts/ci/slow-tests.txt names; the person's count in its one row: a hold above the room left, a settle at the reported usage, expiry before the turn, a hold whose life ends in the new period, the calendar month of the period and a row that does not read; under 1 s in a local run (r7 8.1L)
+billing units halvo-agent-store::count::tests gate in both jobs, as the unit tests of a package that no units line of scripts/ci/slow-tests.txt names; the person's count in its one row: a hold above the room left, a settle at the reported usage, expiry before the turn, a hold whose life ends in the new period, the calendar month of the period, a row that does not read, and a new count at nothing that reads no row; under 1 s in a local run (r7 8.1L)
+billing units halvo-route::amount::tests gate in both jobs, as the unit tests of a package that no units line of scripts/ci/slow-tests.txt names; an amount written for a person with two decimals and the currency word, what is spent or held rounded up (r7 8.1L view)
+billing units halvo-route::cap::tests gate in both jobs, as the unit tests of a package that no units line of scripts/ci/slow-tests.txt names; the cap line holds the currency word, and a line without it does not parse (r7 8.1L view)
+billing units halvo-coord-app::model_limit::tests gate in both jobs, as the unit tests of a package that no units line of scripts/ci/slow-tests.txt names; the app's texts of the count, the set of the limit, and the guard of the body that starts the count anew (r7 8.1L view)
+billing check 30-app-page-test gate macos job, which alone has the check; its file ui/tests/page/model-limit.test.js: the part shows the count's texts unchanged and each state its sentences alone (r7 8.1L view)
 billing units halvo-learn-store::tests::kinds::no_runner_body_but_the_hold_and_the_settle_changes_the_count scheduled tue the group B, by the line units halvo-learn-store of scripts/ci/slow-tests.txt; no runner body but model_hold and model_settle changes the person's count; under 1 s in a local run (r7 8.1L)
 billing check 40-r6-policy gate
 billing check 21-r7-backend-test gate macos job, which alone has the check, 72 s there in the push run 44895970784; the ledger and the metering tests of the backend, on a push always, and on a pull request when it changes a path under the two roots of scripts/r7/backend-roots.sh, a file that decides the run or the root's .gitattributes, or when the check cannot tell and so runs them (an unknown or unset event, a HEAD with one parent, a list of changed paths that git cannot make or that names none, a name that git quotes); otherwise one line that says so and PASS
@@ -123,8 +127,8 @@ egress check 38-app-engine-routes scheduled wed2 the windows job, 197 s on an AM
 egress check 20-r6-gateway scheduled thu the macos job, 8 s there; the closed body from which every request to a model's host is made holds six keys
 egress check 20-r6-gateway scheduled sat the windows job, 6 s there
 egress units halvo-coord-app::agreement gate a run's start names a hosted tier, the one case in which the library reads the person's key for a model's host, only where the agent's stored triple of that tier equals the row of that tier in the release table of hosts by its bytes, and never for on_device or an agent that no list named; no units line of scripts/ci/slow-tests.txt names the package; under 0.01 s in a local run (r4 U3.17a)
-egress target halvo-coord-app/agreement_tree scheduled tue the group B, by the line targets halvo-coord-app of scripts/ci/slow-tests.txt; under the app crate's src and src-tauri/src only agreement.rs names a hosted tier of the library and one line, the start's, writes the field hosted of a RunSpec; every row of the release table of hosts names one origin; under 0.1 s in a local run (r4 U3.17a)
-egress target halvo-coord-app/product scheduled tue the macos job, which alone runs its tests, the group B, by the line targets halvo-coord-app of scripts/ci/slow-tests.txt; its tests a_run_of_an_agent_with_no_standing_agreement_gets_no_key_though_one_is_saved and a_run_of_an_agent_whose_stored_yes_does_not_stand_gets_no_key: against the owner of the derived store, a run of an agent whose agreement does not stand, also one with a yes stored, gets none stored for model_key though a key is saved; under 1 s together in a local run (r4 U3.17a)
+egress target halvo-coord-app/agreement_tree scheduled tue2 the group G, by the line targets halvo-coord-app of scripts/ci/slow-tests.txt; under the app crate's src and src-tauri/src only agreement.rs names a hosted tier of the library and one line, the start's, writes the field hosted of a RunSpec; every row of the release table of hosts names one origin; under 0.1 s in a local run (r4 U3.17a)
+egress target halvo-coord-app/product scheduled tue2 the macos job, which alone runs its tests, the group G, by the line targets halvo-coord-app of scripts/ci/slow-tests.txt; its tests a_run_of_an_agent_with_no_standing_agreement_gets_no_key_though_one_is_saved and a_run_of_an_agent_whose_stored_yes_does_not_stand_gets_no_key: against the owner of the derived store, a run of an agent whose agreement does not stand, also one with a yes stored, gets none stored for model_key though a key is saved; under 1 s together in a local run (r4 U3.17a)
 
 licences check 23-licences gate macos job, which alone has the check
 licences check 25-r7-backend-licenses gate macos job, which alone has the check

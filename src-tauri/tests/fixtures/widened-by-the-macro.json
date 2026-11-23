@@ -19,6 +19,7 @@
     "allow-delete-offline",
     "allow-remove-halvo",
     "allow-reset-settings",
+    "allow-set-typing",
     "allow-agents-snapshot",
     "allow-agents-next",
     "allow-agents-card",
@@ -35,6 +36,8 @@
     "allow-model-key-state",
     "allow-save-model-key",
     "allow-remove-model-key",
+    "allow-model-limit-state",
+    "allow-set-model-limit",
     "core:app:allow-version"
   ]
 }

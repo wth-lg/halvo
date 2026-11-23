@@ -140,8 +140,9 @@ use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 ///   step's item whose `step_failed` row the store refused reads as a sign-in's, and a sign-in's row that is the last
 ///   hand-back row of a run that ended `effect_unknown`, because the store refused that run's item row, reads as the
 ///   item; it reads `yes` after every run that did not complete, also with a sign-in kept, and once the agent's start
-///   rows leave the read after 93 days. `agreement` (r3 U7.7) is the agent's standing ceiling by the store's one
-///   function `rows::standing_agreement`, its tier and its triples, null for `on_device` and for a hosted tier with
+///   rows leave the read after 93 days. `agreement` (r3 U7.7) is the agent's standing ceiling by the rule of the
+///   store's one function `rows::standing_agreement`, `rows::standing_under`, over the set-up rows and the agreement
+///   rows read once a request (r3 U7.7b), its tier and its triples, null for `on_device` and for a hosted tier with
 ///   no agreement row of that tier; a stored agreement row that the typed reader refuses refuses the whole roster
 ///   with `store` only while an agent of the roster stands at a hosted tier, since no agreement row is read for an
 ///   agent at `on_device` or with no set-up. A page holds whole entries
@@ -229,6 +230,12 @@ use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 ///   new count at nothing with that cap, anchored at the request's instant, and answers `"new_count":"yes"`. It
 ///   replaces the row by the host's removal call of a person's kind in one write. No request removes the row alone:
 ///   it goes with the delete of everything and with the data folder, and Reset settings keeps it.
+/// - `new_model_count` (r7 8.1L; the coordinator's log line 17696 (b)): ONE count at nothing with the body's cap,
+///   anchored at the request's instant, in the place of every row of the kind `model_count`, by the same one write and
+///   with no read before it, so that a row which the store's read meets with a fault stands in its way no more. It
+///   answers as `set_model_cap` answers a new count, `{"cap_minor":N,"new_count":"yes"}`, and `length` for a cap
+///   outside the bounds of a cap line. It lifts what is counted: the app sends it only where `model_room` answered the
+///   fault of the store's read (halvo-coord-app's `model_limit`), and no other caller of the tree sends it.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -255,6 +262,7 @@ pub fn coordinator(
         CoordinatorCall::SetModel(b) => set_model(host, now, &b),
         CoordinatorCall::ModelRoom(_) => count::room(&*host, now),
         CoordinatorCall::SetModelCap(b) => count::set_cap(host, now, &b),
+        CoordinatorCall::NewModelCount(b) => count::start_anew(host, now, &b),
     }
 }
 
@@ -358,8 +366,11 @@ fn open_run_of(host: &dyn Host, now: Now, agent: &AgentId) -> Result<bool, Error
 
 fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, ErrorName> {
     let rows = host.rows();
+    let configs = rows::configs(rows)?;
+    let set_ups = rows::newest_configs(&configs);
+    let mut agreement_rows = rows::AgreementRows::new(rows);
     let mut newest: BTreeMap<AgentId, AgentConfig> = BTreeMap::new();
-    for config in rows::configs(rows)? {
+    for config in &configs {
         if b.after.as_ref().is_some_and(|after| &config.agent <= after) {
             continue;
         }
@@ -367,7 +378,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
             .get(&config.agent)
             .is_none_or(|held| held.rev < config.rev)
         {
-            newest.insert(config.agent.clone(), config);
+            newest.insert(config.agent.clone(), config.clone());
         }
     }
     let bindings = rows::bindings(rows)?;
@@ -414,10 +425,13 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
         let reply_unknown = reply_unknown(&replies, last.as_ref());
         let last_cause = last_cause(&logs, &starts, &runs, &agent);
         let window = window(&logs, &starts, &runs, &agent, session);
-        let agreement = rows::standing_agreement(rows, &agent)?.map(|a| ListedAgreement {
-            tier: a.tier,
-            hosts: a.hosts,
-        });
+        let agreement =
+            rows::standing_under(set_ups.get(&agent).copied(), &agent, &mut agreement_rows)?.map(
+                |a| ListedAgreement {
+                    tier: a.tier,
+                    hosts: a.hosts,
+                },
+            );
         entries.push(ListedAgent {
             config,
             state,

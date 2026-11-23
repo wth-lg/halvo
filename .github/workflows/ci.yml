@@ -14,12 +14,13 @@ on:
     - cron: '17 3 * * 6'
     - cron: '17 3 * * 0'
     - cron: '47 4 * * 3'
+    - cron: '47 4 * * 2'
   workflow_dispatch:
     inputs:
       slice:
         description: The slice to run, as its weekly run does
         type: choice
-        options: [mon, tue, wed, wed2, thu, fri, sat, sun]
+        options: [mon, tue, tue2, wed, wed2, thu, fri, sat, sun]
         default: mon
       checks:
         description: In place of the slice, these checks alone, each with its self-test (names with blanks between them)
@@ -59,6 +60,7 @@ jobs:
           case "$GITHUB_EVENT_NAME:$CRON" in
             'schedule:17 3 * * 1') slice=mon ;;
             'schedule:17 3 * * 2') slice=tue ;;
+            'schedule:47 4 * * 2') slice=tue2 ;;
             'schedule:17 3 * * 3') slice=wed ;;
             'schedule:47 4 * * 3') slice=wed2 ;;
             'schedule:17 3 * * 4') slice=thu ;;
@@ -235,6 +237,7 @@ jobs:
           case "$GITHUB_EVENT_NAME:$CRON" in
             'schedule:17 3 * * 1') slice=mon ;;
             'schedule:17 3 * * 2') slice=tue ;;
+            'schedule:47 4 * * 2') slice=tue2 ;;
             'schedule:17 3 * * 3') slice=wed ;;
             'schedule:47 4 * * 3') slice=wed2 ;;
             'schedule:17 3 * * 4') slice=thu ;;

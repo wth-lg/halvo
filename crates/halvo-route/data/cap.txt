@@ -1,1 +1,1 @@
-default_cap amount=2000 period=month status=provisional
+default_cap amount=2000 currency=usd period=month status=provisional

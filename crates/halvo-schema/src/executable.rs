@@ -356,4 +356,5 @@ record::run_list! { names_with_run_list
     "period_end_ms",
     "reads",
     "unread",
+    "new_model_count",
 }

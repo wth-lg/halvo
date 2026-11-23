@@ -109,6 +109,10 @@
     "storage": "Halvo keeps at most 10 GB and removes the oldest days first when it reaches that.",
     "typed_ahead": "A key that you press before a program or page has moved to its password field, for example while it is frozen or still loading, can be noted: when it was pressed, in which app and what kind of key, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in."
   },
+  "typing_switch": {
+    "label": "Record typing",
+    "on": true
+  },
   "window": {
     "first_report_day": 7,
     "rolling_days": 14

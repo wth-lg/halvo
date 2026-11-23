@@ -306,6 +306,24 @@ impl StopKind {
     }
 }
 
+/// What a turn of the switch key_class did.
+#[derive(Debug)]
+pub enum TypingTurn {
+    /// The state file holds the turn, and the sources follow it in this life.
+    Written,
+    /// The write failed or the file does not load: typing stays off in this
+    /// life, a turn off and a turn on alike.
+    NotWritten(StateError),
+    /// The supervisor holds no state file.
+    NoStateFile,
+    /// A turn on in a life whose owner drops every key: the file holds it,
+    /// and the life ends with status 4 so that the next one takes keys.
+    Restart,
+    /// The stop of the source that holds keys met a source that did not
+    /// stop, and the end routine ended the process with status 5.
+    Ended,
+}
+
 /// What a stop for capture off ended with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CaptureOff {
@@ -506,10 +524,20 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     held_paused: bool,
     held: bool,
     life: Option<Arc<super::server::EndingLife>>,
+    /// Typing held off in this life: set by a turn of key_class whose write
+    /// did not succeed, so that memory differs from the file only toward not
+    /// capturing; let go by a turn whose write succeeded.
+    keys_held_off: bool,
+    /// Whether the owner of the served context keeps a key event: its floor
+    /// holds key_class as it read at the owner's make.
+    owner_keeps_keys: bool,
     /// The input source's line as the last publish gave it, for a test that
     /// reads what the service said at the moment of a begin.
     #[cfg(test)]
     published_input: Option<Arc<Mutex<Option<SourceState>>>>,
+    /// The status's key_class as the last publish gave it, for the same test.
+    #[cfg(test)]
+    published_keys: Option<Arc<Mutex<Option<bool>>>>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -559,8 +587,12 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             held_paused: false,
             held: false,
             life: None,
+            keys_held_off: false,
+            owner_keeps_keys: false,
             #[cfg(test)]
             published_input: None,
+            #[cfg(test)]
+            published_keys: None,
         }
     }
 
@@ -588,6 +620,17 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         slot: Arc<Mutex<Option<SourceState>>>,
     ) -> Supervisor<F, L> {
         self.published_input = Some(slot);
+        self
+    }
+
+    /// The supervisor that copies the status's key_class into `slot` at each
+    /// publish.
+    #[cfg(test)]
+    pub(crate) fn publishing_the_keys_to(
+        mut self,
+        slot: Arc<Mutex<Option<bool>>>,
+    ) -> Supervisor<F, L> {
+        self.published_keys = Some(slot);
         self
     }
 
@@ -726,6 +769,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     pub(crate) fn status_parts(&self, obstructed: Option<Duration>) -> super::server::StatusParts {
         let desired = self.desired();
         let input_keys = self.holds_keys();
+        let keys = self.switches().is_on(crate::floor::Switch::KeyClass);
         let file = self.state_file();
         let state = file.as_deref().map(StateFile::state);
         super::server::StatusParts {
@@ -741,7 +785,12 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 super::state::Cap::Known(halvo_control::model::StorageCap::DEFAULT),
                 |state| state.storage_cap,
             ),
-            switches: state.map_or_else(crate::floor::Switches::default, |state| state.switches),
+            switches: {
+                let mut switches =
+                    state.map_or_else(crate::floor::Switches::default, |state| state.switches);
+                switches.set(crate::floor::Switch::KeyClass, keys);
+                switches
+            },
             once_granted: state
                 .map_or_else(Vec::new, |state| state.permissions_once_granted.clone()),
             asked: state.map_or_else(Vec::new, |state| state.permissions_asked.clone()),
@@ -880,9 +929,158 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     /// The sources of a service run (contracts.md C3.2 step 10): those of
     /// `wanted`, each begun with a clone of `ctx`, only while the run
-    /// condition holds.
+    /// condition holds. The owner of `ctx` keeps a key event while its
+    /// key_class reads on; the sources begin with key_class as the
+    /// supervisor holds it.
     pub fn serve_sources(&mut self, ctx: SourceContext, wanted: Vec<SourceName>) {
-        self.served = Some((ctx, wanted));
+        let keys = self.held_switches().is_on(crate::floor::Switch::KeyClass);
+        self.owner_keeps_keys = ctx.floor().switches().is_on(crate::floor::Switch::KeyClass);
+        self.served = Some((with_keys(&ctx, keys), wanted));
+    }
+
+    /// The switches that a store's owner and its sources start with: the
+    /// state file's, with key_class off while typing is held off.
+    #[cfg(any(target_os = "macos", windows))]
+    pub(crate) fn start_switches(&self) -> crate::floor::Switches {
+        self.held_switches()
+    }
+
+    fn held_switches(&self) -> crate::floor::Switches {
+        let mut switches = self
+            .state_file()
+            .map_or_else(crate::floor::Switches::default, |state| {
+                state.state().switches
+            });
+        if self.keys_held_off {
+            switches.set(crate::floor::Switch::KeyClass, false);
+        }
+        switches
+    }
+
+    /// A client's turn of the switch key_class (`set_typing`): written
+    /// through the state file's one writer; where the write fails typing is
+    /// held off in this life, so a turn on stands only behind its write. The
+    /// served context takes the switch. While the sources run and the
+    /// source that holds keys (a Mac's input source, the Windows keyboard
+    /// source) was begun with the other value, it is stopped, the context
+    /// takes the switch only behind a stop, the status is published, and the
+    /// source is begun again: at off a Mac's tap asks for the pointer types
+    /// alone and the Windows keyboard source reads off; at on the status
+    /// says on before the tap asks for the key types. A stop that does not
+    /// stop at a turn off ends the process with 5 by the end routine, as a
+    /// Pause's stop does, and so does a turn off that finds that source held
+    /// unstopped by an earlier stop (the drain's among them): the context
+    /// stays on; at a turn on it begins nothing. A turn on in a life
+    /// whose owner drops every key (its floor read key_class off) begins
+    /// nothing and ends the life with status 4.
+    #[cfg(any(target_os = "macos", windows))]
+    pub(crate) fn set_typing(
+        &mut self,
+        on: bool,
+        owner: Option<&dyn OwnerLink>,
+        reply: &mut dyn FnMut(&Board),
+    ) -> TypingTurn {
+        let Some(written) = self.state_file().map(|mut state| {
+            state.update(|state| state.switches.set(crate::floor::Switch::KeyClass, on))
+        }) else {
+            return TypingTurn::NoStateFile;
+        };
+        self.keys_held_off = written.is_err();
+        let keys = self.held_switches().is_on(crate::floor::Switch::KeyClass);
+        if let Some((ctx, _)) = self.served.as_mut() {
+            *ctx = with_keys(ctx, keys);
+        }
+        let turned = match written {
+            Ok(()) => TypingTurn::Written,
+            Err(error) => TypingTurn::NotWritten(error),
+        };
+        if keys && self.served.is_some() && !self.owner_keeps_keys {
+            self.ending = Some(Ending::Restart);
+            self.publish();
+            return TypingTurn::Restart;
+        }
+        if let Some(ended) = self.begin_with_the_keys(keys, owner, reply) {
+            return ended;
+        }
+        self.publish();
+        turned
+    }
+
+    /// The error of the stop that `name` did not answer as a stop, while the
+    /// supervisor still holds it (an earlier stop, the drain's among them,
+    /// left it unstopped): its source may still run with what it was begun
+    /// with.
+    #[cfg(any(target_os = "macos", windows))]
+    fn held_unstopped(&self, name: SourceName) -> Option<CaptureError> {
+        match self.sources.state(name) {
+            Some((SourceState::Failed { error, .. }, true)) if self.sources.holds(name) => {
+                Some(error.clone())
+            }
+            _ => None,
+        }
+    }
+
+    #[cfg(any(target_os = "macos", windows))]
+    fn begin_with_the_keys(
+        &mut self,
+        keys: bool,
+        owner: Option<&dyn OwnerLink>,
+        reply: &mut dyn FnMut(&Board),
+    ) -> Option<TypingTurn> {
+        let name = halvo_control::proto::source_of(
+            halvo_control::model::Modality::Keystroke,
+            self.platform,
+        )?;
+        let ctx = self.ctx.clone()?;
+        if ctx.floor().switches().is_on(crate::floor::Switch::KeyClass) == keys {
+            return None;
+        }
+        if let (false, Some(error)) = (keys, self.held_unstopped(name)) {
+            let answer = Err(error);
+            self.answered_unstopped(name, &answer);
+            let owner = owner?;
+            self.arm_unstopped(name, &answer);
+            self.end_after_unstopped(owner, StopKind::Pause, reply);
+            return Some(TypingTurn::Ended);
+        }
+        if self.stopped_for_drain || self.pausing || self.entered || !self.wanted.contains(&name) {
+            self.ctx = Some(with_keys(&ctx, keys));
+            return None;
+        }
+        if self.sources.holds(name) {
+            let armed = !keys
+                && owner.is_some()
+                && self.ends_by.is_none()
+                && self.watchdog_armed().is_none();
+            if armed {
+                self.arm_entry(&[name], exit::SOURCE_NOT_STOPPED);
+            }
+            let answer = self.sources.stop_one(name);
+            if armed {
+                self.disarm();
+            }
+            if let Some(answer) = answer.filter(|answer| !is_a_stop(answer)) {
+                self.answered_unstopped(name, &answer);
+                if let (false, Some(owner)) = (keys, owner) {
+                    self.arm_unstopped(name, &answer);
+                    self.end_after_unstopped(owner, StopKind::Pause, reply);
+                    return Some(TypingTurn::Ended);
+                }
+                return None;
+            }
+        }
+        self.backoff.retain(|backoff| backoff.name != name);
+        let ctx = with_keys(&ctx, keys);
+        self.ctx = Some(ctx.clone());
+        self.publish();
+        if !self.withheld(name) {
+            if let Some(Err(error)) = self.sources.start_one(&mut self.factory, &ctx, name) {
+                self.board.record_failure(name, error);
+                let now = self.main_loop.now();
+                self.schedule_restart(name, now);
+            }
+        }
+        None
     }
 
     /// The slot of the store as the supervisor holds it.
@@ -1225,15 +1423,24 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// first: the published line reads impaired with the reason permission
     /// until the tick's own publish.
     fn turns_to_keys(&self, name: SourceName) -> bool {
+        let pointer_alone = |state: &SourceState| {
+            *state
+                == SourceState::Impaired {
+                    reason: HealthReason::Permission,
+                }
+        };
         name == SourceName::Input
             && self.holds_keys()
             && !self.keys_refused
-            && self.sources.state(name).is_some_and(|(state, _)| {
-                *state
-                    == SourceState::Impaired {
-                        reason: HealthReason::Permission,
-                    }
-            })
+            && (self
+                .sources
+                .state(name)
+                .is_some_and(|(state, _)| pointer_alone(state))
+                || self
+                    .board
+                    .sources
+                    .iter()
+                    .any(|entry| entry.name == name && pointer_alone(&entry.state)))
     }
 
     fn remember_delay(&mut self, name: SourceName, delay: Duration) {
@@ -1244,11 +1451,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     fn switches(&self) -> crate::floor::Switches {
         match &self.ctx {
             Some(ctx) => ctx.floor().switches(),
-            None => self
-                .state_file()
-                .map_or_else(crate::floor::Switches::default, |state| {
-                    state.state().switches
-                }),
+            None => self.held_switches(),
         }
     }
 
@@ -2138,6 +2341,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 .state(SourceName::Input)
                 .map(|(state, _)| state.clone());
         }
+        #[cfg(test)]
+        if let Some(slot) = &self.published_keys {
+            *slot.lock().unwrap_or_else(PoisonError::into_inner) =
+                Some(self.switches().is_on(crate::floor::Switch::KeyClass));
+        }
         self.board.capture = if self.pausing {
             Capture::Pausing
         } else if self.no_indicator() {
@@ -2155,6 +2363,17 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             life.publish(self.status_parts(None));
         }
     }
+}
+
+/// `ctx` with the switch key_class at `keys` and every other switch as it
+/// holds them.
+fn with_keys(ctx: &SourceContext, keys: bool) -> SourceContext {
+    let mut switches = ctx.floor().switches();
+    switches.set(crate::floor::Switch::KeyClass, keys);
+    SourceContext::with_floor(
+        ctx.sink().clone(),
+        ctx.floor().clone().with_switches(switches),
+    )
 }
 
 /// Whether the supervisor starts a source of `reason` again: not when its
@@ -2469,6 +2688,10 @@ mod tests {
     }
 
     fn fixture<F: SystemSources>(factory: F) -> Fixture<F> {
+        fixture_of(Platform::Macos, factory)
+    }
+
+    fn fixture_of<F: SystemSources>(platform: Platform, factory: F) -> Fixture<F> {
         let now = Rc::new(Cell::new(Duration::ZERO));
         let (handle, _writer) = crate::sink::channel(64);
         let out = Out::default();
@@ -2479,7 +2702,7 @@ mod tests {
             hook: None,
         };
         Fixture {
-            supervisor: Supervisor::new(Platform::Macos, factory, main_loop)
+            supervisor: Supervisor::new(platform, factory, main_loop)
                 .with_err(Box::new(out.clone())),
             now,
             link: None,
@@ -3312,6 +3535,283 @@ mod tests {
                 reason: HealthReason::Permission
             }),
             "the published line at the begin that asks for the key types: {seen:?}"
+        );
+    }
+
+    fn keys_of(f: &Fixture<Factory>) -> bool {
+        f.supervisor
+            .status_parts(None)
+            .switches
+            .is_on(crate::floor::Switch::KeyClass)
+    }
+
+    fn keys_in_the_file(dir: &std::path::Path) -> bool {
+        crate::daemon::state::StateFile::open(
+            crate::daemon::state::StateDir::open(dir).unwrap(),
+            Box::new(crate::daemon::state::tests::TestWrite::default()),
+        )
+        .state()
+        .switches
+        .is_on(crate::floor::Switch::KeyClass)
+    }
+
+    #[test]
+    fn a_turn_of_typing_is_written_by_the_one_writer_and_where_its_write_fails_typing_stays_off() {
+        let (mut f, dir, writer) = with_state_file(fixture(Factory::new()));
+        f.start(&two());
+        let turn =
+            |f: &mut Fixture<Factory>, on: bool| f.supervisor.set_typing(on, None, &mut |_| {});
+        assert!(matches!(turn(&mut f, false), TypingTurn::Written));
+        assert!(!keys_of(&f), "off in the status");
+        assert!(!keys_in_the_file(dir.path()), "a new life reads off");
+        writer.failing.store(true, Ordering::SeqCst);
+        assert!(matches!(turn(&mut f, true), TypingTurn::NotWritten(_)));
+        assert!(!keys_of(&f), "a turn on stands only behind its write");
+        assert!(!keys_in_the_file(dir.path()));
+        writer.failing.store(false, Ordering::SeqCst);
+        assert!(matches!(turn(&mut f, true), TypingTurn::Written));
+        assert!(keys_of(&f));
+        assert!(keys_in_the_file(dir.path()), "a new life reads on");
+        writer.failing.store(true, Ordering::SeqCst);
+        let TypingTurn::NotWritten(error) = turn(&mut f, false) else {
+            panic!("a failed write of a turn off answers its error");
+        };
+        assert!(
+            error.to_string().contains(dir.path().to_str().unwrap()),
+            "the answer names the file: {error}"
+        );
+        assert!(!keys_of(&f), "a turn off holds where its write fails");
+        assert!(keys_in_the_file(dir.path()), "the file kept on");
+        assert!(
+            !f.supervisor
+                .start_switches()
+                .is_on(crate::floor::Switch::KeyClass),
+            "a store opened behind it starts with typing off"
+        );
+    }
+
+    #[test]
+    fn a_turn_off_stops_the_source_that_holds_keys_and_begins_it_again_in_the_life_on_both_systems()
+    {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let keys_at_begins: Arc<Mutex<Vec<bool>>> = Arc::default();
+            let seen = keys_at_begins.clone();
+            let key_source = halvo_control::proto::source_of(
+                halvo_control::model::Modality::Keystroke,
+                platform,
+            )
+            .expect("a source of keys");
+            let factory = Factory::adjusting(move |source| {
+                if source.name == key_source {
+                    let seen = seen.clone();
+                    let hook: Hook = Box::new(move |ctx| {
+                        seen.lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .push(ctx.floor().switches().is_on(crate::floor::Switch::KeyClass));
+                    });
+                    source.on_begin = Some(hook);
+                }
+            });
+            let (mut f, _dir, _writer) = with_state_file(fixture_of(platform, factory));
+            let wanted = starting(platform, RunKind::Service, Switches::default());
+            assert!(wanted.contains(&key_source), "{platform:?}: {wanted:?}");
+            f.start(&wanted);
+            let others: Vec<SourceName> = wanted
+                .iter()
+                .copied()
+                .filter(|name| *name != key_source)
+                .collect();
+            assert!(matches!(
+                f.supervisor.set_typing(false, None, &mut |_| {}),
+                TypingTurn::Written
+            ));
+            let calls = &f.supervisor.factory().calls;
+            assert_eq!(
+                calls.of(&format!("stop {}", key_source.as_str())).len(),
+                1,
+                "{platform:?}: the source that holds keys is stopped at once"
+            );
+            for name in &others {
+                assert!(
+                    calls.of(&format!("stop {}", name.as_str())).is_empty(),
+                    "{platform:?}: {name:?} goes on"
+                );
+            }
+            assert_eq!(
+                *keys_at_begins
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner),
+                [true, false],
+                "{platform:?}: begun again in the life without the key types"
+            );
+            assert!(
+                !RunSources::restart_asked(&f.supervisor),
+                "{platform:?}: no new life"
+            );
+            assert_eq!(f.tick(), None, "{platform:?}");
+            assert_eq!(f.state(key_source), SourceState::Running, "{platform:?}");
+            assert!(!keys_of(&f), "{platform:?}");
+        }
+        let (mut f, _dir, _writer) = with_state_file(fixture(Factory::new()));
+        let mut off = Switches::default();
+        off.set(crate::floor::Switch::KeyClass, false);
+        let (handle, _writer) = crate::sink::channel(8);
+        let owner_off = SourceContext::with_floor(
+            handle,
+            crate::floor::exclude::FloorHandle::new(
+                None,
+                Arc::new(crate::floor::exclude::NoLineage),
+                off,
+            ),
+        );
+        f.supervisor.serve_sources(owner_off, two().to_vec());
+        assert!(matches!(
+            f.supervisor.set_typing(true, None, &mut |_| {}),
+            TypingTurn::Restart
+        ));
+        assert!(
+            RunSources::restart_asked(&f.supervisor),
+            "a turn on in a life whose owner drops every key ends the life with 4"
+        );
+        assert!(f.supervisor.factory().calls.of("begin input").is_empty());
+    }
+
+    #[test]
+    fn a_turn_off_over_a_source_of_keys_that_the_drain_left_unstopped_keeps_the_status_on_and_ends_with_5(
+    ) {
+        let store = ModelStore::new();
+        let f = fixture_on_owner(
+            Factory::adjusting(|source| {
+                if source.name == SourceName::Input {
+                    source.stop = Err(timeout());
+                }
+            }),
+            store.clone(),
+        );
+        let (mut f, dir, _writer) = with_state_file(f);
+        let recorder = Recorder::default();
+        f.supervisor = std::mem::replace(
+            &mut f.supervisor,
+            Supervisor::new(
+                Platform::Macos,
+                Factory::new(),
+                TestLoop {
+                    now: Rc::default(),
+                    harness: None,
+                    real: Duration::ZERO,
+                    hook: None,
+                },
+            ),
+        )
+        .with_ending(Arc::new(recorder.clone()));
+        f.start(&two());
+        f.tick();
+        drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
+        f.tick();
+        assert_eq!(
+            f.supervisor.board().capture,
+            Capture::Stopped,
+            "the drain stopped the sources"
+        );
+        assert!(
+            f.supervisor.sources.holds(SourceName::Input),
+            "the tap with the key types did not answer the drain's stop"
+        );
+        let mut answered = false;
+        let link = f.link.as_ref().map(|link| link as &dyn OwnerLink);
+        let turned = f
+            .supervisor
+            .set_typing(false, link, &mut |_| answered = true);
+        assert!(
+            keys_of(&f),
+            "the status reads on over a tap that may still take keys"
+        );
+        assert!(!keys_in_the_file(dir.path()), "the switch is written off");
+        assert!(
+            matches!(turned, TypingTurn::Ended),
+            "the end routine: {turned:?}"
+        );
+        assert!(answered, "the request is answered from the end routine");
+        assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
+    }
+
+    type AtBegins = Arc<Mutex<Vec<(Option<SourceState>, Option<bool>)>>>;
+
+    #[test]
+    fn a_begin_that_can_take_key_types_is_published_first_at_a_turn_on_and_behind_a_tap_that_ended()
+    {
+        let published: Arc<Mutex<Option<SourceState>>> = Arc::default();
+        let keys: Arc<Mutex<Option<bool>>> = Arc::default();
+        let at_begins: AtBegins = Arc::default();
+        let (slot, keys_slot, seen) = (published.clone(), keys.clone(), at_begins.clone());
+        let factory = Factory::adjusting(move |source| {
+            if source.name == SourceName::Input {
+                let (slot, keys_slot, seen) = (slot.clone(), keys_slot.clone(), seen.clone());
+                let hook: Hook = Box::new(move |_| {
+                    let line = slot.lock().unwrap_or_else(PoisonError::into_inner).clone();
+                    let keys = *keys_slot.lock().unwrap_or_else(PoisonError::into_inner);
+                    seen.lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .push((line, keys));
+                });
+                source.on_begin = Some(hook);
+            }
+        });
+        let (f, answers, _) = probed(fixture(factory));
+        let (mut f, _dir, _writer) = with_state_file(f);
+        f.supervisor = f
+            .supervisor
+            .publishing_the_input_line_to(published)
+            .publishing_the_keys_to(keys);
+        let last = |seen: &AtBegins| {
+            seen.lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .last()
+                .cloned()
+        };
+        let pointer_alone = Some(SourceState::Impaired {
+            reason: HealthReason::Permission,
+        });
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        f.start(&two());
+        f.tick();
+        f.supervisor.set_typing(false, None, &mut |_| {});
+        f.supervisor.set_typing(true, None, &mut |_| {});
+        let (line, said) = last(&at_begins).expect("a begin at the turn on");
+        assert_eq!(
+            said,
+            Some(true),
+            "the turn on is published before the begin"
+        );
+        assert_ne!(line, pointer_alone, "the turn on");
+        assert_eq!(f.supervisor.factory().calls.of("begin input").len(), 3);
+
+        for grant in [GrantState::NotGranted, GrantState::Granted] {
+            answers.borrow_mut().push_back(input_monitoring(grant));
+            f.later(PROBE_INTERVAL);
+        }
+        assert_eq!(
+            f.state(SourceName::Input),
+            SourceState::Impaired {
+                reason: HealthReason::Permission,
+            }
+        );
+        f.supervisor
+            .factory()
+            .health_of(SourceName::Input)
+            .set(SourceState::Failed {
+                reason: HealthReason::ThreadEnded,
+                error: CaptureError::ThreadEnded,
+            });
+        f.tick();
+        assert_eq!(f.supervisor.factory().calls.of("begin input").len(), 5);
+        let (line, said) = last(&at_begins).expect("a begin behind the tap that ended");
+        assert_eq!(said, Some(true));
+        assert_ne!(
+            line, pointer_alone,
+            "a tap of the pointer alone that ended in the tick before the turn to the key types"
         );
     }
 

@@ -25,20 +25,24 @@
 # halvo-capture, halvo-derived, halvo-learn, halvo-learn-gate, halvo-learn-store, halvo-redact,
 # halvo-route, halvo-route-gate and halvo-route-wire. In those, a target or a group of unit tests
 # is here when it took about 6 s or more in one of the two jobs.
-# The groups: A the tests of the store (the slice mon); B the test targets of the agent and
-# coordinator packages, the target formal_traces and the unit tests of five packages (tue); C the name
+# The groups: A the tests of the store (the slice mon); B the test targets of the agent packages and
+# of halvo-policy and the unit tests of three packages (tue); C the name
 # parts of halvo-capture's unit tests and the doc-tests (fri in the macos job, fri in the windows job);
 # D the test targets of seven more packages and three targets by name (sat); E the one target
 # macos_stall_fixture (wed in the macos job, before 51-macos-stall, which reads from 12-test's list
 # that the launch-path test of that target ran; no windows slice runs it, where every test of it is
 # ignored); F what the merge gate of the macos job alone skips, by the job word macos, and the target
 # cli of halvo-capture, whose file holds tests of a macos build alone (wed2 in the macos job; no
-# windows slice runs it, where the windows gate runs every test of it that a windows build holds).
+# windows slice runs it, where the windows gate runs every test of it that a windows build holds); G
+# the test targets of halvo-runner and of the coordinator packages, the target formal_traces and the
+# unit tests of halvo-web and halvo-route-gate (tue2).
 # The seconds of the lines of F are those of the macos job in the pull request runs 45111247085,
 # 45112524657 and 45111386498, from libtest's lines, and for a test line the gaps before its lines in
 # the third run's 12-test/line-seconds.txt. B and D were one group,
 # which took 738 s in the macos job and 877 s in the windows job of the run 44917046290, 273 s and
-# 445 s of it builds.
+# 445 s of it builds. B and G were one group, whose 12-test took 806 s in the macos job and 907 s in
+# the windows job of the run 45116131132, 233 s and 342 s of it builds; the lines of G took 224 s and
+# 168 s of its tests there, by libtest's lines.
 # CI_D_TEST_GROUP=<group> sh scripts/ci/run-ci-d.sh <job> 12-test runs one group by hand.
 # The seconds of a target and of a package's test targets are the ones that libtest printed in
 # the macos job and in the windows job of the pull request run 44877874023, which ran every test.
@@ -52,11 +56,11 @@ targets halvo-analysis F macos 7 test targets: 27.4, 28.4 and 33.6 s macos; the 
 targets halvo-cap D 4 test targets: 6 s macos, 6 s windows
 targets halvo-checkpoint D 10 test targets: 13 s macos, 3 s windows
 targets halvo-connect D 8 test targets: 24 s macos, 19 s windows
-targets halvo-coord B 40 test targets: 17 s macos, 11 s windows
-targets halvo-coord-app B 13 test targets: 21 s macos, 16 s windows
-targets halvo-coord-store B 8 test targets: under 1 s in each job
+targets halvo-coord G 40 test targets: 17 s macos, 11 s windows
+targets halvo-coord-app G 13 test targets: 21 s macos, 16 s windows
+targets halvo-coord-store G 8 test targets: under 1 s in each job
 targets halvo-policy B 10 test targets: under 1 s in each job
-targets halvo-runner B 14 test targets: no seconds read for the 14; the 10 of the run 44877874023 took 9 s macos, 9 s windows
+targets halvo-runner G 14 test targets: no seconds read for the 14; the 10 of the run 44877874023 took 9 s macos, 9 s windows
 targets halvo-sample D 9 test targets: 8 s macos, 5 s windows
 targets halvo-schema A 43 test targets: 78 s macos, 56 s windows
 targets halvo-schema-core A 1 test target: under 1 s in each job
@@ -67,7 +71,7 @@ targets halvo-web D 1 test target: 33 s macos, 33 s windows
 target privacy A halvo-derived: 52 s macos, 60 s windows
 target replaced A halvo-derived: 8 s macos, 7 s windows
 target page_gap_check A halvo-derived: 6 s macos, 4 s windows
-target formal_traces B halvo-route: 15 s macos, 10 s windows
+target formal_traces G halvo-route: 15 s macos, 10 s windows
 target derive_rules D halvo-route-gate: 12 s macos, 8 s windows
 target drift_cli D halvo-learn-gate: 9 s macos, 5 s windows
 target app_start_windows D halvo: no test on macos, 18 s windows; its waits behind a stop and before Start are spans of seconds, beside check 34
@@ -76,11 +80,11 @@ target cli F halvo-capture: 25.7, 24.5 and 25.6 s macos, two tests; its file hol
 units halvo-learn-gate B 42 s macos, 24 s windows
 kept halvo-learn-gate tests::privacy the deletion of learned rows: the module tests::privacy of the package's unit tests, and the four tests of its module privacy::tests whose own name begins with privacy; ten tests, about 3 s on a Mac
 units halvo-sqlcipher A 27 s macos, 32 s windows
-units halvo-web B 24 s macos, 7 s windows
+units halvo-web G 24 s macos, 7 s windows
 units halvo-control B 16 s macos, 10 s windows
 kept halvo-control _windows::tests:: windows the three peer checks of the Windows control channel: client_windows::tests::the_pipe_client_refuses_a_server_of_another_user, child_windows::tests::a_child_inherits_the_listed_handles_and_no_other and r2::owner_stream_windows::tests::an_end_goes_to_no_process_of_another_user, which the kept part r2:: matches too; the windows job alone has them
 kept halvo-control r2:: windows the unit tests of the module r2, which the package builds by default: the five of the request relay, the three of the request defer, the two of protocol version 2, the one of the run marks and the owner stream's one of each system; nine in the windows job, where the four that serve a request on a socket pair are not built and the owner stream's test of Windows is; the twelve of a Mac run in the group B, and the merge gate of the macos job builds no unit test of the package (that build took 6.3, 9.1 and 13.9 s in the pull request runs 45111247085, 45112524657 and 45111386498)
-units halvo-route-gate B 13 s macos, 9 s windows
+units halvo-route-gate G 13 s macos, 9 s windows
 units halvo-learn-store B 7 s macos, 5 s windows
 units halvo-runner F macos 12.3, 12.9 and 13.4 s macos; the windows gate runs them
 test daemon::supervisor::tests::stress_cases C halvo-capture 88 s macos, 38 s windows, 48 tests

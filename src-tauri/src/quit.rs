@@ -474,6 +474,10 @@ mod tests {
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
     }
 
     fn status(capture: Capture, desired: CaptureState) -> DaemonStatus {

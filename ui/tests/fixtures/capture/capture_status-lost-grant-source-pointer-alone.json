@@ -109,6 +109,10 @@
     ],
     "storage": "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
   },
+  "typing_switch": {
+    "label": "Record typing",
+    "on": true
+  },
   "window": {
     "first_report_day": 7,
     "rolling_days": 14
