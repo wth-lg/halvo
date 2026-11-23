@@ -930,4 +930,54 @@ mod tests {
         made.root.finish().unwrap();
         dir.close().unwrap();
     }
+
+    /// The one query that decides which rows a start purges, on a real store: three segments, the middle one with the
+    /// earliest first capture. Before any shred the read from ordinal 0 names no keyless segment. An eviction to a
+    /// bound of 0, one segment a call, shreds the middle one while the lower and the higher live: the read from
+    /// ordinal 0 names that ordinal and no other, and a read from another ordinal names none. The next eviction
+    /// shreds the lowest: the shredded middle one now lies below the lowest live one, and the read names none.
+    #[test]
+    fn a_read_from_ordinal_0_names_the_keyless_segment_above_the_lowest_live_one_alone() {
+        let dir = tempfile::Builder::new()
+            .prefix("adapter-gone-")
+            .tempdir()
+            .unwrap();
+        let made = ScratchDir::at(dir.path()).create().unwrap();
+        let mut store = made.store;
+        let noon = (20_000 * 86_400 + 43_200) * SECOND;
+        let lowest = write_at(&mut store, noon + 61 * SECOND, b"{\"n\":1}\n");
+        let middle = write_at(&mut store, noon, b"{\"n\":2}\n");
+        let highest = write_at(&mut store, noon + 122 * SECOND, b"{\"n\":3}\n");
+        assert!(lowest.ordinal < middle.ordinal && middle.ordinal < highest.ordinal);
+
+        let read = store.read_segment(Ordinal::new(0)).unwrap();
+        assert_eq!(read.segment.map(|live| live.ordinal), Some(lowest.ordinal));
+        assert!(read.gone.is_empty(), "before any shred: {:?}", read.gone);
+
+        let evicted = store.evict_to(ByteBound::raw(0), 1).unwrap();
+        assert_eq!(evicted.shredded, [middle.ordinal]);
+        let read = store.read_segment(Ordinal::new(0)).unwrap();
+        assert_eq!(read.segment.map(|live| live.ordinal), Some(lowest.ordinal));
+        assert_eq!(read.gone, [middle.ordinal]);
+        let other = store.read_segment(lowest.ordinal).unwrap();
+        assert!(
+            other.gone.is_empty(),
+            "a read from another ordinal: {:?}",
+            other.gone
+        );
+
+        let evicted = store.evict_to(ByteBound::raw(0), 1).unwrap();
+        assert_eq!(evicted.shredded, [lowest.ordinal]);
+        let read = store.read_segment(Ordinal::new(0)).unwrap();
+        assert_eq!(read.segment.map(|live| live.ordinal), Some(highest.ordinal));
+        assert!(
+            read.gone.is_empty(),
+            "below the lowest live one: {:?}",
+            read.gone
+        );
+
+        drop(store);
+        made.root.finish().unwrap();
+        dir.close().unwrap();
+    }
 }

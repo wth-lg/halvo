@@ -17,7 +17,9 @@
 //! - After the key and before any request, the slot hands the owner the ordinals of shredded segments that the caller
 //!   names for a start ([`Caller::gone`]) at or above that start's `--first-live`, in frames `{"purge":[<n>,..]}` of
 //!   at most 64 (halvo-control's `purge_frame`), each answer awaited for 4 s; an answer other than
-//!   `{"purge":"done"}` ends that owner, and the call answers `store_unavailable`.
+//!   `{"purge":"done"}` ends that owner, and the call answers `store_unavailable`. The keyless ordinals among them are
+//!   those of the newest read from ordinal 0, which can be up to about a minute old; the passes' own list comes
+//!   beside them.
 //! - [`OwnerSlot::hand_over`] hands the owner that runs, in the same frames, the ordinals that passes of the capture
 //!   store's maintenance shredded since the last hand-over ([`Caller::shredded`]). It starts no owner and stops none.
 //! - When the slot is made it reads a `derived/owner.pid` that an earlier daemon left. A file of another user or of a
@@ -108,9 +110,10 @@ pub trait Caller: Send + Sync {
     }
 
     /// The ordinals of segments that the capture store has shredded, for a start: those of the keyless segments
-    /// above the lowest live one that the newest read found, and those that passes shredded since the last hand-over,
-    /// which the call takes. Asked at each start once the key is written; the slot hands the owner those at or above
-    /// the `--first-live` of that start before its first request. A caller that reads no store names none.
+    /// above the lowest live one as the newest read from ordinal 0 found them, which can be up to about a minute old,
+    /// and those that passes shredded since the last hand-over, which the call takes. Asked at each start once the
+    /// key is written; the slot hands the owner those at or above the `--first-live` of that start before its first
+    /// request. A caller that reads no store names none.
     fn gone(&self) -> Vec<u64> {
         Vec::new()
     }
@@ -320,9 +323,10 @@ impl OwnerSlot {
     /// Hands the owner that runs the ordinals that passes shredded since the last hand-over ([`Caller::shredded`]), in
     /// frames `purge` of at most 64, each answer awaited for 4 s. It starts no owner and stops none. With no owner
     /// running, during the delete of everything and with a pid file trusted for nothing it takes no ordinal, so that
-    /// the next start hands them on. What a frame named is not sent again when the owner answers other than `done`:
-    /// the capture store keeps a shredded segment's row with no key, and every start sends those above the lowest live
-    /// one again.
+    /// the next start hands them on. What a frame named is not sent again when the owner answers other than `done`,
+    /// and that owner keeps the rows until its next start: the capture store keeps a shredded segment's row with no
+    /// key, and a start sends the keyless ordinals above the lowest live one as the newest read from ordinal 0 left
+    /// them, which can be up to about a minute old (`daemon_caller::ASK_EVERY`), beside the passes' own list.
     pub fn hand_over(&mut self) {
         if self.caller.deleting() || self.distrust.is_some() {
             return;
