@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b), whose vocabulary reads this check's lists macos_only_paths and expected_tests in their here-document form, and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended), and a listed defect must fail with its marker; a test's WF line carries the last rounds_decided_by_the_time_rule=N that a TF line of a log that the rule passed holds (ruling W3-32); the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds of the short form in both forms of the check, which hands HALVO_WF_FORM=short to each test and refuses any other word of the caller in that variable; the short form (50-windows-functional, 52-windows-browser) prints a row marked scope=long-only or scope=long-only-shows-sometimes with result=long-form-only and runs it not, and the list takes no other scope word; the long form (WF_FORM=long, a run by hand alone, in no slice and no schedule) runs one part of one group in each of four checks, part modules (the rows whose name holds ::) in 53-windows-long-native-modules and 57-windows-long-browser-modules and part top (the other rows) in 56-windows-long-native-top and 58-windows-long-browser-top, every row of the part by the same rules, but a row marked scope=long-only-shows-sometimes that reads 0 is printed with result=not-shown and fails nothing
+# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b), whose vocabulary reads this check's lists macos_only_paths and expected_tests in their here-document form, and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended), and a listed defect must fail with its marker; a test's WF line carries the last rounds_decided_by_the_time_rule=N that a TF line of a log that the rule passed holds (ruling W3-32); the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds of the short form in both forms of the check, which hands HALVO_WF_FORM=short to each test and refuses any other word of the caller in that variable; the short form (50-windows-functional, 52-windows-browser) prints a row marked scope=long-only or scope=long-only-shows-sometimes with result=long-form-only and runs it not, every form prints a row marked scope=no-form, a test of the test file that no form runs, with result=in-no-form and runs it not, and the list takes no other scope word; the long form (WF_FORM=long, a run by hand alone, in no slice and no schedule) runs one part of one group in each of four checks, part modules (the rows whose name holds ::) in 53-windows-long-native-modules and 57-windows-long-browser-modules and part top (the other rows) in 56-windows-long-native-top and 58-windows-long-browser-top, every row of the part by the same rules, but a row marked scope=long-only-shows-sometimes that reads 0 is printed with result=not-shown and fails nothing
 # lane: alone
 set -u
 name_of() {
@@ -81,8 +81,8 @@ browser::burst_rounds::the_burst_of_a_browser_runs_five_rounds_in_both_forms gro
 browser::burst_rounds::the_burst_prints_the_count_of_its_counted_rounds_that_the_time_rule_decided_and_their_freed_at_ms group=browser
 browser::cold_and_warm_orders_in_chrome group=browser
 browser::cold_and_warm_orders_in_edge group=browser
-browser::every_letter_in_a_chat_box_that_keeps_the_focus_behind_enter_is_noted_in_chrome group=browser scope=long-only
-browser::every_letter_in_a_chat_box_that_keeps_the_focus_behind_enter_is_noted_in_edge group=browser
+browser::every_letter_in_a_chat_box_that_keeps_the_focus_behind_enter_is_noted_in_chrome group=browser scope=no-form
+browser::every_letter_in_a_chat_box_that_keeps_the_focus_behind_enter_is_noted_in_edge group=browser scope=no-form
 browser::stall_phases_of_the_page_in_chrome group=browser
 browser::stall_phases_of_the_page_in_edge group=browser
 browser::swap_phases_of_the_page_in_chrome group=browser
@@ -364,7 +364,7 @@ measure() {
       id = "-"; grp = ""; scope = "-"
       for (i = 2; i <= NF; i++) {
         if ($i ~ /^group=/) grp = substr($i, 7)
-        else if ($i == "scope=long-only" || $i == "scope=long-only-shows-sometimes") scope = substr($i, 7)
+        else if ($i == "scope=long-only" || $i == "scope=long-only-shows-sometimes" || $i == "scope=no-form") scope = substr($i, 7)
         else if ($i ~ /^scope=/) scope = "other"
         else if (id == "-") id = $i
       }
@@ -374,7 +374,7 @@ measure() {
   stray=$(awk -F '\t' '$2 != "native" && $2 != "browser" { print $1 }' "$work/plan" | tr '\n' ' ')
   [ -z "$stray" ] || fail "the list puts these tests in neither script (the group is native or browser): ${stray% }"
   scoped=$(awk -F '\t' '$3 == "other" { print $1 }' "$work/plan" | tr '\n' ' ')
-  [ -z "$scoped" ] || fail "the list gives these tests a scope word other than scope=long-only and scope=long-only-shows-sometimes, so the short form would run them: ${scoped% }"
+  [ -z "$scoped" ] || fail "the list gives these tests a scope word other than scope=long-only, scope=long-only-shows-sometimes and scope=no-form, so the short form would run them: ${scoped% }"
   twice=$(cut -f 1 "$work/plan" | sort | uniq -d | tr '\n' ' ')
   [ -z "$twice" ] || fail "the list names these tests more than once, so a test stands in both scripts or twice in one: ${twice% }"
   cut -f 1 "$work/plan" | sort >"$work/expected-names" || fail "the expected list cannot be read"
@@ -417,6 +417,7 @@ measure() {
   rule_failed=0
   long_only=0
   not_shown=0
+  no_form=0
   ran=0
   index=0
   while IFS= read -r test; do
@@ -429,6 +430,13 @@ measure() {
       modules:*) continue ;;
     esac
     scope=$(awk -F '\t' -v test="$test" '$1 == test { print $3 }' "$work/plan")
+    if [ "$scope" = no-form ]; then
+      no_form=$((no_form + 1))
+      line="WF $test result=in-no-form"
+      printf '%s\n' "$line"
+      printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+      continue
+    fi
     if [ "$scope" != - ] && [ "$check_form" = short ]; then
       long_only=$((long_only + 1))
       line="WF $test result=long-form-only"
@@ -555,8 +563,9 @@ measure() {
     printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   done
 
-  line="WF total=$((ran + long_only)) pass=$passed known_defect=$known long_form_only=$long_only"
+  line="WF total=$((ran + long_only + no_form)) pass=$passed known_defect=$known long_form_only=$long_only"
   [ "$check_form" = short ] || line="$line not_shown=$not_shown"
+  [ "$no_form" -eq 0 ] || line="$line in_no_form=$no_form"
   line="$line fail=$((failed + fixed)) group=$group"
   [ "$check_form" = short ] || line="$line part=$part"
   printf '%s\n' "$line"
@@ -1152,27 +1161,28 @@ long_fixtures() {
   long_name=$(name_of "$1" long "$2")
   long_word=
   [ "$1" = native ] || long_word=" group=$1"
-  long_list="c1_raw_input$long_word${nl}top_long_row$long_word scope=long-only${nl}stall::a_module_row$long_word${nl}known_defect::x1_password RR-windows-01$long_word scope=long-only"
-  long_spec="c1_raw_input|pass${nl}top_long_row|pass${nl}stall::a_module_row|pass${nl}known_defect::x1_password|defect|RR-windows-01"
+  long_list="c1_raw_input$long_word${nl}top_long_row$long_word scope=long-only${nl}stall::a_module_row$long_word${nl}known_defect::x1_password RR-windows-01$long_word scope=long-only${nl}stall::a_row_in_no_form$long_word scope=no-form"
+  long_spec="c1_raw_input|pass${nl}top_long_row|pass${nl}stall::a_module_row|pass${nl}known_defect::x1_password|defect|RR-windows-01${nl}stall::a_row_in_no_form|inconclusive"
   long_knobs "$1" "$2" "$long_list"
   if [ "$2" = modules ]; then
     check "the-long-form-of-the-$1-modules-part-runs-every-module-row-alone" PASS "$long_spec" \
       "${nl}WF stall::a_module_row result=pass${nl}" "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" \
-      "${nl}WF total=2 pass=1 known_defect=1 long_form_only=0 not_shown=0 fail=0 group=$1 part=modules${nl}WF form=long rounds=short seconds=" \
+      "${nl}WF stall::a_row_in_no_form result=in-no-form${nl}" \
+      "${nl}WF total=3 pass=1 known_defect=1 long_form_only=0 not_shown=0 in_no_form=1 fail=0 group=$1 part=modules${nl}WF form=long rounds=short seconds=" \
       "${nl}PASS $long_name" "!WF c1_raw_input result=" "!WF top_long_row result="
     long_knobs "$1" "$2" "$long_list"
     check "a-long-only-listed-row-that-reads-0-fails-the-long-form-of-the-$1-modules-part" FAIL \
-      "c1_raw_input|pass${nl}top_long_row|pass${nl}stall::a_module_row|pass${nl}known_defect::x1_password|pass" \
+      "c1_raw_input|pass${nl}top_long_row|pass${nl}stall::a_module_row|pass${nl}known_defect::x1_password|pass${nl}stall::a_row_in_no_form|inconclusive" \
       "${nl}WF known_defect::x1_password result=FIXED-BUT-LISTED${nl}" \
       "FAIL $long_name (1 listed defects passed (FIXED-BUT-LISTED): move each test out of mod known_defect)"
   else
     check "the-long-form-of-the-$1-top-part-runs-every-top-level-row-alone" PASS "$long_spec" \
       "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF top_long_row result=pass${nl}" \
       "${nl}WF total=2 pass=2 known_defect=0 long_form_only=0 not_shown=0 fail=0 group=$1 part=top${nl}WF form=long rounds=short seconds=" \
-      "${nl}PASS $long_name" "!WF stall::a_module_row result=" "!WF known_defect::x1_password result="
+      "${nl}PASS $long_name" "!WF stall::a_module_row result=" "!WF known_defect::x1_password result=" "!WF stall::a_row_in_no_form result="
     long_knobs "$1" "$2" "$long_list"
     check "a-long-only-row-that-fails-fails-the-long-form-of-the-$1-top-part" FAIL \
-      "c1_raw_input|pass${nl}top_long_row|inconclusive${nl}stall::a_module_row|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+      "c1_raw_input|pass${nl}top_long_row|inconclusive${nl}stall::a_module_row|pass${nl}known_defect::x1_password|defect|RR-windows-01${nl}stall::a_row_in_no_form|inconclusive" \
       "${nl}WF top_long_row result=FAIL${nl}" "FAIL $long_name (1 tests failed)"
   fi
 }
@@ -1237,7 +1247,11 @@ fixtures() {
     "${nl}PASS $name"
   expected="c1_raw_input${nl}helper_child_window scope=long-ony${nl}known_defect::x1_password RR-windows-01 scope=long-only"
   check a-scope-word-that-the-short-form-would-run FAIL "$right" \
-    "FAIL $name (the list gives these tests a scope word other than scope=long-only and scope=long-only-shows-sometimes, so the short form would run them: helper_child_window)"
+    "FAIL $name (the list gives these tests a scope word other than scope=long-only, scope=long-only-shows-sometimes and scope=no-form, so the short form would run them: helper_child_window)"
+  expected="c1_raw_input${nl}helper_child_window scope=no-form${nl}known_defect::x1_password RR-windows-01"
+  check a-row-in-no-form-is-printed-and-run-in-no-form PASS "c1_raw_input|pass${nl}helper_child_window|inconclusive${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF helper_child_window result=in-no-form${nl}" \
+    "${nl}WF total=3 pass=1 known_defect=1 long_form_only=0 in_no_form=1 fail=0 group=native${nl}WF form=short seconds=" "${nl}PASS $name"
   long_fixtures native modules
   long_fixtures native top
   check a-not-ok-shutdown-in-the-form-of-the-test-file-is-counted PASS "c1_raw_input|shutdown-not-ok${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
