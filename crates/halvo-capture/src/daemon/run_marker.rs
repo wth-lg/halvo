@@ -18,6 +18,8 @@ use std::path::Path;
 use halvo_control::paths::DataDir;
 use halvo_control::proto::{LastStop, StopKind};
 
+use super::state::StateDir;
+
 const MARKER_READ_MAX_BYTES: u64 = 4_096;
 
 const HOLD_LINE: &str = "hold=yes";
@@ -27,6 +29,75 @@ const ENDED: &str = "ended=";
 const PID: &str = "pid=";
 
 const RECORD: &str = "last_stop=";
+
+/// run/ of the folder that the instance lock holds, where every write of the
+/// marker after the start of a life goes: on macOS a descriptor of run/,
+/// opened through the descriptor of the held folder as the state file's
+/// folder is, so that a write lands in that folder wherever it is moved and
+/// never makes an entry at the folder's name; on Windows, where the folder
+/// is not moved while the lock holds it, run/ by the folder's path, as the
+/// state file's folder is there.
+pub struct HeldRun {
+    #[cfg(target_os = "macos")]
+    fd: std::os::fd::OwnedFd,
+    #[cfg(windows)]
+    path: std::path::PathBuf,
+}
+
+impl HeldRun {
+    /// run/ of the held folder `folder`, made with mode 0700 where it does
+    /// not stand and set to 0700, following no link.
+    #[cfg(target_os = "macos")]
+    pub fn of(folder: &StateDir) -> io::Result<HeldRun> {
+        use std::os::fd::{AsRawFd, FromRawFd};
+        let at = folder.descriptor().as_raw_fd();
+        let name = std::ffi::CString::new(halvo_control::paths::RUN.name())
+            .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let open = || {
+            // SAFETY: `at` is the descriptor of `folder`, open across the call, and `name`
+            // is a NUL-terminated string that lives across it; without O_CREAT openat reads
+            // no mode argument.
+            unsafe {
+                libc::openat(
+                    at,
+                    name.as_ptr(),
+                    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                )
+            }
+        };
+        let mut fd = open();
+        if fd == -1 && io::Error::last_os_error().kind() == io::ErrorKind::NotFound {
+            // SAFETY: as above; mkdirat takes the descriptor, the name and a mode alone.
+            if unsafe { libc::mkdirat(at, name.as_ptr(), 0o700) } == -1 {
+                let error = io::Error::last_os_error();
+                if error.kind() != io::ErrorKind::AlreadyExists {
+                    return Err(error);
+                }
+            }
+            fd = open();
+        }
+        if fd == -1 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: `fd` is the descriptor that openat returned and checked, owned by nothing
+        // else.
+        let fd = unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) };
+        // SAFETY: fchmod takes the descriptor that `fd` owns and a mode alone.
+        if unsafe { libc::fchmod(fd.as_raw_fd(), 0o700) } == -1 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(HeldRun { fd })
+    }
+
+    /// run/ of the held folder `folder`, by its path, made where it does not
+    /// stand.
+    #[cfg(windows)]
+    pub fn of(folder: &StateDir) -> io::Result<HeldRun> {
+        let path = folder.path().join(halvo_control::paths::RUN.name());
+        std::fs::create_dir_all(&path)?;
+        Ok(HeldRun { path })
+    }
+}
 
 /// What a start found in the marker and made of it: its reading, the result
 /// of its write, and the marker that it found, which [`give_back`] puts back.
@@ -148,14 +219,14 @@ pub fn last_end(dir: &DataDir) -> LastEnd {
 /// next start reads what this one read; where it found the marker of a life
 /// that did not end in order, the marker that `begin` wrote in its place
 /// stays, so that the next start reads unclean too: a start that cannot bind
-/// hides no lost batch.
-pub fn give_back(dir: &DataDir, begun: &Begun) -> io::Result<()> {
+/// hides no lost batch. It writes through `run`, the held folder.
+pub fn give_back(run: &HeldRun, begun: &Begun) -> io::Result<()> {
     if begun.last_stop == LastStop::Unclean {
         return Ok(());
     }
     match &begun.found {
-        Some(text) => replace(dir, text.as_bytes()),
-        None => remove(dir),
+        Some(text) => replace_in(run, text.as_bytes()),
+        None => remove_in(run),
     }
 }
 
@@ -172,12 +243,13 @@ pub fn held(dir: &DataDir) -> bool {
 /// end the marker stays as the life left it: its process line alone, the
 /// form of the decision, or the record of ruling PL-3 at an end with 5.
 /// At 1 a marker that cannot be read, or a write that fails, gives what
-/// [`decided`] gives.
-pub fn at_the_end(dir: &DataDir, status: i32, ended_by: Option<StopKind>) -> io::Result<()> {
+/// [`decided`] gives. Every read and write goes through `run`, the held
+/// folder.
+pub fn at_the_end(run: &HeldRun, status: i32, ended_by: Option<StopKind>) -> io::Result<()> {
     match (status, ended_by) {
-        (halvo_control::exit::CLEAN, _) => end(dir, ended_by),
+        (halvo_control::exit::CLEAN, _) => end(run, ended_by),
         (halvo_control::exit::ERROR, Some(kind @ (StopKind::Stop | StopKind::Signal))) => {
-            decided(dir, kind)
+            decided(run, kind)
         }
         _ => Ok(()),
     }
@@ -193,9 +265,9 @@ pub fn at_the_end(dir: &DataDir, status: i32, ended_by: Option<StopKind>) -> io:
 /// Where the marker cannot be read, or the write fails before its rename,
 /// the marker stays as it stands, the hold kept; where only the sync of run/
 /// behind the rename fails, on a Mac, the decision stands and the call
-/// answers that error.
-pub fn decided(dir: &DataDir, kind: StopKind) -> io::Result<()> {
-    let found = read(dir)?;
+/// answers that error. It reads and writes through `run`, the held folder.
+pub fn decided(run: &HeldRun, kind: StopKind) -> io::Result<()> {
+    let found = read_in(run)?;
     let mut text = format!("{PID}{}\n", std::process::id());
     if found.as_deref().is_some_and(holds_the_hold) {
         text.push_str(HOLD_LINE);
@@ -204,7 +276,7 @@ pub fn decided(dir: &DataDir, kind: StopKind) -> io::Result<()> {
     text.push_str(ENDED);
     text.push_str(kind.as_str());
     text.push('\n');
-    replace(dir, text.as_bytes())
+    replace_in(run, text.as_bytes())
 }
 
 /// Ends the marker of a life that ended in order: in its place the hold,
@@ -213,8 +285,9 @@ pub fn decided(dir: &DataDir, kind: StopKind) -> io::Result<()> {
 /// hold stands, a removal of the marker and a sync of run/ are tried, as an
 /// end in order did before the line, which a start that no press stands
 /// behind reads, where the removal was made, as an end that does not tell.
-pub fn end(dir: &DataDir, ended_by: Option<StopKind>) -> io::Result<()> {
-    let hold = held(dir);
+/// It reads and writes through `run`, the held folder.
+pub fn end(run: &HeldRun, ended_by: Option<StopKind>) -> io::Result<()> {
+    let hold = read_in(run).is_ok_and(|text| text.as_deref().is_some_and(holds_the_hold));
     let mut text = String::new();
     if hold {
         text.push_str(HOLD_LINE);
@@ -226,11 +299,11 @@ pub fn end(dir: &DataDir, ended_by: Option<StopKind>) -> io::Result<()> {
         text.push('\n');
     }
     if text.is_empty() {
-        return remove(dir);
+        return remove_in(run);
     }
-    let written = replace(dir, text.as_bytes());
+    let written = replace_in(run, text.as_bytes());
     if written.is_err() && !hold {
-        let _ = remove(dir);
+        let _ = remove_in(run);
     }
     written
 }
@@ -272,13 +345,115 @@ fn write(dir: &DataDir, hold: bool) -> io::Result<()> {
     replace(dir, text.as_bytes())
 }
 
-fn remove(dir: &DataDir) -> io::Result<()> {
-    match std::fs::remove_file(dir.run_marker()) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
+fn read_from(file: std::fs::File) -> io::Result<Option<String>> {
+    let mut held = Vec::new();
+    file.take(MARKER_READ_MAX_BYTES).read_to_end(&mut held)?;
+    Ok(Some(String::from_utf8_lossy(&held).into_owned()))
+}
+
+#[cfg(target_os = "macos")]
+fn name_in(name: &str) -> io::Result<std::ffi::CString> {
+    std::ffi::CString::new(name).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
+}
+
+#[cfg(target_os = "macos")]
+fn open_in(run: &HeldRun, name: &str, flags: libc::c_int) -> io::Result<std::fs::File> {
+    use std::os::fd::{AsRawFd, FromRawFd};
+    let name = name_in(name)?;
+    // SAFETY: the descriptor of `run` is open across the call, `name` is NUL-terminated and
+    // lives across it, and the mode is passed as the unsigned int that openat reads with
+    // O_CREAT.
+    let fd = unsafe {
+        libc::openat(
+            run.fd.as_raw_fd(),
+            name.as_ptr(),
+            flags | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            0o600 as libc::c_uint,
+        )
+    };
+    if fd == -1 {
+        return Err(io::Error::last_os_error());
     }
-    sync_folder(&dir.run_dir())
+    // SAFETY: `fd` is the descriptor that openat returned and checked, owned by nothing else.
+    Ok(unsafe { std::fs::File::from_raw_fd(fd) })
+}
+
+#[cfg(target_os = "macos")]
+fn sync_run(run: &HeldRun) -> io::Result<()> {
+    std::fs::File::from(run.fd.try_clone()?).sync_all()
+}
+
+#[cfg(target_os = "macos")]
+fn read_in(run: &HeldRun) -> io::Result<Option<String>> {
+    match open_in(run, halvo_control::paths::RUN_MARKER, libc::O_RDONLY) {
+        Ok(file) => read_from(file),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn replace_in(run: &HeldRun, bytes: &[u8]) -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    let next = format!("{}.new", halvo_control::paths::RUN_MARKER);
+    let mut file = open_in(run, &next, libc::O_WRONLY | libc::O_CREAT | libc::O_TRUNC)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    drop(file);
+    let (from, to) = (name_in(&next)?, name_in(halvo_control::paths::RUN_MARKER)?);
+    let at = run.fd.as_raw_fd();
+    // SAFETY: both names are NUL-terminated and live across the call, and `at` is the
+    // descriptor that `run` owns and keeps open across it.
+    if unsafe { libc::renameat(at, from.as_ptr(), at, to.as_ptr()) } == -1 {
+        return Err(io::Error::last_os_error());
+    }
+    sync_run(run)
+}
+
+#[cfg(target_os = "macos")]
+fn remove_in(run: &HeldRun) -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    let name = name_in(halvo_control::paths::RUN_MARKER)?;
+    // SAFETY: the name is NUL-terminated and lives across the call, and the descriptor of
+    // `run` is open across it.
+    if unsafe { libc::unlinkat(run.fd.as_raw_fd(), name.as_ptr(), 0) } == -1 {
+        let error = io::Error::last_os_error();
+        if error.kind() == io::ErrorKind::NotFound {
+            return Ok(());
+        }
+        return Err(error);
+    }
+    sync_run(run)
+}
+
+#[cfg(windows)]
+fn read_in(run: &HeldRun) -> io::Result<Option<String>> {
+    match std::fs::File::open(run.path.join(halvo_control::paths::RUN_MARKER)) {
+        Ok(file) => read_from(file),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(windows)]
+fn replace_in(run: &HeldRun, bytes: &[u8]) -> io::Result<()> {
+    let path = run.path.join(halvo_control::paths::RUN_MARKER);
+    let next = run
+        .path
+        .join(format!("{}.new", halvo_control::paths::RUN_MARKER));
+    let mut file = std::fs::File::create(&next)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    drop(file);
+    std::fs::rename(&next, &path)
+}
+
+#[cfg(windows)]
+fn remove_in(run: &HeldRun) -> io::Result<()> {
+    match std::fs::remove_file(run.path.join(halvo_control::paths::RUN_MARKER)) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        other => other,
+    }
 }
 
 fn replace(dir: &DataDir, bytes: &[u8]) -> io::Result<()> {
@@ -334,6 +509,10 @@ mod tests {
         std::fs::read_to_string(dir.run_marker()).ok()
     }
 
+    fn run_of(dir: &DataDir) -> HeldRun {
+        HeldRun::of(&StateDir::open(dir.path()).unwrap()).unwrap()
+    }
+
     fn stand(dir: &DataDir, text: &str) {
         replace(dir, text.as_bytes()).unwrap();
     }
@@ -350,7 +529,7 @@ mod tests {
         ] {
             let (_root, dir) = scratch();
             assert_eq!(begin(&dir).last_stop, LastStop::None, "{kind:?}");
-            end(&dir, Some(kind)).unwrap();
+            end(&run_of(&dir), Some(kind)).unwrap();
             assert_eq!(
                 marker(&dir),
                 Some(format!("ended={}\n", kind.as_str())),
@@ -370,7 +549,7 @@ mod tests {
         );
         assert_eq!(begin(&dir).last_stop, LastStop::Unclean);
         assert!(held(&dir), "a record's hold goes on into the next life");
-        end(&dir, Some(StopKind::Lifeline)).unwrap();
+        end(&run_of(&dir), Some(StopKind::Lifeline)).unwrap();
         assert_eq!(
             marker(&dir).as_deref(),
             Some("hold=yes\nended=lifeline\n"),
@@ -381,7 +560,7 @@ mod tests {
         assert!(held(&dir), "the next life holds the hold");
         stand(&dir, &format!("pid={}\n", std::process::id()));
         assert!(!held(&dir), "a Resume's marker lifts the hold");
-        end(&dir, Some(StopKind::Signal)).unwrap();
+        end(&run_of(&dir), Some(StopKind::Signal)).unwrap();
         assert_eq!(marker(&dir).as_deref(), Some("ended=signal\n"));
         assert_eq!(begin(&dir).last_stop, LastStop::Clean);
         assert!(!held(&dir), "the hold stays lifted");
@@ -398,6 +577,39 @@ mod tests {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_decision_written_after_the_folder_moved_lands_in_the_held_folder_and_nothing_appears_at_the_name(
+    ) {
+        let root = tempfile::tempdir().unwrap();
+        let (data, moved) = (root.path().join("data"), root.path().join("moved"));
+        let dir = DataDir::from_flag(data.to_str().unwrap()).unwrap();
+        assert!(begin(&dir).written.is_ok());
+        let run = run_of(&dir);
+        std::fs::rename(&data, &moved).unwrap();
+        std::fs::create_dir(&data).unwrap();
+        decided(&run, StopKind::Stop).unwrap();
+        let names = |folder: &std::path::Path| -> Vec<String> {
+            std::fs::read_dir(folder)
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+                .collect()
+        };
+        assert_eq!(names(&data), Vec::<String>::new(), "nothing at the name");
+        assert_eq!(
+            std::fs::read_to_string(moved.join("run").join("running")).unwrap(),
+            format!("pid={}\nended=stop\n", std::process::id()),
+            "the line in the held folder"
+        );
+        at_the_end(&run, halvo_control::exit::CLEAN, Some(StopKind::Stop)).unwrap();
+        assert_eq!(names(&data), Vec::<String>::new(), "nothing at the name");
+        assert_eq!(
+            std::fs::read_to_string(moved.join("run").join("running")).unwrap(),
+            "ended=stop\n",
+            "the end's line in the held folder"
+        );
+    }
+
     #[test]
     fn a_stop_decided_whose_end_is_cut_off_leaves_its_line_beside_the_process_line_and_a_start_with_no_press_waits(
     ) {
@@ -411,7 +623,7 @@ mod tests {
                     stand(&dir, record);
                 }
                 assert!(begin(&dir).written.is_ok(), "{kind:?}");
-                decided(&dir, kind).unwrap();
+                decided(&run_of(&dir), kind).unwrap();
                 let hold_line = if hold { "hold=yes\n" } else { "" };
                 assert_eq!(
                     marker(&dir),
@@ -433,9 +645,9 @@ mod tests {
         }
         let (_root, dir) = scratch();
         assert!(begin(&dir).written.is_ok());
-        decided(&dir, StopKind::Stop).unwrap();
+        decided(&run_of(&dir), StopKind::Stop).unwrap();
         at_the_end(
-            &dir,
+            &run_of(&dir),
             halvo_control::exit::SOURCE_NOT_STOPPED,
             Some(StopKind::Stop),
         )
@@ -448,8 +660,13 @@ mod tests {
         assert_eq!(last_end(&dir).no_press(), NoPress::WaitsForAPress);
         let (_root, dir) = scratch();
         assert!(begin(&dir).written.is_ok());
-        decided(&dir, StopKind::Stop).unwrap();
-        at_the_end(&dir, halvo_control::exit::CLEAN, Some(StopKind::Stop)).unwrap();
+        decided(&run_of(&dir), StopKind::Stop).unwrap();
+        at_the_end(
+            &run_of(&dir),
+            halvo_control::exit::CLEAN,
+            Some(StopKind::Stop),
+        )
+        .unwrap();
         assert_eq!(
             marker(&dir).as_deref(),
             Some("ended=stop\n"),
@@ -480,7 +697,7 @@ mod tests {
                     stand(&dir, record);
                 }
                 assert!(begin(&dir).written.is_ok(), "{end}");
-                at_the_end(&dir, ERROR, Some(kind)).unwrap();
+                at_the_end(&run_of(&dir), ERROR, Some(kind)).unwrap();
                 let hold_line = if hold { "hold=yes\n" } else { "" };
                 assert_eq!(
                     marker(&dir),
@@ -519,7 +736,7 @@ mod tests {
             if let Some(stood) = stood {
                 stand(&dir, stood);
             }
-            at_the_end(&dir, status, ended_by).unwrap();
+            at_the_end(&run_of(&dir), status, ended_by).unwrap();
             assert_eq!(marker(&dir), left, "{status} {ended_by:?}");
         }
     }

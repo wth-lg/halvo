@@ -2543,6 +2543,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         return halvo_control::exit::WAITS_FOR_A_PRESS;
     }
     let begun = run_marker::begin(dir);
+    let held_run = lock
+        .state_dir()
+        .and_then(|folder| run_marker::HeldRun::of(&folder));
     let last_stop = begun.last_stop;
     if let Err(error) = &begun.written {
         let _ = writeln!(
@@ -2559,7 +2562,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 "halvo-capture: the control channel could not be bound: {}",
                 error.kind()
             );
-            let _ = run_marker::give_back(dir, &begun);
+            if let Ok(run) = &held_run {
+                let _ = run_marker::give_back(run, &begun);
+            }
             return halvo_control::exit::ERROR;
         }
     };
@@ -2683,14 +2688,14 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             Waited::Ended => {
                 let trigger = trigger_of_the_wait(stop);
                 if trigger == halvo_control::proto::StopKind::Signal {
-                    decide_the_stop(dir, trigger, err);
+                    decide_the_stop(&held_run, trigger, err);
                 }
                 ended_by = Some(trigger);
                 break;
             }
             Waited::Stop(asked) => {
                 listening.admitting().end_the_life();
-                decide_the_stop(dir, halvo_control::proto::StopKind::Stop, err);
+                decide_the_stop(&held_run, halvo_control::proto::StopKind::Stop, err);
                 ended_by = Some(halvo_control::proto::StopKind::Stop);
                 stop_asked = Some(asked);
                 break;
@@ -2919,7 +2924,11 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         HeldStore::Capture(owner) => close_the_store(*owner, status, err),
         HeldStore::None | HeldStore::Maintenance(_) => status,
     };
-    if let Err(error) = run_marker::at_the_end(dir, status, ended_by) {
+    let ended = held_run
+        .as_ref()
+        .map_err(|error| std::io::Error::from(error.kind()))
+        .and_then(|run| run_marker::at_the_end(run, status, ended_by));
+    if let Err(error) = ended {
         let _ = writeln!(
             err,
             "halvo-capture: the run marker's line of the end was not written: {}",
@@ -2940,16 +2949,21 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     status
 }
 
-/// Writes the decision of a stop, `run_marker::decided`, at the moment that
-/// the loop of the service run accepts a Stop request or reads that a signal
-/// set the stop flag, before the shutdown entry; a write that fails is a line.
+/// Writes the decision of a stop, `run_marker::decided`, through run/ of the
+/// held folder, at the moment that the loop of the service run accepts a Stop
+/// request or reads that a signal set the stop flag, before the shutdown
+/// entry; a write that fails, or a run/ that was not opened, is a line.
 #[cfg(any(target_os = "macos", windows))]
 fn decide_the_stop(
-    dir: &halvo_control::paths::DataDir,
+    run: &std::io::Result<run_marker::HeldRun>,
     kind: halvo_control::proto::StopKind,
     err: &mut dyn std::io::Write,
 ) {
-    if let Err(error) = run_marker::decided(dir, kind) {
+    let decided = run
+        .as_ref()
+        .map_err(|error| std::io::Error::from(error.kind()))
+        .and_then(|run| run_marker::decided(run, kind));
+    if let Err(error) = decided {
         let _ = writeln!(
             err,
             "halvo-capture: the run marker's line of the stop was not written: {}",
