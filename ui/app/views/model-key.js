@@ -9,6 +9,8 @@
   var parts = [];
   var mounted = 0;
   var lines = [];
+  /** The replies of save_model_key and remove_model_key that set the state or read it again: a state read that one of them overtook changes nothing. */
+  var answers = 0;
 
   /**
    * The section of the AI model, which shows only in a build whose app names a host (model_key_state), is open to
@@ -73,14 +75,17 @@
 
   /** Reads the host and the state from the app; a failed read leaves no host unnamed and a named one not known. */
   function read() {
+    var at = answers;
     return Halvo.ipc.call("model_key_state").then(
       function (reply) {
+        if (at !== answers) return;
         var named = reply && typeof reply.host === "string" && reply.host !== "";
         host = named ? reply.host : null;
         state = named && (reply.state === "saved" || reply.state === "none") ? reply.state : "not_known";
         draw();
       },
       function () {
+        if (at !== answers) return;
         state = "not_known";
         draw();
       },
@@ -94,7 +99,14 @@
     });
   }
 
+  function answered(newState) {
+    answers += 1;
+    state = newState;
+    draw();
+  }
+
   function failed(words) {
+    answers += 1;
     said.textContent = words;
     read();
   }
@@ -109,8 +121,7 @@
       function (reply) {
         inFlight(false);
         if (reply && reply.state === "saved") {
-          state = "saved";
-          draw();
+          answered("saved");
         } else if (reply && reply.error === "no_key") {
           said.textContent = w.MODEL_KEY_NOT_A_KEY;
         } else {
@@ -132,8 +143,7 @@
       function (reply) {
         inFlight(false);
         if (reply && reply.state === "none") {
-          state = "none";
-          draw();
+          answered("none");
         } else {
           failed(w.MODEL_KEY_REMOVE_FAILED);
         }

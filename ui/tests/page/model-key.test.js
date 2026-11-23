@@ -224,3 +224,25 @@ test("while_a_save_is_in_flight_the_controls_of_the_key_send_nothing", async () 
   for (const id of ["model-key-save", "model-key-remove", "model-key-confirm-remove"]) assert.equal(page.byId(id).disabled, false, id);
   assert.equal(page.visible("model-key-remove"), true);
 });
+
+test("a_state_read_sent_before_a_save_changes_nothing_when_it_comes_behind_the_save", async () => {
+  const late = held();
+  let reads = 0;
+  const page = await openPage({
+    replies: {
+      model_key_state: () => (reads++ === 0 ? stateOf("none") : late.reply()),
+      save_model_key: () => ({ state: "saved" }),
+    },
+  });
+  page.window.Halvo.views.window("shown");
+  await page.settle();
+  assert.equal(late.waiting.length, 1, "the read of the show is held");
+  await page.type("model-key-field", "Zq7Wx9Kp2Vm4Jt8Rb5");
+  await page.click("model-key-save");
+  assert.equal(page.text("model-key-state"), STATE.saved);
+
+  late.waiting[0].resolve(stateOf("none"));
+  await page.settle();
+  assert.equal(page.text("model-key-state"), STATE.saved, "the late reply of the read turns nothing");
+  assert.equal(page.visible("model-key-remove"), true);
+});
