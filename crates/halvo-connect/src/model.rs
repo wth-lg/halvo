@@ -125,10 +125,15 @@ impl fmt::Debug for Answered {
 /// that the grant's row names, with the row's model word and with `key` in the header `x-api-key`,
 /// to the origin of the grant's row and to no other, and reads its answer. It takes the grant by
 /// value, so one grant serves one request, and it sends nothing again, whatever the answer.
-pub fn send_under_grant(grant: LeaveGrant, key: &str, body: &Body) -> Result<Answered, SendError> {
+pub fn send_under_grant(
+    grant: LeaveGrant,
+    key: &str,
+    body: &Body,
+    limit: Duration,
+) -> Result<Answered, SendError> {
     let row = grant.row();
     let adapter = Adapter::parse(row.adapter()).ok_or(SendError::Adapter)?;
-    Host::new(adapter, row.origin())?.send(key, row.model(), body)
+    Host::new(adapter, row.origin(), limit)?.send(key, row.model(), body)
 }
 
 /// One origin of a model's host with the adapter of its row. The client is reqwest with rustls on
@@ -143,7 +148,7 @@ struct Host {
 impl Host {
     /// The host at `origin` for `adapter`. `origin` must be `https://` and a host name alone; a
     /// build with the feature `loopback` also takes `http://127.0.0.1:<port>`.
-    fn new(adapter: Adapter, origin: &str) -> Result<Host, SendError> {
+    fn new(adapter: Adapter, origin: &str, limit: Duration) -> Result<Host, SendError> {
         let parsed = Url::parse(origin).map_err(|_| SendError::Origin)?;
         let named = parsed.scheme() == "https"
             && parsed.domain().map(|name| format!("https://{name}")) == Some(origin.to_owned());
@@ -165,8 +170,8 @@ impl Host {
             .no_proxy()
             .redirect(redirect::Policy::none())
             .retry(retry::never())
-            .connect_timeout(TIME_LIMIT)
-            .timeout(TIME_LIMIT)
+            .connect_timeout(limit)
+            .timeout(limit)
             .build()
             .map_err(|_| SendError::Client)?;
         Ok(Host {

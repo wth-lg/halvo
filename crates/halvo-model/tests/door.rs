@@ -34,6 +34,12 @@ struct StandIn {
 
 impl StandIn {
     fn start(status: u16, answer: &str) -> StandIn {
+        StandIn::start_in_parts(status, answer, 1, Duration::ZERO)
+    }
+
+    /// A stand-in host that writes the head of its answer at once and its body in `parts` parts,
+    /// `gap` apart.
+    fn start_in_parts(status: u16, answer: &str, parts: usize, gap: Duration) -> StandIn {
         let listener = TcpListener::bind("127.0.0.1:0").expect("a listener on the loopback");
         let port = listener.local_addr().expect("its address").port();
         let accepted = Arc::new(AtomicUsize::new(0));
@@ -55,10 +61,18 @@ impl StandIn {
                         let reason = if status == 200 { "OK" } else { "Refused" };
                         let _ = write!(
                             stream,
-                            "HTTP/1.1 {status} {reason}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{answer}",
+                            "HTTP/1.1 {status} {reason}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
                             answer.len()
                         );
                         let _ = stream.flush();
+                        let size = answer.len().div_ceil(parts);
+                        for (at, part) in answer.as_bytes().chunks(size).enumerate() {
+                            if at > 0 {
+                                std::thread::sleep(gap);
+                            }
+                            let _ = stream.write_all(part);
+                            let _ = stream.flush();
+                        }
                     }
                 }
             })
@@ -431,6 +445,47 @@ fn no_line_that_the_door_writes_holds_a_byte_of_a_key_or_of_a_refused_request() 
             "REFUSED key\n".repeat(6),
             "{\"id\":0,\"refused\":\"request\"}\n{\"id\":5,\"refused\":\"consent\"}\n{\"id\":6,\"refused\":\"consent\"}\n{\"id\":0,\"refused\":\"request\"}\n{\"id\":6,\"refused\":\"size\"}\n"
         )
+    );
+}
+
+#[test]
+fn an_answer_that_ends_past_the_time_limit_is_no_answer() {
+    assert_eq!(
+        halvo_connect::model::TIME_LIMIT,
+        Duration::from_secs(90),
+        "the one time limit that the program halvo-model passes"
+    );
+    let limit = Duration::from_millis(1_000);
+    let host = StandIn::start_in_parts(200, ANSWER, 5, Duration::from_millis(400));
+    let started = std::time::Instant::now();
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let code = halvo_model::run_with_limit(
+        &args("frontier", "frontier", "recorded", Some(host.port)),
+        limit,
+        Cursor::new(keyed(KEY, &format!("{}\n", request(9))).into_bytes()),
+        &mut out,
+        &mut err,
+    );
+    let answered_ms = started.elapsed().as_millis();
+    std::thread::sleep(Duration::from_millis(1_500));
+    assert_eq!(
+        (
+            code,
+            String::from_utf8_lossy(&out).into_owned(),
+            String::from_utf8_lossy(&err).into_owned(),
+            answered_ms < 1_500,
+            host.accepted(),
+            host.recorded.lock().expect("the record").len(),
+        ),
+        (
+            0,
+            "{\"id\":9,\"refused\":\"no_answer\"}\n".to_owned(),
+            String::new(),
+            true,
+            1,
+            1,
+        ),
+        "the door answered after {answered_ms} ms"
     );
 }
 

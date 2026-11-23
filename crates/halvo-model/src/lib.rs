@@ -12,7 +12,9 @@
 use std::fmt;
 use std::io::{BufRead, Write};
 
-use halvo_connect::model::{send_under_grant, Adapter, Answered, SendError};
+use std::time::Duration;
+
+use halvo_connect::model::{send_under_grant, Adapter, Answered, SendError, TIME_LIMIT};
 use halvo_route::leave::{grant, Consent, LeaveCause, PartKind};
 use halvo_route::ruling::{HostRow, Ruling};
 use halvo_route::tier::Tier;
@@ -298,6 +300,7 @@ fn answer(
     ruling: &Ruling,
     args: &Args,
     key: &Key,
+    limit: Duration,
 ) -> Result<(u64, Answered), (u64, Cause)> {
     let request = parse_request(line).ok_or((0, Cause::Request))?;
     let id = request.id;
@@ -317,7 +320,7 @@ fn answer(
         Tier::OnDevice => return Err((id, Cause::Leave(LeaveCause::Local))),
     };
     let body = body_of(&request, tier).map_err(|cause| (id, cause))?;
-    send_under_grant(made, &key.0, &body)
+    send_under_grant(made, &key.0, &body, limit)
         .map(|answered| (id, answered))
         .map_err(|error| (id, cause_of(error)))
 }
@@ -326,8 +329,16 @@ fn answer(
 /// `err` its standard error. Returns its exit status: 0 at the end of the input, 2 when the
 /// arguments or the key are refused (with one line `REFUSED usage...` or `REFUSED key` on
 /// `err`, which names no key), 1 when a line cannot be written.
-pub fn run<I: BufRead, O: Write, E: Write>(
+pub fn run<I: BufRead, O: Write, E: Write>(args: &[String], input: I, out: O, err: E) -> i32 {
+    run_with_limit(args, TIME_LIMIT, input, out, err)
+}
+
+/// The door with the time limit `limit` of each request in place of the program's one constant
+/// `TIME_LIMIT` of 90 s, which `run` passes; tests pass a short one. No argument and no variable of
+/// the environment sets the limit of the program.
+pub fn run_with_limit<I: BufRead, O: Write, E: Write>(
     args: &[String],
+    limit: Duration,
     mut input: I,
     mut out: O,
     mut err: E,
@@ -352,7 +363,7 @@ pub fn run<I: BufRead, O: Write, E: Write>(
         }
         let text = line.strip_suffix('\n').unwrap_or(&line);
         let text = text.strip_suffix('\r').unwrap_or(text);
-        let written = line_for(answer(text, &ruling, &args, &key));
+        let written = line_for(answer(text, &ruling, &args, &key, limit));
         if writeln!(out, "{written}")
             .and_then(|()| out.flush())
             .is_err()
