@@ -301,7 +301,7 @@ pub(crate) fn latch_on_button_down(gate: &PasswordGate, bytes: &[u8], tick: u32)
 }
 
 fn is_modifier(vkey: u16) -> bool {
-    matches!(vkey, 0x10..=0x12 | 0xA0..=0xA5) || vkey == VK_LWIN.0 || vkey == VK_RWIN.0
+    matches!(vkey, 0x10..=0x12 | 0x14 | 0xA0..=0xA5) || vkey == VK_LWIN.0 || vkey == VK_RWIN.0
 }
 
 pub(crate) fn class_of(vkey: u16) -> KeyClass {
@@ -330,7 +330,7 @@ pub(crate) fn map_keystroke(state: &mut KeyState, key: KeyStroke) -> Option<KeyC
         return None;
     }
     if is_modifier(key.vkey) {
-        return Some(KeyClass::Other);
+        return None;
     }
     if CHORD_KEYS
         .iter()
@@ -2248,7 +2248,16 @@ mod tests {
     fn one_key_of_each_class_maps_to_each_class_once() {
         let mut state = KeyState::default();
         let mut classes = Vec::new();
-        let presses: [&[u16]; 6] = [&[0x41], &[0x08], &[0x25], &[0x0D], &[0x09], &[0x11, 0x41]];
+        let presses: [&[u16]; 8] = [
+            &[0x41],
+            &[0x08],
+            &[0x25],
+            &[0x0D],
+            &[0x09],
+            &[0x1B],
+            &[0x11, 0x41],
+            &[0x14],
+        ];
         for keys in presses {
             for &vkey in keys {
                 let down = KeyStroke {

@@ -4242,6 +4242,23 @@ mod tests {
             Ok(DeleteView::NoStore { looked_in })
         );
         read_behind_the_answer();
+        assert_eq!(
+            record
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|seen| seen.as_str() == "lift")
+                .count(),
+            1,
+            "the offline door: the pass that finds no service lifts nothing"
+        );
+        views.take_poll(
+            control.places().make().number(),
+            &Ok(sample_status(Platform::Macos)),
+        );
+        before
+            .runs
+            .drawn(before.core.as_deref(), &views, control.places());
         let seen = record.lock().unwrap().clone();
         assert_eq!(seen.len(), 10, "{seen:?}");
         for (door, part, request) in [
@@ -4258,7 +4275,7 @@ mod tests {
             assert_eq!(
                 part[2..],
                 ["stop", request, "lift"],
-                "{door}: the stop, then the request, then the lift, at the latest at the first poll read behind the answer"
+                "{door}: the stop, then the request, then the lift, at the first poll behind the answer that is a reading"
             );
         }
 
@@ -4866,7 +4883,7 @@ mod tests {
     }
 
     #[test]
-    fn the_first_run_text_is_the_table_of_the_defaults_without_typing() {
+    fn the_first_run_text_is_the_table_of_the_defaults_with_typing_on() {
         use crate::view_state::{Hold, NoStatusService, StatusView};
         let hold = Hold::default();
         hold.awaits_consent();
@@ -4889,13 +4906,21 @@ mod tests {
                 "Halvo records which app is in front, each time that changes.",
                 "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private.",
                 "Halvo records each click and which button you pressed, and how many times you scroll, drag or move the pointer each second, never where on the screen.",
-                "Halvo does not record what you type.",
+                "Halvo records each key you press, when and in which app, and what kind of key it is: a letter, digit or sign, a delete key, an arrow or page key, Return or Enter, Tab, a shortcut, or another key. It never records which letter, digit or sign.",
                 "Screen activity is not recorded.",
             ],
             "the rows of the default switches on a Mac, word for word"
         );
-        assert_eq!(texts["passwords"], "", "no sentence on passwords");
-        assert!(texts.get("typed_ahead").is_none(), "no key pressed early");
+        assert_eq!(
+            texts["passwords"],
+            "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.",
+            "the sentence on secure input"
+        );
+        assert_eq!(
+            texts["typed_ahead"],
+            "A key that you press before a program or page has moved to its password field, for example while it is frozen or still loading, can be noted: when it was pressed, in which app and what kind of key, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in.",
+            "the sentence on a key pressed early"
+        );
         assert!(texts.get("keys_withheld").is_none());
         assert_eq!(texts["backup_limit"], serde_json::Value::Null);
         assert_eq!(

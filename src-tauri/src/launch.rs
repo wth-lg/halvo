@@ -23,6 +23,9 @@ pub enum Launch {
     DeleteAll {
         data_dir: PathBuf,
     },
+    /// The removal of the crash reports of the web view of Halvo's own window, with no window
+    /// and no web view: the form that the uninstaller calls (win-crash-reports).
+    RemoveCrashReports,
 }
 
 pub const MAX_WITHIN_S: u64 = 3600;
@@ -37,13 +40,24 @@ pub enum Exit {
     LoginItemNotWritten,
     Deleted,
     NotDeleted,
+    /// The end of `--remove-crash-reports`: 0 where nothing was there or every file went, 1
+    /// where one stays.
+    ReportsRemoved {
+        one_stays: bool,
+    },
 }
 
 impl Exit {
     pub const fn code(self) -> i32 {
         match self {
-            Exit::Quit | Exit::PageLoaded | Exit::Deleted => 0,
-            Exit::PageNotLoaded | Exit::LoginItemNotWritten | Exit::NotDeleted => 1,
+            Exit::Quit
+            | Exit::PageLoaded
+            | Exit::Deleted
+            | Exit::ReportsRemoved { one_stays: false } => 0,
+            Exit::PageNotLoaded
+            | Exit::LoginItemNotWritten
+            | Exit::NotDeleted
+            | Exit::ReportsRemoved { one_stays: true } => 1,
             Exit::GuardNotInstalled => 3,
             Exit::Usage => 64,
         }
@@ -97,6 +111,8 @@ pub fn parse<I: IntoIterator<Item = OsString>>(
     match args.as_slice() {
         [only] if only == "--version" => Ok(Launch::Version),
         [first, ..] if first == "--version" => Err(Usage::Extra(first.clone())),
+        [only] if only == "--remove-crash-reports" => Ok(Launch::RemoveCrashReports),
+        [first, ..] if first == "--remove-crash-reports" => Err(Usage::Extra(first.clone())),
         [first, rest @ ..] if first == "--check-page" => check_page(rest),
         [first, rest @ ..] if first == "--write-login-item" => write_login_item(rest),
         [first, rest @ ..] if first == "--delete-all" => delete_all(rest),

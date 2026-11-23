@@ -10,11 +10,12 @@ use super::text::{CapturedText, TextField};
 use crate::event::Modality;
 
 /// The class of one keystroke event. One event is one key-down transition, the
-/// same on both systems; a key-up and an automatic repeat are no events. A
-/// modifier key's own key-down is one event of class [`KeyClass::Other`],
-/// whether the modifier is released alone or starts a chord, so a modifier
-/// pressed and released alone counts once. A key-down while Command, Control,
-/// Option or Alt, or the Windows key is held is one [`KeyClass::Shortcut`].
+/// same on both systems; a key-up and an automatic repeat are no events. The
+/// key-down of a modifier key (Shift, Caps Lock, Control, Option or Alt,
+/// Command or the Windows key, Fn) is no event, whether the modifier is
+/// released alone or starts a chord. A key-down while Command, Control, Option
+/// or Alt, or the Windows key is held is one [`KeyClass::Shortcut`]; a key-down
+/// while Shift alone is held is one event of its own class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyClass {
     /// A key that types a character: a letter, a digit, punctuation, space.
@@ -27,7 +28,7 @@ pub enum KeyClass {
     Tab,
     /// A key pressed while a command, control, option or alt, or Windows key is held.
     Shortcut,
-    /// Any other key: a function key, escape, a modifier's own key-down.
+    /// Any other key, such as a function key or escape.
     Other,
 }
 

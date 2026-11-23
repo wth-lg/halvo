@@ -276,6 +276,27 @@ fn millis(s: &str) -> bool {
         && s.parse::<u32>().is_ok_and(|n| n <= WAIT_MS_MAX)
 }
 
+/// Whether the key `effect` holds a value that halvo-policy's `class_of` reads as an effect class (A4.3): `request`
+/// gives `payment`, `purchase`, `sign` or `submit` by the category. Every value of the list is placed here.
+fn carries_an_effect(effect: StepEffect) -> bool {
+    match effect {
+        StepEffect::Request => true,
+        StepEffect::None => false,
+    }
+}
+
+/// Whether the step's own web target, or the target of one of its conditions `pre` or `post`, is marked `credential`.
+fn marks_a_credential(step: &ExecutableStep) -> bool {
+    let marked = |target: &WebTarget| target.credential == YesNo::Yes;
+    matches!(&step.target, Some(Target::Web(target)) if marked(target))
+        || step
+            .pre
+            .iter()
+            .chain(&step.post)
+            .filter_map(|cond| cond.target.as_ref())
+            .any(marked)
+}
+
 fn step_rules(step: &ExecutableStep) -> Result<(), Refusal> {
     let fail = |key, rule| Err(Refusal::malformed("ExecutableStep", rule).at(key));
     if usize::try_from(step.n.get()).map_or(true, |n| n > PLAYBOOK_STEPS_MAX) {
@@ -297,6 +318,9 @@ fn step_rules(step: &ExecutableStep) -> Result<(), Refusal> {
     }
     if step.effect == StepEffect::Request && !matches!(step.verb, Verb::Click | Verb::Press) {
         return fail("effect", "effect_of_verb");
+    }
+    if carries_an_effect(step.effect) && marks_a_credential(step) {
+        return fail("effect", "effect_with_credential");
     }
     let names: Vec<&str> = step.args.iter().map(|a| a.name.as_str()).collect();
     let wanted: Vec<&str> = args.iter().map(|(name, _, _)| *name).collect();
@@ -325,7 +349,9 @@ object_type! {
     /// One compiled step of a playbook (`ExecutableStep`): its number, kind, verb, target, args, conditions, effect
     /// and class. The parser checks the shape of the verb's row (its kind, its target, its args by name and source
     /// and the words of its const args), the closed lists, and the 2,048 bytes of its compact JSON (cause
-    /// `length`); `check_playbook` of halvo-policy checks the class.
+    /// `length`); `check_playbook` of halvo-policy checks the class. It refuses a step whose effect is one that the
+    /// policy reads as an effect class and that marks a credential, by its own target or by the target of one of its
+    /// conditions (`effect_with_credential` at the key `effect`, r3 U5.10-S).
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct ExecutableStep {
         pub v: V1 = "v" => from_json,
