@@ -63,6 +63,9 @@ plain.addEventListener('keydown', (e) => {
   if (e.key === 'Tab' && phase === 'tab') busy(hold);
   if (e.key !== 'F24' && armed && (phase === 'swap-keydown' || phase === 'burst')) { armed = false; swap(); }
 });
+plain.addEventListener('input', () => {
+  if (armed && phase === 'take-one') { armed = false; setTimeout(() => { busy(300); password.focus(); freed(); show(); }, 0); }
+});
 plain.addEventListener('keyup', (e) => {
   if (e.key !== 'F24' && armed && phase === 'swap-keyup') { armed = false; swap(); }
 });
@@ -106,6 +109,7 @@ function reset() {
   }
   if (phase === 'self') later(600, () => { busy(hold); password.focus(); freed(); });
   if (phase === 'other') timers.push(setInterval(() => { plain.value = String(Date.now() % 100000); }, 30));
+  if (phase === 'take-none') later(600, () => { busy(300); password.focus(); freed(); });
   show();
 }
 document.addEventListener('focusin', () => show());
@@ -1298,6 +1302,106 @@ pub(super) fn other_field_phases(test: &'static str, name: &'static str) {
         }
         assert_stall(test, "other", &out, usize::try_from(rounds).unwrap_or(1));
     });
+}
+
+pub(super) fn earlier_key_phases(test: &'static str, name: &'static str, earlier_key: bool) -> i64 {
+    let total = Arc::new(AtomicI64::new(0));
+    let out = Arc::clone(&total);
+    with_deadline(test, Duration::from_secs(240), move || {
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
+        let phase = if earlier_key { "take-one" } else { "take-none" };
+        let hwnd = browser
+            .open(test, phase, 0)
+            .expect("INCONCLUSIVE: no page window");
+        let rounds = super::stall::rounds_for(2, 5);
+        let mut counted = 0;
+        let mut recorded = 0;
+        let mut records = 0;
+        let mut beyond = 0;
+        for round in 0..rounds {
+            let start = reset(&keyboard, hwnd).unwrap_or_default();
+            let front = foreground_window() == hwnd;
+            let sent = if earlier_key {
+                send(&[
+                    key_input(VK_A, false),
+                    key_input(VK_A, true),
+                    key_input(VK_A, false),
+                    key_input(VK_A, true),
+                ]);
+                2
+            } else {
+                std::thread::sleep(Duration::from_millis(250));
+                key(VK_A);
+                1
+            };
+            let seen = keyboard.events.drain_for(Duration::from_millis(900));
+            let keystrokes: Vec<_> = seen
+                .iter()
+                .filter(|e| e.modality == Modality::Keystroke)
+                .collect();
+            let round_beyond = keystrokes
+                .iter()
+                .filter(|e| {
+                    e.foreground_app.is_empty()
+                        || !e.view.as_ref().is_some_and(|view| {
+                            view.key_class.is_some()
+                                && view.click.is_none()
+                                && view.fold.is_none()
+                                && view.title.is_none()
+                        })
+                })
+                .count();
+            let mut r = Round {
+                counted: front,
+                sent,
+                page: page_read(hwnd).unwrap_or_default(),
+                keys: decisions(),
+                sink: keystrokes.len(),
+                why: not_in_front(front).into_iter().collect(),
+            };
+            r.counted = front
+                && start.focus == "plain"
+                && r.page.password == 1
+                && r.page.text == i64::from(earlier_key);
+            say(
+                test,
+                format!(
+                    "browser={name} phase={phase} round={round} foreground={front} records_beyond_time_app_and_class={round_beyond} {}",
+                    r.line()
+                ),
+            );
+            counted += usize::from(r.counted);
+            records += keystrokes.len();
+            beyond += round_beyond;
+            if r.counted {
+                recorded += r.password_letters_recorded();
+            }
+        }
+        say(
+            test,
+            format!(
+                "phase={phase} counted={counted} counted_rounds={counted} password_letters_recorded={recorded} \
+                 keystroke_records={records} records_beyond_time_app_and_class={beyond}"
+            ),
+        );
+        assert_eq!(
+            beyond, 0,
+            "a keystroke record held more than its time, its app and its class"
+        );
+        assert!(
+            counted >= usize::try_from(rounds).unwrap_or(1),
+            "INCONCLUSIVE: {phase} counted {counted} rounds of {rounds}"
+        );
+        out.store(recorded, Ordering::SeqCst);
+    });
+    total.load(Ordering::SeqCst)
 }
 
 fn chromium(name: &str) -> &'static Browser {
@@ -2841,6 +2945,26 @@ fn another_field_that_changes_its_value_by_itself_records_no_password_letter_in_
 #[ignore = "functional: needs an interactive Windows desktop and Edge"]
 fn another_field_that_changes_its_value_by_itself_records_no_password_letter_in_edge() {
     other_field_phases("browser-other-edge", "edge");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn a_key_queued_before_the_pages_late_move_records_nothing_in_chrome() {
+    let recorded = earlier_key_phases("browser-take-none-chrome", "chrome", false);
+    assert_eq!(
+        recorded, 0,
+        "a letter that landed in the password input was recorded"
+    );
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn a_key_queued_before_the_pages_late_move_records_nothing_in_edge() {
+    let recorded = earlier_key_phases("browser-take-none-edge", "edge", false);
+    assert_eq!(
+        recorded, 0,
+        "a letter that landed in the password input was recorded"
+    );
 }
 
 #[test]

@@ -5792,6 +5792,28 @@ mod known_defect {
     use super::*;
 
     #[test]
+    #[ignore = "known defect: win-6, an earlier key's landing before a page's late move"]
+    fn browser_an_earlier_keys_landing_before_the_pages_late_move_in_chrome() {
+        let recorded = browser::earlier_key_phases("browser-take-one-chrome", "chrome", true);
+        defect!(
+            "W6-earlier-key",
+            recorded == 0,
+            format!("TF browser-take-one-chrome password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: win-6, an earlier key's landing before a page's late move"]
+    fn browser_an_earlier_keys_landing_before_the_pages_late_move_in_edge() {
+        let recorded = browser::earlier_key_phases("browser-take-one-edge", "edge", true);
+        defect!(
+            "W6-earlier-key",
+            recorded == 0,
+            format!("TF browser-take-one-edge password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
     #[ignore = "known defect: win-6, the program's own change of the focused field before a late move"]
     fn stall_the_programs_own_change_of_the_focused_field_before_a_late_move() {
         with_deadline("stall-own-change", Duration::from_secs(300), || {
