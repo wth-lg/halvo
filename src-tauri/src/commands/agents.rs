@@ -110,9 +110,10 @@ impl Wanted {
 /// Two marks make the reading wait longer. A door's guard sets each before its drop, at the
 /// moment of that end, and while either stands only a status is a reading.
 /// - `late`, at the service's door (`may_still_delete`): the delete's own answer passed its
-///   deadline, the client's transport failed behind the sent request or it could not take what
-///   came back, or the service answered with anything but a finished delete, so the service may
-///   still delete, and it answers no status while it deletes.
+///   deadline, the client's transport failed (behind the sent request, or before it, where the
+///   mark holds the hold longer than it must) or it could not take what came back, or the
+///   service answered with anything but a finished delete, so the service may still delete, and
+///   it answers no status while it deletes.
 /// - `no_service`, at the offline door, behind a list of Remove Halvo that stopped, and at the
 ///   service's door behind a deleted answer where the view reads a Windows run, whose child the
 ///   app may renew (`ended_with_no_service`): the door ended the service's child, or may end it,
@@ -160,8 +161,9 @@ impl RunsHold {
     }
 
     /// The answer of a delete of everything that runs left the service maybe still deleting at
-    /// `at`: it passed its deadline, the transport failed behind the request or the client could
-    /// not take what came back, or the service answered with anything but a finished delete.
+    /// `at`: it passed its deadline, the transport failed (behind the request, or before it, where
+    /// the mark holds the hold longer than it must) or the client could not take what came back,
+    /// or the service answered with anything but a finished delete.
     /// From the delete's end on, every poll but a status (a deadline, a reply of the service that
     /// carries no status, no reply of the service) is no reading until a reading clears the mark
     /// or `Deadlines::V1.delete_all` has passed since the mark's moment, which is `at` until a
