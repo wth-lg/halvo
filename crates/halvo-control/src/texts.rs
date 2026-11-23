@@ -90,7 +90,7 @@ pub const LIMITS: &str = "A copy of Halvo's data made earlier, such as a backup,
 /// key_class is on and the keyboard source line runs. The Windows gate notes a key only on a
 /// change of the text of a field that it reads as plain (U1, sentence W1). No Windows build runs
 /// its keyboard source before typing is switched on there.
-pub const KEYS_RECORDED_ON_WINDOWS: &str = "Halvo records a key only when, just after you press it, the text changes in a field that Windows does not report as a password field. It records when you pressed the key, in which app, and what kind of key it was: a letter, digit or sign, or a delete key. It never records which letter, digit or sign. Halvo can tell this only in web pages in Chrome and Edge and in the plain text boxes of classic Windows programs: in every other program it records no key. It records no Return or Enter, no Tab, no arrow key, no Escape and no shortcut.";
+pub const KEYS_RECORDED_ON_WINDOWS: &str = "Halvo records a key only when, just after you press it, the text changes in a field that Windows does not report as a password field. It records when you pressed the key, in which app, and what kind of key it was: a letter, digit or sign, or a delete key. It never records which letter, digit or sign. Halvo can tell this only in Chrome and Edge and in the plain text boxes of classic Windows programs: in every other program it records no key. It records no Return or Enter, no Tab, no arrow key, no Escape and no shortcut.";
 
 /// What Halvo records while `switch` is on.
 pub const fn recorded_when_on(switch: SwitchName) -> &'static str {
@@ -1673,18 +1673,22 @@ mod tests {
     const U1_RULED: &str = include_str!("u1-ruled-sentences.txt");
     const PRIVACY_LIMITS: &str = include_str!("../../../docs/privacy-limits.md");
 
-    /// The line under the line of the ruled copy that begins with `label`.
-    fn ruled(label: &str) -> String {
+    /// The `count` lines under the line of the ruled copy that begins with `label`.
+    fn ruled_lines(label: &str, count: usize) -> Vec<String> {
         let text = lf(U1_RULED);
         let mut lines = text.lines();
         lines
             .by_ref()
             .find(|line| line.starts_with(label))
             .unwrap_or_else(|| panic!("the ruled copy has no line {label}"));
-        lines
-            .next()
-            .unwrap_or_else(|| panic!("the ruled copy has nothing under {label}"))
-            .to_string()
+        let under: Vec<String> = lines.take(count).map(str::to_string).collect();
+        assert_eq!(under.len(), count, "the ruled copy under {label}");
+        under
+    }
+
+    /// The line under the line of the ruled copy that begins with `label`.
+    fn ruled(label: &str) -> String {
+        ruled_lines(label, 1).remove(0)
     }
 
     fn one_space(text: &str) -> String {
@@ -1752,9 +1756,10 @@ mod tests {
         }
     }
 
-    /// U1's L5: under "Limit on Windows:" each pinned row of win-6's table and each order that it
-    /// names with no row, in the words of the table's last column as the limits write them (no
-    /// capitals for stress; the two references to the table read as the coordinator ruled them).
+    /// U1's L5: under "Limit on Windows:" the two lead-in clauses of the ruled copy, each pinned row
+    /// of win-6's table and each order that it names with no row, in the words of the table's last
+    /// column as the limits write them (no capitals for stress; the two references to the table read
+    /// as the coordinator ruled them).
     #[test]
     fn u1_l5_the_windows_limit_lists_every_pinned_row_and_every_named_order() {
         const ONE: &str = " One key typed at the password field is noted, as a time, an app and a kind, never which key.";
@@ -1774,8 +1779,10 @@ mod tests {
             "In a classic Windows program that has frozen, press Tab into its password box (or click it), type two characters about half a second later, and have the program, when it wakes, take the first in the password box and then move the cursor back to the box before it by itself, while Windows sends no notice of the Tab's move.",
         ]
         .map(|order| format!("{order}{ONE}"));
+        let lead_ins = ruled_lines("ADDED", 2);
         let mut want = vec![format!(
-            "Limit on Windows: {KEY_TYPED_AHEAD_ON_WINDOWS} Halvo's own tests show it in these ways:"
+            "Limit on Windows: {KEY_TYPED_AHEAD_ON_WINDOWS} {}",
+            lead_ins[0]
         )];
         let numbered = |items: &[String]| -> Vec<String> {
             items
@@ -1791,7 +1798,7 @@ mod tests {
                 .chain([style_mask.to_string()])
                 .collect::<Vec<_>>(),
         ));
-        want.push("Reading the code shows three more ways, which no test runs:".to_string());
+        want.push(lead_ins[1].clone());
         want.extend(numbered(&named));
         let doc = one_space(&lf(PRIVACY_LIMITS));
         assert!(
