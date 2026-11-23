@@ -66,12 +66,13 @@ fast_plan() {
   skipped_names=0
   doc_tests=run
   line_number=0
-  while read -r kind word line_group line_package _ || [ -n "$kind" ]; do
+  while read -r kind word line_group line_package line_job _ || [ -n "$kind" ]; do
     line_number=$((line_number + 1))
     kind=${kind%"$cr"}
     word=${word%"$cr"}
     line_group=${line_group%"$cr"}
     line_package=${line_package%"$cr"}
+    line_job=${line_job%"$cr"}
     case $kind in
       '' | '#'*) continue ;;
       doc-tests) line_group=$word ;;
@@ -86,8 +87,9 @@ fast_plan() {
         case $line_package in
           macos | windows) kept_job=$line_package ;;
         esac
-        kept_parts="$kept_parts$word=$line_group "
         kept_lines="$kept_lines$word=$line_group=$kept_job "
+        [ "$kept_job" = both ] || [ "$kept_job" = "$CI_D_JOB" ] || continue
+        kept_parts="$kept_parts$word=$line_group "
         kept_count=$((kept_count + 1))
         case $kept_packages in
           *" $word "*) ;;
@@ -105,6 +107,15 @@ fast_plan() {
       [ "$line_group" != "$want_group" ] || group_doc=yes
       continue
     fi
+    job_slot=$line_package
+    [ "$kind" != test ] || job_slot=$line_job
+    case $job_slot in
+      macos | windows)
+        [ -n "$want_group" ] || [ "$job_slot" = "$CI_D_JOB" ] || continue
+        ;;
+      '' | *[!a-z]*) ;;
+      *) fail "$slow_list line $line_number: the word after the group of a target, targets or units line, or after the package of a test line, is a job word when it holds the letters a to z alone, and $job_slot is neither macos nor windows; write macos or windows there, or begin the note with a digit or another sign" ;;
+    esac
     case $kind:$word in
       target: | targets: | units: | test: | target:*[!A-Za-z0-9_-]* | targets:*[!A-Za-z0-9_-]* | units:*[!A-Za-z0-9_-]* | test:*[!A-Za-z0-9_:]*)
         fail "$slow_list line $line_number: after its first word a line names a test target or a package in letters, digits, - and _, or a part of a test name in letters, digits, _ and :"
@@ -441,7 +452,7 @@ check() {
   out=$(
     PATH=$work/bin:$PATH
     CI_D_REPO=$repo
-    CI_D_JOB=macos
+    CI_D_JOB=$STUB_JOB
     CI_D_ARTIFACTS=$work/artifacts/$1
     RUNNER_TEMP=$work/runner-temp
     export PATH CI_D_REPO CI_D_JOB CI_D_ARTIFACTS RUNNER_TEMP STUB_CALLS STUB_BUILD_EXIT STUB_TEST_EXIT STUB_LEAVES STUB_MOVES STUB_KILLS_PARENT STUB_KEPT_RUNS
@@ -449,6 +460,10 @@ check() {
     if [ "$STUB_MERGE_GATE" = yes ]; then
       CI_D_MERGE_GATE=1
       export CI_D_MERGE_GATE
+    fi
+    if [ -n "$STUB_GROUP" ]; then
+      CI_D_TEST_GROUP=$STUB_GROUP
+      export CI_D_TEST_GROUP
     fi
     sh "$0" 2>&1
   )
@@ -481,6 +496,8 @@ check() {
   STUB_KILLS_PARENT=no
   STUB_MERGE_GATE=no
   STUB_KEPT_RUNS=yes
+  STUB_JOB=macos
+  STUB_GROUP=
 }
 
 self_test() {
@@ -490,6 +507,12 @@ self_test() {
 #!/bin/sh
 [ -f fixture-root ] || exit 98
 printf '%s\n' "$*" >>"$STUB_CALLS"
+case $CI_D_JOB:$* in
+  'macos:test --workspace --exclude pkg-a --locked --lib --bins --' | 'macos:test --workspace --locked --test t1 --' | 'macos:test --locked -p pkg-a --lib --bins -- tests::kept _windows::tests::' | windows:*'--skip only::mac'*)
+    printf 'stub cargo: the %s job got the arguments of the other job: %s\n' "$CI_D_JOB" "$*"
+    exit 90
+    ;;
+esac
 case $* in
   'test --workspace --locked --no-run') exit "$STUB_BUILD_EXIT" ;;
   'test --workspace --locked') ;;
@@ -498,13 +521,22 @@ case $* in
     exit 0
     ;;
   'test --workspace --exclude pkg-a --locked --lib --bins --no-run' | 'test --workspace --locked --test t1 --no-run' | 'test --locked -p pkg-a --lib --bins --no-run') exit 0 ;;
-  'test --workspace --exclude pkg-a --locked --lib --bins --' | 'test --workspace --locked --test t1 --')
+  'test --workspace --exclude pkg-a --locked --lib --bins --' | 'test --workspace --locked --test t1 --' | 'test --workspace --exclude pkg-a --locked --lib --bins -- --skip only::mac' | 'test --workspace --locked --test t1 -- --skip only::mac' | 'test --locked -p pkg-a --lib --bins --')
     printf '\nrunning 1 test\ntest tests::kept::elsewhere ... ok\r\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n\n'
     exit 0
     ;;
-  'test --locked -p pkg-a --lib --bins -- tests::kept _windows::tests::')
+  'test --locked -p pkg-a --lib --bins -- tests::kept' | 'test --locked -p pkg-a --lib --bins -- tests::kept _windows::tests::')
     [ "$STUB_KEPT_RUNS" = no ] || printf 'test tests::kept::one ... ok\r\n'
     printf 'test tests::kept::two ... ignored, needs a window\r\n'
+    [ "$CI_D_JOB" = macos ] || printf 'test client_windows::tests::one ... ok\r\n'
+    exit 0
+    ;;
+  'test --locked -p pkg-a --lib --bins -- only::mac')
+    printf 'test only::mac::one ... ok\r\n'
+    exit 0
+    ;;
+  'test --workspace --locked --doc')
+    printf '   Doc-tests pkg_a\ntest src/lib.rs - two (line 9) ... ok\n'
     exit 0
     ;;
   *)
@@ -565,9 +597,13 @@ EOF
   STUB_KILLS_PARENT=no
   STUB_MERGE_GATE=no
   STUB_KEPT_RUNS=yes
-  mkdir -p "$work/merge-gate/scripts/ci"
+  STUB_JOB=macos
+  STUB_GROUP=
+  mkdir -p "$work/merge-gate/scripts/ci" "$work/job-word-misspelled/scripts/ci"
   : >"$work/merge-gate/fixture-root"
-  printf '%s\n' 'units pkg-a A every unit test' 'kept pkg-a tests::kept the tests of both jobs' 'kept pkg-a _windows::tests:: windows the tests of the windows job alone' 'doc-tests A' >"$work/merge-gate/scripts/ci/slow-tests.txt"
+  : >"$work/job-word-misspelled/fixture-root"
+  printf '%s\n' 'units pkg-a A 1 s: every unit test' 'test only::mac A pkg-a macos 1 s: the tests that the macos gate skips' 'kept pkg-a tests::kept the tests of both jobs' 'kept pkg-a _windows::tests:: windows the tests of the windows job alone' 'doc-tests A' >"$work/merge-gate/scripts/ci/slow-tests.txt"
+  printf '%s\n' 'units pkg-a A 1 s: every unit test' 'test only::mac A pkg-a mac a job word that is neither macos nor windows' >"$work/job-word-misspelled/scripts/ci/slow-tests.txt"
 
   nl='
 '
@@ -607,6 +643,14 @@ EOF
   STUB_MERGE_GATE=yes
   STUB_KEPT_RUNS=no
   check kept-part-runs-no-test FAIL "kept_count package=pkg-a part=tests::kept count=0${nl}kept_not_counted package=pkg-a part=_windows::tests:: (scripts/ci/slow-tests.txt runs the part in the windows job alone)${nl}FAIL $name (scripts/ci/slow-tests.txt keeps the unit tests of pkg-a whose name holds tests::kept, and no such test ran in the macos job; correct the part, write after it the one job that has such tests (macos or windows), or take the kept line out)"
+  STUB_MERGE_GATE=yes
+  STUB_JOB=windows
+  check windows-gate-runs-the-macos-line-and-its-kept-part PASS "kept_count package=pkg-a part=tests::kept count=1${nl}kept_count package=pkg-a part=_windows::tests:: count=1${nl}" "test tests::kept::elsewhere ... ok${nl}test tests::kept::elsewhere ... ok${nl}test tests::kept::one ... ok${nl}test tests::kept::two ... ignored, needs a window${nl}test client_windows::tests::one ... ok"
+  STUB_GROUP=A
+  check group-runs-the-macos-line PASS 'form: the group A of scripts/ci/slow-tests.txt, and no other test: 0 test targets, the unit tests of 1 packages, 1 parts of a test name; doc-tests: yes' "test tests::kept::elsewhere ... ok${nl}test only::mac::one ... ok${nl}   Doc-tests pkg_a${nl}test src/lib.rs - two (line 9) ... ok"
+  repo=$work/job-word-misspelled
+  STUB_MERGE_GATE=yes
+  check job-word-misspelled FAIL "FAIL $name (scripts/ci/slow-tests.txt line 2: the word after the group of a target, targets or units line, or after the package of a test line, is a job word when it holds the letters a to z alone, and mac is neither macos nor windows; write macos or windows there, or begin the note with a digit or another sign)"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

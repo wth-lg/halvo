@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, each read for a number of bytes above zero before anything starts it, and no other file in that directory whose name ends in .exe but the uninstall.exe of the installer template, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started), and that directory holds THIRD-PARTY-NOTICES.txt as a file with the bytes that scripts/notices/generate.js writes for the host triple in the same run, in which grep -i -c zetetic counts at least 1. Then src-tauri/windows/hooks.nsh waits for each helper of packaging/helpers.d and defines the box of the hook under another account, the sentence of a crash report that stays and the sentence of a data folder that the delete cannot use word for word as ruled and sets its exit level in a silent run alone, src-tauri/windows/English.nsh gives the uninstaller's box the ruled label, and on a GitHub-hosted runner alone: the installer, run with /S into a scratch directory while the values pv of the WebView2 runtime that the template reads are moved aside, puts halvo.exe, each helper, the notices, uninstall.exe and WEBVIEW2-RUNTIME-MISSING.txt with sentence (1) there, with an uninstall entry under HKCU alone; the installed app started with --background on a provisioned scratch directory runs with exactly one halvo-capture.exe child from the install directory, ctl status reads store=open, and after ctl stop exits 0 no halvo-capture.exe from there runs for 10 s; an install over the copy while its halvo-owner.exe is held exits with a code other than 0 and writes no uninstall.exe; with a file at the name of the default data directory halvo-capture --delete-all exits 66 and uninstall.exe /S /DELETEALL exits 2 and takes nothing away; with two reports planted in the folder that halvo.exe --remove-crash-reports names and one of them held open, uninstall.exe /S exits 3, removes the program and the report that is not held, and an install again exits 0; while the app started with --background alone runs as below, the uninstall entry's InstallLocation turned to another folder makes uninstall.exe /S /DELETEALL exit 2 with nothing taken away and the app running with its child, and the entry then names the install folder again; and while the app started with --background alone runs with its child on the default data directory that halvo-capture --default-data-dir names, which the check makes and provisions, with a file planted in EBWebView beside it and the Run value Halvo planted, uninstall.exe /S /DELETEALL exits 0 and leaves no process from the install directory, no file there but uninstall.exe, no notices, no Run value, no uninstall entry, no default data directory and no planted file.
+# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, each read for a number of bytes above zero before anything starts it, and no other file in that directory whose name ends in .exe but the uninstall.exe of the installer template, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started), and that directory holds THIRD-PARTY-NOTICES.txt as a file with the bytes that scripts/notices/generate.js writes for the host triple in the same run, in which grep -i -c zetetic counts at least 1. Then src-tauri/windows/hooks.nsh waits for each helper of packaging/helpers.d and defines the box of the hook under another account, the sentence of a crash report that stays and the sentence of a data folder that the delete cannot use word for word as ruled and sets its exit level in a silent run alone, makes no stop of the capture service at an uninstall under another account, holds the running account's Run value Halvo, where the folder of its program is not the folder that goes, and its uninstall entry in its first hook of the uninstall behind the delete, and writes them back first in its last hook, src-tauri/windows/English.nsh gives the uninstaller's box the ruled label, and on a GitHub-hosted runner alone: the installer, run with /S into a scratch directory while the values pv of the WebView2 runtime that the template reads are moved aside, puts halvo.exe, each helper, the notices, uninstall.exe and WEBVIEW2-RUNTIME-MISSING.txt with sentence (1) there, with an uninstall entry under HKCU alone; the installed app started with --background on a provisioned scratch directory runs with exactly one halvo-capture.exe child from the install directory, ctl status reads store=open, and after ctl stop exits 0 no halvo-capture.exe from there runs for 10 s; an install over the copy while its halvo-owner.exe is held exits with a code other than 0 and writes no uninstall.exe; with a file at the name of the default data directory halvo-capture --delete-all exits 66 and uninstall.exe /S /DELETEALL exits 2 and takes nothing away; with two reports planted in the folder that halvo.exe --remove-crash-reports names and one of them held open, uninstall.exe /S exits 3, removes the program and the report that is not held, and an install again exits 0; an install into a second folder exits 0 and makes the uninstall entry name that folder; while the app started from the second folder with --background alone runs as below, the uninstall entry's InstallLocation turned to another folder makes the first copy's uninstall.exe /S /DELETEALL exit 2 with nothing taken away and the app running with its child, and the entry then names the second folder again; the first copy's uninstall.exe /S then exits 0, leaves no file in the first folder but uninstall.exe, and leaves the Run value, every value of the uninstall entry and the app of the second folder with the same halvo-capture.exe child as they stood before it; and while the app started from the second folder with --background alone runs with its child on the default data directory that halvo-capture --default-data-dir names, which the check makes and provisions, with a file planted in EBWebView beside it and the Run value Halvo planted, the second copy's uninstall.exe /S /DELETEALL exits 0 and leaves no process from the second folder, no file there but uninstall.exe, no notices, no Run value, no uninstall entry, no default data directory and no planted file.
 set -u
 name=70-package-windows
 config_keys='externalBin signCommand certificateThumbprint'
@@ -222,6 +222,82 @@ window_folder_defect() {
   fi
 }
 
+# The lines of the macro $2 of the hooks file $1 in their order, each without the blanks around it,
+# with no comment line and no empty line.
+macro_lines() {
+  awk -v m="$2" '
+    { t = $0; sub(/^[ \t]+/, "", t); sub(/[ \t\r]+$/, "", t) }
+    !inside && (t == "!macro " m || index(t, "!macro " m " ") == 1) { inside = 1; next }
+    inside && t == "!macroend" { exit }
+    inside && t != "" && substr(t, 1, 1) != ";" { print t }
+  ' "$1"
+}
+
+# Exit 0 where the lines of standard input hold the lines $1, $2, ... one right after the other,
+# exactly once.
+holds_once() {
+  WANT=$(printf '%s\n' "$@") awk '
+    BEGIN { n = split(ENVIRON["WANT"], w, "\n") }
+    { line[NR] = $0 }
+    END {
+      for (i = 1; i + n - 1 <= NR; i++) {
+        k = 0
+        while (k < n && line[i + k] == w[k + 1]) k++
+        if (k == n) found++
+      }
+      exit found == 1 ? 0 : 1
+    }'
+}
+
+# No stop of the capture service under another account: in the hooks file $1 the one line of code
+# that calls ctl stop stands in the macro HALVO_STOP_SERVICE, and the first hook of the uninstall
+# inserts that macro once, inside the test of the account's own install. The call names no data
+# directory, so it reaches the capture service of the account that runs the uninstaller.
+# shellcheck disable=SC2016
+stop_line='nsExec::Exec '"'"'"$INSTDIR\halvo-capture.exe" ctl stop'"'"
+stop_defect() {
+  calls=$(grep -v '^[[:space:]]*;' "$1" | grep -c -F -e 'ctl stop')
+  inserts=$(macro_lines "$1" NSIS_HOOK_PREUNINSTALL | grep -c -x -F -e '!insertmacro HALVO_STOP_SERVICE')
+  # shellcheck disable=SC2016
+  if [ "$calls" = 1 ] && [ "$inserts" = 1 ] \
+    && macro_lines "$1" HALVO_STOP_SERVICE | holds_once "$stop_line" \
+    && macro_lines "$1" NSIS_HOOK_PREUNINSTALL | holds_once '${If} $HalvoOwnInstall = 1' '!insertmacro HALVO_STOP_SERVICE' '${EndIf}'; then
+    return 0
+  fi
+  printf '%s stops the capture service at an uninstall under another account\n' "$1"
+  return 1
+}
+
+# The order of the hooks: the first hook of the uninstall holds the running account's entries
+# behind its delete and its form, before the template's steps take them away, and the last hook
+# writes them back first, behind those steps; each macro is inserted there alone.
+write_back_defect() {
+  holds=$(grep -c -x -E '[[:space:]]*!insertmacro HALVO_HOLD_ENTRIES[[:space:]]*' "$1")
+  writes=$(grep -c -x -E '[[:space:]]*!insertmacro HALVO_WRITE_BACK_ENTRIES[[:space:]]*' "$1")
+  first=$(macro_lines "$1" NSIS_HOOK_POSTUNINSTALL | sed -n 1p)
+  if [ "$holds" = 1 ] && [ "$writes" = 1 ] && [ "$first" = '!insertmacro HALVO_WRITE_BACK_ENTRIES' ] \
+    && macro_lines "$1" NSIS_HOOK_PREUNINSTALL | holds_once '!insertmacro HALVO_DELETE_EVERYTHING' '!insertmacro HALVO_REMOVE_CRASH_REPORTS' '!insertmacro HALVO_HOLD_ENTRIES'; then
+    return 0
+  fi
+  printf '%s does not hold the running account'"'"'s entries in its first hook of the uninstall and write them back first in its last\n' "$1"
+  return 1
+}
+
+# The Run value comes back only where it names no program in the folder that goes: in the hooks
+# file $1 the mark that holds it stands once, behind the test that the folder of the program that
+# the value names, in one spelling, is not the install folder in that spelling.
+run_value_defect() {
+  # shellcheck disable=SC2016
+  marks=$(grep -c -F -e 'StrCpy $HalvoRunHeld 1' "$1")
+  # shellcheck disable=SC2016
+  if [ "$marks" = 1 ] \
+    && macro_lines "$1" HALVO_HOLD_ENTRIES | holds_once 'StrCpy $HalvoRunValue $R9' '!insertmacro HALVO_FOLDER_OF_THE_RUN_VALUE' 'StrCpy $R7 $INSTDIR' '!insertmacro HALVO_ONE_SPELLING $R7' '${If} $R4 == ""' '${OrIf} $R4 != $R7' 'StrCpy $HalvoRunHeld 1' '${EndIf}'; then
+    return 0
+  fi
+  printf '%s holds the Run value also where it names the program in the folder that goes\n' "$1"
+  return 1
+}
+
 # The install, start, status, stop and uninstall of the built installer. Each helper below is the
 # hosted runner's own; the fixture of the self-test puts stand-ins in their place.
 sentence_runtime='Halvo cannot open its window yet: the Microsoft Edge WebView2 Runtime is not on this computer. This installer downloads nothing. Install the runtime from Microsoft, then start Halvo.'
@@ -380,6 +456,13 @@ uninstall_entry() {
 
 uninstall_entry_drop() {
   MSYS_NO_PATHCONV=1 reg delete "HKCU\\$uninstall_key" /f >/dev/null 2>&1
+}
+
+# Every value of the uninstall entry of Halvo under HKCU, one line each with its name, kind and
+# data, sorted; exit 1 where the entry does not stand.
+entry_values() {
+  MSYS_NO_PATHCONV=1 reg query "HKCU\\$uninstall_key" >"$work/entry.out" 2>/dev/null || return 1
+  tr -d '\r' <"$work/entry.out" | grep '^    ' | sort
 }
 
 # Moves the values pv that the template reads aside, into $work/runtime-moved, for the next install.
@@ -696,6 +779,33 @@ cycle() {
   fi
   printf 'cycle install again: exit 0\n'
 
+  # The account's own Halvo in a second folder: its install makes the uninstall entry name that
+  # folder, and its app, started below, writes the Run value of its own path. From here on the
+  # cycle runs that copy, and the copy in the first folder reads as another account's install.
+  second_from=$(date +%s) || fail "the clock cannot be read"
+  first=$install
+  native_first=$native_install
+  install=$work/installed/second/Halvo
+  mkdir -p "$install" || fail "mkdir failed"
+  native_install=$(native_path "$install") || fail "the second folder has no native path"
+  MSYS_NO_PATHCONV=1 "$installer" /S "/D=$native_install" >"$work/install-second.out" 2>&1
+  code=$?
+  if [ "$code" != 0 ] || [ ! -f "$install/halvo.exe" ] || ! uninstall_entry HKCU; then
+    fail "the install into a second folder exited $code"
+  fi
+  location=$(reg_data "HKCU\\$uninstall_key" InstallLocation)
+  location=${location#\"}
+  location=${location%\"}
+  location=${location%\\}
+  # The last uninstall below reads the entry as naming the second folder by the hook's own
+  # compare; here the entry no longer names the first folder.
+  named=$(printf '%s' "$location" | tr '[:upper:]' '[:lower:]')
+  was=$(printf '%s' "$native_first" | tr '[:upper:]' '[:lower:]')
+  [ -n "$named" ] && [ "$named" != "$was" ] || fail "the uninstall entry names ${location:-no folder} after the install into a second folder"
+  now=$(date +%s) || fail "the clock cannot be read"
+  second_s=$((now - second_from))
+  printf 'cycle install into a second folder: exit 0, the uninstall entry names %s\n' "$location"
+
   [ -e "$default" ] || made_default=$default
   mkdir -p "$default" "$folder/EBWebView" || fail "the default data directory cannot be made"
   printf '{}\n' >"$default/daemon-state.json" || fail "the state file of the default data directory cannot be written"
@@ -710,21 +820,22 @@ cycle() {
   wait_lease "default" ""
 
   # The uninstall entry of this account turned to another folder reads as another account's
-  # install: a silent uninstall with /DELETEALL stops before anything goes (exit 2), and the app
-  # still runs with its child. Then the entry names the install folder again.
+  # install to the first copy: its silent uninstall with /DELETEALL stops before anything goes
+  # (exit 2), and the app of the second folder still runs with its child. Then the entry names the
+  # second folder again.
   entry_key="HKCU\\$uninstall_key"
   location=$(reg_data "$entry_key" InstallLocation)
   [ -n "$location" ] || fail "the uninstall entry names no InstallLocation"
-  reg_put "$entry_key" InstallLocation "$native_install-of-another-account" || fail "the folder of the uninstall entry cannot be turned"
+  reg_put "$entry_key" InstallLocation "$native_first-of-another-account" || fail "the folder of the uninstall entry cannot be turned"
   # The app writes the Run value of its own path at its start, so the value is read as it stands
   # now, not as the check planted it.
   run_before=$(reg_data "$run_key" Halvo)
-  MSYS_NO_PATHCONV=1 "$install/uninstall.exe" /S /DELETEALL "_?=$native_install" >"$work/uninstall-other.out" 2>&1
+  MSYS_NO_PATHCONV=1 "$first/uninstall.exe" /S /DELETEALL "_?=$native_first" >"$work/uninstall-other.out" 2>&1
   code=$?
   printf 'cycle uninstall /S /DELETEALL, the entry naming another folder: exit %s\n' "$code"
   went=
   for file in halvo.exe uninstall.exe THIRD-PARTY-NOTICES.txt; do
-    [ -e "$install/$file" ] || went="$went, $file"
+    [ -e "$first/$file" ] || went="$went, $file"
   done
   uninstall_entry HKCU || went="$went, the uninstall entry"
   [ -e "$default" ] || went="$went, the default data directory"
@@ -743,7 +854,38 @@ cycle() {
   reg_put "$entry_key" InstallLocation "$location" || fail "the folder of the uninstall entry cannot be put back"
   back=$(reg_data "$entry_key" InstallLocation)
   [ "$back" = "$location" ] || fail "the uninstall entry names $back after the check put $location back"
-  printf 'cycle another account (sentence 3): exit 2, nothing gone, the app runs with its child; the entry names the install folder again, without quotes\n'
+  printf 'cycle another account (sentence 3): exit 2, nothing gone, the app runs with its child; the entry names the second folder again, without quotes\n'
+
+  # The first copy's uninstall without the box goes to its end under another account, and behind
+  # it the running account's Run value and uninstall entry stand as they stood, value for value,
+  # and the capture service of the second copy runs on: the stop that the hook makes no longer
+  # under another account names no data directory, so the service on the default data directory,
+  # this app's child, is the one that it would reach.
+  stage_from=$(date +%s) || fail "the clock cannot be read"
+  run_before=$(reg_data "$run_key" Halvo) || fail "the Run value Halvo cannot be read before the uninstall of the first copy"
+  entry_before=$(entry_values) || fail "the uninstall entry cannot be read before the uninstall of the first copy"
+  n_values=$(printf '%s\n' "$entry_before" | grep -c .)
+  list_from "$native_install" >"$work/listing" || fail "the list of processes cannot be read"
+  pair_of halvo
+  [ -n "$pair" ] || fail "the app of the second folder runs with no child before the uninstall of the first copy"
+  pair_before=$pair
+  MSYS_NO_PATHCONV=1 "$first/uninstall.exe" /S "_?=$native_first" >"$work/uninstall-first.out" 2>&1
+  code=$?
+  printf 'cycle uninstall /S of the first copy, the entry and the Run value naming the second folder: exit %s\n' "$code"
+  [ "$code" = 0 ] || fail "the silent uninstall of the first copy under another account exited $code, not 0"
+  left=$(cd "$first" && find . ! -name . | sed 's|^\./||' | grep -v -x -F uninstall.exe | sort | paste -s -d ' ' -)
+  [ -z "$left" ] || fail "the uninstall of the first copy left in its folder: $left"
+  went=
+  run_now=$(reg_data "$run_key" Halvo)
+  [ "$run_now" = "$run_before" ] || went="$went, the Run value"
+  entry_now=$(entry_values)
+  [ "$entry_now" = "$entry_before" ] || went="$went, the uninstall entry"
+  list_from "$native_install" >"$work/listing" || fail "the list of processes cannot be read"
+  pair_of halvo
+  [ "$pair" = "$pair_before" ] || went="$went, the capture service of the second copy"
+  [ -z "$went" ] || fail "the uninstall of the first copy under another account took what the account holds for its copy in the second folder; gone:${went#,}"
+  now=$(date +%s) || fail "the clock cannot be read"
+  printf 'cycle a copy of the account'"'"'s own in a second folder (write-back): the first copy is gone, the Run value and the %s values of the uninstall entry stand as they stood, and the app %s of the second folder runs with the same child %s; seconds: the install into the second folder %s, this stage %s\n' "$n_values" "${pair% *}" "${pair#* }" "$second_s" "$((now - stage_from))"
 
   MSYS_NO_PATHCONV=1 "$install/uninstall.exe" /S /DELETEALL "_?=$native_install" >"$work/uninstall.out" 2>&1
   code=$?
@@ -850,6 +992,15 @@ fixture() {
   }
   uninstall_entry_drop() {
     take_away "$STUB_DIR/reg/uninstall-HKCU"
+  }
+  entry_values() {
+    [ -f "$STUB_DIR/reg/uninstall-HKCU" ] || return 1
+    for file in "$STUB_DIR/reg/HKCU_Software_Microsoft_Windows_CurrentVersion_Uninstall_Halvo_"*; do
+      [ -f "$file" ] || continue
+      value=$(cat "$file") || return 1
+      printf '%s %s\n' "${file##*/}" "$value"
+    done
+    return 0
   }
   # The held file's path goes into held, where the stand-in form reads it.
   hold_file() {
@@ -986,15 +1137,21 @@ EOF
   # The uninstaller with the hooks' steps in their order and the template's own steps; where the
   # delete exits 1 a file of the data directory stays, and the removal of the folder leaves it.
   # First whose install it removes: where this account's uninstall entry names another folder, the
-  # box deletes nothing and a silent run with /DELETEALL stops (exit 2). Behind the delete, at the
-  # account's own uninstall, the app's form; a report that stays ends a run without the box with 3.
+  # box deletes nothing and a silent run with /DELETEALL stops (exit 2). The stop of the capture
+  # service at the account's own install alone; the app's end, as the template's, of the app of
+  # this folder alone. Behind the delete, at the account's own uninstall, the app's form; a report
+  # that stays ends a run without the box with 3. Under another account the Run value, where it
+  # names no program of this folder, and the uninstall entry come back behind the removals.
   cat >"$1/uninstall" <<'EOF'
 #!/bin/sh
 here=$(cd "$(dirname "$0")" && pwd -P)
+here_named=$(cd "$(dirname "$0")" && pwd)
 [ "$1" = /S ] || exit 98
 delete=no
 [ "${2:-}" = /DELETEALL ] && delete=yes
-location_file=$STUB_DIR/reg/HKCU_Software_Microsoft_Windows_CurrentVersion_Uninstall_Halvo_InstallLocation
+reg=$STUB_DIR/reg
+location_file=$reg/HKCU_Software_Microsoft_Windows_CurrentVersion_Uninstall_Halvo_InstallLocation
+run_file=$reg/HKCU_Software_Microsoft_Windows_CurrentVersion_Run_Halvo
 location=
 [ -f "$location_file" ] && location=$(cat "$location_file")
 location=${location#\"}
@@ -1005,13 +1162,14 @@ if [ -n "$location" ] && [ -d "$location" ] && [ "$(cd "$location" && pwd -P)" =
 fi
 [ "$STUB_MODE" = other-deletes ] && own=yes
 [ "$own" = no ] && [ "$delete" = yes ] && exit 2
-sh "$here/halvo-capture.exe" ctl stop
+if [ "$own" = yes ] || [ "$STUB_MODE" = no-write-back ]; then
+  sh "$here/halvo-capture.exe" ctl stop
+fi
 if [ "$STUB_MODE" != left ]; then
   for file in "$STUB_DIR/procs"/*; do
     [ -f "$file" ] || continue
-    case $(cat "$file") in
-      "halvo.exe "*) kill -9 "${file##*/}" 2>/dev/null ;;
-    esac
+    read -r kind pid ppid exe rest <"$file"
+    [ "$kind" = halvo.exe ] && [ "$exe" = "$here_named/halvo.exe" ] && kill -9 "$pid" 2>/dev/null
   done
 fi
 sleep 1
@@ -1033,6 +1191,20 @@ gone() {
   n=$((n + 1))
   mv "$1" "$STUB_DIR/gone/uninstall-$$-$n"
 }
+held_run=no
+held_entry=no
+if [ "$own" = no ] && [ "$STUB_MODE" != no-write-back ]; then
+  if [ -f "$run_file" ]; then
+    program=$(cat "$run_file")
+    program=${program#\"}
+    program=${program%%\"*}
+    folder=$(cd "${program%/*}" 2>/dev/null && pwd -P)
+    [ "$folder" != "$here" ] && cp "$run_file" "$STUB_DIR/held-run" && held_run=yes
+  fi
+  if [ -f "$reg/uninstall-HKCU" ]; then
+    mkdir -p "$STUB_DIR/held-entry" && cp "$reg/uninstall-HKCU" "$reg"/HKCU_Software_Microsoft_Windows_CurrentVersion_Uninstall_Halvo_* "$STUB_DIR/held-entry/" && held_entry=yes
+  fi
+fi
 if [ "$STUB_MODE" != run-value-left ]; then
   for file in "$STUB_DIR/reg/"*_Run_Halvo; do
     [ -f "$file" ] && gone "$file"
@@ -1051,6 +1223,10 @@ if [ "$delete" = yes ]; then
 fi
 [ -f "$STUB_DIR/reg/uninstall-HKCU" ] && gone "$STUB_DIR/reg/uninstall-HKCU"
 [ -f "$location_file" ] && gone "$location_file"
+[ "$held_run" = yes ] && mv "$STUB_DIR/held-run" "$run_file"
+if [ "$held_entry" = yes ]; then
+  mv "$STUB_DIR/held-entry"/* "$reg/" && mv "$STUB_DIR/held-entry" "$STUB_DIR/gone/held-entry-$$"
+fi
 [ "$delete" = no ] && [ "$report" = yes ] && exit 3
 exit 0
 EOF
@@ -1087,6 +1263,12 @@ measure() {
   printf 'hooks: each exit level is set in a silent run alone\n'
   found=$(window_folder_defect src-tauri/windows/hooks.nsh) || fail "$found"
   printf 'hooks: where the form names no folder, the sentence names the folder of the window alone\n'
+  found=$(stop_defect src-tauri/windows/hooks.nsh) || fail "$found"
+  printf 'hooks: under another account the uninstall makes no stop of the capture service\n'
+  found=$(write_back_defect src-tauri/windows/hooks.nsh) || fail "$found"
+  printf 'hooks: the running account'"'"'s entries are held in the first hook of the uninstall and written back first in the last\n'
+  found=$(run_value_defect src-tauri/windows/hooks.nsh) || fail "$found"
+  printf 'hooks: the Run value is held only where it names no program in the folder that goes\n'
   sevenzip=$(command -v 7z) || sevenzip='/c/Program Files/7-Zip/7z.exe'
   [ -x "$sevenzip" ] || fail "no 7z on PATH and no $sevenzip; the windows runner's image holds 7-Zip"
   banner=$("$sevenzip" i | grep -m 1 '7-Zip')
@@ -1263,6 +1445,55 @@ self_test() {
   output=$(window_folder_defect "$work/window/hooks.nsh" 2>"$work/window.err")
   answer hooks-naming-the-folder-of-the-app-id $? "$output" "$work/window/hooks.nsh names another folder than the folder of Halvo's window where the form names none"
 
+  # The hooks of the tree make no stop of the capture service under another account; a hooks file
+  # whose first hook of the uninstall stops it ahead of the test of the account's own install, as
+  # the base did, fails.
+  output=$(stop_defect src-tauri/windows/hooks.nsh 2>"$work/stop.err")
+  code=$?
+  got=FAIL
+  [ "$code" = 0 ] && got=PASS
+  verdict no-stop-under-another-account-of-the-tree PASS "$got"
+  mkdir -p "$work/stop" || exit 2
+  # shellcheck disable=SC2016
+  awk '{ t = $0; sub(/^[ \t]+/, "", t); line[NR] = $0; text[NR] = t }
+    END {
+      for (i = 1; i <= NR; i++) {
+        if (text[i] == "${If} $HalvoOwnInstall = 1" && text[i + 1] == "!insertmacro HALVO_STOP_SERVICE" && text[i + 2] == "${EndIf}") { print line[i + 1]; i += 2; continue }
+        print line[i]
+      }
+    }' src-tauri/windows/hooks.nsh >"$work/stop/hooks.nsh" || exit 2
+  output=$(stop_defect "$work/stop/hooks.nsh" 2>"$work/stop.err")
+  answer hooks-stopping-the-service-under-another-account $? "$output" "$work/stop/hooks.nsh stops the capture service at an uninstall under another account"
+
+  # The hooks of the tree hold the running account's entries in the first hook of the uninstall and
+  # write them back first in the last; a hooks file that writes them back in the first hook, before
+  # the template's steps take them away, fails.
+  output=$(write_back_defect src-tauri/windows/hooks.nsh 2>"$work/order.err")
+  code=$?
+  got=FAIL
+  [ "$code" = 0 ] && got=PASS
+  verdict write-back-order-of-the-tree PASS "$got"
+  mkdir -p "$work/order" || exit 2
+  awk '{ t = $0; sub(/^[ \t]+/, "", t) }
+    t == "!insertmacro HALVO_WRITE_BACK_ENTRIES" { next }
+    { print }
+    t == "!insertmacro HALVO_HOLD_ENTRIES" { print "  !insertmacro HALVO_WRITE_BACK_ENTRIES" }' src-tauri/windows/hooks.nsh >"$work/order/hooks.nsh" || exit 2
+  output=$(write_back_defect "$work/order/hooks.nsh" 2>"$work/order.err")
+  answer hooks-writing-back-before-the-template $? "$output" "$work/order/hooks.nsh does not hold the running account's entries in its first hook of the uninstall and write them back first in its last"
+
+  # The hooks of the tree hold the Run value only where the folder of its program is not the folder
+  # that goes; a hooks file whose test holds it where that folder is the one that goes fails.
+  output=$(run_value_defect src-tauri/windows/hooks.nsh 2>"$work/run.err")
+  code=$?
+  got=FAIL
+  [ "$code" = 0 ] && got=PASS
+  verdict run-value-of-the-tree PASS "$got"
+  mkdir -p "$work/run" || exit 2
+  # shellcheck disable=SC2016
+  sed 's/\${OrIf} \$R4 != \$R7/${OrIf} $R4 == $R7/' src-tauri/windows/hooks.nsh >"$work/run/hooks.nsh" || exit 2
+  output=$(run_value_defect "$work/run/hooks.nsh" 2>"$work/run.err")
+  answer hooks-holding-the-run-value-of-the-folder-that-goes $? "$output" "$work/run/hooks.nsh holds the Run value also where it names the program in the folder that goes"
+
   # The cycle on stand-ins; the default data directory's path holds a space and a letter beyond
   # ASCII, so the good one passes only where the uninstall hands the printed path on whole.
   here=${0%/*}
@@ -1272,7 +1503,7 @@ self_test() {
   stand_in_programs "$work/stand-in-bin"
   fixture_limit_s=120
   zoe=$(printf 'Zo\303\253')
-  for mode in good left delete-fails no-runtime-file run-value-left no-child install-goes-on listing-blind no-fresh-lease other-deletes report-left goes-on-at-66; do
+  for mode in good left delete-fails no-runtime-file run-value-left no-child install-goes-on listing-blind no-fresh-lease other-deletes report-left goes-on-at-66 no-write-back; do
     mkdir -p "$work/cycle-$mode" || exit 2
     STUB_MODE=$mode STUB_DIR=$work/cycle-$mode STUB_BIN=$work/stand-in-bin STUB_DEFAULT="$work/cycle-$mode/home/$zoe Halvo/com.halvo.desktop/data" STUB_HELPERS=$helpers STUB_SENTENCE=$sentence_runtime sh "$self" --fixture "$work/cycle-$mode" >"$work/cycle-$mode.out" 2>&1 &
     fixture=$!
@@ -1327,6 +1558,9 @@ self_test() {
   cycle_verdict report-left FAIL 'the report planted in the folder that the form names stays after an uninstall without the box'
   # An uninstall that goes on where the delete could not use the data directory (exit 66).
   cycle_verdict goes-on-at-66 FAIL 'the silent uninstall with /DELETEALL went on where the delete could not use the data directory; gone: halvo.exe, THIRD-PARTY-NOTICES.txt, the uninstall entry, the file at the name of the data directory'
+  # An uninstall under another account that does what the base did: it stops the capture service
+  # and writes neither the Run value nor the uninstall entry back.
+  cycle_verdict no-write-back FAIL 'the uninstall of the first copy under another account took what the account holds for its copy in the second folder; gone: the Run value, the uninstall entry, the capture service of the second copy'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
