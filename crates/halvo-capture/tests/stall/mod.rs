@@ -35,8 +35,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use super::{
-    capture, focus_on, foreground_window, key_input, pump_thread, say, send, source_built_by_test,
-    start_report, stop_counted, with_deadline, Events, Field,
+    capture, focus_on, foreground_window, key_input, powershell_line, pump_thread, say, send,
+    source_built_by_test, start_report, stop_counted, with_deadline, Events, Field,
 };
 
 mod kinds;
@@ -62,6 +62,7 @@ const CMD_WANDER: usize = 7;
 const CMD_AIM: usize = 8;
 const CMD_MASK: usize = 9;
 const CMD_NOTIFY_FOCUS: usize = 10;
+const CMD_LAYOUT: usize = 11;
 const ARG_SELF_FOCUS: usize = 0x1_0000;
 const ARG_AIM: usize = 0x2_0000;
 const ARG_SERVE_SENT: usize = 0x4_0000;
@@ -669,6 +670,17 @@ fn fixture_main() {
                         );
                     }
                     println!("STALLC notified ok=1");
+                }
+                CMD_LAYOUT => {
+                    use windows::Win32::UI::Input::KeyboardAndMouse::{
+                        LoadKeyboardLayoutW, KLF_ACTIVATE,
+                    };
+                    // SAFETY: LoadKeyboardLayoutW takes a live HSTRING and a
+                    // flag; it loads a layout of the system for this thread.
+                    let loaded =
+                        unsafe { LoadKeyboardLayoutW(&HSTRING::from("00000407"), KLF_ACTIVATE) }
+                            .is_ok_and(|layout| layout.0 as usize & 0xFFFF == 0x0407);
+                    println!("STALLC layout ok={}", flag(loaded));
                 }
                 CMD_AIM => {
                     let aimed = aim_at(field(arg));
@@ -2199,6 +2211,148 @@ fn a_key_behind_an_earlier_keys_landing_and_a_late_move_records_nothing() {
         );
         assert_eq!(counted, rounds, "INCONCLUSIVE: not every round counted");
     });
+}
+
+fn a_chord_then_a_letter_before_a_late_move(
+    test: &'static str,
+    chord: Vec<INPUT>,
+    prepare: fn(&mut Fixture) -> bool,
+) {
+    with_deadline(test, Duration::from_secs(200), move || {
+        source_built_by_test(test, "keyboard");
+        let mut fixture = Fixture::open(test, false);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        start_report(test, "keyboard", &start);
+        assert!(
+            start.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start: {start:?}"
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let prepared = prepare(&mut fixture);
+        say(test, format!("prepared={}", flag(prepared)));
+        assert!(
+            prepared,
+            "INCONCLUSIVE: the fixture or the clipboard could not be prepared"
+        );
+        let before = control(test, "before", &mut fixture, &events);
+        let rounds = rounds_for(3, 10);
+        let mut counted = 0;
+        let mut recorded_at_the_password = 0;
+        for round in 0..rounds {
+            let reset = fixture.ask(CMD_RESET, 0, "reset");
+            let _ = events.drain_for(Duration::from_millis(400));
+            let _ = seam::take();
+            let ack = fixture.ask(CMD_ROUND, 50 | ARG_SERVE_SENT | ARG_TAKE_ONE, "ack");
+            let mut burst = chord.clone();
+            burst.extend(key_pair(VK_A));
+            let accepted = send(&burst);
+            let _ = fixture.expect("woke", Duration::from_secs(10));
+            let _ = events.drain_for(Duration::from_millis(900));
+            let state = fixture.ask(CMD_STATE, 0, "state");
+            let keys = seam::take();
+            let letter =
+                u32::from(keys.iter().any(|key| {
+                    key.class == KeyClass::Printable && key.verdict == Verdict::Recorded
+                }));
+            let chord_recorded = keys
+                .iter()
+                .any(|key| key.class != KeyClass::Printable && key.verdict == Verdict::Recorded);
+            let ok = get(&reset, "fg") == 1
+                && get(&ack, "focus_plain") == 1
+                && accepted as usize == burst.len()
+                && get(&state, "letters_password") == 1
+                && get(&state, "plain_len") > 0;
+            say(
+                test,
+                format!(
+                    "phase=chord_then_a_letter round={round} counted={} plain_len={} letters_password={} \
+                     chord_recorded={} recorded_at_the_password={letter}",
+                    u8::from(ok),
+                    get(&state, "plain_len"),
+                    get(&state, "letters_password"),
+                    u8::from(chord_recorded),
+                ),
+            );
+            counted += u32::from(ok);
+            recorded_at_the_password += letter;
+        }
+        let after = control(test, "after", &mut fixture, &events);
+        let late = keyboard.health().counters.late_events;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        drop(fixture);
+        say(
+            test,
+            format!(
+                "form={} rounds={rounds} counted_rounds={counted} recorded_at_the_password={recorded_at_the_password} \
+                 control_before={before} control_after={after}",
+                form().word()
+            ),
+        );
+        assert_eq!(
+            recorded_at_the_password, 0,
+            "a letter behind the landing of a key of another class was recorded in the password field"
+        );
+        assert_eq!(late, 0, "the source's late value moved");
+        assert_eq!(counted, rounds, "INCONCLUSIVE: not every round counted");
+    });
+}
+
+fn altgr(released: bool) -> INPUT {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
+        VK_RMENU,
+    };
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VK_RMENU,
+                wScan: 0,
+                dwFlags: if released {
+                    KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP
+                } else {
+                    KEYEVENTF_EXTENDEDKEY | KEYBD_EVENT_FLAGS(0)
+                },
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_paste_before_a_late_move_records_no_letter_of_the_password_field() {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{VK_CONTROL, VK_V};
+    a_chord_then_a_letter_before_a_late_move(
+        "stall-paste",
+        vec![
+            key_input(VK_CONTROL, false),
+            key_input(VK_V, false),
+            key_input(VK_V, true),
+            key_input(VK_CONTROL, true),
+        ],
+        |_| powershell_line("Set-Clipboard -Value 'pq'; Get-Clipboard") == "pq",
+    );
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn an_altgr_character_before_a_late_move_records_no_letter_of_the_password_field() {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_Q;
+    a_chord_then_a_letter_before_a_late_move(
+        "stall-altgr",
+        vec![
+            altgr(false),
+            key_input(VK_Q, false),
+            key_input(VK_Q, true),
+            altgr(true),
+        ],
+        |fixture| get(&fixture.ask(CMD_LAYOUT, 0, "layout"), "ok") == 1,
+    );
 }
 
 #[test]
