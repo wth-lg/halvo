@@ -682,6 +682,12 @@ async function confirms(origin, dir) {
   const a = withId(base, 'a'.repeat(32));
   const b = withId(base, 'b'.repeat(32));
   writeState(dir, 'test_two_page', [a, b]);
+  // The confirmation of the five presses by coordinates: the tracked one with its first three fields,
+  // whose answers stand in the harness's window at the open. With its nine fields the tracked one
+  // holds them under its fold, where a press by coordinates meets no control.
+  const inView = (item) => ({ ...item, fields: item.fields.slice(0, 3) });
+  const shortA = inView(a);
+  writeState(dir, 'test_short_page', [inView(base)]);
   const keyed = async (tag, steps, want) => {
     const out = outDir();
     const h = await open({ origin, state: 'test_two_page', views: [CONFIRM, VIEW], out });
@@ -820,7 +826,7 @@ async function confirms(origin, dir) {
     await h.close();
   }
   out = outDir();
-  h = await open({ origin, state: 'needs_confirm_page', views: [CONFIRM, VIEW], out });
+  h = await open({ origin, state: 'test_short_page', views: [CONFIRM, VIEW], out });
   try {
     const allow = h.page.locator(sel('allow', base.item));
     const at = await aim(h, allow, 'pressed_then_reopened');
@@ -844,7 +850,7 @@ async function confirms(origin, dir) {
   const doneSign = { call: 'agents_answer', args: { item: sign.item, step: sign.step, choice: 'done' }, reply: { ok: 'yes' } };
   const allowOf = (k) => k.page.locator(sel('allow', a.item));
   const earlier = async (tag) => {
-    const k = await open({ origin, replies: [{ state: snap(1, [sign, a]) }, shownLine(a)], views: [CONFIRM, VIEW] });
+    const k = await open({ origin, replies: [{ state: snap(1, [sign, shortA]) }, shownLine(shortA)], views: [CONFIRM, VIEW] });
     try {
       return await aim(k, allowOf(k), tag);
     } finally {
@@ -876,7 +882,7 @@ async function confirms(origin, dir) {
   }
   const opens = (k) => k.page.waitForFunction(() => Boolean(document.querySelector('[role="alertdialog"]:modal')), null, { timeout: 10000 }).then(() => true, () => false);
   out = outDir();
-  h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
+  h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, shortA]) }, shownLine(shortA), allowA], views: [CONFIRM, VIEW], out });
   try {
     const at = await earlier('mouse_before_open');
     await h.page.mouse.move(at.x, at.y);
@@ -903,7 +909,7 @@ async function confirms(origin, dir) {
       return (kind, at) => cdp.send('Input.dispatchTouchEvent', kind === 'start' ? { type: 'touchStart', touchPoints: [at] } : { type: 'touchEnd', touchPoints: [] });
     };
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, shortA]) }, shownLine(shortA), allowA], views: [CONFIRM, VIEW], out });
     try {
       const at = await earlier('touch_before_open');
       const send = await touch(h);
@@ -923,7 +929,7 @@ async function confirms(origin, dir) {
       await h.close();
     }
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, shortA]) }, shownLine(shortA), allowA], views: [CONFIRM, VIEW], out });
     try {
       const at = await earlier('pen_before_open');
       const cdp = await h.page.context().newCDPSession(h.page);
@@ -944,7 +950,7 @@ async function confirms(origin, dir) {
       await h.close();
     }
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign, shortA]) }, shownLine(shortA), allowA], views: [CONFIRM, VIEW], out });
     try {
       const send = await touch(h);
       const at = await aim(h, allowOf(h), 'touch_after_open');
