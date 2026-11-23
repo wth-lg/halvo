@@ -11,6 +11,8 @@ mod console;
 #[cfg(any(target_os = "macos", windows, test))]
 mod daemon_child;
 mod engine;
+#[cfg(target_os = "macos")]
+mod failed_starts;
 mod instance;
 mod launch;
 #[cfg(any(target_os = "macos", windows, test))]
@@ -176,6 +178,18 @@ fn run(background: bool, given: Option<PathBuf>) {
         }
     };
     #[cfg(target_os = "macos")]
+    let opened = match resolved.as_ref().map(failed_starts::Count::of) {
+        Ok(count) => match count.at_the_start(background) {
+            failed_starts::Decision::GiveUp => return,
+            failed_starts::Decision::GoOn => background.then(|| {
+                app::Opened(Box::new(move || {
+                    let _ = count.clear();
+                }))
+            }),
+        },
+        Err(_) => None,
+    };
+    #[cfg(target_os = "macos")]
     if let (None, Ok(dir)) = (&given, &resolved) {
         remove::old_consent_at_start(&halvo_control::paths::SystemAccount, dir);
     }
@@ -233,6 +247,11 @@ fn run(background: bool, given: Option<PathBuf>) {
         webview_environment: app::system_environment,
     };
     let builder = tauri::Builder::default().manage(tray::QuitNotice::default());
+    #[cfg(target_os = "macos")]
+    let builder = match opened {
+        Some(opened) => builder.manage(opened),
+        None => builder,
+    };
     #[cfg(any(target_os = "macos", windows, test))]
     let builder = quit::installed(builder);
     #[cfg(windows)]

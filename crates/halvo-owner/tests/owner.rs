@@ -1653,3 +1653,214 @@ fn a_model_key_row_is_gone_after_delete_everything() {
         "{printed}"
     );
 }
+
+/// r3 U7.7: the agent of the tests of the person's yes to a hosted model.
+const AGREEING: &str = "40000000000000000000000000000077";
+
+/// The keys of `set_model` of a yes up to `frontier`, with a made-up triple for each hosted tier.
+const YES: &str = r#","tier":"frontier","agreement":[{"tier":"low_cost_hosted","origin":"https://hosted-model.test","model":"test-model-small"},{"tier":"frontier","origin":"https://hosted-model.test","model":"test-model-large"}]"#;
+
+/// The keys of `set_model` of the way back, the person's "Use this computer only".
+const WAY_BACK: &str = r#","tier":"on_device","agreement":null"#;
+
+/// An owner on `dir` with `key` and a worker, one approved workflow of the analysis write (of the category
+/// `utility_bill_payment`, whose runtime is `web`) and its agent `AGREEING`, which `create_agent` on the stream set
+/// up: the owner, the stream and the workflow's id.
+fn one_agent(dir: &Path, key: [u8; 32]) -> (Owner, Stream, String) {
+    let mut owner = start_on(stream_channel(), dir, key, 1, true, &["--check-ms=60000"]);
+    let day = two_days_ago();
+    let episodes: Vec<Episode> = (1..=3).map(|n| episode(n, day, FAR)).collect();
+    owner.write(&analysis_write(episodes, Position { seg: 4, idx: 0 }));
+    assert!(matches!(
+        owner.worker_reply().outcome,
+        Ok(ReplyResult::Null)
+    ));
+    owner.send(&read_workflows());
+    let ids = workflows(owner.reply());
+    assert_eq!(ids.len(), 1, "the three episodes make one workflow");
+    let approve = halvo_schema_core::request::InterfaceDecision::approve(
+        &InterfaceRole::claim(),
+        request_id(),
+        ids[0].clone(),
+    );
+    owner.send(&approve.to_bytes().unwrap());
+    assert!(matches!(owner.reply().outcome, Ok(ReplyResult::Null)));
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let workflow = ids[0].as_str().to_owned();
+    let created = coordinator(&mut stream, &workflow, AGREEING, "create_agent", "");
+    assert_eq!(created, r#"{"rev":1}"#);
+    (owner, stream, workflow)
+}
+
+/// The key `agreement` of the agent's entry in the roster of `list_agents`, which the entry must hold.
+fn agreement_of(stream: &mut Stream, agent: &str) -> Value {
+    let body = r#"{"op":"list_agents","workflow":null,"agent":null,"after":null}"#;
+    let roster: Value =
+        serde_json::from_str(&agent_body(stream, "coordinator_write", body)).unwrap();
+    let entry = roster["agents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["config"]["agent"] == agent)
+        .unwrap_or_else(|| panic!("the roster holds no entry of the agent {agent}"));
+    entry
+        .as_object()
+        .unwrap()
+        .get("agreement")
+        .cloned()
+        .unwrap_or_else(|| panic!("the entry holds no key agreement: {entry}"))
+}
+
+/// The bodies of the rows of the kind in the store under `dir`, read by SQL with `key` and with no condition of the
+/// store's reads, once its owner has ended.
+fn bodies_of(dir: &Path, key: [u8; 32], kind: &str) -> Vec<String> {
+    halvo_sqlcipher::initialize().unwrap();
+    let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
+    let conn = Connection::open(dir.join("derived").join("derived.db")).unwrap();
+    conn.execute_batch(&format!("PRAGMA key = \"x'{hex}'\";"))
+        .unwrap();
+    let mut rows = conn
+        .prepare("SELECT body FROM rows WHERE kind = ?1")
+        .unwrap();
+    rows.query_map([kind], |row| row.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect()
+}
+
+/// r3 U7.7, sentence (2) (the coordinator's log line 17342, point 3): the way back writes `on_device` and leaves no
+/// agreement, on the real store through the owner's adapter. The agent of an approved workflow says yes up to
+/// `frontier` (revision 2), and the roster hands that agreement; then the way back answers revision 3, the write-ahead
+/// log is empty behind the checkpoint right after its reply, and the roster hands none. Read by SQL with the store's
+/// key and with no condition of the store's reads once the owner has ended, no `agent_agreement` row stands and the
+/// agent's newest set-up holds `on_device`.
+#[test]
+fn the_way_back_writes_on_device_and_leaves_no_agreement() {
+    let scratch = Scratch::new("owner-agreement-way-back");
+    let (mut owner, mut stream, workflow) = one_agent(&scratch.0, KEY);
+    let s = &mut stream;
+    let yes = coordinator(s, &workflow, AGREEING, "set_model", YES);
+    let agreed = agreement_of(s, AGREEING);
+    let back = coordinator(s, &workflow, AGREEING, "set_model", WAY_BACK);
+    let wal =
+        std::fs::metadata(scratch.0.join("derived").join("derived.db-wal")).map_or(0, |m| m.len());
+    let after = agreement_of(s, AGREEING);
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    let agreements = bodies_of(&scratch.0, KEY, "agent_agreement");
+    let newest = bodies_of(&scratch.0, KEY, "agent_config")
+        .iter()
+        .map(|body| serde_json::from_str::<Value>(body).unwrap())
+        .filter(|config| config["agent"] == AGREEING)
+        .max_by_key(|config| config["rev"].as_u64())
+        .unwrap();
+
+    assert_eq!(
+        (yes.as_str(), back.as_str()),
+        (r#"{"rev":2}"#, r#"{"rev":3}"#)
+    );
+    assert_eq!(agreed["tier"], "frontier", "the roster after the yes");
+    assert_eq!(after, Value::Null, "the roster after the way back");
+    assert_eq!(
+        wal, 0,
+        "bytes of the write-ahead log right after the way back"
+    );
+    assert_eq!(agreements, Vec::<String>::new(), "agent_agreement rows");
+    assert_eq!(
+        (&newest["rev"], &newest["tier"]),
+        (&Value::from(3), &Value::from("on_device"))
+    );
+}
+
+/// r3 U7.7, sentence (7) (the coordinator's log line 17342, point 4): the delete of the agent's workflow takes its
+/// agreement with the agent's other rows. The agent of an approved workflow says yes up to `frontier`, and the roster
+/// hands that agreement; the interface's decision `delete` of the workflow is taken. Read by SQL with the store's key
+/// once the owner has ended, no `agent_agreement` row and no `agent_config` row stands.
+#[test]
+fn the_delete_of_a_workflow_takes_its_agreement() {
+    let scratch = Scratch::new("owner-agreement-delete");
+    let (mut owner, mut stream, workflow) = one_agent(&scratch.0, KEY);
+    let yes = coordinator(&mut stream, &workflow, AGREEING, "set_model", YES);
+    let agreed = agreement_of(&mut stream, AGREEING);
+    let delete = halvo_schema_core::request::InterfaceDecision::delete(
+        &InterfaceRole::claim(),
+        request_id(),
+        WorkflowId::parse(&workflow).unwrap(),
+    );
+    owner.send(&delete.to_bytes().unwrap());
+    let deleted = owner.reply().outcome;
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+
+    assert_eq!(yes, r#"{"rev":2}"#);
+    assert_eq!(agreed["tier"], "frontier", "the roster after the yes");
+    assert!(matches!(deleted, Ok(ReplyResult::Null)), "{deleted:?}");
+    assert_eq!(
+        (
+            bodies_of(&scratch.0, KEY, "agent_agreement"),
+            bodies_of(&scratch.0, KEY, "agent_config")
+        ),
+        (Vec::new(), Vec::new()),
+        "(agent_agreement rows, agent_config rows) after the delete"
+    );
+}
+
+/// r3 U7.7, sentence (6) (the coordinator's log line 17342, point 4): Delete everything takes the agreement with the
+/// store, on the harness of `a_model_key_row_is_gone_after_delete_everything`. A capture store is made in the data
+/// directory under the root file's custody; the owner on its derived key sets up an agent of an approved workflow,
+/// which says yes up to `frontier`, and the roster hands that agreement; the product's offline delete runs on the
+/// data directory and destroys that root; the owner started on the key of the next start lists no agent, and read by
+/// SQL with that key once it has ended, no `agent_agreement` row stands.
+#[cfg(all(target_os = "macos", debug_assertions))]
+#[test]
+fn the_agreement_row_is_gone_after_delete_everything() {
+    use halvo_capture::daemon::custody_policy::Custody;
+    use halvo_capture::daemon::delete_all::offline;
+    use halvo_capture::daemon::port::{DataDirStore, Opened, StoreHost};
+    let scratch = Scratch::new("owner-agreement-delete-all");
+    let derived_key = || -> [u8; 32] {
+        let host = DataDirStore::at(&scratch.0);
+        let Opened::ReadWrite { store, .. } = host.create(Custody::RootFile) else {
+            panic!("no capture store was made in {}", scratch.0.display());
+        };
+        drop(store);
+        let key = host
+            .derived_store_key()
+            .unwrap_or_else(|fault| panic!("no key of the derived store: {fault:?}"));
+        *key.expose()
+    };
+
+    let (mut owner, mut stream, workflow) = one_agent(&scratch.0, derived_key());
+    let yes = coordinator(&mut stream, &workflow, AGREEING, "set_model", YES);
+    let agreed = agreement_of(&mut stream, AGREEING);
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    assert_eq!(yes, r#"{"rev":2}"#);
+    assert_eq!(agreed["tier"], "frontier", "the roster after the yes");
+
+    let data_dir = halvo_control::paths::DataDir::from_flag(scratch.0.clone()).unwrap();
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let status = offline(&data_dir, &mut out, &mut err);
+    let printed = format!(
+        "status {status}, out: {}, err: {}",
+        String::from_utf8_lossy(&out),
+        String::from_utf8_lossy(&err)
+    );
+    assert_eq!(status, 0, "{printed}");
+
+    let next = derived_key();
+    let mut owner = start_on(stream_channel(), &scratch.0, next, 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let body = r#"{"op":"list_agents","workflow":null,"agent":null,"after":null}"#;
+    let listed = agent_body(&mut stream, "coordinator_write", body);
+    end_stream_channel(&mut owner);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+    assert_eq!(listed, r#"{"agents":[],"next":null}"#, "{printed}");
+    assert_eq!(
+        bodies_of(&scratch.0, next, "agent_agreement"),
+        Vec::<String>::new(),
+        "{printed}"
+    );
+}

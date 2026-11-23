@@ -1,10 +1,11 @@
-# The seven slices: what CI runs outside the merge gate, one slice a day.
+# The eight slices: what CI runs outside the merge gate, one slice a day and wed2 a second slice on
+# Wednesday.
 # sh scripts/ci/run-ci-d.sh <job> --slice <slice> runs the lines of its slice and job: first the
 # self-tests, then the checks. A check or a self-test that no line here and no line of
 # scripts/ci/merge-gate.txt names runs in no run of CI.
 #
 # A line is: <slice> <job> <kind> <name>
-#   slice  mon, tue, wed, thu, fri, sat or sun
+#   slice  mon, tue, wed, wed2, thu, fri, sat or sun
 #   job    macos or windows
 #   kind   check      the check of that name
 #          self-test  the self-test of the check of that name
@@ -17,12 +18,10 @@
 
 mon macos tests A
 mon macos check 31-store-full-volume
-mon macos check 63-maker-marker
 mon macos check 25-advisories
 mon windows tests A
 mon windows check 24-hook-imports
 mon windows check 20-app-links-no-store
-mon windows check 10-r7-account
 mon windows check 35-app-windows-memory
 
 tue macos tests B
@@ -37,7 +36,18 @@ wed macos check 32-app-check-page
 wed macos check 38-app-engine-routes
 wed macos check 25-advisories
 wed windows check 50-windows-functional
-wed windows check 60-r6-egress
+
+# wed2 runs at 04:47 UTC on Wednesday. Its windows checks came from the days that were over 1,000 s on an
+# AMD EPYC 7763, each with its seconds there: 60-r6-egress 167 (wed, run 45096596639), 10-egress 215 (thu,
+# 45086425387), 38-app-engine-routes 197 and 80-r6-absent 52 (sat, 45098472482), 10-r7-account 124 (mon,
+# 45050615172); with 141 to 156 s of steps the job is reckoned at 896 to 911 s on that kind. Its run by
+# hand 45108441992 took 876 s on an Intel Xeon Platinum 8573C.
+wed2 macos check 25-advisories
+wed2 windows check 38-app-engine-routes
+wed2 windows check 10-egress
+wed2 windows check 60-r6-egress
+wed2 windows check 80-r6-absent
+wed2 windows check 10-r7-account
 
 thu macos check 62-build
 thu macos check 60-release-dry-run
@@ -46,7 +56,6 @@ thu macos check 20-r6-gateway
 thu macos check 80-r6-absent
 thu macos check 25-advisories
 thu windows check 52-windows-browser
-thu windows check 10-egress
 
 fri macos self-test 12-test
 fri macos self-test 17-workflow-lint
@@ -99,14 +108,13 @@ sat macos tests D
 sat macos check 10-r7-account
 sat macos check 25-advisories
 sat windows check 32-app-check-page
-sat windows check 38-app-engine-routes
 sat windows check 34-app-windows-start
 sat windows check 36-app-windows-logon
 sat windows check 20-r6-gateway
-sat windows check 80-r6-absent
 sat windows tests D
 
 sun macos check 62-build
+sun macos check 63-maker-marker
 sun macos check 70-package-macos
 sun macos check 25-advisories
 sun windows check 62-build

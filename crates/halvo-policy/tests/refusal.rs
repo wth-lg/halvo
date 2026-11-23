@@ -296,7 +296,7 @@ fn refusal_allow_split() {
         for external in [YesNo::Yes, YesNo::No] {
             c.caps.external = external;
             assert_eq!(
-                validate(&c),
+                validate(&c, None),
                 Err(ConfigCause::Allow),
                 "{category:?} {external:?}"
             );

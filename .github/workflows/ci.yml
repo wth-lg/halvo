@@ -13,12 +13,13 @@ on:
     - cron: '17 3 * * 5'
     - cron: '17 3 * * 6'
     - cron: '17 3 * * 0'
+    - cron: '47 4 * * 3'
   workflow_dispatch:
     inputs:
       slice:
-        description: The slice to run, as the run of its day at 03:17 UTC does
+        description: The slice to run, as its weekly run does
         type: choice
-        options: [mon, tue, wed, thu, fri, sat, sun]
+        options: [mon, tue, wed, wed2, thu, fri, sat, sun]
         default: mon
       checks:
         description: In place of the slice, these checks alone, each with its self-test (names with blanks between them)
@@ -30,7 +31,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || github.event_name == 'workflow_dispatch' && github.run_id || github.sha }}
+  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || github.event_name == 'workflow_dispatch' && github.run_id || github.event_name == 'schedule' && github.event.schedule || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -59,6 +60,7 @@ jobs:
             'schedule:17 3 * * 1') slice=mon ;;
             'schedule:17 3 * * 2') slice=tue ;;
             'schedule:17 3 * * 3') slice=wed ;;
+            'schedule:47 4 * * 3') slice=wed2 ;;
             'schedule:17 3 * * 4') slice=thu ;;
             'schedule:17 3 * * 5') slice=fri ;;
             'schedule:17 3 * * 6') slice=sat ;;
@@ -209,6 +211,7 @@ jobs:
             'schedule:17 3 * * 1') slice=mon ;;
             'schedule:17 3 * * 2') slice=tue ;;
             'schedule:17 3 * * 3') slice=wed ;;
+            'schedule:47 4 * * 3') slice=wed2 ;;
             'schedule:17 3 * * 4') slice=thu ;;
             'schedule:17 3 * * 5') slice=fri ;;
             'schedule:17 3 * * 6') slice=sat ;;
@@ -238,6 +241,16 @@ jobs:
           prefix-key: v0-rust
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
         id: cache
+      - name: Restore the release build of the slice sun
+        if: steps.slice.outputs.name == 'sun' || steps.slice.outputs.name == 'tue'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            target/release/deps
+            target/release/build
+            target/release/.fingerprint
+          key: v0-release-windows-${{ hashFiles('rust-toolchain.toml') }}-${{ github.run_id }}
+          restore-keys: v0-release-windows-${{ hashFiles('rust-toolchain.toml') }}-
       - name: Processor
         shell: bash
         run: |
@@ -263,6 +276,15 @@ jobs:
           else
             sh scripts/ci/run-ci-d.sh windows --checks "$CHECKS"
           fi
+      - name: Save the release build of the slice sun
+        if: steps.slice.outputs.name == 'sun' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            target/release/deps
+            target/release/build
+            target/release/.fingerprint
+          key: v0-release-windows-${{ hashFiles('rust-toolchain.toml') }}-${{ github.run_id }}
       - name: Scripts and hook in a core.autocrlf=true clone
         if: steps.slice.outputs.name == 'fri'
         shell: bash

@@ -16,6 +16,8 @@ export const VARIANTS = [
   'no_reply',
   'amount_changes',
   'charged_no_amount',
+  'form_amount',
+  'form_amount_other',
   'slow_charge',
   'draft_no_recipient',
   'draft_two_recipients',

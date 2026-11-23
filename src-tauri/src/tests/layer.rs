@@ -653,36 +653,34 @@ fn the_reset_command_sends_one_reset_and_answers_its_view() {
 
     use halvo_control::onboarding::GrantState;
     use halvo_control::proto::SwitchName;
-    let ungranted = status_with(Platform::Macos, |f| {
-        paused(f);
-        f.state_file = StateFile::Corrupt;
-        f.cap_bytes = Cap::Unknown;
-        if let Some(line) = f
-            .permissions
-            .iter_mut()
-            .find(|line| line.name == Permission::InputMonitoring)
-        {
-            line.grant = GrantState::NotGranted;
-        }
-    });
-    let without: Vec<_> = halvo_control::texts::first_run(Platform::Macos)
-        .recorded
-        .into_iter()
-        .filter(|row| {
-            !matches!(
-                row.switch,
-                Some(SwitchName::KeyClass | SwitchName::PointerClass)
-            )
-        })
-        .collect();
-    assert_eq!(without.len(), 3);
-    let shown = serde_json::to_value(StatusView::of(&ungranted)).expect("the view writes");
-    assert_eq!(
-        shown["reset_recorded"],
-        serde_json::to_value(without).unwrap(),
-        "a Mac status that shows typing and holds no grant of Input Monitoring: the question \
-         lists neither the row of keys nor the row of pointer actions"
+    let whole = halvo_control::texts::first_run(Platform::Macos).recorded;
+    assert!(
+        [SwitchName::KeyClass, SwitchName::PointerClass]
+            .iter()
+            .all(|&switch| whole.iter().any(|row| row.switch == Some(switch))),
+        "the first run's rows hold the row of keys and the row of pointer actions"
     );
+    for grant in [GrantState::NotGranted, GrantState::NotDetermined] {
+        let ungranted = status_with(Platform::Macos, |f| {
+            paused(f);
+            f.state_file = StateFile::Corrupt;
+            f.cap_bytes = Cap::Unknown;
+            if let Some(line) = f
+                .permissions
+                .iter_mut()
+                .find(|line| line.name == Permission::InputMonitoring)
+            {
+                line.grant = grant;
+            }
+        });
+        let shown = serde_json::to_value(StatusView::of(&ungranted)).expect("the view writes");
+        assert_eq!(
+            shown["reset_recorded"],
+            serde_json::to_value(&whole).unwrap(),
+            "{grant:?}: the question lists the first run's rows whole, whatever the row of \
+             Input Monitoring reads"
+        );
+    }
 }
 
 #[test]

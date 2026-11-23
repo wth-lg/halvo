@@ -1512,11 +1512,13 @@ use support::browser::{framed_pay_click, Hang};
 /// The heading of the fixture's page after a recorded `POST /charge` of the kind `bill`.
 const RECEIVED: &str = "<h1>Payment received</h1>";
 
-/// What a run of `framed_payment` leaves: what the supervisor saw, the fixture's state after the run, the origin of
-/// the page `/pay` and of its payment frame, and the playbook that the store served the run.
+/// What a run of `framed_payment` leaves: what the supervisor saw, the fixture's state after the run and right before
+/// the runner started (after the test's sign-in), the origin of the page `/pay` and of its payment frame, and the
+/// playbook that the store served the run.
 struct Paid {
     seen: Seen,
     state: serde_json::Value,
+    before: serde_json::Value,
     top: WebOrigin,
     frame: WebOrigin,
     steps: Vec<ExecutableStep>,
@@ -1528,16 +1530,18 @@ struct Paid {
 /// forwarder's): step 1 opens `/pay`, step 2 reads the amount in the payment frame, and step 3 clicks `pay-now` in
 /// that frame with the effect `request`, of the class `payment`, with the conditions `post` that `post` gives for the
 /// frame's origin; the person answers `allow_once`. The payment forwarder rewrites the frame's pages by `rewrite`
-/// where one is given, and `bound` joins the bindings beside the two forwarders' origins.
+/// where one is given, and `bound` joins the bindings beside the two forwarders' origins. The fixture's reset turns
+/// on `variants` (r3 U5.10-C stage three).
 fn framed_payment(
     browser: &std::path::Path,
     n: u8,
     post: impl Fn(&WebOrigin) -> Vec<String>,
     rewrite: Option<(String, String)>,
     bound: &[WebOrigin],
+    variants: &[&str],
 ) -> Paid {
     let fixture = support::connect::Fixture::start();
-    fixture.reset(1, &[]);
+    fixture.reset(1, variants);
     let (_, port) =
         halvo_web::cdp::host_port(fixture.origin("utility").as_str()).expect("the fixture's port");
     let cookie = fixture_sign_in(port);
@@ -1575,6 +1579,7 @@ fn framed_payment(
         ),
         framed_pay_click(3, "pay-now", &[&frame], frame.as_str(), &post(&frame)),
     ];
+    let before = fixture.state();
     let seen = serve_with(
         &sup,
         browser,
@@ -1589,6 +1594,7 @@ fn framed_payment(
     Paid {
         seen,
         state: fixture.state(),
+        before,
         top,
         frame,
         steps: sup.steps,
@@ -1625,6 +1631,7 @@ fn an_effect_step_reads_its_post_conditions_after_the_release() {
         255,
         |frame| vec![framed_cond("present", "amount-charged", &[frame], None)],
         None,
+        &[],
         &[],
     );
     let got = rows(&paid.seen);
@@ -1667,7 +1674,7 @@ fn the_read_after_the_reply_follows_the_frame_of_the_held_request() {
     let Some(browser) = hosted(TEST) else {
         return;
     };
-    let paid = framed_payment(&browser, 249, |_| Vec::new(), None, &[]);
+    let paid = framed_payment(&browser, 249, |_| Vec::new(), None, &[], &[]);
     let got = rows(&paid.seen);
     say(TEST, &format!("rows {got:?}"));
     assert_eq!(
@@ -1740,6 +1747,7 @@ fn a_made_payment_whose_page_cannot_be_read_ends_the_run_with_a_cause_of_its_own
             format!(r#"{RECEIVED}<img src="{}" alt="">"#, hang.url("/never")),
         )),
         &[hang.origin()],
+        &[],
     );
     let got = rows(&paid.seen);
     say(TEST, &format!("rows {got:?}"));
@@ -1769,5 +1777,97 @@ fn a_made_payment_whose_page_cannot_be_read_ends_the_run_with_a_cause_of_its_own
     assert!(
         hang.taken() >= 1,
         "the page asked for the image that never comes"
+    );
+}
+
+/// r3 U5.10-C stage three (the coordinator's log lines 16169 and 17302): on the product's framed fixture, the held
+/// request of the payment frame's form leaves only where the amount that its form names is the card's. (a) With the
+/// variant `form_amount` the form's hidden field `amount` carries the amount that the frame shows, the amount that the
+/// card read: one card is shown, and after the yes the payment leaves once, recorded at the amount that the token
+/// stands for. (b) With `form_amount_other` the field carries that amount with 1.00 added while the frame still shows
+/// the token's amount: the held request is failed before any card, so no confirm frame and no effect row stand, the
+/// step's row says `step_failed` with `amount_differs` and no row holds a `page_amount`, the run ends `failed` with it,
+/// the fixture records no payment, and its count of state-changing requests is the same before and after the run.
+#[test]
+fn a_held_request_leaves_only_where_the_amount_that_its_form_names_is_the_cards() {
+    const TEST: &str =
+        "a_held_request_leaves_only_where_the_amount_that_its_form_names_is_the_cards";
+    let Some(browser) = hosted(TEST) else {
+        return;
+    };
+    let cards = |paid: &Paid| {
+        paid.seen
+            .frames
+            .iter()
+            .filter(|f| matches!(f, FromRunner::Confirm(_)))
+            .count()
+    };
+
+    let paid = framed_payment(&browser, 238, |_| Vec::new(), None, &[], &["form_amount"]);
+    let got = rows(&paid.seen);
+    say(TEST, &format!("form_amount rows {got:?}"));
+    assert_eq!(
+        paid.seen.done(),
+        Some(Outcome::Completed),
+        "{}",
+        paid.seen.stderr
+    );
+    assert_eq!(cards(&paid), 1, "one card: {}", paid.seen.stderr);
+    assert_eq!(
+        paid.seen.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Releasing,
+            EffectState::Committed
+        ]
+    );
+    let (made, due) = payments(&paid);
+    assert_eq!(made, [due], "{}", paid.state);
+
+    let paid = framed_payment(
+        &browser,
+        239,
+        |_| Vec::new(),
+        None,
+        &[],
+        &["form_amount_other"],
+    );
+    let got = rows(&paid.seen);
+    say(TEST, &format!("form_amount_other rows {got:?}"));
+    assert_eq!(
+        paid.seen.done(),
+        Some(Outcome::Failed),
+        "{}",
+        paid.seen.stderr
+    );
+    assert_eq!(cards(&paid), 0, "no card: {}", paid.seen.stderr);
+    assert!(paid.seen.effects().is_empty(), "no effect row: {got:?}");
+    assert!(
+        got.contains(&(LogEvent::StepFailed, Some(3), Some(Cause::AmountDiffers))),
+        "{got:?}"
+    );
+    assert_eq!(
+        got.last(),
+        Some(&(LogEvent::Stopped, None, Some(Cause::AmountDiffers))),
+        "{got:?}"
+    );
+    assert!(
+        paid.seen.logs().iter().all(|l| l.page_amount.is_none()),
+        "no page_amount: {got:?}"
+    );
+    assert!(
+        paid.seen
+            .stderr
+            .contains("run effect=failed at=body reason=amount_differs"),
+        "{}",
+        paid.seen.stderr
+    );
+    let (made, _) = payments(&paid);
+    assert!(made.is_empty(), "no payment: {}", paid.state);
+    assert_eq!(
+        paid.state["requests"]["state_changing"], paid.before["requests"]["state_changing"],
+        "no state-changing request reached the fixture during the run: {} before {}",
+        paid.state, paid.before
     );
 }

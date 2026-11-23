@@ -98,6 +98,7 @@ mod timed {
             turns: run_loop.turns(),
             input_counters: input::InputCounters::new(),
             hold_after: None,
+            keys_refused: false,
             refusal: Arc::default(),
         };
         let main_loop = MacLoop {
@@ -180,6 +181,7 @@ mod timed {
         turns: RunLoopTurns,
         input_counters: input::InputCounters,
         hold_after: Option<Duration>,
+        keys_refused: bool,
         refusal: Arc<Mutex<Option<DaemonError>>>,
     }
 
@@ -231,7 +233,8 @@ mod timed {
                             self.foreground_reader.clone(),
                             self.input_counters.clone(),
                             plan,
-                        ),
+                        )
+                        .with_keys_refused(self.keys_refused),
                         refusal: self.refusal.clone(),
                     }))
                 }
@@ -251,6 +254,10 @@ mod timed {
 
         fn holds_secure_input(&self) -> bool {
             self.hold_after.is_some()
+        }
+
+        fn refuse_keys(&mut self, refused: bool) {
+            self.keys_refused = refused;
         }
 
         fn figures(&self) -> SourceCounters {

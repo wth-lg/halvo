@@ -358,6 +358,7 @@
       resetRow = Halvo.el("div", { id: "settings-reset-row", class: "confirm-row" }, [
         Halvo.el("p", { id: "settings-reset-question", text: w.SETTINGS_RESET_QUESTION }),
         resetRecorded,
+        Halvo.modelKeyLine("settings-reset-model-key-line", w.MODEL_KEY_STAYS),
         Halvo.el("div", { class: "row" }, [resetYes, resetNo]),
       ]);
       resetRow.classList.add("hidden");

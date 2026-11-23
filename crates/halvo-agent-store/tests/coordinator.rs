@@ -49,7 +49,7 @@ fn create_agent_stores_the_preset_and_makes_the_state_call() {
             AgentId::parse(&agent(1)).expect("an id"),
         )
         .expect("a preset");
-        assert_eq!(validate(&expected), Ok(()));
+        assert_eq!(validate(&expected, None), Ok(()));
         assert_eq!(stored, [expected]);
         assert_eq!(
             state_of(&store, 1),
