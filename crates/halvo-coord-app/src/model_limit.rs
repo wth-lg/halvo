@@ -8,6 +8,7 @@
 //! page names no body and cannot choose one.
 #![cfg(any(target_os = "macos", windows))]
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use halvo_agent_client::{LinkError, OwnerLink};
@@ -89,23 +90,69 @@ pub enum LimitReply {
 }
 
 /// The app's own memory of its last answer to the part: whether that answer was the state `unread` made from a
-/// `model_room` that answered the fault of the store's read. Only such a state answer sets it; a `model_room` that
-/// answers a room, every other error of it, and every set that went through clear it. It lives in the app, never in
-/// the page. It is also the part's one lock (the coordinator's log line 18279): a command of the part holds it from its
-/// ask of `model_room` to its keep, so the app serves one command of the part at a time, and a command that comes
-/// meanwhile waits for it; no command takes it twice.
+/// `model_room` that answered the fault of the store's read, and the number of that answer, one more at each answer
+/// that it keeps. Only such a state answer keeps `unread`; a `model_room` that answers a room, every other error of
+/// it, and every set that went through keep its end. It lives in the app, never in the page. It holds the part's one
+/// lock too (the coordinator's log line 18279): a command of the part holds it from its ask of `model_room` to its
+/// keep, so the app serves one command of the part at a time, and a command that comes meanwhile waits for it; no
+/// command takes it twice. A press reads the memory once more BEFORE it waits for the lock, at its begin, so that a
+/// state answer that a waiting press did not see before it began cannot open the start of a new count for it.
 #[derive(Debug, Default)]
-pub struct Memory(Mutex<bool>);
+pub struct Memory {
+    lock: Mutex<()>,
+    kept: AtomicU64,
+    #[cfg(test)]
+    begins: (Mutex<usize>, std::sync::Condvar),
+}
+
+/// One answer of the memory: its number, and whether it is the state `unread` made from the fault.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Kept {
+    number: u64,
+    unread: bool,
+}
 
 impl Memory {
     pub const fn new() -> Memory {
-        Memory(Mutex::new(false))
+        Memory {
+            lock: Mutex::new(()),
+            kept: AtomicU64::new(0),
+            #[cfg(test)]
+            begins: (Mutex::new(0), std::sync::Condvar::new()),
+        }
     }
 
-    /// The memory for one command, held until the guard drops. A poisoned lock is taken as it stands: its value is a
-    /// bool that every write leaves whole.
-    fn hold(&self) -> MutexGuard<'_, bool> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    /// The lock for one command, held until the guard drops. A poisoned lock is taken as it stands: it guards no value,
+    /// and the memory's one word is written whole.
+    fn hold(&self) -> MutexGuard<'_, ()> {
+        self.lock.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The newest answer kept.
+    fn read(&self) -> Kept {
+        let word = self.kept.load(Ordering::SeqCst);
+        Kept {
+            number: word >> 1,
+            unread: word & 1 == 1,
+        }
+    }
+
+    /// What a press reads at its begin, before it waits for the lock.
+    fn begin(&self) -> Kept {
+        let begun = self.read();
+        #[cfg(test)]
+        {
+            let (count, changed) = &self.begins;
+            *count.lock().unwrap_or_else(PoisonError::into_inner) += 1;
+            changed.notify_all();
+        }
+        begun
+    }
+
+    /// Keeps an answer under the lock that `_held` shows: the next number, and whether it is the state `unread`.
+    fn keep(&self, _held: &MutexGuard<'_, ()>, unread: bool) {
+        let next = ((self.read().number + 1) << 1) | u64::from(unread);
+        self.kept.store(next, Ordering::SeqCst);
     }
 }
 
@@ -177,9 +224,9 @@ impl<'m> ModelLimit<'m> {
             amount.map(|amount| written(unit(amount), currency))
         };
         let asked = {
-            let mut faulted = self.memory.hold();
+            let held = self.memory.hold();
             let asked = self.room();
-            *faulted = matches!(asked, Asked::Fault);
+            self.memory.keep(&held, matches!(asked, Asked::Fault));
             asked
         };
         let (state, cap, spent, held, end) = match asked {
@@ -233,23 +280,26 @@ impl<'m> ModelLimit<'m> {
     /// sent nowhere. Else ONE body `model_room` first: where it answers the fault of the store's read and the app's
     /// last answer to the part was the state made from that fault, ONE body `new_model_count`; where it answers the
     /// fault behind any other last answer, nothing more and `failed`; in every other case ONE body `set_model_cap`.
-    /// A set that went through clears the app's memory and answers the new limit as written for a person.
+    /// The last answer counts only where the press read it at its begin, before it waited for the lock, and it still
+    /// stands, unchanged, under the lock. A set that went through clears the app's memory and answers the new limit as
+    /// written for a person.
     pub fn set(&self, text: &str) -> LimitReply {
         let Some(cap_minor) = minor_of(text) else {
             return LimitReply::Error {
                 error: LimitCause::NoAmount,
             };
         };
-        let mut faulted = self.memory.hold();
+        let begun = self.memory.begin();
+        let held = self.memory.hold();
         let op = match self.room() {
-            Asked::Fault if *faulted => "new_model_count",
+            Asked::Fault if begun.unread && self.memory.read() == begun => "new_model_count",
             Asked::Fault => {
                 return LimitReply::Error {
                     error: LimitCause::Failed,
                 }
             }
             Asked::Room(_) | Asked::Other => {
-                *faulted = false;
+                self.memory.keep(&held, false);
                 "set_model_cap"
             }
         };
@@ -268,8 +318,8 @@ impl<'m> ModelLimit<'m> {
                 }
             }
         };
-        *faulted = false;
-        drop(faulted);
+        self.memory.keep(&held, false);
+        drop(held);
         LimitReply::Set {
             answer,
             amount: written(Amount::Minor(u64::from(cap_minor)), currency()),
@@ -374,6 +424,16 @@ mod tests {
 
     fn result(text: &str) -> Answer {
         Answer::Result(text.to_owned())
+    }
+
+    /// Whether `n` presses have read the memory at their begin within `within`.
+    fn begun_within(memory: &Memory, n: usize, within: Duration) -> bool {
+        let (count, changed) = &memory.begins;
+        let count = count.lock().unwrap();
+        let (count, _) = changed
+            .wait_timeout_while(count, within, |count| *count < n)
+            .unwrap();
+        *count >= n
     }
 
     /// A gate that holds a stand-in's answer until the test opens it.
@@ -785,7 +845,12 @@ mod tests {
     /// fault: the press answers `failed` and sends nothing more, and the state call, served behind it, answers `unread`.
     /// X2: the part was answered `unread` earlier; a state call asks `model_room` and its answer, a count that reads, is
     /// held; a press starts beside it and meets the fault behind it: the state call answers `ok`, and the press answers
-    /// `failed` and sends nothing more. A call that comes while another holds the memory waits for it; the test gives
+    /// `failed` and sends nothing more. L3, the mirror of X1 (verifier-54's run): behind a good count a state call asks
+    /// and its answer, the fault, is held; a press begins beside it and waits at the lock; the held answer opens and the
+    /// press's own read meets the fault: the state call answers `unread`, and the press answers `failed` and sends
+    /// nothing more, since the part was not answered `unread` before the press began. THREE: a press waits behind a
+    /// state call whose answer reads, with a second state call that meets the fault waiting too: whatever order the lock
+    /// serves them in, the press answers `failed` and sends nothing more. A call that comes while another holds the memory waits for it; the test gives
     /// each second call 100 ms to ask before it opens the held answer.
     #[test]
     fn two_calls_at_once_start_no_count_on_one_passing_fault() {
@@ -841,6 +906,75 @@ mod tests {
             assert_eq!(pressing.join().unwrap(), failed, "X2: the press");
         });
         assert_eq!(of_press.ops(), ["model_room"], "X2: the press's requests");
+
+        let memory = Memory::new();
+        let good = Stand::new();
+        good.then([result(READS)]);
+        assert_eq!(state(&ModelLimit::new(good, &memory))["state"], "ok");
+        let (of_press, of_state, gate) = (Stand::new(), Stand::new(), Arc::new(Gate::default()));
+        of_state.hold_next(Arc::clone(&gate));
+        of_state.then([fault()]);
+        of_press.then([fault(), cap_reply(2_500, "yes")]);
+        std::thread::scope(|s| {
+            let reading = s.spawn(|| state(&ModelLimit::new(of_state.clone(), &memory)));
+            assert!(
+                of_state.asked_within(1, long),
+                "L3: the state call asked model_room"
+            );
+            let pressing = s.spawn(|| press(&ModelLimit::new(of_press.clone(), &memory), "25"));
+            assert!(begun_within(&memory, 1, long), "L3: the press began");
+            assert!(
+                !of_press.asked_within(1, beside),
+                "L3: the press waits at the lock"
+            );
+            gate.open();
+            assert_eq!(
+                reading.join().unwrap()["state"],
+                "unread",
+                "L3: the state call"
+            );
+            assert_eq!(pressing.join().unwrap(), failed, "L3: the press");
+        });
+        assert_eq!(of_press.ops(), ["model_room"], "L3: the press's requests");
+
+        let memory = Memory::new();
+        let good = Stand::new();
+        good.then([result(READS)]);
+        assert_eq!(state(&ModelLimit::new(good, &memory))["state"], "ok");
+        let (of_press, first, second) = (Stand::new(), Stand::new(), Stand::new());
+        let gate = Arc::new(Gate::default());
+        first.hold_next(Arc::clone(&gate));
+        first.then([result(READS)]);
+        second.then([fault()]);
+        of_press.then([fault(), cap_reply(2_500, "yes")]);
+        std::thread::scope(|s| {
+            let reading = s.spawn(|| state(&ModelLimit::new(first.clone(), &memory)));
+            assert!(
+                first.asked_within(1, long),
+                "THREE: the first state call asked model_room"
+            );
+            let pressing = s.spawn(|| press(&ModelLimit::new(of_press.clone(), &memory), "25"));
+            assert!(begun_within(&memory, 1, long), "THREE: the press began");
+            let faulting = s.spawn(|| state(&ModelLimit::new(second.clone(), &memory)));
+            second.asked_within(1, beside);
+            gate.open();
+            assert_eq!(
+                reading.join().unwrap()["state"],
+                "ok",
+                "THREE: the first state call"
+            );
+            assert_eq!(
+                faulting.join().unwrap()["state"],
+                "unread",
+                "THREE: the second state call"
+            );
+            assert_eq!(pressing.join().unwrap(), failed, "THREE: the press");
+        });
+        assert_eq!(
+            of_press.ops(),
+            ["model_room"],
+            "THREE: the press's requests"
+        );
     }
 
     /// r7 8.1L view: the part names the period month, because the count turns by calendar months, and the build's cap
