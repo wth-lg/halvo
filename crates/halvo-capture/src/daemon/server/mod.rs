@@ -559,6 +559,9 @@ pub struct StatusParts {
     /// Whether the hold of a record in the run marker stands (ruling PL-3
     /// part (5)): capture reads `awaiting_resume` while desired is running.
     pub held: bool,
+    /// A turn of typing to off that the state file did not take, which the
+    /// status carries beside key_class off alone.
+    pub typing_off_unsaved: Option<proto::TypingOffUnsaved>,
 }
 
 /// The status of a service run (contracts.md C2.1, C2.3) on the system of
@@ -702,6 +705,9 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
                 },
             })
             .collect(),
+        typing_off_unsaved: parts
+            .typing_off_unsaved
+            .filter(|_| !parts.switches.is_on(switch_of(SwitchName::KeyClass))),
         permissions,
         sources: lines,
         kinds: Modality::ALL
@@ -945,6 +951,7 @@ mod tests {
                 asked: Vec::new(),
                 input_keys: false,
                 held: false,
+                typing_off_unsaved: None,
             };
             let facts = RunFacts {
                 started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1037,6 +1044,7 @@ mod tests {
             asked: Vec::new(),
             input_keys: false,
             held: false,
+            typing_off_unsaved: None,
         };
         let facts = RunFacts {
             started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1156,6 +1164,7 @@ mod tests {
                 asked: Vec::new(),
                 input_keys: false,
                 held: false,
+                typing_off_unsaved: None,
             };
             let facts = RunFacts {
                 started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
