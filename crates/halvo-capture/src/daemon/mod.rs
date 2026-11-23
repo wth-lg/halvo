@@ -2913,14 +2913,12 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         HeldStore::Capture(owner) => close_the_store(*owner, status, err),
         HeldStore::None | HeldStore::Maintenance(_) => status,
     };
-    if status == halvo_control::exit::CLEAN {
-        if let Err(error) = run_marker::end(dir, ended_by) {
-            let _ = writeln!(
-                err,
-                "halvo-capture: the run marker's line of the end was not written: {}",
-                error.kind()
-            );
-        }
+    if let Err(error) = run_marker::at_the_end(dir, status, ended_by) {
+        let _ = writeln!(
+            err,
+            "halvo-capture: the run marker's line of the end was not written: {}",
+            error.kind()
+        );
     }
     if let Some(asked) = stop_asked {
         let stopped = halvo_control::proto::Stopped {

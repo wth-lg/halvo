@@ -39,10 +39,14 @@ pub struct Begun {
 /// C14 item 4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LastEnd {
-    /// A life that ended in order left the line of the trigger of its end.
-    InOrder(StopKind),
-    /// A life that did not end in order left its own marker or the record of
-    /// ruling PL-3: a kill, a crash, or an end with a status other than 0.
+    /// A life left the line of the trigger of its end: at an end with 0
+    /// alone or after the hold, and at an end with 1 that a Stop request or
+    /// a signal began, beside its process line.
+    Ended(StopKind),
+    /// A life left its own process line alone, or the record of ruling PL-3:
+    /// a kill, a crash, an end with 4 or 5, an end with 1 that no Stop
+    /// request and no signal began, or an end whose line could not be
+    /// written.
     NotInOrder,
     /// No marker, a marker that cannot be read, or one with no line that
     /// tells why its life ended, as a service of an older build leaves at
@@ -68,7 +72,7 @@ impl LastEnd {
     /// life with 0 and so stand in no line; a line that names one serves.
     pub fn no_press(self) -> NoPress {
         match self {
-            LastEnd::InOrder(kind) => match kind {
+            LastEnd::Ended(kind) => match kind {
                 StopKind::Stop => NoPress::WaitsForAPress,
                 StopKind::Signal => NoPress::WaitsForAPress,
                 StopKind::Lifeline => NoPress::Serves,
@@ -113,16 +117,16 @@ pub fn begin(dir: &DataDir) -> Begun {
 }
 
 /// Reads why the last life ended, for a start that no person's press stands
-/// behind, and writes nothing: the line of an end in order names its
-/// trigger, a word that is no kind of C2.3 tells nothing, and with no such
-/// line the process id of a life or a record is a life that did not end in
-/// order.
+/// behind, and writes nothing: the line of an end names its trigger, also
+/// beside a process line, a word that is no kind of C2.3 tells nothing, and
+/// with no such line the process line of a life or a record is a life that
+/// did not end in order.
 pub fn last_end(dir: &DataDir) -> LastEnd {
     let Ok(Some(text)) = read(dir) else {
         return LastEnd::Untold;
     };
     if let Some(word) = text.lines().find_map(|line| line.strip_prefix(ENDED)) {
-        return word.parse().map_or(LastEnd::Untold, LastEnd::InOrder);
+        return word.parse().map_or(LastEnd::Untold, LastEnd::Ended);
     }
     if text
         .lines()
@@ -154,6 +158,15 @@ pub fn give_back(dir: &DataDir, begun: &Begun) -> io::Result<()> {
 /// Whether the marker that stands holds the hold of ruling PL-3 part (5).
 pub fn held(dir: &DataDir) -> bool {
     read(dir).is_ok_and(|text| text.as_deref().is_some_and(holds_the_hold))
+}
+
+/// What the end of a life leaves in its marker, by its exit status and the
+/// trigger of its end (contracts.md C3.2 Stop, C14 item 4): at 0 [`end`].
+pub fn at_the_end(dir: &DataDir, status: i32, ended_by: Option<StopKind>) -> io::Result<()> {
+    match status {
+        halvo_control::exit::CLEAN => end(dir, ended_by),
+        _ => Ok(()),
+    }
 }
 
 /// Ends the marker of a life that ended in order: in its place the hold,
@@ -348,17 +361,83 @@ mod tests {
     }
 
     #[test]
+    fn a_stop_or_a_signal_that_ends_with_1_leaves_its_line_beside_the_process_line_and_a_start_with_no_press_waits(
+    ) {
+        use halvo_control::exit::{CLEAN, ERROR, RESTART, SOURCE_NOT_STOPPED};
+        let pid = format!("pid={}\n", std::process::id());
+        let record =
+            "last_stop=source_not_stopped kind=pause final=yes not_stopped=input:timeout\n";
+        for (end, kind) in [
+            ("no answer to the last settle", StopKind::Stop),
+            ("the drain still fails at the last settle", StopKind::Signal),
+            ("events lost between the two settles", StopKind::Stop),
+            (
+                "the store's owner silent for 1 s at its close",
+                StopKind::Signal,
+            ),
+        ] {
+            for hold in [false, true] {
+                let (_root, dir) = scratch();
+                if hold {
+                    stand(&dir, record);
+                }
+                assert!(begin(&dir).written.is_ok(), "{end}");
+                at_the_end(&dir, ERROR, Some(kind)).unwrap();
+                let hold_line = if hold { "hold=yes\n" } else { "" };
+                assert_eq!(
+                    marker(&dir),
+                    Some(format!("{pid}{hold_line}ended={}\n", kind.as_str())),
+                    "{end}: the line beside the process line"
+                );
+                assert_eq!(last_end(&dir), LastEnd::Ended(kind), "{end}");
+                assert_eq!(last_end(&dir).no_press(), NoPress::WaitsForAPress, "{end}");
+                assert_eq!(held(&dir), hold, "{end}: the hold as before");
+                assert_eq!(
+                    begin(&dir).last_stop,
+                    LastStop::Unclean,
+                    "{end}: a start without the argument reads unclean, as before"
+                );
+            }
+        }
+        for (status, ended_by, stood, left) in [
+            (
+                CLEAN,
+                Some(StopKind::Stop),
+                None,
+                Some("ended=stop\n".to_owned()),
+            ),
+            (ERROR, Some(StopKind::Lifeline), None, Some(pid.clone())),
+            (ERROR, None, None, Some(pid.clone())),
+            (RESTART, None, None, Some(pid.clone())),
+            (
+                SOURCE_NOT_STOPPED,
+                Some(StopKind::Stop),
+                Some(record),
+                Some(record.to_owned()),
+            ),
+        ] {
+            let (_root, dir) = scratch();
+            assert!(begin(&dir).written.is_ok());
+            if let Some(stood) = stood {
+                stand(&dir, stood);
+            }
+            at_the_end(&dir, status, ended_by).unwrap();
+            assert_eq!(marker(&dir), left, "{status} {ended_by:?}");
+        }
+    }
+
+    #[test]
     fn a_start_that_no_press_stands_behind_waits_behind_a_stop_a_signal_or_an_untold_end_and_serves_behind_every_other(
     ) {
         use NoPress::{Serves, WaitsForAPress};
         let rows: [(Option<&str>, LastEnd, NoPress); 14] = [
-            (Some("ended=stop\n"), LastEnd::InOrder(StopKind::Stop), WaitsForAPress),
-            (Some("hold=yes\nended=stop\n"), LastEnd::InOrder(StopKind::Stop), WaitsForAPress),
-            (Some("ended=signal\n"), LastEnd::InOrder(StopKind::Signal), WaitsForAPress),
-            (Some("ended=lifeline\n"), LastEnd::InOrder(StopKind::Lifeline), Serves),
-            (Some("ended=session_end\n"), LastEnd::InOrder(StopKind::SessionEnd), Serves),
-            (Some("ended=delete_all\n"), LastEnd::InOrder(StopKind::DeleteAll), Serves),
-            (Some("hold=yes\nended=lifeline\n"), LastEnd::InOrder(StopKind::Lifeline), Serves),
+            (Some("ended=stop\n"), LastEnd::Ended(StopKind::Stop), WaitsForAPress),
+            (Some("hold=yes\nended=stop\n"), LastEnd::Ended(StopKind::Stop), WaitsForAPress),
+            (Some("ended=signal\n"), LastEnd::Ended(StopKind::Signal), WaitsForAPress),
+            (Some("ended=lifeline\n"), LastEnd::Ended(StopKind::Lifeline), Serves),
+            (Some("ended=session_end\n"), LastEnd::Ended(StopKind::SessionEnd), Serves),
+            (Some("ended=delete_all\n"), LastEnd::Ended(StopKind::DeleteAll), Serves),
+            (Some("hold=yes\nended=lifeline\n"), LastEnd::Ended(StopKind::Lifeline), Serves),
             (Some("pid=4242\n"), LastEnd::NotInOrder, Serves),
             (Some("pid=4242\nhold=yes\n"), LastEnd::NotInOrder, Serves),
             (
@@ -390,7 +469,7 @@ mod tests {
             } else {
                 Serves
             };
-            assert_eq!(LastEnd::InOrder(*kind).no_press(), does, "{kind:?}");
+            assert_eq!(LastEnd::Ended(*kind).no_press(), does, "{kind:?}");
         }
 
         let (_root, dir) = scratch();
