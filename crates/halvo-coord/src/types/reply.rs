@@ -47,6 +47,10 @@ pub struct Row {
     /// `ask_stop_sign_in`: the question that a press on the row's `stop_sign_in` opens in the
     /// page, which sends nothing, or null on a row with no such control (r4 U2.4y).
     pub ask_stop_sign_in: Option<Ask>,
+    /// `ask_use_model`: the question that a press on the row's `use_model` opens in the page,
+    /// which sends nothing, or null on a row with no such control or where a sentence stands in
+    /// its place (r4 U3.17b).
+    pub ask_use_model: Option<Ask>,
 }
 
 /// What the question of a row's Delete or of its `stop_sign_in` is (ruling RD-19 (c) rules (3)
@@ -63,6 +67,9 @@ pub enum AskKind {
     /// `stop_sign_in`: the question asks whether Halvo stops using the sign-in that it keeps for
     /// the agent.
     StopSignIn,
+    /// `use_model`: the question asks whether the agent may use an AI model at the host that it
+    /// names, with the models and the person's spending limit (r4 U3.17b).
+    UseModel,
 }
 
 /// The `data-act` of a control of the question: `reject`, the safe control that leaves the

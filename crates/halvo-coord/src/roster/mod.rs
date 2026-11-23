@@ -12,6 +12,7 @@ use crate::types::{
     RunId, Runtime, SignInAnswer, StatusLine, System, Tier, Trigger, What,
 };
 use crate::types::{Ask, AskAct, AskControl, AskEffect, AskKind, Class, Kept};
+use crate::types::{ModelUse, SpendLimit};
 use crate::words;
 
 /// The status of the agent of `facts` with the case of its line (I1.3): the first row that fits
@@ -363,6 +364,10 @@ fn row_with<C: ConfigView>(
     } else {
         None
     };
+    let ask_use_model = match facts.config.model() {
+        Some(model) if offered.contains(&Control::UseModel) => use_model_ask(&model)?.0,
+        _ => None,
+    };
     Ok(Row {
         agent: facts.agent.clone(),
         workflow: facts.workflow.id.clone(),
@@ -385,6 +390,7 @@ fn row_with<C: ConfigView>(
             .collect::<Result<_, _>>()?,
         ask,
         ask_stop_sign_in,
+        ask_use_model,
     })
 }
 
@@ -490,6 +496,44 @@ pub fn stop_sign_in_ask(name: &str) -> Result<Ask, Cause> {
             ask_control(AskAct::Allow, "control.stop_sign_in")?,
         ],
     })
+}
+
+/// What a press on the row's `use_model` opens in the page, which sends nothing (r4 U3.17b): the
+/// question `use_model` where a key is saved and a limit stands. Its title asks whether the agent
+/// may use an AI model on someone else's computers; its texts say that it would send the text of
+/// the page or the message to the host, that it would use the models there, what it never sends,
+/// and that the host bills the person's key while Halvo stops at the limit's amount a period, as
+/// the limit's view writes them; then the safe control Not now, and Allow for this agent, which
+/// sends `agents_control` with `use_model`.
+pub fn use_model_ask(model: &ModelUse) -> Result<(Option<Ask>, Option<String>), Cause> {
+    let (Some(true), SpendLimit::Stands { amount, period }) = (model.key, &model.limit) else {
+        return Ok((None, None));
+    };
+    let host = [("host", model.host.as_str())];
+    let ask = Ask {
+        kind: AskKind::UseModel,
+        title: text("ask.use_model.title", &[])?,
+        text: vec![
+            text("ask.use_model.sends", &host)?,
+            text("ask.use_model.models", &[("models", &model.models)])?,
+            text("ask.use_model.never", &[])?,
+            text(
+                "ask.use_model.bills",
+                &[
+                    ("host", &model.host),
+                    ("amount", amount),
+                    ("period", period),
+                ],
+            )?,
+        ],
+        effects: Vec::new(),
+        record: None,
+        controls: vec![
+            ask_control(AskAct::Reject, "ask.use_model.keep")?,
+            ask_control(AskAct::Allow, "ask.use_model.allow")?,
+        ],
+    };
+    Ok((Some(ask), None))
 }
 
 fn unknown_effects<C: ConfigView>(facts: &Facts<C>, name: &str) -> Result<Vec<AskEffect>, Cause> {

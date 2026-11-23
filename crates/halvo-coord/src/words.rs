@@ -660,6 +660,25 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     ("ask.stop_sign_in.keep", "Keep the sign-in"),
     (
+        "ask.use_model.title",
+        "Let this agent use an AI model on someone else's computers?",
+    ),
+    (
+        "ask.use_model.sends",
+        "To work out a step, this agent would send the text of the page that it has open, or of the message that it is answering, to {host}.",
+    ),
+    ("ask.use_model.models", "It would use {models} there."),
+    (
+        "ask.use_model.never",
+        "It never sends what is in a password field, your saved sign-ins or anything that Halvo recorded of your own work.",
+    ),
+    (
+        "ask.use_model.bills",
+        "{host} bills the key that you gave Halvo. Halvo counts what its own requests cost and stops at {amount} a {period}.",
+    ),
+    ("ask.use_model.keep", "Not now"),
+    ("ask.use_model.allow", "Allow for this agent"),
+    (
         "ask.effect.payment",
         "Halvo does not know whether it made this payment.",
     ),

@@ -2445,4 +2445,137 @@ mod tests {
             );
         }
     }
+
+    /// What the stand-in owner of `Ops` answers a body: a result, or a refusal by its error name.
+    type OpAnswer = (&'static str, Result<&'static str, &'static str>);
+
+    /// A link that answers each coordinator body by its `op` from its answers, and gives no reply to an op that they
+    /// do not name; it keeps the op of each body that reaches it.
+    struct Ops {
+        answers: Vec<OpAnswer>,
+        asked: Mutex<Vec<String>>,
+    }
+
+    impl Ops {
+        fn new(answers: &[OpAnswer]) -> Arc<Ops> {
+            Arc::new(Ops {
+                answers: answers.to_vec(),
+                asked: Mutex::new(Vec::new()),
+            })
+        }
+    }
+
+    impl OwnerLink for Ops {
+        fn request(&self, request: &[u8]) -> Result<Vec<u8>, LinkError> {
+            let request: Value = serde_json::from_slice(request).map_err(|_| LinkError)?;
+            let op = request["body"]["op"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned();
+            let id = request["id"].to_string();
+            lock(&self.asked).push(op.clone());
+            match self.answers.iter().find(|(o, _)| *o == op).map(|(_, a)| *a) {
+                Some(Ok(result)) => {
+                    Ok(format!(r#"{{"v":1,"id":{id},"ok":{result}}}"#).into_bytes())
+                }
+                Some(Err(name)) => {
+                    Ok(format!(r#"{{"v":1,"id":{id},"error":"{name}"}}"#).into_bytes())
+                }
+                None => Err(LinkError),
+            }
+        }
+    }
+
+    const SAVED: OpAnswer = ("model_key_state", Ok(r#"{"stands":"yes"}"#));
+    const ROOM: OpAnswer = (
+        "model_room",
+        Ok(r#"{"room":"reads","cap_minor":2000,"spent":0,"held":0,"period_end_ms":1800000000000}"#),
+    );
+
+    /// r4 U3.17b sentence 2: for a host with one allowed tier and with two, where a key is saved and a limit of 20.00
+    /// USD stands, the question of Use an AI model holds its title, its four texts in their order, the host and the
+    /// model words, joined by ` and `, the limit's amount and period, and its two answers, Not now first, each byte for
+    /// byte; nothing more is shown in its place.
+    #[test]
+    fn the_question_names_the_host_the_models_and_the_limit_byte_for_byte() {
+        let host = "hosted-model.test";
+        for (models, said) in [
+            (
+                &["test-model-small"][..],
+                "It would use test-model-small there.",
+            ),
+            (
+                &["test-model-small", "test-model-large"][..],
+                "It would use test-model-small and test-model-large there.",
+            ),
+        ] {
+            let link: Arc<dyn OwnerLink> = Ops::new(&[SAVED, ROOM]);
+            let memory = Memory::new();
+            let read = hosting(&link, &memory, Some(host.to_owned()), models, true);
+            let model = handed(read.as_ref(), None, Tier::OnDevice).expect("a model");
+            let (ask, note) = halvo_coord::roster::use_model_ask(&model).expect("the words");
+            assert_eq!(note, None, "{models:?}");
+            assert_eq!(
+                serde_json::to_value(ask).unwrap(),
+                serde_json::json!({
+                    "kind": "use_model",
+                    "title": "Let this agent use an AI model on someone else's computers?",
+                    "text": [
+                        "To work out a step, this agent would send the text of the page that it has open, or of the message that it is answering, to hosted-model.test.",
+                        said,
+                        "It never sends what is in a password field, your saved sign-ins or anything that Halvo recorded of your own work.",
+                        "hosted-model.test bills the key that you gave Halvo. Halvo counts what its own requests cost and stops at 20.00 USD a month."
+                    ],
+                    "effects": [],
+                    "record": null,
+                    "controls": [
+                        {"act": "reject", "text": "Not now"},
+                        {"act": "allow", "text": "Allow for this agent"}
+                    ]
+                }),
+                "{models:?}"
+            );
+        }
+    }
+
+    /// r4 U3.17b sentence 2: the question's last text is, byte for byte, the sentence `bill` that the view of the limit
+    /// shows for the same reply of its state: `MODEL_LIMIT_BILL` of ui/app/words.js with `{host}`, `{amount}` and
+    /// `{period}` filled as ui/app/views/model-limit.js fills them, from the reply's host, cap and period.
+    #[test]
+    fn the_last_text_of_the_question_is_the_bill_of_the_limit_view_for_the_same_reply() {
+        let link: Arc<dyn OwnerLink> = Ops::new(&[SAVED, ROOM]);
+        let memory = Memory::new();
+        let reply = ModelLimit::new(Arc::clone(&link), &memory).state("hosted-model.test");
+        let LimitReply::State {
+            host,
+            cap: Some(cap),
+            period,
+            ..
+        } = &reply
+        else {
+            panic!("a state with a limit: {reply:?}");
+        };
+        let bill = include_str!("../../../ui/app/words.js")
+            .lines()
+            .find_map(|line| {
+                line.trim()
+                    .strip_prefix("MODEL_LIMIT_BILL: \"")?
+                    .strip_suffix("\",")
+            })
+            .expect("the view's sentence bill");
+        let shown = bill
+            .replace("{host}", host)
+            .replace("{amount}", cap)
+            .replace("{period}", period);
+        let model = ModelUse {
+            host: host.clone(),
+            models: "test-model-small".to_owned(),
+            stands: false,
+            key: Some(true),
+            limit: spend_limit(&reply),
+        };
+        let (ask, _) = halvo_coord::roster::use_model_ask(&model).expect("the words");
+        let ask = ask.expect("the question");
+        assert_eq!(ask.text.last(), Some(&shown));
+    }
 }

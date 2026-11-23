@@ -705,6 +705,7 @@ fn row(b: &Built) -> Row {
             .collect(),
         ask,
         ask_stop_sign_in,
+        ask_use_model: None,
     }
 }
 
