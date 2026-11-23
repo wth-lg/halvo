@@ -5,8 +5,8 @@ use halvo_control::onboarding::{GrantState, OnboardingState, Permission};
 use halvo_control::proto::{
     Cap, Capture, CaptureReason, DaemonStatus, DeleteFields, DeleteReport, DrainError, ErrorCode,
     ExpiryError, Health, InventoryReply, LastStop, Lease, LostRecord, OnOff, PasswordGuard,
-    Platform, RootDestroyed, Section, SourceName, SourceStateName, StateFile, StopKind,
-    StoreErrorKind, StoreState, SwitchName,
+    Platform, RootDestroyed, Section, SourceName, SourceState, SourceStateName, StateFile,
+    StopKind, StoreErrorKind, StoreState, SwitchName,
 };
 use halvo_control::texts::{first_run, texts, Recorded, Texts};
 use serde::{Deserialize, Serialize};
@@ -913,8 +913,7 @@ impl StatusView {
                 StateFile::NewerVersion => Some(SettingsUnread::NewerVersion),
                 StateFile::Ok | StateFile::WriteFailed => None,
             },
-            reset_recorded: (f.state_file == StateFile::Corrupt)
-                .then(|| first_run(f.platform).recorded),
+            reset_recorded: (f.state_file == StateFile::Corrupt).then(|| reset_rows(status)),
             login_item_written: None,
             screen_not_renewed: false,
             crash_reports_left: None,
@@ -959,14 +958,77 @@ pub fn onboarding_shown(status: &DaemonStatus) -> OnboardingState {
     onboarding
 }
 
+/// Whether a Mac's input source records nothing because it failed or waits for the grant of
+/// Input Monitoring: its line reads failed, whatever the reason, or reads off while the
+/// status's row of Input Monitoring holds no grant. Its one tap takes the keys and the pointer
+/// actions both, so neither is recorded then. A line that may still run (marked unstopped), a
+/// line that a pause stopped and a Windows status never read so. It does not read whether the
+/// source needs the grant (the switch key_class), so an off line beside a row that holds no
+/// grant reads so also where none is needed.
+pub fn input_fails_or_waits_for_its_grant(status: &DaemonStatus) -> bool {
+    let f = status.fields();
+    let ungranted = || {
+        f.permissions.iter().any(|line| {
+            line.name == Permission::InputMonitoring && line.grant != GrantState::Granted
+        })
+    };
+    f.platform == Platform::Macos
+        && f.sources.iter().any(|line| {
+            line.name == SourceName::Input
+                && !line.unstopped
+                && match &line.state {
+                    SourceState::Failed { .. } => true,
+                    SourceState::Off => ungranted(),
+                    _ => false,
+                }
+        })
+}
+
+/// The rows that the question of a settings reset lists: the first run's, without the row of
+/// keys and the row of pointer actions on a Mac whose status shows typing ([`typing_shown`])
+/// and whose row of Input Monitoring does not read granted, or which holds no such row. A reset
+/// turns the switch of keys on, so the input source then waits for the grant and records
+/// neither. The rows follow that row and not the input source's state of the moment; the row is
+/// as old as the probe's last answer, so before its first answer it reads no grant also where
+/// the grant is given.
+fn reset_rows(status: &DaemonStatus) -> Vec<Recorded> {
+    let f = status.fields();
+    let granted = f
+        .permissions
+        .iter()
+        .any(|line| line.name == Permission::InputMonitoring && line.grant == GrantState::Granted);
+    let mut rows = first_run(f.platform).recorded;
+    if f.platform == Platform::Macos && typing_shown(status) && !granted {
+        rows.retain(|row| {
+            !matches!(
+                row.switch,
+                Some(SwitchName::KeyClass | SwitchName::PointerClass)
+            )
+        });
+    }
+    rows
+}
+
 /// The sentences of `status` that a view shows: by [`typing_shown`], without the row of keys,
-/// the sentence on passwords (left empty) and the sentence on a key pressed early.
+/// the sentence on passwords (left empty) and the sentence on a key pressed early; by
+/// [`input_fails_or_waits_for_its_grant`], without the rows of keys and of pointer actions and
+/// without the same two sentences.
 pub fn texts_shown(status: &DaemonStatus) -> Texts {
     let mut shown = texts(status);
     if !typing_shown(status) {
         shown
             .recorded
             .retain(|row| row.switch != Some(SwitchName::KeyClass));
+        shown.passwords = "";
+        shown.typed_ahead = None;
+    }
+    if input_fails_or_waits_for_its_grant(status) {
+        shown.recorded.retain(|row| {
+            !matches!(
+                row.switch,
+                Some(SwitchName::KeyClass | SwitchName::PointerClass)
+            )
+        });
         shown.passwords = "";
         shown.typed_ahead = None;
     }
