@@ -1,5 +1,5 @@
 use std::ffi::OsString;
-use std::io::{BufRead, BufReader, PipeReader, PipeWriter, Write};
+use std::io::{BufRead, BufReader, PipeReader, PipeWriter, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
@@ -322,11 +322,23 @@ impl Child {
         let fault = |e: std::io::Error| Fault::Child(e.to_string());
         let (child_in, input) = std::io::pipe().map_err(fault)?;
         let (output, child_out) = std::io::pipe().map_err(fault)?;
-        let err = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&spec.stderr)
-            .map_err(fault)?;
+        let err = if spec.hosted.is_some() {
+            // The door runs under the sh of scripts/egress/check.sh, which on Windows (MSYS) writes
+            // nothing to a handle opened for appending alone: open for writing, at the end, which
+            // keeps what the file holds.
+            std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(false)
+                .open(&spec.stderr)
+                .and_then(|mut f| f.seek(SeekFrom::End(0)).map(|_| f))
+        } else {
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&spec.stderr)
+        }
+        .map_err(fault)?;
         if let Some(hosted) = &spec.hosted {
             let process = std::process::Command::new(&spec.program)
                 .args(&spec.args)
