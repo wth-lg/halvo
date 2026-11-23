@@ -30,4 +30,4 @@ pub use raise::{
 };
 pub use setup::{choose_in, setup_step, Setup, SetupBody, SetupInput, SetupMove, SetupState};
 #[cfg(test)]
-pub(crate) use setup::typed_line;
+pub(crate) use setup::{in_folder, typed_line};

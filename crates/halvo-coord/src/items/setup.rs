@@ -109,6 +109,9 @@ pub enum NotTaken {
     Path,
     /// A line of Which cells that names no cells as the sheet crate reads them (`typed_line`).
     Cells,
+    /// A line of Where the data comes from whose file lies outside the folder of the line of
+    /// Which spreadsheet file that the item holds (`in_folder`; r4 U3.22b).
+    Outside,
 }
 
 impl NotTaken {
@@ -118,6 +121,7 @@ impl NotTaken {
             (NotTaken::Path, System::Mac) => "param_typed.not_path_mac",
             (NotTaken::Path, System::Windows) => "param_typed.not_path_windows",
             (NotTaken::Cells, _) => "param_typed.not_cells",
+            (NotTaken::Outside, _) => "param_typed.not_in_folder",
         }
     }
 }
@@ -336,6 +340,26 @@ impl Setup {
             .ok_or(Cause::Malformed)
     }
 
+    /// The data file's line against the workbook's line (r4 U3.22b): where the item holds a line of
+    /// each and the data file lies outside the workbook's folder (`in_folder`), the data file's
+    /// question holds no value and carries `NotTaken::Outside` until its next answer.
+    fn place_source(&mut self, system: System) {
+        let (Ok(w), Ok(d)) = (self.at(Param::Workbook), self.at(Param::Source)) else {
+            return;
+        };
+        let lines = self.given[w].as_ref().zip(self.given[d].as_ref());
+        let outside = lines.is_some_and(|(workbook, data)| {
+            workbook
+                .first()
+                .zip(data.first())
+                .is_none_or(|(workbook, data)| !in_folder(workbook, data, system))
+        });
+        if outside {
+            self.given[d] = None;
+            self.untaken[d] = Some(NotTaken::Outside);
+        }
+    }
+
     fn body(&self) -> Option<SetupBody> {
         let mut slots = Vec::new();
         for (p, given) in self.params.iter().zip(&self.given) {
@@ -465,6 +489,38 @@ fn full_path(path: &str, system: System) -> bool {
             .split(separators)
             .all(|step| !step.is_empty() && step != "." && step != "..")
     })
+}
+
+/// Whether the data file `data` lies in the folder of the workbook `workbook`, both full paths of
+/// `system` (`full_path`), by the sheet crate's own rule for the place of a data file (r4 U3.22b;
+/// halvo-sheet `Folder::read_source` over the workbook's folder as the runner gives it, which
+/// takes a path below that folder and refuses every other as `data_outside`; ONE table that a
+/// test of each crate reads, `tests/typed/folders.txt`): the steps of `data` start with the steps
+/// of the workbook's folder, every step of `workbook` but its last, and hold at least one step
+/// more, so that a file in a folder below the workbook's lies in it too. On Windows the drive's
+/// letter is read in either case and `\` and `/` are one separator; every step is compared as it
+/// is spelled, so a folder named by another spelling (a link, another letter case) is outside.
+pub(crate) fn in_folder(workbook: &str, data: &str, system: System) -> bool {
+    match (steps(workbook, system), steps(data, system)) {
+        (Some((root, book)), Some((data_root, data))) => {
+            let folder = &book[..book.len().saturating_sub(1)];
+            root == data_root && data.len() > folder.len() && data.starts_with(folder)
+        }
+        _ => false,
+    }
+}
+
+/// The root of a full path of `system`, the drive's letter in upper case on Windows and none on
+/// a Mac, and its steps after the root; none for a path that does not start at a root.
+fn steps(path: &str, system: System) -> Option<(Option<u8>, Vec<&str>)> {
+    match system {
+        System::Mac => Some((None, path.strip_prefix('/')?.split('/').collect())),
+        System::Windows => {
+            let rest = drive(path)?;
+            let letter = path.as_bytes()[0].to_ascii_uppercase();
+            Some((Some(letter), rest.split(['/', '\\']).collect()))
+        }
+    }
 }
 
 /// What follows the drive of a path of the Windows form: a letter, `:` and a separator.
@@ -629,6 +685,9 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
                 }
             }
             next.refused[i] = None;
+            if matches!(param, Param::Workbook | Param::Source) {
+                next.place_source(System::HOST);
+            }
         }
     }
     if matches!(

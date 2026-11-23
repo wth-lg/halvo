@@ -1,0 +1,23 @@
+# Where the spreadsheet agent's data file may lie against its workbook (r4 U3.22b), ONE table that two tests
+# read: halvo-coord's (the core's rule at the line of Where the data comes from) and halvo-sheet's (the place
+# that Folder::read_source takes, the workbook's folder being the runner's folder of the run).
+# A row: the form, posix or windows; taken or refused; the line of Which spreadsheet file; the line of Where
+# the data comes from. Fields are separated by one tab. Both lines are full paths of the form. Taken: the
+# data file lies in the workbook's folder or in a folder below it. Refused: the sheet crate answers
+# data_outside. Every row spells the workbook's folder in the data line, where it stands there, exactly as
+# the workbook line spells it.
+posix	taken	/Volumes/work/Budget.xlsx	/Volumes/work/receipts.csv
+posix	taken	/Volumes/work/Budget.xlsx	/Volumes/work/2026/receipts.csv
+posix	refused	/Volumes/work/Budget.xlsx	/Volumes/receipts.csv
+posix	refused	/Volumes/work/Budget.xlsx	/Volumes/other/receipts.csv
+posix	refused	/Volumes/work/Budget.xlsx	/Volumes/workshop/receipts.csv
+posix	refused	/Volumes/work/Budget.xlsx	/Volumes/Work/receipts.csv
+posix	refused	/Volumes/work/2026/Budget.xlsx	/Volumes/work/receipts.csv
+windows	taken	C:\work\Budget.xlsx	C:\work\receipts.csv
+windows	taken	C:\work\Budget.xlsx	C:\work\2026\receipts.csv
+windows	taken	C:\work\Budget.xlsx	C:\work/receipts.csv
+windows	refused	C:\work\Budget.xlsx	C:\receipts.csv
+windows	refused	C:\work\Budget.xlsx	C:\other\receipts.csv
+windows	refused	C:\work\Budget.xlsx	C:\workshop\receipts.csv
+windows	refused	C:\work\Budget.xlsx	D:\work\receipts.csv
+windows	refused	C:\work\2026\Budget.xlsx	C:\work\receipts.csv

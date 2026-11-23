@@ -688,6 +688,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "Halvo cannot read these cells. Type them as A2:C11.",
     ),
     (
+        "param_typed.not_in_folder",
+        "The data file must be in the same folder as the spreadsheet file.",
+    ),
+    (
         "param_hint.workbook_mac",
         "Type the full path of an Excel workbook (.xlsx), for example /Users/ana/Documents/Budget.xlsx.",
     ),

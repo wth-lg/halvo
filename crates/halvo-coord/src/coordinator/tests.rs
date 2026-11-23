@@ -930,3 +930,79 @@ fn u322b_choose_a_file_answers_the_pick_or_the_close_and_is_refused_as_a_typed_l
     assert_eq!(typed, Err(Cause::Stale), "a typed line there");
     refused(&closed, &open, Param::Workbook, Cause::Stale);
 }
+
+/// The rows of the ONE table of where a data file may lie against its workbook
+/// (tests/typed/folders.txt), which a test of halvo-sheet reads too: the form, whether the data
+/// file's place is taken, the workbook's line and the data file's line.
+fn folder_rows() -> Vec<(String, bool, String, String)> {
+    include_str!("../../tests/typed/folders.txt")
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .map(|l| {
+            let f: Vec<&str> = l.split('\t').collect();
+            assert_eq!(f.len(), 4, "{l}");
+            (
+                f[0].to_owned(),
+                f[1] == "taken",
+                f[2].to_owned(),
+                f[3].to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// S7 of the ruling of r4 U3.22b, to the letter.
+const NOT_IN_FOLDER: &str = "The data file must be in the same folder as the spreadsheet file.";
+
+/// r4 U3.22b sentence 3: a line of Where the data comes from that is a full path outside the
+/// folder of the workbook whose line the item holds is not taken, by the sheet crate's own rule,
+/// over ONE table, which the sheet crate's test reads too: the core's rule gives each row's
+/// verdict on both systems; on this build's system each refused row sends no body and stores no
+/// row, the item stays open and the data file's entry carries S7, whether the data file's line
+/// came before the workbook's line, checked when the workbook's line is taken, or after it; a
+/// taken row's body goes with the data file's line.
+#[test]
+fn u322b_a_data_file_outside_the_workbooks_folder_is_not_taken_at_its_line() {
+    let rows = folder_rows();
+    for (form, taken, workbook, data) in &rows {
+        assert_eq!(
+            crate::items::in_folder(workbook, data, system_of(form)),
+            *taken,
+            "{form} {workbook} {data}"
+        );
+    }
+    for (_, taken, workbook, data) in rows.iter().filter(|r| r.0 == HOST_FORM) {
+        for data_first in [false, true] {
+            let c = sheet_world(&[], false);
+            let item = sheet_setup(&c).expect("the set-up item of an agent with no slot");
+            let mut lines = vec![
+                (Param::Workbook, workbook.as_str()),
+                (Param::Sheet, good(Param::Sheet)),
+                (Param::Range, good(Param::Range)),
+                (Param::Source, data.as_str()),
+            ];
+            if data_first {
+                lines.reverse();
+            }
+            let m = mark(&c);
+            for (param, text) in lines {
+                assert_eq!(c.setup_typed(item.item(), param, text, item.step()), Ok(()));
+            }
+            if *taken {
+                let sent = set_bindings(&c, m);
+                assert_eq!(sent.len(), 1, "{workbook} {data}");
+                assert_eq!(slot_of(&sent[0], Param::Source), Some(vec![data.clone()]));
+            } else {
+                assert!(
+                    sent_or_stored(&c, m).is_empty(),
+                    "{workbook} {data}: no body sent, no row stored"
+                );
+                assert_eq!(
+                    not_taken_of(&c, Param::Source).as_deref(),
+                    Some(NOT_IN_FOLDER),
+                    "{workbook} {data}, the data file's line first: {data_first}"
+                );
+            }
+        }
+    }
+}
