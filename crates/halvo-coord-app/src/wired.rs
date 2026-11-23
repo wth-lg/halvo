@@ -1,7 +1,8 @@
 use crate::bell::Bell;
 use halvo_coord::guard::Policy;
 use halvo_coord::ports::{
-    Analysis, Clock, Owner, Page, PortError, Reading, Reaped, Rng, Runs, Senders, Tray,
+    Analysis, Chosen, Clock, Files, Owner, Page, PortError, Reading, Reaped, Rng, Runs, Senders,
+    Tray,
 };
 use halvo_coord::types::{
     Agent, AgentId, Answer, BindResult, Body, Class, Decision, Event, HandbackResult, Reply,
@@ -152,6 +153,12 @@ impl<P: Policy> Policy for Wired<P> {
 impl<P: Senders> Senders for Wired<P> {
     fn read(&self, text: &str) -> Result<Reading, PortError> {
         self.ports.read(text)
+    }
+}
+
+impl<P: Files> Files for Wired<P> {
+    fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError> {
+        self.ports.choose(folder)
     }
 }
 

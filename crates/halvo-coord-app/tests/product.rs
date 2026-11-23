@@ -502,7 +502,13 @@ mod mac {
                 runner: exe,
                 model: None,
             };
-            product::hub(self.calls(), places, Box::new(|_| {}), Arc::new(Unseen))
+            product::hub(
+                self.calls(),
+                places,
+                Box::new(|_| {}),
+                Arc::new(Unseen),
+                Arc::new(Unseen),
+            )
         }
 
         /// A link of the test's own over an owner stream of the stand-in server.
@@ -622,6 +628,15 @@ mod mac {
     impl Dialog for Unseen {
         fn show(&self, _: &Card, _: Duration, _: &dyn Fn()) -> ConfirmAnswer {
             ConfirmAnswer::Reject
+        }
+    }
+
+    impl halvo_coord::ports::Files for Unseen {
+        fn choose(
+            &self,
+            _: Option<&str>,
+        ) -> Result<halvo_coord::ports::Chosen, halvo_coord::ports::PortError> {
+            Ok(halvo_coord::ports::Chosen::Closed)
         }
     }
 

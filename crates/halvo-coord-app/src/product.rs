@@ -52,8 +52,8 @@ use halvo_control::r2::{OwnerStreamEnd, RunEdge, RunMarked};
 use halvo_coord::guard::{EffectRecord, EffectState, Policy, Refusal as GuardRefusal};
 use halvo_coord::items::drive::log_text;
 use halvo_coord::ports::{
-    Analysis, Clock, Overlap, Overlaps, Owner, PortError, Reading, Reaped, Refused, Rng, Runs,
-    Senders,
+    Analysis, Chosen, Clock, Files, Overlap, Overlaps, Owner, PortError, Reading, Reaped, Refused,
+    Rng, Runs, Senders,
 };
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Answer, Answered, ApprovalId, AskedEffect, BindAnswer, BindAsk,
@@ -117,16 +117,18 @@ pub struct Places {
 pub type ProductHub = Hub<Product>;
 
 /// The hub over the product's ports of `calls` and `places`, whose count of agents that need the person goes to
-/// `tray` and whose native confirmations are shown in `dialog` with the card that the core composes
-/// (`crate::dialog_hub`). It starts nothing and reads nothing: `start` takes the steps of the app's start.
+/// `tray`, whose native confirmations are shown in `dialog` with the card that the core composes
+/// (`crate::dialog_hub`), and whose port `Files` is `chooser`, the system's own chooser of a file in the app
+/// (`crate::SystemChooser`, r4 U3.22b). It starts nothing and reads nothing: `start` takes the steps of the app's start.
 pub fn hub<D: Dialog>(
     calls: Calls,
     places: Places,
     tray: Box<dyn Fn(u32) + Send + Sync>,
     dialog: Arc<D>,
+    chooser: Arc<dyn Files + Send + Sync>,
 ) -> Arc<ProductHub> {
     let limits = Limits::PRODUCT;
-    let (product, events) = Product::new(calls, places);
+    let (product, events) = Product::new(calls, places, chooser);
     let hub = dialog_hub(product, limits, tray, dialog);
     events.attach(Arc::downgrade(&hub));
     hub
@@ -682,6 +684,8 @@ pub struct Product {
     rows_memory: RowsMemory,
     reaped: Mutex<Option<Vec<ReapAnswer>>>,
     checkpoints: AtomicBool,
+    /// The system's own chooser of a file (r4 U3.22b).
+    chooser: Arc<dyn Files + Send + Sync>,
 }
 
 /// A link over the owner streams that `calls` asks for.
@@ -695,7 +699,11 @@ pub(crate) fn link_over(call: StreamCall) -> Arc<dyn OwnerLink> {
 }
 
 impl Product {
-    fn new(calls: Calls, places: Places) -> (Product, Arc<Events>) {
+    fn new(
+        calls: Calls,
+        places: Places,
+        chooser: Arc<dyn Files + Send + Sync>,
+    ) -> (Product, Arc<Events>) {
         let events = Events::new();
         let runs: RunsOf = Arc::default();
         let marks = Arc::new(Marks {
@@ -747,6 +755,7 @@ impl Product {
             rows_memory: RowsMemory::default(),
             reaped: Mutex::new(None),
             checkpoints: AtomicBool::new(false),
+            chooser,
         };
         (product, events)
     }
@@ -1878,6 +1887,12 @@ impl Policy for Product {
     }
 }
 
+impl Files for Product {
+    fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError> {
+        self.chooser.choose(folder)
+    }
+}
+
 impl Senders for Product {
     fn read(&self, text: &str) -> Result<Reading, PortError> {
         use halvo_schema::executable::SendersError;
@@ -1973,7 +1988,13 @@ mod tests {
             runner: PathBuf::from("/nowhere/halvo-runner"),
             model: None,
         };
-        let hub = hub(fails, places, Box::new(|_| {}), Arc::new(Unseen));
+        let hub = hub(
+            fails,
+            places,
+            Box::new(|_| {}),
+            Arc::new(Unseen),
+            Arc::new(Unseen),
+        );
         assert!(attached.set(Arc::downgrade(&hub)).is_ok());
         let unread = guarded.request(&effect(&record("no_such_class"))).unwrap();
         assert_eq!(error_of(&unread).as_deref(), Some("approval"));
@@ -1997,7 +2018,13 @@ mod tests {
             runner: PathBuf::from("/nowhere/halvo-runner"),
             model: None,
         };
-        hub(calls, places, Box::new(|_| {}), Arc::new(Unseen))
+        hub(
+            calls,
+            places,
+            Box::new(|_| {}),
+            Arc::new(Unseen),
+            Arc::new(Unseen),
+        )
     }
 
     /// U5.4c, sentence 1: each call of the port `Analysis::defer` sends one request `defer` with the core's time in
@@ -2427,6 +2454,12 @@ mod tests {
             _: &dyn Fn(),
         ) -> halvo_coord::items::ConfirmAnswer {
             halvo_coord::items::ConfirmAnswer::Reject
+        }
+    }
+
+    impl Files for Unseen {
+        fn choose(&self, _: Option<&str>) -> Result<Chosen, PortError> {
+            Ok(Chosen::Closed)
         }
     }
 

@@ -3,12 +3,12 @@ use crate::bell::Bell;
 use crate::wired::Wired;
 use halvo_coord::guard::Policy;
 use halvo_coord::items::ConfirmAnswer;
-use halvo_coord::ports::{Analysis, Clock, Owner, Rng, Runs, Senders};
+use halvo_coord::ports::{Analysis, Chosen, Clock, Files, Owner, Rng, Runs, Senders};
 use halvo_coord::sync::Next;
 use halvo_coord::types::commands::LIST;
 use halvo_coord::types::{
-    Action, AgentId, Card, Cause, Choice, ClosedReply, ConfigView, ErrorReply, ItemId, Limits,
-    OkReply, Param, RunId, Snapshot, YesNo,
+    Action, AgentId, Card, Cause, Choice, ChosenReply, ClosedReply, ConfigView, ErrorReply, ItemId,
+    Limits, OkReply, Param, RunId, Snapshot, YesNo,
 };
 use halvo_coord::{words, Coordinator, QuitWait};
 use serde::{Serialize, Serializer};
@@ -26,8 +26,10 @@ pub enum Reply {
     Card(Card),
     /// `{"ok":"yes"}`.
     Ok,
-    /// `{"closed":"yes"}` of `agents_next`.
+    /// `{"closed":"yes"}` of `agents_next`, and of `agents_choose_file` for a closed chooser.
     Closed,
+    /// `{"path":"<full path>"}` of `agents_choose_file`: the file that the person picked.
+    Chosen(String),
     /// `{"error":"<cause>"}`.
     Error(Cause),
     /// A refused control of a row whose sentence says more than its cause
@@ -44,6 +46,7 @@ impl Serialize for Reply {
             Reply::Card(card) => card.serialize(s),
             Reply::Ok => OkReply.serialize(s),
             Reply::Closed => ClosedReply { closed: YesNo::Yes }.serialize(s),
+            Reply::Chosen(path) => ChosenReply { path: path.clone() }.serialize(s),
             Reply::Error(cause) => ErrorReply { error: *cause }.serialize(s),
             Reply::Refused(refusal) => refusal.serialize(s),
         }
@@ -280,6 +283,7 @@ where
         + Rng
         + Policy<Config = Cfg<P>>
         + Senders
+        + Files
         + Send
         + Sync
         + 'static,
@@ -423,6 +427,15 @@ where
                     self.coord.setup_typed(&i, param, args.text("text"), step)
                 })
                 .into(),
+            "agents_choose_file" => match item().and_then(|i| {
+                let param = Param::parse(args.text("param"))?;
+                let step = args.count("step").ok_or(Cause::Malformed)?;
+                self.coord.setup_choose(&i, param, step)
+            }) {
+                Ok(Chosen::Path(path)) => Reply::Chosen(path),
+                Ok(Chosen::Closed) => Reply::Closed,
+                Err(cause) => Reply::Error(cause),
+            },
             "agents_present" => item().and_then(|i| self.present(i)).into(),
             "agents_shown" => item()
                 .and_then(|i| {
@@ -554,6 +567,7 @@ where
         + Rng
         + Policy<Config = Cfg<P>>
         + Senders
+        + Files
         + Send
         + Sync
         + 'static,

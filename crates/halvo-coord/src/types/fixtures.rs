@@ -58,11 +58,11 @@ use super::names::names;
 use super::{commands, Class, Doing, Live, OwnItem, OwnItemKind, Raised, RunItem, RunItemKind};
 use super::{
     hex, AgentId, BoundFrom, Candidate, CandidateFrom, Card, CardEffect, CardLine, CardRun,
-    Category, Cause, Choice, ChoiceText, ClosedReply, ConfigView, Control, ControlText, ErrorReply,
-    Event, Facts, Field, FieldFrom, FullWorkflow, HoldSetCause, Item, ItemId, ItemKind, Kept,
-    LineKey, LivePhase, Name, OkReply, OpenItem, Outcome, Param, ParamEntry, PastRun, Permission,
-    Presenter, Row, RunId, Runtime, Snapshot, StatusLine, Tier, Trigger, What, WorkflowId,
-    WorkflowState, WorkflowTrigger, YesNo,
+    Category, Cause, Choice, ChoiceText, ChosenReply, ClosedReply, ConfigView, Control,
+    ControlText, ErrorReply, Event, Facts, Field, FieldFrom, FullWorkflow, HoldSetCause, Item,
+    ItemId, ItemKind, Kept, LineKey, LivePhase, Name, OkReply, OpenItem, Outcome, Param,
+    ParamEntry, PastRun, Permission, Presenter, Row, RunId, Runtime, Snapshot, StatusLine, Tier,
+    Trigger, What, WorkflowId, WorkflowState, WorkflowTrigger, YesNo,
 };
 use crate::mem::Config;
 use crate::words;
@@ -1143,6 +1143,12 @@ pub fn write(dir: &Path) -> std::io::Result<u32> {
     files.push((
         "reply-closed.json".into(),
         line(&ClosedReply { closed: YesNo::Yes }),
+    ));
+    files.push((
+        "reply-chosen.json".into(),
+        line(&ChosenReply {
+            path: "/Volumes/work/Budget.xlsx".to_owned(),
+        }),
     ));
     files.push((
         "reply-next-same.json".into(),

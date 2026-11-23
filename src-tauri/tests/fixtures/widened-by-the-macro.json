@@ -25,6 +25,7 @@
     "allow-agents-card",
     "allow-agents-answer",
     "allow-agents-setup-typed",
+    "allow-agents-choose-file",
     "allow-agents-present",
     "allow-agents-control",
     "allow-agents-shown",

@@ -23,9 +23,9 @@ fn names(dir: &Path) -> BTreeSet<String> {
 #[test]
 fn fixtures_same() {
     let dir = fresh_dir("fixtures_same");
-    assert_eq!(fixtures::write(&dir).unwrap(), 41);
+    assert_eq!(fixtures::write(&dir).unwrap(), 42);
     let written = names(&dir);
-    assert_eq!(written.len(), 41);
+    assert_eq!(written.len(), 42);
     assert_eq!(
         names(Path::new(TRACKED)),
         written,

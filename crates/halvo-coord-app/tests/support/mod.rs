@@ -3,7 +3,9 @@
 use halvo_coord::guard::Policy as PolicyPort;
 use halvo_coord::mem::policy::Policy;
 use halvo_coord::mem::{Call, Config, Ports};
-use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reading, Reaped, Rng, Runs, Senders};
+use halvo_coord::ports::{
+    Analysis, Chosen, Clock, Files, Owner, PortError, Reading, Reaped, Rng, Runs, Senders,
+};
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Answer, AskedEffect, BindResult, Body, BoundField, BoundFrom,
     Category, Class, ConfirmAsk, Decision, Digest, EffectId, Event, FullWorkflow, HandbackResult,
@@ -775,6 +777,13 @@ impl Senders for Shared {
     fn read(&self, text: &str) -> Result<Reading, PortError> {
         let _turn = self.enter();
         self.ports.read(text)
+    }
+}
+
+impl Files for Shared {
+    fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError> {
+        let _turn = self.enter();
+        self.ports.choose(folder)
     }
 }
 

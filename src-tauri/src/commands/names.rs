@@ -44,6 +44,7 @@ pub const AGENTS: Names = Names {
         "agents_card",
         "agents_answer",
         "agents_setup_typed",
+        "agents_choose_file",
         "agents_present",
         "agents_control",
         "agents_shown",

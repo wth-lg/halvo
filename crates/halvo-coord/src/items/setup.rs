@@ -477,6 +477,48 @@ fn drive(path: &str) -> Option<&str> {
     rooted.then(|| &path[3..])
 }
 
+/// The folder in which the chooser of `param` opens for the set-up item `setup` (I8.1
+/// `agents_choose_file`; r4 U3.22b), or why the core refuses the call, in the order in which
+/// `setup_step` refuses a typed line of `param` there: `unknown_agent` for an item whose agent
+/// the owner refused with `binding`, `stale` for an item that is closed or whose workflow is
+/// gone, `state` while its body is owed, and `malformed` for a parameter that it does not ask, that
+/// has candidates, or that is neither Which spreadsheet file nor Where the data comes from. The
+/// chooser of Where the data comes from opens in the folder of the line of Which spreadsheet file
+/// that the item holds (`folder_of`); the other, and that one while the item holds no such line,
+/// where the system opens it.
+pub fn choose_in(setup: &Setup, param: Param, system: System) -> Result<Option<String>, Cause> {
+    match setup.state {
+        SetupState::AgentGone => return Err(Cause::UnknownAgent),
+        SetupState::Closed | SetupState::Gone => return Err(Cause::Stale),
+        SetupState::Owed(_) => return Err(Cause::State),
+        SetupState::Open => {}
+    }
+    let i = setup.at(param)?;
+    if !setup.params[i].candidates.is_empty() || !matches!(param, Param::Workbook | Param::Source) {
+        return Err(Cause::Malformed);
+    }
+    Ok(match param {
+        Param::Source => setup
+            .given(Param::Workbook)
+            .and_then(|line| line.first())
+            .map(|workbook| folder_of(workbook, system).to_owned()),
+        _ => None,
+    })
+}
+
+/// The folder of `path`, a full path of `system` (`full_path`): every step but its last, with the
+/// separator of the root where the folder is the root.
+fn folder_of(path: &str, system: System) -> &str {
+    let (root, separators): (usize, &[char]) = match system {
+        System::Mac => (1, &['/']),
+        System::Windows => (3, &['/', '\\']),
+    };
+    match path.rfind(separators) {
+        Some(at) if at >= root => &path[..at],
+        _ => &path[..root.min(path.len())],
+    }
+}
+
 /// The decision of the setup flow (I3.5, I5.10, ruling IG-6c): the setup after `mv`, or the
 /// cause of its refusal, first that fits. An item whose agent the owner refused with `binding`
 /// refuses an answer of the person with `unknown_agent` (ruling IG-36) and every other move with

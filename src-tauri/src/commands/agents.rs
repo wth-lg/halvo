@@ -373,7 +373,8 @@ fn product_hub<R: Runtime>(
         defer: Arc::new(move |until| deferred.defer(deferred.places().make(), until)),
     };
     let dialog = Arc::new(halvo_coord_app::System::new(app.clone()));
-    halvo_coord_app::product::hub(calls, places, tray, dialog)
+    let chooser = Arc::new(halvo_coord_app::SystemChooser::new(app.clone()));
+    halvo_coord_app::product::hub(calls, places, tray, dialog, chooser)
 }
 
 /// The `Core` of the app until U5.4: `agents_snapshot` answers the stand-in state (`seq` 0,

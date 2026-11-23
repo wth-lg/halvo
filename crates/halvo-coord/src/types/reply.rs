@@ -1111,6 +1111,15 @@ pub struct ClosedReply {
     pub closed: YesNo,
 }
 
+/// The reply `{"path":"<full path>"}` of `agents_choose_file` (I8.1; r4 U3.22b): the full path
+/// of the file that the person picked in the system's own chooser, which the card puts in the
+/// question's typed line. A closed chooser answers `ClosedReply`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ChosenReply {
+    /// `path`.
+    pub path: String,
+}
+
 /// The reply of a refused command (I8.1): `error`, its cause, and `text`, the sentence of the
 /// words key `refused.<cause>`, which the page shows beside the control that was pressed
 /// (ruling RD-161 R1). The sentence is composed when the reply is written; nothing is stored

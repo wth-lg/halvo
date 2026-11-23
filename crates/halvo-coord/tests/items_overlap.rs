@@ -1,7 +1,7 @@
 use halvo_coord::items::drive::{answer_setup, Ledger, SetupDone};
 use halvo_coord::items::{setup_step, Setup, SetupInput, SetupMove, SetupParam, SetupState};
 use halvo_coord::mem::{Config, Ports};
-use halvo_coord::ports::{Clock, Owner, PortError, Reading, Senders, Shared};
+use halvo_coord::ports::{Chosen, Clock, Files, Owner, PortError, Reading, Senders, Shared};
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Body, Category, Cause, Doing, Event, Facts, FullWorkflow, ItemId,
     Limits, Name, OwnItem, OwnItemKind, Param, Reply, ReplyRow, RunId, Workflow, WorkflowId,
@@ -166,6 +166,12 @@ impl Clock for Raced<'_> {
 impl Senders for Raced<'_> {
     fn read(&self, text: &str) -> Result<Reading, PortError> {
         self.inner.read(text)
+    }
+}
+
+impl Files for Raced<'_> {
+    fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError> {
+        self.inner.choose(folder)
     }
 }
 
