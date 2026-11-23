@@ -7,10 +7,10 @@ use halvo_schema::executable::body::{
     Accepted, AddOrigin, AgentHistory, AgentsReply, CheckpointsReply, CoordinatorCall,
     CoordinatorReply, CreateAgent, DropModelKey, DropSession, DropSessions, EndRun, Finish,
     HistoryReply, HistoryRun, KeyReply, ListAgents, ListCheckpoints, ListOverlaps, ListReplies,
-    ListedAgent, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply, LoadSession,
-    LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint, ModelKeyState,
-    Overlap, OverlapsReply, PastCheckpoint, PastEffect, PutCheckpoint, PutEffect, PutLog,
-    PutModelKey, PutPlaybook, PutReplyRow, PutSession, ReadModelKey, RevReply, RunnerCall,
+    ListedAgent, ListedAgreement, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply,
+    LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint,
+    ModelKeyState, Overlap, OverlapsReply, PastCheckpoint, PastEffect, PutCheckpoint, PutEffect,
+    PutLog, PutModelKey, PutPlaybook, PutReplyRow, PutSession, ReadModelKey, RevReply, RunnerCall,
     RunnerReply, SessionReply, SetBindings, SetModel, SetState, StandsReply, StartRun, StateReply,
     StepsReply, Stored, UnknownEffect,
 };
@@ -1194,7 +1194,22 @@ fn coordinator_replies() -> Vec<CoordinatorReply> {
             key: Some(test_model_key()),
         }),
         CoordinatorReply::Key(KeyReply { key: None }),
+        CoordinatorReply::Agents(AgentsReply {
+            agents: vec![agreed_agent()],
+            next: None,
+        }),
     ]
+}
+
+/// `listed_agent` after a yes up to `frontier`: its set-up holds that tier and its entry the agreement (r3 U7.7).
+fn agreed_agent() -> ListedAgent {
+    let mut agreed = listed_agent();
+    agreed.config.tier = ModelTier::Frontier;
+    agreed.agreement = Some(ListedAgreement {
+        tier: ModelTier::Frontier,
+        hosts: test_hosts(),
+    });
+    agreed
 }
 
 fn request_id() -> RequestId {

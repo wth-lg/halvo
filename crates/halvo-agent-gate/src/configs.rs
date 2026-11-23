@@ -1,9 +1,7 @@
 use halvo_policy::{validate, ConfigCause};
 use halvo_schema::executable::body::CreateAgent;
 use halvo_schema::executable::{AgentAgreement, AgentConfig, CoordinatorCall, CoordinatorReply};
-use halvo_schema::{
-    AgentId, ErrorName, RowRead, SeedCategory, Workflow, WorkflowId, WorkflowState,
-};
+use halvo_schema::{AgentId, ErrorName, SeedCategory, Workflow, WorkflowId, WorkflowState};
 
 use crate::host::{minted, GateHost};
 use crate::STORE;
