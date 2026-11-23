@@ -1,0 +1,1 @@
+- Fixed: The agent gate's test of a workbook slot that the store refuses expects the store's name slot_form, as the store answers since r3 U11.3, so the weekly test slice of the agent packages passes again.
