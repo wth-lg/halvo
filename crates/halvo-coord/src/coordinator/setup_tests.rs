@@ -61,7 +61,7 @@ const HINTS: [(System, [&str; 4]); 2] = [
             "Type the full path of an Excel workbook (.xlsx), for example /Users/ana/Documents/Budget.xlsx.",
             "Type the sheet's name as its tab shows it, for example Sheet1.",
             "Type the cells to fill as A2:C11: the top left cell, a colon, the bottom right cell. The data must have exactly that many rows and columns.",
-            "Type the full path of a text file in the workbook's folder, for example /Users/ana/Documents/receipts.csv. Each line is one row, with commas between its values.",
+            "Type the full path of a text file in the workbook's folder, for example /Users/ana/Documents/receipts.csv. Each line is one row, with commas, semicolons or tabs between its values.",
         ],
     ),
     (
@@ -70,7 +70,7 @@ const HINTS: [(System, [&str; 4]); 2] = [
             "Type the full path of an Excel workbook (.xlsx), for example C:\\Users\\ana\\Documents\\Budget.xlsx.",
             "Type the sheet's name as its tab shows it, for example Sheet1.",
             "Type the cells to fill as A2:C11: the top left cell, a colon, the bottom right cell. The data must have exactly that many rows and columns.",
-            "Type the full path of a text file in the workbook's folder, for example C:\\Users\\ana\\Documents\\receipts.csv. Each line is one row, with commas between its values.",
+            "Type the full path of a text file in the workbook's folder, for example C:\\Users\\ana\\Documents\\receipts.csv. Each line is one row, with commas, semicolons or tabs between its values.",
         ],
     ),
 ];

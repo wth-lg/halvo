@@ -1,0 +1,2 @@
+- Added: The spreadsheet agent reads a data file whose values are separated by semicolons, as Excel saves CSV where the comma is the decimal sign, or by tabs, and tells its numbers by the file's one decimal sign, the comma or the point (r3 U11.5).
+- Changed: A data file that is not UTF-8 ends the spreadsheet agent's run with the new cause data_encoding, whose row says to save the file again as CSV UTF-8, and the data_form sentence and the hints of the question Where the data comes from name commas, semicolons or tabs (r3 U11.5).

@@ -104,6 +104,7 @@ fn the_cause_list_holds_unauthorized_not_selected_and_no_start_in_the_order_of_t
             "data_form",
             "read_only",
             "no_access",
+            "data_encoding",
         ]
     );
     for cause in Cause::ALL {

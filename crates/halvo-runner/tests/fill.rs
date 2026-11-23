@@ -1275,3 +1275,44 @@ fn a_file_or_a_folder_that_the_system_refuses_for_the_permission_ends_the_run_wi
     assert_eq!(files.workbook_bytes(), before);
     assert_eq!(files.names(), ["formulas.xlsx", "source.csv"]);
 }
+
+/// r3 U11.5: a file run whose data file is not UTF-8 (the seed's rows with an accent as Windows-1252 saves it, `é`
+/// as the one byte 0xE9, behind the text of the first row) ends `failed` with `data_encoding` at the read (step 1)
+/// and in the run's `stopped` line, makes no effect and leaves the workbook as it was, with no file beside it.
+#[test]
+fn a_data_file_that_is_not_utf_8_ends_the_run_failed_with_data_encoding_and_writes_nothing() {
+    let files = FillFiles::new("not-utf-8-source", 1);
+    let before = files.workbook_bytes();
+    let mut bytes = Vec::new();
+    for (at, row) in files.rows.iter().enumerate() {
+        for (column, cell) in row.iter().enumerate() {
+            if column > 0 {
+                bytes.push(b',');
+            }
+            bytes.extend_from_slice(cell.as_bytes());
+            if at == 0 && column == 1 {
+                bytes.push(0xe9);
+            }
+        }
+        bytes.push(b'\n');
+    }
+    std::fs::write(&files.source, &bytes).expect("write the data file");
+    assert!(
+        std::str::from_utf8(&bytes).is_err(),
+        "the data file is not UTF-8"
+    );
+    let seen = fill(78, &files).serve(|_, _| Act::Answer, LONG);
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        failed_at(&seen),
+        [
+            (LogEvent::StepFailed, Some(1), Some(Cause::DataEncoding)),
+            (LogEvent::Stopped, None, Some(Cause::DataEncoding))
+        ],
+        "{}",
+        seen.stderr
+    );
+    assert!(seen.effects().is_empty());
+    assert_eq!(files.workbook_bytes(), before);
+    assert_eq!(files.names(), ["formulas.xlsx", "source.csv"]);
+}

@@ -55,13 +55,13 @@ pub(crate) fn outcome(outcome: Outcome) -> learn::Outcome {
     }
 }
 
-/// The cause of a log line as halvo-learn names it. The twenty-four causes that the schema's list holds and
+/// The cause of a log line as halvo-learn names it. The twenty-five causes that the schema's list holds and
 /// halvo-learn's does not, `secret`, `unauthorized`, `not_sent`, `not_replaced`, `throttled`, `not_selected`,
 /// `no_start`, `no_channel`, `browser_start`, `senders_unread`, `reproposed`, `no_browser`, `amount_differs`,
 /// `amount_unread`, `page_unread`, the eight of a file run (r3 U11.3) `no_workbook`, `no_sheet`, `no_range`,
-/// `data_shape`, `no_data_file`, `data_outside`, `data_form` and `read_only`, and `no_access` (r3 U11.4), are no
-/// counted cause (contracts.md L3.5 counts `step_failed`, `class_mismatch` and `origin` alone) and map to none
-/// (CP-188).
+/// `data_shape`, `no_data_file`, `data_outside`, `data_form` and `read_only`, `no_access` (r3 U11.4) and
+/// `data_encoding` (r3 U11.5), are no counted cause (contracts.md L3.5 counts `step_failed`, `class_mismatch` and
+/// `origin` alone) and map to none (CP-188).
 pub(crate) fn log_cause(cause: Cause) -> Option<learn::LogCause> {
     Some(match cause {
         Cause::Approval => learn::LogCause::Approval,
@@ -110,7 +110,8 @@ pub(crate) fn log_cause(cause: Cause) -> Option<learn::LogCause> {
         | Cause::DataOutside
         | Cause::DataForm
         | Cause::ReadOnly
-        | Cause::NoAccess => return None,
+        | Cause::NoAccess
+        | Cause::DataEncoding => return None,
     })
 }
 
@@ -194,6 +195,7 @@ mod tests {
             Cause::DataForm,
             Cause::ReadOnly,
             Cause::NoAccess,
+            Cause::DataEncoding,
         ];
         for cause in none {
             assert_eq!(log_cause(cause), None, "{} maps to none", cause.as_str());
