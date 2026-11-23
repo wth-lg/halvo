@@ -8,7 +8,10 @@
 //! leave. It holds the process id of its life, and the hold of ruling
 //! PL-3 part (5) while that stands: a record of a life that a source which
 //! did not stop ended, or the line `hold=yes` that carries such a record's
-//! hold on through the lives after it until a Resume lifts it.
+//! hold on through the lives after it until a Resume lifts it. Beside the
+//! marker, run/ holds the note run/typing-off of a turn of typing to off
+//! that the state file did not take, which keeps typing off through the
+//! lives after it until a turn on lets it go.
 
 use std::io::{self, Read, Write};
 #[cfg(target_os = "macos")]
@@ -29,6 +32,12 @@ const ENDED: &str = "ended=";
 const PID: &str = "pid=";
 
 const RECORD: &str = "last_stop=";
+
+const TYPING_OFF: &str = "typing-off";
+
+const TYPING_OFF_NEW: &str = "typing-off.new";
+
+const TYPING_OFF_LINE: &str = "key_class=off\n";
 
 /// run/ of the folder that the instance lock holds, where every write of the
 /// marker after the start of a life goes: on macOS a descriptor of run/,
@@ -84,6 +93,51 @@ impl HeldRun {
         }
         Ok(HeldRun { path })
     }
+
+    /// The same run/ on a descriptor of its own.
+    #[cfg(target_os = "macos")]
+    pub fn again(&self) -> io::Result<HeldRun> {
+        Ok(HeldRun {
+            fd: self.fd.try_clone()?,
+        })
+    }
+
+    /// The same run/, by its path.
+    #[cfg(windows)]
+    pub fn again(&self) -> io::Result<HeldRun> {
+        Ok(HeldRun {
+            path: self.path.clone(),
+        })
+    }
+}
+
+/// Whether the note of a turn of typing to off that the state file did not
+/// take stands in run/ of the held folder, as a start reads it through `run`:
+/// where no run/ stands no note can, so none; where neither run/typing-off
+/// nor run/typing-off.new (a write of the note that began and did not end)
+/// stands, none; any entry at either name, whatever it holds, and a run/
+/// or a name that cannot be read, read as kept, the side of no capture.
+pub fn typing_kept(run: &io::Result<HeldRun>) -> bool {
+    match run {
+        Ok(run) => [TYPING_OFF, TYPING_OFF_NEW]
+            .iter()
+            .any(|name| !absent_in(run, name)),
+        Err(error) => error.kind() != io::ErrorKind::NotFound,
+    }
+}
+
+/// The one writer of the note: run/typing-off with the line `key_class=off`,
+/// by the durable write of the marker, through `run`, the held folder.
+pub fn keep_typing_off(run: &HeldRun) -> io::Result<()> {
+    replace_named_in(run, TYPING_OFF, TYPING_OFF_LINE.as_bytes())
+}
+
+/// The one remover of the note: run/typing-off and a run/typing-off.new
+/// that a write left, each through `run`, the held folder; a name where
+/// nothing stands is no error.
+pub fn let_typing_go(run: &HeldRun) -> io::Result<()> {
+    remove_named_in(run, TYPING_OFF)?;
+    remove_named_in(run, TYPING_OFF_NEW)
 }
 
 /// What a start found in the marker and made of it: its reading, the result
@@ -380,15 +434,23 @@ fn read_in(run: &HeldRun) -> io::Result<Option<String>> {
     }
 }
 
-#[cfg(target_os = "macos")]
 fn replace_in(run: &HeldRun, bytes: &[u8]) -> io::Result<()> {
+    replace_named_in(run, halvo_control::paths::RUN_MARKER, bytes)
+}
+
+fn remove_in(run: &HeldRun) -> io::Result<()> {
+    remove_named_in(run, halvo_control::paths::RUN_MARKER)
+}
+
+#[cfg(target_os = "macos")]
+fn replace_named_in(run: &HeldRun, name: &str, bytes: &[u8]) -> io::Result<()> {
     use std::os::fd::AsRawFd;
-    let next = format!("{}.new", halvo_control::paths::RUN_MARKER);
+    let next = format!("{name}.new");
     let mut file = open_in(run, &next, libc::O_WRONLY | libc::O_CREAT | libc::O_TRUNC)?;
     file.write_all(bytes)?;
     file.sync_all()?;
     drop(file);
-    let (from, to) = (name_in(&next)?, name_in(halvo_control::paths::RUN_MARKER)?);
+    let (from, to) = (name_in(&next)?, name_in(name)?);
     let at = run.fd.as_raw_fd();
     // SAFETY: both names are NUL-terminated and live across the call, and `at` is the
     // descriptor that `run` owns and keeps open across it.
@@ -399,9 +461,9 @@ fn replace_in(run: &HeldRun, bytes: &[u8]) -> io::Result<()> {
 }
 
 #[cfg(target_os = "macos")]
-fn remove_in(run: &HeldRun) -> io::Result<()> {
+fn remove_named_in(run: &HeldRun, name: &str) -> io::Result<()> {
     use std::os::fd::AsRawFd;
-    let name = name_in(halvo_control::paths::RUN_MARKER)?;
+    let name = name_in(name)?;
     // SAFETY: the name is NUL-terminated and lives across the call, and the descriptor of
     // `run` is open across it.
     if unsafe { libc::unlinkat(run.fd.as_raw_fd(), name.as_ptr(), 0) } == -1 {
@@ -414,6 +476,27 @@ fn remove_in(run: &HeldRun) -> io::Result<()> {
     sync_run(run)
 }
 
+#[cfg(target_os = "macos")]
+fn absent_in(run: &HeldRun, name: &str) -> bool {
+    use std::os::fd::AsRawFd;
+    let Ok(name) = name_in(name) else {
+        return false;
+    };
+    // SAFETY: an all-zero stat is a valid value of the plain C struct that fstatat fills.
+    let mut stat: libc::stat = unsafe { std::mem::zeroed() };
+    // SAFETY: the name is NUL-terminated and lives across the call, the descriptor of `run` is
+    // open across it, and `stat` is a writable stat that outlives the call.
+    let found = unsafe {
+        libc::fstatat(
+            run.fd.as_raw_fd(),
+            name.as_ptr(),
+            &mut stat,
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    found == -1 && io::Error::last_os_error().kind() == io::ErrorKind::NotFound
+}
+
 #[cfg(windows)]
 fn read_in(run: &HeldRun) -> io::Result<Option<String>> {
     match std::fs::File::open(run.path.join(halvo_control::paths::RUN_MARKER)) {
@@ -424,11 +507,9 @@ fn read_in(run: &HeldRun) -> io::Result<Option<String>> {
 }
 
 #[cfg(windows)]
-fn replace_in(run: &HeldRun, bytes: &[u8]) -> io::Result<()> {
-    let path = run.path.join(halvo_control::paths::RUN_MARKER);
-    let next = run
-        .path
-        .join(format!("{}.new", halvo_control::paths::RUN_MARKER));
+fn replace_named_in(run: &HeldRun, name: &str, bytes: &[u8]) -> io::Result<()> {
+    let path = run.path.join(name);
+    let next = run.path.join(format!("{name}.new"));
     let mut file = std::fs::File::create(&next)?;
     file.write_all(bytes)?;
     file.sync_all()?;
@@ -437,11 +518,17 @@ fn replace_in(run: &HeldRun, bytes: &[u8]) -> io::Result<()> {
 }
 
 #[cfg(windows)]
-fn remove_in(run: &HeldRun) -> io::Result<()> {
-    match std::fs::remove_file(run.path.join(halvo_control::paths::RUN_MARKER)) {
+fn remove_named_in(run: &HeldRun, name: &str) -> io::Result<()> {
+    match std::fs::remove_file(run.path.join(name)) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         other => other,
     }
+}
+
+#[cfg(windows)]
+fn absent_in(run: &HeldRun, name: &str) -> bool {
+    std::fs::symlink_metadata(run.path.join(name))
+        .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
 }
 
 fn replace(dir: &DataDir, bytes: &[u8]) -> io::Result<()> {
@@ -782,5 +869,59 @@ mod tests {
             LastEnd::Untold,
             "a marker that cannot be read"
         );
+    }
+
+    #[test]
+    fn the_note_of_typing_off_reads_none_only_where_nothing_stands_at_its_two_names() {
+        let (root, dir) = scratch();
+        std::fs::create_dir_all(dir.path()).unwrap();
+        let no_run = HeldRun::of(&StateDir::open(dir.path()).unwrap());
+        assert!(!typing_kept(&no_run), "no run/ stands, so no note can");
+        assert!(
+            typing_kept(&Err(io::ErrorKind::PermissionDenied.into())),
+            "a run/ that cannot be opened reads kept"
+        );
+        std::fs::create_dir_all(dir.run_dir()).unwrap();
+        let run = run_of(&dir);
+        let kept = |run: &HeldRun| typing_kept(&run.again());
+        assert!(!kept(&run), "nothing at either name");
+        keep_typing_off(&run).unwrap();
+        let note = dir.run_dir().join(TYPING_OFF);
+        assert_eq!(std::fs::read_to_string(&note).unwrap(), "key_class=off\n");
+        assert!(!dir.run_dir().join(TYPING_OFF_NEW).exists());
+        assert!(kept(&run));
+        let_typing_go(&run).unwrap();
+        assert!(!kept(&run) && !note.exists(), "let go");
+        for name in [TYPING_OFF, TYPING_OFF_NEW] {
+            let at = dir.run_dir().join(name);
+            for text in ["key_class=on\n", "", "key_class=off"] {
+                std::fs::write(&at, text).unwrap();
+                assert!(kept(&run), "{name} holding {text:?}");
+                let_typing_go(&run).unwrap();
+                assert!(!at.exists(), "{name}");
+            }
+            std::fs::create_dir(&at).unwrap();
+            assert!(kept(&run), "a folder at {name}");
+            assert!(let_typing_go(&run).is_err(), "a folder at {name} stays");
+            std::fs::remove_dir(&at).unwrap();
+            #[cfg(unix)]
+            {
+                std::os::unix::fs::symlink(root.path().join("nowhere"), &at).unwrap();
+                assert!(kept(&run), "a link at {name}");
+                let_typing_go(&run).unwrap();
+            }
+        }
+        #[cfg(target_os = "macos")]
+        {
+            keep_typing_off(&run).unwrap();
+            let moved = root.path().join("moved");
+            std::fs::rename(dir.path(), &moved).unwrap();
+            assert!(
+                kept(&run),
+                "read through the held run/ behind a move of the folder"
+            );
+            let_typing_go(&run).unwrap();
+            assert!(!moved.join("run").join(TYPING_OFF).exists());
+        }
     }
 }

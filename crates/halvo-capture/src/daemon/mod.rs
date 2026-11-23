@@ -2508,7 +2508,10 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
 /// [`serve_held`] with the sources, the lifeline and the lease of `parts`:
 /// once the store is open for capture, the supervisor serves the sources of
 /// [`sources::starting`] for the switches of the state file, each begun on
-/// the owner's sink and floor. With [`Behind::NoPress`] it first reads why
+/// the owner's sink and floor; where the note of a turn of typing to off
+/// that the state file did not take stands, read through the held run/
+/// before the state file opens, the life tries that save once and starts
+/// with key_class off wherever it fails. With [`Behind::NoPress`] it first reads why
 /// the last life ended and ends with WAITS_FOR_A_PRESS where the table of
 /// `run_marker::LastEnd` says so, before the marker's begin. Where it accepts
 /// a Stop request, or reads that a signal set the stop flag, it writes the
@@ -2589,6 +2592,11 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             return halvo_control::exit::ERROR;
         }
     };
+    let typing_kept = run_marker::typing_kept(&held_run);
+    let note_run = match &held_run {
+        Ok(run) => run.again(),
+        Err(error) => Err(std::io::Error::from(error.kind())),
+    };
     let state = state::StateFile::open(folder, writer);
     if let Some(line) = state_line(state.health()) {
         let _ = writeln!(err, "{line}");
@@ -2615,6 +2623,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     .with_state(state)
     .with_marker(Box::new(supervisor::MarkerFile::new(dir.run_marker())))
     .with_hold(run_marker::held(dir))
+    .with_typing_note(Box::new(supervisor::NoteInRun::new(note_run)), typing_kept)
     .with_life(listening.admitting().ending_life());
     listening
         .admitting()
@@ -3412,7 +3421,9 @@ fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
 
 /// A client's turn of the switch key_class: the status after the turn, or
 /// state_file with the text of the failed write, which names the file and
-/// behind which typing is off in this life. Where the stop of the source that
+/// says whether the note run/typing-off keeps typing off beyond this life,
+/// or the text of a note that a turn on could not let go, behind which typing
+/// stays off. Where the stop of the source that
 /// holds keys does not stop, the answer goes out from the end routine, as a
 /// Pause's does; where the turn ends the life with status 4, the answer goes
 /// out first and is waited for.
@@ -3455,9 +3466,27 @@ fn typing_turn<F: supervisor::SystemSources, L: main_loop::MainLoop>(
             ErrorCode::Internal,
             "the capture service holds no state file",
         )),
+        supervisor::TypingTurn::NotWritten(error) if !on => Reply::Error(ErrorReply::new(
+            ErrorCode::StateFile,
+            format!("the switch of keys was not written, and typing stays off until a turn on, as the capture service's note run/typing-off holds it: {error}"),
+        )),
         supervisor::TypingTurn::NotWritten(error) => Reply::Error(ErrorReply::new(
             ErrorCode::StateFile,
             format!("the switch of keys was not written, and typing is off in this life: {error}"),
+        )),
+        supervisor::TypingTurn::NoteNotWritten(error, note) => Reply::Error(ErrorReply::new(
+            ErrorCode::StateFile,
+            format!(
+                "the switch of keys was not written, and typing is off in this life: {error}; run/typing-off was not written either: {}",
+                note.kind()
+            ),
+        )),
+        supervisor::TypingTurn::NoteStands(note) => Reply::Error(ErrorReply::new(
+            ErrorCode::StateFile,
+            format!(
+                "the switch of keys was written on, but run/typing-off could not be removed, so typing stays off: {}",
+                note.kind()
+            ),
         )),
         supervisor::TypingTurn::Restart => {
             serving.listening.admitting().end_the_life();
