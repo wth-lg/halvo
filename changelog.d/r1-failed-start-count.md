@@ -1,0 +1,1 @@
+- Fixed: On a Mac, when Halvo fails to start at login three times in a row, it stops trying until the next login, where it tries again; before, the system started it again without end. Opening Halvo yourself starts it as before and gives the starts at login their three tries again.
