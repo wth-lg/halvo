@@ -44,6 +44,7 @@ fn cause_of_sheet(cause: halvo_sheet::Cause) -> Cause {
         halvo_sheet::Cause::DataOutside => Cause::DataOutside,
         halvo_sheet::Cause::DataForm => Cause::DataForm,
         halvo_sheet::Cause::ReadOnly => Cause::ReadOnly,
+        halvo_sheet::Cause::NoAccess => Cause::NoAccess,
         halvo_sheet::Cause::NotReplaced => Cause::NotReplaced,
         halvo_sheet::Cause::StepFailed => Cause::StepFailed,
     }

@@ -58,9 +58,16 @@ impl Folder {
     /// Takes the directory as the runner gives it, and the locks of `agents/locks/` under
     /// Halvo's data directory, which [`Folder::prepare`] and [`Folder::replace`] hold for the
     /// directory of the workbook. The directory itself may be reached through a link;
-    /// [`Error::Folder`] when it is not a directory.
+    /// [`Error::Folder`] when it is not a directory, and [`Error::Io`] with the kind
+    /// `PermissionDenied` when the system refuses the way to it for the permission, which a
+    /// stat of the directory tells after its walk fails (r3 U11.4).
     pub fn new(dir: &Path, locks: Locks) -> Result<Folder, Error> {
-        let root = Root::new(dir).map_err(|_| Error::Folder)?;
+        let root = Root::new(dir).map_err(|_| match std::fs::metadata(dir) {
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+                Error::Io(error.kind())
+            }
+            _ => Error::Folder,
+        })?;
         Ok(Folder { root, locks })
     }
 
