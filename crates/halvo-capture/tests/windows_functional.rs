@@ -407,14 +407,16 @@ fn content_reads_clear(test: &str, gate: &PasswordGate, limit: Duration) -> bool
 }
 
 /// The count of the content readings that the sources asked of the gate:
-/// in all, Clear by the kind that answered, and Unknown by its cause.
+/// in all, Clear by the kind that answered, no answer, where a title is kept
+/// and a frame is not, and Unknown by its cause.
 fn gate_readings(test: &str, gate: &PasswordGate) {
     let readings = gate.readings();
     say(
         test,
         format!(
-            "gate_readings clear={} password_field={} unknown={}",
+            "gate_readings clear={} no_answer={} password_field={} unknown={}",
             readings.clear(),
+            readings.no_answer,
             readings.password_field,
             readings.unknown()
         ),
@@ -429,11 +431,9 @@ fn gate_readings(test: &str, gate: &PasswordGate) {
     say(
         test,
         format!(
-            "gate_unknown_by before_first_read={} firefox={} no_answer={} unreadable={} \
-             desktop_switch={}",
+            "gate_unknown_by before_first_read={} firefox={} unreadable={} desktop_switch={}",
             readings.before_first_read,
             readings.firefox,
-            readings.no_answer,
             readings.unreadable,
             readings.desktop_switch
         ),
@@ -824,7 +824,12 @@ fn known_titles() -> Vec<String> {
     let mut titles: Vec<String> = (0..8).map(child_title).collect();
     titles.push(FIXED_TITLE.to_string());
     titles.extend(["f".repeat(30), "b".repeat(50), "h".repeat(60)]);
-    for prefix in [PASSWORD_EDIT_TITLE, PLAIN_TITLE] {
+    for prefix in [
+        PASSWORD_EDIT_TITLE,
+        PLAIN_TITLE,
+        PROTECTED_NO_ANSWER_TITLE,
+        NO_ANSWER_TITLE,
+    ] {
         titles.extend((0..3).map(|step| format!("{prefix}-{step}")));
     }
     titles.push(GHOST_CAPTION.to_string());
@@ -1337,6 +1342,7 @@ fn helper_child_window() {
         Ok("hold") => return child_hold(secs),
         Ok("root") => return child_root(secs),
         Ok("password-title") => return child_password_title(),
+        Ok("no-answer-title") => return child_no_answer_title(),
         Ok("hang") => return child_hang(),
         Ok("background") => return child_background(secs),
         _ => {}
@@ -1595,6 +1601,467 @@ fn child_password_title() {
 
 const ES_PASSWORD_STYLE: u32 = 0x20;
 
+const PROTECTED_NO_ANSWER_TITLE: &str = "halvo-verify-protected-no-answer-title";
+const NO_ANSWER_TITLE: &str = "halvo-verify-no-answer-title";
+
+/// How long each wait of the row with no answer waits for its state: the
+/// child for each go of the test, the test for each reading of the gate and
+/// each title.
+const NO_ANSWER_STATE_WAIT: Duration = Duration::from_secs(20);
+
+/// Waits, answering this thread's messages, until the test writes the file
+/// `name` in the directory of the child's own program, up to `limit`: whether
+/// it came.
+fn wait_for_go(name: &str, limit: Duration) -> bool {
+    let program = std::env::current_exe().expect("the child's program");
+    let go = program.with_file_name(name);
+    let began = Instant::now();
+    while !go.exists() && began.elapsed() < limit {
+        pump_answering(Duration::from_millis(20));
+    }
+    go.exists()
+}
+
+/// A window with two boxes whose UI Automation provider gives no answer on
+/// IsPassword, the second of them protected. Each step waits for the test's
+/// go, which the test writes when it has read the state that the step needs:
+/// the box with no answer takes the focus, then three title changes, each
+/// behind the go of the one before; then the protected box, and three more.
+/// The child ends at the test's last go.
+fn child_no_answer_title() {
+    let window = TestWindow::create(&normal_window(
+        "HalvoVerifyNoAnswerTitle",
+        "halvo-verify-no-answer-window",
+        40,
+        40,
+    ))
+    .expect("the window");
+    no_answer_box::register().expect("the class of the boxes");
+    let no_answer = no_answer_box::create(window.hwnd, false, 10).expect("the box");
+    let protected = no_answer_box::create(window.hwnd, true, 50).expect("the protected box");
+    let (foreground, method) = window.activate();
+    let mut phases = Vec::new();
+    let mut goes = Vec::new();
+    for (the_box, prefix, phase) in [
+        (no_answer, NO_ANSWER_TITLE, "no-answer"),
+        (protected, PROTECTED_NO_ANSWER_TITLE, "protected"),
+    ] {
+        phases.push(no_answer_box::focus(the_box));
+        goes.push(wait_for_go(phase, NO_ANSWER_STATE_WAIT));
+        for step in 0..3 {
+            window
+                .set_title(&format!("{prefix}-{step}"))
+                .expect("set the title");
+            goes.push(wait_for_go(
+                &format!("{phase}-{step}"),
+                NO_ANSWER_STATE_WAIT,
+            ));
+        }
+    }
+    goes.push(wait_for_go("end", NO_ANSWER_STATE_WAIT));
+    let (providers_handed, is_password_asked, state_asked) = no_answer_box::asked();
+    say(
+        "child",
+        format!(
+            "mode=no-answer-title window_foreground={foreground} method={method} \
+             no_answer_box_focused={} protected_box_focused={} goes_seen={}/{} \
+             providers_handed={providers_handed} is_password_asked={is_password_asked} \
+             state_asked={state_asked}",
+            phases[0],
+            phases[1],
+            goes.iter().filter(|seen| **seen).count(),
+            goes.len()
+        ),
+    );
+}
+
+/// A child window of the test's own class whose UI Automation provider gives
+/// no answer on IsPassword, the property that the gate reads; a protected box
+/// also serves a LegacyIAccessible pattern whose State holds
+/// STATE_SYSTEM_PROTECTED. The providers are built by hand from the windows
+/// crate's vtables, as tests/windows_prints.rs builds its event sinks; they
+/// live as long as the child process, so they keep no count of references.
+mod no_answer_box {
+    use core::ffi::c_void;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::{Mutex, PoisonError};
+
+    use windows::core::{Interface, GUID, HRESULT, HSTRING, PCWSTR};
+    use windows::Win32::Foundation::{
+        E_NOINTERFACE, E_NOTIMPL, E_POINTER, HINSTANCE, HWND, LPARAM, LRESULT, S_OK, WPARAM,
+    };
+    use windows::Win32::System::Com::SAFEARRAY;
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows::Win32::System::Variant::VARIANT;
+    use windows::Win32::UI::Accessibility::{
+        ILegacyIAccessibleProvider, ILegacyIAccessibleProvider_Vtbl, IRawElementProviderSimple,
+        IRawElementProviderSimple_Vtbl, ProviderOptions, ProviderOptions_ServerSideProvider,
+        UIA_AutomationFocusChangedEventId, UIA_IsPasswordPropertyId,
+        UIA_LegacyIAccessiblePatternId, UiaHostProviderFromHwnd, UiaRaiseAutomationEvent,
+        UiaReturnRawElementProvider, UiaRootObjectId, ROLE_SYSTEM_TEXT, UIA_PATTERN_ID,
+        UIA_PROPERTY_ID,
+    };
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DefWindowProcW, RegisterClassW, STATE_SYSTEM_PROTECTED, WINDOW_EX_STYLE,
+        WM_GETOBJECT, WNDCLASSW, WS_BORDER, WS_CHILD, WS_VISIBLE,
+    };
+
+    const CLASS: &str = "HalvoVerifyNoAnswerBox";
+
+    /// How often this process handed UI Automation the provider of a box.
+    static PROVIDERS_HANDED: AtomicU32 = AtomicU32::new(0);
+    /// How often UI Automation asked a box for IsPassword.
+    static IS_PASSWORD_ASKED: AtomicU32 = AtomicU32::new(0);
+    /// How often UI Automation asked a protected box for its State.
+    static STATE_ASKED: AtomicU32 = AtomicU32::new(0);
+
+    /// The three counts: providers handed, IsPassword asked, State asked.
+    pub(super) fn asked() -> (u32, u32, u32) {
+        (
+            PROVIDERS_HANDED.load(Ordering::Relaxed),
+            IS_PASSWORD_ASKED.load(Ordering::Relaxed),
+            STATE_ASKED.load(Ordering::Relaxed),
+        )
+    }
+
+    /// The boxes of this process: each window handle with its provider.
+    static BOXES: Mutex<Vec<(usize, usize)>> = Mutex::new(Vec::new());
+
+    #[repr(C)]
+    struct Simple {
+        vtable: *const IRawElementProviderSimple_Vtbl,
+        hwnd: HWND,
+        legacy: *mut c_void,
+    }
+
+    #[repr(C)]
+    struct Legacy {
+        vtable: *const ILegacyIAccessibleProvider_Vtbl,
+    }
+
+    static SIMPLE_VTABLE: IRawElementProviderSimple_Vtbl = IRawElementProviderSimple_Vtbl {
+        base__: windows::core::IUnknown_Vtbl {
+            QueryInterface: simple_query,
+            AddRef: kept,
+            Release: kept,
+        },
+        ProviderOptions: options,
+        GetPatternProvider: pattern,
+        GetPropertyValue: property,
+        HostRawElementProvider: host,
+    };
+
+    static LEGACY_VTABLE: ILegacyIAccessibleProvider_Vtbl = ILegacyIAccessibleProvider_Vtbl {
+        base__: windows::core::IUnknown_Vtbl {
+            QueryInterface: legacy_query,
+            AddRef: kept,
+            Release: kept,
+        },
+        Select: select,
+        DoDefaultAction: default_action,
+        SetValue: set_value,
+        GetIAccessible: no_object,
+        ChildId: child_id,
+        Name: no_object,
+        Value: no_object,
+        Description: no_object,
+        Role: role,
+        State: state,
+        Help: no_object,
+        KeyboardShortcut: no_object,
+        GetSelection: selection,
+        DefaultAction: no_object,
+    };
+
+    /// Registers the class of the boxes, once in a process.
+    pub(super) fn register() -> Result<(), String> {
+        let name = HSTRING::from(CLASS);
+        let class = WNDCLASSW {
+            lpfnWndProc: Some(box_proc),
+            hInstance: module()?,
+            lpszClassName: PCWSTR(name.as_ptr()),
+            ..Default::default()
+        };
+        // SAFETY: `class` points at `name`, which lives across the call; the
+        // system copies the name, and the class lives as long as the process.
+        if unsafe { RegisterClassW(&class) } == 0 {
+            return Err(format!(
+                "RegisterClassW: {}",
+                windows::core::Error::from_thread()
+            ));
+        }
+        Ok(())
+    }
+
+    fn module() -> Result<HINSTANCE, String> {
+        // SAFETY: a null module name asks for the handle of this executable,
+        // which stays loaded for the life of the process.
+        unsafe { GetModuleHandleW(None) }
+            .map(Into::into)
+            .map_err(|e| format!("GetModuleHandleW: {e}"))
+    }
+
+    /// A box at `y` inside `parent`, a window of this thread; a protected box
+    /// serves the LegacyIAccessible pattern with the protected State.
+    pub(super) fn create(parent: HWND, protected: bool, y: i32) -> Result<HWND, String> {
+        let class = HSTRING::from(CLASS);
+        // SAFETY: the class name points at a live HSTRING for the call, the
+        // class is registered, and the parent is a window of this thread.
+        let hwnd = unsafe {
+            CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                PCWSTR(class.as_ptr()),
+                PCWSTR::null(),
+                WS_CHILD | WS_VISIBLE | WS_BORDER,
+                10,
+                y,
+                300,
+                24,
+                Some(parent),
+                None,
+                Some(module()?),
+                None,
+            )
+        }
+        .map_err(|e| format!("CreateWindowExW: {e}"))?;
+        let legacy = if protected {
+            Box::into_raw(Box::new(Legacy {
+                vtable: &LEGACY_VTABLE,
+            }))
+            .cast::<c_void>()
+        } else {
+            core::ptr::null_mut()
+        };
+        let simple = Box::into_raw(Box::new(Simple {
+            vtable: &SIMPLE_VTABLE,
+            hwnd,
+            legacy,
+        }));
+        BOXES
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((hwnd.0 as usize, simple as usize));
+        Ok(hwnd)
+    }
+
+    /// Moves the focus to the box `hwnd` of this thread and raises UI
+    /// Automation's focus event for its provider: whether the box has the
+    /// focus.
+    pub(super) fn focus(hwnd: HWND) -> bool {
+        // SAFETY: SetFocus and GetFocus take and return handle values of this
+        // thread's windows.
+        let focused = unsafe {
+            let _ = SetFocus(Some(hwnd));
+            GetFocus() == hwnd
+        };
+        if let Some(provider) = provider_of(hwnd) {
+            // SAFETY: the provider lives as long as the process.
+            let _ =
+                unsafe { UiaRaiseAutomationEvent(&provider, UIA_AutomationFocusChangedEventId) };
+        }
+        focused
+    }
+
+    fn provider_of(hwnd: HWND) -> Option<IRawElementProviderSimple> {
+        let raw = BOXES
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .find(|(window, _)| *window == hwnd.0 as usize)
+            .map(|(_, raw)| *raw)?;
+        // SAFETY: `raw` points at a Simple of this module, which lives as long
+        // as the process and whose first field is the vtable of the interface;
+        // it keeps no count of references, so the value made here owns none.
+        Some(unsafe { IRawElementProviderSimple::from_raw(raw as *mut c_void) })
+    }
+
+    unsafe extern "system" fn box_proc(
+        hwnd: HWND,
+        msg: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        if msg == WM_GETOBJECT && lparam.0 as i32 == UiaRootObjectId {
+            if let Some(provider) = provider_of(hwnd) {
+                PROVIDERS_HANDED.fetch_add(1, Ordering::Relaxed);
+                // SAFETY: the arguments are the ones that the system passed,
+                // and the provider lives as long as the process.
+                return unsafe { UiaReturnRawElementProvider(hwnd, wparam, lparam, &provider) };
+            }
+        }
+        // SAFETY: the arguments are the ones that the system passed.
+        unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+    }
+
+    fn answer(this: *mut c_void, iid: *const GUID, out: *mut *mut c_void, own: GUID) -> HRESULT {
+        if iid.is_null() || out.is_null() {
+            return E_POINTER;
+        }
+        // SAFETY: the system passes a live IID and a writable out pointer;
+        // the objects of this module keep no count of references.
+        unsafe {
+            if *iid == windows::core::IUnknown::IID || *iid == own {
+                *out = this;
+                S_OK
+            } else {
+                *out = core::ptr::null_mut();
+                E_NOINTERFACE
+            }
+        }
+    }
+
+    unsafe extern "system" fn simple_query(
+        this: *mut c_void,
+        iid: *const GUID,
+        out: *mut *mut c_void,
+    ) -> HRESULT {
+        answer(this, iid, out, IRawElementProviderSimple::IID)
+    }
+
+    unsafe extern "system" fn legacy_query(
+        this: *mut c_void,
+        iid: *const GUID,
+        out: *mut *mut c_void,
+    ) -> HRESULT {
+        answer(this, iid, out, ILegacyIAccessibleProvider::IID)
+    }
+
+    unsafe extern "system" fn kept(_this: *mut c_void) -> u32 {
+        1
+    }
+
+    unsafe extern "system" fn options(_this: *mut c_void, out: *mut ProviderOptions) -> HRESULT {
+        if out.is_null() {
+            return E_POINTER;
+        }
+        // SAFETY: the system passes a writable out pointer.
+        unsafe { out.write(ProviderOptions_ServerSideProvider) };
+        S_OK
+    }
+
+    unsafe extern "system" fn pattern(
+        this: *mut c_void,
+        id: UIA_PATTERN_ID,
+        out: *mut *mut c_void,
+    ) -> HRESULT {
+        if out.is_null() {
+            return E_POINTER;
+        }
+        // SAFETY: `this` is a live Simple of this module, and the system
+        // passes a writable out pointer.
+        unsafe {
+            let simple = &*(this as *const Simple);
+            out.write(if id == UIA_LegacyIAccessiblePatternId {
+                simple.legacy
+            } else {
+                core::ptr::null_mut()
+            });
+        }
+        S_OK
+    }
+
+    /// No property has an answer of the box's own: the system's host provider
+    /// of its window gives the others, and nothing gives IsPassword.
+    unsafe extern "system" fn property(
+        _this: *mut c_void,
+        id: UIA_PROPERTY_ID,
+        out: *mut VARIANT,
+    ) -> HRESULT {
+        if out.is_null() {
+            return E_POINTER;
+        }
+        if id == UIA_IsPasswordPropertyId {
+            IS_PASSWORD_ASKED.fetch_add(1, Ordering::Relaxed);
+        }
+        // SAFETY: the system passes a writable out pointer; an empty VARIANT
+        // says that the provider gives no value.
+        unsafe { out.write(VARIANT::default()) };
+        S_OK
+    }
+
+    unsafe extern "system" fn host(this: *mut c_void, out: *mut *mut c_void) -> HRESULT {
+        if out.is_null() {
+            return E_POINTER;
+        }
+        // SAFETY: `this` is a live Simple of this module whose handle is a
+        // window of this process, and the system passes a writable out
+        // pointer, which takes the one reference of the host provider.
+        unsafe {
+            let simple = &*(this as *const Simple);
+            match UiaHostProviderFromHwnd(simple.hwnd) {
+                Ok(host) => {
+                    out.write(host.into_raw());
+                    S_OK
+                }
+                Err(error) => {
+                    out.write(core::ptr::null_mut());
+                    error.code()
+                }
+            }
+        }
+    }
+
+    unsafe extern "system" fn select(_this: *mut c_void, _flags: i32) -> HRESULT {
+        E_NOTIMPL
+    }
+
+    unsafe extern "system" fn default_action(_this: *mut c_void) -> HRESULT {
+        E_NOTIMPL
+    }
+
+    unsafe extern "system" fn set_value(_this: *mut c_void, _value: PCWSTR) -> HRESULT {
+        E_NOTIMPL
+    }
+
+    unsafe extern "system" fn no_object(_this: *mut c_void, out: *mut *mut c_void) -> HRESULT {
+        if out.is_null() {
+            return E_POINTER;
+        }
+        // SAFETY: the system passes a writable out pointer; a null string or
+        // object is the empty answer.
+        unsafe { out.write(core::ptr::null_mut()) };
+        S_OK
+    }
+
+    unsafe extern "system" fn child_id(_this: *mut c_void, out: *mut i32) -> HRESULT {
+        if out.is_null() {
+            return E_POINTER;
+        }
+        // SAFETY: the system passes a writable out pointer; 0 is CHILDID_SELF.
+        unsafe { out.write(0) };
+        S_OK
+    }
+
+    unsafe extern "system" fn role(_this: *mut c_void, out: *mut u32) -> HRESULT {
+        if out.is_null() {
+            return E_POINTER;
+        }
+        // SAFETY: the system passes a writable out pointer.
+        unsafe { out.write(ROLE_SYSTEM_TEXT) };
+        S_OK
+    }
+
+    unsafe extern "system" fn state(_this: *mut c_void, out: *mut u32) -> HRESULT {
+        if out.is_null() {
+            return E_POINTER;
+        }
+        STATE_ASKED.fetch_add(1, Ordering::Relaxed);
+        // SAFETY: the system passes a writable out pointer.
+        unsafe { out.write(STATE_SYSTEM_PROTECTED) };
+        S_OK
+    }
+
+    unsafe extern "system" fn selection(_this: *mut c_void, out: *mut *mut SAFEARRAY) -> HRESULT {
+        if out.is_null() {
+            return E_POINTER;
+        }
+        // SAFETY: the system passes a writable out pointer.
+        unsafe { out.write(core::ptr::null_mut()) };
+        E_NOTIMPL
+    }
+}
+
 struct ChildProcess {
     process: std::process::Child,
     output: Option<std::thread::JoinHandle<String>>,
@@ -1612,6 +2079,12 @@ impl ChildProcess {
 
     fn wait(&mut self) -> std::process::ExitStatus {
         self.process.wait().expect("wait for the child")
+    }
+
+    /// Writes the go `name` beside the child's program, where a child that
+    /// waits by `wait_for_go` reads it.
+    fn go(&self, name: &str) {
+        std::fs::write(self._dir.path().join(name), b"").expect("write a go of the child");
     }
 
     fn print_output(&mut self) {
@@ -6945,6 +7418,150 @@ fn a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event() {
             "E4",
             in_password_edit == 0 && plain >= 1,
             format!("TF password-title in_password_edit={in_password_edit} plain={plain}")
+        );
+    });
+}
+
+/// Waits until the gate's content reading is `wanted`, while the child runs,
+/// up to `limit`: whether it read so.
+fn wait_for_reading(
+    gate: &PasswordGate,
+    wanted: ContentReading,
+    child: &mut ChildProcess,
+    limit: Duration,
+) -> bool {
+    let began = Instant::now();
+    while gate.content_reading() != wanted && child.try_wait().is_none() && began.elapsed() < limit
+    {
+        pump_thread(Duration::from_millis(20));
+    }
+    gate.content_reading() == wanted
+}
+
+/// The window title and screen sources of one service set share its gate.
+/// Every step waits for a state, never for a time: the screen source begins
+/// once the gate reads the child's box with no answer, and the child's first
+/// title waits for that read; each title waits until the test has seen the one
+/// before it kept, or, at the protected box, dropped; the protected box's
+/// titles wait for the gate's read of Password; the screen source stops before
+/// the child's focus leaves the two boxes. So every frame that the screen source
+/// is offered comes while one of the two boxes has the focus, and every title is
+/// decided at the reading of its own box.
+#[test]
+#[ignore = "functional: a title is kept and a frame dropped while an element with no answer has the focus"]
+fn a_title_change_while_an_element_with_no_answer_has_the_focus_gives_a_title_event_and_no_frame() {
+    with_deadline("no-answer-title", Duration::from_secs(90), || {
+        env_report("no-answer-title");
+        source_built_by_test("no-answer-title", "window_title");
+        source_built_by_test("no-answer-title", "screen");
+        let (sink, events) = capture(4096);
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut title = set.gated_title(WindowTitleSource::new());
+        let mut screen = set.gated_screen(ScreenSource::new(Arc::new(Mutex::new(None))));
+        let title_start = title.begin(SourceContext::new(sink.clone()));
+        let mut child = spawn_child("no-answer-title", 0);
+        let no_answer_read = wait_for_reading(
+            &gate,
+            ContentReading::NoAnswer,
+            &mut child,
+            NO_ANSWER_STATE_WAIT,
+        );
+        let screen_start = screen.begin(screen_on(sink.clone()));
+        let mut seen = Vec::new();
+        child.go("no-answer");
+        for step in 0..3 {
+            let began = Instant::now();
+            while titles_with(&seen, NO_ANSWER_TITLE) <= step
+                && child.try_wait().is_none()
+                && began.elapsed() < NO_ANSWER_STATE_WAIT
+            {
+                seen.extend(events.drain_for(Duration::from_millis(50)));
+            }
+            child.go(&format!("no-answer-{step}"));
+        }
+        let protected_read = wait_for_reading(
+            &gate,
+            ContentReading::Password,
+            &mut child,
+            NO_ANSWER_STATE_WAIT,
+        );
+        let drops_before = title.source().drops().secure_input;
+        child.go("protected");
+        for step in 0..3 {
+            let began = Instant::now();
+            while title.source().drops().secure_input <= drops_before + step
+                && child.try_wait().is_none()
+                && began.elapsed() < NO_ANSWER_STATE_WAIT
+            {
+                seen.extend(events.drain_for(Duration::from_millis(50)));
+            }
+            child.go(&format!("protected-{step}"));
+        }
+        let protected_title_drops = title.source().drops().secure_input - drops_before;
+        let reading_at_the_screen_stop = gate.content_reading();
+        let screen_stop = stop_counted(&mut screen, "screen");
+        let frame_drops = screen.source().drops();
+        child.go("end");
+        while child.try_wait().is_none() {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+        }
+        seen.extend(events.drain_for(Duration::from_millis(800)));
+        let _ = stop_counted(&mut title, "window_title");
+        child.print_output();
+        gate_readings("no-answer-title", &gate);
+        let at_no_answer = titles_with(&seen, NO_ANSWER_TITLE);
+        let at_protected = titles_with(&seen, PROTECTED_NO_ANSWER_TITLE);
+        let frames = count(&seen, Modality::ScreenFrame);
+        say(
+            "no-answer-title",
+            format!(
+                "title_start={} screen_start={} screen_stop={} no_answer_read={no_answer_read} \
+                 protected_read={protected_read} \
+                 reading_at_the_screen_stop={reading_at_the_screen_stop:?} \
+                 title_events_at_no_answer={at_no_answer} \
+                 title_events_at_protected_no_answer={at_protected} \
+                 protected_title_drops={protected_title_drops} screen_frames={frames} \
+                 screen_frame_drops_at_secure_input={}",
+                show(&title_start),
+                show(&screen_start),
+                show(&screen_stop),
+                frame_drops.secure_input
+            ),
+        );
+        assert!(
+            title_start.is_ok() && screen_start.is_ok() && screen_stop.is_ok(),
+            "the sources must start and stop"
+        );
+        assert!(
+            no_answer_read,
+            "the gate did not read the box with no answer as NoAnswer"
+        );
+        assert_eq!(
+            at_no_answer, 3,
+            "a title set while the box with no answer has the focus was not kept"
+        );
+        assert!(
+            protected_read,
+            "the gate did not read the protected box as a password field"
+        );
+        assert_eq!(
+            (at_protected, protected_title_drops),
+            (0, 3),
+            "the titles set while the protected box has the focus: kept, dropped"
+        );
+        assert_eq!(
+            reading_at_the_screen_stop,
+            ContentReading::Password,
+            "the reading when the screen source stops"
+        );
+        assert_eq!(
+            frames, 0,
+            "a screen frame was kept at a box with no answer or at the protected box"
+        );
+        assert!(
+            frame_drops.secure_input >= 1,
+            "the screen source was offered no frame, so no frame shows nothing"
         );
     });
 }

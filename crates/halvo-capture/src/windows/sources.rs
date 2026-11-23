@@ -455,15 +455,17 @@ mod tests {
     fn a_title_is_kept_where_the_element_answers_no_password_field_and_dropped_where_it_cannot() {
         use std::sync::Arc;
 
+        use super::super::screen::frame_event;
         use super::super::window_title::{title_event, WindowTitleSource};
         use super::super::{now_tick, DropCounts, Floor, FrontApp, OsTick};
-        use crate::floor::exclude::{FloorHandle, PrivateWindow};
+        use crate::floor::exclude::{FloorHandle, NoLineage, PrivateWindow};
         use crate::floor::payload::TitleWhy;
+        use crate::floor::{Switch, Switches};
         use crate::secure_input::windows::{
             content_of, state_of, ClearBy, ContentReading, FocusRead, Kind, UnknownBy,
         };
         use crate::secure_input::{check, SecureInputReading, Withheld};
-        use ContentReading::{Clear, Password, Unknown};
+        use ContentReading::{Clear, NoAnswer, Password, Unknown};
 
         let answered = |is_password, protected, kind| FocusRead::Answered {
             is_password,
@@ -518,7 +520,14 @@ mod tests {
                 "no-answer",
                 no_answer(false),
                 false,
-                Unknown(UnknownBy::NoAnswer),
+                NoAnswer,
+                FieldState::Unknown,
+            ),
+            (
+                "no-answer-in-firefox",
+                no_answer(false),
+                true,
+                Unknown(UnknownBy::Firefox),
                 FieldState::Unknown,
             ),
             (
@@ -552,8 +561,8 @@ mod tests {
         ];
         let wrong: Vec<&str> = rows
             .iter()
-            .filter(|(_, read, gecko, content, key)| {
-                state_of(*read, false) != *key || content_of(*read, *gecko, *key) != *content
+            .filter(|(_, read, firefox, content, key)| {
+                state_of(*read, false) != *key || content_of(*read, *firefox, *key) != *content
             })
             .map(|(row, ..)| *row)
             .collect();
@@ -572,23 +581,24 @@ mod tests {
         let title = set.gated_title(WindowTitleSource::new());
         let gate = Arc::clone(title.source().password_gate().expect("the set's gate"));
         assert!(Arc::ptr_eq(&gate, &set.password_gate()));
-        let probe = |gate: &PasswordGate| match check(&gate.content_probe(), None) {
-            Ok(_) => SecureInputReading::Inactive,
-            Err(Withheld::Active) => SecureInputReading::Active,
-            Err(Withheld::Unknown | Withheld::Late) => SecureInputReading::Unknown,
-        };
-        let before_the_first_read = (gate.content_reading(), probe(&gate));
-        gate.switch_desktop_at(now_tick());
-        let after_a_desktop_switch = gate.content_reading();
         let drops = Arc::new(DropCounts::default());
-        let floor = Floor::new(FloorHandle::default(), Arc::clone(&drops));
+        let mut screen_on = Switches::default();
+        screen_on.set(Switch::ScreenActivity, true);
+        let floor = Floor::new(
+            FloorHandle::new(None, Arc::new(NoLineage), screen_on),
+            Arc::clone(&drops),
+        );
         let front = FrontApp {
             pid: 9,
             path: Some("C:\\Apps\\mail.exe".to_string()),
         };
-        let title_at = |read: FocusRead| {
-            gate.focus_read_at(now_tick(), read, false);
-            let kept = title_event(
+        let key_through_the_probe = |gate: &PasswordGate| match check(&gate.content_probe(), None) {
+            Ok(_) => SecureInputReading::Inactive,
+            Err(Withheld::Active) => SecureInputReading::Active,
+            Err(Withheld::Unknown | Withheld::Late) => SecureInputReading::Unknown,
+        };
+        let kept_now = || {
+            let title = title_event(
                 &floor,
                 Some(&gate),
                 (&front, PrivateWindow::Unknown),
@@ -596,25 +606,77 @@ mod tests {
                 OsTick::new(now_tick()),
             )
             .is_some();
-            (kept, probe(&gate))
+            let frame = frame_event(&floor, Some(&gate), &front).is_some();
+            (
+                gate.content_reading(),
+                title,
+                frame,
+                key_through_the_probe(&gate),
+            )
         };
-        let at_password = title_at(answered(true, false, Kind::NativeEdit));
-        let at_clear = title_at(answered(false, false, Kind::Other));
+        let at = |read: FocusRead, firefox: bool| {
+            gate.focus_read_at(now_tick(), read, firefox);
+            kept_now()
+        };
+        let dropped = |content| (content, false, false, SecureInputReading::Unknown);
+        let before_the_first_read = kept_now();
+        gate.switch_desktop_at(now_tick());
+        let after_a_desktop_switch = kept_now();
+        let at_password = at(answered(true, false, Kind::NativeEdit), false);
+        let at_clear = at(answered(false, false, Kind::Other), false);
+        let at_no_answer = at(no_answer(false), false);
+        let at_no_answer_in_firefox = at(no_answer(false), true);
+        let at_unreadable = at(FocusRead::Unreadable, false);
+        gate.focus_read_at(now_tick(), no_answer(false), false);
+        gate.switch_desktop_at(now_tick());
+        let after_no_answer_and_a_desktop_switch = kept_now();
         assert_eq!(
             before_the_first_read,
-            (
-                Unknown(UnknownBy::BeforeFirstRead),
-                SecureInputReading::Unknown
-            )
+            dropped(Unknown(UnknownBy::BeforeFirstRead)),
+            "before the first read"
         );
-        assert_eq!(after_a_desktop_switch, Unknown(UnknownBy::DesktopSwitch));
+        assert_eq!(
+            after_a_desktop_switch,
+            dropped(Unknown(UnknownBy::DesktopSwitch)),
+            "after a desktop switch"
+        );
         assert_eq!(
             at_password,
-            (false, SecureInputReading::Active),
+            (Password, false, false, SecureInputReading::Active),
             "at Password"
         );
-        assert_eq!(at_clear, (true, SecureInputReading::Inactive), "at Clear");
-        assert_eq!(drops.read().secure_input, 1);
+        assert_eq!(
+            at_clear,
+            (
+                Clear(ClearBy::OtherKind),
+                true,
+                true,
+                SecureInputReading::Inactive
+            ),
+            "at Clear"
+        );
+        assert_eq!(
+            at_no_answer,
+            (NoAnswer, true, false, SecureInputReading::Unknown),
+            "at no answer: the title is kept, the frame is not, a key through the probe is \
+             withheld as at Unknown"
+        );
+        assert_eq!(
+            at_no_answer_in_firefox,
+            dropped(Unknown(UnknownBy::Firefox)),
+            "at no answer in Firefox"
+        );
+        assert_eq!(
+            at_unreadable,
+            dropped(Unknown(UnknownBy::Unreadable)),
+            "where no element can be read"
+        );
+        assert_eq!(
+            after_no_answer_and_a_desktop_switch,
+            dropped(Unknown(UnknownBy::DesktopSwitch)),
+            "a desktop switch after a read with no answer"
+        );
+        assert_eq!(drops.read().secure_input, 13);
     }
 
     /// The set makes a keyboard source and a service run starts it while the

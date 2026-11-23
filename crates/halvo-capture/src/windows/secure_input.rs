@@ -54,6 +54,59 @@ pub(crate) enum FocusRead {
     Unreadable,
 }
 
+/// What the read of the focused element's password property gave.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PasswordProperty {
+    /// The element answered with a boolean of its own.
+    Answered(bool),
+    /// The read succeeded and the element gave no answer of its own.
+    NoAnswer,
+    /// The read itself failed.
+    ReadFailed,
+}
+
+/// What the read of the focused element's protected state gave.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProtectedState {
+    /// The state holds the protected flag.
+    Protected,
+    /// The state lacks the flag, or the element gave no state of its own.
+    NotProtected,
+    /// The read itself failed.
+    ReadFailed,
+}
+
+/// The read of the focused element from its password property, its protected
+/// state and its kind. Whatever the gate cannot read drops a title: a read
+/// with no answer keeps it only where both reads succeeded, so a failed read
+/// of the password property, or a failed read of the protected state behind
+/// a password property with no answer, reads as an element that cannot be
+/// read. A protected element reads Password whatever its password property
+/// gave. A key gets the state that it got when a failed read of either
+/// counted as no answer and as not protected: Unknown at an unreadable
+/// element as at a read with no answer.
+pub(crate) fn focus_read_of(
+    password: PasswordProperty,
+    protected: ProtectedState,
+    kind: Kind,
+) -> FocusRead {
+    match (password, protected) {
+        (PasswordProperty::Answered(is_password), _) => FocusRead::Answered {
+            is_password,
+            protected: protected == ProtectedState::Protected,
+            kind,
+        },
+        (PasswordProperty::NoAnswer | PasswordProperty::ReadFailed, ProtectedState::Protected) => {
+            FocusRead::NoAnswer { protected: true }
+        }
+        (PasswordProperty::NoAnswer, ProtectedState::NotProtected) => {
+            FocusRead::NoAnswer { protected: false }
+        }
+        (PasswordProperty::NoAnswer, ProtectedState::ReadFailed)
+        | (PasswordProperty::ReadFailed, _) => FocusRead::Unreadable,
+    }
+}
+
 pub(crate) fn state_of(read: FocusRead, still_the_last_password_element: bool) -> FieldState {
     if still_the_last_password_element {
         return FieldState::Password;
@@ -83,6 +136,9 @@ pub enum ContentReading {
     /// The element is a password field, or the key's state of the same read
     /// is Password.
     Password,
+    /// The element gave no answer on whether it is a password field, is not
+    /// protected and is not Firefox's: a title may be kept by it, a frame not.
+    NoAnswer,
     /// No reading that a title or a frame may be kept by.
     Unknown(UnknownBy),
 }
@@ -111,10 +167,9 @@ pub enum ClearBy {
 pub enum UnknownBy {
     /// The detector has made no read since it started, or it is stopped.
     BeforeFirstRead,
-    /// Firefox, by its file name or by its engine Gecko.
+    /// Firefox, by its file name or by its engine Gecko, whether its element
+    /// answered or not.
     Firefox,
-    /// The element gave no answer.
-    NoAnswer,
     /// No element could be read.
     Unreadable,
     /// The desktop switched.
@@ -122,7 +177,7 @@ pub enum UnknownBy {
 }
 
 /// The content readings that the sources of a gate asked of it, Clear by
-/// the kind that answered and Unknown by its cause.
+/// the kind that answered, no answer on its own, and Unknown by its cause.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct GateReadings {
     /// Clear by a native edit control.
@@ -140,7 +195,8 @@ pub struct GateReadings {
     pub before_first_read: u64,
     /// Unknown in Firefox.
     pub firefox: u64,
-    /// Unknown with no answer.
+    /// No answer: a title is kept at it and a frame is not, so it is not
+    /// among the readings that are Unknown.
     pub no_answer: u64,
     /// Unknown with no readable element.
     pub unreadable: u64,
@@ -156,11 +212,7 @@ impl GateReadings {
 
     /// The readings that were Unknown.
     pub fn unknown(&self) -> u64 {
-        self.before_first_read
-            + self.firefox
-            + self.no_answer
-            + self.unreadable
-            + self.desktop_switch
+        self.before_first_read + self.firefox + self.unreadable + self.desktop_switch
     }
 
     fn count(&mut self, reading: ContentReading) {
@@ -170,9 +222,9 @@ impl GateReadings {
             ContentReading::Clear(ClearBy::Edge) => &mut self.edge,
             ContentReading::Clear(ClearBy::OtherKind) => &mut self.other_kind,
             ContentReading::Password => &mut self.password_field,
+            ContentReading::NoAnswer => &mut self.no_answer,
             ContentReading::Unknown(UnknownBy::BeforeFirstRead) => &mut self.before_first_read,
             ContentReading::Unknown(UnknownBy::Firefox) => &mut self.firefox,
-            ContentReading::Unknown(UnknownBy::NoAnswer) => &mut self.no_answer,
             ContentReading::Unknown(UnknownBy::Unreadable) => &mut self.unreadable,
             ContentReading::Unknown(UnknownBy::DesktopSwitch) => &mut self.desktop_switch,
         };
@@ -180,10 +232,11 @@ impl GateReadings {
     }
 }
 
-/// The content reading of one read: `gecko` says whether the element's
-/// framework is Gecko, and `key` is the key's state of the same read, with
-/// the kept password element.
-pub(crate) fn content_of(read: FocusRead, gecko: bool, key: FieldState) -> ContentReading {
+/// The content reading of one read: `firefox` says whether the element is
+/// Firefox's, by the file name of its process or by its framework Gecko, and
+/// `key` is the key's state of the same read, with the kept password element.
+/// A read with no answer in Firefox reads Unknown, as an answered one does.
+pub(crate) fn content_of(read: FocusRead, firefox: bool, key: FieldState) -> ContentReading {
     if key == FieldState::Password {
         return ContentReading::Password;
     }
@@ -197,13 +250,16 @@ pub(crate) fn content_of(read: FocusRead, gecko: bool, key: FieldState) -> Conte
         | FocusRead::NoAnswer { protected: true } => ContentReading::Password,
         FocusRead::Answered { kind, .. } => match kind {
             Kind::Firefox => ContentReading::Unknown(UnknownBy::Firefox),
-            _ if gecko => ContentReading::Unknown(UnknownBy::Firefox),
+            _ if firefox => ContentReading::Unknown(UnknownBy::Firefox),
             Kind::NativeEdit => ContentReading::Clear(ClearBy::NativeEdit),
             Kind::Chrome => ContentReading::Clear(ClearBy::Chrome),
             Kind::Edge => ContentReading::Clear(ClearBy::Edge),
             Kind::Other => ContentReading::Clear(ClearBy::OtherKind),
         },
-        FocusRead::NoAnswer { protected: false } => ContentReading::Unknown(UnknownBy::NoAnswer),
+        FocusRead::NoAnswer { protected: false } if firefox => {
+            ContentReading::Unknown(UnknownBy::Firefox)
+        }
+        FocusRead::NoAnswer { protected: false } => ContentReading::NoAnswer,
         FocusRead::Unreadable => ContentReading::Unknown(UnknownBy::Unreadable),
     }
 }
@@ -1339,6 +1395,7 @@ impl PasswordGate {
         PasswordFieldProbe(match reading {
             ContentReading::Password => SecureInputReading::Active,
             ContentReading::Clear(_) => SecureInputReading::Inactive,
+            ContentReading::NoAnswer => SecureInputReading::NoAnswer,
             ContentReading::Unknown(_) => SecureInputReading::Unknown,
         })
     }
@@ -1362,10 +1419,10 @@ impl PasswordGate {
     /// A focus event of one read, as the detector marks it with no kept
     /// password element: the key's state and the content reading of the read.
     #[cfg(test)]
-    pub(crate) fn focus_read_at(&self, at: u32, read: FocusRead, gecko: bool) {
+    pub(crate) fn focus_read_at(&self, at: u32, read: FocusRead, firefox: bool) {
         let key = state_of(read, false);
         self.shared
-            .field(at, key, content_of(read, gecko, key), None);
+            .field(at, key, content_of(read, firefox, key), None);
     }
 
     #[cfg(test)]
@@ -1468,7 +1525,7 @@ mod detector {
         STATE_SYSTEM_PROTECTED, WINEVENT_OUTOFCONTEXT,
     };
 
-    use super::{kind_of, FieldState, FocusRead, PasswordGate, Shared};
+    use super::{kind_of, FieldState, FocusRead, Kind, PasswordGate, Shared};
     use crate::source::CaptureError;
 
     fn os(stage: &'static str, error: &windows::core::Error) -> CaptureError {
@@ -1952,23 +2009,31 @@ mod detector {
         fn read(&self, element: &IUIAutomationElement) -> (FocusRead, bool) {
             // SAFETY: `element` is a live element whose cache holds the
             // properties that the cache request names.
-            let is_password = unsafe {
-                element
-                    .GetCachedPropertyValueEx(UIA_IsPasswordPropertyId, DEFAULT_IS_NO_ANSWER)
-                    .ok()
-                    .and_then(|mut value| variant_bool(&mut value))
-            };
+            let password = unsafe {
+                element.GetCachedPropertyValueEx(UIA_IsPasswordPropertyId, DEFAULT_IS_NO_ANSWER)
+            }
+            .map_or(super::PasswordProperty::ReadFailed, |mut value| {
+                variant_bool(&mut value).map_or(
+                    super::PasswordProperty::NoAnswer,
+                    super::PasswordProperty::Answered,
+                )
+            });
             // SAFETY: as above.
             let protected = unsafe {
-                element
-                    .GetCachedPropertyValueEx(
-                        UIA_LegacyIAccessibleStatePropertyId,
-                        DEFAULT_IS_NO_ANSWER,
-                    )
-                    .ok()
-                    .and_then(|mut value| variant_i32(&mut value))
+                element.GetCachedPropertyValueEx(
+                    UIA_LegacyIAccessibleStatePropertyId,
+                    DEFAULT_IS_NO_ANSWER,
+                )
             }
-            .is_some_and(|state| state as u32 & STATE_SYSTEM_PROTECTED != 0);
+            .map_or(super::ProtectedState::ReadFailed, |mut value| {
+                if variant_i32(&mut value)
+                    .is_some_and(|state| state as u32 & STATE_SYSTEM_PROTECTED != 0)
+                {
+                    super::ProtectedState::Protected
+                } else {
+                    super::ProtectedState::NotProtected
+                }
+            });
             // SAFETY: as above.
             let framework = unsafe { element.CachedFrameworkId() }
                 .ok()
@@ -1986,23 +2051,25 @@ mod detector {
                 framework.as_deref().unwrap_or("none"),
                 class.as_deref().unwrap_or("none"),
                 file.as_deref().unwrap_or("none"),
-                is_password.map_or("none", |p| if p { "1" } else { "0" }),
-                u8::from(protected),
+                match password {
+                    super::PasswordProperty::Answered(true) => "1",
+                    super::PasswordProperty::Answered(false) => "0",
+                    super::PasswordProperty::NoAnswer => "none",
+                    super::PasswordProperty::ReadFailed => "error",
+                },
+                match protected {
+                    super::ProtectedState::Protected => "1",
+                    super::ProtectedState::NotProtected => "0",
+                    super::ProtectedState::ReadFailed => "error",
+                },
                 u8::from(pid.is_some()),
                 _file_read.text(),
             ));
-            let gecko = framework
-                .as_deref()
-                .is_some_and(|id| id.eq_ignore_ascii_case("Gecko"));
-            let read = match is_password {
-                Some(is_password) => FocusRead::Answered {
-                    is_password,
-                    protected,
-                    kind,
-                },
-                None => FocusRead::NoAnswer { protected },
-            };
-            (read, gecko)
+            let firefox = kind == Kind::Firefox
+                || framework
+                    .as_deref()
+                    .is_some_and(|id| id.eq_ignore_ascii_case("Gecko"));
+            (super::focus_read_of(password, protected, kind), firefox)
         }
 
         #[cfg(feature = "test-seam")]
@@ -2055,8 +2122,8 @@ mod detector {
                 );
                 FieldState::Password
             } else {
-                let (read, gecko) = self.read(element);
-                focus = Some((read, gecko));
+                let (read, firefox) = self.read(element);
+                focus = Some((read, firefox));
                 super::state_of(read, false)
             };
             let (state, change) = super::with_kept(
@@ -2072,8 +2139,8 @@ mod detector {
                 super::Kept::Set => *kept = Some((element.clone(), moves)),
                 super::Kept::Drop => *kept = None,
             }
-            let content = focus.map_or(super::ContentReading::Password, |(read, gecko)| {
-                super::content_of(read, gecko, state)
+            let content = focus.map_or(super::ContentReading::Password, |(read, firefox)| {
+                super::content_of(read, firefox, state)
             });
             (state, content)
         }
@@ -5388,7 +5455,7 @@ mod tests {
         let ask = |gate: &PasswordGate| gate.shared.lock().ask();
         let clear = ContentReading::Clear(ClearBy::NativeEdit);
         let firefox = ContentReading::Unknown(UnknownBy::Firefox);
-        let no_answer = ContentReading::Unknown(UnknownBy::NoAnswer);
+        let no_answer = ContentReading::NoAnswer;
         gate.started_at(1_000);
         let first_asked = ask(&gate);
         event_lands(&gate, 1_010, Unknown, firefox);

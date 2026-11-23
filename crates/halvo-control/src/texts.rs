@@ -91,12 +91,14 @@ const PASSWORDS_WITH_SECURE_INPUT: &str = "While a password field holds secure i
 
 /// The passwords row on Windows while the keyboard source line reads off, in the coordinator's
 /// words: the gate of the Windows service set holds window titles and screen activity back
-/// while a password field has the focus.
-const PASSWORDS_BY_THE_GATE_ON_WINDOWS: &str = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
+/// while a password field has the focus; where a program does not say, it keeps the title and
+/// holds screen activity back (win-title-where-no-answer, the sentence as ruled).
+const PASSWORDS_BY_THE_GATE_ON_WINDOWS: &str = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. Where a program does not say, Halvo records the window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
 
 /// The passwords row on Windows while the keyboard source line is not off and the guard is
-/// Halvo's; its first clause is U1's sentence W2 (a).
-const PASSWORDS_WITH_HALVO_S_DETECTOR: &str = "Halvo records a key only when, just after you press it, the text changes in a field that is not a password field; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
+/// Halvo's; its first clause is U1's sentence W2 (a), and its last sentence is the one that
+/// win-title-where-no-answer joins to the row with typing off, as ruled.
+const PASSWORDS_WITH_HALVO_S_DETECTOR: &str = "Halvo records a key only when, just after you press it, the text changes in a field that is not a password field; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse. Where a program does not say, Halvo records the window title and no screen activity.";
 
 pub const UNSIGNED_BUILD_CUSTODY: &str = "This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.";
 
@@ -843,11 +845,11 @@ mod tests {
         );
         assert_eq!(
             passwords(Platform::Windows, PasswordGuard::None, SourceClass::Off),
-            "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser."
+            "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. Where a program does not say, Halvo records the window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser."
         );
         assert_eq!(
             passwords(Platform::Windows, PasswordGuard::Halvo, SourceClass::Runs),
-            "Halvo records a key only when, just after you press it, the text changes in a field that is not a password field; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse."
+            "Halvo records a key only when, just after you press it, the text changes in a field that is not a password field; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse. Where a program does not say, Halvo records the window title and no screen activity."
         );
         assert_eq!(
             passwords(Platform::Windows, PasswordGuard::None, SourceClass::Runs),
@@ -976,9 +978,9 @@ mod tests {
     const S1: &str =
         "Screen activity is being recorded although the setting is off. Pause capture to stop it.";
     const S2: &str = "Screen activity may still be recorded although the setting is off: Halvo's capture service reports a fault in that part. To be sure it is off, pause capture or quit Halvo.";
-    const P0: &str = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
+    const P0: &str = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. Where a program does not say, Halvo records the window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
     const PM: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
-    const PH: &str = "Halvo records a key only when, just after you press it, the text changes in a field that is not a password field; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
+    const PH: &str = "Halvo records a key only when, just after you press it, the text changes in a field that is not a password field; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse. Where a program does not say, Halvo records the window title and no screen activity.";
     const PW: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field and what kind of key it is, never which letter, digit or sign. Pause capture before you type a password.";
     const TA: &str = "A key that you press before a program or page has moved to its password field, for example while it is frozen or still loading, can be noted: when it was pressed, in which app and what kind of key, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in.";
     const KW: &str = KEYS_RECORDED_ON_WINDOWS;
@@ -1722,7 +1724,7 @@ mod tests {
     #[test]
     fn app_4a_on_windows_while_no_typing_is_observed_the_passwords_row_names_the_gate_of_a_password_field(
     ) {
-        let sentence = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
+        let sentence = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. Where a program does not say, Halvo records the window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
         for &guard in PasswordGuard::ALL {
             assert_eq!(
                 passwords(Platform::Windows, guard, SourceClass::Off),
@@ -1761,8 +1763,8 @@ mod tests {
     }
 
     /// The rest of the passwords row of the Windows gate behind its first clause, as it stood
-    /// before U1.
-    const DETECTOR_ROW_REST: &str = " to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
+    /// before U1, with the ruled sentence of win-title-where-no-answer at its end.
+    const DETECTOR_ROW_REST: &str = " to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse. Where a program does not say, Halvo records the window title and no screen activity.";
 
     #[test]
     fn u1_each_windows_sentence_is_the_ruled_one_to_the_letter() {
