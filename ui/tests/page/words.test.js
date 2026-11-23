@@ -256,6 +256,7 @@ const WORDS = {
   MODEL_KEY_REMOVE_FAILED: "Halvo could not finish this. If this page still says that a key is saved, choose Remove the key again.",
   MODEL_KEY_GOES: "Halvo also removes your key for {host}.",
   MODEL_KEY_STAYS: "Your key for {host} and what each agent may send stay as they are.",
+  TYPING_OFF_NOT_SAVED: "Typing is off for now, but Halvo could not save that. After Halvo starts again, turn it off once more.",
 };
 
 const OWNER = {

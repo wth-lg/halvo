@@ -100,3 +100,37 @@ test("the control of typing reads each state, never says off beside a row of key
   const without = await openPage({ replies: { capture_status: () => bare } });
   assert.equal(without.visible("record-typing"), false, "no control where the view carries none");
 });
+
+const OFF_NOT_SAVED = "Typing is off for now, but Halvo could not save that. After Halvo starts again, turn it off once more.";
+
+test("a turn off whose save failed says so in place of the settings sentence, on a Mac's page and on Windows', while the page shows typing off", async () => {
+  for (const [name, row] of [
+    ["capture_status-running", MAC_KEYS],
+    ["capture_status-running-windows", WINDOWS_KEYS],
+  ]) {
+    const on = turnedOn(fixture(name));
+    const off = turnedOff(fixture(name), row);
+    let status = on;
+    const page = await openPage({
+      replies: {
+        capture_status: () => status,
+        set_typing: () => {
+          status = off;
+          return Promise.reject({ error: "state_file" });
+        },
+      },
+    });
+    assert.equal(page.visible("typing-not-saved"), false, `${name}: nothing before a turn`);
+    await page.click("record-typing", { detail: 1 });
+    assert.equal(page.text("error"), "", `${name}: not the settings sentence`);
+    await page.clock.advance(60000);
+    await page.settle();
+    assert.equal(page.byId("record-typing").getAttribute("aria-checked"), "false", name);
+    assert.equal(page.visible("typing-not-saved"), true, `${name}: a minute later`);
+    assert.equal(page.text("typing-not-saved"), OFF_NOT_SAVED, name);
+    status = on;
+    await page.clock.advance(3000);
+    await page.settle();
+    assert.equal(page.visible("typing-not-saved"), false, `${name}: gone once typing reads on`);
+  }
+});

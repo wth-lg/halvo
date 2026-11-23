@@ -9,12 +9,16 @@
   var ifOn;
   var ifOnLead;
   var ifOnRow;
+  var notSavedLine;
   var view;
   var turning = false;
+  var offNotSaved = false;
   var shownOn = null;
 
   function renderTyping(control) {
     shownOn = control ? control.on === true : null;
+    if (shownOn === true) offNotSaved = false;
+    notSavedLine.classList.toggle("hidden", !(offNotSaved && shownOn === false));
     if (!control) {
       typingBox.classList.add("hidden");
       return;
@@ -73,15 +77,21 @@
   function onTurn(event) {
     if (turning || shownOn === null) return Promise.resolve();
     if (event && event.detail > 1) return Promise.resolve();
+    var on = !shownOn;
     turning = true;
     typingToggle.disabled = true;
     Halvo.showError("");
     return Halvo.ipc
-      .call("set_typing", { on: !shownOn })
+      .call("set_typing", { on: on })
       .then(function (view) {
+        offNotSaved = false;
         Halvo.takeMutationReply(view);
       })
       .catch(function (e) {
+        if (!on && e && e.error === "state_file") {
+          offNotSaved = true;
+          return Halvo.feed("status").refresh();
+        }
         Halvo.showError(e);
       })
       .then(function () {
@@ -103,7 +113,8 @@
       ifOnLead = Halvo.el("p", { id: "typing-if-on-lead", class: "muted" });
       ifOnRow = Halvo.el("p", { id: "typing-if-on-row", class: "muted" });
       ifOn = Halvo.el("div", { id: "typing-if-on", class: "hidden" }, [ifOnLead, ifOnRow]);
-      typingBox = Halvo.el("li", { id: "typing-control", class: "hidden" }, [typingToggle, ifOn]);
+      notSavedLine = Halvo.el("p", { id: "typing-not-saved", class: "hidden", text: w.TYPING_OFF_NOT_SAVED });
+      typingBox = Halvo.el("li", { id: "typing-control", class: "hidden" }, [typingToggle, notSavedLine, ifOn]);
       view = el;
       el.append(text, recorded, typingBox, others);
       Halvo.feed("status").on(render);
