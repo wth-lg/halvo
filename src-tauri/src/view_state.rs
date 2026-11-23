@@ -8,7 +8,9 @@ use halvo_control::proto::{
     Platform, Reason, RootDestroyed, Section, SourceName, SourceState, SourceStateName, StateFile,
     StopKind, StoreErrorKind, StoreState, SwitchName,
 };
-use halvo_control::texts::{first_run, texts, Recorded, Texts, TYPING_NOT_RECORDED};
+use halvo_control::texts::{
+    first_run, texts, typing_switch, Recorded, Texts, TypingSwitch, TYPING_NOT_RECORDED,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
@@ -147,6 +149,9 @@ pub struct RunningView {
     /// The first run's rows of what a start records, which the question of a reset of the
     /// settings shows: on a settings file that cannot be read alone.
     pub reset_recorded: Option<Vec<Recorded>>,
+    /// The control that turns the switch of keys, where the view shows what typing records
+    /// ([`typing_shown`]).
+    pub typing_switch: Option<TypingSwitch>,
     /// The folder of the crash reports of the web view of Halvo's own window, where one stayed at
     /// the app's start on Windows.
     pub crash_reports_left: Option<String>,
@@ -694,6 +699,8 @@ struct WireView<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     reset_recorded: Option<&'a [Recorded]>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    typing_switch: Option<&'a TypingSwitch>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     crash_reports_left: Option<&'a str>,
 }
 
@@ -729,6 +736,7 @@ impl Serialize for StatusView {
                 state_file: view.state_file,
                 screen_not_renewed: view.screen_not_renewed,
                 reset_recorded: view.reset_recorded.as_deref(),
+                typing_switch: view.typing_switch.as_ref(),
                 crash_reports_left: view.crash_reports_left.as_deref(),
             },
             StatusView::NoStatus(view) => WireView {
@@ -763,6 +771,7 @@ impl Serialize for StatusView {
                 state_file: None,
                 screen_not_renewed: false,
                 reset_recorded: None,
+                typing_switch: None,
                 crash_reports_left: view.crash_reports_left.as_deref(),
             },
         };
@@ -914,6 +923,7 @@ impl StatusView {
                 StateFile::Ok | StateFile::WriteFailed => None,
             },
             reset_recorded: (f.state_file == StateFile::Corrupt).then(|| reset_rows(status)),
+            typing_switch: typing_shown(status).then(|| typing_switch(status)),
             login_item_written: None,
             screen_not_renewed: false,
             crash_reports_left: None,
@@ -1011,9 +1021,14 @@ fn reset_rows(status: &DaemonStatus) -> Vec<Recorded> {
 /// keys and of pointer actions and without the same two sentences; while its tap asked for the
 /// pointer types alone, [`TYPING_NOT_RECORDED`] in place of the row of keys, the row of pointer
 /// actions kept, and neither sentence; while it reads off, the same without the row of pointer
-/// actions.
+/// actions. On a Mac whose switch key_class reads off, neither sentence either: the row of keys
+/// reads [`TYPING_NOT_RECORDED`] by the status's own rows.
 pub fn texts_shown(status: &DaemonStatus) -> Texts {
     let mut shown = texts(status);
+    if !typing_switch(status).on && status.fields().platform == Platform::Macos {
+        shown.passwords = "";
+        shown.typed_ahead = None;
+    }
     if !typing_shown(status) {
         shown
             .recorded

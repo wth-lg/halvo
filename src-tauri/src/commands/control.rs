@@ -186,6 +186,10 @@ pub trait Control: Send + Sync {
     /// reset, before the daemon's life ends and starts again.
     fn reset_settings(&self, made: Made) -> Result<DaemonStatus, ClientError>;
 
+    /// Sends one set_typing, which turns the switch of keys alone, and answers the status that
+    /// comes back.
+    fn set_typing(&self, made: Made, on: bool) -> Result<DaemonStatus, ClientError>;
+
     /// Asks the daemon for one end of a new owner stream (the workflows run's W-C24.13), on which the coordinator's
     /// requests reach the owner of the derived store.
     #[cfg(any(target_os = "macos", windows))]
@@ -383,6 +387,12 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
 
     fn reset_settings(&self, made: Made) -> Result<DaemonStatus, ClientError> {
         self.run(made, &Request::ResetSettings, Client::reset_settings)
+    }
+
+    fn set_typing(&self, made: Made, on: bool) -> Result<DaemonStatus, ClientError> {
+        self.run(made, &Request::SetTyping { on }, |client| {
+            client.set_typing(on)
+        })
     }
 
     /// The stream call of `streaming`, in its place in the line; a control made by `new` answers
@@ -792,6 +802,11 @@ impl<C: Control> Control for Watching<C> {
     fn reset_settings(&self, made: Made) -> Result<DaemonStatus, ClientError> {
         let before = self.pid.get();
         self.took_status(before, self.inner.reset_settings(made))
+    }
+
+    fn set_typing(&self, made: Made, on: bool) -> Result<DaemonStatus, ClientError> {
+        let before = self.pid.get();
+        self.took_status(before, self.inner.set_typing(made, on))
     }
 
     #[cfg(any(target_os = "macos", windows))]

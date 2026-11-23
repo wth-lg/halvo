@@ -49,7 +49,6 @@ const NOT_READ = {
   password_guard: "the page draws the sentence texts.passwords",
   platform: "the page draws the sentences of texts, which carry the system",
   screen_filter_excludes_app: "the rule of the window, which app-3 applies",
-  switch: "the page draws the text of each recorded sentence",
 };
 
 const shape = (node) =>

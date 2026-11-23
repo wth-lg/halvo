@@ -19,6 +19,7 @@
     "allow-delete-offline",
     "allow-remove-halvo",
     "allow-reset-settings",
+    "allow-set-typing",
     "core:app:allow-version"
   ]
 }

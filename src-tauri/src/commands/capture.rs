@@ -137,6 +137,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         delete_offline,
         remove_halvo,
         reset_settings,
+        set_typing,
     ];
     handle(invoke)
 }
@@ -1225,6 +1226,29 @@ pub async fn reset_settings(state: State<'_, AppState>) -> Result<StatusView, Ac
     let control = Arc::clone(&state.control);
     let views = Arc::clone(&state.views);
     let answer = off_the_main_thread(move || reset(control.as_ref(), &views)).await?;
+    draw_off_the_main_thread(&state.views).await;
+    answer
+}
+
+/// The turn of the switch of keys, the command `set_typing`: one set_typing request, whose
+/// status the views take as the answer of a mutation, and its view. A refusal is answered as the
+/// command's error, and no second request goes out: an older service's unsupported_op is
+/// [`ActionError::UpdateTheApp`].
+pub fn typing(control: &dyn Control, views: &Views, on: bool) -> Result<StatusView, ActionError> {
+    let made = control.places().make();
+    let call = made.number();
+    let answer = control.set_typing(made, on);
+    let next_number_at_answer = control.places().next_number();
+    let status = answer.map_err(|error| not_taken(&error))?;
+    views.take_mutation(call, next_number_at_answer, &status);
+    Ok(views.marked(StatusView::of(&status)))
+}
+
+#[tauri::command]
+pub async fn set_typing(state: State<'_, AppState>, on: bool) -> Result<StatusView, ActionError> {
+    let control = Arc::clone(&state.control);
+    let views = Arc::clone(&state.views);
+    let answer = off_the_main_thread(move || typing(control.as_ref(), &views, on)).await?;
     draw_off_the_main_thread(&state.views).await;
     answer
 }
