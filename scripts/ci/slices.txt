@@ -1,11 +1,11 @@
-# The eight slices: what CI runs outside the merge gate, one slice a day and wed2 a second slice on
-# Wednesday.
+# The nine slices: what CI runs outside the merge gate, one slice a day, tue2 a second slice on
+# Tuesday and wed2 a second slice on Wednesday.
 # sh scripts/ci/run-ci-d.sh <job> --slice <slice> runs the lines of its slice and job: first the
 # self-tests, then the checks. A check or a self-test that no line here and no line of
 # scripts/ci/merge-gate.txt names runs in no run of CI.
 #
 # A line is: <slice> <job> <kind> <name>
-#   slice  mon, tue, wed, wed2, thu, fri, sat or sun
+#   slice  mon, tue, tue2, wed, wed2, thu, fri, sat or sun
 #   job    macos or windows
 #   kind   check      the check of that name
 #          self-test  the self-test of the check of that name
@@ -28,6 +28,13 @@ tue macos tests B
 tue macos check 25-advisories
 tue windows tests B
 
+# tue2 runs at 04:47 UTC on Tuesday. Its group G came out of the group B, whose slice tue took 994 s in
+# the macos job, on an Apple M1 (Virtual) with 3 processors, and 1,072 s in the windows job, on an AMD
+# EPYC 7763, in the run by hand 45116131132: the lines of G took 224 s and 168 s of the tests there.
+tue2 macos tests G
+tue2 macos check 25-advisories
+tue2 windows tests G
+
 wed macos tests E
 wed macos check 51-macos-stall
 wed macos check 30-core-boundary-proofs
@@ -41,7 +48,13 @@ wed windows check 50-windows-functional
 # AMD EPYC 7763, each with its seconds there: 60-r6-egress 167 (wed, run 45096596639), 10-egress 215 (thu,
 # 45086425387), 38-app-engine-routes 197 and 80-r6-absent 52 (sat, 45098472482), 10-r7-account 124 (mon,
 # 45050615172); with 141 to 156 s of steps the job is reckoned at 896 to 911 s on that kind. Its run by
-# hand 45108441992 took 876 s on an Intel Xeon Platinum 8573C.
+# hand 45108441992 took 876 s on an Intel Xeon Platinum 8573C. Its macos job (129 s in that run) took
+# from the merge gate of the macos job the lint 11-clippy (77, 93 and 141 s in the pull request runs
+# 45111247085, 45112524657 and 45111386498) and the group F (about 81 s of tests in the third, before
+# its builds); with them, and the test targets of halvo-owner then in F, it took 523 s in the run by
+# hand 45118372937, the step ci.d slice 371 s.
+wed2 macos check 11-clippy
+wed2 macos tests F
 wed2 macos check 25-advisories
 wed2 windows check 38-app-engine-routes
 wed2 windows check 10-egress
