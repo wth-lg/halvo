@@ -16,7 +16,8 @@ pub enum Value {
 /// (its section 2) with the comma as the one separator, after one byte-order mark at the first
 /// byte. No line break stands inside a field, so a row is a line and a refusal names the line.
 /// A fault of the form stops the read where it stands. Behind the last row, a file that reads as
-/// a table by another separator is refused before rows of unequal length are.
+/// a table by another separator (`another_separator`) is refused before rows of unequal length
+/// are.
 pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
     let text = std::str::from_utf8(bytes).map_err(|_| Error::Source(SourceRefusal::Encoding))?;
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
@@ -24,9 +25,12 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
     let mut signs: Vec<Signs> = Vec::new();
     let mut at = 0;
     while at < text.len() {
-        let (row, row_signs, next) = row(text, at, rows.len() + 1)?;
+        let (row, end, next) = row(text, at, rows.len() + 1)?;
+        let line = &text[at..end];
+        if !line.is_empty() {
+            signs.push(Signs::of(line));
+        }
         rows.push(row);
-        signs.push(row_signs);
         at = next;
     }
     if another_separator(&signs) {
@@ -41,16 +45,50 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
     Ok(rows)
 }
 
-/// The semicolons and the tabs that a row holds outside its quoted fields.
-#[derive(Clone, Copy, Default)]
+/// The semicolons and the tabs of a line that is not empty, each sign counted outside the quoted
+/// fields of the line read as a row of that sign.
+#[derive(Clone, Copy)]
 struct Signs {
     semicolons: usize,
     tabs: usize,
 }
 
-/// Whether the rows read as a table by another separator than the comma: the semicolons outside
-/// quoted fields, or the tabs outside them, each sign counted on its own, are one or more and as
-/// many in every row.
+impl Signs {
+    fn of(line: &str) -> Signs {
+        Signs {
+            semicolons: outside_quotes(line, b';'),
+            tabs: outside_quotes(line, b'\t'),
+        }
+    }
+}
+
+/// The signs `sign` of `line` that stand outside its quoted fields, the line read as fields
+/// separated by `sign`: a double quote at the line's start or right behind `sign` opens a quoted
+/// field, and the next double quote that no second one follows closes it. How the line is read
+/// as a row of commas does not hang on this.
+fn outside_quotes(line: &str, sign: u8) -> usize {
+    let mut count = 0;
+    let mut start = true;
+    let mut quoted = false;
+    let mut bytes = line.bytes().peekable();
+    while let Some(byte) = bytes.next() {
+        if quoted {
+            if byte == b'"' && bytes.next_if_eq(&b'"').is_none() {
+                quoted = false;
+            }
+        } else if byte == sign {
+            count += 1;
+            start = true;
+        } else {
+            quoted = start && byte == b'"';
+            start = false;
+        }
+    }
+    count
+}
+
+/// Whether the rows read as a table by another separator than the comma: the semicolons, or the
+/// tabs, that `Signs` counts are one or more and as many in every line that is not empty.
 fn another_separator(signs: &[Signs]) -> bool {
     let same = |count: fn(&Signs) -> usize| {
         signs.first().is_some_and(|first| {
@@ -60,27 +98,20 @@ fn another_separator(signs: &[Signs]) -> bool {
     same(|row| row.semicolons) || same(|row| row.tabs)
 }
 
-/// The row of the line `line` that starts at the byte `at` of `text`, the semicolons and tabs
-/// that it holds outside its quoted fields, and the byte behind its line end (LF or CRLF) or
-/// the end of the text.
-fn row(text: &str, mut at: usize, line: usize) -> Result<(Vec<Value>, Signs, usize), Error> {
+/// The row of the line `line` that starts at the byte `at` of `text`, the byte where its line
+/// end (LF or CRLF) or the end of the text stands, and the byte behind that line end.
+fn row(text: &str, mut at: usize, line: usize) -> Result<(Vec<Value>, usize, usize), Error> {
     let bytes = text.as_bytes();
     let mut row = Vec::new();
-    let mut signs = Signs::default();
     loop {
-        let quoted = bytes.get(at) == Some(&b'"');
         let (cell, end) = field(text, at, line)?;
-        if !quoted {
-            signs.semicolons += cell.matches(';').count();
-            signs.tabs += cell.matches('\t').count();
-        }
         row.push(value(&cell));
         match bytes.get(end) {
             Some(b',') => at = end + 1,
-            Some(b'\n') => return Ok((row, signs, end + 1)),
-            Some(b'\r') if bytes.get(end + 1) == Some(&b'\n') => return Ok((row, signs, end + 2)),
+            Some(b'\n') => return Ok((row, end, end + 1)),
+            Some(b'\r') if bytes.get(end + 1) == Some(&b'\n') => return Ok((row, end, end + 2)),
             Some(b'\r') => return Err(Error::Source(SourceRefusal::CarriageReturn)),
-            None => return Ok((row, signs, end)),
+            None => return Ok((row, end, end)),
             // Text behind the quote that closed the field.
             Some(_) => return Err(Error::Source(SourceRefusal::Quote { line })),
         }

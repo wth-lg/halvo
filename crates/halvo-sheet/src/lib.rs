@@ -119,11 +119,14 @@ impl Folder {
     /// this order where two hold: the file is not UTF-8; it holds a carriage return that no line
     /// feed follows, a line break inside a quoted field, text behind a closing quote or a quote
     /// that is never closed, the first of them in the file named; it reads as a table by another
-    /// separator than the comma, where the semicolons outside quoted fields, or the tabs outside
-    /// them, are one or more and as many in every row (so a file of one row with one such sign
-    /// is refused); or its rows have different lengths. No other separator is read: in any other
-    /// file a semicolon or a tab is text, so a file whose rows hold different counts of
-    /// semicolons is read by its commas alone.
+    /// separator than the comma; or its rows have different lengths. A file reads as a table by
+    /// semicolons where every line that is not empty, read as a row of semicolons (a double quote
+    /// at the line's start or right behind a semicolon opens a quoted field, two double quotes
+    /// in it are one, and the semicolons inside it are not counted), holds one or more
+    /// semicolons and as many as every other such line; the same for tabs, each sign counted on
+    /// its own. So a file of one row with one such sign is refused, and an empty line counts for
+    /// nothing. No other separator is read: in any other file a semicolon or a tab is text, so
+    /// a file whose lines hold different counts of semicolons is read by its commas alone.
     pub fn read_source(&self, source: &Path) -> Result<Vec<Vec<Value>>, Error> {
         let full = self.file(source)?;
         source::parse(&std::fs::read(full)?)
