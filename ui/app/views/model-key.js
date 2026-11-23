@@ -5,10 +5,13 @@
   var host = null;
   var state = null;
   var section = null;
-  var label, text, field, stateLine, said, removeButton, removeRow, removeQuestion, partsBox;
+  var label, text, field, saveButton, stateLine, said, removeButton, confirmRemove, removeRow, removeQuestion, partsBox;
   var parts = [];
   var mounted = 0;
   var lines = [];
+  /** The replies of save_model_key and remove_model_key that set the state or read it again: a state read that one of them overtook changes nothing. */
+  var answers = 0;
+  var flying = false;
 
   /**
    * The section of the AI model, which shows only in a build whose app names a host (model_key_state), is open to
@@ -73,21 +76,44 @@
 
   /** Reads the host and the state from the app; a failed read leaves no host unnamed and a named one not known. */
   function read() {
+    var at = answers;
     return Halvo.ipc.call("model_key_state").then(
       function (reply) {
+        if (at !== answers) return;
         var named = reply && typeof reply.host === "string" && reply.host !== "";
         host = named ? reply.host : null;
         state = named && (reply.state === "saved" || reply.state === "none") ? reply.state : "not_known";
         draw();
       },
       function () {
+        if (at !== answers) return;
         state = "not_known";
         draw();
       },
     );
   }
 
+  /** While save_model_key or remove_model_key is in flight the three controls send nothing; Save the key also waits for a text in the field. */
+  function controls() {
+    saveButton.disabled = flying || field.value === "";
+    removeButton.disabled = flying;
+    confirmRemove.disabled = flying;
+  }
+
+  /** From the press that sends save_model_key or remove_model_key until its reply or its failure. */
+  function inFlight(on) {
+    flying = on;
+    controls();
+  }
+
+  function answered(newState) {
+    answers += 1;
+    state = newState;
+    draw();
+  }
+
   function failed(words) {
+    answers += 1;
     said.textContent = words;
     read();
   }
@@ -97,11 +123,12 @@
     var pasted = field.value;
     field.value = "";
     said.textContent = "";
+    inFlight(true);
     Halvo.ipc.call("save_model_key", { key: pasted }).then(
       function (reply) {
+        inFlight(false);
         if (reply && reply.state === "saved") {
-          state = "saved";
-          draw();
+          answered("saved");
         } else if (reply && reply.error === "no_key") {
           said.textContent = w.MODEL_KEY_NOT_A_KEY;
         } else {
@@ -109,6 +136,7 @@
         }
       },
       function () {
+        inFlight(false);
         failed(w.MODEL_KEY_SAVE_FAILED);
       },
     );
@@ -117,16 +145,18 @@
   function onRemove() {
     removeRow.classList.add("hidden");
     said.textContent = "";
+    inFlight(true);
     Halvo.ipc.call("remove_model_key").then(
       function (reply) {
+        inFlight(false);
         if (reply && reply.state === "none") {
-          state = "none";
-          draw();
+          answered("none");
         } else {
           failed(w.MODEL_KEY_REMOVE_FAILED);
         }
       },
       function () {
+        inFlight(false);
         failed(w.MODEL_KEY_REMOVE_FAILED);
       },
     );
@@ -147,8 +177,9 @@
       field.setAttribute("autocorrect", "off");
       field.setAttribute("autocapitalize", "off");
       field.setAttribute("spellcheck", "false");
-      var save = Halvo.el("button", { id: "model-key-save", text: w.MODEL_KEY_SAVE });
-      save.onclick = onSave;
+      field.addEventListener("input", controls);
+      saveButton = Halvo.el("button", { id: "model-key-save", text: w.MODEL_KEY_SAVE });
+      saveButton.onclick = onSave;
       stateLine = Halvo.el("p", { id: "model-key-state" });
       said = Halvo.el("p", { id: "model-key-said" });
       said.setAttribute("role", "status");
@@ -161,7 +192,7 @@
       keep.onclick = function () {
         removeRow.classList.add("hidden");
       };
-      var confirmRemove = Halvo.el("button", { id: "model-key-confirm-remove", class: "danger", text: w.MODEL_KEY_REMOVE });
+      confirmRemove = Halvo.el("button", { id: "model-key-confirm-remove", class: "danger", text: w.MODEL_KEY_REMOVE });
       confirmRemove.onclick = onRemove;
       removeQuestion = Halvo.el("p", { id: "model-key-remove-question" });
       removeRow = Halvo.el("div", { id: "model-key-remove-row", class: "hidden" }, [
@@ -170,9 +201,10 @@
       ]);
       removeRow.classList.add("confirm-row");
       partsBox = Halvo.el("div", { id: "model-key-parts" });
-      [label, text, Halvo.el("div", { class: "row" }, [field, save]), stateLine, said, removeButton, removeRow, partsBox].forEach(function (child) {
+      [label, text, Halvo.el("div", { class: "row" }, [field, saveButton]), stateLine, said, removeButton, removeRow, partsBox].forEach(function (child) {
         element.appendChild(child);
       });
+      controls();
       draw();
     },
     show: function () {

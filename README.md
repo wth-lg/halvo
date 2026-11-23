@@ -115,7 +115,7 @@ sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
 - On a push and on a pull request CI runs the merge gate, the checks that
   `scripts/ci/merge-gate.txt` names for each job
   (`sh scripts/ci/run-ci-d.sh <job> --merge-gate`), and what
-  `scripts/ci/slices.txt` names runs in seven slices, one a day and in a run
+  `scripts/ci/slices.txt` names runs in eight slices, one a day and a second on Wednesday, and in a run
   by hand (`sh scripts/ci/run-ci-d.sh <job> --slice <slice>`).
 - The checks of the repository's rules in `AGENTS.md`:
   `sh scripts/check-changelog.sh`, `sh scripts/check-line-endings.sh`,
