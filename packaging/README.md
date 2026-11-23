@@ -133,6 +133,79 @@ as its own; so the check sends `ctl stop` two poll periods and one second after
 the daemon's first answer.
 It ends only the app that it started, by its pid.
 
+## Windows installer
+
+The installer installs Halvo for the person who runs it alone, into
+`%LOCALAPPDATA%\Halvo` unless that person chooses another folder, with its
+uninstall entry under `HKCU`. `src-tauri/windows/hooks.nsh` holds Halvo's hooks
+of the installer template of the Tauri bundler, which
+`bundle.windows.nsis.installerHooks` of `src-tauri/tauri.windows.conf.json`
+names. `src-tauri/windows/English.nsh` is the template's English text of
+tauri-cli 2.12.4, with the label of the uninstaller's box in Halvo's words; the
+bundler takes it in place of its own, so a later CLI that adds a string needs the
+string here too. The hooks hold every sentence that a person reads from them.
+
+Before an uninstall, and before an install over an installed copy, the hooks stop
+Halvo in this order: `halvo-capture.exe ctl stop` from the install folder (exit
+69, where no capture service runs, is no fault), then the end of `halvo.exe` by
+the template's own step, then a wait of at most 20 s until `halvo.exe` and each
+helper of `helpers.d` can be opened for writing. A file that is still held stops
+the uninstall or the install, before any file or value goes. Check 70 fails when
+`hooks.nsh` waits for no helper of `helpers.d`.
+
+Where the box is ticked, the uninstall first asks `halvo-capture.exe
+--default-data-dir` for the program's own default data directory, and runs
+`halvo-capture.exe --delete-all --data-dir` with the printed path as one
+argument. No line of the hooks names the data directory or builds a path from
+the account's name. At exit 0 the uninstall goes on, and the template's own step
+removes the folder of the app's id, `%LOCALAPPDATA%\com.halvo.desktop`, which
+holds the web view's folder `EBWebView`. The hooks name that folder by the
+template's own expression, `$LOCALAPPDATA\${BUNDLEID}`, for two things alone:
+where the folder still stands, they run the template's step again for at most
+20 s, and then they name the folder in the sentence that asks the person to
+remove it. At exit 75, or at any other end, the uninstall stops before any file
+or value goes. A silent uninstall ticks the box by the switch `/DELETEALL`, and
+never without it, as check 70 calls it:
+
+```sh
+uninstall.exe /S /DELETEALL _?=<the install folder>
+```
+
+Only this form, with `_?=` and the install folder last, gives the caller a
+readable exit: 2 where the uninstall stopped. Without it the uninstaller starts
+a copy of itself and exits at once, so the caller reads 0 whatever the copy did.
+
+The box deletes what Halvo's own Delete everything deletes. Copies that Halvo
+made next to your own files stay, and the box does not say so.
+
+A silent uninstall without `/DELETEALL`, and an uninstall with the box not
+ticked, delete nothing that Halvo stored: Halvo's data folder and the web view's
+folder, with the reports of a crash of Halvo's window, stay on the computer. An
+uninstall for an update (`/UPDATE`) deletes nothing either. Every other uninstall
+takes the value `Halvo` away under `Software\Microsoft\Windows\CurrentVersion\Run`
+of the person's own registry, whatever its text. An uninstall under another
+account, with the box ticked, deletes that account's Halvo data alone; the first
+person's data and Run value stay.
+
+After an install, where none of the values that the template's own WebView2
+section reads is there, the installer says that the runtime is missing; a silent
+install writes the sentence into `WEBVIEW2-RUNTIME-MISSING.txt` in the install
+folder, which the uninstall removes. The installer downloads nothing.
+
+On a GitHub-hosted runner alone, and on no other machine, check 70 installs the
+built installer with `/S` into a scratch folder while the values that the
+template reads for the runtime are moved aside, and puts them back before the
+app starts and in its trap. It starts the installed app on a provisioned scratch
+data directory, reads its one child, a status with the store open and a stop
+that holds, installs over the copy while `halvo-owner.exe` is held and reads that
+nothing was installed, then starts the app on the runner account's default data
+directory, plants a file in `EBWebView` and the Run value, and runs `uninstall.exe
+/S /DELETEALL` while the app and its child run. It reads that no process from the
+folder, no file there but `uninstall.exe`, no Run value, no uninstall entry, no
+default data directory and no planted file is left. It ends only the processes
+that it started, by their ids, and takes away what it planted, also where it
+fails.
+
 ## Notices
 
 The Mac bundle holds `Contents/Resources/THIRD-PARTY-NOTICES.txt`, and the
@@ -196,3 +269,5 @@ line at least.
 - The owner's signing and notarization (item I-116).
 - A check of the minimum macOS version that each binary names in its own build; the check reads the bundle's floor alone.
 - The list of modes that only a debug build has.
+- A run of the installer and the uninstaller under a standard account.
+- The removal of the reports of a crash of Halvo's window at every start and every uninstall.

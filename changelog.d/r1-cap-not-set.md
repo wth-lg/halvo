@@ -1,0 +1,1 @@
+- Fixed: (capture run, cap-not-set) After a reset of the settings the page says that Halvo has no storage limit, not that it could not read one, and the Stored view reads "with no storage limit" in place of "of a cap of unknown"; a limit that Halvo cannot read keeps its own sentence.

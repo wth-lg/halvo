@@ -12,6 +12,7 @@
   var drain;
   var expiry;
   var screenLine;
+  var crashLine;
   var loginLine;
   var firstRun;
   var settingsLine;
@@ -173,11 +174,19 @@
     expiry.textContent =
       x && x.state === "failing" ? w.EXPIRY_FAILING + " " + (EXPIRY[x.error] || w.CAUSE_IO) + (x.last_at ? " " + w.EXPIRY_SINCE + " " + x.last_at + "." : "") : "";
     screenLine.textContent = s.service === "running" && s.screen_not_renewed === true ? w.SCREEN_NOT_RENEWED : "";
+    crashLine.textContent = crashReportLeft(s.crash_reports_left);
     loginLine.textContent = s.login_item_written === false ? w.LOGIN_ITEM_NOT_WRITTEN : s.login_item_loaded === false ? w.LOGIN_ITEM_OFF : "";
     settingsLine.textContent = SETTINGS[s.state_file] || "";
     settingsReset.classList.toggle("hidden", !resetOffered(s));
     settingsDelete.classList.toggle("hidden", s.state_file !== "newer_version");
     renderFirstRun(s);
+  }
+
+  function crashReportLeft(folder) {
+    if (typeof folder !== "string" || folder === "") return "";
+    return w.CRASH_REPORT_LEFT.replace("{folder}", function () {
+      return folder;
+    });
   }
 
   function resetOffered(s) {
@@ -327,6 +336,7 @@
       drain = Halvo.el("p", { id: "drain-line" });
       expiry = Halvo.el("p", { id: "expiry-line" });
       screenLine = Halvo.el("p", { id: "screen-line" });
+      crashLine = Halvo.el("p", { id: "crash-report-line" });
       loginLine = Halvo.el("p", { id: "login-line" });
       firstRun = Halvo.el("div", { id: "first-run", class: "hidden" });
       settingsLine = Halvo.el("span", { id: "settings-line" });
@@ -357,6 +367,7 @@
         drain,
         expiry,
         screenLine,
+        crashLine,
         loginLine,
         Halvo.el("div", { class: "row" }, [settingsLine, settingsReset, settingsDelete]),
         resetRow,

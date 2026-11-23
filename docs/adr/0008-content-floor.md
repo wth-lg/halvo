@@ -67,3 +67,15 @@ The limits, which docs/privacy-limits.md states with their sources:
 - A terminal that does not assert secure input gets no protection, so key classes
   and the window title are recorded while a password is typed there (macos-4).
 - Characters and key codes are never stored (core-2's types).
+
+## Amendments
+
+- 2026-11-22: The third item of the Decision changes, by the coordinator's order at
+  line 16453 and its ruling at line 16515 of its pending starts in run
+  20261108-halvo-r1-capture, which turn ruling D10: the key-down of a modifier key (Shift, Caps Lock, Control, Option or
+  Alt, Command or the Windows key, Fn) is no key-class event, whether the modifier
+  is released alone or starts a chord, on both systems. A key pressed while one is
+  held keeps its class as before: a shortcut while Command, Control, Option or Alt,
+  or the Windows key is held, its own class while Shift alone is held. The reason:
+  a Shift stored in front of a letter shows which letters of a password are
+  capitals (unit lone-modifier-out).

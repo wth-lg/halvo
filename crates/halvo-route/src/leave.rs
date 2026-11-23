@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use crate::ruling::Ruling;
+use crate::ruling::{HostRow, Ruling};
 use crate::tier::Tier;
 
 /// A kind of part of a model request. Only `text` may leave (D13).
@@ -87,13 +87,12 @@ impl LeaveCause {
     }
 }
 
-/// The leave for one model request to leave the machine. It has a private field, no public maker
-/// but `grant`, and neither `Clone` nor `Copy`, so one grant serves one request. Its field is of a
-/// private type of no size that is neither `Clone` nor `Copy` either, so no code can copy a grant
-/// from a borrowed one by a struct update. `grant` makes one only under the test value of the
-/// ruling, which the code of ruling.rs alone can make and the tests of this file get with a key
-/// that this file alone can make, in a build that sets `cfg(test)` as its unit tests do; it never
-/// makes one under the release ruling.
+/// The leave for one model request to leave the machine, which names the row of the ruling that it
+/// was made for. It has private fields, no public maker but `grant`, and neither `Clone` nor
+/// `Copy`, so one grant serves one request. One field is of a private type of no size that is
+/// neither `Clone` nor `Copy` either, so no code can copy a grant from a borrowed one by a struct
+/// update. `grant` makes one only under a hosted ruling, for the origin of its row for the tier,
+/// and never under the release ruling of main, which is `ruling=none` over a table with no row.
 ///
 /// This file is pinned whole, its test module included, as lib.rs, ruling.rs and tier.rs are: the
 /// test `pinned_files_hold_their_hashes` of tests/no_grant_in_release.rs holds its SHA-256. A pin
@@ -103,7 +102,7 @@ impl LeaveCause {
 /// A caller outside this module cannot write one:
 ///
 /// ```compile_fail,E0451
-/// let grant = halvo_route::leave::LeaveGrant { _sealed: todo!() };
+/// let grant = halvo_route::leave::LeaveGrant { _sealed: todo!(), row: todo!() };
 /// ```
 ///
 /// ```compile_fail,E0277
@@ -139,14 +138,15 @@ impl LeaveCause {
 /// }
 /// ```
 ///
-/// and, in a build that does not set `cfg(test)`, cannot name the test ruling:
+/// and, in every build, cannot call the reader of a ruling line with a table, which is private to
+/// the crate, or name the payload of a hosted ruling, which stands in a private module:
 ///
-/// ```compile_fail,E0599
-/// let ruling = halvo_route::ruling::Ruling::test_hosted(&["127.0.0.1:1"]);
+/// ```compile_fail,E0624
+/// let ruling = halvo_route::ruling::Ruling::read_with_table("ruling=hosted", "");
 /// ```
 ///
-/// ```compile_fail,E0599
-/// let ruling = halvo_route::ruling::Ruling::TestHosted(Vec::new());
+/// ```compile_fail,E0603
+/// fn rows(rows: halvo_route::ruling::payload::HostRows) {}
 /// ```
 ///
 /// It can move a grant, print it, and ask `grant`, which refuses under the release ruling:
@@ -175,6 +175,15 @@ impl LeaveCause {
 #[derive(Debug)]
 pub struct LeaveGrant {
     _sealed: Seal,
+    row: HostRow,
+}
+
+impl LeaveGrant {
+    /// The row that the grant was made for: its tier, its origin, its model word and its adapter
+    /// word.
+    pub fn row(&self) -> &HostRow {
+        &self.row
+    }
 }
 
 struct Seal;
@@ -185,14 +194,13 @@ impl fmt::Debug for Seal {
     }
 }
 
-/// The one maker of a `LeaveGrant`. The first rule that fits: the tier `on_device` gives `local`,
-/// because nothing leaves and no grant is needed; the ruling `None` gives `ruling`. Only a build
-/// that sets `cfg(test)`, as the crate's own unit tests do, compiles the rules that follow, and
-/// they run under its test ruling alone: a tier above `ceiling` gives `ceiling`; a part that is not
-/// `text` gives `part`; an origin that is not among `ruling.origins()`, by equal bytes, gives
-/// `origin`; the consent `missing` gives `consent`; else the grant. Under the release ruling no
-/// build makes a grant.
-#[cfg_attr(not(test), allow(unused_variables))]
+/// The one maker of a `LeaveGrant`, with every rule compiled in every build. The first rule that
+/// fits: the tier `on_device` gives `local`, because nothing leaves and no grant is needed; the
+/// ruling `None`, and a hosted ruling that holds no row for the tier, give `ruling`; a tier above
+/// `ceiling` gives `ceiling`; a part that is not `text` gives `part`; an origin that is not, by
+/// equal bytes, the origin of the ruling's row for that tier gives `origin`; the consent `missing`
+/// gives `consent`; else the grant, which holds a copy of that row. Under the release ruling of
+/// main, `ruling=none` over a table with no row, no build makes a grant.
 pub fn grant(
     ruling: &Ruling,
     tier: Tier,
@@ -204,36 +212,37 @@ pub fn grant(
     if tier == Tier::OnDevice {
         return Err(LeaveCause::Local);
     }
-    match ruling {
-        Ruling::None => Err(LeaveCause::Ruling),
-        #[cfg(test)]
-        Ruling::TestHosted(_) => {
-            if tier > ceiling {
-                Err(LeaveCause::Ceiling)
-            } else if parts.iter().any(|part| *part != PartKind::Text) {
-                Err(LeaveCause::Part)
-            } else if !ruling.origins().iter().any(|allowed| allowed == origin) {
-                Err(LeaveCause::Origin)
-            } else if consent == Consent::Missing {
-                Err(LeaveCause::Consent)
-            } else {
-                Ok(LeaveGrant { _sealed: Seal })
-            }
-        }
+    let Some(row) = ruling.row(tier) else {
+        return Err(LeaveCause::Ruling);
+    };
+    if tier > ceiling {
+        Err(LeaveCause::Ceiling)
+    } else if parts.iter().any(|part| *part != PartKind::Text) {
+        Err(LeaveCause::Part)
+    } else if row.origin() != origin {
+        Err(LeaveCause::Origin)
+    } else if consent == Consent::Missing {
+        Err(LeaveCause::Consent)
+    } else {
+        Ok(LeaveGrant {
+            _sealed: Seal,
+            row: row.clone(),
+        })
     }
 }
-
-/// The key with which the tests of this file get the test value from ruling.rs. Its one field is
-/// private, so no file but this one can make a key.
-#[cfg(test)]
-pub(crate) struct TestKey(());
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::release;
 
-    const ORIGIN: &str = "127.0.0.1:1";
+    const LOW: &str = "https://low.invalid";
+    const TOP: &str = "https://top.invalid";
+    const TABLE: &str = concat!(
+        "tier\torigin\tmodel\tadapter\tsource\tdate\n",
+        "low_cost_hosted\thttps://low.invalid\tlow-model\tadapter-a\tfixture:test\t2026-11-22\n",
+        "frontier\thttps://top.invalid\ttop-model\tadapter-b\tfixture:test\t2026-11-22\n",
+    );
     const HOSTED: [Tier; 2] = [Tier::LowCostHosted, Tier::Frontier];
     const NOT_TEXT: [PartKind; 4] = [
         PartKind::Image,
@@ -242,12 +251,37 @@ mod tests {
         PartKind::StoredConversation,
     ];
 
-    fn test_hosted(origins: &[&str]) -> Ruling {
-        Ruling::test_hosted_for_leave(TestKey(()), origins)
+    fn hosted_by(table: &str) -> Ruling {
+        Ruling::read_with_table("ruling=hosted", table)
     }
 
     fn open() -> Ruling {
-        test_hosted(&[ORIGIN])
+        hosted_by(TABLE)
+    }
+
+    /// The hosted ruling of `TABLE` without the row of `tier`.
+    fn without(tier: Tier) -> Ruling {
+        let row = TABLE
+            .lines()
+            .find(|line| line.starts_with(&format!("{}\t", tier.as_str())))
+            .expect("a row of the tier");
+        let ruling = hosted_by(&TABLE.replace(&format!("{row}\n"), ""));
+        assert_eq!(ruling.rows().len(), 1, "{tier:?}");
+        ruling
+    }
+
+    fn origin(tier: Tier) -> &'static str {
+        match tier {
+            Tier::LowCostHosted => LOW,
+            _ => TOP,
+        }
+    }
+
+    fn other(tier: Tier) -> Tier {
+        match tier {
+            Tier::LowCostHosted => Tier::Frontier,
+            _ => Tier::LowCostHosted,
+        }
     }
 
     fn answer(
@@ -287,20 +321,33 @@ mod tests {
                     "{tier:?} {ceiling:?}"
                 );
             }
+            for ruling in [release::ruling(), without(tier)] {
+                assert_eq!(
+                    answer(
+                        &ruling,
+                        tier,
+                        Tier::Frontier,
+                        &[PartKind::Text],
+                        origin(tier),
+                        Consent::Recorded,
+                    ),
+                    Err(LeaveCause::Ruling),
+                    "{tier:?} {ruling:?}"
+                );
+            }
             assert_eq!(
                 answer(
-                    &release::ruling(),
+                    &without(other(tier)),
                     tier,
                     Tier::Frontier,
                     &[PartKind::Text],
-                    ORIGIN,
+                    origin(tier),
                     Consent::Recorded,
                 ),
-                Err(LeaveCause::Ruling),
-                "{tier:?}"
+                Ok(())
             );
             assert_eq!(
-                hosted(tier, &[PartKind::Text], ORIGIN, Consent::Recorded),
+                hosted(tier, &[PartKind::Text], origin(tier), Consent::Recorded),
                 Ok(())
             );
         }
@@ -308,11 +355,11 @@ mod tests {
 
     #[test]
     fn refusal_leave_local() {
-        for ruling in [release::ruling(), open(), test_hosted(&[])] {
+        for ruling in [release::ruling(), open(), without(Tier::Frontier)] {
             for ceiling in Tier::ALL {
                 for consent in Consent::ALL {
                     for parts in [&[PartKind::Text][..], &[PartKind::Image], &[]] {
-                        for origin in [ORIGIN, "example.invalid:443"] {
+                        for origin in [LOW, TOP, "example.invalid:443"] {
                             assert_eq!(
                                 answer(&ruling, Tier::OnDevice, ceiling, parts, origin, consent),
                                 Err(LeaveCause::Local),
@@ -338,7 +385,7 @@ mod tests {
                     tier,
                     ceiling,
                     &[PartKind::Text],
-                    ORIGIN,
+                    origin(tier),
                     Consent::Recorded
                 ),
                 Err(LeaveCause::Ceiling),
@@ -356,7 +403,7 @@ mod tests {
                     tier,
                     ceiling,
                     &[PartKind::Text],
-                    ORIGIN,
+                    origin(tier),
                     Consent::Recorded
                 ),
                 Ok(()),
@@ -376,14 +423,14 @@ mod tests {
                     vec![PartKind::Text, PartKind::Text, kind],
                 ] {
                     assert_eq!(
-                        hosted(tier, &parts, ORIGIN, Consent::Recorded),
+                        hosted(tier, &parts, origin(tier), Consent::Recorded),
                         Err(LeaveCause::Part),
                         "{tier:?} {parts:?}"
                     );
                 }
             }
             assert_eq!(
-                hosted(tier, &PartKind::ALL, ORIGIN, Consent::Recorded),
+                hosted(tier, &PartKind::ALL, origin(tier), Consent::Recorded),
                 Err(LeaveCause::Part)
             );
             for parts in [
@@ -392,7 +439,7 @@ mod tests {
                 &[],
             ] {
                 assert_eq!(
-                    hosted(tier, parts, ORIGIN, Consent::Recorded),
+                    hosted(tier, parts, origin(tier), Consent::Recorded),
                     Ok(()),
                     "{parts:?}"
                 );
@@ -402,67 +449,100 @@ mod tests {
 
     #[test]
     fn refusal_leave_origin() {
-        let two = test_hosted(&["https://a.example", ORIGIN]);
         for tier in HOSTED {
-            for origin in [
-                "127.0.0.1:2",
-                "127.0.0.1",
-                "127.0.0.1:1 ",
-                " 127.0.0.1:1",
-                "127.0.0.1:10",
-                "27.0.0.1:1",
-                "example.invalid:443",
-                "",
-            ] {
+            let own = origin(tier);
+            let near = [
+                origin(other(tier)).to_owned(),
+                format!("{own}/"),
+                format!("{own}:443"),
+                format!("{own} "),
+                format!(" {own}"),
+                format!("{own}."),
+                own.to_uppercase(),
+                own.replacen("https://", "http://", 1),
+                own.replacen("https://", "", 1),
+                own[..own.len() - 1].to_owned(),
+                "127.0.0.1:1".to_owned(),
+                "http://127.0.0.1:1".to_owned(),
+                "example.invalid:443".to_owned(),
+                String::new(),
+            ];
+            for asked in &near {
                 assert_eq!(
-                    hosted(tier, &[PartKind::Text], origin, Consent::Recorded),
+                    hosted(tier, &[PartKind::Text], asked, Consent::Recorded),
                     Err(LeaveCause::Origin),
-                    "{tier:?} {origin:?}"
-                );
-            }
-            for origin in ["https://a.example", ORIGIN] {
-                assert_eq!(
-                    answer(
-                        &two,
-                        tier,
-                        Tier::Frontier,
-                        &[PartKind::Text],
-                        origin,
-                        Consent::Recorded
-                    ),
-                    Ok(()),
-                    "{origin}"
-                );
-            }
-            for origin in [
-                "https://A.example",
-                "https://a.example/",
-                "https://a.exampl",
-            ] {
-                assert_eq!(
-                    answer(
-                        &two,
-                        tier,
-                        Tier::Frontier,
-                        &[PartKind::Text],
-                        origin,
-                        Consent::Recorded
-                    ),
-                    Err(LeaveCause::Origin),
-                    "{origin}"
+                    "{tier:?} {asked:?}"
                 );
             }
             assert_eq!(
+                hosted(tier, &[PartKind::Text], own, Consent::Recorded),
+                Ok(()),
+                "{tier:?}"
+            );
+        }
+        let shared = hosted_by(&TABLE.replace(TOP, LOW));
+        for tier in HOSTED {
+            assert_eq!(
                 answer(
-                    &test_hosted(&[]),
+                    &shared,
                     tier,
                     Tier::Frontier,
                     &[PartKind::Text],
-                    ORIGIN,
-                    Consent::Recorded,
+                    LOW,
+                    Consent::Recorded
                 ),
-                Err(LeaveCause::Origin)
+                Ok(()),
+                "{tier:?}"
             );
+            assert_eq!(
+                answer(
+                    &shared,
+                    tier,
+                    Tier::Frontier,
+                    &[PartKind::Text],
+                    TOP,
+                    Consent::Recorded
+                ),
+                Err(LeaveCause::Origin),
+                "{tier:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_grant_names_the_row_of_its_origin() {
+        let ruling = open();
+        for (tier, model, adapter) in [
+            (Tier::LowCostHosted, "low-model", "adapter-a"),
+            (Tier::Frontier, "top-model", "adapter-b"),
+        ] {
+            assert_eq!(
+                answer(
+                    &ruling,
+                    tier,
+                    Tier::Frontier,
+                    &[PartKind::Text],
+                    origin(other(tier)),
+                    Consent::Recorded
+                ),
+                Err(LeaveCause::Origin),
+                "{tier:?}"
+            );
+            let made = grant(
+                &ruling,
+                tier,
+                Tier::Frontier,
+                &[PartKind::Text],
+                origin(tier),
+                Consent::Recorded,
+            )
+            .expect("a grant for the origin of the row of its tier");
+            let row = made.row();
+            assert_eq!(
+                (row.tier(), row.origin(), row.model(), row.adapter()),
+                (tier, origin(tier), model, adapter)
+            );
+            assert_eq!(Some(row), ruling.row(tier));
         }
     }
 
@@ -470,17 +550,17 @@ mod tests {
     fn refusal_leave_consent() {
         for tier in HOSTED {
             assert_eq!(
-                hosted(tier, &[PartKind::Text], ORIGIN, Consent::Missing),
+                hosted(tier, &[PartKind::Text], origin(tier), Consent::Missing),
                 Err(LeaveCause::Consent),
                 "{tier:?}"
             );
             assert_eq!(
-                hosted(tier, &[], ORIGIN, Consent::Missing),
+                hosted(tier, &[], origin(tier), Consent::Missing),
                 Err(LeaveCause::Consent),
                 "{tier:?}"
             );
             assert_eq!(
-                hosted(tier, &[PartKind::Text], ORIGIN, Consent::Recorded),
+                hosted(tier, &[PartKind::Text], origin(tier), Consent::Recorded),
                 Ok(())
             );
         }
@@ -491,6 +571,7 @@ mod tests {
         let none = release::ruling();
         for tier in HOSTED {
             let below = Tier::ALL[tier as usize - 1];
+            let missing_row = without(tier);
             let cases = [
                 (
                     &open(),
@@ -524,12 +605,21 @@ mod tests {
                     tier,
                     tier,
                     PartKind::Text,
-                    ORIGIN,
+                    origin(tier),
                     Consent::Missing,
                     LeaveCause::Consent,
                 ),
                 (
                     &none,
+                    tier,
+                    below,
+                    PartKind::Image,
+                    "x",
+                    Consent::Missing,
+                    LeaveCause::Ruling,
+                ),
+                (
+                    &missing_row,
                     tier,
                     below,
                     PartKind::Image,
@@ -573,8 +663,12 @@ mod tests {
     }
 
     #[test]
-    fn leave_grant_is_of_no_size() {
-        assert_eq!(std::mem::size_of::<LeaveGrant>(), 0);
+    fn a_grant_is_its_row_and_a_seal_of_no_size() {
+        assert_eq!(std::mem::size_of::<Seal>(), 0);
+        assert_eq!(
+            std::mem::size_of::<LeaveGrant>(),
+            std::mem::size_of::<HostRow>()
+        );
     }
 
     fn crate_sources() -> Vec<(String, String)> {

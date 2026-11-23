@@ -36,6 +36,9 @@ pub struct StoreView {
     /// The status's `store_delete_unfinished`, written for the page only while it stands.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub delete_unfinished: bool,
+    /// The status's `cap_not_set`, written for the page only while it stands.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub cap_not_set: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -144,6 +147,9 @@ pub struct RunningView {
     /// The first run's rows of what a start records, which the question of a reset of the
     /// settings shows: on a settings file that cannot be read alone.
     pub reset_recorded: Option<Vec<Recorded>>,
+    /// The folder of the crash reports of the web view of Halvo's own window, where one stayed at
+    /// the app's start on Windows.
+    pub crash_reports_left: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -157,6 +163,8 @@ pub struct NoStatusView {
     pub login_item_written: Option<bool>,
     pub first_run: Option<FirstRun>,
     pub data_folder: Option<String>,
+    /// As in a running view: the folder where a crash report stayed at the app's start.
+    pub crash_reports_left: Option<String>,
 }
 
 /// What a view without a status says before the app's first child (contracts.md C10.7): on a
@@ -223,6 +231,7 @@ struct HoldState {
     renewal_asked: Option<u64>,
     pauses: u64,
     screen_spent: bool,
+    crash_reports_left: Option<String>,
 }
 
 /// A consent click in flight, from `Hold::begin_consent` to its drop.
@@ -290,7 +299,10 @@ impl Hold {
                 state.login_item_written,
             )
         };
-        let screen_spent = self.state().screen_spent;
+        let (screen_spent, crash_reports_left) = {
+            let state = self.state();
+            (state.screen_spent, state.crash_reports_left.clone())
+        };
         let view = match view {
             StatusView::Running(running) if another_version => {
                 StatusView::no_status(NoStatusService::AnotherVersion, running.platform)
@@ -320,6 +332,7 @@ impl Hold {
                         )
                 });
                 view.screen_not_renewed = screen_spent && !screen_runs;
+                view.crash_reports_left = crash_reports_left;
                 StatusView::Running(view)
             }
             StatusView::NoStatus(mut view) => {
@@ -329,6 +342,7 @@ impl Hold {
                 if view.service == NoStatusService::NotRunning {
                     view.last_exit = last_exit;
                 }
+                view.crash_reports_left = crash_reports_left;
                 StatusView::NoStatus(view)
             }
         }
@@ -339,6 +353,13 @@ impl Hold {
     #[cfg(any(target_os = "macos", windows))]
     pub fn set_folder(&self, folder: String) {
         self.state().folder = Some(folder);
+    }
+
+    /// Names the folder of the crash reports of the web view of Halvo's own window where one
+    /// stayed at the app's start, which every view then gives the page.
+    #[cfg(any(windows, test))]
+    pub fn set_crash_reports_left(&self, folder: String) {
+        self.state().crash_reports_left = Some(folder);
     }
 
     /// Ends the hold: called only for a Resume of a person's press that reached its end.
@@ -569,6 +590,14 @@ impl Hold {
         self.changed.notify_all();
     }
 
+    /// A run of Remove Halvo's door ends: an ask of a Start that stands from before that end is
+    /// dropped, and the end of the last child stays read, so that only a press behind the run
+    /// asks for a child.
+    #[cfg(any(target_os = "macos", windows, test))]
+    pub fn drop_the_ask(&self) {
+        self.state().start_asked = false;
+    }
+
     /// The supervisor's spawner reads the data directory not provisioned: no child starts before
     /// the person's click on Start, the consent (contracts.md C10.7).
     #[cfg(any(target_os = "macos", windows, test))]
@@ -626,7 +655,7 @@ impl Hold {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatusView {
     Running(Box<RunningView>),
-    NoStatus(NoStatusView),
+    NoStatus(Box<NoStatusView>),
 }
 
 #[derive(Serialize)]
@@ -664,6 +693,8 @@ struct WireView<'a> {
     screen_not_renewed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     reset_recorded: Option<&'a [Recorded]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    crash_reports_left: Option<&'a str>,
 }
 
 impl Serialize for StatusView {
@@ -698,6 +729,7 @@ impl Serialize for StatusView {
                 state_file: view.state_file,
                 screen_not_renewed: view.screen_not_renewed,
                 reset_recorded: view.reset_recorded.as_deref(),
+                crash_reports_left: view.crash_reports_left.as_deref(),
             },
             StatusView::NoStatus(view) => WireView {
                 service: view.word(),
@@ -731,6 +763,7 @@ impl Serialize for StatusView {
                 state_file: None,
                 screen_not_renewed: false,
                 reset_recorded: None,
+                crash_reports_left: view.crash_reports_left.as_deref(),
             },
         };
         wire.serialize(serializer)
@@ -747,7 +780,7 @@ pub const APP_PLATFORM: Platform = if cfg!(windows) {
 
 impl StatusView {
     pub fn no_status(service: NoStatusService, platform: Platform) -> Self {
-        StatusView::NoStatus(NoStatusView {
+        StatusView::NoStatus(Box::new(NoStatusView {
             service,
             platform,
             window: ObservationWindow::r1(),
@@ -757,7 +790,8 @@ impl StatusView {
             data_folder: None,
             login_item_written: None,
             first_run: None,
-        })
+            crash_reports_left: None,
+        }))
     }
 
     /// Whether this view reads that no capture service runs: the one state in which the app
@@ -819,6 +853,7 @@ impl StatusView {
                 error: f.store_error,
                 retry_in_s: f.store_retry_in_s,
                 delete_unfinished: f.store_delete_unfinished,
+                cap_not_set: f.cap_not_set,
             },
             store_bytes: f.store_bytes,
             store_logical_bytes: f.store_logical_bytes,
@@ -882,6 +917,7 @@ impl StatusView {
                 .then(|| first_run(f.platform).recorded),
             login_item_written: None,
             screen_not_renewed: false,
+            crash_reports_left: None,
         }))
     }
 }

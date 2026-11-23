@@ -17,8 +17,8 @@
 //! credential field on the page, or before any browser runs, is done; every other answers `step_failed`. A web step
 //! that fails on the run's page, its act or a step marked `credential` of no effect class, reads the page a second
 //! time before its failure is written, and hands back with the reason `sign_in` where a link or a button asks for a
-//! sign-in by its name (r3 U5.14, `Runner::asked_at_a_failure`), but in a run with no window that imported a kept
-//! sign-in; behind the bind of that handback the act that failed is asked once more, and a second failure fails the
+//! sign-in by its name (r3 U5.14, `Runner::asked_at_a_failure`), but in a run with no window, imported or not (r3
+//! U5.15r); behind the bind of that handback the act that failed is asked once more, and a second failure fails the
 //! step as before. A step with the effect `request`, a web step of an effect class (`payment`, `purchase`, `submit`,
 //! `sign`), is the browser's request maker's (crate::web::maker), which this build holds under the feature `loopback`
 //! alone: without it such a step answers `step_failed` before any browser starts, and `Live` lets no held request
@@ -972,7 +972,8 @@ impl Runner {
     /// a bind the step is done. Where that reading finds no credential field, and where a step marked `credential` of
     /// no effect class meets a running browser's page with none, the second reading (`asked_at_a_failure`, r3 U5.14)
     /// hands back with the reason `sign_in` at a link or a button that asks for a sign-in, in place of the failure; a
-    /// run with no window that imported a kept sign-in reads no sign (the coordinator's ruling of log line 16376).
+    /// run with no window reads no sign, whether it imported a kept sign-in or not (the coordinator's rulings of log
+    /// lines 16376 and 16634 (2)).
     /// After one that ended in a bind the act that failed is asked once more, with the reading of the page before it
     /// and without a second reading after it, so that a second failure fails the step as before (the coordinator's
     /// ruling of log line 16106 (3)); a step marked `credential`, which acts on nothing, is done after that bind. A
@@ -1084,15 +1085,16 @@ impl Runner {
     /// runner opens a handback of the reason `sign_in` in place of the failure, by the opening and with the ends of a
     /// handback at a credential field (`Runner::open_handback`); true after one that ended in a bind. False where no
     /// browser runs, where the page shows no such link or button, and where the second reading fails: the step fails
-    /// as before. In a run with no window that imported a kept sign-in (crate::session), where the opening would end
-    /// the run for want of a window (`Runner::no_window`), the sign is not read at all: the step fails as before and
-    /// no kept sign-in is dropped (the coordinator's ruling of log line 16376).
+    /// as before. In a run with no window, where no person can answer (crate::args) and the opening would end the run
+    /// (`Runner::no_window`), the sign is not read at all, whether the run imported a kept sign-in or not: the step
+    /// fails as before, no run ends as unauthorized by a guess, and no kept sign-in is dropped (the coordinator's
+    /// rulings of log lines 16376 and 16634 (2)).
     fn asked_at_a_failure(
         &mut self,
         loaded: &LoadReply,
         step: NonZeroU32,
     ) -> Result<bool, Failure> {
-        if self.sessions.imported && !self.args.headed {
+        if !self.args.person {
             return Ok(false);
         }
         let Some(mut web) = self.web.take() else {

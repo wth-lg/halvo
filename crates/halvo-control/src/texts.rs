@@ -187,8 +187,15 @@ pub const fn custody_text(custody: Custody) -> &'static str {
     }
 }
 
-/// The cap sentence, in GB of 1,073,741,824 bytes with at most one decimal.
-pub fn storage(cap: Cap) -> String {
+/// The cap sentence of a status whose `cap_not_set` stands: the cap that a reset of the settings
+/// stores, which is not set and not one that could not be read.
+pub const NO_STORAGE_LIMIT: &str =
+    "Halvo has no storage limit and removes nothing to make room until you set one.";
+
+/// The cap sentence, in GB of 1,073,741,824 bytes with at most one decimal; for an unknown cap,
+/// [`NO_STORAGE_LIMIT`] where `not_set` stands, and otherwise the sentence of a limit that could
+/// not be read.
+pub fn storage(cap: Cap, not_set: bool) -> String {
     match cap {
         Cap::Known(cap) => {
             let tenths = (cap.bytes() * 10 + StorageCap::GIB / 2) / StorageCap::GIB;
@@ -199,6 +206,7 @@ pub fn storage(cap: Cap) -> String {
             };
             format!("Halvo keeps at most {size} GB and removes the oldest days first when it reaches that.")
         }
+        Cap::Unknown if not_set => NO_STORAGE_LIMIT.to_string(),
         Cap::Unknown => "Halvo could not read its storage limit and removes nothing to make room until you set one.".to_string(),
     }
 }
@@ -244,7 +252,7 @@ pub fn texts(status: &DaemonStatus) -> Texts {
         backup_limit: backup_limit(f.platform),
         limits: LIMITS,
         custody: custody_text(f.custody),
-        storage: storage(f.cap_bytes),
+        storage: storage(f.cap_bytes, f.cap_not_set),
         repeated_tasks: None,
     }
 }
@@ -338,7 +346,7 @@ fn first_run_with(platform: Platform, typing_on_mac: bool) -> Texts {
             Platform::Macos => Custody::RootFile,
             Platform::Windows => Custody::Dpapi,
         }),
-        storage: storage(Cap::Known(StorageCap::DEFAULT)),
+        storage: storage(Cap::Known(StorageCap::DEFAULT), false),
         repeated_tasks: Some(REPEATED_TASKS),
     }
 }
@@ -773,20 +781,27 @@ mod tests {
     #[test]
     fn the_storage_sentence_names_the_cap_or_says_it_is_unknown() {
         assert_eq!(
-            storage(Cap::Known(StorageCap::DEFAULT)),
+            storage(Cap::Known(StorageCap::DEFAULT), false),
             "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
         );
         assert_eq!(
-            storage(Cap::Known(StorageCap::MIN)),
+            storage(Cap::Known(StorageCap::MIN), false),
             "Halvo keeps at most 1 GB and removes the oldest days first when it reaches that."
         );
         assert_eq!(
-            storage(Cap::Known(StorageCap::from_bytes(1_610_612_736).unwrap())),
+            storage(
+                Cap::Known(StorageCap::from_bytes(1_610_612_736).unwrap()),
+                false
+            ),
             "Halvo keeps at most 1.5 GB and removes the oldest days first when it reaches that."
         );
         assert_eq!(
-            storage(Cap::Unknown),
+            storage(Cap::Unknown, false),
             "Halvo could not read its storage limit and removes nothing to make room until you set one."
+        );
+        assert_eq!(
+            storage(Cap::Unknown, true),
+            "Halvo has no storage limit and removes nothing to make room until you set one."
         );
     }
 
