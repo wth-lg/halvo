@@ -14,8 +14,8 @@ use common::{
 };
 use halvo_derived::test_host::{delete_all, open_keyless};
 use halvo_derived::{
-    Committed, Counts, Handler, HandlerCx, Host, OpenError, RemoveRefusal, Removed, Report, Store,
-    Takes,
+    Cause, Committed, Counts, Handler, HandlerCx, Host, OpenError, Refusal, RemoveRefusal, Removed,
+    Report, Store, Takes,
 };
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::{RequestId, WorkflowId};
@@ -2588,9 +2588,11 @@ fn removed_rows_leave_no_text_in_the_gap_of_a_page_built_again() {
 }
 
 /// What a handler of the removal test makes in one request: the typed commit of a list, or the removal call of a kind
-/// under a workflow id with its list.
+/// under a workflow id with its list. `TryCommit` is a typed commit whose answer the handler keeps among the removals, as
+/// a removal of no row or as the refusal `Commit`.
 enum Act {
     Commit(Vec<TypedRecord>),
+    TryCommit(Vec<TypedRecord>),
     Remove(&'static str, String, Vec<TypedRecord>),
     RemovePerson(&'static str, Vec<TypedRecord>),
 }
@@ -2611,6 +2613,16 @@ impl Handler for Acting {
         match self.act.borrow_mut().take() {
             Some(Act::Commit(list)) => {
                 assert!(matches!(cx.commit(&list), Ok(c) if c.stored == list.len() as u64));
+            }
+            Some(Act::TryCommit(list)) => {
+                self.removals.borrow_mut().push(
+                    cx.commit(&list)
+                        .map(|committed| Removed {
+                            removed: 0,
+                            committed,
+                        })
+                        .map_err(RemoveRefusal::Commit),
+                );
             }
             Some(Act::Remove(kind, workflow, list)) => {
                 let id = WorkflowId::parse(&workflow).unwrap();
@@ -2961,5 +2973,67 @@ fn the_removal_of_a_persons_kind_refuses_a_kind_with_a_workflow_key() {
     assert!(
         !holding(&scratch, KEPT_OWN).is_empty(),
         "after the refused call, the search finds {KEPT_OWN}"
+    );
+}
+
+const RUNNER_KEY: &str = "qzpersonr9204";
+
+/// r7 8.1L, the seam's condition (ii) (the coordinator's log lines 17277 and 17330): under a runner's request the store
+/// stores no `model_key` record and removes none. On a keyless store with no workflow, the handler of the family
+/// `agent` stores a `model_key` row whose key holds a first marker under a `coordinator_write`. Under a `runner` request
+/// the typed commit of a `model_key` record with a second marker answers `OwnOrigin`, and the removal call of the kind
+/// answers `Role`, with that record and with none. The first marker is still found in the files and the second in no
+/// entry of `derived/`.
+#[test]
+fn a_runner_request_stores_no_model_key_and_removes_none() {
+    let scratch = Scratch::new("runner-person");
+    let clock = TestClock::at_day(DAY);
+    let act = Rc::new(RefCell::new(None));
+    let removals = Rc::new(RefCell::new(Vec::new()));
+    let acting = || -> Box<dyn Handler> {
+        Box::new(Acting {
+            act: Rc::clone(&act),
+            removals: Rc::clone(&removals),
+        })
+    };
+    let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 }))
+        .handler("agent", Takes::Coordinator(&["test"]), acting())
+        .handler("agent", Takes::Runner, acting());
+    let mut store = keyless(&scratch, &with(&[]), host);
+    let mut send = |name: &str, next: Act| {
+        *act.borrow_mut() = Some(next);
+        store
+            .handle(&raw_request(name, r#"{"op":"test"}"#))
+            .unwrap();
+    };
+    send(
+        "coordinator_write",
+        Act::Commit(vec![person_row(PERSON_FIRST)]),
+    );
+    send("runner", Act::TryCommit(vec![person_row(RUNNER_KEY)]));
+    send(
+        "runner",
+        Act::RemovePerson("model_key", vec![person_row(RUNNER_KEY)]),
+    );
+    send("runner", Act::RemovePerson("model_key", Vec::new()));
+    assert_eq!(
+        removals.borrow().clone(),
+        vec![
+            Err(RemoveRefusal::Commit(Refusal {
+                index: 0,
+                cause: Cause::OwnOrigin
+            })),
+            Err(RemoveRefusal::Role),
+            Err(RemoveRefusal::Role),
+        ]
+    );
+    assert!(
+        !holding(&scratch, PERSON_FIRST).is_empty(),
+        "after the runner's requests, the search finds {PERSON_FIRST}"
+    );
+    assert_eq!(
+        holding(&scratch, RUNNER_KEY),
+        Vec::<String>::new(),
+        "the entries that hold {RUNNER_KEY}, the marker of the refused record"
     );
 }

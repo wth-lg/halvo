@@ -380,3 +380,13 @@ fn the_kinds_of_origin_person_are_model_key_alone() {
         .collect();
     assert_eq!(person, PERSON_KINDS);
 }
+
+/// r7 8.1L (the coordinator's log lines 17277 and 17330; the brief's point 10, condition (i)): the closed list of the
+/// kinds of origin person that a `runner` request may write holds ONE name, `model_count`, and not `model_key`.
+#[test]
+fn the_kinds_of_origin_person_that_a_runner_may_write_are_model_count_alone() {
+    use halvo_schema::kinds::RUNNER_PERSON_KINDS;
+    assert_eq!(RUNNER_PERSON_KINDS.len(), 1, "{RUNNER_PERSON_KINDS:?}");
+    assert_eq!(RUNNER_PERSON_KINDS, ["model_count"]);
+    assert!(!RUNNER_PERSON_KINDS.contains(&"model_key"));
+}

@@ -61,7 +61,8 @@ pub enum Cause {
     /// The kind belongs to another family than the step's or the handler's own.
     OtherFamily,
     /// The kind is of origin own, and the commit is a step's or that of the handler of a request of a further role; or
-    /// the kind is of origin person, and the commit is no `coordinator_write`'s.
+    /// the kind is of origin person, and the commit is no `coordinator_write`'s and no `runner` request's for a kind of
+    /// `kinds::RUNNER_PERSON_KINDS`.
     OwnOrigin,
     /// `kinds::check_record` refused the record; its error names the kind, the key and the rule.
     Record(String),
@@ -132,7 +133,8 @@ pub struct Removed {
 /// commit comes with the rows removed and the records stored.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RemoveRefusal {
-    /// The request is no `coordinator_write`. The call refuses it before any statement.
+    /// The request is no `coordinator_write`, and for `remove_person` no `runner` request for a kind of
+    /// `kinds::RUNNER_PERSON_KINDS`. The call refuses it before any statement.
     Role,
     /// The kind is not among the entries that the store was opened with.
     UnknownKind,
@@ -278,16 +280,19 @@ impl HandlerCx<'_> {
     /// removed and the records stored.
     ///
     /// It answers `RemoveRefusal::Role`, before any statement, while the handler answers a request that is no
-    /// `coordinator_write`; then a refusal of `RemoveRefusal` for a kind that the store was not opened with, a kind of
-    /// the workflow run, a kind of another family and a kind that is not of origin person (`WorkflowKey`), in that
-    /// order. It removes no row of another kind.
+    /// `coordinator_write`, but for a `runner` request whose `kind` is a name of the closed list
+    /// `kinds::RUNNER_PERSON_KINDS` (r7 8.1L: the store's handler of the runner bodies `model_hold` and `model_settle`
+    /// replaces the person's count in one write); then a refusal of `RemoveRefusal` for a kind that the store was not
+    /// opened with, a kind of the workflow run, a kind of another family and a kind that is not of origin person
+    /// (`WorkflowKey`), in that order. It removes no row of another kind. Under a `runner` request the records of the
+    /// list are stored by the rules of the typed commit for that request.
     pub fn remove_person(
         &mut self,
         kind: &str,
         records: &[TypedRecord],
     ) -> Result<Removed, RemoveRefusal> {
         self.db.arm();
-        if self.writer != Writer::Coordinator {
+        if self.writer != Writer::Coordinator && !self.writer.may_write_person(kind) {
             return Err(RemoveRefusal::Role);
         }
         let entry = self
