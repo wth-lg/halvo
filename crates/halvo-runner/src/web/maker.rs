@@ -35,6 +35,17 @@
 //! field in its query, and a form that names no amount, go on to the card, and one whose query names another amount
 //! is failed. A `submit` and a `sign` go on as before.
 //!
+//! In a frame (r3 U5.10-B part two; the coordinator's ruling of log line 16745): a step of any effect class that the
+//! maker serves (`payment`, `purchase`, `submit`, `sign`) whose own target or a condition `post`'s target names a frame,
+//! or whose arg takes a value read in a frame, comes to the maker, and every other way into a frame still fails before
+//! any act (`reaches_a_frame_beyond_the_maker` of the browser's module). Before any read of a value, any arm and any act
+//! the maker reads the top page's address and acts only where its origin and every origin of every frame path that the
+//! step names (its own target's, the target's of each extract that its args take, each condition's) are origins of the
+//! run (the round of the review seat's F1 and the coordinator's ruling of log line 17176), so that no frame path that the
+//! step names passes through a frame of an unbound origin; a value read in a frame names the frame document's origin,
+//! the last of the path that its target names (`read_again`); and the read after the reply waits for a new document in
+//! the frame of the released request (`Page::arm_hold`, `Page::page_amounts`).
+//!
 //! A binary that holds the maker holds its marker text (`MAKER_MARKER`), which the scan of check 62-build
 //! (scripts/r1/ci.d/62-build.sh) refuses in every shipped file.
 
@@ -45,7 +56,7 @@ use std::time::{Duration, Instant};
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::names::{FieldName, Source};
 use halvo_schema::executable::record::Slot;
-use halvo_schema::executable::step::{Cond, WebTarget};
+use halvo_schema::executable::step::{Cond, Target, WebTarget};
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, ExecutableStep, WebOrigin};
 use halvo_web::cdp::{HeldForm, HeldRequest, STEP_TIMEOUT};
@@ -178,9 +189,12 @@ struct Held {
 }
 
 /// The value of an extract read again on the page with its target, as its parse keeps it (the text, or the amount in
-/// the form `<units>.<two decimals>`), and the origin of the page that holds it; one line on standard error that names
-/// the part that failed. The maker reads it right before the act, while the page is idle: the executor's read of a
-/// control fails while the page's navigation is held (the hosted macos job of run 45025948760).
+/// the form `<units>.<two decimals>`), and the origin of the document that holds it: for a target inside a frame the
+/// last origin of the frame path that the target names, which the walk of the read held against that frame's document
+/// before it resolved the control (r3 U5.10-B part two, the coordinator's ruling of log line 16745, point 3), and for a
+/// target of the top document the origin of the top page's address; one line on standard error that names the part
+/// that failed. The maker reads it right before the act, while the page is idle: the executor's read of a control
+/// fails while the page's navigation is held (the hosted macos job of run 45025948760).
 fn read_again(web: &mut Web, target: &WebTarget, parse: &str) -> Result<(String, WebOrigin), ()> {
     let failed = |part: &str| crate::line(&format!("run effect=failed at=read_again part={part}"));
     let text = match web.0.carry_out(&[], &Act::Extract(target), &[]) {
@@ -208,6 +222,9 @@ fn read_again(web: &mut Web, target: &WebTarget, parse: &str) -> Result<(String,
             return Err(());
         }
     };
+    if let Some(frame) = target.frame.last() {
+        return Ok((value, frame.clone()));
+    }
     let address = web.0.address().map_err(|()| failed("address"))?;
     let origin = WebOrigin::of_address(&address).map_err(|_| failed("origin"))?;
     Ok((value, origin))
@@ -522,7 +539,31 @@ impl Runner {
         self.web = Some(web);
         read?;
         let origins = self.run_origins(loaded);
+        let framed = self.reaches_a_frame(step);
+        let paths_bound = self
+            .frame_paths(step)
+            .iter()
+            .all(|path| path.iter().all(|origin| origins.contains(origin)));
+        let frame = match &step.target {
+            Some(Target::Web(target)) => &target.frame[..],
+            _ => &[],
+        };
         let web = self.web.as_mut().ok_or_else(failed)?;
+        if framed {
+            let top = web
+                .0
+                .address()
+                .ok()
+                .and_then(|address| WebOrigin::of_address(&address).ok());
+            if !top.is_some_and(|top| origins.contains(&top)) {
+                crate::line("run effect=failed at=frame top=unbound");
+                return Err(failed());
+            }
+            if !paths_bound {
+                crate::line("run effect=failed at=frame path=unbound");
+                return Err(failed());
+            }
+        }
         let mut fields = Vec::with_capacity(sources.len());
         for (name, from) in sources {
             fields.push(match from {
@@ -539,7 +580,7 @@ impl Runner {
             crate::line("run effect=failed at=arm refused=yes");
             return end_of_step(Err(()), &before);
         }
-        if web.0.arm_hold(&origins).is_err() {
+        if web.0.arm_hold(&origins, frame).is_err() {
             let _ = web.0.arm(&origins);
             return Err(failed());
         }
@@ -642,6 +683,12 @@ mod tests {
     /// category `email`.
     const SUBMIT: &str = r#"{"v":1,"n":2,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"test_id","value":"send","name":null}]},"args":[{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null},{"name":"fields","from":"const","value":"note=hello","key":null}],"pre":[],"post":[],"effect":"request","class":"submit"}"#;
 
+    /// `PAY` with its target in the frame of the bound origin (r3 U5.10-B part two).
+    const FRAMED_PAY: &str = r#"{"v":1,"n":3,"kind":"web","verb":"click","target":{"desc":"d","frame":["http://127.0.0.1:8080"],"credential":"no","locators":[{"by":"test_id","value":"pay-now","name":null}]},"args":[{"name":"payee","from":"slot","value":null,"key":"payee"},{"name":"amount","from":"extract","value":null,"key":"amount"},{"name":"instrument","from":"slot","value":null,"key":"instrument"},{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null}],"pre":[],"post":[],"effect":"request","class":"payment"}"#;
+
+    /// `EXTRACT` with its target in the frame of the bound origin (r3 U5.10-B part two).
+    const FRAMED_EXTRACT: &str = r#"{"v":1,"n":2,"kind":"web","verb":"extract","target":{"desc":"the amount","frame":["http://127.0.0.1:8080"],"credential":"no","locators":[{"by":"test_id","value":"amount","name":null}]},"args":[{"name":"as","from":"const","value":"amount","key":null},{"name":"parse","from":"const","value":"amount","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}"#;
+
     /// The step `extract` that kept the amount.
     const EXTRACT: &str = r#"{"v":1,"n":2,"kind":"web","verb":"extract","target":{"desc":"the amount","frame":[],"credential":"no","locators":[{"by":"test_id","value":"amount","name":null}]},"args":[{"name":"as","from":"const","value":"amount","key":null},{"name":"parse","from":"const","value":"amount","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}"#;
 
@@ -670,8 +717,8 @@ mod tests {
     /// it names the amounts that the test gave, the rule's record holds the requests that the test gave in `before`
     /// until the arm of the hold mode empties it, as the executor's arm does, those of `waited` from its second read
     /// after that arm on (the first is the read right after the act), and those of `after` once a request left; the
-    /// held requests gain the test's `second` from their third read on (the act's two reads come first); and every call
-    /// is one line of the log.
+    /// held requests gain the test's `second` from their third read on (the act's two reads come first); the top page's
+    /// address is `top`; and every call is one line of the log.
     struct StandIn {
         log: Log,
         holds: Vec<HeldRequest>,
@@ -686,6 +733,7 @@ mod tests {
         second: Option<HeldRequest>,
         held_reads: usize,
         post_fails: bool,
+        top: String,
     }
 
     impl StandIn {
@@ -704,6 +752,7 @@ mod tests {
                 second: None,
                 held_reads: 0,
                 post_fails: false,
+                top: format!("{BOUND}/pay"),
             }
         }
     }
@@ -812,7 +861,7 @@ mod tests {
         }
 
         fn address(&mut self) -> Result<String, ()> {
-            Ok(format!("{BOUND}/pay"))
+            Ok(self.top.clone())
         }
 
         fn export(&mut self, _: &WebOrigin) -> Result<SessionState, ()> {
@@ -823,7 +872,7 @@ mod tests {
             Err(())
         }
 
-        fn arm_hold(&mut self, origins: &[WebOrigin]) -> Result<(), ()> {
+        fn arm_hold(&mut self, origins: &[WebOrigin], _: &[WebOrigin]) -> Result<(), ()> {
             note(&self.log, format!("arm hold [{}]", named(origins)));
             self.before.clear();
             self.reads = 0;
@@ -864,7 +913,12 @@ mod tests {
 
     /// The values and the extract that the step `extract` of the amount left: `12.34` as `amount`.
     fn kept_amount() -> (Kept, Extracts) {
-        let Some(Target::Web(target)) = step(EXTRACT).target else {
+        kept_of(EXTRACT)
+    }
+
+    /// The values and the extract that the extract step `json` of the amount left: `12.34` as `amount`.
+    fn kept_of(json: &str) -> (Kept, Extracts) {
+        let Some(Target::Web(target)) = step(json).target else {
             panic!("a web target")
         };
         (
@@ -888,7 +942,17 @@ mod tests {
 
     /// The payment step `json` run on `stand_in`, answered as `plan` says.
     fn pay_step(stand_in: StandIn, json: &str, plan: Plan) -> Record {
-        let (kept, extracts) = kept_amount();
+        pay_with(stand_in, json, kept_amount(), plan)
+    }
+
+    /// The payment step `json` run on `stand_in` with the values and the extracts `(kept, extracts)`, answered as
+    /// `plan` says.
+    fn pay_with(
+        stand_in: StandIn,
+        json: &str,
+        (kept, extracts): (Kept, Extracts),
+        plan: Plan,
+    ) -> Record {
         run_web_step(
             Category::UtilityBillPayment,
             (
@@ -1408,6 +1472,114 @@ mod tests {
                 "{body}"
             );
             assert_eq!(record.done(), Some(Outcome::Completed), "{body}");
+        }
+    }
+
+    /// r3 U5.10-B part two, the coordinator's point (5) of log line 16745, on the stand-in: a payment whose target and
+    /// amount stand in a frame of a bound origin, under a top page of an origin outside the bindings, fails before any
+    /// act: no arm of the hold mode, no click, no card and no effect row; the step answers `step_failed`, so that a
+    /// foreign page cannot carry a bound site's frame into a payment.
+    #[test]
+    fn on_the_stand_in_a_framed_payment_under_a_foreign_top_page_fails_before_any_act() {
+        let log: Log = Arc::default();
+        let mut stand_in = StandIn::new(&log, vec![held(7)]);
+        stand_in.top = "http://127.0.0.1:9090/pay".to_string();
+        let record = pay_with(stand_in, FRAMED_PAY, kept_of(FRAMED_EXTRACT), Plan::plain());
+        let log = lines(&log);
+        assert!(
+            !log.iter()
+                .any(|l| l.starts_with("arm hold") || l == "act click"),
+            "{log:?}"
+        );
+        assert!(record.confirms().is_empty(), "no card: {log:?}");
+        assert!(record.states().is_empty(), "no effect row: {log:?}");
+        assert_eq!(
+            rows(&record),
+            [
+                (LogEvent::StepFailed, Some(3), Some(Cause::StepFailed)),
+                (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+            ],
+            "{log:?}"
+        );
+        assert_eq!(record.done(), Some(Outcome::Failed), "{log:?}");
+    }
+
+    /// r3 U5.10-B part two, the round of the review seat's F1 (the coordinator's ruling of log line 16745, point 2), on
+    /// the stand-in: a payment whose target names a frame of an origin outside the bindings, under a bound top page and
+    /// with an amount read on that bound page, fails before any act: no arm of the hold mode, no click, no card and no
+    /// effect row; and so does one whose path of two frames names an OUTER frame outside the bindings.
+    #[test]
+    fn on_the_stand_in_a_payment_in_a_frame_of_an_unbound_origin_under_a_bound_top_page_fails_before_any_act(
+    ) {
+        for path in [
+            r#""http://127.0.0.1:9090""#,
+            r#""http://127.0.0.1:9090","http://127.0.0.1:8080""#,
+        ] {
+            let log: Log = Arc::default();
+            let stand_in = StandIn::new(&log, vec![held(7)]);
+            let json = PAY.replacen(r#""frame":[]"#, &format!(r#""frame":[{path}]"#), 1);
+            let record = pay_step(stand_in, &json, Plan::plain());
+            let log = lines(&log);
+            assert!(
+                !log.iter()
+                    .any(|l| l.starts_with("arm hold") || l == "act click"),
+                "{path}: {log:?}"
+            );
+            assert!(record.confirms().is_empty(), "{path}: no card: {log:?}");
+            assert!(record.states().is_empty(), "{path}: no effect row: {log:?}");
+            assert_eq!(
+                rows(&record),
+                [
+                    (LogEvent::StepFailed, Some(3), Some(Cause::StepFailed)),
+                    (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+                ],
+                "{path}: {log:?}"
+            );
+            assert_eq!(record.done(), Some(Outcome::Failed), "{path}: {log:?}");
+        }
+    }
+
+    /// r3 U5.10-B part two, round 2 (the coordinator's ruling of log line 17176, verifier-123's W1), on the stand-in:
+    /// every origin of every frame path that an effect step names is an origin of the run, else the step answers
+    /// `step_failed` before any read of a value, any arm and any act, with an empty page log: a payment whose amount
+    /// comes from an extract whose path is [unbound, bound], and one whose condition `post` names a frame of an
+    /// unbound origin.
+    #[test]
+    fn on_the_stand_in_a_read_or_a_post_condition_by_an_unbound_frame_path_fails_before_any_read() {
+        let outer = EXTRACT.replacen(
+            r#""frame":[]"#,
+            r#""frame":["http://127.0.0.1:9090","http://127.0.0.1:8080"]"#,
+            1,
+        );
+        let post = PAY_POST.replacen(
+            r#""desc":"paid","frame":[]"#,
+            r#""desc":"paid","frame":["http://127.0.0.1:9090"]"#,
+            1,
+        );
+        for (name, json, extract) in [
+            ("an amount read by [unbound, bound]", PAY, outer.as_str()),
+            (
+                "a condition post in an unbound frame",
+                post.as_str(),
+                EXTRACT,
+            ),
+        ] {
+            let log: Log = Arc::default();
+            let stand_in = StandIn::new(&log, vec![held(7)]);
+            let record = pay_with(stand_in, json, kept_of(extract), Plan::plain());
+            let log = lines(&log);
+            assert!(log.is_empty(), "{name}: {log:?}");
+            assert!(record.confirms().is_empty(), "{name}: no card");
+            assert!(record.states().is_empty(), "{name}: no effect row");
+            assert_eq!(
+                rows(&record),
+                [
+                    (LogEvent::StepFailed, Some(3), Some(Cause::StepFailed)),
+                    (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+                ],
+                "{name}"
+            );
+            assert_eq!(record.done(), Some(Outcome::Failed), "{name}");
         }
     }
 }
