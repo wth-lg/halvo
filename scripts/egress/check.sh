@@ -227,10 +227,15 @@ wfp_rights() {
   rights=
 }
 
+# wfp_program NAME: prints the Windows path of the program that NAME names, when the shell finds it by a
+# path that begins with a slash or NAME is a path that begins with a drive letter, a colon and / or \.
 wfp_program() {
-  found=$(command -v "$1" 2>/dev/null) || return 0
+  case $1 in
+    [A-Za-z]:/* | [A-Za-z]:\\*) found=$1 ;;
+    *) found=$(command -v "$1" 2>/dev/null) || return 0 ;;
+  esac
   case $found in
-    /*) ;;
+    /* | [A-Za-z]:/* | [A-Za-z]:\\*) ;;
     *) return 0 ;;
   esac
   [ -f "$found" ] || found=$found.exe
@@ -652,6 +657,43 @@ empty_ok() {
   fi
 }
 
+# drive_stand_in: off Windows, makes under $work/drive the files D:/a/door and D:\a\door and a stand-in
+# for cygpath that turns each / into \.
+drive_stand_in() {
+  mkdir -p "$work/drive/bin" "$work/drive/D:/a" || return 1
+  : >"$work/drive/$named" && : >"$work/drive/$back" || return 1
+  cat >"$work/drive/bin/cygpath" <<'EOF' || return 1
+#!/bin/sh
+[ "$1" = -w ] || exit 2
+printf '%s\n' "$2" | tr / '\\'
+EOF
+  chmod +x "$work/drive/$named" "$work/drive/$back" "$work/drive/bin/cygpath"
+}
+
+# drive_case: prints ok when wfp_program lists a program named by a drive-letter path, D:/... and D:\...,
+# by its Windows path: on Windows the built runner, elsewhere the files of drive_stand_in.
+drive_case() {
+  named=
+  back=
+  got=
+  if [ "$platform" = windows-2025 ]; then
+    named=$(cygpath -m "$runner") && back=$(cygpath -w "$runner") &&
+      got=$(wfp_program "$named" && wfp_program "$back") || got=
+  else
+    named=D:/a/door
+    back='D:\a\door'
+    if drive_stand_in; then
+      got=$(cd "$work/drive" && PATH=$work/drive/bin:$PATH && wfp_program "$named" && wfp_program "$back") || got=
+    fi
+  fi
+  if [ -n "$back" ] && [ "$got" = "$back
+$back" ]; then
+    printf '%s\n' ok
+  else
+    printf '%s\n' miss
+  fi
+}
+
 listeners=
 stop_listeners() {
   : >"$work/stop"
@@ -744,10 +786,12 @@ done
 stop_listeners
 first_form "$loopback" "$deny" sh scripts/egress/probe.sh listen </dev/null >/dev/null
 listen=$(empty_ok)
+drive=$(drive_case)
 lines="$lines
 listed result=$listed
 unlisted result=$unlisted
-listen result=$listen"
+listen result=$listen
+drive-path result=$drive"
 if [ "${GITHUB_ACTIONS:-}" != true ]; then
   lines="$lines
 control result=left-out reason=not-a-hosted-runner"
@@ -765,7 +809,7 @@ if [ -f "$trial" ]; then
   [ -z "$first" ] || [ "$first" != "$constant" ] || default=ok
 fi
 printf '%s\nchecks probes=%s quiet=%s loopback=%s default=%s lost=%s\n' "$lines" "$probes" "$quiet" "$loop" "$default" "$((lost_total + unlisted_lost))"
-if [ "$probes" = ok ] && [ "$quiet" = ok ] && [ "$loop" = ok ] && [ "$default" = ok ]; then
+if [ "$probes" = ok ] && [ "$quiet" = ok ] && [ "$loop" = ok ] && [ "$default" = ok ] && [ "$drive" = ok ]; then
   exit 0
 fi
 exit 1

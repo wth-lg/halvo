@@ -1020,6 +1020,10 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
                 }
                 serde_json::json!({ "stored": stored })
             }
+            Body::AgreeHosted { workflow, agent } | Body::WithdrawHosted { workflow, agent } => {
+                let rev = self.merge_slots(workflow, agent, &[]);
+                serde_json::json!({ "rev": rev })
+            }
         })
     }
 

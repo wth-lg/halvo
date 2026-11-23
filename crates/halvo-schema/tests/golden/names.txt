@@ -28,6 +28,7 @@ amount_differs
 amount_unread
 analysis
 analysis_write
+anchor
 answer
 answer_lost
 api
@@ -49,6 +50,7 @@ bindings
 blocked
 blocked_withheld
 body
+body_bytes
 bounded
 browser_start
 budget
@@ -59,6 +61,7 @@ calendar_delete
 calendar_list
 call
 cancelled
+cap_minor
 caps
 category
 cause
@@ -230,8 +233,12 @@ mode
 model
 model_call
 model_calls
+model_count
+model_hold
 model_key
 model_key_state
+model_room
+model_settle
 model_tokens
 more
 more_pages
@@ -242,6 +249,7 @@ n
 name
 navigate
 navigation
+new_count
 new_origin
 next
 next_playbook
@@ -273,6 +281,7 @@ origins
 other
 other_task
 outcome
+output_limit
 overlaps
 page_amount
 page_unread
@@ -283,6 +292,7 @@ paused
 payee
 payment
 period
+period_end_ms
 permissions
 person
 planned
@@ -306,6 +316,7 @@ put_session
 range
 read
 read_model_key
+reads
 ready
 reasoning
 record
@@ -330,6 +341,7 @@ request
 rev
 reverted
 ride_order
+room
 routine_stale
 run
 run_ended
@@ -355,6 +367,7 @@ session_size
 sessions
 set_bindings
 set_model
+set_model_cap
 set_state
 setup
 sha256
@@ -372,6 +385,7 @@ slot
 slot_skipped
 slots
 source
+spent
 spreadsheet_fill
 stale
 stands
@@ -416,11 +430,13 @@ try_again
 unattended
 unauthorized
 unknown
+unread
 unreadable
 untrusted
 unverified
 upload
 url_is
+usage
 used
 user_files
 utility_bill_payment

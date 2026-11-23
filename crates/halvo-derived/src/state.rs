@@ -112,7 +112,9 @@ impl HandlerCx<'_> {
     /// is `proposed` or `dismissed` and for a call that would leave an `active` or a `paused` workflow with no agent,
     /// and changes nothing for a call that asks for what the row holds. It takes nothing else, so no free text reaches
     /// the workflow. The store offers it while a handler answers a `coordinator_write`, the request under which the
-    /// state of a workflow changes, and answers `role` to it while a handler answers a request of another role.
+    /// state of a workflow changes, and answers `role` to it while a handler answers a request of another role. Before
+    /// all of these, behind a read of this request that met a fault of the store, it answers that fault
+    /// (`Error::Fault`) and moves nothing (r7 8.1L).
     pub fn state(
         &mut self,
         workflow: &WorkflowId,
@@ -120,6 +122,9 @@ impl HandlerCx<'_> {
         agent: Option<AgentId>,
     ) -> Result<(), Error> {
         self.db.arm();
+        if let Some(fault) = self.read_fault() {
+            return Err(Error::Fault(fault));
+        }
         if self.writer != Writer::Coordinator {
             return Err(Error::Refused(ErrorName::Role));
         }

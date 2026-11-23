@@ -407,6 +407,12 @@ random_id! {
     ApprovalId
 }
 
+random_id! {
+    /// The id of one model request, which the runner mints for each request it sends: 32 lower-case hex digits from 16
+    /// random bytes, the id of that request's hold in the person's count (r7 8.1L).
+    ModelRequestId
+}
+
 /// The debugging address of the stand-in's browser, `127.0.0.1:<port>`, the port from 1 to 65,535.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Endpoint(String);

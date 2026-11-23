@@ -150,7 +150,8 @@ pub struct RunSpec {
     pub utc_offset_s: i32,
     /// The hosted tier of the run's model, which the caller sets, or none (r3 U7.6). The library answers the frame
     /// `secret` of the reserved name `MODEL_KEY` with `Secrets::read` only for a run whose start names one; to every
-    /// other run it answers none stored for that name and calls no `Secrets`. On main no caller sets it.
+    /// other run it answers none stored for that name and calls no `Secrets`. The app's start of a run sets it from
+    /// the agent's standing agreement alone (r4 U3.17a).
     pub hosted: Option<Hosted>,
 }
 
