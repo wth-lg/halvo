@@ -145,3 +145,31 @@ fn only_the_one_function_names_a_hosted_tier_and_only_the_start_writes_the_field
         "{refused:?}"
     );
 }
+
+/// Whether `origins` name one origin at most: each the same as the first, or none.
+fn one_origin<'a>(origins: impl IntoIterator<Item = &'a str>) -> bool {
+    let mut origins = origins.into_iter();
+    let first = origins.next();
+    origins.all(|origin| Some(origin) == first)
+}
+
+/// r4 U3.17a sentence 7: a table of hosts whose rows name two origins is refused by the tree: every row of this
+/// build's ruling, `halvo_route::release::ruling().rows()`, names the same ONE origin, or there is no row. The rule's
+/// reader refuses two origins on plain texts.
+#[test]
+fn every_row_of_the_table_of_hosts_names_the_same_one_origin() {
+    let ruling = halvo_route::release::ruling();
+    let origins: Vec<&str> = ruling.rows().iter().map(|row| row.origin()).collect();
+    assert!(
+        one_origin(origins.iter().copied()),
+        "the rows of this build's table of hosts name {origins:?}"
+    );
+    assert!(one_origin([
+        "https://hosted-model.test",
+        "https://hosted-model.test"
+    ]));
+    assert!(
+        !one_origin(["https://hosted-model.test", "https://other-model.test"]),
+        "two origins"
+    );
+}
