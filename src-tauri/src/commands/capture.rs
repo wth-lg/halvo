@@ -1214,15 +1214,25 @@ pub fn remove_the_crash_reports(
         crash_reports_left, ..
     } = view
     {
-        if !every_file_goes(folder, remove) {
+        if !every_file_goes(folder, crate::app::REPORT_PARTS.len(), remove) {
             *crash_reports_left = Some(halvo_control::paths::one_line(&folder.to_string_lossy()));
         }
     }
 }
 
 /// Removes every file under `dir` by `remove`, folders kept: whether none stayed. A folder that
-/// does not stand holds none.
-pub(crate) fn every_file_goes(dir: &Path, remove: &dyn Fn(&Path) -> std::io::Result<()>) -> bool {
+/// does not stand holds none. Where `dir` or one of the `above` folders above it is a link,
+/// nothing goes and the answer is that one stays: the walk opens a folder by its path, so a link
+/// there would lead it to files that are not the window's. Each folder below is read so again
+/// before its walk.
+pub(crate) fn every_file_goes(
+    dir: &Path,
+    above: usize,
+    remove: &dyn Fn(&Path) -> std::io::Result<()>,
+) -> bool {
+    if a_link_on_the_way(dir, above) {
+        return false;
+    }
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(error) => return error.kind() == std::io::ErrorKind::NotFound,
@@ -1235,13 +1245,26 @@ pub(crate) fn every_file_goes(dir: &Path, remove: &dyn Fn(&Path) -> std::io::Res
         };
         let path = entry.path();
         let gone = match entry.file_type() {
-            Ok(kind) if kind.is_dir() => every_file_goes(&path, remove),
+            Ok(kind) if kind.is_dir() => every_file_goes(&path, 0, remove),
             Ok(_) => remove(&path).is_ok(),
             Err(_) => false,
         };
         none_stayed &= gone;
     }
     none_stayed
+}
+
+/// Whether `dir` or one of the `above` folders above it is a link, each read as itself and not
+/// followed. On Windows the standard library reads a reparse point with a name surrogate's tag as
+/// a link, so a junction counts. A part that cannot be read, for any cause but its absence,
+/// counts as one.
+pub(crate) fn a_link_on_the_way(dir: &Path, above: usize) -> bool {
+    dir.ancestors()
+        .take(above + 1)
+        .any(|part| match std::fs::symlink_metadata(part) {
+            Ok(meta) => meta.file_type().is_symlink(),
+            Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+        })
 }
 
 #[cfg(test)]

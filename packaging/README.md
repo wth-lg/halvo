@@ -153,8 +153,25 @@ helper of `helpers.d` can be opened for writing. A file that is still held stops
 the uninstall or the install, before any file or value goes. Check 70 fails when
 `hooks.nsh` waits for no helper of `helpers.d`.
 
-Where the box is ticked, the uninstall first asks `halvo-capture.exe
---default-data-dir` for the program's own default data directory, and runs
+Before the stop, the uninstall reads whose install it removes: the uninstall
+entry of the account that runs it, under `HKCU`, names its install folder in the
+value `InstallLocation`, and the hooks hold that folder against the folder of the
+uninstaller, both without quotes and a trailing backslash and in their short
+form. The install and its entry are one account's, so another folder, or no
+entry, reads as another account's install. There, with the box ticked, the hooks
+show one sentence with OK and Cancel before anything goes: this account has no
+record of installing this copy, so the uninstaller deletes no Halvo data. Cancel
+stops the uninstall; OK clears the box, so that neither the hooks' delete nor the
+template's own step removes any Halvo data, the running account's own neither,
+and the program goes. A silent uninstall with `/DELETEALL` there shows nothing and
+stops before anything goes, with exit 2. Two accounts that installed into one
+folder read as one account, and a person whose uninstall entry is gone reads as
+another account. Under another account the template's own step still takes the
+running account's own Run value `Halvo` away, which no hook reaches.
+
+Where the box is ticked at the account's own install, the uninstall first asks
+`halvo-capture.exe --default-data-dir` for the program's own default data
+directory, and runs
 `halvo-capture.exe --delete-all --data-dir` with the printed path as one
 argument. No line of the hooks names the data directory or builds a path from
 the account's name. At exit 0 the uninstall goes on, and the template's own step
@@ -163,8 +180,11 @@ holds the web view's folder `EBWebView`. The hooks name that folder by the
 template's own expression, `$LOCALAPPDATA\${BUNDLEID}`, for two things alone:
 where the folder still stands, they run the template's step again for at most
 20 s, and then they name the folder in the sentence that asks the person to
-remove it. At exit 75, or at any other end, the uninstall stops before any file
-or value goes. A silent uninstall ticks the box by the switch `/DELETEALL`, and
+remove it. At exit 66, where the delete could not use the data directory and
+removed nothing, the uninstall stops before any file or value goes with a
+sentence that names that directory: the person can remove it and run the
+uninstaller again, or run it without the box to remove the program only. At exit
+75, or at any other end, the uninstall stops before any file or value goes. A silent uninstall ticks the box by the switch `/DELETEALL`, and
 never without it, as check 70 calls it:
 
 ```sh
@@ -172,20 +192,31 @@ uninstall.exe /S /DELETEALL _?=<the install folder>
 ```
 
 Only this form, with `_?=` and the install folder last, gives the caller a
-readable exit: 2 where the uninstall stopped. Without it the uninstaller starts
-a copy of itself and exits at once, so the caller reads 0 whatever the copy did.
+readable exit: 0 where the uninstall went to its end; 2 where it stopped; 3
+where it went to its end while a crash report of Halvo's window, or the folder
+of that window, stays. Without `_?=` the uninstaller starts a copy of itself and
+exits at once, so the caller reads 0 whatever the copy did.
 
-The box deletes what Halvo's own Delete everything deletes. Copies that Halvo
-made next to your own files stay, and the box does not say so.
+The box deletes what Halvo's own Delete everything deletes, and its label says
+what stays: "Also delete Halvo's data. Copies next to your files stay."
+
+At every uninstall of the account's own install that is not for an update, with
+the box ticked or not, the hooks call `halvo.exe --remove-crash-reports` while
+`halvo.exe` stands, behind the stop and the delete. The form removes the crash
+reports of Halvo's window, which can hold what the window showed, and prints one
+line, `crash_reports folder=<path> removed=<n> left=<n>`. Every end of the form
+but 0 reads as a report that stays. Without the box the uninstall then ends with
+a sentence that names the folder from that line, or the folder of the app's id
+where the line names none, and with exit 3. The form refuses a link at the
+folder of the reports and at each folder above it up to the folder of the app's
+id: it removes nothing behind the link and says that a report stays.
 
 A silent uninstall without `/DELETEALL`, and an uninstall with the box not
-ticked, delete nothing that Halvo stored: Halvo's data folder and the web view's
-folder, with the reports of a crash of Halvo's window, stay on the computer. An
-uninstall for an update (`/UPDATE`) deletes nothing either. Every other uninstall
+ticked, delete nothing else that Halvo stored: Halvo's data folder and the web
+view's folder stay on the computer. An uninstall for an update (`/UPDATE`)
+deletes nothing, and calls no form. Every other uninstall
 takes the value `Halvo` away under `Software\Microsoft\Windows\CurrentVersion\Run`
-of the person's own registry, whatever its text. An uninstall under another
-account, with the box ticked, deletes that account's Halvo data alone; the first
-person's data and Run value stay.
+of the person's own registry, whatever its text.
 
 After an install, where none of the values that the template's own WebView2
 section reads is there, the installer says that the runtime is missing; a silent
@@ -198,8 +229,15 @@ template reads for the runtime are moved aside, and puts them back before the
 app starts and in its trap. It starts the installed app on a provisioned scratch
 data directory, reads its one child, a status with the store open and a stop
 that holds, installs over the copy while `halvo-owner.exe` is held and reads that
-nothing was installed, then starts the app on the runner account's default data
-directory, plants a file in `EBWebView` and the Run value, and runs `uninstall.exe
+nothing was installed. With a file at the name of the default data directory it
+reads exit 66 of the delete, and exit 2 of `uninstall.exe /S /DELETEALL` with
+nothing taken away. It plants two reports in the folder that `halvo.exe
+--remove-crash-reports` names, holds one open, and reads that `uninstall.exe /S`
+exits 3, removes the program and the other report; then it installs again. It
+starts the app on the runner account's default data directory, plants a file in
+`EBWebView` and the Run value, turns the folder that its own uninstall entry
+names, and reads exit 2 of `uninstall.exe /S /DELETEALL` with nothing taken away
+and the app still running; then it puts the entry back and runs `uninstall.exe
 /S /DELETEALL` while the app and its child run. It reads that no process from the
 folder, no file there but `uninstall.exe`, no Run value, no uninstall entry, no
 default data directory and no planted file is left. It ends only the processes
