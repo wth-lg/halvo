@@ -1,11 +1,11 @@
-# The eight slices: what CI runs outside the merge gate, one slice a day and wed2 a second slice on
-# Wednesday.
+# The nine slices: what CI runs outside the merge gate, one slice a day, tue2 a second slice on
+# Tuesday and wed2 a second slice on Wednesday.
 # sh scripts/ci/run-ci-d.sh <job> --slice <slice> runs the lines of its slice and job: first the
 # self-tests, then the checks. A check or a self-test that no line here and no line of
 # scripts/ci/merge-gate.txt names runs in no run of CI.
 #
 # A line is: <slice> <job> <kind> <name>
-#   slice  mon, tue, wed, wed2, thu, fri, sat or sun
+#   slice  mon, tue, tue2, wed, wed2, thu, fri, sat or sun
 #   job    macos or windows
 #   kind   check      the check of that name
 #          self-test  the self-test of the check of that name
@@ -27,6 +27,13 @@ mon windows check 35-app-windows-memory
 tue macos tests B
 tue macos check 25-advisories
 tue windows tests B
+
+# tue2 runs at 04:47 UTC on Tuesday. Its group G came out of the group B, whose slice tue took 994 s in
+# the macos job, on an Apple M1 (Virtual) with 3 processors, and 1,072 s in the windows job, on an AMD
+# EPYC 7763, in the run by hand 45116131132: the lines of G took 224 s and 168 s of the tests there.
+tue2 macos tests G
+tue2 macos check 25-advisories
+tue2 windows tests G
 
 wed macos tests E
 wed macos check 51-macos-stall
