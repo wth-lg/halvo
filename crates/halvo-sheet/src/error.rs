@@ -363,12 +363,22 @@ mod tests {
                 "data_form",
             ),
             (
-                Error::Source(SourceRefusal::ByteOrderMark),
+                Error::Source(SourceRefusal::CarriageReturn),
                 "data_form",
                 "data_form",
             ),
             (
-                Error::Source(SourceRefusal::CarriageReturn),
+                Error::Source(SourceRefusal::QuotedLineBreak { line: 2 }),
+                "data_form",
+                "data_form",
+            ),
+            (
+                Error::Source(SourceRefusal::Quote { line: 2 }),
+                "data_form",
+                "data_form",
+            ),
+            (
+                Error::Source(SourceRefusal::OtherSeparator),
                 "data_form",
                 "data_form",
             ),

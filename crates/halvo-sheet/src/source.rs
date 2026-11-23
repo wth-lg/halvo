@@ -330,8 +330,12 @@ mod tests {
                     if text.contains("secret") || text.contains("pipe") {
                         wrong.push(format!("{}: the error shows a cell: {text}", shown(bytes)));
                     }
-                    if error.cause() != crate::Cause::StepFailed {
-                        wrong.push(format!("{}: cause {:?}", shown(bytes), error.cause()));
+                    if error.source_cause() != crate::Cause::DataForm {
+                        wrong.push(format!(
+                            "{}: cause {:?}",
+                            shown(bytes),
+                            error.source_cause()
+                        ));
                     }
                 }
                 other => wrong.push(format!("{}: got {other:?}, want {want:?}", shown(bytes))),
