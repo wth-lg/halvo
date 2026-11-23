@@ -164,10 +164,28 @@ record of installing this copy, so the uninstaller deletes no Halvo data. Cancel
 stops the uninstall; OK clears the box, so that neither the hooks' delete nor the
 template's own step removes any Halvo data, the running account's own neither,
 and the program goes. A silent uninstall with `/DELETEALL` there shows nothing and
-stops before anything goes, with exit 2. Two accounts that installed into one
-folder read as one account, and a person whose uninstall entry is gone reads as
-another account. Under another account the template's own step still takes the
-running account's own Run value `Halvo` away, which no hook reaches.
+stops before anything goes, with exit 2.
+
+What this way does not cover yet, each a named limit:
+
+- Under another account the uninstaller still takes two things of the running
+  person where they have a Halvo of their own: the hooks' own line and the
+  template's step each take their Run value `Halvo` away, and the template's step
+  takes their own uninstall entry, since that entry is named by the product and
+  not by the folder. So that person loses the start of their own Halvo at sign-in
+  and its entry in the list of installed apps; their program and their data stay,
+  and they can start it by hand and install it again over itself. In that one
+  case the box's sentence, which says that OK removes the program only, is not
+  yet true. The stop before the uninstall, `halvo-capture.exe ctl stop`, also
+  reaches the capture service of the running person's own Halvo where one runs.
+- Two people who installed Halvo into one folder read as one account: whoever
+  uninstalls reads as the one who installed it, so their ticked box deletes their
+  own Halvo data, while the other person's data, start entry and uninstall entry
+  stay, and no sentence says so.
+- A person whose uninstall entry is gone reads as another account, and so does a
+  person who installed again into another folder and uninstalls the older copy:
+  their ticked box deletes none of their Halvo data and they read the sentence;
+  without the box the crash reports of their window stay too, with no sentence.
 
 Where the box is ticked at the account's own install, the uninstall first asks
 `halvo-capture.exe --default-data-dir` for the program's own default data
@@ -184,18 +202,23 @@ remove it. At exit 66, where the delete could not use the data directory and
 removed nothing, the uninstall stops before any file or value goes with a
 sentence that names that directory: the person can remove it and run the
 uninstaller again, or run it without the box to remove the program only. At exit
-75, or at any other end, the uninstall stops before any file or value goes. A silent uninstall ticks the box by the switch `/DELETEALL`, and
-never without it, as check 70 calls it:
+75, or at any other end, the uninstall stops before any file or value goes. A
+silent uninstall ticks the box by the switch `/DELETEALL`, and never without it,
+as check 70 calls it:
 
 ```sh
 uninstall.exe /S /DELETEALL _?=<the install folder>
 ```
 
 Only this form, with `_?=` and the install folder last, gives the caller a
-readable exit: 0 where the uninstall went to its end; 2 where it stopped; 3
-where it went to its end while a crash report of Halvo's window, or the folder
-of that window, stays. Without `_?=` the uninstaller starts a copy of itself and
-exits at once, so the caller reads 0 whatever the copy did.
+readable exit: 0 where the uninstall went to its end, and 2 where it stopped. A
+silent run that left a report ends with exit 3, read with `_?=`: a silent run
+ends with 3 where a report or the folder of Halvo's window stays, with the box or
+without. A run with windows never ends with 3, since the template's own
+installer, at its step "Uninstall before installing", starts the uninstaller
+with windows and `_?=` and reads every exit but 0 and 1 as a failed uninstall.
+Without `_?=` the uninstaller starts a copy of itself and exits at once, so the
+caller reads 0 whatever the copy did.
 
 The box deletes what Halvo's own Delete everything deletes, and its label says
 what stays: "Also delete Halvo's data. Copies next to your files stay."
@@ -206,10 +229,18 @@ the box ticked or not, the hooks call `halvo.exe --remove-crash-reports` while
 reports of Halvo's window, which can hold what the window showed, and prints one
 line, `crash_reports folder=<path> removed=<n> left=<n>`. Every end of the form
 but 0 reads as a report that stays. Without the box the uninstall then ends with
-a sentence that names the folder from that line, or the folder of the app's id
-where the line names none, and with exit 3. The form refuses a link at the
-folder of the reports and at each folder above it up to the folder of the app's
-id: it removes nothing behind the link and says that a report stays.
+a sentence that names the folder from that line, and a silent one ends with exit
+3. Where the form does not start or its line names no folder, the sentence names
+the folder of Halvo's window, `%LOCALAPPDATA%\com.halvo.desktop\EBWebView`,
+and never the folder of the app's id, which holds the data that a person who did
+not tick the box kept. The form refuses a link at the folder of the reports and
+at each folder above it up to the folder of the app's id: it removes nothing
+behind the link and says that a report stays, so a person who moved one of those
+folders by a link reads at every start, and at every uninstall without the box,
+that a report stays, also where none does. It reads those folders once and then
+removes each file by its path, so a program that runs as the same person and
+puts a link in place during that walk can lead it to other files, with the
+rights of the window that runs it.
 
 A silent uninstall without `/DELETEALL`, and an uninstall with the box not
 ticked, delete nothing else that Halvo stored: Halvo's data folder and the web

@@ -26,8 +26,10 @@
 ; The exit of the offline delete where it could not use the data directory and removed nothing
 ; (DATA_DIR_UNUSABLE of crates/halvo-control/src/lib.rs).
 !define HALVO_DATA_DIR_UNUSABLE 66
-; The exit of an uninstall that went to its end while a crash report of Halvo's window, or the
-; folder of that window, stays; a caller reads it with _?=.
+; The exit of a SILENT uninstall that went to its end while a crash report of Halvo's window, or
+; the folder of that window, stays; a caller reads it with _?=. A run with windows never sets it:
+; the template's own installer, at its step Uninstall before installing, starts the uninstaller
+; with windows and _?= and reads every exit but 0 and 1 as a failed uninstall.
 !define HALVO_EXIT_REPORT_STAYS 3
 
 ; 1 where the uninstall entry of the account that runs the uninstaller names the install
@@ -219,8 +221,10 @@ Var HalvoReportFolder
 ; At an uninstall of the account's own install, with the box or without it, and not for an
 ; update: halvo.exe --remove-crash-reports, while it stands, removes the crash reports of Halvo's
 ; window. Its line names the folder behind "crash_reports folder=" and before the last
-; " removed="; every end but 0 reads as a report that stays, and where the line names no folder,
-; the folder of the app's id stands for it. Sets $HalvoReportFolder to that folder, or to "".
+; " removed="; every end but 0 reads as a report that stays. Where the form does not start or its
+; line names no folder, the folder of Halvo's window, EBWebView, stands for it, and never the folder
+; of the app's id, which holds the data that a person who did not tick the box kept. Sets
+; $HalvoReportFolder to that folder, or to "".
 !macro HALVO_REMOVE_CRASH_REPORTS
   StrCpy $HalvoReportFolder ""
   ${If} $HalvoOwnInstall = 1
@@ -243,7 +247,7 @@ Var HalvoReportFolder
       ${EndIf}
       ${If} $HalvoReportFolder == ""
       ${OrIf} $HalvoReportFolder == "-"
-        StrCpy $HalvoReportFolder "$LOCALAPPDATA\${BUNDLEID}"
+        StrCpy $HalvoReportFolder "$LOCALAPPDATA\${BUNDLEID}\EBWebView"
       ${EndIf}
     ${EndIf}
   ${EndIf}
@@ -294,7 +298,7 @@ Var HalvoReportFolder
 ; app's id, which holds the web view's folder EBWebView. Where it still stands, the step runs again
 ; for at most 20 s, since the web view's processes end a moment after the app; then sentence (5).
 ; Without the box: where the app's form left a crash report, the sentence that names its folder.
-; Either way, where something of the window stays, the uninstall ends with exit 3.
+; Either way, where something of the window stays, a silent uninstall ends with exit 3.
 !macro NSIS_HOOK_POSTUNINSTALL
   ${If} $DeleteAppDataCheckboxState = 1
   ${AndIf} $UpdateMode <> 1
@@ -311,12 +315,12 @@ Var HalvoReportFolder
       nsis_tauri_utils::StrReplace "${HALVO_SENTENCE_FOLDER_STAYS}" "{folder}" "$LOCALAPPDATA\${BUNDLEID}"
       Pop $R4
       MessageBox MB_ICONEXCLAMATION|MB_OK "$R4" /SD IDOK
-      SetErrorLevel ${HALVO_EXIT_REPORT_STAYS}
+      ${IfThen} ${Silent} ${|} SetErrorLevel ${HALVO_EXIT_REPORT_STAYS} ${|}
     ${EndIf}
   ${ElseIf} $HalvoReportFolder != ""
     nsis_tauri_utils::StrReplace "${HALVO_SENTENCE_REPORT_STAYS}" "{folder}" "$HalvoReportFolder"
     Pop $R4
     MessageBox MB_ICONEXCLAMATION|MB_OK "$R4" /SD IDOK
-    SetErrorLevel ${HALVO_EXIT_REPORT_STAYS}
+    ${IfThen} ${Silent} ${|} SetErrorLevel ${HALVO_EXIT_REPORT_STAYS} ${|}
   ${EndIf}
 !macroend
