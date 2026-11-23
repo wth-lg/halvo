@@ -310,7 +310,9 @@ sh tools/r3-trials/drive/hosted.sh --tier frontier --ceiling MINOR --browser PAT
   (`count.rs`) whose cap is the ceiling in minor units, at the prices of the build
   (`crates/halvo-route/data/prices.tsv`), for the bytes of the body that the door makes and 2,048
   output tokens. A hold that does not fit ends the cell with `notrun` and the cause `ceiling` before
-  a byte of the request is written, and the round stops. After the answer the hold settles at the
+  a byte of the request is written, and the round stops; so does the request that would pass the
+  round's bound `REQUESTS_MAX` of 216 (192 in compiles, 18 in recoveries, 6 for replies), with the
+  cause `requests`. After the answer the hold settles at the
   token counts of the door's reply line; after a refusal it settles at 0 where nothing left, and at
   the whole hold for `no_answer`, `status` and `answer`, after which the request may have left.
 - The paid form refuses to start (`REFUSED prices`) while the rate of its tier in the tracked price
@@ -322,8 +324,10 @@ sh tools/r3-trials/drive/hosted.sh --tier frontier --ceiling MINOR --browser PAT
   replies. The model is asked for the next action and the harness takes it when it is the step's.
 - The door's limit of 2,048 output tokens takes the place of the level's `reply_tokens` in the reply
   rule; the level and the grammar do not leave the door.
-- After the cells the round prints `spend tier=.. requests=.. spent_micro=.. ceiling_minor=..` and
-  `egress list=.. origin=.. runs=.. denied=..`, and the script prints the row of the table of hosts
+- After the cells the round prints `spend tier=.. requests=.. spent_micro=.. ceiling_minor=..`
+  (`requests` counts the requests handed to the door) and
+  `egress list=.. origin=.. starts=.. runs=.. denied=..` (the door's starts and the egress check's
+  lines read; where the two differ the round exits 1 and gives no verdict), and the script prints the row of the table of hosts
   that the door used, `host tier=.. origin=.. model=.. adapter=..`. `r3-drive` writes one line
   `round cell task=.. seed=.. ms=..` a cell on standard error.
 - `--standin` starts the scripted host of `src/host.rs` on 127.0.0.1:47201, the one entry of
@@ -331,7 +335,7 @@ sh tools/r3-trials/drive/hosted.sh --tier frontier --ceiling MINOR --browser PAT
   key, reads the lines against `control/hosted-expected.txt` and prints
   `control mode=hosted machine=.. result=..`. The scripted host answers as a right driver walks the
   task and shows nothing of what a model does. The check `scripts/r3/ci.d/65-drive-hosted.sh` runs
-  the tool's tests, the three whole rounds of its tests against the scripted host
+  the tool's tests, the four whole rounds of its tests against the scripted host
   (`cargo test --locked -- --ignored`), the paid form's refusal on the fixture rates and
   `--standin`. It joins no slice and no merge gate (the coordinator's log line 17943): it runs by
   hand with named checks, the windows job alone, before the paid round and at each change of the

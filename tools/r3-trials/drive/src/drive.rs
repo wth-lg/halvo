@@ -362,6 +362,10 @@ async fn ask(
         ctx.trace("ceiling: the next hold does not fit; nothing was sent");
         return Err(End::NotRun("ceiling"));
     }
+    if reply == Err(model::Fault::Bound) {
+        ctx.trace("requests: the round has handed the door its bound; nothing was sent");
+        return Err(End::NotRun("requests"));
+    }
     Ok((child, reply))
 }
 

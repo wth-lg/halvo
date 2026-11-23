@@ -23,6 +23,14 @@ pub const MODEL: &str = "stand-in-model";
 /// The adapter's version header (halvo-connect's `VERSION`): a request with another is answered 400.
 pub const VERSION: &str = "2026-10-21";
 
+/// How the host walks: as a right driver, or as one that answers the first recovery ask at each
+/// step that found no control with a `handback`, which the harness refuses, and the next one right.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Walk {
+    Right,
+    FirstRecoveryRefused,
+}
+
 /// One request that the host received: its head and its body.
 #[derive(Clone, Debug)]
 pub struct Received {
@@ -39,9 +47,10 @@ pub struct Host {
 }
 
 impl Host {
-    /// Starts the host on 127.0.0.1:`port` (0: a free port). With `log`, it appends each request's
-    /// body to that file, behind a line `--- request <n> bytes=<n>`; it writes no head, so no key.
-    pub fn start(port: u16, log: Option<PathBuf>) -> std::io::Result<Host> {
+    /// Starts the host on 127.0.0.1:`port` (0: a free port), walking by `walk`. With `log`, it
+    /// appends each request's body to that file, behind a line `--- request <n> bytes=<n>`; it
+    /// writes no head, so no key.
+    pub fn start(port: u16, log: Option<PathBuf>, walk: Walk) -> std::io::Result<Host> {
         let listener = TcpListener::bind(("127.0.0.1", port))?;
         let port = listener.local_addr()?.port();
         let received = Arc::new(Mutex::new(Vec::new()));
@@ -58,7 +67,7 @@ impl Host {
                     let Some(request) = read_request(&mut stream) else {
                         continue;
                     };
-                    let (status, answer) = answer(&request);
+                    let (status, answer) = answer(&request, walk);
                     let n = {
                         let mut all = received.lock().unwrap_or_else(|e| e.into_inner());
                         all.push(request.clone());
@@ -158,7 +167,7 @@ fn header<'a>(head: &'a str, name: &str) -> Option<&'a str> {
 
 /// The status and the body of the answer to one request: 400 when it is not of the adapter's form
 /// with the stand-in's model word; else 200 with one text block and the usage.
-fn answer(request: &Received) -> (u16, String) {
+fn answer(request: &Received, walk: Walk) -> (u16, String) {
     let refuse = |why: &str| {
         (
             400,
@@ -193,10 +202,17 @@ fn answer(request: &Received) -> (u16, String) {
     }
     let (prompt, snapshot) = split(content);
     let text = if prompt.contains("\nDone so far:") {
-        next(&Ask {
+        let ask = Ask {
             prompt,
             lines: snapshot.lines().filter_map(parse_line).collect(),
-        })
+        };
+        let first_recovery =
+            prompt.contains(crate::words::REPAIR_HOSTED) && !ask.last_line_refused();
+        if walk == Walk::FirstRecoveryRefused && first_recovery {
+            action("handback", None, None, None)
+        } else {
+            next(&ask)
+        }
     } else {
         "Thank you for the message, I will reply soon".to_string()
     };
@@ -288,6 +304,21 @@ impl Ask<'_> {
                 }
             })
             .unwrap_or_default()
+    }
+
+    /// Whether the last numbered line of the list is a refusal: in a recovery, an ask after the
+    /// first at the same step.
+    fn last_line_refused(&self) -> bool {
+        self.prompt
+            .lines()
+            .skip_while(|l| !l.starts_with("Done so far:"))
+            .skip(1)
+            .filter(|l| {
+                l.split_once(". ")
+                    .is_some_and(|(n, _)| n.bytes().all(|b| b.is_ascii_digit()))
+            })
+            .last()
+            .is_some_and(|l| l.contains("(refused"))
     }
 
     /// The actions of the list that were carried out: each numbered line without a refusal.

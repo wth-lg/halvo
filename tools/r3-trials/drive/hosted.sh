@@ -34,12 +34,17 @@ that the scripted host received as many requests as the spend line counts, and p
 Before each request the round reserves a hold on a count of crates/halvo-route (count.rs)
 whose cap is MINOR, the ceiling in minor units, at the prices of the build; after the answer
 it settles at the token counts that the door's reply line reports. A cell whose next hold
-does not fit prints "notrun ... cause=ceiling" and sends nothing, and the round stops. The
-round's lines are those of run.sh, then
+does not fit prints "notrun ... cause=ceiling" and sends nothing, and the round stops; so does
+a cell whose next request would pass the round's bound of 216 requests, with the cause
+requests. The round's lines are those of run.sh, then
 
   spend tier=<tier> requests=<n> spent_micro=<n> ceiling_minor=<n>
-  egress list=<file> origin=<origin> runs=<n> denied=<n>
+  egress list=<file> origin=<origin> starts=<n> runs=<n> denied=<n>
   host tier=<tier> origin=<origin> model=<word> adapter=<word>
+
+requests= counts the requests handed to the door, each behind a hold; starts= the door's starts
+and runs= the egress check's lines that the round read: where the two differ, the round exits 1
+and gives no verdict.
 
 The four prompt files must have the SHA-256 of the prompt lines of docs/r3/trials/driver.md
 (REFUSED prompts). The cells keep their directories under one directory under TMPDIR or

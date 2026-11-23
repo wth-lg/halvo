@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::io::{BufRead, BufReader, PipeReader, PipeWriter, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
@@ -35,7 +36,15 @@ pub struct Hosted {
     pub key: Key,
     pub spend: Arc<Mutex<Spend>>,
     pub dir: PathBuf,
+    /// The door's starts of the round, which the egress line holds its own count against.
+    pub starts: Arc<AtomicU64>,
 }
+
+/// The most requests of one round (the coordinator's ruling of log line 18072): 192 in compiles (six
+/// of at most `CALLS_MAX` asks), 18 in recoveries (two asks at each of the three stored steps of a
+/// right walk that the variant changed_page_2 turns, in three `bill` and three `order` cells) and 6
+/// for replies (two bodies in three cells). docs/r3/trials/driver-hosted.md states it.
+pub const REQUESTS_MAX: u64 = 216;
 
 /// The most bytes of a key (A12.6).
 pub const KEY_MAX: usize = 4_096;
@@ -85,6 +94,7 @@ pub struct Spend {
     tier: Tier,
     ceiling_minor: u64,
     holds: u64,
+    bound: u64,
 }
 
 impl Spend {
@@ -102,12 +112,23 @@ impl Spend {
             tier,
             ceiling_minor,
             holds: 0,
+            bound: REQUESTS_MAX,
         })
     }
 
-    /// Reserves the hold of one request whose closed body has `body_bytes` bytes, or refuses it
-    /// when it does not fit under the cap; a refused hold changes nothing.
-    fn hold(&mut self, body_bytes: u64) -> Option<HoldId> {
+    /// The count with `bound` in the place of `REQUESTS_MAX`: a test's own lower bound.
+    #[cfg(test)]
+    pub fn bounded(self, bound: u64) -> Spend {
+        Spend { bound, ..self }
+    }
+
+    /// Reserves the hold of one request whose closed body has `body_bytes` bytes, or refuses it:
+    /// `Fault::Bound` when the round has handed the door its bound of requests, `Fault::Ceiling`
+    /// when the hold does not fit under the cap. A refused hold changes nothing.
+    fn hold(&mut self, body_bytes: u64) -> Result<HoldId, Fault> {
+        if self.holds >= self.bound {
+            return Err(Fault::Bound);
+        }
         let mut id = [0u8; 16];
         id[8..].copy_from_slice(&(self.holds + 1).to_be_bytes());
         let id = HoldId(id);
@@ -121,10 +142,10 @@ impl Spend {
                 u64::from(MAX_OUTPUT_TOKENS),
                 u64::MAX,
             )
-            .ok()?;
+            .map_err(|_| Fault::Ceiling)?;
         self.count = next;
         self.holds += 1;
-        Some(id)
+        Ok(id)
     }
 
     /// Settles the hold `id`: at the reported tokens, at 0 for a request that did not leave, or at
@@ -281,6 +302,8 @@ pub enum Fault {
     Capped,
     /// The next hold does not fit under the ceiling: nothing of the request was written.
     Ceiling,
+    /// The round has handed the door its bound of requests: nothing of the request was written.
+    Bound,
     /// The door refused the request with this cause (A12.6).
     Refused(String),
     /// The child ended or answered out of form; the text says how.
@@ -348,6 +371,7 @@ impl Child {
                 .stderr(Stdio::from(err))
                 .spawn()
                 .map_err(fault)?;
+            hosted.starts.fetch_add(1, Ordering::SeqCst);
             let mut started = Child {
                 input: Some(input),
                 output: BufReader::new(output),
@@ -411,7 +435,7 @@ impl Child {
             Some(h) => {
                 let mut spend = h.spend.lock().map_err(|_| Fault::Child("count".into()))?;
                 let bytes = body_bytes(spend.tier(), system, prompt, snapshot);
-                Some(spend.hold(bytes).ok_or(Fault::Ceiling)?)
+                Some(spend.hold(bytes)?)
             }
             None => None,
         };

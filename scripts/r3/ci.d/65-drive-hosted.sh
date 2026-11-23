@@ -1,11 +1,11 @@
 #!/bin/sh
 # jobs: windows
-# rule: The hosted form of the driver trial (r3 U0.8) holds against its scripted host on 127.0.0.1: the tests of tools/r3-trials/drive pass, its three whole rounds pass (a cell past the ceiling sends nothing, no request holds a word of a stored step, the key stands in no line and no file of a cell), the paid form of hosted.sh refuses with REFUSED prices on the fixture rates of the build before it starts anything, and hosted.sh --standin reads as expected with the door under the egress check; no run reaches a host. It joins no slice and no merge gate: it runs by hand with named checks, the windows job alone, before the paid round and at each change of the trial tool or of the door.
+# rule: The hosted form of the driver trial (r3 U0.8) holds against its scripted host on 127.0.0.1: the tests of tools/r3-trials/drive pass, its four whole rounds pass (a cell past the ceiling sends nothing, a round sends no request past its bound, no request holds a word of a stored step, the key stands in no line and no file of a cell), the paid form of hosted.sh refuses with REFUSED prices on the fixture rates of the build before it starts anything, and hosted.sh --standin reads as expected with the door under the egress check; no run reaches a host. It joins no slice and no merge gate: it runs by hand with named checks, the windows job alone, before the paid round and at each change of the trial tool or of the door.
 # lane: alone
 # limit: 2400
 set -u
 name=65-drive-hosted
-rounds='tests::a_cell_past_the_ceiling_ends_notrun_and_sends_nothing tests::no_request_of_a_cell_holds_a_word_of_a_stored_step tests::the_key_stands_in_no_line_and_no_file_of_a_cell'
+rounds='tests::a_cell_past_the_ceiling_ends_notrun_and_sends_nothing tests::a_round_sends_no_request_past_its_bound tests::no_request_of_a_cell_holds_a_word_of_a_stored_step tests::the_key_stands_in_no_line_and_no_file_of_a_cell'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -30,8 +30,8 @@ defect_of() {
       ;;
     rounds)
       c=$(counts "$3")
-      [ "$2" -eq 0 ] && [ "$c" = '3 0' ] && return 0
-      printf 'the three whole rounds exited %s with %s passed and %s failed, not 3 and 0: read %s/rounds.txt of the artifacts\n' "$2" "${c% *}" "${c#* }" "$name"
+      [ "$2" -eq 0 ] && [ "$c" = '4 0' ] && return 0
+      printf 'the four whole rounds exited %s with %s passed and %s failed, not 4 and 0: read %s/rounds.txt of the artifacts\n' "$2" "${c% *}" "${c#* }" "$name"
       return 1
       ;;
     paid)
@@ -87,7 +87,7 @@ measure() {
   code=$?
   c=$(seconds)
   defect=$(defect_of rounds "$code" "$CI_D_ARTIFACTS/rounds.txt") || fail "$defect"
-  printf 'case %s/rounds passed=3 seconds=%s\n' "$name" "$((c - b))"
+  printf 'case %s/rounds passed=4 seconds=%s\n' "$name" "$((c - b))"
   empty=$(mktemp -d "${TMPDIR:-/tmp}/$name-paid.XXXXXX") || exit 2
   env PATH=/usr/bin:/bin TMPDIR="$empty" sh tools/r3-trials/drive/hosted.sh --tier frontier --ceiling 2000 \
     >"$CI_D_ARTIFACTS/paid-out.txt" 2>"$CI_D_ARTIFACTS/paid-err.txt"
@@ -127,7 +127,7 @@ self_test() {
   case_of tests-pass tests 0 "test result: ok. 101 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 1.20s
 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s" PASS
   case_of tests-one-failed tests 101 "test result: FAILED. 100 passed; 1 failed; 3 ignored; 0 measured; 0 filtered out; finished in 1.20s" FAIL
-  case_of rounds-pass rounds 0 "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 101 filtered out; finished in 25.09s
+  case_of rounds-pass rounds 0 "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 102 filtered out; finished in 75.09s
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s" PASS
   case_of rounds-a-filter-that-ran-none rounds 0 "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 104 filtered out; finished in 0.00s" FAIL
   case_of paid-refused paid 2 "REFUSED prices: the rate of the tier frontier in crates/halvo-route/data/prices.tsv has the source fixture:B-3.2, a fixture's: the paid round starts only on the host's own rates with their date" PASS

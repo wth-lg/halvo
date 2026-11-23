@@ -73,15 +73,21 @@ below and with the coordinator's line that the verdict stands:
 
 - `spend tier=<tier> requests=<n> spent_micro=<n> ceiling_minor=<n>`: the count's sum of what was
   spent, in micro-units, at or under the ceiling (`spent_micro` at most `ceiling_minor` times
-  10,000), and the number of requests that left. One round makes at most 210 requests: 192 in
-  compiles, 12 in recoveries, 6 for replies.
-- `egress list=<file> origin=<origin> runs=<n> denied=0`: the one origin of the list, the number of
-  the door's runs under the egress check, and no connection outside the list.
+  10,000), and the number of requests that the harness handed to the door, each behind a hold, a
+  request that the door refused unsent among them. One round makes at most 216 requests: 192 in
+  compiles, 18 in recoveries, 6 for replies. The recovery asks twice at each stored step that finds
+  no control, and a right walk has three such steps in its six cells of `bill` and `order`.
+- `egress list=<file> origin=<origin> starts=<n> runs=<n> denied=0`: the one origin of the list,
+  the number of the door's starts under the egress check, the number of the egress check's own
+  lines that the round read, equal to the starts, and no connection outside the list. Where the
+  lines are fewer or more than the starts, the round says so and gives no verdict.
 - `host tier=<tier> origin=<origin> model=<word> adapter=<word>`: the row of the table of hosts that
   the door used.
 
 A cell whose next hold does not fit under the ceiling ends with the line `notrun` and the cause
-`ceiling` before it sends anything, and the command stops; such a round gives no verdict.
+`ceiling` before it sends anything, and the command stops; such a round gives no verdict. So does a
+cell whose next request would be the 217th of the round: the request is not sent, the cell ends with
+the line `notrun` and the cause `requests`, and the command stops.
 
 A verdict line stands only beside the control of this harness at the same commit:
 `sh tools/r3-trials/drive/hosted.sh --standin`, the same cells against a scripted host on 127.0.0.1,

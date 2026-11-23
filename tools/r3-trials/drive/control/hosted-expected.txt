@@ -41,5 +41,5 @@ line reply model=standin_host machine=* seed=2 bodies=2 of=2 wall_s=* model_toke
 line attempt model=standin_host machine=* task=reply seed=3 kind=write i=1 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
 line reply model=standin_host machine=* seed=3 bodies=2 of=2 wall_s=* model_tokens=*
 line spend tier=* requests=* spent_micro=* ceiling_minor=*
-line egress list=scripts/egress/lists/loopback.txt origin=http://127.0.0.1:47201 runs=15 denied=0
+line egress list=scripts/egress/lists/loopback.txt origin=http://127.0.0.1:47201 starts=15 runs=15 denied=0
 line host tier=* origin=http://127.0.0.1:47201 model=stand-in-model adapter=anthropic-messages-2026-10-21

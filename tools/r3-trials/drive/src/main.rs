@@ -509,10 +509,16 @@ fn door_command(r: &Round, loopback: Option<u16>) -> (PathBuf, Vec<std::ffi::OsS
     }
 }
 
-/// `egress list=<list> origin=<origin> runs=<n> denied=<n>`: the egress lines that the check wrote
-/// into the door's standard error of each cell, counted, with their `denied` summed; a line whose
-/// count cannot be read counts as one denied.
-fn egress_line(list: &std::path::Path, origin: &str, dirs: &[PathBuf]) -> String {
+/// `egress list=<list> origin=<origin> starts=<n> runs=<n> denied=<n>`: the door's starts of the
+/// round, the egress lines that the check wrote into the door's standard error of each cell,
+/// counted, with their `denied` summed (a line whose count cannot be read counts as one denied);
+/// and whether the lines are as many as the starts, without which the round gives no verdict.
+fn egress_line(
+    list: &std::path::Path,
+    origin: &str,
+    starts: u64,
+    dirs: &[PathBuf],
+) -> (String, bool) {
     let (mut runs, mut denied) = (0u64, 0u64);
     for dir in dirs {
         let text = read(&dir.join("model-stderr.txt")).unwrap_or_default();
@@ -525,9 +531,12 @@ fn egress_line(list: &std::path::Path, origin: &str, dirs: &[PathBuf]) -> String
                 .unwrap_or(1);
         }
     }
-    format!(
-        "egress list={} origin={origin} runs={runs} denied={denied}",
-        list.display()
+    (
+        format!(
+            "egress list={} origin={origin} starts={starts} runs={runs} denied={denied}",
+            list.display()
+        ),
+        runs == starts,
     )
 }
 
@@ -544,6 +553,7 @@ async fn round(
     plant: Option<&str>,
 ) -> Option<&'static str> {
     let (program, door_args) = door_command(r, loopback);
+    let starts = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
     let mut stopped = None;
     let mut dirs: Vec<PathBuf> = Vec::new();
     for (task, seed) in &r.cells {
@@ -588,6 +598,7 @@ async fn round(
                 key: key.clone(),
                 spend: spend.clone(),
                 dir: r.repo.clone(),
+                starts: starts.clone(),
             }),
         };
         let mut ctx = ctx_of(&args, inputs, spec, stop.clone());
@@ -612,7 +623,15 @@ async fn round(
         }
     }
     if let Some(list) = &r.egress_list {
-        out(&egress_line(list, &r.origin, &dirs));
+        let started = starts.load(std::sync::atomic::Ordering::SeqCst);
+        let (line, agree) = egress_line(list, &r.origin, started, &dirs);
+        out(&line);
+        if !agree {
+            eprintln!(
+                "the egress check's lines are not as many as the door's {started} starts: the round gives no verdict"
+            );
+            stopped = stopped.or(Some("egress"));
+        }
     }
     stopped
 }
@@ -654,7 +673,11 @@ fn round_main(argv: &[String]) -> ExitCode {
         };
         let host = match r.standin_host {
             Some(port) => {
-                match host::Host::start(port, Some(r.run_dir.join("host-requests.txt"))) {
+                match host::Host::start(
+                    port,
+                    Some(r.run_dir.join("host-requests.txt")),
+                    host::Walk::Right,
+                ) {
                     Ok(h) => Some(h),
                     Err(e) => {
                         eprintln!("the scripted host cannot listen on 127.0.0.1:{port}: {e}");
@@ -927,17 +950,21 @@ mod tests {
         }
     }
 
-    /// Runs a round against `host` and gives its lines and the cause of its `notrun` line.
+    /// Runs a round against `host` and gives its lines and the cause of its `notrun` line; with
+    /// `bound`, the round's bound of requests is that number in the place of `REQUESTS_MAX`.
     fn run(
         r: &Round,
         key: model::Key,
         host: &host::Host,
         plant: Option<&str>,
+        bound: Option<u64>,
     ) -> (Vec<String>, Option<&'static str>) {
         let tier = halvo_route::tier::Tier::parse(&r.tier).expect("a tier");
-        let spend = std::sync::Arc::new(std::sync::Mutex::new(
-            model::Spend::new(tier, r.ceiling).expect("a count"),
-        ));
+        let spend = model::Spend::new(tier, r.ceiling).expect("a count");
+        let spend = std::sync::Arc::new(std::sync::Mutex::new(match bound {
+            Some(n) => spend.bounded(n),
+            None => spend,
+        }));
         let lines = std::cell::RefCell::new(Vec::new());
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -971,13 +998,13 @@ mod tests {
     #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
     fn a_cell_past_the_ceiling_ends_notrun_and_sends_nothing() {
         let b = bench("ceiling");
-        let host = host::Host::start(0, None).expect("the scripted host");
+        let host = host::Host::start(0, None, host::Walk::Right).expect("the scripted host");
         let r = Round {
             ceiling: 1,
             ..round_of(&b, 18491, &CELLS)
         };
         let key = model::Key::of(b"u08-test-key-made-up-not-a-host-key").expect("a key");
-        let (lines, cause) = run(&r, key, &host, None);
+        let (lines, cause) = run(&r, key, &host, None, None);
         assert_eq!(
             (cause, lines, host.received().len()),
             (
@@ -997,10 +1024,10 @@ mod tests {
     fn no_request_of_a_cell_holds_a_word_of_a_stored_step() {
         let mark = "u08markedword";
         let b = bench("stored");
-        let host = host::Host::start(0, None).expect("the scripted host");
+        let host = host::Host::start(0, None, host::Walk::Right).expect("the scripted host");
         let r = round_of(&b, 18492, &[("bill", 1)]);
         let key = model::Key::of(b"u08-test-key-made-up-not-a-host-key").expect("a key");
-        let (lines, cause) = run(&r, key, &host, Some(mark));
+        let (lines, cause) = run(&r, key, &host, Some(mark), None);
         let texts: Vec<String> = host
             .received()
             .iter()
@@ -1024,6 +1051,119 @@ mod tests {
     }
 
     #[test]
+    fn the_rule_file_states_the_bound_of_requests_that_the_round_holds() {
+        let rule = include_str!("../../../../docs/r3/trials/driver-hosted.md");
+        let folded = rule.split_whitespace().collect::<Vec<_>>().join(" ");
+        let compiles = 6 * drive::CALLS_MAX as u64;
+        let replies = 6;
+        let sentence = format!(
+            "One round makes at most {} requests: {compiles} in compiles, {} in recoveries, {replies} for replies.",
+            model::REQUESTS_MAX,
+            model::REQUESTS_MAX - compiles - replies
+        );
+        assert!(folded.contains(&sentence), "{sentence}");
+    }
+
+    #[test]
+    fn the_egress_line_holds_its_runs_against_the_door_starts() {
+        let dir = scratch().join(format!(
+            "r3-drive-test-egress-{}-{}",
+            std::process::id(),
+            now_us()
+        ));
+        let (read, empty) = (dir.join("bill-seed-1"), dir.join("reply-seed-1"));
+        std::fs::create_dir_all(&read).expect("a cell's directory");
+        std::fs::create_dir_all(&empty).expect("a cell's directory");
+        let check =
+            "egress mode=sandbox list=l.txt command=0 denied=0 log=target/egress/1/denied.log\n";
+        std::fs::write(read.join("model-stderr.txt"), check.repeat(2)).expect("a door's file");
+        std::fs::write(empty.join("model-stderr.txt"), "").expect("a door's file");
+        let list = std::path::Path::new("l.txt");
+        let o = "http://127.0.0.1:47201";
+        assert_eq!(
+            [
+                egress_line(list, o, 2, &[read.clone(), empty.clone()]),
+                egress_line(list, o, 3, &[read.clone(), empty.clone()]),
+                egress_line(list, o, 15, std::slice::from_ref(&empty)),
+            ],
+            [
+                (
+                    format!("egress list=l.txt origin={o} starts=2 runs=2 denied=0"),
+                    true
+                ),
+                (
+                    format!("egress list=l.txt origin={o} starts=3 runs=2 denied=0"),
+                    false
+                ),
+                (
+                    format!("egress list=l.txt origin={o} starts=15 runs=0 denied=0"),
+                    false
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
+    fn a_round_sends_no_request_past_its_bound() {
+        let b = bench("bound");
+        let host = host::Host::start(0, None, host::Walk::FirstRecoveryRefused)
+            .expect("the scripted host");
+        let r = round_of(&b, 18494, &CELLS);
+        let key = model::Key::of(b"u08-test-key-made-up-not-a-host-key").expect("a key");
+        // The right walk whose first recovery answer at each failed step is refused needs 54
+        // requests: 30 in compiles, 18 in recoveries, 6 for replies; the test's bound is one fewer,
+        // so the second body of reply seed 3 is the request past it.
+        let (lines, cause) = run(&r, key, &host, None, Some(53));
+        let received = host.received();
+        let recovery = received
+            .iter()
+            .filter(|q| String::from_utf8_lossy(&q.body).contains(words::REPAIR_HOSTED))
+            .count();
+        let drives = lines
+            .iter()
+            .filter(|l| {
+                l.starts_with("drive ")
+                    && l.contains(" compile=ok replays_ok=3 of=3 recover=ok ")
+                    && l.ends_with(" typed_credential=0 effects_without_confirm=0")
+            })
+            .count();
+        let replies = lines
+            .iter()
+            .filter(|l| l.starts_with("reply ") && l.contains(" bodies=2 of=2 "))
+            .count();
+        let tail: Vec<&str> = lines
+            .iter()
+            .rev()
+            .take(2)
+            .rev()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            (
+                cause,
+                received.len(),
+                recovery,
+                drives,
+                replies,
+                tail.first().copied(),
+                tail.last()
+                    .is_some_and(|l| l.starts_with("spend tier=frontier requests=53 "))
+            ),
+            (
+                Some("requests"),
+                53,
+                18,
+                6,
+                2,
+                Some("notrun model=standin_host machine=test task=reply seed=3 cause=requests"),
+                true
+            ),
+            "lines: {lines:?}"
+        );
+    }
+
+    #[test]
     #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
     fn the_key_stands_in_no_line_and_no_file_of_a_cell() {
         let key = "u08-test-key-made-up-not-a-host-key";
@@ -1036,9 +1176,9 @@ mod tests {
         std::fs::create_dir_all(&keys).expect("the key's own directory");
         std::fs::write(keys.join("key.txt"), format!("{key}\n")).expect("the key file");
         let read = read_key(&keys.join("key.txt")).expect("the key, read once");
-        let host = host::Host::start(0, None).expect("the scripted host");
+        let host = host::Host::start(0, None, host::Walk::Right).expect("the scripted host");
         let r = round_of(&b, 18493, &[("bill", 1), ("reply", 1)]);
-        let (lines, cause) = run(&r, read, &host, None);
+        let (lines, cause) = run(&r, read, &host, None, None);
         let sent = host
             .received()
             .iter()
