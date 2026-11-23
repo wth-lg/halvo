@@ -850,7 +850,8 @@ pub(crate) fn json_str(text: &str) -> String {
 }
 
 /// The text of a coordinator body of `Body`, its keys in the order of A-A7.2; `end_run` takes the workflow and the
-/// agent of the run as the product knows them.
+/// agent of the run as the product knows them, and the yes of `set_model` the rows of this build's table of hosts, none
+/// where its ruling allows no hosted tier.
 fn body_text(body: &Body, runs: &RunsOf) -> Option<String> {
     let head = |op: &str, w: &WorkflowId, a: &AgentId| {
         format!(
@@ -903,7 +904,43 @@ fn body_text(body: &Body, runs: &RunsOf) -> Option<String> {
         Body::DropSessions { workflow, agent } => {
             format!("{}}}", head("drop_sessions", workflow, agent))
         }
+        Body::AgreeHosted { workflow, agent } => {
+            let ruling = halvo_route::release::ruling();
+            let rows: Vec<[&str; 3]> = ruling
+                .allowed()
+                .iter()
+                .filter_map(|tier| ruling.row(*tier))
+                .map(|row| [row.tier().as_str(), row.origin(), row.model()])
+                .collect();
+            yes_text(head("set_model", workflow, agent), &rows)?
+        }
+        Body::WithdrawHosted { workflow, agent } => format!(
+            r#"{},"tier":"on_device","agreement":null}}"#,
+            head("set_model", workflow, agent)
+        ),
     })
+}
+
+/// The text of the yes of `set_model` (r3 U7.7, r4 U3.17a) after `head`, the text of its keys `op`, `workflow` and
+/// `agent`: the ceiling tier, the tier of the last of `rows`, and one triple of tier, origin and model word for each of
+/// `rows`, which are the tier, the origin and the model word of each hosted tier that the ruling allows, in the order
+/// of the tiers. None where `rows` is empty.
+fn yes_text(head: String, rows: &[[&str; 3]]) -> Option<String> {
+    let [ceiling, ..] = rows.last()?;
+    let hosts: Vec<String> = rows
+        .iter()
+        .map(|[tier, origin, model]| {
+            format!(
+                r#"{{"tier":"{tier}","origin":{},"model":{}}}"#,
+                json_str(origin),
+                json_str(model)
+            )
+        })
+        .collect();
+    Some(format!(
+        r#"{head},"tier":"{ceiling}","agreement":[{}]}}"#,
+        hosts.join(",")
+    ))
 }
 
 fn slots_text(slots: &[Slot]) -> String {
@@ -2046,6 +2083,82 @@ mod tests {
             Some(
                 r#"{"op":"drop_sessions","workflow":"f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1","agent":"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"}"#
             )
+        );
+    }
+
+    /// r4 U3.17a sentence 6: the way back goes out as r3 U7.7's body `set_model` with the tier `on_device` and the
+    /// agreement null, and a yes with the ceiling tier, the highest that the ruling allows, and one triple for each
+    /// hosted tier that it allows up to it, from the table's rows: the keys in the order op, workflow, agent, tier,
+    /// agreement. Each parses as the schema's own `SetModel` and holds those values. No allowed tier gives none, and
+    /// so does main's ruling.
+    #[test]
+    fn the_yes_and_the_way_back_are_written_as_the_set_model_of_r3() {
+        use halvo_schema::executable::body::SetModel;
+        use halvo_schema::executable::names::ModelTier;
+        let (w, a) = ("f1".repeat(16), "a1".repeat(16));
+        let workflow = WorkflowId::parse(&w).unwrap();
+        let agent = AgentId::parse(&a).unwrap();
+        let head = format!(r#"{{"op":"set_model","workflow":"{w}","agent":"{a}""#);
+        let small = [
+            "low_cost_hosted",
+            "https://hosted-model.test",
+            "test-model-small",
+        ];
+        let large = ["frontier", "https://hosted-model.test", "test-model-large"];
+        let triple = |[tier, origin, model]: [&str; 3]| {
+            format!(r#"{{"tier":"{tier}","origin":"{origin}","model":"{model}"}}"#)
+        };
+        let back = Body::WithdrawHosted {
+            workflow: workflow.clone(),
+            agent: agent.clone(),
+        };
+        let texts = [
+            (
+                body_text(&back, &RunsOf::default()),
+                format!(r#"{head},"tier":"on_device","agreement":null}}"#),
+                ModelTier::OnDevice,
+                None,
+            ),
+            (
+                yes_text(head.clone(), &[large]),
+                format!(
+                    r#"{head},"tier":"frontier","agreement":[{}]}}"#,
+                    triple(large)
+                ),
+                ModelTier::Frontier,
+                Some(vec![large]),
+            ),
+            (
+                yes_text(head.clone(), &[small, large]),
+                format!(
+                    r#"{head},"tier":"frontier","agreement":[{},{}]}}"#,
+                    triple(small),
+                    triple(large)
+                ),
+                ModelTier::Frontier,
+                Some(vec![small, large]),
+            ),
+        ];
+        for (text, want, tier, hosts) in texts {
+            assert_eq!(text.as_deref(), Some(want.as_str()));
+            let body = SetModel::parse(want.as_bytes()).expect("the schema's own SetModel");
+            assert_eq!(
+                (body.workflow.as_str(), body.agent.as_str(), body.tier),
+                (w.as_str(), a.as_str(), tier)
+            );
+            let read: Option<Vec<[&str; 3]>> = body.agreement.as_ref().map(|hosts| {
+                hosts
+                    .iter()
+                    .map(|h| [h.tier.as_str(), h.origin.as_str(), h.model.as_str()])
+                    .collect()
+            });
+            assert_eq!(read, hosts, "{want}");
+        }
+        assert_eq!(yes_text(head, &[]), None, "no allowed tier");
+        assert_eq!(
+            body_text(&Body::AgreeHosted { workflow, agent }, &RunsOf::default()),
+            None,
+            "main's ruling allows no hosted tier"
         );
     }
 
