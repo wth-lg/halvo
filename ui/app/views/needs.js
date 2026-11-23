@@ -201,6 +201,13 @@
         set.appendChild(hint);
       }
       const radios = [];
+      const names = p.candidates.length > 0 && p.candidates.every(function (c) {
+        return c.from === 'files';
+      });
+      const holder = names ? el('div', 'hn-names', '') : set;
+      if (names) set.appendChild(holder);
+      const carried = carry && carry.step === item.step ? carry : null;
+      const was = carried ? carried.picks.get(p.name) || (carried.lines.get(p.name) || {}).text : null;
       p.candidates.forEach(function (c) {
         const label = el('label', 'hn-choice', '');
         const input = document.createElement('input');
@@ -214,9 +221,12 @@
         c.value.forEach(function (piece) {
           label.appendChild(document.createTextNode(piece));
         });
-        set.appendChild(label);
-        radios.push({ input: input, n: c.n });
+        holder.appendChild(label);
+        const value = c.value.join('');
+        if (names && was === value) input.checked = true;
+        radios.push({ input: input, n: c.n, value: value });
       });
+      const unanswered = names ? needsUnder(set, radios, p.needs_answer) : null;
       let typed = null;
       let line = null;
       if (p.typed === 'yes') {
@@ -237,8 +247,35 @@
         if (p.choose) set.appendChild(chooser(item, p.name, p.choose));
       }
       box.appendChild(set);
-      answers.push({ param: p.name, radios: radios, typed: typed, line: line });
+      answers.push({ param: p.name, radios: radios, typed: typed, line: line, list: unanswered });
     });
+  }
+
+  function needsUnder(set, radios, text) {
+    let note = null;
+    function hide() {
+      if (!note) return;
+      note.remove();
+      note = null;
+      radios.forEach(function (r) {
+        r.input.removeAttribute('aria-describedby');
+      });
+    }
+    radios.forEach(function (r) {
+      r.input.addEventListener('change', hide);
+    });
+    return {
+      needs: function () {
+        if (note || !text) return;
+        note = el('p', 'hn-full', text);
+        note.id = fresh();
+        set.appendChild(note);
+        radios.forEach(function (r) {
+          r.input.setAttribute('aria-describedby', note.id);
+        });
+        if (region && !holding()) addition([text]);
+      }
+    };
   }
 
   function chooser(item, param, label) {
@@ -258,7 +295,17 @@
         const a = card && card.answers.filter(function (x) {
           return x.param === param && x.line;
         })[0];
-        if (a) a.line.fill(reply.path);
+        if (!a) return;
+        a.line.fill(reply.path);
+        if (param !== 'workbook' || a.line.kept !== reply.path) return;
+        const last = card.answers.every(function (x) {
+          return x === a || (x.line !== null && x.line.stored);
+        });
+        if (last) return;
+        const key = card.key;
+        held(card, call('agents_setup_typed', { item: item.item, step: item.step, param: param, text: reply.path })).then(function (r) {
+          if (r && !r.error) settle(key, item, [param]);
+        });
       });
     });
     return b;
@@ -341,7 +388,18 @@
       empty.forEach(function (a) {
         a.line.needs();
       });
-      if (empty.length > 0) empty[0].line.field.focus();
+      const unpicked = card.answers.filter(function (a) {
+        return a.list && !a.radios.some(function (r) {
+          return r.input.checked;
+        });
+      });
+      unpicked.forEach(function (a) {
+        a.list.needs();
+      });
+      const lacking = card.answers.filter(function (a) {
+        return empty.indexOf(a) >= 0 || unpicked.indexOf(a) >= 0;
+      })[0];
+      if (lacking) (lacking.line ? lacking.line.field : lacking.radios[0].input).focus();
       if (empty.some(function (a) {
         return a.line.stored;
       })) return;
@@ -390,10 +448,15 @@
 
   function kept(card) {
     const lines = new Map();
+    const picks = new Map();
     card.answers.forEach(function (a) {
       if (a.line) lines.set(a.param, { text: a.line.kept, stored: a.line.stored });
+      const picked = a.radios.filter(function (r) {
+        return r.input.checked;
+      })[0];
+      if (picked) picks.set(a.param, picked.value);
     });
-    return { step: card.step, lines: lines };
+    return { step: card.step, lines: lines, picks: picks };
   }
 
   function input(event) {
