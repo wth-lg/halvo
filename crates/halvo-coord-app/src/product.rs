@@ -5,7 +5,11 @@
 //!   the product's link of the supervisor library: `coord_log` and `coord_history` for the events, `list_agents`,
 //!   `agent_history`, `list_overlaps` and the bodies of `Body` for the agent store. The list of the workflows and the
 //!   decision `delete` are reads and decisions of the role `interface`, which a stream refuses: they go through the
-//!   app's relay call. No write of the coordinator goes through the relay.
+//!   app's relay call. No write of the coordinator goes through the relay. Where this build's table of hosts names a
+//!   host, each list of the agents hands each agent's configuration what the core shows of an AI model (r4 U3.17b):
+//!   the host, the model words, whether `agreement::stands` holds for the stored tier, and, where an agent's runtime
+//!   asks a model, the key's state and the count's state, read by ONE body each through `ModelLimit` with a memory of
+//!   the rows' own.
 //! - `Runs` is the supervisor library over a second owner stream: `start` hands the machine's zone offset of the
 //!   moment as `utc_offset_s`, and a hosted tier as `hosted` only where `crate::agreement::hosted` gives one for the
 //!   agent as the newest list kept it (r4 U3.17a); the first `reap` of a life answers what the start's own reap
@@ -62,6 +66,7 @@ use halvo_coord::types::{
     Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState, WorkflowTrigger,
 };
 use halvo_coord::types::{Autonomy, Budget, Limits, Permission, Reasoning, Runtime, Tier};
+use halvo_coord::types::{ModelUse, SpendLimit};
 use halvo_schema::executable::frame::{ConfirmDecision, ConfirmRequest, HandbackRequest};
 use halvo_schema::executable::names::Answer as EffectReply;
 use halvo_schema::executable::text::{EffectId as WireEffect, WebOrigin};
@@ -71,7 +76,8 @@ use serde_json::Value;
 
 use crate::agreement::{self, Agreement, KeptAgent};
 use crate::hub::{Core, Hub};
-use crate::model_key::ModelKey;
+use crate::model_key::{KeyState, ModelKey};
+use crate::model_limit::{LimitReply, LimitState, Memory, ModelLimit};
 use crate::present::{dialog_hub, Dialog};
 
 /// The call of one end of a new owner stream.
@@ -156,6 +162,10 @@ impl AgentConfig {
 }
 
 impl ConfigView for AgentConfig {
+    fn model(&self) -> Option<ModelUse> {
+        self.view.model()
+    }
+
     fn tier(&self) -> Tier {
         self.view.tier()
     }
@@ -668,6 +678,8 @@ pub struct Product {
     runs: RunsOf,
     waits: Arc<Waits>,
     agents: Mutex<HashMap<AgentId, KeptAgent>>,
+    /// The memory that the read for the agents' rows keeps (r4 U3.17b): its own and never the part's.
+    rows_memory: RowsMemory,
     reaped: Mutex<Option<Vec<ReapAnswer>>>,
     checkpoints: AtomicBool,
 }
@@ -732,6 +744,7 @@ impl Product {
             runs,
             waits,
             agents: Mutex::new(HashMap::new()),
+            rows_memory: RowsMemory::default(),
             reaped: Mutex::new(None),
             checkpoints: AtomicBool::new(false),
         };
@@ -1214,6 +1227,108 @@ fn entry_of(entry: &Value) -> Option<(Agent<AgentConfig>, Option<Agreement>)> {
     Some((agent_of(entry)?, Agreement::of(&entry["agreement"])))
 }
 
+/// The memory of the limit's part (`model_limit::Memory`) that the read for the agents' rows keeps (r4 U3.17b): a
+/// type of its own, so that no memory of the part, the static of the part's own commands in the app among them, can be
+/// handed to that read, and the read calls none of those commands. That memory guards the start of a new count, and
+/// only an answer of the part itself may move it (the coordinator's log line 18047).
+#[derive(Debug, Default)]
+pub(crate) struct RowsMemory(Memory);
+
+/// What one list of the agents read of this build's host for the agents' rows (r4 U3.17b): the host, the model words
+/// that a yes covers, whether a key is saved (none where its state does not read) and the person's spending limit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Hosting {
+    host: String,
+    models: String,
+    key: Option<bool>,
+    limit: SpendLimit,
+}
+
+/// The read of `host` for one list of the agents: none, with nothing sent, where there is no host; else the host and
+/// the model words `models` joined by ` and `, and, only where `asks` says that an agent of the list has a runtime
+/// that asks a model (`roster::MODEL_RUNTIMES`), the key's state by ONE body `model_key_state` and the count's state by
+/// ONE body `model_room`, through `ModelLimit` with `memory`, the rows' own memory, never a memory of the limit's
+/// part. Where no agent asks a model nothing is read and the states stand as not read, which no row shows: no row then
+/// offers the question.
+pub(crate) fn hosting(
+    link: &Arc<dyn OwnerLink>,
+    memory: &RowsMemory,
+    host: Option<String>,
+    models: &[&str],
+    asks: bool,
+) -> Option<Hosting> {
+    let host = host?;
+    let (key, limit) = if asks {
+        let key = match ModelKey::new(Arc::clone(link)).state() {
+            KeyState::Saved => Some(true),
+            KeyState::None => Some(false),
+            KeyState::NotKnown => None,
+        };
+        let limit = spend_limit(&ModelLimit::new(Arc::clone(link), &memory.0).state(&host));
+        (key, limit)
+    } else {
+        (None, SpendLimit::Unread)
+    };
+    Some(Hosting {
+        host,
+        models: models.join(" and "),
+        key,
+        limit,
+    })
+}
+
+/// `hosting` with this build's host (`model_key::host`) and the model words of the rows of its table, in the order of
+/// `Ruling::allowed()`. With main's table, which holds no row, it is none and sends nothing.
+fn hosting_of_build(link: &Arc<dyn OwnerLink>, memory: &RowsMemory, asks: bool) -> Option<Hosting> {
+    let ruling = halvo_route::release::ruling();
+    let models: Vec<&str> = ruling
+        .allowed()
+        .iter()
+        .filter_map(|tier| ruling.row(*tier))
+        .map(|row| row.model())
+        .collect();
+    hosting(link, memory, crate::model_key::host(), &models, asks)
+}
+
+/// The spending limit of the reply of the limit's view: a limit stands in the states `ok`, `near`, `reached` and
+/// `none` with the reply's `cap` and `period`; `no_limit` is no limit; every other reply does not read.
+fn spend_limit(reply: &LimitReply) -> SpendLimit {
+    match reply {
+        LimitReply::State {
+            state: LimitState::Ok | LimitState::Near | LimitState::Reached | LimitState::None,
+            cap: Some(cap),
+            period,
+            ..
+        } => SpendLimit::Stands {
+            amount: cap.clone(),
+            period: (*period).to_owned(),
+        },
+        LimitReply::State {
+            state: LimitState::NoLimit,
+            ..
+        } => SpendLimit::NotSet,
+        _ => SpendLimit::Unread,
+    }
+}
+
+/// What the app hands the core of an agent whose stored tier is `tier` and whose entry held `agreement`, where the
+/// list read `hosting`: none without it; else its host, models and states, and whether the yes stands for the stored
+/// tier, by the gate's ONE function `agreement::stands`.
+fn handed(
+    hosting: Option<&Hosting>,
+    agreement: Option<&Agreement>,
+    tier: Tier,
+) -> Option<ModelUse> {
+    let hosting = hosting?;
+    Some(ModelUse {
+        host: hosting.host.clone(),
+        models: hosting.models.clone(),
+        stands: agreement::stands(agreement, tier),
+        key: hosting.key,
+        limit: hosting.limit.clone(),
+    })
+}
+
 /// One run of the reply of `agent_history`.
 fn history_of(run: &Value) -> Option<RunHistory> {
     let effects = run["effects"]
@@ -1367,6 +1482,14 @@ impl Owner for Product {
                 Some(_) => return Err(PortError::NoService),
                 None => break,
             }
+        }
+        let asks = listed
+            .iter()
+            .any(|(a, _)| halvo_coord::roster::asks_a_model(&a.config));
+        let hosting = hosting_of_build(&self.link, &self.rows_memory, asks);
+        for (a, agreement) in &mut listed {
+            let model = handed(hosting.as_ref(), agreement.as_ref(), a.config.tier());
+            a.config.view.set_model(model);
         }
         *lock(&self.agents) = listed
             .iter()
@@ -2289,5 +2412,187 @@ mod tests {
         ) -> halvo_coord::items::ConfirmAnswer {
             halvo_coord::items::ConfirmAnswer::Reject
         }
+    }
+
+    /// The configuration of an agent of `tier` with the runtime `web`, as an entry of `list_agents` holds it.
+    fn model_config(tier: &str) -> AgentConfig {
+        AgentConfig::parse(&format!(
+            r#"{{"v":1,"workflow":"{}","agent":"{}","rev":1,"category":"utility_bill_payment","tier":"{tier}","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}}"#,
+            "f1".repeat(16),
+            "a1".repeat(16)
+        ))
+        .expect("a configuration of the agent store")
+    }
+
+    /// r4 U3.17b sentence 1: over this build's table of hosts (`release::ruling()`, which holds no row on main), the
+    /// read for a list with an agent whose runtime asks a model sends nothing and hands no model, so that no row offers
+    /// either control, whatever the agent's tier and agreement, and no card shows a line of a host.
+    #[test]
+    fn over_the_table_of_this_build_a_list_reads_nothing_and_offers_no_ai_model() {
+        let kept = Arc::new(Kept(Mutex::new(Vec::new())));
+        let link: Arc<dyn OwnerLink> = kept.clone();
+        let memory = RowsMemory::default();
+        let hosting = hosting_of_build(&link, &memory, true);
+        assert_eq!(hosting, None);
+        assert!(lock(&kept.0).is_empty(), "no request");
+        let both = Agreement::of(&serde_json::json!({
+            "tier": "frontier",
+            "hosts": [
+                {"tier": "low_cost_hosted", "origin": "https://hosted-model.test", "model": "test-model-small"},
+                {"tier": "frontier", "origin": "https://hosted-model.test", "model": "test-model-large"}
+            ]
+        }));
+        assert!(both.is_some());
+        for (tier, agreement) in [("on_device", None), ("frontier", both.as_ref())] {
+            let mut config = model_config(tier);
+            assert_eq!(config.runtime(), Runtime::Web);
+            config
+                .view
+                .set_model(handed(hosting.as_ref(), agreement, config.tier()));
+            assert_eq!(config.model(), None, "{tier}");
+            assert!(
+                halvo_coord::roster::model_controls(&config).is_empty(),
+                "{tier}"
+            );
+            assert!(
+                !halvo_coord::roster::lines(&config)
+                    .iter()
+                    .any(|line| line.text.contains("AI model")),
+                "{tier}"
+            );
+        }
+    }
+
+    /// What the stand-in owner of `Ops` answers a body: a result, or a refusal by its error name.
+    type OpAnswer = (&'static str, Result<&'static str, &'static str>);
+
+    /// A link that answers each coordinator body by its `op` from its answers, and gives no reply to an op that they
+    /// do not name; it keeps the op of each body that reaches it.
+    struct Ops {
+        answers: Vec<OpAnswer>,
+        asked: Mutex<Vec<String>>,
+    }
+
+    impl Ops {
+        fn new(answers: &[OpAnswer]) -> Arc<Ops> {
+            Arc::new(Ops {
+                answers: answers.to_vec(),
+                asked: Mutex::new(Vec::new()),
+            })
+        }
+    }
+
+    impl OwnerLink for Ops {
+        fn request(&self, request: &[u8]) -> Result<Vec<u8>, LinkError> {
+            let request: Value = serde_json::from_slice(request).map_err(|_| LinkError)?;
+            let op = request["body"]["op"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned();
+            let id = request["id"].to_string();
+            lock(&self.asked).push(op.clone());
+            match self.answers.iter().find(|(o, _)| *o == op).map(|(_, a)| *a) {
+                Some(Ok(result)) => {
+                    Ok(format!(r#"{{"v":1,"id":{id},"ok":{result}}}"#).into_bytes())
+                }
+                Some(Err(name)) => {
+                    Ok(format!(r#"{{"v":1,"id":{id},"error":"{name}"}}"#).into_bytes())
+                }
+                None => Err(LinkError),
+            }
+        }
+    }
+
+    const SAVED: OpAnswer = ("model_key_state", Ok(r#"{"stands":"yes"}"#));
+    const ROOM: OpAnswer = (
+        "model_room",
+        Ok(r#"{"room":"reads","cap_minor":2000,"spent":0,"held":0,"period_end_ms":1800000000000}"#),
+    );
+
+    /// r4 U3.17b sentence 2: for a host with one allowed tier and with two, where a key is saved and a limit of 20.00
+    /// USD stands, the question of Use an AI model holds its title, its four texts in their order, the host and the
+    /// model words, joined by ` and `, the limit's amount and period, and its two answers, Not now first, each byte for
+    /// byte; nothing more is shown in its place.
+    #[test]
+    fn the_question_names_the_host_the_models_and_the_limit_byte_for_byte() {
+        let host = "hosted-model.test";
+        for (models, said) in [
+            (
+                &["test-model-small"][..],
+                "It would use test-model-small there.",
+            ),
+            (
+                &["test-model-small", "test-model-large"][..],
+                "It would use test-model-small and test-model-large there.",
+            ),
+        ] {
+            let link: Arc<dyn OwnerLink> = Ops::new(&[SAVED, ROOM]);
+            let memory = RowsMemory::default();
+            let read = hosting(&link, &memory, Some(host.to_owned()), models, true);
+            let model = handed(read.as_ref(), None, Tier::OnDevice).expect("a model");
+            let (ask, note) = halvo_coord::roster::use_model_ask(&model).expect("the words");
+            assert_eq!(note, None, "{models:?}");
+            assert_eq!(
+                serde_json::to_value(ask).unwrap(),
+                serde_json::json!({
+                    "kind": "use_model",
+                    "title": "Let this agent use an AI model on someone else's computers?",
+                    "text": [
+                        "To work out a step, this agent would send the text of the page that it has open, or of the message that it is answering, to hosted-model.test.",
+                        said,
+                        "It never sends what is in a password field, your saved sign-ins or anything that Halvo recorded of your own work.",
+                        "hosted-model.test bills the key that you gave Halvo. Halvo counts what its own requests cost and stops at 20.00 USD a month."
+                    ],
+                    "effects": [],
+                    "record": null,
+                    "controls": [
+                        {"act": "reject", "text": "Not now"},
+                        {"act": "allow", "text": "Allow for this agent"}
+                    ]
+                }),
+                "{models:?}"
+            );
+        }
+    }
+
+    /// r4 U3.17b sentence 2: the question's last text is, byte for byte, the sentence `bill` that the view of the limit
+    /// shows for the same reply of its state: `MODEL_LIMIT_BILL` of ui/app/words.js with `{host}`, `{amount}` and
+    /// `{period}` filled as ui/app/views/model-limit.js fills them, from the reply's host, cap and period.
+    #[test]
+    fn the_last_text_of_the_question_is_the_bill_of_the_limit_view_for_the_same_reply() {
+        let link: Arc<dyn OwnerLink> = Ops::new(&[SAVED, ROOM]);
+        let memory = Memory::new();
+        let reply = ModelLimit::new(Arc::clone(&link), &memory).state("hosted-model.test");
+        let LimitReply::State {
+            host,
+            cap: Some(cap),
+            period,
+            ..
+        } = &reply
+        else {
+            panic!("a state with a limit: {reply:?}");
+        };
+        let bill = include_str!("../../../ui/app/words.js")
+            .lines()
+            .find_map(|line| {
+                line.trim()
+                    .strip_prefix("MODEL_LIMIT_BILL: \"")?
+                    .strip_suffix("\",")
+            })
+            .expect("the view's sentence bill");
+        let shown = bill
+            .replace("{host}", host)
+            .replace("{amount}", cap)
+            .replace("{period}", period);
+        let model = ModelUse {
+            host: host.clone(),
+            models: "test-model-small".to_owned(),
+            stands: false,
+            key: Some(true),
+            limit: spend_limit(&reply),
+        };
+        let (ask, _) = halvo_coord::roster::use_model_ask(&model).expect("the words");
+        let ask = ask.expect("the question");
+        assert_eq!(ask.text.last(), Some(&shown));
     }
 }

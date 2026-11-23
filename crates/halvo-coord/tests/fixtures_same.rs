@@ -205,6 +205,8 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                     "controls",
                     "ask",
                     "ask_stop_sign_in",
+                    "ask_use_model",
+                    "note_use_model",
                 ],
                 Some("kind") => &["kind", "title", "text", "effects", "record", "controls"],
                 Some("act") => &["act", "text"],

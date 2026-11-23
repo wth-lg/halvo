@@ -12,7 +12,7 @@ const NEEDS = '/app/views/needs.js';
 const CONFIRM = '/app/views/confirm.js';
 const ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
 const ACTING = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on'];
-const DRAWN = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on', 'stop_sign_in', 'delete'];
+const DRAWN = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on', 'use_model', 'this_computer_only', 'stop_sign_in', 'delete'];
 
 const { serve, open, act, check, settled } = await import(pathToFileURL(join(REPO, 'tools', 'r4-page', 'index.mjs')).href);
 
@@ -968,7 +968,7 @@ function questionWanted(row) {
 }
 
 const STATUSES = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
-const CONTROLS = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on', 'stop_sign_in', 'delete'];
+const CONTROLS = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on', 'use_model', 'this_computer_only', 'stop_sign_in', 'delete'];
 
 function outsideTheClosedLists(snapshot) {
   const out = [];
@@ -1093,6 +1093,67 @@ if (want('ten')) {
         same(model, expectedModel(after, null));
       return [ok, { q, wantQ, atPress, safe, atSafe, sent, afters, answered }];
     });
+  });
+
+  await test('u317b_a_press_on_use_model_opens_its_question_not_now_sends_nothing_allow_sends_agents_control_once_and_a_row_with_a_sentence_shows_it_and_no_question', async () => {
+    const words = json('words.json');
+    const fill = (text, pairs) => Object.keys(pairs).reduce((t, k) => t.split('{' + k + '}').join(pairs[k]), text);
+    const pairs = { host: 'hosted-model.test', models: 'test-model-small', amount: '20.00 USD', period: 'month' };
+    const question = {
+      kind: 'use_model',
+      title: words['ask.use_model.title'],
+      text: ['sends', 'models', 'never', 'bills'].map((k) => fill(words['ask.use_model.' + k], pairs)),
+      effects: [],
+      record: null,
+      controls: [
+        { act: 'reject', text: words['ask.use_model.keep'] },
+        { act: 'allow', text: words['ask.use_model.allow'] },
+      ],
+    };
+    const at = A.controls.findIndex((c) => c.control === 'delete');
+    const control = { control: 'use_model', text: words['control.use_model'] };
+    const offered = { ...A, controls: [...A.controls.slice(0, at), control, ...A.controls.slice(at)] };
+    const first = words['ask.use_model.first'];
+    const stateOf = (row) => ({ ...ten, rows: ten.rows.map((r) => (r.agent === A.agent ? row : r)) });
+    const after = { ...ten, seq: ten.seq + 1 };
+    const asked = await withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [AGENTS_SRC], stateOf({ ...offered, ask_use_model: question, note_use_model: null }), ['agents_control']);
+      await settleCalls(h);
+      await press(h, 'use_model', A.agent);
+      const q = await questionOf(h);
+      const wantQ = { title: question.title, text: question.text, controls: question.controls.map((c) => ({ act: c.act, param: A.agent, text: c.text })) };
+      const opened = q.open && q.dialogs === 1 && same({ title: q.title, text: q.text, controls: q.controls }, wantQ);
+      const atPress = await bootCalls(h);
+      await pressIn(h, 'reject');
+      const safe = await questionOf(h);
+      const atSafe = await bootCalls(h);
+      await press(h, 'use_model', A.agent);
+      await h.page.focus('[role="alertdialog"] [data-act="allow"]');
+      await h.page.keyboard.press('Enter');
+      await h.page.keyboard.press('Enter');
+      await settleCalls(h);
+      const afters = await nextsOf(h);
+      const answered = await answerFirst(h, 'agents_next', { after: 0 }, after);
+      await settleCalls(h);
+      const sent = await bootCalls(h);
+      const ok = opened && same(atPress, []) && !safe.open && safe.dialogs === 0 && same(atSafe, []) && same(sent, [callOf(A, 'use_model')]) && same(afters, [ten.seq, 0]) && answered;
+      return [ok, { q, wantQ, atPress, safe, atSafe, sent, afters, answered }];
+    });
+    const noted = await withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [AGENTS_SRC], stateOf({ ...offered, ask_use_model: null, note_use_model: first }), ['agents_control']);
+      await settleCalls(h);
+      await press(h, 'use_model', A.agent);
+      const q = await questionOf(h);
+      const shown = await h.page.evaluate((a) => {
+        const b = document.querySelector('[data-act="use_model"][data-param="' + a + '"]');
+        const p = b ? b.closest('li').querySelector('.r4a-answer') : null;
+        return p ? p.textContent : null;
+      }, A.agent);
+      const sent = await bootCalls(h);
+      const ok = typeof first === 'string' && shown === first && !q.open && q.dialogs === 0 && same(sent, []);
+      return [ok, { q, shown, sent }];
+    });
+    return [asked[0] && noted[0], { asked: asked[1], noted: noted[1] }];
   });
 
   await test('rule7_a_double_click_on_the_unsafe_control_sends_one_delete', async () => {
