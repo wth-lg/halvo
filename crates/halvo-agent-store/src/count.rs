@@ -220,14 +220,30 @@ fn stored_one() -> RunnerReply {
     RunnerReply::Stored(Stored { stored: 1 })
 }
 
-/// `model_hold`: after the checks of a runner body, the hold of the request at the build's prices, whose life ends
-/// `HOLD_LIFE_MS` behind the request's instant, on the count at the request's instant; where no row stands, on a new
-/// count anchored at the request's instant. `unread` for a row that does not read; a refusal of `Count::reserve` by
-/// `spend`. A refused hold writes nothing.
+/// The rule of the way back (the coordinator's log lines 17342, point 5, and 17603, point 3): a hold is admitted only
+/// for an agent whose newest set-up holds a hosted tier with its agreement, read by `rows::standing_agreement` alone,
+/// and only for a tier whose triple that agreement holds, the triple of the tier in use; else `config`: the agent's
+/// set-up, with its agreement, does not allow a model of that tier. So a person's way back reaches a live run at its
+/// next request.
+fn admitted(host: &dyn Host, b: &ModelHold) -> Result<(), ErrorName> {
+    let holds = rows::standing_agreement(host.rows(), &b.agent)?
+        .is_some_and(|agreement| agreement.hosts.iter().any(|hosted| hosted.tier == b.tier));
+    if holds {
+        Ok(())
+    } else {
+        Err(Own::Config.into())
+    }
+}
+
+/// `model_hold`: after the checks of a runner body and the rule of the way back (`admitted`), the hold of the request
+/// at the build's prices, whose life ends `HOLD_LIFE_MS` behind the request's instant, on the count at the request's
+/// instant; where no row stands, on a new count anchored at the request's instant. `unread` for a row that does not
+/// read; a refusal of `Count::reserve` by `spend`. A refused hold writes nothing.
 pub(crate) fn hold(host: &mut dyn Host, now: Now, b: &ModelHold) -> Result<RunnerReply, ErrorName> {
     bind::runner_agent(&*host, &b.agent)?;
     bind::own_run(&*host, now, &b.run, &b.agent)?;
     bind::open_run(&*host, &b.run)?;
+    admitted(&*host, b)?;
     let now_ms = ms_of(now.at)?;
     let (anchor, count) = match stands(&*host) {
         Stands::None => new_count(now)?,
@@ -415,9 +431,34 @@ mod tests {
         crate::runner(store, now, body.to_string().as_bytes())
     }
 
-    /// The first agent of an approved workflow of the category of a bill, with its run 1 started at `NOW`, which every
-    /// runner body of the run needs.
+    /// The person's `set_model` for the first agent of the first workflow with `tier` and the triples `hosts`, each a
+    /// made-up origin and model word of its tier, or null for the way back.
+    fn set_model(store: &mut MemoryStore, tier: &str, hosts: &[&str]) -> Result<Value, ErrorName> {
+        let agreement: Option<Vec<Value>> = (!hosts.is_empty()).then(|| {
+            hosts
+                .iter()
+                .map(|tier| json!({"tier": tier, "origin": "https://hosted-model.test", "model": format!("test-model-{tier}")}))
+                .collect()
+        });
+        coordinator_json(
+            store,
+            NOW,
+            json!({"op": "set_model", "workflow": id('3', 1), "agent": agent(1), "tier": tier, "agreement": agreement}),
+        )
+    }
+
+    /// The first agent of an approved workflow of the category of a bill, with the person's yes up to `frontier` with
+    /// a triple of each hosted tier, so that a hold of either tier is admitted (r3 U7.7), and its run 1 started at
+    /// `NOW`, which every runner body of the run needs.
     fn store_with() -> MemoryStore {
+        let mut store = unagreed();
+        set_model(&mut store, "frontier", &["low_cost_hosted", "frontier"]).expect("the yes");
+        store
+    }
+
+    /// The first agent of an approved workflow of the category of a bill, with no yes to a hosted model, and its run 1
+    /// started at `NOW`.
+    fn unagreed() -> MemoryStore {
         let mut store = MemoryStore::new();
         let workflow: Workflow = serde_json::from_value(json!({
             "v": 1, "id": id('3', 1), "state": "approved", "category": "utility_bill_payment", "site": null,
@@ -671,6 +712,48 @@ mod tests {
             (json!(amount), json!(0), json!(ms(SECOND_END_S))),
             "61 s behind the end"
         );
+    }
+
+    /// The take-in (the coordinator's log lines 17342, point 5, and 17603, point 3): a hold is admitted only for an
+    /// agent whose newest set-up holds a hosted tier with its agreement, and only for a tier whose triple that agreement
+    /// holds, the triple of the tier in use, so that the way back reaches a live run at its next request. (i) An agent
+    /// with no yes: a hold is refused with `config`. (ii) A yes up to `frontier` with the triple of `frontier` alone: a
+    /// hold of `frontier` is admitted, a hold of `low_cost_hosted` is refused. (iii) Behind the way back: a hold is
+    /// refused. After each refusal the count's row is the text that stood before it.
+    #[test]
+    fn a_hold_is_admitted_only_for_a_tier_whose_triple_the_agents_agreement_holds() {
+        let mut store = unagreed();
+        assert_eq!(
+            set_cap(&mut store, NOW, 2_000),
+            Ok(json!({"cap_minor": 2_000, "new_count": "yes"}))
+        );
+        let before = count_rows(&store);
+        assert_eq!(
+            hold(&mut store, NOW, 1, "frontier", 100, 100),
+            Err(declared("config")),
+            "(i) the hold of an agent with no yes"
+        );
+        assert_eq!(count_rows(&store), before, "(i) the row");
+        assert!(set_model(&mut store, "frontier", &["frontier"]).is_ok());
+        assert_eq!(
+            hold(&mut store, NOW, 2, "frontier", 100, 100),
+            Ok(json!({"stored": 1})),
+            "(ii) the hold of frontier"
+        );
+        let before = count_rows(&store);
+        assert_eq!(
+            hold(&mut store, NOW, 3, "low_cost_hosted", 100, 100),
+            Err(declared("config")),
+            "(ii) the hold of low_cost_hosted"
+        );
+        assert_eq!(count_rows(&store), before, "(ii) the row");
+        assert!(set_model(&mut store, "on_device", &[]).is_ok());
+        assert_eq!(
+            hold(&mut store, NOW, 4, "frontier", 100, 100),
+            Err(declared("config")),
+            "(iii) the hold behind the way back"
+        );
+        assert_eq!(count_rows(&store), before, "(iii) the row");
     }
 
     /// Sentence (5) (the coordinator's log line 16775, (1)): the period ends at the anchor's day of the month and time of

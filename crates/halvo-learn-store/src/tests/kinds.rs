@@ -950,6 +950,8 @@ fn no_runner_body_but_the_hold_and_the_settle_changes_the_count() {
     }));
     assert!(reply.is_ok(), "set_model_cap: {reply:?}");
     assert_eq!(every_row(&w, "model_count").len(), 1, "the count's row");
+    let reply = w.coordinator(agreement_body());
+    assert!(reply.is_ok(), "set_model: {reply:?}");
     w.start(3, "replay");
     let (a, r) = (agent(1), run(3));
     let mut replies = Vec::new();

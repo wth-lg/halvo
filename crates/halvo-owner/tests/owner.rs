@@ -1924,6 +1924,10 @@ fn an_open_hold_counts_after_a_restart_until_its_life_ends() {
         coordinator(s, workflow, A, "create_agent", ""),
         r#"{"rev":1}"#
     );
+    assert_eq!(
+        coordinator(s, workflow, A, "set_model", YES),
+        r#"{"rev":2}"#
+    );
     let start = format!(r#","run":"{RUN}","mode":"compile""#);
     assert_eq!(
         coordinator(s, workflow, A, "start_run", &start),
@@ -2162,6 +2166,10 @@ fn a_count_whose_read_meets_a_fault_keeps_its_row_and_admits_no_hold() {
     assert_eq!(
         coordinator(s, workflow, A, "create_agent", ""),
         r#"{"rev":1}"#
+    );
+    assert_eq!(
+        coordinator(s, workflow, A, "set_model", YES),
+        r#"{"rev":2}"#
     );
     let start = format!(r#","run":"{RUN}","mode":"compile""#);
     assert_eq!(

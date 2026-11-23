@@ -133,12 +133,14 @@ use crate::{bind, checkpoint, count, day, effect, end, reply};
 ///   tokens, under the request's id, for a life of 120,000 ms behind the request's instant; where no row stands it
 ///   starts a count at nothing under the build's default cap, anchored at the request's instant. `model_settle`
 ///   settles the hold of the id at the usage reported, or at nothing for a request of which nothing was sent. Both
-///   answer `{"stored":1}`. Refusals, after the checks of every runner body: `unread` where the row does
-///   not read; `over_cap` for a hold that does not fit the room left, the build's prices that do not parse among
-///   them; `no_cap` for a hold under no cap; `repeat` for a hold of an id that is open already; `no_hold` for a settle
-///   of an id that is not open, a hold whose life ended among them; `length` where the count's text would not fit its
-///   row. A refused body writes nothing. Named limit: the count rests on the usage that the runner hands on from the
-///   door's answer.
+///   answer `{"stored":1}`. Refusals, after the checks of every runner body: `config` for a hold of an agent whose
+///   newest set-up holds no hosted tier with its agreement, or of a tier whose triple that agreement does not hold,
+///   so that a person's way back reaches a live run at its next request (`rows::standing_agreement`); `unread` where
+///   the row does not read; `over_cap` for a hold that does not fit the room left, the build's prices that do not
+///   parse among them; `no_cap` for a hold under no cap; `repeat` for a hold of an id that is open already; `no_hold`
+///   for a settle of an id that is not open, a hold whose life ended among them; `length` where the count's text
+///   would not fit its row. A refused body writes nothing. Named limit: the count rests on the usage that the runner
+///   hands on from the door's answer.
 pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply, ErrorName> {
     match RunnerCall::parse(body).map_err(refused)? {
         RunnerCall::Load(b) => load(&*host, now, &b),
