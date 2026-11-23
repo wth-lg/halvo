@@ -611,7 +611,7 @@ fn the_navigation_rule_refuses_every_engine_string_that_does_not_parse_and_every
     }
 }
 
-const UNIT_PERMISSIONS: [&str; 15] = [
+const UNIT_PERMISSIONS: [&str; 16] = [
     "allow-capture-status",
     "allow-inventory",
     "allow-set-capture-state",
@@ -626,6 +626,7 @@ const UNIT_PERMISSIONS: [&str; 15] = [
     "allow-delete-offline",
     "allow-remove-halvo",
     "allow-reset-settings",
+    "allow-set-typing",
     "core:app:allow-version",
 ];
 
@@ -738,7 +739,7 @@ fn is_refused(reply: &Result<Value, Value>) -> bool {
 #[test]
 fn every_command_of_the_manifests_answers_from_the_window_main_at_the_app_origin_alone() {
     let commands = manifest_commands();
-    assert_eq!(commands.len(), 197, "commands of the generated manifests");
+    assert_eq!(commands.len(), 198, "commands of the generated manifests");
     let test = test_app(scratch_dir("every-command"));
     let main = main_window(&test.app);
     let other = WebviewWindowBuilder::new(

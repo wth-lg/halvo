@@ -25,6 +25,7 @@ pub const CAPTURE: Names = Names {
         "delete_offline",
         "remove_halvo",
         "reset_settings",
+        "set_typing",
     ],
     reads: &[
         "capture_status",

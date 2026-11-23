@@ -176,7 +176,7 @@ test("RR-app-ui-24: the page keeps no report sentence and draws what is recorded
   const p = await page(fixture("capture_status-running"));
   const text = visibleText(p.document.body);
   assert.doesNotMatch(text, /report/i);
-  const recorded = p.byId("recorded").children.map((li) => li.textContent);
+  const recorded = p.byId("recorded").children.filter((li) => li.id !== "typing-control").map((li) => li.textContent);
   assert.deepEqual(recorded, fixture("capture_status-running").texts.recorded.map((r) => r.text));
   assert.ok(recorded.includes("Screen activity is not recorded."));
 });

@@ -101,6 +101,10 @@ impl Control for AtTheMutation {
     fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
         Err(ClientError::Unsupported)
     }
+
+    fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
 }
 
 fn app_with_mutations_answering(answer: fn() -> ClientError, name: &str) -> TestApp {
@@ -698,6 +702,10 @@ impl Control for Reading {
     }
 
     fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
         Err(ClientError::Unsupported)
     }
 }

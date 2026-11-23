@@ -415,7 +415,8 @@ fn served_by_this_build(request: &Request) -> bool {
         | Request::Stop
         | Request::DeleteAll { .. }
         | Request::SetStorageCap { .. }
-        | Request::ResetSettings => true,
+        | Request::ResetSettings
+        | Request::SetTyping { .. } => true,
         Request::RequestPermission { .. } | Request::AcknowledgeLostPermission { .. } => {
             cfg!(target_os = "macos")
         }

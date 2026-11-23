@@ -96,6 +96,10 @@ impl Control for Refusing {
         self.refuse("reset_settings")
     }
 
+    fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+        self.refuse("set_typing")
+    }
+
     fn owner_stream(&self, _: Made) -> Result<OwnerStreamEnd, ClientError> {
         self.refuse("owner_stream")
     }
