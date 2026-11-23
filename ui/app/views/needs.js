@@ -17,6 +17,7 @@
   const opened = new Set();
   let pointerRead = [];
   let closing = false;
+  let choosing = false;
 
   function fresh() {
     serial += 1;
@@ -107,6 +108,9 @@
     }
     line.sent = function () {
       if (shown === 'too_long') show(rest());
+    };
+    line.fill = function (text) {
+      if (judge(text, null)) typed.value = line.kept;
     };
     line.restore = function (text, stored) {
       typed.value = text;
@@ -225,10 +229,34 @@
         line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken);
         const was = carry && carry.step === item.step ? carry.lines.get(p.name) : null;
         if (was) line.restore(was.text, was.stored && !p.not_taken);
+        if (p.choose) set.appendChild(chooser(item, p.name, p.choose));
       }
       box.appendChild(set);
       answers.push({ param: p.name, radios: radios, typed: typed, line: line });
     });
+  }
+
+  function chooser(item, param, label) {
+    const b = el('button', 'hn-choose', label);
+    b.type = 'button';
+    b.setAttribute('data-act', 'choose_file');
+    b.setAttribute('data-param', param);
+    b.addEventListener('click', function () {
+      if (choosing) return;
+      choosing = true;
+      call('agents_choose_file', { item: item.item, step: item.step, param: param }).then(function (reply) {
+        choosing = false;
+        if (!reply || typeof reply.path !== 'string') return;
+        const card = Array.from(cards.values()).filter(function (c) {
+          return c.id === item.item && c.step === item.step;
+        })[0];
+        const a = card && card.answers.filter(function (x) {
+          return x.param === param && x.line;
+        })[0];
+        if (a) a.line.fill(reply.path);
+      });
+    });
+    return b;
   }
 
   function chosen(item, answers) {
