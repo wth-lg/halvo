@@ -29,6 +29,7 @@ const password = document.getElementById('password');
 const button = document.getElementById('show');
 const c = { text: 0, password: 0, tp: 0, tt: 0, downs: 0, round: 0, seq: '', lt: [], base: Date.now(), ev: -1, mv: -1, kd: -1 };
 let armed = false;
+let back = false;
 let timers = [];
 const busy = (ms) => { const end = performance.now() + ms; while (performance.now() < end) {} };
 const where = () => document.activeElement ? (document.activeElement.id || 'body') : 'none';
@@ -62,6 +63,9 @@ for (const el of [plain, password]) {
 plain.addEventListener('keydown', (e) => {
   if (e.key === 'Tab' && phase === 'tab') busy(hold);
   if (e.key !== 'F24' && armed && (phase === 'swap-keydown' || phase === 'burst')) { armed = false; swap(); }
+});
+password.addEventListener('input', () => {
+  if (back && phase === 'there-and-back') { back = false; plain.focus(); show(); }
 });
 plain.addEventListener('input', () => {
   if (armed && phase === 'take-one') { armed = false; setTimeout(() => { busy(300); password.focus(); freed(); show(); }, 0); }
@@ -110,6 +114,7 @@ function reset() {
   if (phase === 'self') later(600, () => { busy(hold); password.focus(); freed(); });
   if (phase === 'other') timers.push(setInterval(() => { plain.value = String(Date.now() % 100000); }, 30));
   if (phase === 'take-none') later(600, () => { busy(300); password.focus(); freed(); });
+  if (phase === 'there-and-back') { back = true; later(600, () => { busy(300); password.focus(); freed(); }); }
   show();
 }
 document.addEventListener('focusin', () => show());
@@ -1301,6 +1306,68 @@ pub(super) fn other_field_phases(test: &'static str, name: &'static str) {
             }
         }
         assert_stall(test, "other", &out, usize::try_from(rounds).unwrap_or(1));
+    });
+}
+
+pub(super) fn there_and_back_phases(test: &'static str, name: &'static str) {
+    with_deadline(test, Duration::from_secs(240), move || {
+        source_built_by_test(test, "keyboard");
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
+        let hwnd = browser
+            .open(test, "there-and-back", 0)
+            .expect("INCONCLUSIVE: no page window");
+        let rounds = super::stall::rounds_for(3, 5);
+        let mut counted = 0;
+        let mut recorded = 0;
+        for round in 0..rounds {
+            let start = reset(&keyboard, hwnd).unwrap_or_default();
+            let front = foreground_window() == hwnd;
+            std::thread::sleep(Duration::from_millis(250));
+            send(&[
+                key_input(VK_A, false),
+                key_input(VK_A, true),
+                key_input(VK_A, false),
+                key_input(VK_A, true),
+            ]);
+            let mut r = end_round(&keyboard, hwnd, 2, front);
+            r.why.extend(not_in_front(front));
+            r.counted = front
+                && start.focus == "plain"
+                && r.page.password == 1
+                && r.page.text == 1
+                && r.page.landings == "pt";
+            say(
+                test,
+                format!(
+                    "browser={name} phase=there-and-back round={round} foreground={front} {}",
+                    r.line()
+                ),
+            );
+            counted += usize::from(r.counted);
+            if r.counted {
+                recorded += r.password_letters_recorded();
+            }
+        }
+        say(
+            test,
+            format!(
+                "phase=there-and-back counted={counted} counted_rounds={counted} password_letters_recorded={recorded}"
+            ),
+        );
+        assert_eq!(
+            recorded, 0,
+            "a letter that the page took at its password input between two moves was recorded"
+        );
+        assert!(
+            counted >= usize::try_from(rounds).unwrap_or(1),
+            "INCONCLUSIVE: the phase counted {counted} rounds of {rounds}"
+        );
     });
 }
 
@@ -2945,6 +3012,18 @@ fn another_field_that_changes_its_value_by_itself_records_no_password_letter_in_
 #[ignore = "functional: needs an interactive Windows desktop and Edge"]
 fn another_field_that_changes_its_value_by_itself_records_no_password_letter_in_edge() {
     other_field_phases("browser-other-edge", "edge");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn a_key_at_the_password_input_between_two_moves_of_the_page_records_nothing_in_chrome() {
+    there_and_back_phases("browser-there-and-back-chrome", "chrome");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn a_key_at_the_password_input_between_two_moves_of_the_page_records_nothing_in_edge() {
+    there_and_back_phases("browser-there-and-back-edge", "edge");
 }
 
 #[test]
