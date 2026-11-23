@@ -1873,9 +1873,10 @@ fn a_session_end_that_does_not_fit_leaves_the_marker_and_the_next_start_reads_un
         "{printed}"
     );
     assert_eq!(second.status, halvo_control::exit::CLEAN, "{}", second.err);
-    assert!(
-        !marker.exists(),
-        "the marker stays after a settle that fits: {}",
+    assert_eq!(
+        std::fs::read_to_string(&marker).ok().as_deref(),
+        Some("ended=session_end\n"),
+        "a settle that fits leaves the line of its end in place of the marker: {}",
         second.err
     );
     let_go(&second);
@@ -1890,7 +1891,7 @@ fn a_start_that_does_not_bind_leaves_the_marker_that_it_found_and_the_next_start
     use halvo_control::proto::LastStop;
     let (dir, _marks) = running_dir(false);
     let named = data_dir(&dir);
-    let (found, _) = super::run_marker::begin(&named);
+    let found = super::run_marker::begin(&named).last_stop;
     assert_eq!(
         found,
         LastStop::None,
@@ -1933,6 +1934,121 @@ fn a_start_that_does_not_bind_leaves_the_marker_that_it_found_and_the_next_start
     wait_until(READY_WITHIN, "the life's owner let its store go", || {
         next.store_let_go.load(Ordering::SeqCst)
     });
+}
+
+/// A service run of `dir` on this thread with no source, whose starter says
+/// `behind` and whose stop flag stands from its start, with its status and
+/// its standard error.
+fn a_start_behind(dir: &Path, behind: super::Behind) -> (i32, String) {
+    let stop = AtomicBool::new(true);
+    let mut err = Vec::new();
+    let status = super::serve_on(
+        &data_dir(dir),
+        Box::new(TestWrite::default()),
+        SleepLoop(Instant::now()),
+        &stop,
+        Arc::new(Recorded),
+        &mut err,
+        super::ServiceParts {
+            behind,
+            ..super::ServiceParts::of(super::NoSources)
+        },
+    );
+    (status, String::from_utf8(err).unwrap())
+}
+
+fn marker_of(dir: &Path) -> Option<String> {
+    std::fs::read_to_string(data_dir(dir).run_marker()).ok()
+}
+
+fn stand_marker(dir: &Path, text: &str) {
+    let run = data_dir(dir).run_dir();
+    std::fs::create_dir_all(&run).unwrap();
+    std::fs::write(data_dir(dir).run_marker(), text).unwrap();
+}
+
+#[test]
+fn a_stop_request_finds_the_line_stop_in_the_marker_when_its_answer_arrives() {
+    use halvo_control::proto::{Reply, Request};
+    let (dir, _marks) = running_dir(false);
+    let client = {
+        let dir = dir.clone();
+        std::thread::spawn(move || {
+            status_until(&dir, "a first Status", |_| true);
+            let reply = ask(&dir, &Request::Stop);
+            (reply, marker_of(&dir))
+        })
+    };
+    let stop = AtomicBool::new(false);
+    let mut err = Vec::new();
+    let status = serve(
+        &data_dir(&dir),
+        Box::new(TestWrite::default()),
+        SleepLoop(Instant::now()),
+        &stop,
+        Arc::new(Recorded),
+        &mut err,
+    );
+    let err = String::from_utf8(err).unwrap();
+    let (reply, at_the_answer) = client.join().unwrap();
+    assert_eq!(status, halvo_control::exit::CLEAN, "{err}");
+    assert!(matches!(reply, Ok(Reply::Stopped(_))), "{reply:?}: {err}");
+    assert_eq!(
+        at_the_answer.as_deref(),
+        Some("ended=stop\n"),
+        "the line stands before the answer, and so before the lock is given up: {err}"
+    );
+}
+
+#[test]
+fn a_start_with_no_press_ends_with_7_behind_a_stop_before_it_binds_and_serves_behind_a_lifeline() {
+    for (line, ends_with, after) in [
+        ("ended=stop\n", halvo_control::exit::WAITS_FOR_A_PRESS, "ended=stop\n"),
+        ("ended=lifeline\n", halvo_control::exit::CLEAN, "ended=signal\n"),
+    ] {
+        let (dir, _marks) = running_dir(false);
+        stand_marker(&dir, line);
+        let (status, err) = a_start_behind(&dir, super::Behind::NoPress);
+        assert_eq!(status, ends_with, "{line:?}: {err}");
+        assert_eq!(marker_of(&dir).as_deref(), Some(after), "{line:?}: {err}");
+        let serves = ends_with == halvo_control::exit::CLEAN;
+        assert_eq!(
+            backup_mark(&dir, false).is_some(),
+            serves,
+            "{line:?}: only a start that serves goes on past the marker to its channel and its folder's backup mark: {err}"
+        );
+        assert_eq!(
+            err.contains("capture waits for a press on Start"),
+            !serves,
+            "{line:?}: {err}"
+        );
+        assert!(!dir.join("store").exists(), "{line:?}: no store: {err}");
+    }
+}
+
+#[test]
+fn a_start_with_no_press_that_cannot_bind_gives_back_the_line_and_the_next_one_serves() {
+    let (dir, _marks) = running_dir(false);
+    let named = data_dir(&dir);
+    stand_marker(&dir, "ended=lifeline\n");
+    let socket =
+        halvo_control::paths::socket_path(&named, &halvo_control::paths::SystemAccount).unwrap();
+    std::fs::create_dir_all(&socket).unwrap();
+    let (status, err) = a_start_behind(&dir, super::Behind::NoPress);
+    assert_eq!(status, halvo_control::exit::ERROR, "{err}");
+    assert!(
+        err.contains("halvo-capture: the control channel could not be bound: "),
+        "{err}"
+    );
+    assert_eq!(
+        marker_of(&dir).as_deref(),
+        Some("ended=lifeline\n"),
+        "the start that did not bind gave the line back: {err}"
+    );
+    std::fs::remove_dir(&socket).unwrap();
+    let (status, err) = a_start_behind(&dir, super::Behind::NoPress);
+    assert_eq!(status, halvo_control::exit::CLEAN, "the next one serves: {err}");
+    assert_eq!(marker_of(&dir).as_deref(), Some("ended=signal\n"), "{err}");
 }
 
 const LIFE_DIR: &str = "HALVO_LIFE_DIR";
