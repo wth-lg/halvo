@@ -1,5 +1,7 @@
 //! The read of one analysis batch: the worker opens a cursor at the committed position, reads until the bound of
-//! the batch and keeps the position of the first record that it did not take.
+//! the batch and keeps the position of the first record that it did not take; then, where the batch's first records
+//! hold a key or a click in front of any title record, it reads back in front of the committed position for the
+//! window that they belong to (`carry`).
 
 use std::fmt;
 
@@ -7,7 +9,7 @@ use halvo_identify::{GAP, LOOK_BACK};
 use halvo_schema_core::ids::{Position, StoreId};
 use halvo_seam::client::{Client, ClientError, Failure, Link};
 use halvo_seam::message::{Entry, Expiry, OpenCursor, ZERO};
-use halvo_seam::record::{Edge, Payload};
+use halvo_seam::record::{Edge, Payload, Pointer};
 
 /// The most records of one batch. The worker holds every record of its batch in memory for the one call of the
 /// episode step, so this bounds its peak memory whatever a day holds.
@@ -232,6 +234,299 @@ pub(crate) fn take<L: Link>(
                 Some(start) => taken.keep_before(start),
             }
             return Ok(taken);
+        }
+    }
+}
+
+/// The window that a batch carries over from before its committed position: the last title record before that
+/// position, and the count of the batch's first records, in the order of place, that belong to it.
+pub(crate) struct Carried {
+    /// The last title record before the committed position.
+    pub(crate) title: Entry,
+    /// The count of the batch's first records that the window reaches.
+    pub(crate) until: usize,
+}
+
+/// The window that `taken` carries over, read back through `client` in front of the position that the batch was read
+/// from, or none. It writes nothing and keeps nothing beyond the call.
+///
+/// It reads back only for a batch read from a committed position whose records in front of its first title record
+/// hold a key or a click. It closes the batch's cursor and opens one at the first index of the committed position's
+/// segment, then of each segment below it, and reads in each the records before the committed position, until a
+/// segment holds a title record: the last of them is the last title record before the committed position. There is
+/// no carry where a segment that it asks for is not the one that the cursor serves (a missing or shredded segment),
+/// where a read is refused or fails, where more than `RECORDS_MAX` records lie between that title record and the
+/// committed position, or where the title record holds no app.
+///
+/// The one rule: from the title record on, in the order of place, through the records read back and on into the
+/// batch, each record's `seq` is the `seq` of the record before it plus one, no record is a `foreground_app` or a
+/// `run_mark` record, and each record holds the title record's app. A record read back that breaks it leaves no
+/// carry; in the batch the first record that breaks it, or the batch's first title record, ends the carry.
+pub(crate) fn carry<L: Link>(client: &mut Client<L>, taken: &Taken) -> Option<Carried> {
+    if taken.from == ZERO {
+        return None;
+    }
+    let lead = taken
+        .entries
+        .iter()
+        .position(is_title)
+        .unwrap_or(taken.entries.len());
+    let moves = |entry: &Entry| {
+        matches!(
+            entry.record.payload(),
+            Payload::Keystroke(_) | Payload::Pointer(Pointer::Click(_))
+        )
+    };
+    if !taken.entries[..lead].iter().any(moves) {
+        return None;
+    }
+    client.close().ok()?;
+    let mut back: Vec<Entry> = Vec::new();
+    let mut seg = taken.from.seg;
+    let at = loop {
+        let mut here = segment_before(client, &taken.store, seg, taken.from)?;
+        let found = here.iter().rposition(is_title);
+        here.append(&mut back);
+        back = here;
+        if back.len() > RECORDS_MAX {
+            return None;
+        }
+        if let Some(at) = found {
+            break at;
+        }
+        seg = seg.checked_sub(1)?;
+    };
+    let mut rest = back.split_off(at);
+    let title = rest.remove(0);
+    let app = title.record.app()?.clone();
+    let mut seq = title.record.seq().get();
+    if !rest.iter().all(|entry| follows(entry, &mut seq, &app)) {
+        return None;
+    }
+    let until = taken.entries[..lead]
+        .iter()
+        .take_while(|entry| follows(entry, &mut seq, &app))
+        .count();
+    (until > 0).then_some(Carried { title, until })
+}
+
+fn is_title(entry: &Entry) -> bool {
+    matches!(entry.record.payload(), Payload::WindowTitle(_))
+}
+
+/// Whether `entry` keeps the carry after the record whose `seq` is `seq`: its `seq` is one above, it is no
+/// `foreground_app` and no `run_mark` record, and it holds `app`. Where it keeps it, `seq` becomes its `seq`.
+fn follows(entry: &Entry, seq: &mut u64, app: &halvo_schema_core::site::AppId) -> bool {
+    let record = &entry.record;
+    let keeps = Some(record.seq().get()) == seq.checked_add(1)
+        && !matches!(
+            record.payload(),
+            Payload::ForegroundApp | Payload::RunMark(_)
+        )
+        && record.app() == Some(app);
+    if keeps {
+        *seq = record.seq().get();
+    }
+    keeps
+}
+
+/// The records of the segment `seg` of `store` that lie before `from`, read through a cursor opened at the segment's
+/// first index and closed after it; none where the cursor serves another segment first, or a read is refused or
+/// fails. A segment at or after `from`'s holds no record before it.
+fn segment_before<L: Link>(
+    client: &mut Client<L>,
+    store: &StoreId,
+    seg: u64,
+    from: Position,
+) -> Option<Vec<Entry>> {
+    let first = Position { seg, idx: 0 };
+    if first >= from {
+        return Some(Vec::new());
+    }
+    client
+        .open(OpenCursor::at(store.clone(), first, None, None)?)
+        .ok()?;
+    let mut out = Vec::new();
+    let mut done = false;
+    while !done {
+        let batch = client.read().ok()?;
+        for entry in batch.records {
+            if entry.pos >= from || entry.pos.seg != seg {
+                done = true;
+                break;
+            }
+            out.push(entry);
+        }
+        done = done || batch.next == batch.watermark || batch.next.seg != seg;
+    }
+    client.close().ok()?;
+    (!out.is_empty()).then_some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{PipeReader, PipeWriter};
+    use std::path::{Path, PathBuf};
+    use std::thread::JoinHandle;
+
+    use halvo_schema_core::record::{Instant, Text};
+    use halvo_schema_core::site::AppId;
+    use halvo_seam::client::StreamLink;
+    use halvo_seam::fixture::FixtureTransport;
+    use halvo_seam::record::{CaptureRecord, KeyClass, RecordId, Seq, Title};
+
+    use super::*;
+
+    const NUMBERS: &str = "com.apple.iWork.Numbers";
+    const OTHER: &str = "com.microsoft.Excel";
+    /// 2026-01-01T12:00:00Z, in seconds since 1970; every record lies on that day with no offset of local time.
+    const NOON_S: i64 = 1_767_268_800;
+
+    /// A new directory under the system's directory of temporary files, removed when the value is dropped.
+    struct Scratch(PathBuf);
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// One record to write: its `seq`, its app and its payload; the n-th record of a case lies n seconds after noon.
+    #[derive(Clone)]
+    struct Line(u64, &'static str, Payload);
+
+    fn title(seq: u64) -> Line {
+        Line(
+            seq,
+            NUMBERS,
+            Payload::WindowTitle(Title {
+                text: Text::parse("Budget").unwrap(),
+                cut: Some(false),
+                why: None,
+                site: None,
+            }),
+        )
+    }
+
+    fn key(seq: u64, app: &'static str) -> Line {
+        Line(seq, app, Payload::Keystroke(Some(KeyClass::Printable)))
+    }
+
+    /// Writes each segment of `segments` to a batch file of its own, the k-th file the segment k, and returns the
+    /// files with their directory.
+    fn files(name: &str, segments: &[&[Line]]) -> (Scratch, Vec<PathBuf>) {
+        let dir = halvo_test_dir::make(Path::new(&std::env::temp_dir()), name).unwrap();
+        let mut n = 0u64;
+        let mut paths = Vec::new();
+        for (k, lines) in segments.iter().enumerate() {
+            let mut bytes = Vec::new();
+            for Line(seq, app, payload) in lines.iter().cloned() {
+                n += 1;
+                let id = RecordId::parse(&format!("00000000-0000-7000-8000-{n:012x}")).unwrap();
+                let at = Instant((NOON_S + i64::try_from(n).unwrap()) * SECOND_NS);
+                let app =
+                    (!matches!(payload, Payload::RunMark(_))).then(|| AppId::parse(app).unwrap());
+                let record =
+                    CaptureRecord::new(id, at, Seq::new(seq).unwrap(), app, payload).unwrap();
+                bytes.extend(record.to_line());
+            }
+            let path = dir.join(format!("day-{:03}.jsonl", k + 1));
+            std::fs::write(&path, bytes).unwrap();
+            paths.push(path);
+        }
+        (Scratch(dir), paths)
+    }
+
+    /// What a batch carries, as a test reads it: the position of the title record and the reach, or none.
+    type Seen = Option<(Position, usize)>;
+
+    /// The batch that a worker reads from the first index of the segment `from_seg` of a store whose segments below
+    /// `first_live` are shredded, and the window that it carries: the position of the title record and the reach.
+    fn carried(name: &str, segments: &[&[Line]], first_live: u64, from_seg: u64) -> Seen {
+        let (_scratch, paths) = files(name, segments);
+        let mut transport = FixtureTransport::open(&paths, first_live, None).unwrap();
+        let store = transport.store().clone();
+        let (server_reads, client_writes): (PipeReader, PipeWriter) = std::io::pipe().unwrap();
+        let (client_reads, server_writes) = std::io::pipe().unwrap();
+        let serving: JoinHandle<()> = std::thread::spawn(move || {
+            let _ = transport.serve(server_reads, server_writes);
+        });
+        let mut client = Client::new(StreamLink::new(client_reads, client_writes));
+        let from = Position {
+            seg: from_seg,
+            idx: 0,
+        };
+        let taken = take(&mut client, Some((store, from)), &|_| 0)
+            .unwrap_or_else(|fault| panic!("the batch was not read: {fault}"));
+        let carried = carry(&mut client, &taken).map(|carried| (carried.title.pos, carried.until));
+        drop(client);
+        serving.join().unwrap();
+        carried
+    }
+
+    /// The control of the rule: a `foreground_app` record of the same app in front of the batch's keys, which a
+    /// source writes at its start and at each change of the app in front, leaves no carry; the same records with a
+    /// key in its place carry the title record of the segment before.
+    #[test]
+    fn a_foreground_app_record_in_front_of_the_keys_leaves_no_carry() {
+        let before: &[Line] = &[title(1), key(2, NUMBERS), key(3, NUMBERS)];
+        let front = Line(4, NUMBERS, Payload::ForegroundApp);
+        assert_eq!(
+            carried(
+                "carry-front",
+                &[before, &[front, key(5, NUMBERS), key(6, NUMBERS)]],
+                1,
+                2
+            ),
+            None
+        );
+        assert_eq!(
+            carried(
+                "carry-twin",
+                &[before, &[key(4, NUMBERS), key(5, NUMBERS), key(6, NUMBERS)]],
+                1,
+                2
+            ),
+            Some((Position { seg: 1, idx: 0 }, 3))
+        );
+    }
+
+    /// Each break that the store marks ends the carry where it stands: a `seq` that is not one above, a `seq` that
+    /// starts again (a new life of the store owner), a `run_mark`, another app, a shredded segment between the title
+    /// record and the batch, and a batch with no key or click in front of its first title record. With none of them
+    /// a batch carries the title record of two segments back across the segment between.
+    #[test]
+    fn each_break_that_the_store_marks_ends_the_carry_there() {
+        let before: &[Line] = &[title(1), key(2, NUMBERS)];
+        let between: &[Line] = &[key(3, NUMBERS), key(4, NUMBERS)];
+        let start = Line(5, NUMBERS, Payload::RunMark(Edge::Start));
+        let cases: [(&str, Vec<Line>, u64, Seen); 7] = [
+            (
+                "clean",
+                vec![key(5, NUMBERS), key(6, NUMBERS)],
+                1,
+                Some((Position { seg: 1, idx: 0 }, 2)),
+            ),
+            (
+                "gap",
+                vec![key(5, NUMBERS), key(7, NUMBERS)],
+                1,
+                Some((Position { seg: 1, idx: 0 }, 1)),
+            ),
+            ("new-life", vec![key(1, NUMBERS), key(2, NUMBERS)], 1, None),
+            ("run-mark", vec![start, key(6, NUMBERS)], 1, None),
+            ("other-app", vec![key(5, OTHER), key(6, NUMBERS)], 1, None),
+            ("shredded", vec![key(5, NUMBERS)], 2, None),
+            ("titled", vec![title(5), key(6, NUMBERS)], 1, None),
+        ];
+        for (name, batch, first_live, want) in cases {
+            let got = carried(
+                &format!("carry-{name}"),
+                &[before, between, &batch],
+                first_live,
+                3,
+            );
+            assert_eq!(got, want, "{name}");
         }
     }
 }

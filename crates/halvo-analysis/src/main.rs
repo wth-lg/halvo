@@ -42,9 +42,21 @@
 //! local day holds a record, and the person's own records of that day after the mark are never proposed.
 //!
 //! The episode step closes every episode at the end of its call: a batch that ends at the bound with no pause, or
-//! before a run's `start` mark, can make two episodes of one. A keystroke or click that the store placed after the
-//! first record of a batch and that the episode step orders before it has no title record before it in its call
-//! and is dropped, at this cut as at the cut of a day.
+//! before a run's `start` mark, can make two episodes of one.
+//!
+//! # The window that a batch carries
+//!
+//! A batch read from a committed position whose first records hold a key or a click in front of any title record
+//! carries the window that was in front there: after the batch, the worker reads back in front of the committed
+//! position, through the same read channel, for the last title record before it (`read::carry`), and hands it to the
+//! episode step. The batch's first records belong to that window while, from the title record on, each record's `seq`
+//! is the one before it plus one, no record is a `foreground_app` or a `run_mark` record, and each holds the title
+//! record's app; the first record that breaks this ends the carry, and the records from it to the batch's first title
+//! record are dropped. The title record makes no step and adds nothing of its own to an episode. Where the read back
+//! finds no such title record, at most `RECORDS_MAX` records back, or a read back is refused or fails, the batch
+//! carries nothing: a keystroke or click in front of its first title record, also one that the store placed after
+//! the batch's first record and that the episode step orders before it, has no window and is dropped, at this cut
+//! as at the cut of a day. The worker keeps and writes nothing of the read back.
 //!
 //! The episode step gets the offset of local time from UTC at the batch's first record. The worker draws one
 //! summary id from the system's random bytes for each episode that the step returns.
@@ -96,7 +108,7 @@ use windows as sys;
 use std::ffi::OsString;
 use std::fs::File;
 
-use halvo_identify::{episode_step, Call, StageA};
+use halvo_identify::{episode_step, Call, Carry, StageA};
 use halvo_schema_core::ids::{Position, StoreId, SummaryId};
 use halvo_seam::client::{Client, StreamLink};
 
@@ -159,10 +171,15 @@ fn run() -> i32 {
         });
         SummaryId::from_random(bytes)
     };
+    let carried = read::carry(&mut client, &taken);
     let call = Call {
         entries: &taken.entries,
         expiry: &taken.expiry,
         utc_offset_s: taken.utc_offset_s,
+        carry: carried.as_ref().map(|carried| Carry {
+            title: &carried.title,
+            until: carried.until,
+        }),
     };
     let outcome = episode_step(&call, &StageA, &mut ids);
     if dry {

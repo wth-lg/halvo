@@ -41,11 +41,25 @@ const DAY: i64 = 24 * HOUR;
 const FIVE_MINUTES: i64 = 300 * SECOND;
 
 /// One call of the episode step: the records of one analysis batch in the order of place, the expiry entry of each
-/// segment that they name, and the offset of local time from UTC at the batch, in seconds (0 in a replay).
+/// segment that they name, the offset of local time from UTC at the batch, in seconds (0 in a replay), and the window
+/// that a batch carries over from before its first record, or none.
 pub struct Call<'a> {
     pub entries: &'a [Entry],
     pub expiry: &'a [Expiry],
     pub utc_offset_s: i32,
+    pub carry: Option<Carry<'a>>,
+}
+
+/// The window in front at a batch's first record, which the batch carries over: the last title record before the
+/// batch, which the worker read back in front of its committed position, and the count of the batch's first records,
+/// in the order of place, that it reaches. The title record names the window alone: it is no record of the call, so
+/// it makes no step and adds no occasion, no input and no instant of its own to an episode. A record of the call
+/// whose place is below `until` and in front of the call's first title record belongs to that window; one at or
+/// after `until` is dropped as when no window is carried. A carry whose record is no `window_title` record carries
+/// nothing.
+pub struct Carry<'a> {
+    pub title: &'a Entry,
+    pub until: usize,
 }
 
 /// What one call of the episode step returns: the episodes in a seed category, in the order of their first record;
@@ -73,6 +87,7 @@ enum What {
 }
 
 struct Rec {
+    place: usize,
     seg: u64,
     at: i64,
     app: Option<AppId>,
@@ -89,26 +104,56 @@ impl Rec {
 fn masked(entries: &[Entry]) -> Vec<Rec> {
     entries
         .iter()
-        .map(|entry| {
-            let record = &entry.record;
-            let what = match record.payload() {
-                Payload::WindowTitle(title) => What::Title {
-                    title: Text::cut(&mask(title.text.as_str())),
-                    site: title.site.clone(),
-                },
-                Payload::Keystroke(class) => What::Key(*class),
-                Payload::Pointer(pointer) => What::Pointer(*pointer),
-                Payload::RunMark(edge) => What::Mark(*edge),
-                Payload::ForegroundApp | Payload::ScreenFrame => What::Other,
-            };
-            Rec {
-                seg: entry.pos.seg,
-                at: record.at().0,
-                app: record.app().cloned(),
-                what,
-            }
-        })
+        .enumerate()
+        .map(|(place, entry)| masked_one(place, entry))
         .collect()
+}
+
+/// One record at the place `place` of the call, its title replaced by `mask` of its whole text.
+fn masked_one(place: usize, entry: &Entry) -> Rec {
+    let record = &entry.record;
+    let what = match record.payload() {
+        Payload::WindowTitle(title) => What::Title {
+            title: Text::cut(&mask(title.text.as_str())),
+            site: title.site.clone(),
+        },
+        Payload::Keystroke(class) => What::Key(*class),
+        Payload::Pointer(pointer) => What::Pointer(*pointer),
+        Payload::RunMark(edge) => What::Mark(*edge),
+        Payload::ForegroundApp | Payload::ScreenFrame => What::Other,
+    };
+    Rec {
+        place,
+        seg: entry.pos.seg,
+        at: record.at().0,
+        app: record.app().cloned(),
+        what,
+    }
+}
+
+/// The window that a title record opens: the app plus the site where the record holds one, else the app plus the
+/// masked title.
+fn window_of(app: Option<AppId>, title: Text, site: Option<Domain>) -> Window {
+    let place = match &site {
+        Some(domain) => Place::Site(domain.clone()),
+        None => Place::Title(title.clone()),
+    };
+    Window {
+        key: Key { app, place },
+        title,
+        site,
+    }
+}
+
+/// The window of the carry and the count of the call's first records that it reaches, none where the carry's record
+/// is no title record. The title is masked as every title of the call is.
+fn carried(carry: Option<&Carry>) -> Option<(Window, usize)> {
+    let carry = carry?;
+    let rec = masked_one(0, carry.title);
+    match rec.what {
+        What::Title { title, site } => Some((window_of(rec.app, title, site), carry.until)),
+        _ => None,
+    }
 }
 
 /// Orders the records of a call by their instant: from the order of place, a keystroke or a click moves before a
@@ -181,9 +226,10 @@ struct Person {
 /// a `start` while a run is open or an `end` while none is open changes nothing. Every record while a run is open
 /// is dropped, and a run that is open at the end of the call ends with it. A run closes no episode: the cut sees
 /// the person's records on both sides of it as one sequence. A keystroke or a pointer record belongs to the window
-/// of the title record before it; one with no such window since the call's start or since the last run opened is
-/// dropped.
-fn person(ordered: Vec<Rec>) -> Person {
+/// of the title record before it. At the call's start that is the window that the call carries, where it carries one:
+/// it makes no item, and a record takes it only while its place is below the carry's `until`. A record with no window
+/// since the call's start or since the last run opened, or with the carried window at or after `until`, is dropped.
+fn person(ordered: Vec<Rec>, carry: Option<(Window, usize)>) -> Person {
     let mut out = Person {
         windows: Vec::new(),
         items: Vec::new(),
@@ -191,6 +237,13 @@ fn person(ordered: Vec<Rec>) -> Person {
         start_first: false,
     };
     let mut current: Option<usize> = None;
+    let mut until = 0;
+    if let Some((window, reach)) = carry {
+        out.windows.push(window);
+        current = Some(0);
+        until = reach;
+    }
+    let carried = current;
     for (index, rec) in ordered.into_iter().enumerate() {
         let input = match rec.what {
             What::Mark(Edge::Start) => {
@@ -208,18 +261,7 @@ fn person(ordered: Vec<Rec>) -> Person {
             _ if out.run_open => continue,
             What::Other => continue,
             What::Title { title, site } => {
-                let place = match &site {
-                    Some(domain) => Place::Site(domain.clone()),
-                    None => Place::Title(title.clone()),
-                };
-                out.windows.push(Window {
-                    key: Key {
-                        app: rec.app.clone(),
-                        place,
-                    },
-                    title,
-                    site,
-                });
+                out.windows.push(window_of(rec.app.clone(), title, site));
                 current = Some(out.windows.len() - 1);
                 Input::None
             }
@@ -229,6 +271,9 @@ fn person(ordered: Vec<Rec>) -> Person {
         let Some(window) = current else {
             continue;
         };
+        if current == carried && rec.place >= until {
+            continue;
+        }
         let step = step_of(&out.windows[window], rec.app, &input);
         out.items.push(Item {
             seg: rec.seg,
@@ -349,7 +394,7 @@ pub fn episode_step(call: &Call, stage: &dyn Stage, ids: &mut dyn FnMut() -> Sum
             What::Pointer(Pointer::Click(_) | Pointer::Motion(..))
         )
     });
-    let person = person(order(recs));
+    let person = person(order(recs), carried(call.carry.as_ref()));
     let shape = Shape {
         call,
         keys_on,
@@ -559,6 +604,10 @@ mod tests {
     }
 
     fn run(entries: &[Entry]) -> (Outcome, Vec<String>) {
+        run_carrying(entries, None)
+    }
+
+    fn run_carrying(entries: &[Entry], carry: Option<Carry>) -> (Outcome, Vec<String>) {
         let keeper = Keeper(RefCell::new(Vec::new()));
         let mut n = 0u8;
         let mut ids = || {
@@ -569,9 +618,55 @@ mod tests {
             entries,
             expiry: EXPIRY,
             utc_offset_s: 0,
+            carry,
         };
         let outcome = episode_step(&call, &keeper, &mut ids);
         (outcome, keeper.0.into_inner())
+    }
+
+    fn key(n: u64, at_s: i64) -> Entry {
+        entry(
+            n,
+            at_s * 1_000,
+            Some(APP),
+            Payload::Keystroke(Some(KeyClass::Printable)),
+        )
+    }
+
+    /// The window that a batch carries names its key records in front of its first title record, and the carried
+    /// title record adds nothing of its own: the episode begins at the instant of the batch's first key, ends one
+    /// second after its last, and holds the batch's three keys as its steps alone, each with the carried window's
+    /// title and site. A key at or after the carry's `until` is dropped as with no carry. A batch whose first record
+    /// is a title record of its own gets nothing from a carry: its outcome is the outcome with none.
+    #[test]
+    fn a_carried_window_names_the_keys_in_front_of_the_first_title_and_adds_nothing() {
+        let before = page(90, 100, "sheet.test");
+        let keys = [key(0, 1_000), key(1, 1_001), key(2, 1_002)];
+        let carry = |until| {
+            Some(Carry {
+                title: &before,
+                until,
+            })
+        };
+
+        let (outcome, titles) = run_carrying(&keys, carry(3));
+        assert_eq!(sites(&outcome), ["sheet.test"]);
+        let episode = &outcome.episodes[0];
+        assert_eq!(episode.start, Instant(1_000 * SECOND));
+        assert_eq!(episode.end, Instant(1_003 * SECOND));
+        assert_eq!(episode.steps.len(), 3);
+        assert!(episode.steps.iter().all(|step| step.input.is_some()));
+        assert_eq!(episode.keys.as_ref().map(|k| k.printable), Some(3));
+        assert_eq!(titles, ["sheet.test"; 3]);
+
+        let (outcome, _) = run_carrying(&keys, carry(1));
+        assert_eq!(outcome.episodes.len(), 1);
+        assert_eq!(outcome.episodes[0].steps.len(), 1);
+        assert_eq!(run_carrying(&keys, carry(0)).0.episodes, []);
+        assert_eq!(run(&keys).0.episodes, []);
+
+        let titled = [page(0, 1_000, "other.test"), key(1, 1_001), key(2, 1_002)];
+        assert_eq!(run_carrying(&titled, carry(3)), run(&titled));
     }
 
     fn sites(outcome: &Outcome) -> Vec<String> {
