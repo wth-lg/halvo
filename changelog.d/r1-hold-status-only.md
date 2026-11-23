@@ -1,0 +1,1 @@
+- Fixed: (capture run, hold-status-only) While Halvo's agents wait behind a delete of everything, an answer of the capture service that shows no state of its store, such as the error that a service in trouble sends, no longer lets them start again before the 120 seconds of that wait have passed: Halvo now counts such an answer as one that did not come in time.
