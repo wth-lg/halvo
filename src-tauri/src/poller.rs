@@ -29,7 +29,8 @@ pub struct Polled {
     pub end: PollEnd,
 }
 
-/// How the answer of a poll ended, as the agents' hold reads it (`agents::RunsHold`).
+/// How the answer of a poll ended, as the agents' hold reads it (`agents::RunsHold`): while a
+/// mark of the hold stands, a status alone is a reading, and every other end waits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PollEnd {
     /// A status of the service.

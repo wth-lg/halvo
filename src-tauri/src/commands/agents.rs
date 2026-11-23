@@ -75,20 +75,19 @@ impl Wanted {
         self.deletes > 0 || self.barred || self.owed != Owed::Nothing
     }
 
-    /// Whether `poll` is a reading at `now`: a status always is; a poll that passed its deadline
-    /// and a reply of the service that carries no status are not while either mark stands, and a
-    /// poll with no reply of the service is not while `no_service` stands, each mark standing
-    /// until `Deadlines::V1.delete_all` has passed since its moment.
+    /// Whether `poll` is a reading at `now`: a status always is; every other end of a poll, a
+    /// deadline, a reply of the service that carries no status and no reply of the service, is
+    /// not while either mark stands, each mark standing until `Deadlines::V1.delete_all` has
+    /// passed since its moment.
     fn reads(&self, poll: Polled, now: Instant) -> bool {
         let stands = |mark: Option<Instant>| {
             mark.is_some_and(|at| now.saturating_duration_since(at) < Deadlines::V1.delete_all)
         };
         match poll.end {
             PollEnd::Status => true,
-            PollEnd::Deadline | PollEnd::ReplyWithoutStatus => {
+            PollEnd::Deadline | PollEnd::ReplyWithoutStatus | PollEnd::NoReply => {
                 !stands(self.late) && !stands(self.no_service)
             }
-            PollEnd::NoReply => !stands(self.no_service),
         }
     }
 }
@@ -109,27 +108,23 @@ impl Wanted {
 ///    then the reading stays owed, the marks stay, and their moment becomes that draw's.
 ///
 /// Two marks make the reading wait longer. A door's guard sets each before its drop, at the
-/// moment of that end.
+/// moment of that end, and while either stands only a status is a reading.
 /// - `late`, at the service's door (`may_still_delete`): the delete's own answer passed its
-///   deadline, or the service answered busy, so the service may still delete, and it answers no
-///   status while it deletes. A poll that passes its deadline, and a reply that carries no
-///   status (`PollEnd::ReplyWithoutStatus`), are then no reading; a poll with no reply of the
-///   service is a reading there.
+///   deadline, the client's transport failed behind the sent request or it could not take what
+///   came back, or the service answered with anything but a finished delete, so the service may
+///   still delete, and it answers no status while it deletes.
 /// - `no_service`, at the offline door, behind a list of Remove Halvo that stopped, and at the
 ///   service's door behind a deleted answer where the view reads a Windows run, whose child the
 ///   app may renew (`ended_with_no_service`): the door ended the service's child, or may end it,
-///   and a child answers again, if at all, only behind that end. A poll with no reply of the
-///   service (`PollEnd::NoReply`: no service, a refused peer, a failed transport, no whole
-///   frame), one that passes its deadline, and a reply that carries no status are then no
-///   reading.
+///   and a child answers again, if at all, only behind that end.
 ///
 /// The rule in one sentence: behind a delete's end the hold stands until a poll at or past the
-/// fence is a reading whose view does not bar, where a status is always a reading, a poll that
-/// passes its deadline and a reply of the service that carries no status are none while either
-/// mark stands, a poll with no reply of the service is none while the no-service mark stands,
-/// and each mark stands for 120 s (`Deadlines::V1.delete_all`, the wait for a delete's answer)
-/// from its moment, which every reading whose view bars sets anew. Once a mark's 120 s have passed, the poll that it holds
-/// back is a reading again, unless the other mark still stands and holds it back.
+/// fence is a reading whose view does not bar, where a status is always a reading, every other
+/// end of a poll (a deadline, a reply of the service that carries no status, no reply of the
+/// service) is none while either mark stands, and each mark stands for 120 s
+/// (`Deadlines::V1.delete_all`, the wait for a delete's answer) from its moment, which every
+/// reading whose view bars sets anew. Once both marks' 120 s have passed, every poll is a
+/// reading again.
 ///
 /// It cannot stand for good while the poller runs, unless the service reads its store deleting
 /// or locked without end: the door draws behind its answer and each round of the poller draws,
@@ -165,9 +160,11 @@ impl RunsHold {
     }
 
     /// The answer of a delete of everything that runs left the service maybe still deleting at
-    /// `at`: it passed its deadline, or the service answered busy. From the delete's end on, a
-    /// poll that passes its deadline is no reading until a reading clears the mark or
-    /// `Deadlines::V1.delete_all` has passed since the mark's moment, which is `at` until a
+    /// `at`: it passed its deadline, the transport failed behind the request or the client could
+    /// not take what came back, or the service answered with anything but a finished delete.
+    /// From the delete's end on, every poll but a status (a deadline, a reply of the service that
+    /// carries no status, no reply of the service) is no reading until a reading clears the mark
+    /// or `Deadlines::V1.delete_all` has passed since the mark's moment, which is `at` until a
     /// reading whose view bars moves it to that draw's moment (`Owed`).
     pub fn may_still_delete(&self, at: Instant) {
         self.wanted().late = Some(at);
@@ -175,10 +172,11 @@ impl RunsHold {
 
     /// A delete of everything that runs ends at `at` at a door that ended the service's child or
     /// may end it: the offline door, a list of Remove Halvo that stopped, or a deleted answer at
-    /// the service's door where the app may renew a Windows run's child. From that end on, a
-    /// poll with no reply of the service, or one that passes its deadline, is no reading until a
-    /// reading clears the mark or `Deadlines::V1.delete_all` has passed since the mark's moment,
-    /// which is `at` until a reading whose view bars moves it to that draw's moment (`Owed`).
+    /// the service's door where the app may renew a Windows run's child. From that end on, every
+    /// poll but a status (a deadline, a reply of the service that carries no status, no reply of
+    /// the service) is no reading until a reading clears the mark or `Deadlines::V1.delete_all`
+    /// has passed since the mark's moment, which is `at` until a reading whose view bars moves
+    /// it to that draw's moment (`Owed`).
     pub fn ended_with_no_service(&self, at: Instant) {
         self.wanted().no_service = Some(at);
     }
