@@ -65,6 +65,12 @@ pub enum SourceRefusal {
     ByteOrderMark,
     /// The file holds a carriage return.
     CarriageReturn,
+    /// A quoted field that starts on this line (counted from 1) holds a line break, LF or CRLF.
+    QuotedLineBreak { line: usize },
+    /// A double quote on this line (counted from 1) is out of its place: it stands inside a field
+    /// that does not begin with one, or text follows the quote that closes a field; or a field
+    /// that begins with one is not closed by the end of the file.
+    Quote { line: usize },
     /// The row on this line (counted from 1) has another number of cells than the first row.
     Ragged { line: usize },
 }
