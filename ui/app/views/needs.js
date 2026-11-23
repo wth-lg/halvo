@@ -223,8 +223,8 @@
         typed.setAttribute('spellcheck', 'false');
         set.appendChild(typed);
         line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken);
-        const was = carry ? carry.lines.get(p.name) : null;
-        if (was) line.restore(was.text, carry.step === item.step && was.stored && !p.not_taken);
+        const was = carry && carry.step === item.step ? carry.lines.get(p.name) : null;
+        if (was) line.restore(was.text, was.stored && !p.not_taken);
       }
       box.appendChild(set);
       answers.push({ param: p.name, radios: radios, typed: typed, line: line });
