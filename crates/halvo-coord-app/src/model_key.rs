@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use halvo_agent_client::OwnerLink;
+use halvo_agent_client::{LinkError, OwnerLink};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -11,6 +11,9 @@ use crate::product::{hex, json_str, link_over, random16, result_of, StreamCall};
 
 /// The most bytes of a key that a save takes.
 pub const KEY_MAX: usize = 1024;
+
+/// The page's three commands of the key, which `ModelKey::call` answers.
+pub const COMMANDS: [&str; 3] = ["model_key_state", "save_model_key", "remove_model_key"];
 
 /// The host of this build: the origin of the rows of `halvo_route::release::ruling()` without its `https://`, where
 /// every row names the same one origin, and none where the ruling holds no row or its rows name two origins. With
@@ -51,6 +54,30 @@ pub enum KeyCause {
     NotFinished,
 }
 
+/// A reply of a command of the key to the window. None holds the key, a part of it, its length or a sign made from
+/// it: for any two keys the replies are the same bytes.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum KeyReply {
+    /// `model_key_state` in a build with a host: `{"host":<host>,"state":<state>}`.
+    Host { host: String, state: KeyState },
+    /// `model_key_state` in a build with no host: `{"host":null}`, with nothing sent.
+    NoHost { host: () },
+    /// A save or a removal that the store took: `{"state":<the state that it leaves>}`.
+    Done { state: KeyState },
+    /// A save or a removal that did not finish: `{"error":<cause>}`.
+    Error { error: KeyCause },
+}
+
+impl From<Result<KeyState, KeyCause>> for KeyReply {
+    fn from(outcome: Result<KeyState, KeyCause>) -> KeyReply {
+        match outcome {
+            Ok(state) => KeyReply::Done { state },
+            Err(error) => KeyReply::Error { error },
+        }
+    }
+}
+
 /// The person's key in the agent store, through ONE coordinator body on an owner stream for each call. It keeps no
 /// key: a key that it is handed or reads goes into one request or one answer and nowhere else.
 #[derive(Clone)]
@@ -67,6 +94,51 @@ impl ModelKey {
     /// The key's calls over the owner streams that `owner_stream` gives.
     pub fn over(owner_stream: StreamCall) -> ModelKey {
         ModelKey::new(link_over(owner_stream))
+    }
+
+    /// The key's calls where no service answers: each request fails as one that meets no service.
+    pub fn no_service() -> ModelKey {
+        ModelKey::new(Arc::new(NoService))
+    }
+
+    /// The reply of the page's command `command` with `args` in a build whose host is `host`, none for a name that
+    /// is not one of `COMMANDS`. `model_key_state` sends nothing where there is no host; `save_model_key` saves the
+    /// text of the key `key` of `args`, the empty text where there is none.
+    pub fn call(&self, host: Option<&str>, command: &str, args: Option<&Value>) -> Option<KeyReply> {
+        Some(match command {
+            "model_key_state" => match host {
+                Some(host) => KeyReply::Host {
+                    host: host.to_owned(),
+                    state: self.state(),
+                },
+                None => KeyReply::NoHost { host: () },
+            },
+            "save_model_key" => {
+                let text = args.and_then(|a| a.get("key")).and_then(Value::as_str);
+                self.save(text.unwrap_or_default()).into()
+            }
+            "remove_model_key" => self.remove().into(),
+            _ => return None,
+        })
+    }
+
+    /// The state of the key: ONE body `model_key_state`; `saved` where the store answers `{"stands":"yes"}`, `none`
+    /// where it answers `{"stands":"no"}`, and `not_known` at every other outcome.
+    pub fn state(&self) -> KeyState {
+        match self.ask("model_key_state", "") {
+            Some(result) if result == json!({"stands": "yes"}) => KeyState::Saved,
+            Some(result) if result == json!({"stands": "no"}) => KeyState::None,
+            _ => KeyState::NotKnown,
+        }
+    }
+
+    /// Removes the key: ONE body `drop_model_key`; `none` where the store answers `{"stored":0}`, and
+    /// `not_finished` at every other outcome.
+    pub fn remove(&self) -> Result<KeyState, KeyCause> {
+        match self.ask("drop_model_key", "") {
+            Some(result) if result == json!({"stored": 0}) => Ok(KeyState::None),
+            _ => Err(KeyCause::NotFinished),
+        }
     }
 
     /// Saves the key of `text` in ONE body `put_model_key`, whole and byte for byte, in the place of the key that
@@ -92,6 +164,15 @@ impl ModelKey {
     }
 }
 
+/// The link where no service answers.
+struct NoService;
+
+impl OwnerLink for NoService {
+    fn request(&self, _request: &[u8]) -> Result<Vec<u8>, LinkError> {
+        Err(LinkError)
+    }
+}
+
 /// The key of `text`: the text without blanks, tabs and line breaks at its two ends, where it is at least one byte,
 /// at most `KEY_MAX` bytes and every byte is a visible sign of ASCII (0x21 to 0x7E); else none.
 fn key_of(text: &str) -> Option<&str> {
@@ -105,7 +186,6 @@ fn key_of(text: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halvo_agent_client::LinkError;
     use std::sync::Mutex;
 
     /// U3.18 sentence 1: the host is the one origin of the rows without its `https://`: none for no row, the host for
@@ -210,5 +290,60 @@ mod tests {
             assert_eq!(model.save(text), Err(KeyCause::NoKey), "{text:?}");
             assert!(link.kept().is_empty(), "{text:?}");
         }
+    }
+
+    /// U3.18 sentence 6: each answer of the store gives the state or the cause of the sentence, with ONE body a
+    /// command: `model_key_state` is saved at stands yes, none at stands no and not known at every other answer; a
+    /// save is saved at stored 1 and a removal none at stored 0, each not finished at every other answer, the
+    /// refusal `store`, no reply and a reply of another shape among them. Run with two keys of different texts and
+    /// lengths, the serialised replies are the same bytes.
+    #[test]
+    fn each_answer_of_the_store_gives_one_state_or_cause_and_no_reply_tells_one_key_from_another() {
+        const HOST: &str = "api.host.invalid";
+        const NOT: &str = r#"{"error":"not_finished"}"#;
+        const KNOWN: &str = r#"{"host":"api.host.invalid","state":"not_known"}"#;
+        let rows = [
+            (
+                Answer::Result(r#"{"stands":"yes"}"#),
+                [r#"{"host":"api.host.invalid","state":"saved"}"#, NOT, NOT],
+            ),
+            (
+                Answer::Result(r#"{"stands":"no"}"#),
+                [r#"{"host":"api.host.invalid","state":"none"}"#, NOT, NOT],
+            ),
+            (
+                Answer::Result(r#"{"stored":1}"#),
+                [KNOWN, r#"{"state":"saved"}"#, NOT],
+            ),
+            (
+                Answer::Result(r#"{"stored":0}"#),
+                [KNOWN, NOT, r#"{"state":"none"}"#],
+            ),
+            (Answer::Refused("store"), [KNOWN, NOT, NOT]),
+            (Answer::NoReply, [KNOWN, NOT, NOT]),
+            (Answer::Result(r#"{"key":null}"#), [KNOWN, NOT, NOT]),
+        ];
+        let replies = |key: &str| -> Vec<String> {
+            let mut all = Vec::new();
+            for (answer, expected) in &rows {
+                let (link, model) = stand(*answer);
+                let args = json!({ "key": key });
+                let got = [
+                    model.call(Some(HOST), "model_key_state", None),
+                    model.call(Some(HOST), "save_model_key", Some(&args)),
+                    model.call(Some(HOST), "remove_model_key", None),
+                ]
+                .map(|reply| serde_json::to_string(&reply.expect("a command of the key")).unwrap());
+                assert_eq!(got, expected.map(str::to_owned), "{expected:?}");
+                let ops: Vec<Value> = link.kept().iter().map(|r| r["body"]["op"].clone()).collect();
+                assert_eq!(ops, ["model_key_state", "put_model_key", "drop_model_key"]);
+                all.extend(got);
+            }
+            all
+        };
+        assert_eq!(
+            replies("test-value-not-a-model-key"),
+            replies("test-value-not-a-model-key-of-another-length-0123456789")
+        );
     }
 }
