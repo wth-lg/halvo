@@ -345,13 +345,21 @@ pub(crate) fn map_keystroke(state: &mut KeyState, key: KeyStroke) -> Option<KeyC
 pub(crate) struct KeyStep {
     pub(crate) record: Option<KeyClass>,
     pub(crate) latch: bool,
+    /// An automatic repeat of a key that is down and is no modifier: no
+    /// event, but a key that can change text, so the gate holds it.
+    pub(crate) repeat: bool,
 }
 
 pub(crate) fn key_step(state: &mut KeyState, key: KeyStroke) -> KeyStep {
     let latch = !key.released && key.vkey < NO_KEY && moves_focus(key.vkey);
+    let repeat = !key.released
+        && key.vkey < NO_KEY
+        && !is_modifier(key.vkey)
+        && state.down[usize::from(key.vkey)];
     KeyStep {
         record: map_keystroke(state, key),
         latch,
+        repeat,
     }
 }
 
@@ -697,7 +705,10 @@ struct InputState {
 
 struct GateState {
     gate: Arc<PasswordGate>,
-    held: VecDeque<(HeldKey, KeyStroke, KeyClass, FrontApp)>,
+    /// The keys that the gate holds, in input order; a key with no class is
+    /// a repeat, which the gate decides like any key and which is never
+    /// recorded, flagged or noted.
+    held: VecDeque<(HeldKey, KeyStroke, Option<KeyClass>, FrontApp)>,
     counts: Arc<GateCounts>,
 }
 
@@ -748,9 +759,11 @@ fn release_held_at(
     password_edit_now: fn() -> bool,
 ) {
     if at_stop {
-        while let Some((_key, _stroke, ..)) = gate.held.pop_front() {
+        while let Some((_key, _stroke, _class, _)) = gate.held.pop_front() {
             #[cfg(feature = "test-seam")]
-            seam::note(_stroke.vkey, &None, _key.tick(), now);
+            if _class.is_some() {
+                seam::note(_stroke.vkey, &None, _key.tick(), now);
+            }
         }
         return;
     }
@@ -764,6 +777,9 @@ fn release_held_at(
         }
         let Some((_key, _stroke, class, front)) = gate.held.pop_front() else {
             break;
+        };
+        let Some(class) = class else {
+            continue;
         };
         #[cfg(feature = "test-seam")]
         seam::note(_stroke.vkey, &answer, _key.tick(), now);
@@ -1474,25 +1490,25 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
                     return;
                 };
                 let step = key_step(&mut state.keys, key);
-                let Some(class) = step.record else {
+                if step.record.is_none() && !step.repeat {
                     if step.latch {
                         gate.gate.latch(tick);
                         release_held(gate, (&state.producer, &state.floor), false);
                     }
                     return;
-                };
+                }
                 let front = state.front.now();
                 gate.counts.note_lag(super::now_tick().wrapping_sub(tick));
                 let held = gate.gate.hold_key(
                     tick,
                     crate::secure_input::windows::focus_window_is_password_edit(),
                     foreground_thread(),
-                    matches!(class, KeyClass::Printable | KeyClass::Editing),
+                    matches!(step.record, Some(KeyClass::Printable | KeyClass::Editing)),
                 );
                 if step.latch {
                     gate.gate.latch(tick);
                 }
-                gate.held.push_back((held, key, class, front));
+                gate.held.push_back((held, key, step.record, front));
                 release_held(gate, (&state.producer, &state.floor), false);
             }
             (RawDevice::Pointer, RawInputPacket::Pointer(sample)) => {
@@ -3049,8 +3065,12 @@ mod tests {
             Moved::NotCompared,
         );
         let held = gate.gate.hold(now.wrapping_sub(160), false, front);
-        gate.held
-            .push_back((held, stroke, KeyClass::Printable, test_front("queued")));
+        gate.held.push_back((
+            held,
+            stroke,
+            Some(KeyClass::Printable),
+            test_front("queued"),
+        ));
         gate.gate.read_at(
             now.wrapping_sub(25),
             crate::secure_input::windows::FieldState::Clear,
@@ -3098,6 +3118,119 @@ mod tests {
     }
 
     #[test]
+    fn a_repeat_of_a_key_that_is_down_and_no_modifier_is_a_repeat_with_no_record() {
+        let mut state = KeyState::default();
+        let letter = KeyStroke {
+            vkey: 0x41,
+            released: false,
+        };
+        assert_eq!(
+            key_step(&mut state, letter),
+            KeyStep {
+                record: Some(KeyClass::Printable),
+                latch: false,
+                repeat: false
+            }
+        );
+        assert_eq!(
+            key_step(&mut state, letter),
+            KeyStep {
+                record: None,
+                latch: false,
+                repeat: true
+            }
+        );
+        let shift = KeyStroke {
+            vkey: 0x10,
+            released: false,
+        };
+        assert!(!key_step(&mut state, shift).repeat);
+        assert!(!key_step(&mut state, shift).repeat);
+        let tab = KeyStroke {
+            vkey: VK_TAB.0,
+            released: false,
+        };
+        assert!(!key_step(&mut state, tab).repeat);
+        assert_eq!(
+            key_step(&mut state, tab),
+            KeyStep {
+                record: None,
+                latch: true,
+                repeat: true
+            }
+        );
+        let up = KeyStroke {
+            vkey: 0x41,
+            released: true,
+        };
+        assert!(!key_step(&mut state, up).repeat);
+        assert!(!key_step(&mut state, letter).repeat);
+    }
+
+    #[test]
+    fn a_repeat_holds_its_own_landing_and_gives_no_record_and_no_flag() {
+        let (sink, writer) = crate::sink::channel(8);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-repeat", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let mut state = GateState {
+            gate: Arc::new(clear_gate()),
+            held: VecDeque::new(),
+            counts: Arc::default(),
+        };
+        let now = super::super::now_tick();
+        let stroke = KeyStroke {
+            vkey: 0x41,
+            released: false,
+        };
+        let front = foreground_thread();
+        state.gate.read_at(
+            now.wrapping_sub(400),
+            crate::secure_input::windows::FieldState::Clear,
+            Moved::NotCompared,
+        );
+        let repeat = state
+            .gate
+            .hold_key(now.wrapping_sub(300), false, front, false);
+        state.gate.landing_at(
+            now.wrapping_sub(300),
+            crate::secure_input::windows::FieldState::Clear,
+        );
+        state
+            .held
+            .push_back((repeat, stroke, None, test_front("repeat")));
+        let letter = state.gate.hold(now.wrapping_sub(160), false, front);
+        state.gate.landing_at(
+            now.wrapping_sub(160),
+            crate::secure_input::windows::FieldState::Clear,
+        );
+        state.held.push_back((
+            letter,
+            stroke,
+            Some(KeyClass::Printable),
+            test_front("letter"),
+        ));
+        state.gate.read_at(
+            now.wrapping_sub(25),
+            crate::secure_input::windows::FieldState::Clear,
+            Moved::Same,
+        );
+        release_held(&mut state, (&producer, &test_floor()), false);
+        let records = std::iter::from_fn(|| {
+            writer
+                .recv_timeout(std::time::Duration::from_millis(300))
+                .ok()
+        })
+        .count();
+        let flag = state.counts.withheld.load(Ordering::Relaxed);
+        assert!(
+            records == 1 && !flag && state.held.is_empty(),
+            "records={records} withheld_flag={flag} still_held={}",
+            state.held.len()
+        );
+    }
+
+    #[test]
     fn a_cleared_key_held_at_the_stop_leaves_no_record_flag_or_count() {
         let (sink, writer) = crate::sink::channel(8);
         let handoff = super::super::HandOff::start(sink, "halvo-test-stop-keys", Arc::default())
@@ -3120,9 +3253,12 @@ mod tests {
             Moved::NotCompared,
         );
         let held = state.gate.hold(now.wrapping_sub(160), false, front);
-        state
-            .held
-            .push_back((held, stroke, KeyClass::Printable, test_front("cleared")));
+        state.held.push_back((
+            held,
+            stroke,
+            Some(KeyClass::Printable),
+            test_front("cleared"),
+        ));
         state.gate.read_at(
             now.wrapping_sub(25),
             crate::secure_input::windows::FieldState::Clear,
@@ -3175,7 +3311,7 @@ mod tests {
                 .landing_at(tick, crate::secure_input::windows::FieldState::Clear);
             state
                 .held
-                .push_back((held, stroke, KeyClass::Printable, test_front(app)));
+                .push_back((held, stroke, Some(KeyClass::Printable), test_front(app)));
         }
         state.gate.read_at(
             now.wrapping_sub(25),
@@ -3184,9 +3320,12 @@ mod tests {
         );
         state.gate.latch(now);
         let waiting = state.gate.hold(now, false, front);
-        state
-            .held
-            .push_back((waiting, stroke, KeyClass::Printable, test_front("third")));
+        state.held.push_back((
+            waiting,
+            stroke,
+            Some(KeyClass::Printable),
+            test_front("third"),
+        ));
         release_held(&mut state, (&producer, &test_floor()), false);
         let still_held = state.held.len();
         release_held(&mut state, (&producer, &test_floor()), true);
@@ -3226,7 +3365,7 @@ mod tests {
                 vkey: 0x41,
                 released: false,
             },
-            KeyClass::Printable,
+            Some(KeyClass::Printable),
             FrontApp::default(),
         ));
         release_held(state, (producer, &test_floor()), false);
@@ -3275,7 +3414,7 @@ mod tests {
                     vkey: 0x41,
                     released: false,
                 },
-                KeyClass::Printable,
+                Some(KeyClass::Printable),
                 FrontApp::default(),
             ));
             release_held_at(
@@ -4017,7 +4156,7 @@ mod tests {
                     vkey: 0x41,
                     released: false,
                 },
-                KeyClass::Printable,
+                Some(KeyClass::Printable),
                 test_front(&name),
             ));
         };
