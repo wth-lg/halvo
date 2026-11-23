@@ -12,7 +12,7 @@ use crate::onboarding::{GrantState, OnboardingState, Permission, RequestOutcome}
 pub const PROTOCOL_VERSION: u64 = 1;
 
 /// The ops of the request table of protocol version 1, in the order of contracts.md C2.1.
-pub const V1_OPS: [&str; 11] = [
+pub const V1_OPS: [&str; 12] = [
     "status",
     "inventory",
     "pause",
@@ -24,6 +24,7 @@ pub const V1_OPS: [&str; 11] = [
     "permission_asked",
     "acknowledge_lost_permission",
     "reset_settings",
+    "set_typing",
 ];
 
 /// The run marks, request names that a later version may use. Protocol version 1 answers
@@ -75,6 +76,12 @@ pub enum Request {
     /// Writes the defaults over a settings file that does not load, with capture paused and no
     /// storage cap, keeps the store, and ends the service's life so that it starts again.
     ResetSettings,
+    /// Turns the switch key_class alone, which decides whether Halvo records what kind of key
+    /// is pressed: a turn off holds in the service's memory also where its write fails, and a
+    /// turn on stands only behind the write.
+    SetTyping {
+        on: bool,
+    },
 }
 
 impl Request {
@@ -91,6 +98,7 @@ impl Request {
             Request::PermissionAsked { .. } => "permission_asked",
             Request::AcknowledgeLostPermission { .. } => "acknowledge_lost_permission",
             Request::ResetSettings => "reset_settings",
+            Request::SetTyping { .. } => "set_typing",
         }
     }
 
@@ -1998,7 +2006,8 @@ pub fn admission(
         | Request::RequestPermission { .. }
         | Request::PermissionAsked { .. }
         | Request::AcknowledgeLostPermission { .. }
-        | Request::ResetSettings => Admission::Ending,
+        | Request::ResetSettings
+        | Request::SetTyping { .. } => Admission::Ending,
     }
 }
 
@@ -2127,6 +2136,7 @@ mod tests {
                 permission: Permission::ScreenAndSystemAudioRecording,
             },
             Request::ResetSettings,
+            Request::SetTyping { on: false },
         ]
     }
 
@@ -2509,6 +2519,32 @@ stopped/kind body
         for request in requests {
             assert_eq!(through_the_wire_request(&request), Decoded::Known(request));
         }
+    }
+
+    #[test]
+    fn set_typing_turns_the_switch_of_keys_alone_on_the_wire_of_protocol_1() {
+        assert_eq!(PROTOCOL_VERSION, 1, "the protocol number of the base");
+        assert!(V1_OPS.contains(&"set_typing"), "{V1_OPS:?}");
+        for on in [false, true] {
+            let frame = format!(r#"{{"v":1,"body":{{"op":"set_typing","on":{on}}}}}"#);
+            let decoded = decode_request(frame.as_bytes()).expect("the frame reads");
+            let Decoded::Known(request) = decoded else {
+                panic!("set_typing is not a request of protocol 1: {decoded:?}");
+            };
+            assert_eq!(request.op(), "set_typing");
+            assert!(request.is_mutation());
+            assert_eq!(
+                String::from_utf8(encode_request(&request)).expect("UTF-8"),
+                frame
+            );
+        }
+        assert!(
+            decode_request(
+                br#"{"v":1,"body":{"op":"set_typing","on":false,"switch":"pointer_class"}}"#
+            )
+            .is_err(),
+            "the request names no other switch"
+        );
     }
 
     #[test]
@@ -4721,7 +4757,8 @@ stopped/kind body
                 "request_permission",
                 "permission_asked",
                 "acknowledge_lost_permission",
-                "reset_settings"
+                "reset_settings",
+                "set_typing"
             ]
         );
     }
@@ -4852,6 +4889,7 @@ stopped/kind body
             Request::PermissionAsked { .. } => "permission_asked",
             Request::AcknowledgeLostPermission { .. } => "acknowledge_lost_permission",
             Request::ResetSettings => "reset_settings",
+            Request::SetTyping { .. } => "set_typing",
         }
     }
 

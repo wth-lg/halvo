@@ -59,7 +59,7 @@ impl Permission {
                 "lets Halvo record the text of the title of the window in front"
             }
             Permission::InputMonitoring => {
-                "lets Halvo record what kind of key you press, never which letter, digit or sign, and pointer actions with no position"
+                "lets Halvo record what kind of key you press, never which letter, digit or sign"
             }
         }
     }
@@ -631,7 +631,7 @@ mod tests {
         );
         assert_eq!(
             Permission::InputMonitoring.why(false),
-            "lets Halvo record what kind of key you press, never which letter, digit or sign, and pointer actions with no position"
+            "lets Halvo record what kind of key you press, never which letter, digit or sign"
         );
         for permission in Permission::R1_MACOS {
             assert!(!permission.why(false).contains("screen activity"));

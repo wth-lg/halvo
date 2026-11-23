@@ -1,0 +1,1 @@
+- Fixed: When capture was started outside the Halvo app and someone stops it, Halvo no longer starts capturing again by itself: it waits until you press Start, and that press starts capture at once.

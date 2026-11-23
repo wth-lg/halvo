@@ -122,7 +122,7 @@ pub const USAGE: &str = "usage: halvo-capture --version
        halvo-capture --delete-all --store-dir DIR
        halvo-capture --delete-all --data-dir DIR
        halvo-capture --default-data-dir
-       halvo-capture --service-run [--lifeline] [--data-dir DIR]
+       halvo-capture --service-run [--lifeline [--no-press]] [--data-dir DIR]
        halvo-capture ctl [--data-dir DIR] VERB";
 
 /// What a command line asks for. The gate's modes exist only in builds with
@@ -179,11 +179,14 @@ pub enum Mode {
     ServiceRun {
         data_dir: halvo_control::paths::DataDir,
     },
-    /// `--service-run --lifeline [--data-dir DIR]` (contracts.md C3.2 item 4,
-    /// C14 item 2): the service run that ends with the app that started it.
+    /// `--service-run --lifeline [--no-press] [--data-dir DIR]` (contracts.md
+    /// C3.2 item 4, C14 items 2 and 4): the service run that ends with the app
+    /// that started it, and with `--no-press` one that no person's press
+    /// stands behind.
     #[cfg(any(debug_assertions, target_os = "macos", windows))]
     LifelineServiceRun {
         data_dir: halvo_control::paths::DataDir,
+        behind: Behind,
     },
     /// `--delete-all --data-dir DIR`, the offline delete of a data directory
     /// (contracts.md C3.3), with DIR absolute. A macOS or Windows build runs
@@ -212,6 +215,23 @@ pub enum Mode {
     ScriptedServiceRun {
         data_dir: halvo_control::paths::DataDir,
     },
+}
+
+/// Whether the starter of a service run says that no person's press stands
+/// behind its start (`--no-press` after `--lifeline`, contracts.md C14 item
+/// 4): the app says it at each start that it makes by itself from the end of
+/// another starter's service on, until a person's press.
+#[cfg(any(debug_assertions, target_os = "macos", windows))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Behind {
+    /// Any other start: it serves whatever the run marker says.
+    Unsaid,
+    /// Before it serves, it reads in the run marker why the last life of its
+    /// data directory ended, and where the table of `run_marker::LastEnd`
+    /// answers a wait, it ends with `halvo_control::exit::WAITS_FOR_A_PRESS`
+    /// before it binds its channel and before any read of the key or of the
+    /// store, and leaves the marker as it found it.
+    NoPress,
 }
 
 impl Mode {
@@ -770,8 +790,13 @@ pub fn parse(
         }
         #[cfg(any(debug_assertions, target_os = "macos", windows))]
         Some("--service-run") if args.get(1).is_some_and(|flag| flag == "--lifeline") => {
+            let (behind, rest) = match args.get(2) {
+                Some(flag) if flag == "--no-press" => (Behind::NoPress, &args[3..]),
+                _ => (Behind::Unsaid, &args[2..]),
+            };
             Ok(Mode::LifelineServiceRun {
-                data_dir: service_dir(&args[2..], account)?,
+                data_dir: service_dir(rest, account)?,
+                behind,
             })
         }
         #[cfg(any(debug_assertions, target_os = "macos", windows))]
@@ -1978,11 +2003,11 @@ pub struct DurableState;
 pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::StateWrite>) -> i32 {
     #[cfg(target_os = "macos")]
     {
-        serve_the_mac(dir, writer, None)
+        serve_the_mac(dir, writer, None, Behind::Unsaid)
     }
     #[cfg(windows)]
     {
-        crate::windows::start_a_run(|| serve_windows(dir, writer, None))
+        crate::windows::start_a_run(|| serve_windows(dir, writer, None, Behind::Unsaid))
             .unwrap_or_else(refused_start)
     }
     #[cfg(not(any(target_os = "macos", windows)))]
@@ -2002,16 +2027,18 @@ pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::S
 /// lifeline reaches its end of file or its parent is gone, with 0, or 1 when
 /// the final flush failed. The parent's pid is the exclusion root of the
 /// floor. On Windows the start opens the parent by its pid and the watch
-/// waits on that handle.
+/// waits on that handle. With `behind` [`Behind::NoPress`] the run first
+/// reads why the last life of `dir` ended, as that variant says.
 #[cfg(any(debug_assertions, target_os = "macos", windows))]
 pub fn lifeline_service_run(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
+    behind: Behind,
 ) -> i32 {
     #[cfg(target_os = "macos")]
     {
         match lease::lifeline::start_or_status(&mut std::io::stderr()) {
-            Ok(lifeline) => serve_the_mac(dir, writer, Some(lifeline)),
+            Ok(lifeline) => serve_the_mac(dir, writer, Some(lifeline), behind),
             Err(status) => status,
         }
     }
@@ -2019,7 +2046,7 @@ pub fn lifeline_service_run(
     {
         crate::windows::start_a_run(|| {
             match lease::lifeline::start_or_status(&mut std::io::stderr()) {
-                Ok(lifeline) => serve_windows(dir, writer, Some(lifeline)),
+                Ok(lifeline) => serve_windows(dir, writer, Some(lifeline), behind),
                 Err(status) => status,
             }
         })
@@ -2028,7 +2055,7 @@ pub fn lifeline_service_run(
     #[cfg(not(any(target_os = "macos", windows)))]
     {
         use std::io::Write as _;
-        let _ = (dir, writer);
+        let _ = (dir, writer, behind);
         let refused = DaemonError::NotImplemented("the lifeline mode on this system");
         let _ = writeln!(std::io::stderr(), "halvo-capture: {refused}");
         halvo_control::exit::ERROR
@@ -2161,7 +2188,9 @@ pub mod seam {
         #[cfg(target_os = "macos")]
         {
             let _ = writeln!(std::io::stderr(), "{FIRST_LINE}");
-            super::serve_the_mac_with(dir, writer, None, |_| scripted_parts())
+            super::serve_the_mac_with(dir, writer, None, super::Behind::Unsaid, |_| {
+                scripted_parts()
+            })
         }
         #[cfg(not(target_os = "macos"))]
         {
@@ -2185,8 +2214,9 @@ fn serve_the_mac(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
     lifeline: Option<lease::lifeline::Lifeline>,
+    behind: Behind,
 ) -> i32 {
-    serve_the_mac_with(dir, writer, lifeline, |(writer, reader, turns)| {
+    serve_the_mac_with(dir, writer, lifeline, behind, |(writer, reader, turns)| {
         system_parts(sources::ServiceSources::new(writer, reader, turns))
     })
 }
@@ -2219,6 +2249,7 @@ fn serve_the_mac_with<F: supervisor::SystemSources>(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
     lifeline: Option<lease::lifeline::Lifeline>,
+    behind: Behind,
     parts_of: impl FnOnce(FrontParts) -> ServiceParts<F>,
 ) -> i32 {
     use std::io::Write as _;
@@ -2248,7 +2279,11 @@ fn serve_the_mac_with<F: supervisor::SystemSources>(
         signal::flag(),
         std::sync::Arc::new(main_loop::ExitNow),
         &mut std::io::stderr(),
-        ServiceParts { lifeline, ..parts },
+        ServiceParts {
+            lifeline,
+            behind,
+            ..parts
+        },
     )
 }
 
@@ -2289,6 +2324,7 @@ fn serve_windows(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
     lifeline: Option<Lifeline>,
+    behind: Behind,
 ) -> i32 {
     use std::io::Write as _;
     if let Err(error) = crate::windows::session::start() {
@@ -2307,6 +2343,7 @@ fn serve_windows(
         &mut std::io::stderr(),
         ServiceParts {
             lifeline,
+            behind,
             ..ServiceParts::of(crate::windows::sources::ServiceSet::new())
         },
     )
@@ -2385,13 +2422,15 @@ pub(crate) fn serve<L: main_loop::MainLoop>(
 
 /// What a service run serves beside its data directory: the factory of its
 /// sources, which start only while the run condition holds, the lifeline of
-/// a run started with `--lifeline`, the probe whose answers the supervisor
-/// reads, and in a test build the lease that the run starts with and a call
-/// that gets the last settle of its shutdown entry.
+/// a run started with `--lifeline` and what its starter says of a press
+/// behind it (`--no-press`), the probe whose answers the supervisor reads,
+/// and in a test build the lease that the run starts with and a call that
+/// gets the last settle of its shutdown entry.
 #[cfg(any(target_os = "macos", windows))]
 pub(crate) struct ServiceParts<F> {
     pub(crate) factory: F,
     pub(crate) lifeline: Option<Lifeline>,
+    pub(crate) behind: Behind,
     pub(crate) probe: Option<Box<dyn permissions::ProbeRunner>>,
     pub(crate) requests: Option<Box<dyn permissions::RequestStarter>>,
     #[cfg(test)]
@@ -2414,6 +2453,7 @@ impl<F: supervisor::SystemSources> ServiceParts<F> {
         ServiceParts {
             factory,
             lifeline: None,
+            behind: Behind::Unsaid,
             probe: None,
             requests: None,
             #[cfg(test)]
@@ -2468,7 +2508,15 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
 /// [`serve_held`] with the sources, the lifeline and the lease of `parts`:
 /// once the store is open for capture, the supervisor serves the sources of
 /// [`sources::starting`] for the switches of the state file, each begun on
-/// the owner's sink and floor.
+/// the owner's sink and floor. With [`Behind::NoPress`] it first reads why
+/// the last life ended and ends with WAITS_FOR_A_PRESS where the table of
+/// `run_marker::LastEnd` says so, before the marker's begin. Where it accepts
+/// a Stop request, or reads that a signal set the stop flag, it writes the
+/// decision of that stop in the run marker first, the line beside its process
+/// line (`run_marker::decided`); a life that ends with 0 then leaves the line
+/// of the trigger of its end alone, and an end with 1 leaves the decision,
+/// before it answers a Stop request and before it gives the lock up
+/// (`run_marker::at_the_end`).
 #[cfg(any(target_os = "macos", windows))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop>(
@@ -2488,8 +2536,18 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             Some(DirShut::first())
         }
     };
-    let (last_stop, marked) = run_marker::begin(dir);
-    if let Err(error) = marked {
+    if parts.behind == Behind::NoPress
+        && run_marker::last_end(dir).no_press() == run_marker::NoPress::WaitsForAPress
+    {
+        let _ = writeln!(err, "{WAITS_FOR_A_PRESS_LINE}");
+        return halvo_control::exit::WAITS_FOR_A_PRESS;
+    }
+    let begun = run_marker::begin(dir);
+    let held_run = lock
+        .state_dir()
+        .and_then(|folder| run_marker::HeldRun::of(&folder));
+    let last_stop = begun.last_stop;
+    if let Err(error) = &begun.written {
         let _ = writeln!(
             err,
             "halvo-capture: the run marker was not written: {}",
@@ -2504,12 +2562,8 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 "halvo-capture: the control channel could not be bound: {}",
                 error.kind()
             );
-            // Where the start found the marker of a life that did not end in
-            // order, the marker that `begin` wrote in its place stays, so
-            // that the next start reads unclean too: a start that cannot bind
-            // hides no lost batch.
-            if last_stop != halvo_control::proto::LastStop::Unclean {
-                let _ = run_marker::end(dir);
+            if let Ok(run) = &held_run {
+                let _ = run_marker::give_back(run, &begun);
             }
             return halvo_control::exit::ERROR;
         }
@@ -2541,7 +2595,6 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     }
     let mut rule = owner::open::CreateRule::of(state.health(), state.state().store_made);
     let held_cap = cap_bound(state.state().storage_cap);
-    let switches = state.state().switches;
     if let Err(error) = lock.exclude_from_backup() {
         let _ = writeln!(
             err,
@@ -2599,6 +2652,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         Mark::NotYet
     };
     let mut status = halvo_control::exit::CLEAN;
+    let mut ended_by = None;
     let mut stop_asked = None;
     let mut deleted = None;
     let mut delete_ends = false;
@@ -2608,6 +2662,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     let mut wrap_store = parts.wrap_store;
     loop {
         if delete_ends && deleted.is_none() {
+            ended_by = Some(halvo_control::proto::StopKind::DeleteAll);
             break;
         }
         let opening = matches!(store, HeldStore::None)
@@ -2629,9 +2684,18 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         };
         match wait_serving(&mut supervisor, &serving, window, stop, &store) {
             Waited::Window => {}
-            Waited::Ended => break,
+            Waited::Ended => {
+                let trigger = trigger_of_the_wait(stop);
+                if trigger == halvo_control::proto::StopKind::Signal {
+                    decide_the_stop(&held_run, trigger, err);
+                }
+                ended_by = Some(trigger);
+                break;
+            }
             Waited::Stop(asked) => {
                 listening.admitting().end_the_life();
+                decide_the_stop(&held_run, halvo_control::proto::StopKind::Stop, err);
+                ended_by = Some(halvo_control::proto::StopKind::Stop);
                 stop_asked = Some(asked);
                 break;
             }
@@ -2654,6 +2718,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                     DeleteAsked::Answered => {}
                     DeleteAsked::Ending(written) => {
                         delete_written = Some(written);
+                        ended_by = Some(halvo_control::proto::StopKind::DeleteAll);
                         break;
                     }
                     DeleteAsked::Reopen => {
@@ -2769,6 +2834,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                     Some(wrap) => wrap(store),
                     None => store,
                 };
+                let switches = supervisor.start_switches();
                 match capture_owner(store, held_cap, switches, root, dir.path()) {
                     Ok(owner) => {
                         let wanted = sources::starting(
@@ -2858,14 +2924,16 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         HeldStore::Capture(owner) => close_the_store(*owner, status, err),
         HeldStore::None | HeldStore::Maintenance(_) => status,
     };
-    if status == halvo_control::exit::CLEAN {
-        if let Err(error) = run_marker::end(dir) {
-            let _ = writeln!(
-                err,
-                "halvo-capture: the run marker was not removed: {}",
-                error.kind()
-            );
-        }
+    let ended = held_run
+        .as_ref()
+        .map_err(|error| std::io::Error::from(error.kind()))
+        .and_then(|run| run_marker::at_the_end(run, status, ended_by));
+    if let Err(error) = ended {
+        let _ = writeln!(
+            err,
+            "halvo-capture: the run marker's line of the end was not written: {}",
+            error.kind()
+        );
     }
     if let Some(asked) = stop_asked {
         let stopped = halvo_control::proto::Stopped {
@@ -2879,6 +2947,50 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     drop(listening);
     drop(lock);
     status
+}
+
+/// Writes the decision of a stop, `run_marker::decided`, through run/ of the
+/// held folder, at the moment that the loop of the service run accepts a Stop
+/// request or reads that a signal set the stop flag, before the shutdown
+/// entry; a write that fails, or a run/ that was not opened, is a line.
+#[cfg(any(target_os = "macos", windows))]
+fn decide_the_stop(
+    run: &std::io::Result<run_marker::HeldRun>,
+    kind: halvo_control::proto::StopKind,
+    err: &mut dyn std::io::Write,
+) {
+    let decided = run
+        .as_ref()
+        .map_err(|error| std::io::Error::from(error.kind()))
+        .and_then(|run| run_marker::decided(run, kind));
+    if let Err(error) = decided {
+        let _ = writeln!(
+            err,
+            "halvo-capture: the run marker's line of the stop was not written: {}",
+            error.kind()
+        );
+    }
+}
+
+/// The line of a start with `--no-press` that ends with WAITS_FOR_A_PRESS.
+#[cfg(any(target_os = "macos", windows))]
+const WAITS_FOR_A_PRESS_LINE: &str = "halvo-capture: no press asked for this start, and the last life of the data directory ended at a stop that was asked or does not tell why it ended: capture waits for a press on Start";
+
+/// The trigger, in the words of contracts.md C2.3, of an end that the wait of
+/// the service run read: the Windows session's end, which marks itself
+/// before it sets the stop flag; the stop flag, which SIGINT and SIGTERM set
+/// on a Mac and the session window's WM_CLOSE sets on Windows (a console's
+/// Ctrl-C and Ctrl-Break set it in a debug build alone; a release build
+/// installs no console handler); and with neither, the lifeline's end.
+#[cfg(any(target_os = "macos", windows))]
+fn trigger_of_the_wait(stop: &std::sync::atomic::AtomicBool) -> halvo_control::proto::StopKind {
+    if signal::session_end_budget().is_some() {
+        halvo_control::proto::StopKind::SessionEnd
+    } else if stop.load(std::sync::atomic::Ordering::SeqCst) {
+        halvo_control::proto::StopKind::Signal
+    } else {
+        halvo_control::proto::StopKind::Lifeline
+    }
 }
 
 #[cfg(any(target_os = "macos", windows))]
@@ -2984,6 +3096,10 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         }
         Request::Pause | Request::Resume => {
             capture_change(asked, supervisor, serving, store);
+            return;
+        }
+        Request::SetTyping { on } => {
+            typing_turn(asked, on, supervisor, serving, store);
             return;
         }
         _ => Reply::Error(ErrorReply::new(
@@ -3292,6 +3408,68 @@ fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     if let Some(asked) = pending {
         let _ = asked.answer(changed(&supervisor.status_parts(serving.obstructed)));
     }
+}
+
+/// A client's turn of the switch key_class: the status after the turn, or
+/// state_file with the text of the failed write, which names the file and
+/// behind which typing is off in this life. Where the stop of the source that
+/// holds keys does not stop, the answer goes out from the end routine, as a
+/// Pause's does; where the turn ends the life with status 4, the answer goes
+/// out first and is waited for.
+#[cfg(any(target_os = "macos", windows))]
+fn typing_turn<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    asked: server::Asked,
+    on: bool,
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+    store: &HeldStore,
+) {
+    use halvo_control::proto::{ErrorCode, ErrorReply, Reply};
+    let facts = server::RunFacts {
+        rss_peak_bytes: server::rss_peak_bytes(),
+        ..*serving.facts
+    };
+    let status = |parts: &server::StatusParts| {
+        server::status_of(parts, &facts).map_or_else(
+            |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+            Reply::Status,
+        )
+    };
+    let before = supervisor.status_parts(serving.obstructed);
+    let mut pending = Some(asked);
+    let turned = supervisor.set_typing(on, store.link(), &mut |board| {
+        if let Some(asked) = pending.take() {
+            serving.listening.admitting().end_the_life();
+            let parts = server::StatusParts {
+                board: board.clone(),
+                ..before.clone()
+            };
+            let _ = asked.answer(status(&parts)).wait(WRITTEN_WAIT);
+        }
+    });
+    let Some(asked) = pending else {
+        return;
+    };
+    let reply = match turned {
+        supervisor::TypingTurn::NoStateFile => Reply::Error(ErrorReply::new(
+            ErrorCode::Internal,
+            "the capture service holds no state file",
+        )),
+        supervisor::TypingTurn::NotWritten(error) => Reply::Error(ErrorReply::new(
+            ErrorCode::StateFile,
+            format!("the switch of keys was not written, and typing is off in this life: {error}"),
+        )),
+        supervisor::TypingTurn::Restart => {
+            serving.listening.admitting().end_the_life();
+            let reply = status(&supervisor.status_parts(serving.obstructed));
+            let _ = asked.answer(reply).wait(WRITTEN_WAIT);
+            return;
+        }
+        supervisor::TypingTurn::Written | supervisor::TypingTurn::Ended => {
+            status(&supervisor.status_parts(serving.obstructed))
+        }
+    };
+    let _ = asked.answer(reply);
 }
 
 #[cfg(any(target_os = "macos", windows))]
@@ -4122,6 +4300,16 @@ mod tests {
             &["--service-run", "--data-dir", absolute, "--lifeline"][..],
             &["--service-run", "--lifeline", "--lifeline"][..],
             &["--service-run", "--store-dir", "/a"][..],
+            &["--service-run", "--no-press"][..],
+            &["--service-run", "--no-press", "--lifeline"][..],
+            &["--service-run", "--lifeline", "--no-press", "--no-press"][..],
+            &[
+                "--service-run",
+                "--lifeline",
+                "--data-dir",
+                absolute,
+                "--no-press",
+            ][..],
         ] {
             let refused = parsed(line);
             let Err(refusal @ Refusal::Usage(_)) = refused else {
@@ -4140,14 +4328,38 @@ mod tests {
         assert_eq!(
             lifeline,
             Ok(Mode::LifelineServiceRun {
-                data_dir: DataDir::from_flag(absolute).unwrap()
+                data_dir: DataDir::from_flag(absolute).unwrap(),
+                behind: Behind::Unsaid,
             })
         );
         assert!(lifeline.unwrap().reads_the_signal_flag());
         assert_eq!(
             parsed(&["--service-run", "--lifeline"]),
             Ok(Mode::LifelineServiceRun {
-                data_dir: DataDir::for_account(&dirs.account).unwrap()
+                data_dir: DataDir::for_account(&dirs.account).unwrap(),
+                behind: Behind::Unsaid,
+            })
+        );
+        let no_press = parsed(&[
+            "--service-run",
+            "--lifeline",
+            "--no-press",
+            "--data-dir",
+            absolute,
+        ]);
+        assert_eq!(
+            no_press,
+            Ok(Mode::LifelineServiceRun {
+                data_dir: DataDir::from_flag(absolute).unwrap(),
+                behind: Behind::NoPress,
+            })
+        );
+        assert!(no_press.unwrap().reads_the_signal_flag());
+        assert_eq!(
+            parsed(&["--service-run", "--lifeline", "--no-press"]),
+            Ok(Mode::LifelineServiceRun {
+                data_dir: DataDir::for_account(&dirs.account).unwrap(),
+                behind: Behind::NoPress,
             })
         );
     }

@@ -26,11 +26,18 @@ pub const TYPING_ON_WINDOWS: bool = true;
 
 /// The row on typing where no typing is recorded: on a Mac whose build takes no typing
 /// ([`TYPING_ON_MAC`]) in the first-run text, on Windows while the keyboard source line
-/// reads off, and on a Mac with typing on in a view's list in place of the row of keys while the
-/// input source line says that its tap holds no key type (impaired with the reason permission,
-/// or off): the app's view reads it from that line alone, never from the row of Input
-/// Monitoring.
+/// reads off, on a Mac while the switch key_class reads off, and on a Mac with typing on in a
+/// view's list in place of the row of keys while the input source line says that its tap holds
+/// no key type (impaired with the reason permission, or off): the app's view reads it from that
+/// line alone, never from the row of Input Monitoring.
 pub const TYPING_NOT_RECORDED: &str = "Halvo does not record what you type.";
+
+/// The label of the control that turns the switch key_class, in a view of a running service.
+pub const RECORD_TYPING: &str = "Record typing";
+
+/// Beside the control while the switch key_class reads off, in front of the row of keys of that
+/// system ([`keys_row`]): a turn on is a consent to what that row says.
+pub const IF_YOU_TURN_THIS_ON: &str = "If you turn this on:";
 
 /// The sentence of the first-run text on the search for repeated tasks, which the consent
 /// says in one plain sentence.
@@ -104,6 +111,42 @@ pub const LIMITS: &str = "A copy of Halvo's data made earlier, such as a backup,
 /// its keyboard source before typing is switched on there.
 pub const KEYS_RECORDED_ON_WINDOWS: &str = "Halvo records a key only when, just after you press it, the text changes in a field that Windows does not report as a password field. It records when you pressed the key, in which app, and what kind of key it was: a letter, digit or sign, or a delete key. It never records which letter, digit or sign. Halvo can tell this only in Chrome and Edge and in the plain text boxes of classic Windows programs: in every other program it records no key. It records no Return or Enter, no Tab, no arrow key, no Escape and no shortcut.";
 
+/// The row of keys of `platform`, what a turn of key_class on records: a Mac's row of
+/// [`recorded_when_on`], and on Windows the row W1, [`KEYS_RECORDED_ON_WINDOWS`].
+pub const fn keys_row(platform: Platform) -> &'static str {
+    match platform {
+        Platform::Macos => recorded_when_on(SwitchName::KeyClass),
+        Platform::Windows => KEYS_RECORDED_ON_WINDOWS,
+    }
+}
+
+/// The control of typing in a view: its label, whether the status's key_class reads on, and
+/// while it reads off [`IF_YOU_TURN_THIS_ON`] with the row of keys of the system.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct TypingSwitch {
+    pub label: &'static str,
+    pub on: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub if_on: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub row: Option<&'static str>,
+}
+
+/// The control of typing for `status`, by its switch key_class alone.
+pub fn typing_switch(status: &DaemonStatus) -> TypingSwitch {
+    let f = status.fields();
+    let on = f
+        .switches
+        .iter()
+        .any(|line| line.name == SwitchName::KeyClass && line.value == OnOff::On);
+    TypingSwitch {
+        label: RECORD_TYPING,
+        on,
+        if_on: (!on).then_some(IF_YOU_TURN_THIS_ON),
+        row: (!on).then_some(keys_row(f.platform)),
+    }
+}
+
 /// What Halvo records while `switch` is on.
 pub const fn recorded_when_on(switch: SwitchName) -> &'static str {
     match switch {
@@ -173,6 +216,7 @@ fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine])
                     SourceClass::MayRun => Some(TYPING_MAY_BE_OBSERVED),
                 }
             }
+            (Platform::Macos, SwitchName::KeyClass, false) => Some(TYPING_NOT_RECORDED),
             (_, SwitchName::ScreenActivity, false) => match class_of(sources, SourceName::Screen) {
                 SourceClass::Off => Some(SCREEN_ACTIVITY_NOT_RECORDED),
                 SourceClass::Runs => Some(SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF),
@@ -719,7 +763,10 @@ mod tests {
         );
         assert_eq!(
             texts_of(&mac),
-            [recorded_when_on(SwitchName::ScreenActivity)]
+            [
+                TYPING_NOT_RECORDED,
+                recorded_when_on(SwitchName::ScreenActivity)
+            ]
         );
         let all = recorded(Platform::Macos, &switches(SwitchName::ALL), &[]);
         assert_eq!(all.len(), 5);
@@ -1593,7 +1640,7 @@ mod tests {
         );
         assert_eq!(
             texts_of(&recorded(Platform::Macos, &switches(&[]), &[])),
-            [S2]
+            [TYPING_NOT_RECORDED, S2]
         );
     }
 
@@ -1758,6 +1805,14 @@ mod tests {
                 format!("{} {}", ruled("L3,"), ruled("L1,")),
             ),
             ("L4", ruled("L4,")),
+            (
+                "the clause on a Mac where no typing is recorded",
+                "It shows where Halvo records no typing: on a Mac while Halvo's tap asks for no key press, which is without the grant of Input Monitoring and while the switch `key_class` is off; on Windows while".to_string(),
+            ),
+            (
+                "the start of Chrome or Edge",
+                "On Windows, when you start Chrome or Edge and type at once, Halvo can leave out what you type until you click or press Enter, Tab or Escape: only then does it read which field has the cursor.".to_string(),
+            ),
             (
                 "W3 under the label",
                 format!("Limit on Windows: {KEY_TYPED_AHEAD_ON_WINDOWS}"),

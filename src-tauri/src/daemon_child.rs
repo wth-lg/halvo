@@ -19,6 +19,24 @@ use crate::view_state::Hold;
 /// input (contracts.md C14 item 1).
 pub const LIFELINE_ARG: &str = "--lifeline";
 
+/// The flag, after `--lifeline`, that tells the daemon that no person's press stands behind its
+/// start (contracts.md C14 item 4): it reads why the last life of its data directory ended, and
+/// behind a stop that was asked, a signal, or an end that its run marker does not tell it ends
+/// with `exit::WAITS_FOR_A_PRESS` before it serves.
+pub const NO_PRESS_ARG: &str = "--no-press";
+
+/// Whether a start of the app's child says that no person's press stands behind it (contracts.md
+/// C14 item 4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Behind {
+    /// A start at a person's press, at the launch, or in a loop of `supervise` that no
+    /// `Attached::ServiceGone` began: the child serves whatever its run marker says.
+    Unsaid,
+    /// Every start that the app makes by itself from `Attached::ServiceGone` on, until a person's
+    /// press on Start or the next launch: the child gets `NO_PRESS_ARG`.
+    NoPress,
+}
+
 /// How often the supervisor reads whether the child of the moment has ended.
 pub const CHILD_POLL: Duration = Duration::from_millis(250);
 
@@ -48,10 +66,13 @@ pub struct Program {
     pub leading: Vec<OsString>,
 }
 
-/// The daemon's arguments: `--service-run --lifeline`, and `--data-dir DIR` only when the app
-/// itself got DIR.
-pub fn arguments(given: Option<&Path>) -> Vec<OsString> {
+/// The daemon's arguments: `--service-run --lifeline`, then `--no-press` where `behind` says so,
+/// and `--data-dir DIR` only when the app itself got DIR.
+pub fn arguments(given: Option<&Path>, behind: Behind) -> Vec<OsString> {
     let mut args = vec![OsString::from(DAEMON_ARG), OsString::from(LIFELINE_ARG)];
+    if behind == Behind::NoPress {
+        args.push(OsString::from(NO_PRESS_ARG));
+    }
     if let Some(dir) = given {
         args.push(OsString::from(DATA_DIR_ARG));
         args.push(dir.as_os_str().to_owned());
@@ -80,8 +101,9 @@ pub enum Next {
     /// answers, a start again from a fresh count.
     Attach,
     /// No start in this life of the stop: the app's own child ended with 0 and the app did not
-    /// ask for the stop in order to restart. The app talks to a daemon that answers, and a child
-    /// starts only at a person's press on Start or at the next launch of the app.
+    /// ask for the stop in order to restart, or a child that no press stood behind ended with
+    /// `exit::WAITS_FOR_A_PRESS`. The app talks to a daemon that answers, and a child starts only
+    /// at a person's press on Start or at the next launch of the app.
     WaitForAPress,
     StartNow,
     StartAfter(Duration),
@@ -153,7 +175,9 @@ pub struct Restarts {
 /// the daemon that holds the directory, a start once no daemon answers; 4 after a life
 /// of 60 s or more a start at once; 5 the backoff, and no child after the third 5 in a row; 6,
 /// a Windows run that was not taken out of Windows Error Reporting, no child again until a
-/// person's press; 1, a 4 within 60 s of its start, a status that this list does not name, an end by a signal and
+/// person's press; 7, a child that no press stood behind and that found a stop that was asked, a
+/// signal or an end that its run marker does not tell, no start until a person's press, from a
+/// fresh count; 1, a 4 within 60 s of its start, a status that this list does not name, an end by a signal and
 /// a failed start the backoff, which doubles from 1 s to 60 s and starts again from 1 s after a
 /// 4 that starts at once and after a child that lived 60 s.
 pub fn next(ending: Ending, clean: Clean, lived: Duration, before: Restarts) -> (Next, Restarts) {
@@ -174,6 +198,7 @@ pub fn next(ending: Ending, clean: Clean, lived: Duration, before: Restarts) -> 
             (Next::StartNow, Restarts::default())
         }
         Ending::Status(exit::FAULT_REPORTS_ON) => (Next::NoMoreChild, Restarts::default()),
+        Ending::Status(exit::WAITS_FOR_A_PRESS) => (Next::WaitForAPress, Restarts::default()),
         _ if fives >= FIVES_IN_A_ROW => (
             Next::NoMoreChild,
             Restarts {
@@ -225,7 +250,8 @@ pub enum Spawned<C> {
 /// What starts the app's child.
 pub trait Spawner: Send + 'static {
     type Child: Watched;
-    fn start(&mut self) -> io::Result<Spawned<Self::Child>>;
+    /// Starts a child; `behind` says whether a person's press may stand behind the start.
+    fn start(&mut self, behind: Behind) -> io::Result<Spawned<Self::Child>>;
     /// The person's click on Start, the consent: from it on `start` starts a child on a data
     /// directory that does not read provisioned yet.
     fn consent(&mut self);
@@ -429,15 +455,15 @@ impl Plan {
 impl Spawner for Plan {
     type Child = Running;
 
-    /// Starts the daemon unless `held_back` answers what holds it back; then it starts nothing
-    /// and makes no entry in the directory.
-    fn start(&mut self) -> io::Result<Spawned<Running>> {
+    /// Starts the daemon with the arguments of `behind` unless `held_back` answers what holds it
+    /// back; then it starts nothing and makes no entry in the directory.
+    fn start(&mut self, behind: Behind) -> io::Result<Spawned<Running>> {
         if let Some(held) = self.held_back() {
             return Ok(held);
         }
         let err = daemon_err(&self.data_dir)?;
         let given = self.given.then(|| self.data_dir.path());
-        start_child(&self.program, &arguments(given), err).map(Spawned::Child)
+        start_child(&self.program, &arguments(given, behind), err).map(Spawned::Child)
     }
 
     fn consent(&mut self) {
@@ -737,6 +763,10 @@ fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold
 /// Each start waits while a run holds the supervision, and starts under the lock that the hold
 /// takes, so that no child starts while the run goes on; behind a run of Remove Halvo's door it
 /// hands the spawner back, and no child starts until a press behind the run.
+/// From `Attached::ServiceGone` on, every start that it makes by itself says `Behind::NoPress`;
+/// an ask of a person's press that stood before that end is dropped there, and a start that takes
+/// an ask of a press made after it says `Behind::Unsaid` from then on, as every start of a new call
+/// does: after a press, and at the next launch.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
@@ -746,9 +776,15 @@ fn supervise<S: Spawner, K: Clock>(
 ) -> Option<(S, Waits)> {
     let hold = views.hold();
     let mut restarts = Restarts::default();
+    let mut behind = Behind::Unsaid;
     loop {
         let gate = match held_before_a_start(shared, clock, hold) {
-            Gate::Open(state) => state,
+            Gate::Open { state, pressed } => {
+                if pressed {
+                    behind = Behind::Unsaid;
+                }
+                state
+            }
             Gate::UntilAPress => return Some((spawner, Waits::Start)),
             Gate::Quit => return None,
         };
@@ -762,7 +798,7 @@ fn supervise<S: Spawner, K: Clock>(
             );
             (ending, step, after)
         };
-        let (ending, step, after) = match spawner.start() {
+        let (ending, step, after) = match spawner.start(behind) {
             #[cfg(test)]
             Ok(Spawned::Never) => return None,
             Ok(Spawned::AwaitsConsent) => {
@@ -809,7 +845,10 @@ fn supervise<S: Spawner, K: Clock>(
         match step {
             Next::Attach => match waited_for_no_daemon(shared, pid, clock) {
                 Attached::NoService => return Some((spawner, Waits::Start)),
-                Attached::ServiceGone => {}
+                Attached::ServiceGone => {
+                    hold.drop_the_ask();
+                    behind = Behind::NoPress;
+                }
                 Attached::Quit => return None,
             },
             Next::WaitForAPress => return Some((spawner, Waits::Start)),
@@ -830,8 +869,12 @@ fn supervise<S: Spawner, K: Clock>(
 
 /// What the gate before a start answers.
 enum Gate<'a, C> {
-    /// The lock under which the child starts.
-    Open(MutexGuard<'a, State<C>>),
+    /// The lock under which the child starts, and whether the start took the ask of a person's
+    /// press between two children.
+    Open {
+        state: MutexGuard<'a, State<C>>,
+        pressed: bool,
+    },
     /// The mark of Remove Halvo's door stands: no child starts until a person's press behind the
     /// run.
     UntilAPress,
@@ -855,8 +898,8 @@ fn held_before_a_start<'a, C, K: Clock>(
             if state.held_until_a_press {
                 return Gate::UntilAPress;
             }
-            hold.take_the_ask();
-            return Gate::Open(state);
+            let pressed = hold.take_the_ask();
+            return Gate::Open { state, pressed };
         }
         state = clock.wait(&shared.changed, state, CHILD_POLL);
     }
@@ -1215,10 +1258,14 @@ pub mod stand_in {
     impl Spawner for StandInSpawner {
         type Child = StandInChild;
 
-        fn start(&mut self) -> io::Result<Spawned<StandInChild>> {
+        fn start(&mut self, behind: Behind) -> io::Result<Spawned<StandInChild>> {
             let child = self.children.pop_front();
             if let Some(child) = &child {
-                note(&self.record, format!("start {}", child.pid));
+                let said = match behind {
+                    Behind::Unsaid => "",
+                    Behind::NoPress => " --no-press",
+                };
+                note(&self.record, format!("start {}{said}", child.pid));
             }
             Ok(child.map_or(Spawned::Never, Spawned::Child))
         }
@@ -1355,6 +1402,10 @@ mod tests {
         }
 
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
     }
@@ -1566,7 +1617,10 @@ mod tests {
             given: true,
             consented: false,
         };
-        assert!(matches!(on_empty.start().unwrap(), Spawned::AwaitsConsent));
+        assert!(matches!(
+            on_empty.start(Behind::Unsaid).unwrap(),
+            Spawned::AwaitsConsent
+        ));
         assert_eq!(std::fs::read_dir(&empty).unwrap().count(), 0);
 
         let data_dir = DataDir::from_flag(&provisioned).unwrap();
@@ -1929,6 +1983,10 @@ mod tests {
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
     }
 
     fn looked_again(clock: &StandInClock) {
@@ -2005,7 +2063,7 @@ mod tests {
                 "status",
                 "status",
                 "status",
-                "start 1001",
+                "start 1001 --no-press",
                 "closed descriptor"
             ]
         );
@@ -2182,6 +2240,213 @@ mod tests {
             assert_eq!(*record.lock().unwrap(), expected, "{name}");
             crate::quit::Children::end(&supervisor);
         }
+    }
+
+    /// A supervisor whose first child, 1000, ends with 0 at the lock of another starter's
+    /// service, which answers once and then answers no more; behind that end children 1001 on
+    /// end as `endings` says, a child with none living until the test ends it.
+    struct Riding {
+        record: Record,
+        clock: Arc<StandInClock>,
+        views: Arc<Views>,
+        pid: Arc<ChildPid>,
+        supervisor: Supervisor<StandInChild, StandInClock>,
+    }
+
+    fn riding(endings: &[Option<Ending>]) -> Riding {
+        use crate::commands::control::Watching;
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let first = StandInChild {
+            ending: Some(Ending::Status(0)),
+            ..StandInChild::new(1000, &clock, &record)
+        };
+        let behind = endings.iter().enumerate().map(|(n, ending)| StandInChild {
+            ending: *ending,
+            ..StandInChild::new(1001 + n as u32, &clock, &record)
+        });
+        let spawner = StandInSpawner {
+            children: std::iter::once(first).chain(behind).collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let pid = Arc::<ChildPid>::default();
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let control = Watching::new(
+            Scripted::new(
+                &record,
+                vec![Ok(sample_status(Platform::Macos))],
+                Vec::new(),
+            ),
+            Arc::clone(&pid),
+        );
+        until("the attach waits behind the 0", || clock.waits().len() > 2);
+        pass(&control, &views, None);
+        looked_again(&clock);
+        pass(&control, &views, None);
+        Riding {
+            record,
+            clock,
+            views,
+            pid,
+            supervisor,
+        }
+    }
+
+    fn starts(record: &Record) -> Vec<String> {
+        record
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|line| line.starts_with("start"))
+            .cloned()
+            .collect()
+    }
+
+    fn ended_with(views: &Views, status: i32) -> bool {
+        use crate::view_state::{NoStatusService, StatusView};
+        matches!(
+            views.view(),
+            StatusView::NoStatus(view)
+                if view.service == NoStatusService::NotRunning && view.last_exit == Some(status)
+        )
+    }
+
+    #[test]
+    fn from_a_service_gone_every_start_by_itself_carries_no_press_and_a_7_starts_none_until_a_press(
+    ) {
+        use crate::view_state::{NoStatusService, StatusView};
+        let r = riding(&[
+            Some(Ending::Status(exit::ERROR)),
+            Some(Ending::Status(exit::WAITS_FOR_A_PRESS)),
+            None,
+        ]);
+        until("the 7 of the child behind the backoff", || {
+            starts(&r.record).len() == 3 && r.pid.get().is_none() && ended_with(&r.views, 7)
+        });
+        for _ in 0..2 {
+            looked_again(&r.clock);
+            assert_eq!(
+                r.pid.get(),
+                None,
+                "no child by itself behind the 7: the supervisor waits for a press"
+            );
+        }
+        assert_eq!(
+            starts(&r.record),
+            [
+                "start 1000",
+                "start 1001 --no-press",
+                "start 1002 --no-press"
+            ],
+            "the start behind the service's end and the one behind the backoff carry the argument"
+        );
+        match r.views.view() {
+            StatusView::NoStatus(view) => assert_eq!(
+                (view.service, view.last_exit, view.hold),
+                (NoStatusService::NotRunning, Some(7), None),
+                "not_running with Start and no hold, as behind a person's own stop"
+            ),
+            other => panic!("a view without a status: {other:?}"),
+        }
+        drop(r.supervisor.close());
+    }
+
+    #[test]
+    fn a_press_on_start_ends_the_riding_and_the_child_behind_it_carries_no_press() {
+        let r = riding(&[Some(Ending::Status(exit::WAITS_FOR_A_PRESS)), None]);
+        until("the 7 of the child behind the service's end", || {
+            starts(&r.record).len() == 2 && r.pid.get().is_none() && ended_with(&r.views, 7)
+        });
+        let answering = Recording::new(&r.record, Some(held_child_status()));
+        let (answer, _) = press(
+            &answering,
+            &r.views,
+            answering.places().make(),
+            CaptureChange::Resume,
+            START_ANSWER_WAIT,
+        );
+        assert!(
+            answer.is_ok(),
+            "the press's Resume reaches the child that it asked for at once"
+        );
+        assert_eq!(r.pid.get(), Some(1002), "the child behind the press lives");
+        drop(r.supervisor.close());
+        assert_eq!(
+            starts(&r.record),
+            ["start 1000", "start 1001 --no-press", "start 1002"],
+            "the child behind the press carries no argument and so serves behind any marker"
+        );
+    }
+
+    #[test]
+    fn the_first_start_of_a_new_launch_of_the_app_carries_no_press() {
+        let r = riding(&[Some(Ending::Status(exit::WAITS_FOR_A_PRESS))]);
+        until("the 7 of the child behind the service's end", || {
+            starts(&r.record).len() == 2 && r.pid.get().is_none() && ended_with(&r.views, 7)
+        });
+        drop(r.supervisor.close());
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let pid = Arc::<ChildPid>::default();
+        let launch = Supervisor::start(
+            StandInSpawner {
+                children: [StandInChild::new(2000, &clock, &record)]
+                    .into_iter()
+                    .collect(),
+                record: Arc::clone(&record),
+            },
+            Arc::clone(&pid),
+            Arc::clone(&clock),
+        );
+        until("the first child of the new launch", || {
+            pid.get() == Some(2000)
+        });
+        drop(launch.close());
+        assert_eq!(
+            (starts(&r.record), starts(&record)),
+            (
+                vec!["start 1000".to_owned(), "start 1001 --no-press".to_owned()],
+                vec!["start 2000".to_owned()]
+            ),
+            "the riding ends with its launch"
+        );
+    }
+
+    #[test]
+    fn the_daemons_arguments_carry_no_press_after_the_lifeline_only_where_said() {
+        let dir = std::env::temp_dir();
+        let words = |given: Option<&Path>, behind: Behind| -> Vec<String> {
+            arguments(given, behind)
+                .into_iter()
+                .map(|word| word.into_string().unwrap())
+                .collect()
+        };
+        let path = dir.to_str().unwrap().to_owned();
+        assert_eq!(words(None, Behind::Unsaid), ["--service-run", "--lifeline"]);
+        assert_eq!(
+            words(Some(dir.as_path()), Behind::Unsaid),
+            ["--service-run", "--lifeline", "--data-dir", path.as_str()]
+        );
+        assert_eq!(
+            words(None, Behind::NoPress),
+            ["--service-run", "--lifeline", "--no-press"]
+        );
+        assert_eq!(
+            words(Some(dir.as_path()), Behind::NoPress),
+            [
+                "--service-run",
+                "--lifeline",
+                "--no-press",
+                "--data-dir",
+                path.as_str()
+            ]
+        );
     }
 
     #[test]
@@ -2762,6 +3027,10 @@ mod tests {
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
     }
 
     struct EachItsOwn {
@@ -2841,6 +3110,10 @@ mod tests {
 
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
             own("reset_settings")
+        }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+            own("set_typing")
         }
 
         #[cfg(any(target_os = "macos", windows))]
@@ -3428,6 +3701,10 @@ mod tests {
             Err(ClientError::Unsupported)
         }
 
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
         #[cfg(any(target_os = "macos", windows))]
         fn owner_stream(&self, _: Made) -> Result<halvo_control::r2::OwnerStreamEnd, ClientError> {
             Err(ClientError::Unsupported)
@@ -3763,6 +4040,12 @@ mod tests {
                 vec![(status(3), 0), (Ending::Signal, 0)],
                 2,
                 vec![s(1), s(2)],
+            ),
+            (
+                "7: no child until a press, whatever the child before it",
+                vec![(status(5), 0), (status(7), 0), (status(1), 0)],
+                2,
+                vec![s(1)],
             ),
             (
                 "4 after 60 s starts at once, and it and a child that lived 60 s start the backoff again",
@@ -4168,6 +4451,10 @@ mod tests {
             }
 
             fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+                Err(ClientError::Unsupported)
+            }
+
+            fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
                 Err(ClientError::Unsupported)
             }
 
@@ -4707,9 +4994,9 @@ mod tests {
     impl Spawner for BeforeTheConsent {
         type Child = StandInChild;
 
-        fn start(&mut self) -> io::Result<Spawned<StandInChild>> {
+        fn start(&mut self, behind: Behind) -> io::Result<Spawned<StandInChild>> {
             if self.consented {
-                self.inner.start()
+                self.inner.start(behind)
             } else {
                 Ok(Spawned::AwaitsConsent)
             }
@@ -5064,6 +5351,10 @@ mod tests {
         }
 
         fn reset_settings(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+            Err(ClientError::Unsupported)
+        }
+
+        fn set_typing(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
             Err(ClientError::Unsupported)
         }
     }

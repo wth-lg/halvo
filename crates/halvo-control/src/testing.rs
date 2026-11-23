@@ -707,6 +707,16 @@ impl ScriptedDaemon {
                 });
                 Reply::Status(self.status.clone())
             }
+            Request::SetTyping { on } => {
+                self.edit(|f| {
+                    for line in &mut f.switches {
+                        if line.name == SwitchName::KeyClass {
+                            line.value = if on { OnOff::On } else { OnOff::Off };
+                        }
+                    }
+                });
+                Reply::Status(self.status.clone())
+            }
         }
     }
 

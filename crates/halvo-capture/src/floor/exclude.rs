@@ -303,6 +303,12 @@ impl FloorHandle {
         self.switches
     }
 
+    /// The same handle with `switches`, for the context of a source begun after a turn of a
+    /// switch: a handle given to a source before keeps the value that it holds.
+    pub fn with_switches(self, switches: Switches) -> FloorHandle {
+        FloorHandle { switches, ..self }
+    }
+
     /// The owner's second line over a received value: the rules that need no
     /// live state (the switches, the static list and the tree rule over the
     /// stored subject pid and the set of the marks). Here an unknown lineage

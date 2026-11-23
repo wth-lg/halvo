@@ -2,8 +2,8 @@ use halvo_control::model::{CaptureState, UtcSecond};
 use halvo_control::onboarding::{GrantState, Permission};
 use halvo_control::proto::{
     Cap, Capture, CaptureReason, Custody, DaemonStatus, DrainError, ExpiryError, Health, LastStop,
-    Lease, LostRecord, Platform, Reason, SourceError, SourceLine, SourceName, SourceState,
-    StatusFields, StopKind, StopSourceLine, StoreErrorKind, StoreState, SwitchName,
+    Lease, LostRecord, OnOff, PasswordGuard, Platform, Reason, SourceError, SourceLine, SourceName,
+    SourceState, StatusFields, StopKind, StopSourceLine, StoreErrorKind, StoreState, SwitchName,
 };
 use halvo_control::testing::{onboarding_of, sample_status, FIXTURE_STORE_ID};
 use serde_json::Value;
@@ -45,6 +45,14 @@ fn source(f: &mut StatusFields, name: SourceName, state: SourceState) {
         state,
         unstopped: false,
     };
+}
+
+fn typing_off(f: &mut StatusFields) {
+    for line in &mut f.switches {
+        if line.name == SwitchName::KeyClass {
+            line.value = OnOff::Off;
+        }
+    }
 }
 
 pub fn stopped(f: &mut StatusFields) {
@@ -111,6 +119,19 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
         }),
         ("running", of(status_with(mac, |_| {}))),
         ("running-windows", of(sample_status(Platform::Windows))),
+        ("typing-off", of(status_with(mac, typing_off))),
+        (
+            "typing-off-windows",
+            of(status_with(Platform::Windows, |f| {
+                typing_off(f);
+                source(f, SourceName::Keyboard, SourceState::Off);
+                f.enabled_sources
+                    .retain(|name| *name != SourceName::Keyboard);
+                f.password_guard = PasswordGuard::None;
+                f.password_guard_bound_ms = None;
+                f.typing_gate = None;
+            })),
+        ),
         (
             "starting",
             of(status_with(mac, |f| f.capture = Capture::Starting)),
@@ -498,7 +519,16 @@ fn with_any_service_but_running_every_daemon_field_is_null() {
         let Value::Object(map) = value else {
             panic!("a view is an object")
         };
-        let keys: Vec<&str> = map.keys().map(String::as_str).collect();
+        assert_eq!(
+            map.contains_key("typing_switch"),
+            view.service() == Service::Running,
+            "{name}: the control of typing"
+        );
+        let keys: Vec<&str> = map
+            .keys()
+            .map(String::as_str)
+            .filter(|key| *key != "typing_switch")
+            .collect();
         assert_eq!(
             keys,
             [
@@ -1024,6 +1054,14 @@ impl crate::commands::control::Control for Claims {
     fn reset_settings(
         &self,
         _: crate::commands::control::Made,
+    ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
+        Err(halvo_control::client::ClientError::Unsupported)
+    }
+
+    fn set_typing(
+        &self,
+        _: crate::commands::control::Made,
+        _: bool,
     ) -> Result<DaemonStatus, halvo_control::client::ClientError> {
         Err(halvo_control::client::ClientError::Unsupported)
     }

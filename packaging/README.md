@@ -118,7 +118,9 @@ holds that line, the wrapper says so on standard error and runs the CLI once mor
 it tries no second time, and for no other failure.
 
 Check 70 requires exactly one `*.dmg` in `release/bundle/dmg` of the target
-directory, newer than the start of its build. It attaches the image read-only and
+directory, newer than the start of its build. Before it attaches the image, it
+copies it into `CI_D_ARTIFACTS`, so that the run's artifact `ci-artifacts-macos`
+holds the image also when a later step fails. It attaches the image read-only and
 unbrowsed under its scratch directory, copies `Halvo.app` out of it with `ditto`
 and detaches it, also when it fails. It writes a state file into a scratch data
 directory, so that the app reads the directory as provisioned and starts its

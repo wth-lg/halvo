@@ -71,6 +71,12 @@ pub mod exit {
     /// Reporting, before any read of the key or of the store; the app starts no child again by
     /// itself after it.
     pub const FAULT_REPORTS_ON: i32 = 6;
+    /// A service run that its starter began with `--no-press`, a start that no person's press
+    /// stands behind, found that the last life of its data directory ended at a Stop request or by
+    /// a signal, or could not read why that life ended: it ended before it bound its channel and
+    /// before any read of the key or of the store, and left the run marker as it found it; the app
+    /// starts no child again until a person's press.
+    pub const WAITS_FOR_A_PRESS: i32 = 7;
     pub const USAGE: i32 = 64;
     /// The offline delete could not use its data directory, before any removal: an entry on its
     /// path that leads nowhere or is no directory, the directory or a folder on its path that
