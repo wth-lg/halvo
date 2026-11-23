@@ -1045,6 +1045,16 @@ pub struct ParamEntry {
     /// shows under the question's words and above its line (r4 U3.22a); empty for every parameter
     /// that the words table gives no hint.
     pub hint: String,
+    /// `needs_answer`: for a parameter with `typed` `yes` the sentence of
+    /// `param_typed.needs_answer`, which the card shows below the typed line where it stands
+    /// empty at a press of the choice `choose`, until the line changes (r4 U3.22b); empty for
+    /// every other parameter.
+    pub needs_answer: String,
+    /// `choose`: for Which spreadsheet file and Where the data comes from, the label of the
+    /// control beside the typed line that opens the system's own chooser of a file, the sentence
+    /// of `param_typed.choose` (r4 U3.22b); the key is left out for every other parameter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub choose: Option<String>,
     /// `refused`: the refusal by entry that the reader of senders gave the newest answer for the
     /// parameter, the entry's number and kind and no sentence, which is the card's (I3.5, I8.1;
     /// ruling RD-81 9.1 to 9.3); the key is left out while none stands.
@@ -1109,6 +1119,15 @@ impl Serialize for OkReply {
 pub struct ClosedReply {
     /// `closed`.
     pub closed: YesNo,
+}
+
+/// The reply `{"path":"<full path>"}` of `agents_choose_file` (I8.1; r4 U3.22b): the full path
+/// of the file that the person picked in the system's own chooser, which the card puts in the
+/// question's typed line. A closed chooser answers `ClosedReply`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ChosenReply {
+    /// `path`.
+    pub path: String,
 }
 
 /// The reply of a refused command (I8.1): `error`, its cause, and `text`, the sentence of the

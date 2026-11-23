@@ -1,7 +1,7 @@
 use crate::items::drive::log_bytes;
 use crate::ports::{
-    Analysis, Clock, Overlap, Overlaps, Owner, Page, PortError, Reading, Reaped, Refused, Rng,
-    Runs, Senders, Tray, OVERLAPS_MAX,
+    Analysis, Chosen, Clock, Files, Overlap, Overlaps, Owner, Page, PortError, Reading, Reaped,
+    Refused, Rng, Runs, Senders, Tray, OVERLAPS_MAX,
 };
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, BindResult, Body, Category, ConfigView,
@@ -10,6 +10,7 @@ use crate::types::{
     WorkflowId, WorkflowState,
 };
 use std::cell::{Cell, RefCell};
+use std::collections::VecDeque;
 
 const HISTORY_MAX: usize = 64;
 const DAY_MS: i64 = 86_400_000;
@@ -248,6 +249,11 @@ pub struct Ports<C> {
     pub senders: RefCell<Vec<(String, Refused)>>,
     /// The text of each call of `Senders::read`, in order.
     pub sender_reads: RefCell<Vec<String>>,
+    /// What `Files::choose` answers, one a call, first first; once it holds none, a call answers
+    /// `Chosen::Closed` (r4 U3.22b).
+    pub chosen: RefCell<VecDeque<Chosen>>,
+    /// The folder of each call of `Files::choose`, in order.
+    pub choose_reads: RefCell<Vec<Option<String>>>,
     now: Cell<u64>,
     zone: Cell<i64>,
     step: Cell<u64>,
@@ -289,6 +295,8 @@ impl<C> Ports<C> {
             deletes: RefCell::new(Vec::new()),
             senders: RefCell::new(Vec::new()),
             sender_reads: RefCell::new(Vec::new()),
+            chosen: RefCell::new(VecDeque::new()),
+            choose_reads: RefCell::new(Vec::new()),
             now: Cell::new(now),
             zone: Cell::new(zone_of(now, today)),
             step: Cell::new(0),
@@ -1271,5 +1279,18 @@ impl<C> Senders for Ports<C> {
             .iter()
             .find(|(t, _)| t == text)
             .map_or(Reading::Taken, |(_, r)| Reading::Refused(*r)))
+    }
+}
+
+impl<C> Files for Ports<C> {
+    fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError> {
+        self.choose_reads
+            .borrow_mut()
+            .push(folder.map(str::to_owned));
+        Ok(self
+            .chosen
+            .borrow_mut()
+            .pop_front()
+            .unwrap_or(Chosen::Closed))
     }
 }

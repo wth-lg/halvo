@@ -831,3 +831,178 @@ fn u322a_behind_new_answers_after_a_failed_run_the_row_says_they_are_saved_until
         words::text("line.all_set.done", &[]).unwrap()
     );
 }
+
+/// r4 U3.22b sentence 2: a press of Choose a file, `agents_choose_file`, asks the port `Files` for
+/// ONE file and answers what the stand-in answers: the picked path, or that the person closed the
+/// chooser; the chooser of Where the data comes from opens in the folder of the workbook whose
+/// line the item holds. The core takes the call only for Which spreadsheet file or Where the data
+/// comes from of an open set-up item, and refuses every other call as it refuses a typed line
+/// there: another question, an item of another kind, an item that is closed. No body is sent and
+/// no row is stored in any of them, and neither a pick nor a close changes the item.
+#[test]
+fn u322b_choose_a_file_answers_the_pick_or_the_close_and_is_refused_as_a_typed_line_there() {
+    use crate::ports::Chosen;
+    let c = sheet_world(&[], false);
+    let item = sheet_setup(&c).expect("the set-up item of an agent with no slot");
+    let picked = good(Param::Workbook).to_owned();
+    c.ports()
+        .chosen
+        .borrow_mut()
+        .push_back(Chosen::Path(picked.clone()));
+    let m = mark(&c);
+    assert_eq!(
+        c.setup_choose(item.item(), Param::Workbook, item.step()),
+        Ok(Chosen::Path(picked))
+    );
+    assert_eq!(
+        c.setup_choose(item.item(), Param::Source, item.step()),
+        Ok(Chosen::Closed),
+        "a close, which the stand-in answers once it holds no pick"
+    );
+    assert_eq!(sheet_setup(&c), Some(item.clone()), "the item as it was");
+    assert!(
+        sent_or_stored(&c, m).is_empty(),
+        "no body sent, no row stored"
+    );
+    assert_eq!(
+        c.setup_typed(
+            item.item(),
+            Param::Workbook,
+            good(Param::Workbook),
+            item.step()
+        ),
+        Ok(())
+    );
+    assert_eq!(
+        c.setup_choose(item.item(), Param::Source, item.step()),
+        Ok(Chosen::Closed)
+    );
+    let folder = good(Param::Workbook)
+        .rsplit_once(['/', '\\'])
+        .map(|(folder, _)| folder.to_owned());
+    assert_eq!(
+        *c.ports().choose_reads.borrow(),
+        [None, None, folder],
+        "the data file's chooser opens in the folder of the workbook's line"
+    );
+
+    let refused = |c: &Coordinator<Ports<Config>>, item: &Item, param: Param, cause: Cause| {
+        let m = mark(c);
+        let reads = c.ports().choose_reads.borrow().len();
+        let before = c.snapshot().items;
+        assert_eq!(
+            c.setup_choose(item.item(), param, item.step()),
+            Err(cause),
+            "{}",
+            param.name()
+        );
+        assert!(
+            sent_or_stored(c, m).is_empty(),
+            "no body sent, no row stored"
+        );
+        assert_eq!(c.ports().choose_reads.borrow().len(), reads, "no chooser");
+        assert_eq!(c.snapshot().items, before, "the items as they were");
+    };
+    for param in [Param::Sheet, Param::Range] {
+        refused(&c, &item, param, Cause::Malformed);
+    }
+    let ready = sheet_world(&SHEET_SLOTS, false);
+    let other = ready
+        .snapshot()
+        .items
+        .into_iter()
+        .find(|i| i.agent() == &sheet_agent())
+        .expect("the item ready of an agent whose four answers are stored");
+    assert_ne!(other.kind(), ItemKind::Setup);
+    let typed = ready.setup_typed(other.item(), Param::Workbook, good(Param::Workbook), 0);
+    assert_eq!(typed, Err(Cause::Stale), "a typed line there");
+    refused(&ready, &other, Param::Workbook, Cause::Stale);
+    let (closed, open) = all_answered_but(Param::Source);
+    assert_eq!(
+        closed.setup_typed(open.item(), Param::Source, good(Param::Source), open.step()),
+        Ok(())
+    );
+    assert!(
+        sheet_setup(&closed).is_none(),
+        "the last answer closed the item"
+    );
+    let typed = closed.setup_typed(open.item(), Param::Workbook, good(Param::Workbook), 0);
+    assert_eq!(typed, Err(Cause::Stale), "a typed line there");
+    refused(&closed, &open, Param::Workbook, Cause::Stale);
+}
+
+/// The rows of the ONE table of where a data file may lie against its workbook
+/// (tests/typed/folders.txt), which a test of halvo-sheet reads too: the form, whether the data
+/// file's place is taken, the workbook's line and the data file's line.
+fn folder_rows() -> Vec<(String, bool, String, String)> {
+    include_str!("../../tests/typed/folders.txt")
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .map(|l| {
+            let f: Vec<&str> = l.split('\t').collect();
+            assert_eq!(f.len(), 4, "{l}");
+            (
+                f[0].to_owned(),
+                f[1] == "taken",
+                f[2].to_owned(),
+                f[3].to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// S7 of the ruling of r4 U3.22b, to the letter.
+const NOT_IN_FOLDER: &str = "The data file must be in the same folder as the spreadsheet file.";
+
+/// r4 U3.22b sentence 3: a line of Where the data comes from that is a full path outside the
+/// folder of the workbook whose line the item holds is not taken, by the sheet crate's own rule,
+/// over ONE table, which the sheet crate's test reads too: the core's rule gives each row's
+/// verdict on both systems; on this build's system each refused row sends no body and stores no
+/// row, the item stays open and the data file's entry carries S7, whether the data file's line
+/// came before the workbook's line, checked when the workbook's line is taken, or after it; a
+/// taken row's body goes with the data file's line.
+#[test]
+fn u322b_a_data_file_outside_the_workbooks_folder_is_not_taken_at_its_line() {
+    let rows = folder_rows();
+    for (form, taken, workbook, data) in &rows {
+        assert_eq!(
+            crate::items::in_folder(workbook, data, system_of(form)),
+            *taken,
+            "{form} {workbook} {data}"
+        );
+    }
+    for (_, taken, workbook, data) in rows.iter().filter(|r| r.0 == HOST_FORM) {
+        for data_first in [false, true] {
+            let c = sheet_world(&[], false);
+            let item = sheet_setup(&c).expect("the set-up item of an agent with no slot");
+            let mut lines = vec![
+                (Param::Workbook, workbook.as_str()),
+                (Param::Sheet, good(Param::Sheet)),
+                (Param::Range, good(Param::Range)),
+                (Param::Source, data.as_str()),
+            ];
+            if data_first {
+                lines.reverse();
+            }
+            let m = mark(&c);
+            for (param, text) in lines {
+                assert_eq!(c.setup_typed(item.item(), param, text, item.step()), Ok(()));
+            }
+            if *taken {
+                let sent = set_bindings(&c, m);
+                assert_eq!(sent.len(), 1, "{workbook} {data}");
+                assert_eq!(slot_of(&sent[0], Param::Source), Some(vec![data.clone()]));
+            } else {
+                assert!(
+                    sent_or_stored(&c, m).is_empty(),
+                    "{workbook} {data}: no body sent, no row stored"
+                );
+                assert_eq!(
+                    not_taken_of(&c, Param::Source).as_deref(),
+                    Some(NOT_IN_FOLDER),
+                    "{workbook} {data}, the data file's line first: {data_first}"
+                );
+            }
+        }
+    }
+}

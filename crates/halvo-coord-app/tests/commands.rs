@@ -29,6 +29,7 @@ fn args_of(command: &str) -> Value {
         "agents_card" => json!({"agent": agent(0).to_string()}),
         "agents_answer" => json!({"item": item, "step": 0, "choice": "allow"}),
         "agents_setup_typed" => json!({"item": item, "step": 0, "param": "payee", "text": "x"}),
+        "agents_choose_file" => json!({"item": item, "step": 0, "param": "workbook"}),
         "agents_present" => json!({"item": item}),
         "agents_control" => json!({"agent": agent(0).to_string(), "action": "run_now"}),
         "agents_shown" => json!({"item": item, "step": 0}),

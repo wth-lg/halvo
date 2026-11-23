@@ -330,6 +330,9 @@ fn expected_keys() -> BTreeSet<String> {
         "param_typed.not_path_mac",
         "param_typed.not_path_windows",
         "param_typed.not_cells",
+        "param_typed.not_in_folder",
+        "param_typed.choose",
+        "param_typed.needs_answer",
     ] {
         k.insert(key.to_owned());
     }
@@ -533,7 +536,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 370);
+    assert_eq!(seen.len(), 373);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
