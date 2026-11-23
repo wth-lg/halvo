@@ -8,8 +8,7 @@
 //! page names no body and cannot choose one.
 #![cfg(any(target_os = "macos", windows))]
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use halvo_agent_client::{LinkError, OwnerLink};
 use halvo_coord::ports::PortError;
@@ -92,21 +91,21 @@ pub enum LimitReply {
 /// The app's own memory of its last answer to the part: whether that answer was the state `unread` made from a
 /// `model_room` that answered the fault of the store's read. Only such a state answer sets it; a `model_room` that
 /// answers a room, every other error of it, and every set that went through clear it. It lives in the app, never in
-/// the page.
+/// the page. It is also the part's one lock (the coordinator's log line 18279): a command of the part holds it from its
+/// ask of `model_room` to its keep, so the app serves one command of the part at a time, and a command that comes
+/// meanwhile waits for it; no command takes it twice.
 #[derive(Debug, Default)]
-pub struct Memory(AtomicBool);
+pub struct Memory(Mutex<bool>);
 
 impl Memory {
     pub const fn new() -> Memory {
-        Memory(AtomicBool::new(false))
+        Memory(Mutex::new(false))
     }
 
-    fn faulted(&self) -> bool {
-        self.0.load(Ordering::SeqCst)
-    }
-
-    fn keep(&self, faulted: bool) {
-        self.0.store(faulted, Ordering::SeqCst);
+    /// The memory for one command, held until the guard drops. A poisoned lock is taken as it stands: its value is a
+    /// bool that every write leaves whole.
+    fn hold(&self) -> MutexGuard<'_, bool> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -177,8 +176,12 @@ impl<'m> ModelLimit<'m> {
         let text = |amount: Option<u64>, unit: fn(u64) -> Amount| {
             amount.map(|amount| written(unit(amount), currency))
         };
-        let asked = self.room();
-        self.memory.keep(matches!(asked, Asked::Fault));
+        let asked = {
+            let mut faulted = self.memory.hold();
+            let asked = self.room();
+            *faulted = matches!(asked, Asked::Fault);
+            asked
+        };
         let (state, cap, spent, held, end) = match asked {
             Asked::Fault => (LimitState::Unread, None, None, None, None),
             Asked::Other => (LimitState::NotKnown, None, None, None, None),
@@ -237,15 +240,16 @@ impl<'m> ModelLimit<'m> {
                 error: LimitCause::NoAmount,
             };
         };
+        let mut faulted = self.memory.hold();
         let op = match self.room() {
-            Asked::Fault if self.memory.faulted() => "new_model_count",
+            Asked::Fault if *faulted => "new_model_count",
             Asked::Fault => {
                 return LimitReply::Error {
                     error: LimitCause::Failed,
                 }
             }
             Asked::Room(_) | Asked::Other => {
-                self.memory.keep(false);
+                *faulted = false;
                 "set_model_cap"
             }
         };
@@ -264,7 +268,8 @@ impl<'m> ModelLimit<'m> {
                 }
             }
         };
-        self.memory.keep(false);
+        *faulted = false;
+        drop(faulted);
         LimitReply::Set {
             answer,
             amount: written(Amount::Minor(u64::from(cap_minor)), currency()),
@@ -354,7 +359,8 @@ impl OwnerLink for NoService {
 mod tests {
     use super::*;
     use std::collections::VecDeque;
-    use std::sync::Mutex;
+    use std::sync::{Condvar, Mutex};
+    use std::time::Duration;
 
     const HOST: &str = "api.host.invalid";
 
@@ -370,10 +376,34 @@ mod tests {
         Answer::Result(text.to_owned())
     }
 
-    /// A stand-in owner link that keeps each request as JSON and answers the requests in order with `script`.
+    /// A gate that holds a stand-in's answer until the test opens it.
+    #[derive(Default)]
+    struct Gate {
+        open: Mutex<bool>,
+        opened: Condvar,
+    }
+
+    impl Gate {
+        fn open(&self) {
+            *self.open.lock().unwrap() = true;
+            self.opened.notify_all();
+        }
+
+        fn wait(&self) {
+            let mut open = self.open.lock().unwrap();
+            while !*open {
+                open = self.opened.wait(open).unwrap();
+            }
+        }
+    }
+
+    /// A stand-in owner link that keeps each request as JSON and answers the requests in order with `script`; where a
+    /// gate is set, the next answer waits until the gate opens.
     struct Stand {
         script: Mutex<VecDeque<Answer>>,
         kept: Mutex<Vec<Value>>,
+        asked: Condvar,
+        gate: Mutex<Option<Arc<Gate>>>,
     }
 
     impl Stand {
@@ -381,7 +411,24 @@ mod tests {
             Arc::new(Stand {
                 script: Mutex::new(VecDeque::new()),
                 kept: Mutex::new(Vec::new()),
+                asked: Condvar::new(),
+                gate: Mutex::new(None),
             })
+        }
+
+        /// Holds the answer of the next request until `gate` opens.
+        fn hold_next(&self, gate: Arc<Gate>) {
+            *self.gate.lock().unwrap() = Some(gate);
+        }
+
+        /// Whether `n` requests have come within `within`.
+        fn asked_within(&self, n: usize, within: Duration) -> bool {
+            let kept = self.kept.lock().unwrap();
+            let (kept, _) = self
+                .asked
+                .wait_timeout_while(kept, within, |kept| kept.len() < n)
+                .unwrap();
+            kept.len() >= n
         }
 
         /// The answers of the next requests, in their order.
@@ -413,7 +460,13 @@ mod tests {
             let request: Value = serde_json::from_slice(request).expect("a request reads as JSON");
             let id = request["id"].to_string();
             self.kept.lock().unwrap().push(request);
-            match self.script.lock().unwrap().pop_front() {
+            self.asked.notify_all();
+            let gate = self.gate.lock().unwrap().take();
+            if let Some(gate) = gate {
+                gate.wait();
+            }
+            let answer = self.script.lock().unwrap().pop_front();
+            match answer {
                 Some(Answer::Result(result)) => {
                     Ok(format!(r#"{{"v":1,"id":{id},"ok":{result}}}"#).into_bytes())
                 }
@@ -723,6 +776,71 @@ mod tests {
             6,
             "(b) behind the new count the press sends model_room alone"
         );
+    }
+
+    /// r7 8.1L view, the round of verifier-54 (the coordinator's log line 18279): the app serves one command of the part
+    /// at a time, so that two calls at once start no count on one passing fault. Each call goes on a link of its own, as
+    /// the app gives each call a stream of its own, and both share the part's one memory. X1: behind a good count a press
+    /// asks `model_room` and its answer is held; a state call starts beside it; the press's read is then answered the
+    /// fault: the press answers `failed` and sends nothing more, and the state call, served behind it, answers `unread`.
+    /// X2: the part was answered `unread` earlier; a state call asks `model_room` and its answer, a count that reads, is
+    /// held; a press starts beside it and meets the fault behind it: the state call answers `ok`, and the press answers
+    /// `failed` and sends nothing more. A call that comes while another holds the memory waits for it; the test gives
+    /// each second call 100 ms to ask before it opens the held answer.
+    #[test]
+    fn two_calls_at_once_start_no_count_on_one_passing_fault() {
+        let beside = Duration::from_millis(100);
+        let long = Duration::from_secs(10);
+        let failed = json!({"error": "failed"});
+        let fault = || Answer::Refused("internal");
+
+        let memory = Memory::new();
+        let good = Stand::new();
+        good.then([result(READS)]);
+        assert_eq!(state(&ModelLimit::new(good, &memory))["state"], "ok");
+        let (of_press, of_state, gate) = (Stand::new(), Stand::new(), Arc::new(Gate::default()));
+        of_press.hold_next(Arc::clone(&gate));
+        of_press.then([fault(), cap_reply(2_500, "yes")]);
+        of_state.then([fault()]);
+        std::thread::scope(|s| {
+            let pressing = s.spawn(|| press(&ModelLimit::new(of_press.clone(), &memory), "25"));
+            assert!(
+                of_press.asked_within(1, long),
+                "X1: the press asked model_room"
+            );
+            let reading = s.spawn(|| state(&ModelLimit::new(of_state.clone(), &memory)));
+            of_state.asked_within(1, beside);
+            gate.open();
+            assert_eq!(pressing.join().unwrap(), failed, "X1: the press");
+            assert_eq!(
+                reading.join().unwrap()["state"],
+                "unread",
+                "X1: the state call"
+            );
+        });
+        assert_eq!(of_press.ops(), ["model_room"], "X1: the press's requests");
+
+        let memory = Memory::new();
+        let first = Stand::new();
+        first.then([fault()]);
+        assert_eq!(state(&ModelLimit::new(first, &memory))["state"], "unread");
+        let (of_press, of_state, gate) = (Stand::new(), Stand::new(), Arc::new(Gate::default()));
+        of_state.hold_next(Arc::clone(&gate));
+        of_state.then([result(READS)]);
+        of_press.then([fault(), cap_reply(2_500, "yes")]);
+        std::thread::scope(|s| {
+            let reading = s.spawn(|| state(&ModelLimit::new(of_state.clone(), &memory)));
+            assert!(
+                of_state.asked_within(1, long),
+                "X2: the state call asked model_room"
+            );
+            let pressing = s.spawn(|| press(&ModelLimit::new(of_press.clone(), &memory), "25"));
+            of_press.asked_within(1, beside);
+            gate.open();
+            assert_eq!(reading.join().unwrap()["state"], "ok", "X2: the state call");
+            assert_eq!(pressing.join().unwrap(), failed, "X2: the press");
+        });
+        assert_eq!(of_press.ops(), ["model_room"], "X2: the press's requests");
     }
 
     /// r7 8.1L view: the part names the period month, because the count turns by calendar months, and the build's cap
