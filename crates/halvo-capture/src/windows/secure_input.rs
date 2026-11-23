@@ -299,7 +299,7 @@ enum Mark {
     Read { state: FieldState, moved: Moved },
     Latch { from: LatchFrom, at: u32 },
     Started,
-    Landing { state: FieldState },
+    Landing { state: FieldState, folds: bool },
 }
 
 impl Mark {
@@ -313,7 +313,7 @@ impl Mark {
 
     fn landed(self) -> Option<FieldState> {
         match self {
-            Mark::Landing { state } => Some(state),
+            Mark::Landing { state, .. } => Some(state),
             _ => None,
         }
     }
@@ -334,6 +334,7 @@ pub(crate) struct HeldKey {
     seen: u64,
     password_edit: bool,
     front: u32,
+    text: bool,
 }
 
 impl HeldKey {
@@ -485,27 +486,23 @@ fn judge_marks(m: &Marks, key: &HeldKey, now: u32) -> Judgment {
             .at
             .is_some_and(|at| (0..=bound).contains(&offset(at, key.tick)))
     };
-    let landing = m
-        .entries
-        .iter()
-        .find(|entry| entry.mark.landed().is_some() && made_after_key(entry))
-        .filter(|landing| {
-            let made = landing.at.unwrap_or(landing.began);
-            !m.entries.iter().any(|entry| {
-                let tick = entry.at.unwrap_or(entry.began);
-                let changes_the_focus = match entry.mark {
-                    Mark::Field(_) | Mark::Started => true,
-                    Mark::Read { moved, .. } => moved != Moved::Same,
-                    Mark::Latch { .. } | Mark::Landing { .. } => false,
-                };
-                let latch_between = matches!(entry.mark, Mark::Latch { at, .. }
+    let landing = m.landing_of(key, bound).filter(|landing| {
+        let made = landing.at.unwrap_or(landing.began);
+        !m.entries.iter().any(|entry| {
+            let tick = entry.at.unwrap_or(entry.began);
+            let changes_the_focus = match entry.mark {
+                Mark::Field(_) | Mark::Started => true,
+                Mark::Read { moved, .. } => moved != Moved::Same,
+                Mark::Latch { .. } | Mark::Landing { .. } => false,
+            };
+            let latch_between = matches!(entry.mark, Mark::Latch { at, .. }
                     if (0..=bound).contains(&offset(at, key.tick)) && offset(made, at) >= 0);
-                latch_between
-                    || (changes_the_focus
-                        && after_key(entry)
-                        && (entry.seq < landing.seq || offset(made, tick) >= 0))
-            })
-        });
+            latch_between
+                || (changes_the_focus
+                    && after_key(entry)
+                    && (entry.seq < landing.seq || offset(made, tick) >= 0))
+        })
+    });
     let before_first_read = |entry: &Entry| {
         m.started.is_some_and(|started| entry.seq > started)
             && m.first_read.is_none_or(|read| entry.seq < read)
@@ -690,6 +687,9 @@ struct Marks {
     asked: u64,
     held: u64,
     pending: Option<(u64, ContentReading)>,
+    held_landings: VecDeque<(u64, u64)>,
+    last_consumer: Option<u64>,
+    owed: Option<(u32, u32)>,
 }
 
 impl Marks {
@@ -825,6 +825,47 @@ impl Marks {
         }
     }
 
+    fn landing_of(&self, key: &HeldKey, bound: i64) -> Option<&Entry> {
+        if !key.text {
+            return None;
+        }
+        self.entries.iter().find(|entry| {
+            matches!(entry.mark, Mark::Landing { folds, .. }
+                if folds || !self.held_landings.iter().any(|&(landing, by)| landing == entry.seq && by != key.seen))
+                && entry
+                    .at
+                    .is_some_and(|at| (0..=bound).contains(&offset(at, key.tick)))
+        })
+    }
+
+    fn take_landing(&mut self, key: &HeldKey) {
+        if !key.text || self.last_consumer.is_some_and(|last| key.seen <= last) {
+            return;
+        }
+        self.last_consumer = Some(key.seen);
+        let bound = i64::from(ms(super::LATE_KEY_MAX) + ms(KEY_HOLD));
+        match self
+            .landing_of(key, bound)
+            .map(|entry| (entry.seq, entry.mark))
+        {
+            Some((seq, Mark::Landing { folds: false, .. })) => self.hold_landing(seq, key.seen),
+            Some(_) => {}
+            None => {
+                self.owed = Some(match self.owed {
+                    Some((front, count)) if front == key.front => (front, count + 1),
+                    _ => (key.front, 1),
+                });
+            }
+        }
+    }
+
+    fn hold_landing(&mut self, landing: u64, by: u64) {
+        if self.held_landings.len() == MARKS_KEPT {
+            self.held_landings.pop_front();
+        }
+        self.held_landings.push_back((landing, by));
+    }
+
     fn ask_read(&mut self, from: u32) {
         self.read_due = Some(match self.read_due {
             Some(due) if not_after(due, from) => due,
@@ -918,10 +959,15 @@ impl Shared {
         }
     }
 
-    fn landing(&self, at: u32, state: FieldState) {
+    fn landing(&self, at: u32, state: FieldState, folds: bool, thread: u32) {
         note_mark("landing", Some(state), None, Some(at), at, None);
         let mut marks = self.lock();
-        marks.push(Some(at), at, Mark::Landing { state });
+        let seq = marks.next_seq;
+        marks.push(Some(at), at, Mark::Landing { state, folds });
+        if let Some((front, count)) = marks.owed.filter(|&(front, _)| !folds && front == thread) {
+            marks.hold_landing(seq, u64::MAX);
+            marks.owed = (count > 1).then_some((front, count - 1));
+        }
     }
 
     fn latch(&self, tick: u32, from: LatchFrom) {
@@ -1022,12 +1068,26 @@ impl PasswordGate {
         PasswordGate::default()
     }
 
+    #[cfg(test)]
     pub(crate) fn hold(&self, tick: u32, password_edit: bool, front: u32) -> HeldKey {
+        self.hold_key(tick, password_edit, front, true)
+    }
+
+    /// A held key; `text` says whether its class changes text, and only such
+    /// a key takes a landing.
+    pub(crate) fn hold_key(
+        &self,
+        tick: u32,
+        password_edit: bool,
+        front: u32,
+        text: bool,
+    ) -> HeldKey {
         HeldKey {
             tick,
             seen: self.shared.lock().next_seq,
             password_edit,
             front,
+            text,
         }
     }
 
@@ -1138,11 +1198,13 @@ impl PasswordGate {
             marks.drop_old_gap(now);
             marks.drop_old_closed_latches(now);
             if marks.clicks_unseen_for(key) {
+                marks.take_landing(key);
                 return Some((Err(Withheld::Unknown), Rule::NoClickRoute));
             }
             let judged = judge(&marks, key, now, front, password_edit_now);
-            if let Judgment::Wait(from) = judged {
-                marks.ask_read(from);
+            match judged {
+                Judgment::Wait(from) => marks.ask_read(from),
+                Judgment::Decided(..) => marks.take_landing(key),
             }
             judged
         };
@@ -1255,7 +1317,12 @@ impl PasswordGate {
 
     #[cfg(test)]
     pub(crate) fn landing_at(&self, at: u32, state: FieldState) {
-        self.shared.landing(at, state);
+        self.shared.landing(at, state, false, 7);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn folded_landing_at(&self, at: u32, state: FieldState) {
+        self.shared.landing(at, state, true, 7);
     }
 
     #[cfg(test)]
@@ -2130,14 +2197,20 @@ mod detector {
             const { std::cell::RefCell::new(None) };
     }
 
-    fn landing_state(hwnd: HWND, object: i32, child: i32) -> Option<FieldState> {
+    fn folds_a_burst(hwnd: HWND) -> bool {
+        let mut class = [0u16; 32];
+        // SAFETY: `class` is a live buffer whose length the call takes.
+        let len = unsafe { GetClassNameW(hwnd, &mut class) };
+        let len = usize::try_from(len).unwrap_or(0).min(class.len());
+        String::from_utf16_lossy(&class[..len]).starts_with("Chrome_")
+    }
+
+    fn landing_state(hwnd: HWND, object: i32, child: i32) -> Option<(FieldState, u32)> {
         // SAFETY: GetForegroundWindow and GetWindowThreadProcessId read handle
         // values and take no pointer.
-        let in_front = unsafe {
-            let front = GetWindowThreadProcessId(GetForegroundWindow(), None);
-            front != 0 && GetWindowThreadProcessId(hwnd, None) == front
-        };
-        if !in_front {
+        let front = unsafe { GetWindowThreadProcessId(GetForegroundWindow(), None) };
+        // SAFETY: as above.
+        if front == 0 || unsafe { GetWindowThreadProcessId(hwnd, None) } != front {
             return None;
         }
         let mut accessible: Option<IAccessible> = None;
@@ -2162,11 +2235,12 @@ mod detector {
         if flags & STATE_SYSTEM_FOCUSED == 0 {
             return None;
         }
-        Some(if flags & STATE_SYSTEM_PROTECTED != 0 {
+        let state = if flags & STATE_SYSTEM_PROTECTED != 0 {
             FieldState::Password
         } else {
             FieldState::Clear
-        })
+        };
+        Some((state, front))
     }
 
     unsafe extern "system" fn landing_proc(
@@ -2180,8 +2254,8 @@ mod detector {
     ) {
         LANDING_GATE.with(|cell| {
             if let Some(shared) = cell.borrow().as_ref() {
-                if let Some(state) = landing_state(hwnd, object, child) {
-                    shared.landing(time, state);
+                if let Some((state, thread)) = landing_state(hwnd, object, child) {
+                    shared.landing(time, state, folds_a_burst(hwnd), thread);
                 }
             }
         });
@@ -2619,6 +2693,7 @@ mod detector {
                 seen: 0,
                 password_edit: false,
                 front: 0,
+                text: true,
             };
             let judged = super::super::judge(&gate.shared.lock(), &before, at, 0, false);
             let detached = gate.detach(UNTIMED);
@@ -3896,6 +3971,58 @@ mod tests {
     }
 
     #[test]
+    fn a_landing_of_one_letter_serves_the_oldest_key_alone_and_a_folded_one_serves_both() {
+        let gate = plain();
+        let first = key(&gate, 2_000);
+        let second = key(&gate, 2_010);
+        gate.landing_at(2_020, FieldState::Clear);
+        gate.read_at(2_200, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &first, 2_210), Some(Ok(())));
+        assert_eq!(reading(&gate, &second, 2_210), None);
+        assert_eq!(reading(&gate, &second, 2_261), Some(Err(Withheld::Unknown)));
+        let gate = plain();
+        let first = key(&gate, 2_000);
+        let second = key(&gate, 2_010);
+        gate.folded_landing_at(2_020, FieldState::Clear);
+        gate.read_at(2_200, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &first, 2_210), Some(Ok(())));
+        assert_eq!(reading(&gate, &second, 2_210), Some(Ok(())));
+    }
+
+    #[test]
+    fn a_key_decided_before_its_landing_owes_it_to_no_later_key() {
+        let gate = plain();
+        let first = key(&gate, 2_000);
+        assert_eq!(
+            gate.decide(&first, 2_005, FRONT + 1, false)
+                .map(|(_, rule)| rule),
+            Some(Rule::AnotherThreadInFront)
+        );
+        let second = key(&gate, 2_010);
+        gate.landing_at(2_020, FieldState::Clear);
+        gate.read_at(2_200, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &second, 2_210), None);
+        assert_eq!(reading(&gate, &second, 2_261), Some(Err(Withheld::Unknown)));
+        gate.landing_at(2_300, FieldState::Clear);
+        let third = key(&gate, 2_300);
+        gate.landing_at(2_300, FieldState::Clear);
+        gate.read_at(2_430, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &third, 2_440), Some(Ok(())));
+    }
+
+    #[test]
+    fn a_key_whose_class_changes_no_text_takes_no_landing() {
+        let gate = plain();
+        let tab = gate.hold_key(2_000, false, FRONT, false);
+        let letter = key(&gate, 2_005);
+        gate.landing_at(2_010, FieldState::Clear);
+        gate.read_at(2_200, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &tab, 2_210), None);
+        assert_eq!(reading(&gate, &tab, 2_251), Some(Err(Withheld::Unknown)));
+        assert_eq!(reading(&gate, &letter, 2_230), Some(Ok(())));
+    }
+
+    #[test]
     fn a_landing_in_a_password_field_withholds_the_keys_before_it() {
         let gate = plain();
         let first = key(&gate, 2_000);
@@ -4383,6 +4510,7 @@ mod tests {
                 gate.latch(1_990);
             }
             let letter = key(&gate, 2_000);
+            gate.landing_at(2_000, FieldState::Clear);
             gate.read_at(2_100, FieldState::Clear, Moved::Same);
             gate.read_at(2_130, FieldState::Clear, Moved::Another);
             let after = key(&gate, 2_140);
@@ -4465,6 +4593,7 @@ mod tests {
         gate.read_at(1_925, FieldState::Clear, Moved::Same);
         gate.clicks_lost(2_000);
         let inside = key(&gate, 2_050);
+        gate.landing_at(2_050, FieldState::Clear);
         let while_open = rule(&gate, &inside, 2_060);
         gate.clicks_back(2_100);
         let after = key(&gate, 2_101);

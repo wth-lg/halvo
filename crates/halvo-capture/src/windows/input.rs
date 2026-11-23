@@ -1483,10 +1483,11 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
                 };
                 let front = state.front.now();
                 gate.counts.note_lag(super::now_tick().wrapping_sub(tick));
-                let held = gate.gate.hold(
+                let held = gate.gate.hold_key(
                     tick,
                     crate::secure_input::windows::focus_window_is_password_edit(),
                     foreground_thread(),
+                    matches!(class, KeyClass::Printable | KeyClass::Editing),
                 );
                 if step.latch {
                     gate.gate.latch(tick);
