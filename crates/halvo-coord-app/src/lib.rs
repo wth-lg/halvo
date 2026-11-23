@@ -29,6 +29,8 @@ pub use handler::{handler, handler_with, MAIN, REFUSED};
 pub use hub::{Agents, Core, Hub, Native, Present, Reply, Waits};
 #[cfg(feature = "scripted")]
 pub use present::Scripted;
-pub use present::{decide, dialog_hub, Card, Dialog, DialogPresenter, Outcome, Read, System};
+pub use present::{
+    decide, dialog_hub, Card, Dialog, DialogPresenter, Outcome, Read, System, SystemChooser,
+};
 pub use window::{on_window_event, Close, CLOSE};
 pub use wired::Wired;

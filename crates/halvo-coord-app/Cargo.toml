@@ -33,11 +33,12 @@ halvo-schema-core = { path = "../halvo-schema-core" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "=0.6.5"
-objc2-foundation = { version = "=0.3.2", features = ["NSDate", "NSGeometry", "NSNotification", "NSObjCRuntime", "NSRunLoop", "NSString", "NSTimer", "NSTimeZone"] }
-objc2-app-kit = { version = "=0.3.2", features = ["NSAlert", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow", "NSApplication", "NSRunningApplication"] }
+objc2-foundation = { version = "=0.3.2", features = ["NSArray", "NSDate", "NSGeometry", "NSNotification", "NSObjCRuntime", "NSRunLoop", "NSString", "NSTimer", "NSTimeZone", "NSURL"] }
+objc2-app-kit = { version = "=0.3.2", features = ["NSAlert", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow", "NSApplication", "NSRunningApplication", "NSOpenPanel", "NSPanel", "NSSavePanel"] }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Time", "Win32_UI_Controls", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Com", "Win32_System_Ole", "Win32_System_Time", "Win32_UI_Controls", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_WindowsAndMessaging"] }
+windows-core = "=0.62.2"
 
 [[test]]
 name = "dialog_hosted"

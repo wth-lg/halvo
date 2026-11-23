@@ -387,3 +387,26 @@ impl Serialize for Refused {
         out.end()
     }
 }
+
+/// The system's own chooser of ONE file (r4 U3.22b), which the app opens by its own code beside
+/// the confirm dialog: NSOpenPanel on a Mac and IFileOpenDialog on Windows, for one file and no
+/// folder, in the folder given, its window kept out of Halvo's own capture as the confirm
+/// dialog's window is. Like `Senders` it is a bound of `Coordinator` with no default answer: the
+/// app fills it with the system's chooser, and the memory `Ports` answers what a test gives it.
+/// The core calls it with its lock released, since the chooser stays open for as long as the
+/// person keeps it open.
+pub trait Files {
+    /// Opens the chooser in `folder`, or where the system opens it when none is given, and
+    /// answers once it has closed.
+    fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError>;
+}
+
+/// What `Files::choose` answers (r4 U3.22b).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Chosen {
+    /// The full path of the file that the person picked, in the system's own form.
+    Path(String),
+    /// The person closed the chooser with no file, or the chooser could not be shown with its
+    /// window kept out of the capture.
+    Closed,
+}
