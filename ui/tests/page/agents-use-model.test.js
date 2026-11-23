@@ -89,6 +89,12 @@ test("a press on Use an AI model opens its question and calls nothing, Not now c
     QUESTION.controls.map((c) => [c.act, agent, c.text]),
   );
 
+  asked.close();
+  await page.settle();
+  assert.deepEqual(page.calls("agents_control"), [], "a question closed with no answer calls nothing");
+  assert.equal(questions(page).length, 1, "one question is open");
+  assert.equal(questions(page)[0], asked, "the page shows the same question again: an answer alone ends it");
+
   await press(page, asked.querySelector('button[data-act="reject"]'));
   assert.equal(questions(page).length, 0, "Not now closes the question");
   assert.deepEqual(page.calls("agents_control"), [], "Not now calls nothing");
