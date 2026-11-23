@@ -1153,8 +1153,8 @@ impl Runner {
     /// Whether the step reaches into a frame: its target or the target of one of its conditions names a frame, or one
     /// of its args or of the args of its conditions takes a value that an `extract` of this run read in a frame
     /// (`read_in_a_frame`; the coordinator's ruling of log line 16325, point 1). The browser's maker then reads the
-    /// top page's address before any arm and act, and acts only where its origin is an origin of the run (the
-    /// coordinator's ruling of log line 16745, point 2; crate::web::maker).
+    /// top page's address before any arm and act, and acts only where its origin and every origin of the step's own
+    /// frame path are origins of the run (the coordinator's ruling of log line 16745, point 2; crate::web::maker).
     #[cfg(feature = "loopback")]
     fn reaches_a_frame(&self, step: &ExecutableStep) -> bool {
         let framed = |target: &WebTarget| !target.frame.is_empty();

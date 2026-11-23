@@ -1,2 +1,2 @@
-- Added: Under the runner's test feature loopback, the payment maker acts on a web step whose target, post condition or amount stands in a frame that the step names, only under a top page of a bound origin, and reads the page after the reply in the frame of the released request.
-- Changed: A value that the payment maker reads in a frame names the frame document's origin, the last of the path that its step names, in place of the top page's.
+- Added: Under the runner's test feature loopback, the request maker of a web effect (payment, purchase, submit, sign) acts on a step whose target, post condition or read value stands in a frame that the step names, only where the top page's origin and every origin of the frame path are bound, and reads the page after the reply in the frame of the released request.
+- Changed: A value that the request maker reads in a frame names the frame document's origin, the last of the path that its step names, in place of the top page's.

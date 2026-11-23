@@ -35,13 +35,15 @@
 //! field in its query, and a form that names no amount, go on to the card, and one whose query names another amount
 //! is failed. A `submit` and a `sign` go on as before.
 //!
-//! In a frame (r3 U5.10-B part two; the coordinator's ruling of log line 16745): a step whose own target or a
-//! condition `post`'s target names a frame, or whose amount is a value read in a frame, comes to the maker, and every
-//! other way into a frame still fails before any act (`reaches_a_frame_beyond_the_maker` of the browser's module).
-//! Before any arm and act the maker reads the top page's address and acts only where its origin is an origin of the
-//! run, so that a foreign page cannot carry a bound site's frame into a payment; a value read in a frame names the
-//! frame document's origin, the last of the path that its target names (`read_again`); and the read after the reply
-//! waits for a new document in the frame of the released request (`Page::arm_hold`, `Page::page_amounts`).
+//! In a frame (r3 U5.10-B part two; the coordinator's ruling of log line 16745): a step of any effect class that the
+//! maker serves (`payment`, `purchase`, `submit`, `sign`) whose own target or a condition `post`'s target names a frame,
+//! or whose arg takes a value read in a frame, comes to the maker, and every other way into a frame still fails before
+//! any act (`reaches_a_frame_beyond_the_maker` of the browser's module). Before any arm and act the maker reads the top
+//! page's address and acts only where its origin and every origin of the step's own frame path are origins of the run
+//! (the round of the review seat's F1), so that neither a foreign page nor a foreign frame carries a bound site's frame
+//! into an effect; a value read in a frame names the frame document's origin, the last of the path that its target
+//! names (`read_again`); and the read after the reply waits for a new document in the frame of the released request
+//! (`Page::arm_hold`, `Page::page_amounts`).
 //!
 //! A binary that holds the maker holds its marker text (`MAKER_MARKER`), which the scan of check 62-build
 //! (scripts/r1/ci.d/62-build.sh) refuses in every shipped file.
@@ -537,6 +539,10 @@ impl Runner {
         read?;
         let origins = self.run_origins(loaded);
         let framed = self.reaches_a_frame(step);
+        let frame = match &step.target {
+            Some(Target::Web(target)) => &target.frame[..],
+            _ => &[],
+        };
         let web = self.web.as_mut().ok_or_else(failed)?;
         if framed {
             let top = web
@@ -546,6 +552,10 @@ impl Runner {
                 .and_then(|address| WebOrigin::of_address(&address).ok());
             if !top.is_some_and(|top| origins.contains(&top)) {
                 crate::line("run effect=failed at=frame top=unbound");
+                return Err(failed());
+            }
+            if !frame.iter().all(|origin| origins.contains(origin)) {
+                crate::line("run effect=failed at=frame path=unbound");
                 return Err(failed());
             }
         }
@@ -565,10 +575,6 @@ impl Runner {
             crate::line("run effect=failed at=arm refused=yes");
             return end_of_step(Err(()), &before);
         }
-        let frame = match &step.target {
-            Some(Target::Web(target)) => &target.frame[..],
-            _ => &[],
-        };
         if web.0.arm_hold(&origins, frame).is_err() {
             let _ = web.0.arm(&origins);
             return Err(failed());
@@ -1491,5 +1497,40 @@ mod tests {
             "{log:?}"
         );
         assert_eq!(record.done(), Some(Outcome::Failed), "{log:?}");
+    }
+
+    /// r3 U5.10-B part two, the round of the review seat's F1 (the coordinator's ruling of log line 16745, point 2), on
+    /// the stand-in: a payment whose target names a frame of an origin outside the bindings, under a bound top page and
+    /// with an amount read on that bound page, fails before any act: no arm of the hold mode, no click, no card and no
+    /// effect row; and so does one whose path of two frames names an OUTER frame outside the bindings.
+    #[test]
+    fn on_the_stand_in_a_payment_in_a_frame_of_an_unbound_origin_under_a_bound_top_page_fails_before_any_act(
+    ) {
+        for path in [
+            r#""http://127.0.0.1:9090""#,
+            r#""http://127.0.0.1:9090","http://127.0.0.1:8080""#,
+        ] {
+            let log: Log = Arc::default();
+            let stand_in = StandIn::new(&log, vec![held(7)]);
+            let json = PAY.replacen(r#""frame":[]"#, &format!(r#""frame":[{path}]"#), 1);
+            let record = pay_step(stand_in, &json, Plan::plain());
+            let log = lines(&log);
+            assert!(
+                !log.iter()
+                    .any(|l| l.starts_with("arm hold") || l == "act click"),
+                "{path}: {log:?}"
+            );
+            assert!(record.confirms().is_empty(), "{path}: no card: {log:?}");
+            assert!(record.states().is_empty(), "{path}: no effect row: {log:?}");
+            assert_eq!(
+                rows(&record),
+                [
+                    (LogEvent::StepFailed, Some(3), Some(Cause::StepFailed)),
+                    (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+                ],
+                "{path}: {log:?}"
+            );
+            assert_eq!(record.done(), Some(Outcome::Failed), "{path}: {log:?}");
+        }
     }
 }
