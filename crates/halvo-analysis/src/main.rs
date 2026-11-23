@@ -158,7 +158,7 @@ fn run() -> i32 {
     let (read_in, read_out) = ends.read;
     let mut client = Client::new(StreamLink::new(read_in, read_out));
     let utc_offset = |secs: i64| sys::utc_offset(secs).unwrap_or(0);
-    let taken = match read::take(&mut client, args.from, &utc_offset) {
+    let mut taken = match read::take(&mut client, args.from, &utc_offset) {
         Ok(taken) => taken,
         Err(fault) => {
             log!("halvo-analysis: read: {fault}");
@@ -173,7 +173,7 @@ fn run() -> i32 {
         });
         SummaryId::from_random(bytes)
     };
-    let carried = read::carry(&mut client, &taken);
+    let carried = read::carry(&mut client, &mut taken);
     let call = Call {
         entries: &taken.entries,
         expiry: &taken.expiry,

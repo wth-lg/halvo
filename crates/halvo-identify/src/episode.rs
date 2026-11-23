@@ -41,8 +41,8 @@ const DAY: i64 = 24 * HOUR;
 const FIVE_MINUTES: i64 = 300 * SECOND;
 
 /// One call of the episode step: the records of one analysis batch in the order of place, the expiry entry of each
-/// segment that they name, the offset of local time from UTC at the batch, in seconds (0 in a replay), and the window
-/// that a batch carries over from before its first record, or none.
+/// segment that they name and of the segment of the carried title record, the offset of local time from UTC at the
+/// batch, in seconds (0 in a replay), and the window that a batch carries over from before its first record, or none.
 pub struct Call<'a> {
     pub entries: &'a [Entry],
     pub expiry: &'a [Expiry],
@@ -131,9 +131,9 @@ fn masked_one(place: usize, entry: &Entry) -> Rec {
     }
 }
 
-/// The window that a title record opens: the app plus the site where the record holds one, else the app plus the
-/// masked title.
-fn window_of(app: Option<AppId>, title: Text, site: Option<Domain>) -> Window {
+/// The window that a title record of the app `app` and the segment `seg` opens: the app plus the site where the
+/// record holds one, else the app plus the masked title.
+fn window_of(app: Option<AppId>, title: Text, site: Option<Domain>, seg: u64) -> Window {
     let place = match &site {
         Some(domain) => Place::Site(domain.clone()),
         None => Place::Title(title.clone()),
@@ -142,6 +142,7 @@ fn window_of(app: Option<AppId>, title: Text, site: Option<Domain>) -> Window {
         key: Key { app, place },
         title,
         site,
+        seg,
     }
 }
 
@@ -151,7 +152,9 @@ fn carried(carry: Option<&Carry>) -> Option<(Window, usize)> {
     let carry = carry?;
     let rec = masked_one(0, carry.title);
     match rec.what {
-        What::Title { title, site } => Some((window_of(rec.app, title, site), carry.until)),
+        What::Title { title, site } => {
+            Some((window_of(rec.app, title, site, rec.seg), carry.until))
+        }
         _ => None,
     }
 }
@@ -196,6 +199,8 @@ struct Window {
     key: Key,
     title: Text,
     site: Option<Domain>,
+    /// The segment of the title record: a row that holds the window's title or site names it among its segments.
+    seg: u64,
 }
 
 /// A record of the person's that an episode can hold: its segment, instant, window and observed step, and the
@@ -262,7 +267,8 @@ fn person(ordered: Vec<Rec>, carry: Option<(Window, usize)>) -> Person {
             _ if out.run_open => continue,
             What::Other => continue,
             What::Title { title, site } => {
-                out.windows.push(window_of(rec.app.clone(), title, site));
+                out.windows
+                    .push(window_of(rec.app.clone(), title, site, rec.seg));
                 current = Some(out.windows.len() - 1);
                 Input::None
             }
@@ -423,8 +429,11 @@ struct Shape<'c, 'a> {
 
 impl Shape<'_, '_> {
     /// The episode of the records that the cut gave it, or none when the stage puts it in `other`, when its key
-    /// holds no app id, or when a segment of its records has no expiry entry in the call. Its range runs from its
-    /// first record to one second after its last, across the records of other keys and any agent's run between them.
+    /// holds no app id, or when a segment that it names has no expiry entry in the call. It names the segments of its
+    /// records and of the title records of their windows, a carried one among them, and its expiry is the earliest of
+    /// those segments'; so a purge of any of them removes its row. Its range runs from its first record to one second
+    /// after its last, across the records of other keys and any agent's run between them: a title record of another
+    /// segment adds no instant.
     fn episode(
         &self,
         items: &[&Item],
@@ -437,7 +446,10 @@ impl Shape<'_, '_> {
         let app = window.key.app.clone()?;
         let start = items.iter().map(|i| i.at).min()?;
         let end = items.iter().map(|i| i.at).max()?.saturating_add(SECOND);
-        let seg_set: BTreeSet<u64> = items.iter().map(|i| i.seg).collect();
+        let seg_set: BTreeSet<u64> = items
+            .iter()
+            .flat_map(|i| [i.seg, windows[i.window].seg])
+            .collect();
         let mut expires: Option<Instant> = None;
         for seg in &seg_set {
             let at = self

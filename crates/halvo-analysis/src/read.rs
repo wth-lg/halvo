@@ -248,15 +248,18 @@ pub(crate) struct Carried {
 }
 
 /// The window that `taken` carries over, read back through `client` in front of the position that the batch was read
-/// from, or none. It writes nothing and keeps nothing beyond the call.
+/// from, or none. Where it carries one, it adds the expiry entry of the title record's segment to `taken.expiry`, so
+/// that the episode of a carried stretch names that segment and counts its expiry. It writes nothing and keeps
+/// nothing beyond the call.
 ///
 /// It reads back only for a batch read from a committed position whose records in front of its first title record
 /// hold a key or a click. It closes the batch's cursor and opens one at the first index of the committed position's
 /// segment, then of each segment below it, and reads in each the records before the committed position, until a
 /// segment holds a title record: the last of them is the last title record before the committed position. There is
 /// no carry where a segment that it asks for is not the one that the cursor serves (a missing or shredded segment),
-/// where a read is refused or fails, where more than `RECORDS_MAX` records lie between that title record and the
-/// committed position, or where the title record holds no app.
+/// where a read is refused or fails, where the records read back, counted from the first index of the title record's
+/// segment to the committed position, pass `RECORDS_MAX`, where no read back names the expiry of the title record's
+/// segment, or where the title record holds no app.
 ///
 /// The one rule: from the title record on, in the order of place, through the records read back and on into the
 /// batch, each record's `seq` is the `seq` of the record before it plus one, and no record is a `foreground_app` or
@@ -264,7 +267,7 @@ pub(crate) struct Carried {
 /// it, or the batch's first title record, ends the carry. A record of another app than the title record's breaks
 /// nothing: it takes no window (the episode step gives the carried window to the title record's app alone), as a
 /// click or a pointer fold of the program under the pointer on Windows does.
-pub(crate) fn carry<L: Link>(client: &mut Client<L>, taken: &Taken) -> Option<Carried> {
+pub(crate) fn carry<L: Link>(client: &mut Client<L>, taken: &mut Taken) -> Option<Carried> {
     if taken.from == ZERO {
         return None;
     }
@@ -285,16 +288,16 @@ pub(crate) fn carry<L: Link>(client: &mut Client<L>, taken: &Taken) -> Option<Ca
     client.close().ok()?;
     let mut back: Vec<Entry> = Vec::new();
     let mut seg = taken.from.seg;
-    let at = loop {
-        let mut here = segment_before(client, &taken.store, seg, taken.from)?;
-        let found = here.iter().rposition(is_title);
+    let (at, expiry) = loop {
+        let (mut here, expiry) = segment_before(client, &taken.store, seg, taken.from)?;
+        let found = here.iter().rposition(is_title).map(|at| (at, expiry));
         here.append(&mut back);
         back = here;
         if back.len() > RECORDS_MAX {
             return None;
         }
-        if let Some(at) = found {
-            break at;
+        if let Some(found) = found {
+            break found;
         }
         seg = seg.checked_sub(1)?;
     };
@@ -309,7 +312,14 @@ pub(crate) fn carry<L: Link>(client: &mut Client<L>, taken: &Taken) -> Option<Ca
         .iter()
         .take_while(|entry| follows(entry, &mut seq))
         .count();
-    (until > 0).then_some(Carried { title, until })
+    if until == 0 {
+        return None;
+    }
+    let expiry = expiry?;
+    if let Err(place) = taken.expiry.binary_search_by_key(&expiry.seg, |e| e.seg) {
+        taken.expiry.insert(place, expiry);
+    }
+    Some(Carried { title, until })
 }
 
 fn is_title(entry: &Entry) -> bool {
@@ -331,26 +341,29 @@ fn follows(entry: &Entry, seq: &mut u64) -> bool {
     keeps
 }
 
-/// The records of the segment `seg` of `store` that lie before `from`, read through a cursor opened at the segment's
-/// first index and closed after it; none where the cursor serves another segment first, or a read is refused or
-/// fails. A segment at or after `from`'s holds no record before it.
+/// The records of the segment `seg` of `store` that lie before `from`, with the expiry entry that a read gave for that
+/// segment, read through a cursor opened at the segment's first index and closed after it; none where the cursor
+/// serves another segment first, or a read is refused or fails. A segment at or after `from`'s holds no record before
+/// it and reads nothing.
 fn segment_before<L: Link>(
     client: &mut Client<L>,
     store: &StoreId,
     seg: u64,
     from: Position,
-) -> Option<Vec<Entry>> {
+) -> Option<(Vec<Entry>, Option<Expiry>)> {
     let first = Position { seg, idx: 0 };
     if first >= from {
-        return Some(Vec::new());
+        return Some((Vec::new(), None));
     }
     client
         .open(OpenCursor::at(store.clone(), first, None, None)?)
         .ok()?;
     let mut out = Vec::new();
+    let mut expiry = None;
     let mut done = false;
     while !done {
         let batch = client.read().ok()?;
+        expiry = expiry.or(batch.expiry.into_iter().find(|e| e.seg == seg));
         for entry in batch.records {
             if entry.pos >= from || entry.pos.seg != seg {
                 done = true;
@@ -361,7 +374,7 @@ fn segment_before<L: Link>(
         done = done || batch.next == batch.watermark || batch.next.seg != seg;
     }
     client.close().ok()?;
-    (!out.is_empty()).then_some(out)
+    (!out.is_empty()).then_some((out, expiry))
 }
 
 #[cfg(test)]
@@ -372,7 +385,7 @@ mod tests {
 
     use halvo_identify::{episode_step, Call, Carry, StageA};
     use halvo_schema_core::ids::SummaryId;
-    use halvo_schema_core::record::{Instant, Text};
+    use halvo_schema_core::record::{Instant, Ordinal, Text};
     use halvo_schema_core::site::AppId;
     use halvo_seam::client::StreamLink;
     use halvo_seam::fixture::FixtureTransport;
@@ -466,9 +479,9 @@ mod tests {
             seg: from_seg,
             idx: 0,
         };
-        let taken = take(&mut client, Some((store, from)), &|_| 0)
+        let mut taken = take(&mut client, Some((store, from)), &|_| 0)
             .unwrap_or_else(|fault| panic!("the batch was not read: {fault}"));
-        let carried = carry(&mut client, &taken);
+        let carried = carry(&mut client, &mut taken);
         drop(client);
         serving.join().unwrap();
         (taken, carried)
@@ -512,7 +525,8 @@ mod tests {
     /// pointer that crosses the taskbar or another program on its way back to the workbook writes such records. Here
     /// a fold and a click of another app stand in front of five keys and a click of Numbers: the carry reaches all
     /// eight records, and the one episode that the step makes holds the six records of Numbers alone, each with the
-    /// carried title.
+    /// carried title. Its row names the title record's segment beside its own, since the read back hands that
+    /// segment's expiry with the carry.
     #[test]
     fn a_record_of_another_app_takes_no_window_and_does_not_end_the_carry() {
         let pointer = |seq, app, pointer| Line(seq, app, Payload::Pointer(pointer));
@@ -549,6 +563,8 @@ mod tests {
         };
         let episodes = episode_step(&call, &StageA, &mut ids).episodes;
         assert_eq!(episodes.len(), 1);
+        let segments = [Ordinal::new(1).unwrap(), Ordinal::new(2).unwrap()];
+        assert_eq!(episodes[0].segments, segments);
         let steps = &episodes[0].steps;
         assert_eq!(steps.len(), 6);
         for step in steps {
@@ -567,7 +583,8 @@ mod tests {
     /// starts again (a new life of the store owner), a `run_mark`, a shredded segment between the title record and
     /// the batch, and a batch with no key or click in front of its first title record. With none of them a batch
     /// carries the title record of two segments back across the segment between. A record of another app is no
-    /// break: the carry reaches past it, and the step gives it no window.
+    /// break: the carry reaches past it, and the step gives it no window. A break among the records read back, in
+    /// front of the committed position (here a `foreground_app` record in the segment between), leaves no carry.
     #[test]
     fn each_break_that_the_store_marks_ends_the_carry_there() {
         let before: &[Line] = &[title(1), key(2, NUMBERS)];
@@ -606,5 +623,12 @@ mod tests {
             );
             assert_eq!(got, want, "{name}");
         }
+        let broken: &[Line] = &[key(3, NUMBERS), Line(4, NUMBERS, Payload::ForegroundApp)];
+        let batch = [key(5, NUMBERS), key(6, NUMBERS)];
+        assert_eq!(
+            carried("carry-read-back-front", &[before, broken, &batch], 1, 3),
+            None,
+            "a foreground_app record read back"
+        );
     }
 }
