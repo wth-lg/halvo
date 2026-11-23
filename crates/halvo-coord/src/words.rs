@@ -159,6 +159,58 @@ pub const KEYS: &[(&str, &str)] = &[
         "Last time, it asked you too many questions, so Halvo stopped it.",
     ),
     (
+        "line.problem.workbook",
+        "Halvo cannot change this file. It must be an Excel workbook (.xlsx) with no macros, pivot tables, data validation or password.",
+    ),
+    (
+        "line.problem.sheet",
+        "Halvo could not check its own changes, so it left your spreadsheet file as it was.",
+    ),
+    (
+        "line.problem.changed",
+        "The spreadsheet file changed while the agent worked, so Halvo left it as it was. Choose Start now to try again.",
+    ),
+    (
+        "line.problem.step_failed",
+        "It could not fill in the spreadsheet. Check the file, the sheet, the cells and the data file that you gave it. Then choose Change its answers.",
+    ),
+    (
+        "line.problem.no_workbook",
+        "Halvo did not find the spreadsheet file where you said it is. Then choose Change its answers.",
+    ),
+    (
+        "line.problem.no_sheet",
+        "The spreadsheet file has no sheet with the name you gave. Then choose Change its answers.",
+    ),
+    (
+        "line.problem.no_range",
+        "Halvo cannot read the cells you gave. They must look like A2:C11. Then choose Change its answers.",
+    ),
+    (
+        "line.problem.data_shape",
+        "The data does not have exactly as many rows and columns as the cells you gave. Then choose Change its answers.",
+    ),
+    (
+        "line.problem.no_data_file",
+        "Halvo did not find the data file where you said it is. Then choose Change its answers.",
+    ),
+    (
+        "line.problem.data_outside",
+        "The data file is not in the same folder as the spreadsheet file. Then choose Change its answers.",
+    ),
+    (
+        "line.problem.data_form",
+        "Halvo cannot read the data file. Each line must be one row with commas between its values, and every row as long as the first. Then choose Change its answers.",
+    ),
+    (
+        "line.problem.not_replaced",
+        "Halvo could not save the spreadsheet file. Close it in other programs and check that you may change it, then choose Start now.",
+    ),
+    (
+        "line.problem.read_only",
+        "Halvo may not change the spreadsheet file: it is read-only.",
+    ),
+    (
         "line.problem.kind",
         "Last time, it asked for something that Halvo does not allow, so Halvo stopped it.",
     ),
@@ -260,6 +312,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("control.take_back", "Cancel this start"),
     ("control.switch_off", "Switch off"),
     ("control.switch_on", "Switch on"),
+    ("control.change_answers", "Change its answers"),
     ("control.use_model", "Use an AI model"),
     ("control.this_computer_only", "Use this computer only"),
     ("control.stop_sign_in", "Stop using its sign-in"),
@@ -290,7 +343,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("item.setup.title", "Answer a few questions for “{name}”"),
     (
         "item.setup.text",
-        "Choose one answer for each question, then choose Use these answers.",
+        "Answer each question, then choose Use these answers.",
     ),
     ("item.ready.title", "“{name}” is ready to start"),
     ("item.ready.text", "Start it now, or skip it this time."),
@@ -617,6 +670,42 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "param_typed.too_long",
         "Something you added was too long to fit, so none of it was added. Read your answer before sending.",
+    ),
+    (
+        "param_typed.not_path_mac",
+        "That is not a full path. A full path starts with a slash (/) and names every folder down to the file.",
+    ),
+    (
+        "param_typed.not_path_windows",
+        "That is not a full path. A full path starts with the drive, such as C:\\, and names every folder down to the file.",
+    ),
+    (
+        "param_typed.not_cells",
+        "Halvo cannot read these cells. Type them as A2:C11.",
+    ),
+    (
+        "param_hint.workbook_mac",
+        "Type the full path of an Excel workbook (.xlsx), for example /Users/ana/Documents/Budget.xlsx.",
+    ),
+    (
+        "param_hint.workbook_windows",
+        "Type the full path of an Excel workbook (.xlsx), for example C:\\Users\\ana\\Documents\\Budget.xlsx.",
+    ),
+    (
+        "param_hint.sheet",
+        "Type the sheet's name as its tab shows it, for example Sheet1.",
+    ),
+    (
+        "param_hint.range",
+        "Type the cells to fill as A2:C11: the top left cell, a colon, the bottom right cell. The data must have exactly that many rows and columns.",
+    ),
+    (
+        "param_hint.source_mac",
+        "Type the full path of a text file in the workbook's folder, for example /Users/ana/Documents/receipts.csv. Each line is one row, with commas between its values.",
+    ),
+    (
+        "param_hint.source_windows",
+        "Type the full path of a text file in the workbook's folder, for example C:\\Users\\ana\\Documents\\receipts.csv. Each line is one row, with commas between its values.",
     ),
     (
         "line.working.deleting",

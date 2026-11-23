@@ -625,7 +625,8 @@ where
                     | Action::SwitchOn
                     | Action::StopSignIn
                     | Action::UseModel
-                    | Action::ThisComputerOnly,
+                    | Action::ThisComputerOnly
+                    | Action::ChangeAnswers,
                 ) => false,
             }
     }
@@ -1147,7 +1148,8 @@ where
         }
     }
 
-    /// Takes what a move of the setup `k` answered; whether the setup stays.
+    /// Takes what a move of the setup `k` answered; whether the setup stays: never where the move
+    /// closed it, as Not now closes an item asked again (r4 U3.22a).
     fn setup_done(&self, st: &mut State<Cfg<P>>, k: usize, done: Result<SetupDone, Cause>) -> bool {
         if matches!(done, Ok(SetupDone::Overlap)) {
             let again = self.overlap_once_more(st, k);
@@ -1157,10 +1159,12 @@ where
             self.active_overlap(st, k);
         }
         let agent = st.setups[k].agent().clone();
-        let stays = matches!(
-            done,
-            Ok(SetupDone::Open | SetupDone::Owed | SetupDone::NotTaken)
-        ) || matches!(done, Err(cause) if cause != Cause::Stale);
+        let closed = st.setups[k].state() == &crate::items::SetupState::Closed;
+        let stays = !closed
+            && (matches!(
+                done,
+                Ok(SetupDone::Open | SetupDone::Owed | SetupDone::NotTaken)
+            ) || matches!(done, Err(cause) if cause != Cause::Stale));
         if stays {
             return true;
         }
@@ -3026,6 +3030,7 @@ where
             Action::StopSignIn => self.stop_sign_in(st, i),
             Action::UseModel => self.use_model(st, i),
             Action::ThisComputerOnly => self.this_computer_only(st, i),
+            Action::ChangeAnswers => self.change_answers(st, i),
             Action::TakeBack => {
                 self.schedule(
                     st,
@@ -3127,6 +3132,49 @@ where
                 Err(cause_of(&e))
             }
         }
+    }
+
+    /// The person's `change_answers` (r4 U3.22a): after the quit's first step, and where the
+    /// agent's row does not offer Change its answers (`roster::offers_change_answers`), it answers
+    /// `state`. Else it sends nothing to the owner and stores nothing: the agent holds a new
+    /// set-up item open on the board, which no row raised, and the coordinator puts it up asking
+    /// every question of the agent's category with empty lines, as asked again
+    /// (`Setup::asked_again`), so that Not now closes it with the stored answers standing and Use
+    /// these answers sends ONE body `set_bindings` with a slot for every question. Named limit:
+    /// such an item is gone when Halvo starts again, and the stored answers stand.
+    fn change_answers(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
+        if st.quitting {
+            return Err(Cause::State);
+        }
+        let board = st.board.as_mut().ok_or(Cause::NoService)?;
+        let facts = &board.members[i].facts;
+        if !roster::offers_change_answers(facts) {
+            return Err(Cause::State);
+        }
+        let minted = self.ports.bytes16().map_err(|e| cause_of(&e))?;
+        let item = ItemId::parse(&crate::types::hex(minted)).map_err(|_| Cause::NoService)?;
+        let asked = params(facts.workflow.category)
+            .iter()
+            .map(|p| SetupParam {
+                param: *p,
+                candidates: candidates(*p, &facts.workflow),
+            })
+            .collect();
+        let setup = items::open_setup(
+            &self.ports,
+            item.clone(),
+            facts.workflow.id.clone(),
+            facts.agent.clone(),
+            facts.workflow.category,
+            asked,
+        )?
+        .asked_again();
+        board.members[i].facts.doing = Doing::Idle(Some(crate::types::OwnItem {
+            item,
+            kind: OwnItemKind::Setup,
+        }));
+        st.setups.push(setup);
+        Ok(())
     }
 
     /// Follows each agent whose start the person took back: the first `ready` item that the
@@ -3940,5 +3988,7 @@ impl<P: Owner> std::fmt::Debug for Coordinator<P> {
     }
 }
 
+#[cfg(test)]
+mod setup_tests;
 #[cfg(test)]
 mod tests;

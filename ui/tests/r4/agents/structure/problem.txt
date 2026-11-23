@@ -14,6 +14,7 @@
           - {"role":"paragraph","text":"Last time, it took too long, so Halvo stopped it."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch off","role":"button"}
+          - {"name":"Change its answers","role":"button"}
           - {"name":"Delete","role":"button"}
         - {"role":"listitem"}
           - {"level":4,"name":"Ordering from a shop on Site7","role":"heading"}

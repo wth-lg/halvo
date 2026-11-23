@@ -997,6 +997,15 @@ impl Item {
         }
         self
     }
+
+    /// The item with `sentence` as the key `not_taken` of its parameter `param` (r4 U3.22a); the
+    /// item as it was where it asks no such parameter.
+    pub fn not_taken_at(mut self, param: Param, sentence: String) -> Item {
+        for p in self.params.iter_mut().filter(|p| p.name == param) {
+            p.not_taken = Some(sentence.clone());
+        }
+        self
+    }
 }
 
 /// A field of an item (I3.4).
@@ -1031,11 +1040,21 @@ pub struct ParamEntry {
     /// which the card shows below the typed line after an input was refused below the bound
     /// (I3.5); empty for every other parameter.
     pub too_long: String,
+    /// `hint`: what to type, the sentence of `param_hint.<name>` of the parameter, with the
+    /// `_mac` or `_windows` form of this build's system where the answer is a path, which the card
+    /// shows under the question's words and above its line (r4 U3.22a); empty for every parameter
+    /// that the words table gives no hint.
+    pub hint: String,
     /// `refused`: the refusal by entry that the reader of senders gave the newest answer for the
     /// parameter, the entry's number and kind and no sentence, which is the card's (I3.5, I8.1;
     /// ruling RD-81 9.1 to 9.3); the key is left out while none stands.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refused: Option<Refused>,
+    /// `not_taken`: the sentence that says why the core did not take the newest typed line of the
+    /// parameter, which the card shows below the typed line until the next answer for it (r4
+    /// U3.22a); the key is left out while none stands.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub not_taken: Option<String>,
 }
 
 /// A candidate of a parameter (I3.5).

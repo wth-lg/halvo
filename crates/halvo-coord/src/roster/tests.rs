@@ -137,3 +137,101 @@ fn the_cards_line_says_where_the_agent_runs_by_its_tier_and_its_yes() {
         assert_eq!(runs_on, [want], "{tier}");
     }
 }
+
+/// r4 U3.22a sentence 5: the row of an agent of the runtime file whose newest run ended with a
+/// cause of the failure class says why by the roster's last cause (r4 U3.19), for each of the
+/// thirteen causes of a failed file run, byte for byte: the four that the record holds today and
+/// the nine finer ones of the agents run's unit r3 U11.3 (the coordinator's log line 18826); an
+/// agent of the runtime web with one of these thirteen names reads today's line of a failed run.
+#[test]
+fn u322a_a_failed_file_run_says_why_by_its_last_cause_and_a_web_run_reads_as_today() {
+    use crate::types::{Failure, LastCause};
+    let today = "Last time, it could not finish its task.";
+    let rows = [
+        (
+            "workbook",
+            "Halvo cannot change this file. It must be an Excel workbook (.xlsx) with no macros, pivot tables, data validation or password.",
+        ),
+        (
+            "sheet",
+            "Halvo could not check its own changes, so it left your spreadsheet file as it was.",
+        ),
+        (
+            "changed",
+            "The spreadsheet file changed while the agent worked, so Halvo left it as it was. Choose Start now to try again.",
+        ),
+        (
+            "step_failed",
+            "It could not fill in the spreadsheet. Check the file, the sheet, the cells and the data file that you gave it. Then choose Change its answers.",
+        ),
+        (
+            "no_workbook",
+            "Halvo did not find the spreadsheet file where you said it is. Then choose Change its answers.",
+        ),
+        (
+            "no_sheet",
+            "The spreadsheet file has no sheet with the name you gave. Then choose Change its answers.",
+        ),
+        (
+            "no_range",
+            "Halvo cannot read the cells you gave. They must look like A2:C11. Then choose Change its answers.",
+        ),
+        (
+            "data_shape",
+            "The data does not have exactly as many rows and columns as the cells you gave. Then choose Change its answers.",
+        ),
+        (
+            "no_data_file",
+            "Halvo did not find the data file where you said it is. Then choose Change its answers.",
+        ),
+        (
+            "data_outside",
+            "The data file is not in the same folder as the spreadsheet file. Then choose Change its answers.",
+        ),
+        (
+            "data_form",
+            "Halvo cannot read the data file. Each line must be one row with commas between its values, and every row as long as the first. Then choose Change its answers.",
+        ),
+        (
+            "not_replaced",
+            "Halvo could not save the spreadsheet file. Close it in other programs and check that you may change it, then choose Start now.",
+        ),
+        (
+            "read_only",
+            "Halvo may not change the spreadsheet file: it is read-only.",
+        ),
+    ];
+    let base = facts(State::Ten).remove(0);
+    let run = RunId::parse(&format!("{:032x}", 0x7701)).unwrap();
+    for (name, said) in rows {
+        for (runtime, want) in [(Runtime::File, said), (Runtime::Web, today)] {
+            let mut f = base.clone();
+            f.config = config(Tier::OnDevice, runtime, None);
+            for what in [
+                What::RunStarted {
+                    run: run.clone(),
+                    trigger: Trigger::Person,
+                    slot: None,
+                },
+                What::RunEnded {
+                    run: run.clone(),
+                    cause: RunEnd::from(Failure::Failed),
+                    defers: None,
+                },
+            ] {
+                f.events.push(Event {
+                    workflow: f.workflow.id.clone(),
+                    agent: f.agent.clone(),
+                    seq: std::num::NonZeroU32::MIN.saturating_add(f.events.len() as u32),
+                    day: f.today,
+                    at: i64::from(f.today) * 86_400_000_000_000,
+                    what,
+                });
+            }
+            f.last_cause = LastCause::parse(name).ok();
+            let line = status(&f, &Limits::PRODUCT, None);
+            let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+            assert_eq!(r.line, want, "{name} {runtime}");
+        }
+    }
+}

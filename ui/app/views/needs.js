@@ -47,28 +47,42 @@
     return { start: start, gone: before.length - start - end, added: after.length - start - end };
   }
 
-  function limit(typed, full, tooLong) {
+  function limit(typed, full, tooLong, hintId, notTaken) {
     const line = { kept: '', composing: false, ended: false, held: false, field: typed, sent: null, text: null };
     let mark = false;
     let shown = null;
     let note = null;
     let before = null;
     let start = null;
+    let refused = notTaken || '';
+    function textOf(which) {
+      return which === 'full' ? full : which === 'too_long' ? tooLong : which === 'not_taken' ? refused : '';
+    }
+    function rest() {
+      return refused ? 'not_taken' : null;
+    }
+    function describe() {
+      const ids = [hintId, note ? note.id : ''].filter(function (id) {
+        return id;
+      });
+      if (ids.length > 0) typed.setAttribute('aria-describedby', ids.join(' '));
+      else typed.removeAttribute('aria-describedby');
+    }
     function show(which) {
       if (shown === which) return;
       shown = which;
       if (note) {
         note.remove();
         note = null;
-        typed.removeAttribute('aria-describedby');
       }
-      const text = which === 'full' ? full : which === 'too_long' ? tooLong : '';
-      if (!text) return;
-      note = el('p', 'hn-full', text);
-      note.id = fresh();
-      typed.parentNode.insertBefore(note, typed.nextSibling);
-      typed.setAttribute('aria-describedby', note.id);
-      tell(text, line);
+      const text = textOf(which);
+      if (text) {
+        note = el('p', 'hn-full', text);
+        note.id = fresh();
+        typed.parentNode.insertBefore(note, typed.nextSibling);
+      }
+      describe();
+      if (text) tell(text, line);
     }
     function atBound() {
       return mark || bytes(line.kept) >= 1024;
@@ -87,15 +101,16 @@
       line.kept = now;
       if (change.added === 0) {
         mark = false;
-        show(null);
+        show(rest());
       }
       return true;
     }
-    line.sent = function () {
-      if (shown === 'too_long') show(null);
+    line.sent = function (answered) {
+      if (answered) refused = '';
+      if (shown === 'too_long' || shown === 'not_taken') show(rest());
     };
     line.text = function () {
-      return shown === 'full' ? full : shown === 'too_long' ? tooLong : '';
+      return textOf(shown);
     };
     typed.addEventListener('beforeinput', function () {
       before = [typed.selectionStart, typed.selectionEnd];
@@ -118,6 +133,8 @@
       before = null;
       judge(typed.value, was);
     });
+    describe();
+    show(rest());
     return line;
   }
 
@@ -164,6 +181,12 @@
       legend.id = fresh();
       const group = fresh();
       set.appendChild(legend);
+      let hint = null;
+      if (p.hint) {
+        hint = el('p', 'hn-hint', p.hint);
+        hint.id = fresh();
+        set.appendChild(hint);
+      }
       const radios = [];
       p.candidates.forEach(function (c) {
         const label = el('label', 'hn-choice', '');
@@ -195,7 +218,7 @@
         typed.setAttribute('autocapitalize', 'off');
         typed.setAttribute('spellcheck', 'false');
         set.appendChild(typed);
-        line = limit(typed, p.full, p.too_long);
+        line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken);
       }
       box.appendChild(set);
       answers.push({ param: p.name, radios: radios, typed: typed, line: line });
@@ -279,8 +302,11 @@
           return reply === null || reply.error ? reply : call(c[0], c[1]);
         });
       }, Promise.resolve({})));
+      const sent = calls.map(function (c) {
+        return c[1].param;
+      });
       card.answers.forEach(function (a) {
-        if (a.line) a.line.sent();
+        if (a.line) a.line.sent(sent.indexOf(a.param) >= 0);
       });
       return;
     }

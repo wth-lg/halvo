@@ -58,3 +58,24 @@ fn cell(text: &str) -> Result<(u32, u32), Error> {
     }
     Ok((row - 1, col - 1))
 }
+
+#[cfg(test)]
+mod core_table {
+    use super::Range;
+
+    /// r4 U3.22a sentence 4: the core takes a typed line of Which cells only where this parser
+    /// takes it, over ONE table that its own test reads too
+    /// (crates/halvo-coord/tests/typed/cells.txt). For every row, `Range::parse` takes the line
+    /// exactly where the row says that the core takes it.
+    #[test]
+    fn range_parse_takes_exactly_the_lines_that_the_cores_table_of_typed_cells_takes() {
+        let table = include_str!("../../halvo-coord/tests/typed/cells.txt");
+        let mut rows = 0;
+        for line in table.lines().filter(|l| !l.starts_with('#')) {
+            let (verdict, text) = line.split_once('\t').expect("two fields");
+            assert_eq!(Range::parse(text).is_ok(), verdict == "taken", "{line}");
+            rows += 1;
+        }
+        assert!(rows > 0, "the table holds rows");
+    }
+}

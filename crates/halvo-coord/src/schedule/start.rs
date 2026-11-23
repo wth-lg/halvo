@@ -1,6 +1,7 @@
 use super::{clean, current_slot, finished, holds, slot_due, slot_open, Hold};
 use crate::types::{
-    AgentState, Cause, ConfigView, Doing, Facts, Limits, Mode, Runtime, Tier, Trigger, What,
+    AgentState, Cause, ConfigView, Doing, Facts, Limits, Mode, OwnItemKind, Runtime, Tier, Trigger,
+    What,
 };
 
 /// Whether the agent waits for the person in each run: `caps_external` is `yes` (I5.1).
@@ -105,8 +106,9 @@ pub struct StartStep {
 /// because its own `run_started` ends that hold (r4 U2.4a); (2) fewer
 /// than `starts_per_day`
 /// `run_started` events of the agent have the facts' day, else `budget`; (3) no run of the
-/// agent is live or queued, the agent store has ended its newest run and no `run_ended` of the
-/// agent is owed, else `state`; for a
+/// agent is live or queued, it holds no open set-up item (one that Change its answers put up
+/// stands with no hold, r4 U3.22a), the agent store has ended its newest run and no `run_ended`
+/// of the agent is owed, else `state`; for a
 /// start of the scheduler the slot rule of I5.3 then holds, for an agent that needs no person
 /// and has a finished run, else `state`; (4) fewer than `max_live_runs` runs are live and, for
 /// an agent that needs the model, no live run holds it, else `queued`, or `queue_full` when
@@ -147,10 +149,10 @@ pub fn start_step<C: ConfigView>(
     if today >= limits.starts_per_day as usize {
         return refused(clear, Cause::Budget);
     }
-    let mine = match facts.doing {
+    let mine = match &facts.doing {
         Doing::Live(_) => true,
         Doing::Queued(_) => !around.from_queue,
-        Doing::Idle(_) => false,
+        Doing::Idle(open) => open.as_ref().is_some_and(|o| o.kind == OwnItemKind::Setup),
     };
     if mine || !facts.store_ended || around.owed {
         return refused(clear, Cause::State);

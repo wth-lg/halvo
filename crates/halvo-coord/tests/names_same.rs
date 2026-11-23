@@ -92,7 +92,7 @@ fn choice_names_are_those_of_i3_1_and_present_of_i3_4() {
 }
 
 #[test]
-fn control_names_are_the_nine_of_i2_5() {
+fn control_names_are_the_ten_of_i2_5() {
     assert_eq!(
         names(Control::ALL, Control::name),
         [
@@ -101,6 +101,7 @@ fn control_names_are_the_nine_of_i2_5() {
             "take_back",
             "switch_off",
             "switch_on",
+            "change_answers",
             "use_model",
             "this_computer_only",
             "stop_sign_in",
@@ -110,7 +111,7 @@ fn control_names_are_the_nine_of_i2_5() {
 }
 
 #[test]
-fn action_names_are_the_eight_of_agents_control_in_i8_1() {
+fn action_names_are_the_nine_of_agents_control_in_i8_1() {
     assert_eq!(
         names(Action::ALL, Action::name),
         [
@@ -121,7 +122,8 @@ fn action_names_are_the_eight_of_agents_control_in_i8_1() {
             "switch_on",
             "stop_sign_in",
             "use_model",
-            "this_computer_only"
+            "this_computer_only",
+            "change_answers"
         ]
     );
 }

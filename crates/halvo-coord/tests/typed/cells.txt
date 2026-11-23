@@ -1,0 +1,26 @@
+# The typed lines of the spreadsheet agent's question Which cells, ONE table that two tests read:
+# halvo-coord's (the core's rule and the set-up item's move) and halvo-sheet's (Range::parse of
+# src/range.rs). A row: taken or refused, then the line as typed, separated by one tab. The core sends a
+# taken line as it is typed, and Range::parse takes exactly the lines that the table says taken.
+taken	A2:C11
+taken	B5
+taken	b2:d6
+taken	A1:XFD1048576
+taken	AA10:AB12
+taken	C3:C3
+refused	A0
+refused	A01:B2
+refused	A1:B1048577
+refused	XFE1
+refused	AAAA1
+refused	C11:A2
+refused	B2:A3
+refused	A2:C11 
+refused	 A2:C11
+refused	A2-C11
+refused	A2:C11:D12
+refused	A:C
+refused	2:11
+refused	Sheet1!A2:C11
+refused	$A$2:$C$11
+refused	:

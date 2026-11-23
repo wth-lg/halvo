@@ -179,6 +179,7 @@ fn expected_keys() -> BTreeSet<String> {
         "take_back",
         "switch_off",
         "switch_on",
+        "change_answers",
         "use_model",
         "this_computer_only",
         "stop_sign_in",
@@ -301,6 +302,19 @@ fn expected_keys() -> BTreeSet<String> {
         "line.problem.no_browser",
         "line.problem.browser_start",
         "line.problem.no_channel",
+        "line.problem.workbook",
+        "line.problem.sheet",
+        "line.problem.changed",
+        "line.problem.step_failed",
+        "line.problem.no_workbook",
+        "line.problem.no_sheet",
+        "line.problem.no_range",
+        "line.problem.data_shape",
+        "line.problem.no_data_file",
+        "line.problem.data_outside",
+        "line.problem.data_form",
+        "line.problem.not_replaced",
+        "line.problem.read_only",
     ] {
         k.insert(key.to_owned());
     }
@@ -312,8 +326,21 @@ fn expected_keys() -> BTreeSet<String> {
         "say.item.gone",
         "param_typed.full",
         "param_typed.too_long",
+        "param_typed.not_path_mac",
+        "param_typed.not_path_windows",
+        "param_typed.not_cells",
     ] {
         k.insert(key.to_owned());
+    }
+    for hint in [
+        "workbook_mac",
+        "workbook_windows",
+        "sheet",
+        "range",
+        "source_mac",
+        "source_windows",
+    ] {
+        k.insert(format!("param_hint.{hint}"));
     }
     for key in U34_TEXTS.iter().map(|(k, _)| *k) {
         if key != "line.working.deleting" {
@@ -505,7 +532,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 346);
+    assert_eq!(seen.len(), 369);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {

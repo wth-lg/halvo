@@ -8,8 +8,8 @@ use crate::schedule::{finished, holds, needs_person, next_slot, slot_due, Hold};
 use crate::types::{
     Answered, BindResult, Card, CardEffect, CardLine, CardRun, Cause, Cleared, ConfigView, Control,
     ControlText, Doing, EffectAnswer, Event, Facts, FullWorkflow, HoldSetCause, ItemId, ItemKind,
-    Limits, LineKey, LivePhase, PastEffect, PastRun, Permission, Raised, Row, RunEnd, RunHistory,
-    RunId, Runtime, SignInAnswer, StatusLine, System, Tier, Trigger, What,
+    LastCause, Limits, LineKey, LivePhase, PastEffect, PastRun, Permission, Raised, Row, RunEnd,
+    RunHistory, RunId, Runtime, SignInAnswer, StatusLine, System, Tier, Trigger, What,
 };
 use crate::types::{Ask, AskAct, AskControl, AskEffect, AskKind, Class, Kept};
 use crate::types::{ModelUse, SpendLimit};
@@ -20,7 +20,8 @@ use crate::words;
 /// (ruling RD-73 4.3), `site_declined` (r4 U2.4a) and `failures`, a live
 /// run with its phase, a queued start, a newest run that the agent store has not ended, a last
 /// run that ended with a cause of the failure class, said by the sentence of the facts'
-/// `last_cause` where they hold one, a day with `starts_per_day` starts, and the
+/// `last_cause` where they hold one that a row says for the agent's runtime (`FILE_CAUSES` for
+/// the runtime file alone, r4 U3.22a), a day with `starts_per_day` starts, and the
 /// end of the last run. `confirm` is the state of the agent's open confirmation where the
 /// coordinator holds it: a confirmation waits for the person only while it is `shown` or `armed`
 /// (I1.2, I4.2), and a run that waits for an answered one is `working`. The end of a run is the
@@ -87,8 +88,8 @@ pub fn status_of<C: ConfigView>(
     });
     if let Some(failure) = last.and_then(RunEnd::failure) {
         return match facts.last_cause {
-            Some(cause) => StatusLine::LastCause(cause),
-            None => StatusLine::Problem(failure),
+            Some(cause) if said(cause, facts.config.runtime()) => StatusLine::LastCause(cause),
+            _ => StatusLine::Problem(failure),
         };
     }
     let today = facts
@@ -105,6 +106,32 @@ pub fn status_of<C: ConfigView>(
         Some(RunEnd::NothingToDo) => StatusLine::Nothing,
         Some(_) => StatusLine::StoppedEarly,
     }
+}
+
+/// The causes of a failed run of the runtime file whose sentence a row says for an agent of that
+/// runtime alone (r4 U3.22a): the four that the record holds today and the nine finer ones of the
+/// agents run's unit r3 U11.3; an agent of another runtime with one of these names reads the line
+/// of its failed run, as before.
+pub const FILE_CAUSES: [LastCause; 13] = [
+    LastCause::Workbook,
+    LastCause::Sheet,
+    LastCause::Changed,
+    LastCause::StepFailed,
+    LastCause::NoWorkbook,
+    LastCause::NoSheet,
+    LastCause::NoRange,
+    LastCause::DataShape,
+    LastCause::NoDataFile,
+    LastCause::DataOutside,
+    LastCause::DataForm,
+    LastCause::NotReplaced,
+    LastCause::ReadOnly,
+];
+
+/// Whether a row says the sentence of the last cause `cause` for an agent of `runtime`: a cause
+/// of `FILE_CAUSES` for the runtime file alone, every other cause for every runtime.
+fn said(cause: LastCause, runtime: Runtime) -> bool {
+    runtime == Runtime::File || !FILE_CAUSES.contains(&cause)
 }
 
 fn text(key: &str, pairs: &[(&str, &str)]) -> Result<String, Cause> {
@@ -280,6 +307,38 @@ pub fn with_stop_sign_in<C>(
     offered
 }
 
+/// Whether the row of the agent of `facts` offers Change its answers (r4 U3.22a): an agent of the
+/// category `spreadsheet_fill`, and of no other in this cut, every question of whose category has
+/// a stored answer (the hold `setup` does not stand), that has no run under way, no queued start
+/// and no open item (`Doing::Idle` with no item), and whose newest run the agent store has ended.
+pub fn offers_change_answers<C: ConfigView>(facts: &Facts<C>) -> bool {
+    facts.workflow.category == crate::types::Category::SpreadsheetFill
+        && !holds(facts).contains(&Hold::Setup)
+        && facts.doing == Doing::Idle(None)
+        && facts.store_ended
+}
+
+/// `offered` with `change_answers` before the controls of an AI model, `stop_sign_in` and
+/// `delete`, where `offered` holds `delete` and `offers_change_answers` holds: a row of a gone
+/// workflow or of an agent that is being deleted gets none (r4 U3.22a).
+pub fn with_change_answers<C: ConfigView>(
+    facts: &Facts<C>,
+    mut offered: Vec<Control>,
+) -> Vec<Control> {
+    let at = offered.iter().position(|c| {
+        matches!(
+            c,
+            Control::UseModel | Control::ThisComputerOnly | Control::StopSignIn | Control::Delete
+        )
+    });
+    if let Some(at) = at.filter(|_| offered.contains(&Control::Delete)) {
+        if offers_change_answers(facts) {
+            offered.insert(at, Control::ChangeAnswers);
+        }
+    }
+    offered
+}
+
 /// THE ONE LIST of the runtimes whose runs ask a model (r4 U3.17b, the coordinator's ruling of
 /// log line 18496): only an agent of one of them is offered Use an AI model and is said to be able
 /// to use one. A file agent and a calendar agent replay a built-in playbook and ask no model. The
@@ -346,9 +405,9 @@ pub fn row<C: ConfigView>(
 }
 
 /// The row of `row`, where `session` says whether the board's member of the agent holds a stored
-/// session (I6.1 `session`): its controls are those of `with_stop_sign_in` and `with_model`, so
-/// that the row of `problem.record` offers no `stop_sign_in` (r4 U2.4y) and neither control of
-/// an AI model (r4 U3.17b).
+/// session (I6.1 `session`): its controls are those of `with_stop_sign_in`, `with_model` and
+/// `with_change_answers`, so that the row of `problem.record` offers no `stop_sign_in` (r4
+/// U2.4y), neither control of an AI model (r4 U3.17b) and no `change_answers` (r4 U3.22a).
 pub fn row_with_session<C: ConfigView>(
     facts: &Facts<C>,
     session: bool,
@@ -358,7 +417,7 @@ pub fn row_with_session<C: ConfigView>(
     limits: &Limits,
 ) -> Result<Row, Cause> {
     let offered = with_stop_sign_in(facts, session, controls(facts, waiting, limits));
-    let offered = with_model(facts, offered)
+    let offered = with_change_answers(facts, with_model(facts, offered))
         .into_iter()
         .filter(|c| line != StatusLine::Record || matches!(c, Control::Stop | Control::Delete))
         .collect();

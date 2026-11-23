@@ -52,7 +52,7 @@
           "say_new": "“Ordering from a shop on Site7” has a new question for you.",
           "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Answer a few questions for “Ordering from a shop on Site7”",
-          "text": "Choose one answer for each question, then choose Use these answers.",
+          "text": "Answer each question, then choose Use these answers.",
           "fields": [],
           "params": [
             {
@@ -431,7 +431,7 @@
           "say_new": "“Ordering from a shop on Site7” has a new question for you.",
           "say_gone": "“Ordering from a shop on Site7” no longer has a question for you.",
           "title": "Answer a few questions for “Ordering from a shop on Site7”",
-          "text": "Choose one answer for each question, then choose Use these answers.",
+          "text": "Answer each question, then choose Use these answers.",
           "fields": [],
           "params": [
             {
