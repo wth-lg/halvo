@@ -71,7 +71,7 @@ store check 20-app-links-no-store scheduled mon the windows job, 44 s there in t
 store check 23-daemon-port-only gate
 store check 31-app-page-layout gate macos job, which alone has the check
 store check 60-r5-privacy gate
-store check 31-store-full-volume scheduled mon 136 s in the macos job
+store check 31-store-full-volume scheduled mon 197 s in the macos job of the run 45101283214
 store check 30-core-boundary-proofs scheduled wed 104 s in the macos job, which holds every proof; the windows job no longer runs it
 
 capture units halvo-capture::macos::foreground gate macos job
