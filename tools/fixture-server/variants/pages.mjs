@@ -190,6 +190,19 @@ ${button('Upload', opts, 'upload')}
   );
 }
 
+// The hidden field `amount` of the frame's form (r3 U5.10 cut C): with form_amount it carries the
+// amount that the frame shows, with form_amount_other that amount with 1.00 added, which wins where
+// both are on; with neither the form has no such field. /charge reads no posted amount.
+function formAmount(amount, opts) {
+  if (opts.variants.includes('form_amount_other')) {
+    return `<input type="hidden" name="amount" value="${money(amount + 100)}">\n`;
+  }
+  if (opts.variants.includes('form_amount')) {
+    return `<input type="hidden" name="amount" value="${money(amount)}">\n`;
+  }
+  return '';
+}
+
 export function frame(kind, token, amount, instruments, opts) {
   const n = names(opts);
   const label = kind === 'bill' ? n.payNow : n.placeOrder;
@@ -202,7 +215,7 @@ export function frame(kind, token, amount, instruments, opts) {
 <form method="post" action="/charge">
 <input type="hidden" name="token" value="${esc(token)}">
 <input type="hidden" name="kind" value="${esc(kind)}">
-<p><label for="payment-method">Payment method</label> <select id="payment-method" name="instrument" data-testid="${tid('payment-method', opts, 'frame')}">
+${formAmount(amount, opts)}<p><label for="payment-method">Payment method</label> <select id="payment-method" name="instrument" data-testid="${tid('payment-method', opts, 'frame')}">
 ${options}
 </select></p>
 ${button(label, opts, 'frame', base)}

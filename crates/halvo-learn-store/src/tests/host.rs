@@ -64,6 +64,15 @@ impl Host for AgentSide {
         self.store.commit(records)
     }
 
+    fn remove_under(
+        &mut self,
+        kind: &str,
+        workflow: &WorkflowId,
+        records: Vec<TypedRecord>,
+    ) -> Result<u64, ErrorName> {
+        self.store.remove_under(kind, workflow, records)
+    }
+
     fn remove_person(&mut self, kind: &str, records: Vec<TypedRecord>) -> Result<u64, ErrorName> {
         self.store.remove_person(kind, records)
     }

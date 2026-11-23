@@ -11,6 +11,8 @@
 //! - `Analysis` sends the capture service the request `defer` of the core's deadline at each call (unit U5.4c).
 //! - `Clock` reads the system clock and the system's zone, `Rng` the system's generator, `Policy` the table of
 //!   halvo-policy (`decide_row`) and `Senders` the schema's reader of `reply_senders`.
+//! - The library's `Secrets` is the app's arm of `crate::model_key` over the product's own owner link: it reads the
+//!   person's key for a model's host by ONE body at the library's call (r4 U3.18).
 //!
 //! The library's calls back (`MarkSink`, `Human`, `Confirmer`) reach the coordinator through one thread of their own,
 //! so that no thread of a run ever waits for the coordinator's lock: a confirmation and the second step of a sign-in
@@ -37,7 +39,7 @@ use halvo_agent_client::link::product::ClientEnds;
 use halvo_agent_client::link::StreamLink;
 use halvo_agent_client::{
     Confirmer, Human, IssueRefused, LinkError, MarkSink, OriginAnswer, OwnerLink, Parts,
-    ReapAnswer, RunEnd, Secrets, Supervisor,
+    ReapAnswer, RunEnd, Supervisor,
 };
 use halvo_control::client::ClientError;
 use halvo_control::r2::{OwnerStreamEnd, RunEdge, RunMarked};
@@ -58,16 +60,15 @@ use halvo_coord::types::{
     Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState, WorkflowTrigger,
 };
 use halvo_coord::types::{Autonomy, Budget, Limits, Permission, Reasoning, Runtime, Tier};
-use halvo_schema::executable::frame::{
-    ConfirmDecision, ConfirmRequest, HandbackRequest, SecretReply,
-};
+use halvo_schema::executable::frame::{ConfirmDecision, ConfirmRequest, HandbackRequest};
 use halvo_schema::executable::names::Answer as EffectReply;
-use halvo_schema::executable::text::{EffectId as WireEffect, Name as WireName, WebOrigin};
+use halvo_schema::executable::text::{EffectId as WireEffect, WebOrigin};
 use halvo_schema_core::request::{decode_reply, InterfaceDecision, InterfaceRead, InterfaceRole};
 use halvo_schema_core::request::{ErrorName, ReplyResult};
 use serde_json::Value;
 
 use crate::hub::{Core, Hub};
+use crate::model_key::ModelKey;
 use crate::present::{dialog_hub, Dialog};
 
 /// The call of one end of a new owner stream.
@@ -653,15 +654,6 @@ impl OwnerLink for Guarded {
     }
 }
 
-/// The library's `Secrets` as the library has them: none stored for every name (a named limit of the unit).
-struct NoSecrets;
-
-impl Secrets for NoSecrets {
-    fn read(&self, _agent: &halvo_schema::AgentId, _name: &WireName) -> SecretReply {
-        SecretReply::None
-    }
-}
-
 /// The product's ports.
 pub struct Product {
     link: Arc<dyn OwnerLink>,
@@ -679,7 +671,11 @@ pub struct Product {
 
 /// A link over the owner streams that `calls` asks for.
 fn link_of(calls: &Calls) -> Arc<dyn OwnerLink> {
-    let call = Arc::clone(&calls.owner_stream);
+    link_over(Arc::clone(&calls.owner_stream))
+}
+
+/// A link over the owner streams that `call` gives.
+pub(crate) fn link_over(call: StreamCall) -> Arc<dyn OwnerLink> {
     Arc::new(StreamLink::new(ClientEnds::new(move || call())))
 }
 
@@ -694,6 +690,7 @@ impl Product {
             sending: AtomicBool::new(false),
         });
         let waits = Arc::new(Waits::default());
+        let link = link_of(&calls);
         let parts = Parts {
             link: Arc::new(Guarded {
                 link: link_of(&calls),
@@ -709,7 +706,7 @@ impl Product {
                 runs: Arc::clone(&runs),
                 waits: Arc::clone(&waits),
             }),
-            secrets: Arc::new(NoSecrets),
+            secrets: Arc::new(ModelKey::new(Arc::clone(&link))),
             marks: Arc::new(Sink {
                 marks: Arc::clone(&marks),
                 events: Arc::clone(&events),
@@ -723,7 +720,7 @@ impl Product {
             parts,
         );
         let product = Product {
-            link: link_of(&calls),
+            link,
             relay: Arc::clone(&calls.relay),
             defer: Arc::clone(&calls.defer),
             supervisor,
@@ -818,7 +815,7 @@ impl Product {
     }
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
@@ -831,7 +828,7 @@ fn refused(error: ErrorName) -> PortError {
 }
 
 /// The result of the owner's reply `bytes` to the request `id`.
-fn result_of(bytes: &[u8], id: Option<&str>) -> Result<Value, PortError> {
+pub(crate) fn result_of(bytes: &[u8], id: Option<&str>) -> Result<Value, PortError> {
     let reply = decode_reply(bytes).map_err(|_| PortError::NoService)?;
     if id.is_some() && reply.id.as_ref().map(|i| i.as_str()) != id {
         return Err(PortError::NoService);
@@ -846,7 +843,7 @@ fn result_of(bytes: &[u8], id: Option<&str>) -> Result<Value, PortError> {
     }
 }
 
-fn json_str(text: &str) -> String {
+pub(crate) fn json_str(text: &str) -> String {
     Value::String(text.to_owned()).to_string()
 }
 
@@ -1659,27 +1656,32 @@ impl Clock for Product {
 }
 
 impl Rng for Product {
-    /// Sixteen bytes of the system's generator: `/dev/urandom` on a Mac, the system's preferred generator of
-    /// `BCryptGenRandom` on Windows.
+    /// Sixteen bytes of the system's generator (`random16`).
     fn bytes16(&self) -> Result<[u8; 16], PortError> {
-        let mut bytes = [0u8; 16];
-        #[cfg(target_os = "macos")]
-        std::fs::File::open("/dev/urandom")
-            .and_then(|mut f| f.read_exact(&mut bytes))
-            .map_err(|_| PortError::NoService)?;
-        #[cfg(windows)]
-        {
-            use windows::Win32::Security::Cryptography::{
-                BCryptGenRandom, BCRYPT_USE_SYSTEM_PREFERRED_RNG,
-            };
-            // SAFETY: the buffer is a live slice that the call writes within its length; no algorithm handle is
-            // given, which the flag for the system's preferred generator asks.
-            unsafe { BCryptGenRandom(None, &mut bytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG) }
-                .ok()
-                .map_err(|_| PortError::NoService)?;
-        }
-        Ok(bytes)
+        random16()
     }
+}
+
+/// Sixteen bytes of the system's generator: `/dev/urandom` on a Mac, the system's preferred generator of
+/// `BCryptGenRandom` on Windows.
+pub(crate) fn random16() -> Result<[u8; 16], PortError> {
+    let mut bytes = [0u8; 16];
+    #[cfg(target_os = "macos")]
+    std::fs::File::open("/dev/urandom")
+        .and_then(|mut f| f.read_exact(&mut bytes))
+        .map_err(|_| PortError::NoService)?;
+    #[cfg(windows)]
+    {
+        use windows::Win32::Security::Cryptography::{
+            BCryptGenRandom, BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+        };
+        // SAFETY: the buffer is a live slice that the call writes within its length; no algorithm handle is
+        // given, which the flag for the system's preferred generator asks.
+        unsafe { BCryptGenRandom(None, &mut bytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG) }
+            .ok()
+            .map_err(|_| PortError::NoService)?;
+    }
+    Ok(bytes)
 }
 
 impl Policy for Product {

@@ -27,6 +27,7 @@ scripted = []
 halvo-agent-client = { path = "../halvo-agent-client" }
 halvo-control = { path = "../halvo-control", features = ["r2"] }
 halvo-policy = { path = "../halvo-policy" }
+halvo-route = { path = "../halvo-route" }
 halvo-schema = { path = "../halvo-schema" }
 halvo-schema-core = { path = "../halvo-schema-core" }
 

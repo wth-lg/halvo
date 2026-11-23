@@ -362,6 +362,7 @@ impl InputCounters {
             },
             secure_window_pointer: read(&f.secure_window_pointer),
             secure_window_keys_typed: f.secure_window_keys_typed.load(Ordering::Relaxed),
+            typing_gate: None,
         }
     }
 }

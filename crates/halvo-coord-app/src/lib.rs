@@ -15,6 +15,7 @@ mod attention;
 mod bell;
 mod handler;
 mod hub;
+pub mod model_key;
 mod present;
 pub mod product;
 mod window;

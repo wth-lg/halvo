@@ -35,7 +35,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.needs_you.stuck",
-        "It is stuck and needs your help with one step.",
+        "It could not get past one step and waits for your answer.",
     ),
     (
         "line.needs_you.check",
@@ -264,10 +264,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "item.link_account.text",
         "Link your mail or calendar account in its own window, then choose Done.",
     ),
-    ("item.stuck.title", "Help “{name}” with one step"),
+    ("item.stuck.title", "“{name}” could not get past one step"),
     (
         "item.stuck.text",
-        "Do the next step in its own window and choose Done, or choose Stop this time.",
+        "You can finish the task yourself in its own window, then choose Done, or choose Stop this time. Either way it tries again next time.",
     ),
     (
         "item.check.title",

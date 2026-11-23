@@ -582,6 +582,7 @@ const REPLY_MARK: &str = "reply-mark-m7";
 const EFFECT_MARK: &str = "effect-mark-k7";
 const CHECKPOINT_MARK: &str = "checkpoint-mark-c7";
 const MODEL_KEY_MARK: &str = "test-value-model-key-mark-y7";
+const AGREEMENT_MARK: &str = "test-model-agreement-mark-g7";
 const ROUTINE_MARK: &str = "com.example.routinemark";
 const RUN_WALL_S: u32 = 7_340_033;
 const LOG_MS: u32 = 7_340_047;
@@ -719,6 +720,8 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
         "op": "put_model_key", "workflow": null, "agent": null, "key": MODEL_KEY_MARK,
     }));
     assert!(reply.is_ok(), "put_model_key: {reply:?}");
+    let reply = w.coordinator(agreement_body());
+    assert!(reply.is_ok(), "set_model: {reply:?}");
     w.learn(
         2,
         2,
@@ -768,6 +771,7 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
         ("agent_log", json!(LOG_MS)),
         ("agent_checkpoint", json!(CHECKPOINT_MARK)),
         ("model_key", json!(MODEL_KEY_MARK)),
+        ("agent_agreement", json!(AGREEMENT_MARK)),
         ("learn_run", json!(run(LEARN_RUN))),
         ("learn_routine", json!(ROUTINE_MARK)),
         ("learn_edit", json!(edit)),
@@ -777,7 +781,7 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
         .chain(halvo_schema::learning::KINDS)
         .map(|k| k.name)
         .collect();
-    assert_eq!(kinds.len(), 15);
+    assert_eq!(kinds.len(), 16);
     for kind in &kinds {
         assert!(!every_row(&w, kind).is_empty(), "no row of the kind {kind}");
         assert!(
@@ -851,4 +855,74 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
             .any(|(o, text)| o == op && text_holds(text, &json!(marker)));
         assert!(seen, "the reply of {op} holds no {marker}");
     }
+}
+
+/// The body `set_model` of a yes of the first agent up to `frontier`, whose model words hold `AGREEMENT_MARK` (r3
+/// U7.7).
+fn agreement_body() -> Value {
+    json!({
+        "op": "set_model", "workflow": wf(1), "agent": agent(1), "tier": "frontier",
+        "agreement": [
+            {"tier": "low_cost_hosted", "origin": "https://hosted-model.test", "model": format!("{AGREEMENT_MARK}-small")},
+            {"tier": "frontier", "origin": "https://hosted-model.test", "model": format!("{AGREEMENT_MARK}-large")},
+        ],
+    })
+}
+
+/// r3 U7.7, sentence (8) (the coordinator's log line 17342, point 1): no runner body writes or removes an agreement.
+/// The first agent of an active workflow says yes up to `frontier`; then every runner body goes through the real
+/// handlers (`LearnHandlers` in front of the agent store's): of run 3 `load`, `load_steps`, `put_session`, `effect`,
+/// `log`, `checkpoint`, `reply_row` and `finish`, and of run 4 those and `load_session`, `put_playbook`,
+/// `drop_session` and `load_replies`, twelve ops. After each run the agreement rows are the bytes that the yes stored.
+#[test]
+fn no_runner_body_changes_an_agreement() {
+    let mut w = active_world();
+    let reply = w.coordinator(agreement_body());
+    assert!(reply.is_ok(), "set_model: {reply:?}");
+    let agreed = every_row(&w, "agent_agreement");
+    assert_eq!(agreed.len(), 1, "the agreement rows of the yes");
+    let a = agent(1);
+    let mut replies = Vec::new();
+    for r in [3, 4] {
+        w.start(r, "replay");
+        let body = json!({"op": "load", "agent": a, "run": run(r)});
+        let loaded: Value =
+            serde_json::from_str(&answer(&mut w, "load", body, &mut replies)).expect("JSON");
+        w.loaded = u32::try_from(loaded["playbook"]["number"].as_u64().expect("a playbook"))
+            .expect("a number");
+        let body =
+            json!({"op": "load_steps", "agent": a, "run": run(r), "number": w.loaded, "from": 1});
+        let served: Value =
+            serde_json::from_str(&answer(&mut w, "load_steps", body, &mut replies)).expect("JSON");
+        if r == 4 {
+            let body = json!({"op": "load_session", "agent": a, "run": run(r), "origin": ORIGIN, "rev": 1, "part": 1});
+            answer(&mut w, "load_session", body, &mut replies);
+            let proposal = with_locators(
+                served["steps"][1].clone(),
+                "button Pay again",
+                vec![loc("Pay z"), pay()],
+            );
+            let body = json!({"op": "put_playbook", "agent": a, "run": run(r), "number": w.loaded, "steps": [proposal]});
+            answer(&mut w, "put_playbook", body, &mut replies);
+        }
+        put_bodies(&mut w, r, &mut replies);
+        if r == 4 {
+            let body = json!({"op": "drop_session", "agent": a, "run": run(r), "origin": ORIGIN});
+            answer(&mut w, "drop_session", body, &mut replies);
+            let body = json!({"op": "load_replies", "agent": a, "run": run(r), "message_ids": [message(3), message(4)]});
+            answer(&mut w, "load_replies", body, &mut replies);
+        }
+        let body =
+            json!({"op": "finish", "agent": a, "run": run(r), "record": failed_record(&w, r)});
+        answer(&mut w, "finish", body, &mut replies);
+        assert_eq!(
+            every_row(&w, "agent_agreement"),
+            agreed,
+            "the agreement rows after run {r}"
+        );
+    }
+    let mut ops: Vec<&str> = replies.iter().map(|(op, _)| op.as_str()).collect();
+    ops.sort_unstable();
+    ops.dedup();
+    assert_eq!(ops.len(), 12, "the runner bodies: {ops:?}");
 }
