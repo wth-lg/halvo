@@ -258,7 +258,7 @@
     MODEL_LIMIT_PERIOD: "Halvo counts a month at a time, from the day this count began. It starts again on {date}.",
     MODEL_LIMIT_BILL: "{host} bills the key that you gave Halvo. Halvo counts what its own requests cost and stops at {amount} a {period}.",
     MODEL_LIMIT_PAY: "What you pay is what {host} bills you: Halvo's count can differ from it.",
-    MODEL_LIMIT_NEAR: "Less than a fifth of the limit is left.",
+    MODEL_LIMIT_NEAR: "A fifth of the limit or less is left.",
     MODEL_LIMIT_REACHED: "The limit is reached. Agents that use an AI model at {host} wait until {date} or until you raise the limit. Work that stays on this computer goes on.",
     MODEL_LIMIT_NONE: "Halvo has counted nothing yet. It starts with a limit of {cap} a {period}, which you can change.",
     MODEL_LIMIT_NO_LIMIT: "No limit is set, so Halvo sends nothing to {host}. Set a limit to begin.",
