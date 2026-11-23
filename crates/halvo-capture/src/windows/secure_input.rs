@@ -4110,6 +4110,72 @@ mod tests {
         assert_eq!(reading(&gate, &next, 3_140), Some(Ok(())));
     }
 
+    /// The cost of the landing used once at one cadence: a key that makes no
+    /// landing at 2_000 (when `behind_a_key`), then four letters `gap` ms
+    /// apart from 2_100 on, each with its own landing 5 ms after it, an own
+    /// read every 20 ms, and the keys decided oldest first, as the release
+    /// decides them: the answer of each letter.
+    fn letters_behind_a_key_with_no_landing(
+        gap: u32,
+        behind_a_key: bool,
+    ) -> Vec<Option<Result<(), Withheld>>> {
+        let gate = plain();
+        let mut queue: VecDeque<(HeldKey, Option<usize>)> = VecDeque::new();
+        if behind_a_key {
+            queue.push_back((gate.hold_key(2_000, false, FRONT, false), None));
+        }
+        let letters: Vec<u32> = (0..4).map(|i| 2_100 + i * gap).collect();
+        let mut answers = vec![None; letters.len()];
+        let end = 2_100 + 3 * gap + 600;
+        for t in (2_000..=end).step_by(5) {
+            if let Some(at) = letters.iter().position(|&tick| tick == t) {
+                queue.push_back((key(&gate, t), Some(at)));
+            }
+            if letters.contains(&t.wrapping_sub(5)) {
+                gate.landing_at(t, FieldState::Clear);
+            }
+            if (t - 2_000) % 20 == 0 {
+                gate.read_at(t, FieldState::Clear, Moved::Same);
+            }
+            while let Some((held, at)) = queue.front() {
+                let Some((answer, _)) = gate.decide(held, t, FRONT, false) else {
+                    break;
+                };
+                if let Some(at) = *at {
+                    answers[at] = Some(answer.map(|_| ()));
+                }
+                queue.pop_front();
+            }
+        }
+        answers
+    }
+
+    #[test]
+    fn letters_200_ms_apart_behind_a_key_with_no_landing_are_all_withheld_until_a_pause() {
+        let withheld = Some(Err(Withheld::Unknown));
+        assert_eq!(
+            letters_behind_a_key_with_no_landing(200, true),
+            vec![withheld; 4]
+        );
+        assert_eq!(
+            letters_behind_a_key_with_no_landing(200, false),
+            vec![Some(Ok(())); 4]
+        );
+    }
+
+    #[test]
+    fn letters_300_ms_apart_behind_a_key_with_no_landing_lose_the_first_alone() {
+        assert_eq!(
+            letters_behind_a_key_with_no_landing(300, true),
+            vec![
+                Some(Err(Withheld::Unknown)),
+                Some(Ok(())),
+                Some(Ok(())),
+                Some(Ok(()))
+            ]
+        );
+    }
+
     #[test]
     fn a_burst_that_begins_after_the_bound_of_a_key_with_no_landing_loses_nothing() {
         let gate = plain();
