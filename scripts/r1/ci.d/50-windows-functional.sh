@@ -1,20 +1,30 @@
 #!/bin/sh
 # jobs: windows
-# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b), whose vocabulary reads this check's lists macos_only_paths and expected_tests in their here-document form, and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended), and a listed defect must fail with its marker; a test's WF line carries the last rounds_decided_by_the_time_rule=N that a TF line of a log that the rule passed holds (ruling W3-32); the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds of the short form, the one form of the check, which hands HALVO_WF_FORM=short to each test and refuses any other word of the caller in that variable; and a test that the long form alone ran is printed with result=long-form-only and is run by no check since that form left
+# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b), whose vocabulary reads this check's lists macos_only_paths and expected_tests in their here-document form, and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended), and a listed defect must fail with its marker; a test's WF line carries the last rounds_decided_by_the_time_rule=N that a TF line of a log that the rule passed holds (ruling W3-32); the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds of the short form in both forms of the check, which hands HALVO_WF_FORM=short to each test and refuses any other word of the caller in that variable; the short form (50-windows-functional, 52-windows-browser) prints a row marked scope=long-only or scope=long-only-shows-sometimes with result=long-form-only and runs it not, every form prints a row marked scope=no-form, a test of the test file that no form runs, with result=in-no-form and runs it not, and the list takes no other scope word; the long form (WF_FORM=long, a run by hand alone, in no slice and no schedule) runs one part of one group in each of four checks, part modules (the rows whose name holds ::) in 53-windows-long-native-modules and 57-windows-long-browser-modules and part top (the other rows) in 56-windows-long-native-top and 58-windows-long-browser-top, every row of the part by the same rules, but a row marked scope=long-only-shows-sometimes that reads 0 is printed with result=not-shown and fails nothing
 # lane: alone
 set -u
+name_of() {
+  case $1:$2:$3 in
+    native:short:) echo 50-windows-functional ;;
+    browser:short:) echo 52-windows-browser ;;
+    native:long:modules) echo 53-windows-long-native-modules ;;
+    native:long:top) echo 56-windows-long-native-top ;;
+    browser:long:modules) echo 57-windows-long-browser-modules ;;
+    browser:long:top) echo 58-windows-long-browser-top ;;
+  esac
+}
+
 group=${WF_GROUP:-native}
-case $group in
-  native) name=50-windows-functional ;;
-  browser) name=52-windows-browser ;;
-  *)
-    printf 'FAIL 50-windows-functional (WF_GROUP is native or browser, not %s)\n' "$group"
-    exit 1
-    ;;
-esac
+check_form=${WF_FORM:-short}
+part=${WF_PART:-}
+name=$(name_of "$group" "$check_form" "$part")
+if [ -z "$name" ]; then
+  printf 'FAIL 50-windows-functional (WF_GROUP, WF_FORM and WF_PART are native or browser, then short and nothing, or long and modules or top; not %s, %s and %s)\n' "$group" "$check_form" "$part"
+  exit 1
+fi
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=49
+failing_fixtures=52
 form_test=stall::the_round_count_of_the_stall_tests
 prints_rule=scripts/r1/windows-prints-rule.sh
 prints_rule_line='^prints-rule [A-Za-z0-9_:]+ line=[0-9]+ length=[0-9]+ token=[0-9]+$'
@@ -40,11 +50,11 @@ a_wheel_turn_over_a_background_window_of_a_listed_app_gives_no_scroll_record gro
 a_window_under_the_exclusion_root_gives_no_event_and_another_window_does group=native
 browser::a_burst_whose_first_letter_swaps_records_nothing_in_chrome group=browser
 browser::a_burst_whose_first_letter_swaps_records_nothing_in_edge group=browser
-browser::a_held_page_that_changes_nothing_before_its_late_move_records_nothing_in_chrome group=browser
+browser::a_held_page_that_changes_nothing_before_its_late_move_records_nothing_in_chrome group=browser scope=long-only
 browser::a_held_page_that_changes_nothing_before_its_late_move_records_nothing_in_edge group=browser
-browser::a_key_at_the_password_input_between_two_moves_of_the_page_records_nothing_in_chrome group=browser
+browser::a_key_at_the_password_input_between_two_moves_of_the_page_records_nothing_in_chrome group=browser scope=long-only
 browser::a_key_at_the_password_input_between_two_moves_of_the_page_records_nothing_in_edge group=browser
-browser::a_key_queued_before_the_pages_late_move_records_nothing_in_chrome group=browser
+browser::a_key_queued_before_the_pages_late_move_records_nothing_in_chrome group=browser scope=long-only
 browser::a_key_queued_before_the_pages_late_move_records_nothing_in_edge group=browser
 browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_chrome group=browser
 browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_edge group=browser
@@ -52,7 +62,7 @@ browser::a_renamed_copy_of_chrome_reads_unknown_and_records_nothing group=browse
 browser::a_renamed_copy_of_firefox_reads_unknown_and_records_nothing group=browser
 browser::after_a_start_behind_another_window_in_chrome group=browser
 browser::after_a_start_behind_another_window_in_edge group=browser
-browser::another_field_that_changes_its_value_by_itself_records_no_password_letter_in_chrome group=browser
+browser::another_field_that_changes_its_value_by_itself_records_no_password_letter_in_chrome group=browser scope=long-only
 browser::another_field_that_changes_its_value_by_itself_records_no_password_letter_in_edge group=browser
 browser::burst_rounds::a_burst_with_no_round_that_the_time_rule_decided_prints_a_count_of_zero group=browser
 browser::burst_rounds::a_counted_round_reaches_the_tally_with_its_four_counts_and_its_freed_at_ms group=browser
@@ -71,17 +81,17 @@ browser::burst_rounds::the_burst_of_a_browser_runs_five_rounds_in_both_forms gro
 browser::burst_rounds::the_burst_prints_the_count_of_its_counted_rounds_that_the_time_rule_decided_and_their_freed_at_ms group=browser
 browser::cold_and_warm_orders_in_chrome group=browser
 browser::cold_and_warm_orders_in_edge group=browser
-browser::every_letter_in_a_chat_box_that_keeps_the_focus_behind_enter_is_noted_in_chrome group=browser
-browser::every_letter_in_a_chat_box_that_keeps_the_focus_behind_enter_is_noted_in_edge group=browser
+browser::every_letter_in_a_chat_box_that_keeps_the_focus_behind_enter_is_noted_in_chrome group=browser scope=no-form
+browser::every_letter_in_a_chat_box_that_keeps_the_focus_behind_enter_is_noted_in_edge group=browser scope=no-form
 browser::stall_phases_of_the_page_in_chrome group=browser
 browser::stall_phases_of_the_page_in_edge group=browser
 browser::swap_phases_of_the_page_in_chrome group=browser
 browser::swap_phases_of_the_page_in_edge group=browser
-browser::the_pages_own_change_of_the_focused_input_before_its_late_move_records_nothing_in_chrome group=browser
+browser::the_pages_own_change_of_the_focused_input_before_its_late_move_records_nothing_in_chrome group=browser scope=long-only
 browser::the_pages_own_change_of_the_focused_input_before_its_late_move_records_nothing_in_edge group=browser
-browser_self_move_after_a_held_main_thread_in_chrome group=browser
+browser_self_move_after_a_held_main_thread_in_chrome group=browser scope=long-only
 browser_self_move_after_a_held_main_thread_in_edge group=browser
-browser_swaps_on_a_held_main_thread_in_chrome group=browser
+browser_swaps_on_a_held_main_thread_in_chrome group=browser scope=long-only
 browser_swaps_on_a_held_main_thread_in_edge group=browser
 c1_raw_input_delivers_keystrokes_and_pointer_events group=native
 c2_screen_source_delivers_a_frame group=native
@@ -100,14 +110,14 @@ helper_child_window group=native
 helper_limited_listener group=native
 helper_second_account group=native
 keys_queued_before_a_stop_are_delivered_or_counted group=native
-known_defect::browser_an_earlier_keys_landing_before_the_pages_late_move_in_chrome W6-earlier-key group=browser scope=long-only
-known_defect::browser_an_earlier_keys_landing_before_the_pages_late_move_in_edge W6-earlier-key group=browser scope=long-only
-known_defect::stall_a_change_by_the_pointer_behind_its_own_button_down_before_a_late_move W6-pointer-change group=native
-known_defect::stall_a_program_frozen_longer_than_the_bound_behind_a_tab_while_a_person_types_ahead W6-frozen-tab group=native
-known_defect::stall_a_program_frozen_longer_than_the_bound_while_a_person_types_ahead W6-frozen group=native
-known_defect::stall_the_programs_own_change_behind_a_tab_before_the_tabs_late_move W6-own-change-tab group=native
-known_defect::stall_the_programs_own_change_of_the_focused_field_before_a_late_move W6-own-change group=native
-known_defect::style_masked_input_in_chrome_and_edge W3-20-style-mask group=browser
+known_defect::browser_an_earlier_keys_landing_before_the_pages_late_move_in_chrome W6-earlier-key group=browser scope=long-only-shows-sometimes
+known_defect::browser_an_earlier_keys_landing_before_the_pages_late_move_in_edge W6-earlier-key group=browser scope=long-only-shows-sometimes
+known_defect::stall_a_change_by_the_pointer_behind_its_own_button_down_before_a_late_move W6-pointer-change group=native scope=long-only
+known_defect::stall_a_program_frozen_longer_than_the_bound_behind_a_tab_while_a_person_types_ahead W6-frozen-tab group=native scope=long-only
+known_defect::stall_a_program_frozen_longer_than_the_bound_while_a_person_types_ahead W6-frozen group=native scope=long-only
+known_defect::stall_the_programs_own_change_behind_a_tab_before_the_tabs_late_move W6-own-change-tab group=native scope=long-only
+known_defect::stall_the_programs_own_change_of_the_focused_field_before_a_late_move W6-own-change group=native scope=long-only
+known_defect::style_masked_input_in_chrome_and_edge W3-20-style-mask group=browser scope=long-only
 one_key_of_each_class_gives_a_record_only_for_the_keys_that_change_text group=native
 password_field_fixture_chrome group=browser
 password_field_fixture_edge group=browser
@@ -338,7 +348,7 @@ measure() {
   check_started=$(date +%s)
   cd "$CI_D_REPO" || exit 2
   form=${HALVO_WF_FORM:-short}
-  [ "$form" = short ] || fail "HALVO_WF_FORM is short, not $form: the long form left this check"
+  [ "$form" = short ] || fail "HALVO_WF_FORM is short, not $form: both forms of this check run the tests' rounds of the short form"
   HALVO_WF_FORM=$form
   export HALVO_WF_FORM
   artifacts=${CI_D_ARTIFACTS:-$CI_D_REPO/target/ci-artifacts/$name}
@@ -354,7 +364,8 @@ measure() {
       id = "-"; grp = ""; scope = "-"
       for (i = 2; i <= NF; i++) {
         if ($i ~ /^group=/) grp = substr($i, 7)
-        else if ($i == "scope=long-only") scope = "long-only"
+        else if ($i == "scope=long-only" || $i == "scope=long-only-shows-sometimes" || $i == "scope=no-form") scope = substr($i, 7)
+        else if ($i ~ /^scope=/) scope = "other"
         else if (id == "-") id = $i
       }
       if (grp == "") grp = "native"
@@ -362,6 +373,8 @@ measure() {
     }' "$work/expected" >"$work/plan" || fail "the expected list cannot be read"
   stray=$(awk -F '\t' '$2 != "native" && $2 != "browser" { print $1 }' "$work/plan" | tr '\n' ' ')
   [ -z "$stray" ] || fail "the list puts these tests in neither script (the group is native or browser): ${stray% }"
+  scoped=$(awk -F '\t' '$3 == "other" { print $1 }' "$work/plan" | tr '\n' ' ')
+  [ -z "$scoped" ] || fail "the list gives these tests a scope word other than scope=long-only, scope=long-only-shows-sometimes and scope=no-form, so the short form would run them: ${scoped% }"
   twice=$(cut -f 1 "$work/plan" | sort | uniq -d | tr '\n' ' ')
   [ -z "$twice" ] || fail "the list names these tests more than once, so a test stands in both scripts or twice in one: ${twice% }"
   cut -f 1 "$work/plan" | sort >"$work/expected-names" || fail "the expected list cannot be read"
@@ -403,6 +416,8 @@ measure() {
   rule_broken=0
   rule_failed=0
   long_only=0
+  not_shown=0
+  no_form=0
   ran=0
   index=0
   while IFS= read -r test; do
@@ -410,8 +425,19 @@ measure() {
     log=$work/test-$index.log
     test_group=$(awk -F '\t' -v test="$test" '$1 == test { print $2 }' "$work/plan")
     [ "$test_group" = "$group" ] || continue
+    case $part:$test in
+      modules:*::* | top:*::*) [ "$part" = modules ] || continue ;;
+      modules:*) continue ;;
+    esac
     scope=$(awk -F '\t' -v test="$test" '$1 == test { print $3 }' "$work/plan")
-    if [ "$scope" = long-only ]; then
+    if [ "$scope" = no-form ]; then
+      no_form=$((no_form + 1))
+      line="WF $test result=in-no-form"
+      printf '%s\n' "$line"
+      printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+      continue
+    fi
+    if [ "$scope" != - ] && [ "$check_form" = short ]; then
       long_only=$((long_only + 1))
       line="WF $test result=long-form-only"
       printf '%s\n' "$line"
@@ -439,9 +465,15 @@ measure() {
       id=
       cause="wpr_check_log exited $rule_code with $broken lines that break the prints rule, so its log is not printed"
     fi
+    if [ "$verdict" = FIXED-BUT-LISTED ] && [ "$scope" = long-only-shows-sometimes ]; then
+      verdict=not-shown
+      id=$want_id
+      cause='the listed case did not show in this run, and it shows in some runs and not in others'
+    fi
     case $verdict in
       pass) passed=$((passed + 1)) ;;
       known-defect) known=$((known + 1)) ;;
+      not-shown) not_shown=$((not_shown + 1)) ;;
       FIXED-BUT-LISTED) fixed=$((fixed + 1)) ;;
       *) failed=$((failed + 1)) ;;
     esac
@@ -474,7 +506,7 @@ measure() {
     same=$(tr -d '\r' <"$log" | grep -c -E "(^| )form=$form ")
     [ "$any" = "$same" ] || fail "$test printed a line of another form than $form"
   done <"$work/names"
-  if [ "$group" = native ] && grep -q -x -F "$form_test" "$work/names"; then
+  if [ "$group" = native ] && [ "$part" != top ] && grep -q -x -F "$form_test" "$work/names"; then
     case $form_line in
       "form=$form "*) ;;
       *) fail "$form_test printed no line of the form $form" ;;
@@ -531,14 +563,20 @@ measure() {
     printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   done
 
-  line="WF total=$((ran + long_only)) pass=$passed known_defect=$known long_form_only=$long_only fail=$((failed + fixed)) group=$group"
+  line="WF total=$((ran + long_only + no_form)) pass=$passed known_defect=$known long_form_only=$long_only"
+  [ "$check_form" = short ] || line="$line not_shown=$not_shown"
+  [ "$no_form" -eq 0 ] || line="$line in_no_form=$no_form"
+  line="$line fail=$((failed + fixed)) group=$group"
+  [ "$check_form" = short ] || line="$line part=$part"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   [ "$fixed" -eq 0 ] || fail "$fixed listed defects passed (FIXED-BUT-LISTED): move each test out of mod known_defect"
   [ "$failed" -eq 0 ] || fail "$failed tests failed"
   [ "$seconds_taken" -le 1 ] ||
     fail "$seconds_taken second controls were taken in this run, and more than one fails the run (ruling W3-18 (13))"
-  line="WF form=$form seconds=$(($(date +%s) - check_started))"
+  line="WF form=$check_form"
+  [ "$check_form" = short ] || line="$line rounds=$form"
+  line="$line seconds=$(($(date +%s) - check_started))"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   printf 'PASS %s\n' "$name"
@@ -561,7 +599,9 @@ launch() {
     WF_EXPECTED_FILE=$expected_file
     STUB_SHUTDOWN_LINE=$test_file_shutdown_line
     WF_GROUP=$group_knob
-    export WF_GROUP
+    WF_FORM=$check_form_knob
+    WF_PART=$part_knob
+    export WF_GROUP WF_FORM WF_PART
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_TF WF_EXPECTED_FILE STUB_EXE STUB_LIST_EXIT
     export STUB_SHUTDOWN_LINE
     unset HALVO_WF_FORM
@@ -613,9 +653,10 @@ check() {
   out=$(cat "$work/out-$case_name") || exit 2
   code=$(cat "$work/code-$case_name") || exit 2
   last=$(printf '%s\n' "$out" | tail -n 1)
+  want_name=$(name_of "$group_knob" "$check_form_knob" "$part_knob")
   case $code:$last in
-    "0:PASS $name") got=PASS ;;
-    "1:FAIL $name ("*")") got=FAIL ;;
+    "0:PASS $want_name") got=PASS ;;
+    "1:FAIL $want_name ("*")") got=FAIL ;;
     *) got=exit-$code ;;
   esac
   shift 3
@@ -658,6 +699,8 @@ reset_knobs() {
   form_word=
   repo_knob=
   group_knob=$group
+  check_form_knob=$check_form
+  part_knob=$part
   args_knob=
   drop_knob=
 }
@@ -967,12 +1010,21 @@ self_test() {
   wrong=
   small="c1_raw_input${nl}helper_child_window${nl}known_defect::x1_password RR-windows-01"
   right="c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01"
-  if [ "$group" = browser ]; then
-    set_of_fixtures=browser_fixtures
-    failing_fixtures=6
-  else
-    set_of_fixtures=fixtures
-  fi
+  case $group:$check_form:$part in
+    native:short:) set_of_fixtures=fixtures ;;
+    browser:short:)
+      set_of_fixtures=browser_fixtures
+      failing_fixtures=9
+      ;;
+    browser:long:modules)
+      set_of_fixtures=own_long_fixtures
+      failing_fixtures=2
+      ;;
+    *)
+      set_of_fixtures=own_long_fixtures
+      failing_fixtures=1
+      ;;
+  esac
   reset_knobs
   running=0
   pass=launch
@@ -980,7 +1032,7 @@ self_test() {
   wait
   pass=judge
   $set_of_fixtures
-  if [ "$group" = native ]; then
+  if [ "$name" = 50-windows-functional ]; then
     rule_reads every-list-of-this-check-in-the-rule-s-read PASS none
     rule_reads the-macos-only-list-out-of-its-here-document-form FAIL macos_only_paths
     rule_reads the-test-list-out-of-its-here-document-form FAIL expected_tests
@@ -1088,6 +1140,66 @@ browser_fixtures() {
   check a-failed-test-s-wf-line-carries-its-count-of-rounds-that-the-time-rule-decided FAIL "c1_raw_input|pass${nl}browser::a_page_test|time-rule-fail" \
     "${nl}WF browser::a_page_test result=FAIL rounds_decided_by_the_time_rule=2${nl}" \
     "@WF browser::a_page_test result=FAIL rounds_decided_by_the_time_rule=2${nl}" "FAIL 52-windows-browser (1 tests failed)"
+  long_fixtures browser modules
+  long_fixtures browser top
+  not_shown_fixtures
+}
+
+own_long_fixtures() {
+  long_fixtures "$group" "$part"
+  [ "$group:$part" != browser:modules ] || not_shown_fixtures
+}
+
+long_knobs() {
+  group_knob=$1
+  check_form_knob=long
+  part_knob=$2
+  expected=$3
+}
+
+long_fixtures() {
+  long_name=$(name_of "$1" long "$2")
+  long_word=
+  [ "$1" = native ] || long_word=" group=$1"
+  long_list="c1_raw_input$long_word${nl}top_long_row$long_word scope=long-only${nl}stall::a_module_row$long_word${nl}known_defect::x1_password RR-windows-01$long_word scope=long-only${nl}stall::a_row_in_no_form$long_word scope=no-form"
+  long_spec="c1_raw_input|pass${nl}top_long_row|pass${nl}stall::a_module_row|pass${nl}known_defect::x1_password|defect|RR-windows-01${nl}stall::a_row_in_no_form|inconclusive"
+  long_knobs "$1" "$2" "$long_list"
+  if [ "$2" = modules ]; then
+    check "the-long-form-of-the-$1-modules-part-runs-every-module-row-alone" PASS "$long_spec" \
+      "${nl}WF stall::a_module_row result=pass${nl}" "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" \
+      "${nl}WF stall::a_row_in_no_form result=in-no-form${nl}" \
+      "${nl}WF total=3 pass=1 known_defect=1 long_form_only=0 not_shown=0 in_no_form=1 fail=0 group=$1 part=modules${nl}WF form=long rounds=short seconds=" \
+      "${nl}PASS $long_name" "!WF c1_raw_input result=" "!WF top_long_row result="
+    long_knobs "$1" "$2" "$long_list"
+    check "a-long-only-listed-row-that-reads-0-fails-the-long-form-of-the-$1-modules-part" FAIL \
+      "c1_raw_input|pass${nl}top_long_row|pass${nl}stall::a_module_row|pass${nl}known_defect::x1_password|pass${nl}stall::a_row_in_no_form|inconclusive" \
+      "${nl}WF known_defect::x1_password result=FIXED-BUT-LISTED${nl}" \
+      "FAIL $long_name (1 listed defects passed (FIXED-BUT-LISTED): move each test out of mod known_defect)"
+  else
+    check "the-long-form-of-the-$1-top-part-runs-every-top-level-row-alone" PASS "$long_spec" \
+      "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF top_long_row result=pass${nl}" \
+      "${nl}WF total=2 pass=2 known_defect=0 long_form_only=0 not_shown=0 fail=0 group=$1 part=top${nl}WF form=long rounds=short seconds=" \
+      "${nl}PASS $long_name" "!WF stall::a_module_row result=" "!WF known_defect::x1_password result=" "!WF stall::a_row_in_no_form result="
+    long_knobs "$1" "$2" "$long_list"
+    check "a-long-only-row-that-fails-fails-the-long-form-of-the-$1-top-part" FAIL \
+      "c1_raw_input|pass${nl}top_long_row|inconclusive${nl}stall::a_module_row|pass${nl}known_defect::x1_password|defect|RR-windows-01${nl}stall::a_row_in_no_form|inconclusive" \
+      "${nl}WF top_long_row result=FAIL${nl}" "FAIL $long_name (1 tests failed)"
+  fi
+}
+
+not_shown_fixtures() {
+  long_name=$(name_of browser long modules)
+  long_list="known_defect::a_late_move W6-x group=browser scope=long-only-shows-sometimes${nl}known_defect::b_late_move W6-y group=browser scope=long-only-shows-sometimes"
+  long_knobs browser modules "$long_list"
+  check a-row-whose-case-shows-sometimes-and-reads-0-is-printed-not-shown PASS "known_defect::a_late_move|pass${nl}known_defect::b_late_move|defect|W6-y" \
+    "${nl}$long_name: known_defect::a_late_move: the listed case did not show in this run, and it shows in some runs and not in others${nl}WF known_defect::a_late_move result=not-shown id=W6-x${nl}" \
+    "${nl}WF known_defect::b_late_move result=known-defect id=W6-y${nl}" \
+    "${nl}WF total=2 pass=0 known_defect=1 long_form_only=0 not_shown=1 fail=0 group=browser part=modules${nl}" "${nl}PASS $long_name"
+  long_knobs browser modules "$long_list${nl}known_defect::x1_password RR-windows-01 group=browser scope=long-only"
+  check another-listed-row-that-reads-0-fails-beside-a-row-printed-not-shown FAIL \
+    "known_defect::a_late_move|pass${nl}known_defect::b_late_move|defect|W6-y${nl}known_defect::x1_password|pass" \
+    "${nl}WF known_defect::a_late_move result=not-shown id=W6-x${nl}" "${nl}WF known_defect::x1_password result=FIXED-BUT-LISTED${nl}" \
+    "FAIL $long_name (1 listed defects passed (FIXED-BUT-LISTED): move each test out of mod known_defect)"
 }
 
 fixtures() {
@@ -1099,19 +1211,49 @@ fixtures() {
     "${nl}WF total=3 pass=2 known_defect=1 long_form_only=0 fail=0 group=native${nl}WF form=short seconds=" "${nl}PASS $name"
   real=$(expected_tests | awk -v form="$form_test" '{
     id = ""
-    for (i = 2; i <= NF; i++) if ($i !~ /^group=/ && $i !~ /^scope=/ && id == "") id = $i
-    if (id != "") print $1 "|defect|" id; else if ($1 == form) print $1 "|form"; else print $1 "|pass"
+    long = 0
+    for (i = 2; i <= NF; i++) {
+      if ($i ~ /^scope=long-only/) long = 1
+      else if ($i !~ /^group=/ && $i !~ /^scope=/ && id == "") id = $i
+    }
+    if (long) print $1 "|inconclusive"
+    else if (id != "") print $1 "|defect|" id
+    else if ($1 == form) print $1 "|form"
+    else print $1 "|pass"
   }')
-  real_total=$(expected_tests | grep -c ' group=native$')
-  real_known=$(expected_tests | awk '/ group=native$/ && $2 !~ /^group=/' | grep -c '')
+  real_count() {
+    expected_tests | awk -v want="$1" '{
+      grp = "native"; long = 0; id = 0
+      for (i = 2; i <= NF; i++) {
+        if ($i ~ /^group=/) grp = substr($i, 7)
+        else if ($i ~ /^scope=long-only/) long = 1
+        else id = 1
+      }
+      if (grp != "native") next
+      if (want == "total" || (want == "long" && long) || (want == "known" && id && !long)) n++
+    } END { print n + 0 }'
+  }
+  real_total=$(real_count total)
+  real_known=$(real_count known)
+  real_long=$(real_count long)
   expected=real
   check every-test-of-the-real-list-right PASS "$real" \
     "${nl}WF c1_raw_input_delivers_keystrokes_and_pointer_events result=pass${nl}" "${nl}WF c5_watch_armed_while_the_per_user_key_is_absent result=pass${nl}" "!${nl}WF browser::" \
+    "${nl}WF known_defect::stall_a_program_frozen_longer_than_the_bound_while_a_person_types_ahead result=long-form-only${nl}" \
     "${nl}shutdown_not_ok source=keyboard count=0${nl}" \
     "${nl}WF form=short counted_rounds_at_each_wait_ms=150:20,200:5${nl}" \
     "${nl}WF left out: 15 of the 20 counted rounds at the wait of 200 ms${nl}" \
-    "${nl}WF total=$real_total pass=$((real_total - real_known)) known_defect=$real_known long_form_only=0 fail=0 group=native${nl}WF form=short seconds=" \
+    "${nl}WF total=$real_total pass=$((real_total - real_known - real_long)) known_defect=$real_known long_form_only=$real_long fail=0 group=native${nl}WF form=short seconds=" \
     "${nl}PASS $name"
+  expected="c1_raw_input${nl}helper_child_window scope=long-ony${nl}known_defect::x1_password RR-windows-01 scope=long-only"
+  check a-scope-word-that-the-short-form-would-run FAIL "$right" \
+    "FAIL $name (the list gives these tests a scope word other than scope=long-only, scope=long-only-shows-sometimes and scope=no-form, so the short form would run them: helper_child_window)"
+  expected="c1_raw_input${nl}helper_child_window scope=no-form${nl}known_defect::x1_password RR-windows-01"
+  check a-row-in-no-form-is-printed-and-run-in-no-form PASS "c1_raw_input|pass${nl}helper_child_window|inconclusive${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF helper_child_window result=in-no-form${nl}" \
+    "${nl}WF total=3 pass=1 known_defect=1 long_form_only=0 in_no_form=1 fail=0 group=native${nl}WF form=short seconds=" "${nl}PASS $name"
+  long_fixtures native modules
+  long_fixtures native top
   check a-not-ok-shutdown-in-the-form-of-the-test-file-is-counted PASS "c1_raw_input|shutdown-not-ok${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}shutdown_not_ok source=keyboard count=1${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 long_form_only=0 fail=0 group=native${nl}WF form=short seconds=" "${nl}PASS $name"
@@ -1189,7 +1331,7 @@ fixtures() {
   check the-time-limit-tool-is-missing FAIL "$right" "FAIL $name (no-such-timeout-tool is not installed, and each test runs under its time limit)"
 
   form_word=medium
-  check the-form-word-is-not-short FAIL "$right" "FAIL $name (HALVO_WF_FORM is short, not medium: the long form left this check)"
+  check the-form-word-is-not-short FAIL "$right" "FAIL $name (HALVO_WF_FORM is short, not medium: both forms of this check run the tests' rounds of the short form)"
   expected="$small${nl}$form_test"
   check the-round-count-test-prints-no-form FAIL "$right${nl}$form_test|pass" \
     "FAIL $name ($form_test printed no line of the form short)"
