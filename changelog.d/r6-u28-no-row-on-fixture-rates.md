@@ -1,0 +1,1 @@
+- Changed: halvo-route's release ruling refuses every row of the table of hosts while the price file's rate for a row's own tier has a source that begins with `fixture:`, or while the price file does not parse, so no build names a host or shows the AI model section on a rate that nobody set; a fixture rate of a tier that no row names refuses nothing (r6 U2.8).
