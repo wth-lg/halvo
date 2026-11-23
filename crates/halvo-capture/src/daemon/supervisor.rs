@@ -3652,12 +3652,14 @@ mod tests {
         assert!(f.supervisor.factory().calls.of("begin input").is_empty());
     }
 
+    type AtBegins = Arc<Mutex<Vec<(Option<SourceState>, Option<bool>)>>>;
+
     #[test]
     fn a_begin_that_can_take_key_types_is_published_first_at_a_turn_on_and_behind_a_tap_that_ended()
     {
         let published: Arc<Mutex<Option<SourceState>>> = Arc::default();
         let keys: Arc<Mutex<Option<bool>>> = Arc::default();
-        let at_begins: Arc<Mutex<Vec<(Option<SourceState>, Option<bool>)>>> = Arc::default();
+        let at_begins: AtBegins = Arc::default();
         let (slot, keys_slot, seen) = (published.clone(), keys.clone(), at_begins.clone());
         let factory = Factory::adjusting(move |source| {
             if source.name == SourceName::Input {
@@ -3678,7 +3680,7 @@ mod tests {
             .supervisor
             .publishing_the_input_line_to(published)
             .publishing_the_keys_to(keys);
-        let last = |seen: &Arc<Mutex<Vec<(Option<SourceState>, Option<bool>)>>>| {
+        let last = |seen: &AtBegins| {
             seen.lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .last()
