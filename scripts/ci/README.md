@@ -214,4 +214,4 @@ CI_D_SCRIPTS="$(mktemp -d)" sh scripts/ci/run-ci-d.sh macos
 
 ## Artifacts
 
-A script saves what a reader of a failed run needs under `CI_D_ARTIFACTS`. The last step of each job uploads `target/ci-artifacts/` as the artifact `ci-artifacts-<job>`, also when the job failed.
+A script saves what a reader of a failed run needs under `CI_D_ARTIFACTS`. The last step of each job uploads `target/ci-artifacts/` as the artifact `ci-artifacts-<job>`, also when the job failed. Both upload steps keep a run's artifacts for seven days (`retention-days: 7`), not GitHub's default of 90, because the files of the package checks hold builds: 70-package-macos keeps its disk image there and 70-package-windows its installer.

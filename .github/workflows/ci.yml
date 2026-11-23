@@ -209,6 +209,7 @@ jobs:
         with:
           name: ci-artifacts-macos
           path: target/ci-artifacts/
+          retention-days: 7
       - name: Keep one Rust cache
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
@@ -361,6 +362,7 @@ jobs:
         with:
           name: ci-artifacts-windows
           path: target/ci-artifacts/
+          retention-days: 7
       - name: Keep one Rust cache
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
