@@ -11,6 +11,8 @@
 //! - `Analysis` sends the capture service the request `defer` of the core's deadline at each call (unit U5.4c).
 //! - `Clock` reads the system clock and the system's zone, `Rng` the system's generator, `Policy` the table of
 //!   halvo-policy (`decide_row`) and `Senders` the schema's reader of `reply_senders`.
+//! - The library's `Secrets` is the app's arm of `crate::model_key` over the product's own owner link: it reads the
+//!   person's key for a model's host by ONE body at the library's call (r4 U3.18).
 //!
 //! The library's calls back (`MarkSink`, `Human`, `Confirmer`) reach the coordinator through one thread of their own,
 //! so that no thread of a run ever waits for the coordinator's lock: a confirmation and the second step of a sign-in

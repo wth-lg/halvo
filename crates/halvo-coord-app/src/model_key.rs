@@ -1,4 +1,9 @@
-//! The person's key for a model's host in the app (r4 U3.18).
+//! The person's key for a model's host in the app (r4 U3.18): this build's host, the page's three commands of the
+//! key (`model_key_state`, `save_model_key`, `remove_model_key`) and the app's arm of the supervisor's `Secrets`.
+//! Each call sends ONE coordinator body of the agent store (r3 U7.6) on an owner stream and keeps nothing: the key
+//! goes from the page's command into one `put_model_key`, and from the store to a hosted run alone, through the
+//! arm's one `read_model_key`. No reply to the window holds the key, a part of it, its length or a sign made from
+//! it, and no type of this file prints the key in its `Debug` text.
 #![cfg(any(target_os = "macos", windows))]
 
 use std::sync::Arc;
@@ -14,9 +19,6 @@ use crate::product::{hex, json_str, link_over, random16, result_of, StreamCall};
 
 /// The most bytes of a key that a save takes.
 pub const KEY_MAX: usize = 1024;
-
-/// The page's three commands of the key, which `ModelKey::call` answers.
-pub const COMMANDS: [&str; 3] = ["model_key_state", "save_model_key", "remove_model_key"];
 
 /// The host of this build: the origin of the rows of `halvo_route::release::ruling()` without its `https://`, where
 /// every row names the same one origin, and none where the ruling holds no row or its rows name two origins. With
@@ -105,7 +107,7 @@ impl ModelKey {
     }
 
     /// The reply of the page's command `command` with `args` in a build whose host is `host`, none for a name that
-    /// is not one of `COMMANDS`. `model_key_state` sends nothing where there is no host; `save_model_key` saves the
+    /// is not one of the three. `model_key_state` sends nothing where there is no host; `save_model_key` saves the
     /// text of the key `key` of `args`, the empty text where there is none.
     pub fn call(
         &self,
@@ -176,7 +178,7 @@ impl ModelKey {
 /// hosted tier: the reserved name `MODEL_KEY` reads the person's key by ONE body `read_model_key` at that moment and
 /// keeps nothing. It answers the key where one stands, none stored at a null key, and unreadable with the member
 /// `fault` where the request fails, the owner refuses it or its reply does not read. Every other name is none stored
-/// with no request, as the library's stand-in `NoSecrets` answered.
+/// with no request, as the app's stand-in before it answered every name.
 impl Secrets for ModelKey {
     fn read(&self, _agent: &halvo_schema::AgentId, name: &WireName) -> SecretReply {
         if name.as_str() != MODEL_KEY {
