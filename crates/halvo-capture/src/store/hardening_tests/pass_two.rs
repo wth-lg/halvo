@@ -1665,12 +1665,19 @@ fn delete_times(segments: usize) -> (f64, f64) {
 /// the request to "the old wrapped key no longer unwraps" differs by less
 /// than a factor of 2 between 250 and 2,000 segments, on the medians of 5
 /// runs at each size, or the larger median is under N5_FLOOR_MS. It prints
-/// the delete times of 250, 500, 1,000 and 2,000 segments, median of 3.
+/// the whole delete-all's milliseconds at 250 and 2,000 segments, the
+/// medians of the same 5 runs.
 #[test]
 #[ignore = "no time on this Mac is a measurement (ruling ST-46 K5 N5): scripts/r1/ci.d/31-store-full-volume.sh runs it in CI on the macos job"]
 fn the_time_to_a_destroyed_root_differs_by_less_than_twice_between_250_and_2000_segments() {
-    let at = |segments: usize| median((0..5).map(|_| delete_times(segments).0).collect());
-    let (small, large) = (at(250), at(2_000));
+    let at = |segments: usize| {
+        let runs: Vec<(f64, f64)> = (0..5).map(|_| delete_times(segments)).collect();
+        (
+            median(runs.iter().map(|run| run.0).collect()),
+            median(runs.iter().map(|run| run.1).collect()),
+        )
+    };
+    let ((small, small_whole), (large, large_whole)) = (at(250), at(2_000));
     println!();
     println!("N5 to_the_root_ms_median_of_5 segments=250 ms={small:.2}");
     println!("N5 to_the_root_ms_median_of_5 segments=2000 ms={large:.2}");
@@ -1678,10 +1685,8 @@ fn the_time_to_a_destroyed_root_differs_by_less_than_twice_between_250_and_2000_
         "N5 ratio_2000_to_250={:.2} floor_ms={N5_FLOOR_MS}",
         large / small
     );
-    for segments in [250, 500, 1_000, 2_000] {
-        let whole = median((0..3).map(|_| delete_times(segments).1).collect());
-        println!("N5 delete_all_ms median_of_3: segments={segments} ms={whole:.2}");
-    }
+    println!("N5 delete_all_ms median_of_5: segments=250 ms={small_whole:.2}");
+    println!("N5 delete_all_ms median_of_5: segments=2000 ms={large_whole:.2}");
     assert!(
         large < 2.0 * small || large < N5_FLOOR_MS,
         "the time to a destroyed root grows with the store: 250={small:.2} ms, 2000={large:.2} ms"

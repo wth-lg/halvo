@@ -153,7 +153,7 @@ fn the_preset_of_each_seed_category_has_the_values_of_its_row() {
         assert_eq!(c.permissions, permissions, "{category:?}");
         assert_eq!(c.runtime, runtime, "{category:?}");
         assert_eq!(c.playbook, None);
-        assert_eq!(validate(&c), Ok(()), "{category:?}");
+        assert_eq!(validate(&c, None), Ok(()), "{category:?}");
         let json = match c.to_json() {
             Ok(json) => json,
             Err(r) => panic!("{r}"),
@@ -435,49 +435,53 @@ fn unattended_split() -> AgentConfig {
 #[test]
 fn validate_takes_an_unattended_agent_with_an_allowed_class_and_the_split() {
     let c = unattended_split();
-    assert_eq!(validate(&c), Ok(()));
+    assert_eq!(validate(&c, None), Ok(()));
     let mut c = preset_of(SeedCategory::Email);
     c.autonomy = Autonomy::Unattended;
     c.allow = vec![AllowedClass::Send, AllowedClass::Delete];
     c.caps.private = N;
-    assert_eq!(validate(&c), Ok(()));
+    assert_eq!(validate(&c, None), Ok(()));
 }
 
 #[test]
 fn validate_answers_each_cause() {
     let mut c = preset_of(SeedCategory::Email);
     c.tier = ModelTier::Frontier;
-    assert_eq!(validate(&c), Err(ConfigCause::Tier));
+    assert_eq!(validate(&c, None), Err(ConfigCause::Tier));
     c.tier = ModelTier::LowCostHosted;
-    assert_eq!(validate(&c), Err(ConfigCause::Tier));
+    assert_eq!(validate(&c, None), Err(ConfigCause::Tier));
 
     let mut c = preset_of(SeedCategory::Email);
     c.budget = Some(Budget {
         amount: 500,
         period: Period::Month,
     });
-    assert_eq!(validate(&c), Err(ConfigCause::Budget));
+    assert_eq!(validate(&c, None), Err(ConfigCause::Budget));
 
     let mut c = preset_of(SeedCategory::Email);
     c.allow = vec![AllowedClass::Submit];
-    assert_eq!(validate(&c), Err(ConfigCause::Allow), "draft_and_confirm");
+    assert_eq!(
+        validate(&c, None),
+        Err(ConfigCause::Allow),
+        "draft_and_confirm"
+    );
     c.autonomy = Autonomy::Observe;
-    assert_eq!(validate(&c), Err(ConfigCause::Allow), "observe");
+    assert_eq!(validate(&c, None), Err(ConfigCause::Allow), "observe");
     c.autonomy = Autonomy::Unattended;
     assert_eq!(
-        validate(&c),
+        validate(&c, None),
         Err(ConfigCause::Allow),
         "unattended without the split"
     );
     c.caps.untrusted = N;
-    assert_eq!(validate(&c), Ok(()));
+    assert_eq!(validate(&c, None), Ok(()));
 
     for autonomy in [Autonomy::DraftAndConfirm, Autonomy::Observe] {
         let mut c = preset_of(SeedCategory::SpreadsheetFill);
         c.allow = vec![AllowedClass::Send];
         c.autonomy = autonomy;
         assert_eq!(
-            validate(&c),
+            validate(&c, None),
             Err(ConfigCause::Allow),
             "{autonomy:?} with the split"
         );
@@ -492,23 +496,31 @@ fn validate_answers_each_cause() {
     ] {
         let mut c = preset_of(category);
         c.runtime = other;
-        assert_eq!(validate(&c), Err(ConfigCause::Runtime), "{category:?}");
+        assert_eq!(
+            validate(&c, None),
+            Err(ConfigCause::Runtime),
+            "{category:?}"
+        );
     }
     for autonomy in [Autonomy::DraftAndConfirm, Autonomy::Unattended] {
         let mut c = preset_of(SeedCategory::RideOrder);
         c.autonomy = autonomy;
-        assert_eq!(validate(&c), Err(ConfigCause::Runtime), "{autonomy:?}");
+        assert_eq!(
+            validate(&c, None),
+            Err(ConfigCause::Runtime),
+            "{autonomy:?}"
+        );
     }
 
     let mut c = preset_of(SeedCategory::Email);
     c.limits.steps = 0;
-    assert_eq!(validate(&c), Err(ConfigCause::Limits));
+    assert_eq!(validate(&c, None), Err(ConfigCause::Limits));
     let mut c = preset_of(SeedCategory::Email);
     c.limits.wall_s = 0;
-    assert_eq!(validate(&c), Err(ConfigCause::Limits));
+    assert_eq!(validate(&c, None), Err(ConfigCause::Limits));
     let mut c = preset_of(SeedCategory::Email);
     c.limits.model_tokens = 0;
-    assert_eq!(validate(&c), Ok(()), "model_tokens 0 is no cause");
+    assert_eq!(validate(&c, None), Ok(()), "model_tokens 0 is no cause");
 }
 
 #[test]
@@ -522,17 +534,17 @@ fn validate_answers_the_first_cause_of_the_order() {
     c.allow = vec![AllowedClass::Send];
     c.runtime = Runtime::Web;
     c.limits.steps = 0;
-    assert_eq!(validate(&c), Err(ConfigCause::Tier));
+    assert_eq!(validate(&c, None), Err(ConfigCause::Tier));
     c.tier = ModelTier::OnDevice;
-    assert_eq!(validate(&c), Err(ConfigCause::Budget));
+    assert_eq!(validate(&c, None), Err(ConfigCause::Budget));
     c.budget = None;
-    assert_eq!(validate(&c), Err(ConfigCause::Allow));
+    assert_eq!(validate(&c, None), Err(ConfigCause::Allow));
     c.allow = Vec::new();
-    assert_eq!(validate(&c), Err(ConfigCause::Runtime));
+    assert_eq!(validate(&c, None), Err(ConfigCause::Runtime));
     c.runtime = Runtime::GraphMail;
-    assert_eq!(validate(&c), Err(ConfigCause::Limits));
+    assert_eq!(validate(&c, None), Err(ConfigCause::Limits));
     c.limits.steps = 1;
-    assert_eq!(validate(&c), Ok(()));
+    assert_eq!(validate(&c, None), Ok(()));
 }
 
 #[test]

@@ -1,0 +1,2 @@
+- Added: The coordinator body set_model keeps a person's yes for one agent to a hosted model as one row of the new kind agent_agreement with the agent's ceiling tier, takes it back with on_device, and list_agents hands it under the key agreement (r3 U7.7).
+- Changed: validate takes the agreement beside an agent's set-up: a hosted tier passes only with an agreement whose ceiling is that tier, and not for an agent whose runtime is none (r3 U7.7).

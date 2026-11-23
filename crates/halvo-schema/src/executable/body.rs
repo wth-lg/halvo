@@ -13,11 +13,11 @@ use super::frame::FRAME_JSON_MAX;
 use super::json::{self, each_once, from_json, list, object_type, opt};
 use super::names::{
     ActionClass, AgentState, Cause, CheckpointState, EffectState, LeftReason, ListedState,
-    MarkState, Mode, ReplyState, Way, YesNo,
+    MarkState, Mode, ModelTier, ReplyState, Way, YesNo,
 };
 use super::record::{
-    checkpoint_copy, origins_and_slots, part_of, slot_names_once, AgentCheckpoint, AgentEffect,
-    AgentLog, AgentReply, AgentRun, AgentStart, Slot, SESSION_PARTS_MAX,
+    checkpoint_copy, hosts_up_to, origins_and_slots, part_of, slot_names_once, AgentCheckpoint,
+    AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, Hosted, Slot, SESSION_PARTS_MAX,
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
 use super::text::{
@@ -830,6 +830,37 @@ object_type! {
     rules(_b) { Ok(()) }
 }
 
+object_type! {
+    /// `set_model`: the person's yes for the agent to a hosted model, or the way back (r3 U7.7). `tier` is the agent's
+    /// ceiling; `agreement` is null with `on_device`, the way back, and with a hosted tier a list of `Hosted` triples,
+    /// as the caller read them from the router's table: one of the ceiling, at most one of each tier, and no rule for
+    /// a missing lower tier. The parser refuses a list with a
+    /// tier twice or with `on_device` in a triple, an empty origin or model word (`malformed`) and a longer one than
+    /// `OWN_TEXT_MAX` bytes (`length`), and with a hosted tier a list with no triple of that tier or with a tier above
+    /// it (`malformed`). A hosted tier with null and `on_device` with a list are `validate`'s cause `tier`. In one write
+    /// the store keeps the next revision of the agent's set-up with the tier, and the agent's one `agent_agreement` row
+    /// at a yes or none at the way back, and answers that revision.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct SetModel [op = "set_model"] {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub tier: ModelTier = "tier" => from_json,
+        pub agreement: Option<Vec<Hosted>> = "agreement" => opt(list(Hosted::from_raw)),
+    }
+    rules(b) {
+        match (b.tier, &b.agreement) {
+            (_, None) => Ok(()),
+            (ModelTier::OnDevice, Some(hosts)) => {
+                let tiers: Vec<ModelTier> = hosts.iter().map(|h| h.tier).collect();
+                each_once("SetModel", &tiers).map_err(|r| r.at("agreement"))
+            }
+            (ceiling, Some(hosts)) => {
+                hosts_up_to("SetModel", ceiling, hosts).map_err(|r| r.at("agreement"))
+            }
+        }
+    }
+}
+
 op_enum! {
     /// The coordinator bodies of this run (`CoordinatorCall`): each holds `op` first, then `workflow` and `agent`,
     /// then its keys.
@@ -851,6 +882,7 @@ op_enum! {
         DropModelKey(DropModelKey) = "drop_model_key",
         ModelKeyState(ModelKeyState) = "model_key_state",
         ReadModelKey(ReadModelKey) = "read_model_key",
+        SetModel(SetModel) = "set_model",
     }
 }
 
@@ -1088,6 +1120,17 @@ object_type! {
 }
 
 object_type! {
+    /// The agreement of an entry of `list_agents` (r3 U7.7): the ceiling tier of the person's yes that stands for the
+    /// agent and its triples, as the agent's `agent_agreement` row holds them, under the rules of that row.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ListedAgreement {
+        pub tier: ModelTier = "tier" => from_json,
+        pub hosts: Vec<Hosted> = "hosts" => list(Hosted::from_raw),
+    }
+    rules(g) { hosts_up_to("ListedAgreement", g.tier, &g.hosts).map_err(|r| r.at("hosts")) }
+}
+
+object_type! {
     /// One agent of the reply of `list_agents`: its configuration, the state of its workflow, the slot names of its
     /// newest bindings, `session` (`yes` when a session of the agent is stored whole), its newest run record or
     /// null, its effects whose newest row is `unknown`, `refused_run` (the id of the agent's newest started run
@@ -1096,10 +1139,12 @@ object_type! {
     /// bindings that their one reader refuses), `last_cause` (the cause that the `stopped` row of the agent's
     /// newest started run holds, or null where that run has not ended, ended with no cause or holds a cause that is no
     /// name of the list) and `window` (`yes` where the agent's next run needs a browser window, `no` where it needs
-    /// none, read from the agent's own rows). The five last keys hold a run id, a yes or no, slot names, a name of the
-    /// closed list of causes and a yes or no alone: never a slot's value, no site, no count, no secret and no text, of
-    /// a page, of a site or of an error. An entry that lacks a key is refused, `window` among them. A run record of
-    /// another agent is refused, and `reply_unknown` `yes` beside `last` null.
+    /// none, read from the agent's own rows). The five keys after `unknown` hold a run id, a yes or no, slot names, a
+    /// name of the closed list of causes and a yes or no alone: never a slot's value, no site, no count, no secret and
+    /// no text, of a page, of a site or of an error. `agreement` (r3 U7.7) is the person's yes that stands for the
+    /// agent, its ceiling tier and its triples, only where its tier is the tier of `config`, else null. An entry that
+    /// lacks a key is refused, `window` and `agreement` among them. A run record of another agent is refused,
+    /// `reply_unknown` `yes` beside `last` null, and an agreement whose tier is not the tier of `config`.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct ListedAgent {
         pub config: AgentConfig = "config" => AgentConfig::from_raw,
@@ -1113,8 +1158,12 @@ object_type! {
         pub refused_slots: Vec<Name> = "refused_slots" => list(from_json),
         pub last_cause: Option<Cause> = "last_cause" => opt(from_json),
         pub window: YesNo = "window" => from_json,
+        pub agreement: Option<ListedAgreement> = "agreement" => opt(ListedAgreement::from_raw),
     }
     rules(a) {
+        if a.agreement.as_ref().is_some_and(|g| g.tier != a.config.tier) {
+            return Err(Refusal::malformed("ListedAgent", "agreement_of_another_tier").at("agreement"));
+        }
         if a
             .last
             .as_ref()
@@ -1318,8 +1367,8 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of `create_agent`, `set_bindings` and `add_origin`: the revision stored, or for an `add_origin`
-    /// that stored nothing the newest.
+    /// The reply of `create_agent`, `set_bindings`, `add_origin` and `set_model`: the revision stored, or for an
+    /// `add_origin` that stored nothing the newest.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct RevReply {
         pub rev: NonZeroU32 = "rev" => from_json,
@@ -1387,7 +1436,7 @@ reply_enum! {
 
 impl CoordinatorReply {
     /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
-    /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints`, `list_agents`,
+    /// revision 1 alone, `set_bindings`, `add_origin` and `set_model` by any revision, `list_checkpoints`, `list_agents`,
     /// `agent_history` and `list_replies` by their lists, `mark_checkpoint` by `stored` 0 or 1, `drop_sessions` by any
     /// count stored, `put_model_key` by `stored` 1, `drop_model_key` by `stored` 0, `model_key_state` by `stands` and
     /// `read_model_key` by `key`, and `list_overlaps` by its list only as `OverlapsReply::answers` says.
@@ -1402,7 +1451,9 @@ impl CoordinatorReply {
             (CoordinatorReply::Stored(r), CoordinatorCall::DropModelKey(_)) => r.stored == 0,
             (
                 CoordinatorReply::Rev(_),
-                CoordinatorCall::SetBindings(_) | CoordinatorCall::AddOrigin(_),
+                CoordinatorCall::SetBindings(_)
+                | CoordinatorCall::AddOrigin(_)
+                | CoordinatorCall::SetModel(_),
             )
             | (CoordinatorReply::State(_), CoordinatorCall::SetState(_))
             | (CoordinatorReply::Checkpoints(_), CoordinatorCall::ListCheckpoints(_))

@@ -451,6 +451,31 @@ fn u34_the_texts_of_the_delete_stand_word_for_word() {
     }
 }
 
+/// The texts of the item of a failed step and of its row, U3.19: whatever the person answers,
+/// the run ends and the agent's next run starts at its first step (the agents contract A6.4), so
+/// no text says that the agent goes on after the person's help; the two answers stay.
+const U319_TEXTS: [(&str, &str); 5] = [
+    (
+        "line.needs_you.stuck",
+        "It could not get past one step and waits for your answer.",
+    ),
+    ("item.stuck.title", "“{name}” could not get past one step"),
+    (
+        "item.stuck.text",
+        "You can finish the task yourself in its own window, then choose Done, or choose Stop this time. Either way it tries again next time.",
+    ),
+    ("choice.stuck.decline", "Stop this time"),
+    ("choice.stuck.done", "Done"),
+];
+
+#[test]
+fn u319_the_texts_of_a_failed_step_stand_word_for_word() {
+    for (key, want) in U319_TEXTS {
+        let got = KEYS.iter().find(|(k, _)| *k == key).map(|(_, t)| *t);
+        assert_eq!(got, Some(want), "{key}");
+    }
+}
+
 #[test]
 fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
     let mut seen = BTreeSet::new();

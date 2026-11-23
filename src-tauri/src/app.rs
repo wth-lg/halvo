@@ -77,6 +77,20 @@ pub struct WindowMissing {
     pub restart_cures: bool,
 }
 
+/// What the app does once its tray or its window stands, where main manages it: at a background
+/// start on a Mac, it sets the count of failed starts at login to nothing.
+#[cfg(target_os = "macos")]
+pub struct Opened(pub Box<dyn Fn() + Send + Sync>);
+
+/// Runs the [`Opened`] that main manages, where it manages one; on the main thread, where the
+/// tray is installed and where the window's page is loaded.
+#[cfg(target_os = "macos")]
+fn opened<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(opened) = app.try_state::<Opened>() {
+        (opened.0)();
+    }
+}
+
 #[derive(Default)]
 pub struct PageLoads(AtomicU32);
 
@@ -146,6 +160,10 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 None => None,
             };
             let with_tray = tray.is_some();
+            #[cfg(target_os = "macos")]
+            if with_tray {
+                opened(app.handle());
+            }
             app.state::<AppState>()
                 .tray_installed
                 .store(with_tray, Ordering::SeqCst);
@@ -664,6 +682,8 @@ fn open<R: Runtime>(app: &AppHandle<R>, opening: Opening, visible: bool) {
         Opening::Load(installed) => match load(app, visible) {
             Ok(()) => {
                 app.manage(installed);
+                #[cfg(target_os = "macos")]
+                opened(app);
                 return;
             }
             Err(e) => decide(

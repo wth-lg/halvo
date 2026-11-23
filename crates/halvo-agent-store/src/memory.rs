@@ -27,6 +27,7 @@ pub const AGENT_KINDS: &[(&str, Origin)] = &[
     ("agent_reply", Origin::Own),
     ("agent_start", Origin::Own),
     ("agent_finished", Origin::Own),
+    ("agent_agreement", Origin::Own),
     ("model_key", Origin::Person),
 ];
 
