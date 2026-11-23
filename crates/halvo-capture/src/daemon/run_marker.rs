@@ -45,56 +45,43 @@ pub struct HeldRun {
 }
 
 impl HeldRun {
-    /// run/ of the held folder `folder`, made with mode 0700 where it does
-    /// not stand and set to 0700, following no link.
+    /// run/ of the held folder `folder` where it stands, opened following no
+    /// link; where none stands it makes none and answers NotFound, so that a
+    /// run whose start made no run/ writes nothing into the folder that it
+    /// holds.
     #[cfg(target_os = "macos")]
     pub fn of(folder: &StateDir) -> io::Result<HeldRun> {
         use std::os::fd::{AsRawFd, FromRawFd};
         let at = folder.descriptor().as_raw_fd();
         let name = std::ffi::CString::new(halvo_control::paths::RUN.name())
             .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
-        let open = || {
-            // SAFETY: `at` is the descriptor of `folder`, open across the call, and `name`
-            // is a NUL-terminated string that lives across it; without O_CREAT openat reads
-            // no mode argument.
-            unsafe {
-                libc::openat(
-                    at,
-                    name.as_ptr(),
-                    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
-                )
-            }
+        // SAFETY: `at` is the descriptor of `folder`, open across the call, and `name` is a
+        // NUL-terminated string that lives across it; without O_CREAT openat reads no mode
+        // argument.
+        let fd = unsafe {
+            libc::openat(
+                at,
+                name.as_ptr(),
+                libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            )
         };
-        let mut fd = open();
-        if fd == -1 && io::Error::last_os_error().kind() == io::ErrorKind::NotFound {
-            // SAFETY: as above; mkdirat takes the descriptor, the name and a mode alone.
-            if unsafe { libc::mkdirat(at, name.as_ptr(), 0o700) } == -1 {
-                let error = io::Error::last_os_error();
-                if error.kind() != io::ErrorKind::AlreadyExists {
-                    return Err(error);
-                }
-            }
-            fd = open();
-        }
         if fd == -1 {
             return Err(io::Error::last_os_error());
         }
         // SAFETY: `fd` is the descriptor that openat returned and checked, owned by nothing
         // else.
         let fd = unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) };
-        // SAFETY: fchmod takes the descriptor that `fd` owns and a mode alone.
-        if unsafe { libc::fchmod(fd.as_raw_fd(), 0o700) } == -1 {
-            return Err(io::Error::last_os_error());
-        }
         Ok(HeldRun { fd })
     }
 
-    /// run/ of the held folder `folder`, by its path, made where it does not
-    /// stand.
+    /// run/ of the held folder `folder`, by its path, where it stands; where
+    /// none stands it makes none and answers NotFound.
     #[cfg(windows)]
     pub fn of(folder: &StateDir) -> io::Result<HeldRun> {
         let path = folder.path().join(halvo_control::paths::RUN.name());
-        std::fs::create_dir_all(&path)?;
+        if !std::fs::symlink_metadata(&path).is_ok_and(|meta| meta.is_dir()) {
+            return Err(io::ErrorKind::NotFound.into());
+        }
         Ok(HeldRun { path })
     }
 }
@@ -219,9 +206,10 @@ pub fn last_end(dir: &DataDir) -> LastEnd {
 /// next start reads what this one read; where it found the marker of a life
 /// that did not end in order, the marker that `begin` wrote in its place
 /// stays, so that the next start reads unclean too: a start that cannot bind
-/// hides no lost batch. It writes through `run`, the held folder.
+/// hides no lost batch; where `begin` wrote no marker, it writes nothing.
+/// It writes through `run`, the held folder.
 pub fn give_back(run: &HeldRun, begun: &Begun) -> io::Result<()> {
-    if begun.last_stop == LastStop::Unclean {
+    if begun.last_stop == LastStop::Unclean || begun.written.is_err() {
         return Ok(());
     }
     match &begun.found {
