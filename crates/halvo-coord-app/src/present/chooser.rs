@@ -17,12 +17,13 @@ use tauri::{AppHandle, Runtime};
 /// did, the capture would keep an app-in-front record with the service's id, the title of its
 /// focused window, key classes and clicks, as for any program's open panel. On Windows it is
 /// IFileOpenDialog, shown on a thread of its own in
-/// a single-threaded apartment: at the first event that the dialog sends, the window of the
-/// dialog gets the display affinity WDA_EXCLUDEFROMCAPTURE, as the confirm dialog's window gets
+/// a single-threaded apartment: at the first event of the dialog whose dialog has a window
+/// (r4 U3.22e; an event before the window decides nothing), that window gets the display
+/// affinity WDA_EXCLUDEFROMCAPTURE, as the confirm dialog's window gets
 /// it at TDN_CREATED, so that the system keeps it out of screenshots, screen shares and screen
 /// recordings that are made through Windows' own capture features, Halvo's own screen record
 /// among them; where the system refuses that call, the dialog closes at once and the show
-/// answers `Chosen::Closed`, as it does where the dialog never sent that event. Each takes ONE
+/// answers `Chosen::Closed`, as it does where no event of the dialog had a window. Each takes ONE
 /// file and no folder (`macos::choices`, `windows::choices`), in the folder given, and answers
 /// its full path, or `Chosen::Closed` for a close and for every call that failed. On another
 /// system no chooser is shown and the answer is `Chosen::Closed`. Named limits: no run here
@@ -56,7 +57,7 @@ impl<R: Runtime> Files for SystemChooser<R> {
         #[cfg(target_os = "macos")]
         return Ok(macos::choose(&self.app, folder));
         #[cfg(windows)]
-        return Ok(windows::choose(folder));
+        return Ok(windows::choose(folder, |_| {}));
         #[cfg(not(any(target_os = "macos", windows)))]
         {
             let _ = folder;
@@ -177,13 +178,15 @@ pub(super) mod windows {
         }
     }
 
-    /// The events of one show: at the first event of the dialog's folder it sets the affinity on
-    /// the dialog's window, and closes the dialog where that call fails; `set` holds whether the
-    /// call took, none before the first event.
+    /// The events of one show (r4 U3.22e): at the first event whose dialog has a window it sets
+    /// the affinity on that window, then hands the dialog to `opened`, or closes the dialog where
+    /// that call fails; an event whose dialog has no window yet decides nothing. `set` holds
+    /// whether the call took, none before that event.
     #[implement(IFileDialogEvents)]
     struct Guard {
         affinity: WINDOW_DISPLAY_AFFINITY,
         set: Cell<Option<bool>>,
+        opened: fn(&IFileDialog),
     }
 
     impl Guard {
@@ -192,18 +195,23 @@ pub(super) mod windows {
                 return;
             }
             let Ok(dialog) = dialog.ok() else {
-                self.set.set(Some(false));
                 return;
             };
             // SAFETY: the window of the dialog that sent this event, which lives while it shows.
-            let protected = dialog
+            let Some(window) = dialog
                 .cast::<IOleWindow>()
                 .and_then(|w| unsafe { w.GetWindow() })
-                .is_ok_and(|window| {
-                    unsafe { SetWindowDisplayAffinity(window, self.affinity) }.is_ok()
-                });
+                .ok()
+                .filter(|window| !window.is_invalid())
+            else {
+                return;
+            };
+            // SAFETY: as above.
+            let protected = unsafe { SetWindowDisplayAffinity(window, self.affinity) }.is_ok();
             self.set.set(Some(protected));
-            if !protected {
+            if protected {
+                (self.opened)(dialog);
+            } else {
                 // SAFETY: a call on the dialog that sent this event, while it shows.
                 let _ = unsafe { dialog.Close(E_ABORT) };
             }
@@ -225,7 +233,8 @@ pub(super) mod windows {
             Ok(())
         }
 
-        fn OnSelectionChange(&self, _: Ref<IFileDialog>) -> Result<()> {
+        fn OnSelectionChange(&self, dialog: Ref<IFileDialog>) -> Result<()> {
+            self.first(dialog);
             Ok(())
         }
 
@@ -237,7 +246,8 @@ pub(super) mod windows {
             Ok(FDESVR_DEFAULT)
         }
 
-        fn OnTypeChange(&self, _: Ref<IFileDialog>) -> Result<()> {
+        fn OnTypeChange(&self, dialog: Ref<IFileDialog>) -> Result<()> {
+            self.first(dialog);
             Ok(())
         }
 
@@ -250,31 +260,33 @@ pub(super) mod windows {
         }
     }
 
-    /// Shows the dialog on a thread of its own and waits for its answer.
-    pub fn choose(folder: Option<&str>) -> Chosen {
+    /// Shows the dialog on a thread of its own and waits for its answer; `opened` gets the dialog
+    /// once, on that thread, at the event at which its window took the affinity (the product's
+    /// does nothing; the hosted case's closes the dialog later through its own interface).
+    pub fn choose(folder: Option<&str>, opened: fn(&IFileDialog)) -> Chosen {
         let folder = folder.map(str::to_owned);
         std::thread::Builder::new()
             .name("halvo-chooser".into())
-            .spawn(move || show(folder.as_deref()))
+            .spawn(move || show(folder.as_deref(), opened))
             .ok()
             .and_then(|shown| shown.join().ok())
             .unwrap_or(Chosen::Closed)
     }
 
-    fn show(folder: Option<&str>) -> Chosen {
+    fn show(folder: Option<&str>, opened: fn(&IFileDialog)) -> Chosen {
         // SAFETY: the apartment of this new thread, left below once the dialog has gone.
         let joined =
             unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) };
         if joined.is_err() {
             return Chosen::Closed;
         }
-        let chosen = pick(folder).unwrap_or(Chosen::Closed);
+        let chosen = pick(folder, opened).unwrap_or(Chosen::Closed);
         // SAFETY: the one CoInitializeEx of this thread that succeeded above.
         unsafe { CoUninitialize() };
         chosen
     }
 
-    fn pick(folder: Option<&str>) -> Result<Chosen> {
+    fn pick(folder: Option<&str>, opened: fn(&IFileDialog)) -> Result<Chosen> {
         // SAFETY: the system's file open dialog, made in this thread's apartment.
         let dialog: IFileOpenDialog =
             unsafe { CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER) }?;
@@ -297,6 +309,7 @@ pub(super) mod windows {
         let guard = ComObject::new(Guard {
             affinity: made.affinity,
             set: Cell::new(None),
+            opened,
         });
         let events: IFileDialogEvents = guard.to_interface();
         // SAFETY: the events of this show, removed again before the dialog is dropped.
@@ -370,5 +383,261 @@ mod tests {
             assert_eq!(made.affinity, WDA_EXCLUDEFROMCAPTURE);
         }
         assert_eq!(choices(FILEOPENDIALOGOPTIONS(0), None).folder, None);
+    }
+
+    /// r4 U3.22e sentence 1, on a hosted runner of GitHub Actions alone, with no keyboard and no
+    /// pointer input: the product's own code shows IFileOpenDialog on a thread of its own; within
+    /// a bounded wait an event of the dialog has a window that took the display affinity, the
+    /// window stands visible, reads WDA_EXCLUDEFROMCAPTURE by the system's own
+    /// GetWindowDisplayAffinity, and has not closed by itself 500 ms later; then the case closes
+    /// it through the dialog's own IFileDialog::Close, on the dialog's own thread, and the show
+    /// answers `Chosen::Closed`. Every wait has its bound and ends red with its sentence, and the
+    /// case joins no thread that a stuck dialog holds, so it cannot hang. It writes ONE line to
+    /// the standard error, past the capture of the test harness, that starts with its name: on a
+    /// hosted runner the milliseconds from the show to the answer closed, and on every other
+    /// machine the line of the confirm dialog's hosted cases, after which it passes at once.
+    #[cfg(windows)]
+    #[test]
+    fn u322e_on_a_hosted_runner_the_windows_chooser_opens_out_of_the_capture_and_stays_until_its_own_interface_closes_it(
+    ) {
+        if !hosted::hosted() {
+            hosted::line("hosted alone: not run on this machine");
+            return;
+        }
+        let failures = hosted::run();
+        assert!(
+            failures.is_empty(),
+            "the system's chooser on this hosted runner: {}",
+            failures.join("; ")
+        );
+    }
+
+    #[cfg(windows)]
+    mod hosted {
+        use super::super::windows::choose;
+        use ::windows::core::Interface;
+        use ::windows::Win32::Foundation::{ERROR_CANCELLED, HWND};
+        use ::windows::Win32::System::Ole::IOleWindow;
+        use ::windows::Win32::UI::Shell::IFileDialog;
+        use ::windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowDisplayAffinity, IsWindow, IsWindowVisible, KillTimer, SetTimer,
+            WDA_EXCLUDEFROMCAPTURE,
+        };
+        use halvo_coord::ports::Chosen;
+        use std::ffi::c_void;
+        use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+        use std::sync::mpsc::{self, Receiver, Sender};
+        use std::sync::{Mutex, PoisonError};
+        use std::time::{Duration, Instant};
+
+        const WINDOW_BOUND: Duration = Duration::from_secs(10);
+        const STAYS: Duration = Duration::from_millis(500);
+        const CLOSE_BOUND: Duration = Duration::from_secs(5);
+        const POLL: Duration = Duration::from_millis(10);
+        /// The id of the case's timer on the dialog's window, one that the dialog's own timers
+        /// are unlikely to take.
+        const TIMER: usize = 0x0322_e7e5;
+        const TICK_MS: u32 = 20;
+
+        /// Set by the case once its reads are done: the next tick on the dialog's thread closes
+        /// the dialog through IFileDialog::Close.
+        static CLOSE: AtomicBool = AtomicBool::new(false);
+        /// The dialog of the show, as the event sink hands it on the dialog's thread; read there
+        /// alone, by the tick of a timer of the dialog's window, which the system ends with that
+        /// window, while the dialog lives.
+        static DIALOG: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
+        /// Where `opened` sends the dialog's window, as the dialog's own interface names it.
+        static WINDOW: Mutex<Option<Sender<isize>>> = Mutex::new(None);
+
+        /// The case's name, which starts each line that it writes.
+        const NAME: &str = "present::chooser::tests::u322e_on_a_hosted_runner_the_windows_chooser_opens_out_of_the_capture_and_stays_until_its_own_interface_closes_it";
+
+        /// Whether this is a hosted runner of GitHub Actions, where the case runs, as the
+        /// confirm dialog's hosted cases know one: `GITHUB_ACTIONS` is `true` and
+        /// `RUNNER_ENVIRONMENT` is `github-hosted`.
+        pub fn hosted() -> bool {
+            std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true")
+                && std::env::var("RUNNER_ENVIRONMENT").as_deref() == Ok("github-hosted")
+        }
+
+        /// Writes `text` behind the case's name as one line to the standard error itself, which
+        /// the test harness does not capture, so that a passing run shows it too.
+        pub fn line(text: &str) {
+            use std::io::Write;
+            let _ = writeln!(std::io::stderr(), "{NAME}: {text}");
+        }
+
+        /// The case's `opened`, on the dialog's thread at the event at which its window took the
+        /// affinity: it reads the window through the dialog's own IOleWindow, keeps the dialog for
+        /// the tick, sets the timer on that window and sends the window to the case.
+        fn opened(dialog: &IFileDialog) {
+            // SAFETY: the window of the dialog that sent the event, which lives while it shows.
+            let Ok(window) = dialog
+                .cast::<IOleWindow>()
+                .and_then(|w| unsafe { w.GetWindow() })
+            else {
+                return;
+            };
+            DIALOG.store(dialog.as_raw(), Ordering::SeqCst);
+            // SAFETY: a timer of the dialog's own window, set on the thread of that window; the
+            // system ends it when the window is destroyed.
+            unsafe { SetTimer(Some(window), TIMER, TICK_MS, Some(tick)) };
+            if let Some(tx) = WINDOW
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .as_ref()
+            {
+                let _ = tx.send(window.0 as isize);
+            }
+        }
+
+        /// A tick on the dialog's thread: once the case has set `CLOSE`, it ends its timer and
+        /// closes the dialog through its own interface with the answer that a cancel gives.
+        unsafe extern "system" fn tick(window: HWND, _: u32, id: usize, _: u32) {
+            if !CLOSE.load(Ordering::SeqCst) {
+                return;
+            }
+            // SAFETY: the timer that `opened` set on this window, on this thread.
+            let _ = unsafe { KillTimer(Some(window), id) };
+            let raw = DIALOG.swap(std::ptr::null_mut(), Ordering::SeqCst);
+            // SAFETY: the dialog whose window holds this timer: it lives while that window lives,
+            // and the tick runs only while it does.
+            if let Some(dialog) = unsafe { IFileDialog::from_raw_borrowed(&raw) } {
+                // SAFETY: a call on the dialog, on its own thread, while it shows.
+                let _ = unsafe { dialog.Close(ERROR_CANCELLED.to_hresult()) };
+            }
+        }
+
+        fn visible(window: HWND) -> bool {
+            // SAFETY: reads of a window of this process, or of one that has gone, which read false.
+            unsafe { IsWindow(Some(window)).as_bool() && IsWindowVisible(window).as_bool() }
+        }
+
+        fn affinity(window: HWND) -> Option<u32> {
+            let mut affinity = 0u32;
+            // SAFETY: `affinity` is a live local that the call writes.
+            unsafe { GetWindowDisplayAffinity(window, &mut affinity) }
+                .ok()
+                .map(|()| affinity)
+        }
+
+        fn ms(since: Instant) -> u128 {
+            since.elapsed().as_millis()
+        }
+
+        /// The case: what failed, each in its sentence, after its one line.
+        pub fn run() -> Vec<String> {
+            let mut failures = Vec::new();
+            CLOSE.store(false, Ordering::SeqCst);
+            let (window_tx, windows) = mpsc::channel();
+            *WINDOW.lock().unwrap_or_else(PoisonError::into_inner) = Some(window_tx);
+            let (answer_tx, answers) = mpsc::channel();
+            let start = Instant::now();
+            let spawned = std::thread::Builder::new()
+                .name("u322e-chooser".into())
+                .spawn(move || {
+                    let _ = answer_tx.send(choose(None, opened));
+                });
+            let reads = match spawned {
+                Ok(_) => read(&mut failures, &windows, &answers, start),
+                Err(e) => {
+                    failures.push(format!("no thread for the show: {e}"));
+                    String::new()
+                }
+            };
+            CLOSE.store(true, Ordering::SeqCst);
+            line(&if failures.is_empty() {
+                format!(
+                    "{} ms from the show to the answer closed ({reads})",
+                    ms(start)
+                )
+            } else {
+                format!(
+                    "red {} ms after the show, with {} failures ({reads})",
+                    ms(start),
+                    failures.len()
+                )
+            });
+            failures
+        }
+
+        /// The reads of the case, in order; each miss goes to `failures` and ends them. It
+        /// answers what it read, for the case's line.
+        fn read(
+            failures: &mut Vec<String>,
+            windows: &Receiver<isize>,
+            answers: &Receiver<Chosen>,
+            start: Instant,
+        ) -> String {
+            let mut reads = Vec::new();
+            let window = loop {
+                if let Ok(window) = windows.try_recv() {
+                    break HWND(window as *mut c_void);
+                }
+                if let Ok(answer) = answers.try_recv() {
+                    failures.push(format!("the chooser closed by itself {} ms after the show began, with the answer {answer:?}, before any event of it had a window that took the display affinity", ms(start)));
+                    return reads.join(", ");
+                }
+                if start.elapsed() > WINDOW_BOUND {
+                    failures.push(format!("no event of the chooser had a window that took the display affinity within {} s of the show", WINDOW_BOUND.as_secs()));
+                    return reads.join(", ");
+                }
+                std::thread::sleep(POLL);
+            };
+            reads.push(format!("an event with a window at {} ms", ms(start)));
+            while !visible(window) && start.elapsed() <= WINDOW_BOUND {
+                std::thread::sleep(POLL);
+            }
+            if !visible(window) {
+                failures.push(format!(
+                    "the chooser's window did not stand visible within {} s of the show",
+                    WINDOW_BOUND.as_secs()
+                ));
+                return reads.join(", ");
+            }
+            reads.push(format!("visible at {} ms", ms(start)));
+            let read = affinity(window);
+            reads.push(format!("display affinity {read:?}"));
+            if read != Some(WDA_EXCLUDEFROMCAPTURE.0) {
+                failures.push(format!(
+                    "the chooser's window read the display affinity {read:?}, not {}",
+                    WDA_EXCLUDEFROMCAPTURE.0
+                ));
+            }
+            let stood = Instant::now();
+            while stood.elapsed() < STAYS {
+                if let Ok(answer) = answers.try_recv() {
+                    failures.push(format!(
+                        "the chooser closed by itself {} ms after its window stood, with the answer {answer:?}",
+                        ms(stood)
+                    ));
+                    return reads.join(", ");
+                }
+                std::thread::sleep(POLL);
+            }
+            if !visible(window) {
+                failures.push(format!(
+                    "the chooser's window was gone or hidden {} ms after it stood",
+                    STAYS.as_millis()
+                ));
+                return reads.join(", ");
+            }
+            reads.push(format!("open {} ms later", STAYS.as_millis()));
+            CLOSE.store(true, Ordering::SeqCst);
+            let closing = Instant::now();
+            match answers.recv_timeout(CLOSE_BOUND) {
+                Ok(Chosen::Closed) => {
+                    reads.push(format!("closed {} ms after the close was asked", ms(closing)));
+                }
+                Ok(other) => failures.push(format!(
+                    "the chooser closed through IFileDialog::Close answered {other:?}, not closed"
+                )),
+                Err(_) => failures.push(format!(
+                    "the chooser did not close through IFileDialog::Close within {} s; its window stays on the runner's screen until the test process ends",
+                    CLOSE_BOUND.as_secs()
+                )),
+            }
+            reads.join(", ")
+        }
     }
 }

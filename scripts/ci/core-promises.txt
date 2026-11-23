@@ -82,7 +82,7 @@ capture units halvo-capture::macos::window_title gate macos job
 capture units halvo-capture::windows gate windows job; its modules apps, foreground, screen, tests and window_title
 capture units halvo-capture::floor::exclude gate
 capture units halvo-capture::consent gate
-capture units halvo-coord-app::present::chooser::tests gate in both jobs, as unit tests of a package that no units line of scripts/ci/slow-tests.txt names; the system's chooser of the spreadsheet agent's files (r4 U3.22b): in the macos job the choices of NSOpenPanel; in the windows job the choices of IFileOpenDialog and WDA_EXCLUDEFROMCAPTURE on its window; under 1 s in a local run
+capture units halvo-coord-app::present::chooser::tests gate in both jobs, as unit tests of a package that no units line of scripts/ci/slow-tests.txt names; the system's chooser of the spreadsheet agent's files (r4 U3.22b): in the macos job the choices of NSOpenPanel; in the windows job the choices of IFileOpenDialog and WDA_EXCLUDEFROMCAPTURE on its window, and on its hosted runner the real chooser shown by the product's code (r4 U3.22e): an event with a window, the window visible with the display affinity 17, still open 500 ms later, then closed through IFileDialog::Close with the answer closed, its milliseconds in one line of the log that starts with the case's name; under 1 s in a local run, where the hosted case returns at its first line
 capture check 22-redact gate
 capture check 50-windows-functional scheduled wed 467 s in the windows job
 capture check 52-windows-browser scheduled thu 433 s in the windows job
