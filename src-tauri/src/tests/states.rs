@@ -498,7 +498,16 @@ fn with_any_service_but_running_every_daemon_field_is_null() {
         let Value::Object(map) = value else {
             panic!("a view is an object")
         };
-        let keys: Vec<&str> = map.keys().map(String::as_str).collect();
+        assert_eq!(
+            map.contains_key("typing_switch"),
+            view.service() == Service::Running,
+            "{name}: the control of typing"
+        );
+        let keys: Vec<&str> = map
+            .keys()
+            .map(String::as_str)
+            .filter(|key| *key != "typing_switch")
+            .collect();
         assert_eq!(
             keys,
             [
