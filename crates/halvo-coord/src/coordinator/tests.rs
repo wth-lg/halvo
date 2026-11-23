@@ -264,6 +264,33 @@ fn sheet_world_holding(
     ran: bool,
     hold: Option<crate::types::HoldSetCause>,
 ) -> Coordinator<Ports<Config>> {
+    let mut stored = Vec::new();
+    if ran {
+        let run = RunId::parse(&format!("{:032x}", 0x71)).unwrap();
+        stored.push(crate::types::What::RunStarted {
+            run: run.clone(),
+            trigger: crate::types::Trigger::Person,
+            slot: None,
+        });
+        stored.push(crate::types::What::RunEnded {
+            run,
+            cause: RunEnd::Completed,
+            defers: None,
+        });
+    }
+    if let Some(cause) = hold {
+        stored.push(crate::types::What::HoldSet { cause });
+    }
+    sheet_world_from(slots, stored, None)
+}
+
+/// The world of `sheet_world`, whose stored events are `stored`, of yesterday, and whose roster
+/// entry holds `last_cause`.
+fn sheet_world_from(
+    slots: &[&str],
+    stored: Vec<crate::types::What>,
+    last_cause: Option<crate::types::LastCause>,
+) -> Coordinator<Ports<Config>> {
     let ports: Ports<Config> = Ports::with_limits(T0, DAY, Limits::PRODUCT);
     let config = Config::parse(&format!(
         "{{\"v\":1,\"workflow\":\"{}\",\"agent\":\"{}\",\"rev\":1,\"category\":\"spreadsheet_fill\",\"tier\":\"on_device\",\"reasoning\":\"medium\",\"autonomy\":\"draft_and_confirm\",\"allow\":[],\"caps\":{{\"untrusted\":\"yes\",\"private\":\"yes\",\"external\":\"no\"}},\"limits\":{{\"steps\":20,\"wall_s\":120,\"model_tokens\":0}},\"budget\":null,\"permissions\":[\"user_files\"],\"runtime\":\"file\",\"playbook\":1}}",
@@ -295,25 +322,8 @@ fn sheet_world_holding(
         last: None,
         unknown: Vec::new(),
         refused_run: None,
-        last_cause: None,
+        last_cause,
     });
-    let mut stored = Vec::new();
-    if ran {
-        let run = RunId::parse(&format!("{:032x}", 0x71)).unwrap();
-        stored.push(crate::types::What::RunStarted {
-            run: run.clone(),
-            trigger: crate::types::Trigger::Person,
-            slot: None,
-        });
-        stored.push(crate::types::What::RunEnded {
-            run,
-            cause: RunEnd::Completed,
-            defers: None,
-        });
-    }
-    if let Some(cause) = hold {
-        stored.push(crate::types::What::HoldSet { cause });
-    }
     {
         for (n, what) in (1..).zip(stored) {
             ports.events.borrow_mut().push(crate::types::Event {
@@ -724,5 +734,94 @@ fn u322a_a_line_of_which_sheet_keeps_the_spaces_around_it() {
     assert_eq!(
         slot_of(&sent[0], Param::Sheet),
         Some(vec![typed.to_owned()])
+    );
+}
+
+/// r4 U3.22a round 1, the fifth ruling (the coordinator's log line 18922): behind a failed run
+/// (after a finished one, so that no item `ready` waits) whose last cause is `no_workbook` the
+/// row reads that cause's sentence; behind Use these answers
+/// of a set-up that Change its answers put up again, whose `item_answered` stands behind the end
+/// of that run, it reads R1 to the letter and offers Start now; behind the next run's end it reads
+/// that run's line.
+#[test]
+fn u322a_behind_new_answers_after_a_failed_run_the_row_says_they_are_saved_until_the_next_run() {
+    use crate::types::{LastCause, What};
+    let r0 = RunId::parse(&format!("{:032x}", 0x71)).unwrap();
+    let r1 = RunId::parse(&format!("{:032x}", 0x72)).unwrap();
+    let failed = vec![
+        What::RunStarted {
+            run: r0.clone(),
+            trigger: crate::types::Trigger::Person,
+            slot: None,
+        },
+        What::RunEnded {
+            run: r0,
+            cause: RunEnd::Completed,
+            defers: None,
+        },
+        What::RunStarted {
+            run: r1.clone(),
+            trigger: crate::types::Trigger::Person,
+            slot: None,
+        },
+        What::RunEnded {
+            run: r1,
+            cause: RunEnd::Failed,
+            defers: None,
+        },
+    ];
+    let c = sheet_world_from(&SHEET_SLOTS, failed.clone(), Some(LastCause::NoWorkbook));
+    assert_eq!(
+        sheet_row(&c).line,
+        words::text("line.problem.no_workbook", &[]).unwrap()
+    );
+    assert_eq!(c.control(&sheet_agent(), Action::ChangeAnswers), Ok(()));
+    let item = sheet_setup(&c).expect("the set-up item is up again");
+    let m = mark(&c);
+    for p in SHEET_PARAMS {
+        assert_eq!(c.setup_typed(item.item(), p, good(p), item.step()), Ok(()));
+    }
+    assert_eq!(set_bindings(&c, m).len(), 1, "Use these answers");
+    let row = sheet_row(&c);
+    assert_eq!(
+        row.line,
+        "Its answers are saved. Choose Start now to try again."
+    );
+    assert!(sheet_offers(&c, Control::RunNow), "Start now beside it");
+    let answered = c
+        .ports()
+        .events
+        .borrow()
+        .iter()
+        .find(|e| {
+            matches!(
+                &e.what,
+                What::ItemAnswered {
+                    answer: crate::types::Answered::Setup(_),
+                    ..
+                }
+            )
+        })
+        .map(|e| e.what.clone())
+        .expect("the row of Use these answers");
+    let r2 = RunId::parse(&format!("{:032x}", 0x73)).unwrap();
+    let mut next = failed;
+    next.extend([
+        answered,
+        What::RunStarted {
+            run: r2.clone(),
+            trigger: crate::types::Trigger::Person,
+            slot: None,
+        },
+        What::RunEnded {
+            run: r2,
+            cause: RunEnd::Completed,
+            defers: None,
+        },
+    ]);
+    let after = sheet_world_from(&SHEET_SLOTS, next, None);
+    assert_eq!(
+        sheet_row(&after).line,
+        words::text("line.all_set.done", &[]).unwrap()
     );
 }

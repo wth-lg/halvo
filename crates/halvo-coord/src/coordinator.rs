@@ -1149,7 +1149,9 @@ where
     }
 
     /// Takes what a move of the setup `k` answered; whether the setup stays: never where the move
-    /// closed it, as Not now closes an item asked again (r4 U3.22a).
+    /// closed it, as Not now closes an item asked again (r4 U3.22a). Where an item asked again
+    /// closed at the owner's acknowledgement, the board reads the agent's rows back, so that the
+    /// row holds the `item_answered` that the close stored (r4 U3.22a, the fifth ruling).
     fn setup_done(&self, st: &mut State<Cfg<P>>, k: usize, done: Result<SetupDone, Cause>) -> bool {
         if matches!(done, Ok(SetupDone::Overlap)) {
             let again = self.overlap_once_more(st, k);
@@ -1159,6 +1161,11 @@ where
             self.active_overlap(st, k);
         }
         let agent = st.setups[k].agent().clone();
+        let answered_again = st.setups[k].is_asked_again()
+            && matches!(
+                done,
+                Ok(SetupDone::Closed { .. } | SetupDone::ActiveOverlap)
+            );
         let closed = st.setups[k].state() == &crate::items::SetupState::Closed;
         let stays = !closed
             && (matches!(
@@ -1177,6 +1184,9 @@ where
                         Doing::Queued(_) => Doing::Queued(None),
                         _ => Doing::Idle(None),
                     };
+                }
+                if answered_again {
+                    self.read_back(board, i);
                 }
             }
         }

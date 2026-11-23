@@ -175,6 +175,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "It could not fill in the spreadsheet. Check the file, the sheet, the cells and the data file that you gave it. Then choose Change its answers.",
     ),
     (
+        "line.problem.answers_saved",
+        "Its answers are saved. Choose Start now to try again.",
+    ),
+    (
         "line.problem.no_workbook",
         "Halvo did not find the spreadsheet file where you said it is. Then choose Change its answers.",
     ),

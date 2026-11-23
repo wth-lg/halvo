@@ -21,7 +21,8 @@ use crate::words;
 /// run with its phase, a queued start, a newest run that the agent store has not ended, a last
 /// run that ended with a cause of the failure class, said by the sentence of the facts'
 /// `last_cause` where they hold one that a row says for the agent's runtime (`FILE_CAUSES` for
-/// the runtime file alone, r4 U3.22a), a day with `starts_per_day` starts, and the
+/// the runtime file alone, r4 U3.22a), or that its answers are saved where a set-up's answers
+/// were stored behind that run's end (r4 U3.22a), a day with `starts_per_day` starts, and the
 /// end of the last run. `confirm` is the state of the agent's open confirmation where the
 /// coordinator holds it: a confirmation waits for the person only while it is `shown` or `armed`
 /// (I1.2, I4.2), and a run that waits for an answered one is `working`. The end of a run is the
@@ -87,6 +88,9 @@ pub fn status_of<C: ConfigView>(
         _ => None,
     });
     if let Some(failure) = last.and_then(RunEnd::failure) {
+        if answered_since_the_last_end(facts) {
+            return StatusLine::AnswersSaved;
+        }
         return match facts.last_cause {
             Some(cause) if said(cause, facts.config.runtime()) => StatusLine::LastCause(cause),
             _ => StatusLine::Problem(failure),
@@ -106,6 +110,27 @@ pub fn status_of<C: ConfigView>(
         Some(RunEnd::NothingToDo) => StatusLine::Nothing,
         Some(_) => StatusLine::StoppedEarly,
     }
+}
+
+/// Whether the agent's rows hold a set-up's `item_answered` behind the end of its newest run, as
+/// Use these answers stores it (r4 U3.22a, the fifth ruling): a row of a failed run then reads
+/// `problem.answers_saved` in place of the failed run's line and of a last cause's sentence, until
+/// the agent's next run ends.
+fn answered_since_the_last_end<C>(facts: &Facts<C>) -> bool {
+    let ended = facts
+        .events
+        .iter()
+        .rposition(|e| matches!(e.what, What::RunEnded { .. }));
+    let answered = facts.events.iter().rposition(|e| {
+        matches!(
+            &e.what,
+            What::ItemAnswered {
+                answer: Answered::Setup(_),
+                ..
+            }
+        )
+    });
+    matches!((ended, answered), (Some(ended), Some(answered)) if answered > ended)
 }
 
 /// The causes of a failed run of the runtime file whose sentence a row says for an agent of that

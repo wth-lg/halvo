@@ -195,6 +195,11 @@ impl Setup {
         }
     }
 
+    /// Whether the item asks again the answers that its agent has stored (`asked_again`).
+    pub fn is_asked_again(&self) -> bool {
+        self.again
+    }
+
     /// The body that the owner refused with `overlap`, kept in memory and never stored, which
     /// the flow sends once more after a read with no entry or a switch-off of an agent that the
     /// sentence names; none after any other move that ends it (I3.5 (a); ruling RD-67 3.2 (a)).
