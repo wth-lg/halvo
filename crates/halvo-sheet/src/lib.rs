@@ -115,11 +115,15 @@ impl Folder {
     /// quoted or not, is a number when its text is digits with an optional leading `-` and at
     /// most one `.`, with no zero before another digit of its whole part and at most 15
     /// significant digits; every other field is a text, as typed (`007` and a number of 20
-    /// digits stay texts, and `"123"` is the number 123). Refused with [`Error::Source`] when
-    /// the file is not UTF-8, holds a carriage return that no line feed follows, a line break
-    /// inside a quoted field, text behind a closing quote or a quote that is never closed, or
-    /// has rows of different lengths. No other separator is taken: a line whose fields are separated by semicolons or
-    /// tabs is one field, cut at each comma that it holds.
+    /// digits stay texts, and `"123"` is the number 123). Refused with [`Error::Source`], in
+    /// this order where two hold: the file is not UTF-8; it holds a carriage return that no line
+    /// feed follows, a line break inside a quoted field, text behind a closing quote or a quote
+    /// that is never closed, the first of them in the file named; it reads as a table by another
+    /// separator than the comma, where the semicolons outside quoted fields, or the tabs outside
+    /// them, are one or more and as many in every row (so a file of one row with one such sign
+    /// is refused); or its rows have different lengths. No other separator is read: in any other
+    /// file a semicolon or a tab is text, so a file whose rows hold different counts of
+    /// semicolons is read by its commas alone.
     pub fn read_source(&self, source: &Path) -> Result<Vec<Vec<Value>>, Error> {
         let full = self.file(source)?;
         source::parse(&std::fs::read(full)?)
