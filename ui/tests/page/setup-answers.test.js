@@ -100,3 +100,76 @@ test("each question draws its hint under its words and names it to its line, a l
     [{ agent: row.agent, action: "change_answers" }],
   );
 });
+
+/** A stand-in of the core for the spreadsheet agent's set-up item, as the page reads it: it answers each typed line,
+ * taking a line of a path question only where it starts with a slash, as a full path of a Mac does, and every other
+ * line as typed; a line that it does not take empties that question and carries its sentence. It publishes a new
+ * state, with a new seq, only where the state changed, as the core does, and closes the item when every question holds
+ * a value. `other(id)` puts up an item of another id. */
+function sheetCore() {
+  const [base] = setup.items;
+  const fresh = () => Object.keys(HINTS).map((name) => entry(name, null));
+  let seq = setup.seq;
+  let item = { ...base, params: fresh() };
+  const held = new Map();
+  let waiting = [];
+  const snapshot = () => ({ ...setup, seq, items: item ? [item] : [] });
+  const publish = (next) => {
+    if (JSON.stringify(next) === JSON.stringify(item)) return;
+    item = next;
+    seq += 1;
+    const now = snapshot();
+    waiting.forEach((resolve) => resolve(now));
+    waiting = [];
+  };
+  const replies = {
+    agents_snapshot: () => snapshot(),
+    agents_next: (args) => (args.after !== seq ? snapshot() : new Promise((resolve) => waiting.push(resolve))),
+    agents_setup_typed: (args) => {
+      const path = args.param === "workbook" || args.param === "source";
+      const taken = !path || args.text.startsWith("/");
+      if (taken) held.set(args.param, args.text);
+      else held.delete(args.param);
+      const notTaken = taken ? null : words["param_typed.not_path_mac"];
+      const params = item.params.map((p) => (p.name === args.param ? entry(p.name, notTaken) : p));
+      publish(held.size === params.length ? null : { ...item, params });
+      return { ok: "yes" };
+    },
+    agents_control: { ok: "yes" },
+  };
+  return { replies, other: (id) => publish({ ...base, item: id, params: fresh() }) };
+}
+
+const lineOf = (page, name) => page.document.querySelector(`input.hn-typed[data-param="${name}"]`);
+
+/** Types `text` into the line of `name` as a person does, in place of what it held. */
+async function typeLine(page, name, text) {
+  const line = lineOf(page, name);
+  line.focus();
+  line.value = text;
+  await line.dispatchEvent(makeEvent("input"));
+  await page.settle();
+}
+
+/** The sentences that stand under the line of `name`. */
+const sentencesOf = (page, name) => lineOf(page, name).parentNode.querySelectorAll("p.hn-full").map((p) => p.textContent);
+
+const useAnswers = (page) => page.document.querySelector('button[data-act="choose"]');
+
+test("a second line of one question that the core does not take shows its sentence again, and a line that it takes takes the sentence away", async () => {
+  const page = await openPage({ replies: sheetCore().replies });
+  const sentence = words["param_typed.not_path_mac"];
+  await typeLine(page, "workbook", "Budget.xlsx");
+  await press(page, useAnswers(page));
+  assert.deepEqual(sentencesOf(page, "workbook"), [sentence], "a line that is not taken shows the sentence");
+  await typeLine(page, "workbook", "Documents/Budget.xlsx");
+  await press(page, useAnswers(page));
+  assert.deepEqual(
+    page.calls("agents_setup_typed").map((c) => c.args.text),
+    ["Budget.xlsx", "Documents/Budget.xlsx"],
+  );
+  assert.deepEqual(sentencesOf(page, "workbook"), [sentence], "a second line that is not taken shows it again");
+  await typeLine(page, "workbook", "/Volumes/work/Budget.xlsx");
+  await press(page, useAnswers(page));
+  assert.deepEqual(sentencesOf(page, "workbook"), [], "a line that is taken takes it away");
+});

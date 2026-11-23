@@ -109,6 +109,10 @@
       if (answered) refused = '';
       if (shown === 'too_long' || shown === 'not_taken') show(rest());
     };
+    line.refuse = function (sentence) {
+      refused = sentence;
+      if (shown !== 'full' && shown !== 'too_long') show(rest());
+    };
     line.text = function () {
       return textOf(shown);
     };
@@ -297,11 +301,17 @@
     if (choice.choice === 'choose' && item.params.length > 0) {
       const calls = chosen(item, card.answers);
       if (calls.length === 0) return;
+      const key = card.key;
       held(card, calls.reduce(function (done, c) {
         return done.then(function (reply) {
           return reply === null || reply.error ? reply : call(c[0], c[1]);
         });
-      }, Promise.resolve({})));
+      }, Promise.resolve({})).then(function () {
+        return call('agents_snapshot', {});
+      }).then(function (reply) {
+        reread(key, item, reply);
+        return reply;
+      }));
       const sent = calls.map(function (c) {
         return c[1].param;
       });
@@ -317,6 +327,22 @@
     }
     held(card, call('agents_answer', { item: item.item, step: item.step, choice: choice.choice })).then(function (reply) {
       if ((!reply || reply.error) && answered.delete(item.item) && last) apply(last);
+    });
+  }
+
+  function reread(key, item, reply) {
+    if (!reply || !Array.isArray(reply.items) || typeof reply.seq !== 'number' || reply.seq < seq) return;
+    take(reply);
+    const card = cards.get(key);
+    const now = reply.items.filter(function (i) {
+      return i.item === item.item;
+    })[0];
+    if (!card || !now) return;
+    card.answers.forEach(function (a) {
+      const entry = now.params.filter(function (p) {
+        return p.name === a.param;
+      })[0];
+      if (a.line && entry && entry.not_taken) a.line.refuse(entry.not_taken);
     });
   }
 
