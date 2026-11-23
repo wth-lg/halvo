@@ -1,6 +1,7 @@
 use halvo_schema::executable::{
-    AgentBindings, AgentCheckpoint, AgentConfig, AgentEffect, AgentFinished, AgentLog,
-    AgentPlaybook, AgentReply, AgentRun, AgentSession, AgentStart, ModelKey, Refusal,
+    AgentAgreement, AgentBindings, AgentCheckpoint, AgentConfig, AgentEffect, AgentFinished,
+    AgentLog, AgentPlaybook, AgentReply, AgentRun, AgentSession, AgentStart, ModelKey, ModelTier,
+    Refusal,
 };
 use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord};
 
@@ -18,6 +19,7 @@ pub(crate) const AGENT_REPLY: &str = "agent_reply";
 pub(crate) const AGENT_START: &str = "agent_start";
 pub(crate) const AGENT_FINISHED: &str = "agent_finished";
 pub(crate) const MODEL_KEY: &str = "model_key";
+pub(crate) const AGENT_AGREEMENT: &str = "agent_agreement";
 pub(crate) const MODEL_COUNT: &str = "model_count";
 
 pub(crate) fn parsed<T>(
@@ -110,4 +112,30 @@ pub(crate) fn newest_config(
         .into_iter()
         .filter(|c| &c.agent == agent)
         .max_by_key(|c| c.rev))
+}
+
+/// The rows of the persons' yes to a hosted model, at most one for an agent (r3 U7.7).
+pub(crate) fn agreements(rows: &dyn RowRead) -> Result<Vec<AgentAgreement>, ErrorName> {
+    parsed(rows, AGENT_AGREEMENT, AgentAgreement::parse)
+}
+
+/// The agent's standing ceiling, the one function that answers it (r3 U7.7): the agent's `agent_agreement` row under
+/// the workflow of its newest set-up where that row's tier is the tier of that set-up, a hosted tier; none for an
+/// agent with no set-up, for `on_device`, and for a hosted tier with no row of that tier. The roster reads it; the
+/// check of a `model_hold` will. For an agent whose newest set-up holds a hosted tier it reads every agreement row,
+/// and a row that the typed reader refuses, of any agent, answers `store`; for an agent with no set-up or at
+/// `on_device` it reads no agreement row.
+pub(crate) fn standing_agreement(
+    rows: &dyn RowRead,
+    agent: &AgentId,
+) -> Result<Option<AgentAgreement>, ErrorName> {
+    let Some(newest) = newest_config(rows, agent)? else {
+        return Ok(None);
+    };
+    if newest.tier == ModelTier::OnDevice {
+        return Ok(None);
+    }
+    Ok(agreements(rows)?
+        .into_iter()
+        .rfind(|a| &a.agent == agent && a.workflow == newest.workflow && a.tier == newest.tier))
 }

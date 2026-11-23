@@ -43,7 +43,7 @@ use windows::Win32::System::Threading::{
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYBD_EVENT_FLAGS,
     KEYEVENTF_KEYUP, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_WHEEL,
-    MOUSEINPUT, MOUSE_EVENT_FLAGS, VIRTUAL_KEY, VK_F15, VK_MENU,
+    MOUSEINPUT, MOUSE_EVENT_FLAGS, VIRTUAL_KEY, VK_A, VK_F15, VK_MENU,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
@@ -729,6 +729,17 @@ fn send(inputs: &[INPUT]) -> u32 {
     // SAFETY: `inputs` is a live slice of INPUT values and the size argument
     // is the size of one INPUT, as SendInput requires.
     unsafe { SendInput(inputs, core::mem::size_of::<INPUT>() as i32) }
+}
+
+fn type_letters(presses: u32) -> u32 {
+    let mut accepted = 0;
+    for _ in 0..presses {
+        accepted += send(&[key_input(VK_A, false)]);
+        std::thread::sleep(Duration::from_millis(5));
+        accepted += send(&[key_input(VK_A, true)]);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    accepted
 }
 
 fn press_keys(presses: u32) -> u32 {
@@ -1795,7 +1806,7 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
         let quiet = events.drain_for(Duration::from_secs(1));
         summarize("c1", "no-input-1s", &quiet);
 
-        let key_events_accepted = press_keys(PRESSES);
+        let key_events_accepted = type_letters(PRESSES);
         let after_keys = events.drain_for(Duration::from_millis(1500));
         summarize("c1", "after-key-presses", &after_keys);
 
@@ -1806,7 +1817,7 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
 
         let _ = stop_counted(&mut keyboard, "keyboard");
         let _ = stop_counted(&mut pointer, "pointer");
-        press_keys(3);
+        type_letters(3);
         move_pointer(3);
         let after_stop = events.drain_for(Duration::from_millis(700));
         summarize("c1", "after-stop", &after_stop);
@@ -3717,9 +3728,9 @@ fn capture_times_follow_the_input_order() {
         let mut turns_sent = Vec::new();
         let mut accepted = 0;
         for _ in 0..ROUNDS {
-            accepted += send(&[key_input(VK_F15, false)]);
+            accepted += send(&[key_input(VK_A, false)]);
             keys_sent.push(SystemTime::now());
-            accepted += send(&[key_input(VK_F15, true)]);
+            accepted += send(&[key_input(VK_A, true)]);
             std::thread::sleep(Duration::from_millis(100));
             accepted += send(&[wheel_notch()]);
             turns_sent.push(SystemTime::now());
@@ -3810,7 +3821,7 @@ fn stop_with_a_full_sink() {
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         gate_reads_clear("full-sink", Some(&fields), &keyboard);
-        let accepted = press_keys(3);
+        let accepted = type_letters(3);
         std::thread::sleep(Duration::from_millis(500));
         let (done, returned) = mpsc::channel();
         let began = Instant::now();
@@ -3864,14 +3875,14 @@ fn a_dropped_keyboard_source_stops_capturing() {
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         gate_reads_clear("dropped", Some(&fields), &keyboard);
-        let accepted_before = press_keys(1);
+        let accepted_before = type_letters(1);
         let before = count(
             &events.drain_for(Duration::from_millis(700)),
             Modality::Keystroke,
         );
         drop(keyboard);
         std::thread::sleep(Duration::from_millis(300));
-        let accepted_after = press_keys(3);
+        let accepted_after = type_letters(3);
         let after = count(
             &events.drain_for(Duration::from_secs(1)),
             Modality::Keystroke,
@@ -3879,7 +3890,7 @@ fn a_dropped_keyboard_source_stops_capturing() {
         let mut next = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let next_start = next.begin(SourceContext::new(sink.clone()));
         gate_reads_clear("dropped", Some(&fields), &next);
-        let accepted_next = press_keys(1);
+        let accepted_next = type_letters(1);
         let next_keys = count(
             &events.drain_for(Duration::from_millis(700)),
             Modality::Keystroke,
@@ -4270,7 +4281,7 @@ fn x3_attribution_before_the_first_foreground_change() {
         gate_reads_clear("x3", None, &keyboard);
         let settle = events.drain_for(Duration::from_secs(1));
         let cell_before_typing = last_app.lock().ok().and_then(|cell| cell.clone());
-        press_keys(5);
+        type_letters(5);
         let before = events.drain_for(Duration::from_millis(700));
         let still_child_foreground = foreground_pid() == child_pid;
 
@@ -4283,7 +4294,7 @@ fn x3_attribution_before_the_first_foreground_change() {
         {
             between.extend(events.drain_for(Duration::from_millis(100)));
         }
-        press_keys(5);
+        type_letters(5);
         let after = events.drain_for(Duration::from_millis(700));
         let exit = child.wait();
         let _ = stop_counted(&mut foreground, "foreground");
@@ -4781,10 +4792,10 @@ fn x15_a_held_key() {
         gate_reads_clear("x15", Some(&fields), &keyboard);
         let mut accepted = 0;
         for _ in 0..REPEATS {
-            accepted += send(&[key_input(VK_F15, false)]);
+            accepted += send(&[key_input(VK_A, false)]);
             std::thread::sleep(Duration::from_millis(30));
         }
-        accepted += send(&[key_input(VK_F15, true)]);
+        accepted += send(&[key_input(VK_A, true)]);
         let seen = events.drain_for(Duration::from_secs(1));
         let _ = stop_counted(&mut keyboard, "keyboard");
         let keystrokes = count(&seen, Modality::Keystroke);
@@ -5713,53 +5724,215 @@ macro_rules! defect {
     }};
 }
 
+#[test]
+#[ignore = "functional: was a known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
+fn browser_self_move_after_a_held_main_thread_in_chrome() {
+    let recorded = browser::self_move_phases("browser-self-chrome", "chrome");
+    flipped!(
+        "W3-5-A2",
+        recorded == 0,
+        format!(
+            "TF browser-self-chrome password_letters_recorded_while_the_page_was_held={recorded}"
+        )
+    );
+}
+
+#[test]
+#[ignore = "functional: was a known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
+fn browser_self_move_after_a_held_main_thread_in_edge() {
+    let recorded = browser::self_move_phases("browser-self-edge", "edge");
+    flipped!(
+        "W3-5-A2",
+        recorded == 0,
+        format!(
+            "TF browser-self-edge password_letters_recorded_while_the_page_was_held={recorded}"
+        )
+    );
+}
+
+#[test]
+#[ignore = "functional: was a known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
+fn browser_swaps_on_a_held_main_thread_in_chrome() {
+    let recorded = browser::held_swap_phases("browser-held-swap-chrome", "chrome");
+    flipped!(
+        "W3-7-Q2i",
+        recorded == 0,
+        format!("TF browser-held-swap-chrome password_letters_recorded_while_the_page_was_held={recorded}")
+    );
+}
+
+#[test]
+#[ignore = "functional: was a known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
+fn browser_swaps_on_a_held_main_thread_in_edge() {
+    let recorded = browser::held_swap_phases("browser-held-swap-edge", "edge");
+    flipped!(
+        "W3-7-Q2i",
+        recorded == 0,
+        format!("TF browser-held-swap-edge password_letters_recorded_while_the_page_was_held={recorded}")
+    );
+}
+
+#[test]
+#[ignore = "functional: was a known defect: W3-5 A2, a focus move that no latch sees"]
+fn stall_no_focus_key_and_the_program_moves_the_focus_itself() {
+    with_deadline("stall-self-focus", Duration::from_secs(330), || {
+        let (recorded, late) = stall::no_focus_key_and_the_program_moves_the_focus_itself();
+        assert_eq!(late, 0, "the source's late value moved");
+        flipped!(
+            "W3-5-A2",
+            recorded == 0,
+            format!(
+                "TF stall-self-focus letters_recorded_that_landed_in_the_password_field={recorded}"
+            )
+        );
+    });
+}
+
 mod known_defect {
     use super::*;
 
     #[test]
-    #[ignore = "known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
-    fn browser_self_move_after_a_held_main_thread_in_chrome() {
-        let recorded = browser::self_move_phases("browser-self-chrome", "chrome");
+    #[ignore = "known defect: win-6, an earlier key's landing before a page's late move"]
+    fn browser_an_earlier_keys_landing_before_the_pages_late_move_in_chrome() {
+        let recorded = browser::earlier_key_phases("browser-take-one-chrome", "chrome", true);
         defect!(
-            "W3-5-A2",
+            "W6-earlier-key",
             recorded == 0,
-            format!("TF browser-self-chrome password_letters_recorded_while_the_page_was_held={recorded}")
+            format!("TF browser-take-one-chrome password_letters_recorded={recorded}")
         );
     }
 
     #[test]
-    #[ignore = "known defect: W3-5 A2, a focus move that the page makes itself after holding its main thread"]
-    fn browser_self_move_after_a_held_main_thread_in_edge() {
-        let recorded = browser::self_move_phases("browser-self-edge", "edge");
+    #[ignore = "known defect: win-6, an earlier key's landing before a page's late move"]
+    fn browser_an_earlier_keys_landing_before_the_pages_late_move_in_edge() {
+        let recorded = browser::earlier_key_phases("browser-take-one-edge", "edge", true);
         defect!(
-            "W3-5-A2",
+            "W6-earlier-key",
             recorded == 0,
+            format!("TF browser-take-one-edge password_letters_recorded={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: win-6, a change by the pointer behind its own button-down before a late move"]
+    fn stall_a_change_by_the_pointer_behind_its_own_button_down_before_a_late_move() {
+        let read = stall::change_by_the_pointer(true);
+        assert!(
+            read.late == 0,
+            "the source's late value moved: {}",
+            read.late
+        );
+        assert!(
+            read.beyond == 0,
+            "{} keystroke records held more than a time, an app and a class",
+            read.beyond
+        );
+        defect!(
+            "W6-pointer-change",
+            read.recorded == 0,
             format!(
-                "TF browser-self-edge password_letters_recorded_while_the_page_was_held={recorded}"
+                "TF stall-pointer-change letters_recorded_that_landed_in_the_password_field={} \
+                 keystroke_records={} records_beyond_time_app_and_class={}",
+                read.recorded, read.records, read.beyond
             )
         );
     }
 
     #[test]
-    #[ignore = "known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
-    fn browser_swaps_on_a_held_main_thread_in_chrome() {
-        let recorded = browser::held_swap_phases("browser-held-swap-chrome", "chrome");
+    #[ignore = "known defect: win-6, a program frozen longer than the bound while a person types ahead"]
+    fn stall_a_program_frozen_longer_than_the_bound_while_a_person_types_ahead() {
+        let read = stall::frozen_program(true);
+        assert!(
+            read.late == 0,
+            "the source's late value moved: {}",
+            read.late
+        );
+        assert!(
+            read.beyond == 0,
+            "{} keystroke records held more than a time, an app and a class",
+            read.beyond
+        );
         defect!(
-            "W3-7-Q2i",
-            recorded == 0,
-            format!("TF browser-held-swap-chrome password_letters_recorded_while_the_page_was_held={recorded}")
+            "W6-frozen",
+            read.recorded == 0,
+            format!(
+                "TF stall-frozen letters_recorded_that_landed_in_the_password_field={} \
+                 keystroke_records={} records_beyond_time_app_and_class={}",
+                read.recorded, read.records, read.beyond
+            )
         );
     }
 
     #[test]
-    #[ignore = "known defect: W3-7 Q2 (i), a type swap on a page that holds its main thread"]
-    fn browser_swaps_on_a_held_main_thread_in_edge() {
-        let recorded = browser::held_swap_phases("browser-held-swap-edge", "edge");
-        defect!(
-            "W3-7-Q2i",
-            recorded == 0,
-            format!("TF browser-held-swap-edge password_letters_recorded_while_the_page_was_held={recorded}")
+    #[ignore = "known defect: win-6, a program frozen longer than the bound behind a Tab while a person types ahead"]
+    fn stall_a_program_frozen_longer_than_the_bound_behind_a_tab_while_a_person_types_ahead() {
+        let read = stall::frozen_program_behind_a_tab(true);
+        assert!(
+            read.late == 0,
+            "the source's late value moved: {}",
+            read.late
         );
+        assert!(
+            read.beyond == 0,
+            "{} keystroke records held more than a time, an app and a class",
+            read.beyond
+        );
+        defect!(
+            "W6-frozen-tab",
+            read.recorded == 0,
+            format!(
+                "TF stall-frozen-tab letters_recorded_that_landed_in_the_password_field={} \
+                 keystroke_records={} records_beyond_time_app_and_class={}",
+                read.recorded, read.records, read.beyond
+            )
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: win-6, the program's own change behind a Tab before the Tab's late move"]
+    fn stall_the_programs_own_change_behind_a_tab_before_the_tabs_late_move() {
+        let read = stall::own_change_behind_a_tab(true);
+        assert!(
+            read.late == 0,
+            "the source's late value moved: {}",
+            read.late
+        );
+        assert!(
+            read.beyond == 0,
+            "{} keystroke records held more than a time, an app and a class",
+            read.beyond
+        );
+        defect!(
+            "W6-own-change-tab",
+            read.recorded == 0,
+            format!(
+                "TF stall-own-change-tab letters_recorded_that_landed_in_the_password_field={} \
+                 keystroke_records={} records_beyond_time_app_and_class={}",
+                read.recorded, read.records, read.beyond
+            )
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: win-6, the program's own change of the focused field before a late move"]
+    fn stall_the_programs_own_change_of_the_focused_field_before_a_late_move() {
+        with_deadline("stall-own-change", Duration::from_secs(300), || {
+            let (recorded, late, records, beyond) =
+                stall::the_programs_own_change_of_the_focused_field_before_a_late_move();
+            assert_eq!(late, 0, "the source's late value moved");
+            assert_eq!(
+                beyond, 0,
+                "a keystroke record held more than its time, its app and its class"
+            );
+            defect!(
+                "W6-own-change",
+                recorded == 0,
+                format!(
+                    "TF stall-own-change letters_recorded_that_landed_in_the_password_field={recorded} \
+                     keystroke_records={records} records_beyond_time_app_and_class={beyond}"
+                )
+            );
+        });
     }
 
     #[test]
@@ -5786,20 +5959,6 @@ mod known_defect {
             recorded == 0,
             format!("TF style-mask keystroke_events_in_chrome_and_edge={recorded}")
         );
-    }
-
-    #[test]
-    #[ignore = "known defect: W3-5 A2, a focus move that no latch sees"]
-    fn stall_no_focus_key_and_the_program_moves_the_focus_itself() {
-        with_deadline("stall-self-focus", Duration::from_secs(330), || {
-            let (recorded, late) = stall::no_focus_key_and_the_program_moves_the_focus_itself();
-            assert_eq!(late, 0, "the source's late value moved");
-            defect!(
-                "W3-5-A2",
-                recorded == 0,
-                format!("TF stall-self-focus letters_recorded_that_landed_in_the_password_field={recorded}")
-            );
-        });
     }
 }
 
@@ -6030,7 +6189,7 @@ fn c5_three_probe_entries_against_what_windows_lists() {
 
 #[test]
 #[ignore = "functional: was a known defect: E4, a keystroke record holds no class"]
-fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
+fn one_key_of_each_class_gives_a_record_only_for_the_keys_that_change_text() {
     with_deadline("classes", Duration::from_secs(90), || {
         env_report("classes");
         source_built_by_test("classes", "keyboard");
@@ -6105,12 +6264,13 @@ fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
             accepted, 16,
             "INCONCLUSIVE: SendInput did not insert every key"
         );
+        let changed_text = [KeyClass::Printable, KeyClass::Editing];
         flipped!(
             "E4",
-            KeyClass::ALL
-                .iter()
-                .all(|class| classes.iter().filter(|seen| *seen == class).count() == 1)
-                && classes.len() == KeyClass::ALL.len(),
+            KeyClass::ALL.iter().all(|class| {
+                classes.iter().filter(|seen| *seen == class).count()
+                    == usize::from(changed_text.contains(class))
+            }) && classes.len() == changed_text.len(),
             format!(
                 "TF classes keystroke_records_with_a_class={}",
                 classes.len()

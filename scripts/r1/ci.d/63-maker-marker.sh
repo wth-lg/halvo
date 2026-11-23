@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: A runner built in the release profile with the feature loopback holds the marker text of the browser's web request maker (crates/halvo-runner/src/web/maker.rs), and the list markers of 62-build holds that text, as the ignored test a_runner_built_with_the_feature_holds_the_maker_s_marker of halvo-runner shows when this check runs it alone by its exact name: it builds the runner into a target directory of its own under target/tmp and reads the built file and the list; the windows job never runs this check, so no run of ci.yml reads a runner built on Windows in the release profile with the feature for the marker, and the windows job builds the runner with the feature in the debug profile, for the crate's tests.
+# rule: A runner built in the release profile with the feature loopback holds the marker text of the browser's web request maker (crates/halvo-runner/src/web/maker.rs), and the list markers of 62-build holds that text, as the ignored test a_runner_built_with_the_feature_holds_the_maker_s_marker of halvo-runner shows when this check runs it alone by its exact name, built in the release profile in a target directory of the check's own under its TMPDIR that starts as a copy-on-write clone (cp -c) of the job's target/release, which no cargo command of this check writes: the test builds the runner into a target directory of its own under that directory's tmp, which starts as a clone of that directory's release, and reads the built file and the list, so behind 62-build in the slice sun cargo builds again only halvo-connect and halvo-runner, whose features loopback changes; the windows job never runs this check, so no run of ci.yml reads a runner built on Windows in the release profile with the feature for the marker, and the windows job builds the runner with the feature in the debug profile, for the crate's tests.
 set -u
 name=63-maker-marker
 test_name=a_runner_built_with_the_feature_holds_the_maker_s_marker
@@ -37,9 +37,45 @@ verdict_defect() {
   return 0
 }
 
+# Clones the directory $1 to the new path $2 with cp -c, which falls back to a plain copy across volumes, and
+# prints what it did under the label $3; a target directory that is not cloned starts empty, and cargo builds
+# into it from nothing.
+seed() {
+  if [ ! -d "$1" ]; then
+    printf 'clone of %s: none, no such directory\n' "$3"
+    return 0
+  fi
+  parent=$(dirname "$2")
+  source_volume=$(stat -f %d "$1")
+  target_volume=$(stat -f %d "$parent")
+  same_volume=no
+  [ "$source_volume" = "$target_volume" ] && same_volume=yes
+  free_before=$(df -m "$parent" | awk 'NR == 2 { print $4 }')
+  seed_started=$(date +%s)
+  if cp -c -R -p "$1" "$2"; then
+    seeded=yes
+  else
+    seeded=no
+  fi
+  seed_ended=$(date +%s)
+  free_after=$(df -m "$parent" | awk 'NR == 2 { print $4 }')
+  files=$(find "$2" -type f 2>/dev/null | wc -l | tr -d ' ')
+  printf 'clone of %s: done=%s same_volume=%s files=%s seconds=%s free_mb_drop=%s\n' "$3" "$seeded" "$same_volume" "$files" "$((seed_ended - seed_started))" "$((free_before - free_after))"
+}
+
 measure() {
   cd "$CI_D_REPO" || exit 2
-  cargo test --locked -p halvo-runner --test maker_marker -- --exact "$test_name" --ignored >"$CI_D_ARTIFACTS/test.txt" 2>&1
+  own=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  seed "${CARGO_TARGET_DIR:-target}/release" "$own/release" "the job's target/release"
+  build_started=$(date +%s)
+  CARGO_TARGET_DIR=$own cargo test --release --locked -p halvo-runner --test maker_marker --no-run >"$CI_D_ARTIFACTS/build.txt" 2>&1
+  code=$?
+  build_ended=$(date +%s)
+  printf 'build of the test target in the release profile: seconds=%s\n' "$((build_ended - build_started))"
+  [ "$code" -eq 0 ] || fail "cargo test --release --no-run exited $code: read $name/build.txt of the artifacts"
+  mkdir -p "$own/tmp/maker-marker" || exit 2
+  seed "$own/release" "$own/tmp/maker-marker/release" "that release for the test's own target directory"
+  CARGO_TARGET_DIR=$own cargo test --release --locked -p halvo-runner --test maker_marker -- --exact "$test_name" --ignored >"$CI_D_ARTIFACTS/test.txt" 2>&1
   code=$?
   grep '^test result: ' "$CI_D_ARTIFACTS/test.txt"
   defect=$(verdict_defect "$code" "$CI_D_ARTIFACTS/test.txt") || fail "$defect"
@@ -58,11 +94,11 @@ self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   rejected=0
   wrong=
-  failed='test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 185.08s'
+  failed='test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 274.64s'
   case_of passed 0 "running 1 test
 test $test_name ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 185.08s" PASS
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 274.64s" PASS
   case_of no-marker 101 "the runner built with the feature loopback at target/tmp/maker-marker/release/halvo-runner holds no marker $marker of the browser's request maker
 $failed" FAIL
   case_of no-line-in-the-list 101 "the list markers of check 62-build holds no line $marker: halvo-standin-module-present

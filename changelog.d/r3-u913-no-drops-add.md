@@ -1,0 +1,1 @@
+- Fixed: When you say no at the question whether Halvo may use a site, Halvo no longer saves that site because a step that you allowed once earlier in the same run asked for it; this holds also when the run was being stopped as you answered.

@@ -5,8 +5,9 @@ use std::num::NonZeroU32;
 use halvo_policy::{preset, validate};
 use halvo_schema::executable::body::{
     Accepted, AgentHistory, AgentsReply, CreateAgent, DropSessions, HistoryReply, HistoryRun,
-    KeyReply, ListAgents, ListedAgent, PastCheckpoint, PastEffect, PutModelKey, RevReply, SetState,
-    StandsReply, StartRun, StateReply, Stored, UnknownEffect, CHECKPOINTS_REPLY_MAX,
+    KeyReply, ListAgents, ListedAgent, ListedAgreement, PastCheckpoint, PastEffect, PutModelKey,
+    RevReply, SetModel, SetState, StandsReply, StartRun, StateReply, Stored, UnknownEffect,
+    CHECKPOINTS_REPLY_MAX,
 };
 use halvo_schema::executable::names::{
     ActionClass, AgentState, Cause, CheckpointState, EffectState, FieldName, LogEvent, Mode,
@@ -15,9 +16,9 @@ use halvo_schema::executable::names::{
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, V1};
 use halvo_schema::executable::{
-    reply_senders, AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentReply, AgentRun,
-    AgentSession, AgentStart, CoordinatorCall, CoordinatorReply, EffectId, ModelKey, Outcome,
-    OwnText, Refusal, RunId, Runtime,
+    reply_senders, AgentAgreement, AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentReply,
+    AgentRun, AgentSession, AgentStart, CoordinatorCall, CoordinatorReply, EffectId, ModelKey,
+    ModelTier, Outcome, OwnText, Refusal, RunId, Runtime,
 };
 use halvo_schema::{AgentId, Category, ErrorName, Instant, Workflow, WorkflowState};
 use serde_json::Value;
@@ -139,7 +140,11 @@ use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 ///   step's item whose `step_failed` row the store refused reads as a sign-in's, and a sign-in's row that is the last
 ///   hand-back row of a run that ended `effect_unknown`, because the store refused that run's item row, reads as the
 ///   item; it reads `yes` after every run that did not complete, also with a sign-in kept, and once the agent's start
-///   rows leave the read after 93 days. A page holds whole entries
+///   rows leave the read after 93 days. `agreement` (r3 U7.7) is the agent's standing ceiling by the store's one
+///   function `rows::standing_agreement`, its tier and its triples, null for `on_device` and for a hosted tier with
+///   no agreement row of that tier; a stored agreement row that the typed reader refuses refuses the whole roster
+///   with `store` only while an agent of the roster stands at a hosted tier, since no agreement row is read for an
+///   agent at `on_device` or with no set-up. A page holds whole entries
 ///   while the writer takes it, and `next` names its last agent where agents are left; `length` where the first
 ///   entry of the page alone does not fit.
 /// - `agent_history`: `no_workflow`; `binding`. It stores nothing and changes no state. Of the agent's runs, only
@@ -192,6 +197,24 @@ use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 ///   refuses fails the two reads with `store`. No runner body reads or writes the kind. Named limits: a copy or a
 ///   backup of the store's files from before a write or a drop keeps the key that it held; the app's own process can
 ///   read the key back by `read_model_key`, a request of its role.
+/// - `set_model` (r3 U7.7): the person's yes for the agent to a hosted model with its ceiling tier, or the way back
+///   with `on_device` and no agreement. The parser's refusals come first (`malformed`, `length`), then `no_workflow`;
+///   `binding` unless the workflow's agent is the body's, or where no set-up of the agent under that workflow stands;
+///   `length` where the next revision would pass the greatest count; `config` where `validate` refuses a yes, the next
+///   revision with the agreement that the body makes, and where it refuses `on_device` with a list (its cause `tier`).
+///   The way back, `on_device` with no agreement, is checked for its own pair alone and so never answers `config`: no
+///   rule of a field that it does not change stands in its way. It never answers `state`: a yes and the way back are
+///   taken while a run of the agent is open. Then in ONE write, the host's removal call `Host::remove_under`
+///   of `agent_agreement` under the body's workflow, it removes every agreement row of that workflow and stores the
+///   next revision of the agent's set-up, the newest with `rev` plus 1 and the body's tier and every other key
+///   unchanged, and at a yes the agent's agreement row: the workflow, the agent, the tier, the triples as given and
+///   the request's instant. It answers `{"rev":<the revision stored>}`. A repeat of a yes stores one more revision
+///   and a new row with the new instant; a repeat of the way back stores one more revision and removes nothing. A
+///   refusal, and a fault before the commit, leave every row; after a fault behind the commit `store` comes with the
+///   new revision and the new row stored and the old row gone. No runner body reads, writes or removes the kind.
+///   Named limits: a copy or a backup of the store's files keeps an agreement that was taken back; the earlier
+///   revisions of the set-up stay stored with the tier that each held; the body trusts its caller for what the
+///   router's table holds and compares nothing with it.
 /// - `model_room` and `set_model_cap` (r7 8.1L; the coordinator's log lines 16775 and 17277): the person's count of
 ///   hosted calls, ONE row of the kind `model_count` for the person and all agents together, which names no workflow;
 ///   each body has `workflow` and `agent` null and needs no stored workflow. Both take the count at the request's
@@ -229,9 +252,47 @@ pub fn coordinator(
         CoordinatorCall::DropModelKey(_) => drop_model_key(host),
         CoordinatorCall::ModelKeyState(_) => model_key_state(&*host),
         CoordinatorCall::ReadModelKey(_) => read_model_key(&*host),
+        CoordinatorCall::SetModel(b) => set_model(host, now, &b),
         CoordinatorCall::ModelRoom(_) => count::room(&*host, now),
         CoordinatorCall::SetModelCap(b) => count::set_cap(host, now, &b),
     }
+}
+
+/// The person's yes for the agent to a hosted model, or the way back (r3 U7.7): the next revision of the agent's
+/// set-up with the body's tier and every other key of its newest revision, and the agent's agreement row at a yes, in
+/// one write of the host's removal call of `agent_agreement` under the agent's workflow, which removes the row that
+/// stood. A yes passes every rule of `validate`; the way back, `on_device` with no agreement, is checked for its own
+/// pair alone, which always holds, so that no rule of a field that it does not change stands in its way (the
+/// coordinator's log line 17603, point 1).
+fn set_model(host: &mut dyn Host, now: Now, b: &SetModel) -> Result<CoordinatorReply, ErrorName> {
+    bind::of_agent(&*host, &b.workflow, &b.agent)?;
+    let newest = rows::newest_config(host.rows(), &b.agent)?
+        .filter(|c| c.workflow == b.workflow)
+        .ok_or(Own::Binding)?;
+    let rev = newest.rev.checked_add(1).ok_or(Own::Length)?;
+    let config = AgentConfig {
+        rev,
+        tier: b.tier,
+        ..newest
+    };
+    let agreement = b.agreement.as_ref().map(|hosts| AgentAgreement {
+        v: V1,
+        workflow: b.workflow.clone(),
+        agent: b.agent.clone(),
+        tier: b.tier,
+        hosts: hosts.clone(),
+        at: now.at,
+    });
+    let way_back = b.tier == ModelTier::OnDevice && agreement.is_none();
+    if !way_back {
+        validate(&config, agreement.as_ref()).map_err(|_| Own::Config)?;
+    }
+    let mut records = vec![record(rows::AGENT_CONFIG, config.to_json())?];
+    if let Some(agreement) = &agreement {
+        records.push(record(rows::AGENT_AGREEMENT, agreement.to_json())?);
+    }
+    host.remove_under(rows::AGENT_AGREEMENT, &b.workflow, records)?;
+    Ok(CoordinatorReply::Rev(RevReply { rev }))
 }
 
 /// The person's key written over the one that stands, in one write of the host's removal call of a person's kind.
@@ -353,6 +414,10 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
         let reply_unknown = reply_unknown(&replies, last.as_ref());
         let last_cause = last_cause(&logs, &starts, &runs, &agent);
         let window = window(&logs, &starts, &runs, &agent, session);
+        let agreement = rows::standing_agreement(rows, &agent)?.map(|a| ListedAgreement {
+            tier: a.tier,
+            hosts: a.hosts,
+        });
         entries.push(ListedAgent {
             config,
             state,
@@ -365,6 +430,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
             refused_slots,
             last_cause,
             window,
+            agreement,
         });
     }
     Ok(CoordinatorReply::Agents(page(entries)?))
@@ -730,7 +796,7 @@ fn create_agent(
             b.agent.clone(),
         )
         .ok_or(Own::Config)?;
-        validate(&config).map_err(|_| Own::Config)?;
+        validate(&config, None).map_err(|_| Own::Config)?;
         records.push(record(rows::AGENT_CONFIG, config.to_json())?);
     }
     if rows::start_of(host.rows(), &b.agent)?.is_none() {

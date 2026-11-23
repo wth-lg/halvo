@@ -72,7 +72,7 @@ store check 20-app-links-no-store scheduled mon the windows job, 44 s there in t
 store check 23-daemon-port-only gate
 store check 31-app-page-layout gate macos job, which alone has the check
 store check 60-r5-privacy gate
-store check 31-store-full-volume scheduled mon 136 s in the macos job
+store check 31-store-full-volume scheduled mon 197 s in the macos job of the run 45101283214
 store check 30-core-boundary-proofs scheduled wed 104 s in the macos job, which holds every proof; the windows job no longer runs it
 
 capture units halvo-capture::macos::foreground gate macos job
@@ -110,13 +110,14 @@ egress check 21-tree-bans gate
 egress target halvo-route/no_grant_in_release gate under the release data no build makes a grant; a ruling made for a test names http://127.0.0.1:<port> alone; no Rust file but the maker's own and the listed test files names the maker of that ruling; the pins of five files
 egress units halvo-route::leave gate under a hosted ruling a grant is made for the origin of the row of its tier alone, by equal bytes, and names that row
 egress units halvo-route::ruling gate ruling=hosted over a table of hosts with no row reads as none
+egress target halvo-model/door gate the door halvo-model holds a grant before any byte leaves and sends one request to the granted origin alone; what leaves is the closed fields alone; no line of the door holds a byte of a key or of a refused request; each row of the release table names an adapter of the door; the adapter's one operation stands in the door's files alone, and no file of the runner names a grant
 egress check 10-egress scheduled thu the macos job, 33 s there in the push run 44895970784
 egress check 10-egress scheduled thu the windows job, 206 s there in the run 44930942501
 egress check 80-r6-absent scheduled thu the macos job, 20 s there in the push run 44895970784
 egress check 80-r6-absent scheduled sat the windows job, 22 s there
 egress check 38-app-engine-routes scheduled wed the macos job, 127 s there; the engine of the window opens no connection
 egress check 38-app-engine-routes scheduled sat the windows job, 115 s there
-egress check 20-r6-gateway scheduled thu the macos job, 8 s there; the body that leaves holds six keys
+egress check 20-r6-gateway scheduled thu the macos job, 8 s there; the closed body from which every request to a model's host is made holds six keys
 egress check 20-r6-gateway scheduled sat the windows job, 6 s there
 
 licences check 23-licences gate macos job, which alone has the check

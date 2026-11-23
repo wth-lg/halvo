@@ -14,9 +14,13 @@ pub const ERROR_NAMES: &[&str] = &[
 /// kept, `agent_effect` and `agent_log`, bounded at 93 days, `agent_session`, bounded at 35 days, `agent_checkpoint`,
 /// bounded at 93 days, `agent_reply`, kept by default until the owner answers O4, with its `day` and `at`, and
 /// `agent_start`, kept by default until the owner answers the entry on the start instant, one row for an agent, and
-/// `agent_finished`, kept, one row for each playbook number that a compile finished (CP-182). One kind more names no
-/// workflow: `model_key`, of origin person (`kinds::PERSON_KINDS`), kept, ONE row for the person and none for an
-/// agent, which holds the person's key for a model's host under `key` (r3 U7.6). That row outlives every workflow's
+/// `agent_finished`, kept, one row for each playbook number that a compile finished (CP-182), and `agent_agreement`,
+/// kept, at most one row for an agent: the person's yes for that agent to a hosted model, with the ceiling tier under
+/// `tier`, under `hosts` triples of a hosted tier, an origin and a model word, among them one of the ceiling, none of
+/// a tier above it and at most one of each tier (the body refuses no list for a missing lower tier), and the
+/// instant of the yes under `at`, which the coordinator body `set_model` writes and removes (r3 U7.7). One kind more
+/// names no workflow: `model_key`, of origin person (`kinds::PERSON_KINDS`), kept, ONE row for the person and none for
+/// an agent, which holds the person's key for a model's host under `key` (r3 U7.6). That row outlives every workflow's
 /// delete, and it goes with its own drop (`drop_model_key`), with the delete of everything, which destroys the custody
 /// root first so that it no longer decrypts, and with the removal of the data folder. One kind more names no workflow
 /// either: `model_count`, of origin person, kept, ONE row for the person and all agents together, which holds the
@@ -271,6 +275,23 @@ pub const KINDS: &[KindEntry] = &[
             ("run", FieldType::Id),
         ],
         example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","number":1,"steps":2,"run":"50505050505050505050505050505050"}"#,
+    },
+    KindEntry {
+        name: "agent_agreement",
+        class: RetentionClass::Kept,
+        origin: Origin::Own,
+        family: "agent",
+        workflow_key: Some("workflow"),
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("agent", FieldType::Id),
+            ("tier", FieldType::Name),
+            ("hosts", FieldType::Name),
+            ("hosts", FieldType::OwnText),
+            ("at", FieldType::Instant),
+        ],
+        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","tier":"frontier","hosts":[{"tier":"low_cost_hosted","origin":"https://hosted-model.test","model":"test-model-small"},{"tier":"frontier","origin":"https://hosted-model.test","model":"test-model-large"}],"at":1794339000000000011}"#,
     },
     KindEntry {
         name: "model_key",

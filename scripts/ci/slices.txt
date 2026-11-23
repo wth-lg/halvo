@@ -17,7 +17,6 @@
 
 mon macos tests A
 mon macos check 31-store-full-volume
-mon macos check 63-maker-marker
 mon macos check 25-advisories
 mon windows tests A
 mon windows check 24-hook-imports
@@ -67,6 +66,7 @@ fri macos self-test 63-maker-marker
 fri macos self-test 70-package-macos
 fri macos self-test 10-egress
 fri macos self-test 22-redact
+fri macos self-test 64-model-egress
 fri macos self-test 60-r5-privacy
 fri macos self-test 40-r6-policy
 fri macos self-test 55-r6-formal
@@ -87,6 +87,7 @@ fri windows self-test 62-build
 fri windows self-test 70-package-windows
 fri windows self-test 10-egress
 fri windows self-test 22-redact
+fri windows self-test 64-model-egress
 fri windows self-test 60-r5-privacy
 fri windows self-test 40-r6-policy
 fri windows self-test 27-r7-metering-self
@@ -105,6 +106,7 @@ sat windows check 80-r6-absent
 sat windows tests D
 
 sun macos check 62-build
+sun macos check 63-maker-marker
 sun macos check 70-package-macos
 sun macos check 25-advisories
 sun windows check 62-build

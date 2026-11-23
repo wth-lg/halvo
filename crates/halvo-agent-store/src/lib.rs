@@ -20,6 +20,9 @@ mod rows;
 mod runner;
 mod workbook;
 
+#[cfg(test)]
+mod agreement_tests;
+
 pub use coordinator::{coordinator, GOES_ON_AFTER};
 pub use effect::allowed_not_done;
 pub use host::{Host, Now};

@@ -32,6 +32,9 @@
     "allow-approve-workflow",
     "allow-dismiss-workflow",
     "allow-delete-workflow",
+    "allow-model-key-state",
+    "allow-save-model-key",
+    "allow-remove-model-key",
     "core:app:allow-version"
   ]
 }

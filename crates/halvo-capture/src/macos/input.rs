@@ -362,6 +362,7 @@ impl InputCounters {
             },
             secure_window_pointer: read(&f.secure_window_pointer),
             secure_window_keys_typed: f.secure_window_keys_typed.load(Ordering::Relaxed),
+            typing_gate: None,
         }
     }
 }
@@ -9611,6 +9612,113 @@ mod tests {
             [Modality::Keystroke],
             "the first key reached the writer before the stop was read"
         );
+    }
+
+    const FRONT_READS: usize = 10_000;
+
+    /// The load of the machine over its last minute as getloadavg gives it, or
+    /// NaN when it gives none.
+    fn load_of_the_last_minute() -> f64 {
+        let mut loads = [0f64; 1];
+        // SAFETY: `loads` is a writable array of one double, the count passed.
+        let read = unsafe { libc::getloadavg(loads.as_mut_ptr(), 1) };
+        if read == 1 {
+            loads[0]
+        } else {
+            f64::NAN
+        }
+    }
+
+    /// A time in whole microseconds, rounded up.
+    fn whole_us(time: Duration) -> u128 {
+        time.as_nanos().div_ceil(1_000)
+    }
+
+    /// One series of [`FRONT_READS`] reads of the app in front, one after the
+    /// other, each made by `timed_read`, which gives back the time of the read
+    /// alone with its answer; the answers are kept and counted after the
+    /// series, the test fails where one of them names no app, and the series'
+    /// one line is printed under the name `series`.
+    fn front_read_series(
+        series: &str,
+        mut timed_read: impl FnMut() -> (Duration, Option<Foreground>),
+    ) {
+        let mut times = Vec::with_capacity(FRONT_READS);
+        let mut answers = Vec::with_capacity(FRONT_READS);
+        let load_before = load_of_the_last_minute();
+        for _ in 0..FRONT_READS {
+            let (time, answer) = timed_read();
+            times.push(time);
+            answers.push(answer);
+        }
+        let load_after = load_of_the_last_minute();
+        let named = answers.iter().filter(|answer| answer.is_some()).count();
+        drop(answers);
+        assert!(
+            named == FRONT_READS,
+            "{} of {FRONT_READS} reads of the series {series} named no app in front, \
+             and a Mac with nothing in front gives no number",
+            FRONT_READS - named
+        );
+        let first = times[0];
+        times.sort_unstable();
+        let at_rank = |share_of_100: usize| times[(FRONT_READS * share_of_100).div_ceil(100) - 1];
+        println!(
+            "front_read series={series} calls={FRONT_READS} named={named} first_us={} \
+             median_us={} p99_us={} worst_us={} load1_before={load_before:.2} \
+             load1_after={load_after:.2}",
+            whole_us(first),
+            whole_us(at_rank(50)),
+            whole_us(at_rank(99)),
+            whole_us(times[FRONT_READS - 1]),
+        );
+    }
+
+    /// Times the product's read of the app in front as the tap thread makes it
+    /// for a key, through the product's reader over the product's read answered
+    /// once as the poll answers it, in two series of 10,000 calls on one thread
+    /// that the test starts: alone, and each call while that thread holds the
+    /// hold's lock of a tap context, taken as `on_tap_event` takes it. Each
+    /// series prints one line: its calls, the calls that named an app, the time
+    /// of the first call, the median, the time that 99 of 100 calls stay under
+    /// and the worst, each in whole microseconds rounded up, and the machine's
+    /// 1-minute load before and after the series; no time is asserted, and the
+    /// test fails only where a call named no app. It is run by hand, with the
+    /// command of its ignore reason, and no gate runs it.
+    #[test]
+    #[ignore = "a measurement run by hand: cargo test -p halvo-capture --lib -- --ignored --exact macos::input::tests::measure_the_read_of_the_front_at_a_key --nocapture"]
+    fn measure_the_read_of_the_front_at_a_key() {
+        let (writer, reader) = crate::macos::foreground::tests_support::answered_by_the_system();
+        let series = std::thread::spawn(move || {
+            front_read_series("alone", || {
+                let started = Instant::now();
+                let answer = reader.read_now();
+                (started.elapsed(), answer)
+            });
+            let (handle, _sink) = sink::channel(1);
+            let ctx = tap_context(
+                handle,
+                reader,
+                InputCounters::new(),
+                &stand_in_settings(),
+                Bounds::PRODUCT,
+                Arc::new(AtomicBool::new(false)),
+            );
+            front_read_series("under_the_holds_lock", || {
+                let hold = ctx.hold.clone();
+                let state = lock(&hold);
+                let started = Instant::now();
+                let answer = ctx.foreground.read_now();
+                let time = started.elapsed();
+                drop(state);
+                (time, answer)
+            });
+        });
+        let ended = series.join();
+        drop(writer);
+        if let Err(panic) = ended {
+            std::panic::resume_unwind(panic);
+        }
     }
 }
 

@@ -30,8 +30,8 @@ pub use names::{
     ListedState, MarkState, ModelTier, Outcome, Reasoning, ReplyState, RoomState, Runtime, Way,
 };
 pub use record::{
-    AgentBindings, AgentCheckpoint, AgentEffect, AgentFinished, AgentLog, AgentPlaybook,
-    AgentReply, AgentRun, AgentSession, AgentStart, ModelCount, ModelKey,
+    AgentAgreement, AgentBindings, AgentCheckpoint, AgentEffect, AgentFinished, AgentLog,
+    AgentPlaybook, AgentReply, AgentRun, AgentSession, AgentStart, Hosted, ModelCount, ModelKey,
 };
 pub use senders::{is_sender, reply_senders, same_address, Senders, SendersError};
 pub use step::{ExecutableStep, Playbook};
@@ -63,6 +63,7 @@ record::run_list! { names_with_run_list
     "agent_reply",
     "agent_start",
     "agent_finished",
+    "agent_agreement",
     "agent",
     "v",
     "workflow",
@@ -335,6 +336,9 @@ record::run_list! { names_with_run_list
     "model_key_state",
     "read_model_key",
     "stands",
+    "set_model",
+    "agreement",
+    "hosts",
     "model_count",
     "anchor",
     "count",

@@ -576,9 +576,50 @@ impl World {
             .collect()
     }
 
+    /// Stores, as revision `rev` of `origin`, one part whose piece is base64 of a text that is no state's JSON: the
+    /// load lists it, and the runner reads it and imports nothing of it.
+    fn store_unreadable(&self, origin: &str, rev: u32) {
+        let not_a_state = "bm90IGEgc3RhdGU=".to_string();
+        self.parts
+            .lock()
+            .expect("parts")
+            .insert((origin.to_string(), rev, 1), (1, vec![not_a_state]));
+    }
+
+    /// Whether the newest revision of `origin` that the store holds is the drop form of `drop_session`.
+    fn newest_dropped(&self, origin: &str) -> bool {
+        let parts = self.parts.lock().expect("parts");
+        parts
+            .iter()
+            .filter(|((o, _, _), _)| o == origin)
+            .max_by_key(|((_, rev, _), _)| *rev)
+            .is_some_and(|(_, (of, pieces))| {
+                *of == 1 && pieces.as_slice() == SessionData::dropped().pieces()
+            })
+    }
+
     /// Carries out `steps` as the run's loop does, on a runner whose browser start gives the stand-in, then ends the
-    /// run as `Runner::run` ends it.
+    /// run as `Runner::run` ends it; a failed step ends the run `failed` with its cause.
     fn run(&self, run: &Run<'_>, steps: &[ExecutableStep]) -> Ran {
+        self.run_ending(run, steps, |_, _, cause| {
+            Stop::End(Outcome::Failed, Some(cause))
+        })
+    }
+
+    /// `run`, with a failed step ended as the runner's loop ends it (`Runner::failed_step`).
+    fn run_to_its_end(&self, run: &Run<'_>, steps: &[ExecutableStep]) -> Ran {
+        self.run_ending(run, steps, |runner, step, cause| {
+            runner.failed_step(step, cause)
+        })
+    }
+
+    /// `run`, with a failed step ended by `failed`.
+    fn run_ending(
+        &self,
+        run: &Run<'_>,
+        steps: &[ExecutableStep],
+        failed: impl Fn(&mut Runner, &ExecutableStep, Cause) -> Stop,
+    ) -> Ran {
         let log: Log = Arc::default();
         let seen: Arc<Mutex<Seen>> = Arc::default();
         let (to_runner, from) = mpsc::channel();
@@ -659,7 +700,7 @@ impl World {
                     break;
                 }
                 Err(Failure::Step(cause)) => {
-                    end = Err(Stop::End(Outcome::Failed, Some(cause)));
+                    end = Err(failed(&mut runner, step, cause));
                     break;
                 }
             }
@@ -1489,4 +1530,103 @@ fn a_run_numbers_its_revision_past_a_cut_revision_whose_first_part_equals_its_ow
         lines(&ran.log, "frame store put_session")
     );
     assert_eq!(world.stored(A, listed[0].1), Some(export_of(&ran.jar, A)));
+}
+
+/// What a run of `at_a_door` did: the count of imports, the rows of its log, its `drop_session` lines, its outcome,
+/// and whether the newest revision of A that the store holds is the drop form.
+type DoorEnd = (
+    usize,
+    Vec<(LogEvent, Option<u32>, Option<Cause>)>,
+    Vec<String>,
+    Option<Outcome>,
+    bool,
+);
+
+/// r3 U5.15d (the coordinator's rulings of log lines 16908 (1) and 16954 (1)): one run with no window, started with no
+/// `--headed` and no switch of the tests, in a store that `kept` filled, bound to A, which meets a credential field
+/// at A.
+fn at_a_door(kept: impl Fn(&World)) -> DoorEnd {
+    let world = World::default();
+    kept(&world);
+    let mut refused = Run::new(SessionState::default(), &[A]);
+    refused.signs = &[Some(Sign::Secret)];
+    let ran = world.run(&refused, &[click()]);
+    (
+        lines(&ran.log, "import").len(),
+        ran.seen.logs.clone(),
+        lines(&ran.log, "frame store drop_session")
+            .into_iter()
+            .map(String::from)
+            .collect(),
+        ran.seen.finish,
+        world.newest_dropped(A),
+    )
+}
+
+/// The end of `at_a_door` for a run that imported nothing and drops A: no import, the step's `step_failed` row with
+/// the cause `unauthorized`, `drop_session` for A, the outcome `failed`, and A's newest revision in the drop form, so
+/// that the roster's `session` reads `no` and the next start has its window.
+fn dropped_at_a() -> DoorEnd {
+    (
+        0,
+        vec![
+            (LogEvent::StepFailed, Some(1), Some(Cause::Unauthorized)),
+            (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+        ],
+        vec!["frame store drop_session http://a.test:8080".to_string()],
+        Some(Outcome::Failed),
+        true,
+    )
+}
+
+/// r3 U5.15d, door 1: the load listed a kept revision of A, which the run binds, whose text does not read; the run
+/// imports nothing of it and, at the field, drops A.
+#[test]
+fn a_run_without_a_window_drops_a_kept_sign_in_that_does_not_read() {
+    assert_eq!(
+        at_a_door(|world| world.store_unreadable(A, 1)),
+        dropped_at_a()
+    );
+}
+
+/// r3 U5.15d, door 2: the load listed a kept revision of B alone, an origin outside the run's bindings; the run
+/// imports nothing and, at the field, drops A, of which the store holds no revision: the store writes A's revision 1
+/// in the drop form.
+#[test]
+fn a_run_without_a_window_drops_where_the_load_listed_another_site_alone() {
+    assert_eq!(
+        at_a_door(|world| world.store(B, 1, &export_of(&signed_in(), B))),
+        dropped_at_a()
+    );
+}
+
+/// r3 U5.15d (the coordinator's rulings of log lines 16917, 16922 and 17038): in a run where no person can answer
+/// (no `--headed` and no switch of the tests), a failed step of the class `prepare` opens no handback. The run writes
+/// the step's `step_failed` row, writes no `handback` row, sends no handback request, and ends `handed_back` with the
+/// cause `step_failed`, as the runner's loop ends it (`Runner::failed_step`). The supervisor holds an answer, so that a
+/// handback that opened would be answered and not wait.
+#[test]
+fn a_failed_step_of_a_run_where_no_person_can_answer_ends_handed_back_with_no_handback() {
+    let world = World::default();
+    let mut failing = Run::new(SessionState::default(), &[A]);
+    failing.act_fails = true;
+    failing.answers = &[DECLINED];
+    let ran = world.run_to_its_end(&failing, &[click()]);
+    assert_eq!(
+        (ran.seen.finish, ran.seen.logs.clone()),
+        (
+            Some(Outcome::HandedBack),
+            vec![
+                (LogEvent::StepFailed, Some(1), Some(Cause::StepFailed)),
+                (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+            ]
+        ),
+        "{:?}",
+        ran.log
+    );
+    assert!(
+        lines(&ran.log, "frame handback").is_empty(),
+        "no handback request: {:?}",
+        ran.log
+    );
 }
