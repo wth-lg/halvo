@@ -181,9 +181,11 @@ those steps, holds both, and the last hook writes them back first, so that OK
 removes the program only, as the box's sentence says:
 
 - The Run value comes back with its text where the program that it names, cut
-  from between its first two quotes, is not in the folder that goes; both folders
-  are held in the one spelling of the compare above. A value that names the
-  program in the folder that goes stays away. Where there is no such value, or one
+  from between its first two quotes, or up to its first space where the text
+  starts with no quote, is not directly in the folder that goes; both folders are
+  held in the one spelling of the compare above. A value in the form that Halvo
+  writes, the program in quotes and with backslashes, that names the program in
+  the folder that goes stays away. Where there is no such value, or one
   that the hooks cannot read as text, nothing is held, and the template's step
   takes a value that stands, as before. Under another account the hooks' own line
   no longer takes the value away, so an uninstall that the template's step still
@@ -210,6 +212,16 @@ What this way does not cover yet, each a named limit:
   and its last hook loses what the hooks held: the running person's start at
   sign-in and their entry in the list of installed apps go, as before the
   write-back, and the file of the entry stays in the temp folder.
+- The Run value stays away only in the form that Halvo writes. A text that
+  another hand wrote under that name comes back although its program is gone,
+  where it has no quotes and a space in its path, a forward slash before the
+  program's name, or the program in a folder below the folder that goes. Halvo
+  writes none of these, and at each start that a person agreed to it writes its
+  own text over another one; what Windows does with such a value at sign-in is
+  read in no run.
+- Under another account the template's own step still clears the jump list and
+  the recent destinations of the app's id for the running account, as before; no
+  line of Halvo sets a jump list.
 - The kinds of value: Halvo writes its Run value as a string, and the template
   writes strings and numbers into the uninstall entry, which come back as they
   were. A value of another kind that another program put into the entry comes
@@ -225,8 +237,11 @@ What this way does not cover yet, each a named limit:
   their ticked box deletes none of their Halvo data and they read the sentence;
   without the box the crash reports of their window stay too, with no sentence.
   The hooks do not try to tell such a person from another account. The one who
-  installed again keeps the start of their newer Halvo at sign-in and its entry
-  in the list of installed apps, since the hooks write both back.
+  installed again keeps the entry of their newer Halvo in the list of installed
+  apps, and its start at sign-in where the Run value names the newer copy, as
+  Halvo writes it at each start of that copy that the person agreed to; where
+  they never started the newer copy so, the value names the older copy and goes
+  with it.
 - Neither of those two people gets the stop of their capture service before the
   uninstall of their own copy: where its app and its capture service run, the
   template's step ends the app, with windows after it asks, and the capture
