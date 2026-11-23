@@ -40,12 +40,13 @@ type Rows<'a> = Vec<Vec<Cow<'a, str>>>;
 /// read by commas, as before r3 U11.5; a file in which the semicolon or the tab holds and the
 /// comma does not is read by that sign. Where the semicolon (or the tab) and the comma both hold,
 /// the file has two readings and is told by what it holds, never by a fixed order alone:
-/// (1) by the semicolon where every comma outside its quoted fields stands between two digits
-/// (`in_numbers`), told by the signs before any read, so that a fault of that read refuses the
-/// file and the comma is not tried; (2) else each is read whole, a reading that meets a fault of
-/// the form or rows of unequal length is none, one reading that is left is taken, and of two the
-/// one in which more fields of the whole file are numbers (`numbers`); where both fault, the
-/// semicolon's fault is named; (3) where the numbers are as many, the semicolon.
+/// (1) by the semicolon where every comma outside its quoted fields stands beside a digit, and on
+/// its other side a digit or the edge of its field (`in_numbers`), told by the signs before any
+/// read, so that a fault of that read refuses the file and the comma is not tried; (2) else each
+/// is read whole, a reading that meets a fault of the form or rows of unequal length is none, one
+/// reading that is left is taken, and of two the one in which more fields of the whole file are
+/// numbers (`numbers`); where both fault, the semicolon's fault is named; (3) where the numbers
+/// are as many, the semicolon.
 fn reading(text: &str) -> Result<(u8, Rows<'_>), Error> {
     let sign = match (holds(text, b';'), holds(text, b'\t')) {
         (true, true) => return Err(Error::Source(SourceRefusal::TwoSeparators)),
@@ -87,16 +88,23 @@ fn holds(text: &str, sign: u8) -> bool {
 }
 
 /// Whether every comma of `text` outside its quoted fields, each line read as fields separated by
-/// `sign`, stands between two digits, as in a number with a decimal comma or a thousands comma
-/// (`41,20`, `1,234`, `1.234,56`), and not in a text (`Müller, Hans`) nor at a field's edge
-/// (`,5`). Step (1) of `reading`.
+/// `sign`, stands beside a digit, and on its other side a digit or the edge of its field, as in a
+/// number with a decimal comma or a thousands comma (`41,20`, `1,234`, `1.234,56`, `,5`, `5,`),
+/// and not in a text (`Müller, Hans`). Step (1) of `reading`.
 fn in_numbers(text: &str, sign: u8) -> bool {
     lines(text).all(|line| {
         let bytes = line.as_bytes();
-        let digit = |at: usize| bytes.get(at).is_some_and(u8::is_ascii_digit);
+        let digit = |at: Option<usize>| {
+            at.and_then(|at| bytes.get(at))
+                .is_some_and(u8::is_ascii_digit)
+        };
+        let edge = |at: Option<usize>| at.and_then(|at| bytes.get(at)).is_none_or(|&b| b == sign);
         outside_quotes(line, sign)
             .filter(|&at| bytes[at] == b',')
-            .all(|at| at > 0 && digit(at - 1) && digit(at + 1))
+            .all(|at| {
+                let (before, after) = (at.checked_sub(1), Some(at + 1));
+                (digit(before) && (digit(after) || edge(after))) || (digit(after) && edge(before))
+            })
     })
 }
 
@@ -690,10 +698,11 @@ mod tests {
     /// number in any file.
     #[test]
     fn a_decimal_comma_in_a_file_of_semicolons_or_tabs_is_its_number_and_in_doubt_a_text() {
-        let alone: [(&str, Value); 29] = [
+        let alone: [(&str, Value); 30] = [
             ("3,5", n(3.5)),
             ("41,20", n(41.2)),
             ("-0,5", n(-0.5)),
+            (",5", t(",5")),
             ("5,", t("5,")),
             ("1.234,56", t("1.234,56")),
             ("1,234", t("1,234")),
@@ -721,8 +730,7 @@ mod tests {
             ("-7", n(-7.0)),
             ("007", t("007")),
         ];
-        let mixed: [(&[&str], Vec<Value>); 6] = [
-            (&[",5", "12"], vec![t(",5"), n(12.0)]),
+        let mixed: [(&[&str], Vec<Value>); 5] = [
             (&["3,5", "4.5"], vec![t("3,5"), t("4.5")]),
             (&["0,125", "41.20"], vec![t("0,125"), t("41.20")]),
             (&["3,5", "1.234"], vec![n(3.5), t("1.234")]),
@@ -881,17 +889,14 @@ mod tests {
                 ]),
             ),
             (
-                "R17, step (2), a semicolon file with a decimal comma at a field's edge",
+                "R17, step (1), a semicolon file with a decimal comma at a field's edge",
                 file(&["Wasser;,5"], "\r\n"),
-                Ok(vec![vec![t("Wasser;"), n(5.0)]]),
+                Ok(vec![vec![t("Wasser"), t(",5")]]),
             ),
             (
-                "R18, step (2), a semicolon file with one decimal comma at a field's edge",
+                "R18, step (1), a semicolon file with one decimal comma at a field's edge",
                 file(&["Wasser;0,5", "Strom;,75"], "\r\n"),
-                Ok(vec![
-                    vec![t("Wasser;0"), n(5.0)],
-                    vec![t("Strom;"), n(75.0)],
-                ]),
+                Ok(vec![vec![t("Wasser"), n(0.5)], vec![t("Strom"), t(",75")]]),
             ),
             (
                 "R19, step (1), a semicolon file with text behind a closing quote: refused",
@@ -907,6 +912,14 @@ mod tests {
                 Ok(vec![
                     vec![t("Müller"), t(" Hans;\"Haus\"A;7")],
                     vec![t("Schmidt"), t(" Eva;\"Haus\"B;3")],
+                ]),
+            ),
+            (
+                "R21, step (1), its named rest: a comma file whose text ends in a semicolon",
+                file(&["Gas;,1.50", "Power;,2.25"], "\n"),
+                Ok(vec![
+                    vec![t("Gas"), t(",1.50")],
+                    vec![t("Power"), t(",2.25")],
                 ]),
             ),
         ];
