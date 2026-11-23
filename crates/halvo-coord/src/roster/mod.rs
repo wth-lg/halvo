@@ -113,7 +113,11 @@ fn text(key: &str, pairs: &[(&str, &str)]) -> Result<String, Cause> {
 
 /// The settings lines of a configuration (I2.2), in the order of the table, each whose
 /// condition holds and whose words entry exists: `level`, `runs_on`, `asks`, `time` with the
-/// minutes of `wall_s` rounded up, `files` and `spend`.
+/// minutes of `wall_s` rounded up, `files` and `spend`. The line `runs_on` says that the agent
+/// runs on this computer where its stored tier is `on_device`; where the tier is a hosted tier
+/// and the app hands the agent's model, that it may use an AI model at the host, with the
+/// models, where its stored yes stands, and that the AI model is now at the host and asks again
+/// where it does not (r4 U3.17b); a hosted tier with no model handed has no such line.
 pub fn lines<C: ConfigView>(config: &C) -> Vec<CardLine> {
     let mut out = Vec::new();
     let mut add = |key: LineKey, words_key: &str, pairs: &[(&str, &str)]| {
@@ -126,11 +130,20 @@ pub fn lines<C: ConfigView>(config: &C) -> Vec<CardLine> {
         &format!("line.level.{}", config.reasoning().name()),
         &[],
     );
-    add(
-        LineKey::RunsOn,
-        &format!("line.runs_on.{}", config.tier().name()),
-        &[],
-    );
+    match (config.tier(), config.model()) {
+        (Tier::OnDevice, _) => add(LineKey::RunsOn, "line.runs_on.on_device", &[]),
+        (_, Some(model)) if model.stands => add(
+            LineKey::RunsOn,
+            "line.runs_on.hosted",
+            &[("host", &model.host), ("models", &model.models)],
+        ),
+        (_, Some(model)) => add(
+            LineKey::RunsOn,
+            "line.runs_on.asks_again",
+            &[("host", &model.host)],
+        ),
+        (_, None) => {}
+    }
     add(
         LineKey::Asks,
         &format!("line.asks.{}", config.autonomy().name()),

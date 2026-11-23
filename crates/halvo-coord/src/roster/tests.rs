@@ -93,3 +93,45 @@ fn a_row_offers_the_two_controls_of_an_ai_model_by_the_tier_the_yes_and_the_runt
         }
     }
 }
+
+/// r4 U3.17b sentence 6: the line of the card on where an agent runs, one card for each case:
+/// It runs on this computer. where the stored tier is `on_device`; It may use an AI model at
+/// {host}: {models}. where it is a hosted tier and the stored yes stands for it; and The AI model
+/// for this agent is now at {host}. Allow it again? where it is a hosted tier and the yes does not
+/// stand, each byte for byte.
+#[test]
+fn the_cards_line_says_where_the_agent_runs_by_its_tier_and_its_yes() {
+    let two = ModelUse {
+        models: "test-model-small and test-model-large".to_owned(),
+        ..model(true)
+    };
+    let rows = [
+        (Tier::OnDevice, model(false), "It runs on this computer."),
+        (
+            Tier::Frontier,
+            two.clone(),
+            "It may use an AI model at hosted-model.test: test-model-small and test-model-large.",
+        ),
+        (
+            Tier::LowCostHosted,
+            ModelUse {
+                stands: false,
+                ..two
+            },
+            "The AI model for this agent is now at hosted-model.test. Allow it again?",
+        ),
+    ];
+    let base = facts(State::Ten).remove(0);
+    for (tier, model, want) in rows {
+        let mut f = base.clone();
+        f.config = config(tier, Runtime::Web, Some(model));
+        let card = card(&f, NAME, &[], &Limits::PRODUCT).unwrap();
+        let runs_on: Vec<&str> = card
+            .lines
+            .iter()
+            .filter(|line| line.key == LineKey::RunsOn)
+            .map(|line| line.text.as_str())
+            .collect();
+        assert_eq!(runs_on, [want], "{tier}");
+    }
+}

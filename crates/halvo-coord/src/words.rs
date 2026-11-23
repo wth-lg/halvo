@@ -216,6 +216,14 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.level.medium", "Standard"),
     ("line.level.high", "Thorough"),
     ("line.runs_on.on_device", "It runs on this computer."),
+    (
+        "line.runs_on.hosted",
+        "It may use an AI model at {host}: {models}.",
+    ),
+    (
+        "line.runs_on.asks_again",
+        "The AI model for this agent is now at {host}. Allow it again?",
+    ),
     ("line.asks.observe", "It only looks and never acts for you."),
     (
         "line.asks.draft_and_confirm",
