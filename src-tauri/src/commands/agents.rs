@@ -897,7 +897,10 @@ mod tests {
     /// The reply of a service in either of its two fault states: an error with the code
     /// internal, which carries no status. The app reads the code alone; `text` is the service's.
     fn internal(text: &str) -> Result<DaemonStatus, ClientError> {
-        Err(ClientError::Daemon(ErrorReply::new(ErrorCode::Internal, text)))
+        Err(ClientError::Daemon(ErrorReply::new(
+            ErrorCode::Internal,
+            text,
+        )))
     }
 
     #[test]
