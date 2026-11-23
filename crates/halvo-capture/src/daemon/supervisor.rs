@@ -477,11 +477,12 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     client_polls: bool,
     polled_until: Option<Duration>,
     typing: bool,
-    /// The latch of the key types: set at a probe's answer, or a failed probe,
-    /// that leaves the grant of Input Monitoring unread as granted while the
-    /// switch pointer_class is on (never before the first answer of a run),
-    /// and let go at an answer that reads it granted again; while it is set
-    /// every input source begun asks its tap for the pointer types alone
+    /// The latch of the key types: set, while the switch pointer_class is on,
+    /// at a probe's answer that leaves the grant of Input Monitoring unread as
+    /// granted, and in a run that reads grants at a failed probe, also one
+    /// before the run's first answer (a board with no answer reads no grant);
+    /// let go at an answer that reads the grant again. While it is set every
+    /// input source begun asks its tap for the pointer types alone
     /// ([`SystemSources::refuse_keys`]).
     keys_refused: bool,
     ending: Option<Ending>,
@@ -1215,10 +1216,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// Whether a start of `name` may ask its tap for the key types behind a line
     /// that says that its tap holds none (impaired with the reason permission):
     /// the input source while typing and key_class are on and the latch of the
-    /// key types is not set. Such a start is published as running before it
-    /// begins, so that what the service says is never less than what the tap
-    /// takes; a start that comes back with the pointer types alone turns the
-    /// line back at the next publish.
+    /// key types is not set, read from the supervisor's own table of lines.
+    /// Such a start is published as running before it begins, so that at the
+    /// turn what the service says is not less than what the tap takes; a start
+    /// that comes back with the pointer types alone turns the line back at the
+    /// next publish. Where the tap of the pointer types ended by itself in the
+    /// tick before, the table reads failed and the start is not published
+    /// first: the published line reads impaired with the reason permission
+    /// until the tick's own publish.
     fn turns_to_keys(&self, name: SourceName) -> bool {
         name == SourceName::Input
             && self.holds_keys()
