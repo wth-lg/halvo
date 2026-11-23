@@ -578,6 +578,73 @@ mod tests {
     }
 
     #[test]
+    fn a_failed_read_of_the_password_property_drops_the_title_and_gives_a_key_the_state_of_before()
+    {
+        use crate::floor::exclude::FloorHandle;
+        use crate::secure_input::windows::{
+            focus_read_of, state_of, ContentReading, FocusRead, Kind, PasswordProperty, UnknownBy,
+        };
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(FloorHandle::default(), Arc::clone(&drops));
+        let front = FrontApp {
+            pid: 9,
+            path: Some("C:\\Apps\\mail.exe".to_string()),
+        };
+        let gate = PasswordGate::new();
+        let title_at = |read: FocusRead| {
+            gate.focus_read_at(super::super::now_tick(), read, false);
+            let kept = title_event(
+                &floor,
+                Some(&gate),
+                (&front, PrivateWindow::Unknown),
+                ("Inbox".to_string(), TitleWhy::TitleChange),
+                OsTick::new(super::super::now_tick()),
+            )
+            .is_some();
+            (gate.content_reading(), kept)
+        };
+        let failed = focus_read_of(PasswordProperty::ReadFailed, false, Kind::Other);
+        assert_eq!(failed, FocusRead::Unreadable);
+        assert_eq!(
+            title_at(failed),
+            (ContentReading::Unknown(UnknownBy::Unreadable), false),
+            "a failed read of the password property drops the title"
+        );
+        let no_answer = focus_read_of(PasswordProperty::NoAnswer, false, Kind::Other);
+        assert_eq!(
+            title_at(no_answer),
+            (ContentReading::NoAnswer, true),
+            "a read with no answer keeps it"
+        );
+        let failed_protected = focus_read_of(PasswordProperty::ReadFailed, true, Kind::Other);
+        assert_eq!(
+            title_at(failed_protected),
+            (ContentReading::Password, false),
+            "a failed read of a protected element"
+        );
+        for protected in [false, true] {
+            assert_eq!(
+                state_of(
+                    focus_read_of(PasswordProperty::ReadFailed, protected, Kind::Other),
+                    false
+                ),
+                state_of(FocusRead::NoAnswer { protected }, false),
+                "the key's state of a failed read is the one of a read with no answer, \
+                 protected {protected}"
+            );
+        }
+        assert_eq!(
+            focus_read_of(PasswordProperty::Answered(true), false, Kind::NativeEdit),
+            FocusRead::Answered {
+                is_password: true,
+                protected: false,
+                kind: Kind::NativeEdit
+            }
+        );
+        assert_eq!(drops.read().secure_input, 2);
+    }
+
+    #[test]
     fn a_title_whose_process_was_not_resolved_is_not_kept() {
         use crate::floor::exclude::FloorHandle;
         let drops = Arc::new(DropCounts::default());

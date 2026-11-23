@@ -54,6 +54,36 @@ pub(crate) enum FocusRead {
     Unreadable,
 }
 
+/// What the read of the focused element's password property gave.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PasswordProperty {
+    /// The element answered with a boolean of its own.
+    Answered(bool),
+    /// The read succeeded and the element gave no answer of its own.
+    NoAnswer,
+    /// The read itself failed.
+    ReadFailed,
+}
+
+/// The read of the focused element from its password property, its protected
+/// state and its kind. A read of the password property that failed is no
+/// answer of the program: it reads as an element that cannot be read, so a
+/// title is dropped there; where the element is protected it reads as a read
+/// with no answer, which is Password, so a key gets the state that it got
+/// when a failed read counted as no answer.
+pub(crate) fn focus_read_of(password: PasswordProperty, protected: bool, kind: Kind) -> FocusRead {
+    match password {
+        PasswordProperty::Answered(is_password) => FocusRead::Answered {
+            is_password,
+            protected,
+            kind,
+        },
+        PasswordProperty::NoAnswer => FocusRead::NoAnswer { protected },
+        PasswordProperty::ReadFailed if protected => FocusRead::NoAnswer { protected },
+        PasswordProperty::ReadFailed => FocusRead::Unreadable,
+    }
+}
+
 pub(crate) fn state_of(read: FocusRead, still_the_last_password_element: bool) -> FieldState {
     if still_the_last_password_element {
         return FieldState::Password;
@@ -1956,12 +1986,15 @@ mod detector {
         fn read(&self, element: &IUIAutomationElement) -> (FocusRead, bool) {
             // SAFETY: `element` is a live element whose cache holds the
             // properties that the cache request names.
-            let is_password = unsafe {
-                element
-                    .GetCachedPropertyValueEx(UIA_IsPasswordPropertyId, DEFAULT_IS_NO_ANSWER)
-                    .ok()
-                    .and_then(|mut value| variant_bool(&mut value))
-            };
+            let password = unsafe {
+                element.GetCachedPropertyValueEx(UIA_IsPasswordPropertyId, DEFAULT_IS_NO_ANSWER)
+            }
+            .map_or(super::PasswordProperty::ReadFailed, |mut value| {
+                variant_bool(&mut value).map_or(
+                    super::PasswordProperty::NoAnswer,
+                    super::PasswordProperty::Answered,
+                )
+            });
             // SAFETY: as above.
             let protected = unsafe {
                 element
@@ -1990,7 +2023,12 @@ mod detector {
                 framework.as_deref().unwrap_or("none"),
                 class.as_deref().unwrap_or("none"),
                 file.as_deref().unwrap_or("none"),
-                is_password.map_or("none", |p| if p { "1" } else { "0" }),
+                match password {
+                    super::PasswordProperty::Answered(true) => "1",
+                    super::PasswordProperty::Answered(false) => "0",
+                    super::PasswordProperty::NoAnswer => "none",
+                    super::PasswordProperty::ReadFailed => "error",
+                },
                 u8::from(protected),
                 u8::from(pid.is_some()),
                 _file_read.text(),
@@ -1999,15 +2037,7 @@ mod detector {
                 || framework
                     .as_deref()
                     .is_some_and(|id| id.eq_ignore_ascii_case("Gecko"));
-            let read = match is_password {
-                Some(is_password) => FocusRead::Answered {
-                    is_password,
-                    protected,
-                    kind,
-                },
-                None => FocusRead::NoAnswer { protected },
-            };
-            (read, firefox)
+            (super::focus_read_of(password, protected, kind), firefox)
         }
 
         #[cfg(feature = "test-seam")]
