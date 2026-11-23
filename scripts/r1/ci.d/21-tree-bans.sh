@@ -1,10 +1,11 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No package of the workspace links openssl-sys, and halvo, halvo-control, halvo-capture, halvo-agent-client, which relays a run, halvo-owner, which opens the derived store, halvo-analysis, which reads the capture records, and halvo-learn-store, which keeps what the agents learn, link no network client on the shipped targets; the feature test-seam stands in crates/halvo-capture/Cargo.toml alone, on its features line and on the crate's dev-dependency on itself, and in no other manifest (ruling W3-8 (b) (2)). halvo-runner, the program that runs a person's agents, reaches a closed list (its supervisor's frames; HTTPS to the origins of its agent's bindings through halvo-connect; the browser that it starts), and its tree on each shipped target holds no store crate (halvo-sqlcipher, halvo-capture, halvo-derived, halvo-owner, halvo-agent-store, halvo-coord-store and halvo-learn-store, the packages of the workspace that open a store, on disk or in memory, or keep its rows, one of which every other package that opens a store takes into its tree) and no network client (a crate of the list clients of this script) beyond those that the trees of halvo-connect and halvo-web hold on that target, by name and version. The tree of halvo-runner's package alone, read with features on each shipped target, holds no feature client of halvo-control: the client of the capture service, which can pause the capture and delete everything (a build of the runner with another member, such as --workspace, joins their features and compiles the client in).
+# rule: No package of the workspace links openssl-sys, and halvo, halvo-control, halvo-capture, halvo-agent-client, which relays a run, halvo-owner, which opens the derived store, halvo-analysis, which reads the capture records, and halvo-learn-store, which keeps what the agents learn, link no network client on the shipped targets; the feature test-seam stands in crates/halvo-capture/Cargo.toml alone, on its features line and on the crate's dev-dependency on itself, and in no other manifest (ruling W3-8 (b) (2)). halvo-runner, the program that runs a person's agents, reaches a closed list (its supervisor's frames; HTTPS to the origins of its agent's bindings through halvo-connect; the browser that it starts), and its tree on each shipped target holds no store crate (halvo-sqlcipher, halvo-capture, halvo-derived, halvo-owner, halvo-agent-store, halvo-coord-store and halvo-learn-store, the packages of the workspace that open a store, on disk or in memory, or keep its rows, one of which every other package that opens a store takes into its tree) and no network client (a crate of the list clients of this script) beyond those that the trees of halvo-connect and halvo-web hold on that target, by name and version. The tree of halvo-runner's package alone, read with features on each shipped target, holds no feature client of halvo-control: the client of the capture service, which can pause the capture and delete everything (a build of the runner with another member, such as --workspace, joins their features and compiles the client in). halvo-model, the program that sends a model request, reaches one thing, HTTPS to the origin of the grant that it holds, through halvo-connect: its tree on each shipped target holds no store crate, no halvo-web and no halvo-control, and no network client beyond those that the tree of halvo-connect holds on that target, by name and version; and each package with a tracked Rust file that names LeaveGrant as a word holds the line #![forbid(unsafe_code)] in each of its roots src/lib.rs and src/main.rs that exists, and has one of them (the rule reads those two roots alone).
 set -u
 name=21-tree-bans
 clients='reqwest hyper ureq rustls ring aws-lc-rs native-tls openssl-sys'
 stores='halvo-sqlcipher halvo-capture halvo-derived halvo-owner halvo-agent-store halvo-coord-store halvo-learn-store'
+door_bans="$stores halvo-web halvo-control"
 triples='aarch64-apple-darwin x86_64-pc-windows-msvc'
 nl='
 '
@@ -75,6 +76,50 @@ seam_manifests() {
   printf 'manifests that name test-seam: 1 (%s, %s lines)\n' "$own" "$lines"
 }
 
+# package_of FILE: prints the directory of the package of FILE, the nearest directory above it that
+# holds a Cargo.toml; fails when none does.
+package_of() {
+  dir=$1
+  while :; do
+    case $dir in
+      */*) dir=${dir%/*} ;;
+      *) dir=. ;;
+    esac
+    if [ -f "$dir/Cargo.toml" ]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    [ "$dir" != . ] || return 1
+  done
+}
+
+grant_roots() {
+  files=$(git -c core.quotePath=false grep -l -w -e LeaveGrant -- '*.rs')
+  code=$?
+  [ "$code" -le 1 ] || fail "git grep cannot read the tracked Rust files"
+  packages=
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    package=$(package_of "$file") || fail "$file names LeaveGrant and no directory above it holds a Cargo.toml"
+    case $nl$packages$nl in
+      *"$nl$package$nl"*) continue ;;
+    esac
+    packages=$packages$nl$package
+    roots=0
+    for root in src/lib.rs src/main.rs; do
+      [ -f "$package/$root" ] || continue
+      roots=$((roots + 1))
+      grep -qx '#!\[forbid(unsafe_code)\]' "$package/$root" ||
+        fail "$package/$root: the package names LeaveGrant ($file) and its root does not forbid unsafe code: put the line #![forbid(unsafe_code)] at its top"
+    done
+    [ "$roots" -gt 0 ] || fail "$package names LeaveGrant ($file) and has neither src/lib.rs nor src/main.rs, the roots that this rule reads"
+  done <<EOF
+$files
+EOF
+  count=$(printf '%s\n' "$packages" | grep -c .)
+  printf 'packages that name LeaveGrant, each forbidding unsafe code at its roots: %s\n' "$count"
+}
+
 measure() {
   cd "$CI_D_REPO" || exit 2
   [ -f scripts/r1-gate/lib.sh ] || fail "scripts/r1-gate/lib.sh is missing"
@@ -83,6 +128,7 @@ measure() {
   . scripts/r1-gate/lib.sh
 
   seam_manifests
+  grant_roots
 
   tree=$(cargo tree --workspace --target all --all-features --prefix none --locked) ||
     fail "cargo tree failed for the workspace"
@@ -105,6 +151,10 @@ measure() {
   for triple in $triples; do
     package_tree halvo-connect "$triple" ''
     allowed=$tree
+    connect=$tree
+    package_tree halvo-model "$triple" "$door_bans"
+    beyond=$(client_beyond "$tree" "$connect") ||
+      fail "halvo-model on $triple: a network client beyond the tree of halvo-connect: $beyond"
     package_tree halvo-web "$triple" ''
     allowed=$allowed$nl$tree
     package_tree halvo-runner "$triple" "$stores"
@@ -218,6 +268,7 @@ EOF
     printf 'halvo-learn-store v0.0.0 (/w/crates/halvo-learn-store)\nhalvo-learn v0.0.0 (/w/crates/halvo-learn)\n' >"$work/main/halvo-learn-store-$triple.txt"
     printf 'halvo-connect v0.0.0 (/w/crates/halvo-connect)\nreqwest v0.13.5\nhyper v1.12.0\nrustls v0.23.46\nring v0.17.14\n' >"$work/main/halvo-connect-$triple.txt"
     printf 'halvo-web v0.0.0 (/w/crates/halvo-web)\nchromiumoxide v0.9.1\ntungstenite v0.28.0\n' >"$work/main/halvo-web-$triple.txt"
+    printf 'halvo-model v0.0.0 (/w/crates/halvo-model)\nhalvo-connect v0.0.0 (/w/crates/halvo-connect)\nhalvo-route v0.0.0 (/w/crates/halvo-route)\nreqwest v0.13.5\nhyper v1.12.0\nrustls v0.23.46\nring v0.17.14\n' >"$work/main/halvo-model-$triple.txt"
     printf 'halvo-runner v0.0.0 (/w/crates/halvo-runner)\nhalvo-connect v0.0.0 (/w/crates/halvo-connect)\nreqwest v0.13.5\nhyper v1.12.0 (*)\nrustls v0.23.46\nring v0.17.14 (*)\nhalvo-web v0.0.0 (/w/crates/halvo-web)\nchromiumoxide v0.9.1\ntungstenite v0.28.0\nhalvo-sheet v0.0.0 (/w/crates/halvo-sheet)\n' >"$work/main/halvo-runner-$triple.txt"
     printf 'halvo-runner v0.0.0 (/w/crates/halvo-runner)\nhalvo-control v0.0.0 (/w/crates/halvo-control)\nhalvo-connect feature "loopback"\nhalvo-connect v0.0.0 (/w/crates/halvo-connect)\nhalvo-runner feature "default" (command-line)\n' >"$work/main/halvo-runner-features-$triple.txt"
   done
@@ -309,6 +360,9 @@ EOF
   trees runner-links-the-control-client
   printf 'halvo-control feature "client"\nhalvo-control v0.0.0 (/w/crates/halvo-control) (*)\n' >>"$work/runner-links-the-control-client/halvo-runner-features-aarch64-apple-darwin.txt"
   check runner-links-the-control-client FAIL 'halvo-runner on aarch64-apple-darwin: its tree, read with features, holds the control client: halvo-control feature "client")'
+  trees door-links-another-client
+  printf 'ureq v3.1.2\n' >>"$work/door-links-another-client/halvo-model-aarch64-apple-darwin.txt"
+  check door-links-another-client FAIL 'halvo-model on aarch64-apple-darwin: a network client beyond the tree of halvo-connect: ureq v3.1.2)'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

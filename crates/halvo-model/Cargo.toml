@@ -1,0 +1,18 @@
+[package]
+name = "halvo-model"
+version = "0.0.0"
+description = "Halvo's one door to a model's host: a key and request lines in, one request a line to the origin of a grant, reply lines out"
+edition = "2021"
+publish = false
+
+[features]
+loopback = ["halvo-connect/loopback"]
+
+[dependencies]
+halvo-connect = { path = "../halvo-connect" }
+halvo-route = { path = "../halvo-route" }
+halvo-route-wire = { path = "../halvo-route-wire" }
+serde_json = "1.0.154"
+
+[dev-dependencies]
+halvo-model = { path = ".", features = ["loopback"] }
