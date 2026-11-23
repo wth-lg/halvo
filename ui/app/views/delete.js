@@ -467,12 +467,13 @@
       });
       cleanup = Halvo.el("code", { id: "delete-cleanup", class: "hidden" });
       cleanupNote = Halvo.el("p", { id: "delete-cleanup-note", class: "muted hidden", text: w.CLEANUP_NAMES_ACCOUNT });
-      confirmRow = Halvo.el("div", { id: "delete-confirm-row", class: "confirm-row hidden" }, [question, Halvo.el("div", { class: "row" }, [confirm, cancel])]);
+      confirmRow = Halvo.el("div", { id: "delete-confirm-row", class: "confirm-row hidden" }, [question, Halvo.modelKeyLine("delete-model-key-line", w.MODEL_KEY_GOES), Halvo.el("div", { class: "row" }, [confirm, cancel])]);
       removeButton = Halvo.el("button", { id: "remove-halvo", class: "danger", text: w.REMOVE_HALVO });
       removeConfirm = Halvo.el("button", { id: "confirm-remove", class: "danger", text: w.REMOVE_YES });
       var removeCancel = Halvo.el("button", { id: "cancel-remove", text: w.CANCEL });
       removeRow = Halvo.el("div", { id: "remove-confirm-row", class: "confirm-row hidden" }, [
         Halvo.el("p", { id: "remove-question", text: w.REMOVE_QUESTION }),
+        Halvo.modelKeyLine("remove-model-key-line", w.MODEL_KEY_GOES),
         Halvo.el("div", { class: "row" }, [removeConfirm, removeCancel]),
       ]);
       removeLines = Halvo.el("div", { id: "remove-result", class: "muted" });

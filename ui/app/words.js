@@ -249,6 +249,8 @@
     MODEL_KEY_REMOVE_QUESTION: "Remove the key? Agents that use an AI model at {host} then stop and hand their work back to you until you add a key.",
     MODEL_KEY_KEEP: "Keep the key",
     MODEL_KEY_REMOVE_FAILED: "Halvo could not finish this. If this page still says that a key is saved, choose Remove the key again.",
+    MODEL_KEY_GOES: "Halvo also removes your key for {host}.",
+    MODEL_KEY_STAYS: "Your key for {host} and what each agent may send stay as they are.",
   };
 
   Halvo.errorWords = function (e) {

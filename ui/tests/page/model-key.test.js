@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { openPage } = require("../lib/page.js");
+const { openPage, fixture, keptDelete } = require("../lib/page.js");
 
 const HOST = "api.host.invalid";
 const STATE = {
@@ -148,4 +148,51 @@ test("the_state_line_and_the_removal_with_its_question", async () => {
     "Halvo could not finish this. If this page still says that a key is saved, choose Remove the key again.",
   );
   assert.equal(failed.calls("model_key_state").length, reads + 1, "a failed removal reads the state again");
+});
+
+test("the_three_questions_name_the_key_only_while_one_is_saved", async () => {
+  const w = (await pageAt(null)).window.Halvo.words;
+  const goes = `Halvo also removes your key for ${HOST}.`;
+  const stays = `Your key for ${HOST} and what each agent may send stay as they are.`;
+  const unnamed = (words) => words.replace(", {folder}", "");
+  const corrupt = { ...fixture("capture_status-paused"), state_file: "corrupt", store_cap_bytes: null, reset_recorded: [] };
+  const shown = (page, id) => page.document.getElementById(id) !== null && page.visible(id);
+  for (const state of ["saved", "none", null, "not_known"]) {
+    const at = `at ${state}`;
+    const named = state === "saved";
+
+    const page = await pageAt(state);
+    await page.click("delete");
+    assert.equal(page.text("delete-question"), w.DELETE_QUESTION, at);
+    assert.equal(shown(page, "delete-model-key-line"), named, `Delete everything ${at}`);
+    if (named) assert.equal(page.text("delete-model-key-line"), goes);
+    await page.click("cancel-delete");
+    await page.click("remove-halvo");
+    assert.equal(page.text("remove-question"), w.REMOVE_QUESTION, at);
+    assert.equal(shown(page, "remove-model-key-line"), named, `Remove Halvo ${at}`);
+    if (named) assert.equal(page.text("remove-model-key-line"), goes);
+
+    const offline = await pageAt(state, { capture_status: () => fixture("capture_status-not-running") });
+    await offline.click("delete");
+    assert.equal(offline.text("delete-question"), unnamed(w.DELETE_OFFLINE_QUESTION), at);
+    assert.equal(shown(offline, "delete-model-key-line"), named, `the offline form ${at}`);
+    if (named) assert.equal(offline.text("delete-model-key-line"), goes);
+
+    const refused = await pageAt(state, keptDelete({ delete_all: () => fixture("delete_all-refused") }));
+    for (let i = 0; i < 2; i++) {
+      await refused.click("delete");
+      await refused.clock.advance(600);
+      await refused.press("confirm-delete");
+    }
+    await refused.click("delete-offline");
+    assert.equal(refused.text("delete-question"), unnamed(w.DELETE_STOP_QUESTION), at);
+    assert.equal(shown(refused, "delete-model-key-line"), named, `the form that stops the service ${at}`);
+    if (named) assert.equal(refused.text("delete-model-key-line"), goes);
+
+    const reset = await pageAt(state, { capture_status: () => corrupt });
+    await reset.click("settings-reset");
+    assert.equal(reset.text("settings-reset-question"), w.SETTINGS_RESET_QUESTION, at);
+    assert.equal(shown(reset, "settings-reset-model-key-line"), named, `Reset settings ${at}`);
+    if (named) assert.equal(reset.text("settings-reset-model-key-line"), stays);
+  }
 });

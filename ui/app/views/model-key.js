@@ -8,6 +8,7 @@
   var label, text, field, stateLine, said, removeButton, removeRow, removeQuestion, partsBox;
   var parts = [];
   var mounted = 0;
+  var lines = [];
 
   /**
    * The section of the AI model, which shows only in a build whose app names a host (model_key_state), is open to
@@ -21,8 +22,28 @@
     },
   };
 
+  /**
+   * A line beneath a question that names the person's key: `words` with {host}, shown only while the state reads
+   * that a key is saved. delete.js and status.js put one beneath each of their questions.
+   */
+  Halvo.modelKeyLine = function (id, words) {
+    var line = Halvo.el("p", { id: id, class: "hidden" });
+    line.classList.add("muted");
+    lines.push({ element: line, words: words });
+    drawLines();
+    return line;
+  };
+
   function withHost(words) {
     return words.split("{host}").join(host || "");
+  }
+
+  function drawLines() {
+    var named = host !== null && state === "saved";
+    lines.forEach(function (line) {
+      line.element.textContent = named ? withHost(line.words) : "";
+      line.element.classList.toggle("hidden", !named);
+    });
   }
 
   function stateWords() {
@@ -32,6 +53,7 @@
   }
 
   function draw() {
+    drawLines();
     if (section === null) return;
     section.classList.toggle("hidden", host === null);
     if (host === null) return;
