@@ -6134,29 +6134,47 @@ fn pointer_events_fold_into_one_record_for_each_class_and_interval() {
         let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
         let start = pointer.begin(SourceContext::new(sink.clone()));
         let _ = events.drain_for(Duration::from_secs(1));
+        let handled_before_the_first = pointer_samples_handled();
         let moves: Vec<INPUT> = (0..MOVES)
             .map(|i| mouse(MOUSEEVENTF_MOVE, if i % 2 == 0 { 3 } else { -3 }, 0))
             .collect();
         let moved = send(&moves);
         let first = events.drain_for(Duration::from_millis(2_500));
+        let handled_before_the_second = pointer_samples_handled();
         let mut second_sent = send(&[
             mouse(MOUSEEVENTF_LEFTDOWN, 0, 0),
             mouse(MOUSEEVENTF_LEFTUP, 0, 0),
         ]);
         second_sent += send(&[mouse(MOUSEEVENTF_WHEEL, 0, 120)]);
-        second_sent += send(&[
-            mouse(MOUSEEVENTF_LEFTDOWN, 0, 0),
-            mouse(MOUSEEVENTF_MOVE, 3, 0),
-            mouse(MOUSEEVENTF_MOVE, -3, 0),
-            mouse(MOUSEEVENTF_MOVE, 3, 0),
-            mouse(MOUSEEVENTF_LEFTUP, 0, 0),
-        ]);
-        let second = events.drain_for(Duration::from_millis(2_500));
+        // The press of the drag goes alone, and its moves go only once the
+        // source has taken it: a move in the press's own sample is a plain
+        // move by the source's rule, which the third phase wants.
+        second_sent += send(&[mouse(MOUSEEVENTF_LEFTDOWN, 0, 0)]);
+        let mut second = Vec::new();
+        let (press_taken, press_waited) =
+            wait_for_clicks(&events, &mut second, 2, PRESS_TAKEN_WAIT);
+        second_sent += if press_taken {
+            send(&[
+                mouse(MOUSEEVENTF_MOVE, 3, 0),
+                mouse(MOUSEEVENTF_MOVE, -3, 0),
+                mouse(MOUSEEVENTF_MOVE, 3, 0),
+                mouse(MOUSEEVENTF_LEFTUP, 0, 0),
+            ])
+        } else {
+            send(&[mouse(MOUSEEVENTF_LEFTUP, 0, 0)])
+        };
+        second.extend(events.drain_for(Duration::from_millis(2_500)));
+        let handled_before_the_third = pointer_samples_handled();
         let third_sent = send(&[
             mouse(MOUSEEVENTF_MOVE | MOUSEEVENTF_LEFTDOWN, -3, 0),
             mouse(MOUSEEVENTF_LEFTUP, 0, 0),
         ]);
         let third = events.drain_for(Duration::from_millis(2_500));
+        let handled_after_the_third = pointer_samples_handled();
+        let samples_handled_of_the_first = handled_before_the_second - handled_before_the_first;
+        let samples_handled_of_the_second = handled_before_the_third - handled_before_the_second;
+        let samples_handled_of_the_third = handled_after_the_third - handled_before_the_third;
+        let press_waited_ms = press_waited.as_millis();
         let covered = cover.is_foreground();
         pump_thread(Duration::from_millis(100));
         drop(cover);
@@ -6172,10 +6190,15 @@ fn pointer_events_fold_into_one_record_for_each_class_and_interval() {
             "folds",
             format!(
                 "pointer_start={} cover_window_was_foreground={covered} sendinput_move_events_accepted={moved} \
-                 move_records={moves_first:?} pointer_events={} second_accepted={second_sent} \
+                 move_records={moves_first:?} pointer_events={} \
+                 samples_handled_of_the_first={samples_handled_of_the_first} \
+                 second_accepted={second_sent} press_taken={press_taken} press_waited={press_waited_ms}ms \
                  clicks={} drag_records={drags:?} scroll_records={scrolls:?} \
-                 move_records_of_the_second={moves_second:?} third_accepted={third_sent} \
-                 clicks_of_the_third={} move_records_of_the_third={moves_third:?}",
+                 move_records_of_the_second={moves_second:?} \
+                 samples_handled_of_the_second={samples_handled_of_the_second} \
+                 third_accepted={third_sent} \
+                 clicks_of_the_third={} move_records_of_the_third={moves_third:?} \
+                 samples_handled_of_the_third={samples_handled_of_the_third}",
                 show(&start),
                 count(&first, Modality::Pointer),
                 clicks_second.len(),
@@ -6183,6 +6206,12 @@ fn pointer_events_fold_into_one_record_for_each_class_and_interval() {
             ),
         );
         assert!(start.is_ok(), "the pointer source must start");
+        assert!(
+            press_taken,
+            "the pointer source gave no click record of the press of the second phase within {}s, \
+             so its moves were not sent",
+            PRESS_TAKEN_WAIT.as_secs()
+        );
         assert!(
             moved as usize == MOVES && second_sent == 8 && third_sent == 2,
             "INCONCLUSIVE: SendInput did not insert every pointer event"
@@ -6392,6 +6421,39 @@ fn clicks(events: &[Seen]) -> Vec<Button> {
         .iter()
         .filter_map(|e| e.view.and_then(|view| view.click))
         .collect()
+}
+
+/// How long the pointer test waits for the click record of the press of its
+/// drag.
+const PRESS_TAKEN_WAIT: Duration = Duration::from_secs(10);
+
+/// Reads records into `phase` until it holds `wanted` click records, up to
+/// `limit`: whether it holds them, and the wait. The source builds a press's
+/// click record after it has noted the button as held.
+fn wait_for_clicks(
+    events: &Events,
+    phase: &mut Vec<Seen>,
+    wanted: usize,
+    limit: Duration,
+) -> (bool, Duration) {
+    let began = Instant::now();
+    while clicks(phase).len() < wanted {
+        let left = limit.saturating_sub(began.elapsed());
+        if left.is_zero() {
+            break;
+        }
+        match events.first_within(left) {
+            Some(event) => phase.push(event),
+            None => break,
+        }
+    }
+    (clicks(phase).len() >= wanted, began.elapsed())
+}
+
+/// The count of raw pointer samples that the pointer sources of this process
+/// have handled.
+fn pointer_samples_handled() -> u64 {
+    seam::pointer_queue_largest().1
 }
 
 fn titles_with(events: &[Seen], prefix: &str) -> usize {
