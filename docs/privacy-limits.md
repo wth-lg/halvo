@@ -124,6 +124,10 @@ Where a sentence names a unit, that unit makes it true.
   password field. While the program says yes, Halvo records no window title. Where a
   program gives no answer, Halvo records the window title, also while you type a
   password into a box that such a program draws by itself. It records no key there.
+  On Windows, at the moment you switch to another window, Halvo still goes by the field
+  that had the cursor in the window you left. So it can record the title of a window that
+  opens with the cursor in a password field, where it was recording titles in the window
+  you left. It records the title alone, and no key.
 - A terminal that does not assert secure input gets no protection, so key classes
   and the window title are recorded while a password is typed there (macos-4).
 - A box that a web page only draws as dots, without telling the system that it is
