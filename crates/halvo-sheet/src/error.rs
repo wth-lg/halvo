@@ -6,7 +6,7 @@ use halvo_checkpoint::LockError;
 /// A cause of the closed list of contracts.md A7.4 that an error of this crate gives the runner:
 /// [`Error::cause`] for a call on the workbook or its folder, [`Error::source_cause`] for
 /// [`crate::Folder::read_source`], the one call on the data file. Each fact on which a person acts
-/// differently has a cause of its own (r3 U11.3, U11.4); every other error gives `step_failed`.
+/// differently has a cause of its own (r3 U11.3, U11.4, U11.5); every other error gives `step_failed`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cause {
     /// `workbook`: the cause of [`Error::Workbook`] alone. The crate refused the workbook before
@@ -29,6 +29,8 @@ pub enum Cause {
     DataOutside,
     /// `data_form`: the data file is out of its form.
     DataForm,
+    /// `data_encoding`: the data file is not UTF-8 (r3 U11.5).
+    DataEncoding,
     /// `read_only`: the person cannot write the workbook.
     ReadOnly,
     /// `no_access`: the system refused, for the permission, the open or the read of the workbook
@@ -55,6 +57,7 @@ impl Cause {
             Cause::NoDataFile => "no_data_file",
             Cause::DataOutside => "data_outside",
             Cause::DataForm => "data_form",
+            Cause::DataEncoding => "data_encoding",
             Cause::ReadOnly => "read_only",
             Cause::NoAccess => "no_access",
             Cause::NotReplaced => "not_replaced",
@@ -91,10 +94,12 @@ pub enum PathRefusal {
 }
 
 /// Why a source file is not of the form that [`crate::Folder::read_source`] takes: RFC 4180 with
-/// the comma as the one separator, one row per line ended by LF or CRLF, no header.
+/// one separator, the comma, the semicolon or the tab, one row per line ended by LF or CRLF, no
+/// header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceRefusal {
-    /// The file is not UTF-8.
+    /// The file is not UTF-8. Its cause is `data_encoding` (r3 U11.5); every other refusal's is
+    /// `data_form`.
     Encoding,
     /// The file holds a carriage return that no line feed follows, inside a quoted field or
     /// outside one.
@@ -105,11 +110,11 @@ pub enum SourceRefusal {
     /// quote that closes it, or no quote closes it by the end of the file. A double quote inside
     /// a field that does not begin with one is text.
     Quote { line: usize },
-    /// The file reads as a table by another separator than the comma: in every line that is not
-    /// empty, read as a row of semicolons, the semicolons outside its quoted fields are one or
-    /// more and as many; or the same for tabs. A double quote at the line's start or right
-    /// behind the sign opens such a field.
-    OtherSeparator,
+    /// The file reads as a table by semicolons and as one by tabs, so its separator is in doubt:
+    /// in every line that is not empty, read as a row of semicolons, the semicolons outside its
+    /// quoted fields are one or more and as many, and the same holds for tabs. A double quote at
+    /// the line's start or right behind the sign opens such a field (r3 U11.5).
+    TwoSeparators,
     /// The row on this line (counted from 1) has another number of cells than the first row.
     Ragged { line: usize },
 }
@@ -237,7 +242,9 @@ impl Error {
     /// (`PermissionDenied`) at an open, a read, the walk or the making of a file is `no_access`, and
     /// so is a lock of `prepare` that the system refuses for the permission, as for the open of the
     /// workbook's folder that the lock's key needs; a lock held for the whole wait stays
-    /// `step_failed`, and a refused rename keeps `not_replaced`, whatever its kind (r3 U11.4).
+    /// `step_failed`, and a refused rename keeps `not_replaced`, whatever its kind (r3 U11.4). A
+    /// data file that is not UTF-8 is `data_encoding`, every other refusal of its form `data_form`
+    /// (r3 U11.5).
     pub fn cause(&self) -> Cause {
         match self {
             Error::Workbook(_) => Cause::Workbook,
@@ -250,6 +257,7 @@ impl Error {
             Error::NoSheet => Cause::NoSheet,
             Error::Range => Cause::NoRange,
             Error::Shape => Cause::DataShape,
+            Error::Source(SourceRefusal::Encoding) => Cause::DataEncoding,
             Error::Source(_) => Cause::DataForm,
             Error::ReadOnly => Cause::ReadOnly,
             Error::NotReplaced(Kept::Rename(_)) | Error::CopyLeft(Kept::Rename(_)) => {
@@ -324,7 +332,8 @@ mod tests {
     /// the name that `read_source`, the one call on the data file, gives it (`Error::source_cause`). A missing file
     /// is the workbook's at the first and the data file's at the second. r3 U11.4: a file or a folder that the
     /// system refuses for the permission is `no_access` at both, the lock's open of the workbook's folder among
-    /// them, and a refused rename stays `not_replaced`.
+    /// them, and a refused rename stays `not_replaced`. r3 U11.5: a data file that is not UTF-8 is `data_encoding` at
+    /// both.
     #[test]
     fn each_error_gives_the_name_of_its_fact_on_the_workbook_and_on_the_data_file() {
         use io::ErrorKind::{NotFound, PermissionDenied};
@@ -372,8 +381,8 @@ mod tests {
             (Error::Io(PermissionDenied), "no_access", "no_access"),
             (
                 Error::Source(SourceRefusal::Encoding),
-                "data_form",
-                "data_form",
+                "data_encoding",
+                "data_encoding",
             ),
             (
                 Error::Source(SourceRefusal::CarriageReturn),
@@ -391,7 +400,7 @@ mod tests {
                 "data_form",
             ),
             (
-                Error::Source(SourceRefusal::OtherSeparator),
+                Error::Source(SourceRefusal::TwoSeparators),
                 "data_form",
                 "data_form",
             ),

@@ -135,10 +135,10 @@ fn answered_since_the_last_end<C>(facts: &Facts<C>) -> bool {
 
 /// The causes of a failed run of the runtime file whose sentence a row says for an agent of that
 /// runtime alone (r4 U3.22a): the four that the record holds today, the nine finer ones of the
-/// agents run's unit r3 U11.3 and `no_access` of its unit r3 U11.4, whose sentence is that of the
-/// build's system (r4 U3.22d, `StatusLine::key_on`); an agent of another runtime with one of these
-/// names reads the line of its failed run, as before.
-pub const FILE_CAUSES: [LastCause; 14] = [
+/// agents run's unit r3 U11.3, `no_access` of its unit r3 U11.4, whose sentence is that of the
+/// build's system (r4 U3.22d, `StatusLine::key_on`), and `data_encoding` of its unit r3 U11.5; an
+/// agent of another runtime with one of these names reads the line of its failed run, as before.
+pub const FILE_CAUSES: [LastCause; 15] = [
     LastCause::Workbook,
     LastCause::Sheet,
     LastCause::Changed,
@@ -153,6 +153,7 @@ pub const FILE_CAUSES: [LastCause; 14] = [
     LastCause::NotReplaced,
     LastCause::ReadOnly,
     LastCause::NoAccess,
+    LastCause::DataEncoding,
 ];
 
 /// Whether a row says the sentence of the last cause `cause` for an agent of `runtime`: a cause

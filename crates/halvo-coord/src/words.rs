@@ -204,7 +204,11 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.problem.data_form",
-        "Halvo cannot read the data file. Each line must be one row with commas between its values, and every row as long as the first. Then choose Change its answers.",
+        "Halvo cannot read the data file. Each line must be one row with commas, semicolons or tabs between its values, and every row as long as the first. Then choose Change its answers.",
+    ),
+    (
+        "line.problem.data_encoding",
+        "Halvo cannot read the letters in the data file. Open the file in your spreadsheet program and save it again under the same name as a CSV file with UTF-8 text; Excel calls this file type CSV UTF-8. Then choose Start now.",
     ),
     (
         "line.problem.not_replaced",
@@ -719,11 +723,11 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "param_hint.source_mac",
-        "Type the full path of a text file in the workbook's folder, for example /Users/ana/Documents/receipts.csv. Each line is one row, with commas between its values.",
+        "Type the full path of a text file in the workbook's folder, for example /Users/ana/Documents/receipts.csv. Each line is one row, with commas, semicolons or tabs between its values.",
     ),
     (
         "param_hint.source_windows",
-        "Type the full path of a text file in the workbook's folder, for example C:\\Users\\ana\\Documents\\receipts.csv. Each line is one row, with commas between its values.",
+        "Type the full path of a text file in the workbook's folder, for example C:\\Users\\ana\\Documents\\receipts.csv. Each line is one row, with commas, semicolons or tabs between its values.",
     ),
     (
         "line.working.deleting",

@@ -239,7 +239,7 @@ names! {
     /// refused the rename of the edit's replace, as for a workbook that another program holds open. `no_access`
     /// stands there where the system refused, for the permission, the open or the read of the workbook or of the
     /// data file, the walk to it, or the making of a file in the workbook's folder (r3 U11.4); a refused rename
-    /// keeps `not_replaced`.
+    /// keeps `not_replaced`. `data_encoding` stands there where the data file is not UTF-8 (r3 U11.5).
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -288,6 +288,7 @@ names! {
         DataForm = "data_form",
         ReadOnly = "read_only",
         NoAccess = "no_access",
+        DataEncoding = "data_encoding",
     }
 }
 
