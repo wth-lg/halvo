@@ -38,12 +38,13 @@
 //! In a frame (r3 U5.10-B part two; the coordinator's ruling of log line 16745): a step of any effect class that the
 //! maker serves (`payment`, `purchase`, `submit`, `sign`) whose own target or a condition `post`'s target names a frame,
 //! or whose arg takes a value read in a frame, comes to the maker, and every other way into a frame still fails before
-//! any act (`reaches_a_frame_beyond_the_maker` of the browser's module). Before any arm and act the maker reads the top
-//! page's address and acts only where its origin and every origin of the step's own frame path are origins of the run
-//! (the round of the review seat's F1), so that neither a foreign page nor a foreign frame carries a bound site's frame
-//! into an effect; a value read in a frame names the frame document's origin, the last of the path that its target
-//! names (`read_again`); and the read after the reply waits for a new document in the frame of the released request
-//! (`Page::arm_hold`, `Page::page_amounts`).
+//! any act (`reaches_a_frame_beyond_the_maker` of the browser's module). Before any read of a value, any arm and any act
+//! the maker reads the top page's address and acts only where its origin and every origin of every frame path that the
+//! step names (its own target's, the target's of each extract that its args take, each condition's) are origins of the
+//! run (the round of the review seat's F1 and the coordinator's ruling of log line 17176), so that no frame path that the
+//! step names passes through a frame of an unbound origin; a value read in a frame names the frame document's origin,
+//! the last of the path that its target names (`read_again`); and the read after the reply waits for a new document in
+//! the frame of the released request (`Page::arm_hold`, `Page::page_amounts`).
 //!
 //! A binary that holds the maker holds its marker text (`MAKER_MARKER`), which the scan of check 62-build
 //! (scripts/r1/ci.d/62-build.sh) refuses in every shipped file.
@@ -539,6 +540,10 @@ impl Runner {
         read?;
         let origins = self.run_origins(loaded);
         let framed = self.reaches_a_frame(step);
+        let paths_bound = self
+            .frame_paths(step)
+            .iter()
+            .all(|path| path.iter().all(|origin| origins.contains(origin)));
         let frame = match &step.target {
             Some(Target::Web(target)) => &target.frame[..],
             _ => &[],
@@ -554,7 +559,7 @@ impl Runner {
                 crate::line("run effect=failed at=frame top=unbound");
                 return Err(failed());
             }
-            if !frame.iter().all(|origin| origins.contains(origin)) {
+            if !paths_bound {
                 crate::line("run effect=failed at=frame path=unbound");
                 return Err(failed());
             }
@@ -1531,6 +1536,50 @@ mod tests {
                 "{path}: {log:?}"
             );
             assert_eq!(record.done(), Some(Outcome::Failed), "{path}: {log:?}");
+        }
+    }
+
+    /// r3 U5.10-B part two, round 2 (the coordinator's ruling of log line 17176, verifier-123's W1), on the stand-in:
+    /// every origin of every frame path that an effect step names is an origin of the run, else the step answers
+    /// `step_failed` before any read of a value, any arm and any act, with an empty page log: a payment whose amount
+    /// comes from an extract whose path is [unbound, bound], and one whose condition `post` names a frame of an
+    /// unbound origin.
+    #[test]
+    fn on_the_stand_in_a_read_or_a_post_condition_by_an_unbound_frame_path_fails_before_any_read() {
+        let outer = EXTRACT.replacen(
+            r#""frame":[]"#,
+            r#""frame":["http://127.0.0.1:9090","http://127.0.0.1:8080"]"#,
+            1,
+        );
+        let post = PAY_POST.replacen(
+            r#""desc":"paid","frame":[]"#,
+            r#""desc":"paid","frame":["http://127.0.0.1:9090"]"#,
+            1,
+        );
+        for (name, json, extract) in [
+            ("an amount read by [unbound, bound]", PAY, outer.as_str()),
+            (
+                "a condition post in an unbound frame",
+                post.as_str(),
+                EXTRACT,
+            ),
+        ] {
+            let log: Log = Arc::default();
+            let stand_in = StandIn::new(&log, vec![held(7)]);
+            let record = pay_with(stand_in, json, kept_of(extract), Plan::plain());
+            let log = lines(&log);
+            assert!(log.is_empty(), "{name}: {log:?}");
+            assert!(record.confirms().is_empty(), "{name}: no card");
+            assert!(record.states().is_empty(), "{name}: no effect row");
+            assert_eq!(
+                rows(&record),
+                [
+                    (LogEvent::StepFailed, Some(3), Some(Cause::StepFailed)),
+                    (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+                ],
+                "{name}"
+            );
+            assert_eq!(record.done(), Some(Outcome::Failed), "{name}");
         }
     }
 }

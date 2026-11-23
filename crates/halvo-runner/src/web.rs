@@ -1150,31 +1150,47 @@ impl Runner {
                 .is_some_and(|(target, _)| !target.frame.is_empty())
     }
 
-    /// Whether the step reaches into a frame: its target or the target of one of its conditions names a frame, or one
-    /// of its args or of the args of its conditions takes a value that an `extract` of this run read in a frame
-    /// (`read_in_a_frame`; the coordinator's ruling of log line 16325, point 1). The browser's maker then reads the
-    /// top page's address before any arm and act, and acts only where its origin and every origin of the step's own
-    /// frame path are origins of the run (the coordinator's ruling of log line 16745, point 2; crate::web::maker).
+    /// Every frame path that the step names, each from the top document inward: its own target's, the target's of
+    /// each of its conditions, and the target's of each `extract` of this run whose value one of its args or of its
+    /// conditions' args takes (`extracts`); a path of the top document is empty (r3 U5.10-B part two, the coordinator's
+    /// ruling of log line 17176).
+    #[cfg(feature = "loopback")]
+    fn frame_paths<'s>(&'s self, step: &'s ExecutableStep) -> Vec<&'s [WebOrigin]> {
+        let mut paths = Vec::new();
+        if let Some(Target::Web(target)) = &step.target {
+            paths.push(&target.frame[..]);
+        }
+        let conds = || step.pre.iter().chain(&step.post);
+        paths.extend(
+            conds()
+                .filter_map(|cond| cond.target.as_ref())
+                .map(|t| &t.frame[..]),
+        );
+        let args = step
+            .args
+            .iter()
+            .chain(conds().filter_map(|cond| cond.arg.as_ref()));
+        for arg in args.filter(|arg| matches!(arg.from, Source::Extract)) {
+            if let Some((target, _)) = arg
+                .key
+                .as_ref()
+                .and_then(|key| self.extracts.get(key.as_str()))
+            {
+                paths.push(&target.frame[..]);
+            }
+        }
+        paths
+    }
+
+    /// Whether the step reaches into a frame: one of the frame paths that it names (`frame_paths`) is not empty, its
+    /// target or the target of one of its conditions naming a frame, or one of its args or of the args of its
+    /// conditions taking a value that an `extract` of this run read in a frame (the coordinator's ruling of log line
+    /// 16325, point 1). The browser's maker then reads the top page's address before any read of a value, any arm and
+    /// any act, and acts only where its origin and every origin of every frame path that the step names are origins
+    /// of the run (the coordinator's rulings of log lines 16745, point 2, and 17176; crate::web::maker).
     #[cfg(feature = "loopback")]
     fn reaches_a_frame(&self, step: &ExecutableStep) -> bool {
-        let framed = |target: &WebTarget| !target.frame.is_empty();
-        matches!(&step.target, Some(Target::Web(target)) if framed(target))
-            || step
-                .pre
-                .iter()
-                .chain(&step.post)
-                .filter_map(|cond| cond.target.as_ref())
-                .any(framed)
-            || step
-                .args
-                .iter()
-                .chain(
-                    step.pre
-                        .iter()
-                        .chain(&step.post)
-                        .filter_map(|cond| cond.arg.as_ref()),
-                )
-                .any(|arg| self.read_in_a_frame(arg))
+        self.frame_paths(step).iter().any(|path| !path.is_empty())
     }
 
     /// Whether the step reaches into a frame by a way that the browser's maker does not take (r3 U5.10-B part two, the
