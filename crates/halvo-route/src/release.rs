@@ -1,5 +1,6 @@
 //! The compiled-in data of contract T1.6: the ruling with its table of hosts, the policy table and
-//! the default cap, each of which fails closed when its file does not parse.
+//! the default cap, each of which fails closed when its file does not parse, and the ruling also
+//! while the price file's rate for the tier of a row of the table is a fixture.
 
 use std::sync::OnceLock;
 
@@ -11,12 +12,17 @@ const RULING: &str = include_str!("../data/ruling.txt");
 const HOSTS: &str = include_str!("../data/hosts.tsv");
 const POLICY: &str = include_str!("../data/policy.tsv");
 const CAP: &str = include_str!("../data/cap.txt");
+const PRICES: &str = include_str!("../data/prices.tsv");
+/// The first word of the source cell of a made-up rate.
+const FIXTURE: &str = "fixture:";
 
 /// The ruling of `crates/halvo-route/data/ruling.txt`, read without its last LF with the table of
 /// hosts of `crates/halvo-route/data/hosts.tsv`, or `Ruling::None` when the line does not parse,
-/// when the table does not parse, when the table holds no row, and when the line is `ruling=none`.
+/// when the table does not parse, when the table holds no row, when the line is `ruling=none`,
+/// when `crates/halvo-route/data/prices.tsv` does not parse, and while that file's rate for the
+/// tier of any row of the table has a source that begins with `fixture:`.
 pub fn ruling() -> Ruling {
-    ruling_of(RULING, HOSTS)
+    ruling_of(RULING, HOSTS, PRICES)
 }
 
 /// The table of `crates/halvo-route/data/policy.tsv`, read once by `Policy::parse_for` with the
@@ -32,9 +38,18 @@ pub fn cap() -> Option<DefaultCap> {
     cap_of(CAP)
 }
 
-fn ruling_of(text: &str, hosts: &str) -> Ruling {
-    text.strip_suffix('\n')
-        .map_or(Ruling::None, |line| Ruling::read_with_table(line, hosts))
+fn ruling_of(text: &str, hosts: &str, prices: &str) -> Ruling {
+    let ruling = text
+        .strip_suffix('\n')
+        .map_or(Ruling::None, |line| Ruling::read_with_table(line, hosts));
+    let fixture = ruling.rows().iter().any(|row| {
+        crate::prices::source(prices, row.tier()).is_none_or(|cell| cell.starts_with(FIXTURE))
+    });
+    if fixture {
+        Ruling::None
+    } else {
+        ruling
+    }
 }
 
 fn policy_of(text: &str, ruling: &Ruling) -> Policy {
@@ -58,15 +73,65 @@ mod tests {
         changed
     }
 
+    /// A price text whose rate of `low_cost_hosted` has the source `low` and whose rate of
+    /// `frontier` has the source `top`.
+    fn prices(low: &str, top: &str) -> String {
+        format!(
+            "tier\tinput\toutput\tsource\tdate\n\
+             on_device\t0\t0\tdevice\t2026-11-10\n\
+             low_cost_hosted\t3100000\t15700000\t{low}\t2026-11-10\n\
+             frontier\t15500000\t78500000\t{top}\t2026-11-10\n"
+        )
+    }
+
+    #[test]
+    fn a_row_of_the_table_is_refused_while_the_rate_of_its_tier_reads_fixture() {
+        let paid = prices("page:test", "page:test");
+        let unparsed = paid.replacen("2026-11-10", "2026-11-31", 1);
+        let low = prices("fixture:B-3.2", "page:test");
+        let top = prices("page:test", "fixture:B-3.2");
+        for (tier, its_own, the_other) in [
+            (Tier::LowCostHosted, &low, &top),
+            (Tier::Frontier, &top, &low),
+        ] {
+            let table = format!(
+                "tier\torigin\tmodel\tadapter\tsource\tdate\n\
+                 {}\thttps://top.invalid\ttop-model\tadapter-b\tpage:test\t2026-11-22\n",
+                tier.as_str()
+            );
+            let open = ruling_of("ruling=hosted\n", &table, &paid);
+            assert_eq!(open.allowed(), &[Tier::OnDevice, tier]);
+            assert_eq!(open.rows().len(), 1);
+            assert_eq!(
+                ruling_of("ruling=hosted\n", &table, its_own),
+                Ruling::None,
+                "{tier:?}"
+            );
+            assert_eq!(
+                ruling_of("ruling=hosted\n", &table, the_other),
+                open,
+                "{tier:?}"
+            );
+            for text in ["", unparsed.as_str()] {
+                assert_eq!(
+                    ruling_of("ruling=hosted\n", &table, text),
+                    Ruling::None,
+                    "{text:?}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn release_ruling_fails_closed() {
+        let paid = prices("page:test", "page:test");
         let header = "tier\torigin\tmodel\tadapter\tsource\tdate\n";
         let row = "frontier\thttps://top.invalid\ttop-model\tadapter-b\tfixture:test\t2026-11-22\n";
         let one = format!("{header}{row}");
-        assert_eq!(ruling_of("ruling=none\n", HOSTS), Ruling::None);
-        assert_eq!(ruling_of("ruling=hosted\n", HOSTS), Ruling::None);
-        assert_eq!(ruling_of("ruling=none\n", &one), Ruling::None);
-        let open = ruling_of("ruling=hosted\n", &one);
+        assert_eq!(ruling_of("ruling=none\n", HOSTS, &paid), Ruling::None);
+        assert_eq!(ruling_of("ruling=hosted\n", HOSTS, &paid), Ruling::None);
+        assert_eq!(ruling_of("ruling=none\n", &one, &paid), Ruling::None);
+        let open = ruling_of("ruling=hosted\n", &one, &paid);
         assert_eq!(open.allowed(), &[Tier::OnDevice, Tier::Frontier]);
         assert_eq!(open.rows().len(), 1);
         for text in [
@@ -88,9 +153,9 @@ mod tests {
             "ruling=all\n",
         ] {
             for hosts in [HOSTS, one.as_str()] {
-                assert_eq!(ruling_of(text, hosts), Ruling::None, "{text:?}");
-                assert_eq!(ruling_of(text, hosts).allowed(), &[Tier::OnDevice]);
-                assert!(ruling_of(text, hosts).rows().is_empty());
+                assert_eq!(ruling_of(text, hosts, &paid), Ruling::None, "{text:?}");
+                assert_eq!(ruling_of(text, hosts, &paid).allowed(), &[Tier::OnDevice]);
+                assert!(ruling_of(text, hosts, &paid).rows().is_empty());
             }
         }
         let low = row.replacen("frontier", "low_cost_hosted", 1);
@@ -143,7 +208,7 @@ mod tests {
         for table in &tables {
             assert_ne!(table, &one);
             assert_eq!(
-                ruling_of("ruling=hosted\n", table),
+                ruling_of("ruling=hosted\n", table, &paid),
                 Ruling::None,
                 "{table:?}"
             );
