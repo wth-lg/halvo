@@ -105,13 +105,8 @@
       }
       return true;
     }
-    line.sent = function (answered) {
-      if (answered) refused = '';
-      if (shown === 'too_long' || shown === 'not_taken') show(rest());
-    };
-    line.refuse = function (sentence) {
-      refused = sentence;
-      if (shown !== 'full' && shown !== 'too_long') show(rest());
+    line.sent = function () {
+      if (shown === 'too_long') show(rest());
     };
     line.restore = function (text, stored) {
       typed.value = text;
@@ -326,17 +321,12 @@
             return r;
           });
         });
-      }, Promise.resolve({})).then(function () {
-        return call('agents_snapshot', {});
-      }).then(function (reply) {
-        reread(key, item, went, reply);
+      }, Promise.resolve({})).then(function (reply) {
+        settle(key, item, went);
         return reply;
       }));
-      const sent = calls.map(function (c) {
-        return c[1].param;
-      });
       card.answers.forEach(function (a) {
-        if (a.line) a.line.sent(sent.indexOf(a.param) >= 0);
+        if (a.line) a.line.sent();
       });
       return;
     }
@@ -350,23 +340,15 @@
     });
   }
 
-  function reread(key, item, went, reply) {
-    if (!reply || !Array.isArray(reply.items) || typeof reply.seq !== 'number' || reply.seq < seq) return;
-    take(reply);
+  function settle(key, item, went) {
     const card = cards.get(key);
-    const now = reply.items.filter(function (i) {
-      return i.item === item.item;
-    })[0];
-    if (!card || !now) return;
+    if (!card || card.item.step !== item.step) return;
     card.answers.forEach(function (a) {
-      if (!a.line) return;
-      const entry = now.params.filter(function (p) {
+      if (!a.line || went.indexOf(a.param) < 0) return;
+      const entry = card.item.params.filter(function (p) {
         return p.name === a.param;
       })[0];
-      const refused = entry && entry.not_taken ? entry.not_taken : '';
-      if (now.step !== item.step) a.line.stored = false;
-      else if (went.indexOf(a.param) >= 0) a.line.stored = !refused;
-      if (refused) a.line.refuse(refused);
+      a.line.stored = !(entry && entry.not_taken);
     });
   }
 
@@ -413,7 +395,7 @@
   }
 
   function build(item, key, carry) {
-    const card = { id: item.item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
+    const card = { id: item.item, item: item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
