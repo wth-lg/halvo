@@ -1,0 +1,1 @@
+- Fixed: A data file in which the semicolon (or the tab) and the comma both hold is read by what it holds; a comma file with semicolons in a text in every row no longer fills the named cells with split texts.
