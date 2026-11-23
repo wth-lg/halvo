@@ -132,7 +132,7 @@ test("each question draws its hint under its words and names it to its line, a l
   assert.ok(describedBy(line).includes(note.id), "the sentence describes the line");
   assert.ok(describedBy(line).includes(set.querySelector("p.hn-hint").id), "the hint still describes the line");
   line.focus();
-  line.value = "/Volumes/work/Budget.xlsx";
+  line.value = "/Users/ana/Documents/Budget.xlsx";
   await line.dispatchEvent(makeEvent("input"));
   await refused.settle();
   assert.ok(set.textContent.includes(sentence), "typing alone keeps the sentence");
@@ -141,7 +141,7 @@ test("each question draws its hint under its words and names it to its line, a l
     refused.calls("agents_setup_typed").map((c) => [c.args.param, c.args.text]),
     [
       ["workbook", "Budget.xlsx"],
-      ["workbook", "/Volumes/work/Budget.xlsx"],
+      ["workbook", "/Users/ana/Documents/Budget.xlsx"],
     ],
   );
   const now = lineOf(refused, "workbook");
