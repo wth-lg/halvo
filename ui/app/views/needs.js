@@ -48,7 +48,7 @@
   }
 
   function limit(typed, full, tooLong, hintId, notTaken) {
-    const line = { kept: '', composing: false, ended: false, held: false, field: typed, sent: null, text: null };
+    const line = { kept: '', composing: false, ended: false, held: false, stored: false, field: typed, sent: null, text: null };
     let mark = false;
     let shown = null;
     let note = null;
@@ -112,6 +112,11 @@
     line.refuse = function (sentence) {
       refused = sentence;
       if (shown !== 'full' && shown !== 'too_long') show(rest());
+    };
+    line.restore = function (text, stored) {
+      typed.value = text;
+      line.kept = text;
+      line.stored = stored;
     };
     line.text = function () {
       return textOf(shown);
@@ -178,7 +183,7 @@
     });
   }
 
-  function addParams(box, item, answers) {
+  function addParams(box, item, answers, carry) {
     item.params.forEach(function (p) {
       const set = el('fieldset', 'hn-param', '');
       const legend = el('legend', null, p.label);
@@ -223,6 +228,8 @@
         typed.setAttribute('spellcheck', 'false');
         set.appendChild(typed);
         line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken);
+        const was = carry ? carry.lines.get(p.name) : null;
+        if (was) line.restore(was.text, carry.step === item.step && was.stored && !p.not_taken);
       }
       box.appendChild(set);
       answers.push({ param: p.name, radios: radios, typed: typed, line: line });
@@ -230,6 +237,7 @@
   }
 
   function chosen(item, answers) {
+    const first = [];
     const calls = [];
     answers.forEach(function (a) {
       const picked = a.radios.filter(function (r) {
@@ -238,10 +246,10 @@
       if (picked) {
         calls.push(['agents_answer', { item: item.item, step: item.step, choice: 'choose', param: a.param, n: picked.n }]);
       } else if (a.line && a.line.kept.trim() !== '') {
-        calls.push(['agents_setup_typed', { item: item.item, step: item.step, param: a.param, text: a.line.kept }]);
+        (a.line.stored ? first : calls).push(['agents_setup_typed', { item: item.item, step: item.step, param: a.param, text: a.line.kept }]);
       }
     });
-    return calls;
+    return first.concat(calls);
   }
 
   function held(card, sent) {
@@ -299,17 +307,29 @@
       return;
     }
     if (choice.choice === 'choose' && item.params.length > 0) {
+      const emptied = card.answers.filter(function (a) {
+        return a.line && a.line.stored && a.line.kept.trim() === '';
+      })[0];
+      if (emptied) {
+        emptied.line.field.focus();
+        return;
+      }
       const calls = chosen(item, card.answers);
       if (calls.length === 0) return;
       const key = card.key;
+      const went = [];
       held(card, calls.reduce(function (done, c) {
         return done.then(function (reply) {
-          return reply === null || reply.error ? reply : call(c[0], c[1]);
+          if (reply === null || reply.error) return reply;
+          return call(c[0], c[1]).then(function (r) {
+            if (r && !r.error && c[0] === 'agents_setup_typed') went.push(c[1].param);
+            return r;
+          });
         });
       }, Promise.resolve({})).then(function () {
         return call('agents_snapshot', {});
       }).then(function (reply) {
-        reread(key, item, reply);
+        reread(key, item, went, reply);
         return reply;
       }));
       const sent = calls.map(function (c) {
@@ -330,7 +350,7 @@
     });
   }
 
-  function reread(key, item, reply) {
+  function reread(key, item, went, reply) {
     if (!reply || !Array.isArray(reply.items) || typeof reply.seq !== 'number' || reply.seq < seq) return;
     take(reply);
     const card = cards.get(key);
@@ -339,11 +359,23 @@
     })[0];
     if (!card || !now) return;
     card.answers.forEach(function (a) {
+      if (!a.line) return;
       const entry = now.params.filter(function (p) {
         return p.name === a.param;
       })[0];
-      if (a.line && entry && entry.not_taken) a.line.refuse(entry.not_taken);
+      const refused = entry && entry.not_taken ? entry.not_taken : '';
+      if (now.step !== item.step) a.line.stored = false;
+      else if (went.indexOf(a.param) >= 0) a.line.stored = !refused;
+      if (refused) a.line.refuse(refused);
     });
+  }
+
+  function kept(card) {
+    const lines = new Map();
+    card.answers.forEach(function (a) {
+      if (a.line) lines.set(a.param, { text: a.line.kept, stored: a.line.stored });
+    });
+    return { step: card.step, lines: lines };
   }
 
   function input(event) {
@@ -380,7 +412,7 @@
     });
   }
 
-  function build(item, key) {
+  function build(item, key, carry) {
     const card = { id: item.item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
@@ -394,7 +426,7 @@
     if (item.text) about.appendChild(el('p', 'hn-text', item.text));
     addFields(about, item.fields);
     box.appendChild(about);
-    addParams(box, item, card.answers);
+    addParams(box, item, card.answers, carry);
     const controls = el('div', 'hn-controls', '');
     const buttons = [];
     item.choices.forEach(function (c) {
@@ -474,8 +506,11 @@
     items.forEach(function (item, i) {
       now.set(keys[i], asHeld(item));
     });
+    const carried = new Map();
     Array.from(cards.keys()).forEach(function (key) {
-      if (now.get(key) !== cards.get(key).json) drop(key);
+      if (now.get(key) === cards.get(key).json) return;
+      if (now.has(key)) carried.set(key, kept(cards.get(key)));
+      drop(key);
     });
     const next = new Map();
     let ref = list.firstChild;
@@ -485,8 +520,9 @@
         if (newer) card.busy = false;
         ref = ref.nextSibling;
       } else {
+        const carry = card ? kept(card) : carried.get(keys[i]);
         if (card) drop(keys[i]);
-        card = build(item, keys[i]);
+        card = build(item, keys[i], carry);
         list.insertBefore(card.li, ref);
       }
       next.set(keys[i], card);
