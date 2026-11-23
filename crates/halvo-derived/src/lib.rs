@@ -41,7 +41,9 @@
 //! workflow. The store knows for which request it runs a typed commit and takes it from no argument: a record of a kind
 //! of origin own is stored for a `runner` request and a `coordinator_write`, and refused from a step and for a request
 //! of a further role; a record of a kind of origin person is stored for a `coordinator_write`, and for a `runner`
-//! request where its kind is a name of `kinds::RUNNER_PERSON_KINDS`.
+//! request where its kind is a name of `kinds::RUNNER_PERSON_KINDS`. Behind a read of the same request that met a
+//! fault of the store, the four calls that write (the typed commit, the two removal calls and the state call) answer
+//! that fault and write nothing, for every handler of the request (r7 8.1L).
 //!
 //! A delete guard (`DeleteGuard`) is a closure of a run whose rows can show that an agent still works under a workflow.
 //! The delete of a stored workflow (`Store::decide`) calls each guard, in the order in which the host added them,

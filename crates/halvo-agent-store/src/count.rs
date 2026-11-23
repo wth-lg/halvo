@@ -152,19 +152,33 @@ fn period_end(anchor: Instant, now_ms: u64) -> Result<u64, ErrorName> {
     }
 }
 
-/// The count at the request's instant, by the two rules of the caller (the coordinator's log line 16775, (3)): it
-/// expires first, every hold whose life ended at or before the instant, at its full amount; and it turns second, and
-/// only where the instant is at or behind the end of the count's period, to the end of the period that holds the
-/// instant. In the other order a hold whose life ended in the old period would be charged to the new one.
-fn at_instant(anchor: Instant, count: &Count, now_ms: u64) -> Result<Count, ErrorName> {
-    let expired = count.expire(now_ms).map_err(spend)?;
-    let due = expired
+/// The end of the count's own cap period, as `Count::room` gives it; for a count with no cap, for which `room` gives
+/// none, the room of a copy of the count that holds a cap, whose period is the count's.
+fn own_end(count: &Count) -> Option<u64> {
+    count
         .room()
-        .is_none_or(|room| now_ms >= room.period_end_ms);
-    if !due {
-        return Ok(expired);
+        .or_else(|| count.set_cap(1).ok()?.room())
+        .map(|room| room.period_end_ms)
+}
+
+/// The count at the request's instant, by the rules of the caller (the coordinator's log lines 16775, (3), and 17560):
+/// before the end of the count's period it expires every hold whose life ended at or before the instant, at its full
+/// amount. At or behind that end it expires first every hold whose life ended inside the old period, before its end;
+/// it turns second, to the end of the period that holds the instant; and it expires third every hold whose life ended
+/// since, into the new period. So every hold that expires counts in a period that a cap reads: in the other order a
+/// hold whose life ended in the old period would be charged to the new one, and with one expiry before the turn a hold
+/// whose life ended in the new period would be charged to the old one and cleared with it.
+fn at_instant(anchor: Instant, count: &Count, now_ms: u64) -> Result<Count, ErrorName> {
+    let end = own_end(count).ok_or(ErrorName::State)?;
+    if now_ms < end {
+        return count.expire(now_ms).map_err(spend);
     }
-    Ok(expired.turn(period_end(anchor, now_ms)?))
+    count
+        .expire(end.saturating_sub(1))
+        .map_err(spend)?
+        .turn(period_end(anchor, now_ms)?)
+        .expire(now_ms)
+        .map_err(spend)
 }
 
 /// A new count at nothing, under the build's default cap, anchored at the request's instant.
@@ -619,6 +633,42 @@ mod tests {
             figures(&room(&mut store, at_s(FIRST_END_S))),
             (json!(0), json!(0), json!(ms(SECOND_END_S))),
             "at the end"
+        );
+    }
+
+    /// Round 1 (verifier-53's probe (c); the coordinator's log line 17560): every hold that expires counts in a period
+    /// that a cap reads. A hold is made 60 s before the end of the count's period, so its life ends 60 s inside the
+    /// new period, and no request stores the count between. 10 s behind the end the new period holds it open; 61 s
+    /// behind the end it has expired at its full amount into the new period: the handler expires to the period's end,
+    /// turns, and then expires to the request's instant.
+    #[test]
+    fn a_hold_whose_life_ends_in_the_new_period_counts_there() {
+        let mut store = store_with();
+        let amount = Prices::release().hold(Tier::Frontier, 10_000, 1_000);
+        assert_eq!(
+            set_cap(&mut store, NOW, 2_000),
+            Ok(json!({"cap_minor": 2_000, "new_count": "yes"}))
+        );
+        assert_eq!(
+            hold(
+                &mut store,
+                at_s(FIRST_END_S - 60),
+                1,
+                "frontier",
+                10_000,
+                1_000
+            ),
+            Ok(json!({"stored": 1}))
+        );
+        assert_eq!(
+            figures(&room(&mut store, at_s(FIRST_END_S + 10))),
+            (json!(0), json!(amount), json!(ms(SECOND_END_S))),
+            "10 s behind the end"
+        );
+        assert_eq!(
+            figures(&room(&mut store, at_s(FIRST_END_S + 61))),
+            (json!(amount), json!(0), json!(ms(SECOND_END_S))),
+            "61 s behind the end"
         );
     }
 
