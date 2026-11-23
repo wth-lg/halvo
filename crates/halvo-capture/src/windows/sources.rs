@@ -464,7 +464,7 @@ mod tests {
         use crate::secure_input::windows::{
             content_of, state_of, ClearBy, ContentReading, FocusRead, Kind, UnknownBy,
         };
-        use crate::secure_input::{SecureInputProbe, SecureInputReading};
+        use crate::secure_input::{check, SecureInputReading, Withheld};
         use ContentReading::{Clear, NoAnswer, Password, Unknown};
 
         let answered = |is_password, protected, kind| FocusRead::Answered {
@@ -592,6 +592,11 @@ mod tests {
             pid: 9,
             path: Some("C:\\Apps\\mail.exe".to_string()),
         };
+        let key_through_the_probe = |gate: &PasswordGate| match check(&gate.content_probe(), None) {
+            Ok(_) => SecureInputReading::Inactive,
+            Err(Withheld::Active) => SecureInputReading::Active,
+            Err(Withheld::Unknown | Withheld::Late) => SecureInputReading::Unknown,
+        };
         let kept_now = || {
             let title = title_event(
                 &floor,
@@ -606,7 +611,7 @@ mod tests {
                 gate.content_reading(),
                 title,
                 frame,
-                gate.content_probe().read(),
+                key_through_the_probe(&gate),
             )
         };
         let at = |read: FocusRead, firefox: bool| {
@@ -652,8 +657,9 @@ mod tests {
         );
         assert_eq!(
             at_no_answer,
-            (NoAnswer, true, false, SecureInputReading::NoAnswer),
-            "at no answer: the title is kept, the frame is not"
+            (NoAnswer, true, false, SecureInputReading::Unknown),
+            "at no answer: the title is kept, the frame is not, a key through the probe is \
+             withheld as at Unknown"
         );
         assert_eq!(
             at_no_answer_in_firefox,
