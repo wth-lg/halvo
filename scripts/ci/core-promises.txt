@@ -82,7 +82,7 @@ capture units halvo-capture::macos::window_title gate macos job
 capture units halvo-capture::windows gate windows job; its modules apps, foreground, screen, tests and window_title
 capture units halvo-capture::floor::exclude gate
 capture units halvo-capture::consent gate
-capture units halvo-coord-app::present::chooser::tests gate in both jobs, as unit tests of a package that no units line of scripts/ci/slow-tests.txt names; the system's chooser of the spreadsheet agent's files (r4 U3.22b): in the macos job the choices of NSOpenPanel and a bundle with no entitlements, so that the panel stays a window of the app, which the capture leaves out; in the windows job the choices of IFileOpenDialog and WDA_EXCLUDEFROMCAPTURE on its window; under 1 s in a local run
+capture units halvo-coord-app::present::chooser::tests gate in both jobs, as unit tests of a package that no units line of scripts/ci/slow-tests.txt names; the system's chooser of the spreadsheet agent's files (r4 U3.22b): in the macos job the choices of NSOpenPanel; in the windows job the choices of IFileOpenDialog and WDA_EXCLUDEFROMCAPTURE on its window; under 1 s in a local run
 capture check 22-redact gate
 capture check 50-windows-functional scheduled wed 467 s in the windows job
 capture check 52-windows-browser scheduled thu 433 s in the windows job

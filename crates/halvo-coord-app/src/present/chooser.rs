@@ -3,10 +3,20 @@ use tauri::{AppHandle, Runtime};
 
 /// The system's own chooser of ONE file (r4 U3.22b), Halvo's own code beside the confirm dialog's
 /// (`super::System`), never a plugin's. On a Mac it is NSOpenPanel, run modally on the main
-/// thread of the app's own process, as the confirm dialog's alert is: Halvo's bundle sets no
-/// entitlements, so no sandbox hands the panel to a service of the system, and the panel is a
-/// window of the app's own process, which the capture's screen source leaves out with the app,
-/// as it leaves the alert out. On Windows it is IFileOpenDialog, shown on a thread of its own in
+/// thread, as the confirm dialog's alert is. A current macOS may show the panel in its own panel
+/// service, a process outside Halvo's, and the capture keeps no name of the panel's list all the
+/// same: (1) every source of the capture on a Mac gives its record to the application in front,
+/// by the system's own answer (halvo-capture macos/foreground.rs `read_frontmost`; a key and a
+/// click take the same read, macos/input.rs), and none reads an event's target process or the
+/// window under the pointer; (2) while a person works in the chooser that application is Halvo,
+/// whose id the floor's list names, so every record of it is dropped: no app-in-front record, no
+/// title, no key, no click (floor/exclude.rs); (3) a record of screen activity holds no picture
+/// and no text, and its switch is off by default (macos/screen.rs, floor/record.rs,
+/// floor/mod.rs), also while the chooser stands open behind another program. (4) What no file
+/// shows: whether macOS ever names the panel service itself as the application in front; if it
+/// did, the capture would keep an app-in-front record with the service's id, the title of its
+/// focused window, key classes and clicks, as for any program's open panel. On Windows it is
+/// IFileOpenDialog, shown on a thread of its own in
 /// a single-threaded apartment: at the first event that the dialog sends, the window of the
 /// dialog gets the display affinity WDA_EXCLUDEFROMCAPTURE, as the confirm dialog's window gets
 /// it at TDN_CREATED, so that the system keeps it out of screenshots, screen shares and screen
@@ -16,8 +26,9 @@ use tauri::{AppHandle, Runtime};
 /// file and no folder (`macos::choices`, `windows::choices`), in the folder given, and answers
 /// its full path, or `Chosen::Closed` for a close and for every call that failed. On another
 /// system no chooser is shown and the answer is `Chosen::Closed`. Named limits: no run here
-/// opens the chooser, and the other windows that the system's chooser shows for itself on
-/// Windows (the name box's list of suggestions, tooltips) get no affinity.
+/// opens the chooser; no run has read which application macOS names as in front while the panel
+/// is up; and the other windows that the system's chooser shows for itself on Windows (the name
+/// box's list of suggestions, tooltips) get no affinity.
 pub struct SystemChooser<R: Runtime> {
     #[cfg(target_os = "macos")]
     app: AppHandle<R>,
@@ -310,14 +321,15 @@ mod tests {
     /// r4 U3.22b sentence 1, OF WEIGHT, the Mac's code: the choices that the code hands to
     /// NSOpenPanel, made by a function with no window: ONE file and no folder, never many and no
     /// new folder, in the folder given and where the system opens it when none is given. What
-    /// keeps the panel's window out of Halvo's own capture as it keeps the confirm dialog's: the
-    /// panel is a window of the app's own process, which the capture's screen source leaves out
-    /// with the app; the app's bundle sets no entitlements, so no sandbox hands the panel to a
-    /// service of the system, whose window the capture would take.
+    /// keeps the names of the panel's list out of what Halvo stores is the capture's own rule,
+    /// which `SystemChooser` gives in (1) to (4) and which this test does not read: every source
+    /// gives its record to the application in front, Halvo is that application while a person
+    /// works in the chooser and the floor drops every record of it, and a record of screen
+    /// activity holds no picture and no text; no file shows whether macOS ever names the panel
+    /// service as the application in front.
     #[cfg(target_os = "macos")]
     #[test]
-    fn u322b_the_mac_chooser_takes_one_file_and_no_folder_in_the_given_folder_in_the_apps_own_process(
-    ) {
+    fn u322b_the_mac_chooser_takes_one_file_and_no_folder_in_the_given_folder() {
         use super::macos::{choices, Choices};
         assert_eq!(
             choices(Some("/Volumes/work")),
@@ -330,12 +342,6 @@ mod tests {
             }
         );
         assert_eq!(choices(None).folder, None);
-        for bundle in [
-            include_str!("../../../../src-tauri/tauri.conf.json"),
-            include_str!("../../../../src-tauri/tauri.macos.conf.json"),
-        ] {
-            assert!(!bundle.contains("entitlements"), "{bundle}");
-        }
     }
 
     /// r4 U3.22b sentence 1, OF WEIGHT, the Windows code: the choices that the code hands to
