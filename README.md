@@ -168,17 +168,16 @@ No release is made before the store unit store-4 is on `main`. Until then
 `--execute` stops before cargo-release while a tracked file under
 `crates/halvo-capture/src` holds the statement that creates the search index
 `events_fts`, which store-4 takes out, and it makes no commit and no tag; the dry run
-prints the line where `--execute` would stop. Named limit: a tag that a person
-pushes by hand before store-4 is on `main` still runs the build check of CI in a
-red job, which uploads that build as an artifact.
+prints the line where `--execute` would stop. Named limit: a tag other than a `dev-`
+tag that a person pushes by hand before store-4 is on `main` still runs the build
+check of CI in a red job, which uploads that build as an artifact.
 
 Pushing the commit and the tag, a GitHub release, signing and publishing are the
 owner's own steps.
 
 Between releases, the Releases page of the repository carries development snapshots
 of `main`: pre-releases named `dev-<UTC date>.<n>` with notes alone. A snapshot has
-no installer, sets no version and adds no commit, and its tag starts one run of the
-merge gate.
+no installer, sets no version and adds no commit, and its tag starts no CI run.
 
 Both forms take an optional bump level after the flag: `patch` (default), `minor` or
 `major`. `CHANGELOG.md` follows Keep a Changelog. A pull request records its changes
