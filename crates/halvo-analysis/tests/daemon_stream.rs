@@ -982,14 +982,24 @@ mod chain {
         }
     }
 
+    /// A deadline of `defer` that a test set; the drop clears it with a `defer` in the past, as the deadline is the
+    /// process's and the next test's driver must start its worker.
+    struct Deferral<'a>(&'a Rig);
+
+    impl Drop for Deferral<'_> {
+        fn drop(&mut self) {
+            let _ = defer(self.0, wall_nanos() - SECOND_NS);
+        }
+    }
+
     /// The deletion's promise with a living owner: three segments of real records go into a capture store, the
     /// second with the earliest first capture, as after a wall clock set back; an owner that the daemon's own slot
     /// started for a worker commits an evidence row for each segment, and the form's owner answers them through the
     /// server's line. A pass of the store's maintenance, the product's `Upkeep` of a store open for maintenance alone,
     /// with a wall clock 14 days and 30 minutes after the second segment's first capture, shreds the second segment
     /// alone, above the lowest live one. Through the real driver's turns the form's owner then answers the rows of the
-    /// segments 1 and 3 alone, and derived/owner.pid names the same owner: no owner started. A `defer` keeps every
-    /// pass of the driver from starting a worker.
+    /// segments 1 and 3 alone, and derived/owner.pid names the same owner: no owner started. A `defer`, cleared at the
+    /// test's end, keeps every pass of the driver from starting a worker.
     #[test]
     fn a_pass_that_shreds_above_the_lowest_live_segment_purges_the_living_owner() {
         use halvo_capture::daemon::maintenance::Upkeep;
@@ -1018,6 +1028,7 @@ mod chain {
             "the store holds other segments: {figures:?}"
         );
         defer(&rig, wall_nanos() + 3_600 * SECOND_NS).unwrap();
+        let _deferral = Deferral(&rig);
         if let Some(owner) = capture.owner.take() {
             let _ = owner.handle.call(Command::Shutdown);
             let _ = owner.join();
