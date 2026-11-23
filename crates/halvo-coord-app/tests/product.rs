@@ -32,13 +32,17 @@ mod mac {
     use halvo_agent_client::link::product::ClientEnds;
     use halvo_agent_client::link::StreamLink;
     use halvo_agent_client::OwnerLink;
+    use halvo_agent_client::{Secrets, MODEL_KEY};
     use halvo_control::client::{Client, ClientError, Connector, Transport};
     use halvo_control::proto::{decode_request, Decoded};
     use halvo_control::r2::{dispatch_unknown, mark_request, OwnerChannel, RunEdge, RunMarked};
     use halvo_control::wire::{read_frame, write_frame, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
     use halvo_coord::items::ConfirmAnswer;
+    use halvo_coord_app::model_key::{KeyState, ModelKey};
     use halvo_coord_app::product::{self, Calls, Places, ProductHub};
     use halvo_coord_app::{Card, Core, Dialog, Reply};
+    use halvo_schema::executable::frame::SecretReply;
+    use halvo_schema::executable::text::{Name as WireName, SecretText};
     use halvo_schema_core::category::SeedCategory;
     use halvo_schema_core::ids::{Position, RequestId, StoreId, SummaryId};
     use halvo_schema_core::record::{
@@ -68,7 +72,7 @@ mod mac {
         if args.first().map(String::as_str) == Some("--run") {
             std::process::exit(runner(&args));
         }
-        let tests: [(&str, fn()); 4] = [
+        let tests: [(&str, fn()); 5] = [
             (
                 "a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record",
                 a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record,
@@ -84,6 +88,10 @@ mod mac {
             (
                 "a_run_of_an_earlier_life_left_by_a_killed_app_is_ended_interrupted_with_one_end_mark",
                 a_run_of_an_earlier_life_left_by_a_killed_app_is_ended_interrupted_with_one_end_mark,
+            ),
+            (
+                "against_the_owner_a_save_a_second_key_and_a_removal_hold_together",
+                against_the_owner_a_save_a_second_key_and_a_removal_hold_together,
             ),
         ];
         let exact = args.iter().any(|a| a == "--exact");
@@ -880,5 +888,28 @@ mod mac {
             0,
             "no start mark"
         );
+    }
+
+    /// U3.18 sentence 9: against the owner of the derived store the calls of the person's key hold together. A save
+    /// stores the key and the state reads saved; a second key is taken, and the app's arm of `Secrets` reads that
+    /// key; a removal answers none and the state reads none. Each key is a made-up text that names itself as a test
+    /// value.
+    fn against_the_owner_a_save_a_second_key_and_a_removal_hold_together() {
+        const SECOND: &str = "test-value-not-a-model-key-second-of-another-length";
+        let world = World::new("model-key");
+        let key = ModelKey::over(world.calls().owner_stream);
+        assert_eq!(
+            key.save("test-value-not-a-model-key-first"),
+            Ok(KeyState::Saved)
+        );
+        assert_eq!(key.state(), KeyState::Saved);
+        assert_eq!(key.save(SECOND), Ok(KeyState::Saved));
+        let agent = halvo_schema::AgentId::parse(&"a1".repeat(16)).unwrap();
+        assert_eq!(
+            key.read(&agent, &WireName::parse(MODEL_KEY).unwrap()),
+            SecretReply::Stored(SecretText::parse(SECOND).unwrap())
+        );
+        assert_eq!(key.remove(), Ok(KeyState::None));
+        assert_eq!(key.state(), KeyState::None);
     }
 }
