@@ -7,7 +7,9 @@
 //!   decision `delete` are reads and decisions of the role `interface`, which a stream refuses: they go through the
 //!   app's relay call. No write of the coordinator goes through the relay.
 //! - `Runs` is the supervisor library over a second owner stream: `start` hands the machine's zone offset of the
-//!   moment as `utc_offset_s`; the first `reap` of a life answers what the start's own reap answered.
+//!   moment as `utc_offset_s`, and a hosted tier as `hosted` only where `crate::agreement::hosted` gives one for the
+//!   agent as the newest list kept it (r4 U3.17a); the first `reap` of a life answers what the start's own reap
+//!   answered.
 //! - `Analysis` sends the capture service the request `defer` of the core's deadline at each call (unit U5.4c).
 //! - `Clock` reads the system clock and the system's zone, `Rng` the system's generator, `Policy` the table of
 //!   halvo-policy (`decide_row`) and `Senders` the schema's reader of `reply_senders`.
@@ -67,7 +69,7 @@ use halvo_schema_core::request::{decode_reply, InterfaceDecision, InterfaceRead,
 use halvo_schema_core::request::{ErrorName, ReplyResult};
 use serde_json::Value;
 
-use crate::agreement::{Agreement, KeptAgent};
+use crate::agreement::{self, Agreement, KeptAgent};
 use crate::hub::{Core, Hub};
 use crate::model_key::ModelKey;
 use crate::present::{dialog_hub, Dialog};
@@ -1452,7 +1454,7 @@ impl Runs for Product {
             model: self.places.model.clone(),
             headed: spec.headed,
             utc_offset_s: zone_offset_s(SystemTime::now()).ok_or(PortError::NoService)?,
-            hosted: None,
+            hosted: agreement::hosted(lock(&self.agents).get(&spec.agent)),
         };
         lock(&self.runs).insert(
             spec.run.clone(),

@@ -5,6 +5,7 @@
 //! row, no agreement stands and no start names a hosted tier.
 #![cfg(any(target_os = "macos", windows))]
 
+use halvo_agent_client::Hosted;
 use halvo_coord::types::{Tier, WorkflowId};
 use serde_json::Value;
 
@@ -82,6 +83,28 @@ fn stands_on(agreement: Option<&Agreement>, tier: Tier, row: Option<(&str, &str)
                 && triple.origin.as_bytes() == origin.as_bytes()
                 && triple.model.as_bytes() == model.as_bytes()
         })
+}
+
+/// The library's field `hosted` of the start of a run of the agent that the newest list kept as `kept`, from `stands`
+/// alone: the agent's stored tier where it is a hosted tier and its agreement stands for that tier, and none in every
+/// other case, an agent that no list of this life named among them. The app's start of a run calls it, and no other
+/// place of the app names a hosted tier of the library.
+pub(crate) fn hosted(kept: Option<&KeptAgent>) -> Option<Hosted> {
+    hosted_by(kept, stands)
+}
+
+/// `hosted` with `stands` as the caller gives it.
+fn hosted_by(
+    kept: Option<&KeptAgent>,
+    stands: impl FnOnce(Option<&Agreement>, Tier) -> bool,
+) -> Option<Hosted> {
+    let kept = kept?;
+    let tier = match kept.tier {
+        Tier::OnDevice => return None,
+        Tier::LowCostHosted => Hosted::LowCostHosted,
+        Tier::Frontier => Hosted::Frontier,
+    };
+    stands(kept.agreement.as_ref(), kept.tier).then_some(tier)
 }
 
 #[cfg(test)]
@@ -168,6 +191,69 @@ mod tests {
         }
         for tier in [Tier::LowCostHosted, Tier::Frontier] {
             assert!(!stands(Some(&both), tier), "{tier} over release::ruling()");
+        }
+    }
+
+    /// r4 U3.17a sentence 3: the start names the agent's kept tier where it is a hosted tier and the agreement of the
+    /// newest list stands for it, and none in every other case: a null agreement, the other tier's triple alone, a
+    /// row that differs, an agent that no list named, and `on_device`.
+    #[test]
+    fn the_start_names_the_kept_tier_only_where_the_newest_agreement_stands_for_it() {
+        let low = Agreement {
+            ceiling: Tier::LowCostHosted,
+            hosts: vec![triple(Tier::LowCostHosted, ORIGIN, SMALL)],
+        };
+        let both = Agreement {
+            ceiling: Tier::Frontier,
+            hosts: vec![
+                triple(Tier::LowCostHosted, ORIGIN, SMALL),
+                triple(Tier::Frontier, ORIGIN, LARGE),
+            ],
+        };
+        let kept = |tier, agreement: Option<&Agreement>| {
+            Some(KeptAgent {
+                workflow: WorkflowId::parse(&"f1".repeat(16)).unwrap(),
+                tier,
+                agreement: agreement.cloned(),
+            })
+        };
+        let rows = [
+            (
+                kept(Tier::LowCostHosted, Some(&low)),
+                Some((ORIGIN, SMALL)),
+                Some(Hosted::LowCostHosted),
+            ),
+            (
+                kept(Tier::Frontier, Some(&both)),
+                Some((ORIGIN, LARGE)),
+                Some(Hosted::Frontier),
+            ),
+            (kept(Tier::Frontier, None), Some((ORIGIN, LARGE)), None),
+            (
+                kept(Tier::Frontier, Some(&low)),
+                Some((ORIGIN, LARGE)),
+                None,
+            ),
+            (
+                kept(Tier::Frontier, Some(&both)),
+                Some((ORIGIN, "test-model-other")),
+                None,
+            ),
+            (None, Some((ORIGIN, LARGE)), None),
+            (
+                kept(Tier::OnDevice, Some(&both)),
+                Some((ORIGIN, SMALL)),
+                None,
+            ),
+        ];
+        for (kept, row, want) in rows {
+            assert_eq!(
+                hosted_by(kept.as_ref(), |agreement, tier| stands_on(
+                    agreement, tier, row
+                )),
+                want,
+                "{kept:?} {row:?}"
+            );
         }
     }
 }
