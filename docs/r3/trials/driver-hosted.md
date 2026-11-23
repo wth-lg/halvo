@@ -76,7 +76,8 @@ below and with the coordinator's line that the verdict stands:
   10,000), and the number of requests that the harness handed to the door, each behind a hold, a
   request that the door refused unsent among them. One round makes at most 216 requests: 192 in
   compiles, 18 in recoveries, 6 for replies. The recovery asks twice at each stored step that finds
-  no control, and a right walk has three such steps in its six cells of `bill` and `order`.
+  no control, and a right walk has nine such steps in its six cells: two in each cell of `bill` and
+  one in each cell of `order`.
 - `egress list=<file> origin=<origin> starts=<n> runs=<n> denied=0`: the one origin of the list,
   the number of the door's starts under the egress check, the number of the egress check's own
   lines that the round read, equal to the starts, and no connection outside the list. Where the
