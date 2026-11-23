@@ -39,10 +39,22 @@ pub(crate) fn names(workbook: &Path) -> Result<Vec<String>, Refused> {
     Ok(names)
 }
 
+/// How long the mode lives at most: the wait of the supervisor library's read of the names. A
+/// thread of its own ends the process with the status 1 at that bound, also while the open of the
+/// workbook waits for the person's answer to the system's question about a folder, so that no
+/// runner of this mode is left once the app that started it is gone: on a Mac the runner leads a
+/// process group of its own, which the app's end does not end (on Windows the library's job ends
+/// it with the app).
+const MODE_WAIT: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Runs the mode for `workbook`: each name and a line feed on standard output, in the
-/// workbook's order, and 0; 1 when standard output takes no line; for a refusal no name, one
-/// line `REFUSED <cause>: <detail>` on standard error, and 2.
+/// workbook's order, and 0; 1 when standard output takes no line, or at `MODE_WAIT`; for a
+/// refusal no name, one line `REFUSED <cause>: <detail>` on standard error, and 2.
 pub(crate) fn main(workbook: &Path) -> i32 {
+    std::thread::spawn(|| {
+        std::thread::sleep(MODE_WAIT);
+        std::process::exit(1);
+    });
     match names(workbook) {
         Ok(names) => {
             let mut out = std::io::stdout().lock();

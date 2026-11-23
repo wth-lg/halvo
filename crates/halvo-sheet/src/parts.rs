@@ -844,7 +844,13 @@ pub(crate) const NAME_BYTES_MAX: usize = 255;
 /// The attribute `state` and the relationship of each element `sheet` of the workbook part, in
 /// its order, read as `sheet_elements` reads that element: the element `sheet` at any depth, its
 /// relationship by the last attribute `id` of any prefix.
-fn sheet_marks(xml: &[u8]) -> Result<Vec<(Option<String>, Option<String>)>, Error> {
+/// The attribute `state` and the relationship id of one element `sheet`.
+struct Mark {
+    state: Option<String>,
+    id: Option<String>,
+}
+
+fn sheet_marks(xml: &[u8]) -> Result<Vec<Mark>, Error> {
     let mut reader = new_reader(xml);
     let mut buf = Vec::new();
     let mut found = Vec::new();
@@ -864,13 +870,21 @@ fn sheet_marks(xml: &[u8]) -> Result<Vec<(Option<String>, Option<String>)>, Erro
                         id = Some(attribute.value.to_string());
                     }
                 }
-                found.push((state, id));
+                found.push(Mark { state, id });
             }
             _ => {}
         }
         buf.clear();
     }
     Ok(found)
+}
+
+/// WHICH sheets the list of names holds, the one place of that choice (r4 U3.22c, the
+/// coordinator's ruling (B)): a sheet whose relationship is of the type `worksheet`, a hidden one
+/// too; not a very hidden one (`state="veryHidden"`), nor a chart sheet, a dialog sheet or a
+/// macro sheet.
+fn listed_sheet(tail: &str, state: Option<&str>) -> bool {
+    tail == "worksheet" && state != Some("veryHidden")
 }
 
 /// The names of the workbook's worksheets, in the order of the workbook part, each as `part_of`
@@ -895,7 +909,7 @@ pub(crate) fn worksheet_names(entries: &Entries) -> Result<Vec<String>, Error> {
         return Err(part());
     }
     let mut listed = Vec::new();
-    for (sheet, (state, id)) in found.into_iter().zip(marks) {
+    for (sheet, Mark { state, id }) in found.into_iter().zip(marks) {
         let rel = id
             .as_deref()
             .and_then(|id| by_id.get(id))
@@ -903,7 +917,7 @@ pub(crate) fn worksheet_names(entries: &Entries) -> Result<Vec<String>, Error> {
         let Some(rel) = rel.filter(|_| sheet.part.is_some() && sheet.agrees) else {
             return Err(relationship());
         };
-        if rel.tail != "worksheet" || state.as_deref() == Some("veryHidden") {
+        if !listed_sheet(&rel.tail, state.as_deref()) {
             continue;
         }
         if sheet.name.len() > NAME_BYTES_MAX || listed.len() == NAMES_MAX {
