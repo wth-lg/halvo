@@ -256,10 +256,14 @@ impl Stage for StageA {
 #[cfg(test)]
 mod tests {
     use halvo_schema::{
-        AddressFieldLayer, AppId, FloorLayer, InputClass, SiteDomain, Tagged, Text, TextLayer,
+        AddressFieldLayer, AppId, Domain, FloorLayer, InputClass, Instant, Position, SiteDomain,
+        SummaryId, Tagged, Text, TextLayer,
     };
+    use halvo_seam::message::{Entry, Expiry};
+    use halvo_seam::record::{Button, CaptureRecord, KeyClass, Payload, Pointer, RecordId, Seq};
 
     use super::*;
+    use crate::episode::{episode_step, Call};
 
     fn step(title: &str, site: Option<&str>, text: Option<&str>) -> ObservedStep {
         ObservedStep {
@@ -577,5 +581,69 @@ mod tests {
         budget.extend(work("com.apple.TextEdit", "notes.txt", 2, 0));
         budget.push(app_step("com.apple.iWork.Numbers", "Budget", None));
         assert_eq!(StageA.classify(&budget), Category::Other);
+    }
+
+    /// The episodes that the episode step with stage A returns for a page of a browser with a site at 0 s and,
+    /// from 400 s on with no title record between, `inputs` records of `EXCEL.EXE`, a second apart.
+    fn page_then_excel(inputs: Payload) -> usize {
+        let record = |n: u64, app: &str, payload: Payload| {
+            let at_s = if n == 0 {
+                0
+            } else {
+                399 + i64::try_from(n).unwrap()
+            };
+            Entry {
+                pos: Position { seg: 1, idx: n },
+                record: CaptureRecord::new(
+                    RecordId::parse(&format!("00000000-0000-7000-8000-{n:012x}")).unwrap(),
+                    Instant(at_s * 1_000_000_000),
+                    Seq::new(n).unwrap(),
+                    Some(AppId::parse(app).unwrap()),
+                    payload,
+                )
+                .unwrap(),
+            }
+        };
+        let page = Payload::WindowTitle(halvo_seam::record::Title {
+            text: Text::parse("Rain radar - Mossbank Weather").unwrap(),
+            cut: Some(false),
+            why: None,
+            site: Some(Domain::parse("mossbank-weather.example").unwrap()),
+        });
+        let count = match inputs {
+            Payload::Keystroke(_) => 6,
+            _ => 10,
+        };
+        let mut entries = vec![record(0, "org.chromium.Chromium", page)];
+        entries.extend((1..=count).map(|n| record(n, "EXCEL.EXE", inputs.clone())));
+        let expiry = [Expiry {
+            seg: 1,
+            at: Instant(i64::MAX),
+        }];
+        let call = Call {
+            entries: &entries,
+            expiry: &expiry,
+            utc_offset_s: 0,
+        };
+        let mut n = 0u8;
+        let mut ids = || {
+            n += 1;
+            SummaryId::from_random([n; 16])
+        };
+        episode_step(&call, &StageA, &mut ids).episodes.len()
+    }
+
+    #[test]
+    fn records_of_a_table_app_after_a_pause_behind_a_page_name_no_episode() {
+        // No title record stands between the page and the records of Excel, so the episode step keeps them in the
+        // page's window, and the first step of their episode holds Excel's app with the page's site.
+        assert_eq!(
+            page_then_excel(Payload::Keystroke(Some(KeyClass::Printable))),
+            0
+        );
+        assert_eq!(
+            page_then_excel(Payload::Pointer(Pointer::Click(Some(Button::Primary)))),
+            0
+        );
     }
 }
