@@ -11,8 +11,9 @@
 //!   word that a read is asked: the next pass of the store owner that took no event and answered no message of the
 //!   cursor reads the store once, from ordinal 0, on the owner's thread. A read that fails leaves the figures as they
 //!   were. The process has one cell, which its one cursor holds.
-//! - The shredded segments. Each pass of the store's maintenance leaves in the cell the ordinals that it shredded
-//!   (`Schedule::run` of daemon/maintenance.rs). [`Caller::shredded`] takes them for the owner that runs, which the
+//! - The shredded segments. Behind each pass of the store's maintenance, whatever it answered, `Schedule::run` of
+//!   daemon/maintenance.rs leaves in the cell the ordinals whose keys the store cleared and committed, which the
+//!   port's `take_shredded` gives. [`Caller::shredded`] takes them for the owner that runs, which the
 //!   driver's next turn hands them (`OwnerSlot::hand_over`); [`Caller::gone`] takes them for a start, together with
 //!   the keyless ordinals of the newest read, and the slot hands the owner those at or above the start's
 //!   `--first-live` before its first request. Nothing else enters the two lists. They live in memory alone, and the
@@ -140,7 +141,8 @@ impl ReadCell {
         });
     }
 
-    /// Keeps the ordinals that one pass shredded, until an owner is handed them.
+    /// Keeps the ordinals whose keys one pass cleared and committed, whatever it answered, until an owner is handed
+    /// them.
     pub(in crate::daemon) fn shredded(&self, ordinals: impl IntoIterator<Item = u64>) {
         self.kept().shredded.extend(ordinals);
     }

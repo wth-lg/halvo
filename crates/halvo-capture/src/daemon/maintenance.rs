@@ -239,19 +239,22 @@ impl Schedule {
     }
 
     /// Runs `job` on `store`: the one call of the port's `expire_due` and the
-    /// one call of its `evict_to`. The ordinals that a pass shredded go to
-    /// the cell of the cursor's reads (`daemon_caller::cell`), from which the
-    /// owner of the derived store is handed them.
+    /// one call of its `evict_to`. Behind it, whatever it answered, the one
+    /// call of `take_shredded` takes the ordinals whose keys the store cleared
+    /// and committed, and they go to the cell of the cursor's reads
+    /// (`daemon_caller::cell`), from which the owner of the derived store is
+    /// handed them: a pass that answers an error can have shredded first.
     pub fn run<S: MaintainStore>(&self, store: &mut S, job: Job) -> Result<Pass, MaintFault> {
         let answer = match job {
             Job::Expire { now } => store.expire_due(now, self.chunk),
             Job::Evict { bound } => store.evict_to(bound, self.chunk),
         };
+        let shredded = store.take_shredded();
         #[cfg(feature = "r2")]
-        if let Ok(pass) = &answer {
-            let shredded = pass.shredded.iter().map(|ordinal| ordinal.get());
-            crate::daemon::r2::daemon_caller::cell().shredded(shredded);
-        }
+        crate::daemon::r2::daemon_caller::cell()
+            .shredded(shredded.into_iter().map(|ordinal| ordinal.get()));
+        #[cfg(not(feature = "r2"))]
+        drop(shredded);
         answer
     }
 }

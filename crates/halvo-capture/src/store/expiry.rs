@@ -181,7 +181,7 @@ impl EncryptedStore {
             return Ok(Vec::new());
         }
         let ids: Vec<Uuid> = chunk.iter().map(|(id, _)| *id).collect();
-        let (left, first_failure) = {
+        let changes_before = {
             let db = self.maintained_db()?;
             let changes_before = db.connection().total_changes();
             match clear_keys(db, &ids) {
@@ -191,6 +191,12 @@ impl EncryptedStore {
                 }
                 cleared => cleared?,
             }
+            changes_before
+        };
+        self.shredded_noted
+            .extend(chunk.iter().map(|(_, ordinal)| *ordinal));
+        let (left, first_failure) = {
+            let db = self.maintained_db()?;
             db.look_after_the_first_commit(changes_before)?;
             let checkpointed = db
                 .checkpoint_truncate()
@@ -210,6 +216,16 @@ impl EncryptedStore {
         let mut shredded: Vec<Ordinal> = chunk.iter().map(|(_, ordinal)| *ordinal).collect();
         shredded.sort_unstable();
         Ok(shredded)
+    }
+
+    /// Takes the ordinals whose keys the expiry and eviction calls on this
+    /// handle cleared and committed since the last take, whatever those calls
+    /// answered, and empties the list. A chunk notes its ordinals in one
+    /// place, right behind the commit that clears its keys and before every
+    /// step that can fail; a chunk whose commit failed notes none. The list
+    /// lives in the handle's memory alone.
+    pub fn take_shredded(&mut self) -> Vec<Ordinal> {
+        std::mem::take(&mut self.shredded_noted)
     }
 
     /// Whether a later expiry or eviction call on this handle finishes work

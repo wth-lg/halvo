@@ -2465,6 +2465,9 @@ pub(in crate::store) struct EncryptedStore {
     roots: RootKeeping,
     reconciled: Reconciled,
     pub(in crate::store) owed_files: BTreeSet<uuid::Uuid>,
+    /// The ordinals whose keys an expiry or eviction call on this handle cleared and committed since the last take
+    /// (`take_shredded`), whatever the call answered; in memory alone.
+    pub(in crate::store) shredded_noted: Vec<Ordinal>,
     access: OpenFor,
     _writer_lock: DirLock,
 }
@@ -2600,6 +2603,7 @@ impl EncryptedStore {
                 roots,
                 reconciled: Reconciled::default(),
                 owed_files: BTreeSet::new(),
+                shredded_noted: Vec::new(),
                 access: OpenFor::Write,
                 _writer_lock,
             }),
@@ -2838,6 +2842,7 @@ impl EncryptedStore {
             roots: kept,
             reconciled: Reconciled::default(),
             owed_files: BTreeSet::new(),
+            shredded_noted: Vec::new(),
             access: OpenFor::Write,
             _writer_lock,
         };

@@ -56,6 +56,14 @@ impl MaintainStore for Adapter {
             .map_err(maint_fault)
     }
 
+    fn take_shredded(&mut self) -> Vec<Ordinal> {
+        self.store
+            .take_shredded()
+            .into_iter()
+            .map(|ordinal| Ordinal::new(ordinal.get()))
+            .collect()
+    }
+
     fn delete_all(&mut self) -> TailAnswer {
         tail_answer(self.store.delete_all())
     }
@@ -179,15 +187,15 @@ mod read {
     /// `from` that holds its key, with the plain lines of its segment and
     /// its expiry instant. A row that expiry or eviction shredded holds no
     /// key and is passed with no byte of its file read; an ask above every
-    /// row reads no file. On a read from ordinal 0 that finds such a row, the
-    /// answer also names, in ascending order, every row above it that holds
-    /// no key: a segment that expiry, eviction or the open-time reconcile
-    /// shredded out of the order of its ordinal.
+    /// row reads no file. On a read from ordinal 0 that finds a row that
+    /// holds its key, the answer also names, in ascending order, every row
+    /// above it that holds no key: a segment that expiry, eviction or the
+    /// open-time reconcile shredded out of the order of its ordinal.
     ///
     /// The call reads one segment at most: two queries on the key rows, a
-    /// third on a read from ordinal 0, and one file. It takes no lock and no
-    /// transaction and writes no file. The
-    /// plain bytes stand in one buffer that is wiped when it drops, made
+    /// third on a read from ordinal 0 that finds a row that holds its key,
+    /// and one file. It takes no lock and no transaction and writes no
+    /// file. The plain bytes stand in one buffer that is wiped when it drops, made
     /// with the capacity of the largest payload before the read and never
     /// grown.
     ///

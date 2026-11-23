@@ -95,6 +95,8 @@ struct State {
     fail_every_write: Option<WriteFault>,
     expires: VecDeque<Result<Pass, MaintFault>>,
     evicts: VecDeque<Result<Pass, MaintFault>>,
+    /// The ordinals of the scripted passes that answered, for `take_shredded`.
+    noted: Vec<Ordinal>,
     free: Result<u64, io::ErrorKind>,
     #[cfg(feature = "r2")]
     read: ReadModel,
@@ -129,6 +131,7 @@ impl ModelStore {
                 fail_every_write: None,
                 expires: VecDeque::new(),
                 evicts: VecDeque::new(),
+                noted: Vec::new(),
                 free: Ok(u64::MAX),
                 #[cfg(feature = "r2")]
                 read: ReadModel {
@@ -276,10 +279,14 @@ impl MaintainStore for ModelStore {
             now,
             max: max_segments,
         });
-        state
+        let answer = state
             .expires
             .pop_front()
-            .unwrap_or_else(|| Ok(Pass::default()))
+            .unwrap_or_else(|| Ok(Pass::default()));
+        if let Ok(pass) = &answer {
+            state.noted.extend(pass.shredded.iter().copied());
+        }
+        answer
     }
 
     fn evict_to(&mut self, bound: ByteBound, max_segments: usize) -> Result<Pass, MaintFault> {
@@ -288,10 +295,19 @@ impl MaintainStore for ModelStore {
             bound,
             max: max_segments,
         });
-        state
+        let answer = state
             .evicts
             .pop_front()
-            .unwrap_or_else(|| Ok(Pass::default()))
+            .unwrap_or_else(|| Ok(Pass::default()));
+        if let Ok(pass) = &answer {
+            state.noted.extend(pass.shredded.iter().copied());
+        }
+        answer
+    }
+
+    /// The model logs no call for the take: a scripted error names no ordinal.
+    fn take_shredded(&mut self) -> Vec<Ordinal> {
+        std::mem::take(&mut self.state().noted)
     }
 
     fn usage(&mut self) -> Result<Usage, MaintFault> {

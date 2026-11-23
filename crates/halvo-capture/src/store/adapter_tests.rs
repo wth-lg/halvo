@@ -208,3 +208,55 @@ fn an_ask_through_a_linked_data_directory_makes_the_key() {
     let again = DataDirStore::at(&linked).derived_store_key().unwrap();
     assert_eq!(again.expose(), first.expose());
 }
+
+/// The deletion's promise when a pass fails behind its shred: a real store of two segments, the second captured an
+/// hour after the first. The first pass of the expiry, with the removal of a segment file failing, answers an error
+/// although it has cleared and committed the first segment's key, and the cell's list names that ordinal. The
+/// second, with that file still owed and its removal failing once more, shreds the second segment and answers the
+/// owed error, and the list names that ordinal too. The cell is this test thread's own (`cursor`, in the crate's
+/// tests), so no other test feeds it or empties it.
+#[cfg(feature = "r2")]
+#[test]
+fn a_pass_that_answers_an_error_after_its_shred_hands_its_ordinals_on() {
+    use std::time::{Duration, UNIX_EPOCH};
+
+    use crate::daemon::maintenance::{Job, Schedule, SHRED_CHUNK};
+    use crate::daemon::port::tests::write_at;
+    use crate::daemon::r2::daemon_caller::DaemonCaller;
+    use crate::daemon::r2::owner_slot::Caller;
+
+    const SECOND: i64 = 1_000_000_000;
+    let dir = tempfile::tempdir().unwrap();
+    let Opened::ReadWrite { mut store, .. } = a_store(dir.path()) else {
+        unreachable!("a_store answers a store open for writing")
+    };
+    let noon = (20_000 * 86_400 + 43_200) * SECOND;
+    let first = write_at(&mut store, noon, b"{\"n\":1}\n");
+    let second = write_at(&mut store, noon + 3_600 * SECOND, b"{\"n\":2}\n");
+    let after_the_window = |seconds: i64| {
+        let at = noon / SECOND + 14 * 86_400 + seconds;
+        UNIX_EPOCH + Duration::from_secs(u64::try_from(at).unwrap())
+    };
+    let schedule = Schedule::new(SHRED_CHUNK, None);
+    let caller = DaemonCaller::new(dir.path(), Box::new(std::io::sink()));
+    assert!(caller.shredded().is_empty());
+
+    super::failpoint::arm("segment_file_remove");
+    let now = after_the_window(1_800);
+    let first_pass = schedule.run(&mut store, Job::Expire { now }).is_err();
+    let first_list = caller.shredded();
+    super::failpoint::arm("segment_file_remove");
+    let now = after_the_window(5_400);
+    let second_pass = schedule.run(&mut store, Job::Expire { now }).is_err();
+    let second_list = caller.shredded();
+    assert_eq!(
+        (first_pass, first_list, second_pass, second_list),
+        (
+            true,
+            vec![first.ordinal.get()],
+            true,
+            vec![second.ordinal.get()]
+        ),
+        "(whether each pass answered an error, and the ordinals that the cell's list then named)"
+    );
+}
