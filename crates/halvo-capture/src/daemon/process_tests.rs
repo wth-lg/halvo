@@ -1623,7 +1623,9 @@ impl super::port::CaptureStore for PanicsAtWrite {
         _write: super::port::SegmentWrite<'_>,
     ) -> Result<super::port::Written, super::port::WriteFault> {
         *self.died.lock().unwrap() = Some(Instant::now());
-        panic!("the store of this case panics at its first write");
+        crate::daemon::supervisor::planned_panics::panic_on_purpose(
+            "the store of this case panics at its first write",
+        );
     }
 
     fn volume_free_bytes(&self) -> std::io::Result<u64> {
@@ -1672,8 +1674,6 @@ fn a_service_run_whose_owner_thread_ended_ends_through_its_shutdown_entry_with_1
         std::thread::sleep(Duration::from_secs(60));
         flag.store(true, Ordering::SeqCst);
     });
-    let quiet = std::panic::take_hook();
-    std::panic::set_hook(Box::new(|_| {}));
     let mut err = Vec::new();
     let status = super::serve_on(
         &data_dir(&dir),
@@ -1685,7 +1685,6 @@ fn a_service_run_whose_owner_thread_ended_ends_through_its_shutdown_entry_with_1
         parts,
     );
     let ended = Instant::now();
-    std::panic::set_hook(quiet);
     let err = String::from_utf8(err).unwrap();
     let died = died
         .lock()

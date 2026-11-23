@@ -2720,8 +2720,12 @@ pub(super) mod planned_panics {
 
     /// The hook that prints nothing for a [`Planned`] and hands every other
     /// panic to `before`.
-    pub(crate) fn handing_on(_before: Hook) -> Hook {
-        Box::new(|_| {})
+    pub(crate) fn handing_on(before: Hook) -> Hook {
+        Box::new(move |info| {
+            if !info.payload().is::<Planned>() {
+                before(info);
+            }
+        })
     }
 
     /// While a planned panic is quiet, the panic of another thread is handed
@@ -3030,7 +3034,9 @@ mod tests {
                     }
                     std::thread::sleep(Duration::from_millis(1));
                 }
-                panic!("the scripted source's thread panics");
+                crate::daemon::supervisor::planned_panics::panic_on_purpose(
+                    "the scripted source's thread panics",
+                );
             }));
             Ok(Started::Running)
         }
@@ -3102,8 +3108,6 @@ mod tests {
         assert!(f.start(&[SourceName::Foreground]).is_empty());
         assert!(f.tick().is_none());
         assert_eq!(f.state(SourceName::Foreground), SourceState::Running);
-        let quiet = std::panic::take_hook();
-        std::panic::set_hook(Box::new(|_| {}));
         go.store(true, Ordering::SeqCst);
         let waited = Instant::now();
         while f.supervisor.sources.read_health_of(SourceName::Foreground) == SourceState::Running
@@ -3111,7 +3115,6 @@ mod tests {
         {
             std::thread::sleep(Duration::from_millis(1));
         }
-        std::panic::set_hook(quiet);
         assert!(f.tick().is_none());
         assert!(
             matches!(
@@ -4850,7 +4853,9 @@ mod tests {
 
     impl CaptureStore for PanickingStore {
         fn write_batch(&mut self, _write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
-            panic!("the scripted store panics at its write");
+            crate::daemon::supervisor::planned_panics::panic_on_purpose(
+                "the scripted store panics at its write",
+            );
         }
 
         fn volume_free_bytes(&self) -> io::Result<u64> {
@@ -4869,8 +4874,6 @@ mod tests {
         });
         factory.calls = shared;
         let mut supervisor = Supervisor::new(Platform::Macos, factory, real_loop());
-        let quiet = std::panic::take_hook();
-        std::panic::set_hook(Box::new(|_| {}));
         let outcome = run_timed(
             &run_of(60),
             &mut supervisor,
@@ -4879,7 +4882,6 @@ mod tests {
             &AtomicBool::new(false),
             Duration::from_millis(500),
         );
-        std::panic::set_hook(quiet);
         let outcome = outcome.unwrap();
         assert_eq!(outcome.status, exit::ERROR);
         assert_eq!(calls.of("stop "), ["stop input", "stop foreground"]);
@@ -5061,8 +5063,6 @@ mod tests {
         });
         factory.calls = Factory::new().calls;
         let mut supervisor = Supervisor::new(Platform::Macos, factory, real_loop());
-        let quiet = std::panic::take_hook();
-        std::panic::set_hook(Box::new(|_| {}));
         let started = Instant::now();
         let outcome = run_timed(
             &run_of(3_600),
@@ -5072,7 +5072,6 @@ mod tests {
             &AtomicBool::new(false),
             Duration::from_millis(500),
         );
-        std::panic::set_hook(quiet);
         assert_eq!(outcome.unwrap().status, exit::ERROR);
         assert!(
             started.elapsed() < Duration::from_secs(30),
@@ -5218,8 +5217,6 @@ mod tests {
             linger: Duration::from_millis(300),
             at_stop: None,
         };
-        let quiet = std::panic::take_hook();
-        std::panic::set_hook(Box::new(|_| {}));
         let started = Instant::now();
         let outcome = run_timed(
             &run_of(1),
@@ -5229,7 +5226,6 @@ mod tests {
             &AtomicBool::new(false),
             SETTLE_BOUND,
         );
-        std::panic::set_hook(quiet);
         let outcome = outcome.unwrap();
         let took = started.elapsed();
         let loss = outcome.loss.clone().expect("no loss line");
@@ -7600,7 +7596,9 @@ mod tests {
             fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
                 self.writes += 1;
                 if self.writes > 1 {
-                    panic!("the scripted store panics at its second write");
+                    crate::daemon::supervisor::planned_panics::panic_on_purpose(
+                        "the scripted store panics at its second write",
+                    );
                 }
                 self.inner.write_batch(write)
             }
@@ -7622,8 +7620,6 @@ mod tests {
                 at_stop: None,
             };
             let model = ModelStore::new();
-            let quiet = std::panic::take_hook();
-            std::panic::set_hook(Box::new(|_| {}));
             let outcome = run_timed(
                 &run_of(1),
                 &mut run,
@@ -7635,7 +7631,6 @@ mod tests {
                 &AtomicBool::new(false),
                 SETTLE_BOUND,
             );
-            std::panic::set_hook(quiet);
             let outcome = outcome.unwrap();
             let persisted = model.records().len();
             let loss = outcome.loss.clone().expect("no loss line");
@@ -8032,8 +8027,6 @@ mod tests {
                 linger: Duration::from_millis(300),
                 let_go: Vec::new(),
             };
-            let quiet = std::panic::take_hook();
-            std::panic::set_hook(Box::new(|_| {}));
             let answer = run_timed(
                 &run_of(1),
                 &mut run,
@@ -8042,7 +8035,6 @@ mod tests {
                 &AtomicBool::new(false),
                 SETTLE_BOUND,
             );
-            std::panic::set_hook(quiet);
             let text = match &answer {
                 Ok(outcome) => {
                     format!("Ok status={} refusal={:?}", outcome.status, outcome.refusal)
@@ -8378,7 +8370,9 @@ mod tests {
 
         impl CaptureStore for PanicStore {
             fn write_batch(&mut self, _write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
-                panic!("the store ends the owner thread");
+                crate::daemon::supervisor::planned_panics::panic_on_purpose(
+                    "the store ends the owner thread",
+                );
             }
 
             fn volume_free_bytes(&self) -> io::Result<u64> {
@@ -8418,8 +8412,6 @@ mod tests {
             });
             let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop);
             let window = Duration::from_secs(30);
-            let quiet = std::panic::take_hook();
-            std::panic::set_hook(Box::new(|_| {}));
             let outcome = run_timed(
                 &run_of(30),
                 &mut supervisor,
@@ -8428,7 +8420,6 @@ mod tests {
                 &AtomicBool::new(false),
                 SETTLE_BOUND,
             );
-            std::panic::set_hook(quiet);
             let outcome = outcome.unwrap();
             let stops = supervisor.factory().calls.of("stop ");
             println!("dm25 n8 let_go={:?} stops={stops:?}", outcome.let_go);
@@ -8993,21 +8984,29 @@ mod tests {
                 _now: std::time::SystemTime,
                 _max: usize,
             ) -> Result<Pass, MaintFault> {
-                panic!("the store ends the owner thread at its first call");
+                crate::daemon::supervisor::planned_panics::panic_on_purpose(
+                    "the store ends the owner thread at its first call",
+                );
             }
 
             fn evict_to(&mut self, _bound: ByteBound, _max: usize) -> Result<Pass, MaintFault> {
-                panic!("the store ends the owner thread at its first call");
+                crate::daemon::supervisor::planned_panics::panic_on_purpose(
+                    "the store ends the owner thread at its first call",
+                );
             }
 
             fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
-                panic!("the store ends the owner thread at its first call");
+                crate::daemon::supervisor::planned_panics::panic_on_purpose(
+                    "the store ends the owner thread at its first call",
+                );
             }
         }
 
         impl CaptureStore for EndsAtOnce {
             fn write_batch(&mut self, _write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
-                panic!("the store ends the owner thread at its first call");
+                crate::daemon::supervisor::planned_panics::panic_on_purpose(
+                    "the store ends the owner thread at its first call",
+                );
             }
 
             fn volume_free_bytes(&self) -> io::Result<u64> {
@@ -9023,8 +9022,6 @@ mod tests {
                 let_go: vec![SourceName::Input],
                 ..ArmRecorder::default()
             };
-            let quiet = std::panic::take_hook();
-            std::panic::set_hook(Box::new(|_| {}));
             let answer = run_timed(
                 &run_of(1),
                 &mut sources,
@@ -9033,7 +9030,6 @@ mod tests {
                 &AtomicBool::new(false),
                 SETTLE_BOUND,
             );
-            std::panic::set_hook(quiet);
             println!(
                 "dm26 f2-7 answer={:?} arms={:?} disarms={}",
                 answer
