@@ -120,6 +120,10 @@ Where a sentence names a unit, that unit makes it true.
   Incognito window showed one of those English names on its toolbar and no button
   with the word Incognito, its titles would be kept; no run has yet opened Chrome in
   Incognito to show the rule on a real window.
+- On Windows, Halvo asks the program in front whether the field with the cursor is a
+  password field. While the program says yes, Halvo records no window title. Where a
+  program gives no answer, Halvo records the window title, also while you type a
+  password into a box that such a program draws by itself. It records no key there.
 - A terminal that does not assert secure input gets no protection, so key classes
   and the window title are recorded while a password is typed there (macos-4).
 - A box that a web page only draws as dots, without telling the system that it is
