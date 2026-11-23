@@ -482,3 +482,42 @@ fn the_way_back_is_taken_while_a_run_is_open() {
     assert_eq!(rows(&store, "agent_agreement"), Vec::<String>::new());
     assert_eq!(agreement_of(&entry(&mut store, 1)), Value::Null);
 }
+
+/// The coordinator's log line 17603, point 1: the way back is checked for its own pair alone, so that no rule of
+/// another field stands in its way. For each of three set-ups that `validate` refuses for another rule than the tier
+/// (`limits.steps` 0, `limits.wall_s` 0, the runtime `none` beside a category whose runtime is `web`), planted as
+/// revision 3 with the tier `frontier` beside the agreement row of the yes of revision 2, the way back answers
+/// revision 4, no agreement row stands and the roster hands null.
+#[test]
+fn the_way_back_is_taken_where_the_stored_set_up_fails_another_rule() {
+    type Plant = (&'static str, fn(&mut Value));
+    let plants: [Plant; 3] = [
+        ("steps 0", |c| c["limits"]["steps"] = json!(0)),
+        ("wall_s 0", |c| c["limits"]["wall_s"] = json!(0)),
+        ("runtime none", |c| c["runtime"] = json!("none")),
+    ];
+    for (name, plant) in plants {
+        let mut store = unstarted("utility_bill_payment");
+        assert_eq!(
+            set_model(&mut store, 1, 1, "frontier", both()),
+            rev_text(2),
+            "{name}"
+        );
+        let mut planted = revisions(&store, 1).pop().expect("revision 2");
+        planted["rev"] = json!(3);
+        plant(&mut planted);
+        store
+            .commit(vec![TypedRecord {
+                kind: "agent_config",
+                json: planted.to_string(),
+            }])
+            .expect("a planted revision 3");
+        assert_eq!(the_way_back(&mut store, 1, 1), rev_text(4), "{name}");
+        assert_eq!(
+            rows(&store, "agent_agreement"),
+            Vec::<String>::new(),
+            "{name}"
+        );
+        assert_eq!(agreement_of(&entry(&mut store, 1)), Value::Null, "{name}");
+    }
+}

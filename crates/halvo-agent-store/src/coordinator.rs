@@ -18,7 +18,7 @@ use halvo_schema::executable::text::{Name, V1};
 use halvo_schema::executable::{
     reply_senders, AgentAgreement, AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentReply,
     AgentRun, AgentSession, AgentStart, CoordinatorCall, CoordinatorReply, EffectId, ModelKey,
-    Outcome, OwnText, Refusal, RunId, Runtime,
+    ModelTier, Outcome, OwnText, Refusal, RunId, Runtime,
 };
 use halvo_schema::{AgentId, Category, ErrorName, Instant, Workflow, WorkflowState};
 use serde_json::Value;
@@ -199,9 +199,11 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 /// - `set_model` (r3 U7.7): the person's yes for the agent to a hosted model with its ceiling tier, or the way back
 ///   with `on_device` and no agreement. The parser's refusals come first (`malformed`, `length`), then `no_workflow`;
 ///   `binding` unless the workflow's agent is the body's, or where no set-up of the agent under that workflow stands;
-///   `length` where the next revision would pass the greatest count; `config` where `validate` refuses the next
-///   revision with the agreement that the body makes (its cause `tier`). It never answers `state`: a yes and the way
-///   back are taken while a run of the agent is open. Then in ONE write, the host's removal call `Host::remove_under`
+///   `length` where the next revision would pass the greatest count; `config` where `validate` refuses a yes, the next
+///   revision with the agreement that the body makes, and where it refuses `on_device` with a list (its cause `tier`).
+///   The way back, `on_device` with no agreement, is checked for its own pair alone and so never answers `config`: no
+///   rule of a field that it does not change stands in its way. It never answers `state`: a yes and the way back are
+///   taken while a run of the agent is open. Then in ONE write, the host's removal call `Host::remove_under`
 ///   of `agent_agreement` under the body's workflow, it removes every agreement row of that workflow and stores the
 ///   next revision of the agent's set-up, the newest with `rev` plus 1 and the body's tier and every other key
 ///   unchanged, and at a yes the agent's agreement row: the workflow, the agent, the tier, the triples as given and
@@ -242,7 +244,9 @@ pub fn coordinator(
 /// The person's yes for the agent to a hosted model, or the way back (r3 U7.7): the next revision of the agent's
 /// set-up with the body's tier and every other key of its newest revision, and the agent's agreement row at a yes, in
 /// one write of the host's removal call of `agent_agreement` under the agent's workflow, which removes the row that
-/// stood.
+/// stood. A yes passes every rule of `validate`; the way back, `on_device` with no agreement, is checked for its own
+/// pair alone, which always holds, so that no rule of a field that it does not change stands in its way (the
+/// coordinator's log line 17603, point 1).
 fn set_model(host: &mut dyn Host, now: Now, b: &SetModel) -> Result<CoordinatorReply, ErrorName> {
     bind::of_agent(&*host, &b.workflow, &b.agent)?;
     let newest = rows::newest_config(host.rows(), &b.agent)?
@@ -262,7 +266,10 @@ fn set_model(host: &mut dyn Host, now: Now, b: &SetModel) -> Result<CoordinatorR
         hosts: hosts.clone(),
         at: now.at,
     });
-    validate(&config, agreement.as_ref()).map_err(|_| Own::Config)?;
+    let way_back = b.tier == ModelTier::OnDevice && agreement.is_none();
+    if !way_back {
+        validate(&config, agreement.as_ref()).map_err(|_| Own::Config)?;
+    }
     let mut records = vec![record(rows::AGENT_CONFIG, config.to_json())?];
     if let Some(agreement) = &agreement {
         records.push(record(rows::AGENT_AGREEMENT, agreement.to_json())?);
