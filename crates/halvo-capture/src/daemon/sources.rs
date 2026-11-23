@@ -104,19 +104,36 @@ pub fn past_bound(name: SourceName, answer: &Result<(), CaptureError>) -> Option
 /// the fixed order of the system's source names: the foreground source; the
 /// screen source only while `screen_activity` is on; on macOS the input
 /// source while `key_class` or `pointer_class` is on; on Windows the keyboard
-/// source only in a timed run whose flag set `key_class` on (contracts.md
-/// C13.8), the pointer source while `pointer_class` is on and the window_title
+/// source while `key_class` is on, in a service run while the build's
+/// `TYPING_ON_WINDOWS` is true and in a timed run whose flag set `key_class`
+/// on, the pointer source while `pointer_class` is on and the window_title
 /// source while `title_text` is on; never a system_audio or a microphone
 /// source.
 pub fn starting(platform: Platform, kind: RunKind, switches: Switches) -> Vec<SourceName> {
+    starting_with_typing(
+        platform,
+        kind,
+        switches,
+        halvo_control::texts::TYPING_ON_WINDOWS,
+    )
+}
+
+/// [`starting`] with `typing_on_windows` in the place of the build's
+/// `TYPING_ON_WINDOWS`.
+pub(crate) fn starting_with_typing(
+    platform: Platform,
+    kind: RunKind,
+    switches: Switches,
+    typing_on_windows: bool,
+) -> Vec<SourceName> {
     SourceName::of(platform)
         .iter()
         .copied()
-        .filter(|name| starts(*name, kind, switches))
+        .filter(|name| starts(*name, kind, switches, typing_on_windows))
         .collect()
 }
 
-fn starts(name: SourceName, kind: RunKind, switches: Switches) -> bool {
+fn starts(name: SourceName, kind: RunKind, switches: Switches, typing_on_windows: bool) -> bool {
     match name {
         SourceName::Foreground => true,
         SourceName::Screen => switches.is_on(Switch::ScreenActivity),
@@ -124,9 +141,11 @@ fn starts(name: SourceName, kind: RunKind, switches: Switches) -> bool {
             switches.is_on(Switch::KeyClass) || switches.is_on(Switch::PointerClass)
         }
         SourceName::Keyboard => {
-            kind == RunKind::Timed {
-                key_class_flag: true,
-            } && switches.is_on(Switch::KeyClass)
+            switches.is_on(Switch::KeyClass)
+                && match kind {
+                    RunKind::Timed { key_class_flag } => key_class_flag,
+                    RunKind::Service => typing_on_windows,
+                }
         }
         SourceName::Pointer => switches.is_on(Switch::PointerClass),
         SourceName::WindowTitle => switches.is_on(Switch::TitleText),
@@ -152,6 +171,7 @@ pub struct ServiceSources {
     foreground_reader: crate::macos::foreground::ForegroundReader,
     turns: crate::macos::run_loop::RunLoopTurns,
     input_counters: crate::macos::input::InputCounters,
+    keys_refused: bool,
     #[cfg(test)]
     stand_in_titles: bool,
 }
@@ -168,6 +188,7 @@ impl ServiceSources {
             foreground_reader: reader,
             turns,
             input_counters: crate::macos::input::InputCounters::new(),
+            keys_refused: false,
             #[cfg(test)]
             stand_in_titles: false,
         }
@@ -210,11 +231,14 @@ impl SourceFactory for ServiceSources {
                 screen::SCREEN_FRAME_CAP,
                 self.foreground_reader.clone(),
             ))),
-            SourceName::Input => Some(Box::new(input::InputSource::new(
-                self.foreground_reader.clone(),
-                self.input_counters.clone(),
-                self.input_plan(),
-            ))),
+            SourceName::Input => Some(Box::new(
+                input::InputSource::new(
+                    self.foreground_reader.clone(),
+                    self.input_counters.clone(),
+                    self.input_plan(),
+                )
+                .with_keys_refused(self.keys_refused),
+            )),
             SourceName::SystemAudio
             | SourceName::Microphone
             | SourceName::Keyboard
@@ -228,6 +252,10 @@ impl SourceFactory for ServiceSources {
 impl super::supervisor::SystemSources for ServiceSources {
     fn figures(&self) -> SourceCounters {
         self.input_counters.figures()
+    }
+
+    fn refuse_keys(&mut self, refused: bool) {
+        self.keys_refused = refused;
     }
 }
 
@@ -316,7 +344,9 @@ impl RunningSources {
 
     /// Starts the source of `name` when its entry holds none: `None` when it
     /// holds one, running or held. A source that answers off reads off, or
-    /// stopped where its health reports a stop at once.
+    /// stopped where its health reports a stop at once; a source that answers
+    /// running reads impaired where its health reports so at once, as the input
+    /// source whose tap asked for the pointer types alone does.
     pub fn start_one(
         &mut self,
         factory: &mut dyn SourceFactory,
@@ -335,7 +365,10 @@ impl RunningSources {
         let answer = source.begin(ctx.clone());
         match &answer {
             Ok(Started::Running) => {
-                entry.state = SourceState::Running;
+                entry.state = match source.health().state {
+                    impaired @ SourceState::Impaired { .. } => impaired,
+                    _ => SourceState::Running,
+                };
                 entry.source = Some(source);
             }
             Ok(Started::Off) => {
@@ -623,6 +656,11 @@ pub(crate) mod tests {
         pub(crate) ctx: Vec<(SourceName, Arc<Mutex<Option<SourceContext>>>)>,
         pub(crate) later: Vec<(SourceName, Later)>,
         pub(crate) adjust: Box<dyn FnMut(&mut Scripted)>,
+        /// The input sources made read as a tap that asked for the pointer
+        /// types alone: the system does not allow listening to keys.
+        pub(crate) listen_denied: bool,
+        /// The supervisor's latch, as `SystemSources::refuse_keys` set it.
+        pub(crate) keys_refused: bool,
     }
 
     impl Factory {
@@ -639,6 +677,8 @@ pub(crate) mod tests {
                 ctx: Vec::new(),
                 later: Vec::new(),
                 adjust: Box::new(adjust),
+                listen_denied: false,
+                keys_refused: false,
             }
         }
 
@@ -680,6 +720,11 @@ pub(crate) mod tests {
                 on_stop: None,
                 later: Arc::default(),
             };
+            if name == SourceName::Input && (self.listen_denied || self.keys_refused) {
+                source.health.set(SourceState::Impaired {
+                    reason: crate::source::HealthReason::Permission,
+                });
+            }
             (self.adjust)(&mut source);
             self.made.push(name);
             self.health.push((name, source.health.clone()));
@@ -799,13 +844,24 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_windows_set_starts_the_keyboard_source_only_under_the_timed_run_flag() {
+    fn the_windows_set_starts_the_keyboard_source_in_a_service_run_while_key_class_is_on() {
         let cases = [
-            ("the default set", timed(), Switches::default(), false),
+            (
+                "a timed run with no flag",
+                timed(),
+                Switches::default(),
+                false,
+            ),
             (
                 "a service run whose state has key_class on",
                 RunKind::Service,
                 switches_with(Switch::KeyClass, true),
+                halvo_control::texts::TYPING_ON_WINDOWS,
+            ),
+            (
+                "a service run whose state has key_class off",
+                RunKind::Service,
+                switches_with(Switch::KeyClass, false),
                 false,
             ),
             (
@@ -842,6 +898,11 @@ pub(crate) mod tests {
         };
         let off = switches_with(Switch::KeyClass, false);
         assert!(!starting(Platform::Windows, flag_off, off).contains(&SourceName::Keyboard));
+        let on = switches_with(Switch::KeyClass, true);
+        assert!(
+            !starting(Platform::Macos, RunKind::Service, on).contains(&SourceName::Keyboard),
+            "a Mac has no keyboard source"
+        );
     }
 
     #[test]

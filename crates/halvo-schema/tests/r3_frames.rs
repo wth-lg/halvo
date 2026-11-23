@@ -752,10 +752,13 @@ fn a_store_frame_holds_a_runner_request_whose_body_is_a_runner_body() {
 }
 
 #[test]
-fn a_store_reply_takes_the_nine_error_names_and_the_eight_of_this_run() {
+fn a_store_reply_takes_the_nine_error_names_and_those_of_this_run() {
     assert_eq!(
         ERROR_NAMES,
-        ["binding", "playbook", "config", "class", "length", "effect", "day", "overlap"]
+        [
+            "binding", "playbook", "config", "class", "length", "effect", "day", "overlap",
+            "over_cap", "no_cap", "repeat", "no_hold", "unread",
+        ]
     );
     for name in ERROR_NAMES {
         assert_eq!(RunError::parse(name).unwrap().as_str(), *name);

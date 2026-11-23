@@ -107,7 +107,10 @@
       var stillRunning = lost.some(function (p) {
         return (SOURCE_OF[p.permission] || []).some(function (name) {
           return sources.some(function (src) {
-            return src.name === name && (src.state === "running" || src.state === "impaired");
+            return (
+              src.name === name &&
+              (src.state === "running" || (src.state === "impaired" && src.reason !== "permission"))
+            );
           });
         });
       });

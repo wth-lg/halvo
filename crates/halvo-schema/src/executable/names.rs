@@ -129,6 +129,16 @@ names! {
 }
 
 names! {
+    /// What the reply of `model_room` finds of the person's count (r7 8.1L): `none`, no count is stored; `reads`, the
+    /// stored count reads; `unread`, a row of the count stands and does not read.
+    pub enum RoomState {
+        None = "none",
+        Reads = "reads",
+        Unread = "unread",
+    }
+}
+
+names! {
     /// The row of the model settings that the model child reads.
     pub enum Reasoning {
         Low = "low",

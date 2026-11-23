@@ -15,9 +15,21 @@ use crate::proto::{
 /// typing.
 pub const TYPING_ON_MAC: bool = true;
 
+/// Typing on Windows: whether a service run of a Windows build starts the keyboard source,
+/// which notes a key only under the password gate of win-6. On by the owner's word of
+/// 2026-11-22 and the default of entry I-156, so a Windows build notes what kind of key is
+/// pressed while the switch key_class is on. It is read in three places: the Windows service
+/// set's make of the keyboard source, the start of a service run, and [`first_run`]. Set to
+/// false, a Windows build makes and starts no keyboard source and its first-run text says that
+/// it does not record what you type, as before this switch.
+pub const TYPING_ON_WINDOWS: bool = true;
+
 /// The row on typing where no typing is recorded: on a Mac whose build takes no typing
-/// ([`TYPING_ON_MAC`]) in the first-run text, and on Windows while the keyboard source line
-/// reads off.
+/// ([`TYPING_ON_MAC`]) in the first-run text, on Windows while the keyboard source line
+/// reads off, and on a Mac with typing on in a view's list in place of the row of keys while the
+/// input source line says that its tap holds no key type (impaired with the reason permission,
+/// or off): the app's view reads it from that line alone, never from the row of Input
+/// Monitoring.
 pub const TYPING_NOT_RECORDED: &str = "Halvo does not record what you type.";
 
 /// The sentence of the first-run text on the search for repeated tasks, which the consent
@@ -323,23 +335,25 @@ pub fn onboarding_rows(status: &DaemonStatus) -> Vec<PermissionStatus> {
 /// of the default switches (contracts.md C13.5) with every source off, on a Mac with the row on
 /// typing by [`TYPING_ON_MAC`] behind the row on clicks; on a Mac with typing on also the
 /// sentence on secure input and [`KEY_TYPED_AHEAD_CAN_BE_NOTED`], since the press on Start is
-/// the consent to typing, and with typing off neither; on Windows, where no build records typing
-/// yet, the rows of a keyboard source that is off, and with typing on the rows of a keyboard
-/// source that runs under the gate: [`KEYS_RECORDED_ON_WINDOWS`] in the place of its typing row,
-/// the gate's passwords row and [`KEY_TYPED_AHEAD_ON_WINDOWS`]; the backup limit, the limits, the
-/// custody on which the platform's build captures, the storage of the default cap and the
-/// sentence on repeated tasks.
+/// the consent to typing, and with typing off neither; on Windows, by [`TYPING_ON_WINDOWS`],
+/// with typing on the rows of a keyboard source that runs under the gate:
+/// [`KEYS_RECORDED_ON_WINDOWS`] in the place of its typing row, the gate's passwords row and
+/// [`KEY_TYPED_AHEAD_ON_WINDOWS`], and with typing off the rows of a keyboard source that is
+/// off; the backup limit, the limits, the custody on which the platform's build captures, the
+/// storage of the default cap and the sentence on repeated tasks.
 pub fn first_run(platform: Platform) -> Texts {
     first_run_with(
         platform,
         match platform {
             Platform::Macos => TYPING_ON_MAC,
-            Platform::Windows => false,
+            Platform::Windows => TYPING_ON_WINDOWS,
         },
     )
 }
 
-fn first_run_with(platform: Platform, typing_on: bool) -> Texts {
+/// The first-run text of `platform` with typing on or off: [`first_run`] passes the build's
+/// constant, and a test passes the other value.
+pub fn first_run_with(platform: Platform, typing_on: bool) -> Texts {
     let switches: Vec<SwitchLine> = SwitchName::ALL
         .iter()
         .map(|&name| SwitchLine {
@@ -665,7 +679,7 @@ mod tests {
     }
 
     #[test]
-    fn a_default_status_on_windows_says_typing_is_not_observed_and_names_no_border() {
+    fn a_default_status_on_windows_says_what_it_records_of_typing_and_names_no_border() {
         let recorded = recorded(
             Platform::Windows,
             &sample_status(Platform::Windows).fields().switches,
@@ -675,7 +689,7 @@ mod tests {
             texts_of(&recorded),
             [
                 recorded_when_on(SwitchName::TitleText),
-                TYPING_NOT_RECORDED,
+                KEYS_RECORDED_ON_WINDOWS,
                 recorded_when_on(SwitchName::PointerClass),
                 SCREEN_ACTIVITY_NOT_RECORDED,
             ]
@@ -688,7 +702,7 @@ mod tests {
         let on = recorded(
             Platform::Windows,
             &switches(&[SwitchName::ScreenActivity]),
-            &sample_status(Platform::Windows).fields().sources,
+            &windows_keyboard_off().fields().sources,
         );
         assert_eq!(
             texts_of(&on),
@@ -876,7 +890,7 @@ mod tests {
 
     #[test]
     fn the_table_of_a_status_has_the_six_keys_of_the_view() {
-        let json = serde_json::to_value(texts(&sample_status(Platform::Windows))).unwrap();
+        let json = serde_json::to_value(texts(&windows_keyboard_off())).unwrap();
         let keys: Vec<&str> = json
             .as_object()
             .unwrap()
@@ -1195,7 +1209,7 @@ mod tests {
                         &[
                             vec![
                                 (TitleText, TITLE_ON),
-                                (KeyClass, K0),
+                                (KeyClass, KW),
                                 (PointerClass, POINTER_ON),
                             ],
                             screen_sentence_while_off
@@ -1665,8 +1679,8 @@ mod tests {
                 "{guard:?}"
             );
         }
-        assert_eq!(texts(&sample_status(Platform::Windows)).passwords, sentence);
-        assert_eq!(first_run(Platform::Windows).passwords, sentence);
+        assert_eq!(texts(&windows_keyboard_off()).passwords, sentence);
+        assert_eq!(first_run_with(Platform::Windows, false).passwords, sentence);
     }
 
     /// A byte copy of the coordinator's file of U1's ruled sentences, kept beside the tests.
@@ -1815,6 +1829,19 @@ mod tests {
         }
     }
 
+    /// The Windows sample status with its keyboard line off and no guard, as a run reads it
+    /// while key_class is off.
+    fn windows_keyboard_off() -> DaemonStatus {
+        status_beside(
+            Platform::Windows,
+            crate::proto::SourceName::Keyboard,
+            &crate::proto::SourceState::Off,
+            false,
+            &[SwitchName::TitleText, SwitchName::PointerClass],
+            PasswordGuard::None,
+        )
+    }
+
     fn typing_of(platform: Platform) -> crate::proto::SourceName {
         match platform {
             Platform::Macos => crate::proto::SourceName::Input,
@@ -1957,10 +1984,14 @@ mod tests {
             "W1 in the place of the Windows typing row"
         );
         assert_eq!((on.passwords, on.typed_ahead), (PH, Some(TW)));
-        let today = first_run(Platform::Windows);
-        assert_eq!(today, first_run_with(Platform::Windows, false));
-        assert_eq!(rows(&today), [APP_IN_FRONT, TITLE_ON, K0, POINTER_ON, S0]);
-        assert_eq!((today.passwords, today.typed_ahead), (P0, None));
+        assert_eq!(
+            first_run(Platform::Windows),
+            first_run_with(Platform::Windows, TYPING_ON_WINDOWS),
+            "the first-run text reads the one constant"
+        );
+        let off = first_run_with(Platform::Windows, false);
+        assert_eq!(rows(&off), [APP_IN_FRONT, TITLE_ON, K0, POINTER_ON, S0]);
+        assert_eq!((off.passwords, off.typed_ahead), (P0, None));
         let mac = first_run(Platform::Macos);
         assert_eq!(mac, first_run_with(Platform::Macos, TYPING_ON_MAC));
         assert_eq!(

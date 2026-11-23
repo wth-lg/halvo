@@ -1,12 +1,12 @@
 //! The source set of a Windows service run.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use halvo_control::proto::SourceName;
 
 use super::foreground::ForegroundAppSource;
-use super::input::RawInputSource;
+use super::input::{GateCounts, RawInputSource};
 use super::screen::ScreenSource;
 use super::window_title::WindowTitleSource;
 use crate::daemon::sources::SourceFactory;
@@ -17,16 +17,21 @@ use crate::source::{
 };
 
 /// The factory of a Windows service run: the foreground source, the pointer
-/// source of Raw Input, the window_title source and the screen source, which
-/// the run asks for only while the switch `screen_activity` is on. It makes
-/// no keyboard source and no system_audio source for any name, whatever the
-/// state file's switches say: no service run takes typing (contracts.md
-/// C13.8). The supervisor holds at most one source of a name, so the run has
-/// one Raw Input registrant for the pointer and none for the keyboard.
+/// and the keyboard source of Raw Input, the window_title source and the
+/// screen source, which the run asks for only while the switch
+/// `screen_activity` is on. It makes the keyboard source while the build's
+/// one constant `TYPING_ON_WINDOWS` is true, and no system_audio source for
+/// any name. The supervisor holds at most one source of a name, so the run
+/// has one Raw Input registrant for each device.
 ///
-/// The set holds one password gate. Its detector runs on a thread of its own,
-/// with no keyboard source, from the begin of the set's first content source
-/// to the stop of its last one. The window_title and screen sources read it.
+/// The set holds one password gate. Its detector runs on a thread of its own
+/// from the begin of the first of the set's holders to the stop of the last:
+/// the keyboard, window_title and screen sources each hold the gate while they
+/// run, and none of them attaches or detaches the detector by itself, so a
+/// stop of one of them leaves the detector to the others. The window_title
+/// and screen sources read the gate, and the keyboard source notes a key only
+/// through it. The set keeps one set of counts for the run, which its
+/// keyboard source writes and its figures read.
 ///
 /// The set makes one screen source, at its first make of the name; every make
 /// behind it gives a spent source that starts nothing, so that a process
@@ -37,16 +42,39 @@ use crate::source::{
 pub struct ServiceSet {
     last_app: Arc<Mutex<Option<String>>>,
     hold: Arc<GateHold>,
+    counts: Arc<GateCounts>,
+    typing_holders: Arc<AtomicUsize>,
     screen_made: bool,
     screen_failed: Arc<Mutex<Option<CaptureError>>>,
     #[cfg(test)]
     first_screen: Option<Box<dyn CaptureSource>>,
+    #[cfg(test)]
+    typing_off: bool,
 }
 
 impl ServiceSet {
     /// The set of a service run.
     pub fn new() -> ServiceSet {
         ServiceSet::default()
+    }
+
+    /// The set of a build whose `TYPING_ON_WINDOWS` is false.
+    #[cfg(test)]
+    fn with_typing_off() -> ServiceSet {
+        ServiceSet {
+            typing_off: true,
+            ..ServiceSet::default()
+        }
+    }
+
+    /// Whether the set makes a keyboard source: the build's one constant
+    /// `TYPING_ON_WINDOWS`.
+    fn typing_on(&self) -> bool {
+        #[cfg(test)]
+        if self.typing_off {
+            return false;
+        }
+        halvo_control::texts::TYPING_ON_WINDOWS
     }
 
     #[cfg(test)]
@@ -114,25 +142,68 @@ impl ServiceSet {
             source,
             hold: Arc::clone(&self.hold),
             holding: false,
+            typing: None,
+        }
+    }
+
+    /// The set's keyboard source: one more holder of the set's gate, which
+    /// counts in the set's counts, and whose begin fails where the gate has no
+    /// detector after its take.
+    fn gated_keyboard(&self) -> Gated<RawInputSource> {
+        Gated {
+            source: RawInputSource::keyboard_of_the_set(
+                self.password_gate(),
+                Arc::clone(&self.counts),
+            ),
+            hold: Arc::clone(&self.hold),
+            holding: false,
+            typing: Some(Arc::clone(&self.typing_holders)),
         }
     }
 }
 
-/// The set's gate and the number of its content sources that run.
+impl crate::daemon::supervisor::SystemSources for ServiceSet {
+    /// What the set's keyboard source counted in the run, and the reading of
+    /// the set's gate while a keyboard source holds it; nothing of typing
+    /// where no keyboard source ran.
+    fn figures(&self) -> SourceCounters {
+        SourceCounters {
+            late_events: u64::from(self.counts.late.load(Ordering::Relaxed)),
+            max_lag_ms: self.counts.max_lag_ms.load(Ordering::Relaxed),
+            keys_withheld: self.counts.withheld.load(Ordering::Relaxed),
+            typing_gate: (self.typing_holders.load(Ordering::Relaxed) > 0)
+                .then(|| self.hold.gate.typing_gate()),
+            ..SourceCounters::default()
+        }
+    }
+}
+
+/// The set's gate and its holders.
 #[derive(Debug, Default)]
 struct GateHold {
     gate: Arc<PasswordGate>,
-    holders: Mutex<usize>,
+    holders: Mutex<Holders>,
     said: AtomicBool,
     #[cfg(test)]
     lines_said: std::sync::atomic::AtomicU32,
 }
 
+/// The number of the set's sources that hold its gate, and the error of the
+/// detector's attach where the first of them could not attach it.
+#[derive(Debug, Default)]
+struct Holders {
+    count: usize,
+    failed: Option<CaptureError>,
+}
+
 impl GateHold {
-    fn take(&self) {
+    /// Takes one hold: the first attaches the detector. Answers the error of
+    /// that attach where the gate has no detector.
+    fn take(&self) -> Result<(), CaptureError> {
         let mut holders = self.holders.lock().unwrap_or_else(PoisonError::into_inner);
-        if *holders == 0 {
-            let line = match self.gate.attach_waiting() {
+        if holders.count == 0 {
+            let attached = self.gate.attach_waiting();
+            let line = match &attached {
                 Ok(Attached::Read) => None,
                 Ok(Attached::Late) => Some(
                     "halvo-capture: the password-field detector's first read is late; \
@@ -151,14 +222,18 @@ impl GateHold {
                     eprintln!("{line}");
                 }
             }
+            holders.failed = attached.err();
         }
-        *holders += 1;
+        holders.count += 1;
+        holders.failed.clone().map_or(Ok(()), Err)
     }
 
+    /// Gives one hold back: the last detaches the detector.
     fn give_back(&self) {
         let mut holders = self.holders.lock().unwrap_or_else(PoisonError::into_inner);
-        *holders = holders.saturating_sub(1);
-        if *holders == 0 {
+        holders.count = holders.count.saturating_sub(1);
+        if holders.count == 0 {
+            holders.failed = None;
             let _ = self.gate.detach(super::INPUT_STOP_DEADLINE);
         }
     }
@@ -171,6 +246,9 @@ pub struct Gated<S> {
     source: S,
     hold: Arc<GateHold>,
     holding: bool,
+    /// For the set's keyboard source alone: the count of the set's keyboard
+    /// sources that hold the gate, which the set's figures read.
+    typing: Option<Arc<AtomicUsize>>,
 }
 
 impl<S> Gated<S> {
@@ -181,6 +259,9 @@ impl<S> Gated<S> {
 
     fn give_back(&mut self) {
         if std::mem::take(&mut self.holding) {
+            if let Some(typing) = &self.typing {
+                typing.fetch_sub(1, Ordering::Relaxed);
+            }
             self.hold.give_back();
         }
     }
@@ -190,8 +271,15 @@ impl<S: CaptureSource> CaptureSource for Gated<S> {
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
         let took = !self.holding;
         if took {
-            self.hold.take();
+            let detector = self.hold.take();
             self.holding = true;
+            if let Some(typing) = &self.typing {
+                typing.fetch_add(1, Ordering::Relaxed);
+                if let Err(error) = detector {
+                    self.give_back();
+                    return Err(error);
+                }
+            }
         }
         let begun = self.source.begin(ctx);
         if took && !matches!(begun, Ok(Started::Running)) {
@@ -284,6 +372,7 @@ impl SourceFactory for ServiceSet {
             )))),
             SourceName::WindowTitle => Some(Box::new(self.gated_title(WindowTitleSource::new()))),
             SourceName::Screen => Some(self.screen()),
+            SourceName::Keyboard if self.typing_on() => Some(Box::new(self.gated_keyboard())),
             SourceName::Keyboard
             | SourceName::SystemAudio
             | SourceName::Input
@@ -346,9 +435,7 @@ mod tests {
             (Ok(Started::Running), Ok(Started::Running))
         );
         assert_eq!((first_stopped, second_stopped), (Ok(()), Ok(())));
-        for name in [SourceName::Keyboard, SourceName::Input] {
-            assert!(set.make(name).is_none(), "{name:?}");
-        }
+        assert!(set.make(SourceName::Input).is_none());
 
         let failing = ServiceSet::with_gate(PasswordGate::whose_attach_fails());
         let mut source = failing.gated(StandIn);
@@ -530,37 +617,277 @@ mod tests {
         assert_eq!(drops.read().secure_input, 1);
     }
 
+    /// The set makes a keyboard source and a service run starts it while the
+    /// build's one constant TYPING_ON_WINDOWS is true; a set and a start of a
+    /// build with it false make and start none, and the first-run text of such
+    /// a build says that it does not record what you type, as before the switch.
     #[test]
-    fn the_windows_service_set_makes_no_keyboard_source_whatever_the_switches_say() {
+    fn the_windows_service_set_makes_the_keyboard_source_by_the_one_constant_and_none_with_it_false(
+    ) {
+        use halvo_control::texts::{first_run_with, TYPING_NOT_RECORDED, TYPING_ON_WINDOWS};
+
+        use crate::daemon::sources::starting_with_typing;
+
         let mut switches = Switches::default();
         for switch in Switch::ALL {
             switches.set(switch, true);
         }
-        let made_by_the_set = [
-            SourceName::Foreground,
-            SourceName::Screen,
-            SourceName::Pointer,
-            SourceName::WindowTitle,
-        ];
-        let mut set = ServiceSet::new();
-        for name in SourceName::WINDOWS {
-            let made = set.make(name);
-            assert_eq!(made.is_some(), made_by_the_set.contains(&name), "{name:?}");
-            if let Some(source) = made {
-                assert_eq!(
-                    source.health().state,
-                    SourceState::NotReported,
-                    "{name:?} began"
-                );
+        for (mut set, typing) in [
+            (ServiceSet::new(), TYPING_ON_WINDOWS),
+            (ServiceSet::with_typing_off(), false),
+        ] {
+            let mut made_by_the_set = vec![SourceName::Foreground, SourceName::Screen];
+            if typing {
+                made_by_the_set.push(SourceName::Keyboard);
             }
+            made_by_the_set.extend([SourceName::Pointer, SourceName::WindowTitle]);
+            let made: Vec<SourceName> = SourceName::WINDOWS
+                .into_iter()
+                .filter(|name| {
+                    let made = set.make(*name);
+                    if let Some(source) = &made {
+                        assert_eq!(
+                            source.health().state,
+                            SourceState::NotReported,
+                            "{name:?} began"
+                        );
+                    }
+                    made.is_some()
+                })
+                .collect();
+            assert_eq!(made, made_by_the_set, "typing {typing}");
+            let wanted =
+                starting_with_typing(Platform::Windows, RunKind::Service, switches, typing);
+            assert_eq!(
+                wanted.contains(&SourceName::Keyboard),
+                typing,
+                "typing {typing}: {wanted:?}"
+            );
+            let started: Vec<SourceName> = wanted
+                .into_iter()
+                .filter(|name| set.make(*name).is_some())
+                .collect();
+            assert_eq!(started, made_by_the_set, "typing {typing}");
         }
-        let wanted = starting(Platform::Windows, RunKind::Service, switches);
-        assert!(!wanted.contains(&SourceName::Keyboard), "{wanted:?}");
-        let started: Vec<SourceName> = wanted
-            .into_iter()
-            .filter(|name| set.make(*name).is_some())
-            .collect();
-        assert_eq!(started, made_by_the_set);
+        assert_eq!(
+            starting(Platform::Windows, RunKind::Service, switches),
+            starting_with_typing(
+                Platform::Windows,
+                RunKind::Service,
+                switches,
+                TYPING_ON_WINDOWS
+            )
+        );
+        let off = first_run_with(Platform::Windows, false);
+        assert!(
+            off.recorded
+                .iter()
+                .any(|row| row.text == TYPING_NOT_RECORDED),
+            "{:?}",
+            off.recorded
+        );
+        assert_eq!(off.typed_ahead, None);
+    }
+
+    /// A stop of typing first, while titles and screen activity read the
+    /// set's gate, leaves the detector to them, and a restart of typing under
+    /// them changes nothing of it: the keyboard source is one more holder of
+    /// the set's one gate.
+    #[test]
+    fn a_stop_of_typing_first_leaves_the_detector_to_titles_and_screen() {
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(64);
+        let ctx = SourceContext::new(sink);
+        let mut set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut keyboard = set
+            .make(SourceName::Keyboard)
+            .expect("the set's keyboard source");
+        let mut titles = set.gated(StandIn);
+        let mut screen = set.gated(StandIn);
+        let begun = [
+            keyboard.begin(ctx.clone()),
+            titles.begin(ctx.clone()),
+            screen.begin(ctx.clone()),
+        ];
+        let all_begun = gate.is_attached();
+        let typing_stopped = keyboard.shutdown();
+        let after_typing = gate.is_attached();
+        drop(keyboard);
+        let mut again = set.make(SourceName::Keyboard).expect("a restart's make");
+        let restarted = again.begin(ctx.clone());
+        let after_the_restart = gate.is_attached();
+        let stopped_again = again.shutdown();
+        let after_its_stop = gate.is_attached();
+        let titles_stopped = titles.shutdown();
+        let after_titles = gate.is_attached();
+        let screen_stopped = screen.shutdown();
+        let after_the_last = gate.is_attached();
+        assert_eq!(
+            begun,
+            [
+                Ok(Started::Running),
+                Ok(Started::Running),
+                Ok(Started::Running)
+            ]
+        );
+        assert_eq!(
+            (typing_stopped, restarted, stopped_again),
+            (Ok(()), Ok(Started::Running), Ok(()))
+        );
+        assert_eq!((titles_stopped, screen_stopped), (Ok(()), Ok(())));
+        assert_eq!(
+            [
+                all_begun,
+                after_typing,
+                after_the_restart,
+                after_its_stop,
+                after_titles,
+                after_the_last
+            ],
+            [true, true, true, true, true, false],
+            "the detector attached: all begun, typing stopped first, typing restarted, \
+             typing stopped again, titles stopped, screen stopped last"
+        );
+    }
+
+    /// A stop of titles and of screen activity first, while typing runs,
+    /// leaves the detector to typing until its own stop.
+    #[test]
+    fn a_stop_of_titles_and_screen_first_leaves_the_detector_to_typing() {
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(64);
+        let ctx = SourceContext::new(sink);
+        let mut set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut screen = set.gated(StandIn);
+        let mut keyboard = set
+            .make(SourceName::Keyboard)
+            .expect("the set's keyboard source");
+        let mut titles = set.gated(StandIn);
+        let begun = [
+            screen.begin(ctx.clone()),
+            keyboard.begin(ctx.clone()),
+            titles.begin(ctx.clone()),
+        ];
+        let all_begun = gate.is_attached();
+        let titles_stopped = titles.shutdown();
+        let after_titles = gate.is_attached();
+        let screen_stopped = screen.shutdown();
+        let after_screen = gate.is_attached();
+        let typing_stopped = keyboard.shutdown();
+        let after_typing = gate.is_attached();
+        assert_eq!(
+            begun,
+            [
+                Ok(Started::Running),
+                Ok(Started::Running),
+                Ok(Started::Running)
+            ]
+        );
+        assert_eq!(
+            (titles_stopped, screen_stopped, typing_stopped),
+            (Ok(()), Ok(()), Ok(()))
+        );
+        assert_eq!(
+            [all_begun, after_titles, after_screen, after_typing],
+            [true, true, true, false],
+            "the detector attached: all begun, titles stopped, screen stopped, typing stopped last"
+        );
+    }
+
+    /// A set with typing makes ONE detector: its keyboard source, begun alone,
+    /// holds the set's own gate, which titles and screen activity read.
+    #[test]
+    fn a_set_with_typing_makes_one_detector_on_its_one_gate() {
+        use std::sync::Arc;
+
+        use super::super::window_title::WindowTitleSource;
+
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(64);
+        let ctx = SourceContext::new(sink);
+        let mut set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut keyboard = set
+            .make(SourceName::Keyboard)
+            .expect("the set's keyboard source");
+        let made = gate.is_attached();
+        let begun = keyboard.begin(ctx);
+        let typing_alone = gate.is_attached();
+        let title = set.gated_title(WindowTitleSource::new());
+        let titles_read = title.source().password_gate().map(Arc::clone);
+        let stopped = keyboard.shutdown();
+        let after = gate.is_attached();
+        assert_eq!(
+            (made, begun, typing_alone, stopped, after),
+            (false, Ok(Started::Running), true, Ok(()), false),
+            "the set's gate: made, typing begun alone, typing stopped"
+        );
+        assert!(titles_read.is_some_and(|read| Arc::ptr_eq(&read, &gate)));
+    }
+
+    /// What the set's figures say of typing is what its keyboard source
+    /// counted in the run, and no reading of the gate where no keyboard source
+    /// holds it.
+    #[test]
+    fn the_figures_of_the_set_are_what_its_keyboard_source_counted_and_nothing_where_none_runs() {
+        use std::sync::atomic::Ordering;
+
+        use crate::daemon::supervisor::SystemSources;
+        use crate::source::SourceCounters;
+
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(64);
+        let ctx = SourceContext::new(sink);
+        let mut set = ServiceSet::new();
+        let before = set.figures();
+        let mut keyboard = set
+            .make(SourceName::Keyboard)
+            .expect("the set's keyboard source");
+        let begun = keyboard.begin(ctx);
+        set.counts.withheld.store(true, Ordering::Relaxed);
+        set.counts.late.store(true, Ordering::Relaxed);
+        set.counts.max_lag_ms.store(300, Ordering::Relaxed);
+        let own = keyboard.health().counters;
+        let running = set.figures();
+        let stopped = keyboard.shutdown();
+        let after = set.figures();
+        assert_eq!((begun, stopped), (Ok(Started::Running), Ok(())));
+        assert_eq!(
+            before,
+            SourceCounters::default(),
+            "before any keyboard source"
+        );
+        assert_eq!(
+            (own.keys_withheld, own.late_events, own.max_lag_ms),
+            (true, 1, 300),
+            "the keyboard source counts in the set's counts"
+        );
+        assert!(
+            own.typing_gate.is_some(),
+            "the keyboard source reads its gate"
+        );
+        assert_eq!(
+            (
+                running.keys_withheld,
+                running.late_events,
+                running.max_lag_ms,
+                running.typing_gate.is_some()
+            ),
+            (true, 1, 300, true),
+            "the set's figures while its keyboard source runs"
+        );
+        assert_eq!(
+            (
+                after.keys_withheld,
+                after.late_events,
+                after.max_lag_ms,
+                after.typing_gate
+            ),
+            (true, 1, 300, None),
+            "the set's figures behind its keyboard source's stop"
+        );
     }
 
     /// Begins the screen source with the switch off in its context, so that

@@ -164,6 +164,13 @@ fn release_of(text: &str) -> Prices {
     })
 }
 
+/// The source cell of the rate of `tier` in a price file that `Prices::parse` takes, or none when
+/// it refuses the text.
+pub(crate) fn source(text: &str, tier: Tier) -> Option<&str> {
+    Prices::parse(text).ok()?;
+    text.split('\n').nth(1 + tier as usize)?.split('\t').nth(3)
+}
+
 const fn per_million_rounded_up(a: u64, rate_a: u64, b: u64, rate_b: u64) -> Micro {
     let Some(total) = (a as u128 * rate_a as u128).checked_add(b as u128 * rate_b as u128) else {
         return u64::MAX;

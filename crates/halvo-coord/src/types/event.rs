@@ -603,6 +603,25 @@ pub enum Body {
         /// `agent`.
         agent: AgentId,
     },
+    /// `set_model` of the person's yes to the agent's use of a hosted model (r3 U7.7, r4 U3.17a): the app writes the
+    /// ceiling tier, the highest hosted tier that this build's ruling allows, and one triple of tier, origin and model
+    /// word for each hosted tier that the ruling allows up to it, from the rows of its table of hosts. Under a ruling
+    /// that allows no hosted tier it writes nothing and the send answers `no_service`. The store answers the revision
+    /// of the agent's set-up that it stored.
+    AgreeHosted {
+        /// `workflow`.
+        workflow: WorkflowId,
+        /// `agent`.
+        agent: AgentId,
+    },
+    /// `set_model` of the way back from the agent's use of a hosted model (r3 U7.7, r4 U3.17a): the tier `on_device`
+    /// and the agreement null. The store answers the revision of the agent's set-up that it stored.
+    WithdrawHosted {
+        /// `workflow`.
+        workflow: WorkflowId,
+        /// `agent`.
+        agent: AgentId,
+    },
 }
 
 /// A slot of `set_bindings`: its name and its value in pieces (A-A7.4).
