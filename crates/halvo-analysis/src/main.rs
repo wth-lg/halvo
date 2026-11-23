@@ -49,10 +49,12 @@
 //! A batch read from a committed position whose first records hold a key or a click in front of any title record
 //! carries the window that was in front there: after the batch, the worker reads back in front of the committed
 //! position, through the same read channel, for the last title record before it (`read::carry`), and hands it to the
-//! episode step. The batch's first records belong to that window while, from the title record on, each record's `seq`
-//! is the one before it plus one, no record is a `foreground_app` or a `run_mark` record, and each holds the title
-//! record's app; the first record that breaks this ends the carry, and the records from it to the batch's first title
-//! record are dropped. The title record makes no step and adds nothing of its own to an episode. Where the read back
+//! episode step. The carry holds while, from the title record on, each record's `seq` is the one before it plus one
+//! and no record is a `foreground_app` or a `run_mark` record; the first record that breaks this, or the batch's first
+//! title record, ends it, and the records from that break to the batch's first title record are dropped. While it
+//! holds, a record of the title record's app belongs to the carried window, and a record of another app, such as a
+//! click or a pointer fold of the program under the pointer on Windows, takes no window and ends nothing. The title
+//! record makes no step and adds nothing of its own to an episode. Where the read back
 //! finds no such title record, at most `RECORDS_MAX` records back, or a read back is refused or fails, the batch
 //! carries nothing: a keystroke or click in front of its first title record, also one that the store placed after
 //! the batch's first record and that the episode step orders before it, has no window and is dropped, at this cut

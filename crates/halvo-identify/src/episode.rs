@@ -54,9 +54,9 @@ pub struct Call<'a> {
 /// batch, which the worker read back in front of its committed position, and the count of the batch's first records,
 /// in the order of place, that it reaches. The title record names the window alone: it is no record of the call, so
 /// it makes no step and adds no occasion, no input and no instant of its own to an episode. A record of the call
-/// whose place is below `until` and in front of the call's first title record belongs to that window; one at or
-/// after `until` is dropped as when no window is carried. A carry whose record is no `window_title` record carries
-/// nothing.
+/// whose place is below `until`, in front of the call's first title record, and whose app is the title record's app
+/// belongs to that window; a record of another app takes no window, and one at or after `until` is dropped, as when
+/// no window is carried. A carry whose record is no `window_title` record carries nothing.
 pub struct Carry<'a> {
     pub title: &'a Entry,
     pub until: usize,
@@ -227,8 +227,9 @@ struct Person {
 /// is dropped, and a run that is open at the end of the call ends with it. A run closes no episode: the cut sees
 /// the person's records on both sides of it as one sequence. A keystroke or a pointer record belongs to the window
 /// of the title record before it. At the call's start that is the window that the call carries, where it carries one:
-/// it makes no item, and a record takes it only while its place is below the carry's `until`. A record with no window
-/// since the call's start or since the last run opened, or with the carried window at or after `until`, is dropped.
+/// it makes no item, and a record takes it only while its place is below the carry's `until` and only where its app
+/// is the carried window's app. A record with no window since the call's start or since the last run opened, or with
+/// the carried window at or after `until` or of another app, is dropped.
 fn person(ordered: Vec<Rec>, carry: Option<(Window, usize)>) -> Person {
     let mut out = Person {
         windows: Vec::new(),
@@ -271,7 +272,7 @@ fn person(ordered: Vec<Rec>, carry: Option<(Window, usize)>) -> Person {
         let Some(window) = current else {
             continue;
         };
-        if current == carried && rec.place >= until {
+        if current == carried && (rec.place >= until || rec.app != out.windows[window].key.app) {
             continue;
         }
         let step = step_of(&out.windows[window], rec.app, &input);

@@ -259,9 +259,11 @@ pub(crate) struct Carried {
 /// committed position, or where the title record holds no app.
 ///
 /// The one rule: from the title record on, in the order of place, through the records read back and on into the
-/// batch, each record's `seq` is the `seq` of the record before it plus one, no record is a `foreground_app` or a
-/// `run_mark` record, and each record holds the title record's app. A record read back that breaks it leaves no
-/// carry; in the batch the first record that breaks it, or the batch's first title record, ends the carry.
+/// batch, each record's `seq` is the `seq` of the record before it plus one, and no record is a `foreground_app` or
+/// a `run_mark` record. A record read back that breaks it leaves no carry; in the batch the first record that breaks
+/// it, or the batch's first title record, ends the carry. A record of another app than the title record's breaks
+/// nothing: it takes no window (the episode step gives the carried window to the title record's app alone), as a
+/// click or a pointer fold of the program under the pointer on Windows does.
 pub(crate) fn carry<L: Link>(client: &mut Client<L>, taken: &Taken) -> Option<Carried> {
     if taken.from == ZERO {
         return None;
@@ -298,14 +300,14 @@ pub(crate) fn carry<L: Link>(client: &mut Client<L>, taken: &Taken) -> Option<Ca
     };
     let mut rest = back.split_off(at);
     let title = rest.remove(0);
-    let app = title.record.app()?.clone();
+    title.record.app()?;
     let mut seq = title.record.seq().get();
-    if !rest.iter().all(|entry| follows(entry, &mut seq, &app)) {
+    if !rest.iter().all(|entry| follows(entry, &mut seq)) {
         return None;
     }
     let until = taken.entries[..lead]
         .iter()
-        .take_while(|entry| follows(entry, &mut seq, &app))
+        .take_while(|entry| follows(entry, &mut seq))
         .count();
     (until > 0).then_some(Carried { title, until })
 }
@@ -314,16 +316,15 @@ fn is_title(entry: &Entry) -> bool {
     matches!(entry.record.payload(), Payload::WindowTitle(_))
 }
 
-/// Whether `entry` keeps the carry after the record whose `seq` is `seq`: its `seq` is one above, it is no
-/// `foreground_app` and no `run_mark` record, and it holds `app`. Where it keeps it, `seq` becomes its `seq`.
-fn follows(entry: &Entry, seq: &mut u64, app: &halvo_schema_core::site::AppId) -> bool {
+/// Whether `entry` keeps the carry after the record whose `seq` is `seq`: its `seq` is one above, and it is no
+/// `foreground_app` and no `run_mark` record. Where it keeps it, `seq` becomes its `seq`.
+fn follows(entry: &Entry, seq: &mut u64) -> bool {
     let record = &entry.record;
     let keeps = Some(record.seq().get()) == seq.checked_add(1)
         && !matches!(
             record.payload(),
             Payload::ForegroundApp | Payload::RunMark(_)
-        )
-        && record.app() == Some(app);
+        );
     if keeps {
         *seq = record.seq().get();
     }
@@ -563,9 +564,10 @@ mod tests {
     }
 
     /// Each break that the store marks ends the carry where it stands: a `seq` that is not one above, a `seq` that
-    /// starts again (a new life of the store owner), a `run_mark`, another app, a shredded segment between the title
-    /// record and the batch, and a batch with no key or click in front of its first title record. With none of them
-    /// a batch carries the title record of two segments back across the segment between.
+    /// starts again (a new life of the store owner), a `run_mark`, a shredded segment between the title record and
+    /// the batch, and a batch with no key or click in front of its first title record. With none of them a batch
+    /// carries the title record of two segments back across the segment between. A record of another app is no
+    /// break: the carry reaches past it, and the step gives it no window.
     #[test]
     fn each_break_that_the_store_marks_ends_the_carry_there() {
         let before: &[Line] = &[title(1), key(2, NUMBERS)];
@@ -586,7 +588,12 @@ mod tests {
             ),
             ("new-life", vec![key(1, NUMBERS), key(2, NUMBERS)], 1, None),
             ("run-mark", vec![start, key(6, NUMBERS)], 1, None),
-            ("other-app", vec![key(5, OTHER), key(6, NUMBERS)], 1, None),
+            (
+                "other-app",
+                vec![key(5, OTHER), key(6, NUMBERS)],
+                1,
+                Some((Position { seg: 1, idx: 0 }, 2)),
+            ),
             ("shredded", vec![key(5, NUMBERS)], 2, None),
             ("titled", vec![title(5), key(6, NUMBERS)], 1, None),
         ];
