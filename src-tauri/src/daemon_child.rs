@@ -70,7 +70,9 @@ pub struct Program {
 /// and `--data-dir DIR` only when the app itself got DIR.
 pub fn arguments(given: Option<&Path>, behind: Behind) -> Vec<OsString> {
     let mut args = vec![OsString::from(DAEMON_ARG), OsString::from(LIFELINE_ARG)];
-    let _ = behind;
+    if behind == Behind::NoPress {
+        args.push(OsString::from(NO_PRESS_ARG));
+    }
     if let Some(dir) = given {
         args.push(OsString::from(DATA_DIR_ARG));
         args.push(dir.as_os_str().to_owned());
@@ -196,6 +198,7 @@ pub fn next(ending: Ending, clean: Clean, lived: Duration, before: Restarts) -> 
             (Next::StartNow, Restarts::default())
         }
         Ending::Status(exit::FAULT_REPORTS_ON) => (Next::NoMoreChild, Restarts::default()),
+        Ending::Status(exit::WAITS_FOR_A_PRESS) => (Next::WaitForAPress, Restarts::default()),
         _ if fives >= FIVES_IN_A_ROW => (
             Next::NoMoreChild,
             Restarts {
@@ -842,7 +845,10 @@ fn supervise<S: Spawner, K: Clock>(
         match step {
             Next::Attach => match waited_for_no_daemon(shared, pid, clock) {
                 Attached::NoService => return Some((spawner, Waits::Start)),
-                Attached::ServiceGone => {}
+                Attached::ServiceGone => {
+                    hold.drop_the_ask();
+                    behind = Behind::NoPress;
+                }
                 Attached::Quit => return None,
             },
             Next::WaitForAPress => return Some((spawner, Waits::Start)),
@@ -2264,7 +2270,11 @@ mod tests {
             Arc::clone(&views),
         );
         let control = Watching::new(
-            Scripted::new(&record, vec![Ok(sample_status(Platform::Macos))], Vec::new()),
+            Scripted::new(
+                &record,
+                vec![Ok(sample_status(Platform::Macos))],
+                Vec::new(),
+            ),
             Arc::clone(&pid),
         );
         until("the attach waits behind the 0", || clock.waits().len() > 2);
@@ -2324,7 +2334,11 @@ mod tests {
         }
         assert_eq!(
             starts(&r.record),
-            ["start 1000", "start 1001 --no-press", "start 1002 --no-press"],
+            [
+                "start 1000",
+                "start 1001 --no-press",
+                "start 1002 --no-press"
+            ],
             "the start behind the service's end and the one behind the backoff carry the argument"
         );
         match r.views.view() {
@@ -2377,13 +2391,17 @@ mod tests {
         let pid = Arc::<ChildPid>::default();
         let launch = Supervisor::start(
             StandInSpawner {
-                children: [StandInChild::new(2000, &clock, &record)].into_iter().collect(),
+                children: [StandInChild::new(2000, &clock, &record)]
+                    .into_iter()
+                    .collect(),
                 record: Arc::clone(&record),
             },
             Arc::clone(&pid),
             Arc::clone(&clock),
         );
-        until("the first child of the new launch", || pid.get() == Some(2000));
+        until("the first child of the new launch", || {
+            pid.get() == Some(2000)
+        });
         drop(launch.close());
         assert_eq!(
             (starts(&r.record), starts(&record)),
@@ -2405,10 +2423,7 @@ mod tests {
                 .collect()
         };
         let path = dir.to_str().unwrap().to_owned();
-        assert_eq!(
-            words(None, Behind::Unsaid),
-            ["--service-run", "--lifeline"]
-        );
+        assert_eq!(words(None, Behind::Unsaid), ["--service-run", "--lifeline"]);
         assert_eq!(
             words(Some(dir.as_path()), Behind::Unsaid),
             ["--service-run", "--lifeline", "--data-dir", path.as_str()]
@@ -2419,7 +2434,13 @@ mod tests {
         );
         assert_eq!(
             words(Some(dir.as_path()), Behind::NoPress),
-            ["--service-run", "--lifeline", "--no-press", "--data-dir", path.as_str()]
+            [
+                "--service-run",
+                "--lifeline",
+                "--no-press",
+                "--data-dir",
+                path.as_str()
+            ]
         );
     }
 

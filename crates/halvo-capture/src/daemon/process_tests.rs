@@ -2003,8 +2003,16 @@ fn a_stop_request_finds_the_line_stop_in_the_marker_when_its_answer_arrives() {
 #[test]
 fn a_start_with_no_press_ends_with_7_behind_a_stop_before_it_binds_and_serves_behind_a_lifeline() {
     for (line, ends_with, after) in [
-        ("ended=stop\n", halvo_control::exit::WAITS_FOR_A_PRESS, "ended=stop\n"),
-        ("ended=lifeline\n", halvo_control::exit::CLEAN, "ended=signal\n"),
+        (
+            "ended=stop\n",
+            halvo_control::exit::WAITS_FOR_A_PRESS,
+            "ended=stop\n",
+        ),
+        (
+            "ended=lifeline\n",
+            halvo_control::exit::CLEAN,
+            "ended=signal\n",
+        ),
     ] {
         let (dir, _marks) = running_dir(false);
         stand_marker(&dir, line);
@@ -2047,7 +2055,11 @@ fn a_start_with_no_press_that_cannot_bind_gives_back_the_line_and_the_next_one_s
     );
     std::fs::remove_dir(&socket).unwrap();
     let (status, err) = a_start_behind(&dir, super::Behind::NoPress);
-    assert_eq!(status, halvo_control::exit::CLEAN, "the next one serves: {err}");
+    assert_eq!(
+        status,
+        halvo_control::exit::CLEAN,
+        "the next one serves: {err}"
+    );
     assert_eq!(marker_of(&dir).as_deref(), Some("ended=signal\n"), "{err}");
 }
 

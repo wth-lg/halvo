@@ -61,13 +61,11 @@ fn main() -> ExitCode {
             daemon::DurableState::writer(),
         )),
         #[cfg(any(debug_assertions, target_os = "macos", windows))]
-        Ok(Mode::LifelineServiceRun { data_dir, behind }) => {
-            status(daemon::lifeline_service_run(
-                &data_dir,
-                daemon::DurableState::writer(),
-                behind,
-            ))
-        }
+        Ok(Mode::LifelineServiceRun { data_dir, behind }) => status(daemon::lifeline_service_run(
+            &data_dir,
+            daemon::DurableState::writer(),
+            behind,
+        )),
         #[cfg(any(target_os = "macos", windows))]
         Ok(Mode::DeleteAllOfADataDir { data_dir }) => status(daemon::delete_all::offline(
             &data_dir,

@@ -4200,7 +4200,13 @@ mod tests {
             &["--service-run", "--no-press"][..],
             &["--service-run", "--no-press", "--lifeline"][..],
             &["--service-run", "--lifeline", "--no-press", "--no-press"][..],
-            &["--service-run", "--lifeline", "--data-dir", absolute, "--no-press"][..],
+            &[
+                "--service-run",
+                "--lifeline",
+                "--data-dir",
+                absolute,
+                "--no-press",
+            ][..],
         ] {
             let refused = parsed(line);
             let Err(refusal @ Refusal::Usage(_)) = refused else {
