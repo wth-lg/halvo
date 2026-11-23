@@ -12,7 +12,8 @@ pub const ERROR_NAMES: &[&str] = &[
 /// `agent_start`, kept by default until the owner answers the entry on the start instant, one row for an agent, and
 /// `agent_finished`, kept, one row for each playbook number that a compile finished (CP-182), and `agent_agreement`,
 /// kept, at most one row for an agent: the person's yes for that agent to a hosted model, with the ceiling tier under
-/// `tier`, one triple of a hosted tier, an origin and a model word for each hosted tier up to it under `hosts`, and the
+/// `tier`, under `hosts` triples of a hosted tier, an origin and a model word, among them one of the ceiling, none of
+/// a tier above it and at most one of each tier (the body refuses no list for a missing lower tier), and the
 /// instant of the yes under `at`, which the coordinator body `set_model` writes and removes (r3 U7.7). One kind more
 /// names no workflow: `model_key`, of origin person (`kinds::PERSON_KINDS`), kept, ONE row for the person and none for
 /// an agent, which holds the person's key for a model's host under `key` (r3 U7.6). That row outlives every workflow's

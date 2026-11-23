@@ -142,8 +142,9 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 ///   item; it reads `yes` after every run that did not complete, also with a sign-in kept, and once the agent's start
 ///   rows leave the read after 93 days. `agreement` (r3 U7.7) is the agent's standing ceiling by the store's one
 ///   function `rows::standing_agreement`, its tier and its triples, null for `on_device` and for a hosted tier with
-///   no agreement row of that tier; a stored agreement row that the typed reader refuses refuses the roster with
-///   `store`. A page holds whole entries
+///   no agreement row of that tier; a stored agreement row that the typed reader refuses refuses the whole roster
+///   with `store` only while an agent of the roster stands at a hosted tier, since no agreement row is read for an
+///   agent at `on_device` or with no set-up. A page holds whole entries
 ///   while the writer takes it, and `next` names its last agent where agents are left; `length` where the first
 ///   entry of the page alone does not fit.
 /// - `agent_history`: `no_workflow`; `binding`. It stores nothing and changes no state. Of the agent's runs, only

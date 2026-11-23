@@ -121,7 +121,9 @@ pub(crate) fn agreements(rows: &dyn RowRead) -> Result<Vec<AgentAgreement>, Erro
 /// The agent's standing ceiling, the one function that answers it (r3 U7.7): the agent's `agent_agreement` row under
 /// the workflow of its newest set-up where that row's tier is the tier of that set-up, a hosted tier; none for an
 /// agent with no set-up, for `on_device`, and for a hosted tier with no row of that tier. The roster reads it; the
-/// check of a `model_hold` will. A row that the typed reader refuses, of any agent, answers `store`.
+/// check of a `model_hold` will. For an agent whose newest set-up holds a hosted tier it reads every agreement row,
+/// and a row that the typed reader refuses, of any agent, answers `store`; for an agent with no set-up or at
+/// `on_device` it reads no agreement row.
 pub(crate) fn standing_agreement(
     rows: &dyn RowRead,
     agent: &AgentId,

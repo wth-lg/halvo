@@ -450,9 +450,10 @@ pub(in crate::executable) fn hosts_up_to(
 
 object_type! {
     /// The person's yes for ONE agent to a hosted model, kind `agent_agreement` (r3 U7.7): ids, the ceiling tier of
-    /// the agent, one `Hosted` for each hosted tier up to that ceiling as the caller handed them (`hosts`), and the
-    /// instant of the yes, the request's. At most one row stands for an agent: the coordinator body `set_model` writes
-    /// it in one write with the new revision of the agent's set-up and removes it at the way back.
+    /// the agent, the `Hosted` triples as the caller handed them (`hosts`): one of the ceiling, none of a tier above
+    /// it, at most one of each tier, and no rule for a missing lower tier; and the instant of the yes, the request's.
+    /// At most one row stands for an agent: the coordinator body `set_model` writes it in one write with the new
+    /// revision of the agent's set-up and removes it at the way back.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct AgentAgreement {
         pub v: V1 = "v" => from_json,

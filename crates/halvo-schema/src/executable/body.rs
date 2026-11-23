@@ -832,8 +832,9 @@ object_type! {
 
 object_type! {
     /// `set_model`: the person's yes for the agent to a hosted model, or the way back (r3 U7.7). `tier` is the agent's
-    /// ceiling; `agreement` is null with `on_device`, the way back, and with a hosted tier the list of one `Hosted` for
-    /// each hosted tier up to it, as the caller read them from the router's table. The parser refuses a list with a
+    /// ceiling; `agreement` is null with `on_device`, the way back, and with a hosted tier a list of `Hosted` triples,
+    /// as the caller read them from the router's table: one of the ceiling, at most one of each tier, and no rule for
+    /// a missing lower tier. The parser refuses a list with a
     /// tier twice or with `on_device` in a triple, an empty origin or model word (`malformed`) and a longer one than
     /// `OWN_TEXT_MAX` bytes (`length`), and with a hosted tier a list with no triple of that tier or with a tier above
     /// it (`malformed`). A hosted tier with null and `on_device` with a list are `validate`'s cause `tier`. In one write
