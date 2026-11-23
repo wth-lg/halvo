@@ -29,12 +29,15 @@ pub struct Polled {
     pub end: PollEnd,
 }
 
-/// How the answer of a poll ended, as the agents' hold reads it (`agents::RunsHold`).
+/// How the answer of a poll ended, as the agents' hold reads it (`agents::RunsHold`): while a
+/// mark of the hold stands, a status alone is a reading, and every other end waits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PollEnd {
-    /// A reply of the service: a status, or a frame that the service sent and that the client
-    /// read whole, an error reply or one that it cannot take.
-    Reply,
+    /// A status of the service.
+    Status,
+    /// A reply of the service that carries no status: a frame that the service sent and that
+    /// the client read whole, an error reply or one that it cannot take.
+    ReplyWithoutStatus,
     /// No reply within its deadline.
     Deadline,
     /// No reply of the service: nothing listens at the endpoint (`Unreachable`), the data folder
@@ -60,8 +63,8 @@ impl PollEnd {
                 | ClientError::Io(_)
                 | ClientError::Protocol(_),
             ) => PollEnd::NoReply,
-            Ok(_)
-            | Err(
+            Ok(_) => PollEnd::Status,
+            Err(
                 ClientError::Daemon(_)
                 | ClientError::ServiceEnding(_)
                 | ClientError::ReplyOfAnotherVersion { .. }
@@ -69,7 +72,7 @@ impl PollEnd {
                 | ClientError::StateDoesNotHoldTogether(_)
                 | ClientError::UnexpectedReply { .. }
                 | ClientError::AlreadyDeletedToThisRequest(_),
-            ) => PollEnd::Reply,
+            ) => PollEnd::ReplyWithoutStatus,
         }
     }
 }
@@ -140,7 +143,7 @@ impl Default for Views {
                 status: None,
                 mutation_mark: 0,
                 poll_number: None,
-                poll_end: PollEnd::Reply,
+                poll_end: PollEnd::Status,
             }),
             woken: Mutex::new(false),
             wake: Condvar::new(),

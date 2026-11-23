@@ -75,18 +75,19 @@ impl Wanted {
         self.deletes > 0 || self.barred || self.owed != Owed::Nothing
     }
 
-    /// Whether `poll` is a reading at `now`: a reply of the service always is; a poll that
-    /// passed its deadline is not while either mark stands, and a poll with no reply of the
-    /// service is not while `no_service` stands, each mark standing until
-    /// `Deadlines::V1.delete_all` has passed since its moment.
+    /// Whether `poll` is a reading at `now`: a status always is; every other end of a poll, a
+    /// deadline, a reply of the service that carries no status and no reply of the service, is
+    /// not while either mark stands, each mark standing until `Deadlines::V1.delete_all` has
+    /// passed since its moment.
     fn reads(&self, poll: Polled, now: Instant) -> bool {
         let stands = |mark: Option<Instant>| {
             mark.is_some_and(|at| now.saturating_duration_since(at) < Deadlines::V1.delete_all)
         };
         match poll.end {
-            PollEnd::Reply => true,
-            PollEnd::Deadline => !stands(self.late) && !stands(self.no_service),
-            PollEnd::NoReply => !stands(self.no_service),
+            PollEnd::Status => true,
+            PollEnd::Deadline | PollEnd::ReplyWithoutStatus | PollEnd::NoReply => {
+                !stands(self.late) && !stands(self.no_service)
+            }
         }
     }
 }
@@ -107,25 +108,24 @@ impl Wanted {
 ///    then the reading stays owed, the marks stay, and their moment becomes that draw's.
 ///
 /// Two marks make the reading wait longer. A door's guard sets each before its drop, at the
-/// moment of that end.
+/// moment of that end, and while either stands only a status is a reading.
 /// - `late`, at the service's door (`may_still_delete`): the delete's own answer passed its
-///   deadline, or the service answered busy, so the service may still delete, and it answers no
-///   status while it deletes. A poll that passes its deadline is then no reading; a poll with
-///   no reply of the service is a reading there.
+///   deadline, the client's transport failed (behind the sent request, or before it, where the
+///   mark holds the hold longer than it must) or it could not take what came back, or the
+///   service answered with anything but a finished delete, so the service may still delete, and
+///   it answers no status while it deletes.
 /// - `no_service`, at the offline door, behind a list of Remove Halvo that stopped, and at the
 ///   service's door behind a deleted answer where the view reads a Windows run, whose child the
 ///   app may renew (`ended_with_no_service`): the door ended the service's child, or may end it,
-///   and a child answers again, if at all, only behind that end. A poll with no reply of the
-///   service (`PollEnd::NoReply`: no service, a refused peer, a failed transport, no whole
-///   frame), or that passes its deadline, is then no reading.
+///   and a child answers again, if at all, only behind that end.
 ///
-/// The rule in one sentence: behind a delete's end the hold stands until a poll made after that
-/// end is a reading whose view does not bar, where a reply of the service is always a reading,
-/// a poll that passes its deadline is none while either mark stands, a poll with no reply of
-/// the service is none while the no-service mark stands, and each mark stands for 120 s
+/// The rule in one sentence: behind a delete's end the hold stands until a poll at or past the
+/// fence is a reading whose view does not bar, where a status is always a reading, every other
+/// end of a poll (a deadline, a reply of the service that carries no status, no reply of the
+/// service) is none while either mark stands, and each mark stands for 120 s
 /// (`Deadlines::V1.delete_all`, the wait for a delete's answer) from its moment, which every
-/// reading whose view bars sets anew. Once a mark's 120 s have passed, the poll that it holds
-/// back is a reading again, unless the other mark still stands and holds it back.
+/// reading whose view bars sets anew. Once both marks' 120 s have passed, every poll is a
+/// reading again.
 ///
 /// It cannot stand for good while the poller runs, unless the service reads its store deleting
 /// or locked without end: the door draws behind its answer and each round of the poller draws,
@@ -161,9 +161,12 @@ impl RunsHold {
     }
 
     /// The answer of a delete of everything that runs left the service maybe still deleting at
-    /// `at`: it passed its deadline, or the service answered busy. From the delete's end on, a
-    /// poll that passes its deadline is no reading until a reading clears the mark or
-    /// `Deadlines::V1.delete_all` has passed since the mark's moment, which is `at` until a
+    /// `at`: it passed its deadline, the transport failed (behind the request, or before it, where
+    /// the mark holds the hold longer than it must) or the client could not take what came back,
+    /// or the service answered with anything but a finished delete.
+    /// From the delete's end on, every poll but a status (a deadline, a reply of the service that
+    /// carries no status, no reply of the service) is no reading until a reading clears the mark
+    /// or `Deadlines::V1.delete_all` has passed since the mark's moment, which is `at` until a
     /// reading whose view bars moves it to that draw's moment (`Owed`).
     pub fn may_still_delete(&self, at: Instant) {
         self.wanted().late = Some(at);
@@ -171,10 +174,11 @@ impl RunsHold {
 
     /// A delete of everything that runs ends at `at` at a door that ended the service's child or
     /// may end it: the offline door, a list of Remove Halvo that stopped, or a deleted answer at
-    /// the service's door where the app may renew a Windows run's child. From that end on, a
-    /// poll with no reply of the service, or one that passes its deadline, is no reading until a
-    /// reading clears the mark or `Deadlines::V1.delete_all` has passed since the mark's moment,
-    /// which is `at` until a reading whose view bars moves it to that draw's moment (`Owed`).
+    /// the service's door where the app may renew a Windows run's child. From that end on, every
+    /// poll but a status (a deadline, a reply of the service that carries no status, no reply of
+    /// the service) is no reading until a reading clears the mark or `Deadlines::V1.delete_all`
+    /// has passed since the mark's moment, which is `at` until a reading whose view bars moves
+    /// it to that draw's moment (`Owed`).
     pub fn ended_with_no_service(&self, at: Instant) {
         self.wanted().no_service = Some(at);
     }
@@ -430,7 +434,7 @@ mod tests {
 
     use halvo_control::client::{ClientError, Deadlines};
     use halvo_control::paths::DataDir;
-    use halvo_control::proto::{DaemonStatus, ErrorCode, Platform, StoreState};
+    use halvo_control::proto::{DaemonStatus, ErrorCode, ErrorReply, Platform, StoreState};
     use halvo_control::testing::{sample_status, ScriptedConnector, ScriptedDaemon};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord::types::{AgentId, Cause, ItemId, RunId};
@@ -888,5 +892,272 @@ mod tests {
             [true, false],
             "the first poll behind it that answers, the store open, lifts the hold once"
         );
+    }
+
+    /// The reply of a service in either of its two fault states: an error with the code
+    /// internal, which carries no status. The app reads the code alone; `text` is the service's.
+    fn internal(text: &str) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Daemon(ErrorReply::new(
+            ErrorCode::Internal,
+            text,
+        )))
+    }
+
+    #[test]
+    fn behind_the_offline_doors_end_a_reply_that_carries_no_status_is_no_reading() {
+        let core = Arc::new(Told::default());
+        let before = before_of(&core);
+        let views = Views::default();
+        let places = Arc::<Places>::default();
+        let read = |answer: Result<DaemonStatus, ClientError>| {
+            views.take_poll(places.make().number(), &answer);
+            before.runs.drawn(before.core.as_deref(), &views, &places);
+        };
+        let _ = run_offline(&an_offline_run(), &before);
+        before.runs.drawn(before.core.as_deref(), &views, &places);
+        read(internal("the capture service is not serving"));
+        assert_eq!(
+            core.holds(),
+            [true],
+            "the reply of a connection that still serves when the loop takes no request carries no status: no reading, no lift"
+        );
+        read(Ok(sample_status(Platform::Macos)));
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first status that does not bar lifts the hold once"
+        );
+    }
+
+    #[test]
+    fn behind_a_late_answer_a_reply_that_carries_no_status_is_no_reading() {
+        let core = Arc::new(Told::default());
+        let mut silent = ScriptedDaemon::new(sample_status(Platform::Macos));
+        silent.set_silent(true);
+        let control = Gated::new(ScriptedConnector::new(silent));
+        let views = Views::default();
+        let before = before_of(&core);
+        let drawn = || {
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+        };
+        let asked = delete_everything(&before, &control, &views, None, DELETE_WAITS);
+        assert!(
+            matches!(
+                asked.end,
+                DeleteEnd::Answered(Err(ClientError::Deadline { .. }))
+            ),
+            "the delete's own answer passed its deadline: {:?}",
+            asked.end
+        );
+        views.take_delete(asked.call, asked.next_number_at_answer);
+        drawn();
+        let number = control.places().make().number();
+        views.take_poll(
+            number,
+            &internal("a status whose parts break a rule of the status type"),
+        );
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true],
+            "the reply to a Status whose parts break a rule carries no status: no reading, no lift"
+        );
+        let number = control.places().make().number();
+        views.take_poll(number, &Ok(sample_status(Platform::Macos)));
+        drawn();
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first status that does not bar lifts the hold once"
+        );
+    }
+
+    #[test]
+    fn behind_a_delete_that_the_service_answered_with_an_error_a_poll_without_a_status_is_no_reading(
+    ) {
+        let core = Arc::new(Told::default());
+        let body = halvo_control::proto::encode_reply(&halvo_control::proto::Reply::Error(
+            ErrorReply::new(
+                ErrorCode::Internal,
+                "the delete did not finish and its report could not be read; delete-all.intent stays",
+            ),
+        ));
+        let mut frame = u32::try_from(body.len())
+            .expect("a short frame")
+            .to_be_bytes()
+            .to_vec();
+        frame.extend(body);
+        let mut failing = ScriptedDaemon::new(sample_status(Platform::Macos));
+        failing.set_raw_reply(frame);
+        let control = Gated::new(ScriptedConnector::new(failing));
+        let views = Views::default();
+        let before = before_of(&core);
+        let read = |answer: Result<DaemonStatus, ClientError>| {
+            views.take_poll(control.places().make().number(), &answer);
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+        };
+        let asked = delete_everything(&before, &control, &views, None, DELETE_WAITS);
+        assert!(
+            matches!(
+                &asked.end,
+                DeleteEnd::Answered(Err(ClientError::Daemon(reply))) if reply.code() == ErrorCode::Internal
+            ),
+            "the service answered the delete with the error internal: {:?}",
+            asked.end
+        );
+        views.take_delete(asked.call, asked.next_number_at_answer);
+        before
+            .runs
+            .drawn(before.core.as_deref(), &views, control.places());
+        for (found, answer) in [
+            (
+                "a poll that finds no service",
+                Err(ClientError::Unreachable {
+                    endpoint: String::new(),
+                }),
+            ),
+            (
+                "a poll past its deadline",
+                Err(ClientError::Deadline { seconds: 2 }),
+            ),
+            (
+                "a reply that carries no status",
+                internal("the capture service is not serving"),
+            ),
+        ] {
+            read(answer);
+            assert_eq!(
+                core.holds(),
+                [true],
+                "behind a delete that the service did not finish, {found} lifts nothing"
+            );
+        }
+        read(Ok(sample_status(Platform::Macos)));
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first status that does not bar lifts the hold once"
+        );
+    }
+
+    /// A connector whose transport takes the whole request and then fails when the client reads
+    /// the reply: a transport that fails behind a sent request.
+    #[derive(Clone)]
+    struct FailsBehindTheRequest;
+
+    struct FailingTransport;
+
+    impl std::io::Read for FailingTransport {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::ErrorKind::ConnectionReset.into())
+        }
+    }
+
+    impl std::io::Write for FailingTransport {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl halvo_control::client::Transport for FailingTransport {
+        fn set_timeout(&mut self, _: Duration) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn end_request(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl halvo_control::client::Connector for FailsBehindTheRequest {
+        type Transport = FailingTransport;
+
+        fn endpoint(&self) -> String {
+            "a stand-in".to_owned()
+        }
+
+        fn connect(&self, _: Duration) -> Result<FailingTransport, ClientError> {
+            Ok(FailingTransport)
+        }
+    }
+
+    #[test]
+    fn behind_a_delete_whose_transport_failed_or_whose_reply_could_not_be_taken_a_poll_without_a_status_is_no_reading(
+    ) {
+        let mut unreadable = ScriptedDaemon::new(sample_status(Platform::Macos));
+        let body = b"not a reply".to_vec();
+        let mut frame = u32::try_from(body.len())
+            .expect("a short frame")
+            .to_be_bytes()
+            .to_vec();
+        frame.extend(body);
+        unreadable.set_raw_reply(frame);
+        type Ends = fn(&ClientError) -> bool;
+        let doors: [(&str, Box<dyn Control>, Ends); 2] = [
+            (
+                "a transport that fails behind the sent request",
+                Box::new(Gated::new(FailsBehindTheRequest)),
+                |error| matches!(error, ClientError::Io(_)),
+            ),
+            (
+                "a reply that the client cannot take",
+                Box::new(Gated::new(ScriptedConnector::new(unreadable))),
+                |error| matches!(error, ClientError::Protocol(_)),
+            ),
+        ];
+        for (door, control, ends) in doors {
+            let core = Arc::new(Told::default());
+            let views = Views::default();
+            let before = before_of(&core);
+            let read = |answer: Result<DaemonStatus, ClientError>| {
+                views.take_poll(control.places().make().number(), &answer);
+                before
+                    .runs
+                    .drawn(before.core.as_deref(), &views, control.places());
+            };
+            let asked = delete_everything(&before, control.as_ref(), &views, None, DELETE_WAITS);
+            assert!(
+                matches!(&asked.end, DeleteEnd::Answered(Err(error)) if ends(error)),
+                "{door}: the delete ends so: {:?}",
+                asked.end
+            );
+            views.take_delete(asked.call, asked.next_number_at_answer);
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+            for (found, answer) in [
+                (
+                    "a poll that finds no service",
+                    Err(ClientError::Unreachable {
+                        endpoint: String::new(),
+                    }),
+                ),
+                (
+                    "a poll past its deadline",
+                    Err(ClientError::Deadline { seconds: 2 }),
+                ),
+                (
+                    "a reply that carries no status",
+                    internal("the capture service is not serving"),
+                ),
+            ] {
+                read(answer);
+                assert_eq!(core.holds(), [true], "{door}: {found} lifts nothing");
+            }
+            read(Ok(sample_status(Platform::Macos)));
+            assert_eq!(
+                core.holds(),
+                [true, false],
+                "{door}: the first status that does not bar lifts the hold once"
+            );
+        }
     }
 }

@@ -661,8 +661,10 @@ pub struct HeldForADelete(Before);
 
 impl HeldForADelete {
     /// Tells the hold, at this moment and before the drop, that the answer of this delete left
-    /// the service maybe still deleting: it passed its deadline, or the service answered busy
-    /// (`agents::RunsHold::may_still_delete`).
+    /// the service maybe still deleting: it passed its deadline, the transport failed (behind the
+    /// request, or before it, where the mark holds the hold longer than it must) or the client
+    /// could not take what came back, or the service answered with anything but a finished
+    /// delete (`agents::RunsHold::may_still_delete`).
     pub fn may_still_delete(&self) {
         self.0.runs.may_still_delete(Instant::now());
     }
@@ -680,28 +682,51 @@ impl Drop for HeldForADelete {
     }
 }
 
-/// Whether the flow of a delete ended where the service may still delete: the error of its end
-/// is a deadline or a plain busy.
-fn leaves_the_service_maybe_deleting(end: &DeleteEnd) -> bool {
+/// Whether the flow of a delete ended where the service may still delete, so that the guard
+/// marks the hold late: its end is a deadline, a transport that failed (`Io`: behind the sent
+/// request, or before it, where no request reached a service and the mark holds the hold up to
+/// 120 s longer than it must), a reply that the client could not take (`Protocol`), or an answer
+/// of the service that is no finished delete: a deleted answer whose run ended not whole, an
+/// already deleted, a refusal, an error reply of any code, the busy of an ending life, or a
+/// reply that the client read whole and cannot take. A finished delete marks nothing, and nor
+/// does an end at which the client knows that no request reached a service: nothing listens, or
+/// the client refused the peer before it sent.
+#[deny(clippy::wildcard_enum_match_arm)]
+fn marks_the_hold_late(end: &DeleteEnd) -> bool {
     let error = match end {
-        DeleteEnd::Answered(Ok(_)) => return false,
+        DeleteEnd::Answered(Ok(DeleteOutcome::Deleted(deleted))) => return deleted.unfinished,
+        DeleteEnd::Answered(Ok(DeleteOutcome::AlreadyDeleted(_) | DeleteOutcome::Refused)) => {
+            return true
+        }
         DeleteEnd::Answered(Err(error))
         | DeleteEnd::NoLifeAnswered(error)
         | DeleteEnd::FirstNotKnown(error) => error,
     };
     match error {
-        ClientError::Deadline { .. } => true,
-        ClientError::Daemon(reply) => reply.code() == ErrorCode::Busy,
-        _ => false,
+        ClientError::Deadline { .. }
+        | ClientError::Daemon(_)
+        | ClientError::ServiceEnding(_)
+        | ClientError::ReplyOfAnotherVersion { .. }
+        | ClientError::ValueUnknownToV1(_)
+        | ClientError::StateDoesNotHoldTogether(_)
+        | ClientError::UnexpectedReply { .. }
+        | ClientError::AlreadyDeletedToThisRequest(_)
+        | ClientError::Io(_)
+        | ClientError::Protocol(_) => true,
+        ClientError::Unreachable { .. }
+        | ClientError::DataDirInUse { .. }
+        | ClientError::Unsupported
+        | ClientError::PeerRejected(_) => false,
     }
 }
 
 /// The flow of a person's press at the service's door: `Before::tell`, then `ask_to_delete`;
-/// where the flow ended in a deadline or a plain busy, the guard tells the hold so before it
-/// drops; behind a deleted answer, where the view of the moment reads a Windows run, the guard
-/// tells the hold that this delete ends with no service before it drops, and then one plain
-/// Status goes out, and where it reads the screen spent ONE renewal of the screen, as at a
-/// Resume.
+/// where the flow ended in a deadline, a failed transport, a reply that it could not take or an
+/// answer of the service that is no finished delete (`marks_the_hold_late`), the guard tells the
+/// hold so before it drops; behind a deleted answer, where the view of the moment reads a
+/// Windows run, the guard tells the hold that this delete ends with no service before it drops,
+/// and then one plain Status goes out, and where it reads the screen spent ONE renewal of the
+/// screen, as at a Resume.
 pub fn delete_everything(
     before: &Before,
     control: &dyn Control,
@@ -713,7 +738,7 @@ pub fn delete_everything(
     let (asked, may_renew) = {
         let held = before.tell();
         let asked = ask_to_delete(control, views, armed, waits);
-        if leaves_the_service_maybe_deleting(&asked.end) {
+        if marks_the_hold_late(&asked.end) {
             held.may_still_delete();
         }
         let may_renew = matches!(
