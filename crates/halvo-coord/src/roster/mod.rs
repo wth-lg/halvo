@@ -114,10 +114,11 @@ fn text(key: &str, pairs: &[(&str, &str)]) -> Result<String, Cause> {
 /// The settings lines of a configuration (I2.2), in the order of the table, each whose
 /// condition holds and whose words entry exists: `level`, `runs_on`, `asks`, `time` with the
 /// minutes of `wall_s` rounded up, `files` and `spend`. The line `runs_on` says that the agent
-/// runs on this computer where its stored tier is `on_device`; where the tier is a hosted tier
-/// and the app hands the agent's model, that it may use an AI model at the host, with the
-/// models, where its stored yes stands, and that the AI model is now at the host and asks again
-/// where it does not (r4 U3.17b); a hosted tier with no model handed has no such line.
+/// runs on this computer where its stored tier is `on_device` or its runtime asks no model
+/// (`asks_a_model`); where the tier is a hosted tier, the runtime asks a model and the app hands
+/// the agent's model, that it may use an AI model at the host, with the models, where its stored
+/// yes stands, and that the AI model is now at the host and asks again where it does not (r4
+/// U3.17b); such an agent with no model handed has no such line.
 pub fn lines<C: ConfigView>(config: &C) -> Vec<CardLine> {
     let mut out = Vec::new();
     let mut add = |key: LineKey, words_key: &str, pairs: &[(&str, &str)]| {
@@ -132,6 +133,7 @@ pub fn lines<C: ConfigView>(config: &C) -> Vec<CardLine> {
     );
     match (config.tier(), config.model()) {
         (Tier::OnDevice, _) => add(LineKey::RunsOn, "line.runs_on.on_device", &[]),
+        _ if !asks_a_model(config) => add(LineKey::RunsOn, "line.runs_on.on_device", &[]),
         (_, Some(model)) if model.stands => add(
             LineKey::RunsOn,
             "line.runs_on.hosted",
@@ -278,17 +280,29 @@ pub fn with_stop_sign_in<C>(
     offered
 }
 
+/// THE ONE LIST of the runtimes whose runs ask a model (r4 U3.17b, the coordinator's ruling of
+/// log line 18496): only an agent of one of them is offered Use an AI model and is said to be able
+/// to use one. A file agent and a calendar agent replay a built-in playbook and ask no model. The
+/// unit that lets another runtime ask a model adds it here.
+pub const MODEL_RUNTIMES: [Runtime; 2] = [Runtime::Web, Runtime::GraphMail];
+
+/// Whether the agent of `config` has a runtime of `MODEL_RUNTIMES`.
+pub fn asks_a_model<C: ConfigView>(config: &C) -> bool {
+    MODEL_RUNTIMES.contains(&config.runtime())
+}
+
 /// The controls of an agent's use of an AI model (r4 U3.17b), in the order of `Control`: none
 /// where the app hands no `ModelUse` (this build's table of hosts holds no row, or its rows name
-/// two origins); `use_model` where the agent has a runtime and its stored tier is `on_device` or
-/// its stored yes does not stand; `this_computer_only` where its stored tier is a hosted tier.
+/// two origins); `use_model` where the agent's runtime asks a model (`MODEL_RUNTIMES`) and its
+/// stored tier is `on_device` or its stored yes does not stand; `this_computer_only` where its
+/// stored tier is a hosted tier, whatever its runtime: the way back is never withheld.
 pub fn model_controls<C: ConfigView>(config: &C) -> Vec<Control> {
     let Some(model) = config.model() else {
         return Vec::new();
     };
     let hosted = config.tier() != Tier::OnDevice;
     let mut out = Vec::new();
-    if config.runtime() != Runtime::None && (!hosted || !model.stands) {
+    if asks_a_model(config) && (!hosted || !model.stands) {
         out.push(Control::UseModel);
     }
     if hosted {

@@ -1234,24 +1234,31 @@ struct Hosting {
     limit: SpendLimit,
 }
 
-/// The read of `host` for one list of the agents, where `listed` says that an agent of the list has a runtime: none,
-/// with nothing sent, where there is no host or no such agent; else the model words `models` joined by ` and `, the
-/// key's state by ONE body `model_key_state` and the count's state by ONE body `model_room`, through `ModelLimit` with
-/// `memory`, the rows' own memory, never the memory of the limit's part.
+/// The read of `host` for one list of the agents: none, with nothing sent, where there is no host; else the host and
+/// the model words `models` joined by ` and `, and, only where `asks` says that an agent of the list has a runtime
+/// that asks a model (`roster::MODEL_RUNTIMES`), the key's state by ONE body `model_key_state` and the count's state by
+/// ONE body `model_room`, through `ModelLimit` with `memory`, the rows' own memory, never the memory of the limit's
+/// part. Where no agent asks a model nothing is read and the states stand as not read, which no row shows: no row then
+/// offers the question.
 fn hosting(
     link: &Arc<dyn OwnerLink>,
     memory: &Memory,
     host: Option<String>,
     models: &[&str],
-    listed: bool,
+    asks: bool,
 ) -> Option<Hosting> {
-    let host = host.filter(|_| listed)?;
-    let key = match ModelKey::new(Arc::clone(link)).state() {
-        KeyState::Saved => Some(true),
-        KeyState::None => Some(false),
-        KeyState::NotKnown => None,
+    let host = host?;
+    let (key, limit) = if asks {
+        let key = match ModelKey::new(Arc::clone(link)).state() {
+            KeyState::Saved => Some(true),
+            KeyState::None => Some(false),
+            KeyState::NotKnown => None,
+        };
+        let limit = spend_limit(&ModelLimit::new(Arc::clone(link), memory).state(&host));
+        (key, limit)
+    } else {
+        (None, SpendLimit::Unread)
     };
-    let limit = spend_limit(&ModelLimit::new(Arc::clone(link), memory).state(&host));
     Some(Hosting {
         host,
         models: models.join(" and "),
@@ -1262,7 +1269,7 @@ fn hosting(
 
 /// `hosting` with this build's host (`model_key::host`) and the model words of the rows of its table, in the order of
 /// `Ruling::allowed()`. With main's table, which holds no row, it is none and sends nothing.
-fn hosting_of_build(link: &Arc<dyn OwnerLink>, memory: &Memory, listed: bool) -> Option<Hosting> {
+fn hosting_of_build(link: &Arc<dyn OwnerLink>, memory: &Memory, asks: bool) -> Option<Hosting> {
     let ruling = halvo_route::release::ruling();
     let models: Vec<&str> = ruling
         .allowed()
@@ -1270,7 +1277,7 @@ fn hosting_of_build(link: &Arc<dyn OwnerLink>, memory: &Memory, listed: bool) ->
         .filter_map(|tier| ruling.row(*tier))
         .map(|row| row.model())
         .collect();
-    hosting(link, memory, crate::model_key::host(), &models, listed)
+    hosting(link, memory, crate::model_key::host(), &models, asks)
 }
 
 /// The spending limit of the reply of the limit's view: a limit stands in the states `ok`, `near`, `reached` and
@@ -1466,10 +1473,10 @@ impl Owner for Product {
                 None => break,
             }
         }
-        let runtime = listed
+        let asks = listed
             .iter()
-            .any(|(a, _)| a.config.runtime() != Runtime::None);
-        let hosting = hosting_of_build(&self.link, &self.rows_memory, runtime);
+            .any(|(a, _)| halvo_coord::roster::asks_a_model(&a.config));
+        let hosting = hosting_of_build(&self.link, &self.rows_memory, asks);
         for (a, agreement) in &mut listed {
             let model = handed(hosting.as_ref(), agreement.as_ref(), a.config.tier());
             a.config.view.set_model(model);
@@ -2408,8 +2415,8 @@ mod tests {
     }
 
     /// r4 U3.17b sentence 1: over this build's table of hosts (`release::ruling()`, which holds no row on main), the
-    /// read for a list of agents with a runtime sends nothing and hands no model, so that no row offers either
-    /// control, whatever the agent's tier and agreement, and no card shows a line of a host.
+    /// read for a list with an agent whose runtime asks a model sends nothing and hands no model, so that no row offers
+    /// either control, whatever the agent's tier and agreement, and no card shows a line of a host.
     #[test]
     fn over_the_table_of_this_build_a_list_reads_nothing_and_offers_no_ai_model() {
         let kept = Arc::new(Kept(Mutex::new(Vec::new())));
