@@ -1,0 +1,1 @@
+- Fixed: The roster of agents reads the set-up rows and the agreement rows once a request instead of once for each agent, so its time no longer grows with the square of the number of agents.

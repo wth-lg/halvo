@@ -4,6 +4,9 @@
 //! tests of the library, which the merge gate runs in both jobs, over the store in memory; the helpers below are those
 //! of the store's test targets, of which they hold the few that these tests use.
 
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::executable::{CoordinatorReply, RunnerReply};
 use halvo_schema::{
@@ -520,4 +523,123 @@ fn the_way_back_is_taken_where_the_stored_set_up_fails_another_rule() {
         );
         assert_eq!(agreement_of(&entry(&mut store, 1)), Value::Null, "{name}");
     }
+}
+
+/// A host over a memory store that counts the reads of a request by kind, each call of the rows' `for_each`, and
+/// hands every call on.
+struct Reads<'a> {
+    store: &'a mut MemoryStore,
+    reads: RefCell<BTreeMap<String, u32>>,
+}
+
+impl RowRead for Reads<'_> {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+        *self.reads.borrow_mut().entry(kind.to_owned()).or_default() += 1;
+        self.store.for_each(kind, visit);
+    }
+}
+
+impl Host for Reads<'_> {
+    fn commit(&mut self, records: Vec<TypedRecord>) -> Result<(), ErrorName> {
+        self.store.commit(records)
+    }
+
+    fn set_state(
+        &mut self,
+        workflow: &WorkflowId,
+        state: AgentState,
+        agent: Option<&AgentId>,
+    ) -> Result<(), ErrorName> {
+        self.store.set_state(workflow, state, agent)
+    }
+
+    fn rows(&self) -> &dyn RowRead {
+        self
+    }
+
+    fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
+        self.store.workflow(id)
+    }
+
+    fn day(&self, at: Instant) -> u32 {
+        self.store.day(at)
+    }
+}
+
+/// r3 U7.7b (the coordinator's log line 18213): each entry of the roster holds under `agreement` what
+/// `rows::standing_agreement` answers for its agent, and ONE request of the roster reads the set-up rows and the
+/// agreement rows once. Four agents, each of an approved web workflow of its own: agent 1 with a standing yes up to
+/// `frontier`; agent 2 with a yes taken back by the way back; agent 3 with a yes of `low_cost_hosted` under a newest
+/// set-up of `frontier`, a revision stored after the yes with no row of its tier; agent 4 with none, its preset. A
+/// host that counts the reads by kind sees `agent_config` read once and `agent_agreement` once in the request; the
+/// roster hands the agreement of agent 1 and null for the three others, each equal to what `standing_agreement`
+/// answers over the same rows.
+#[test]
+fn each_entry_of_the_roster_holds_the_agreement_that_standing_agreement_answers() {
+    let mut store = MemoryStore::new();
+    for n in 1..=4 {
+        store.put_workflow(workflow(&wf(n), "utility_bill_payment", "approved", None));
+        create(&mut store, n, n).expect("create_agent");
+    }
+    assert_eq!(set_model(&mut store, 1, 1, "frontier", both()), rev_text(2));
+    assert_eq!(set_model(&mut store, 2, 2, "frontier", both()), rev_text(2));
+    assert_eq!(the_way_back(&mut store, 2, 2), rev_text(3));
+    let low = json!([triple("low_cost_hosted", ORIGIN, SMALL)]);
+    assert_eq!(
+        set_model(&mut store, 3, 3, "low_cost_hosted", low),
+        rev_text(2)
+    );
+    let mut above = revisions(&store, 3).pop().expect("revision 2");
+    above["rev"] = json!(3);
+    above["tier"] = json!("frontier");
+    store
+        .commit(vec![TypedRecord {
+            kind: "agent_config",
+            json: above.to_string(),
+        }])
+        .expect("a revision of frontier with no row of its tier");
+
+    let mut host = Reads {
+        store: &mut store,
+        reads: RefCell::default(),
+    };
+    let body = json!({"op": "list_agents", "workflow": null, "agent": null, "after": null});
+    let reply =
+        crate::coordinator(&mut host, NOW, body.to_string().as_bytes()).expect("list_agents");
+    let reads = host.reads.into_inner();
+    assert_eq!(
+        (reads.get("agent_config"), reads.get("agent_agreement")),
+        (Some(&1), Some(&1)),
+        "the reads of one request of the roster: {reads:?}"
+    );
+
+    let roster: Value = serde_json::from_str(&reply.to_json().expect("JSON")).expect("JSON");
+    let listed = roster["agents"].as_array().expect("a list of agents");
+    let mut answered = Vec::new();
+    for n in 1..=4 {
+        let id = AgentId::parse(&agent(n)).expect("an agent id");
+        let standing = crate::rows::standing_agreement(store.rows(), &id)
+            .expect("standing_agreement")
+            .map_or(Value::Null, |a| {
+                let row: Value =
+                    serde_json::from_str(&a.to_json().expect("the row's JSON")).expect("JSON");
+                json!({"tier": row["tier"], "hosts": row["hosts"]})
+            });
+        let entry = listed
+            .iter()
+            .find(|e| e["config"]["agent"] == json!(agent(n)))
+            .unwrap_or_else(|| panic!("no entry of the agent {n}: {roster}"));
+        assert_eq!(agreement_of(entry), standing, "the agreement of agent {n}");
+        answered.push(standing);
+    }
+    assert_eq!(
+        answered,
+        vec![
+            json!({"tier": "frontier", "hosts": both()}),
+            Value::Null,
+            Value::Null,
+            Value::Null
+        ],
+        "a standing yes, a yes taken back, a yes of another tier, none"
+    );
 }
