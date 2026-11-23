@@ -17,6 +17,12 @@ const stateOf = (state) => (state === null ? { host: null } : { host: HOST, stat
 /** A page whose model_key_state answers `state` and whose other replies are `more`. */
 const pageAt = (state, more = {}) => openPage({ replies: { model_key_state: () => stateOf(state), ...more } });
 
+/** A reply that the test holds: each call waits in `waiting` with its args until the test settles it. */
+function held() {
+  const waiting = [];
+  return { waiting, reply: (args) => new Promise((resolve, reject) => waiting.push({ args, resolve, reject })) };
+}
+
 /** Every 4-byte part of `text`. */
 const partsOf = (text) => Array.from({ length: text.length - 3 }, (_, i) => text.slice(i, i + 4));
 
@@ -195,4 +201,64 @@ test("the_three_questions_name_the_key_only_while_one_is_saved", async () => {
     assert.equal(shown(reset, "settings-reset-model-key-line"), named, `Reset settings ${at}`);
     if (named) assert.equal(reset.text("settings-reset-model-key-line"), stays);
   }
+});
+
+test("while_a_save_is_in_flight_the_controls_of_the_key_send_nothing", async () => {
+  const save = held();
+  const page = await pageAt("saved", { save_model_key: save.reply, remove_model_key: () => ({ state: "none" }) });
+  const pasted = "Zq7Wx9Kp2Vm4Jt8Rb5";
+  await page.click("model-key-remove");
+  await page.type("model-key-field", pasted);
+  await page.click("model-key-save");
+  await page.click("model-key-save");
+  await page.click("model-key-remove");
+  await page.click("model-key-confirm-remove");
+  assert.deepEqual(page.calls("save_model_key").map((c) => c.args), [{ key: pasted }], "two fast presses send one command");
+  assert.equal(page.calls("remove_model_key").length, 0, "the removal and its answer send nothing while the save is in flight");
+  for (const id of ["model-key-save", "model-key-remove", "model-key-confirm-remove"]) assert.equal(page.byId(id).disabled, true, id);
+
+  for (const call of save.waiting) call.resolve(call.args.key === "" ? { error: "no_key" } : { state: "saved" });
+  await page.settle();
+  assert.equal(page.text("model-key-state"), STATE.saved);
+  assert.equal(page.text("model-key-said"), "", "no sentence for a text that is no key");
+  for (const id of ["model-key-remove", "model-key-confirm-remove"]) assert.equal(page.byId(id).disabled, false, id);
+  assert.equal(page.visible("model-key-remove"), true);
+});
+
+test("a_state_read_sent_before_a_save_changes_nothing_when_it_comes_behind_the_save", async () => {
+  const late = held();
+  let reads = 0;
+  const page = await openPage({
+    replies: {
+      model_key_state: () => (reads++ === 0 ? stateOf("none") : late.reply()),
+      save_model_key: () => ({ state: "saved" }),
+    },
+  });
+  page.window.Halvo.views.window("shown");
+  await page.settle();
+  assert.equal(late.waiting.length, 1, "the read of the show is held");
+  await page.type("model-key-field", "Zq7Wx9Kp2Vm4Jt8Rb5");
+  await page.click("model-key-save");
+  assert.equal(page.text("model-key-state"), STATE.saved);
+
+  late.waiting[0].resolve(stateOf("none"));
+  await page.settle();
+  assert.equal(page.text("model-key-state"), STATE.saved, "the late reply of the read turns nothing");
+  assert.equal(page.visible("model-key-remove"), true);
+});
+
+test("a_second_press_of_save_behind_the_reply_sends_nothing_until_a_text_is_typed", async () => {
+  const page = await pageAt("none", { save_model_key: (args) => (args.key === "" ? { error: "no_key" } : { state: "saved" }) });
+  await page.type("model-key-field", "Zq7Wx9Kp2Vm4Jt8Rb5");
+  await page.click("model-key-save");
+  assert.equal(page.text("model-key-state"), STATE.saved);
+  await page.click("model-key-save");
+  assert.deepEqual(page.calls("save_model_key").map((c) => c.args), [{ key: "Zq7Wx9Kp2Vm4Jt8Rb5" }], "a press on the empty field sends nothing");
+  assert.equal(page.text("model-key-state"), STATE.saved);
+  assert.equal(page.text("model-key-said"), "", "no sentence for a text that is no key");
+
+  await page.type("model-key-field", "Hn3Lc6Yf1Qs0Dg7Ue2");
+  assert.equal(page.byId("model-key-save").disabled, false, "a typed text makes Save the key live");
+  await page.click("model-key-save");
+  assert.deepEqual(page.calls("save_model_key").map((c) => c.args), [{ key: "Zq7Wx9Kp2Vm4Jt8Rb5" }, { key: "Hn3Lc6Yf1Qs0Dg7Ue2" }]);
 });

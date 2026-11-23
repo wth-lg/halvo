@@ -211,10 +211,11 @@ fn the_built_app_starts_its_daemon_and_the_daemon_ends_with_it() {
         ["run"],
         "the empty directory holds run alone"
     );
-    assert_eq!(
-        entries(&empty.join("run")),
-        ["app.lock"],
-        "run holds the app's lock alone"
+    let mut run = entries(&empty.join("run"));
+    run.sort();
+    assert!(
+        run == ["app.lock"] || run == ["app.lock", "failed-starts"],
+        "run holds the app's lock and, until the tray stands, the count of failed starts, and nothing else: {run:?}"
     );
     drop(on_empty);
 
