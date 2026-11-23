@@ -32,3 +32,14 @@ test("the_section_shows_only_at_a_host_with_its_texts_behind_the_agents", async 
   const sections = page.document.querySelectorAll("section").map((s) => s.id);
   assert.equal(sections[sections.indexOf("agents-section") + 1], "model-key-section");
 });
+
+test("the_key_field_is_a_password_field", async () => {
+  const page = await pageAt("none");
+  const field = page.byId("model-key-field");
+  assert.equal(field.localName, "input");
+  assert.equal(field.getAttribute("type"), "password");
+  assert.equal(field.getAttribute("autocomplete"), "off");
+  assert.equal(field.getAttribute("autocorrect"), "off");
+  assert.equal(field.getAttribute("autocapitalize"), "off");
+  assert.equal(field.getAttribute("spellcheck"), "false");
+});

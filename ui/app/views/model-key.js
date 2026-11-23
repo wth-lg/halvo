@@ -65,6 +65,11 @@
       label = Halvo.el("label", { id: "model-key-label", for: "model-key-field" });
       text = Halvo.el("p", { id: "model-key-text", class: "muted" });
       field = Halvo.el("input", { id: "model-key-field" });
+      field.setAttribute("type", "password");
+      field.setAttribute("autocomplete", "off");
+      field.setAttribute("autocorrect", "off");
+      field.setAttribute("autocapitalize", "off");
+      field.setAttribute("spellcheck", "false");
       var save = Halvo.el("button", { id: "model-key-save", text: w.MODEL_KEY_SAVE });
       stateLine = Halvo.el("p", { id: "model-key-state" });
       partsBox = Halvo.el("div", { id: "model-key-parts" });
