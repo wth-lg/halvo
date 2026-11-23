@@ -454,7 +454,7 @@ fn all_answered_but(left: Param) -> (Coordinator<Ports<Config>>, Item) {
 /// whole of it, and takes the line only where what is left is a full path of the system in one
 /// spelling, by the agent store's own rule; over ONE table, which the store's test reads too:
 /// the core's rule gives each row's verdict on both systems; on this build's system each refused
-/// line leaves no `set_bindings`, the item stays open and that question's entry carries S5, though
+/// line sends no body and stores no row, the item stays open and that question's entry carries S5, though
 /// it was the last answer that the item lacked; the quoted path goes, its slot holding the path
 /// alone.
 #[test]
@@ -481,7 +481,10 @@ fn u322a_a_typed_path_that_is_no_full_path_is_not_taken_at_its_line_and_a_quoted
                 Ok(()),
                 "{typed:?}"
             );
-            assert!(set_bindings(&c, m).is_empty(), "{typed:?}: no body");
+            assert!(
+                sent_or_stored(&c, m).is_empty(),
+                "{typed:?}: no body sent, no row stored"
+            );
             assert_eq!(
                 not_taken_of(&c, param).as_deref(),
                 Some(NOT_A_FULL_PATH),
@@ -505,7 +508,7 @@ const CELLS_NOT_READ: &str = "Halvo cannot read these cells. Type them as A2:C11
 /// r4 U3.22a sentence 4: for Which cells the core takes only a text that the sheet crate's
 /// `Range::parse` takes, over ONE table, which the sheet crate's test reads too: the core's rule
 /// gives each row's verdict on both systems and sends a taken line as it is typed; each refused
-/// line leaves no `set_bindings`, the item stays open and the entry carries S6, though it was the
+/// line sends no body and stores no row, the item stays open and the entry carries S6, though it was the
 /// last answer that the item lacked; a taken line goes.
 #[test]
 fn u322a_typed_cells_that_are_no_range_are_not_taken_at_their_line() {
@@ -534,7 +537,10 @@ fn u322a_typed_cells_that_are_no_range_are_not_taken_at_their_line() {
             Ok(()),
             "{text:?}"
         );
-        assert!(set_bindings(&c, m).is_empty(), "{text:?}: no body");
+        assert!(
+            sent_or_stored(&c, m).is_empty(),
+            "{text:?}: no body sent, no row stored"
+        );
         assert_eq!(
             not_taken_of(&c, Param::Range).as_deref(),
             Some(CELLS_NOT_READ),
