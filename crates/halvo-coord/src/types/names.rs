@@ -101,6 +101,8 @@ names! {
         TakeBack = "take_back",
         SwitchOff = "switch_off",
         SwitchOn = "switch_on",
+        UseModel = "use_model",
+        ThisComputerOnly = "this_computer_only",
         StopSignIn = "stop_sign_in",
         Delete = "delete",
     }

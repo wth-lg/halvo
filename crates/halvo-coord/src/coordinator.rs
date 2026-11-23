@@ -3704,11 +3704,8 @@ where
                 roster::deleting_row(*facts, name)
             } else if quit_line {
                 let offered = roster::controls(*facts, waiting, &self.limits);
-                roster::quit_row(
-                    *facts,
-                    name,
-                    roster::with_stop_sign_in(*facts, session, offered),
-                )
+                let offered = roster::with_stop_sign_in(*facts, session, offered);
+                roster::quit_row(*facts, name, roster::with_model(*facts, offered))
             } else {
                 roster::row_with_session(*facts, session, line, name, waiting, &self.limits)
             };

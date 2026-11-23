@@ -62,6 +62,7 @@ use halvo_coord::types::{
     Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState, WorkflowTrigger,
 };
 use halvo_coord::types::{Autonomy, Budget, Limits, Permission, Reasoning, Runtime, Tier};
+use halvo_coord::types::{ModelUse, SpendLimit};
 use halvo_schema::executable::frame::{ConfirmDecision, ConfirmRequest, HandbackRequest};
 use halvo_schema::executable::names::Answer as EffectReply;
 use halvo_schema::executable::text::{EffectId as WireEffect, WebOrigin};
@@ -71,7 +72,8 @@ use serde_json::Value;
 
 use crate::agreement::{self, Agreement, KeptAgent};
 use crate::hub::{Core, Hub};
-use crate::model_key::ModelKey;
+use crate::model_key::{KeyState, ModelKey};
+use crate::model_limit::{LimitReply, LimitState, Memory, ModelLimit};
 use crate::present::{dialog_hub, Dialog};
 
 /// The call of one end of a new owner stream.
@@ -156,6 +158,10 @@ impl AgentConfig {
 }
 
 impl ConfigView for AgentConfig {
+    fn model(&self) -> Option<ModelUse> {
+        self.view.model()
+    }
+
     fn tier(&self) -> Tier {
         self.view.tier()
     }
@@ -668,6 +674,9 @@ pub struct Product {
     runs: RunsOf,
     waits: Arc<Waits>,
     agents: Mutex<HashMap<AgentId, KeptAgent>>,
+    /// The memory of the limit's part that the read for the agents' rows keeps, its own and never the part's
+    /// (r4 U3.17b): only an answer of the part itself may move the part's memory.
+    rows_memory: Memory,
     reaped: Mutex<Option<Vec<ReapAnswer>>>,
     checkpoints: AtomicBool,
 }
@@ -732,6 +741,7 @@ impl Product {
             runs,
             waits,
             agents: Mutex::new(HashMap::new()),
+            rows_memory: Memory::new(),
             reaped: Mutex::new(None),
             checkpoints: AtomicBool::new(false),
         };
@@ -1214,6 +1224,94 @@ fn entry_of(entry: &Value) -> Option<(Agent<AgentConfig>, Option<Agreement>)> {
     Some((agent_of(entry)?, Agreement::of(&entry["agreement"])))
 }
 
+/// What one list of the agents read of this build's host for the agents' rows (r4 U3.17b): the host, the model words
+/// that a yes covers, whether a key is saved (none where its state does not read) and the person's spending limit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Hosting {
+    host: String,
+    models: String,
+    key: Option<bool>,
+    limit: SpendLimit,
+}
+
+/// The read of `host` for one list of the agents, where `listed` says that an agent of the list has a runtime: none,
+/// with nothing sent, where there is no host or no such agent; else the model words `models` joined by ` and `, the
+/// key's state by ONE body `model_key_state` and the count's state by ONE body `model_room`, through `ModelLimit` with
+/// `memory`, the rows' own memory, never the memory of the limit's part.
+fn hosting(
+    link: &Arc<dyn OwnerLink>,
+    memory: &Memory,
+    host: Option<String>,
+    models: &[&str],
+    listed: bool,
+) -> Option<Hosting> {
+    let host = host.filter(|_| listed)?;
+    let key = match ModelKey::new(Arc::clone(link)).state() {
+        KeyState::Saved => Some(true),
+        KeyState::None => Some(false),
+        KeyState::NotKnown => None,
+    };
+    let limit = spend_limit(&ModelLimit::new(Arc::clone(link), memory).state(&host));
+    Some(Hosting {
+        host,
+        models: models.join(" and "),
+        key,
+        limit,
+    })
+}
+
+/// `hosting` with this build's host (`model_key::host`) and the model words of the rows of its table, in the order of
+/// `Ruling::allowed()`. With main's table, which holds no row, it is none and sends nothing.
+fn hosting_of_build(link: &Arc<dyn OwnerLink>, memory: &Memory, listed: bool) -> Option<Hosting> {
+    let ruling = halvo_route::release::ruling();
+    let models: Vec<&str> = ruling
+        .allowed()
+        .iter()
+        .filter_map(|tier| ruling.row(*tier))
+        .map(|row| row.model())
+        .collect();
+    hosting(link, memory, crate::model_key::host(), &models, listed)
+}
+
+/// The spending limit of the reply of the limit's view: a limit stands in the states `ok`, `near`, `reached` and
+/// `none` with the reply's `cap` and `period`; `no_limit` is no limit; every other reply does not read.
+fn spend_limit(reply: &LimitReply) -> SpendLimit {
+    match reply {
+        LimitReply::State {
+            state: LimitState::Ok | LimitState::Near | LimitState::Reached | LimitState::None,
+            cap: Some(cap),
+            period,
+            ..
+        } => SpendLimit::Stands {
+            amount: cap.clone(),
+            period: (*period).to_owned(),
+        },
+        LimitReply::State {
+            state: LimitState::NoLimit,
+            ..
+        } => SpendLimit::NotSet,
+        _ => SpendLimit::Unread,
+    }
+}
+
+/// What the app hands the core of an agent whose stored tier is `tier` and whose entry held `agreement`, where the
+/// list read `hosting`: none without it; else its host, models and states, and whether the yes stands for the stored
+/// tier, by the gate's ONE function `agreement::stands`.
+fn handed(
+    hosting: Option<&Hosting>,
+    agreement: Option<&Agreement>,
+    tier: Tier,
+) -> Option<ModelUse> {
+    let hosting = hosting?;
+    Some(ModelUse {
+        host: hosting.host.clone(),
+        models: hosting.models.clone(),
+        stands: agreement::stands(agreement, tier),
+        key: hosting.key,
+        limit: hosting.limit.clone(),
+    })
+}
+
 /// One run of the reply of `agent_history`.
 fn history_of(run: &Value) -> Option<RunHistory> {
     let effects = run["effects"]
@@ -1367,6 +1465,14 @@ impl Owner for Product {
                 Some(_) => return Err(PortError::NoService),
                 None => break,
             }
+        }
+        let runtime = listed
+            .iter()
+            .any(|(a, _)| a.config.runtime() != Runtime::None);
+        let hosting = hosting_of_build(&self.link, &self.rows_memory, runtime);
+        for (a, agreement) in &mut listed {
+            let model = handed(hosting.as_ref(), agreement.as_ref(), a.config.tier());
+            a.config.view.set_model(model);
         }
         *lock(&self.agents) = listed
             .iter()
@@ -2288,6 +2394,55 @@ mod tests {
             _: &dyn Fn(),
         ) -> halvo_coord::items::ConfirmAnswer {
             halvo_coord::items::ConfirmAnswer::Reject
+        }
+    }
+
+    /// The configuration of an agent of `tier` with the runtime `web`, as an entry of `list_agents` holds it.
+    fn model_config(tier: &str) -> AgentConfig {
+        AgentConfig::parse(&format!(
+            r#"{{"v":1,"workflow":"{}","agent":"{}","rev":1,"category":"utility_bill_payment","tier":"{tier}","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}}"#,
+            "f1".repeat(16),
+            "a1".repeat(16)
+        ))
+        .expect("a configuration of the agent store")
+    }
+
+    /// r4 U3.17b sentence 1: over this build's table of hosts (`release::ruling()`, which holds no row on main), the
+    /// read for a list of agents with a runtime sends nothing and hands no model, so that no row offers either
+    /// control, whatever the agent's tier and agreement, and no card shows a line of a host.
+    #[test]
+    fn over_the_table_of_this_build_a_list_reads_nothing_and_offers_no_ai_model() {
+        let kept = Arc::new(Kept(Mutex::new(Vec::new())));
+        let link: Arc<dyn OwnerLink> = kept.clone();
+        let memory = Memory::new();
+        let hosting = hosting_of_build(&link, &memory, true);
+        assert_eq!(hosting, None);
+        assert!(lock(&kept.0).is_empty(), "no request");
+        let both = Agreement::of(&serde_json::json!({
+            "tier": "frontier",
+            "hosts": [
+                {"tier": "low_cost_hosted", "origin": "https://hosted-model.test", "model": "test-model-small"},
+                {"tier": "frontier", "origin": "https://hosted-model.test", "model": "test-model-large"}
+            ]
+        }));
+        assert!(both.is_some());
+        for (tier, agreement) in [("on_device", None), ("frontier", both.as_ref())] {
+            let mut config = model_config(tier);
+            assert_eq!(config.runtime(), Runtime::Web);
+            config
+                .view
+                .set_model(handed(hosting.as_ref(), agreement, config.tier()));
+            assert_eq!(config.model(), None, "{tier}");
+            assert!(
+                halvo_coord::roster::model_controls(&config).is_empty(),
+                "{tier}"
+            );
+            assert!(
+                !halvo_coord::roster::lines(&config)
+                    .iter()
+                    .any(|line| line.text.contains("AI model")),
+                "{tier}"
+            );
         }
     }
 }

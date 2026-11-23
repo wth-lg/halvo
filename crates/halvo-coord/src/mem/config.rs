@@ -1,6 +1,6 @@
 use crate::types::{
-    AgentId, Autonomy, Budget, Category, Cause, Class, ConfigView, Period, Permission, Reasoning,
-    Runtime, Tier, WorkflowId,
+    AgentId, Autonomy, Budget, Category, Cause, Class, ConfigView, ModelUse, Period, Permission,
+    Reasoning, Runtime, Tier, WorkflowId,
 };
 use serde_json::{Map, Value};
 
@@ -25,6 +25,7 @@ pub struct Config {
     permissions: Vec<Permission>,
     runtime: Runtime,
     playbook: Option<u32>,
+    model: Option<ModelUse>,
 }
 
 const KEYS: [&str; 15] = [
@@ -137,11 +138,21 @@ impl Config {
             permissions: list(&o["permissions"], Permission::parse)?,
             runtime: Runtime::parse(text(&o["runtime"])?)?,
             playbook,
+            model: None,
         })
+    }
+
+    /// Hands `model` beside the record, as the app hands what it read of an AI model at a list of
+    /// the agents (r4 U3.17b); a configuration that `parse` reads hands none.
+    pub fn set_model(&mut self, model: Option<ModelUse>) {
+        self.model = model;
     }
 }
 
 impl ConfigView for Config {
+    fn model(&self) -> Option<ModelUse> {
+        self.model.clone()
+    }
     fn tier(&self) -> Tier {
         self.tier
     }

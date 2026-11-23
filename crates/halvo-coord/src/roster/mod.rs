@@ -264,6 +264,40 @@ pub fn with_stop_sign_in<C>(
     offered
 }
 
+/// The controls of an agent's use of an AI model (r4 U3.17b), in the order of `Control`: none
+/// where the app hands no `ModelUse` (this build's table of hosts holds no row, or its rows name
+/// two origins); `use_model` where the agent has a runtime and its stored tier is `on_device` or
+/// its stored yes does not stand; `this_computer_only` where its stored tier is a hosted tier.
+pub fn model_controls<C: ConfigView>(config: &C) -> Vec<Control> {
+    let Some(model) = config.model() else {
+        return Vec::new();
+    };
+    let hosted = config.tier() != Tier::OnDevice;
+    let mut out = Vec::new();
+    if config.runtime() != Runtime::None && (!hosted || !model.stands) {
+        out.push(Control::UseModel);
+    }
+    if hosted {
+        out.push(Control::ThisComputerOnly);
+    }
+    out
+}
+
+/// `offered` with the `model_controls` of the agent before `stop_sign_in` and `delete`, where
+/// `offered` holds `delete`: a row of a gone workflow or of an agent that is being deleted gets
+/// none (r4 U3.17b).
+pub fn with_model<C: ConfigView>(facts: &Facts<C>, mut offered: Vec<Control>) -> Vec<Control> {
+    if offered.contains(&Control::Delete) {
+        if let Some(at) = offered
+            .iter()
+            .position(|c| matches!(c, Control::StopSignIn | Control::Delete))
+        {
+            offered.splice(at..at, model_controls(&facts.config));
+        }
+    }
+    offered
+}
+
 fn started_by_the_schedule<C: ConfigView>(facts: &Facts<C>, limits: &Limits) -> bool {
     !needs_person(&facts.config) && finished(facts) && slot_due(facts, limits).is_some()
 }
@@ -284,8 +318,9 @@ pub fn row<C: ConfigView>(
 }
 
 /// The row of `row`, where `session` says whether the board's member of the agent holds a stored
-/// session (I6.1 `session`): its controls are those of `with_stop_sign_in`, so that the row of
-/// `problem.record` offers no `stop_sign_in` (r4 U2.4y).
+/// session (I6.1 `session`): its controls are those of `with_stop_sign_in` and `with_model`, so
+/// that the row of `problem.record` offers no `stop_sign_in` (r4 U2.4y) and neither control of
+/// an AI model (r4 U3.17b).
 pub fn row_with_session<C: ConfigView>(
     facts: &Facts<C>,
     session: bool,
@@ -294,7 +329,8 @@ pub fn row_with_session<C: ConfigView>(
     waiting: Option<Trigger>,
     limits: &Limits,
 ) -> Result<Row, Cause> {
-    let offered = with_stop_sign_in(facts, session, controls(facts, waiting, limits))
+    let offered = with_stop_sign_in(facts, session, controls(facts, waiting, limits));
+    let offered = with_model(facts, offered)
         .into_iter()
         .filter(|c| line != StatusLine::Record || matches!(c, Control::Stop | Control::Delete))
         .collect();
@@ -815,3 +851,6 @@ pub fn raised_at<C>(facts: &Facts<C>) -> Option<u64> {
         _ => None,
     })
 }
+
+#[cfg(test)]
+mod tests;

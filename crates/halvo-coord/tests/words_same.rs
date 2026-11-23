@@ -179,6 +179,8 @@ fn expected_keys() -> BTreeSet<String> {
         "take_back",
         "switch_off",
         "switch_on",
+        "use_model",
+        "this_computer_only",
         "stop_sign_in",
         "delete",
     ] {
@@ -491,7 +493,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 332);
+    assert_eq!(seen.len(), 334);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {

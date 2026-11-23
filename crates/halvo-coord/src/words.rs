@@ -252,6 +252,8 @@ pub const KEYS: &[(&str, &str)] = &[
     ("control.take_back", "Cancel this start"),
     ("control.switch_off", "Switch off"),
     ("control.switch_on", "Switch on"),
+    ("control.use_model", "Use an AI model"),
+    ("control.this_computer_only", "Use this computer only"),
     ("control.stop_sign_in", "Stop using its sign-in"),
     ("control.delete", "Delete"),
     ("item.sign_in.title", "Sign in for “{name}”"),
