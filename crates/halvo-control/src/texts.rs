@@ -46,12 +46,27 @@ pub const SCREEN_ACTIVITY_MAY_BE_RECORDED_WITH_THE_SETTING_OFF: &str = "Screen a
 
 pub const PASSWORDS_NOT_CONFIRMED: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field and what kind of key it is, never which letter, digit or sign. Pause capture before you type a password.";
 
+/// The passwords row on Windows in the place of the Mac's [`PASSWORDS_NOT_CONFIRMED`]: the guard
+/// is not Halvo's while the keyboard source line is not off. The Windows gate notes no key in a
+/// field that it cannot read (U1, sentence W2 (b)).
+pub const PASSWORDS_FIELD_UNKNOWN_ON_WINDOWS: &str =
+    "Halvo cannot tell which field you type in, so it records no key until it can.";
+
 pub const KEY_TYPED_AHEAD_CAN_BE_NOTED: &str = "A key that you press before a program or page has moved to its password field, for example while it is frozen or still loading, can be noted: when it was pressed, in which app and what kind of key, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in.";
+
+/// The Windows sentence in the place of [`KEY_TYPED_AHEAD_CAN_BE_NOTED`]: beside the passwords row
+/// of the Windows gate, in the view and in the first-run text (U1, sentence W3).
+pub const KEY_TYPED_AHEAD_ON_WINDOWS: &str = "A key that you press before a program or page has moved to its password field, for example while it is frozen or busy, can in rare cases be noted: when you pressed it, in which app and what kind of key it was, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in.";
 
 /// What a Mac's page says while its status reads keys_withheld yes: an item and no warning
 /// (ruling PR-30 PR10), in the coordinator's words after three plain readers, the owner's to
 /// change. A withheld key is dropped from the macOS keyboard source's queue and written nowhere.
 pub const KEYS_WITHHELD_ON_A_MAC: &str = "Halvo did not save part of what you typed, because it may have been a password. What Halvo leaves out this way is never saved. You do not need to do anything.";
+
+/// What a Windows page says while its status reads keys_withheld yes, an item and no warning as on
+/// a Mac. The Windows gate withholds every key after which the text of a field that it reads as
+/// plain does not change, so the flag stands in nearly every use (U1, sentence W5).
+pub const KEYS_WITHHELD_ON_WINDOWS: &str = "Halvo saves a key only when, just after you pressed it, the text changed in a field that is not a password field. It did not save the other keys that you pressed. What Halvo leaves out this way is never saved. You do not need to do anything.";
 
 const PASSWORDS_WITH_SECURE_INPUT: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
 
@@ -60,7 +75,9 @@ const PASSWORDS_WITH_SECURE_INPUT: &str = "While a password field holds secure i
 /// while a password field has the focus.
 const PASSWORDS_BY_THE_GATE_ON_WINDOWS: &str = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
 
-const PASSWORDS_WITH_HALVO_S_DETECTOR: &str = "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
+/// The passwords row on Windows while the keyboard source line is not off and the guard is
+/// Halvo's; its first clause is U1's sentence W2 (a).
+const PASSWORDS_WITH_HALVO_S_DETECTOR: &str = "Halvo records a key only when, just after you press it, the text changes in a field that is not a password field; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
 
 pub const UNSIGNED_BUILD_CUSTODY: &str = "This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.";
 
@@ -68,6 +85,12 @@ pub const WINDOWS_CAPTURE_BORDER: &str =
     "While Halvo notes screen activity, Windows draws a border around the screen.";
 
 pub const LIMITS: &str = "A copy of Halvo's data made earlier, such as a backup, keeps what it held: expiry does not reach it, and after a delete-all a copy of the whole data folder can still be read.";
+
+/// The typing row on Windows in the place of the Mac's row of [`recorded_when_on`]: the switch
+/// key_class is on and the keyboard source line runs. The Windows gate notes a key only on a
+/// change of the text of a field that it reads as plain (U1, sentence W1). No Windows build runs
+/// its keyboard source before typing is switched on there.
+pub const KEYS_RECORDED_ON_WINDOWS: &str = "Halvo records a key only when, just after you press it, the text changes in a field that Windows does not report as a password field. It records when you pressed the key, in which app, and what kind of key it was: a letter, digit or sign, or a delete key. It never records which letter, digit or sign. Halvo can tell this only in web pages in Chrome and Edge and in the plain text boxes of classic Windows programs: in every other program it records no key. It records no Return or Enter, no Tab, no arrow key, no Escape and no shortcut.";
 
 /// What Halvo records while `switch` is on.
 pub const fn recorded_when_on(switch: SwitchName) -> &'static str {
@@ -132,6 +155,7 @@ fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine])
             (Platform::Windows, SwitchName::KeyClass, _) => {
                 match class_of(sources, SourceName::Keyboard) {
                     SourceClass::Off => Some(TYPING_NOT_RECORDED),
+                    SourceClass::Runs if on => Some(KEYS_RECORDED_ON_WINDOWS),
                     SourceClass::Runs => Some(TYPING_BEING_OBSERVED),
                     SourceClass::Stopped => None,
                     SourceClass::MayRun => Some(TYPING_MAY_BE_OBSERVED),
@@ -167,7 +191,17 @@ fn passwords(platform: Platform, guard: PasswordGuard, typing: SourceClass) -> &
         (Platform::Windows, _, SourceClass::Off) => PASSWORDS_BY_THE_GATE_ON_WINDOWS,
         (Platform::Macos, PasswordGuard::Os, _) => PASSWORDS_WITH_SECURE_INPUT,
         (Platform::Windows, PasswordGuard::Halvo, _) => PASSWORDS_WITH_HALVO_S_DETECTOR,
+        (Platform::Windows, _, _) => PASSWORDS_FIELD_UNKNOWN_ON_WINDOWS,
         _ => PASSWORDS_NOT_CONFIRMED,
+    }
+}
+
+/// The sentence on a key pressed early, beside the passwords row of each system's guard.
+fn typed_ahead(passwords: &str) -> Option<&'static str> {
+    match passwords {
+        PASSWORDS_WITH_SECURE_INPUT => Some(KEY_TYPED_AHEAD_CAN_BE_NOTED),
+        PASSWORDS_WITH_HALVO_S_DETECTOR => Some(KEY_TYPED_AHEAD_ON_WINDOWS),
+        _ => None,
     }
 }
 
@@ -219,11 +253,12 @@ pub struct Texts {
     pub recorded: Vec<Recorded>,
     pub passwords: &'static str,
     /// [`KEY_TYPED_AHEAD_CAN_BE_NOTED`] wherever `passwords` is the macOS secure-input sentence,
-    /// and no key elsewhere.
+    /// [`KEY_TYPED_AHEAD_ON_WINDOWS`] wherever it is the row of the Windows gate, and no key
+    /// elsewhere.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub typed_ahead: Option<&'static str>,
-    /// [`KEYS_WITHHELD_ON_A_MAC`] on a Mac whose status reads keys_withheld yes, and no key
-    /// elsewhere.
+    /// [`KEYS_WITHHELD_ON_A_MAC`] on a Mac and [`KEYS_WITHHELD_ON_WINDOWS`] on Windows whose
+    /// status reads keys_withheld yes, and no key elsewhere.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keys_withheld: Option<&'static str>,
     pub backup_limit: Option<&'static str>,
@@ -247,10 +282,11 @@ pub fn texts(status: &DaemonStatus) -> Texts {
             .chain(recorded(f.platform, &f.switches, &f.sources))
             .collect(),
         passwords,
-        typed_ahead: (passwords == PASSWORDS_WITH_SECURE_INPUT)
-            .then_some(KEY_TYPED_AHEAD_CAN_BE_NOTED),
-        keys_withheld: (f.platform == Platform::Macos && f.keys_withheld)
-            .then_some(KEYS_WITHHELD_ON_A_MAC),
+        typed_ahead: typed_ahead(passwords),
+        keys_withheld: f.keys_withheld.then_some(match f.platform {
+            Platform::Macos => KEYS_WITHHELD_ON_A_MAC,
+            Platform::Windows => KEYS_WITHHELD_ON_WINDOWS,
+        }),
         backup_limit: backup_limit(f.platform),
         limits: LIMITS,
         custody: custody_text(f.custody),
@@ -287,14 +323,23 @@ pub fn onboarding_rows(status: &DaemonStatus) -> Vec<PermissionStatus> {
 /// of the default switches (contracts.md C13.5) with every source off, on a Mac with the row on
 /// typing by [`TYPING_ON_MAC`] behind the row on clicks; on a Mac with typing on also the
 /// sentence on secure input and [`KEY_TYPED_AHEAD_CAN_BE_NOTED`], since the press on Start is
-/// the consent to typing, and with typing off neither; the backup limit, the limits, the custody
-/// on which the platform's build captures, the storage of the default cap and the sentence on
-/// repeated tasks.
+/// the consent to typing, and with typing off neither; on Windows, where no build records typing
+/// yet, the rows of a keyboard source that is off, and with typing on the rows of a keyboard
+/// source that runs under the gate: [`KEYS_RECORDED_ON_WINDOWS`] in the place of its typing row,
+/// the gate's passwords row and [`KEY_TYPED_AHEAD_ON_WINDOWS`]; the backup limit, the limits, the
+/// custody on which the platform's build captures, the storage of the default cap and the
+/// sentence on repeated tasks.
 pub fn first_run(platform: Platform) -> Texts {
-    first_run_with(platform, TYPING_ON_MAC)
+    first_run_with(
+        platform,
+        match platform {
+            Platform::Macos => TYPING_ON_MAC,
+            Platform::Windows => false,
+        },
+    )
 }
 
-fn first_run_with(platform: Platform, typing_on_mac: bool) -> Texts {
+fn first_run_with(platform: Platform, typing_on: bool) -> Texts {
     let switches: Vec<SwitchLine> = SwitchName::ALL
         .iter()
         .map(|&name| SwitchLine {
@@ -311,14 +356,25 @@ fn first_run_with(platform: Platform, typing_on_mac: bool) -> Texts {
         state: SourceState::Off,
         unstopped: false,
     };
-    let sources = [off(SourceName::Keyboard), off(SourceName::Screen)];
+    let (keyboard, guard) = if platform == Platform::Windows && typing_on {
+        (SourceState::Running, PasswordGuard::Halvo)
+    } else {
+        (SourceState::Off, PasswordGuard::None)
+    };
+    let sources = [
+        SourceLine {
+            state: keyboard,
+            ..off(SourceName::Keyboard)
+        },
+        off(SourceName::Screen),
+    ];
     let mut rows = recorded(platform, &switches, &sources);
-    let mut passwords = passwords(platform, PasswordGuard::None, SourceClass::Off);
+    let mut passwords = passwords(platform, guard, class(&sources[0]));
     if platform == Platform::Macos {
         rows.retain(|row| row.switch != Some(SwitchName::KeyClass));
         let typing = Recorded {
             switch: Some(SwitchName::KeyClass),
-            text: if typing_on_mac {
+            text: if typing_on {
                 recorded_when_on(SwitchName::KeyClass)
             } else {
                 TYPING_NOT_RECORDED
@@ -329,7 +385,7 @@ fn first_run_with(platform: Platform, typing_on_mac: bool) -> Texts {
             .position(|row| row.switch == Some(SwitchName::PointerClass))
             .map_or(rows.len(), |at| at + 1);
         rows.insert(behind_the_clicks, typing);
-        passwords = if typing_on_mac {
+        passwords = if typing_on {
             PASSWORDS_WITH_SECURE_INPUT
         } else {
             ""
@@ -339,8 +395,7 @@ fn first_run_with(platform: Platform, typing_on_mac: bool) -> Texts {
     Texts {
         recorded: rows,
         passwords,
-        typed_ahead: (passwords == PASSWORDS_WITH_SECURE_INPUT)
-            .then_some(KEY_TYPED_AHEAD_CAN_BE_NOTED),
+        typed_ahead: typed_ahead(passwords),
         keys_withheld: None,
         backup_limit: backup_limit(platform),
         limits: LIMITS,
@@ -370,8 +425,7 @@ mod tests {
         include_str!("../../../scripts/r1-gate/fixtures/c2-status-windows.txt");
 
     #[test]
-    fn pr10_withheld_keys_on_a_mac_are_an_item_of_the_texts_that_is_no_warning_and_windows_shows_none(
-    ) {
+    fn pr10_withheld_keys_on_a_mac_are_an_item_of_the_texts_that_is_no_warning() {
         let withheld = |platform: Platform, yes: bool| {
             let mut f = sample_status(platform).into_fields();
             f.keys_withheld = yes;
@@ -385,11 +439,7 @@ mod tests {
             KEYS_WITHHELD_ON_A_MAC,
             "Halvo did not save part of what you typed, because it may have been a password. What Halvo leaves out this way is never saved. You do not need to do anything."
         );
-        for (platform, yes) in [
-            (Platform::Macos, false),
-            (Platform::Windows, true),
-            (Platform::Windows, false),
-        ] {
+        for (platform, yes) in [(Platform::Macos, false), (Platform::Windows, false)] {
             let shown = withheld(platform, yes);
             assert_eq!(shown.keys_withheld, None, "{platform:?} {yes}");
             let json = serde_json::to_value(&shown).unwrap();
@@ -479,26 +529,36 @@ mod tests {
     #[test]
     fn g2_the_view_says_typing_is_observed_while_the_windows_keyboard_source_runs() {
         use crate::proto::{SourceName, SourceState};
-        let mut f = sample_status(Platform::Windows).into_fields();
-        let keyboard = f
-            .sources
-            .iter()
-            .position(|s| s.name == SourceName::Keyboard)
-            .unwrap();
-        f.sources[keyboard].state = SourceState::Running;
-        f.enabled_sources = vec![
-            SourceName::Foreground,
-            SourceName::Keyboard,
-            SourceName::Pointer,
-            SourceName::WindowTitle,
-        ];
-        let status = DaemonStatus::new(f).unwrap();
-        let told = texts_of(&texts(&status).recorded);
-        assert!(!told.contains(&TYPING_NOT_RECORDED), "{told:?}");
-        assert!(
-            told.contains(&"Typing is being observed. Pause capture to stop it."),
-            "{told:?}"
-        );
+        for (key_class, row) in [
+            (OnOff::On, KEYS_RECORDED_ON_WINDOWS),
+            (
+                OnOff::Off,
+                "Typing is being observed. Pause capture to stop it.",
+            ),
+        ] {
+            let mut f = sample_status(Platform::Windows).into_fields();
+            let keyboard = f
+                .sources
+                .iter()
+                .position(|s| s.name == SourceName::Keyboard)
+                .unwrap();
+            f.sources[keyboard].state = SourceState::Running;
+            f.enabled_sources = vec![
+                SourceName::Foreground,
+                SourceName::Keyboard,
+                SourceName::Pointer,
+                SourceName::WindowTitle,
+            ];
+            for line in &mut f.switches {
+                if line.name == SwitchName::KeyClass {
+                    line.value = key_class;
+                }
+            }
+            let status = DaemonStatus::new(f).unwrap();
+            let told = texts_of(&texts(&status).recorded);
+            assert!(!told.contains(&TYPING_NOT_RECORDED), "{told:?}");
+            assert!(told.contains(&row), "{key_class:?}: {told:?}");
+        }
     }
 
     fn texts_of(recorded: &[Recorded]) -> Vec<&'static str> {
@@ -669,6 +729,9 @@ mod tests {
             WINDOWS_CAPTURE_BORDER,
             LIMITS,
             UNSIGNED_BUILD_CUSTODY,
+            KEYS_RECORDED_ON_WINDOWS,
+            KEY_TYPED_AHEAD_ON_WINDOWS,
+            KEYS_WITHHELD_ON_WINDOWS,
         ]);
         for platform in [Platform::Macos, Platform::Windows] {
             for &guard in PasswordGuard::ALL {
@@ -719,10 +782,14 @@ mod tests {
         );
         assert_eq!(
             passwords(Platform::Windows, PasswordGuard::Halvo, SourceClass::Runs),
-            "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse."
+            "Halvo records a key only when, just after you press it, the text changes in a field that is not a password field; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse."
         );
         assert_eq!(
             passwords(Platform::Windows, PasswordGuard::None, SourceClass::Runs),
+            "Halvo cannot tell which field you type in, so it records no key until it can."
+        );
+        assert_eq!(
+            passwords(Platform::Macos, PasswordGuard::None, SourceClass::Runs),
             "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field and what kind of key it is, never which letter, digit or sign. Pause capture before you type a password."
         );
         assert_eq!(
@@ -846,9 +913,12 @@ mod tests {
     const S2: &str = "Screen activity may still be recorded although the setting is off: Halvo's capture service reports a fault in that part. To be sure it is off, pause capture or quit Halvo.";
     const P0: &str = "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
     const PM: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
-    const PH: &str = "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
+    const PH: &str = "Halvo records a key only when, just after you press it, the text changes in a field that is not a password field; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
     const PW: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field and what kind of key it is, never which letter, digit or sign. Pause capture before you type a password.";
     const TA: &str = "A key that you press before a program or page has moved to its password field, for example while it is frozen or still loading, can be noted: when it was pressed, in which app and what kind of key, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in.";
+    const KW: &str = KEYS_RECORDED_ON_WINDOWS;
+    const PF: &str = PASSWORDS_FIELD_UNKNOWN_ON_WINDOWS;
+    const TW: &str = KEY_TYPED_AHEAD_ON_WINDOWS;
     const TITLE_ON: &str = "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private.";
     const KEY_CLASS_ON: &str = "Halvo records each key you press, when and in which app, and what kind of key it is: a letter, digit or sign, a delete key, an arrow or page key, Return or Enter, Tab, a shortcut, or another key. It never records which letter, digit or sign.";
     const POINTER_ON: &str = "Halvo records each click and which button you pressed, and how many times you scroll, drag or move the pointer each second, never where on the screen.";
@@ -1071,7 +1141,7 @@ mod tests {
                         &[
                             vec![(TitleText, TITLE_ON)],
                             windows_keyboard_sentence
-                                .map(|t| (KeyClass, t))
+                                .map(|t| (KeyClass, if t == K1 { KW } else { t }))
                                 .into_iter()
                                 .collect(),
                             vec![(PointerClass, POINTER_ON), (ScreenActivity, S0)],
@@ -1173,7 +1243,7 @@ mod tests {
                 (Platform::Macos, _, _) => PW,
                 (Platform::Windows, _, "off") => P0,
                 (Platform::Windows, PasswordGuard::Halvo, _) => PH,
-                (Platform::Windows, _, _) => PW,
+                (Platform::Windows, _, _) => PF,
             }
         };
         let mut wrong = Vec::new();
@@ -1223,7 +1293,11 @@ mod tests {
                         ));
                     }
                     let want = cell(platform, guard, typing_class);
-                    let want_typed_ahead = (want == PM).then_some(TA);
+                    let want_typed_ahead = match want {
+                        PM => Some(TA),
+                        PH => Some(TW),
+                        _ => None,
+                    };
                     let got = texts(&status);
                     if got.passwords != want {
                         wrong.push(format!(
@@ -1387,7 +1461,7 @@ mod tests {
                     &on,
                     PasswordGuard::Os,
                 ),
-                PW,
+                PF,
                 false,
                 true,
             ),
@@ -1401,7 +1475,7 @@ mod tests {
                     &on,
                     PasswordGuard::None,
                 ),
-                PW,
+                PF,
                 false,
                 true,
             ),
@@ -1593,5 +1667,339 @@ mod tests {
         }
         assert_eq!(texts(&sample_status(Platform::Windows)).passwords, sentence);
         assert_eq!(first_run(Platform::Windows).passwords, sentence);
+    }
+
+    /// A byte copy of the coordinator's file of U1's ruled sentences, kept beside the tests.
+    const U1_RULED: &str = include_str!("u1-ruled-sentences.txt");
+    const PRIVACY_LIMITS: &str = include_str!("../../../docs/privacy-limits.md");
+
+    /// The line under the line of the ruled copy that begins with `label`.
+    fn ruled(label: &str) -> String {
+        let text = lf(U1_RULED);
+        let mut lines = text.lines();
+        lines
+            .by_ref()
+            .find(|line| line.starts_with(label))
+            .unwrap_or_else(|| panic!("the ruled copy has no line {label}"));
+        lines
+            .next()
+            .unwrap_or_else(|| panic!("the ruled copy has nothing under {label}"))
+            .to_string()
+    }
+
+    fn one_space(text: &str) -> String {
+        text.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    /// The rest of the passwords row of the Windows gate behind its first clause, as it stood
+    /// before U1.
+    const DETECTOR_ROW_REST: &str = " to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
+
+    #[test]
+    fn u1_each_windows_sentence_is_the_ruled_one_to_the_letter() {
+        assert_eq!(KEYS_RECORDED_ON_WINDOWS, ruled("W1,"), "W1");
+        let clause = ruled("W2 (a),");
+        assert!(clause.ends_with(';'), "W2 (a) is a first clause: {clause}");
+        assert_eq!(
+            PASSWORDS_WITH_HALVO_S_DETECTOR,
+            format!("{clause}{DETECTOR_ROW_REST}"),
+            "W2 (a), the rest of the row as it stands"
+        );
+        assert_eq!(
+            PASSWORDS_FIELD_UNKNOWN_ON_WINDOWS,
+            ruled("W2 (b),"),
+            "W2 (b)"
+        );
+        assert_eq!(KEY_TYPED_AHEAD_ON_WINDOWS, ruled("W3,"), "W3");
+        assert_eq!(KEYS_WITHHELD_ON_WINDOWS, ruled("W5,"), "W5");
+        for (name, sentence) in [
+            ("W1", KEYS_RECORDED_ON_WINDOWS),
+            ("W2 (b)", PASSWORDS_FIELD_UNKNOWN_ON_WINDOWS),
+            ("W3", KEY_TYPED_AHEAD_ON_WINDOWS),
+            ("W5", KEYS_WITHHELD_ON_WINDOWS),
+        ] {
+            assert!(
+                !sentence.starts_with("On Windows"),
+                "{name}: a row of the app"
+            );
+        }
+        let doc = one_space(&lf(PRIVACY_LIMITS));
+        let w1 = KEYS_RECORDED_ON_WINDOWS
+            .strip_prefix("Halvo ")
+            .expect("W1 begins with Halvo");
+        let l0 = ruled("L0,");
+        let l0 = l0.strip_suffix('.').expect("L0 ends with a period");
+        for (name, text) in [
+            (
+                "W1 with L0 behind it and the unit's tag before its period",
+                format!("On Windows, Halvo {w1} {l0} (win-6)."),
+            ),
+            ("L2", ruled("L2,")),
+            (
+                "L3 with L1 behind it",
+                format!("{} {}", ruled("L3,"), ruled("L1,")),
+            ),
+            ("L4", ruled("L4,")),
+            (
+                "W3 under the label",
+                format!("Limit on Windows: {KEY_TYPED_AHEAD_ON_WINDOWS}"),
+            ),
+        ] {
+            assert!(
+                doc.contains(&one_space(&text)),
+                "docs/privacy-limits.md: {name}"
+            );
+        }
+    }
+
+    /// U1's L5: under "Limit on Windows:" each pinned row of win-6's table and each order that it
+    /// names with no row, in the words of the table's last column as the limits write them (no
+    /// capitals for stress; the two references to the table read as the coordinator ruled them).
+    #[test]
+    fn u1_l5_the_windows_limit_lists_every_pinned_row_and_every_named_order() {
+        const ONE: &str = " One key typed at the password field is noted, as a time, an app and a kind, never which key.";
+        let rows = [
+            "Type the first character of a password into a classic Windows program while it is busy, before it has moved the cursor to its password box, where the program itself fills or clears the box that has the cursor and then moves the cursor to the password box on its own a moment later.",
+            "In a classic Windows program that has frozen for about half a second, press Tab to go to the password box and type the first character of the password about 0.4 s later, before the program wakes; the program, when it wakes, fills or clears the box that still has the cursor before it follows the Tab.",
+            "Type two characters a third of a second apart into a classic Windows program that has frozen for more than a quarter of a second, where the program, on waking, moves the cursor from the box you typed into to its password box by itself (no Tab, no click).",
+            "In a classic Windows program that freezes for about half a second, type the last character of the user name, press Tab, and type the first character of the password about 0.4 s later, all before the program wakes.",
+            "In a classic Windows program, click a button or a menu item that pastes into the box that has the cursor, type the first character of the password at once, and have the program move the cursor to its password box on its own a moment later.",
+            "Type two characters within about a hundredth of a second of each other into a web page's text box, on a page whose script, after the first character, freezes for a moment and then moves the cursor to its password box by itself.",
+        ]
+        .map(|row| format!("{row}{ONE}"));
+        let style_mask = "Type a password into a box that a page only draws as dots on a web page in Chrome or Edge. Every key typed there is noted, as a time, an app and a kind, never which key, as in any field read as plain.";
+        let named = [
+            "Type two characters into a Windows program that is busy while a password manager fills its password box, where the program, on waking, moves the cursor to the password box by itself. It needs a password box that reports its changes, which the classic Windows password box did not do in the runs.",
+            "As in ways 5 and 6 above, but type the password character more than about a third of a second after the click, or after the Enter.",
+            "In a classic Windows program that has frozen, press Tab into its password box (or click it), type two characters about half a second later, and have the program, when it wakes, take the first in the password box and then move the cursor back to the box before it by itself, while Windows sends no notice of the Tab's move.",
+        ]
+        .map(|order| format!("{order}{ONE}"));
+        let mut want = vec![format!(
+            "Limit on Windows: {KEY_TYPED_AHEAD_ON_WINDOWS} Halvo's own tests show it in these ways:"
+        )];
+        let numbered = |items: &[String]| -> Vec<String> {
+            items
+                .iter()
+                .enumerate()
+                .map(|(at, item)| format!("{}. {item}", at + 1))
+                .collect()
+        };
+        want.extend(numbered(
+            &rows
+                .iter()
+                .cloned()
+                .chain([style_mask.to_string()])
+                .collect::<Vec<_>>(),
+        ));
+        want.push("Reading the code shows three more ways, which no test runs:".to_string());
+        want.extend(numbered(&named));
+        let doc = one_space(&lf(PRIVACY_LIMITS));
+        assert!(
+            doc.contains(&one_space(&want.join(" "))),
+            "the limit on Windows and its two lists, in this order and nothing between"
+        );
+        assert!(!doc.contains("ONE"), "no capitals for stress in the limits");
+    }
+
+    fn guard_of(platform: Platform) -> PasswordGuard {
+        match platform {
+            Platform::Macos => PasswordGuard::Os,
+            Platform::Windows => PasswordGuard::Halvo,
+        }
+    }
+
+    fn typing_of(platform: Platform) -> crate::proto::SourceName {
+        match platform {
+            Platform::Macos => crate::proto::SourceName::Input,
+            Platform::Windows => crate::proto::SourceName::Keyboard,
+        }
+    }
+
+    const DEFAULT_ON: [SwitchName; 3] = [
+        SwitchName::TitleText,
+        SwitchName::KeyClass,
+        SwitchName::PointerClass,
+    ];
+
+    #[test]
+    fn u1_w1_the_typing_row_of_a_running_windows_keyboard_line_with_key_class_on() {
+        use crate::proto::{Reason, SourceState};
+        let impaired = SourceState::Impaired {
+            reason: Reason::Permission,
+            error: None,
+        };
+        for state in [SourceState::Running, impaired] {
+            let row = |platform| {
+                let status = status_beside(
+                    platform,
+                    typing_of(platform),
+                    &state,
+                    false,
+                    &DEFAULT_ON,
+                    guard_of(platform),
+                );
+                texts(&status)
+                    .recorded
+                    .iter()
+                    .find(|r| r.switch == Some(SwitchName::KeyClass))
+                    .map(|r| r.text)
+            };
+            assert_eq!(row(Platform::Windows), Some(KW), "{state:?}");
+            assert_eq!(row(Platform::Macos), Some(KEY_CLASS_ON), "{state:?}");
+        }
+    }
+
+    #[test]
+    fn u1_w2a_the_passwords_row_under_the_gate() {
+        use crate::proto::SourceState;
+        let shown = |platform, guard| {
+            texts(&status_beside(
+                platform,
+                typing_of(platform),
+                &SourceState::Running,
+                false,
+                &DEFAULT_ON,
+                guard,
+            ))
+            .passwords
+        };
+        let row = shown(Platform::Windows, PasswordGuard::Halvo);
+        assert_eq!(row, PH);
+        assert!(row.starts_with(&ruled("W2 (a),")), "{row}");
+        assert_eq!(shown(Platform::Macos, PasswordGuard::Halvo), PW);
+        assert_eq!(shown(Platform::Macos, PasswordGuard::Os), PM);
+    }
+
+    #[test]
+    fn u1_w2b_the_passwords_row_where_the_guard_is_not_halvo() {
+        use crate::proto::SourceState;
+        let shown = |platform, state: &SourceState, mark, guard| {
+            texts(&status_beside(
+                platform,
+                typing_of(platform),
+                state,
+                mark,
+                &DEFAULT_ON,
+                guard,
+            ))
+            .passwords
+        };
+        assert_eq!(
+            shown(
+                Platform::Windows,
+                &SourceState::Off,
+                true,
+                PasswordGuard::None
+            ),
+            PF,
+            "the one state of a real Windows status: the keyboard line off with the mark"
+        );
+        assert_eq!(
+            shown(
+                Platform::Windows,
+                &SourceState::Running,
+                false,
+                PasswordGuard::Os
+            ),
+            PF
+        );
+        assert_eq!(
+            shown(
+                Platform::Macos,
+                &SourceState::Off,
+                true,
+                PasswordGuard::None
+            ),
+            PW
+        );
+    }
+
+    #[test]
+    fn u1_w3_the_key_typed_ahead_beside_the_gate_row() {
+        use crate::proto::SourceState;
+        let shown = |platform, state: &SourceState, guard| {
+            texts(&status_beside(
+                platform,
+                typing_of(platform),
+                state,
+                false,
+                &DEFAULT_ON,
+                guard,
+            ))
+        };
+        let gate = shown(
+            Platform::Windows,
+            &SourceState::Running,
+            PasswordGuard::Halvo,
+        );
+        assert_eq!(gate.typed_ahead, Some(TW));
+        assert_eq!(serde_json::to_value(&gate).unwrap()["typed_ahead"], TW);
+        let off = shown(Platform::Windows, &SourceState::Off, PasswordGuard::None);
+        assert_eq!(off.typed_ahead, None);
+        let mac = shown(Platform::Macos, &SourceState::Running, PasswordGuard::Os);
+        assert_eq!(mac.typed_ahead, Some(TA));
+    }
+
+    #[test]
+    fn u1_w4_the_windows_first_run_text_with_typing_on() {
+        let rows = |t: &Texts| -> Vec<&'static str> { texts_of(&t.recorded) };
+        let on = first_run_with(Platform::Windows, true);
+        assert_eq!(
+            rows(&on),
+            [APP_IN_FRONT, TITLE_ON, KW, POINTER_ON, S0],
+            "W1 in the place of the Windows typing row"
+        );
+        assert_eq!((on.passwords, on.typed_ahead), (PH, Some(TW)));
+        let today = first_run(Platform::Windows);
+        assert_eq!(today, first_run_with(Platform::Windows, false));
+        assert_eq!(rows(&today), [APP_IN_FRONT, TITLE_ON, K0, POINTER_ON, S0]);
+        assert_eq!((today.passwords, today.typed_ahead), (P0, None));
+        let mac = first_run(Platform::Macos);
+        assert_eq!(mac, first_run_with(Platform::Macos, TYPING_ON_MAC));
+        assert_eq!(
+            rows(&first_run_with(Platform::Macos, true)),
+            [APP_IN_FRONT, TITLE_ON, POINTER_ON, KEY_CLASS_ON, S0]
+        );
+        assert_eq!(first_run_with(Platform::Macos, true).typed_ahead, Some(TA));
+    }
+
+    #[test]
+    fn u1_w5_withheld_keys_on_windows() {
+        use crate::proto::SourceState;
+        for (state, guard) in [
+            (SourceState::Off, PasswordGuard::None),
+            (SourceState::Running, PasswordGuard::Halvo),
+        ] {
+            let shown = |platform, yes| {
+                let mut f = status_beside(
+                    platform,
+                    typing_of(platform),
+                    &state,
+                    false,
+                    &DEFAULT_ON,
+                    guard,
+                )
+                .into_fields();
+                f.keys_withheld = yes;
+                texts(&DaemonStatus::new(f).unwrap())
+            };
+            let win = shown(Platform::Windows, true);
+            assert_eq!(
+                win.keys_withheld,
+                Some(KEYS_WITHHELD_ON_WINDOWS),
+                "{state:?}"
+            );
+            assert_eq!(
+                serde_json::to_value(&win).unwrap()["keys_withheld"],
+                KEYS_WITHHELD_ON_WINDOWS
+            );
+            let none = serde_json::to_value(shown(Platform::Windows, false)).unwrap();
+            assert!(none.get("keys_withheld").is_none(), "{state:?}");
+            assert_eq!(
+                shown(Platform::Macos, true).keys_withheld,
+                Some(KEYS_WITHHELD_ON_A_MAC),
+                "{state:?}"
+            );
+        }
     }
 }
