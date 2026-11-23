@@ -288,6 +288,7 @@ record::run_list! { names_with_run_list
     "data_form",
     "read_only",
     "no_access",
+    "data_encoding",
     "not_made",
     "start_accepted",
     "message",

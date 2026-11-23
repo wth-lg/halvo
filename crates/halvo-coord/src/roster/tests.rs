@@ -190,7 +190,11 @@ fn u322a_a_failed_file_run_says_why_by_its_last_cause_and_a_web_run_reads_as_tod
         ),
         (
             "data_form",
-            "Halvo cannot read the data file. Each line must be one row with commas between its values, and every row as long as the first. Then choose Change its answers.",
+            "Halvo cannot read the data file. Each line must be one row with commas, semicolons or tabs between its values, and every row as long as the first. Then choose Change its answers.",
+        ),
+        (
+            "data_encoding",
+            "Halvo cannot read the letters in the data file. Open the file in your spreadsheet program and save it again under the same name as a CSV file with UTF-8 text; Excel calls this file type CSV UTF-8. Then choose Start now.",
         ),
         (
             "not_replaced",
