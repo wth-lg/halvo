@@ -1,7 +1,9 @@
 use halvo_policy::{validate, ConfigCause};
 use halvo_schema::executable::body::CreateAgent;
-use halvo_schema::executable::{AgentConfig, CoordinatorCall, CoordinatorReply};
-use halvo_schema::{AgentId, ErrorName, SeedCategory, Workflow, WorkflowId, WorkflowState};
+use halvo_schema::executable::{AgentAgreement, AgentConfig, CoordinatorCall, CoordinatorReply};
+use halvo_schema::{
+    AgentId, ErrorName, RowRead, SeedCategory, Workflow, WorkflowId, WorkflowState,
+};
 
 use crate::host::{minted, GateHost};
 use crate::STORE;
@@ -57,15 +59,16 @@ pub enum ConfigResult {
 }
 
 impl ConfigResult {
-    /// The result of a line from the agent's newest stored configuration and the handler's answer to
-    /// `create_agent`: the answer of `validate` where a configuration is stored, else the handler's refusal, else
-    /// `none`.
+    /// The result of a line from the agent's newest stored configuration with the agent's stored agreement, the newest
+    /// stored pair (r3 U7.7), and the handler's answer to `create_agent`: the answer of `validate` where a
+    /// configuration is stored, else the handler's refusal, else `none`.
     pub fn of(
         newest: Option<&AgentConfig>,
+        agreement: Option<&AgentAgreement>,
         answer: &Result<CoordinatorReply, ErrorName>,
     ) -> ConfigResult {
         match (newest, answer) {
-            (Some(config), _) => match validate(config) {
+            (Some(config), _) => match validate(config, agreement) {
                 Ok(()) => ConfigResult::Valid,
                 Err(cause) => ConfigResult::Invalid(cause),
             },
@@ -197,7 +200,10 @@ pub fn config_line(
     let stored_workflow = host.workflow(workflow);
     let agent_set =
         matches!(&stored_workflow, Some(Workflow::Full(w)) if w.agent.as_ref() == Some(&agent));
-    let result = ConfigResult::of(newest.as_ref(), &answer);
+    let agreement = newest
+        .as_ref()
+        .and_then(|config| agreement_of(host, config));
+    let result = ConfigResult::of(newest.as_ref(), agreement.as_ref(), &answer);
     ConfigLine {
         category,
         stored: newest.is_some(),
@@ -205,6 +211,20 @@ pub fn config_line(
         agent_set,
         result,
     }
+}
+
+/// The stored `agent_agreement` row of the agent of `config` under the workflow of `config`, the last in the store's
+/// order where more than one stood, or none; a row that the typed reader refuses is none (r3 U7.7).
+fn agreement_of(host: &GateHost, config: &AgentConfig) -> Option<AgentAgreement> {
+    let mut found = None;
+    host.rows().for_each("agent_agreement", &mut |row| {
+        if let Ok(agreement) = AgentAgreement::parse(row.as_bytes()) {
+            if agreement.agent == config.agent && agreement.workflow == config.workflow {
+                found = Some(agreement);
+            }
+        }
+    });
+    found
 }
 
 /// `agent-gate configs`: one approved workflow per seed category, in the order of A1.1, each with its line.

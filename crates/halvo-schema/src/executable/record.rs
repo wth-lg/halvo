@@ -6,13 +6,13 @@ use crate::record::Instant;
 use super::bound::{check_kept, KeptField};
 use super::json::{self, each_once, from_json, list, object_type, opt};
 use super::names::{
-    ActionClass, Cause, CheckpointState, EffectState, LeftReason, LogEvent, Mode, Outcome,
-    ReplyState, YesNo,
+    ActionClass, Cause, CheckpointState, EffectState, LeftReason, LogEvent, Mode, ModelTier,
+    Outcome, ReplyState, YesNo,
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
 use super::text::{
-    ApprovalId, Digest, EffectId, Name, OwnValue, ProviderId, RunId, SecretText, SessionData,
-    WebOrigin, OWN_TEXT_MAX, V1,
+    ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, ProviderId, RunId, SecretText,
+    SessionData, WebOrigin, OWN_TEXT_MAX, V1,
 };
 use super::Refusal;
 
@@ -395,6 +395,74 @@ object_type! {
         }
         Ok(())
     }
+}
+
+/// An origin or a model word of a `Hosted`, read from a JSON string: 1 to `OWN_TEXT_MAX` bytes, kept as given and never
+/// trimmed. An empty one is `malformed` and a longer one `length`.
+fn hosted_word(raw: &serde_json::value::RawValue) -> Result<OwnText, Refusal> {
+    let word = json::string("Hosted", raw)?;
+    if word.is_empty() {
+        return Err(Refusal::malformed("Hosted", "empty_word"));
+    }
+    if word.len() > OWN_TEXT_MAX {
+        return Err(Refusal::length("Hosted", "word_length"));
+    }
+    OwnText::parse(&word)
+}
+
+object_type! {
+    /// One hosted tier of a person's yes to a hosted model (r3 U7.7): a hosted tier, the origin of its host and the
+    /// model word of its requests, as the caller read them from the router's table when it asked. The tier is not
+    /// `on_device`; the origin and the model word are 1 to `OWN_TEXT_MAX` bytes each, stored as given and never
+    /// trimmed. The type compares no word with a table.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Hosted {
+        pub tier: ModelTier = "tier" => from_json,
+        pub origin: OwnText = "origin" => hosted_word,
+        pub model: OwnText = "model" => hosted_word,
+    }
+    rules(h) {
+        if h.tier == ModelTier::OnDevice {
+            return Err(Refusal::malformed("Hosted", "on_device").at("tier"));
+        }
+        Ok(())
+    }
+}
+
+/// The rules of a list of `Hosted` under the ceiling tier `ceiling` (r3 U7.7): each tier stands once, the list holds a
+/// triple of the ceiling itself, and no tier above it. With the rule of `Hosted` that no tier is `on_device`, a list
+/// holds at most two triples. A ceiling `on_device` passes no list.
+pub(in crate::executable) fn hosts_up_to(
+    type_name: &'static str,
+    ceiling: ModelTier,
+    hosts: &[Hosted],
+) -> Result<(), Refusal> {
+    let tiers: Vec<ModelTier> = hosts.iter().map(|h| h.tier).collect();
+    each_once(type_name, &tiers)?;
+    if !tiers.contains(&ceiling) {
+        return Err(Refusal::malformed(type_name, "no_triple_of_the_ceiling"));
+    }
+    if tiers.iter().any(|tier| *tier > ceiling) {
+        return Err(Refusal::malformed(type_name, "tier_above_the_ceiling"));
+    }
+    Ok(())
+}
+
+object_type! {
+    /// The person's yes for ONE agent to a hosted model, kind `agent_agreement` (r3 U7.7): ids, the ceiling tier of
+    /// the agent, one `Hosted` for each hosted tier up to that ceiling as the caller handed them (`hosts`), and the
+    /// instant of the yes, the request's. At most one row stands for an agent: the coordinator body `set_model` writes
+    /// it in one write with the new revision of the agent's set-up and removes it at the way back.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct AgentAgreement {
+        pub v: V1 = "v" => from_json,
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub tier: ModelTier = "tier" => from_json,
+        pub hosts: Vec<Hosted> = "hosts" => list(Hosted::from_raw),
+        pub at: Instant = "at" => json::instant,
+    }
+    rules(a) { hosts_up_to("AgentAgreement", a.tier, &a.hosts).map_err(|r| r.at("hosts")) }
 }
 
 object_type! {

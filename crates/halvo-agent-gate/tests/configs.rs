@@ -265,7 +265,7 @@ fn preset_json(tier: &str) -> AgentConfig {
 fn a_stored_configuration_that_validate_refuses_prints_its_cause() {
     let rev = CoordinatorReply::parse(br#"{"rev":1}"#).expect("a reply");
     let frontier = preset_json("frontier");
-    let result = ConfigResult::of(Some(&frontier), &Ok(rev.clone()));
+    let result = ConfigResult::of(Some(&frontier), None, &Ok(rev.clone()));
     assert_eq!(
         result,
         ConfigResult::Invalid(halvo_policy::ConfigCause::Tier)
@@ -273,7 +273,7 @@ fn a_stored_configuration_that_validate_refuses_prints_its_cause() {
     assert_eq!(result.as_str(), "tier");
     let on_device = preset_json("on_device");
     assert_eq!(
-        ConfigResult::of(Some(&on_device), &Ok(rev)),
+        ConfigResult::of(Some(&on_device), None, &Ok(rev)),
         ConfigResult::Valid
     );
 }
@@ -281,7 +281,10 @@ fn a_stored_configuration_that_validate_refuses_prints_its_cause() {
 #[test]
 fn a_line_with_nothing_stored_never_prints_valid() {
     let rev = CoordinatorReply::parse(br#"{"rev":1}"#).expect("a reply");
-    assert_eq!(ConfigResult::of(None, &Ok(rev)), ConfigResult::Missing);
+    assert_eq!(
+        ConfigResult::of(None, None, &Ok(rev)),
+        ConfigResult::Missing
+    );
     let mut nothing = good_line(SeedCategory::Email);
     nothing.stored = false;
     nothing.result = ConfigResult::Missing;
@@ -290,7 +293,7 @@ fn a_line_with_nothing_stored_never_prints_valid() {
         "config category=email stored=no state=approved agent=set result=none"
     );
     assert_eq!(
-        ConfigResult::of(None, &Err(declared("binding"))),
+        ConfigResult::of(None, None, &Err(declared("binding"))),
         ConfigResult::Refused(declared("binding"))
     );
 }

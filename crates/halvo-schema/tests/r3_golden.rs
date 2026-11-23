@@ -11,7 +11,7 @@ use halvo_schema::executable::body::{
     LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint, ModelKeyState,
     Overlap, OverlapsReply, PastCheckpoint, PastEffect, PutCheckpoint, PutEffect, PutLog,
     PutModelKey, PutPlaybook, PutReplyRow, PutSession, ReadModelKey, RevReply, RunnerCall,
-    RunnerReply, SessionReply, SetBindings, SetState, StandsReply, StartRun, StateReply,
+    RunnerReply, SessionReply, SetBindings, SetModel, SetState, StandsReply, StartRun, StateReply,
     StepsReply, Stored, UnknownEffect,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
@@ -24,7 +24,8 @@ use halvo_schema::executable::frame::{
 };
 use halvo_schema::executable::names::*;
 use halvo_schema::executable::record::{
-    AgentCheckpoint, AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, Slot, RUN_LIST_KEYS,
+    AgentCheckpoint, AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, Hosted, Slot,
+    RUN_LIST_KEYS,
 };
 use halvo_schema::executable::step::{
     ApiTarget, Arg, Cond, ExecutableStep, FileTarget, Locator, Playbook, Target, WebTarget,
@@ -978,6 +979,35 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             workflow: Null,
             agent: Null,
         }),
+        CoordinatorCall::SetModel(SetModel {
+            workflow: workflow(),
+            agent: agent(),
+            tier: ModelTier::Frontier,
+            agreement: Some(test_hosts()),
+        }),
+        CoordinatorCall::SetModel(SetModel {
+            workflow: workflow(),
+            agent: agent(),
+            tier: ModelTier::OnDevice,
+            agreement: None,
+        }),
+    ]
+}
+
+/// The triples of a yes up to `frontier` in the golden files, made-up words that name no host (r3 U7.7).
+fn test_hosts() -> Vec<Hosted> {
+    let word = |s: &str| OwnText::parse(s).unwrap();
+    vec![
+        Hosted {
+            tier: ModelTier::LowCostHosted,
+            origin: word("https://hosted-model.test"),
+            model: word("test-model-small"),
+        },
+        Hosted {
+            tier: ModelTier::Frontier,
+            origin: word("https://hosted-model.test"),
+            model: word("test-model-large"),
+        },
     ]
 }
 
@@ -1011,6 +1041,7 @@ fn listed_agent() -> ListedAgent {
         refused_slots: Vec::new(),
         last_cause: Some(Cause::Unknown),
         window: YesNo::Yes,
+        agreement: None,
     }
 }
 
@@ -1484,7 +1515,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in ["binding", "length", "overlap"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    assert_eq!(executable::KINDS.len(), 12);
+    assert_eq!(executable::KINDS.len(), 13);
 }
 
 #[test]
