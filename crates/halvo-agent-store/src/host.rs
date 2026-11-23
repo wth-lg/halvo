@@ -34,9 +34,10 @@ pub trait Host {
     /// `agent`, a kind of origin person whose rows name no workflow, the rows that a read no longer hands out among
     /// them, stores the records after the removal, and answers how many rows it removed. Its refusals and faults are
     /// those of `remove_under`, and it refuses a kind that has a workflow key. The derived store removes each row under
-    /// its secure delete with the truncating checkpoint behind the commit, makes the call under a `coordinator_write`
-    /// alone and answers `role` under a runner's request. A host that does not hand the call on keeps this body: it
-    /// answers `unsupported` and removes nothing.
+    /// its secure delete with the truncating checkpoint behind the commit, makes the call under a `coordinator_write`,
+    /// and under a runner's request for a kind of the closed list `kinds::RUNNER_PERSON_KINDS` alone, `model_count`
+    /// (r7 8.1L), and answers `role` under a runner's request for any other kind. A host that does not hand the call on
+    /// keeps this body: it answers `unsupported` and removes nothing.
     fn remove_person(&mut self, _kind: &str, _records: Vec<TypedRecord>) -> Result<u64, ErrorName> {
         Err(ErrorName::Unsupported)
     }

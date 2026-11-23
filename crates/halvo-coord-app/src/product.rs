@@ -7,7 +7,9 @@
 //!   decision `delete` are reads and decisions of the role `interface`, which a stream refuses: they go through the
 //!   app's relay call. No write of the coordinator goes through the relay.
 //! - `Runs` is the supervisor library over a second owner stream: `start` hands the machine's zone offset of the
-//!   moment as `utc_offset_s`; the first `reap` of a life answers what the start's own reap answered.
+//!   moment as `utc_offset_s`, and a hosted tier as `hosted` only where `crate::agreement::hosted` gives one for the
+//!   agent as the newest list kept it (r4 U3.17a); the first `reap` of a life answers what the start's own reap
+//!   answered.
 //! - `Analysis` sends the capture service the request `defer` of the core's deadline at each call (unit U5.4c).
 //! - `Clock` reads the system clock and the system's zone, `Rng` the system's generator, `Policy` the table of
 //!   halvo-policy (`decide_row`) and `Senders` the schema's reader of `reply_senders`.
@@ -67,6 +69,7 @@ use halvo_schema_core::request::{decode_reply, InterfaceDecision, InterfaceRead,
 use halvo_schema_core::request::{ErrorName, ReplyResult};
 use serde_json::Value;
 
+use crate::agreement::{self, Agreement, KeptAgent};
 use crate::hub::{Core, Hub};
 use crate::model_key::ModelKey;
 use crate::present::{dialog_hub, Dialog};
@@ -664,7 +667,7 @@ pub struct Product {
     marks: Arc<Marks>,
     runs: RunsOf,
     waits: Arc<Waits>,
-    agents: Mutex<HashMap<AgentId, WorkflowId>>,
+    agents: Mutex<HashMap<AgentId, KeptAgent>>,
     reaped: Mutex<Option<Vec<ReapAnswer>>>,
     checkpoints: AtomicBool,
 }
@@ -794,14 +797,13 @@ impl Product {
 
     /// The workflow of `agent`, as the newest list of the agents gave it, read again where it names none.
     fn workflow_of(&self, agent: &AgentId) -> Result<WorkflowId, PortError> {
-        if let Some(w) = lock(&self.agents).get(agent).cloned() {
+        let kept =
+            |agents: &HashMap<AgentId, KeptAgent>| agents.get(agent).map(|a| a.workflow.clone());
+        if let Some(w) = kept(&lock(&self.agents)) {
             return Ok(w);
         }
         self.agents()?;
-        lock(&self.agents)
-            .get(agent)
-            .cloned()
-            .ok_or_else(|| PortError::Refused(name("binding")))
+        kept(&lock(&self.agents)).ok_or_else(|| PortError::Refused(name("binding")))
     }
 
     /// Keeps the workflow and the agent of each run that `events` start.
@@ -848,7 +850,8 @@ pub(crate) fn json_str(text: &str) -> String {
 }
 
 /// The text of a coordinator body of `Body`, its keys in the order of A-A7.2; `end_run` takes the workflow and the
-/// agent of the run as the product knows them.
+/// agent of the run as the product knows them, and the yes of `set_model` the rows of this build's table of hosts, none
+/// where its ruling allows no hosted tier.
 fn body_text(body: &Body, runs: &RunsOf) -> Option<String> {
     let head = |op: &str, w: &WorkflowId, a: &AgentId| {
         format!(
@@ -901,7 +904,43 @@ fn body_text(body: &Body, runs: &RunsOf) -> Option<String> {
         Body::DropSessions { workflow, agent } => {
             format!("{}}}", head("drop_sessions", workflow, agent))
         }
+        Body::AgreeHosted { workflow, agent } => {
+            let ruling = halvo_route::release::ruling();
+            let rows: Vec<[&str; 3]> = ruling
+                .allowed()
+                .iter()
+                .filter_map(|tier| ruling.row(*tier))
+                .map(|row| [row.tier().as_str(), row.origin(), row.model()])
+                .collect();
+            yes_text(head("set_model", workflow, agent), &rows)?
+        }
+        Body::WithdrawHosted { workflow, agent } => format!(
+            r#"{},"tier":"on_device","agreement":null}}"#,
+            head("set_model", workflow, agent)
+        ),
     })
+}
+
+/// The text of the yes of `set_model` (r3 U7.7, r4 U3.17a) after `head`, the text of its keys `op`, `workflow` and
+/// `agent`: the ceiling tier, the tier of the last of `rows`, and one triple of tier, origin and model word for each of
+/// `rows`, which are the tier, the origin and the model word of each hosted tier that the ruling allows, in the order
+/// of the tiers. None where `rows` is empty.
+fn yes_text(head: String, rows: &[[&str; 3]]) -> Option<String> {
+    let [ceiling, ..] = rows.last()?;
+    let hosts: Vec<String> = rows
+        .iter()
+        .map(|[tier, origin, model]| {
+            format!(
+                r#"{{"tier":"{tier}","origin":{},"model":{}}}"#,
+                json_str(origin),
+                json_str(model)
+            )
+        })
+        .collect();
+    Some(format!(
+        r#"{head},"tier":"{ceiling}","agreement":[{}]}}"#,
+        hosts.join(",")
+    ))
 }
 
 fn slots_text(slots: &[Slot]) -> String {
@@ -1169,6 +1208,12 @@ fn agent_of(entry: &Value) -> Option<Agent<AgentConfig>> {
     })
 }
 
+/// One entry of the reply of `list_agents` as `agent_of` reads it, with the agreement of its key `agreement` (r3 U7.7):
+/// an entry without the key, or with a value that does not read, gives none, and its read goes on (r4 U3.17a).
+fn entry_of(entry: &Value) -> Option<(Agent<AgentConfig>, Option<Agreement>)> {
+    Some((agent_of(entry)?, Agreement::of(&entry["agreement"])))
+}
+
 /// One run of the reply of `agent_history`.
 fn history_of(run: &Value) -> Option<RunHistory> {
     let effects = run["effects"]
@@ -1315,7 +1360,7 @@ impl Owner for Product {
                 r#"{{"op":"list_agents","workflow":null,"agent":null,"after":{after}}}"#
             ))?;
             for entry in reply["agents"].as_array().ok_or(PortError::NoService)? {
-                listed.push(agent_of(entry).ok_or(PortError::NoService)?);
+                listed.push(entry_of(entry).ok_or(PortError::NoService)?);
             }
             match reply["next"].as_str() {
                 Some(next) if json_str(next) != after => after = json_str(next),
@@ -1323,11 +1368,18 @@ impl Owner for Product {
                 None => break,
             }
         }
-        let mut agents = lock(&self.agents);
-        for a in &listed {
-            agents.insert(a.agent.clone(), a.workflow.clone());
-        }
-        Ok(listed)
+        *lock(&self.agents) = listed
+            .iter()
+            .map(|(a, agreement)| {
+                let kept = KeptAgent {
+                    workflow: a.workflow.clone(),
+                    tier: a.config.tier(),
+                    agreement: agreement.clone(),
+                };
+                (a.agent.clone(), kept)
+            })
+            .collect();
+        Ok(listed.into_iter().map(|(a, _)| a).collect())
     }
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
@@ -1439,7 +1491,7 @@ impl Runs for Product {
             model: self.places.model.clone(),
             headed: spec.headed,
             utc_offset_s: zone_offset_s(SystemTime::now()).ok_or(PortError::NoService)?,
-            hosted: None,
+            hosted: agreement::hosted(lock(&self.agents).get(&spec.agent)),
         };
         lock(&self.runs).insert(
             spec.run.clone(),
@@ -1728,6 +1780,7 @@ impl Senders for Product {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agreement::Triple;
 
     /// A link that keeps each request that reaches it and answers each with a null result.
     struct Kept(Mutex<Vec<Vec<u8>>>);
@@ -2033,6 +2086,82 @@ mod tests {
         );
     }
 
+    /// r4 U3.17a sentence 6: the way back goes out as r3 U7.7's body `set_model` with the tier `on_device` and the
+    /// agreement null, and a yes with the ceiling tier, the highest that the ruling allows, and one triple for each
+    /// hosted tier that it allows up to it, from the table's rows: the keys in the order op, workflow, agent, tier,
+    /// agreement. Each parses as the schema's own `SetModel` and holds those values. No allowed tier gives none, and
+    /// so does main's ruling.
+    #[test]
+    fn the_yes_and_the_way_back_are_written_as_the_set_model_of_r3() {
+        use halvo_schema::executable::body::SetModel;
+        use halvo_schema::executable::names::ModelTier;
+        let (w, a) = ("f1".repeat(16), "a1".repeat(16));
+        let workflow = WorkflowId::parse(&w).unwrap();
+        let agent = AgentId::parse(&a).unwrap();
+        let head = format!(r#"{{"op":"set_model","workflow":"{w}","agent":"{a}""#);
+        let small = [
+            "low_cost_hosted",
+            "https://hosted-model.test",
+            "test-model-small",
+        ];
+        let large = ["frontier", "https://hosted-model.test", "test-model-large"];
+        let triple = |[tier, origin, model]: [&str; 3]| {
+            format!(r#"{{"tier":"{tier}","origin":"{origin}","model":"{model}"}}"#)
+        };
+        let back = Body::WithdrawHosted {
+            workflow: workflow.clone(),
+            agent: agent.clone(),
+        };
+        let texts = [
+            (
+                body_text(&back, &RunsOf::default()),
+                format!(r#"{head},"tier":"on_device","agreement":null}}"#),
+                ModelTier::OnDevice,
+                None,
+            ),
+            (
+                yes_text(head.clone(), &[large]),
+                format!(
+                    r#"{head},"tier":"frontier","agreement":[{}]}}"#,
+                    triple(large)
+                ),
+                ModelTier::Frontier,
+                Some(vec![large]),
+            ),
+            (
+                yes_text(head.clone(), &[small, large]),
+                format!(
+                    r#"{head},"tier":"frontier","agreement":[{},{}]}}"#,
+                    triple(small),
+                    triple(large)
+                ),
+                ModelTier::Frontier,
+                Some(vec![small, large]),
+            ),
+        ];
+        for (text, want, tier, hosts) in texts {
+            assert_eq!(text.as_deref(), Some(want.as_str()));
+            let body = SetModel::parse(want.as_bytes()).expect("the schema's own SetModel");
+            assert_eq!(
+                (body.workflow.as_str(), body.agent.as_str(), body.tier),
+                (w.as_str(), a.as_str(), tier)
+            );
+            let read: Option<Vec<[&str; 3]>> = body.agreement.as_ref().map(|hosts| {
+                hosts
+                    .iter()
+                    .map(|h| [h.tier.as_str(), h.origin.as_str(), h.model.as_str()])
+                    .collect()
+            });
+            assert_eq!(read, hosts, "{want}");
+        }
+        assert_eq!(yes_text(head, &[]), None, "no allowed tier");
+        assert_eq!(
+            body_text(&Body::AgreeHosted { workflow, agent }, &RunsOf::default()),
+            None,
+            "main's ruling allows no hosted tier"
+        );
+    }
+
     /// `list_agents` takes `last_cause` of an entry: a name of the core's list as its cause, null as none, and a name
     /// of the store's list that the core's lacks as none too, with the entry still read (I6.1).
     #[test]
@@ -2054,6 +2183,55 @@ mod tests {
             agent_of(&entry(r#""wall""#)).map(|a| a.last_cause),
             Some(None)
         );
+    }
+
+    /// r4 U3.17a sentence 2: `list_agents` takes an entry's `agreement` as r3 U7.7 hands it: null as none, and the
+    /// ceiling tier with one triple or with two as that agreement; an entry without the key, or with a value of another
+    /// shape, gives none and is still read.
+    #[test]
+    fn the_reader_takes_the_agreement_of_an_entry_and_reads_any_other_value_as_none() {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let entry = |agreement: &str| -> Value {
+            serde_json::from_str(&format!(
+                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"frontier","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":null,"reply_unknown":"no","refused_slots":[],"last_cause":null,"window":"yes"{agreement}}}"#
+            ))
+            .unwrap()
+        };
+        let small = r#"{"tier":"low_cost_hosted","origin":"https://hosted-model.test","model":"test-model-small"}"#;
+        let large = r#"{"tier":"frontier","origin":"https://hosted-model.test","model":"test-model-large"}"#;
+        let triple = |tier, model: &str| Triple {
+            tier,
+            origin: "https://hosted-model.test".to_owned(),
+            model: model.to_owned(),
+        };
+        let rows = [
+            (r#","agreement":null"#.to_owned(), None),
+            (
+                format!(r#","agreement":{{"tier":"low_cost_hosted","hosts":[{small}]}}"#),
+                Some(Agreement {
+                    ceiling: Tier::LowCostHosted,
+                    hosts: vec![triple(Tier::LowCostHosted, "test-model-small")],
+                }),
+            ),
+            (
+                format!(r#","agreement":{{"tier":"frontier","hosts":[{small},{large}]}}"#),
+                Some(Agreement {
+                    ceiling: Tier::Frontier,
+                    hosts: vec![
+                        triple(Tier::LowCostHosted, "test-model-small"),
+                        triple(Tier::Frontier, "test-model-large"),
+                    ],
+                }),
+            ),
+            (String::new(), None),
+            (format!(r#","agreement":[{large}]"#), None),
+        ];
+        for (text, want) in rows {
+            let read = entry_of(&entry(&text));
+            assert!(read.is_some(), "the entry with {text:?} is read");
+            assert_eq!(read.map(|(_, agreement)| agreement), Some(want), "{text:?}");
+        }
     }
 
     /// `list_agents` takes `browser_start` and `no_channel` of an entry's `last_cause` as the causes of those names

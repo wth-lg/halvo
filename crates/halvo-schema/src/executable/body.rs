@@ -13,7 +13,7 @@ use super::frame::FRAME_JSON_MAX;
 use super::json::{self, each_once, from_json, list, object_type, opt};
 use super::names::{
     ActionClass, AgentState, Cause, CheckpointState, EffectState, LeftReason, ListedState,
-    MarkState, Mode, ModelTier, ReplyState, Way, YesNo,
+    MarkState, Mode, ModelTier, ReplyState, RoomState, Way, YesNo,
 };
 use super::record::{
     checkpoint_copy, hosts_up_to, origins_and_slots, part_of, slot_names_once, AgentCheckpoint,
@@ -21,8 +21,8 @@ use super::record::{
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
 use super::text::{
-    Digest, EffectId, Name, Null, OwnText, OwnValue, ProviderId, RunId, SecretText, SessionData,
-    WebOrigin, OWN_TEXT_MAX,
+    Digest, EffectId, ModelRequestId, Name, Null, OwnText, OwnValue, ProviderId, RunId, SecretText,
+    SessionData, WebOrigin, OWN_TEXT_MAX,
 };
 use super::{is_sender, same_address, Refusal};
 
@@ -173,6 +173,17 @@ macro_rules! reply_enum {
             }
         }
     };
+}
+
+/// A count of the person's model requests and of their count (r7 8.1L), a JSON integer of digits alone from 0 to
+/// `u64::MAX`.
+fn count64(raw: &RawValue) -> Result<u64, Refusal> {
+    let text = raw.get();
+    if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(Refusal::malformed("count", "not_a_count"));
+    }
+    text.parse::<u64>()
+        .map_err(|_| Refusal::malformed("count", "range"))
 }
 
 fn reply_bytes(type_name: &'static str, len: usize) -> Result<(), Refusal> {
@@ -387,6 +398,53 @@ object_type! {
     }
 }
 
+object_type! {
+    /// `model_hold`: the hold of the cost of one model request against the person's count, before the request goes to
+    /// the model's host (r7 8.1L): the id that the runner minted for the request, the hosted tier, the bytes of the
+    /// request's body and its limit of output tokens, which the store prices by the build's prices. It carries no
+    /// figure of the count: no amount, no cap, nothing spent or held and no end of a period or of a hold's life. The
+    /// agent and the run name the run for the store's checks of a runner body alone; the count's row stores neither.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ModelHold [op = "model_hold"] {
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub request: ModelRequestId = "request" => from_json,
+        pub tier: ModelTier = "tier" => from_json,
+        pub body_bytes: u64 = "body_bytes" => count64,
+        pub output_limit: u64 = "output_limit" => count64,
+    }
+    rules(b) {
+        if b.tier == ModelTier::OnDevice {
+            return Err(Refusal::malformed("ModelHold", "hosted_tier").at("tier"));
+        }
+        Ok(())
+    }
+}
+
+object_type! {
+    /// The usage that the host's answer reported for one model request: the tokens in and the tokens out.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ModelUsage {
+        pub tokens_in: u64 = "tokens_in" => count64,
+        pub tokens_out: u64 = "tokens_out" => count64,
+    }
+    rules(_u) { Ok(()) }
+}
+
+object_type! {
+    /// `model_settle`: the settle of the hold of one model request (r7 8.1L): the request's id and the usage that the
+    /// host's answer reported, or null under `usage` for a request of which nothing was sent. It carries no figure of
+    /// the count.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ModelSettle [op = "model_settle"] {
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub request: ModelRequestId = "request" => from_json,
+        pub usage: Option<ModelUsage> = "usage" => opt(ModelUsage::from_raw),
+    }
+    rules(_b) { Ok(()) }
+}
+
 op_enum! {
     /// The runner bodies (`RunnerCall`): each holds `op` first, then `agent` and `run`, then its keys. A body that
     /// holds a record refuses a record of another agent or run.
@@ -403,6 +461,8 @@ op_enum! {
         ReplyRow(PutReplyRow) = "reply_row",
         LoadReplies(LoadReplies) = "load_replies",
         DropSession(DropSession) = "drop_session",
+        ModelHold(ModelHold) = "model_hold",
+        ModelSettle(ModelSettle) = "model_settle",
     }
 }
 
@@ -422,6 +482,8 @@ impl RunnerCall {
             RunnerCall::ReplyRow(b) => &b.agent,
             RunnerCall::LoadReplies(b) => &b.agent,
             RunnerCall::DropSession(b) => &b.agent,
+            RunnerCall::ModelHold(b) => &b.agent,
+            RunnerCall::ModelSettle(b) => &b.agent,
         }
     }
 
@@ -440,6 +502,8 @@ impl RunnerCall {
             RunnerCall::ReplyRow(b) => &b.run,
             RunnerCall::LoadReplies(b) => &b.run,
             RunnerCall::DropSession(b) => &b.run,
+            RunnerCall::ModelHold(b) => &b.run,
+            RunnerCall::ModelSettle(b) => &b.run,
         }
     }
 }
@@ -550,8 +614,8 @@ object_type! {
 
 object_type! {
     /// The reply of the runner bodies `put_playbook`, `put_session`, `effect`, `log`, `finish`, `checkpoint`,
-    /// `reply_row` and `drop_session`, and of the coordinator bodies `mark_checkpoint` and `drop_sessions`: the count
-    /// stored.
+    /// `reply_row`, `drop_session`, `model_hold` and `model_settle`, and of the coordinator bodies `mark_checkpoint` and
+    /// `drop_sessions`: the count stored.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Stored {
         pub stored: u32 = "stored" => from_json,
@@ -676,6 +740,8 @@ impl RunnerReply {
                         | RunnerCall::Checkpoint(_)
                         | RunnerCall::ReplyRow(_)
                         | RunnerCall::DropSession(_)
+                        | RunnerCall::ModelHold(_)
+                        | RunnerCall::ModelSettle(_)
                 )
             ),
         }
@@ -861,6 +927,30 @@ object_type! {
     }
 }
 
+object_type! {
+    /// `model_room`: what the person's count is at the request's instant, with `workflow` and `agent` null (r7 8.1L). It
+    /// stores nothing.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ModelRoom [op = "model_room"] {
+        pub workflow: Null = "workflow" => from_json,
+        pub agent: Null = "agent" => from_json,
+    }
+    rules(_b) { Ok(()) }
+}
+
+object_type! {
+    /// `set_model_cap`: the person's set of the cap of the count, `cap_minor` minor units of a currency for each cap
+    /// period, with `workflow` and `agent` null (r7 8.1L). The store sets it on the count that stands; where no row
+    /// stands or the row does not read, it starts a new count at nothing with that cap.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct SetModelCap [op = "set_model_cap"] {
+        pub workflow: Null = "workflow" => from_json,
+        pub agent: Null = "agent" => from_json,
+        pub cap_minor: u32 = "cap_minor" => from_json,
+    }
+    rules(_b) { Ok(()) }
+}
+
 op_enum! {
     /// The coordinator bodies of this run (`CoordinatorCall`): each holds `op` first, then `workflow` and `agent`,
     /// then its keys.
@@ -883,6 +973,8 @@ op_enum! {
         ModelKeyState(ModelKeyState) = "model_key_state",
         ReadModelKey(ReadModelKey) = "read_model_key",
         SetModel(SetModel) = "set_model",
+        ModelRoom(ModelRoom) = "model_room",
+        SetModelCap(SetModelCap) = "set_model_cap",
     }
 }
 
@@ -1416,6 +1508,50 @@ object_type! {
     arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
 }
 
+object_type! {
+    /// The reply of `model_room` (r7 8.1L): `room` says what the store found of the person's count at the request's
+    /// instant. `none`, no count is stored: `cap_minor` is the cap that a new count would hold, in minor units, or null
+    /// where the build has none, `spent` and `held` are 0 and `period_end_ms` is null. `reads`, the four values of the
+    /// count's room as halvo-route's `Count::room` gives them: `cap_minor` in minor units, null where the count has no
+    /// cap; `spent` and `held` in micro-units; and `period_end_ms`, the end of the cap period in milliseconds since
+    /// 1970-01-01T00:00:00Z. `unread`, a row stands that does not read: every figure is null.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct RoomReply {
+        pub room: RoomState = "room" => from_json,
+        pub cap_minor: Option<u64> = "cap_minor" => opt(count64),
+        pub spent: Option<u64> = "spent" => opt(count64),
+        pub held: Option<u64> = "held" => opt(count64),
+        pub period_end_ms: Option<u64> = "period_end_ms" => opt(count64),
+    }
+    rules(r) {
+        let figures = [r.spent, r.held, r.period_end_ms];
+        let holds = match r.room {
+            RoomState::None => {
+                r.spent == Some(0) && r.held == Some(0) && r.period_end_ms.is_none()
+            }
+            RoomState::Reads => figures.iter().all(Option::is_some),
+            RoomState::Unread => r.cap_minor.is_none() && figures.iter().all(Option::is_none),
+        };
+        if !holds {
+            return Err(Refusal::malformed("RoomReply", "room_figures").at("room"));
+        }
+        Ok(())
+    }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
+}
+
+object_type! {
+    /// The reply of `set_model_cap` (r7 8.1L): the cap that the count now holds, in minor units, and `new_count`, `yes`
+    /// where the set started a new count at nothing because no row stood or the row did not read, else `no`.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct CapReply {
+        pub cap_minor: u32 = "cap_minor" => from_json,
+        pub new_count: YesNo = "new_count" => from_json,
+    }
+    rules(_r) { Ok(()) }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
+}
+
 reply_enum! {
     /// The reply of a coordinator body, told apart by its keys. Each variant's type has a bound of
     /// `CHECKPOINTS_REPLY_MAX` bytes as they arrive in its own `parse`, or the crate does not compile.
@@ -1431,6 +1567,8 @@ reply_enum! {
         Replies(ListRepliesReply) = "replies",
         Stands(StandsReply) = "stands",
         Key(KeyReply) = "key",
+        Room(RoomReply) = "room",
+        Cap(CapReply) = "new_count",
     }
 }
 
@@ -1438,8 +1576,9 @@ impl CoordinatorReply {
     /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
     /// revision 1 alone, `set_bindings`, `add_origin` and `set_model` by any revision, `list_checkpoints`, `list_agents`,
     /// `agent_history` and `list_replies` by their lists, `mark_checkpoint` by `stored` 0 or 1, `drop_sessions` by any
-    /// count stored, `put_model_key` by `stored` 1, `drop_model_key` by `stored` 0, `model_key_state` by `stands` and
-    /// `read_model_key` by `key`, and `list_overlaps` by its list only as `OverlapsReply::answers` says.
+    /// count stored, `put_model_key` by `stored` 1, `drop_model_key` by `stored` 0, `model_key_state` by `stands`,
+    /// `read_model_key` by `key`, `model_room` by `room`, `set_model_cap` by `new_count` with the body's cap, and
+    /// `list_overlaps` by its list only as `OverlapsReply::answers` says.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
         match (self, call) {
             (CoordinatorReply::Overlaps(r), CoordinatorCall::ListOverlaps(b)) => {
@@ -1449,6 +1588,9 @@ impl CoordinatorReply {
             (CoordinatorReply::Stored(r), CoordinatorCall::MarkCheckpoint(_)) => r.stored <= 1,
             (CoordinatorReply::Stored(r), CoordinatorCall::PutModelKey(_)) => r.stored == 1,
             (CoordinatorReply::Stored(r), CoordinatorCall::DropModelKey(_)) => r.stored == 0,
+            (CoordinatorReply::Cap(r), CoordinatorCall::SetModelCap(b)) => {
+                r.cap_minor == b.cap_minor
+            }
             (
                 CoordinatorReply::Rev(_),
                 CoordinatorCall::SetBindings(_)
@@ -1463,6 +1605,7 @@ impl CoordinatorReply {
             | (CoordinatorReply::Replies(_), CoordinatorCall::ListReplies(_))
             | (CoordinatorReply::Stands(_), CoordinatorCall::ModelKeyState(_))
             | (CoordinatorReply::Key(_), CoordinatorCall::ReadModelKey(_))
+            | (CoordinatorReply::Room(_), CoordinatorCall::ModelRoom(_))
             | (
                 CoordinatorReply::Accepted(_),
                 CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_),
