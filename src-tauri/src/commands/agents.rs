@@ -973,4 +973,74 @@ mod tests {
             "the first status that does not bar lifts the hold once"
         );
     }
+
+    #[test]
+    fn behind_a_delete_that_the_service_answered_with_an_error_a_poll_without_a_status_is_no_reading(
+    ) {
+        let core = Arc::new(Told::default());
+        let body = halvo_control::proto::encode_reply(&halvo_control::proto::Reply::Error(
+            ErrorReply::new(
+                ErrorCode::Internal,
+                "the delete did not finish and its report could not be read; delete-all.intent stays",
+            ),
+        ));
+        let mut frame = u32::try_from(body.len())
+            .expect("a short frame")
+            .to_be_bytes()
+            .to_vec();
+        frame.extend(body);
+        let mut failing = ScriptedDaemon::new(sample_status(Platform::Macos));
+        failing.set_raw_reply(frame);
+        let control = Gated::new(ScriptedConnector::new(failing));
+        let views = Views::default();
+        let before = before_of(&core);
+        let read = |answer: Result<DaemonStatus, ClientError>| {
+            views.take_poll(control.places().make().number(), &answer);
+            before
+                .runs
+                .drawn(before.core.as_deref(), &views, control.places());
+        };
+        let asked = delete_everything(&before, &control, &views, None, DELETE_WAITS);
+        assert!(
+            matches!(
+                &asked.end,
+                DeleteEnd::Answered(Err(ClientError::Daemon(reply))) if reply.code() == ErrorCode::Internal
+            ),
+            "the service answered the delete with the error internal: {:?}",
+            asked.end
+        );
+        views.take_delete(asked.call, asked.next_number_at_answer);
+        before
+            .runs
+            .drawn(before.core.as_deref(), &views, control.places());
+        for (found, answer) in [
+            (
+                "a poll that finds no service",
+                Err(ClientError::Unreachable {
+                    endpoint: String::new(),
+                }),
+            ),
+            (
+                "a poll past its deadline",
+                Err(ClientError::Deadline { seconds: 2 }),
+            ),
+            (
+                "a reply that carries no status",
+                internal("the capture service is not serving"),
+            ),
+        ] {
+            read(answer);
+            assert_eq!(
+                core.holds(),
+                [true],
+                "behind a delete that the service did not finish, {found} lifts nothing"
+            );
+        }
+        read(Ok(sample_status(Platform::Macos)));
+        assert_eq!(
+            core.holds(),
+            [true, false],
+            "the first status that does not bar lifts the hold once"
+        );
+    }
 }
