@@ -553,9 +553,9 @@ fn judge_marks(m: &Marks, key: &HeldKey, now: u32) -> Judgment {
     let given_back = landing.filter(|landing| {
         let made = landing.at.unwrap_or(landing.began);
         !behind.is_empty()
-            && behind.iter().all(|latch| {
-                landing.seq > latch.seq && (0..=bound).contains(&offset(made, latch.at))
-            })
+            && behind
+                .iter()
+                .all(|latch| landing.seq > latch.seq && offset(made, latch.at) >= 0)
     });
     let deciding = if landing.is_none() || (open_latch.is_some() && given_back.is_none()) {
         None
@@ -5068,6 +5068,24 @@ mod tests {
         gate.pointer_forwarded(k + 160);
         gate.decide(&letter, k + 170, 7, false)
             .map(|(answer, rule)| (answer.is_ok(), rule))
+    }
+
+    #[test]
+    fn a_key_behind_a_latch_that_no_move_closes_is_cleared_on_its_own_landing_however_late() {
+        use halvo_control::proto::TypingGate;
+        let gate = plain();
+        gate.latch(2_000);
+        gate.read_at(2_100, FieldState::Clear, Moved::Same);
+        gate.read_at(2_200, FieldState::Clear, Moved::Same);
+        assert_eq!(gate.typing_gate(), TypingGate::LatchOpen);
+        let late = key(&gate, 2_500);
+        assert_eq!(gate.typing_gate(), TypingGate::LatchOpen);
+        gate.landing_at(2_505, FieldState::Clear);
+        assert_eq!(gate.typing_gate(), TypingGate::Ok);
+        gate.read_at(2_630, FieldState::Clear, Moved::Same);
+        assert_eq!(reading(&gate, &late, 2_640), Some(Ok(())));
+        assert_eq!(rule(&gate, &late, 2_640), Some(Rule::LandingAfterTheLatch));
+        assert_eq!(gate.latch_count(), 1);
     }
 
     #[test]
