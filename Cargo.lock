@@ -1687,6 +1687,8 @@ name = "halvo-connect"
 version = "0.0.0"
 dependencies = [
  "halvo-connect",
+ "halvo-route",
+ "halvo-route-wire",
  "halvo-schema",
  "reqwest",
  "rustls",
@@ -1726,6 +1728,7 @@ dependencies = [
  "halvo-coord",
  "halvo-owner",
  "halvo-policy",
+ "halvo-route",
  "halvo-schema",
  "halvo-schema-core",
  "halvo-test-dir",
@@ -1809,6 +1812,17 @@ dependencies = [
  "halvo-policy",
  "halvo-schema",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "halvo-model"
+version = "0.0.0"
+dependencies = [
+ "halvo-connect",
+ "halvo-model",
+ "halvo-route",
+ "halvo-route-wire",
  "serde_json",
 ]
 

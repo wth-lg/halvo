@@ -190,7 +190,12 @@ const LOOPBACK_MAKER: &str = concat!("loopback", "_for", "_tests");
 /// the name stands in it as a word, in code, comments and strings alike, and why. The maker's own
 /// file and test files alone: no file that a build for a person compiles as product code but the
 /// maker's own.
-const LOOPBACK_MAKER_USES: [(&str, usize, &str); 2] = [
+const LOOPBACK_MAKER_USES: [(&str, usize, &str); 3] = [
+    (
+        "crates/halvo-model/src/loopback.rs",
+        1,
+        "the door's stand-in form, compiled under its cargo feature loopback alone: the coordinator's log line 16582",
+    ),
     (
         "crates/halvo-route/src/ruling.rs",
         2,
