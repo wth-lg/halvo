@@ -134,3 +134,33 @@ test("a turn off whose save failed says so in place of the settings sentence, on
     assert.equal(page.visible("typing-not-saved"), false, `${name}: gone once typing reads on`);
   }
 });
+
+test("the control stands in a row of its own where no row of keys stands: a paused Windows view and a Mac view whose input line failed", async () => {
+  const windows = fixture("capture_status-running-windows");
+  const pausedWindows = {
+    ...windows,
+    capture: "paused",
+    desired: "paused",
+    sources: windows.sources.map((s) => (s.name === "keyboard" ? { ...s, state: "stopped" } : s)),
+    texts: { ...windows.texts, recorded: windows.texts.recorded.filter((r) => r.switch !== "key_class") },
+  };
+  for (const [name, view, row] of [
+    ["a paused Windows view", pausedWindows, WINDOWS_KEYS],
+    ["capture_status-failed-source", fixture("capture_status-failed-source"), MAC_KEYS],
+  ]) {
+    assert.equal(view.typing_switch.on, true, name);
+    assert.deepEqual(keyText(await openPage({ replies: { capture_status: () => view } })), [], `${name}: no row of keys`);
+    const page = await openPage({
+      replies: {
+        capture_status: () => view,
+        set_typing: () => ({ ...view, typing_switch: { label: LABEL, on: false, if_on: IF_ON, row } }),
+      },
+    });
+    assert.equal(page.visible("record-typing"), true, `${name}: the control within reach before Resume`);
+    assert.equal(page.text("record-typing"), LABEL, name);
+    await page.click("record-typing", { detail: 1 });
+    assert.deepEqual(page.calls("set_typing").map((c) => c.args), [{ on: false }], name);
+    assert.equal(page.byId("record-typing").getAttribute("aria-checked"), "false", name);
+    assert.equal(page.text("typing-if-on-row"), row, `${name}: the row of keys of that system before a turn on`);
+  }
+});

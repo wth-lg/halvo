@@ -55,6 +55,7 @@
       rows.push(li);
       if (r.switch === "key_class" && control) rows.push(typingBox);
     });
+    if (control && rows.indexOf(typingBox) === -1) rows.push(typingBox);
     recorded.replaceChildren.apply(recorded, rows);
     if (rows.indexOf(typingBox) === -1) {
       view.insertBefore(typingBox, others);
