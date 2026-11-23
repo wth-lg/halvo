@@ -1,8 +1,8 @@
-//! The gate between the person's yes to a hosted model and a run (r4 U3.17a): an agent's agreement, as the newest
+//! The gate between the person's yes to a hosted model and a run (r4 U3.17a). An agent's agreement, as the newest
 //! reply of `list_agents` hands it (r3 U7.7), stands for a hosted tier only while its triple of that tier equals the
-//! row of that tier in this build's table of hosts by its bytes, and the app's start of a run names a hosted tier, so
-//! that the library reads the person's key for the run, from `stands` alone. With main's data, whose table holds no
-//! row, no agreement stands and no start names a hosted tier.
+//! row of that tier in this build's table of hosts by its bytes (`stands`). The app's start of a run names a hosted
+//! tier, the one case in which the library reads the person's key for the run, from `stands` alone (`hosted`). With
+//! main's data, whose table holds no row, no agreement stands and no start names a hosted tier.
 #![cfg(any(target_os = "macos", windows))]
 
 use halvo_agent_client::Hosted;
@@ -144,7 +144,7 @@ mod tests {
             ceiling: Tier::OnDevice,
             hosts: vec![triple(Tier::OnDevice, ORIGIN, SMALL)],
         };
-        let rows: [(Option<&Agreement>, Tier, Option<(&str, &str)>, bool); 11] = [
+        let rows = [
             (
                 Some(&both),
                 Tier::LowCostHosted,
