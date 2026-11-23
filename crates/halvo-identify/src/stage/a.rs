@@ -6,9 +6,9 @@ use halvo_schema::{Category, InputClass, ObservedStep, SeedCategory};
 
 use crate::episode::Stage;
 
-/// Stage A. Its word rules read the masked title and the site of a step; its fallback reads the app id, the input
-/// class and the site of a step, and the masked title, which tells the episode's own window and, in a window with
-/// no site, the words of a file's name. It never reads the text of a step.
+/// Stage A. Its word rules read the masked title and the site of a step; its fallback names no window with a site,
+/// and in a window with no site it reads the app id, the input class and the masked title of a step, which tell the
+/// episode's own window and the words of a file's name. It never reads the text of a step.
 ///
 /// The rule of a category names an episode when the words of one step's title and site's domain hold a topic word
 /// of that rule, and the words of the same step or of another step of the episode hold a done word of it. Of the
@@ -152,22 +152,24 @@ const fn is_key(class: InputClass) -> bool {
     }
 }
 
-/// Whether `step` is of the window of `own` as the episode step keys a window: the same app and, where `own` has a
-/// site, the same site, else no site and the same masked title. The app of a step is the app of its own record.
+/// Whether `step` is of the window of `own`, a window with no site, as the episode step keys such a window: the
+/// same app, no site and the same masked title. The app of a step is the app of its own record.
 fn same_window(own: &ObservedStep, step: &ObservedStep) -> bool {
-    own.app == step.app && own.site == step.site && (own.site.is_some() || own.title == step.title)
+    own.app == step.app && step.site.is_none() && own.title == step.title
 }
 
 /// The fallback behind the word rules, which `StageA` asks only for an episode that no rule names: whether the
 /// episode is the filling in of a spreadsheet by what the store holds of the steps of its own window. An episode
-/// takes the key of its first record (`cut` in the episode step), so its own window is that of its first step,
-/// and a step of another window that the episode took in counts for nothing here. It names the episode where
-/// (I) the own window's app is one of `SPREADSHEET_APPS`, or the own window has no site and holds one of
-/// `FILE_WORDS` in its title, and at least `KEYS_MIN` steps of the own window are key records; or where (P) the own
-/// window's app is one of `SPREADSHEET_APPS` and the counts of its steps meet `read_by_clicks`: fewer than
-/// `KEYS_MIN` key records and at least `CLICKS_MIN` click records. It reads no text.
+/// takes the key of its first record (`cut` in the episode step), so its own window is that of its first step: the
+/// step's title and site are the window's, and its app is the app of that first record, which is the window's app
+/// where that record is the window's title record. A window with a site is never named here, whatever app its
+/// first record carries, and a step of another window that the episode took in counts for nothing. It names an
+/// episode of a window with no site where (I) the app of its first step is one of `SPREADSHEET_APPS`, or its title
+/// holds one of `FILE_WORDS`, and at least `KEYS_MIN` steps of that window are key records; or where (P) the app
+/// of its first step is one of `SPREADSHEET_APPS` and the counts of that window's steps meet `read_by_clicks`:
+/// fewer than `KEYS_MIN` key records and at least `CLICKS_MIN` click records. It reads no text.
 fn spreadsheet_by_input(steps: &[ObservedStep]) -> bool {
-    let Some(own) = steps.first() else {
+    let Some(own) = steps.first().filter(|own| own.site.is_none()) else {
         return false;
     };
     let in_table = own.app.as_ref().is_some_and(|app| {
@@ -175,7 +177,7 @@ fn spreadsheet_by_input(steps: &[ObservedStep]) -> bool {
             .iter()
             .any(|entry| entry.eq_ignore_ascii_case(app.value.as_str()))
     });
-    let file = own.site.is_none() && holds_one_of(own, &FILE_WORDS);
+    let file = holds_one_of(own, &FILE_WORDS);
     let classes: Vec<InputClass> = steps
         .iter()
         .filter(|step| same_window(own, step))
