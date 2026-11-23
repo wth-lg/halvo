@@ -1,14 +1,103 @@
 //! r3 U7.7: the person's yes for ONE agent to a hosted model, one row of the kind `agent_agreement` under the agent's
 //! workflow, written with the agent's ceiling tier by the coordinator body `set_model` (the coordinator's log line
-//! 17342). The origins and the model words of these tests are made-up texts; no test speaks to a host.
+//! 17342). The origins and the model words of these tests are made-up texts; no test speaks to a host. They are unit
+//! tests of the library, which the merge gate runs in both jobs, over the store in memory; the helpers below are those
+//! of the store's test targets, of which they hold the few that these tests use.
 
-mod common;
-
-use common::*;
-use halvo_agent_store::{Host, MemoryStore};
 use halvo_schema::executable::names::AgentState;
-use halvo_schema::{AgentId, ErrorName, Instant, RowRead, TypedRecord, WorkflowId, WorkflowItem};
+use halvo_schema::executable::{CoordinatorReply, RunnerReply};
+use halvo_schema::{
+    AgentId, ErrorName, Instant, RowRead, TypedRecord, Workflow, WorkflowId, WorkflowItem,
+};
 use serde_json::{json, Value};
+
+use crate::{Host, MemoryStore, Now};
+
+/// The instant of every request of these tests, 2026-11-12T16:13:20Z, as in the store's test targets.
+const NOW: Now = Now {
+    at: Instant(1_794_500_000_000_000_000),
+};
+
+fn id(prefix: char, n: u32) -> String {
+    format!("{prefix}{n:031x}")
+}
+
+fn wf(n: u32) -> String {
+    id('3', n)
+}
+
+fn agent(n: u32) -> String {
+    id('4', n)
+}
+
+fn run(n: u32) -> String {
+    id('5', n)
+}
+
+fn declared(name: &str) -> ErrorName {
+    ErrorName::read(name).expect("a declared error name")
+}
+
+fn workflow(id: &str, category: &str, state: &str, agent: Option<&str>) -> Workflow {
+    serde_json::from_value(json!({
+        "v": 1,
+        "id": id,
+        "state": state,
+        "category": category,
+        "site": null,
+        "app": "com.example.browser",
+        "trigger": "schedule",
+        "recurrence": {"count": 3, "period": 31, "first": 20705, "last": 20767},
+        "confidence": 87,
+        "agent": agent,
+    }))
+    .expect("a workflow record")
+}
+
+fn coordinator(store: &mut MemoryStore, body: Value) -> Result<CoordinatorReply, ErrorName> {
+    crate::coordinator(store, NOW, body.to_string().as_bytes())
+}
+
+fn runner(store: &mut MemoryStore, body: Value) -> Result<RunnerReply, ErrorName> {
+    crate::runner(store, NOW, body.to_string().as_bytes())
+}
+
+fn rows(store: &MemoryStore, kind: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    store.for_each(kind, &mut |row| out.push(row.to_owned()));
+    out
+}
+
+fn create(store: &mut MemoryStore, w: u32, a: u32) -> Result<CoordinatorReply, ErrorName> {
+    coordinator(
+        store,
+        json!({"op": "create_agent", "workflow": wf(w), "agent": agent(a)}),
+    )
+}
+
+/// The first agent of an approved workflow of the category, with no run started.
+fn unstarted(category: &str) -> MemoryStore {
+    let mut store = MemoryStore::new();
+    store.put_workflow(workflow(&wf(1), category, "approved", None));
+    create(&mut store, 1, 1).expect("create_agent of the first agent");
+    store
+}
+
+/// `start_run` of the mode `compile` for the run `r` of the first agent.
+fn start(store: &mut MemoryStore, r: u32) {
+    coordinator(
+        store,
+        json!({"op": "start_run", "workflow": wf(1), "agent": agent(1), "run": run(r), "mode": "compile"}),
+    )
+    .expect("start_run of the first agent");
+}
+
+/// The first agent of an approved workflow of the category, with its run 1 started.
+fn store_with(category: &str) -> MemoryStore {
+    let mut store = unstarted(category);
+    start(&mut store, 1);
+    store
+}
 
 const ORIGIN: &str = "https://hosted-model.test";
 const SMALL: &str = "test-model-small";
@@ -37,7 +126,7 @@ fn set_model(
     let body = json!({
         "op": "set_model", "workflow": wf(w), "agent": agent(a), "tier": tier, "agreement": agreement,
     });
-    halvo_agent_store::coordinator(store, NOW, body.to_string().as_bytes())
+    crate::coordinator(store, NOW, body.to_string().as_bytes())
         .map(|r| r.to_json().expect("the reply's JSON"))
 }
 
