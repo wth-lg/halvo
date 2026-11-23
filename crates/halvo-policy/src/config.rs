@@ -2,7 +2,9 @@ use std::num::NonZeroU32;
 
 use halvo_schema::executable::names::{Permission, YesNo};
 use halvo_schema::executable::text::V1;
-use halvo_schema::executable::{AgentConfig, Autonomy, Caps, ModelTier, Reasoning, Runtime};
+use halvo_schema::executable::{
+    AgentAgreement, AgentConfig, Autonomy, Caps, ModelTier, Reasoning, Runtime,
+};
 use halvo_schema::{AgentId, Category, SeedCategory, WorkflowId};
 
 use crate::limits::LIMITS;
@@ -11,7 +13,8 @@ use crate::limits::LIMITS;
 /// answer of the parser (`AgentConfig::parse`), which comes before `validate`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConfigCause {
-    /// `tier` is not `on_device`.
+    /// `tier` is a hosted tier with no agreement whose ceiling is that tier or for an agent whose runtime is `none`,
+    /// or an agreement stands beside `on_device` (r3 U7.7).
     Tier,
     /// `budget` is not null.
     Budget,
@@ -105,10 +108,20 @@ pub fn preset(category: Category, workflow: WorkflowId, agent: AgentId) -> Optio
     })
 }
 
-/// `Ok` for a valid configuration, else the first cause of A2.4 after `malformed`, in its order: `tier`, `budget`,
-/// `allow`, `runtime`, `limits`.
-pub fn validate(config: &AgentConfig) -> Result<(), ConfigCause> {
-    if config.tier != ModelTier::OnDevice {
+/// `Ok` for a valid configuration with the agreement that stands beside it, else the first cause of A2.4 after
+/// `malformed`, in its order: `tier`, `budget`, `allow`, `runtime`, `limits`. Since r3 U7.7 the cause `tier` holds
+/// where a hosted tier has no agreement whose ceiling is that tier, or stands for an agent whose runtime is `none`,
+/// and where an agreement stands beside `on_device`. A caller hands the agreement row of the agent that stands, none
+/// where none does.
+pub fn validate(
+    config: &AgentConfig,
+    agreement: Option<&AgentAgreement>,
+) -> Result<(), ConfigCause> {
+    let tier_holds = match config.tier {
+        ModelTier::OnDevice => agreement.is_none(),
+        hosted => agreement.is_some_and(|a| a.tier == hosted) && config.runtime != Runtime::None,
+    };
+    if !tier_holds {
         return Err(ConfigCause::Tier);
     }
     if config.budget.is_some() {

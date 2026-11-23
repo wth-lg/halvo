@@ -19,7 +19,7 @@ fn refuse(cause: &str, detail: &str) -> ExitCode {
 }
 
 fn answer(config: &AgentConfig) -> &'static str {
-    match validate(config) {
+    match validate(config, None) {
         Ok(()) => "valid",
         Err(cause) => cause.as_str(),
     }

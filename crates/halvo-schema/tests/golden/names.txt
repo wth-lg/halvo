@@ -7,6 +7,7 @@ address_field
 after
 afternoon
 agent
+agent_agreement
 agent_bindings
 agent_checkpoint
 agent_config
@@ -20,6 +21,7 @@ agent_run
 agent_session
 agent_start
 agents
+agreement
 allow
 allow_once
 amount_differs
@@ -162,6 +164,7 @@ high
 hint
 hold_cleared
 hold_set
+hosts
 id
 idx
 incomplete
@@ -351,6 +354,7 @@ session
 session_size
 sessions
 set_bindings
+set_model
 set_state
 setup
 sha256
