@@ -29,20 +29,24 @@ use tauri::{AppHandle, Runtime};
 /// system no chooser is shown and the answer is `Chosen::Closed`. Named limits: no run here
 /// opens the chooser; no run has read which application macOS names as in front while the panel
 /// is up; and the other windows that the system's chooser shows for itself on Windows (the name
-/// box's list of suggestions, tooltips) get no affinity.
+/// box's list of suggestions, tooltips) get no affinity. On Windows the dialog is shown with the
+/// app's window main as its owner (r4 U3.22e), read at each show, since that window is destroyed
+/// and made again at its next show (`crate::window::CLOSE`), and with no owner where the app has
+/// no such window: while it is open the system keeps it above that window and holds that window
+/// disabled, so a click on Halvo's window brings the chooser to the front and does nothing else.
 pub struct SystemChooser<R: Runtime> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     app: AppHandle<R>,
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", windows)))]
     runtime: std::marker::PhantomData<fn() -> R>,
 }
 
 impl<R: Runtime> SystemChooser<R> {
     /// The chooser of the app `app`.
     pub fn new(app: AppHandle<R>) -> SystemChooser<R> {
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         return SystemChooser { app };
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(any(target_os = "macos", windows)))]
         {
             drop(app);
             SystemChooser {
@@ -57,7 +61,7 @@ impl<R: Runtime> Files for SystemChooser<R> {
         #[cfg(target_os = "macos")]
         return Ok(macos::choose(&self.app, folder));
         #[cfg(windows)]
-        return Ok(windows::choose(folder, |_| {}));
+        return Ok(windows::choose(windows::owner(&self.app), folder, |_| {}));
         #[cfg(not(any(target_os = "macos", windows)))]
         {
             let _ = folder;
@@ -139,8 +143,10 @@ pub(super) mod macos {
 pub(super) mod windows {
     use halvo_coord::ports::Chosen;
     use std::cell::Cell;
+    use std::ffi::c_void;
+    use tauri::{AppHandle, Manager, Runtime};
     use windows::core::{implement, ComObject, Interface, Ref, Result, HSTRING};
-    use windows::Win32::Foundation::E_ABORT;
+    use windows::Win32::Foundation::{E_ABORT, HWND};
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, IBindCtx,
         CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
@@ -157,24 +163,40 @@ pub(super) mod windows {
         SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE, WINDOW_DISPLAY_AFFINITY,
     };
 
-    /// What the code hands to the dialog: its options, the folder in which it opens, and the
-    /// display affinity of its window.
+    /// The window main of `app`, which owns the chooser, read at the show, as a number that
+    /// crosses to the chooser's thread; none where the app has no such window or its handle
+    /// cannot be read.
+    pub fn owner<R: Runtime>(app: &AppHandle<R>) -> Option<isize> {
+        app.get_webview_window(crate::handler::MAIN)
+            .and_then(|window| window.hwnd().ok())
+            .map(|window| window.0 as isize)
+    }
+
+    /// What the code hands to the dialog: its options, the folder in which it opens, the
+    /// display affinity of its window, and the window that owns it.
     pub struct Choices {
         pub options: FILEOPENDIALOGOPTIONS,
         pub folder: Option<String>,
         pub affinity: WINDOW_DISPLAY_AFFINITY,
+        pub owner: Option<HWND>,
     }
 
     /// Over the options `start` that the dialog has: ONE file of the file system that must exist
     /// and no folder, never many; in `folder`, or where the system opens the dialog when none is
-    /// given; its window kept out of the capture by WDA_EXCLUDEFROMCAPTURE.
-    pub fn choices(start: FILEOPENDIALOGOPTIONS, folder: Option<&str>) -> Choices {
+    /// given; its window kept out of the capture by WDA_EXCLUDEFROMCAPTURE, and owned by `owner`,
+    /// by no window where none is given.
+    pub fn choices(
+        start: FILEOPENDIALOGOPTIONS,
+        folder: Option<&str>,
+        owner: Option<HWND>,
+    ) -> Choices {
         let wanted = FOS_FILEMUSTEXIST.0 | FOS_FORCEFILESYSTEM.0 | FOS_PATHMUSTEXIST.0;
         let unwanted = FOS_ALLOWMULTISELECT.0 | FOS_PICKFOLDERS.0;
         Choices {
             options: FILEOPENDIALOGOPTIONS((start.0 | wanted) & !unwanted),
             folder: folder.map(str::to_owned),
             affinity: WDA_EXCLUDEFROMCAPTURE,
+            owner,
         }
     }
 
@@ -260,38 +282,40 @@ pub(super) mod windows {
         }
     }
 
-    /// Shows the dialog on a thread of its own and waits for its answer; `opened` gets the dialog
-    /// once, on that thread, at the event at which its window took the affinity (the product's
-    /// does nothing; the hosted case's closes the dialog later through its own interface).
-    pub fn choose(folder: Option<&str>, opened: fn(&IFileDialog)) -> Chosen {
+    /// Shows the dialog on a thread of its own, owned by the window `owner` where one is given,
+    /// and waits for its answer; `opened` gets the dialog once, on that thread, at the event at
+    /// which its window took the affinity (the product's does nothing; the hosted case's closes
+    /// the dialog later through its own interface).
+    pub fn choose(owner: Option<isize>, folder: Option<&str>, opened: fn(&IFileDialog)) -> Chosen {
         let folder = folder.map(str::to_owned);
         std::thread::Builder::new()
             .name("halvo-chooser".into())
-            .spawn(move || show(folder.as_deref(), opened))
+            .spawn(move || show(owner, folder.as_deref(), opened))
             .ok()
             .and_then(|shown| shown.join().ok())
             .unwrap_or(Chosen::Closed)
     }
 
-    fn show(folder: Option<&str>, opened: fn(&IFileDialog)) -> Chosen {
+    fn show(owner: Option<isize>, folder: Option<&str>, opened: fn(&IFileDialog)) -> Chosen {
         // SAFETY: the apartment of this new thread, left below once the dialog has gone.
         let joined =
             unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) };
         if joined.is_err() {
             return Chosen::Closed;
         }
-        let chosen = pick(folder, opened).unwrap_or(Chosen::Closed);
+        let owner = owner.map(|owner| HWND(owner as *mut c_void));
+        let chosen = pick(owner, folder, opened).unwrap_or(Chosen::Closed);
         // SAFETY: the one CoInitializeEx of this thread that succeeded above.
         unsafe { CoUninitialize() };
         chosen
     }
 
-    fn pick(folder: Option<&str>, opened: fn(&IFileDialog)) -> Result<Chosen> {
+    fn pick(owner: Option<HWND>, folder: Option<&str>, opened: fn(&IFileDialog)) -> Result<Chosen> {
         // SAFETY: the system's file open dialog, made in this thread's apartment.
         let dialog: IFileOpenDialog =
             unsafe { CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER) }?;
         // SAFETY: calls on the dialog made above, on the thread that made it.
-        let made = choices(unsafe { dialog.GetOptions() }?, folder);
+        let made = choices(unsafe { dialog.GetOptions() }?, folder, owner);
         unsafe { dialog.SetOptions(made.options) }?;
         if let Some(folder) = &made.folder {
             // SAFETY: the item of a path, made in this thread's apartment.
@@ -314,7 +338,10 @@ pub(super) mod windows {
         let events: IFileDialogEvents = guard.to_interface();
         // SAFETY: the events of this show, removed again before the dialog is dropped.
         let cookie = unsafe { dialog.Advise(&events) }?;
-        let shown = unsafe { dialog.Show(None) };
+        // SAFETY: a call on the dialog made above, on its thread; the owner is a window handle,
+        // which the system checks, of the app's window main or of the hosted case's own window,
+        // read at this show.
+        let shown = unsafe { dialog.Show(made.owner) };
         let _ = unsafe { dialog.Unadvise(cookie) };
         if shown.is_err() || guard.set.get() != Some(true) {
             return Ok(Chosen::Closed);
@@ -376,20 +403,36 @@ mod tests {
         let wanted = FOS_FILEMUSTEXIST.0 | FOS_FORCEFILESYSTEM.0 | FOS_PATHMUSTEXIST.0;
         let unwanted = FOS_ALLOWMULTISELECT.0 | FOS_PICKFOLDERS.0;
         for start in [0, unwanted, u32::MAX] {
-            let made = choices(FILEOPENDIALOGOPTIONS(start), Some("C:\\work"));
+            let made = choices(FILEOPENDIALOGOPTIONS(start), Some("C:\\work"), None);
             assert_eq!(made.options.0 & wanted, wanted, "{start:#x}");
             assert_eq!(made.options.0 & unwanted, 0, "{start:#x}");
             assert_eq!(made.folder.as_deref(), Some("C:\\work"));
             assert_eq!(made.affinity, WDA_EXCLUDEFROMCAPTURE);
         }
-        assert_eq!(choices(FILEOPENDIALOGOPTIONS(0), None).folder, None);
+        assert_eq!(choices(FILEOPENDIALOGOPTIONS(0), None, None).folder, None);
     }
 
-    /// r4 U3.22e sentence 1, on a hosted runner of GitHub Actions alone, with no keyboard and no
-    /// pointer input: the product's own code shows IFileOpenDialog on a thread of its own; within
-    /// a bounded wait an event of the dialog has a window that took the display affinity, the
-    /// window stands visible, reads WDA_EXCLUDEFROMCAPTURE by the system's own
-    /// GetWindowDisplayAffinity, and has not closed by itself 500 ms later; then the case closes
+    /// r4 U3.22e sentence 2, the Windows code with no window: what the code hands to
+    /// IFileOpenDialog holds the owner that it was given, the window with which `pick` shows the
+    /// dialog, and no owner where none is given.
+    #[cfg(windows)]
+    #[test]
+    fn u322e_the_windows_chooser_hands_the_dialog_the_owner_that_it_was_given() {
+        use super::windows::choices;
+        use ::windows::Win32::Foundation::HWND;
+        use ::windows::Win32::UI::Shell::FILEOPENDIALOGOPTIONS;
+        let owner = HWND(0x0322_e0e0 as *mut std::ffi::c_void);
+        let made = choices(FILEOPENDIALOGOPTIONS(0), Some("C:\\work"), Some(owner));
+        assert_eq!(made.owner, Some(owner));
+        assert_eq!(choices(FILEOPENDIALOGOPTIONS(0), None, None).owner, None);
+    }
+
+    /// r4 U3.22e sentences 1 and 2, on a hosted runner of GitHub Actions alone, with no keyboard
+    /// and no pointer input: the product's own code shows IFileOpenDialog on a thread of its own,
+    /// owned by a window of the case's own in the app's place; within a bounded wait an event of
+    /// the dialog has a window that took the display affinity, the window stands visible, reads
+    /// WDA_EXCLUDEFROMCAPTURE by the system's own GetWindowDisplayAffinity, has the case's window
+    /// as its owner by GetWindow, and has not closed by itself 500 ms later; then the case closes
     /// it through the dialog's own IFileDialog::Close, on the dialog's own thread, and the show
     /// answers `Chosen::Closed`. Every wait has its bound and ends red with its sentence, and the
     /// case joins no thread that a stuck dialog holds, so it cannot hang. It writes ONE line to
@@ -415,19 +458,20 @@ mod tests {
     #[cfg(windows)]
     mod hosted {
         use super::super::windows::choose;
-        use ::windows::core::Interface;
+        use ::windows::core::{w, Interface};
         use ::windows::Win32::Foundation::{ERROR_CANCELLED, HWND};
         use ::windows::Win32::System::Ole::IOleWindow;
         use ::windows::Win32::UI::Shell::IFileDialog;
         use ::windows::Win32::UI::WindowsAndMessaging::{
-            GetWindowDisplayAffinity, IsWindow, IsWindowVisible, KillTimer, SetTimer,
-            WDA_EXCLUDEFROMCAPTURE,
+            CreateWindowExW, DestroyWindow, DispatchMessageW, GetWindow, GetWindowDisplayAffinity,
+            IsWindow, IsWindowVisible, KillTimer, PeekMessageW, SetTimer, TranslateMessage,
+            GW_OWNER, MSG, PM_REMOVE, WDA_EXCLUDEFROMCAPTURE, WINDOW_EX_STYLE, WS_POPUP,
         };
         use halvo_coord::ports::Chosen;
         use std::ffi::c_void;
         use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
         use std::sync::mpsc::{self, Receiver, Sender};
-        use std::sync::{Mutex, PoisonError};
+        use std::sync::{Arc, Mutex, PoisonError};
         use std::time::{Duration, Instant};
 
         const WINDOW_BOUND: Duration = Duration::from_secs(10);
@@ -525,36 +569,121 @@ mod tests {
             since.elapsed().as_millis()
         }
 
+        /// A window of the case's own in the app's place: a hidden top-level window of the
+        /// system's class STATIC, made on a thread of its own that hands its messages on, as the
+        /// app's main thread does for the window main, until `stop`; where the show never
+        /// answers, that thread and the window stay until the test process ends.
+        struct Owner {
+            window: isize,
+            stop: Arc<AtomicBool>,
+        }
+
+        fn owner() -> Option<Owner> {
+            let stop = Arc::new(AtomicBool::new(false));
+            let ends = stop.clone();
+            let (tx, rx) = mpsc::channel();
+            std::thread::Builder::new()
+                .name("u322e-owner".into())
+                .spawn(move || {
+                    // SAFETY: a hidden top-level window of the system's class STATIC, made by this
+                    // thread; the class and the title are static strings.
+                    let made = unsafe {
+                        CreateWindowExW(
+                            WINDOW_EX_STYLE(0),
+                            w!("STATIC"),
+                            w!("u322e owner"),
+                            WS_POPUP,
+                            0,
+                            0,
+                            0,
+                            0,
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
+                    };
+                    let window = made.ok();
+                    let _ = tx.send(window.map(|window| window.0 as isize));
+                    let Some(window) = window else {
+                        return;
+                    };
+                    let mut msg = MSG::default();
+                    while !ends.load(Ordering::SeqCst) {
+                        // SAFETY: the messages of this thread, read into a live local.
+                        while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
+                            // SAFETY: the message that the call above read.
+                            unsafe {
+                                let _ = TranslateMessage(&msg);
+                                DispatchMessageW(&msg);
+                            }
+                        }
+                        std::thread::sleep(POLL);
+                    }
+                    // SAFETY: the window that this thread made above.
+                    let _ = unsafe { DestroyWindow(window) };
+                })
+                .ok()?;
+            rx.recv_timeout(WINDOW_BOUND)
+                .ok()
+                .flatten()
+                .map(|window| Owner { window, stop })
+        }
+
+        /// The answer of the show, kept once it has come.
+        struct Answer {
+            rx: Receiver<Chosen>,
+            got: Option<Chosen>,
+        }
+
+        impl Answer {
+            /// The answer, where it has come within `bound`.
+            fn within(&mut self, bound: Duration) -> Option<Chosen> {
+                if self.got.is_none() {
+                    self.got = self.rx.recv_timeout(bound).ok();
+                }
+                self.got.clone()
+            }
+        }
+
         /// The case: what failed, each in its sentence, after its one line.
         pub fn run() -> Vec<String> {
             let mut failures = Vec::new();
             CLOSE.store(false, Ordering::SeqCst);
             let (window_tx, windows) = mpsc::channel();
             *WINDOW.lock().unwrap_or_else(PoisonError::into_inner) = Some(window_tx);
-            let (answer_tx, answers) = mpsc::channel();
+            let Some(owner) = owner() else {
+                failures
+                    .push("the case could not make a window of its own in the app's place".into());
+                line("red: no window of the case's own in the app's place");
+                return failures;
+            };
+            let given = owner.window;
+            let (answer_tx, rx) = mpsc::channel();
+            let mut answer = Answer { rx, got: None };
             let start = Instant::now();
             let spawned = std::thread::Builder::new()
                 .name("u322e-chooser".into())
                 .spawn(move || {
-                    let _ = answer_tx.send(choose(None, opened));
+                    let _ = answer_tx.send(choose(Some(given), None, opened));
                 });
             let reads = match spawned {
-                Ok(_) => read(&mut failures, &windows, &answers, start),
+                Ok(_) => read(&mut failures, &windows, &mut answer, given, start),
                 Err(e) => {
                     failures.push(format!("no thread for the show: {e}"));
                     String::new()
                 }
             };
+            let total = ms(start);
             CLOSE.store(true, Ordering::SeqCst);
+            if answer.within(CLOSE_BOUND).is_some() {
+                owner.stop.store(true, Ordering::SeqCst);
+            }
             line(&if failures.is_empty() {
-                format!(
-                    "{} ms from the show to the answer closed ({reads})",
-                    ms(start)
-                )
+                format!("{total} ms from the show to the answer closed ({reads})")
             } else {
                 format!(
-                    "red {} ms after the show, with {} failures ({reads})",
-                    ms(start),
+                    "red {total} ms after the show, with {} failures ({reads})",
                     failures.len()
                 )
             });
@@ -566,7 +695,8 @@ mod tests {
         fn read(
             failures: &mut Vec<String>,
             windows: &Receiver<isize>,
-            answers: &Receiver<Chosen>,
+            answer: &mut Answer,
+            owner: isize,
             start: Instant,
         ) -> String {
             let mut reads = Vec::new();
@@ -574,7 +704,7 @@ mod tests {
                 if let Ok(window) = windows.try_recv() {
                     break HWND(window as *mut c_void);
                 }
-                if let Ok(answer) = answers.try_recv() {
+                if let Some(answer) = answer.within(Duration::ZERO) {
                     failures.push(format!("the chooser closed by itself {} ms after the show began, with the answer {answer:?}, before any event of it had a window that took the display affinity", ms(start)));
                     return reads.join(", ");
                 }
@@ -604,9 +734,19 @@ mod tests {
                     WDA_EXCLUDEFROMCAPTURE.0
                 ));
             }
+            // SAFETY: a read of a window of this process, or of one that has gone, which fails.
+            let owned = unsafe { GetWindow(window, GW_OWNER) }
+                .ok()
+                .map(|owned| owned.0 as isize);
+            reads.push(format!("owner {owned:?} (the case's window {owner})"));
+            if owned != Some(owner) {
+                failures.push(format!(
+                    "the chooser's window has the owner {owned:?}, not the case's window {owner} in the app's place"
+                ));
+            }
             let stood = Instant::now();
             while stood.elapsed() < STAYS {
-                if let Ok(answer) = answers.try_recv() {
+                if let Some(answer) = answer.within(Duration::ZERO) {
                     failures.push(format!(
                         "the chooser closed by itself {} ms after its window stood, with the answer {answer:?}",
                         ms(stood)
@@ -625,14 +765,14 @@ mod tests {
             reads.push(format!("open {} ms later", STAYS.as_millis()));
             CLOSE.store(true, Ordering::SeqCst);
             let closing = Instant::now();
-            match answers.recv_timeout(CLOSE_BOUND) {
-                Ok(Chosen::Closed) => {
+            match answer.within(CLOSE_BOUND) {
+                Some(Chosen::Closed) => {
                     reads.push(format!("closed {} ms after the close was asked", ms(closing)));
                 }
-                Ok(other) => failures.push(format!(
+                Some(other) => failures.push(format!(
                     "the chooser closed through IFileDialog::Close answered {other:?}, not closed"
                 )),
-                Err(_) => failures.push(format!(
+                None => failures.push(format!(
                     "the chooser did not close through IFileDialog::Close within {} s; its window stays on the runner's screen until the test process ends",
                     CLOSE_BOUND.as_secs()
                 )),
