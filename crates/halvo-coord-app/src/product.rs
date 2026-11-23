@@ -679,7 +679,11 @@ pub struct Product {
 
 /// A link over the owner streams that `calls` asks for.
 fn link_of(calls: &Calls) -> Arc<dyn OwnerLink> {
-    let call = Arc::clone(&calls.owner_stream);
+    link_over(Arc::clone(&calls.owner_stream))
+}
+
+/// A link over the owner streams that `call` gives.
+pub(crate) fn link_over(call: StreamCall) -> Arc<dyn OwnerLink> {
     Arc::new(StreamLink::new(ClientEnds::new(move || call())))
 }
 
@@ -818,7 +822,7 @@ impl Product {
     }
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
@@ -831,7 +835,7 @@ fn refused(error: ErrorName) -> PortError {
 }
 
 /// The result of the owner's reply `bytes` to the request `id`.
-fn result_of(bytes: &[u8], id: Option<&str>) -> Result<Value, PortError> {
+pub(crate) fn result_of(bytes: &[u8], id: Option<&str>) -> Result<Value, PortError> {
     let reply = decode_reply(bytes).map_err(|_| PortError::NoService)?;
     if id.is_some() && reply.id.as_ref().map(|i| i.as_str()) != id {
         return Err(PortError::NoService);
@@ -846,7 +850,7 @@ fn result_of(bytes: &[u8], id: Option<&str>) -> Result<Value, PortError> {
     }
 }
 
-fn json_str(text: &str) -> String {
+pub(crate) fn json_str(text: &str) -> String {
     Value::String(text.to_owned()).to_string()
 }
 
@@ -1659,27 +1663,32 @@ impl Clock for Product {
 }
 
 impl Rng for Product {
-    /// Sixteen bytes of the system's generator: `/dev/urandom` on a Mac, the system's preferred generator of
-    /// `BCryptGenRandom` on Windows.
+    /// Sixteen bytes of the system's generator (`random16`).
     fn bytes16(&self) -> Result<[u8; 16], PortError> {
-        let mut bytes = [0u8; 16];
-        #[cfg(target_os = "macos")]
-        std::fs::File::open("/dev/urandom")
-            .and_then(|mut f| f.read_exact(&mut bytes))
-            .map_err(|_| PortError::NoService)?;
-        #[cfg(windows)]
-        {
-            use windows::Win32::Security::Cryptography::{
-                BCryptGenRandom, BCRYPT_USE_SYSTEM_PREFERRED_RNG,
-            };
-            // SAFETY: the buffer is a live slice that the call writes within its length; no algorithm handle is
-            // given, which the flag for the system's preferred generator asks.
-            unsafe { BCryptGenRandom(None, &mut bytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG) }
-                .ok()
-                .map_err(|_| PortError::NoService)?;
-        }
-        Ok(bytes)
+        random16()
     }
+}
+
+/// Sixteen bytes of the system's generator: `/dev/urandom` on a Mac, the system's preferred generator of
+/// `BCryptGenRandom` on Windows.
+pub(crate) fn random16() -> Result<[u8; 16], PortError> {
+    let mut bytes = [0u8; 16];
+    #[cfg(target_os = "macos")]
+    std::fs::File::open("/dev/urandom")
+        .and_then(|mut f| f.read_exact(&mut bytes))
+        .map_err(|_| PortError::NoService)?;
+    #[cfg(windows)]
+    {
+        use windows::Win32::Security::Cryptography::{
+            BCryptGenRandom, BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+        };
+        // SAFETY: the buffer is a live slice that the call writes within its length; no algorithm handle is
+        // given, which the flag for the system's preferred generator asks.
+        unsafe { BCryptGenRandom(None, &mut bytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG) }
+            .ok()
+            .map_err(|_| PortError::NoService)?;
+    }
+    Ok(bytes)
 }
 
 impl Policy for Product {
