@@ -65,8 +65,9 @@ pub enum StatusLine {
     Problem(Failure),
     /// `problem.<last cause>`: the row of `Problem` for an agent whose newest started run the
     /// agent store ended with a cause that the roster has a sentence for (the roster's key
-    /// `last_cause`, I6.1), in place of the failed run's line. `all` does not list it until its
-    /// fixture state of I8.3 is written.
+    /// `last_cause`, I6.1), in place of the failed run's line; for `no_access` the case is
+    /// `no_access_mac` or `no_access_windows` (`key_on`, r4 U3.22d). `all` does not list it until
+    /// its fixture state of I8.3 is written.
     LastCause(LastCause),
     /// `problem.answers_saved`: the row of `Problem` and of `LastCause` for an agent whose rows
     /// hold a set-up's `item_answered` behind the end of its newest run, which ended with a cause
@@ -149,8 +150,15 @@ impl StatusLine {
         }
     }
 
-    /// The words key of the line.
+    /// The words key of the line in this build (`key_on` of `System::HOST`).
     pub fn key(self) -> String {
+        self.key_on(System::HOST)
+    }
+
+    /// The words key of the line on `system`: `line.problem.no_access_mac` or
+    /// `line.problem.no_access_windows` for the last cause `no_access`, whose sentence says what to
+    /// do on that system (r4 U3.22d), and the same key on every system for every other line.
+    pub fn key_on(self, system: System) -> String {
         let case = match self {
             StatusLine::NeedsYou(kind) => kind.name(),
             StatusLine::NotYet => "category",
@@ -167,6 +175,10 @@ impl StatusLine {
             StatusLine::Queued => "queued",
             StatusLine::Store => "store",
             StatusLine::Problem(f) => f.name(),
+            StatusLine::LastCause(LastCause::NoAccess) => match system {
+                System::Mac => "no_access_mac",
+                System::Windows => "no_access_windows",
+            },
             StatusLine::LastCause(c) => c.name(),
             StatusLine::AnswersSaved => "answers_saved",
             StatusLine::TriedToday => "tried_today",

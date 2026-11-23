@@ -215,6 +215,14 @@ pub const KEYS: &[(&str, &str)] = &[
         "Halvo may not change the spreadsheet file: it is read-only.",
     ),
     (
+        "line.problem.no_access_mac",
+        "macOS did not let Halvo work with the spreadsheet file or the data file. Open System Settings > Privacy & Security > Files & Folders and under Halvo turn on the folder that holds them. If Halvo is not listed there, or the folder is already on, check that you may open and change both files. Then quit Halvo, open it again and choose Start now.",
+    ),
+    (
+        "line.problem.no_access_windows",
+        "Windows did not let Halvo work with the spreadsheet file or the data file. Check that you may open both files and change files in their folder, and that Windows Security does not block Halvo. Then choose Start now.",
+    ),
+    (
         "line.problem.kind",
         "Last time, it asked for something that Halvo does not allow, so Halvo stopped it.",
     ),
