@@ -21,6 +21,7 @@ use halvo_schema::{AgentId, Category, WorkflowId};
 use halvo_web::cdp::{domain_matches, host_of, OriginStorage, PausedRequest, SessionState, Sign};
 
 use super::{parts_of, TooLarge};
+use crate::args::STAND_IN_PERSON;
 use crate::link::{encode, Link};
 use crate::run::{Failure, Runner, Stop};
 use crate::web::{Act, Page, Web};
@@ -475,8 +476,10 @@ struct World {
 }
 
 /// One run: the browser's jar as the stand-in starts it, the bound origins, the readings, the page's address, the
-/// answers to handback requests and binds, whether the act fails, whether the run has a window, the state that the
-/// person signs in to while a handback is open, whether the import fails, and the site that the first act goes to.
+/// answers to handback requests and binds, whether the act fails, whether the run has a window, whether a run with no
+/// window gets the switch of the tests by which a stand-in person answers its handbacks (`STAND_IN_PERSON`), the
+/// state that the person signs in to while a handback is open, whether the import fails, and the site that the first
+/// act goes to.
 struct Run<'a> {
     jar: SessionState,
     bound: &'a [&'a str],
@@ -485,6 +488,7 @@ struct Run<'a> {
     answers: &'a [&'static str],
     act_fails: bool,
     headed: bool,
+    stand_in: bool,
     person: Option<SessionState>,
     import_fails: bool,
     next_site: Option<(&'static str, SessionState)>,
@@ -500,6 +504,7 @@ impl Run<'_> {
             answers: &[],
             act_fails: false,
             headed: false,
+            stand_in: false,
             person: None,
             import_fails: false,
             next_site: None,
@@ -571,9 +576,50 @@ impl World {
             .collect()
     }
 
+    /// Stores, as revision `rev` of `origin`, one part whose piece is base64 of a text that is no state's JSON: the
+    /// load lists it, and the runner reads it and imports nothing of it.
+    fn store_unreadable(&self, origin: &str, rev: u32) {
+        let not_a_state = "bm90IGEgc3RhdGU=".to_string();
+        self.parts
+            .lock()
+            .expect("parts")
+            .insert((origin.to_string(), rev, 1), (1, vec![not_a_state]));
+    }
+
+    /// Whether the newest revision of `origin` that the store holds is the drop form of `drop_session`.
+    fn newest_dropped(&self, origin: &str) -> bool {
+        let parts = self.parts.lock().expect("parts");
+        parts
+            .iter()
+            .filter(|((o, _, _), _)| o == origin)
+            .max_by_key(|((_, rev, _), _)| *rev)
+            .is_some_and(|(_, (of, pieces))| {
+                *of == 1 && pieces.as_slice() == SessionData::dropped().pieces()
+            })
+    }
+
     /// Carries out `steps` as the run's loop does, on a runner whose browser start gives the stand-in, then ends the
-    /// run as `Runner::run` ends it.
+    /// run as `Runner::run` ends it; a failed step ends the run `failed` with its cause.
     fn run(&self, run: &Run<'_>, steps: &[ExecutableStep]) -> Ran {
+        self.run_ending(run, steps, |_, _, cause| {
+            Stop::End(Outcome::Failed, Some(cause))
+        })
+    }
+
+    /// `run`, with a failed step ended as the runner's loop ends it (`Runner::failed_step`).
+    fn run_to_its_end(&self, run: &Run<'_>, steps: &[ExecutableStep]) -> Ran {
+        self.run_ending(run, steps, |runner, step, cause| {
+            runner.failed_step(step, cause)
+        })
+    }
+
+    /// `run`, with a failed step ended by `failed`.
+    fn run_ending(
+        &self,
+        run: &Run<'_>,
+        steps: &[ExecutableStep],
+        failed: impl Fn(&mut Runner, &ExecutableStep, Cause) -> Stop,
+    ) -> Ran {
         let log: Log = Arc::default();
         let seen: Arc<Mutex<Seen>> = Arc::default();
         let (to_runner, from) = mpsc::channel();
@@ -615,6 +661,9 @@ impl World {
         if run.headed {
             words.push("--headed");
         }
+        if run.stand_in {
+            words.push(STAND_IN_PERSON);
+        }
         let words: Vec<OsString> = words.iter().map(OsString::from).collect();
         let args = crate::args::parse(&words).expect("the arguments");
         let mut runner = Runner::new(args, link);
@@ -651,7 +700,7 @@ impl World {
                     break;
                 }
                 Err(Failure::Step(cause)) => {
-                    end = Err(Stop::End(Outcome::Failed, Some(cause)));
+                    end = Err(failed(&mut runner, step, cause));
                     break;
                 }
             }
@@ -1011,6 +1060,7 @@ fn no_line_and_no_text_holds_a_byte_of_a_kept_sign_in() {
 fn three_runs_hold_the_marker_in_store_frames_alone() {
     let world = World::default();
     let mut signing = Run::new(SessionState::default(), &[A]);
+    signing.stand_in = true;
     signing.signs = &[Some(Sign::Secret), None];
     signing.answers = &[DONE, BOUND_YES];
     signing.person = Some(custody_state());
@@ -1212,7 +1262,8 @@ fn a_run_whose_import_fails_keeps_the_listed_revision() {
 /// The round of log line 14366, pr-review-65's own case 1 with its assertions turned: a run in which nobody signed in
 /// (no import, no handback) stores nothing, not even the cookies that the site set, so the store lists no revision and
 /// the roster's `session` reads `no` (`an_entry_names_state_slots_session_and_the_last_run` of halvo-agent-store); the
-/// next run imports nothing and, at the site's first sign-in field, opens a handback as before this change.
+/// next run imports nothing and, at the site's first sign-in field, opens a handback as before this change (a run with
+/// no window in which a stand-in person answers, `STAND_IN_PERSON`).
 #[test]
 fn a_run_that_signed_in_nothing_stores_nothing() {
     let world = World::default();
@@ -1233,6 +1284,7 @@ fn a_run_that_signed_in_nothing_stores_nothing() {
     assert!(world.listed().is_empty(), "no revision is listed");
 
     let mut second = Run::new(SessionState::default(), &[A]);
+    second.stand_in = true;
     second.signs = &[Some(Sign::Secret)];
     second.answers = &[DECLINED];
     let two = world.run(&second, &[click()]);
@@ -1478,4 +1530,103 @@ fn a_run_numbers_its_revision_past_a_cut_revision_whose_first_part_equals_its_ow
         lines(&ran.log, "frame store put_session")
     );
     assert_eq!(world.stored(A, listed[0].1), Some(export_of(&ran.jar, A)));
+}
+
+/// What a run of `at_a_door` did: the count of imports, the rows of its log, its `drop_session` lines, its outcome,
+/// and whether the newest revision of A that the store holds is the drop form.
+type DoorEnd = (
+    usize,
+    Vec<(LogEvent, Option<u32>, Option<Cause>)>,
+    Vec<String>,
+    Option<Outcome>,
+    bool,
+);
+
+/// r3 U5.15d (the coordinator's rulings of log lines 16908 (1) and 16954 (1)): one run with no window, started with no
+/// `--headed` and no switch of the tests, in a store that `kept` filled, bound to A, which meets a credential field
+/// at A.
+fn at_a_door(kept: impl Fn(&World)) -> DoorEnd {
+    let world = World::default();
+    kept(&world);
+    let mut refused = Run::new(SessionState::default(), &[A]);
+    refused.signs = &[Some(Sign::Secret)];
+    let ran = world.run(&refused, &[click()]);
+    (
+        lines(&ran.log, "import").len(),
+        ran.seen.logs.clone(),
+        lines(&ran.log, "frame store drop_session")
+            .into_iter()
+            .map(String::from)
+            .collect(),
+        ran.seen.finish,
+        world.newest_dropped(A),
+    )
+}
+
+/// The end of `at_a_door` for a run that imported nothing and drops A: no import, the step's `step_failed` row with
+/// the cause `unauthorized`, `drop_session` for A, the outcome `failed`, and A's newest revision in the drop form, so
+/// that the roster's `session` reads `no` and the next start has its window.
+fn dropped_at_a() -> DoorEnd {
+    (
+        0,
+        vec![
+            (LogEvent::StepFailed, Some(1), Some(Cause::Unauthorized)),
+            (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+        ],
+        vec!["frame store drop_session http://a.test:8080".to_string()],
+        Some(Outcome::Failed),
+        true,
+    )
+}
+
+/// r3 U5.15d, door 1: the load listed a kept revision of A, which the run binds, whose text does not read; the run
+/// imports nothing of it and, at the field, drops A.
+#[test]
+fn a_run_without_a_window_drops_a_kept_sign_in_that_does_not_read() {
+    assert_eq!(
+        at_a_door(|world| world.store_unreadable(A, 1)),
+        dropped_at_a()
+    );
+}
+
+/// r3 U5.15d, door 2: the load listed a kept revision of B alone, an origin outside the run's bindings; the run
+/// imports nothing and, at the field, drops A, of which the store holds no revision: the store writes A's revision 1
+/// in the drop form.
+#[test]
+fn a_run_without_a_window_drops_where_the_load_listed_another_site_alone() {
+    assert_eq!(
+        at_a_door(|world| world.store(B, 1, &export_of(&signed_in(), B))),
+        dropped_at_a()
+    );
+}
+
+/// r3 U5.15d (the coordinator's rulings of log lines 16917, 16922 and 17038): in a run where no person can answer
+/// (no `--headed` and no switch of the tests), a failed step of the class `prepare` opens no handback. The run writes
+/// the step's `step_failed` row, writes no `handback` row, sends no handback request, and ends `handed_back` with the
+/// cause `step_failed`, as the runner's loop ends it (`Runner::failed_step`). The supervisor holds an answer, so that a
+/// handback that opened would be answered and not wait.
+#[test]
+fn a_failed_step_of_a_run_where_no_person_can_answer_ends_handed_back_with_no_handback() {
+    let world = World::default();
+    let mut failing = Run::new(SessionState::default(), &[A]);
+    failing.act_fails = true;
+    failing.answers = &[DECLINED];
+    let ran = world.run_to_its_end(&failing, &[click()]);
+    assert_eq!(
+        (ran.seen.finish, ran.seen.logs.clone()),
+        (
+            Some(Outcome::HandedBack),
+            vec![
+                (LogEvent::StepFailed, Some(1), Some(Cause::StepFailed)),
+                (LogEvent::Stopped, None, Some(Cause::StepFailed)),
+            ]
+        ),
+        "{:?}",
+        ran.log
+    );
+    assert!(
+        lines(&ran.log, "frame handback").is_empty(),
+        "no handback request: {:?}",
+        ran.log
+    );
 }

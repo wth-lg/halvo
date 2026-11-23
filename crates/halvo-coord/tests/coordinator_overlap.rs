@@ -73,6 +73,7 @@ fn entry(flow: WorkflowId, agent: AgentId, slots: &[&str]) -> Agent<Config> {
         state: AgentState::Active,
         slots: slots.iter().map(|s| name(s)).collect(),
         session: true,
+        window: false,
         last: None,
         unknown: vec![],
         refused_run: None,

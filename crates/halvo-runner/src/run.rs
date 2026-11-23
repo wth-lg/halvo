@@ -235,13 +235,20 @@ impl Runner {
     }
 
     /// The end of a run whose step failed (A5.1): a step of the class `read` or `prepare` is handed back with the
-    /// reason `step_failed`, and the run ends `handed_back`; a step of an effect class ends the run `failed`.
-    fn failed_step(&mut self, step: &ExecutableStep, cause: Cause) -> Stop {
+    /// reason `step_failed`, and the run ends `handed_back`; a step of an effect class ends the run `failed`. In a run
+    /// where no person can answer (no `--headed` and no switch of the tests, crate::args), a step of the class `read`
+    /// or `prepare`, of any kind, opens no handback, writes no `handback` row and raises no item, and the run ends
+    /// `handed_back` all the same, the runner's outcome where it cannot ask (r3 U5.15d, the coordinator's rulings of
+    /// log lines 16917, 16922 and 17038).
+    pub(crate) fn failed_step(&mut self, step: &ExecutableStep, cause: Cause) -> Stop {
         if let Err(Stop::Link(broken)) = self.log(LogEvent::StepFailed, Some(step.n), Some(cause)) {
             return Stop::Link(broken);
         }
         if !matches!(step.class, ActionClass::Read | ActionClass::Prepare) {
             return Stop::End(Outcome::Failed, Some(cause));
+        }
+        if !self.args.person {
+            return Stop::End(Outcome::HandedBack, Some(cause));
         }
         match self.handback(HandbackReason::StepFailed, None) {
             Ok(_) => Stop::End(Outcome::HandedBack, Some(cause)),

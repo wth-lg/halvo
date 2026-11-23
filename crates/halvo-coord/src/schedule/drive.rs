@@ -216,6 +216,7 @@ fn refresh<C: Clone>(member: &mut Member<C>, entry: Option<&Agent<C>>, history: 
         member.facts.config = a.config.clone();
         member.facts.slots = a.slots.clone();
         member.session = a.session;
+        member.window = a.window;
     }
     let facts = &mut member.facts;
     let last = entry.and_then(|a| a.last.as_ref());
@@ -1038,7 +1039,7 @@ where
         live: u32::try_from(board.runs.len()).unwrap_or(u32::MAX),
         model_held: board.runs.iter().any(|r| r.holds_model),
         queued: board.queue.len(),
-        session: board.members[i].session,
+        window: board.members[i].window,
         from_queue,
         owed: board
             .owed
@@ -1987,6 +1988,7 @@ where
                 active_refused: false,
             },
             session: a.session,
+            window: a.window,
         };
         member.facts.take_unknown(&a.unknown);
         crate::run::read_replies(cx.ports, &mut member.facts);
@@ -2398,8 +2400,8 @@ fn stop_live<P: Owner + Runs, C: ConfigView>(
 /// owner's list and of `Owner::agents` answered, and raises a `ready` item only then. Each
 /// move decides from what the owner answers in that move (ruling XB-9): the workflow's state,
 /// trigger, period and `last` from the owner's list that it reads, and from the agent's entry
-/// of `Owner::agents` its configuration, its slot names, its session, whether the agent store
-/// has ended its newest run and that run's record (ruling XB-2). A start of the person whose
+/// of `Owner::agents` its configuration, its slot names, its session, its `window`, whether the
+/// agent store has ended its newest run and that run's record (ruling XB-2). A start of the person whose
 /// read of the agents fails keeps the cause of a step that the owner's list and the stored
 /// events decide (step 0, the hold `off`, step 2, a live or queued run), and is answered with
 /// the read's cause, `busy` or `no_service`, wherever the entry or the store would decide. A

@@ -193,18 +193,22 @@ impl Runner {
         Ok(Some(text))
     }
 
-    /// The end of a run with no window whose reading met a credential field after the run imported a kept sign-in:
-    /// the step's `step_failed` line with the cause `unauthorized`, which the roster's `refused_run` reads, then
-    /// `drop_session` for the origin of the page, where it has one, so that the store serves that origin's kept
-    /// sign-in no more and the roster's `session` reads `no`; the run ends `failed` with the cause `step_failed`. No
-    /// handback opens and no browser starts again. A store's refusal of the line or of the drop changes nothing of it.
+    /// The end of a run with no window whose reading met a credential field (r3 U5.15r, the coordinator's ruling of
+    /// log line 16634): the step's `step_failed` line with the cause `unauthorized`, which the roster's `refused_run`
+    /// reads, then, where the load listed a kept revision of any origin of the agent, imported or not (r3 U5.15d, the
+    /// coordinator's rulings of log lines 16908 (1) and 16954 (1)), `drop_session` for the origin of the page, where it
+    /// has one, so that the store serves that origin's kept sign-in no more and the roster's `session` reads `no`: the
+    /// store writes the drop form as that origin's next revision, revision 1 where it holds none, and `session` reads
+    /// `no` as soon as one listed revision is in that form, so the next start has its window. A run whose load listed
+    /// nothing drops nothing. The run ends `failed` with the cause `step_failed`. No handback opens and no browser
+    /// starts again. A store's refusal of the line or of the drop changes nothing of it.
     pub(crate) fn no_window(&mut self, step: NonZeroU32, origin: Option<WebOrigin>) -> Stop {
         if let Err(Stop::Link(broken)) =
             self.log(LogEvent::StepFailed, Some(step), Some(Cause::Unauthorized))
         {
             return Stop::Link(broken);
         }
-        if let Some(origin) = origin {
+        if let Some(origin) = origin.filter(|_| !self.sessions.listed.is_empty()) {
             let call = RunnerCall::DropSession(DropSession {
                 agent: self.args.agent.clone(),
                 run: self.args.run.clone(),

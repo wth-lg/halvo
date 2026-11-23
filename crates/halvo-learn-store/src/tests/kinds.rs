@@ -581,6 +581,7 @@ const SESSION_MARK: &str = "sessionmarks7";
 const REPLY_MARK: &str = "reply-mark-m7";
 const EFFECT_MARK: &str = "effect-mark-k7";
 const CHECKPOINT_MARK: &str = "checkpoint-mark-c7";
+const MODEL_KEY_MARK: &str = "test-value-model-key-mark-y7";
 const ROUTINE_MARK: &str = "com.example.routinemark";
 const RUN_WALL_S: u32 = 7_340_033;
 const LOG_MS: u32 = 7_340_047;
@@ -714,6 +715,10 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
         "slots": [{"name": "payee", "value": [BINDINGS_MARK]}],
     }));
     assert!(reply.is_ok(), "set_bindings: {reply:?}");
+    let reply = w.coordinator(json!({
+        "op": "put_model_key", "workflow": null, "agent": null, "key": MODEL_KEY_MARK,
+    }));
+    assert!(reply.is_ok(), "put_model_key: {reply:?}");
     w.learn(
         2,
         2,
@@ -762,6 +767,7 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
         ("agent_effect", json!(EFFECT_MARK)),
         ("agent_log", json!(LOG_MS)),
         ("agent_checkpoint", json!(CHECKPOINT_MARK)),
+        ("model_key", json!(MODEL_KEY_MARK)),
         ("learn_run", json!(run(LEARN_RUN))),
         ("learn_routine", json!(ROUTINE_MARK)),
         ("learn_edit", json!(edit)),
@@ -771,7 +777,7 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
         .chain(halvo_schema::learning::KINDS)
         .map(|k| k.name)
         .collect();
-    assert_eq!(kinds.len(), 14);
+    assert_eq!(kinds.len(), 15);
     for kind in &kinds {
         assert!(!every_row(&w, kind).is_empty(), "no row of the kind {kind}");
         assert!(

@@ -34,6 +34,7 @@ fn the_memory_owner_merges_the_slots_of_set_bindings_by_name() {
         state: AgentState::Approved,
         slots: vec![],
         session: false,
+        window: false,
         last: None,
         unknown: vec![],
         refused_run: None,

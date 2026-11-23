@@ -1590,7 +1590,7 @@ fn entry_value(field: &str, value: &[TokenTree]) -> Result<(), String> {
                     && path_is(&value[..4], "RetentionClass", &["Bounded"])
                     && inner(&value[4], Delimiter::Brace).is_some_and(|t| days(&t)))
         }
-        "origin" => path_is(value, "Origin", &["Capture", "Own"]),
+        "origin" => path_is(value, "Origin", &["Capture", "Own", "Person"]),
         "workflow_key" => match value {
             [none] => is_word(Some(none), "None"),
             [some, group] if is_word(Some(some), "Some") => {

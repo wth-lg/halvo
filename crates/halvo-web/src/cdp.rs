@@ -1598,6 +1598,25 @@ impl Executor {
         Ok(resolved)
     }
 
+    /// The frame that the frame origins `origins` name, from the top document inward, and the loader
+    /// of the document whose origin the walk read there (`frame_by_origins`, the walk of
+    /// `resolve_in`, unchanged); refused with the cause `resolve` and `frame` where they do not name
+    /// one frame, as `resolve_in` refuses. With no origin, the top frame and the loader of the
+    /// document that it holds now. The browser's maker notes it before its act, so that the read
+    /// after a released request waits for a new document in the frame of that request (r3 U5.10-B,
+    /// the coordinator's ruling of log line 16745).
+    pub async fn frame_and_loader_in(&self, origins: &[&str]) -> Res<(FrameId, LoaderId)> {
+        let walked = match self.frame_by_origins(origins).await? {
+            Ok(walked) => walked,
+            Err(_) => return Err(Fault::new("resolve", "frame")),
+        };
+        let loader = match walked.loader {
+            Some(loader) => loader,
+            None => self.loader(&walked.frame).await?,
+        };
+        Ok((walked.frame, loader))
+    }
+
     /// `resolve_in` that gives the one ref, and the cause `resolve` with `none` or `many` otherwise.
     pub async fn resolve_one_in(&mut self, locators: &[Locator], origins: &[&str]) -> Res<String> {
         match self.resolve_in(locators, origins).await? {

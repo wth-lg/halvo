@@ -1,0 +1,2 @@
+- Added: Under the runner's test feature loopback, the request maker of a web effect (payment, purchase, submit, sign) acts on a step whose target, post condition or read value stands in a frame that the step names, only where the top page's origin and every origin of every frame path that the step names are bound, and reads the page after the reply in the frame of the released request.
+- Changed: A value that the request maker reads in a frame names the frame document's origin, the last of the path that its step names, in place of the top page's.

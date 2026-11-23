@@ -104,6 +104,9 @@ pub struct Agent<C> {
     pub slots: Vec<Name>,
     /// `session`: whether a session is stored.
     pub session: bool,
+    /// `window`: whether the agent's next run needs a browser window, which the agent store reads
+    /// from the agent's own rows (r3 U5.15).
+    pub window: bool,
     /// `last`: the last run record, or none.
     pub last: Option<PastRun>,
     /// `unknown`: the effects of an unknown outcome.

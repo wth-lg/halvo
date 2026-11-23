@@ -79,6 +79,7 @@ fn ports() -> Ports<Config> {
         state: AgentState::Approved,
         slots: vec![],
         session: true,
+        window: false,
         last: None,
         unknown: vec![],
         refused_run: None,
