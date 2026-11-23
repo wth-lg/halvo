@@ -1,0 +1,2 @@
+- Added: Which sheet in the spreadsheet agent's set-up offers the names of the chosen or typed workbook's sheets as a list to pick from; where Halvo cannot read them, you type the sheet's name as before.
+- Changed: On a Mac, the system's question about Documents, the Desktop or Downloads now comes when Halvo reads the sheet names at the set-up, not at the agent's first run.

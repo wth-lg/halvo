@@ -785,6 +785,11 @@ impl Files for Shared {
         let _turn = self.enter();
         self.ports.choose(folder)
     }
+
+    fn sheets(&self, workbook: &str) -> Result<Vec<String>, PortError> {
+        let _turn = self.enter();
+        self.ports.sheets(workbook)
+    }
 }
 
 /// The memory ports `ports` as the value that threads share, with the memory policy and every

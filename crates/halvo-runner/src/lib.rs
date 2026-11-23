@@ -11,6 +11,7 @@ mod file;
 mod find;
 mod handback;
 mod link;
+mod names;
 mod playbook;
 #[cfg_attr(
     not(any(test, feature = "loopback")),
@@ -49,7 +50,10 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// first argument is `--relay-guard` is the guard of the relay of a run's browser, which the runner starts with its
 /// own binary: `halvo_web::guard::guard_main` takes its other arguments and gives its status, 2 for an argument that
 /// is not UTF-8. The flag `--version` as the only argument writes the version and a line feed on standard output
-/// and gives 0, or 1 when standard output takes no line; it starts no link and reads no frame.
+/// and gives 0, or 1 when standard output takes no line; it starts no link and reads no frame. A call whose first
+/// argument is `--sheet-names` is the mode of r4 U3.22c (crate::names): with one full path after it and nothing
+/// else it prints the names of that workbook's worksheets and gives 0, or gives 2 with one line `REFUSED <cause>:
+/// <detail>` on standard error and no name; with no path or more arguments it is refused with the cause `usage`.
 pub fn main(args: Vec<OsString>) -> i32 {
     if args
         .first()
@@ -72,6 +76,15 @@ pub fn main(args: Vec<OsString>) -> i32 {
         line(PANIC_LINE);
         std::process::exit(1);
     }));
+    if let Some(asked) = args::asks_sheet_names(&args) {
+        return match asked {
+            Ok(workbook) => names::main(std::path::Path::new(workbook)),
+            Err(detail) => {
+                line(&format!("REFUSED usage: {detail}"));
+                2
+            }
+        };
+    }
     let args = match args::parse(&args) {
         Ok(args) => args,
         Err(detail) => {

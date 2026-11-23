@@ -2534,7 +2534,13 @@ where
 
     /// The text of a parameter of a setup item that has no candidate (I8.1
     /// `agents_setup_typed`), at the step mark `step` that the page showed, which is refused with
-    /// `state` where it is no longer the item's (I3.4).
+    /// `state` where it is no longer the item's (I3.4). Where the text is a line of Which
+    /// spreadsheet file that an open item asking Which sheet takes and that differs from the line
+    /// that it holds (`Setup::sheets_due`), the names of that workbook's worksheets are read first
+    /// through `Files::sheets`, with the coordinator's lock released as `setup_choose` releases
+    /// it, and the move then takes the line with the names that the read answered, none where it
+    /// failed (`SetupInput::Book`; r4 U3.22c). The move finds the item again under the lock, as
+    /// every move does: another line, a lapse or another step mark may stand by then.
     pub fn setup_typed(
         &self,
         item: &ItemId,
@@ -2542,12 +2548,27 @@ where
         text: &str,
         step: u32,
     ) -> Result<(), Cause> {
+        let due = {
+            let st = self.lock();
+            st.setups
+                .iter()
+                .find(|s| s.item() == item && s.step() == step)
+                .and_then(|s| s.sheets_due(param, text))
+        };
+        let read = due.map(|line| self.ports.sheets(&line).ok());
+        let input = match &read {
+            Some(sheets) => SetupInput::Book {
+                text,
+                sheets: sheets.as_deref(),
+            },
+            None => SetupInput::Typed { param, text },
+        };
         let mut st = self.enter(Entry::Move);
         if Self::waits_on_item(&st, item) {
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);
-        let out = self.setup(&mut st, item, SetupInput::Typed { param, text }, step);
+        let out = self.setup(&mut st, item, input, step);
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out

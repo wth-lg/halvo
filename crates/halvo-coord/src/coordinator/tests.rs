@@ -1006,3 +1006,115 @@ fn u322b_a_data_file_outside_the_workbooks_folder_is_not_taken_at_its_line() {
         }
     }
 }
+
+/// The entry of Which sheet of the open set-up item of the spreadsheet agent.
+fn sheet_entry(c: &Coordinator<Ports<Config>>) -> crate::types::ParamEntry {
+    let item = sheet_setup(c).expect("the set-up item stays open");
+    let entry = item.params().iter().find(|p| p.name == Param::Sheet);
+    entry.expect("the item asks Which sheet").clone()
+}
+
+/// The list of Which sheet: each entry's number, its value and where it comes from.
+fn sheet_list(c: &Coordinator<Ports<Config>>) -> Vec<(u32, Vec<String>, CandidateFrom)> {
+    let entry = sheet_entry(c);
+    let list = entry.candidates.iter();
+    list.map(|e| (e.n, e.value.clone(), e.from)).collect()
+}
+
+/// `names` as a list of Which sheet, numbered from 1, each from `files`.
+fn listed(names: &[&str]) -> Vec<(u32, Vec<String>, CandidateFrom)> {
+    (1..)
+        .zip(names)
+        .map(|(n, name)| (n, vec![name.to_string()], CandidateFrom::Files))
+        .collect()
+}
+
+/// r4 U3.22c sentence 4: over the stand-in port of files, a taken line of Which spreadsheet file
+/// whose read answers three names makes Which sheet a list of the three, in the workbook's order,
+/// with no typed line and no hint; the pick of the second, which reaches the core by its name,
+/// sends ONE set_bindings whose sheet slot holds that name. A line whose names were not read leaves the typed line with its hint. In
+/// an item that asks its answers again (Change its answers) a taken workbook line shows its
+/// workbook's list, and a second workbook line with other names replaces the list and drops the
+/// older choice, so that the other answers make no body.
+#[test]
+fn u322c_which_sheet_offers_the_names_that_the_read_of_the_workbook_answers_as_its_list() {
+    use crate::types::YesNo;
+    let path = |name: &str| {
+        if cfg!(windows) {
+            format!("C:\\Users\\ana\\Documents\\{name}")
+        } else {
+            format!("/Users/ana/Documents/{name}")
+        }
+    };
+    let three = ["January", "February", "Summary"];
+    let (book, other, unread) = (path("Budget.xlsx"), path("Plan.xlsx"), path("Old.xlsx"));
+    let give = |c: &Coordinator<Ports<Config>>| {
+        let mut sheets = c.ports().sheets.borrow_mut();
+        sheets.push((book.clone(), three.iter().map(|n| n.to_string()).collect()));
+        sheets.push((other.clone(), vec!["Plan".to_owned(), "Actual".to_owned()]));
+    };
+    let c = sheet_world(&[], false);
+    give(&c);
+    let item = sheet_setup(&c).expect("the set-up item of an agent with no slot");
+    assert_eq!(
+        c.setup_typed(item.item(), Param::Workbook, &unread, item.step()),
+        Ok(())
+    );
+    assert_eq!(*c.ports().sheet_reads.borrow(), vec![unread.clone()]);
+    let entry = sheet_entry(&c);
+    assert!(entry.candidates.is_empty() && entry.typed == YesNo::Yes);
+    assert_eq!(
+        entry.hint,
+        "Type the sheet's name as its tab shows it, for example Sheet1."
+    );
+    assert_eq!(
+        c.setup_typed(item.item(), Param::Workbook, &book, item.step()),
+        Ok(())
+    );
+    assert_eq!(sheet_list(&c), listed(&three));
+    let entry = sheet_entry(&c);
+    assert_eq!((entry.typed, entry.hint.as_str()), (YesNo::No, ""));
+    for p in [Param::Range, Param::Source] {
+        assert_eq!(c.setup_typed(item.item(), p, good(p), item.step()), Ok(()));
+    }
+    let m = mark(&c);
+    assert_eq!(
+        c.setup_typed(item.item(), Param::Sheet, "February", item.step()),
+        Ok(())
+    );
+    let sent = set_bindings(&c, m);
+    assert_eq!(sent.len(), 1, "ONE body");
+    assert_eq!(
+        slot_of(&sent[0], Param::Sheet),
+        Some(vec!["February".into()])
+    );
+    assert_eq!(slot_of(&sent[0], Param::Workbook), Some(vec![book.clone()]));
+
+    let again = sheet_world(&SHEET_SLOTS, true);
+    give(&again);
+    assert_eq!(again.control(&sheet_agent(), Action::ChangeAnswers), Ok(()));
+    let item = sheet_setup(&again).expect("the set-up item is up again");
+    assert_eq!(
+        again.setup_typed(item.item(), Param::Workbook, &book, item.step()),
+        Ok(())
+    );
+    assert_eq!(sheet_list(&again), listed(&three), "its workbook's list");
+    assert_eq!(
+        again.setup_typed(item.item(), Param::Sheet, "January", item.step()),
+        Ok(())
+    );
+    assert_eq!(
+        again.setup_typed(item.item(), Param::Workbook, &other, item.step()),
+        Ok(())
+    );
+    assert_eq!(sheet_list(&again), listed(&["Plan", "Actual"]));
+    let m = mark(&again);
+    for p in [Param::Range, Param::Source] {
+        let typed = again.setup_typed(item.item(), p, good(p), item.step());
+        assert_eq!(typed, Ok(()));
+    }
+    assert!(
+        set_bindings(&again, m).is_empty(),
+        "the older choice went with its list"
+    );
+}

@@ -160,6 +160,10 @@ impl<P: Files> Files for Wired<P> {
     fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError> {
         self.ports.choose(folder)
     }
+
+    fn sheets(&self, workbook: &str) -> Result<Vec<String>, PortError> {
+        self.ports.sheets(workbook)
+    }
 }
 
 impl<P> Page for Wired<P> {

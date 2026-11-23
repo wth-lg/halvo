@@ -401,6 +401,10 @@ impl Files for Both {
     fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError> {
         self.ports.choose(folder)
     }
+
+    fn sheets(&self, workbook: &str) -> Result<Vec<String>, PortError> {
+        self.ports.sheets(workbook)
+    }
 }
 
 /// The owner of a world: one workflow and one agent per entry of `spec`, each with one run

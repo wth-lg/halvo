@@ -638,6 +638,10 @@ mod mac {
         ) -> Result<halvo_coord::ports::Chosen, halvo_coord::ports::PortError> {
             Ok(halvo_coord::ports::Chosen::Closed)
         }
+
+        fn sheets(&self, _: &str) -> Result<Vec<String>, halvo_coord::ports::PortError> {
+            Err(halvo_coord::ports::PortError::NoService)
+        }
     }
 
     fn now_ns() -> i64 {

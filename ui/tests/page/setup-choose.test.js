@@ -103,9 +103,10 @@ test("Choose a file stands beside the lines of the two file questions alone; a p
     page.calls("agents_setup_typed").map((c) => [c.args.param, c.args.text]),
     [
       ["workbook", "/Volumes/work/Budget.xlsx"],
+      ["workbook", "/Volumes/work/Budget.xlsx"],
       ["source", "/Volumes/work/receipts.csv"],
     ],
-    "the filled line goes as a typed line does",
+    "the filled line goes as a typed line does: a picked workbook at once (r4 U3.22c), then at the press with the other",
   );
 });
 

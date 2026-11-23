@@ -254,6 +254,11 @@ pub struct Ports<C> {
     pub chosen: RefCell<VecDeque<Chosen>>,
     /// The folder of each call of `Files::choose`, in order.
     pub choose_reads: RefCell<Vec<Option<String>>>,
+    /// The names that `Files::sheets` answers for each workbook's path; a path that it does not
+    /// hold answers `no_service`, names that were not read (r4 U3.22c).
+    pub sheets: RefCell<Vec<(String, Vec<String>)>>,
+    /// The path of each call of `Files::sheets`, in order.
+    pub sheet_reads: RefCell<Vec<String>>,
     now: Cell<u64>,
     zone: Cell<i64>,
     step: Cell<u64>,
@@ -297,6 +302,8 @@ impl<C> Ports<C> {
             sender_reads: RefCell::new(Vec::new()),
             chosen: RefCell::new(VecDeque::new()),
             choose_reads: RefCell::new(Vec::new()),
+            sheets: RefCell::new(Vec::new()),
+            sheet_reads: RefCell::new(Vec::new()),
             now: Cell::new(now),
             zone: Cell::new(zone_of(now, today)),
             step: Cell::new(0),
@@ -1292,5 +1299,15 @@ impl<C> Files for Ports<C> {
             .borrow_mut()
             .pop_front()
             .unwrap_or(Chosen::Closed))
+    }
+
+    fn sheets(&self, workbook: &str) -> Result<Vec<String>, PortError> {
+        self.sheet_reads.borrow_mut().push(workbook.to_owned());
+        self.sheets
+            .borrow()
+            .iter()
+            .find(|(path, _)| path == workbook)
+            .map(|(_, names)| names.clone())
+            .ok_or(PortError::NoService)
     }
 }

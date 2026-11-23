@@ -8,6 +8,7 @@ mod api;
 mod checkpoints;
 pub mod link;
 pub mod marks;
+mod names;
 mod owner;
 mod proc;
 pub mod process;
@@ -24,4 +25,5 @@ pub use api::{
 pub use api::{Hosted, MODEL_KEY};
 #[doc(hidden)]
 pub use api::{ReapHook, ReapStep};
+pub use names::{sheet_names, NotRead, SHEET_NAMES_BYTES, SHEET_NAMES_WAIT};
 pub use supervisor::Supervisor;

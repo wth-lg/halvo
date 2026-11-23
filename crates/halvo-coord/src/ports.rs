@@ -399,6 +399,14 @@ pub trait Files {
     /// Opens the chooser in `folder`, or where the system opens it when none is given, and
     /// answers once it has closed.
     fn choose(&self, folder: Option<&str>) -> Result<Chosen, PortError>;
+
+    /// The names of the worksheets of the workbook at the full path `workbook`, in the
+    /// workbook's order (r4 U3.22c): the app reads them by the runner's program in its mode
+    /// `--sheet-names`, through the supervisor library, and its own process reads no byte of the
+    /// workbook; the memory `Ports` answers what a test gives it. An error where they were not
+    /// read. The core calls it with its lock released, as it calls `choose`, since the read
+    /// waits up to 60 s while the person answers the system's question about a folder.
+    fn sheets(&self, workbook: &str) -> Result<Vec<String>, PortError>;
 }
 
 /// What `Files::choose` answers (r4 U3.22b).

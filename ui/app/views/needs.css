@@ -8,6 +8,7 @@
 .hn-value{margin-left:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .hn-from{margin-left:0;margin-bottom:8px;font-style:italic}
 .hn-param{border-width:1px;border-style:solid;border-color:#6b6b6b;margin-top:8px;margin-bottom:8px;padding:8px;min-width:0}
+.hn-names{max-height:16rem;overflow-y:auto}
 .hn-choice{display:flex;align-items:center;gap:8px;margin-top:4px;margin-bottom:4px;overflow-wrap:anywhere}
 .hn-radio{-webkit-appearance:none;appearance:none;flex:none;width:24px;height:24px;margin:0;border-width:2px;border-style:solid;border-color:#1a1a1a;border-radius:50%;background-color:#ffffff}
 .hn-radio:checked{border-width:8px}
