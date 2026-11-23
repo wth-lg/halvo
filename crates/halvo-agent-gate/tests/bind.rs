@@ -352,7 +352,7 @@ fn a_gate_run_whose_set_bindings_is_refused_stops_before_any_origin() {
         stopped,
         Err(Stopped {
             op: "set_bindings",
-            cause: StopCause::Refused(declared("binding")),
+            cause: StopCause::Refused(declared("slot_form")),
         })
     );
     assert_eq!(ops(&host), vec!["create_agent", "set_bindings"]);
