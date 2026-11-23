@@ -135,6 +135,34 @@ test("a turn off whose save failed says so in place of the settings sentence, on
   }
 });
 
+const KEPT_OFF = "Typing is off. Halvo could not save that in its settings, but typing stays off until you turn it on again.";
+
+test("a page that loads while a turn off is not saved says so from the status alone: the kept turn's sentence, and the tenth where this life alone holds it", async () => {
+  for (const [name, row] of [
+    ["capture_status-running", MAC_KEYS],
+    ["capture_status-running-windows", WINDOWS_KEYS],
+  ]) {
+    for (const [word, sentence] of [
+      ["kept", KEPT_OFF],
+      ["this_life", OFF_NOT_SAVED],
+    ]) {
+      const off = turnedOff(fixture(name), row);
+      const view = { ...off, typing_switch: { ...off.typing_switch, not_saved: word } };
+      const page = await openPage({ replies: { capture_status: () => view } });
+      assert.equal(page.byId("record-typing").getAttribute("aria-checked"), "false", `${name} ${word}`);
+      assert.equal(page.visible("typing-not-saved"), true, `${name} ${word}: at a fresh load`);
+      assert.equal(page.text("typing-not-saved"), sentence, `${name} ${word}`);
+      assert.equal(page.text("error"), "", `${name} ${word}`);
+    }
+  }
+  const saved = await openPage({
+    replies: { capture_status: () => turnedOff(fixture("capture_status-running"), MAC_KEYS) },
+  });
+  assert.equal(saved.visible("typing-not-saved"), false, "a saved turn off carries no word and shows no sentence");
+  const printed = await openPage({ replies: { capture_status: () => fixture("capture_status-typing-off-kept") } });
+  assert.equal(printed.text("typing-not-saved"), KEPT_OFF, "the view that the app prints for a kept turn");
+});
+
 test("the control stands in a row of its own where no row of keys stands: a paused Windows view and a Mac view whose input line failed", async () => {
   const windows = fixture("capture_status-running-windows");
   const pausedWindows = {
