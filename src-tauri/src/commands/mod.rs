@@ -29,7 +29,7 @@ pub trait Registration: Send + Sync {
 
     /// Told before a delete of everything goes out, at either door (contracts.md C10.1), off
     /// the calling thread; the caller waits for it at most for STOP_WAIT_MS and then goes on.
-    /// None of the three modules implements it today, so a module that holds what a delete
+    /// None of the four modules implements it today, so a module that holds what a delete
     /// removes stops nothing here unless it does: the agents' runs are held by the command
     /// itself (`agents::RunsHold`), and behind that the delete walk ends every runner that a
     /// mark names.
