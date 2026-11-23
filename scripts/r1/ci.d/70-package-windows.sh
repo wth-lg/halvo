@@ -685,6 +685,9 @@ cycle() {
   location=$(reg_data "$entry_key" InstallLocation)
   [ -n "$location" ] || fail "the uninstall entry names no InstallLocation"
   reg_put "$entry_key" InstallLocation "$native_install-of-another-account" || fail "the folder of the uninstall entry cannot be turned"
+  # The app writes the Run value of its own path at its start, so the value is read as it stands
+  # now, not as the check planted it.
+  run_before=$(reg_data "$run_key" Halvo)
   MSYS_NO_PATHCONV=1 "$install/uninstall.exe" /S /DELETEALL "_?=$native_install" >"$work/uninstall-other.out" 2>&1
   code=$?
   printf 'cycle uninstall /S /DELETEALL, the entry naming another folder: exit %s\n' "$code"
@@ -696,7 +699,7 @@ cycle() {
   [ -e "$default" ] || went="$went, the default data directory"
   [ -e "$planted" ] || went="$went, the file planted in EBWebView"
   run_now=$(reg_data "$run_key" Halvo)
-  [ "$run_now" = "$planted_run" ] || went="$went, the Run value"
+  [ "$run_now" = "$run_before" ] || went="$went, the Run value"
   list_from "$native_install" >"$work/listing" || fail "the list of processes cannot be read"
   pair_of halvo
   [ -n "$pair" ] || went="$went, the app with its child"
@@ -884,6 +887,10 @@ fi
 dir=$STUB_DEFAULT
 [ "${2:-}" = --data-dir ] && dir=$3
 here=$(cd "$(dirname "$0")" && pwd)
+# As the app at a start on its default data directory: the Run value of its own path.
+if [ "${2:-}" != --data-dir ]; then
+  printf '"%s" --background' "$here/halvo.exe" >"$STUB_DIR/reg/HKCU_Software_Microsoft_Windows_CurrentVersion_Run_Halvo"
+fi
 printf 'halvo.exe %s %s %s --background --data-dir %s\n' "$$" "$PPID" "$here/halvo.exe" "$dir" >"$STUB_DIR/procs/$$"
 if [ -f "$dir/daemon-state.json" ] && [ "$STUB_MODE" != no-child ]; then
   sh "$here/halvo-capture.exe" --service-run --lifeline --data-dir "$dir" &
