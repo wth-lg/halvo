@@ -55,21 +55,20 @@ pub enum PathRefusal {
     TooLong,
 }
 
-/// Why a source file is not of the form of contracts.md A1.2: one row per line, ended by LF,
-/// cells separated by commas, no header and no quoting.
+/// Why a source file is not of the form that [`crate::Folder::read_source`] takes: RFC 4180 with
+/// the comma as the one separator, one row per line ended by LF or CRLF, no header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceRefusal {
     /// The file is not UTF-8.
     Encoding,
-    /// The file starts with a byte-order mark.
-    ByteOrderMark,
-    /// The file holds a carriage return.
+    /// The file holds a carriage return that no line feed follows, inside a quoted field or
+    /// outside one.
     CarriageReturn,
     /// A quoted field that starts on this line (counted from 1) holds a line break, LF or CRLF.
     QuotedLineBreak { line: usize },
-    /// A double quote on this line (counted from 1) is out of its place: it stands inside a field
-    /// that does not begin with one, or text follows the quote that closes a field; or a field
-    /// that begins with one is not closed by the end of the file.
+    /// A field on this line (counted from 1) begins with a double quote, and text follows the
+    /// quote that closes it, or no quote closes it by the end of the file. A double quote inside
+    /// a field that does not begin with one is text.
     Quote { line: usize },
     /// The row on this line (counted from 1) has another number of cells than the first row.
     Ragged { line: usize },

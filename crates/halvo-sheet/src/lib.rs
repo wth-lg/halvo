@@ -105,13 +105,21 @@ impl Folder {
         book::read(&bytes, sheet, range)
     }
 
-    /// Returns the rows of the source file at `source` (contracts.md A1.2): one row per line,
-    /// ended by LF, cells separated by commas, no header and no quoting; an empty file has no
-    /// row. A cell is a number when its text is digits with an optional leading `-` and at most
-    /// one `.`, with no zero before another digit of its whole part and at most 15 significant
-    /// digits; every other cell is a text, as typed (`007` and a number of 20 digits stay
-    /// texts). Refused with [`Error::Source`] when the file is not UTF-8, starts with a
-    /// byte-order mark, holds a carriage return or has rows of different lengths.
+    /// Returns the rows of the source file at `source`: a CSV file as RFC 4180 (its section 2)
+    /// has it, with the comma as the one separator and no header row; an empty file has no row.
+    /// One UTF-8 byte-order mark at the file's first byte is skipped (a mark at another place is
+    /// text), a line ends with LF or CRLF, and the last line reads the same with its line end
+    /// and without it. A field that begins with a double quote holds commas, and two double
+    /// quotes in it are one; a double quote inside a field that does not begin with one is text,
+    /// and so is one behind a space. The quotes give the field's bounds and nothing else: a field,
+    /// quoted or not, is a number when its text is digits with an optional leading `-` and at
+    /// most one `.`, with no zero before another digit of its whole part and at most 15
+    /// significant digits; every other field is a text, as typed (`007` and a number of 20
+    /// digits stay texts, and `"123"` is the number 123). Refused with [`Error::Source`] when
+    /// the file is not UTF-8, holds a carriage return that no line feed follows, a line break
+    /// inside a quoted field, text behind a closing quote or a quote that is never closed, or
+    /// has rows of different lengths. No other separator is taken: a line whose fields are separated by semicolons or
+    /// tabs is one field, cut at each comma that it holds.
     pub fn read_source(&self, source: &Path) -> Result<Vec<Vec<Value>>, Error> {
         let full = self.file(source)?;
         source::parse(&std::fs::read(full)?)
