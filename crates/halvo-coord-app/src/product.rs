@@ -37,7 +37,7 @@ use halvo_agent_client::link::product::ClientEnds;
 use halvo_agent_client::link::StreamLink;
 use halvo_agent_client::{
     Confirmer, Human, IssueRefused, LinkError, MarkSink, OriginAnswer, OwnerLink, Parts,
-    ReapAnswer, RunEnd, Secrets, Supervisor,
+    ReapAnswer, RunEnd, Supervisor,
 };
 use halvo_control::client::ClientError;
 use halvo_control::r2::{OwnerStreamEnd, RunEdge, RunMarked};
@@ -58,16 +58,15 @@ use halvo_coord::types::{
     Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState, WorkflowTrigger,
 };
 use halvo_coord::types::{Autonomy, Budget, Limits, Permission, Reasoning, Runtime, Tier};
-use halvo_schema::executable::frame::{
-    ConfirmDecision, ConfirmRequest, HandbackRequest, SecretReply,
-};
+use halvo_schema::executable::frame::{ConfirmDecision, ConfirmRequest, HandbackRequest};
 use halvo_schema::executable::names::Answer as EffectReply;
-use halvo_schema::executable::text::{EffectId as WireEffect, Name as WireName, WebOrigin};
+use halvo_schema::executable::text::{EffectId as WireEffect, WebOrigin};
 use halvo_schema_core::request::{decode_reply, InterfaceDecision, InterfaceRead, InterfaceRole};
 use halvo_schema_core::request::{ErrorName, ReplyResult};
 use serde_json::Value;
 
 use crate::hub::{Core, Hub};
+use crate::model_key::ModelKey;
 use crate::present::{dialog_hub, Dialog};
 
 /// The call of one end of a new owner stream.
@@ -653,15 +652,6 @@ impl OwnerLink for Guarded {
     }
 }
 
-/// The library's `Secrets` as the library has them: none stored for every name (a named limit of the unit).
-struct NoSecrets;
-
-impl Secrets for NoSecrets {
-    fn read(&self, _agent: &halvo_schema::AgentId, _name: &WireName) -> SecretReply {
-        SecretReply::None
-    }
-}
-
 /// The product's ports.
 pub struct Product {
     link: Arc<dyn OwnerLink>,
@@ -698,6 +688,7 @@ impl Product {
             sending: AtomicBool::new(false),
         });
         let waits = Arc::new(Waits::default());
+        let link = link_of(&calls);
         let parts = Parts {
             link: Arc::new(Guarded {
                 link: link_of(&calls),
@@ -713,7 +704,7 @@ impl Product {
                 runs: Arc::clone(&runs),
                 waits: Arc::clone(&waits),
             }),
-            secrets: Arc::new(NoSecrets),
+            secrets: Arc::new(ModelKey::new(Arc::clone(&link))),
             marks: Arc::new(Sink {
                 marks: Arc::clone(&marks),
                 events: Arc::clone(&events),
@@ -727,7 +718,7 @@ impl Product {
             parts,
         );
         let product = Product {
-            link: link_of(&calls),
+            link,
             relay: Arc::clone(&calls.relay),
             defer: Arc::clone(&calls.defer),
             supervisor,

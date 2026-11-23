@@ -3,7 +3,10 @@
 
 use std::sync::Arc;
 
-use halvo_agent_client::{LinkError, OwnerLink};
+use halvo_agent_client::{LinkError, OwnerLink, Secrets, MODEL_KEY};
+use halvo_schema::executable::frame::SecretReply;
+use halvo_schema::executable::names::Unreadable;
+use halvo_schema::executable::text::{Name as WireName, SecretText};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -104,7 +107,12 @@ impl ModelKey {
     /// The reply of the page's command `command` with `args` in a build whose host is `host`, none for a name that
     /// is not one of `COMMANDS`. `model_key_state` sends nothing where there is no host; `save_model_key` saves the
     /// text of the key `key` of `args`, the empty text where there is none.
-    pub fn call(&self, host: Option<&str>, command: &str, args: Option<&Value>) -> Option<KeyReply> {
+    pub fn call(
+        &self,
+        host: Option<&str>,
+        command: &str,
+        args: Option<&Value>,
+    ) -> Option<KeyReply> {
         Some(match command {
             "model_key_state" => match host {
                 Some(host) => KeyReply::Host {
@@ -164,6 +172,28 @@ impl ModelKey {
     }
 }
 
+/// The app's arm of the supervisor's `Secrets` (r3 U7.6), which the library asks only for a run whose start names a
+/// hosted tier: the reserved name `MODEL_KEY` reads the person's key by ONE body `read_model_key` at that moment and
+/// keeps nothing. It answers the key where one stands, none stored at a null key, and unreadable with the member
+/// `fault` where the request fails, the owner refuses it or its reply does not read. Every other name is none stored
+/// with no request, as the library's stand-in `NoSecrets` answered.
+impl Secrets for ModelKey {
+    fn read(&self, _agent: &halvo_schema::AgentId, name: &WireName) -> SecretReply {
+        if name.as_str() != MODEL_KEY {
+            return SecretReply::None;
+        }
+        let fault = SecretReply::Unreadable(Unreadable::Fault);
+        let Some(result) = self.ask("read_model_key", "") else {
+            return fault;
+        };
+        match result.get("key") {
+            Some(Value::Null) => SecretReply::None,
+            Some(Value::String(key)) => SecretText::parse(key).map_or(fault, SecretReply::Stored),
+            _ => fault,
+        }
+    }
+}
+
 /// The link where no service answers.
 struct NoService;
 
@@ -177,9 +207,8 @@ impl OwnerLink for NoService {
 /// at most `KEY_MAX` bytes and every byte is a visible sign of ASCII (0x21 to 0x7E); else none.
 fn key_of(text: &str) -> Option<&str> {
     let key = text.trim_matches(&[' ', '\t', '\n', '\r'][..]);
-    let fits = !key.is_empty()
-        && key.len() <= KEY_MAX
-        && key.bytes().all(|b| (0x21..=0x7e).contains(&b));
+    let fits =
+        !key.is_empty() && key.len() <= KEY_MAX && key.bytes().all(|b| (0x21..=0x7e).contains(&b));
     fits.then_some(key)
 }
 
@@ -335,7 +364,11 @@ mod tests {
                 ]
                 .map(|reply| serde_json::to_string(&reply.expect("a command of the key")).unwrap());
                 assert_eq!(got, expected.map(str::to_owned), "{expected:?}");
-                let ops: Vec<Value> = link.kept().iter().map(|r| r["body"]["op"].clone()).collect();
+                let ops: Vec<Value> = link
+                    .kept()
+                    .iter()
+                    .map(|r| r["body"]["op"].clone())
+                    .collect();
                 assert_eq!(ops, ["model_key_state", "put_model_key", "drop_model_key"]);
                 all.extend(got);
             }
@@ -345,5 +378,57 @@ mod tests {
             replies("test-value-not-a-model-key"),
             replies("test-value-not-a-model-key-of-another-length-0123456789")
         );
+    }
+
+    /// U3.18 sentence 8: the app's arm of the supervisor's `Secrets` answers the reserved name `model_key` by ONE
+    /// body `read_model_key`: the key where one stands, none stored at a null key, and unreadable with the member
+    /// `fault` where the request failed; every other name none stored, with no request.
+    #[test]
+    fn the_arm_answers_the_model_key_by_one_read_and_every_other_name_none_stored() {
+        const KEY: &str = "test-value-not-a-model-key";
+        let agent = halvo_schema::AgentId::parse(&"a1".repeat(16)).unwrap();
+        let rows = [
+            (
+                Answer::Result(r#"{"key":"test-value-not-a-model-key"}"#),
+                MODEL_KEY,
+                SecretReply::Stored(SecretText::parse(KEY).unwrap()),
+                1,
+            ),
+            (
+                Answer::Result(r#"{"key":null}"#),
+                MODEL_KEY,
+                SecretReply::None,
+                1,
+            ),
+            (
+                Answer::Refused("store"),
+                MODEL_KEY,
+                SecretReply::Unreadable(Unreadable::Fault),
+                1,
+            ),
+            (
+                Answer::Result(r#"{"key":"test-value-not-a-model-key"}"#),
+                "site_password",
+                SecretReply::None,
+                0,
+            ),
+        ];
+        for (answer, name, expected, sent) in rows {
+            let (link, model) = stand(answer);
+            let arm: &dyn Secrets = &model;
+            assert_eq!(
+                arm.read(&agent, &WireName::parse(name).unwrap()),
+                expected,
+                "{name}"
+            );
+            let kept = link.kept();
+            assert_eq!(kept.len(), sent, "{name}");
+            for request in kept {
+                assert_eq!(
+                    request["body"],
+                    json!({"op": "read_model_key", "workflow": null, "agent": null})
+                );
+            }
+        }
     }
 }
