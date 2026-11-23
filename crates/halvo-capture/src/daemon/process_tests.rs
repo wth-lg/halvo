@@ -2001,36 +2001,47 @@ fn a_stop_request_finds_the_line_stop_in_the_marker_when_its_answer_arrives() {
 }
 
 #[test]
-fn a_start_with_no_press_ends_with_7_behind_a_stop_before_it_binds_and_serves_behind_a_lifeline() {
-    for (line, ends_with, after) in [
+fn a_start_ends_with_7_behind_a_stop_only_with_no_press_before_it_binds_and_serves_behind_a_lifeline(
+) {
+    use super::Behind::{NoPress, Unsaid};
+    for (behind, line, ends_with, after) in [
         (
+            NoPress,
             "ended=stop\n",
             halvo_control::exit::WAITS_FOR_A_PRESS,
             "ended=stop\n",
         ),
         (
+            NoPress,
             "ended=lifeline\n",
             halvo_control::exit::CLEAN,
             "ended=signal\n",
         ),
+        (
+            Unsaid,
+            "ended=stop\n",
+            halvo_control::exit::CLEAN,
+            "ended=signal\n",
+        ),
     ] {
+        let case = format!("{behind:?} behind {line:?}");
         let (dir, _marks) = running_dir(false);
         stand_marker(&dir, line);
-        let (status, err) = a_start_behind(&dir, super::Behind::NoPress);
-        assert_eq!(status, ends_with, "{line:?}: {err}");
-        assert_eq!(marker_of(&dir).as_deref(), Some(after), "{line:?}: {err}");
+        let (status, err) = a_start_behind(&dir, behind);
+        assert_eq!(status, ends_with, "{case}: {err}");
+        assert_eq!(marker_of(&dir).as_deref(), Some(after), "{case}: {err}");
         let serves = ends_with == halvo_control::exit::CLEAN;
         assert_eq!(
             backup_mark(&dir, false).is_some(),
             serves,
-            "{line:?}: only a start that serves goes on past the marker to its channel and its folder's backup mark: {err}"
+            "{case}: only a start that serves goes on past the marker to its channel and its folder's backup mark: {err}"
         );
         assert_eq!(
             err.contains("capture waits for a press on Start"),
             !serves,
-            "{line:?}: {err}"
+            "{case}: {err}"
         );
-        assert!(!dir.join("store").exists(), "{line:?}: no store: {err}");
+        assert!(!dir.join("store").exists(), "{case}: no store: {err}");
     }
 }
 
