@@ -146,6 +146,106 @@ fn a_bind_that_the_person_declines_is_answered_no_and_sends_no_add_origin() {
 }
 
 #[test]
+fn a_no_at_the_bind_question_drops_the_waiting_add_of_that_origin() {
+    let rig = Rig::new("bind-decline-drops-add");
+    rig.store
+        .fail_add_origin
+        .store(usize::MAX, Ordering::SeqCst);
+    *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
+    let other = confirm(Some("http://mail.test:18090")).replace(&"60".repeat(16), &"61".repeat(16));
+    let script = rig.script(&[
+        "hello",
+        &confirm(Some("http://pay.test:18090")),
+        &other,
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log declined",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(script.wait_log("declined", SHORT), "{}", script.log());
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"no"}"#]);
+    let to = |origin: &str| {
+        let way = format!(r#""origin":"{origin}","way":"new_origin""#);
+        adds(&rig).iter().filter(|b| b.contains(&way)).count()
+    };
+    let (pay, mail) = (to("http://pay.test:18090"), to("http://mail.test:18090"));
+    assert!(pay >= 1 && mail >= 1, "both adds were sent before the no");
+    assert!(
+        wait_until(SHORT, || to("http://mail.test:18090") >= mail + 2),
+        "the add of another origin is still sent; two more sends span more than one ADD_AGAIN"
+    );
+    assert_eq!(
+        to("http://pay.test:18090"),
+        pay,
+        "an add_origin of the declined origin was sent after the no"
+    );
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn a_no_behind_a_cancel_written_while_the_bind_question_is_open_drops_the_waiting_add_of_that_origin(
+) {
+    let rig = Rig::new("cancel-then-no-drops-add");
+    rig.store
+        .fail_add_origin
+        .store(usize::MAX, Ordering::SeqCst);
+    *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
+    *rig.people.hold_allow.lock().unwrap() = true;
+    let go = rig.dir.join("go");
+    let other = confirm(Some("http://mail.test:18090")).replace(&"60".repeat(16), &"61".repeat(16));
+    let script = rig.script(&[
+        "hello",
+        &confirm(Some("http://pay.test:18090")),
+        &other,
+        &sign_in(),
+        &bind("http://pay.test:18090").replacen("ask ", "send ", 1),
+        &format!("wait-for {}", go.display()),
+        &end_row(None),
+        &common::ask_finish(),
+        r#"send {"t":"done","outcome":"declined"}"#,
+        "exit 1",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(wait_until(SHORT, || !rig
+        .people
+        .asked_origins
+        .lock()
+        .unwrap()
+        .is_empty()));
+    assert_eq!(rig.sup.cancel(&run), Ok(()));
+    assert!(script.wait_log("\ncancel", SHORT), "{}", script.log());
+    let to = |origin: &str| {
+        let way = format!(r#""origin":"{origin}","way":"new_origin""#);
+        adds(&rig).iter().filter(|b| b.contains(&way)).count()
+    };
+    let (pay, mail) = (to("http://pay.test:18090"), to("http://mail.test:18090"));
+    assert!(
+        pay >= 1 && mail >= 1,
+        "both adds were sent before the question"
+    );
+    *rig.people.hold_allow.lock().unwrap() = false;
+    assert!(
+        wait_until(SHORT, || to("http://mail.test:18090") >= mail + 2),
+        "the add of another origin is still sent; two more sends span more than one ADD_AGAIN"
+    );
+    assert_eq!(
+        to("http://pay.test:18090"),
+        pay,
+        "an add_origin of the declined origin was sent after the no behind a cancel"
+    );
+    std::fs::write(&go, b"").unwrap();
+    let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert_cancelled_bind_ended_as_declined(&rig, &script, &end);
+}
+
+#[test]
 fn a_bind_of_an_origin_that_the_bindings_hold_is_answered_yes_at_once_with_no_question() {
     let rig = Rig::new("bind-held");
     rig.store
