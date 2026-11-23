@@ -5,7 +5,11 @@
 //!   the product's link of the supervisor library: `coord_log` and `coord_history` for the events, `list_agents`,
 //!   `agent_history`, `list_overlaps` and the bodies of `Body` for the agent store. The list of the workflows and the
 //!   decision `delete` are reads and decisions of the role `interface`, which a stream refuses: they go through the
-//!   app's relay call. No write of the coordinator goes through the relay.
+//!   app's relay call. No write of the coordinator goes through the relay. Where this build's table of hosts names a
+//!   host, each list of the agents hands each agent's configuration what the core shows of an AI model (r4 U3.17b):
+//!   the host, the model words, whether `agreement::stands` holds for the stored tier, and, where an agent's runtime
+//!   asks a model, the key's state and the count's state, read by ONE body each through `ModelLimit` with a memory of
+//!   the rows' own.
 //! - `Runs` is the supervisor library over a second owner stream: `start` hands the machine's zone offset of the
 //!   moment as `utc_offset_s`, and a hosted tier as `hosted` only where `crate::agreement::hosted` gives one for the
 //!   agent as the newest list kept it (r4 U3.17a); the first `reap` of a life answers what the start's own reap
@@ -674,9 +678,8 @@ pub struct Product {
     runs: RunsOf,
     waits: Arc<Waits>,
     agents: Mutex<HashMap<AgentId, KeptAgent>>,
-    /// The memory of the limit's part that the read for the agents' rows keeps, its own and never the part's
-    /// (r4 U3.17b): only an answer of the part itself may move the part's memory.
-    rows_memory: Memory,
+    /// The memory that the read for the agents' rows keeps (r4 U3.17b): its own and never the part's.
+    rows_memory: RowsMemory,
     reaped: Mutex<Option<Vec<ReapAnswer>>>,
     checkpoints: AtomicBool,
 }
@@ -741,7 +744,7 @@ impl Product {
             runs,
             waits,
             agents: Mutex::new(HashMap::new()),
-            rows_memory: Memory::new(),
+            rows_memory: RowsMemory::default(),
             reaped: Mutex::new(None),
             checkpoints: AtomicBool::new(false),
         };
@@ -1224,6 +1227,13 @@ fn entry_of(entry: &Value) -> Option<(Agent<AgentConfig>, Option<Agreement>)> {
     Some((agent_of(entry)?, Agreement::of(&entry["agreement"])))
 }
 
+/// The memory of the limit's part (`model_limit::Memory`) that the read for the agents' rows keeps (r4 U3.17b): a
+/// type of its own, so that no memory of the part, the static of the app's command `model_limit_state` among them, can
+/// be handed to that read. That memory guards the start of a new count, and only an answer of the part itself may move
+/// it (the coordinator's log line 18047).
+#[derive(Debug, Default)]
+struct RowsMemory(Memory);
+
 /// What one list of the agents read of this build's host for the agents' rows (r4 U3.17b): the host, the model words
 /// that a yes covers, whether a key is saved (none where its state does not read) and the person's spending limit.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1237,12 +1247,12 @@ struct Hosting {
 /// The read of `host` for one list of the agents: none, with nothing sent, where there is no host; else the host and
 /// the model words `models` joined by ` and `, and, only where `asks` says that an agent of the list has a runtime
 /// that asks a model (`roster::MODEL_RUNTIMES`), the key's state by ONE body `model_key_state` and the count's state by
-/// ONE body `model_room`, through `ModelLimit` with `memory`, the rows' own memory, never the memory of the limit's
+/// ONE body `model_room`, through `ModelLimit` with `memory`, the rows' own memory, never a memory of the limit's
 /// part. Where no agent asks a model nothing is read and the states stand as not read, which no row shows: no row then
 /// offers the question.
 fn hosting(
     link: &Arc<dyn OwnerLink>,
-    memory: &Memory,
+    memory: &RowsMemory,
     host: Option<String>,
     models: &[&str],
     asks: bool,
@@ -1254,7 +1264,7 @@ fn hosting(
             KeyState::None => Some(false),
             KeyState::NotKnown => None,
         };
-        let limit = spend_limit(&ModelLimit::new(Arc::clone(link), memory).state(&host));
+        let limit = spend_limit(&ModelLimit::new(Arc::clone(link), &memory.0).state(&host));
         (key, limit)
     } else {
         (None, SpendLimit::Unread)
@@ -1269,7 +1279,7 @@ fn hosting(
 
 /// `hosting` with this build's host (`model_key::host`) and the model words of the rows of its table, in the order of
 /// `Ruling::allowed()`. With main's table, which holds no row, it is none and sends nothing.
-fn hosting_of_build(link: &Arc<dyn OwnerLink>, memory: &Memory, asks: bool) -> Option<Hosting> {
+fn hosting_of_build(link: &Arc<dyn OwnerLink>, memory: &RowsMemory, asks: bool) -> Option<Hosting> {
     let ruling = halvo_route::release::ruling();
     let models: Vec<&str> = ruling
         .allowed()
@@ -2421,7 +2431,7 @@ mod tests {
     fn over_the_table_of_this_build_a_list_reads_nothing_and_offers_no_ai_model() {
         let kept = Arc::new(Kept(Mutex::new(Vec::new())));
         let link: Arc<dyn OwnerLink> = kept.clone();
-        let memory = Memory::new();
+        let memory = RowsMemory::default();
         let hosting = hosting_of_build(&link, &memory, true);
         assert_eq!(hosting, None);
         assert!(lock(&kept.0).is_empty(), "no request");
@@ -2517,7 +2527,7 @@ mod tests {
             ),
         ] {
             let link: Arc<dyn OwnerLink> = Ops::new(&[SAVED, ROOM]);
-            let memory = Memory::new();
+            let memory = RowsMemory::default();
             let read = hosting(&link, &memory, Some(host.to_owned()), models, true);
             let model = handed(read.as_ref(), None, Tier::OnDevice).expect("a model");
             let (ask, note) = halvo_coord::roster::use_model_ask(&model).expect("the words");
@@ -2584,5 +2594,51 @@ mod tests {
         let (ask, _) = halvo_coord::roster::use_model_ask(&model).expect("the words");
         let ask = ask.expect("the question");
         assert_eq!(ask.text.last(), Some(&shown));
+    }
+
+    /// r4 U3.17b sentence 8: the read of the key's and the count's states for the agents' rows goes through
+    /// `ModelLimit` with a memory of its own (`RowsMemory`), so that it never moves the memory of the limit's part.
+    /// Behind a part whose last answer was the state made from the fault of the store's read (set), a read for the
+    /// rows that meets a room leaves it set: a press whose own read faults again still starts a new count. Behind a
+    /// part whose last answer was a room (clear), a read for the rows that meets the fault leaves it clear: a press
+    /// whose read faults answers failed and starts none.
+    #[test]
+    fn a_read_for_the_rows_leaves_the_memory_of_the_limits_part_as_it_was() {
+        const FAULT: OpAnswer = ("model_room", Err("internal"));
+        const NEW: OpAnswer = (
+            "new_model_count",
+            Ok(r#"{"cap_minor":2500,"new_count":"yes"}"#),
+        );
+        let host = "hosted-model.test";
+        for (part_last, rows_meet, starts) in [(FAULT, ROOM, true), (ROOM, FAULT, false)] {
+            let part = Memory::new();
+            let last: Arc<dyn OwnerLink> = Ops::new(&[part_last]);
+            ModelLimit::new(last, &part).state(host);
+            let rows = Ops::new(&[SAVED, rows_meet]);
+            let link: Arc<dyn OwnerLink> = rows.clone();
+            let read = hosting(
+                &link,
+                &RowsMemory::default(),
+                Some(host.to_owned()),
+                &["test-model-small"],
+                true,
+            );
+            assert!(read.is_some(), "{starts}");
+            assert_eq!(*lock(&rows.asked), ["model_key_state", "model_room"]);
+            let press = Ops::new(&[FAULT, NEW]);
+            let to: Arc<dyn OwnerLink> = press.clone();
+            let answer = ModelLimit::new(to, &part).set("25");
+            let asked = lock(&press.asked).clone();
+            assert_eq!(
+                asked.iter().any(|op| op == "new_model_count"),
+                starts,
+                "{asked:?}"
+            );
+            assert_eq!(
+                matches!(answer, LimitReply::Set { .. }),
+                starts,
+                "{answer:?}"
+            );
+        }
     }
 }
