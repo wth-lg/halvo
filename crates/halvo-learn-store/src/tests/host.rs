@@ -64,6 +64,10 @@ impl Host for AgentSide {
         self.store.commit(records)
     }
 
+    fn remove_person(&mut self, kind: &str, records: Vec<TypedRecord>) -> Result<u64, ErrorName> {
+        self.store.remove_person(kind, records)
+    }
+
     fn set_state(
         &mut self,
         workflow: &WorkflowId,

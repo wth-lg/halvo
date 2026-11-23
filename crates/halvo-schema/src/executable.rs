@@ -31,7 +31,7 @@ pub use names::{
 };
 pub use record::{
     AgentBindings, AgentCheckpoint, AgentEffect, AgentFinished, AgentLog, AgentPlaybook,
-    AgentReply, AgentRun, AgentSession, AgentStart,
+    AgentReply, AgentRun, AgentSession, AgentStart, ModelKey,
 };
 pub use senders::{is_sender, reply_senders, same_address, Senders, SendersError};
 pub use step::{ExecutableStep, Playbook};
@@ -328,4 +328,10 @@ record::run_list! { names_with_run_list
     "runs",
     "drop_sessions",
     "list_replies",
+    "model_key",
+    "put_model_key",
+    "drop_model_key",
+    "model_key_state",
+    "read_model_key",
+    "stands",
 }

@@ -1,6 +1,6 @@
 use halvo_schema::executable::{
     AgentBindings, AgentCheckpoint, AgentConfig, AgentEffect, AgentFinished, AgentLog,
-    AgentPlaybook, AgentReply, AgentRun, AgentSession, AgentStart, Refusal,
+    AgentPlaybook, AgentReply, AgentRun, AgentSession, AgentStart, ModelKey, Refusal,
 };
 use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord};
 
@@ -17,6 +17,7 @@ pub(crate) const AGENT_CHECKPOINT: &str = "agent_checkpoint";
 pub(crate) const AGENT_REPLY: &str = "agent_reply";
 pub(crate) const AGENT_START: &str = "agent_start";
 pub(crate) const AGENT_FINISHED: &str = "agent_finished";
+pub(crate) const MODEL_KEY: &str = "model_key";
 
 pub(crate) fn parsed<T>(
     rows: &dyn RowRead,
@@ -83,6 +84,11 @@ pub(crate) fn replies(rows: &dyn RowRead) -> Result<Vec<AgentReply>, ErrorName> 
 
 pub(crate) fn finished(rows: &dyn RowRead) -> Result<Vec<AgentFinished>, ErrorName> {
     parsed(rows, AGENT_FINISHED, AgentFinished::parse)
+}
+
+/// The rows of the person's key, of which the store keeps ONE (r3 U7.6).
+pub(crate) fn model_keys(rows: &dyn RowRead) -> Result<Vec<ModelKey>, ErrorName> {
+    parsed(rows, MODEL_KEY, ModelKey::parse)
 }
 
 pub(crate) fn start_of(

@@ -11,7 +11,8 @@ use super::names::{
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
 use super::text::{
-    ApprovalId, Digest, EffectId, Name, OwnValue, ProviderId, RunId, SessionData, WebOrigin, V1,
+    ApprovalId, Digest, EffectId, Name, OwnValue, ProviderId, RunId, SecretText, SessionData,
+    WebOrigin, OWN_TEXT_MAX, V1,
 };
 use super::Refusal;
 
@@ -391,6 +392,23 @@ object_type! {
     rules(f) {
         if usize::try_from(f.steps.get()).map_or(true, |n| n > PLAYBOOK_STEPS_MAX) {
             return Err(Refusal::length("AgentFinished", "steps").at("steps"));
+        }
+        Ok(())
+    }
+}
+
+object_type! {
+    /// The person's key for a model's host, kind `model_key` (r3 U7.6): ONE row for the person and none for an agent,
+    /// which names no workflow. The key is at least one byte and at most `OWN_TEXT_MAX` bytes, taken as given and never
+    /// trimmed; `Debug` prints no part of it.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ModelKey {
+        pub v: V1 = "v" => from_json,
+        pub key: SecretText = "key" => from_json,
+    }
+    rules(r) {
+        if r.key.expose().len() > OWN_TEXT_MAX {
+            return Err(Refusal::length("ModelKey", "key_length").at("key"));
         }
         Ok(())
     }

@@ -5,13 +5,14 @@ use std::path::{Path, PathBuf};
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
     Accepted, AddOrigin, AgentHistory, AgentsReply, CheckpointsReply, CoordinatorCall,
-    CoordinatorReply, CreateAgent, DropSession, DropSessions, EndRun, Finish, HistoryReply,
-    HistoryRun, ListAgents, ListCheckpoints, ListOverlaps, ListReplies, ListedAgent,
-    ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply, LoadSession, LoadSteps,
-    LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint, Overlap, OverlapsReply,
-    PastCheckpoint, PastEffect, PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow,
-    PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings, SetState, StartRun,
-    StateReply, StepsReply, Stored, UnknownEffect,
+    CoordinatorReply, CreateAgent, DropModelKey, DropSession, DropSessions, EndRun, Finish,
+    HistoryReply, HistoryRun, KeyReply, ListAgents, ListCheckpoints, ListOverlaps, ListReplies,
+    ListedAgent, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply, LoadSession,
+    LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint, ModelKeyState,
+    Overlap, OverlapsReply, PastCheckpoint, PastEffect, PutCheckpoint, PutEffect, PutLog,
+    PutModelKey, PutPlaybook, PutReplyRow, PutSession, ReadModelKey, RevReply, RunnerCall,
+    RunnerReply, SessionReply, SetBindings, SetState, StandsReply, StartRun, StateReply,
+    StepsReply, Stored, UnknownEffect,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -960,7 +961,29 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             agent: agent(),
             after: None,
         }),
+        CoordinatorCall::PutModelKey(PutModelKey {
+            workflow: Null,
+            agent: Null,
+            key: test_model_key(),
+        }),
+        CoordinatorCall::DropModelKey(DropModelKey {
+            workflow: Null,
+            agent: Null,
+        }),
+        CoordinatorCall::ModelKeyState(ModelKeyState {
+            workflow: Null,
+            agent: Null,
+        }),
+        CoordinatorCall::ReadModelKey(ReadModelKey {
+            workflow: Null,
+            agent: Null,
+        }),
     ]
+}
+
+/// The person's key of the golden files: a made-up text that names itself as a test value (r3 U7.6).
+fn test_model_key() -> SecretText {
+    SecretText::parse("test-value-not-a-model-key").unwrap()
 }
 
 /// The agent of the bill's configuration with playbook 1 finished, its newest run record that left one effect
@@ -1134,6 +1157,12 @@ fn coordinator_replies() -> Vec<CoordinatorReply> {
             runs: vec![history_run()],
         }),
         CoordinatorReply::History(HistoryReply { runs: vec![] }),
+        CoordinatorReply::Stands(StandsReply { stands: YesNo::Yes }),
+        CoordinatorReply::Stands(StandsReply { stands: YesNo::No }),
+        CoordinatorReply::Key(KeyReply {
+            key: Some(test_model_key()),
+        }),
+        CoordinatorReply::Key(KeyReply { key: None }),
     ]
 }
 
@@ -1455,7 +1484,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in ["binding", "length", "overlap"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    assert_eq!(executable::KINDS.len(), 11);
+    assert_eq!(executable::KINDS.len(), 12);
 }
 
 #[test]

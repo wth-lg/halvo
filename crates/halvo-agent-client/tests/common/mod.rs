@@ -653,6 +653,7 @@ impl Rig {
             model: None,
             headed: false,
             utc_offset_s: 0,
+            hosted: None,
         }
     }
 
