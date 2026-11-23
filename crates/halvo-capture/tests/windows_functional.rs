@@ -1604,10 +1604,30 @@ const ES_PASSWORD_STYLE: u32 = 0x20;
 const PROTECTED_NO_ANSWER_TITLE: &str = "halvo-verify-protected-no-answer-title";
 const NO_ANSWER_TITLE: &str = "halvo-verify-no-answer-title";
 
+/// How long each wait of the row with no answer waits for its state: the
+/// child for each go of the test, the test for each reading of the gate and
+/// each title.
+const NO_ANSWER_STATE_WAIT: Duration = Duration::from_secs(20);
+
+/// Waits, answering this thread's messages, until the test writes the file
+/// `name` in the directory of the child's own program, up to `limit`: whether
+/// it came.
+fn wait_for_go(name: &str, limit: Duration) -> bool {
+    let program = std::env::current_exe().expect("the child's program");
+    let go = program.with_file_name(name);
+    let began = Instant::now();
+    while !go.exists() && began.elapsed() < limit {
+        pump_answering(Duration::from_millis(20));
+    }
+    go.exists()
+}
+
 /// A window with two boxes whose UI Automation provider gives no answer on
-/// IsPassword, the first of them protected: three title changes while the
-/// protected box has the focus, then three while the other has it, which
-/// keeps the focus 2 s more.
+/// IsPassword, the second of them protected. Each step waits for the test's
+/// go, which the test writes when it has read the state that the step needs:
+/// the box with no answer takes the focus, then three title changes, each
+/// behind the go of the one before; then the protected box, and three more.
+/// The child ends at the test's last go.
 fn child_no_answer_title() {
     let window = TestWindow::create(&normal_window(
         "HalvoVerifyNoAnswerTitle",
@@ -1617,35 +1637,40 @@ fn child_no_answer_title() {
     ))
     .expect("the window");
     no_answer_box::register().expect("the class of the boxes");
-    let protected = no_answer_box::create(window.hwnd, true, 10).expect("the protected box");
-    let no_answer = no_answer_box::create(window.hwnd, false, 50).expect("the box");
-    pump_answering(Duration::from_millis(300));
+    let no_answer = no_answer_box::create(window.hwnd, false, 10).expect("the box");
+    let protected = no_answer_box::create(window.hwnd, true, 50).expect("the protected box");
     let (foreground, method) = window.activate();
     let mut phases = Vec::new();
-    for (the_box, prefix) in [
-        (protected, PROTECTED_NO_ANSWER_TITLE),
-        (no_answer, NO_ANSWER_TITLE),
+    let mut goes = Vec::new();
+    for (the_box, prefix, phase) in [
+        (no_answer, NO_ANSWER_TITLE, "no-answer"),
+        (protected, PROTECTED_NO_ANSWER_TITLE, "protected"),
     ] {
-        let focused = no_answer_box::focus(the_box);
-        pump_answering(Duration::from_millis(800));
+        phases.push(no_answer_box::focus(the_box));
+        goes.push(wait_for_go(phase, NO_ANSWER_STATE_WAIT));
         for step in 0..3 {
             window
                 .set_title(&format!("{prefix}-{step}"))
                 .expect("set the title");
-            pump_answering(Duration::from_millis(400));
+            goes.push(wait_for_go(
+                &format!("{phase}-{step}"),
+                NO_ANSWER_STATE_WAIT,
+            ));
         }
-        phases.push(focused);
     }
-    pump_answering(Duration::from_secs(2));
+    goes.push(wait_for_go("end", NO_ANSWER_STATE_WAIT));
     let (providers_handed, is_password_asked, state_asked) = no_answer_box::asked();
     say(
         "child",
         format!(
             "mode=no-answer-title window_foreground={foreground} method={method} \
-             protected_box_focused={} no_answer_box_focused={} \
+             no_answer_box_focused={} protected_box_focused={} goes_seen={}/{} \
              providers_handed={providers_handed} is_password_asked={is_password_asked} \
              state_asked={state_asked}",
-            phases[0], phases[1]
+            phases[0],
+            phases[1],
+            goes.iter().filter(|seen| **seen).count(),
+            goes.len()
         ),
     );
 }
@@ -2054,6 +2079,12 @@ impl ChildProcess {
 
     fn wait(&mut self) -> std::process::ExitStatus {
         self.process.wait().expect("wait for the child")
+    }
+
+    /// Writes the go `name` beside the child's program, where a child that
+    /// waits by `wait_for_go` reads it.
+    fn go(&self, name: &str) {
+        std::fs::write(self._dir.path().join(name), b"").expect("write a go of the child");
     }
 
     fn print_output(&mut self) {
@@ -7391,10 +7422,6 @@ fn a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event() {
     });
 }
 
-/// How long the test waits for the gate to read the protected box of the
-/// child as a password field.
-const PROTECTED_READING_WAIT: Duration = Duration::from_secs(20);
-
 /// Waits until the gate's content reading is `wanted`, while the child runs,
 /// up to `limit`: whether it read so.
 fn wait_for_reading(
@@ -7411,11 +7438,15 @@ fn wait_for_reading(
     gate.content_reading() == wanted
 }
 
-/// The window title and screen sources of one service set share its gate. The
-/// screen source begins once the gate reads the child's protected box as a
-/// password field and stops once the titles that the child sets while its box
-/// with no answer has the focus are in, so that every frame that it is
-/// offered comes while one of the two boxes has the focus.
+/// The window title and screen sources of one service set share its gate.
+/// Every step waits for a state, never for a time: the screen source begins
+/// once the gate reads the child's box with no answer, and the child's first
+/// title waits for that read; each title waits until the test has seen the one
+/// before it kept, or, at the protected box, dropped; the protected box's
+/// titles wait for the gate's read of Password; the screen source stops before
+/// the child's focus leaves the two boxes. So every frame that the screen source
+/// is offered comes while one of the two boxes has the focus, and every title is
+/// decided at the reading of its own box.
 #[test]
 #[ignore = "functional: a title is kept and a frame dropped while an element with no answer has the focus"]
 fn a_title_change_while_an_element_with_no_answer_has_the_focus_gives_a_title_event_and_no_frame() {
@@ -7430,20 +7461,48 @@ fn a_title_change_while_an_element_with_no_answer_has_the_focus_gives_a_title_ev
         let mut screen = set.gated_screen(ScreenSource::new(Arc::new(Mutex::new(None))));
         let title_start = title.begin(SourceContext::new(sink.clone()));
         let mut child = spawn_child("no-answer-title", 0);
+        let no_answer_read = wait_for_reading(
+            &gate,
+            ContentReading::NoAnswer,
+            &mut child,
+            NO_ANSWER_STATE_WAIT,
+        );
+        let screen_start = screen.begin(screen_on(sink.clone()));
+        let mut seen = Vec::new();
+        child.go("no-answer");
+        for step in 0..3 {
+            let began = Instant::now();
+            while titles_with(&seen, NO_ANSWER_TITLE) <= step
+                && child.try_wait().is_none()
+                && began.elapsed() < NO_ANSWER_STATE_WAIT
+            {
+                seen.extend(events.drain_for(Duration::from_millis(50)));
+            }
+            child.go(&format!("no-answer-{step}"));
+        }
         let protected_read = wait_for_reading(
             &gate,
             ContentReading::Password,
             &mut child,
-            PROTECTED_READING_WAIT,
+            NO_ANSWER_STATE_WAIT,
         );
-        let screen_start = screen.begin(screen_on(sink.clone()));
-        let mut seen = Vec::new();
-        while titles_with(&seen, NO_ANSWER_TITLE) < 3 && child.try_wait().is_none() {
-            seen.extend(events.drain_for(Duration::from_millis(100)));
+        let drops_before = title.source().drops().secure_input;
+        child.go("protected");
+        for step in 0..3 {
+            let began = Instant::now();
+            while title.source().drops().secure_input <= drops_before + step
+                && child.try_wait().is_none()
+                && began.elapsed() < NO_ANSWER_STATE_WAIT
+            {
+                seen.extend(events.drain_for(Duration::from_millis(50)));
+            }
+            child.go(&format!("protected-{step}"));
         }
+        let protected_title_drops = title.source().drops().secure_input - drops_before;
         let reading_at_the_screen_stop = gate.content_reading();
         let screen_stop = stop_counted(&mut screen, "screen");
         let frame_drops = screen.source().drops();
+        child.go("end");
         while child.try_wait().is_none() {
             seen.extend(events.drain_for(Duration::from_millis(200)));
         }
@@ -7457,16 +7516,17 @@ fn a_title_change_while_an_element_with_no_answer_has_the_focus_gives_a_title_ev
         say(
             "no-answer-title",
             format!(
-                "title_start={} screen_start={} screen_stop={} protected_read={protected_read} \
+                "title_start={} screen_start={} screen_stop={} no_answer_read={no_answer_read} \
+                 protected_read={protected_read} \
                  reading_at_the_screen_stop={reading_at_the_screen_stop:?} \
                  title_events_at_no_answer={at_no_answer} \
-                 title_events_at_protected_no_answer={at_protected} screen_frames={frames} \
-                 screen_frame_drops_at_secure_input={} title_drops_at_secure_input={}",
+                 title_events_at_protected_no_answer={at_protected} \
+                 protected_title_drops={protected_title_drops} screen_frames={frames} \
+                 screen_frame_drops_at_secure_input={}",
                 show(&title_start),
                 show(&screen_start),
                 show(&screen_stop),
-                frame_drops.secure_input,
-                title.source().drops().secure_input
+                frame_drops.secure_input
             ),
         );
         assert!(
@@ -7474,23 +7534,31 @@ fn a_title_change_while_an_element_with_no_answer_has_the_focus_gives_a_title_ev
             "the sources must start and stop"
         );
         assert!(
+            no_answer_read,
+            "the gate did not read the box with no answer as NoAnswer"
+        );
+        assert_eq!(
+            at_no_answer, 3,
+            "a title set while the box with no answer has the focus was not kept"
+        );
+        assert!(
             protected_read,
             "the gate did not read the protected box as a password field"
         );
         assert_eq!(
-            reading_at_the_screen_stop,
-            ContentReading::NoAnswer,
-            "the reading while the box with no answer has the focus"
-        );
-        assert!(
-            at_no_answer >= 1,
-            "no title event while the box with no answer has the focus"
+            (at_protected, protected_title_drops),
+            (0, 3),
+            "the titles set while the protected box has the focus: kept, dropped"
         );
         assert_eq!(
-            at_protected, 0,
-            "a title event while the protected box has the focus"
+            reading_at_the_screen_stop,
+            ContentReading::Password,
+            "the reading when the screen source stops"
         );
-        assert_eq!(frames, 0, "a screen frame was kept at a box with no answer");
+        assert_eq!(
+            frames, 0,
+            "a screen frame was kept at a box with no answer or at the protected box"
+        );
         assert!(
             frame_drops.secure_input >= 1,
             "the screen source was offered no frame, so no frame shows nothing"
