@@ -6,5 +6,6 @@ publish = false
 
 [dependencies]
 halvo-policy = { path = "../halvo-policy" }
+halvo-route = { path = "../halvo-route" }
 halvo-schema = { path = "../halvo-schema" }
 serde_json = "1"
