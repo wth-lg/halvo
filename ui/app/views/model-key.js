@@ -11,6 +11,7 @@
   var lines = [];
   /** The replies of save_model_key and remove_model_key that set the state or read it again: a state read that one of them overtook changes nothing. */
   var answers = 0;
+  var flying = false;
 
   /**
    * The section of the AI model, which shows only in a build whose app names a host (model_key_state), is open to
@@ -92,11 +93,17 @@
     );
   }
 
-  /** From the press that sends save_model_key or remove_model_key until its reply or its failure, the three controls send nothing. */
+  /** While save_model_key or remove_model_key is in flight the three controls send nothing; Save the key also waits for a text in the field. */
+  function controls() {
+    saveButton.disabled = flying || field.value === "";
+    removeButton.disabled = flying;
+    confirmRemove.disabled = flying;
+  }
+
+  /** From the press that sends save_model_key or remove_model_key until its reply or its failure. */
   function inFlight(on) {
-    [saveButton, removeButton, confirmRemove].forEach(function (button) {
-      button.disabled = on;
-    });
+    flying = on;
+    controls();
   }
 
   function answered(newState) {
@@ -170,6 +177,7 @@
       field.setAttribute("autocorrect", "off");
       field.setAttribute("autocapitalize", "off");
       field.setAttribute("spellcheck", "false");
+      field.addEventListener("input", controls);
       saveButton = Halvo.el("button", { id: "model-key-save", text: w.MODEL_KEY_SAVE });
       saveButton.onclick = onSave;
       stateLine = Halvo.el("p", { id: "model-key-state" });
@@ -196,6 +204,7 @@
       [label, text, Halvo.el("div", { class: "row" }, [field, saveButton]), stateLine, said, removeButton, removeRow, partsBox].forEach(function (child) {
         element.appendChild(child);
       });
+      controls();
       draw();
     },
     show: function () {

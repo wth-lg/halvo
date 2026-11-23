@@ -221,7 +221,7 @@ test("while_a_save_is_in_flight_the_controls_of_the_key_send_nothing", async () 
   await page.settle();
   assert.equal(page.text("model-key-state"), STATE.saved);
   assert.equal(page.text("model-key-said"), "", "no sentence for a text that is no key");
-  for (const id of ["model-key-save", "model-key-remove", "model-key-confirm-remove"]) assert.equal(page.byId(id).disabled, false, id);
+  for (const id of ["model-key-remove", "model-key-confirm-remove"]) assert.equal(page.byId(id).disabled, false, id);
   assert.equal(page.visible("model-key-remove"), true);
 });
 
@@ -245,4 +245,20 @@ test("a_state_read_sent_before_a_save_changes_nothing_when_it_comes_behind_the_s
   await page.settle();
   assert.equal(page.text("model-key-state"), STATE.saved, "the late reply of the read turns nothing");
   assert.equal(page.visible("model-key-remove"), true);
+});
+
+test("a_second_press_of_save_behind_the_reply_sends_nothing_until_a_text_is_typed", async () => {
+  const page = await pageAt("none", { save_model_key: (args) => (args.key === "" ? { error: "no_key" } : { state: "saved" }) });
+  await page.type("model-key-field", "Zq7Wx9Kp2Vm4Jt8Rb5");
+  await page.click("model-key-save");
+  assert.equal(page.text("model-key-state"), STATE.saved);
+  await page.click("model-key-save");
+  assert.deepEqual(page.calls("save_model_key").map((c) => c.args), [{ key: "Zq7Wx9Kp2Vm4Jt8Rb5" }], "a press on the empty field sends nothing");
+  assert.equal(page.text("model-key-state"), STATE.saved);
+  assert.equal(page.text("model-key-said"), "", "no sentence for a text that is no key");
+
+  await page.type("model-key-field", "Hn3Lc6Yf1Qs0Dg7Ue2");
+  assert.equal(page.byId("model-key-save").disabled, false, "a typed text makes Save the key live");
+  await page.click("model-key-save");
+  assert.deepEqual(page.calls("save_model_key").map((c) => c.args), [{ key: "Zq7Wx9Kp2Vm4Jt8Rb5" }, { key: "Hn3Lc6Yf1Qs0Dg7Ue2" }]);
 });
