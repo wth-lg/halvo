@@ -112,7 +112,7 @@ fn free() -> Around {
         live: 0,
         model_held: false,
         queued: 0,
-        session: true,
+        window: false,
         from_queue: false,
         owed: false,
     }
@@ -478,7 +478,7 @@ fn a_start_that_goes_carries_its_mode_head_model_slot_and_defer() {
         Go {
             slot: Some(107),
             mode: Mode::Replay,
-            headed: false,
+            headed: true,
             holds_model: false,
             defer_ms: (120 + 900) * 1000,
         }
@@ -497,16 +497,16 @@ fn a_start_that_goes_carries_its_mode_head_model_slot_and_defer() {
         (g.mode, g.headed, g.holds_model),
         (Mode::Compile, true, true)
     );
-    let nosession = go(&start_step(
+    let window = go(&start_step(
         &f,
         Trigger::Person,
         &L,
         &Around {
-            session: false,
+            window: true,
             ..free()
         },
     ));
-    assert_eq!((nosession.mode, nosession.headed), (Mode::Replay, true));
+    assert_eq!((window.mode, window.headed), (Mode::Replay, true));
 }
 
 #[test]

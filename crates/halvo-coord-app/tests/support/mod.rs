@@ -357,6 +357,7 @@ pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
             state: AgentState::Active,
             slots: Vec::new(),
             session: false,
+            window: false,
             last: Some(PastRun {
                 run,
                 day: DAY - 2,
@@ -838,6 +839,7 @@ fn mail_entry(flow: WorkflowId, agent: AgentId, slots: &[&str]) -> Agent<Config>
         state: AgentState::Active,
         slots: slots.iter().map(|s| Name::parse(s).unwrap()).collect(),
         session: true,
+        window: false,
         last: None,
         unknown: vec![],
         refused_run: None,

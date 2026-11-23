@@ -135,6 +135,7 @@ fn member(world: &World, n: usize) -> Member<Config> {
             active_refused: false,
         },
         session: true,
+        window: false,
     }
 }
 
@@ -152,6 +153,7 @@ fn world_with(spec: &[A], limits: Limits) -> World {
             state: AgentState::Active,
             slots: names(a.slots),
             session: true,
+            window: false,
             last: a.finished.then(|| PastRun {
                 run: RunId::parse(&format!("{:032x}", 0x900 + n)).unwrap(),
                 day: DAY - 2,
@@ -585,7 +587,7 @@ fn refusal_hold_start() {
             live: 0,
             model_held: false,
             queued: 0,
-            session: true,
+            window: false,
             from_queue: false,
             owed: false,
         },
@@ -773,7 +775,7 @@ fn one_start_goes_through_steps_5_to_8_in_order() {
         .unwrap();
     assert_eq!(
         (spec.run, spec.agent, spec.workflow, spec.headed),
-        (run, agent(0), flow(0), false)
+        (run, agent(0), flow(0), true)
     );
     assert!(matches!(
         w.facts(0).doing,
@@ -1568,6 +1570,7 @@ fn listed_agent(w: &World, n: usize, made: &AgentId, a: &A) {
         state: AgentState::Approved,
         slots: vec![],
         session: false,
+        window: false,
         last: None,
         unknown: vec![],
         refused_run: None,
@@ -2339,11 +2342,7 @@ fn a_start_reads_the_bindings_and_the_session_from_the_owners_entry() {
         a.session = false;
     });
     ok_run(&w.start(0));
-    let headed = w.ports.calls.borrow().iter().find_map(|t| match &t.call {
-        Call::Start(spec) => Some(spec.headed),
-        _ => None,
-    });
-    assert_eq!(headed, Some(true), "no stored session");
+    assert!(!w.board.members[0].session, "no stored session");
     assert_eq!(halvo_coord::schedule::holds(w.facts(0)), Vec::<Hold>::new());
 }
 
@@ -2445,7 +2444,7 @@ fn a_failed_read_of_the_agents_answers_its_cause_where_the_entry_or_the_store_de
 }
 
 #[test]
-fn a_web_agent_with_a_playbook_starts_in_replay_and_with_a_session_not_headed() {
+fn a_web_agent_with_a_playbook_starts_in_replay_and_with_the_key_no_not_headed() {
     let mut w = world(&[A {
         runtime: "web",
         playbook: true,
@@ -2462,6 +2461,73 @@ fn a_web_agent_with_a_playbook_starts_in_replay_and_with_a_session_not_headed() 
         })
         .collect();
     assert_eq!(modes, [(Mode::Replay, None), (Mode::Replay, Some(false))]);
+}
+
+/// r4 U2.6, sentence 1 (the coordinator's log lines 16741, W1 and W3, and 17038): a run of the
+/// runtime `web` is headed where its mode is `compile` or the roster's `window` says yes, whether a
+/// session is stored or not; a run of every other runtime is headed whatever `window` and the
+/// session say, because the flag tells the runner that a person can answer.
+#[test]
+fn a_run_is_headed_unless_it_is_a_web_replay_whose_key_says_no_window() {
+    let web = A {
+        runtime: "web",
+        playbook: true,
+        ..manual()
+    };
+    let compile = A {
+        playbook: false,
+        ..web
+    };
+    let mail = A {
+        category: Category::Email,
+        runtime: "graph_mail",
+        slots: &["reply_senders"],
+        ..manual()
+    };
+    let file = A {
+        category: Category::SpreadsheetFill,
+        runtime: "file",
+        slots: &["workbook", "sheet", "range", "source"],
+        ..manual()
+    };
+    let rows = [
+        (web, false),
+        (web, true),
+        (compile, false),
+        (mail, true),
+        (file, false),
+    ];
+    let headed: Vec<[bool; 2]> = rows
+        .iter()
+        .map(|&(a, window)| {
+            [true, false].map(|session| {
+                let mut w = world(&[a]);
+                w.owner_agent(0, |e| {
+                    e.window = window;
+                    e.session = session;
+                });
+                ok_run(&w.start(0));
+                let headed = w.ports.calls.borrow().iter().find_map(|t| match &t.call {
+                    Call::Start(spec) => Some(spec.headed),
+                    _ => None,
+                });
+                headed.unwrap()
+            })
+        })
+        .collect();
+    assert_eq!(
+        headed,
+        [
+            [false, false],
+            [true, true],
+            [true, true],
+            [true, true],
+            [true, true]
+        ],
+        "web with a playbook and the key no; the same with the key yes; web in compile with the \
+         key no; graph_mail with the key yes; file with the key no: each with a stored session, \
+         then without one"
+    );
 }
 
 #[test]
@@ -4563,7 +4629,7 @@ fn under_a_refused_sign_in_the_scheduler_starts_nothing_and_one_start_by_the_per
             live: 0,
             model_held: false,
             queued: 0,
-            session: true,
+            window: false,
             from_queue: false,
             owed: false,
         },
@@ -4608,9 +4674,9 @@ fn under_a_refused_sign_in_the_scheduler_starts_nothing_and_one_start_by_the_per
 }
 
 /// U2.4h, sentence 3 (ruling RD-73 4.3, 4.7; I1.3, I2.5): while the hold of a refused sign-in
-/// stands beside `failures`, the row says that the site did not let it sign in and offers Start
-/// now, Switch on and Delete; one Switch on sends the state first and ends both holds with one
-/// `hold_cleared` each, the one of `sign_in_refused` naming the run.
+/// stands beside `failures`, the row says that the agent needs you to sign in at the site and
+/// offers Start now, Switch on and Delete; one Switch on sends the state first and ends both holds
+/// with one `hold_cleared` each, the one of `sign_in_refused` naming the run.
 #[test]
 fn the_row_of_a_refused_sign_in_stands_before_failures_and_one_switch_on_ends_both() {
     use halvo_coord::roster::{controls, status_of};
@@ -4629,7 +4695,7 @@ fn the_row_of_a_refused_sign_in_stands_before_failures_and_one_switch_on_ends_bo
     assert_eq!(line.key(), "line.problem.sign_in_refused");
     assert_eq!(
         halvo_coord::words::text(&line.key(), &[]).as_deref(),
-        Ok("The site did not let it sign in.")
+        Ok("This agent needs you to sign in at the site.")
     );
     assert_eq!(
         holds(w.facts(0)),
@@ -4724,7 +4790,7 @@ fn after_a_no_at_the_question_that_allows_a_site_the_scheduler_starts_nothing_in
             live: 0,
             model_held: false,
             queued: 0,
-            session: true,
+            window: false,
             from_queue: false,
             owed: false,
         },

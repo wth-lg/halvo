@@ -16,6 +16,7 @@
   var total;
   var logical;
   var cap;
+  var capWords;
   var storeLine;
   var storeText;
   var custody;
@@ -63,7 +64,9 @@
     statusStore = s.store && s.store.id ? s.store.id : null;
     total.textContent = bytes(s.store_bytes);
     logical.textContent = bytes(s.store_logical_bytes);
-    cap.textContent = typeof s.store_cap_bytes === "number" ? Halvo.formatBytes(s.store_cap_bytes) : running ? w.CAP_UNKNOWN : "—";
+    var notSet = !!s.store && s.store.cap_not_set === true;
+    capWords.textContent = notSet ? " " + w.CAP_NOT_SET : " " + w.OF_A_CAP + " ";
+    cap.textContent = notSet ? "" : typeof s.store_cap_bytes === "number" ? Halvo.formatBytes(s.store_cap_bytes) : running ? w.CAP_UNKNOWN : "—";
     var words = storeWords(s.store);
     storeLine.textContent = words[0];
     storeText.textContent = words[1];
@@ -150,6 +153,7 @@
       total = Halvo.el("span", { id: "total", text: "—" });
       logical = Halvo.el("span", { id: "logical", text: "—" });
       cap = Halvo.el("span", { id: "cap", text: "—" });
+      capWords = Halvo.el("span", { id: "cap-words", text: " " + w.OF_A_CAP + " " });
       storeLine = Halvo.el("p", { id: "store-state" });
       storeText = Halvo.el("p", { id: "store-text", class: "muted" });
       custody = Halvo.el("p", { id: "custody", class: "muted" });
@@ -162,7 +166,7 @@
         body,
       ]);
       el.append(
-        Halvo.el("p", {}, [w.ON_DISK + ": ", total, " " + w.OF_A_CAP + " ", cap, ". " + w.RECORDED + ": ", logical, "."]),
+        Halvo.el("p", {}, [w.ON_DISK + ": ", total, capWords, cap, ". " + w.RECORDED + ": ", logical, "."]),
         Halvo.el("p", { class: "muted", text: w.GB_IS }),
         storeLine,
         storeText,

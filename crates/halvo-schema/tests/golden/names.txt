@@ -112,6 +112,7 @@ draft
 draft_and_confirm
 drafted
 drag
+drop_model_key
 drop_session
 drop_sessions
 earlier_page
@@ -226,6 +227,8 @@ mode
 model
 model_call
 model_calls
+model_key
+model_key_state
 model_tokens
 more
 more_pages
@@ -294,10 +297,12 @@ proposed
 provenance
 provisional
 purchase
+put_model_key
 put_playbook
 put_session
 range
 read
+read_model_key
 ready
 reasoning
 record
@@ -365,6 +370,7 @@ slots
 source
 spreadsheet_fill
 stale
+stands
 start
 start_accepted
 start_run

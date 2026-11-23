@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::fmt;
 
 use halvo_schema_core::ids::WorkflowId;
-use halvo_schema_core::kinds::KINDS;
+use halvo_schema_core::kinds::{Origin, KINDS};
 use halvo_schema_core::record::{TypedRecord, WriterStep};
 use halvo_schema_core::request::{ErrorName, RawRequest};
 use serde::de::{self, Deserializer, IgnoredAny, MapAccess, Visitor};
@@ -60,7 +60,8 @@ pub enum Cause {
     WorkflowRun,
     /// The kind belongs to another family than the step's or the handler's own.
     OtherFamily,
-    /// The kind is of origin own, and the commit is a step's or that of the handler of a request of a further role.
+    /// The kind is of origin own, and the commit is a step's or that of the handler of a request of a further role; or
+    /// the kind is of origin person, and the commit is no `coordinator_write`'s.
     OwnOrigin,
     /// `kinds::check_record` refused the record; its error names the kind, the key and the rule.
     Record(String),
@@ -96,7 +97,7 @@ impl fmt::Display for Refusal {
             Cause::UnknownKind => write!(f, "record {}: the kind is not registered", self.index),
             Cause::WorkflowRun => write!(f, "record {}: a kind of the workflow run", self.index),
             Cause::OtherFamily => write!(f, "record {}: a kind of another family", self.index),
-            Cause::OwnOrigin => write!(f, "record {}: a kind of origin own", self.index),
+            Cause::OwnOrigin => write!(f, "record {}: a kind of origin own or person", self.index),
             Cause::Record(error) => write!(f, "record {}: {error}", self.index),
             Cause::NoWorkflow => write!(f, "record {}: no stored workflow", self.index),
             Cause::Day(DayFault::AfterToday) => {
@@ -125,10 +126,10 @@ pub struct Removed {
     pub committed: Committed,
 }
 
-/// Why the removal call (`HandlerCx::remove_under`) answered no `Removed`. Every refusal but `Commit` comes before any
-/// statement, and `Commit` for a refused list or a fault before the commit: the call removed no row and stored no
-/// record. `Commit` with a fault of the checkpoint or of the host's report after the commit comes with the rows
-/// removed and the records stored.
+/// Why a removal call (`HandlerCx::remove_under` or `HandlerCx::remove_person`) answered no `Removed`. Every refusal
+/// but `Commit` comes before any statement, and `Commit` for a refused list or a fault before the commit: the call
+/// removed no row and stored no record. `Commit` with a fault of the checkpoint or of the host's report after the
+/// commit comes with the rows removed and the records stored.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RemoveRefusal {
     /// The request is no `coordinator_write`. The call refuses it before any statement.
@@ -139,8 +140,11 @@ pub enum RemoveRefusal {
     WorkflowRun,
     /// The kind belongs to another family than the handler's own.
     OtherFamily,
-    /// The kind's entry gives no workflow key, so no row of it is held under a workflow id.
+    /// The kind's entry gives no workflow key, so no row of it is held under a workflow id (`remove_under`).
     NoWorkflowKey,
+    /// The kind is not of origin person: its entry gives a workflow key, or it is of another origin, and
+    /// `remove_person` never takes its rows, so that it never takes a workflow's kind across workflows.
+    WorkflowKey,
     /// The typed commit of the list refused it, or the store met a fault in the write: the refusal of the commit,
     /// whose `index` is `usize::MAX` for a fault that is no record's.
     Commit(Refusal),
@@ -257,6 +261,55 @@ impl HandlerCx<'_> {
         let (db, writer, now) = (self.db, self.writer, self.db.now());
         db.write_checkpointed(|tx| {
             let removed = tx.remove(sql::REMOVE_OF_KIND_UNDER, [kind, workflow.as_str()])?;
+            let committed = store_records(db, tx, now, family, writer, records)?;
+            Ok(Removed { removed, committed })
+        })
+        .map_err(RemoveRefusal::Commit)
+    }
+
+    /// The removal call of a person's kind (r3 U7.6), the sibling of `remove_under` for a kind of origin person, whose
+    /// rows name no workflow (`kinds::PERSON_KINDS`): in one write it removes every stored row of the kind `kind` of
+    /// the handler's own family, the rows that no read hands out any more among them, and then stores `records` by the
+    /// rules of the typed commit; the rows that it stores are not removed by it. It answers how many rows it removed
+    /// and what the commit stored. The write is that of `remove_under`: each row by the store's secure delete, in a
+    /// transaction that the truncating checkpoint follows after its commit, so that no byte of a removed row stays in
+    /// the files of the store; a refusal of the list or a fault before the commit leaves every row and stores no
+    /// record; a fault of the checkpoint or of the host's report after the commit answers the fault with the rows
+    /// removed and the records stored.
+    ///
+    /// It answers `RemoveRefusal::Role`, before any statement, while the handler answers a request that is no
+    /// `coordinator_write`; then a refusal of `RemoveRefusal` for a kind that the store was not opened with, a kind of
+    /// the workflow run, a kind of another family and a kind that is not of origin person (`WorkflowKey`), in that
+    /// order. It removes no row of another kind.
+    pub fn remove_person(
+        &mut self,
+        kind: &str,
+        records: &[TypedRecord],
+    ) -> Result<Removed, RemoveRefusal> {
+        self.db.arm();
+        if self.writer != Writer::Coordinator {
+            return Err(RemoveRefusal::Role);
+        }
+        let entry = self
+            .db
+            .entries
+            .iter()
+            .copied()
+            .find(|entry| entry.name == kind)
+            .ok_or(RemoveRefusal::UnknownKind)?;
+        if KINDS.contains(entry) || entry.family == "workflow" {
+            return Err(RemoveRefusal::WorkflowRun);
+        }
+        let family = self.family();
+        if entry.family != family {
+            return Err(RemoveRefusal::OtherFamily);
+        }
+        if entry.origin != Origin::Person || entry.workflow_key.is_some() {
+            return Err(RemoveRefusal::WorkflowKey);
+        }
+        let (db, writer, now) = (self.db, self.writer, self.db.now());
+        db.write_checkpointed(|tx| {
+            let removed = tx.remove(sql::REMOVE_OF_KIND, [kind])?;
             let committed = store_records(db, tx, now, family, writer, records)?;
             Ok(Removed { removed, committed })
         })

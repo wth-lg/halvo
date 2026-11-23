@@ -12,17 +12,18 @@
 //! (crate::handback): where the page shows a credential field it hands the browser to the person, and acts only
 //! after a sign-in that ended in a bind. Its conditions `pre` are read fresh before the act and its conditions `post`
 //! after it, and `holds` decides each on what the executor read. A step of the verb `handback` and a step whose
-//! target, or the target of one of its conditions, is marked `credential` act on nothing: each reads the page when
-//! the browser runs, and is done after a handback that ended in a bind; a step of the verb `handback` with no
-//! credential field on the page, or before any browser runs, is done; every other answers `step_failed`. A web step
+//! target, or the target of one of its conditions, is marked `credential` answer `step_failed` before any call to the
+//! browser where their effect is not `none` (r3 U5.10-S), and with the effect `none` act on nothing: each reads the
+//! page when the browser runs, and is done after a handback that ended in a bind; a step of the verb `handback` with
+//! no credential field on the page, or before any browser runs, is done; every other answers `step_failed`. A web step
 //! that fails on the run's page, its act or a step marked `credential` of no effect class, reads the page a second
 //! time before its failure is written, and hands back with the reason `sign_in` where a link or a button asks for a
-//! sign-in by its name (r3 U5.14, `Runner::asked_at_a_failure`), but in a run with no window that imported a kept
-//! sign-in; behind the bind of that handback the act that failed is asked once more, and a second failure fails the
-//! step as before. A step with the effect `request`, a web step of an effect class (`payment`, `purchase`, `submit`,
-//! `sign`), is the browser's request maker's (crate::web::maker), which this build holds under the feature `loopback`
-//! alone: without it such a step answers `step_failed` before any browser starts, and `Live` lets no held request
-//! through.
+//! sign-in by its name (r3 U5.14, `Runner::asked_at_a_failure`), but in a run with no window, imported or not (r3
+//! U5.15r); behind the bind of that handback the act that failed is asked once more, and a second failure fails the
+//! step as before. Every other step with the effect `request`, a web step of an effect class (`payment`, `purchase`,
+//! `submit`, `sign`), is the browser's request maker's (crate::web::maker), which this build holds under the feature
+//! `loopback` alone: without it such a step answers `step_failed` before any browser starts, and `Live` lets no held
+//! request through.
 
 use std::collections::HashMap;
 use std::num::{NonZeroU32, NonZeroU64};
@@ -33,7 +34,7 @@ use halvo_control::paths::DataDir;
 use halvo_policy::class_of;
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::frame::Browser;
-use halvo_schema::executable::names::{Check, LocatorBy, Source, Verb, YesNo};
+use halvo_schema::executable::names::{Check, LocatorBy, Source, StepEffect, Verb, YesNo};
 use halvo_schema::executable::step::{Arg, Cond, Locator, Target, WebTarget};
 use halvo_schema::executable::text::CreationTime;
 use halvo_schema::executable::{
@@ -990,9 +991,11 @@ impl Web {
 }
 
 impl Runner {
-    /// A web step. A step of the verb `handback`, or one that marks a credential (`marks_a_credential`), acts on
-    /// nothing: where the browser runs it reads the page (crate::handback), and it is done after a handback that
-    /// ended in a bind; a step of the verb `handback` is done where the page shows no credential field or no browser
+    /// A web step. A step of the verb `handback`, or one that marks a credential (`marks_a_credential`), whose effect
+    /// is not `none` answers `step_failed` before any call to the page, so that no step of an effect is done without
+    /// its act (r3 U5.10-S; the step parser refuses each such step). Every other step of the verb `handback`, or one
+    /// that marks a credential, acts on nothing: where the browser runs it reads the page (crate::handback), and it is
+    /// done after a handback that ended in a bind; a step of the verb `handback` is done where the page shows no credential field or no browser
     /// runs; every other such step answers `step_failed`. Every other step that does not act (`acts`) answers
     /// `step_failed` before any browser starts, and so does one whose args or targets, or those of its conditions,
     /// cannot be read or have no locator that the executor takes. A target, of the step or of a condition, inside a
@@ -1006,7 +1009,8 @@ impl Runner {
     /// a bind the step is done. Where that reading finds no credential field, and where a step marked `credential` of
     /// no effect class meets a running browser's page with none, the second reading (`asked_at_a_failure`, r3 U5.14)
     /// hands back with the reason `sign_in` at a link or a button that asks for a sign-in, in place of the failure; a
-    /// run with no window that imported a kept sign-in reads no sign (the coordinator's ruling of log line 16376).
+    /// run with no window reads no sign, whether it imported a kept sign-in or not (the coordinator's rulings of log
+    /// lines 16376 and 16634 (2)).
     /// After one that ended in a bind the act that failed is asked once more, with the reading of the page before it
     /// and without a second reading after it, so that a second failure fails the step as before (the coordinator's
     /// ruling of log line 16106 (3)); a step marked `credential`, which acts on nothing, is done after that bind. A
@@ -1026,6 +1030,9 @@ impl Runner {
     ) -> Result<(), Failure> {
         let failed = || Failure::Step(Cause::StepFailed);
         let handback = step.verb == Verb::Handback;
+        if step.effect != StepEffect::None && (handback || marks_a_credential(step)) {
+            return Err(failed());
+        }
         if handback || marks_a_credential(step) {
             let handed = match self.web.take() {
                 Some(mut web) => {
@@ -1118,15 +1125,16 @@ impl Runner {
     /// runner opens a handback of the reason `sign_in` in place of the failure, by the opening and with the ends of a
     /// handback at a credential field (`Runner::open_handback`); true after one that ended in a bind. False where no
     /// browser runs, where the page shows no such link or button, and where the second reading fails: the step fails
-    /// as before. In a run with no window that imported a kept sign-in (crate::session), where the opening would end
-    /// the run for want of a window (`Runner::no_window`), the sign is not read at all: the step fails as before and
-    /// no kept sign-in is dropped (the coordinator's ruling of log line 16376).
+    /// as before. In a run with no window, where no person can answer (crate::args) and the opening would end the run
+    /// (`Runner::no_window`), the sign is not read at all, whether the run imported a kept sign-in or not: the step
+    /// fails as before, no run ends as unauthorized by a guess, and no kept sign-in is dropped (the coordinator's
+    /// rulings of log lines 16376 and 16634 (2)).
     fn asked_at_a_failure(
         &mut self,
         loaded: &LoadReply,
         step: NonZeroU32,
     ) -> Result<bool, Failure> {
-        if self.sessions.imported && !self.args.headed {
+        if !self.args.person {
             return Ok(false);
         }
         let Some(mut web) = self.web.take() else {
@@ -2009,6 +2017,177 @@ mod tests {
                 matches!(got, Err(Failure::Step(Cause::StepFailed))) && now == log,
                 "a step that this build makes no act of in a frame fails before any act: {got:?}, {now:?}, {json}"
             );
+        }
+    }
+
+    /// The stand-in of the executor of `a_step_with_an_effect_that_marks_a_credential_fails_before_any_act`: its
+    /// reading shows a credential field, its page asks for a sign-in by a link, and every call is one line of the log.
+    struct SignInPage(Arc<Mutex<Vec<String>>>);
+
+    impl SignInPage {
+        fn note(&self, call: &str) -> Result<(), ()> {
+            self.0.lock().expect("the log").push(call.to_string());
+            Ok(())
+        }
+    }
+
+    impl Page for SignInPage {
+        fn frame(&self) -> Option<FromRunner> {
+            None
+        }
+
+        fn arm(&mut self, _: &[WebOrigin]) -> Result<(), ()> {
+            self.note("arm")
+        }
+
+        fn carry_out(
+            &mut self,
+            _: &[(&Cond, Option<String>)],
+            act: &Act<'_>,
+            _: &[(&Cond, Option<String>)],
+        ) -> Result<Option<String>, ()> {
+            self.note(&format!("act {}", act.verb())).map(|()| None)
+        }
+
+        fn record(&mut self) -> Vec<PausedRequest> {
+            let _ = self.note("record");
+            Vec::new()
+        }
+
+        fn stop(self: Box<Self>) -> bool {
+            true
+        }
+
+        fn sign(&mut self) -> Result<Option<Sign>, ()> {
+            self.note("read").map(|()| Some(Sign::Secret))
+        }
+
+        fn asks_for_a_sign_in(&mut self) -> Result<bool, ()> {
+            self.note("read sign-in").map(|()| true)
+        }
+
+        fn fail_held(&mut self) -> Result<(), ()> {
+            self.note("fail held")
+        }
+
+        fn close_others(&mut self) -> Result<(), ()> {
+            self.note("close others")
+        }
+
+        fn clear_stores(&mut self) -> Result<(), ()> {
+            self.note("clear stores")
+        }
+
+        fn load_again(&mut self) -> Result<(), ()> {
+            self.note("load again")
+        }
+
+        fn pass_all(&mut self) -> Result<(), ()> {
+            self.note("pass all")
+        }
+
+        fn address(&mut self) -> Result<String, ()> {
+            self.note("address")
+                .map(|()| "http://127.0.0.1:8080/pay".to_string())
+        }
+
+        fn export(&mut self, _: &WebOrigin) -> Result<SessionState, ()> {
+            self.note("export").and(Err(()))
+        }
+
+        fn import(&mut self, _: &SessionState) -> Result<(), ()> {
+            self.note("import").and(Err(()))
+        }
+    }
+
+    /// r3 U5.10-S (the coordinator's ruling of log line 16728, point 2, and its carrier's answer (c)): a payment, a web
+    /// step with the effect `request`, that marks a credential by its own target, by the target of a condition `pre` or
+    /// by that of a condition `post`, and a step of the verb `handback` with the effect `request`, each of which the
+    /// parser refuses and which this test builds past it by the step's public fields, answer `step_failed` before any
+    /// call to the page: on a page that shows a credential field and asks for a sign-in by a link, no reading, no
+    /// handback and no frame.
+    #[test]
+    fn a_step_with_an_effect_that_marks_a_credential_fails_before_any_act() {
+        let step = |json: &str| ExecutableStep::parse(json.as_bytes()).expect("a step");
+        let condition = step(CREDENTIAL_CONDITION).pre;
+        let own = ExecutableStep {
+            target: step(CREDENTIAL_FILL).target,
+            ..step(REQUEST)
+        };
+        let pre = ExecutableStep {
+            pre: condition.clone(),
+            ..step(REQUEST)
+        };
+        let post = ExecutableStep {
+            post: condition,
+            ..step(REQUEST)
+        };
+        let handback = ExecutableStep {
+            effect: halvo_schema::executable::names::StepEffect::Request,
+            ..step(HANDBACK)
+        };
+        let (workflow, agent) = (
+            WorkflowId::from_random([7; 16]),
+            AgentId::from_random([6; 16]),
+        );
+        let config = preset(
+            Category::UtilityBillPayment,
+            workflow.clone(),
+            agent.clone(),
+        )
+        .expect("a preset");
+        let loaded = LoadReply {
+            config,
+            playbook: None,
+            next_playbook: NonZeroU32::MIN,
+            bindings: None,
+            sessions: Vec::new(),
+            start: None,
+        };
+        let run = "0f".repeat(16);
+        let words = [
+            "--run",
+            &run,
+            "--agent",
+            agent.as_str(),
+            "--workflow",
+            workflow.as_str(),
+            "--mode",
+            "replay",
+            "--browser",
+            "none",
+            "--utc-offset",
+            "0",
+        ];
+        let words: Vec<OsString> = words.iter().map(OsString::from).collect();
+        let args = crate::args::parse(&words).expect("the arguments");
+        let out = Arc::new(Mutex::new(Vec::new()));
+        let link = Link::start(
+            Box::new(std::io::empty()),
+            Box::new(Out(Arc::clone(&out))),
+            Box::new(|| {}),
+        );
+        let mut runner = Runner::new(args, link);
+        let page_log = Arc::new(Mutex::new(Vec::new()));
+        runner.web = Some(Web(Box::new(SignInPage(Arc::clone(&page_log)))));
+        let doors = [
+            ("own target", own),
+            ("pre", pre),
+            ("post", post),
+            ("handback", handback),
+        ];
+        for (door, step) in doors {
+            let got = runner.web_step(&step, &loaded);
+            let log = page_log.lock().expect("the log").clone();
+            assert!(
+                matches!(got, Err(Failure::Step(Cause::StepFailed))) && log.is_empty(),
+                "{door}: {got:?}, the page's log {log:?}"
+            );
+            assert!(
+                out.lock().expect("the frames").is_empty(),
+                "{door}: a frame"
+            );
+            assert!(step.rules().is_err(), "{door}: the parser takes the step");
         }
     }
 }

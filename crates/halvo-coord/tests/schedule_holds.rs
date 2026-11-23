@@ -200,7 +200,7 @@ fn start_answer(f: &Facts<Config>) -> halvo_coord::schedule::StartStep {
         live: 0,
         model_held: false,
         queued: 0,
-        session: true,
+        window: false,
         from_queue: false,
         owed: false,
     };

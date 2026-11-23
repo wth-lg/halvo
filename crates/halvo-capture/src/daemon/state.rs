@@ -161,6 +161,13 @@ impl Cap {
             Cap::Unread => StorageCap::DEFAULT.bytes(),
         }
     }
+
+    /// Whether the stored cap is [`RESET_CAP_BYTES`], the one that a reset of
+    /// the settings writes: a cap that is not set, which the status tells from
+    /// any other number out of range and from a file that did not load.
+    pub fn not_set(self) -> bool {
+        self == Cap::OutOfRange(RESET_CAP_BYTES)
+    }
 }
 
 /// The state that the state file keeps, whole.

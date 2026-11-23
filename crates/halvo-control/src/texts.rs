@@ -7,11 +7,13 @@ use crate::proto::{
     SourceState, SwitchLine, SwitchName,
 };
 
-/// Typing on a Mac: whether a source that the product builds asks its tap for key events. Off
-/// until the owner answers item I-83 point 2, so a Mac build notes no typing. The capture
-/// crate's macOS input source reads it as its one switch of key events, and [`first_run`] as
-/// its row on typing.
-pub const TYPING_ON_MAC: bool = false;
+/// Typing on a Mac: whether a source that the product builds asks its tap for key events. On
+/// by the owner's word of 2026-11-22 (typing is on in the first build on both systems: never
+/// which key, and nothing at a password field), so a Mac build notes what kind of key is
+/// pressed while the switch key_class is on and Input Monitoring is granted. The capture crate's
+/// macOS input source reads it as its one switch of key events, and [`first_run`] as its row on
+/// typing.
+pub const TYPING_ON_MAC: bool = true;
 
 /// The row on typing where no typing is recorded: on a Mac whose build takes no typing
 /// ([`TYPING_ON_MAC`]) in the first-run text, and on Windows while the keyboard source line
@@ -187,8 +189,15 @@ pub const fn custody_text(custody: Custody) -> &'static str {
     }
 }
 
-/// The cap sentence, in GB of 1,073,741,824 bytes with at most one decimal.
-pub fn storage(cap: Cap) -> String {
+/// The cap sentence of a status whose `cap_not_set` stands: the cap that a reset of the settings
+/// stores, which is not set and not one that could not be read.
+pub const NO_STORAGE_LIMIT: &str =
+    "Halvo has no storage limit and removes nothing to make room until you set one.";
+
+/// The cap sentence, in GB of 1,073,741,824 bytes with at most one decimal; for an unknown cap,
+/// [`NO_STORAGE_LIMIT`] where `not_set` stands, and otherwise the sentence of a limit that could
+/// not be read.
+pub fn storage(cap: Cap, not_set: bool) -> String {
     match cap {
         Cap::Known(cap) => {
             let tenths = (cap.bytes() * 10 + StorageCap::GIB / 2) / StorageCap::GIB;
@@ -199,6 +208,7 @@ pub fn storage(cap: Cap) -> String {
             };
             format!("Halvo keeps at most {size} GB and removes the oldest days first when it reaches that.")
         }
+        Cap::Unknown if not_set => NO_STORAGE_LIMIT.to_string(),
         Cap::Unknown => "Halvo could not read its storage limit and removes nothing to make room until you set one.".to_string(),
     }
 }
@@ -244,7 +254,7 @@ pub fn texts(status: &DaemonStatus) -> Texts {
         backup_limit: backup_limit(f.platform),
         limits: LIMITS,
         custody: custody_text(f.custody),
-        storage: storage(f.cap_bytes),
+        storage: storage(f.cap_bytes, f.cap_not_set),
         repeated_tasks: None,
     }
 }
@@ -338,7 +348,7 @@ fn first_run_with(platform: Platform, typing_on_mac: bool) -> Texts {
             Platform::Macos => Custody::RootFile,
             Platform::Windows => Custody::Dpapi,
         }),
-        storage: storage(Cap::Known(StorageCap::DEFAULT)),
+        storage: storage(Cap::Known(StorageCap::DEFAULT), false),
         repeated_tasks: Some(REPEATED_TASKS),
     }
 }
@@ -773,20 +783,27 @@ mod tests {
     #[test]
     fn the_storage_sentence_names_the_cap_or_says_it_is_unknown() {
         assert_eq!(
-            storage(Cap::Known(StorageCap::DEFAULT)),
+            storage(Cap::Known(StorageCap::DEFAULT), false),
             "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
         );
         assert_eq!(
-            storage(Cap::Known(StorageCap::MIN)),
+            storage(Cap::Known(StorageCap::MIN), false),
             "Halvo keeps at most 1 GB and removes the oldest days first when it reaches that."
         );
         assert_eq!(
-            storage(Cap::Known(StorageCap::from_bytes(1_610_612_736).unwrap())),
+            storage(
+                Cap::Known(StorageCap::from_bytes(1_610_612_736).unwrap()),
+                false
+            ),
             "Halvo keeps at most 1.5 GB and removes the oldest days first when it reaches that."
         );
         assert_eq!(
-            storage(Cap::Unknown),
+            storage(Cap::Unknown, false),
             "Halvo could not read its storage limit and removes nothing to make room until you set one."
+        );
+        assert_eq!(
+            storage(Cap::Unknown, true),
+            "Halvo has no storage limit and removes nothing to make room until you set one."
         );
     }
 

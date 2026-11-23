@@ -46,6 +46,7 @@
     RECORDED: "Recorded",
     OF_A_CAP: "of a cap of",
     CAP_UNKNOWN: "unknown",
+    CAP_NOT_SET: "with no storage limit",
     GB_IS: "GB here means 1,073,741,824 bytes (2 to the power of 30).",
     INVENTORY_UNAVAILABLE: "The list of what is stored is not available right now.",
     NOTHING_STORED: "Nothing stored yet.",

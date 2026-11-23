@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use halvo_policy::preset;
 use halvo_schema::executable::body::{LoadReply, LoadedBindings};
-use halvo_schema::executable::names::Verb;
+use halvo_schema::executable::names::{LogEvent, Verb, YesNo};
 use halvo_schema::executable::step::Cond;
 use halvo_schema::executable::{
     Cause, ExecutableStep, FromRunner, Outcome, RunnerCall, ToRunner, WebOrigin,
@@ -20,11 +20,15 @@ use halvo_schema::executable::{
 use halvo_schema::{AgentId, Category, WorkflowId};
 use halvo_web::cdp::{asks_to_sign_in, PausedRequest, SessionState, Sign};
 
+use crate::args::STAND_IN_PERSON;
 use crate::link::{encode, Link};
 use crate::run::{Failure, Runner, Stop};
 use crate::web::{Act, Page, Web};
 
 type Log = Arc<Mutex<Vec<String>>>;
+
+/// The rows of the run's log that the supervisor took, each by its event, its step and its cause.
+type Rows = Arc<Mutex<Vec<(LogEvent, Option<u32>, Option<Cause>)>>>;
 
 fn note(log: &Log, line: impl Into<String>) {
     log.lock().expect("the log").push(line.into());
@@ -171,6 +175,7 @@ struct Supervisor {
     log: Log,
     /// The JSON of each handback request, as the runner wrote it.
     requests: Log,
+    rows: Rows,
     to_runner: mpsc::Sender<Vec<u8>>,
     answers: VecDeque<&'static str>,
     bytes: Vec<u8>,
@@ -192,7 +197,13 @@ impl Supervisor {
         let reply = match frame {
             FromRunner::Store(s) => {
                 let stored = match s.request.body() {
-                    RunnerCall::Log(b) => b.records.len(),
+                    RunnerCall::Log(b) => {
+                        let mut rows = self.rows.lock().expect("the rows");
+                        for r in &b.records {
+                            rows.push((r.event, r.step.map(NonZeroU32::get), r.cause));
+                        }
+                        b.records.len()
+                    }
                     _ => 1,
                 };
                 let text = format!(
@@ -262,6 +273,7 @@ struct Bench {
     runner: Runner,
     log: Log,
     requests: Log,
+    rows: Rows,
     loaded: LoadReply,
 }
 
@@ -295,12 +307,45 @@ impl Bench {
         addresses: &[&str],
         controls: &[(&'static str, &'static str)],
     ) -> Bench {
+        Bench::start(
+            signs, address, answers, act_fails, addresses, controls, true,
+        )
+    }
+
+    /// `on_page` for a run with no window that a product build starts: with no `--headed` and no switch of the
+    /// tests, so that no person can answer a handback (r3 U5.15r).
+    fn no_window(
+        signs: &[Option<Sign>],
+        address: &str,
+        answers: &[&'static str],
+        act_fails: usize,
+        addresses: &[&str],
+        controls: &[(&'static str, &'static str)],
+    ) -> Bench {
+        Bench::start(
+            signs, address, answers, act_fails, addresses, controls, false,
+        )
+    }
+
+    /// The bench of `on_page`, with the switch of the tests (`STAND_IN_PERSON`) where `person` holds: a run with no
+    /// window in which the test's supervisor answers each handback as a person.
+    fn start(
+        signs: &[Option<Sign>],
+        address: &str,
+        answers: &[&'static str],
+        act_fails: usize,
+        addresses: &[&str],
+        controls: &[(&'static str, &'static str)],
+        person: bool,
+    ) -> Bench {
         let log: Log = Arc::default();
         let requests: Log = Arc::default();
+        let rows: Rows = Arc::default();
         let (to_runner, from) = mpsc::channel();
         let supervisor = Supervisor {
             log: Arc::clone(&log),
             requests: Arc::clone(&requests),
+            rows: Arc::clone(&rows),
             to_runner,
             answers: answers.iter().copied().collect(),
             bytes: Vec::new(),
@@ -316,7 +361,7 @@ impl Bench {
             AgentId::from_random([6; 16]),
         );
         let run = "0d".repeat(16);
-        let words = [
+        let mut words = vec![
             "--run",
             &run,
             "--agent",
@@ -330,6 +375,9 @@ impl Bench {
             "--utc-offset",
             "0",
         ];
+        if person {
+            words.push(STAND_IN_PERSON);
+        }
         let words: Vec<OsString> = words.iter().map(OsString::from).collect();
         let args = crate::args::parse(&words).expect("the arguments");
         let mut runner = Runner::new(args, link);
@@ -358,6 +406,7 @@ impl Bench {
             runner,
             log,
             requests,
+            rows,
             loaded,
         }
     }
@@ -384,6 +433,11 @@ impl Bench {
     /// The JSON of each handback request that the runner wrote.
     fn requests(&self) -> Vec<String> {
         self.requests.lock().expect("the requests").clone()
+    }
+
+    /// The rows of the run's log that the supervisor took.
+    fn rows(&self) -> Vec<(LogEvent, Option<u32>, Option<Cause>)> {
+        self.rows.lock().expect("the rows").clone()
     }
 }
 
@@ -417,11 +471,16 @@ fn credential_fill() -> ExecutableStep {
     )
 }
 
-/// A payment, a step of an effect class, whose condition has a target marked `credential`.
+/// A payment, a step of an effect class, whose condition has a target marked `credential`: a step that the parser
+/// refuses (r3 U5.10-S), built past it by its public fields.
 fn payment_with_a_credential_condition() -> ExecutableStep {
-    web_step(
-        r#"{"v":1,"n":2,"kind":"web","verb":"click","target":{"desc":"the pay button","frame":[],"credential":"no","locators":[{"by":"test_id","value":"pay","name":null}]},"args":[{"name":"payee","from":"const","value":"p","key":null},{"name":"amount","from":"const","value":"1.00","key":null},{"name":"instrument","from":"const","value":"i","key":null},{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null}],"pre":[{"check":"value_is","target":{"desc":"the password field","frame":[],"credential":"yes","locators":[{"by":"test_id","value":"password","name":null}]},"arg":{"name":"text","from":"const","value":"x","key":null}}],"post":[],"effect":"request","class":"payment"}"#,
-    )
+    let mut step = web_step(
+        r#"{"v":1,"n":2,"kind":"web","verb":"click","target":{"desc":"the pay button","frame":[],"credential":"no","locators":[{"by":"test_id","value":"pay","name":null}]},"args":[{"name":"payee","from":"const","value":"p","key":null},{"name":"amount","from":"const","value":"1.00","key":null},{"name":"instrument","from":"const","value":"i","key":null},{"name":"origin","from":"const","value":"http://127.0.0.1:8080","key":null}],"pre":[{"check":"value_is","target":{"desc":"the password field","frame":[],"credential":"no","locators":[{"by":"test_id","value":"password","name":null}]},"arg":{"name":"text","from":"const","value":"x","key":null}}],"post":[],"effect":"request","class":"payment"}"#,
+    );
+    for target in step.pre.iter_mut().filter_map(|cond| cond.target.as_mut()) {
+        target.credential = YesNo::Yes;
+    }
+    step
 }
 
 /// A case of `each_end_without_a_bind_ends_the_run`: the readings, the address, the answers, the end, and how many
@@ -814,8 +873,9 @@ fn after_bound_no_nothing_leaves() {
 /// handback in the order of a credential field's, and the request names the page's origin; so does a fill of a target
 /// marked `credential`, which fails where the page shows no credential field. Declined, the run ends `declined`. A
 /// click that does not fail on such a page acts, and makes no second reading; a payment whose condition's target is
-/// marked `credential` makes none either, and fails as before; and so does a failed step of a run with no window that
-/// imported a kept sign-in, which drops nothing. Behind the person's `done` and the bind
+/// marked `credential` makes none either, and fails as before, by the guard of r3 U5.10-S, which holds this sentence
+/// now: it reads nothing of the page (a run with no window makes none either:
+/// `a_failed_step_of_a_run_with_no_window_reads_no_sign`). Behind the person's `done` and the bind
 /// the click's act is asked once more (the coordinator's ruling of log line 16106 (3)): end (i), it acts and the step
 /// is done; end (ii), it fails again and the step fails as before, with one handback at that step.
 #[test]
@@ -826,7 +886,8 @@ fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
     assert_eq!(bench.log(), ["read", "act click"]);
 
     // The coordinator's ruling of log line 16292: a step of an effect class makes no second reading, whatever its
-    // targets: a payment whose condition's target is marked `credential` fails on that page with `step_failed`.
+    // targets: a payment whose condition's target is marked `credential` fails on that page with `step_failed`, and
+    // since r3 U5.10-S before any reading of the page.
     let mut bench = Bench::on_page(&[], BOUND, &[DECLINED], 0, &[], &page("Sign in"));
     let got = bench.step(&payment_with_a_credential_condition());
     let log = bench.log();
@@ -834,25 +895,7 @@ fn a_failed_step_on_a_page_that_asks_by_a_link_alone_hands_back() {
         matches!(got, Err(Failure::Step(Cause::StepFailed))),
         "{log:?}"
     );
-    assert_eq!(log, ["read"]);
-
-    // The coordinator's ruling of log line 16376: a run with no window that imported a kept sign-in reads no sign, at
-    // either door, and the step fails as before; the log holds no second reading and no store frame, so no row of the
-    // cause `unauthorized` and no drop of a kept sign-in.
-    for (step, want) in [
-        (click(), &["read", "act click", "read"][..]),
-        (credential_fill(), &["read"][..]),
-    ] {
-        let mut bench = Bench::on_page(&[], BOUND, &[DECLINED], usize::MAX, &[], &page("Sign in"));
-        bench.runner.sessions.imported = true;
-        let got = bench.step(&step);
-        let log = bench.log();
-        assert!(
-            matches!(got, Err(Failure::Step(Cause::StepFailed))),
-            "{log:?}"
-        );
-        assert_eq!(log, want);
-    }
+    assert!(log.is_empty(), "{log:?}");
 
     let opening = [
         "address",
@@ -985,6 +1028,65 @@ fn a_failed_step_on_a_page_with_no_such_sign_fails_as_before() {
                 &["read", "read sign-in"][..]
             };
             assert_eq!(log, want, "{page:?}");
+        }
+    }
+}
+
+/// r3 U5.15r (the coordinator's ruling of log line 16634 (1), (3)): in a run with no window that imported nothing, a
+/// credential field opens no handback. The step's row is `step_failed` with the cause `unauthorized`, no kept sign-in
+/// is dropped, and the run ends `failed` with the cause `step_failed`: at a click before its act, and at a step of the
+/// verb `handback`. The runner starts as a product build starts it, with no `--headed` and no switch of the tests. The
+/// supervisor holds an answer, so that a handback that opened would end the run `declined` and not wait.
+#[test]
+fn a_run_with_no_window_that_imported_nothing_ends_at_a_credential_field() {
+    for step in [click(), handback()] {
+        let mut bench = Bench::no_window(&[Some(Sign::Secret)], BOUND, &[DECLINED], 0, &[], &[]);
+        let got = stop_of(bench.step(&step));
+        let log = bench.log();
+        assert_eq!(
+            got,
+            Some((Outcome::Failed, Some(Cause::StepFailed))),
+            "{log:?}"
+        );
+        assert_eq!(log, ["read", "address", "frame store log"]);
+        assert_eq!(
+            bench.rows(),
+            [(
+                LogEvent::StepFailed,
+                Some(step.n.get()),
+                Some(Cause::Unauthorized)
+            )]
+        );
+    }
+}
+
+/// r3 U5.15r (the coordinator's ruling of log line 16634 (2), which widens that of log line 16376): in a run with no
+/// window, whether it imported a kept sign-in or not, a web step that fails on a page that asks for a sign-in by a link
+/// or a button alone makes no second reading and fails as before, with `step_failed`. The log holds no second reading
+/// and no store frame, so no row of the cause `unauthorized` and no drop of a kept sign-in: at a click whose act fails,
+/// and at a fill of a target marked `credential`.
+#[test]
+fn a_failed_step_of_a_run_with_no_window_reads_no_sign() {
+    let pages: [&[(&'static str, &'static str)]; 2] = [
+        &[("button", "Pay bill"), ("link", "Sign in")],
+        &[("button", "Log in")],
+    ];
+    for imported in [false, true] {
+        for page in pages {
+            for (step, want) in [
+                (click(), &["read", "act click", "read"][..]),
+                (credential_fill(), &["read"][..]),
+            ] {
+                let mut bench = Bench::no_window(&[], BOUND, &[DECLINED], usize::MAX, &[], page);
+                bench.runner.sessions.imported = imported;
+                let got = bench.step(&step);
+                let log = bench.log();
+                assert!(
+                    matches!(got, Err(Failure::Step(Cause::StepFailed))),
+                    "imported {imported}, {page:?}: {log:?}"
+                );
+                assert_eq!(log, want, "imported {imported}, {page:?}");
+            }
         }
     }
 }

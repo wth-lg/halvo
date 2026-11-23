@@ -204,6 +204,7 @@ fn member(sim: &Sim, n: usize) -> Member<Config> {
             active_refused: false,
         },
         session: true,
+        window: false,
     }
 }
 
@@ -246,6 +247,7 @@ impl Sim {
                 state: AgentState::Active,
                 slots: vec![],
                 session: true,
+                window: false,
                 last: spec.finished.then(|| PastRun {
                     run: RunId::parse(&format!("{:032x}", 0x900 + n)).unwrap(),
                     day: DAY - 2,
