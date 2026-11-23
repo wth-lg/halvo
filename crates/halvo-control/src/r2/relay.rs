@@ -8,9 +8,9 @@
 //! The request is `{"v":2,"body":{"op":"relay","request":{..}}}` and the reply
 //! `{"v":2,"body":{"kind":"relayed","reply":{..}}}`; the request names no role. The handler reads two names inside the
 //! object of `request` and nothing else of it: the keys of the daemon's own frames `stream` and `purge` on the owner's
-//! channel, `STREAM_KEY` and `PURGE_KEY` of owner_stream.rs, which the owner reads before its request decoder. Any other
-//! object it sends to the owner as one frame on the owner's channel, and the owner decodes it strictly and takes the
-//! role from that channel, which admits the role interface alone. A refusal is an error reply of v1:
+//! channel, `STREAM_KEY` and `PURGE_KEY` of owner_stream.rs, which the owner reads before its request decoder. Any
+//! other object it sends to the owner as one frame on the owner's channel, and the owner decodes it strictly and takes
+//! the role from that channel, which admits the role interface alone. A refusal is an error reply of v1:
 //! `invalid_argument` for a body with a key beside `op` and `request`, for a `request` that is no JSON object, for an
 //! object that holds the key of the frame `stream` or of the frame `purge` at its top level, and for an object whose
 //! frame to the owner would hold more than 4,096 bytes;

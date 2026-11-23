@@ -11,14 +11,15 @@
 //!   none, on Windows, the creation time of the process. A file that cannot be written ends the child, and no key is
 //!   asked for.
 //! - The key goes as its 32 bytes on the owner's standard input, which the slot then closes; the slot holds it no
-//!   longer than that write and no key between two starts. Then, before any request, the slot hands the owner the
-//!   ordinals of shredded segments that the caller names for a start ([`Caller::gone`]) at or above that start's
-//!   `--first-live`, in frames `{"purge":[<n>,..]}` of at most 64 (halvo-control's `purge_frame`), each answer awaited
-//!   for 4 s; an answer other than `{"purge":"done"}` ends that owner, and the call answers `store_unavailable`.
-//! - [`OwnerSlot::hand_over`] hands the owner that runs, in the same frames, the ordinals that passes of the capture
-//!   store's maintenance shredded since the last hand-over ([`Caller::shredded`]). It starts no owner and stops none. An owner that ends, after a refused key (exit 65 or 77)
+//!   longer than that write and no key between two starts. An owner that ends, after a refused key (exit 65 or 77)
 //!   or for any cause, is reaped and its pid file removed before a call starts the next, and the call that finds the
 //!   end answers `store_unavailable`. At most one owner lives.
+//! - After the key and before any request, the slot hands the owner the ordinals of shredded segments that the caller
+//!   names for a start ([`Caller::gone`]) at or above that start's `--first-live`, in frames `{"purge":[<n>,..]}` of
+//!   at most 64 (halvo-control's `purge_frame`), each answer awaited for 4 s; an answer other than
+//!   `{"purge":"done"}` ends that owner, and the call answers `store_unavailable`.
+//! - [`OwnerSlot::hand_over`] hands the owner that runs, in the same frames, the ordinals that passes of the capture
+//!   store's maintenance shredded since the last hand-over ([`Caller::shredded`]). It starts no owner and stops none.
 //! - When the slot is made it reads a `derived/owner.pid` that an earlier daemon left. A file of another user or of a
 //!   mode wider than 0600, a whole line that is not the slot's line, and a process of this user with that pid whose
 //!   start time cannot be read are trusted for nothing: no signal, no unlink, and the slot starts no owner
@@ -592,8 +593,8 @@ impl Running {
     }
 }
 
-/// Sends `ordinals` to the owner in frames `purge` of at most 64, in their order, each answer awaited for 4 s, and stops
-/// at the first frame that is not answered `done`: true when every frame was. No ordinal sends no frame.
+/// Sends `ordinals` to the owner in frames `purge` of at most 64, in their order, each answer awaited for 4 s, and
+/// stops at the first frame that is not answered `done`: true when every frame was. No ordinal sends no frame.
 fn purge(running: &mut Running, ordinals: &[u64]) -> bool {
     ordinals.chunks(PURGE_MAX).all(|chunk| {
         running.write(&purge_frame(chunk)).is_ok()

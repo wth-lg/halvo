@@ -28,8 +28,8 @@
 //! - The delete of everything. [`Caller::deleting`] is true while `delete-all.intent` stands in the data directory,
 //!   read at each call. `key` reads the intent first and answers none while it stands, with no line, so that no ask
 //!   makes `derived/master.key` anew after the intent is written. While the intent stands the caller forgets the
-//!   figures, the ask and the shredded ordinals of the cell and its committed position: they name the stores that the delete removes, and
-//!   a report frame changes nothing.
+//!   figures, the ask and the shredded ordinals of the cell and its committed position: they name the stores that the
+//!   delete removes, and a report frame changes nothing.
 //! - The committed position. [`Caller::report`] keeps the key `position` of the newest report frame of the owner:
 //!   the store that the derived store is bound to and the position up to which batches are committed, or none for
 //!   its null. A frame that is no report with that key changes nothing.
