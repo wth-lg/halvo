@@ -16,8 +16,11 @@ use crate::proto::{
 pub const TYPING_ON_MAC: bool = true;
 
 /// The row on typing where no typing is recorded: on a Mac whose build takes no typing
-/// ([`TYPING_ON_MAC`]) in the first-run text, and on Windows while the keyboard source line
-/// reads off.
+/// ([`TYPING_ON_MAC`]) in the first-run text, on Windows while the keyboard source line
+/// reads off, and on a Mac with typing on in a view's list in place of the row of keys while the
+/// input source line says that its tap holds no key type (impaired with the reason permission,
+/// or off): the app's view reads it from that line alone, never from the row of Input
+/// Monitoring.
 pub const TYPING_NOT_RECORDED: &str = "Halvo does not record what you type.";
 
 /// The sentence of the first-run text on the search for repeated tasks, which the consent

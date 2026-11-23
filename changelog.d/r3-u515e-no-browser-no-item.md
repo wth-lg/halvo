@@ -1,0 +1,1 @@
+- Fixed: A file, mail or calendar agent that gets stuck at a step no longer shows an item that asks you to finish the step in its own window when no window is open; the run stops there, and the agent tries again next time.

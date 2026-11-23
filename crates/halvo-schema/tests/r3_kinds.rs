@@ -41,6 +41,7 @@ fn the_file_registers_the_two_kinds_of_origin_capture_of_the_family_agent() {
             "agent_finished",
             "agent_agreement",
             "model_key",
+            "model_count",
         ]
     );
     let config = entry("agent_config");
@@ -49,7 +50,7 @@ fn the_file_registers_the_two_kinds_of_origin_capture_of_the_family_agent() {
     assert_eq!(run.class, RetentionClass::Bounded { days: 93 });
     for kind in executable::KINDS {
         let capture = ["agent_config", "agent_run"].contains(&kind.name);
-        let person = kind.name == "model_key";
+        let person = ["model_key", "model_count"].contains(&kind.name);
         let origin = if capture {
             Origin::Capture
         } else if person {
@@ -289,6 +290,14 @@ fn the_fields_of_each_entry_are_the_keys_of_its_record_with_their_types() {
                     .find(|(name, _)| *name == kind.name)
                     .unwrap_or_else(|| panic!("{}", kind.name));
                 assert_eq!(kind.fields, *fields, "{}", kind.name);
+            }
+            Origin::Person if kind.name == "model_count" => {
+                assert_eq!(
+                    kind.fields,
+                    [("v", Version), ("anchor", Instant), ("count", OwnText)],
+                    "{}",
+                    kind.name
+                );
             }
             Origin::Person => {
                 assert_eq!(

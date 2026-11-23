@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, each read for a number of bytes above zero before anything starts it, and no other file in that directory whose name ends in .exe but the uninstall.exe of the installer template, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started), and that directory holds THIRD-PARTY-NOTICES.txt as a file with the bytes that scripts/notices/generate.js writes for the host triple in the same run, in which grep -i -c zetetic counts at least 1. Then src-tauri/windows/hooks.nsh waits for each helper of packaging/helpers.d, and on a GitHub-hosted runner alone: the installer, run with /S into a scratch directory while the values pv of the WebView2 runtime that the template reads are moved aside, puts halvo.exe, each helper, the notices, uninstall.exe and WEBVIEW2-RUNTIME-MISSING.txt with sentence (1) there, with an uninstall entry under HKCU alone; the installed app started with --background on a provisioned scratch directory runs with exactly one halvo-capture.exe child from the install directory, ctl status reads store=open, and after ctl stop exits 0 no halvo-capture.exe from there runs for 10 s; an install over the copy while its halvo-owner.exe is held exits with a code other than 0 and writes no uninstall.exe; and while the app started with --background alone runs with its child on the default data directory that halvo-capture --default-data-dir names, which the check makes and provisions, with a file planted in EBWebView beside it and the Run value Halvo planted, uninstall.exe /S /DELETEALL exits 0 and leaves no process from the install directory, no file there but uninstall.exe, no notices, no Run value, no uninstall entry, no default data directory and no planted file.
+# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, each read for a number of bytes above zero before anything starts it, and no other file in that directory whose name ends in .exe but the uninstall.exe of the installer template, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version, but for a helper whose file of packaging/helpers.d says version=none, which is read and not started), and that directory holds THIRD-PARTY-NOTICES.txt as a file with the bytes that scripts/notices/generate.js writes for the host triple in the same run, in which grep -i -c zetetic counts at least 1. Then src-tauri/windows/hooks.nsh waits for each helper of packaging/helpers.d and defines the box of the hook under another account, the sentence of a crash report that stays and the sentence of a data folder that the delete cannot use word for word as ruled and sets its exit level in a silent run alone, src-tauri/windows/English.nsh gives the uninstaller's box the ruled label, and on a GitHub-hosted runner alone: the installer, run with /S into a scratch directory while the values pv of the WebView2 runtime that the template reads are moved aside, puts halvo.exe, each helper, the notices, uninstall.exe and WEBVIEW2-RUNTIME-MISSING.txt with sentence (1) there, with an uninstall entry under HKCU alone; the installed app started with --background on a provisioned scratch directory runs with exactly one halvo-capture.exe child from the install directory, ctl status reads store=open, and after ctl stop exits 0 no halvo-capture.exe from there runs for 10 s; an install over the copy while its halvo-owner.exe is held exits with a code other than 0 and writes no uninstall.exe; with a file at the name of the default data directory halvo-capture --delete-all exits 66 and uninstall.exe /S /DELETEALL exits 2 and takes nothing away; with two reports planted in the folder that halvo.exe --remove-crash-reports names and one of them held open, uninstall.exe /S exits 3, removes the program and the report that is not held, and an install again exits 0; while the app started with --background alone runs as below, the uninstall entry's InstallLocation turned to another folder makes uninstall.exe /S /DELETEALL exit 2 with nothing taken away and the app running with its child, and the entry then names the install folder again; and while the app started with --background alone runs with its child on the default data directory that halvo-capture --default-data-dir names, which the check makes and provisions, with a file planted in EBWebView beside it and the Run value Halvo planted, uninstall.exe /S /DELETEALL exits 0 and leaves no process from the install directory, no file there but uninstall.exe, no notices, no Run value, no uninstall entry, no default data directory and no planted file.
 set -u
 name=70-package-windows
 config_keys='externalBin signCommand certificateThumbprint'
@@ -171,10 +171,67 @@ hooks_defect() {
   done
 }
 
+# The texts that a person reads, to the letter of their rulings: in the hooks file $1 the box of
+# the hook under another account, the sentence of a crash report that stays and the sentence of a
+# data folder that the delete cannot use; in the language file $2 the label of the uninstaller's
+# box, which the template draws in one line.
+texts_defect() {
+  for key in OTHER_ACCOUNT REPORT_STAYS DATA_FOLDER_UNUSABLE; do
+    case $key in
+      OTHER_ACCOUNT) text=$sentence_other_account ;;
+      REPORT_STAYS) text=$sentence_report_stays ;;
+      *) text=$sentence_data_folder_unusable ;;
+    esac
+    found=$(grep -c -x -F -e "!define HALVO_SENTENCE_$key \"$text\"" "$1")
+    [ "$found" = 1 ] || { printf '%s defines HALVO_SENTENCE_%s in other words than its ruling\n' "$1" "$key"; return 1; }
+  done
+  # shellcheck disable=SC2016
+  label_line='LangString deleteAppData ${LANG_ENGLISH} "'"$label_of_the_box"'"'
+  found=$(grep -c -x -F -e "$label_line" "$2")
+  [ "$found" = 1 ] || { printf '%s gives the box of the uninstaller another label than its ruling, %s\n' "$2" "$label_of_the_box"; return 1; }
+}
+
+# The exit level of the hooks file $1: at least one line sets it, and each line that sets it sets 3
+# in a silent run alone, in the form of level_line, since the installer of the template reads every
+# exit but 0 and 1 of an uninstall with windows as a failed uninstall.
+# shellcheck disable=SC2016
+level_line='${IfThen} ${Silent} ${|} SetErrorLevel ${HALVO_EXIT_REPORT_STAYS} ${|}'
+level_defect() {
+  code_lines=$(grep -v '^[[:space:]]*;' "$1") || { printf 'there is no code in %s\n' "$1"; return 1; }
+  set_lines=$(printf '%s\n' "$code_lines" | grep -c 'SetErrorLevel')
+  silent_lines=$(printf '%s\n' "$code_lines" | sed 's/^[[:space:]]*//' | grep -c -x -F -e "$level_line")
+  if [ "$set_lines" -lt 1 ] || [ "$silent_lines" != "$set_lines" ]; then
+    printf '%s sets an exit level outside a silent run (%s lines set one, %s in a silent run alone)\n' "$1" "$set_lines" "$silent_lines"
+    return 1
+  fi
+}
+
+# The folder that the hooks file $1 names where the form does not start or its line names no
+# folder: the folder of Halvo's window alone, by the template's expression, on the one line that
+# names a folder by $LOCALAPPDATA for the report's sentence; never the folder of the app's id, which
+# holds the data that a person who did not tick the box kept.
+# shellcheck disable=SC2016
+window_folder_line='StrCpy $HalvoReportFolder "$LOCALAPPDATA\${BUNDLEID}\EBWebView"'
+window_folder_defect() {
+  # shellcheck disable=SC2016
+  named=$(sed 's/^[[:space:]]*//' "$1" | grep -c -F -e 'StrCpy $HalvoReportFolder "$LOCALAPPDATA')
+  window=$(sed 's/^[[:space:]]*//' "$1" | grep -c -x -F -e "$window_folder_line")
+  if [ "$named" != 1 ] || [ "$window" != 1 ]; then
+    printf '%s names another folder than the folder of Halvo'"'"'s window where the form names none\n' "$1"
+    return 1
+  fi
+}
+
 # The install, start, status, stop and uninstall of the built installer. Each helper below is the
 # hosted runner's own; the fixture of the self-test puts stand-ins in their place.
 sentence_runtime='Halvo cannot open its window yet: the Microsoft Edge WebView2 Runtime is not on this computer. This installer downloads nothing. Install the runtime from Microsoft, then start Halvo.'
 runtime_file=WEBVIEW2-RUNTIME-MISSING.txt
+# The sentences of the hooks that a person reads and the label of the uninstaller's box, to the
+# letter of their rulings.
+sentence_other_account='This account has no record of installing this copy of Halvo, so the uninstaller deletes no Halvo data. The Halvo data and the start entry of the person who installed it stay on this computer, and so does any Halvo data of your own. Choose OK to remove the program only, or Cancel to stop.'
+sentence_report_stays='Halvo was uninstalled, but a crash report of its own window could not be removed: {folder}. It can hold what the window showed. Remove it yourself.'
+sentence_data_folder_unusable='Halvo could not use its data folder, so nothing was deleted and Halvo is still installed: {folder}. You can remove that folder yourself and run the uninstaller again, or run it again without the box to remove the program only.'
+label_of_the_box="Also delete Halvo's data. Copies next to your files stay."
 run_key='HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
 uninstall_key='Software\Microsoft\Windows\CurrentVersion\Uninstall\Halvo'
 # The two values that the template's section WebView2 reads on a 64-bit Windows, in its order.
@@ -472,6 +529,12 @@ cleanup() {
   fi
   [ -n "${made_default:-}" ] && [ -d "$made_default" ] && take_away "$made_default"
   [ -n "${planted:-}" ] && [ -f "$planted" ] && take_away "$planted"
+  for file in "${unusable:-}" "${report_goes:-}" "${report_stays:-}"; do
+    [ -n "$file" ] && [ -f "$file" ] && take_away "$file"
+  done
+  if [ -n "${aside:-}" ] && [ -e "$aside" ] && [ ! -e "$default" ]; then
+    mv "$aside" "$default"
+  fi
   take_away "$work/installed"
 }
 
@@ -484,6 +547,10 @@ cycle() {
   planted_run=
   made_default=
   planted=
+  unusable=
+  aside=
+  report_goes=
+  report_stays=
   started=
   cycling=yes
   trap cleanup EXIT
@@ -550,10 +617,85 @@ cycle() {
   mv "$work/uninstall.exe.aside" "$install/uninstall.exe" || fail "uninstall.exe could not be put back"
   printf 'cycle install over a held copy: exit %s, nothing installed\n' "$code"
 
+  # Where the delete cannot use the data directory, here a file at its name, it exits 66, and a
+  # silent uninstall with /DELETEALL stops before anything goes (exit 2).
   default_native=$("$install/halvo-capture.exe" --default-data-dir) || fail "halvo-capture.exe --default-data-dir exited $?"
   default_native=$(printf '%s' "$default_native" | tr -d '\r')
   default=$(posix_path "$default_native") || fail "the default data directory has no path here"
   folder=${default%/*}
+  if [ -e "$default" ]; then
+    aside=$default.check-70-aside
+    mv "$default" "$aside" || fail "the default data directory cannot be moved aside"
+  fi
+  mkdir -p "$folder" || fail "the folder of the default data directory cannot be made"
+  unusable=$default
+  printf 'a file at the name of the data directory, planted by check 70\n' >"$unusable" || fail "no file can be planted at the name of the default data directory"
+  "$install/halvo-capture.exe" --delete-all --data-dir "$default_native" >"$work/delete-66.out" 2>&1
+  code=$?
+  [ "$code" = 66 ] || fail "halvo-capture.exe --delete-all on a file at the name of the data directory exited $code, not 66"
+  MSYS_NO_PATHCONV=1 "$install/uninstall.exe" /S /DELETEALL "_?=$native_install" >"$work/uninstall-66.out" 2>&1
+  code=$?
+  printf 'cycle data folder unusable: the delete exits 66; uninstall /S /DELETEALL: exit %s\n' "$code"
+  went=
+  for file in halvo.exe uninstall.exe THIRD-PARTY-NOTICES.txt; do
+    [ -e "$install/$file" ] || went="$went, $file"
+  done
+  uninstall_entry HKCU || went="$went, the uninstall entry"
+  [ -f "$unusable" ] || went="$went, the file at the name of the data directory"
+  [ -z "$went" ] || fail "the silent uninstall with /DELETEALL went on where the delete could not use the data directory; gone:${went#,}"
+  [ "$code" = 2 ] || fail "the silent uninstall with /DELETEALL where the delete could not use the data directory exited $code, not 2"
+  take_away "$unusable"
+  unusable=
+  if [ -n "$aside" ]; then
+    mv "$aside" "$default" || fail "the default data directory cannot be put back"
+    aside=
+  fi
+  printf 'cycle data folder unusable (sentence 8): exit 2, nothing gone\n'
+
+  # An uninstall without the box calls the app's form, which removes the crash reports of the
+  # window from the folder that its line names; where one stays, here one that the check holds
+  # open, the uninstall goes to its end and exits 3.
+  "$install/halvo.exe" --remove-crash-reports >"$work/form.out" 2>&1
+  code=$?
+  line=$(tr -d '\r' <"$work/form.out" | grep -m 1 '^crash_reports folder=')
+  [ "$code" = 0 ] && [ -n "$line" ] || fail "halvo.exe --remove-crash-reports exited $code with the line: ${line:-none}"
+  reports_native=${line#crash_reports folder=}
+  reports_native=${reports_native% removed=*}
+  reports=$(posix_path "$reports_native") || fail "the folder of the crash reports has no path here"
+  mkdir -p "$reports" || fail "the folder of the crash reports cannot be made"
+  report_goes=$reports/check-70-report-goes.dmp
+  report_stays=$reports/check-70-report-stays.dmp
+  for file in "$report_goes" "$report_stays"; do
+    printf 'planted by check 70\n' >"$file" || fail "no report can be planted in $reports_native"
+  done
+  hold_file "$report_stays"
+  waited=0
+  until [ -s "$work/holder" ]; do
+    [ "$waited" -lt "$end_s" ] || fail "the planted report could not be held"
+    sleep 1
+    waited=$((waited + 1))
+  done
+  MSYS_NO_PATHCONV=1 "$install/uninstall.exe" /S "_?=$native_install" >"$work/uninstall-report.out" 2>&1
+  code=$?
+  release_file
+  printf 'cycle uninstall /S without the box, one report held: exit %s\n' "$code"
+  if [ -e "$install/halvo.exe" ] || uninstall_entry HKCU; then
+    fail "the silent uninstall without the box did not remove the program (exit $code)"
+  fi
+  [ ! -e "$report_goes" ] || fail "the report planted in the folder that the form names stays after an uninstall without the box"
+  printf 'cycle uninstall without the box (sentence 5): the report planted in %s is gone\n' "$reports_native"
+  [ -e "$report_stays" ] || fail "the report that the check held is gone"
+  [ "$code" = 3 ] || fail "the silent uninstall without the box that left a report exited $code, not 3"
+  printf 'cycle uninstall without the box (sentence 6): the held report stays, exit 3, the program is gone\n'
+  take_away "$report_stays"
+  report_stays=
+  MSYS_NO_PATHCONV=1 "$installer" /S "/D=$native_install" >"$work/install-3.out" 2>&1
+  code=$?
+  if [ "$code" != 0 ] || [ ! -f "$install/halvo.exe" ] || ! uninstall_entry HKCU; then
+    fail "the install after the uninstall without the box exited $code"
+  fi
+  printf 'cycle install again: exit 0\n'
+
   [ -e "$default" ] || made_default=$default
   mkdir -p "$default" "$folder/EBWebView" || fail "the default data directory cannot be made"
   printf '{}\n' >"$default/daemon-state.json" || fail "the state file of the default data directory cannot be written"
@@ -566,6 +708,42 @@ cycle() {
   pid=$(winpid_of "$!") && started="$started $pid"
   wait_pair "default" "halvo" ""
   wait_lease "default" ""
+
+  # The uninstall entry of this account turned to another folder reads as another account's
+  # install: a silent uninstall with /DELETEALL stops before anything goes (exit 2), and the app
+  # still runs with its child. Then the entry names the install folder again.
+  entry_key="HKCU\\$uninstall_key"
+  location=$(reg_data "$entry_key" InstallLocation)
+  [ -n "$location" ] || fail "the uninstall entry names no InstallLocation"
+  reg_put "$entry_key" InstallLocation "$native_install-of-another-account" || fail "the folder of the uninstall entry cannot be turned"
+  # The app writes the Run value of its own path at its start, so the value is read as it stands
+  # now, not as the check planted it.
+  run_before=$(reg_data "$run_key" Halvo)
+  MSYS_NO_PATHCONV=1 "$install/uninstall.exe" /S /DELETEALL "_?=$native_install" >"$work/uninstall-other.out" 2>&1
+  code=$?
+  printf 'cycle uninstall /S /DELETEALL, the entry naming another folder: exit %s\n' "$code"
+  went=
+  for file in halvo.exe uninstall.exe THIRD-PARTY-NOTICES.txt; do
+    [ -e "$install/$file" ] || went="$went, $file"
+  done
+  uninstall_entry HKCU || went="$went, the uninstall entry"
+  [ -e "$default" ] || went="$went, the default data directory"
+  [ -e "$planted" ] || went="$went, the file planted in EBWebView"
+  run_now=$(reg_data "$run_key" Halvo)
+  [ "$run_now" = "$run_before" ] || went="$went, the Run value"
+  list_from "$native_install" >"$work/listing" || fail "the list of processes cannot be read"
+  pair_of halvo
+  [ -n "$pair" ] || went="$went, the app with its child"
+  [ -z "$went" ] || fail "the silent uninstall with /DELETEALL went on while the uninstall entry names another folder; gone:${went#,}"
+  [ "$code" = 2 ] || fail "the silent uninstall with /DELETEALL while the uninstall entry names another folder exited $code, not 2"
+  # The folder goes back without the template's quotes, which the hook takes off as well, so that
+  # no quote has to pass to reg.exe.
+  location=${location#\"}
+  location=${location%\"}
+  reg_put "$entry_key" InstallLocation "$location" || fail "the folder of the uninstall entry cannot be put back"
+  back=$(reg_data "$entry_key" InstallLocation)
+  [ "$back" = "$location" ] || fail "the uninstall entry names $back after the check put $location back"
+  printf 'cycle another account (sentence 3): exit 2, nothing gone, the app runs with its child; the entry names the install folder again, without quotes\n'
 
   MSYS_NO_PATHCONV=1 "$install/uninstall.exe" /S /DELETEALL "_?=$native_install" >"$work/uninstall.out" 2>&1
   code=$?
@@ -673,8 +851,9 @@ fixture() {
   uninstall_entry_drop() {
     take_away "$STUB_DIR/reg/uninstall-HKCU"
   }
+  # The held file's path goes into held, where the stand-in form reads it.
   hold_file() {
-    : >"$STUB_DIR/held" && printf 'stand-in\n' >"$work/holder"
+    printf '%s\n' "$1" >"$STUB_DIR/held" && printf 'stand-in\n' >"$work/holder"
   }
   release_file() {
     [ -s "$work/holder" ] || return 0
@@ -710,14 +889,39 @@ if ! ls "$STUB_DIR/reg" | grep -q EdgeUpdate && [ "$STUB_MODE" != no-runtime-fil
   printf '%s\r\n' "$STUB_SENTENCE" >"$dir/WEBVIEW2-RUNTIME-MISSING.txt"
 fi
 : >"$STUB_DIR/reg/uninstall-HKCU"
+printf '"%s"' "$dir" >"$STUB_DIR/reg/HKCU_Software_Microsoft_Windows_CurrentVersion_Uninstall_Halvo_InstallLocation"
 exit 0
 EOF
+  # The app: --background with its child, and the form --remove-crash-reports on the folder of the
+  # window's reports beside the default data directory, which leaves the file that held names.
   cat >"$1/app" <<'EOF'
 #!/bin/sh
+if [ "${1:-}" = --remove-crash-reports ]; then
+  folder=${STUB_DEFAULT%/*}/EBWebView/Crashpad/reports
+  held=
+  [ -f "$STUB_DIR/held" ] && held=$(cat "$STUB_DIR/held")
+  removed=0
+  left=0
+  for file in "$folder"/*; do
+    [ -f "$file" ] || continue
+    if [ "$file" = "$held" ]; then
+      left=$((left + 1))
+    else
+      mv "$file" "$STUB_DIR/gone/report-$$-$removed" && removed=$((removed + 1))
+    fi
+  done
+  printf 'crash_reports folder=%s removed=%s left=%s\n' "$folder" "$removed" "$left"
+  [ "$left" = 0 ]
+  exit
+fi
 [ "$1" = --background ] || exit 98
 dir=$STUB_DEFAULT
 [ "${2:-}" = --data-dir ] && dir=$3
 here=$(cd "$(dirname "$0")" && pwd)
+# As the app at a start on its default data directory: the Run value of its own path.
+if [ "${2:-}" != --data-dir ]; then
+  printf '"%s" --background' "$here/halvo.exe" >"$STUB_DIR/reg/HKCU_Software_Microsoft_Windows_CurrentVersion_Run_Halvo"
+fi
 printf 'halvo.exe %s %s %s --background --data-dir %s\n' "$$" "$PPID" "$here/halvo.exe" "$dir" >"$STUB_DIR/procs/$$"
 if [ -f "$dir/daemon-state.json" ] && [ "$STUB_MODE" != no-child ]; then
   sh "$here/halvo-capture.exe" --service-run --lifeline --data-dir "$dir" &
@@ -736,6 +940,7 @@ case $1 in
   --delete-all)
     [ $# = 3 ] && [ "$2" = --data-dir ] || exit 64
     printf '%s\n' "$3" >>"$STUB_DIR/deleted"
+    [ -f "$3" ] && exit 66
     if [ "$STUB_MODE" = delete-fails ]; then
       printf '%s\n' "$3" >"$STUB_DIR/stuck"
       exit 1
@@ -780,12 +985,26 @@ exit 98
 EOF
   # The uninstaller with the hooks' steps in their order and the template's own steps; where the
   # delete exits 1 a file of the data directory stays, and the removal of the folder leaves it.
+  # First whose install it removes: where this account's uninstall entry names another folder, the
+  # box deletes nothing and a silent run with /DELETEALL stops (exit 2). Behind the delete, at the
+  # account's own uninstall, the app's form; a report that stays ends a run without the box with 3.
   cat >"$1/uninstall" <<'EOF'
 #!/bin/sh
-here=$(cd "$(dirname "$0")" && pwd)
+here=$(cd "$(dirname "$0")" && pwd -P)
 [ "$1" = /S ] || exit 98
 delete=no
 [ "${2:-}" = /DELETEALL ] && delete=yes
+location_file=$STUB_DIR/reg/HKCU_Software_Microsoft_Windows_CurrentVersion_Uninstall_Halvo_InstallLocation
+location=
+[ -f "$location_file" ] && location=$(cat "$location_file")
+location=${location#\"}
+location=${location%\"}
+own=no
+if [ -n "$location" ] && [ -d "$location" ] && [ "$(cd "$location" && pwd -P)" = "$here" ]; then
+  own=yes
+fi
+[ "$STUB_MODE" = other-deletes ] && own=yes
+[ "$own" = no ] && [ "$delete" = yes ] && exit 2
 sh "$here/halvo-capture.exe" ctl stop
 if [ "$STUB_MODE" != left ]; then
   for file in "$STUB_DIR/procs"/*; do
@@ -800,7 +1019,14 @@ if [ "$delete" = yes ]; then
   dir=$(sh "$here/halvo-capture.exe" --default-data-dir) || exit 2
   sh "$here/halvo-capture.exe" --delete-all --data-dir "$dir"
   code=$?
-  [ "$code" = 0 ] || [ "$STUB_MODE" = delete-fails ] || exit 2
+  case $STUB_MODE:$code in
+    *:0 | delete-fails:1 | goes-on-at-66:66) ;;
+    *) exit 2 ;;
+  esac
+fi
+report=no
+if [ "$own" = yes ] && [ "$STUB_MODE" != report-left ]; then
+  sh "$here/halvo.exe" --remove-crash-reports >/dev/null || report=yes
 fi
 n=0
 gone() {
@@ -824,6 +1050,8 @@ if [ "$delete" = yes ]; then
   done
 fi
 [ -f "$STUB_DIR/reg/uninstall-HKCU" ] && gone "$STUB_DIR/reg/uninstall-HKCU"
+[ -f "$location_file" ] && gone "$location_file"
+[ "$delete" = no ] && [ "$report" = yes ] && exit 3
 exit 0
 EOF
   chmod +x "$1/setup.exe" "$1/app" "$1/capture" "$1/uninstall" || exit 2
@@ -853,6 +1081,12 @@ measure() {
   # shellcheck disable=SC2086
   found=$(hooks_defect src-tauri/windows/hooks.nsh $helpers) || fail "$found"
   printf 'hooks: src-tauri/windows/hooks.nsh waits for each helper of packaging/helpers.d\n'
+  found=$(texts_defect src-tauri/windows/hooks.nsh src-tauri/windows/English.nsh) || fail "$found"
+  printf 'texts: the three sentences of the hooks and the label of the box are their rulings, word for word\n'
+  found=$(level_defect src-tauri/windows/hooks.nsh) || fail "$found"
+  printf 'hooks: each exit level is set in a silent run alone\n'
+  found=$(window_folder_defect src-tauri/windows/hooks.nsh) || fail "$found"
+  printf 'hooks: where the form names no folder, the sentence names the folder of the window alone\n'
   sevenzip=$(command -v 7z) || sevenzip='/c/Program Files/7-Zip/7z.exe'
   [ -x "$sevenzip" ] || fail "no 7z on PATH and no $sevenzip; the windows runner's image holds 7-Zip"
   banner=$("$sevenzip" i | grep -m 1 '7-Zip')
@@ -991,6 +1225,44 @@ self_test() {
   output=$(hooks_defect "$work/hooks/hooks.nsh" $helpers 2>"$work/hooks.err")
   answer hooks-without-the-runner $? "$output" "$work/hooks/hooks.nsh waits for no halvo-runner.exe of packaging/helpers.d before an uninstall"
 
+  # The texts of the tree are their rulings; a language file with another label for the box fails.
+  output=$(texts_defect src-tauri/windows/hooks.nsh src-tauri/windows/English.nsh 2>"$work/texts.err")
+  code=$?
+  got=FAIL
+  [ "$code" = 0 ] && got=PASS
+  verdict texts-of-the-tree PASS "$got"
+  mkdir -p "$work/label" || exit 2
+  # shellcheck disable=SC2016
+  sed 's/^LangString deleteAppData .*/LangString deleteAppData ${LANG_ENGLISH} "Also delete everything that Halvo has stored on this computer"/' src-tauri/windows/English.nsh >"$work/label/English.nsh" || exit 2
+  output=$(texts_defect src-tauri/windows/hooks.nsh "$work/label/English.nsh" 2>"$work/label.err")
+  answer language-file-with-another-label $? "$output" "$work/label/English.nsh gives the box of the uninstaller another label than its ruling, $label_of_the_box"
+
+  # The hooks of the tree set their exit level in a silent run alone; a hooks file that sets it in a
+  # run with windows too fails.
+  output=$(level_defect src-tauri/windows/hooks.nsh 2>"$work/level.err")
+  code=$?
+  got=FAIL
+  [ "$code" = 0 ] && got=PASS
+  verdict exit-level-of-the-tree PASS "$got"
+  mkdir -p "$work/level" || exit 2
+  # shellcheck disable=SC2016
+  awk -v line="$level_line" '{ text = $0; sub(/^[ \t]+/, "", text) } text == line && !done { print "    SetErrorLevel ${HALVO_EXIT_REPORT_STAYS}"; done = 1; next } { print }' src-tauri/windows/hooks.nsh >"$work/level/hooks.nsh" || exit 2
+  output=$(level_defect "$work/level/hooks.nsh" 2>"$work/level.err")
+  answer hooks-with-an-exit-level-in-a-run-with-windows $? "$output" "$work/level/hooks.nsh sets an exit level outside a silent run (2 lines set one, 1 in a silent run alone)"
+
+  # Where the form names no folder, the hooks of the tree name the folder of Halvo's window; a hooks
+  # file that names the folder of the app's id there fails.
+  output=$(window_folder_defect src-tauri/windows/hooks.nsh 2>"$work/window.err")
+  code=$?
+  got=FAIL
+  [ "$code" = 0 ] && got=PASS
+  verdict window-folder-of-the-tree PASS "$got"
+  mkdir -p "$work/window" || exit 2
+  # shellcheck disable=SC2016
+  sed 's/StrCpy \$HalvoReportFolder "\$LOCALAPPDATA\\\${BUNDLEID}\\EBWebView"/StrCpy $HalvoReportFolder "$LOCALAPPDATA\\${BUNDLEID}"/' src-tauri/windows/hooks.nsh >"$work/window/hooks.nsh" || exit 2
+  output=$(window_folder_defect "$work/window/hooks.nsh" 2>"$work/window.err")
+  answer hooks-naming-the-folder-of-the-app-id $? "$output" "$work/window/hooks.nsh names another folder than the folder of Halvo's window where the form names none"
+
   # The cycle on stand-ins; the default data directory's path holds a space and a letter beyond
   # ASCII, so the good one passes only where the uninstall hands the printed path on whole.
   here=${0%/*}
@@ -1000,7 +1272,7 @@ self_test() {
   stand_in_programs "$work/stand-in-bin"
   fixture_limit_s=120
   zoe=$(printf 'Zo\303\253')
-  for mode in good left delete-fails no-runtime-file run-value-left no-child install-goes-on listing-blind no-fresh-lease; do
+  for mode in good left delete-fails no-runtime-file run-value-left no-child install-goes-on listing-blind no-fresh-lease other-deletes report-left goes-on-at-66; do
     mkdir -p "$work/cycle-$mode" || exit 2
     STUB_MODE=$mode STUB_DIR=$work/cycle-$mode STUB_BIN=$work/stand-in-bin STUB_DEFAULT="$work/cycle-$mode/home/$zoe Halvo/com.halvo.desktop/data" STUB_HELPERS=$helpers STUB_SENTENCE=$sentence_runtime sh "$self" --fixture "$work/cycle-$mode" >"$work/cycle-$mode.out" 2>&1 &
     fixture=$!
@@ -1049,6 +1321,12 @@ self_test() {
   cycle_verdict listing-blind FAIL 'the installed app (--data-dir) runs with 0 halvo-capture.exe children from the install directory after 10 s, not one (0 apps from there)'
   # An app that never takes its child as its own: the stage fails at the bound before its stop.
   cycle_verdict no-fresh-lease FAIL 'ctl status of the installed app (--data-dir) did not read lease=fresh within 3 s'
+  # An uninstall that reads no uninstall entry and deletes under another account's install.
+  cycle_verdict other-deletes FAIL 'the silent uninstall with /DELETEALL went on while the uninstall entry names another folder; gone: halvo.exe, THIRD-PARTY-NOTICES.txt, the uninstall entry, the default data directory, the file planted in EBWebView, the Run value, the app with its child'
+  # An uninstall that does not call the app's form, so the crash report stays.
+  cycle_verdict report-left FAIL 'the report planted in the folder that the form names stays after an uninstall without the box'
+  # An uninstall that goes on where the delete could not use the data directory (exit 66).
+  cycle_verdict goes-on-at-66 FAIL 'the silent uninstall with /DELETEALL went on where the delete could not use the data directory; gone: halvo.exe, THIRD-PARTY-NOTICES.txt, the uninstall entry, the file at the name of the data directory'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
