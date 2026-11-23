@@ -27,7 +27,7 @@ use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
 use crate::workbook::{workbook_path, PathForm};
-use crate::{bind, bindings, checkpoint, day, end, reply, runner};
+use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 
 /// Answers one coordinator body of A7.2, read from its bytes with the typed parser: the reply, or the error name of
 /// the first check that refuses it. A refused body stores nothing, but for `create_agent`, whose state call comes
@@ -215,6 +215,20 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 ///   Named limits: a copy or a backup of the store's files keeps an agreement that was taken back; the earlier
 ///   revisions of the set-up stay stored with the tier that each held; the body trusts its caller for what the
 ///   router's table holds and compares nothing with it.
+/// - `model_room` and `set_model_cap` (r7 8.1L; the coordinator's log lines 16775 and 17277): the person's count of
+///   hosted calls, ONE row of the kind `model_count` for the person and all agents together, which names no workflow;
+///   each body has `workflow` and `agent` null and needs no stored workflow. Both take the count at the request's
+///   instant: every hold whose life ended at or before it expires first, at its full amount, and the cap period turns
+///   second, only where the instant is at or behind the period's end; a period ends at the anchor's day of the month
+///   and time of day one calendar month later, in UTC, at that month's last day where the month has no such day.
+///   `model_room` stores nothing and answers `{"room":"none",..}` where no row stands, with the cap that a new count
+///   would hold, nothing spent or held and no period end; `{"room":"reads",..}` with the four values of the count's
+///   room (the cap in minor units, what is spent and held in micro-units, the period's end in milliseconds); and
+///   `{"room":"unread",..}` with no figure where the row does not read. `set_model_cap` sets the person's cap on the
+///   count, inside the bounds of a cap line, else `length`; where no row stands or the row does not read it starts a
+///   new count at nothing with that cap, anchored at the request's instant, and answers `"new_count":"yes"`. It
+///   replaces the row by the host's removal call of a person's kind in one write. No request removes the row alone:
+///   it goes with the delete of everything and with the data folder, and Reset settings keeps it.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -239,6 +253,8 @@ pub fn coordinator(
         CoordinatorCall::ModelKeyState(_) => model_key_state(&*host),
         CoordinatorCall::ReadModelKey(_) => read_model_key(&*host),
         CoordinatorCall::SetModel(b) => set_model(host, now, &b),
+        CoordinatorCall::ModelRoom(_) => count::room(&*host, now),
+        CoordinatorCall::SetModelCap(b) => count::set_cap(host, now, &b),
     }
 }
 

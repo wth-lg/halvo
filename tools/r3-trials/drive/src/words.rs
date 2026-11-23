@@ -67,6 +67,24 @@ pub fn repair_question(n: usize, verb: &str, target: &str) -> String {
     )
 }
 
+/// The question of a recovery request in the hosted form, which names no word of the stored step
+/// (A12.7; the coordinator's ruling of log line 16422 (5)).
+pub const REPAIR_HOSTED: &str = "A saved step found no control on this page. Give the next action.";
+
+/// A line of the list of a hosted recovery for a stored step that the run carried out: the verb and
+/// the reference on this page alone, and " (done)" or " (done; a request was sent)".
+pub fn carried_here(a: &Action, request_sent: bool) -> String {
+    let how = if request_sent {
+        "done; a request was sent"
+    } else {
+        "done"
+    };
+    match a.reference() {
+        Some(r) => format!("{} {r} ({how})", a.word()),
+        None => format!("{} ({how})", a.word()),
+    }
+}
+
 /// The action as one short line of the list: the verb and its fields.
 pub fn action_words(a: &Action) -> String {
     match a {
@@ -218,6 +236,8 @@ mod tests {
             HANDBACK.to_string(),
             frame("Goal.", &[], &[], &[], NEXT),
             repair_question(3, "click", "button \"Pay now\""),
+            REPAIR_HOSTED.to_string(),
+            carried_here(&click(), true),
         ];
         for o in &others {
             assert!(!o.contains("(refused"), "{o}");

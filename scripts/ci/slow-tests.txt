@@ -2,18 +2,24 @@
 # and the group in which each of them runs in a slice (scripts/ci/slices.txt, the kind tests).
 #
 # A line is one of six words, then a name, the capital letter of a group, and a note:
-#   targets <package> <group>      every test target of that package; its unit tests stay
-#   target <name> <group>          every test target of that name, in whatever package has one
-#   units <package> <group>        the unit tests of that package's library and binaries
-#   test <part> <group> <package>  every test whose name holds the part (cargo test -- --skip <part>);
-#                                  the group runs the part in the unit tests of that package
-#   doc-tests <group>              the doc-tests of every package
-#   kept <package> <part> [<job>]  the merge gate runs the unit tests of that package whose name holds
-#                                  the part, although a units line names the package; no group. 12-test
-#                                  prints how many such tests passed and fails when none did; a part
-#                                  whose tests one job alone has is followed by that job, macos or
-#                                  windows, and the other job runs it and does not count it (so the
-#                                  note of a kept line never begins with the word macos or windows)
+#   targets <package> <group> [<job>]      every test target of that package; its unit tests stay
+#   target <name> <group> [<job>]          every test target of that name, in whatever package has one
+#   units <package> <group> [<job>]        the unit tests of that package's library and binaries
+#   test <part> <group> <package> [<job>]  every test whose name holds the part (cargo test -- --skip
+#                                          <part>); the group runs the part in the unit tests of that
+#                                          package
+#   doc-tests <group>                      the doc-tests of every package
+#   kept <package> <part> [<job>]          the merge gate runs the unit tests of that package whose name
+#                                          holds the part, although a units line names the package; no
+#                                          group. 12-test prints how many such tests passed and fails
+#                                          when none did
+# A job, macos or windows, limits a line to the merge gate of that job. On a targets, target, units
+# or test line, that job's gate skips what the line names and the other job's gate runs it; the group
+# runs it wherever scripts/ci/slices.txt runs the group, so give such a group a tests line in the
+# slices of that job alone. There a word of the letters a to z alone is a job word, and 12-test
+# refuses one that is neither macos nor windows, so the note of such a line begins with a digit or
+# another sign. On a kept line, that job's gate alone runs the part and the other job prints
+# kept_not_counted (so the note of a kept line never begins with the word macos or windows).
 # The merge gate keeps the unit tests of every package that no units line names, and the test
 # targets of the packages that hold a core promise (scripts/ci/core-promises.txt): halvo,
 # halvo-capture, halvo-derived, halvo-learn, halvo-learn-gate, halvo-learn-store, halvo-redact,
@@ -25,7 +31,12 @@
 # D the test targets of seven more packages and three targets by name (sat); E the one target
 # macos_stall_fixture (wed in the macos job, before 51-macos-stall, which reads from 12-test's list
 # that the launch-path test of that target ran; no windows slice runs it, where every test of it is
-# ignored). B and D were one group,
+# ignored); F what the merge gate of the macos job alone skips, by the job word macos, and the target
+# cli of halvo-capture, whose file holds tests of a macos build alone (wed2 in the macos job; no
+# windows slice runs it, where the windows gate runs every test of it that a windows build holds).
+# The seconds of the lines of F are those of the macos job in the pull request runs 45111247085,
+# 45112524657 and 45111386498, from libtest's lines, and for a test line the gaps before its lines in
+# the third run's 12-test/line-seconds.txt. B and D were one group,
 # which took 738 s in the macos job and 877 s in the windows job of the run 44917046290, 273 s and
 # 445 s of it builds.
 # CI_D_TEST_GROUP=<group> sh scripts/ci/run-ci-d.sh <job> 12-test runs one group by hand.
@@ -37,6 +48,7 @@
 targets halvo-agent-client B 12 test targets: 57 s macos, 42 s windows
 targets halvo-agent-gate B 2 test targets: 3 s macos, 2 s windows
 targets halvo-agent-store B 10 test targets: 6 s macos, 5 s windows
+targets halvo-analysis F macos 7 test targets: 27.4, 28.4 and 33.6 s macos; the windows gate runs them, 18.6 s in the run 45111247085
 targets halvo-cap D 4 test targets: 6 s macos, 6 s windows
 targets halvo-checkpoint D 10 test targets: 13 s macos, 3 s windows
 targets halvo-connect D 8 test targets: 24 s macos, 19 s windows
@@ -60,15 +72,17 @@ target derive_rules D halvo-route-gate: 12 s macos, 8 s windows
 target drift_cli D halvo-learn-gate: 9 s macos, 5 s windows
 target app_start_windows D halvo: no test on macos, 18 s windows; its waits behind a stop and before Start are spans of seconds, beside check 34
 target macos_stall_fixture E halvo-capture: 10 s macos, every test ignored on windows
+target cli F halvo-capture: 25.7, 24.5 and 25.6 s macos, two tests; its file holds tests of a macos build alone, so a windows job runs none of it
 units halvo-learn-gate B 42 s macos, 24 s windows
 kept halvo-learn-gate tests::privacy the deletion of learned rows: the module tests::privacy of the package's unit tests, and the four tests of its module privacy::tests whose own name begins with privacy; ten tests, about 3 s on a Mac
 units halvo-sqlcipher A 27 s macos, 32 s windows
 units halvo-web B 24 s macos, 7 s windows
 units halvo-control B 16 s macos, 10 s windows
 kept halvo-control _windows::tests:: windows the three peer checks of the Windows control channel: client_windows::tests::the_pipe_client_refuses_a_server_of_another_user, child_windows::tests::a_child_inherits_the_listed_handles_and_no_other and r2::owner_stream_windows::tests::an_end_goes_to_no_process_of_another_user, which the kept part r2:: matches too; the windows job alone has them
-kept halvo-control r2:: the unit tests of the module r2, which the package builds by default: the five of the request relay, the three of the request defer, the two of protocol version 2, the one of the run marks and the owner stream's one of each system; twelve tests on a Mac and nine in the windows job, where the four that serve a request on a socket pair are not built and the owner stream's test of Windows is
+kept halvo-control r2:: windows the unit tests of the module r2, which the package builds by default: the five of the request relay, the three of the request defer, the two of protocol version 2, the one of the run marks and the owner stream's one of each system; nine in the windows job, where the four that serve a request on a socket pair are not built and the owner stream's test of Windows is; the twelve of a Mac run in the group B, and the merge gate of the macos job builds no unit test of the package (that build took 6.3, 9.1 and 13.9 s in the pull request runs 45111247085, 45112524657 and 45111386498)
 units halvo-route-gate B 13 s macos, 9 s windows
 units halvo-learn-store B 7 s macos, 5 s windows
+units halvo-runner F macos 12.3, 12.9 and 13.4 s macos; the windows gate runs them
 test daemon::supervisor::tests::stress_cases C halvo-capture 88 s macos, 38 s windows, 48 tests
 test daemon::supervisor::tests::the_stop_path_with_every_wait_at_its_limit_ends_inside_the_budget C halvo-capture 13 s macos, 2 s windows
 test store::formal_tests C halvo-capture 37 s macos for 16 tests, 38 s windows for 15
@@ -77,4 +91,5 @@ test store::hardening_tests::a_kill_before_each_file_system_call_of_each_operati
 test store::hardening_tests::page_gap_probe C halvo-capture 2 s macos, 26 s windows
 test windows::input::tests::keys_wait_for_a_held_pointer_pump_and_an_idle_pointer_source_lets_them_through C halvo-capture 12 s windows
 test windows::input::tests::a_keyboard_stop_lets_the_click_route_go_only_when_its_window_and_gate_are_its_own C halvo-capture 9 s windows
+test daemon::owner_props F halvo-capture macos 8 s macos in the run 45111386498, 8 tests; the windows gate runs all 8
 doc-tests C 12 s macos after a build of 29 s, in the push run 44893237714

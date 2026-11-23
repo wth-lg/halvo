@@ -1178,7 +1178,7 @@ mod tests {
             assert_eq!(count(&text, "switch "), 5);
             assert_eq!(count(&text, "kind "), 8);
         }
-        assert!(lf(STATUS_WINDOWS).contains("\nsource name=keyboard state=off\n"));
+        assert!(lf(STATUS_WINDOWS).contains("\nsource name=keyboard state=running\n"));
         assert!(lf(STATUS_MACOS).contains("\nsource name=screen state=off\n"));
     }
 

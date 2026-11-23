@@ -33,7 +33,7 @@
     "last_stop_sources": []
   },
   "lost_grants": [],
-  "password_guard": "none",
+  "password_guard": "halvo",
   "platform": "windows",
   "screen_filter_excludes_app": null,
   "service": "running",
@@ -54,7 +54,7 @@
       "error": null,
       "name": "keyboard",
       "reason": null,
-      "state": "off"
+      "state": "running"
     },
     {
       "error": null,
@@ -88,7 +88,7 @@
     "backup_limit": "Windows backups and restore points can keep a copy of Halvo's data that deleting it in Halvo does not remove.",
     "custody": "Windows protects the key that protects your data with your account.",
     "limits": "A copy of Halvo's data made earlier, such as a backup, keeps what it held: expiry does not reach it, and after a delete-all a copy of the whole data folder can still be read.",
-    "passwords": "Halvo does not record what you type. While it can tell that a password field has the focus, Halvo records no window title and no screen activity. To tell, it reads the controls of the window in front through UI Automation, which uses some memory in the browser.",
+    "passwords": "Halvo records a key only when, just after you press it, the text changes in a field that is not a password field; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.",
     "recorded": [
       {
         "switch": null,
@@ -100,7 +100,7 @@
       },
       {
         "switch": "key_class",
-        "text": "Halvo does not record what you type."
+        "text": "Halvo records a key only when, just after you press it, the text changes in a field that Windows does not report as a password field. It records when you pressed the key, in which app, and what kind of key it was: a letter, digit or sign, or a delete key. It never records which letter, digit or sign. Halvo can tell this only in Chrome and Edge and in the plain text boxes of classic Windows programs: in every other program it records no key. It records no Return or Enter, no Tab, no arrow key, no Escape and no shortcut."
       },
       {
         "switch": "pointer_class",
@@ -111,7 +111,8 @@
         "text": "Screen activity is not recorded."
       }
     ],
-    "storage": "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that."
+    "storage": "Halvo keeps at most 25 GB and removes the oldest days first when it reaches that.",
+    "typed_ahead": "A key that you press before a program or page has moved to its password field, for example while it is frozen or busy, can in rare cases be noted: when you pressed it, in which app and what kind of key it was, never which letter, digit or sign. To be sure, wait until the cursor blinks in the password field, or pause capture before you sign in."
   },
   "window": {
     "first_report_day": 7,

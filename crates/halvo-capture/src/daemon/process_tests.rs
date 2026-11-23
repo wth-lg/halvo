@@ -2838,7 +2838,7 @@ fn a_service_run_reads_the_grants_from_its_probe_and_ends_with_4_at_a_new_grant(
                 grant_row(status, Permission::InputMonitoring).grant == GrantState::NotGranted
                     && matches!(
                         source_row(status, super::SourceName::Input),
-                        Line::Failed {
+                        Line::Impaired {
                             reason: Reason::Permission,
                             ..
                         }
@@ -2853,8 +2853,9 @@ fn a_service_run_reads_the_grants_from_its_probe_and_ends_with_4_at_a_new_grant(
     let (begun_before_the_answer, read) = reading.join().unwrap();
     assert!(
         begun_before_the_answer.contains(&"begin foreground".to_owned())
-            && !begun_before_the_answer.contains(&"begin input".to_owned()),
-        "the sources begun before the probe's first answer: {begun_before_the_answer:?}"
+            && begun_before_the_answer.contains(&"begin input".to_owned()),
+        "the sources begun before the probe's first answer, the input source without its grant: \
+         {begun_before_the_answer:?}"
     );
     assert_eq!(
         grant_row(&read, Permission::InputMonitoring).at_start,

@@ -142,6 +142,19 @@ jobs:
           prefix-key: v0-rust
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
         id: cache
+      - name: Restore the release build of the slice sun for thu and sun
+        if: steps.slice.outputs.name == 'sun' || steps.slice.outputs.name == 'thu'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            target/release/deps/*
+            !target/release/deps/*halvo*
+            target/release/build/*
+            !target/release/build/*halvo*
+            target/release/.fingerprint/*
+            !target/release/.fingerprint/*halvo*
+          key: v0-release-macos-${{ hashFiles('rust-toolchain.toml') }}-${{ github.run_id }}
+          restore-keys: v0-release-macos-${{ hashFiles('rust-toolchain.toml') }}-
       - name: Processor
         shell: bash
         run: |
@@ -167,6 +180,18 @@ jobs:
           else
             sh scripts/ci/run-ci-d.sh macos --checks "$CHECKS"
           fi
+      - name: Save the release build of the slice sun
+        if: steps.slice.outputs.name == 'sun' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            target/release/deps/*
+            !target/release/deps/*halvo*
+            target/release/build/*
+            !target/release/build/*halvo*
+            target/release/.fingerprint/*
+            !target/release/.fingerprint/*halvo*
+          key: v0-release-macos-${{ hashFiles('rust-toolchain.toml') }}-${{ github.run_id }}
       - name: Lockfile unchanged
         shell: bash
         env:

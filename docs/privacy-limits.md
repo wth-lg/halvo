@@ -168,8 +168,11 @@ The first-run text and the data view quote these three sentences word for word.
 The owner approves them once, in the table of user-visible sentences for each
 system; until then they are the recommended text.
 
-- `Halvo does not record what you type.` win-3 keeps the Windows
-  keyboard source out of the default source set.
+- `Halvo does not record what you type.` It shows where Halvo records no
+  typing: on Windows while the keyboard source line reads off, as while the
+  switch `key_class` is off. A Windows service run starts the keyboard source
+  while `key_class` is on (typing-on-win, the constant `TYPING_ON_WINDOWS`), and
+  the Windows bullets on typing above say what it records.
 - `Screen activity is not recorded.` core-2 builds the switch `screen_activity`
   with the default off; the sentence holds while the switch is off.
 - For an unsigned macOS build: `This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.`
@@ -182,7 +185,7 @@ docs-2 confirms each sentence of this section against the merged code.
 A person's agent runs in a program of its own, halvo-runner. That program links
 no crate that opens a store (check 21, `scripts/r1/ci.d/21-tree-bans.sh`), and
 no client of the capture service, which can pause the capture and delete
-everything. The stored records that it gets are the answers to the twelve
+everything. The stored records that it gets are the answers to the fourteen
 runner bodies that its supervisor answers, and a runner body answers records of
 these kinds alone:
 
@@ -191,7 +194,8 @@ these kinds alone:
 - the target of a `learn_edit` row, laid on a step of `load_steps`.
 
 The twelfth body, `drop_session`, answers no record: it makes Halvo stop using
-the kept sign-in of one site of the agent.
+the kept sign-in of one site of the agent. Two bodies more answer no record:
+they hold and settle the cost of one model request against the person's cap.
 
 For an agent that the person allowed to use a hosted model, the supervisor also
 hands the run the key of that model's host. No build starts such a run yet.

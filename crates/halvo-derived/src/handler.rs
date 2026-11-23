@@ -61,7 +61,8 @@ pub enum Cause {
     /// The kind belongs to another family than the step's or the handler's own.
     OtherFamily,
     /// The kind is of origin own, and the commit is a step's or that of the handler of a request of a further role; or
-    /// the kind is of origin person, and the commit is no `coordinator_write`'s.
+    /// the kind is of origin person, and the commit is no `coordinator_write`'s and no `runner` request's for a kind of
+    /// `kinds::RUNNER_PERSON_KINDS`.
     OwnOrigin,
     /// `kinds::check_record` refused the record; its error names the kind, the key and the rule.
     Record(String),
@@ -127,12 +128,13 @@ pub struct Removed {
 }
 
 /// Why a removal call (`HandlerCx::remove_under` or `HandlerCx::remove_person`) answered no `Removed`. Every refusal
-/// but `Commit` comes before any statement, and `Commit` for a refused list or a fault before the commit: the call
-/// removed no row and stored no record. `Commit` with a fault of the checkpoint or of the host's report after the
+/// but `Commit` comes before any statement, and `Commit` for a refused list, a fault before the commit or the fault of
+/// a read of the same request (before any statement): the call removed no row and stored no record. `Commit` with a fault of the checkpoint or of the host's report after the
 /// commit comes with the rows removed and the records stored.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RemoveRefusal {
-    /// The request is no `coordinator_write`. The call refuses it before any statement.
+    /// The request is no `coordinator_write`, and for `remove_person` no `runner` request for a kind of
+    /// `kinds::RUNNER_PERSON_KINDS`. The call refuses it before any statement.
     Role,
     /// The kind is not among the entries that the store was opened with.
     UnknownKind,
@@ -208,11 +210,31 @@ impl HandlerCx<'_> {
         self.chain[self.at].family
     }
 
+    /// The fault of the store that a read of this request met (`Rows`), for the handler in front and for every handler
+    /// behind it. The four write calls (`commit`, `remove_under`, `remove_person` and `HandlerCx::state`) answer it
+    /// before any statement and write nothing, so that no handler writes on what it could not read (r7 8.1L; the
+    /// coordinator's log line 17560); the store answers the request with it after the handlers, as before.
+    pub(crate) fn read_fault(&self) -> Option<Fault> {
+        self.fault.get()
+    }
+
+    /// The refusal of a write call behind a read of this request that met a fault: the fault, which is no record's.
+    fn faulted(&self) -> Option<Refusal> {
+        self.read_fault().map(|fault| Refusal {
+            index: usize::MAX,
+            cause: Cause::Fault(fault),
+        })
+    }
+
     /// The typed commit for this request, of records of kinds of the handler's own family. A record of a kind of
     /// origin own is stored for a `runner` request and a `coordinator_write`, and refused for a request of a further
-    /// role. See `Cause` for every refusal.
+    /// role. See `Cause` for every refusal. Behind a read of this request that met a fault of the store it answers
+    /// that fault (`Cause::Fault`, `index` `usize::MAX`) before any statement and stores nothing.
     pub fn commit(&mut self, records: &[TypedRecord]) -> Result<Committed, Refusal> {
         self.db.arm();
+        if let Some(faulted) = self.faulted() {
+            return Err(faulted);
+        }
         let committed = typed_commit(self.db, self.family(), self.writer, records)?;
         Ok(committed)
     }
@@ -230,7 +252,9 @@ impl HandlerCx<'_> {
     /// It answers `RemoveRefusal::Role`, before any statement, while the handler answers a request that is no
     /// `coordinator_write`, so that no runner removes a row, and then a refusal of `RemoveRefusal` for a kind that the
     /// store was not opened with, a kind of the workflow run, a kind of another family and a kind whose entry gives no
-    /// workflow key, in that order. It removes no single row and no row of another kind.
+    /// workflow key, in that order. It removes no single row and no row of another kind. Before all of these, behind a
+    /// read of this request that met a fault of the store, it answers that fault as `RemoveRefusal::Commit` and removes
+    /// and stores nothing.
     pub fn remove_under(
         &mut self,
         kind: &str,
@@ -238,6 +262,9 @@ impl HandlerCx<'_> {
         records: &[TypedRecord],
     ) -> Result<Removed, RemoveRefusal> {
         self.db.arm();
+        if let Some(faulted) = self.faulted() {
+            return Err(RemoveRefusal::Commit(faulted));
+        }
         if self.writer != Writer::Coordinator {
             return Err(RemoveRefusal::Role);
         }
@@ -278,16 +305,25 @@ impl HandlerCx<'_> {
     /// removed and the records stored.
     ///
     /// It answers `RemoveRefusal::Role`, before any statement, while the handler answers a request that is no
-    /// `coordinator_write`; then a refusal of `RemoveRefusal` for a kind that the store was not opened with, a kind of
-    /// the workflow run, a kind of another family and a kind that is not of origin person (`WorkflowKey`), in that
-    /// order. It removes no row of another kind.
+    /// `coordinator_write`, but for a `runner` request whose `kind` is a name of the closed list
+    /// `kinds::RUNNER_PERSON_KINDS` (r7 8.1L); then a refusal of `RemoveRefusal` for a kind that the store was not
+    /// opened with, a kind of the workflow run, a kind of another family and a kind that is not of origin person
+    /// (`WorkflowKey`), in that order. It removes no row of another kind. Under a `runner` request the records of the
+    /// list are stored by the rules of the typed commit for that request, any number of them, as under a
+    /// `coordinator_write`: the call keeps no kind to one row. The agent store's handler of the runner bodies
+    /// `model_hold` and `model_settle` passes ONE record of the person's count, and that keeps its row to one. Before all of these, behind a read of this
+    /// request that met a fault of the store, it answers that fault as `RemoveRefusal::Commit` and removes and stores
+    /// nothing.
     pub fn remove_person(
         &mut self,
         kind: &str,
         records: &[TypedRecord],
     ) -> Result<Removed, RemoveRefusal> {
         self.db.arm();
-        if self.writer != Writer::Coordinator {
+        if let Some(faulted) = self.faulted() {
+            return Err(RemoveRefusal::Commit(faulted));
+        }
+        if self.writer != Writer::Coordinator && !self.writer.may_write_person(kind) {
             return Err(RemoveRefusal::Role);
         }
         let entry = self

@@ -17,7 +17,11 @@ fn release_data_parses() {
     let rows = check_hosts(HOSTS).expect("the table of hosts parses");
     let ruling = release::ruling();
     let hosted = line == RulingLine::Hosted && rows > 0;
-    assert_eq!(ruling != Ruling::None, hosted, "{line:?} with {rows} rows");
+    assert_eq!(
+        ruling != Ruling::None,
+        hosted,
+        "{line:?} with {rows} rows; a hosted line over a table with a row also reads none while the rate of a row's tier in data/prices.tsv has a source that begins with fixture: (or that file does not parse)"
+    );
     assert_eq!(ruling.rows().len(), if hosted { rows } else { 0 });
 
     let policy = Policy::parse_for(POLICY, ruling.allowed())

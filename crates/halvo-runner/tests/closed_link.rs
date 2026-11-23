@@ -4,7 +4,7 @@ use halvo_runner::LINK_END;
 use halvo_schema::executable::{EffectState, FromRunner};
 use halvo_schema::Category;
 
-use support::{is_effect, is_op, Act, FillFiles, Seen, Supervisor, LONG};
+use support::{is_effect, is_op, store_error, Act, FillFiles, Seen, Supervisor, LONG};
 
 fn ended_by_the_close(seen: &Seen, what: &str) {
     assert_eq!(
@@ -93,14 +93,18 @@ fn closed_while_the_runner_holds_its_edit_paused() {
     }
 }
 
+/// The link closes while the handback of an effect that is not known is open, which the run opens at its end because
+/// every send of its begin met a store fault (a failed read opens no handback in a run whose browser does not run,
+/// r3 U5.15e).
 #[test]
 fn closed_while_a_handback_is_open() {
     let files = FillFiles::new("close-handback", 3);
-    std::fs::write(&files.source, "a,b\r\n").expect("a source that fails the read");
     let sup = Supervisor::new(23, Category::SpreadsheetFill, files.slots());
     let seen = sup.serve(
         |frame, _| {
-            if matches!(frame, FromRunner::Handback(_)) {
+            if is_effect(frame, EffectState::Releasing) {
+                Act::With(store_error(frame, "internal"))
+            } else if matches!(frame, FromRunner::Handback(_)) {
                 Act::Close
             } else {
                 Act::Answer
