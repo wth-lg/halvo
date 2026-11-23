@@ -58,6 +58,21 @@ seconds() {
   date +%s
 }
 
+# Keeps the files of a failed stand-in round that name its cause: the round's lines stand in
+# standin.txt already; each cell's trace.txt and model-stderr.txt (the door's standard error with
+# the egress check's line) of the round's directory under TMPDIR are copied beside them. No copied
+# file holds the made-up key, which hosted.sh writes into a directory of its own, or a request line.
+keep_round() {
+  for cell in "${TMPDIR:-/tmp}"/r3-hosted-round.*/*-seed-*; do
+    [ -d "$cell" ] || continue
+    for file in trace.txt model-stderr.txt; do
+      if [ -f "$cell/$file" ]; then
+        cp "$cell/$file" "$CI_D_ARTIFACTS/standin-${cell##*/}-$file"
+      fi
+    done
+  done
+}
+
 measure() {
   cd "$CI_D_REPO" || exit 2
   [ -n "${HALVO_BROWSER:-}" ] && [ -f "$HALVO_BROWSER" ] || fail "HALVO_BROWSER names no browser; the job's step gives it"
@@ -85,7 +100,10 @@ measure() {
     >"$CI_D_ARTIFACTS/standin.txt" 2>"$CI_D_ARTIFACTS/standin-err.txt"
   code=$?
   e=$(seconds)
-  defect=$(defect_of standin "$code" "$CI_D_ARTIFACTS/standin.txt") || fail "$defect"
+  defect=$(defect_of standin "$code" "$CI_D_ARTIFACTS/standin.txt") || {
+    keep_round
+    fail "$defect"
+  }
   cells=$(awk '/^round cell task=/ { n++; for (i = 1; i <= NF; i++) if ($i ~ /^ms=/) { ms = substr($i, 4); s += ms; if (n == 1) one = ms } } END { printf "%d %.1f %.1f", n, s / 1000, one / 1000 }' "$CI_D_ARTIFACTS/standin-err.txt")
   # shellcheck disable=SC2086
   set -- $cells
