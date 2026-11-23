@@ -159,6 +159,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
         secure_input_keystrokes: secure,
         typing: None,
         keys_withheld: false,
+        typing_gate: None,
         title_read_errors: 0,
         last_flush_at: Some(at("2026-11-12T09:00:05Z")),
         expiry: Health::Healthy,
