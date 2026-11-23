@@ -1,0 +1,1 @@
+- Fixed: Work typed in a window that stayed in front while Halvo looked at the records in a quiet moment now counts for that window, as it counts when the window comes back to the front; where the records show a break since that window was named (a restart, a pause, another program in front, lost records), it counts for nothing, as before.
