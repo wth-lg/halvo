@@ -104,7 +104,7 @@ billing check 40-r6-policy gate
 billing check 21-r7-backend-test gate macos job, which alone has the check, 72 s there in the push run 44895970784; the ledger and the metering tests of the backend, on a push always, and on a pull request when it changes a path under the two roots of scripts/r7/backend-roots.sh, a file that decides the run or the root's .gitattributes, or when the check cannot tell and so runs them (an unknown or unset event, a HEAD with one parent, a list of changed paths that git cannot make or that names none, a name that git quotes); otherwise one line that says so and PASS
 billing check 24-r7-wall gate
 billing check 27-r7-metering-self gate
-billing check 55-r6-formal scheduled wed 108 s in the macos job
+billing check 55-r6-formal scheduled tue 105 s in the macos job, on an Apple M1 (Virtual) in the slice wed of the run 45128149906
 billing check 10-r7-account scheduled sat the macos job, 55 s there
 billing check 10-r7-account scheduled wed2 the windows job, 124 s on an AMD EPYC 7763 in the slice mon of the run 45050615172
 
@@ -122,7 +122,7 @@ egress check 10-egress scheduled thu the macos job, 33 s there in the push run 4
 egress check 10-egress scheduled wed2 the windows job, 215 s on an AMD EPYC 7763 in the slice thu of the run 45086425387
 egress check 80-r6-absent scheduled thu the macos job, 20 s there in the push run 44895970784
 egress check 80-r6-absent scheduled wed2 the windows job, 52 s on an AMD EPYC 7763 in the slice sat of the run 45098472482
-egress check 38-app-engine-routes scheduled wed the macos job, 127 s there; the engine of the window opens no connection
+egress check 38-app-engine-routes scheduled wed2 the macos job, 136 s on an Apple M1 (Virtual) in the slice wed of the run 45128149906; the engine of the window opens no connection
 egress check 38-app-engine-routes scheduled wed2 the windows job, 197 s on an AMD EPYC 7763 in the slice sat of the run 45098472482
 egress check 20-r6-gateway scheduled thu the macos job, 8 s there; the closed body from which every request to a model's host is made holds six keys
 egress check 20-r6-gateway scheduled sat the windows job, 6 s there

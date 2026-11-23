@@ -25,6 +25,7 @@ mon windows check 20-app-links-no-store
 mon windows check 35-app-windows-memory
 
 tue macos tests B
+tue macos check 55-r6-formal
 tue macos check 25-advisories
 tue windows tests B
 
@@ -38,9 +39,7 @@ tue2 windows tests G
 wed macos tests E
 wed macos check 51-macos-stall
 wed macos check 30-core-boundary-proofs
-wed macos check 55-r6-formal
 wed macos check 32-app-check-page
-wed macos check 38-app-engine-routes
 wed macos check 25-advisories
 wed windows check 50-windows-functional
 
@@ -55,6 +54,7 @@ wed windows check 50-windows-functional
 # hand 45118372937, the step ci.d slice 371 s.
 wed2 macos check 11-clippy
 wed2 macos tests F
+wed2 macos check 38-app-engine-routes
 wed2 macos check 25-advisories
 wed2 windows check 38-app-engine-routes
 wed2 windows check 10-egress
