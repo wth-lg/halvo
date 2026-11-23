@@ -75,6 +75,7 @@ const TWO_STEP_MS: u64 = 200;
 const ARG_LATE_MOVE: usize = 0x40_0000;
 const ARG_OWN_CHANGE: usize = 0x80_0000;
 const LATE_MOVE_WORK_MS: u64 = 200;
+const ARG_TAKE_ONE: usize = 0x100_0000;
 
 const LETTER_STEP: Duration = Duration::from_millis(60);
 const FORM_ENV: &str = "HALVO_WF_FORM";
@@ -720,6 +721,16 @@ fn fixture_main() {
                     if arg & ARG_SELF_FOCUS != 0 {
                         focus_on(password);
                     }
+                    if arg & ARG_TAKE_ONE != 0 {
+                        take_one_key(
+                            window.hwnd,
+                            &mut letters,
+                            &mut tabs,
+                            [plain, password, second],
+                        );
+                        stall(LATE_MOVE_WORK_MS, Wait::ServesSent);
+                        focus_on(password);
+                    }
                     if arg & ARG_LATE_MOVE != 0 {
                         if arg & ARG_OWN_CHANGE != 0 {
                             // SAFETY: SetWindowTextW takes this thread's edit
@@ -814,6 +825,41 @@ fn dispatch_until_a_tab(dialog: HWND, tabs: &mut [u32; 4], fields: [HWND; 3]) {
             }
         }
         if tab_down {
+            return;
+        }
+    }
+}
+
+fn take_one_key(dialog: HWND, letters: &mut [u32; 4], tabs: &mut [u32; 4], fields: [HWND; 3]) {
+    let end = Instant::now() + Duration::from_secs(1);
+    let mut msg = MSG::default();
+    while Instant::now() < end {
+        // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the same
+        // value goes to IsDialogMessageW, TranslateMessage and
+        // DispatchMessageW.
+        let got = unsafe {
+            PeekMessageW(
+                &mut msg,
+                None,
+                0,
+                0,
+                windows::Win32::UI::WindowsAndMessaging::PM_REMOVE,
+            )
+        };
+        if !got.as_bool() {
+            std::thread::sleep(Duration::from_millis(1));
+            continue;
+        }
+        count_key(&msg, letters, tabs, fields);
+        let typed = msg.message == WM_CHAR;
+        // SAFETY: as above.
+        unsafe {
+            if !IsDialogMessageW(dialog, &msg).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        if typed {
             return;
         }
     }
@@ -2065,6 +2111,94 @@ pub(super) fn the_programs_own_change_of_the_focused_field_before_a_late_move(
             Outcome::Native { .. } => (recorded, late, records, beyond),
         },
     )
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_key_behind_an_earlier_keys_landing_and_a_late_move_records_nothing() {
+    let test = "stall-earlier-key";
+    with_deadline(test, Duration::from_secs(200), move || {
+        source_built_by_test(test, "keyboard");
+        let mut fixture = Fixture::open(test, false);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        start_report(test, "keyboard", &start);
+        assert!(
+            start.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start: {start:?}"
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let before = control(test, "before", &mut fixture, &events);
+        let rounds = rounds_for(3, 10);
+        let mut counted = 0;
+        let mut recorded_at_the_password = 0;
+        for round in 0..rounds {
+            let reset = fixture.ask(CMD_RESET, 0, "reset");
+            let _ = events.drain_for(Duration::from_millis(400));
+            let _ = seam::take();
+            let ack = fixture.ask(CMD_ROUND, 50 | ARG_SERVE_SENT | ARG_TAKE_ONE, "ack");
+            let accepted = send(&[
+                key_input(VK_A, false),
+                key_input(VK_A, true),
+                key_input(VK_A, false),
+                key_input(VK_A, true),
+            ]);
+            let _ = fixture.expect("woke", Duration::from_secs(10));
+            let _ = events.drain_for(Duration::from_millis(900));
+            let state = fixture.ask(CMD_STATE, 0, "state");
+            let letters: Vec<bool> = seam::take()
+                .iter()
+                .filter(|key| key.class == KeyClass::Printable)
+                .map(|key| key.verdict == Verdict::Recorded)
+                .collect();
+            let at_the_password = u32::from(letters.get(1).copied().unwrap_or(false));
+            let ok = get(&reset, "fg") == 1
+                && get(&ack, "focus_plain") == 1
+                && accepted == 4
+                && get(&state, "letters_plain") == 1
+                && get(&state, "letters_password") == 1
+                && letters.len() == 2;
+            say(
+                test,
+                format!(
+                    "phase=earlier_key round={round} counted={} letters_plain={} letters_password={} \
+                     letters_decided={} recorded_in_the_plain_field={} recorded_at_the_password={at_the_password}",
+                    u8::from(ok),
+                    get(&state, "letters_plain"),
+                    get(&state, "letters_password"),
+                    letters.len(),
+                    u8::from(letters.first().copied().unwrap_or(false)),
+                ),
+            );
+            counted += u32::from(ok);
+            recorded_at_the_password += at_the_password;
+        }
+        let after = control(test, "after", &mut fixture, &events);
+        let late = keyboard.health().counters.late_events;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        drop(fixture);
+        say(
+            test,
+            format!(
+                "form={} rounds={rounds} counted_rounds={counted} recorded_at_the_password={recorded_at_the_password} \
+                 control_before={before} control_after={after}",
+                form().word()
+            ),
+        );
+        assert_eq!(
+            recorded_at_the_password, 0,
+            "a letter that an earlier letter's landing cleared was recorded in the password field"
+        );
+        assert_eq!(late, 0, "the source's late value moved");
+        assert_eq!(
+            (before, after),
+            (CONTROL_LETTERS, CONTROL_LETTERS),
+            "a control recorded another number of letters in the plain field"
+        );
+        assert_eq!(counted, rounds, "INCONCLUSIVE: not every round counted");
+    });
 }
 
 #[test]
