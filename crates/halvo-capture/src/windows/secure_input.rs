@@ -65,22 +65,45 @@ pub(crate) enum PasswordProperty {
     ReadFailed,
 }
 
+/// What the read of the focused element's protected state gave.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProtectedState {
+    /// The state holds the protected flag.
+    Protected,
+    /// The state lacks the flag, or the element gave no state of its own.
+    NotProtected,
+    /// The read itself failed.
+    ReadFailed,
+}
+
 /// The read of the focused element from its password property, its protected
-/// state and its kind. A read of the password property that failed is no
-/// answer of the program: it reads as an element that cannot be read, so a
-/// title is dropped there; where the element is protected it reads as a read
-/// with no answer, which is Password, so a key gets the state that it got
-/// when a failed read counted as no answer.
-pub(crate) fn focus_read_of(password: PasswordProperty, protected: bool, kind: Kind) -> FocusRead {
-    match password {
-        PasswordProperty::Answered(is_password) => FocusRead::Answered {
+/// state and its kind. Whatever the gate cannot read drops a title: a read
+/// with no answer keeps it only where both reads succeeded, so a failed read
+/// of the password property, or a failed read of the protected state behind
+/// a password property with no answer, reads as an element that cannot be
+/// read. A protected element reads Password whatever its password property
+/// gave. A key gets the state that it got when a failed read of either
+/// counted as no answer and as not protected: Unknown at an unreadable
+/// element as at a read with no answer.
+pub(crate) fn focus_read_of(
+    password: PasswordProperty,
+    protected: ProtectedState,
+    kind: Kind,
+) -> FocusRead {
+    match (password, protected) {
+        (PasswordProperty::Answered(is_password), _) => FocusRead::Answered {
             is_password,
-            protected,
+            protected: protected == ProtectedState::Protected,
             kind,
         },
-        PasswordProperty::NoAnswer => FocusRead::NoAnswer { protected },
-        PasswordProperty::ReadFailed if protected => FocusRead::NoAnswer { protected },
-        PasswordProperty::ReadFailed => FocusRead::Unreadable,
+        (PasswordProperty::NoAnswer | PasswordProperty::ReadFailed, ProtectedState::Protected) => {
+            FocusRead::NoAnswer { protected: true }
+        }
+        (PasswordProperty::NoAnswer, ProtectedState::NotProtected) => {
+            FocusRead::NoAnswer { protected: false }
+        }
+        (PasswordProperty::NoAnswer, ProtectedState::ReadFailed)
+        | (PasswordProperty::ReadFailed, _) => FocusRead::Unreadable,
     }
 }
 
@@ -1997,15 +2020,20 @@ mod detector {
             });
             // SAFETY: as above.
             let protected = unsafe {
-                element
-                    .GetCachedPropertyValueEx(
-                        UIA_LegacyIAccessibleStatePropertyId,
-                        DEFAULT_IS_NO_ANSWER,
-                    )
-                    .ok()
-                    .and_then(|mut value| variant_i32(&mut value))
+                element.GetCachedPropertyValueEx(
+                    UIA_LegacyIAccessibleStatePropertyId,
+                    DEFAULT_IS_NO_ANSWER,
+                )
             }
-            .is_some_and(|state| state as u32 & STATE_SYSTEM_PROTECTED != 0);
+            .map_or(super::ProtectedState::ReadFailed, |mut value| {
+                if variant_i32(&mut value)
+                    .is_some_and(|state| state as u32 & STATE_SYSTEM_PROTECTED != 0)
+                {
+                    super::ProtectedState::Protected
+                } else {
+                    super::ProtectedState::NotProtected
+                }
+            });
             // SAFETY: as above.
             let framework = unsafe { element.CachedFrameworkId() }
                 .ok()
@@ -2029,7 +2057,11 @@ mod detector {
                     super::PasswordProperty::NoAnswer => "none",
                     super::PasswordProperty::ReadFailed => "error",
                 },
-                u8::from(protected),
+                match protected {
+                    super::ProtectedState::Protected => "1",
+                    super::ProtectedState::NotProtected => "0",
+                    super::ProtectedState::ReadFailed => "error",
+                },
                 u8::from(pid.is_some()),
                 _file_read.text(),
             ));
