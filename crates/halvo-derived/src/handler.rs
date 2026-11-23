@@ -126,10 +126,10 @@ pub struct Removed {
     pub committed: Committed,
 }
 
-/// Why a removal call (`HandlerCx::remove_under` or `HandlerCx::remove_person`) answered no `Removed`. Every refusal but
-/// `Commit` comes before any statement, and `Commit` for a refused list or a fault before the commit: the call removed
-/// no row and stored no record. `Commit` with a fault of the checkpoint or of the host's report after the commit comes
-/// with the rows removed and the records stored.
+/// Why a removal call (`HandlerCx::remove_under` or `HandlerCx::remove_person`) answered no `Removed`. Every refusal
+/// but `Commit` comes before any statement, and `Commit` for a refused list or a fault before the commit: the call
+/// removed no row and stored no record. `Commit` with a fault of the checkpoint or of the host's report after the
+/// commit comes with the rows removed and the records stored.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RemoveRefusal {
     /// The request is no `coordinator_write`. The call refuses it before any statement.
@@ -268,14 +268,14 @@ impl HandlerCx<'_> {
     }
 
     /// The removal call of a person's kind (r3 U7.6), the sibling of `remove_under` for a kind of origin person, whose
-    /// rows name no workflow (`kinds::PERSON_KINDS`): in one write it removes every stored row of the kind `kind` of the
-    /// handler's own family, the rows that no read hands out any more among them, and then stores `records` by the
-    /// rules of the typed commit; the rows that it stores are not removed by it. It answers how many rows it removed and
-    /// what the commit stored. The write is that of `remove_under`: each row by the store's secure delete, in a
+    /// rows name no workflow (`kinds::PERSON_KINDS`): in one write it removes every stored row of the kind `kind` of
+    /// the handler's own family, the rows that no read hands out any more among them, and then stores `records` by the
+    /// rules of the typed commit; the rows that it stores are not removed by it. It answers how many rows it removed
+    /// and what the commit stored. The write is that of `remove_under`: each row by the store's secure delete, in a
     /// transaction that the truncating checkpoint follows after its commit, so that no byte of a removed row stays in
-    /// the files of the store; a refusal of the list or a fault before the commit leaves every row and stores no record;
-    /// a fault of the checkpoint or of the host's report after the commit answers the fault with the rows removed and the
-    /// records stored.
+    /// the files of the store; a refusal of the list or a fault before the commit leaves every row and stores no
+    /// record; a fault of the checkpoint or of the host's report after the commit answers the fault with the rows
+    /// removed and the records stored.
     ///
     /// It answers `RemoveRefusal::Role`, before any statement, while the handler answers a request that is no
     /// `coordinator_write`; then a refusal of `RemoveRefusal` for a kind that the store was not opened with, a kind of

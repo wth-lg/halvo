@@ -91,14 +91,14 @@ fn rule_keys(entry: &KindEntry, json: &str) -> Option<RuleKeys> {
 /// It refuses the whole list when a record names a kind that the store was not opened with (`UnknownKind`), one of
 /// the four kinds of the workflow run (`WorkflowRun`), a kind of another family than the caller's own
 /// (`OtherFamily`), a kind of origin own while the call is a step's or that of a handler of a further role, or a kind
-/// of origin person while the call is no `coordinator_write` (`OwnOrigin`); when `kinds::check_record` refuses a record (`Record`, with that function's error, which names the
-/// kind, the key and the rule and never a value); and when a record's workflow key names a workflow that is not
-/// stored (`NoWorkflow`). In the commit of a handler (a `runner` request, a `coordinator_write` or a request of a
-/// further role) it also refuses the whole list for a record of a bounded kind whose day lies after the clock's day
-/// or already outside its kind's bound (`Day`, with `DayFault::AfterToday` or `DayFault::OutsideBound`); the store
-/// sets and mends no day. In the commit of a step such a record is dropped and counted, and the rest of the list is
-/// applied, as is a record of a window kind whose expiry has passed or whose segments name a purged ordinal in the
-/// commit of every writer.
+/// of origin person while the call is no `coordinator_write` (`OwnOrigin`); when `kinds::check_record` refuses a record
+/// (`Record`, with that function's error, which names the kind, the key and the rule and never a value); and when a
+/// record's workflow key names a workflow that is not stored (`NoWorkflow`). In the commit of a handler (a `runner`
+/// request, a `coordinator_write` or a request of a further role) it also refuses the whole list for a record of a
+/// bounded kind whose day lies after the clock's day or already outside its kind's bound (`Day`, with
+/// `DayFault::AfterToday` or `DayFault::OutsideBound`); the store sets and mends no day. In the commit of a step such a
+/// record is dropped and counted, and the rest of the list is applied, as is a record of a window kind whose expiry has
+/// passed or whose segments name a purged ordinal in the commit of every writer.
 pub(crate) fn typed_commit(
     db: &Db,
     family: &str,

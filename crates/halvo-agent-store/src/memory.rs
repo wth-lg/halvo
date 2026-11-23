@@ -59,8 +59,8 @@ impl SummaryRead for NoSummaries {
 /// The store in memory behind the handler calls (A7.6's `memory-store`): the workflows that a test host puts, the
 /// rows of the family `agent`, and the host's steps. Its typed commit is the commit of a handler; `after_batch`
 /// runs the steps as the derived store does after a committed batch, and refuses a record of origin own that a step
-/// returns. It removes rows by `Host::remove_under` and `Host::remove_person` alone. Its local calendar is UTC shifted by a fixed offset, 0
-/// unless `with_utc_offset` sets one.
+/// returns. It removes rows by `Host::remove_under` and `Host::remove_person` alone. Its local calendar is UTC shifted
+/// by a fixed offset, 0 unless `with_utc_offset` sets one.
 #[derive(Default)]
 pub struct MemoryStore {
     workflows: BTreeMap<WorkflowId, Workflow>,

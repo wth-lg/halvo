@@ -175,9 +175,9 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 ///   entries are left; `length` where the first entry of the page alone does not fit, which an id of at most 1,024
 ///   bytes cannot reach. Named limits: a row that a later row of its message follows is not listed; a stored row
 ///   that the typed reader refuses fails the whole read with `store`.
-/// - `put_model_key`, `drop_model_key`, `model_key_state` and `read_model_key` (r3 U7.6): the person's key for a model's
-///   host, ONE row of the kind `model_key` for the person and for no agent, which names no workflow; each body has
-///   `workflow` and `agent` null and needs no stored workflow. `put_model_key` makes the host's removal call of a
+/// - `put_model_key`, `drop_model_key`, `model_key_state` and `read_model_key` (r3 U7.6): the person's key for a
+///   model's host, ONE row of the kind `model_key` for the person and for no agent, which names no workflow; each body
+///   has `workflow` and `agent` null and needs no stored workflow. `put_model_key` makes the host's removal call of a
 ///   person's kind, `Host::remove_person`, with the new row: in one write the store removes the row that stands, each
 ///   row under the store's secure delete with the truncating checkpoint behind the commit, and stores the new one, so
 ///   ONE row stands; it answers `{"stored":1}`. `drop_model_key` makes the same call with no record and answers
@@ -186,12 +186,12 @@ use crate::{bind, bindings, checkpoint, day, end, reply, runner};
 ///   behind the commit (the checkpoint or the host's report) `store` comes with the old row gone from every read and
 ///   the new one stored, and the old row's bytes may lie in the store's files, under the store's key, until the next
 ///   checkpointed write or the next open. `model_key_state` stores nothing and answers `{"stands":"yes"}` while a row
-///   stands, else `{"stands":"no"}`: what the window is told, and no part, length or sign of the key.
-///   `read_model_key` stores nothing and answers the key of the row, `{"key":null}` where none stands; the app's own
-///   answer of the supervisor's `Secrets` to the reserved name `model_key` is its one reader. A stored row that the
-///   typed reader refuses fails the two reads with `store`. No runner body reads or writes the kind. Named limits: a
-///   copy or a backup of the store's files from before a write or a drop keeps the key that it held; the app's own
-///   process can read the key back by `read_model_key`, a request of its role.
+///   stands, else `{"stands":"no"}`: what the window is told, and no part, length or sign of the key. `read_model_key`
+///   stores nothing and answers the key of the row, `{"key":null}` where none stands; the app's own answer of the
+///   supervisor's `Secrets` to the reserved name `model_key` is its one reader. A stored row that the typed reader
+///   refuses fails the two reads with `store`. No runner body reads or writes the kind. Named limits: a copy or a
+///   backup of the store's files from before a write or a drop keeps the key that it held; the app's own process can
+///   read the key back by `read_model_key`, a request of its role.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
