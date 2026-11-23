@@ -456,7 +456,7 @@ fn an_answer_that_ends_past_the_time_limit_is_no_answer() {
         "the one time limit that the program halvo-model passes"
     );
     let limit = Duration::from_millis(1_000);
-    let host = StandIn::start_in_parts(200, ANSWER, 5, Duration::from_millis(400));
+    let host = StandIn::start_in_parts(200, ANSWER, 3, Duration::from_millis(900));
     let started = std::time::Instant::now();
     let (mut out, mut err) = (Vec::new(), Vec::new());
     let code = halvo_model::run_with_limit(
@@ -467,6 +467,7 @@ fn an_answer_that_ends_past_the_time_limit_is_no_answer() {
         &mut err,
     );
     let answered_ms = started.elapsed().as_millis();
+    println!("the door answered after {answered_ms} ms");
     std::thread::sleep(Duration::from_millis(1_500));
     assert_eq!(
         (

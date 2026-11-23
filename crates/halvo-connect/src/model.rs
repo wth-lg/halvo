@@ -54,8 +54,12 @@ impl Adapter {
     }
 }
 
-/// The one time limit of a request, from the start of its connect to the end of its answer's body.
-/// After it the adapter gives `NoAnswer` and sends nothing again.
+/// The one time limit of a request, the constant that the program halvo-model passes. ONE
+/// deadline, taken once before the connect, bounds the connect, the wait for the answer's head and
+/// every read of its body, each of which gets what is left of it: the request's own timeout, which
+/// reqwest 0.13.5 carries into its request as one total deadline that also bounds the body, and a
+/// look at the deadline after each read. The client itself has no timer. At the deadline the
+/// adapter gives `NoAnswer` and sends nothing again.
 pub const TIME_LIMIT: Duration = Duration::from_secs(90);
 
 /// The headers of a request, a closed list: the client adds no other.
@@ -89,7 +93,8 @@ pub enum SendError {
     Form,
     /// No connection or no TLS session to the origin could be made: the request did not leave.
     NotSent,
-    /// The request left and no whole answer came within `TIME_LIMIT`.
+    /// No whole answer came by the deadline: it ended during the connect, the wait for the
+    /// answer's head or a read of its body.
     NoAnswer,
     /// The host answered this status, which is not 200.
     Status(u16),
@@ -125,6 +130,7 @@ impl fmt::Debug for Answered {
 /// that the grant's row names, with the row's model word and with `key` in the header `x-api-key`,
 /// to the origin of the grant's row and to no other, and reads its answer. It takes the grant by
 /// value, so one grant serves one request, and it sends nothing again, whatever the answer.
+/// `limit` is the length of its one deadline; the program passes `TIME_LIMIT`.
 pub fn send_under_grant(
     grant: LeaveGrant,
     key: &str,
@@ -143,6 +149,7 @@ struct Host {
     client: Client,
     url: Url,
     adapter: Adapter,
+    limit: Duration,
 }
 
 impl Host {
@@ -170,14 +177,13 @@ impl Host {
             .no_proxy()
             .redirect(redirect::Policy::none())
             .retry(retry::never())
-            .connect_timeout(limit)
-            .timeout(limit)
             .build()
             .map_err(|_| SendError::Client)?;
         Ok(Host {
             client,
             url,
             adapter,
+            limit,
         })
     }
 
@@ -190,6 +196,7 @@ impl Host {
         let mut key = HeaderValue::from_str(key).map_err(|_| SendError::NotSent)?;
         key.set_sensitive(true);
         let start = Instant::now();
+        let deadline = start + self.limit;
         let response = self
             .client
             .post(self.url.clone())
@@ -198,6 +205,7 @@ impl Host {
             .header("x-api-key", key)
             .header("anthropic-version", VERSION)
             .body(form)
+            .timeout(self.limit)
             .send()
             .map_err(|error| {
                 if error.is_connect() || error.is_builder() {
@@ -211,7 +219,7 @@ impl Host {
         if status != 200 {
             return Err(SendError::Status(status));
         }
-        let bytes = read_bounded(response)?;
+        let bytes = read_bounded(response, deadline)?;
         let ms = millis(start);
         let (text, tokens_in, tokens_out) = messages_answer(&bytes).ok_or(SendError::Answer)?;
         Ok(Answered {
@@ -303,7 +311,12 @@ fn messages_answer(bytes: &[u8]) -> Option<(String, u64, u64)> {
     Some((text, tokens_in, tokens_out))
 }
 
-fn read_bounded(mut response: reqwest::blocking::Response) -> Result<Vec<u8>, SendError> {
+/// The answer's body, at most `ANSWER_BOUND` bytes, read before `deadline`: a read that the
+/// request's total deadline ends, and a read that returns at or after `deadline`, give `NoAnswer`.
+fn read_bounded(
+    mut response: reqwest::blocking::Response,
+    deadline: Instant,
+) -> Result<Vec<u8>, SendError> {
     if response
         .content_length()
         .is_some_and(|length| length > ANSWER_BOUND as u64)
@@ -313,7 +326,11 @@ fn read_bounded(mut response: reqwest::blocking::Response) -> Result<Vec<u8>, Se
     let mut bytes = Vec::new();
     let mut chunk = [0u8; 65_536];
     loop {
-        match response.read(&mut chunk) {
+        let read = response.read(&mut chunk);
+        if Instant::now() >= deadline {
+            return Err(SendError::NoAnswer);
+        }
+        match read {
             Ok(0) => return Ok(bytes),
             Ok(n) if bytes.len() + n > ANSWER_BOUND => return Err(SendError::Answer),
             Ok(n) => bytes.extend_from_slice(&chunk[..n]),
