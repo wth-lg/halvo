@@ -1726,6 +1726,7 @@ dependencies = [
  "halvo-coord",
  "halvo-owner",
  "halvo-policy",
+ "halvo-route",
  "halvo-schema",
  "halvo-schema-core",
  "halvo-test-dir",
