@@ -56,6 +56,14 @@ impl MaintainStore for Adapter {
             .map_err(maint_fault)
     }
 
+    fn take_shredded(&mut self) -> Vec<Ordinal> {
+        self.store
+            .take_shredded()
+            .into_iter()
+            .map(|ordinal| Ordinal::new(ordinal.get()))
+            .collect()
+    }
+
     fn delete_all(&mut self) -> TailAnswer {
         tail_answer(self.store.delete_all())
     }
@@ -179,11 +187,15 @@ mod read {
     /// `from` that holds its key, with the plain lines of its segment and
     /// its expiry instant. A row that expiry or eviction shredded holds no
     /// key and is passed with no byte of its file read; an ask above every
-    /// row reads no file.
+    /// row reads no file. On a read from ordinal 0 that finds a row that
+    /// holds its key, the answer also names, in ascending order, every row
+    /// above it that holds no key: a segment that expiry, eviction or the
+    /// open-time reconcile shredded out of the order of its ordinal.
     ///
-    /// The call reads one segment at most: two queries on the key rows and
-    /// one file. It takes no lock and no transaction and writes no file. The
-    /// plain bytes stand in one buffer that is wiped when it drops, made
+    /// The call reads one segment at most: two queries on the key rows, a
+    /// third on a read from ordinal 0 that finds a row that holds its key,
+    /// and one file. It takes no lock and no transaction and writes no
+    /// file. The plain bytes stand in one buffer that is wiped when it drops, made
     /// with the capacity of the largest payload before the read and never
     /// grown.
     ///
@@ -206,6 +218,7 @@ mod read {
             store: id,
             highest: highest.map(ordinal),
             segment: None,
+            gone: Vec::new(),
         };
         let Ok(from) = i64::try_from(from.get()) else {
             return Ok(read);
@@ -222,6 +235,19 @@ mod read {
         let Some((row, segment_id, first_capture)) = keyed else {
             return Ok(read);
         };
+        if from == 0 {
+            read.gone = keys
+                .prepare(
+                    "SELECT id FROM segment_keys WHERE id > ?1 AND wrapped_key IS NULL ORDER BY id",
+                )
+                .and_then(|mut keyless| {
+                    keyless
+                        .query_map([row], |row| row.get::<_, i64>(0))?
+                        .map(|id| id.map(ordinal))
+                        .collect()
+                })
+                .map_err(db_error)?;
+        }
         let mut lines = Zeroizing::new(Vec::with_capacity(PAYLOAD_MAX_BYTES));
         let file = match uuid::Uuid::parse_str(&segment_id) {
             Ok(segment_id) => store.read_segment(segment_id, &mut Within(&mut lines)),
@@ -906,6 +932,56 @@ mod tests {
             listing(dir.path()),
             damaged,
             "a read made or changed a file"
+        );
+
+        drop(store);
+        made.root.finish().unwrap();
+        dir.close().unwrap();
+    }
+
+    /// The one query that decides which rows a start purges, on a real store: three segments, the middle one with the
+    /// earliest first capture. Before any shred the read from ordinal 0 names no keyless segment. An eviction to a
+    /// bound of 0, one segment a call, shreds the middle one while the lower and the higher live: the read from
+    /// ordinal 0 names that ordinal and no other, and a read from another ordinal names none. The next eviction
+    /// shreds the lowest: the shredded middle one now lies below the lowest live one, and the read names none.
+    #[test]
+    fn a_read_from_ordinal_0_names_the_keyless_segment_above_the_lowest_live_one_alone() {
+        let dir = tempfile::Builder::new()
+            .prefix("adapter-gone-")
+            .tempdir()
+            .unwrap();
+        let made = ScratchDir::at(dir.path()).create().unwrap();
+        let mut store = made.store;
+        let noon = (20_000 * 86_400 + 43_200) * SECOND;
+        let lowest = write_at(&mut store, noon + 61 * SECOND, b"{\"n\":1}\n");
+        let middle = write_at(&mut store, noon, b"{\"n\":2}\n");
+        let highest = write_at(&mut store, noon + 122 * SECOND, b"{\"n\":3}\n");
+        assert!(lowest.ordinal < middle.ordinal && middle.ordinal < highest.ordinal);
+
+        let read = store.read_segment(Ordinal::new(0)).unwrap();
+        assert_eq!(read.segment.map(|live| live.ordinal), Some(lowest.ordinal));
+        assert!(read.gone.is_empty(), "before any shred: {:?}", read.gone);
+
+        let evicted = store.evict_to(ByteBound::raw(0), 1).unwrap();
+        assert_eq!(evicted.shredded, [middle.ordinal]);
+        let read = store.read_segment(Ordinal::new(0)).unwrap();
+        assert_eq!(read.segment.map(|live| live.ordinal), Some(lowest.ordinal));
+        assert_eq!(read.gone, [middle.ordinal]);
+        let other = store.read_segment(lowest.ordinal).unwrap();
+        assert!(
+            other.gone.is_empty(),
+            "a read from another ordinal: {:?}",
+            other.gone
+        );
+
+        let evicted = store.evict_to(ByteBound::raw(0), 1).unwrap();
+        assert_eq!(evicted.shredded, [lowest.ordinal]);
+        let read = store.read_segment(Ordinal::new(0)).unwrap();
+        assert_eq!(read.segment.map(|live| live.ordinal), Some(highest.ordinal));
+        assert!(
+            read.gone.is_empty(),
+            "below the lowest live one: {:?}",
+            read.gone
         );
 
         drop(store);

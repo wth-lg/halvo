@@ -51,7 +51,9 @@
 //!
 //! The cursor leaves the figures of every answer of the store in its cell
 //! ([`Cursor::cell`]): the store's id and its watermark, and from an answer
-//! to a read from ordinal 0 the lowest live ordinal. While no connection is
+//! to a read from ordinal 0 the lowest live ordinal with the ordinals of the
+//! keyless segments above it, which the store shredded out of the order of
+//! their ordinals; no message of the seam names them. While no connection is
 //! served it reads nothing, so the daemon's caller can ask for a read:
 //! [`Cursor::read_asked`] then reads the store once, from ordinal 0.
 
@@ -243,16 +245,21 @@ impl Cursor {
     /// `from`, in the cell: the store's id and its watermark, and where the
     /// read asked from ordinal 0 the lowest live ordinal, which is the
     /// ordinal of the answer's segment or, where no segment lives, the
-    /// watermark's segment. An answer that names no watermark leaves nothing.
+    /// watermark's segment, with the ordinals of the keyless segments above
+    /// it that the answer names. An answer that names no watermark leaves
+    /// nothing.
     fn keep(&self, from: Ordinal, read: &SegmentRead) {
         let Some((store, watermark)) = named(read) else {
             return;
         };
-        let first_live = (from == BELOW_EVERY_SEGMENT).then(|| {
+        let lowest = (from == BELOW_EVERY_SEGMENT).then(|| {
             let lowest = read.segment.as_ref();
-            lowest.map_or(watermark.seg, |live| live.ordinal.get())
+            (
+                lowest.map_or(watermark.seg, |live| live.ordinal.get()),
+                read.gone.iter().map(|ordinal| ordinal.get()).collect(),
+            )
         });
-        self.cell.keep(store, watermark, first_live);
+        self.cell.keep_read(store, watermark, lowest);
     }
 
     /// The read that the daemon's caller asked for, in a pass of the store
@@ -1256,6 +1263,7 @@ mod tests {
             store: seam_id(MODEL_ID),
             watermark: pos(4, 0),
             first_live: ordinals[1].get(),
+            gone: Vec::new(),
         };
         assert_eq!(of_this_thread().cell().figures(), Some(figures));
         assert_eq!(client.end(), Ended::EndOfFile);
@@ -1308,6 +1316,7 @@ mod tests {
             store: seam_id(MODEL_ID),
             watermark: pos(1, 0),
             first_live: 1,
+            gone: Vec::new(),
         };
         assert_eq!(cell.figures(), Some(figures));
     }

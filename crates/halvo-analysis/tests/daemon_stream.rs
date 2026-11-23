@@ -505,7 +505,8 @@ mod sys;
 /// The whole link from records in a capture store to a proposed row, with the built programs. Its records are made
 /// with the two synthetic doors of halvo-capture, the keep verdict and the keystroke clearance with no reading of the
 /// system, which a build with debug assertions alone holds; check 30 admits this file as their one caller outside the
-/// crate.
+/// crate. Its last test makes segments of a capture store in the same way, and a pass of the store's maintenance
+/// shreds one of them under a living owner.
 #[cfg(debug_assertions)]
 mod chain {
     use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
@@ -533,7 +534,7 @@ mod chain {
     use halvo_schema_core::record::{Workflow, WorkflowState};
     use halvo_schema_core::request::{decode_reply, InterfaceRead, InterfaceRole, ReplyResult};
 
-    use super::{owner_binary, relay, sys, Allowed, Rig, WAIT};
+    use super::{defer, owner_binary, relay, sys, wall_nanos, Allowed, Rig, WAIT};
 
     /// The app of the records: Numbers, a spreadsheet program, by its bundle id.
     const NUMBERS: &str = "com.apple.iWork.Numbers";
@@ -882,6 +883,225 @@ mod chain {
             "the slot wrote: {}",
             rig.lines.text()
         );
+        drop(capture);
+    }
+
+    /// The clocks of a pass of the store's maintenance outside its owner: the system's monotonic reading and a wall
+    /// clock that the test sets.
+    struct WallAt(SystemTime, Instant);
+
+    impl halvo_capture::daemon::maintenance::Clocks for WallAt {
+        fn monotonic(&self) -> Duration {
+            self.1.elapsed()
+        }
+
+        fn wall(&self) -> SystemTime {
+            self.0
+        }
+    }
+
+    /// An evidence row's episode of the segment `n` alone, with the summary id of `n`, of one key for every `n`.
+    fn episode_of(n: u8) -> halvo_schema_core::record::Episode {
+        use halvo_schema_core::ids::SummaryId;
+        use halvo_schema_core::record::{
+            Episode, FloorLayer, Instant, ObservedStep, Ordinal, Part, Tagged, Text,
+        };
+        let day = u32::try_from(noon_of_yesterday().div_euclid(DAY_S) - 1).unwrap();
+        let start = i64::from(day) * DAY_S * SECOND_NS + 64_800 * SECOND_NS + i64::from(n);
+        Episode {
+            id: SummaryId::from_random([n; 16]),
+            category: SeedCategory::UtilityBillPayment,
+            site: None,
+            app: halvo_schema_core::site::AppId::parse("com.example.browser").unwrap(),
+            day,
+            part: Part::Evening,
+            minutes: 5,
+            keys: None,
+            pointer: None,
+            segments: vec![Ordinal::new(u64::from(n)).unwrap()],
+            expires: Instant(9_000_000_000_000_000_000),
+            start: Instant(start),
+            end: Instant(start + 1_000),
+            steps: vec![ObservedStep {
+                app: None,
+                title: Some(Tagged {
+                    value: Text::parse("Pay bill").unwrap(),
+                    layer: FloorLayer::Floor,
+                }),
+                input: None,
+                site: None,
+                text: None,
+            }],
+        }
+    }
+
+    /// The segments that each evidence row of the one workflow of the derived store names, by the interface reads
+    /// `workflows` and `evidence` relayed through the control server's line, with `byte` as each byte of their ids.
+    fn evidence_segments(rig: &Rig, byte: u8) -> Vec<Vec<u64>> {
+        let relayed = |read: Vec<u8>| {
+            let reply = relay(rig, &read).unwrap_or_else(|error| {
+                panic!(
+                    "the relay answered no reply: {error:?}; the slot wrote: {}",
+                    rig.lines.text()
+                )
+            });
+            decode_reply(&reply).unwrap().outcome
+        };
+        let workflows = relayed(
+            InterfaceRead::workflows(
+                &InterfaceRole::claim(),
+                RequestId::from_random([byte; 16]),
+                None,
+            )
+            .to_bytes()
+            .unwrap(),
+        );
+        let workflow = match workflows {
+            Ok(ReplyResult::Workflows(page)) if page.workflows.len() == 1 => {
+                page.workflows[0].workflow.id().clone()
+            }
+            other => panic!("the read of the workflows answers {other:?}"),
+        };
+        let evidence = relayed(
+            InterfaceRead::evidence(
+                &InterfaceRole::claim(),
+                RequestId::from_random([byte.wrapping_add(1); 16]),
+                workflow,
+                None,
+            )
+            .to_bytes()
+            .unwrap(),
+        );
+        match evidence {
+            Ok(ReplyResult::Evidence(page)) => page
+                .evidence
+                .iter()
+                .map(|row| row.segments.iter().map(|o| o.get()).collect())
+                .collect(),
+            other => panic!("the read of the evidence answers {other:?}"),
+        }
+    }
+
+    /// A deadline of `defer` that a test set; the drop clears it with a `defer` in the past, as the deadline is the
+    /// process's and the next test's driver must start its worker.
+    struct Deferral<'a>(&'a Rig);
+
+    impl Drop for Deferral<'_> {
+        fn drop(&mut self) {
+            let _ = defer(self.0, wall_nanos() - SECOND_NS);
+        }
+    }
+
+    /// The deletion's promise with a living owner: three segments of real records go into a capture store, the
+    /// second with the earliest first capture, as after a wall clock set back; an owner that the daemon's own slot
+    /// started for a worker commits an evidence row for each segment, and the form's owner answers them through the
+    /// server's line. A pass of the store's maintenance, the product's `Upkeep` of a store open for maintenance alone,
+    /// with a wall clock 14 days and 30 minutes after the second segment's first capture, shreds the second segment
+    /// alone, above the lowest live one. Through the real driver's turns the form's owner then answers the rows of the
+    /// segments 1 and 3 alone, and derived/owner.pid names the same owner: no owner started. A `defer`, cleared at the
+    /// test's end, keeps every pass of the driver from starting a worker.
+    #[test]
+    fn a_pass_that_shreds_above_the_lowest_live_segment_purges_the_living_owner() {
+        use halvo_capture::daemon::maintenance::Upkeep;
+        use halvo_capture::daemon::port::{Access, DataDirStore, Opened, StoreHost};
+        use halvo_capture::daemon::r2::daemon_caller::DaemonCaller;
+        use halvo_capture::daemon::r2::owner_slot::{Caller, OwnerSlot, Place};
+        use halvo_schema_core::request::{AnalysisRole, AnalysisWrite};
+        use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
+
+        let (rig, store, _) = Rig::with_store("stream-purge-living");
+        let mut capture = Capture::start(store);
+        let base = noon_of_yesterday();
+        let mut written = 0;
+        for start_s in [base + 3_600, base, base + 7_200] {
+            written += write_stretch(&capture.sink, start_s, true);
+            assert_eq!(capture.settle(), written, "the store holds other records");
+        }
+        let figures = open_and_read(&rig);
+        assert_eq!(
+            (
+                figures.first_live,
+                figures.watermark.seg,
+                figures.gone.len()
+            ),
+            (1, 4, 0),
+            "the store holds other segments: {figures:?}"
+        );
+        defer(&rig, wall_nanos() + 3_600 * SECOND_NS).unwrap();
+        let _deferral = Deferral(&rig);
+        if let Some(owner) = capture.owner.take() {
+            let _ = owner.handle.call(Command::Shutdown);
+            let _ = owner.join();
+        }
+
+        let place = Place {
+            program_dir: owner_binary().parent().unwrap().to_path_buf(),
+            data_dir: rig.scratch.0.clone(),
+            idle_ms: None,
+        };
+        let caller = DaemonCaller::new(&rig.scratch.0, Box::new(rig.lines.clone()));
+        let mut seeding = OwnerSlot::new(place, Arc::new(caller) as Arc<dyn Caller>);
+        let (owner_reads, mut worker_writes) = std::io::pipe().unwrap();
+        let (mut worker_reads, owner_writes) = std::io::pipe().unwrap();
+        seeding
+            .start_with_worker((owner_reads, owner_writes))
+            .unwrap();
+        let store = halvo_schema_core::ids::StoreId::parse(figures.store.as_str()).unwrap();
+        let mut write = AnalysisWrite::new(
+            &AnalysisRole::claim(),
+            RequestId::from_random([0x90; 16]),
+            store,
+        );
+        for n in 1..=3 {
+            write.push(episode_of(n)).unwrap();
+        }
+        write.commit(Position {
+            seg: figures.watermark.seg,
+            idx: figures.watermark.idx,
+        });
+        write_frame(
+            &mut worker_writes,
+            &write.to_bytes().unwrap(),
+            CLIENT_FRAME_MAX,
+        )
+        .unwrap();
+        let reply = read_frame(&mut worker_reads, SERVER_FRAME_MAX)
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            decode_reply(&reply).unwrap().outcome,
+            Ok(ReplyResult::Null)
+        ));
+        drop(seeding);
+
+        assert_eq!(evidence_segments(&rig, 0x91), [[1], [2], [3]]);
+        let owner = rig.owner_pid().expect("no owner answered the reads");
+
+        let Opened::MaintenanceOnly { store, .. } =
+            DataDirStore::at(&rig.scratch.0).open(Access::MaintenanceOnly)
+        else {
+            panic!("the capture store does not open for maintenance");
+        };
+        let wall =
+            UNIX_EPOCH + Duration::from_secs(u64::try_from(base + 14 * DAY_S + 1_800).unwrap());
+        Upkeep::new(store, WallAt(wall, Instant::now()), None).turn();
+
+        let until = Instant::now() + WAIT;
+        let mut byte = 0x93;
+        loop {
+            tick();
+            if evidence_segments(&rig, byte) == [[1], [3]] {
+                break;
+            }
+            assert!(
+                Instant::now() < until,
+                "the rows of the segment 2 stay: {}",
+                rig.lines.text()
+            );
+            byte = byte.wrapping_add(2);
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(rig.owner_pid(), Some(owner), "another owner answered");
         drop(capture);
     }
 }

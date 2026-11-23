@@ -181,7 +181,7 @@ impl EncryptedStore {
             return Ok(Vec::new());
         }
         let ids: Vec<Uuid> = chunk.iter().map(|(id, _)| *id).collect();
-        let (left, first_failure) = {
+        let changes_before = {
             let db = self.maintained_db()?;
             let changes_before = db.connection().total_changes();
             match clear_keys(db, &ids) {
@@ -192,6 +192,12 @@ impl EncryptedStore {
                 cleared => cleared?,
             }
             db.look_after_the_first_commit(changes_before)?;
+            changes_before
+        };
+        self.shredded_noted
+            .extend(chunk.iter().map(|(_, ordinal)| *ordinal));
+        let (left, first_failure) = {
+            let db = self.maintained_db()?;
             let checkpointed = db
                 .checkpoint_truncate()
                 .map_err(|e| db.kept_after_a_shred(e, changes_before));
@@ -210,6 +216,20 @@ impl EncryptedStore {
         let mut shredded: Vec<Ordinal> = chunk.iter().map(|(_, ordinal)| *ordinal).collect();
         shredded.sort_unstable();
         Ok(shredded)
+    }
+
+    /// Takes the ordinals whose keys the expiry and eviction calls on this
+    /// handle cleared and committed since the last take, whatever those calls
+    /// answered, and empties the list. A chunk notes its ordinals in one
+    /// place: behind the look after the handle's first commit, which says
+    /// that the commit that cleared its keys holds, and before the checkpoint
+    /// and the removal of its files. A chunk whose commit failed, or whose
+    /// look refused that commit, notes none: the key and the file of its
+    /// segment stand; a failed checkpoint or removal behind a passed look
+    /// keeps the note, as the cleared keys stand in the log at its name. The
+    /// list lives in the handle's memory alone.
+    pub fn take_shredded(&mut self) -> Vec<Ordinal> {
+        std::mem::take(&mut self.shredded_noted)
     }
 
     /// Whether a later expiry or eviction call on this handle finishes work

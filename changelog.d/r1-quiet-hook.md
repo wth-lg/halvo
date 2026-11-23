@@ -1,0 +1,1 @@
+- Fixed: A failing test among the capture service's own tests now always prints why it failed, also while another test makes a panic on purpose.

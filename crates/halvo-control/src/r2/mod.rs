@@ -30,8 +30,8 @@ mod run_mark;
 pub use defer::{serve_defer, Defer, Deferred, DeferredError};
 #[cfg(any(target_os = "macos", windows))]
 pub use owner_stream::{
-    CarriesEnds, Connection, OwnerChannel, OwnerStream, OwnerStreamEnd, OwnerStreamReady,
-    ReadyError,
+    purge_frame, CarriesEnds, Connection, OwnerChannel, OwnerStream, OwnerStreamEnd,
+    OwnerStreamReady, ReadyError, PURGED, PURGE_MAX,
 };
 #[cfg(target_os = "macos")]
 pub use owner_stream_macos::send_with_end;
