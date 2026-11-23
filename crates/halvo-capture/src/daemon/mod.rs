@@ -2513,11 +2513,13 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
 /// [`sources::starting`] for the switches of the state file, each begun on
 /// the owner's sink and floor. With [`Behind::NoPress`] it first reads why
 /// the last life ended and ends with WAITS_FOR_A_PRESS where the table of
-/// `run_marker::LastEnd` says so, before the marker's begin. A life that ends
-/// with 0 leaves the line of the trigger of its end in the run marker, and a
-/// life that a Stop request or a signal ends with 1 leaves it beside its
-/// process line, before it answers a Stop request and before it gives the
-/// lock up (`run_marker::at_the_end`).
+/// `run_marker::LastEnd` says so, before the marker's begin. Where it accepts
+/// a Stop request, or reads that a signal set the stop flag, it writes the
+/// decision of that stop in the run marker first, the line beside its process
+/// line (`run_marker::decided`); a life that ends with 0 then leaves the line
+/// of the trigger of its end alone, and an end with 1 leaves the decision,
+/// before it answers a Stop request and before it gives the lock up
+/// (`run_marker::at_the_end`).
 #[cfg(any(target_os = "macos", windows))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop>(
@@ -2682,11 +2684,16 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         match wait_serving(&mut supervisor, &serving, window, stop, &store) {
             Waited::Window => {}
             Waited::Ended => {
-                ended_by = Some(trigger_of_the_wait(stop));
+                let trigger = trigger_of_the_wait(stop);
+                if trigger == halvo_control::proto::StopKind::Signal {
+                    decide_the_stop(dir, trigger, err);
+                }
+                ended_by = Some(trigger);
                 break;
             }
             Waited::Stop(asked) => {
                 listening.admitting().end_the_life();
+                decide_the_stop(dir, halvo_control::proto::StopKind::Stop, err);
                 ended_by = Some(halvo_control::proto::StopKind::Stop);
                 stop_asked = Some(asked);
                 break;
@@ -2934,6 +2941,24 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     drop(listening);
     drop(lock);
     status
+}
+
+/// Writes the decision of a stop, `run_marker::decided`, at the moment that
+/// the loop of the service run accepts a Stop request or reads that a signal
+/// set the stop flag, before the shutdown entry; a write that fails is a line.
+#[cfg(any(target_os = "macos", windows))]
+fn decide_the_stop(
+    dir: &halvo_control::paths::DataDir,
+    kind: halvo_control::proto::StopKind,
+    err: &mut dyn std::io::Write,
+) {
+    if let Err(error) = run_marker::decided(dir, kind) {
+        let _ = writeln!(
+            err,
+            "halvo-capture: the run marker's line of the stop was not written: {}",
+            error.kind()
+        );
+    }
 }
 
 /// The line of a start with `--no-press` that ends with WAITS_FOR_A_PRESS.

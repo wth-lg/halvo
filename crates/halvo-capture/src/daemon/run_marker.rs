@@ -2,9 +2,10 @@
 //! (contracts.md C3.2 step 5 and its stop, D-05): read at the start to set
 //! `last_stop`, written anew for the life that starts, and written once more
 //! by a life that ends in order, with the line `ended=` and the trigger of
-//! that end in the words of contracts.md C2.3 (C14 item 4), and by a life
-//! that a Stop request or a signal ends with 1, with that line beside its
-//! process line. It holds the process id of its life, and the hold of ruling
+//! that end in the words of contracts.md C2.3 (C14 item 4), and at the
+//! decision of a stop by a Stop request or a signal, with that line beside
+//! its process line, which an end with 1, the watchdog's end and a kill
+//! leave. It holds the process id of its life, and the hold of ruling
 //! PL-3 part (5) while that stands: a record of a life that a source which
 //! did not stop ended, or the line `hold=yes` that carries such a record's
 //! hold on through the lives after it until a Resume lifts it.
@@ -41,13 +42,14 @@ pub struct Begun {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LastEnd {
     /// A life left the line of the trigger of its end: at an end with 0
-    /// alone or after the hold, and at an end with 1 that a Stop request or
-    /// a signal began, beside its process line.
+    /// alone or after the hold, and at the decision of a stop by a Stop
+    /// request or a signal, beside its process line, where the end did not
+    /// write the clean form over it.
     Ended(StopKind),
     /// A life left its own process line alone, or the record of ruling PL-3:
-    /// a kill, a crash, an end with 4 or 5, an end with 1 that no Stop
-    /// request and no signal began, or an end whose line could not be
-    /// written.
+    /// a kill or a crash before any decision of a stop, an end with 4 or 5,
+    /// an end with 1 that no Stop request and no signal began, or a decision
+    /// whose line could not be written.
     NotInOrder,
     /// No marker, a marker that cannot be read, or one with no line that
     /// tells why its life ended, as a service of an older build leaves at
@@ -164,31 +166,43 @@ pub fn held(dir: &DataDir) -> bool {
 
 /// What the end of a life leaves in its marker, by its exit status and the
 /// trigger of its end (contracts.md C3.2 Stop, C14 item 4): at 0 [`end`]; at
-/// 1 where a Stop request or a signal began the end, the process line of the
-/// life, the hold while it stands and the line of that trigger, by the
-/// durable write, so that the next start reads it unclean, as before, and a
-/// start that no press stands behind reads the trigger; at every other end
-/// the marker stays as the life left it: its process line alone, or the
-/// record of ruling PL-3 at an end with 5. Where the marker cannot be read
-/// or the write at 1 fails, the marker stays as it stands, the process line
-/// alone and the hold kept.
+/// 1 where a Stop request or a signal began the end, the form of
+/// [`decided`] once more, so that the next start reads it unclean, as before,
+/// and a start that no press stands behind reads the trigger; at every other
+/// end the marker stays as the life left it: its process line alone, the
+/// form of the decision, or the record of ruling PL-3 at an end with 5.
+/// Where the marker cannot be read or the write at 1 fails, the marker stays
+/// as it stands.
 pub fn at_the_end(dir: &DataDir, status: i32, ended_by: Option<StopKind>) -> io::Result<()> {
     match (status, ended_by) {
         (halvo_control::exit::CLEAN, _) => end(dir, ended_by),
         (halvo_control::exit::ERROR, Some(kind @ (StopKind::Stop | StopKind::Signal))) => {
-            let found = read(dir)?;
-            let mut text = format!("{PID}{}\n", std::process::id());
-            if found.as_deref().is_some_and(holds_the_hold) {
-                text.push_str(HOLD_LINE);
-                text.push('\n');
-            }
-            text.push_str(ENDED);
-            text.push_str(kind.as_str());
-            text.push('\n');
-            replace(dir, text.as_bytes())
+            decided(dir, kind)
         }
         _ => Ok(()),
     }
+}
+
+/// The decision of a stop (contracts.md C3.2 Stop, C14 item 4), written where
+/// a Stop request is accepted or the run reads that a signal set its stop
+/// flag, before anything of the end that can hang or fail: the process line
+/// of the life, the hold while it stands and the line of `kind`, by the
+/// durable write. An end with 0 writes its clean form over it ([`end`]); an
+/// end with 1, the watchdog's end and a kill leave it, which the next start
+/// reads unclean and a start that no press stands behind reads as `kind`.
+/// Where the marker cannot be read, or the write fails, the marker stays as
+/// it stands, the hold kept.
+pub fn decided(dir: &DataDir, kind: StopKind) -> io::Result<()> {
+    let found = read(dir)?;
+    let mut text = format!("{PID}{}\n", std::process::id());
+    if found.as_deref().is_some_and(holds_the_hold) {
+        text.push_str(HOLD_LINE);
+        text.push('\n');
+    }
+    text.push_str(ENDED);
+    text.push_str(kind.as_str());
+    text.push('\n');
+    replace(dir, text.as_bytes())
 }
 
 /// Ends the marker of a life that ended in order: in its place the hold,
@@ -380,6 +394,66 @@ mod tests {
             stand(&dir, text);
             assert_eq!(begin(&dir).last_stop, read, "{text:?}");
         }
+    }
+
+    #[test]
+    fn a_stop_decided_whose_end_is_cut_off_leaves_its_line_beside_the_process_line_and_a_start_with_no_press_waits(
+    ) {
+        let pid = format!("pid={}\n", std::process::id());
+        let record =
+            "last_stop=source_not_stopped kind=pause final=yes not_stopped=input:timeout\n";
+        for kind in [StopKind::Stop, StopKind::Signal] {
+            for hold in [false, true] {
+                let (_root, dir) = scratch();
+                if hold {
+                    stand(&dir, record);
+                }
+                assert!(begin(&dir).written.is_ok(), "{kind:?}");
+                decided(&dir, kind).unwrap();
+                let hold_line = if hold { "hold=yes\n" } else { "" };
+                assert_eq!(
+                    marker(&dir),
+                    Some(format!("{pid}{hold_line}ended={}\n", kind.as_str())),
+                    "{kind:?}: the end is cut off behind the decision"
+                );
+                assert_eq!(
+                    last_end(&dir).no_press(),
+                    NoPress::WaitsForAPress,
+                    "{kind:?}: a start with --no-press ends with 7"
+                );
+                assert_eq!(held(&dir), hold, "{kind:?}: the hold as before");
+                assert_eq!(
+                    begin(&dir).last_stop,
+                    LastStop::Unclean,
+                    "{kind:?}: a start without the argument reads unclean, as behind a kill"
+                );
+            }
+        }
+        let (_root, dir) = scratch();
+        assert!(begin(&dir).written.is_ok());
+        decided(&dir, StopKind::Stop).unwrap();
+        at_the_end(
+            &dir,
+            halvo_control::exit::SOURCE_NOT_STOPPED,
+            Some(StopKind::Stop),
+        )
+        .unwrap();
+        assert_eq!(
+            marker(&dir),
+            Some(format!("{pid}ended=stop\n")),
+            "the shutdown entry's own end with 5 leaves the decision"
+        );
+        assert_eq!(last_end(&dir).no_press(), NoPress::WaitsForAPress);
+        let (_root, dir) = scratch();
+        assert!(begin(&dir).written.is_ok());
+        decided(&dir, StopKind::Stop).unwrap();
+        at_the_end(&dir, halvo_control::exit::CLEAN, Some(StopKind::Stop)).unwrap();
+        assert_eq!(
+            marker(&dir).as_deref(),
+            Some("ended=stop\n"),
+            "an end with 0 behind the decision writes the clean form"
+        );
+        assert_eq!(begin(&dir).last_stop, LastStop::Clean);
     }
 
     #[test]
