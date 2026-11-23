@@ -1216,6 +1216,11 @@ pub enum Refusal {
     /// that Halvo could not finish this and to choose Use an AI model again where the row still
     /// shows it (r4 U3.17b).
     UseModelNotFinished(Cause),
+    /// A `this_computer_only` whose body, the way back `withdraw_hosted`, the owner refused or
+    /// that got no reply, with the cause of that answer: the sentence of
+    /// `refused.this_computer_not_finished`, which says that Halvo could not finish this and to
+    /// choose Use this computer only again where the row still shows it (r4 U3.17b).
+    ThisComputerNotFinished(Cause),
     /// A Switch on whose state the owner refused with `overlap`, the cause `overlap`, with what
     /// the read that followed gave to say: the sentence of `Overlapping::refused`, which names
     /// the other agent and the shared senders where the read named them, and is the sentence of
@@ -1230,7 +1235,8 @@ impl Refusal {
             Refusal::Cause(cause)
             | Refusal::SwitchNotSaved(cause)
             | Refusal::SignInNotFinished(cause)
-            | Refusal::UseModelNotFinished(cause) => *cause,
+            | Refusal::UseModelNotFinished(cause)
+            | Refusal::ThisComputerNotFinished(cause) => *cause,
             Refusal::Overlap(_) => Cause::Overlap,
         }
     }
@@ -1242,6 +1248,9 @@ impl Refusal {
             Refusal::SwitchNotSaved(_) => words::text("refused.switch_not_saved", &[]),
             Refusal::SignInNotFinished(_) => words::text("refused.sign_in_not_finished", &[]),
             Refusal::UseModelNotFinished(_) => words::text("refused.use_model_not_finished", &[]),
+            Refusal::ThisComputerNotFinished(_) => {
+                words::text("refused.this_computer_not_finished", &[])
+            }
             Refusal::Overlap(say) => say.refused(),
         }
     }

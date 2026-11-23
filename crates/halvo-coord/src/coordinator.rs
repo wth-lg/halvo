@@ -620,9 +620,13 @@ where
             && match action {
                 None | Some(Action::TakeBack | Action::Stop) => true,
                 Some(Action::SwitchOff) => !off,
-                Some(Action::RunNow | Action::SwitchOn | Action::StopSignIn | Action::UseModel) => {
-                    false
-                }
+                Some(
+                    Action::RunNow
+                    | Action::SwitchOn
+                    | Action::StopSignIn
+                    | Action::UseModel
+                    | Action::ThisComputerOnly,
+                ) => false,
             }
     }
 
@@ -2798,6 +2802,9 @@ where
             _ if model == Some(Action::UseModel) => {
                 crate::types::Refusal::UseModelNotFinished(cause)
             }
+            _ if model == Some(Action::ThisComputerOnly) => {
+                crate::types::Refusal::ThisComputerNotFinished(cause)
+            }
             Some(say) => crate::types::Refusal::Overlap(say),
             None => crate::types::Refusal::Cause(cause),
         })
@@ -3018,6 +3025,7 @@ where
             Action::Stop => self.stop_in(st, i),
             Action::StopSignIn => self.stop_sign_in(st, i),
             Action::UseModel => self.use_model(st, i),
+            Action::ThisComputerOnly => self.this_computer_only(st, i),
             Action::TakeBack => {
                 self.schedule(
                     st,
@@ -3072,9 +3080,9 @@ where
     /// U3.17b): after the quit's first step, and where the agent's row offers no `use_model` with
     /// its question (no host, no runtime, a yes that stands for a hosted tier, no key saved, no
     /// limit set, or a state that could not be read), it answers `state` and sends nothing; else
-    /// the schedule's `set_model` sends ONE body, the yes `agree_hosted`. Where the owner refuses it or no
-    /// reply comes, it marks the call, so that its reply says that Halvo could not finish this,
-    /// and the agent's member stays as it was.
+    /// the schedule's `set_model` sends ONE body, the yes `agree_hosted`. Where the owner refuses
+    /// it or no reply comes, it marks the call, so that its reply says that Halvo could not finish
+    /// this, and the agent's member stays as it was.
     fn use_model(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
         if st.quitting {
             return Err(Cause::State);
@@ -3092,6 +3100,30 @@ where
             Ok(()) => Ok(()),
             Err(e) => {
                 st.model_unfinished = Some(Action::UseModel);
+                Err(cause_of(&e))
+            }
+        }
+    }
+
+    /// The person's `this_computer_only`, which asks nothing (r4 U3.17b): after the quit's first
+    /// step, and where the agent's row does not offer it (no host, or the stored tier is
+    /// `on_device`), it answers `state` and sends nothing; else the schedule's `set_model` sends
+    /// ONE body, the way back `withdraw_hosted`. Where the owner refuses it or no reply comes, it
+    /// marks the call, so that its reply says that Halvo could not finish this, and the agent's
+    /// member stays as it was.
+    fn this_computer_only(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
+        if st.quitting {
+            return Err(Cause::State);
+        }
+        let board = st.board.as_mut().ok_or(Cause::NoService)?;
+        let back = crate::types::Control::ThisComputerOnly;
+        if !roster::model_controls(&board.members[i].facts.config).contains(&back) {
+            return Err(Cause::State);
+        }
+        match schedule::set_model(&self.ports, board, i, false) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                st.model_unfinished = Some(Action::ThisComputerOnly);
                 Err(cause_of(&e))
             }
         }

@@ -194,3 +194,49 @@ fn with_no_key_no_limit_or_a_state_that_does_not_read_the_row_says_one_sentence_
         assert!(sets(&c, m).is_empty(), "{case}: nothing sent");
     }
 }
+
+/// r4 U3.17b sentence 5: Use this computer only asks nothing: the row of an agent whose yes
+/// stands for its hosted tier offers it with no question, and `agents_control` with
+/// `this_computer_only` sends ONE body, the way back `Body::WithdrawHosted` of the agent. Where the
+/// owner refuses that body with `store` or no reply comes, the reply says that Halvo could not
+/// finish this, nothing is stored, and the row still offers Use this computer only.
+#[test]
+fn use_this_computer_only_asks_nothing_and_sends_one_body() {
+    let c = world(Tier::Frontier, ready(true));
+    let r = row(&c);
+    assert!(offers(&c, Control::ThisComputerOnly));
+    assert!(!offers(&c, Control::UseModel));
+    assert_eq!(
+        (r.ask_use_model, r.note_use_model),
+        (None, None),
+        "no question"
+    );
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(), Action::ThisComputerOnly), Ok(()));
+    assert_eq!(
+        sets(&c, m),
+        [Call::Send(Body::WithdrawHosted {
+            workflow: flow(),
+            agent: agent()
+        })]
+    );
+    for error in [store(), PortError::NoService] {
+        let c = world(Tier::Frontier, ready(true));
+        c.ports().refuse(Method::Send, error.clone());
+        let m = mark(&c);
+        let refusal: Refused = c
+            .control_reply(&agent(), Action::ThisComputerOnly)
+            .expect_err("refused");
+        assert_eq!(refusal.cause(), Cause::NoService, "{error:?}");
+        assert_eq!(
+            refusal.text(),
+            Ok("Halvo could not finish this. If this agent still shows Use this computer only, choose it again.".to_owned()),
+            "{error:?}"
+        );
+        assert!(sets(&c, m).is_empty(), "{error:?}: nothing stored");
+        assert!(
+            offers(&c, Control::ThisComputerOnly),
+            "{error:?}: the row keeps the control"
+        );
+    }
+}

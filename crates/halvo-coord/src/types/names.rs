@@ -118,6 +118,7 @@ names! {
         SwitchOn = "switch_on",
         StopSignIn = "stop_sign_in",
         UseModel = "use_model",
+        ThisComputerOnly = "this_computer_only",
     }
 }
 
