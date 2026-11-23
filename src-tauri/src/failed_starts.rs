@@ -3,15 +3,23 @@
 //! count before the rest of its start, a start that reaches its tray or its window sets it to
 //! nothing, and an opening by hand clears it. Where the count reads [`GIVE_UP_AT`] at a
 //! background start, that start sets the count to nothing and ends with 0 at once, so that
-//! launchd leaves it until the next login, which has its three tries again.
+//! launchd leaves it until the next login, which has its three tries again. A count written more
+//! than [`STANDS_FOR`] before a start reads as nothing.
 
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::time::{Duration, SystemTime};
 
 use halvo_control::paths::DataDir;
 
 /// The count at which a background start gives up.
 pub const GIVE_UP_AT: u32 = 3;
+
+/// How long a count stands after its last write. A count written longer before a start reads as
+/// nothing, so that failed starts add up only where each follows the one before within this
+/// time, and a login that comes later has its three tries; a loop of failing starts, which
+/// launchd.plist(5) spaces 10 s apart by default, makes its three well within it.
+pub const STANDS_FOR: Duration = Duration::from_secs(10 * 60);
 
 /// The name of the count's file in the data folder's run/, beside the app's lock.
 pub const FILE: &str = "failed-starts";
@@ -55,13 +63,22 @@ impl Count {
         self.run.join(FILE)
     }
 
-    /// The count that the file holds: nothing where no file stands, where it cannot be read, and
-    /// where it holds anything else than ASCII digits and one LF.
+    /// The count that the file holds, read against the clock of this call: nothing where no file
+    /// stands, where it cannot be read, where it holds anything else than ASCII digits and one LF,
+    /// and where the time of its last write lies more than [`STANDS_FOR`] before the clock, lies
+    /// after it, or cannot be read.
     pub fn read(&self) -> u32 {
-        std::fs::read(self.file())
-            .ok()
-            .and_then(|text| count_in(&text))
-            .unwrap_or(0)
+        use std::io::Read;
+        let mut text = Vec::new();
+        let stands = std::fs::File::open(self.file()).and_then(|mut file| {
+            let written = file.metadata()?.modified()?;
+            file.read_to_end(&mut text)?;
+            Ok(stands_at(written, SystemTime::now()))
+        });
+        match stands {
+            Ok(true) => count_in(&text).unwrap_or(0),
+            Ok(false) | Err(_) => 0,
+        }
     }
 
     /// Writes `count` whole: a new file of mode 0600, filled and then renamed over the count's
@@ -108,6 +125,13 @@ impl Count {
         let _ = self.write(count + 1);
         Decision::GoOn
     }
+}
+
+/// Whether a count written at `written` still stands at `now`: written at most [`STANDS_FOR`]
+/// before it, and not after it.
+fn stands_at(written: SystemTime, now: SystemTime) -> bool {
+    now.duration_since(written)
+        .is_ok_and(|age| age <= STANDS_FOR)
 }
 
 /// The count that `text` holds where it is ASCII digits and one LF, as [`Count::write`] writes
@@ -212,6 +236,25 @@ mod tests {
         std::fs::create_dir(file(&dir)).expect("a folder stands at the file's name");
         assert_eq!(count.read(), 0);
         assert_eq!(count.at_the_start(true), Decision::GoOn);
+    }
+
+    #[test]
+    fn a_count_written_more_than_ten_minutes_before_the_start_reads_as_nothing() {
+        use std::time::{Duration, SystemTime};
+        let dir = folder("failed-starts-age");
+        let count = Count::of(&dir);
+        std::fs::write(file(&dir), "3\n").expect("the count is written");
+        let eleven_minutes_ago = SystemTime::now() - Duration::from_secs(11 * 60);
+        std::fs::File::options()
+            .write(true)
+            .open(file(&dir))
+            .and_then(|written| written.set_modified(eleven_minutes_ago))
+            .expect("the count's time is set back");
+        assert_eq!(count.at_the_start(true), Decision::GoOn);
+        assert_eq!(held(&file(&dir)).as_deref(), Some("1\n"));
+        std::fs::write(file(&dir), "3\n").expect("the count is written again");
+        assert_eq!(count.at_the_start(true), Decision::GiveUp);
+        assert_eq!(held(&file(&dir)), None);
     }
 
     #[test]
