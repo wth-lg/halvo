@@ -2224,3 +2224,9 @@ fn once_the_trays_quit_has_begun_every_command_of_the_page_gets_its_fixed_reply_
         core.names()
     );
 }
+
+/// The usage line, which comes with exit 64, names the form that the uninstaller calls.
+#[test]
+fn the_usage_line_names_the_form_that_the_uninstaller_calls() {
+    assert!(crate::launch::USAGE.ends_with(" | --remove-crash-reports"));
+}

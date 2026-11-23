@@ -250,6 +250,27 @@ pub fn states() -> Vec<(&'static str, StatusView)> {
             })),
         ),
         (
+            "lost-grant-source-pointer-alone",
+            of(status_with(mac, |f| {
+                let line = f
+                    .permissions
+                    .iter_mut()
+                    .find(|p| p.name == Permission::InputMonitoring)
+                    .expect("the permission has a line");
+                line.grant = GrantState::NotGranted;
+                line.at_start = GrantState::Granted;
+                line.once_granted = true;
+                source(
+                    f,
+                    SourceName::Input,
+                    SourceState::Impaired {
+                        reason: Reason::Permission,
+                        error: None,
+                    },
+                );
+            })),
+        ),
+        (
             "cap-unknown",
             of(status_with(mac, |f| f.cap_bytes = Cap::Unknown)),
         ),
@@ -707,49 +728,74 @@ fn a_mac_status_with_typing_off_gets_none_of_the_four() {
 }
 
 #[test]
-fn a_mac_view_names_no_row_of_keys_or_pointer_actions_while_the_input_source_fails_or_waits_for_its_grant(
-) {
-    let keys = halvo_control::texts::recorded_when_on(SwitchName::KeyClass);
-    let pointer = halvo_control::texts::recorded_when_on(SwitchName::PointerClass);
-    let others = [
-        halvo_control::texts::APP_IN_FRONT,
-        halvo_control::texts::recorded_when_on(SwitchName::TitleText),
-        halvo_control::texts::SCREEN_ACTIVITY_NOT_RECORDED,
-    ];
+fn a_mac_view_reads_typing_from_the_input_line_and_never_from_the_row_of_input_monitoring() {
+    use halvo_control::texts::{recorded_when_on, texts, TYPING_NOT_RECORDED};
+    let keys = recorded_when_on(SwitchName::KeyClass);
+    let pointer = recorded_when_on(SwitchName::PointerClass);
+    let impaired = SourceState::Impaired {
+        reason: Reason::Permission,
+        error: None,
+    };
+    let failed = |reason| SourceState::Failed {
+        reason,
+        error: None,
+    };
     for (case, capture, input, grant, shown) in [
         (
-            "the grant refused",
-            Capture::Partial,
-            SourceState::Failed {
-                reason: Reason::Permission,
-                error: None,
-            },
+            "the tap of the pointer types alone, the grant refused",
+            Capture::Running,
+            impaired.clone(),
             GrantState::NotGranted,
-            false,
+            (false, true, true, false),
         ),
         (
-            "the grant not yet given",
-            Capture::Starting,
-            SourceState::Off,
-            GrantState::NotDetermined,
-            false,
+            "the tap of the pointer types alone beside a row that reads granted",
+            Capture::Running,
+            impaired.clone(),
+            GrantState::Granted,
+            (false, true, true, false),
+        ),
+        (
+            "a tap with the key types beside a row that reads no grant",
+            Capture::Running,
+            SourceState::Running,
+            GrantState::NotGranted,
+            (true, true, false, true),
+        ),
+        (
+            "a tap with the key types, the grant given",
+            Capture::Running,
+            SourceState::Running,
+            GrantState::Granted,
+            (true, true, false, true),
+        ),
+        (
+            "failed for want of the grant",
+            Capture::Partial,
+            failed(Reason::Permission),
+            GrantState::NotGranted,
+            (false, false, false, false),
         ),
         (
             "a tap thread that ended",
             Capture::Partial,
-            SourceState::Failed {
-                reason: Reason::ThreadEnded,
-                error: None,
-            },
+            failed(Reason::ThreadEnded),
             GrantState::Granted,
-            false,
+            (false, false, false, false),
         ),
         (
-            "the grant given",
+            "no tap, beside a row not yet given",
+            Capture::Starting,
+            SourceState::Off,
+            GrantState::NotDetermined,
+            (false, false, true, false),
+        ),
+        (
+            "no tap, beside a row that reads granted",
             Capture::Running,
-            SourceState::Running,
+            SourceState::Off,
             GrantState::Granted,
-            true,
+            (false, false, true, false),
         ),
     ] {
         let status = status_with(Platform::Macos, |f| {
@@ -770,26 +816,41 @@ fn a_mac_view_names_no_row_of_keys_or_pointer_actions_while_the_input_source_fai
             panic!("{case}: a status makes a running view")
         };
         let rows: Vec<&str> = view.texts.recorded.iter().map(|row| row.text).collect();
-        assert_eq!(rows.contains(&keys), shown, "{case}: the row of keys");
         assert_eq!(
-            rows.contains(&pointer),
-            shown,
-            "{case}: the row of pointer actions"
+            (
+                rows.contains(&keys),
+                rows.contains(&pointer),
+                rows.contains(&TYPING_NOT_RECORDED),
+                !view.texts.passwords.is_empty(),
+                view.texts.typed_ahead.is_some(),
+            ),
+            (shown.0, shown.1, shown.2, shown.3, shown.3),
+            "{case}: (the row of keys, the row of pointer actions, the standing row, the \
+             sentence on passwords, the sentence on a key pressed early) {rows:?}"
         );
-        for row in others {
-            assert!(rows.contains(&row), "{case}: {row}");
+        let mut expected = texts(&status).recorded;
+        if shown.2 {
+            for row in &mut expected {
+                if row.switch == Some(SwitchName::KeyClass) {
+                    row.text = TYPING_NOT_RECORDED;
+                }
+            }
+            expected.retain(|row| shown.1 || row.switch != Some(SwitchName::PointerClass));
+            assert_eq!(
+                view.texts.recorded, expected,
+                "{case}: the standing row stands where the row of keys stood"
+            );
         }
-        assert_eq!(
-            !view.texts.passwords.is_empty(),
-            shown,
-            "{case}: the sentence on passwords"
-        );
-        assert_eq!(
-            view.texts.typed_ahead.is_some(),
-            shown,
-            "{case}: the sentence on a key pressed early"
-        );
     }
+    let windows = sample_status(Platform::Windows);
+    let StatusView::Running(view) = StatusView::of(&windows) else {
+        panic!("a Windows status makes a running view")
+    };
+    assert_eq!(
+        view.texts,
+        texts(&windows),
+        "a Windows status reads as it did"
+    );
 }
 
 #[test]

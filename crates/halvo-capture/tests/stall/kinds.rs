@@ -5,6 +5,9 @@ pub(super) enum Lead {
     TabTab,
     Enter,
     Nothing,
+    AccessKey,
+    LateMove,
+    OwnChangeThenLateMove,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,6 +121,9 @@ pub(super) enum Kind {
     SecondFieldAndOtherFront,
     EnterTabOutAndTwoStep,
     SelfFocus,
+    AccessKey,
+    LateMove,
+    OwnChangeThenLateMove,
 }
 
 impl Kind {
@@ -130,6 +136,9 @@ impl Kind {
             Kind::SecondFieldAndOtherFront => "stall-second-field-other-front",
             Kind::EnterTabOutAndTwoStep => "stall-enter-tab-out-two-step",
             Kind::SelfFocus => "stall-self-focus",
+            Kind::AccessKey => "stall-access-key",
+            Kind::LateMove => "stall-late-move",
+            Kind::OwnChangeThenLateMove => "stall-own-change",
         }
     }
 
@@ -225,6 +234,39 @@ impl Kind {
                 )
             })
             .collect(),
+            Kind::LateMove => vec![Phase {
+                letters_through_the_wait: false,
+                ..phase(
+                    "stall-late-move",
+                    "late_move",
+                    Lead::LateMove,
+                    Wait::ServesSent,
+                    50,
+                )
+            }],
+            Kind::OwnChangeThenLateMove => vec![Phase {
+                letters_through_the_wait: false,
+                checks: Checks::ControlsAndSink,
+                ..phase(
+                    "stall-own-change",
+                    "own_change_then_late_move",
+                    Lead::OwnChangeThenLateMove,
+                    Wait::ServesSent,
+                    50,
+                )
+            }],
+            Kind::AccessKey => [Wait::Sleeps, Wait::ServesSent]
+                .into_iter()
+                .map(|wait| {
+                    phase(
+                        "stall-access-key",
+                        "access_key_300ms",
+                        Lead::AccessKey,
+                        wait,
+                        300,
+                    )
+                })
+                .collect(),
         }
     }
 }
@@ -244,6 +286,7 @@ pub(crate) struct Totals {
     pub(crate) rounds_not_withheld_by_the_password_field: u32,
     pub(crate) sink_differs: u32,
     pub(crate) keystroke_events: u32,
+    pub(crate) records_beyond_time_app_and_class: u32,
 }
 
 impl Totals {
@@ -262,6 +305,7 @@ impl Totals {
             other.rounds_not_withheld_by_the_password_field;
         self.sink_differs += other.sink_differs;
         self.keystroke_events += other.keystroke_events;
+        self.records_beyond_time_app_and_class += other.records_beyond_time_app_and_class;
     }
 }
 
@@ -379,8 +423,12 @@ fn of_rounds(totals: &Totals, checks: Checks) -> Result<(), &'static str> {
         .find(|(failed, _)| *failed),
         Checks::Enter => [
             (
-                totals.letters_recorded > 0,
-                "a letter after Enter was recorded",
+                totals.letters_recorded > totals.letters_landed,
+                "a letter after Enter was recorded that did not land in the plain field",
+            ),
+            (
+                totals.other_recorded > 0,
+                "the Enter itself, which changes no text, was recorded",
             ),
             (
                 totals.withheld_set == 0 && totals.counted > 0,
@@ -1121,6 +1169,41 @@ pub(super) const SELF_FOCUS: [Phase; 4] = [
     },
 ];
 
+pub(super) const ACCESS_KEY: [Phase; 2] = [
+    Phase {
+        test: "stall-access-key",
+        name: "access_key_300ms",
+        lead: Lead::AccessKey,
+        wait: Wait::Sleeps,
+        stall_ms: 300,
+        rounds: 20,
+        letters_through_the_wait: true,
+        letters_after: 0,
+        start_in_password: false,
+        self_focus: false,
+        two_step: false,
+        other_front: false,
+        landing: Landing::Password,
+        checks: Checks::Stall,
+    },
+    Phase {
+        test: "stall-access-key",
+        name: "access_key_300ms",
+        lead: Lead::AccessKey,
+        wait: Wait::ServesSent,
+        stall_ms: 300,
+        rounds: 20,
+        letters_through_the_wait: true,
+        letters_after: 0,
+        start_in_password: false,
+        self_focus: false,
+        two_step: false,
+        other_front: false,
+        landing: Landing::Password,
+        checks: Checks::Stall,
+    },
+];
+
 pub(super) const REPLACED_NATIVE: [(&str, (&str, &str)); 2] = [
     (
         "stall::an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask",
@@ -1635,9 +1718,12 @@ fn each_kind_holds_its_own_phases_in_their_order() {
         Kind::SecondFieldAndOtherFront,
         Kind::EnterTabOutAndTwoStep,
         Kind::SelfFocus,
+        Kind::AccessKey,
     ] {
         let own: Vec<Phase> = if kind == Kind::SelfFocus {
             SELF_FOCUS.to_vec()
+        } else if kind == Kind::AccessKey {
+            ACCESS_KEY.to_vec()
         } else {
             REPLACED
                 .iter()

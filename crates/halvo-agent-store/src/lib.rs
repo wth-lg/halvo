@@ -8,6 +8,7 @@ mod bind;
 mod bindings;
 mod checkpoint;
 mod coordinator;
+mod count;
 mod day;
 mod effect;
 mod end;

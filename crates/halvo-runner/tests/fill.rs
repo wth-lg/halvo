@@ -56,7 +56,8 @@ fn a_file_step_locks_under_the_data_directory_that_the_harness_gives() {
 
 /// U4.7, A6.1: a runner started with no `--data-dir` has no directory to lock under. Its first file step, the read of
 /// step 1, ends with `step_failed` before it opens a lock, no effect is proposed, and the workbook's folder holds the
-/// names that it held before. Run it only at a head whose runner takes no default data directory (see
+/// names that it held before. The run's browser never started, so the run ends `handed_back` with no handback (r3
+/// U5.15e). Run it only at a head whose runner takes no default data directory (see
 /// `Runner::start_without_data_dir`).
 #[test]
 fn a_file_step_with_no_data_dir_fails_with_step_failed_and_makes_no_file() {
@@ -81,7 +82,8 @@ fn a_file_step_with_no_data_dir_fails_with_step_failed_and_makes_no_file() {
         "{}",
         seen.stderr
     );
-    assert_eq!(seen.handbacks(), [HandbackReason::StepFailed]);
+    assert!(seen.handbacks().is_empty(), "no browser runs: no handback");
+    assert_eq!(seen.done(), Some(Outcome::HandedBack));
     assert!(seen.effects().is_empty());
     assert_eq!(files.names(), names);
     assert_eq!(files.workbook_bytes(), before);
@@ -372,16 +374,16 @@ fn a_wall_limit_ends_the_run_limit_with_the_cause_wall() {
     assert_eq!(seen.finish().map(|f| f.steps), Some(0));
 }
 
-/// A read that fails is handed back, and the wait for the handback's reply, which comes after `PAUSE`, is no time of
-/// the run's `wall_s`: the finish's `wall_s` is at most the time from before the runner's start to the finish frame
-/// less `PAUSE`, in whole seconds, however slowly the run's own steps go. A runner that counts the wait reports the
-/// whole seconds of its own time, which pass that bound whenever its late start and the finish frame's way to the
-/// test take together at most `PAUSE` less 1 s, 2.5 s.
+/// The wait for a handback's reply, which comes after `PAUSE`, is no time of the run's `wall_s`: here the handback of
+/// an effect that is not known, which the run opens at its end because every send of its begin met a store fault (a
+/// failed read opens no handback in a run whose browser does not run, r3 U5.15e). The finish's `wall_s` is at most the
+/// time from before the runner's start to the finish frame less `PAUSE`, in whole seconds, however slowly the run's
+/// own steps go. A runner that counts the wait reports the whole seconds of its own time, which pass that bound
+/// whenever its late start and the finish frame's way to the test take together at most `PAUSE` less 1 s, 2.5 s.
 #[test]
-fn a_read_that_fails_is_handed_back_and_its_wait_is_no_wall_time() {
+fn a_handback_s_wait_is_no_wall_time() {
     const PAUSE: Duration = Duration::from_millis(3500);
-    let files = FillFiles::new("read-fails", 1);
-    std::fs::write(&files.source, "a,b\r\n").expect("a source with a carriage return");
+    let files = FillFiles::new("handback-wait", 2);
     let before = files.workbook_bytes();
     let sup = fill(43, &files);
     let started = Instant::now();
@@ -391,7 +393,9 @@ fn a_read_that_fails_is_handed_back_and_its_wait_is_no_wall_time() {
             if is_op(frame, "finish") {
                 finished = Some(started.elapsed());
             }
-            if matches!(frame, FromRunner::Handback(_)) {
+            if is_effect(frame, EffectState::Releasing) {
+                Act::With(store_error(frame, "internal"))
+            } else if matches!(frame, FromRunner::Handback(_)) {
                 Act::After(
                     PAUSE,
                     Box::new(Act::With(support::handback_reply(
@@ -405,10 +409,10 @@ fn a_read_that_fails_is_handed_back_and_its_wait_is_no_wall_time() {
         },
         LONG,
     );
-    assert_eq!(seen.handbacks(), [HandbackReason::StepFailed]);
-    assert_eq!(seen.done(), Some(Outcome::HandedBack));
+    assert_eq!(seen.handbacks(), [HandbackReason::EffectUnknown]);
+    assert_eq!(seen.done(), Some(Outcome::EffectUnknown));
     let finish = seen.finish().expect("finish");
-    assert_eq!((finish.handbacks, finish.prompts), (1, 1));
+    assert_eq!(finish.handbacks, 1);
     let most = finished
         .expect("the finish frame came")
         .saturating_sub(PAUSE)
@@ -418,17 +422,6 @@ fn a_read_that_fails_is_handed_back_and_its_wait_is_no_wall_time() {
         "the handback's wait is no wall time: wall_s {} and at most {most} s",
         finish.wall_s
     );
-    let events: Vec<(LogEvent, Option<Cause>)> =
-        seen.logs().iter().map(|l| (l.event, l.cause)).collect();
-    assert_eq!(
-        events,
-        [
-            (LogEvent::StepFailed, Some(Cause::StepFailed)),
-            (LogEvent::Handback, None),
-            (LogEvent::Stopped, Some(Cause::StepFailed))
-        ]
-    );
-    assert!(seen.effects().is_empty());
     assert_eq!(files.workbook_bytes(), before);
 }
 
@@ -724,10 +717,9 @@ fn a_stored_playbook_is_loaded_and_one_whose_class_differs_is_refused_with_class
         })
         .collect();
     assert_eq!(froms, [1, 17], "two pages of at most 16 steps");
-    assert_eq!(
-        seen.handbacks(),
-        [HandbackReason::StepFailed],
-        "no browser in this build"
+    assert!(
+        seen.handbacks().is_empty(),
+        "no browser in this build, so no handback (r3 U5.15e)"
     );
     assert_eq!(seen.done(), Some(Outcome::HandedBack));
 }
@@ -1025,10 +1017,9 @@ fn an_agent_without_the_permission_user_files_touches_no_file() {
     let mut sup = fill(57, &files);
     sup.config.permissions.clear();
     let seen = sup.serve(|_, _| Act::Answer, LONG);
-    assert_eq!(
-        seen.handbacks(),
-        [HandbackReason::StepFailed],
-        "the read fails"
+    assert!(
+        seen.handbacks().is_empty(),
+        "the read fails, and no browser runs: no handback (r3 U5.15e)"
     );
     assert_eq!(seen.done(), Some(Outcome::HandedBack));
     assert_eq!(files.workbook_bytes(), before);
@@ -1043,7 +1034,11 @@ fn a_workbook_slot_that_holds_a_relative_path_is_refused() {
     slots[0] = support::slot("workbook", "formulas.xlsx");
     let sup = Supervisor::new(58, Category::SpreadsheetFill, slots);
     let seen = sup.serve(|_, _| Act::Answer, LONG);
-    assert_eq!(seen.handbacks(), [HandbackReason::StepFailed]);
+    assert!(
+        seen.handbacks().is_empty(),
+        "no browser runs: no handback (r3 U5.15e)"
+    );
+    assert_eq!(seen.done(), Some(Outcome::HandedBack));
     assert!(seen.effects().is_empty());
     assert_eq!(files.workbook_bytes(), before);
 }
@@ -1160,7 +1155,11 @@ fn a_source_slot_that_holds_a_relative_path_is_refused() {
     slots[1] = support::slot("source", "source.csv");
     let sup = Supervisor::new(62, Category::SpreadsheetFill, slots);
     let seen = sup.serve(|_, _| Act::Answer, LONG);
-    assert_eq!(seen.handbacks(), [HandbackReason::StepFailed]);
+    assert!(
+        seen.handbacks().is_empty(),
+        "no browser runs: no handback (r3 U5.15e)"
+    );
+    assert_eq!(seen.done(), Some(Outcome::HandedBack));
     assert!(seen.effects().is_empty());
     assert_eq!(files.workbook_bytes(), before);
 }

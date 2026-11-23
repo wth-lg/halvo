@@ -2,7 +2,9 @@ use std::cell::Cell;
 use std::collections::BTreeMap;
 
 use halvo_schema_core::ids::WorkflowId;
-use halvo_schema_core::kinds::{self, KindEntry, Origin, RetentionClass, KINDS};
+use halvo_schema_core::kinds::{
+    self, KindEntry, Origin, RetentionClass, KINDS, RUNNER_PERSON_KINDS,
+};
 use halvo_schema_core::record::{RowRead, TypedRecord};
 use serde_json::value::RawValue;
 
@@ -30,14 +32,21 @@ impl Writer {
         matches!(self, Writer::Runner | Writer::Coordinator)
     }
 
-    /// Whether this writer stores a record of a kind of the origin: of origin capture every writer, of origin own a
-    /// `runner` request and a `coordinator_write`, of origin person a `coordinator_write` alone.
-    pub(crate) fn may_write(self, origin: Origin) -> bool {
-        match origin {
+    /// Whether this writer stores a record of the kind: of origin capture every writer, of origin own a `runner`
+    /// request and a `coordinator_write`, of origin person a `coordinator_write`, and a `runner` request for a kind of
+    /// the closed list `kinds::RUNNER_PERSON_KINDS` alone (r7 8.1L).
+    pub(crate) fn may_write(self, entry: &KindEntry) -> bool {
+        match entry.origin {
             Origin::Capture => true,
             Origin::Own => self.may_write_own(),
-            Origin::Person => self == Writer::Coordinator,
+            Origin::Person => self == Writer::Coordinator || self.may_write_person(entry.name),
         }
+    }
+
+    /// Whether this writer is a `runner` request and `kind` a name of the closed list `kinds::RUNNER_PERSON_KINDS`:
+    /// the one way by which a runner's request writes or removes a row of a kind of origin person.
+    pub(crate) fn may_write_person(self, kind: &str) -> bool {
+        self == Writer::Runner && RUNNER_PERSON_KINDS.contains(&kind)
     }
 
     /// A handler's commit refuses a bounded record whose day the store will not keep; a step's drops and counts it,
@@ -91,7 +100,8 @@ fn rule_keys(entry: &KindEntry, json: &str) -> Option<RuleKeys> {
 /// It refuses the whole list when a record names a kind that the store was not opened with (`UnknownKind`), one of
 /// the four kinds of the workflow run (`WorkflowRun`), a kind of another family than the caller's own
 /// (`OtherFamily`), a kind of origin own while the call is a step's or that of a handler of a further role, or a kind
-/// of origin person while the call is no `coordinator_write` (`OwnOrigin`); when `kinds::check_record` refuses a record
+/// of origin person while the call is no `coordinator_write` and no `runner` request for a kind of
+/// `kinds::RUNNER_PERSON_KINDS` (`OwnOrigin`); when `kinds::check_record` refuses a record
 /// (`Record`, with that function's error, which names the kind, the key and the rule and never a value); and when a
 /// record's workflow key names a workflow that is not stored (`NoWorkflow`). In the commit of a handler (a `runner`
 /// request, a `coordinator_write` or a request of a further role) it also refuses the whole list for a record of a
@@ -135,7 +145,7 @@ pub(crate) fn store_records(
         if entry.family != family {
             return Err(refuse(Cause::OtherFamily));
         }
-        if !writer.may_write(entry.origin) {
+        if !writer.may_write(entry) {
             return Err(refuse(Cause::OwnOrigin));
         }
         kinds::check_record(entry, &record.json).map_err(|e| refuse(Cause::Record(e)))?;

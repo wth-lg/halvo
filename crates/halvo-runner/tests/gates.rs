@@ -2,7 +2,7 @@ mod support;
 
 use std::time::Duration;
 
-use halvo_schema::executable::names::{HandbackReason, LogEvent};
+use halvo_schema::executable::names::LogEvent;
 use halvo_schema::executable::{Cause, EffectState, ExecutableStep, FromRunner, Outcome, ToRunner};
 use halvo_schema::Category;
 
@@ -230,14 +230,19 @@ fn step(json: &str) -> ExecutableStep {
 
 const CLICK: &str = r#"{"v":1,"n":N,"kind":"web","verb":"click","target":{"desc":"d","frame":[],"credential":"no","locators":[{"by":"text","value":"v","name":null}]},"args":[],"pre":[],"post":[],"effect":"none","class":"prepare"}"#;
 
-/// D9 (b), the verifier's v06: a failed step of the class `prepare` is handed back with `step_failed`.
+/// D9 (b), the verifier's v06, as r3 U5.15e turns it: a failed step of the class `prepare` ends the run `handed_back`
+/// with `step_failed`; it fails before the run's browser started, so no handback opens.
 #[test]
 fn a_failed_prepare_step_is_handed_back_with_step_failed() {
     let mut sup = Supervisor::new(76, Category::UtilityBillPayment, Vec::new());
     sup.steps = vec![step(&CLICK.replace(r#""n":N"#, r#""n":1"#))];
     let seen = sup.serve(|_, _| Act::Answer, LONG);
-    assert_eq!(seen.handbacks(), [HandbackReason::StepFailed]);
+    assert!(seen.handbacks().is_empty(), "no browser runs: no handback");
     assert_eq!(seen.done(), Some(Outcome::HandedBack));
+    assert_eq!(
+        seen.logs().last().map(|l| (l.event, l.cause)),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
 }
 
 /// D9 (d), the verifier's v31: a page of steps beyond the playbook's count.

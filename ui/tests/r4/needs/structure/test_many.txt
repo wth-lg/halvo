@@ -10,8 +10,8 @@
         - {"name":"Skip this time","role":"button"}
         - {"name":"Start now","role":"button"}
       - {"role":"listitem"}
-        - {"level":3,"name":"Help “Paying a utility bill on Site1” with one step","role":"heading"}
-        - {"role":"paragraph","text":"Do the next step in its own window and choose Done, or choose Stop this time."}
+        - {"level":3,"name":"“Paying a utility bill on Site1” could not get past one step","role":"heading"}
+        - {"role":"paragraph","text":"You can finish the task yourself in its own window, then choose Done, or choose Stop this time. Either way it tries again next time."}
         - {"name":"Stop this time","role":"button"}
         - {"name":"Done","role":"button"}
       - {"role":"listitem"}

@@ -99,7 +99,7 @@ impl fmt::Display for Usage {
 }
 
 pub const USAGE: &str =
-    "usage: halvo [--background] [--data-dir DIR] | --version | --check-page --data-dir DIR --within-s N";
+    "usage: halvo [--background] [--data-dir DIR] | --version | --check-page --data-dir DIR --within-s N | --remove-crash-reports";
 
 pub fn parse<I: IntoIterator<Item = OsString>>(
     args_after_program_name: I,
