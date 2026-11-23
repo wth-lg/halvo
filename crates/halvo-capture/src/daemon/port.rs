@@ -275,6 +275,11 @@ pub struct SegmentRead {
     /// None for a store that has given no ordinal.
     pub highest: Option<Ordinal>,
     pub segment: Option<LiveSegment>,
+    /// On a read from ordinal 0 with a live segment, the ordinals above that
+    /// segment's whose key the store has destroyed, in ascending order: the
+    /// segments that it shredded out of the order of their ordinals. Empty
+    /// on every other read.
+    pub gone: Vec<Ordinal>,
 }
 
 /// One live segment as its store read it: the plain lines of its payload,

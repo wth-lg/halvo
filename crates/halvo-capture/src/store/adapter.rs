@@ -179,10 +179,14 @@ mod read {
     /// `from` that holds its key, with the plain lines of its segment and
     /// its expiry instant. A row that expiry or eviction shredded holds no
     /// key and is passed with no byte of its file read; an ask above every
-    /// row reads no file.
+    /// row reads no file. On a read from ordinal 0 that finds such a row, the
+    /// answer also names, in ascending order, every row above it that holds
+    /// no key: a segment that expiry, eviction or the open-time reconcile
+    /// shredded out of the order of its ordinal.
     ///
-    /// The call reads one segment at most: two queries on the key rows and
-    /// one file. It takes no lock and no transaction and writes no file. The
+    /// The call reads one segment at most: two queries on the key rows, a
+    /// third on a read from ordinal 0, and one file. It takes no lock and no
+    /// transaction and writes no file. The
     /// plain bytes stand in one buffer that is wiped when it drops, made
     /// with the capacity of the largest payload before the read and never
     /// grown.
@@ -206,6 +210,7 @@ mod read {
             store: id,
             highest: highest.map(ordinal),
             segment: None,
+            gone: Vec::new(),
         };
         let Ok(from) = i64::try_from(from.get()) else {
             return Ok(read);
@@ -222,6 +227,19 @@ mod read {
         let Some((row, segment_id, first_capture)) = keyed else {
             return Ok(read);
         };
+        if from == 0 {
+            read.gone = keys
+                .prepare(
+                    "SELECT id FROM segment_keys WHERE id > ?1 AND wrapped_key IS NULL ORDER BY id",
+                )
+                .and_then(|mut keyless| {
+                    keyless
+                        .query_map([row], |row| row.get::<_, i64>(0))?
+                        .map(|id| id.map(ordinal))
+                        .collect()
+                })
+                .map_err(db_error)?;
+        }
         let mut lines = Zeroizing::new(Vec::with_capacity(PAYLOAD_MAX_BYTES));
         let file = match uuid::Uuid::parse_str(&segment_id) {
             Ok(segment_id) => store.read_segment(segment_id, &mut Within(&mut lines)),

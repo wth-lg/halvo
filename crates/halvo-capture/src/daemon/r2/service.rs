@@ -18,6 +18,10 @@
 //!   yes into a no: the slot ends a living worker by its kill, with the line `analysis end=ended`, and starts none,
 //!   and the owner that ran keeps running. A pass that held the lock at the request can still start one worker,
 //!   which the next pass ends.
+//! - THE SHREDDED SEGMENTS. Before the slot's own pass, each pass of the driver hands the owner that runs the
+//!   ordinals that the store's maintenance shredded since the last hand-over (`OwnerSlot::hand_over`), under the
+//!   lock: it starts no owner and stops none, so a worker's batch goes on. With no owner running they wait for the
+//!   next start, which hands them on before its first request.
 //! - THE SOURCE. The form's source gives what [`DaemonCaller::reading`] gives at the clock's reading of the call:
 //!   the origin, with the watermark as the one that a yes carries; none with no slot in the form.
 //! - [`open`], at each open of the capture store: the cell of the cursor's reads forgets its figures and its ask
@@ -168,6 +172,7 @@ impl Slot for &'static Form {
         }
         match held.open.as_mut() {
             Some(open) => {
+                open.slot.owner().hand_over();
                 let may_run = self.deferred.may_run(may_run, Instant::now());
                 open.slot.pass(now, may_run, origin)
             }

@@ -60,6 +60,26 @@ pub(super) fn stream_frame(handles: Option<[u64; 2]>) -> Vec<u8> {
     serde_json::to_vec(&frame).expect("a map of JSON values always serializes")
 }
 
+/// The one key of the frame `purge`, the daemon's own frame on the owner's channel that names the ordinals of segments
+/// that the capture store has shredded, of which the owner removes every window row that names one. [`purge_frame`]
+/// writes the frame from it, and the handler of `relay` refuses an object that holds it, as it refuses one that holds
+/// [`STREAM_KEY`], so that no relayed object reaches the owner as that frame.
+pub(super) const PURGE_KEY: &str = "purge";
+
+/// The most ordinals that one frame `purge` names; the owner refuses a frame of none or of more.
+pub const PURGE_MAX: usize = 64;
+
+/// The owner's answer to a frame `purge` whose rows it removed: `{"purge":"done"}`. It answers `{"purge":"fault"}` when
+/// its store failed and `{"purge":"refused"}` for a frame that does not name 1 to [`PURGE_MAX`] ordinals.
+pub const PURGED: &[u8] = br#"{"purge":"done"}"#;
+
+/// The frame `purge`: `{"purge":[<n>,..]}`, with the ordinals of `ordinals` in their order.
+pub fn purge_frame(ordinals: &[u64]) -> Vec<u8> {
+    let mut frame = serde_json::Map::new();
+    frame.insert(PURGE_KEY.to_owned(), serde_json::json!(ordinals));
+    serde_json::to_vec(&frame).expect("a map of JSON values always serializes")
+}
+
 /// The owner's answers to the frame `stream` that the handler reads: any other frame is a refusal.
 const TAKEN: &[u8] = br#"{"stream":"taken"}"#;
 const FULL: &[u8] = br#"{"stream":"full"}"#;

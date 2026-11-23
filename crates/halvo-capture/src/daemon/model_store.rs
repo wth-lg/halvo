@@ -345,6 +345,17 @@ impl CaptureStore for ModelStore {
                     .find(|(ordinal, _)| *ordinal == batch.ordinal)
                     .map_or(i64::MAX, |(_, at)| *at),
             });
+        let mut gone: Vec<Ordinal> = match &segment {
+            Some(live) if from == Ordinal::new(0) => read
+                .shredded
+                .iter()
+                .copied()
+                .filter(|ordinal| *ordinal > live.ordinal)
+                .collect(),
+            _ => Vec::new(),
+        };
+        gone.sort_unstable();
+        gone.dedup();
         Ok(super::port::SegmentRead {
             store: read.id,
             highest: state
@@ -353,6 +364,7 @@ impl CaptureStore for ModelStore {
                 .filter(|highest| *highest > 0)
                 .map(Ordinal::new),
             segment,
+            gone,
         })
     }
 }

@@ -4,12 +4,19 @@
 //! - The cell ([`ReadCell`], [`cell`]). No thread but the store owner's reads the capture store. The cursor leaves
 //!   the figures of every answer that it reads there: the store's id and its watermark, and from an answer to a read
 //!   from ordinal 0 the lowest live ordinal, which is the ordinal of the first live segment, or the watermark's
-//!   segment where no segment lives. An answer to any other read names no lowest live ordinal: the one that stands
-//!   for the same store stays, which can be too low and never too high; figures of another store are dropped and a
+//!   segment where no segment lives, with the ordinals of the keyless segments above it, which the store shredded
+//!   out of the order of their ordinals. An answer to any other read names neither: the two that stand for the same
+//!   store stay, the lowest live ordinal can be too low and never too high; figures of another store are dropped and a
 //!   read is asked; and where no figures stand, such an answer leaves none and asks nothing. The cell also holds the
 //!   word that a read is asked: the next pass of the store owner that took no event and answered no message of the
 //!   cursor reads the store once, from ordinal 0, on the owner's thread. A read that fails leaves the figures as they
 //!   were. The process has one cell, which its one cursor holds.
+//! - The shredded segments. Each pass of the store's maintenance leaves in the cell the ordinals that it shredded
+//!   (`Schedule::run` of daemon/maintenance.rs). [`Caller::shredded`] takes them for the owner that runs, which the
+//!   driver's next turn hands them (`OwnerSlot::hand_over`); [`Caller::gone`] takes them for a start, together with
+//!   the keyless ordinals of the newest read, and the slot hands the owner those at or above the start's
+//!   `--first-live` before its first request. Nothing else enters the two lists. They live in memory alone, and the
+//!   cell forgets them with its figures.
 //! - The key. [`Caller::key`] calls `DataDirStore::derived_store_key` anew at each call, so the daemon holds no key
 //!   of the derived store between two starts of the owner. A fault answers none and writes one line, which names the
 //!   fault and holds no byte of a key or of a key file:
@@ -21,7 +28,7 @@
 //! - The delete of everything. [`Caller::deleting`] is true while `delete-all.intent` stands in the data directory,
 //!   read at each call. `key` reads the intent first and answers none while it stands, with no line, so that no ask
 //!   makes `derived/master.key` anew after the intent is written. While the intent stands the caller forgets the
-//!   figures and the ask of the cell and its committed position: they name the stores that the delete removes, and
+//!   figures, the ask and the shredded ordinals of the cell and its committed position: they name the stores that the delete removes, and
 //!   a report frame changes nothing.
 //! - The committed position. [`Caller::report`] keeps the key `position` of the newest report frame of the owner:
 //!   the store that the derived store is bound to and the position up to which batches are committed, or none for
@@ -62,11 +69,17 @@ pub struct Figures {
     /// The lowest live ordinal, as the newest read from ordinal 0 of this store named it: the ordinal of its first
     /// live segment, or the watermark's segment where no segment lived.
     pub first_live: u64,
+    /// The ordinals of the keyless segments above `first_live`, in ascending order, as the same read named them:
+    /// segments that the store shredded out of the order of their ordinals, by a pass or at an open that found a
+    /// segment's file absent. The store keeps a shredded segment's row with no key until the removal of everything.
+    pub gone: Vec<u64>,
 }
 
 struct Kept {
     figures: Option<Figures>,
     asked: bool,
+    /// The ordinals that passes shredded and that no owner has been handed yet.
+    shredded: Vec<u64>,
 }
 
 /// The cell between the cursor, which writes the figures of each read, and the daemon's caller, which reads them
@@ -79,6 +92,7 @@ impl ReadCell {
         ReadCell(Mutex::new(Kept {
             figures: None,
             asked: false,
+            shredded: Vec::new(),
         }))
     }
 
@@ -86,20 +100,33 @@ impl ReadCell {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Keeps the figures of one answer of the store, as the cursor does at each read: `first_live` is the lowest
-    /// live ordinal where the answer names it, and none for an answer to a read that did not ask from ordinal 0.
-    /// With none the lowest live ordinal that stands for `store` stays; figures of another store are dropped and a
-    /// read is asked; and where no figures stand the answer leaves none and asks nothing.
+    /// Keeps the figures of one answer of the store, as [`ReadCell::keep_read`] does, with no keyless segment where
+    /// the answer names a lowest live ordinal.
     pub fn keep(&self, store: StoreId, watermark: Position, first_live: Option<u64>) {
+        self.keep_read(store, watermark, first_live.map(|first_live| (first_live, Vec::new())));
+    }
+
+    /// Keeps the figures of one answer of the store, as the cursor does at each read: `lowest` is the lowest live
+    /// ordinal with the ordinals of the keyless segments above it where the answer names them, and none for an
+    /// answer to a read that did not ask from ordinal 0. With none the two that stand for `store` stay; figures of
+    /// another store are dropped and a read is asked; and where no figures stand the answer leaves none and asks
+    /// nothing.
+    pub(in crate::daemon) fn keep_read(
+        &self,
+        store: StoreId,
+        watermark: Position,
+        lowest: Option<(u64, Vec<u64>)>,
+    ) {
         let mut kept = self.kept();
-        let standing = kept
-            .figures
-            .as_ref()
-            .map(|figures| (figures.store == store, figures.first_live));
-        let first_live = match (first_live, standing) {
-            (Some(first_live), _) | (None, Some((true, first_live))) => first_live,
+        let standing = kept.figures.take().map(|figures| {
+            (
+                figures.store == store,
+                (figures.first_live, figures.gone),
+            )
+        });
+        let (first_live, gone) = match (lowest, standing) {
+            (Some(lowest), _) | (None, Some((true, lowest))) => lowest,
             (None, Some((false, _))) => {
-                kept.figures = None;
                 kept.asked = true;
                 return;
             }
@@ -109,7 +136,18 @@ impl ReadCell {
             store,
             watermark,
             first_live,
+            gone,
         });
+    }
+
+    /// Keeps the ordinals that one pass shredded, until an owner is handed them.
+    pub(in crate::daemon) fn shredded(&self, ordinals: impl IntoIterator<Item = u64>) {
+        self.kept().shredded.extend(ordinals);
+    }
+
+    /// Takes the ordinals that passes shredded and that no owner has been handed yet.
+    fn take_shredded(&self) -> Vec<u64> {
+        std::mem::take(&mut self.kept().shredded)
     }
 
     /// The figures of the newest read, or none where no read stands.
@@ -132,11 +170,12 @@ impl ReadCell {
         std::mem::take(&mut self.kept().asked)
     }
 
-    /// Forgets the figures and the ask.
+    /// Forgets the figures, the ask and the ordinals that passes shredded.
     pub(in crate::daemon) fn forget(&self) {
         let mut kept = self.kept();
         kept.figures = None;
         kept.asked = false;
+        kept.shredded.clear();
     }
 }
 
@@ -249,6 +288,20 @@ impl Caller for DaemonCaller {
             cell().ask();
         }
         stands
+    }
+
+    fn gone(&self) -> Vec<u64> {
+        let mut gone = cell().take_shredded();
+        if let Some(figures) = cell().figures() {
+            gone.extend(figures.gone);
+        }
+        gone.sort_unstable();
+        gone.dedup();
+        gone
+    }
+
+    fn shredded(&self) -> Vec<u64> {
+        cell().take_shredded()
     }
 }
 
