@@ -70,6 +70,9 @@ pub enum SourceRefusal {
     /// quote that closes it, or no quote closes it by the end of the file. A double quote inside
     /// a field that does not begin with one is text.
     Quote { line: usize },
+    /// The file reads as a table by another separator than the comma: the semicolons outside
+    /// quoted fields, or the tabs outside them, are one or more and as many in every row.
+    OtherSeparator,
     /// The row on this line (counted from 1) has another number of cells than the first row.
     Ragged { line: usize },
 }

@@ -295,4 +295,80 @@ mod tests {
         }
         assert!(wrong.is_empty(), "{wrong:#?}");
     }
+
+    /// Each file is refused as `OtherSeparator`, and the error names no cell.
+    fn refused_as_another_separator(cases: &[&[u8]]) {
+        let mut wrong = Vec::new();
+        for bytes in cases {
+            match parse(bytes) {
+                Err(error) if error == Error::Source(SourceRefusal::OtherSeparator) => {
+                    let text = format!("{error} {error:?}");
+                    if text.contains("Water") || text.contains("Power") {
+                        wrong.push(format!("{}: the error shows a cell: {text}", shown(bytes)));
+                    }
+                }
+                other => wrong.push(format!("{}: got {other:?}", shown(bytes))),
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    #[test]
+    fn a_file_with_semicolons_as_excel_saves_it_where_the_comma_is_the_decimal_sign_is_refused() {
+        refused_as_another_separator(&[
+            b"Water;41,20;3,50\r\nPower;63,05;7,25\r\n",
+            b"\xef\xbb\xbfWater;41,20;3,50\r\nPower;63,05;7,25\r\n",
+            b"Water;41,20;3\r\nPower;63;7\r\n",
+        ]);
+    }
+
+    #[test]
+    fn a_file_with_tabs_as_its_separator_is_refused() {
+        refused_as_another_separator(&[
+            b"Water\t41,20\t3,50\r\nPower\t63,05\t7,25\r\n",
+            b"\xef\xbb\xbfWater\t41,20\t3,50\r\nPower\t63,05\t7,25\r\n",
+        ]);
+    }
+
+    #[test]
+    fn a_semicolon_in_some_texts_or_inside_quotes_in_every_row_reads() {
+        let cases: [(&[u8], Vec<Vec<Value>>); 4] = [
+            (
+                b"2026-10-01,Water; gas,41.20\r\n2026-10-08,Power,63.05\r\n",
+                vec![
+                    vec![t("2026-10-01"), t("Water; gas"), n(41.2)],
+                    vec![t("2026-10-08"), t("Power"), n(63.05)],
+                ],
+            ),
+            (
+                b"\"Water; gas\",41.20\r\n\"Power; light\",63.05\r\n",
+                vec![
+                    vec![t("Water; gas"), n(41.2)],
+                    vec![t("Power; light"), n(63.05)],
+                ],
+            ),
+            (
+                b"\"Water\tgas\",41.20\n\"Power\tlight\",63.05\n",
+                vec![
+                    vec![t("Water\tgas"), n(41.2)],
+                    vec![t("Power\tlight"), n(63.05)],
+                ],
+            ),
+            (
+                b"Water; gas,41.20\nPower\tlight,63.05\n",
+                vec![
+                    vec![t("Water; gas"), n(41.2)],
+                    vec![t("Power\tlight"), n(63.05)],
+                ],
+            ),
+        ];
+        let mut wrong = Vec::new();
+        for (bytes, want) in cases {
+            let got = parse(bytes);
+            if got != Ok(want) {
+                wrong.push(format!("{}: got {got:?}", shown(bytes)));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
 }
