@@ -1000,8 +1000,12 @@ impl Runner {
     /// `step_failed` before any browser starts, and so does one whose args or targets, or those of its conditions,
     /// cannot be read or have no locator that the executor takes. A target, of the step or of a condition, inside a
     /// frame is found in the document of the frame that its frame origins name (`frame_origins`); a `fill`, a `press`
-    /// or an `upload` whose target names a frame (`Act::of`) and a step of an effect class that reaches into a frame
-    /// (`reaches_a_frame`) answer `step_failed` before any act. The browser
+    /// or an `upload` whose target names a frame (`Act::of`) and a step of an effect class that reaches into a frame by
+    /// a way that the browser's maker does not take (`reaches_a_frame_beyond_the_maker`) answer `step_failed` before any
+    /// act; a step of an effect class whose own target or a condition `post`'s target names a frame, or whose arg takes a
+    /// value read in one, goes to the maker in a build with the feature `loopback`, which acts only where the top page's
+    /// origin and every origin of every frame path that the step names are origins of the run (r3 U5.10-B part two), and
+    /// answers `step_failed` in every other build. The browser
     /// starts at the first step that acts, and the runner reads the page before each act, which goes on only after a
     /// handback that ended in a bind, or where the page shows no credential field. After an act that failed, with no
     /// failed request of the page in the rule's record, it reads the page again, so that a field that turned into a
