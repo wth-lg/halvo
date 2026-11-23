@@ -2263,6 +2263,9 @@ mod detector {
         String::from_utf16_lossy(&class[..len]).starts_with("Chrome_")
     }
 
+    /// The landing of a value change of the thread in front: the focused
+    /// field with its state, or a PROTECTED field as a Password landing also
+    /// where it has lost the focus by the time its event is handled.
     fn landing_state(hwnd: HWND, object: i32, child: i32) -> Option<(FieldState, u32)> {
         // SAFETY: GetForegroundWindow and GetWindowThreadProcessId read handle
         // values and take no pointer.
@@ -2290,10 +2293,11 @@ mod detector {
         // SAFETY: `target` is the live VARIANT that the call above filled.
         let _ = unsafe { VariantClear(&mut target) };
         let flags = variant_i32(&mut state)? as u32;
-        if flags & STATE_SYSTEM_FOCUSED == 0 {
+        let protected = flags & STATE_SYSTEM_PROTECTED != 0;
+        if flags & STATE_SYSTEM_FOCUSED == 0 && !protected {
             return None;
         }
-        let state = if flags & STATE_SYSTEM_PROTECTED != 0 {
+        let state = if protected {
             FieldState::Password
         } else {
             FieldState::Clear
