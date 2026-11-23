@@ -235,3 +235,54 @@ fn u322a_a_failed_file_run_says_why_by_its_last_cause_and_a_web_run_reads_as_tod
         }
     }
 }
+
+/// r4 U3.22d: the row of an agent of the runtime file whose newest run ended with the cause
+/// `no_access` of the agents run's unit r3 U11.4 says the sentence of the build's system, byte for
+/// byte (the coordinator's log lines 19024 and 19036), and the row of this build says this
+/// build's; an agent of the runtime web with that cause reads today's line of a failed run.
+#[test]
+fn u322d_a_file_run_that_the_system_refused_says_what_to_do_on_each_system() {
+    use crate::types::{Failure, LastCause};
+    let today = "Last time, it could not finish its task.";
+    let mac = "macOS did not let Halvo work with the spreadsheet file or the data file. Open System Settings > Privacy & Security > Files & Folders and under Halvo turn on the folder that holds them. If Halvo is not listed there, or the folder is already on, check that you may open and change both files. Then quit Halvo, open it again and choose Start now.";
+    let windows = "Windows did not let Halvo work with the spreadsheet file or the data file. Check that you may open both files and change files in their folder, and that Windows Security does not block Halvo. Then choose Start now.";
+    let base = facts(State::Ten).remove(0);
+    let run = RunId::parse(&format!("{:032x}", 0x7702)).unwrap();
+    for (runtime, on_mac, on_windows) in
+        [(Runtime::File, mac, windows), (Runtime::Web, today, today)]
+    {
+        let mut f = base.clone();
+        f.config = config(Tier::OnDevice, runtime, None);
+        for what in [
+            What::RunStarted {
+                run: run.clone(),
+                trigger: Trigger::Person,
+                slot: None,
+            },
+            What::RunEnded {
+                run: run.clone(),
+                cause: RunEnd::from(Failure::Failed),
+                defers: None,
+            },
+        ] {
+            f.events.push(Event {
+                workflow: f.workflow.id.clone(),
+                agent: f.agent.clone(),
+                seq: std::num::NonZeroU32::MIN.saturating_add(f.events.len() as u32),
+                day: f.today,
+                at: i64::from(f.today) * 86_400_000_000_000,
+                what,
+            });
+        }
+        f.last_cause = LastCause::parse("no_access").ok();
+        let line = status(&f, &Limits::PRODUCT, None);
+        for (system, want) in [(System::Mac, on_mac), (System::Windows, on_windows)] {
+            let r = row_on(system, &f, false, line, NAME, None, &Limits::PRODUCT).unwrap();
+            assert_eq!(r.line, want, "{system:?} {runtime}");
+            if system == System::HOST {
+                let here = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+                assert_eq!(here.line, want, "this build, {runtime}");
+            }
+        }
+    }
+}

@@ -134,10 +134,11 @@ fn answered_since_the_last_end<C>(facts: &Facts<C>) -> bool {
 }
 
 /// The causes of a failed run of the runtime file whose sentence a row says for an agent of that
-/// runtime alone (r4 U3.22a): the four that the record holds today and the nine finer ones of the
-/// agents run's unit r3 U11.3; an agent of another runtime with one of these names reads the line
-/// of its failed run, as before.
-pub const FILE_CAUSES: [LastCause; 13] = [
+/// runtime alone (r4 U3.22a): the four that the record holds today, the nine finer ones of the
+/// agents run's unit r3 U11.3 and `no_access` of its unit r3 U11.4, whose sentence is that of the
+/// build's system (r4 U3.22d, `StatusLine::key_on`); an agent of another runtime with one of these
+/// names reads the line of its failed run, as before.
+pub const FILE_CAUSES: [LastCause; 14] = [
     LastCause::Workbook,
     LastCause::Sheet,
     LastCause::Changed,
@@ -151,6 +152,7 @@ pub const FILE_CAUSES: [LastCause; 13] = [
     LastCause::DataForm,
     LastCause::NotReplaced,
     LastCause::ReadOnly,
+    LastCause::NoAccess,
 ];
 
 /// Whether a row says the sentence of the last cause `cause` for an agent of `runtime`: a cause
@@ -444,21 +446,36 @@ pub fn row_with_session<C: ConfigView>(
     waiting: Option<Trigger>,
     limits: &Limits,
 ) -> Result<Row, Cause> {
+    row_on(System::HOST, facts, session, line, name, waiting, limits)
+}
+
+/// The row of `row_with_session` with the words of `system` (`StatusLine::key_on`) in place of
+/// this build's.
+fn row_on<C: ConfigView>(
+    system: System,
+    facts: &Facts<C>,
+    session: bool,
+    line: StatusLine,
+    name: &str,
+    waiting: Option<Trigger>,
+    limits: &Limits,
+) -> Result<Row, Cause> {
     let offered = with_stop_sign_in(facts, session, controls(facts, waiting, limits));
     let offered = with_change_answers(facts, with_model(facts, offered))
         .into_iter()
         .filter(|c| line != StatusLine::Record || matches!(c, Control::Stop | Control::Delete))
         .collect();
-    row_offering(facts, line, name, offered)
+    row_offering(system, facts, line, name, offered)
 }
 
 fn row_offering<C: ConfigView>(
+    system: System,
     facts: &Facts<C>,
     line: StatusLine,
     name: &str,
     offered: Vec<Control>,
 ) -> Result<Row, Cause> {
-    row_with(facts, line.status(), &line.key(), name, offered)
+    row_with(facts, line.status(), &line.key_on(system), name, offered)
 }
 
 fn row_with<C: ConfigView>(
@@ -700,7 +717,7 @@ pub fn gone_row<C: ConfigView>(
     };
     Ok(Row {
         next: None,
-        ..row_offering(facts, line, name, Vec::new())?
+        ..row_offering(system, facts, line, name, Vec::new())?
     })
 }
 
@@ -710,7 +727,7 @@ pub fn gone_row<C: ConfigView>(
 pub fn deleting_row<C: ConfigView>(facts: &Facts<C>, name: &str) -> Result<Row, Cause> {
     Ok(Row {
         next: None,
-        ..row_offering(facts, StatusLine::Deleting, name, Vec::new())?
+        ..row_offering(System::HOST, facts, StatusLine::Deleting, name, Vec::new())?
     })
 }
 
@@ -810,7 +827,7 @@ pub fn gone_ended_row<C: ConfigView>(
 ) -> Result<Row, Cause> {
     Ok(Row {
         next: None,
-        ..row_offering(facts, line, name, Vec::new())?
+        ..row_offering(System::HOST, facts, line, name, Vec::new())?
     })
 }
 

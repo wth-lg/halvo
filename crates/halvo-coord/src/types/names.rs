@@ -328,10 +328,10 @@ names! {
     /// The causes of the end of an agent's newest started run, of the roster's key `last_cause`
     /// (I6.1), for which the roster has a sentence: a part of the agent store's closed list of
     /// causes, whose other names the reader of the key takes as none (ruling of 2026-11-22
-    /// on `last_cause`). The last thirteen are the causes of a failed run of the runtime file,
+    /// on `last_cause`). The last fourteen are the causes of a failed run of the runtime file,
     /// which the roster says for an agent of that runtime alone (r4 U3.22a, `roster::FILE_CAUSES`);
-    /// the nine from `no_workbook` on are the names of the agents run's unit r3 U11.3, which the
-    /// schema of this base does not hold yet.
+    /// the nine from `no_workbook` to `read_only` are the names of the agents run's unit r3 U11.3,
+    /// and `no_access` is the name of its unit r3 U11.4 (r4 U3.22d).
     LastCause {
         NoChannel = "no_channel",
         BrowserStart = "browser_start",
@@ -349,6 +349,7 @@ names! {
         DataForm = "data_form",
         NotReplaced = "not_replaced",
         ReadOnly = "read_only",
+        NoAccess = "no_access",
     }
 }
 

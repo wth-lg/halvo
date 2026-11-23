@@ -1,0 +1,1 @@
+- Fixed: Where macOS or Windows does not let Halvo open your spreadsheet file or the data file, the agent's row says so and tells you what to do on your system; before, it said that the file was not found, or pointed you at your answers.
