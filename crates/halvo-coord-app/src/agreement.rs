@@ -5,7 +5,8 @@
 //! row, no agreement stands and no start names a hosted tier.
 #![cfg(any(target_os = "macos", windows))]
 
-use halvo_coord::types::Tier;
+use halvo_coord::types::{Tier, WorkflowId};
+use serde_json::Value;
 
 /// One triple of an agent's agreement: a hosted tier, and the origin and the model word that the person said yes to
 /// for it, as the store keeps them, never trimmed.
@@ -21,6 +22,39 @@ pub(crate) struct Triple {
 pub(crate) struct Agreement {
     pub(crate) ceiling: Tier,
     pub(crate) hosts: Vec<Triple>,
+}
+
+impl Agreement {
+    /// The agreement of the value of an entry's key `agreement` (r3 U7.7): `{"tier":..,"hosts":[..]}`, the ceiling
+    /// tier with its triples of tier, origin and model word. Null, a missing key and a value of another shape give
+    /// none.
+    pub(crate) fn of(value: &Value) -> Option<Agreement> {
+        let tier = |value: &Value| Tier::parse(value.as_str()?).ok();
+        let hosts = value["hosts"]
+            .as_array()?
+            .iter()
+            .map(|triple| {
+                Some(Triple {
+                    tier: tier(&triple["tier"])?,
+                    origin: triple["origin"].as_str()?.to_owned(),
+                    model: triple["model"].as_str()?.to_owned(),
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(Agreement {
+            ceiling: tier(&value["tier"])?,
+            hosts,
+        })
+    }
+}
+
+/// What the app keeps of an agent from the newest reply of `list_agents`: its workflow, the tier of its newest
+/// set-up and its agreement, none where the entry handed none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct KeptAgent {
+    pub(crate) workflow: WorkflowId,
+    pub(crate) tier: Tier,
+    pub(crate) agreement: Option<Agreement>,
 }
 
 /// THE ONE FUNCTION of the gate: whether `agreement` stands for `tier`, read with the row of `tier` in this build's
@@ -88,7 +122,12 @@ mod tests {
             hosts: vec![triple(Tier::OnDevice, ORIGIN, SMALL)],
         };
         let rows: [(Option<&Agreement>, Tier, Option<(&str, &str)>, bool); 11] = [
-            (Some(&both), Tier::LowCostHosted, Some((ORIGIN, SMALL)), true),
+            (
+                Some(&both),
+                Tier::LowCostHosted,
+                Some((ORIGIN, SMALL)),
+                true,
+            ),
             (Some(&both), Tier::Frontier, Some((ORIGIN, LARGE)), true),
             (None, Tier::Frontier, Some((ORIGIN, LARGE)), false),
             (Some(&low), Tier::Frontier, Some((ORIGIN, LARGE)), false),

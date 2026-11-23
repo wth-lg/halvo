@@ -67,6 +67,7 @@ use halvo_schema_core::request::{decode_reply, InterfaceDecision, InterfaceRead,
 use halvo_schema_core::request::{ErrorName, ReplyResult};
 use serde_json::Value;
 
+use crate::agreement::{Agreement, KeptAgent};
 use crate::hub::{Core, Hub};
 use crate::model_key::ModelKey;
 use crate::present::{dialog_hub, Dialog};
@@ -664,7 +665,7 @@ pub struct Product {
     marks: Arc<Marks>,
     runs: RunsOf,
     waits: Arc<Waits>,
-    agents: Mutex<HashMap<AgentId, WorkflowId>>,
+    agents: Mutex<HashMap<AgentId, KeptAgent>>,
     reaped: Mutex<Option<Vec<ReapAnswer>>>,
     checkpoints: AtomicBool,
 }
@@ -794,14 +795,13 @@ impl Product {
 
     /// The workflow of `agent`, as the newest list of the agents gave it, read again where it names none.
     fn workflow_of(&self, agent: &AgentId) -> Result<WorkflowId, PortError> {
-        if let Some(w) = lock(&self.agents).get(agent).cloned() {
+        let kept =
+            |agents: &HashMap<AgentId, KeptAgent>| agents.get(agent).map(|a| a.workflow.clone());
+        if let Some(w) = kept(&lock(&self.agents)) {
             return Ok(w);
         }
         self.agents()?;
-        lock(&self.agents)
-            .get(agent)
-            .cloned()
-            .ok_or_else(|| PortError::Refused(name("binding")))
+        kept(&lock(&self.agents)).ok_or_else(|| PortError::Refused(name("binding")))
     }
 
     /// Keeps the workflow and the agent of each run that `events` start.
@@ -1169,6 +1169,12 @@ fn agent_of(entry: &Value) -> Option<Agent<AgentConfig>> {
     })
 }
 
+/// One entry of the reply of `list_agents` as `agent_of` reads it, with the agreement of its key `agreement` (r3 U7.7):
+/// an entry without the key, or with a value that does not read, gives none, and its read goes on (r4 U3.17a).
+fn entry_of(entry: &Value) -> Option<(Agent<AgentConfig>, Option<Agreement>)> {
+    Some((agent_of(entry)?, Agreement::of(&entry["agreement"])))
+}
+
 /// One run of the reply of `agent_history`.
 fn history_of(run: &Value) -> Option<RunHistory> {
     let effects = run["effects"]
@@ -1315,7 +1321,7 @@ impl Owner for Product {
                 r#"{{"op":"list_agents","workflow":null,"agent":null,"after":{after}}}"#
             ))?;
             for entry in reply["agents"].as_array().ok_or(PortError::NoService)? {
-                listed.push(agent_of(entry).ok_or(PortError::NoService)?);
+                listed.push(entry_of(entry).ok_or(PortError::NoService)?);
             }
             match reply["next"].as_str() {
                 Some(next) if json_str(next) != after => after = json_str(next),
@@ -1323,11 +1329,18 @@ impl Owner for Product {
                 None => break,
             }
         }
-        let mut agents = lock(&self.agents);
-        for a in &listed {
-            agents.insert(a.agent.clone(), a.workflow.clone());
-        }
-        Ok(listed)
+        *lock(&self.agents) = listed
+            .iter()
+            .map(|(a, agreement)| {
+                let kept = KeptAgent {
+                    workflow: a.workflow.clone(),
+                    tier: a.config.tier(),
+                    agreement: agreement.clone(),
+                };
+                (a.agent.clone(), kept)
+            })
+            .collect();
+        Ok(listed.into_iter().map(|(a, _)| a).collect())
     }
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
@@ -1728,6 +1741,7 @@ impl Senders for Product {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agreement::Triple;
 
     /// A link that keeps each request that reaches it and answers each with a null result.
     struct Kept(Mutex<Vec<Vec<u8>>>);
@@ -2054,6 +2068,55 @@ mod tests {
             agent_of(&entry(r#""wall""#)).map(|a| a.last_cause),
             Some(None)
         );
+    }
+
+    /// r4 U3.17a sentence 2: `list_agents` takes an entry's `agreement` as r3 U7.7 hands it: null as none, and the
+    /// ceiling tier with one triple or with two as that agreement; an entry without the key, or with a value of another
+    /// shape, gives none and is still read.
+    #[test]
+    fn the_reader_takes_the_agreement_of_an_entry_and_reads_any_other_value_as_none() {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let entry = |agreement: &str| -> Value {
+            serde_json::from_str(&format!(
+                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"frontier","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":null,"reply_unknown":"no","refused_slots":[],"last_cause":null,"window":"yes"{agreement}}}"#
+            ))
+            .unwrap()
+        };
+        let small = r#"{"tier":"low_cost_hosted","origin":"https://hosted-model.test","model":"test-model-small"}"#;
+        let large = r#"{"tier":"frontier","origin":"https://hosted-model.test","model":"test-model-large"}"#;
+        let triple = |tier, model: &str| Triple {
+            tier,
+            origin: "https://hosted-model.test".to_owned(),
+            model: model.to_owned(),
+        };
+        let rows = [
+            (r#","agreement":null"#.to_owned(), None),
+            (
+                format!(r#","agreement":{{"tier":"low_cost_hosted","hosts":[{small}]}}"#),
+                Some(Agreement {
+                    ceiling: Tier::LowCostHosted,
+                    hosts: vec![triple(Tier::LowCostHosted, "test-model-small")],
+                }),
+            ),
+            (
+                format!(r#","agreement":{{"tier":"frontier","hosts":[{small},{large}]}}"#),
+                Some(Agreement {
+                    ceiling: Tier::Frontier,
+                    hosts: vec![
+                        triple(Tier::LowCostHosted, "test-model-small"),
+                        triple(Tier::Frontier, "test-model-large"),
+                    ],
+                }),
+            ),
+            (String::new(), None),
+            (format!(r#","agreement":[{large}]"#), None),
+        ];
+        for (text, want) in rows {
+            let read = entry_of(&entry(&text));
+            assert!(read.is_some(), "the entry with {text:?} is read");
+            assert_eq!(read.map(|(_, agreement)| agreement), Some(want), "{text:?}");
+        }
     }
 
     /// `list_agents` takes `browser_start` and `no_channel` of an entry's `last_cause` as the causes of those names
