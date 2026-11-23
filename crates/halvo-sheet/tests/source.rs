@@ -161,8 +161,8 @@ fn a_source_out_of_the_form_is_refused_and_names_no_cell() {
                 if shown.contains("secret") || shown.contains("999") {
                     wrong.push(format!("{want:?}: the error shows a cell: {shown}"));
                 }
-                if error.cause() != Cause::StepFailed {
-                    wrong.push(format!("{want:?}: cause {:?}", error.cause()));
+                if error.source_cause() != Cause::DataForm {
+                    wrong.push(format!("{want:?}: cause {:?}", error.source_cause()));
                 }
             }
             other => wrong.push(format!("{want:?}: got {other:?}")),

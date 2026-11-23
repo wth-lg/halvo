@@ -1,0 +1,1 @@
+- Fixed: Every press by coordinates of the agents page's needs suite now lands on the control that it names, or its case fails with point_off_control, and the five pointer cases of the test confirms press the Allow button itself, so confirms passes in Chromium as in WebKit.

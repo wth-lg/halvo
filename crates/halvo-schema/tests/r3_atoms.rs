@@ -109,7 +109,15 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
             "no_browser",
             "amount_differs",
             "amount_unread",
-            "page_unread"
+            "page_unread",
+            "no_workbook",
+            "no_sheet",
+            "no_range",
+            "data_shape",
+            "no_data_file",
+            "data_outside",
+            "data_form",
+            "read_only"
         ]
     );
     assert_eq!(

@@ -61,8 +61,8 @@ use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 ///   `{"ok":"yes"}` (CP-135 (5)). A named limit, of the class of the effects' clock limit: on a machine whose clock
 ///   moves by days, a read that no longer hands out the start row (a clock read three days back or 93 days on) lets
 ///   `start_run` store a new start row and open the run again (CP-227).
-/// - `set_bindings`: `no_workflow`; `binding`; `binding` for a slot `workbook` that `workbook_path` refuses in the
-///   system's form; `overlap` where the revision that it would store overlaps another agent that is live, as
+/// - `set_bindings`: `no_workflow`; `binding`; `slot_form` for a slot `workbook` that `workbook_path` refuses in the
+///   system's form, a name of its own after which the core asks the question again (r3 U11.3); `overlap` where the revision that it would store overlaps another agent that is live, as
 ///   `list_overlaps` reads it, whichever slots the body names and whatever the state of the agent's own workflow
 ///   (CP-150 (1) (b)). It stores the next revision of the agent's bindings, revision 1 where none is stored: each
 ///   slot of the body replaces the stored slot of its name in its place or is added at the end, and the other slots

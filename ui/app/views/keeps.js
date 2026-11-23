@@ -15,10 +15,20 @@
   var offNotSaved = false;
   var shownOn = null;
 
+  function notSavedText(word) {
+    if (shownOn !== false) return "";
+    if (word === "kept") return w.TYPING_OFF_KEPT;
+    if (word === "this_life" || offNotSaved) return w.TYPING_OFF_NOT_SAVED;
+    return "";
+  }
+
   function renderTyping(control) {
     shownOn = control ? control.on === true : null;
-    if (shownOn === true) offNotSaved = false;
-    notSavedLine.classList.toggle("hidden", !(offNotSaved && shownOn === false));
+    var word = control && typeof control.not_saved === "string" ? control.not_saved : "";
+    if (shownOn === true || word !== "") offNotSaved = false;
+    var notSaved = notSavedText(word);
+    notSavedLine.textContent = notSaved;
+    notSavedLine.classList.toggle("hidden", notSaved === "");
     if (!control) {
       typingBox.classList.add("hidden");
       return;

@@ -82,7 +82,7 @@ fn a_sheet_that_the_workbook_lacks_is_refused() {
     for sheet in ["values", "Missing", ""] {
         let got = folder.read(Path::new("values.xlsx"), sheet, range("A1"));
         assert_eq!(got, Err(Error::NoSheet), "{sheet:?}");
-        assert_eq!(Error::NoSheet.cause(), Cause::StepFailed);
+        assert_eq!(Error::NoSheet.cause(), Cause::NoSheet);
     }
 }
 

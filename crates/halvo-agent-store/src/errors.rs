@@ -4,6 +4,7 @@ use halvo_schema::ErrorName;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Own {
     Binding,
+    SlotForm,
     Playbook,
     Config,
     Class,
@@ -16,6 +17,7 @@ impl Own {
     fn as_str(self) -> &'static str {
         match self {
             Own::Binding => "binding",
+            Own::SlotForm => "slot_form",
             Own::Playbook => "playbook",
             Own::Config => "config",
             Own::Class => "class",

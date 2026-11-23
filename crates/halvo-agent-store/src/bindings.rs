@@ -34,7 +34,7 @@ pub(crate) fn set_bindings(
     bind::of_agent(&*host, &b.workflow, &b.agent)?;
     for slot in &b.slots {
         if slot.name.as_str() == WORKBOOK {
-            workbook_path(&slot.value.joined(), PathForm::NATIVE).map_err(|_| Own::Binding)?;
+            workbook_path(&slot.value.joined(), PathForm::NATIVE).map_err(|_| Own::SlotForm)?;
         }
     }
     let (rev, origins, slots) = next(newest(&*host, &b.workflow, &b.agent)?)?;
