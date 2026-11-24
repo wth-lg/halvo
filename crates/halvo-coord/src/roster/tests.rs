@@ -346,7 +346,17 @@ fn u323_on_a_day_with_all_its_starts_used_the_row_says_so_whatever_its_last_run_
         item: ItemId::parse(&format!("{:032x}", 0x78ff)).unwrap(),
         answer: Answered::Setup(crate::types::SetupAnswer::Choose),
     }];
-    let rows: [(&str, RunEnd, Option<LastCause>, &[What], &str, &str); 5] = [
+    /// A case: its name, the last run's end and cause, the events behind that end, the line with
+    /// all the day's starts used and the line with one start fewer.
+    type Case<'a> = (
+        &'a str,
+        RunEnd,
+        Option<LastCause>,
+        &'a [What],
+        &'a str,
+        &'a str,
+    );
+    let rows: [Case; 5] = [
         (
             "a",
             failed,
