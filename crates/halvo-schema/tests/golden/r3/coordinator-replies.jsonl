@@ -19,3 +19,5 @@
 {"room":"reads","cap_minor":2000,"spent":0,"held":233500,"period_end_ms":1797092000000}
 {"room":"unread","cap_minor":null,"spent":null,"held":null,"period_end_ms":null}
 {"cap_minor":2000,"new_count":"yes"}
+{"workbook":"/srv/sheets/Book.xlsx","sheet":"Sheet 1","range":"B2:D14","source":"/srv/sheets/Data.csv"}
+{"workbook":null,"sheet":null,"range":null,"source":null}

@@ -152,6 +152,13 @@ impl Owner for Raced<'_> {
     ) -> Result<Vec<ReplyRow>, PortError> {
         self.inner.replies(workflow, agent, run)
     }
+    fn sheet_answers(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+    ) -> Result<halvo_coord::types::SheetAnswers, PortError> {
+        self.inner.sheet_answers(workflow, agent)
+    }
 }
 
 impl Clock for Raced<'_> {

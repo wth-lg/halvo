@@ -1304,6 +1304,40 @@ fn on_a_stream_a_runner_request_reaches_the_store_and_an_interface_read_answers_
     assert_eq!(owner.reply().outcome.unwrap_err(), ErrorName::Role);
 }
 
+/// r3 U11.7, point (m) of the coordinator's log line 19741: the read `sheet_answers` is a `coordinator_write` on a
+/// stream alone. On a stream the `coordinator_write` that holds it reaches the agent store, which answers `no_workflow`
+/// for a workflow that it does not hold; a `runner` request on the same stream whose body holds it reaches the store's
+/// handler of `runner` requests, which takes no such call; and on the starter's channel, which carries the daemon's
+/// relay of the role `interface`, the same `coordinator_write` answers `role` and reaches no handler.
+#[test]
+fn the_read_of_the_sheet_answers_is_a_coordinator_write_on_a_stream_alone() {
+    let scratch = Scratch::new("owner-sheet-answers-roles");
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+    let request = |name: &str, body: String| {
+        let id = serde_json::to_string(&request_id()).unwrap();
+        format!(r#"{{"v":1,"id":{id},"request":"{name}","body":{body}}}"#).into_bytes()
+    };
+    let (workflow, agent, run) = ("3".repeat(32), "4".repeat(32), "5".repeat(32));
+    let read = request(
+        "coordinator_write",
+        format!(r#"{{"op":"sheet_answers","workflow":"{workflow}","agent":"{agent}"}}"#),
+    );
+    stream.send(&read);
+    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::NoWorkflow);
+
+    let runner = request(
+        "runner",
+        format!(r#"{{"op":"sheet_answers","agent":"{agent}","run":"{run}"}}"#),
+    );
+    stream.send(&runner);
+    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Malformed);
+
+    owner.send(&read);
+    assert_eq!(owner.reply().outcome.unwrap_err(), ErrorName::Role);
+}
+
 /// The test's `Ends` in the product's link: the one end that the hand-over returned, once; after it `internal`.
 impl Ends for Once<End> {
     fn end(&self) -> Result<End, Refusal> {

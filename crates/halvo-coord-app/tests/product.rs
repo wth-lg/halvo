@@ -72,7 +72,7 @@ mod mac {
         if args.first().map(String::as_str) == Some("--run") {
             std::process::exit(runner(&args));
         }
-        let tests: [(&str, fn()); 8] = [
+        let tests: [(&str, fn()); 9] = [
             (
                 "a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record",
                 a_run_now_of_a_switched_on_agent_runs_its_runner_and_the_store_holds_the_runs_record,
@@ -104,6 +104,10 @@ mod mac {
             (
                 "a_workbook_that_is_no_absolute_path_is_asked_again_and_the_agents_row_stays",
                 a_workbook_that_is_no_absolute_path_is_asked_again_and_the_agents_row_stays,
+            ),
+            (
+                "through_the_wrapper_the_sheet_answers_are_the_four_values_that_the_store_holds",
+                through_the_wrapper_the_sheet_answers_are_the_four_values_that_the_store_holds,
             ),
         ];
         let exact = args.iter().any(|a| a == "--exact");
@@ -1138,6 +1142,47 @@ mod mac {
         assert!(
             replies.iter().all(|(_, reply)| *reply == Reply::Ok),
             "{replies:?}"
+        );
+    }
+
+    /// r3 U11.7 (the coordinator's log line 19744): the core's read `Owner::sheet_answers`, asked through the app's
+    /// wrapper of the port (`Wired` over `Product`, as the hub holds it) against the owner, gives the four values that
+    /// `set_bindings` stored for a spreadsheet agent, each byte for byte, and no value of the slots beside them.
+    fn through_the_wrapper_the_sheet_answers_are_the_four_values_that_the_store_holds() {
+        use halvo_coord::ports::Owner as _;
+        let mut world = World::new("sheet-answers");
+        let (workflow, agent) = world.agent_of(SeedCategory::SpreadsheetFill);
+        let book = "/srv/Tabellen für 2026/Monat.xlsx";
+        let sheet = "März – \"Übersicht\"";
+        let source = "/srv/Daten/März.csv";
+        let body = json!({
+            "op": "set_bindings", "workflow": workflow, "agent": agent,
+            "slots": [
+                {"name": "workbook", "value": [book]},
+                {"name": "sheet", "value": [sheet]},
+                {"name": "range", "value": ["B2:D14"]},
+                {"name": "source", "value": [source]},
+                {"name": "instrument", "value": ["never-instrument-4111"]},
+            ],
+        });
+        let link = world.link();
+        assert_eq!(
+            world.ask(&link, "coordinator_write", &body.to_string()),
+            json!({"rev": 1})
+        );
+        let hub = world.hub();
+        let answers = hub.coordinator().ports().sheet_answers(
+            &halvo_coord::types::WorkflowId::parse(&workflow).unwrap(),
+            &halvo_coord::types::AgentId::parse(&agent).unwrap(),
+        );
+        assert_eq!(
+            answers,
+            Ok(halvo_coord::types::SheetAnswers {
+                workbook: Some(book.to_owned()),
+                sheet: Some(sheet.to_owned()),
+                range: Some("B2:D14".to_owned()),
+                source: Some(source.to_owned()),
+            })
         );
     }
 }

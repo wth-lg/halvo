@@ -62,11 +62,13 @@ use halvo_coord::types::{
     EffectAnswer, EffectId, Event, FullWorkflow, HandbackAsk, HandbackReason, HandbackResult,
     HoldSetCause, ItemId, ItemKind, Kept, LapseCause, Lapsed, LastCause, LinkAnswer, Name, Origin,
     OtherLapse, Outcome, PastEffect, PastRun, Progress, Raised, ReadyAnswer, Reply, ReplyRow,
-    RunEnd as CoordRunEnd, RunEvent, RunHistory, RunId, RunSpec, SetupAnswer, SignInAnswer, Slot,
-    Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState, WorkflowTrigger,
+    RunEnd as CoordRunEnd, RunEvent, RunHistory, RunId, RunSpec, SetupAnswer, SheetAnswers,
+    SignInAnswer, Slot, Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState,
+    WorkflowTrigger,
 };
 use halvo_coord::types::{Autonomy, Budget, Limits, Permission, Reasoning, Runtime, Tier};
 use halvo_coord::types::{ModelUse, SpendLimit};
+use halvo_schema::executable::body::SheetAnswersReply;
 use halvo_schema::executable::frame::{ConfirmDecision, ConfirmRequest, HandbackRequest};
 use halvo_schema::executable::names::Answer as EffectReply;
 use halvo_schema::executable::text::{EffectId as WireEffect, WebOrigin};
@@ -1409,6 +1411,33 @@ fn list_replies(
     }
 }
 
+/// The stored answers of the spreadsheet agent, read by r3 U11.7's coordinator body `sheet_answers` through `call`,
+/// which sends one coordinator body and gives its result. The reply is read by halvo-schema's own closed type of four
+/// keys, `SheetAnswersReply`, and each text is handed on as it stands: a fifth key, a missing key, an empty text, a text
+/// of more than 1,024 bytes and any other form give `no_service`, which holds no part of the reply. A refusal of the
+/// owner passes under its own name, which holds no value.
+fn read_sheet_answers(
+    call: impl FnOnce(&str) -> Result<Value, PortError>,
+    workflow: &WorkflowId,
+    agent: &AgentId,
+) -> Result<SheetAnswers, PortError> {
+    let reply = call(&format!(
+        r#"{{"op":"sheet_answers","workflow":"{}","agent":"{}"}}"#,
+        workflow.as_str(),
+        agent.as_str()
+    ))?;
+    let read =
+        SheetAnswersReply::parse(reply.to_string().as_bytes()).map_err(|_| PortError::NoService)?;
+    let text =
+        |t: Option<halvo_schema::executable::text::OwnText>| t.map(|t| t.as_str().to_owned());
+    Ok(SheetAnswers {
+        workbook: text(read.workbook),
+        sheet: text(read.sheet),
+        range: text(read.range),
+        source: text(read.source),
+    })
+}
+
 impl Owner for Product {
     type Config = AgentConfig;
 
@@ -1548,6 +1577,16 @@ impl Owner for Product {
         run: &RunId,
     ) -> Result<Vec<ReplyRow>, PortError> {
         list_replies(|body| self.coordinator(body), workflow, agent, run)
+    }
+
+    /// The stored answers of the spreadsheet agent, read by `read_sheet_answers` with the body `sheet_answers` of r3
+    /// U11.7, a `coordinator_write` on the app's own owner stream.
+    fn sheet_answers(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+    ) -> Result<SheetAnswers, PortError> {
+        read_sheet_answers(|body| self.coordinator(body), workflow, agent)
     }
 
     fn overlaps(
@@ -2227,6 +2266,62 @@ mod tests {
             read(vec![page(&first), page(r#"{"replies":[],"next":"m2"}"#)]),
             (Err(PortError::NoService), 2)
         );
+    }
+
+    /// r3 U11.7, tests 1 and 2 at the app's reader: the read of `Owner::sheet_answers` sends the body
+    /// `sheet_answers` with the keys `op`, `workflow` and `agent` in that order, and hands on each text of the store's
+    /// reply byte for byte and null as none; a refusal of the owner passes under its own name; and a reply with a
+    /// fifth key, without one of the four, with an empty text, with a text of more than 1,024 bytes or with a value
+    /// that is no text is `no_service`, so that no other value reaches the core.
+    #[test]
+    fn the_read_of_the_sheet_answers_hands_on_the_four_texts_and_takes_no_fifth_key() {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let read = |reply: Result<Value, PortError>| {
+            let mut sent = Vec::new();
+            let answers = read_sheet_answers(
+                |body| {
+                    sent.push(body.to_owned());
+                    reply
+                },
+                &workflow,
+                &agent,
+            );
+            (answers, sent)
+        };
+        let book = "/srv/Tabellen für 2026/Monat.xlsx";
+        let sheet = "März – \"Übersicht\"";
+        let stored = serde_json::json!({"workbook": book, "sheet": sheet, "range": "B2:D14", "source": null});
+        let (answers, sent) = read(Ok(stored));
+        assert_eq!(
+            sent,
+            [
+                r#"{"op":"sheet_answers","workflow":"f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1","agent":"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"}"#
+            ]
+        );
+        assert_eq!(
+            answers,
+            Ok(SheetAnswers {
+                workbook: Some(book.to_owned()),
+                sheet: Some(sheet.to_owned()),
+                range: Some("B2:D14".to_owned()),
+                source: None,
+            })
+        );
+        assert_eq!(
+            read(Err(PortError::Refused(name("config")))).0,
+            Err(PortError::Refused(name("config")))
+        );
+        let long = "A".repeat(1025);
+        for bad in [
+            serde_json::json!({"workbook": null, "sheet": null, "range": null, "source": null, "instrument": "4111"}),
+            serde_json::json!({"workbook": null, "sheet": null, "range": null}),
+            serde_json::json!({"workbook": "", "sheet": null, "range": null, "source": null}),
+            serde_json::json!({"workbook": long, "sheet": null, "range": null, "source": null}),
+            serde_json::json!({"workbook": [book], "sheet": null, "range": null, "source": null}),
+        ] {
+            assert_eq!(read(Ok(bad.clone())).0, Err(PortError::NoService), "{bad}");
+        }
     }
 
     /// r4 U2.4y, sentence 3: the body `drop_sessions` goes out as r3 U5.2c built it, with the keys `op`,

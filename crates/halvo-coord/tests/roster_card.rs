@@ -196,6 +196,14 @@ impl Owner for Silent {
         let _ = (workflow, agent, run);
         Ok(vec![])
     }
+    fn sheet_answers(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+    ) -> Result<halvo_coord::types::SheetAnswers, PortError> {
+        let _ = (workflow, agent);
+        Ok(halvo_coord::types::SheetAnswers::default())
+    }
 }
 
 #[test]

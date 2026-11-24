@@ -991,7 +991,20 @@ op_enum! {
         ModelRoom(ModelRoom) = "model_room",
         SetModelCap(SetModelCap) = "set_model_cap",
         NewModelCount(NewModelCount) = "new_model_count",
+        SheetAnswers(SheetAnswers) = "sheet_answers",
     }
+}
+
+object_type! {
+    /// `sheet_answers` (r3 U11.7): the stored values of the four slots `workbook`, `sheet`, `range` and `source` of the
+    /// agent's newest bindings, for an agent whose stored workflow is of the category `spreadsheet_fill` alone, which
+    /// the interface run's coordinator asks at the press of Change its answers. It stores nothing.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct SheetAnswers [op = "sheet_answers"] {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+    }
+    rules(_b) { Ok(()) }
 }
 
 impl CoordinatorBody for CoordinatorCall {
@@ -1525,6 +1538,37 @@ object_type! {
 }
 
 object_type! {
+    /// The reply of `sheet_answers` (r3 U11.7): the four slots of the spreadsheet agent, each key once and no other
+    /// key, so that a fifth value needs a change of this type: for each, the value of the slot of that name in the
+    /// agent's newest bindings as ONE `own_text` of 1 to 1,024 bytes, byte for byte the stored value joined, or null
+    /// where that revision holds no value of the name or an empty one. An unknown key, a missing key and an empty text
+    /// are refused. `Debug` prints the lengths alone, as `OwnText` does.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct SheetAnswersReply {
+        pub workbook: Option<OwnText> = "workbook" => opt(from_json),
+        pub sheet: Option<OwnText> = "sheet" => opt(from_json),
+        pub range: Option<OwnText> = "range" => opt(from_json),
+        pub source: Option<OwnText> = "source" => opt(from_json),
+    }
+    rules(r) {
+        let four = [
+            ("workbook", &r.workbook),
+            ("sheet", &r.sheet),
+            ("range", &r.range),
+            ("source", &r.source),
+        ];
+        for (key, text) in four {
+            if text.as_ref().is_some_and(|t| t.as_str().is_empty()) {
+                return Err(Refusal::malformed("SheetAnswersReply", "empty_answer").at(key));
+            }
+        }
+        Ok(())
+    }
+    max_len(CHECKPOINTS_REPLY_MAX)
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
+}
+
+object_type! {
     /// The reply of `model_room` (r7 8.1L): `room` says what the store found of the person's count at the request's
     /// instant. `none`, no count is stored: `cap_minor` is the cap that a new count would hold, in minor units, or null
     /// where the build has none, `spent` and `held` are 0 and `period_end_ms` is null. `reads`, the four values of the
@@ -1585,6 +1629,7 @@ reply_enum! {
         Key(KeyReply) = "key",
         Room(RoomReply) = "room",
         Cap(CapReply) = "new_count",
+        SheetAnswers(SheetAnswersReply) = "workbook",
     }
 }
 
@@ -1594,8 +1639,8 @@ impl CoordinatorReply {
     /// `agent_history` and `list_replies` by their lists, `mark_checkpoint` by `stored` 0 or 1, `drop_sessions` by any
     /// count stored, `put_model_key` by `stored` 1, `drop_model_key` by `stored` 0, `model_key_state` by `stands`,
     /// `read_model_key` by `key`, `model_room` by `room`, `set_model_cap` by `new_count` with the body's cap,
-    /// `new_model_count` by `new_count` `yes` with the body's cap, and `list_overlaps` by its list only as
-    /// `OverlapsReply::answers` says.
+    /// `new_model_count` by `new_count` `yes` with the body's cap, `sheet_answers` by its four keys, and
+    /// `list_overlaps` by its list only as `OverlapsReply::answers` says.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
         match (self, call) {
             (CoordinatorReply::Overlaps(r), CoordinatorCall::ListOverlaps(b)) => {
@@ -1626,6 +1671,7 @@ impl CoordinatorReply {
             | (CoordinatorReply::Stands(_), CoordinatorCall::ModelKeyState(_))
             | (CoordinatorReply::Key(_), CoordinatorCall::ReadModelKey(_))
             | (CoordinatorReply::Room(_), CoordinatorCall::ModelRoom(_))
+            | (CoordinatorReply::SheetAnswers(_), CoordinatorCall::SheetAnswers(_))
             | (
                 CoordinatorReply::Accepted(_),
                 CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_),

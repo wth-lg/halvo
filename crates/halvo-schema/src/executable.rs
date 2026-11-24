@@ -367,4 +367,6 @@ record::run_list! { names_with_run_list
     "reads",
     "unread",
     "new_model_count",
+    "sheet_answers",
+    "source",
 }

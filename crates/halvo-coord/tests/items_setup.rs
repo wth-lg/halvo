@@ -222,6 +222,13 @@ impl Owner for Lossy<'_> {
     ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
         self.inner.replies(workflow, agent, run)
     }
+    fn sheet_answers(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+    ) -> Result<halvo_coord::types::SheetAnswers, PortError> {
+        self.inner.sheet_answers(workflow, agent)
+    }
 }
 
 impl Clock for Lossy<'_> {

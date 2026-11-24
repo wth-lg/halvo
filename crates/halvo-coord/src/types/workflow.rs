@@ -1,7 +1,8 @@
 use super::{
     AgentId, AgentState, Category, Class, Digest, EffectId, Name, Outcome, RunId, WorkflowId,
 };
-use super::{LastCause, WorkflowState, WorkflowTrigger};
+use super::{LastCause, Param, WorkflowState, WorkflowTrigger};
+use std::fmt;
 use std::num::NonZeroU32;
 
 /// A workflow of the owner's list, in the two shapes of W-C2.4: a dismissed workflow has no
@@ -118,6 +119,53 @@ pub struct Agent<C> {
     /// has a sentence for it, or none: also for a cause of the store's list that `LastCause`
     /// lacks.
     pub last_cause: Option<LastCause>,
+}
+
+/// The stored answers of the four questions of the spreadsheet agent, as `Owner::sheet_answers`
+/// gives them (r3 U11.7): for each of the slots `workbook`, `sheet`, `range` and `source` of the
+/// agent's newest bindings, the stored value as one text of 1 to 1,024 bytes, byte for byte the
+/// value that `set_bindings` stored, or none where the store holds no value of it. The four fields
+/// are the whole list: no other slot has a place here, and `of` answers none for every other
+/// parameter. `Debug` names which fields hold a value and prints no value.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct SheetAnswers {
+    /// `workbook`: Which spreadsheet file.
+    pub workbook: Option<String>,
+    /// `sheet`: Which sheet.
+    pub sheet: Option<String>,
+    /// `range`: Which cells.
+    pub range: Option<String>,
+    /// `source`: Where the data comes from.
+    pub source: Option<String>,
+}
+
+impl SheetAnswers {
+    /// The stored answer of the parameter: the field of its name for the four of the category
+    /// `spreadsheet_fill`, and none for every other parameter.
+    pub fn of(&self, param: Param) -> Option<&str> {
+        match param {
+            Param::Workbook => self.workbook.as_deref(),
+            Param::Sheet => self.sheet.as_deref(),
+            Param::Range => self.range.as_deref(),
+            Param::Source => self.source.as_deref(),
+            Param::Start
+            | Param::Payee
+            | Param::Instrument
+            | Param::ReplySenders
+            | Param::Seller => None,
+        }
+    }
+}
+
+impl fmt::Debug for SheetAnswers {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SheetAnswers")
+            .field("workbook", &self.workbook.is_some())
+            .field("sheet", &self.sheet.is_some())
+            .field("range", &self.range.is_some())
+            .field("source", &self.source.is_some())
+            .finish()
+    }
 }
 
 /// What the coordinator reads of a run record `agent_run` (A-A7.4).
