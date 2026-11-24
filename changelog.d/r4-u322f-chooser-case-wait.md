@@ -1,0 +1,1 @@
+- Fixed: The hosted case of the Windows chooser's own close waits 10 s from the show for the chooser's first event with a window and 5 s from the refusal for the answer, and shows the chooser once more where the first show gives no event, so a slow first chooser on a hosted runner no longer turns the windows job red.
