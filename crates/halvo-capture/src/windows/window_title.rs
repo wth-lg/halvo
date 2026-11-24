@@ -1,6 +1,8 @@
 //! Window-title capture via `SetWinEventHook`.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::event::{EventClock, FloorEvent};
 use crate::floor::exclude::PrivateWindow;
@@ -8,7 +10,7 @@ use crate::floor::kind;
 use crate::floor::payload::{Title, TitleWhy};
 use crate::floor::site::Site;
 use crate::floor::Switch;
-use crate::secure_input::windows::{PasswordFieldProbe, PasswordGate};
+use crate::secure_input::windows::{ContentReading, PasswordFieldProbe, PasswordGate};
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
@@ -26,8 +28,8 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Accessibility::{UnhookWinEvent, HWINEVENTHOOK};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetClassNameW, GetForegroundWindow, GetWindowTextW, InternalGetWindowText, CHILDID_SELF,
-    EVENT_OBJECT_NAMECHANGE, EVENT_SYSTEM_FOREGROUND, OBJID_WINDOW,
+    GetClassNameW, GetForegroundWindow, GetWindowTextW, InternalGetWindowText, KillTimer, SetTimer,
+    CHILDID_SELF, EVENT_OBJECT_NAMECHANGE, EVENT_SYSTEM_FOREGROUND, OBJID_WINDOW,
 };
 
 /// The most UTF-16 units of a window text that the title path reads: twice
@@ -72,9 +74,28 @@ pub(crate) fn site_of(_pid: u32) -> Option<Site> {
 }
 
 /// The title event of the window in front: the floor's decision on its
-/// process, with the reading of the keyboard source's gate where one runs,
-/// then core-2's title constructor with its reason. Nothing of the text
-/// leaves when the decision drops it.
+/// process with `probe`, the gate's reading of a read of that window, then
+/// core-2's title constructor with its reason. Nothing of the text leaves
+/// when the decision drops it.
+pub(crate) fn title_event_at(
+    floor: &Floor,
+    probe: &PasswordFieldProbe,
+    (front, window): (&FrontApp, PrivateWindow),
+    (title, why): (String, TitleWhy),
+    tick: OsTick,
+) -> Option<FloorEvent> {
+    let keep = floor.keep::<kind::WindowTitle>(front, window, probe)?;
+    Some(FloorEvent::window_title(
+        keep,
+        Title::new(title, why, site_of(front.pid)),
+        tick.age(),
+        EventClock::system(),
+    ))
+}
+
+/// The title event at the gate's reading of this moment, whatever window it
+/// is of: the floor's decision at each reading, for the tests.
+#[cfg(test)]
 pub(crate) fn title_event(
     floor: &Floor,
     gate: Option<&PasswordGate>,
@@ -83,13 +104,213 @@ pub(crate) fn title_event(
     tick: OsTick,
 ) -> Option<FloorEvent> {
     let probe = gate.map_or_else(PasswordFieldProbe::default, PasswordGate::content_probe);
-    let keep = floor.keep::<kind::WindowTitle>(front, window, &probe)?;
-    Some(FloorEvent::window_title(
-        keep,
-        Title::new(title, why, site_of(front.pid)),
-        tick.age(),
-        EventClock::system(),
-    ))
+    title_event_at(floor, &probe, (front, window), (title, why), tick)
+}
+
+/// How long a title ask waits, looked at every [`TITLE_LOOK_STEP`], for the
+/// gate's read of its own window: twice the detector's attach deadline
+/// (`INPUT_STOP_DEADLINE`, 1,000 ms), which waits that long for a first read
+/// and keeps a detector whose read comes later. The wait holds no event: the
+/// callbacks take the ask and return, and a timer of the title thread looks.
+pub(crate) const TITLE_WAIT_BOUND: Duration = Duration::from_millis(2_000);
+
+/// How often the title thread looks at a waiting ask inside the bound.
+pub(crate) const TITLE_LOOK_STEP: Duration = Duration::from_millis(16);
+
+/// How often it looks behind the bound: the ask stays while its window is in
+/// front, and the first read of that window decides it.
+pub(crate) const TITLE_LATE_STEP: Duration = Duration::from_millis(250);
+
+fn ms_of(duration: Duration) -> u32 {
+    u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
+}
+
+/// What asked a title of the window in front.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AskBy {
+    /// The start of the source.
+    Start,
+    /// A change of the window in front.
+    Front,
+    /// A change of the title of the window in front.
+    Name,
+}
+
+/// A title asked of the window in front.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct TitleAsk {
+    /// The window, as GetForegroundWindow gave it.
+    pub(crate) window: usize,
+    pub(crate) why: TitleWhy,
+    /// The OS time of the event that asked, which the record carries.
+    pub(crate) tick: u32,
+    /// The OS time from which a read of the window counts: that of the change
+    /// that brought the window in front; none for a window that was in front
+    /// at the start.
+    pub(crate) since: Option<u32>,
+    /// The OS time at which the title thread took the ask: the wait's start.
+    pub(crate) asked: u32,
+}
+
+/// What a look at the waiting ask gives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Look {
+    /// No ask waits.
+    Idle,
+    /// The gate's newest read is of the ask's window and counts for it: its
+    /// reading decides the title; none where no gate runs, and then the
+    /// probe that reads Unknown decides.
+    Decide(TitleAsk, Option<ContentReading>),
+    /// The ask waits; the next look comes after this many milliseconds.
+    Wait(u32),
+    /// Another window is in front: the ask ended with nothing written.
+    Left,
+}
+
+/// The one title ask that waits on the title thread, and the window in front
+/// with the time from which a read of it counts.
+#[derive(Debug, Default)]
+pub(crate) struct Waiting {
+    ask: Option<TitleAsk>,
+    visit: Option<(usize, Option<u32>)>,
+}
+
+impl Waiting {
+    /// Takes an ask of `window` by the event of OS time `tick`, at `now`. A
+    /// window keeps the time from which its reads count until another window
+    /// comes in front. An ask of the window whose ask waits leaves that ask
+    /// as it is; an ask of another window takes its place. Answers whether
+    /// it took the place of an ask of another window.
+    pub(crate) fn ask(&mut self, window: usize, by: AskBy, tick: u32, now: u32) -> bool {
+        let since = match self.visit {
+            Some((seen, since)) if seen == window => since,
+            _ if by == AskBy::Start => None,
+            _ => Some(tick),
+        };
+        self.visit = Some((window, since));
+        if self.ask.is_some_and(|waiting| waiting.window == window) {
+            return false;
+        }
+        let why = match by {
+            AskBy::Start | AskBy::Front => TitleWhy::AppChange,
+            AskBy::Name => TitleWhy::TitleChange,
+        };
+        self.ask
+            .replace(TitleAsk {
+                window,
+                why,
+                tick,
+                since,
+                asked: now,
+            })
+            .is_some()
+    }
+
+    /// Ends the waiting ask at the source's stop: whether one waited.
+    pub(crate) fn stop(&mut self) -> bool {
+        self.ask.take().is_some()
+    }
+
+    /// Looks at the waiting ask while `front` is the window in front (0 for
+    /// none): a read of the ask's window that counts for it decides it, at
+    /// once and whatever came before; another window in front ends it; else
+    /// it waits, with no bound while its window stays in front.
+    pub(crate) fn look(&mut self, gate: Option<&PasswordGate>, front: usize, now: u32) -> Look {
+        let Some(ask) = self.ask else {
+            return Look::Idle;
+        };
+        if front != 0 && front != ask.window {
+            self.ask = None;
+            return Look::Left;
+        }
+        let Some(gate) = gate else {
+            self.ask = None;
+            return Look::Decide(ask, None);
+        };
+        if front == ask.window {
+            if let Some(reading) = gate.content_reading_of(ask.window, ask.since) {
+                self.ask = None;
+                return Look::Decide(ask, Some(reading));
+            }
+        }
+        if OsTick::new(ask.asked).age_at(now) < TITLE_WAIT_BOUND {
+            Look::Wait(ms_of(TITLE_LOOK_STEP))
+        } else {
+            Look::Wait(ms_of(TITLE_LATE_STEP))
+        }
+    }
+}
+
+/// The counts of a title source's asks since it was made.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TitleWaits {
+    /// Asks decided at the event that asked, by a read of the window that
+    /// had already landed.
+    pub at_once: u64,
+    /// Asks decided inside the bound, by a read that landed while they waited.
+    pub after_a_wait: u64,
+    /// Asks decided behind the bound, by a read that landed while their
+    /// window stayed in front.
+    pub behind_the_bound: u64,
+    /// Asks that an ask of another window took the place of.
+    pub replaced: u64,
+    /// Asks that ended because another window was in front.
+    pub left: u64,
+    /// Asks that ended with no read of their window: an ask of another
+    /// window took their place, another window was in front, or the source
+    /// stopped while they waited.
+    pub ended_with_no_read: u64,
+    /// The longest time from an ask to its decision, in milliseconds.
+    pub longest_wait_ms: u64,
+}
+
+#[derive(Debug, Default)]
+struct WaitCounts {
+    at_once: AtomicU64,
+    after_a_wait: AtomicU64,
+    behind_the_bound: AtomicU64,
+    replaced: AtomicU64,
+    left: AtomicU64,
+    ended_with_no_read: AtomicU64,
+    longest_wait_ms: AtomicU64,
+}
+
+impl WaitCounts {
+    fn read(&self) -> TitleWaits {
+        TitleWaits {
+            at_once: self.at_once.load(Ordering::Relaxed),
+            after_a_wait: self.after_a_wait.load(Ordering::Relaxed),
+            behind_the_bound: self.behind_the_bound.load(Ordering::Relaxed),
+            replaced: self.replaced.load(Ordering::Relaxed),
+            left: self.left.load(Ordering::Relaxed),
+            ended_with_no_read: self.ended_with_no_read.load(Ordering::Relaxed),
+            longest_wait_ms: self.longest_wait_ms.load(Ordering::Relaxed),
+        }
+    }
+
+    /// Counts an ask that ended with no read of its window, in `why`'s count
+    /// where it has one.
+    fn ended_unread(&self, why: Option<&AtomicU64>) {
+        if let Some(count) = why {
+            count.fetch_add(1, Ordering::Relaxed);
+        }
+        self.ended_with_no_read.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Counts a decision `waited` after its ask, at the ask's own look or at
+    /// a later one: at once only at the look of the event that made the ask.
+    fn decided(&self, waited: Duration, at_the_ask: bool) {
+        let count = if at_the_ask && waited.is_zero() {
+            &self.at_once
+        } else if waited < TITLE_WAIT_BOUND {
+            &self.after_a_wait
+        } else {
+            &self.behind_the_bound
+        };
+        count.fetch_add(1, Ordering::Relaxed);
+        let waited = u64::try_from(waited.as_millis()).unwrap_or(u64::MAX);
+        self.longest_wait_ms.fetch_max(waited, Ordering::Relaxed);
+    }
 }
 
 /// Whether the window in front is the ghost that the system shows for a hung
@@ -190,6 +411,9 @@ struct TitleState {
     floor: Floor,
     gate: Option<Arc<PasswordGate>>,
     last: LastTitle,
+    waiting: Waiting,
+    counts: Arc<WaitCounts>,
+    timer: Option<(usize, u32)>,
 }
 
 /// The most answers of the Chrome query that the title thread keeps.
@@ -283,6 +507,7 @@ impl ChromeQuery {
 pub struct WindowTitleSource {
     life: Lifecycle,
     drops: Arc<DropCounts>,
+    waits: Arc<WaitCounts>,
     gate: Option<Arc<PasswordGate>>,
     installer: HookInstaller,
     remover: HookRemover,
@@ -293,6 +518,7 @@ impl WindowTitleSource {
         Self {
             life: Lifecycle::default(),
             drops: Arc::default(),
+            waits: Arc::default(),
             gate: None,
             installer: set_win_event_hook,
             remover: unhook_win_event,
@@ -314,6 +540,12 @@ impl WindowTitleSource {
     /// The events that this source dropped at the floor's decision.
     pub fn drops(&self) -> Drops {
         self.drops.read()
+    }
+
+    /// The counts of this source's title asks: how each ended and the
+    /// longest wait.
+    pub fn waits(&self) -> TitleWaits {
+        self.waits.read()
     }
 
     #[cfg(test)]
@@ -365,7 +597,7 @@ unsafe extern "system" fn title_proc(
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
     let front = unsafe { GetForegroundWindow() };
     if keeps_title_event(hwnd, id_object, id_child, front) {
-        emit_front_title(front, time, TitleWhy::TitleChange);
+        ask_title(front, time, AskBy::Name);
     }
 }
 
@@ -380,40 +612,122 @@ unsafe extern "system" fn front_proc(
     time: u32,
 ) {
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
-    emit_front_title(unsafe { GetForegroundWindow() }, time, TitleWhy::AppChange);
+    ask_title(unsafe { GetForegroundWindow() }, time, AskBy::Front);
 }
 
+/// Takes a title ask of the window in front and looks at it once: the
+/// callback returns at once, decided or not.
 #[cfg(target_os = "windows")]
-fn emit_front_title(front: HWND, time: u32, why: TitleWhy) {
+fn ask_title(front: HWND, time: u32, by: AskBy) {
     if front.0.is_null() || super::reading_at_stop() {
         return;
     }
-    let read = read_window_title(front);
     TITLE_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
-            if !state.last.shows_new(front.0 as usize, &read.text) {
-                return;
+            let now = super::now_tick();
+            if state.waiting.ask(front.0 as usize, by, time, now) {
+                state.counts.ended_unread(Some(&state.counts.replaced));
             }
-            let app = resolve_front(front).unwrap_or_default();
-            let window = if is_ghost_of_a_hung_window(&class_of(front), app.path.as_deref()) {
-                PrivateWindow::Private
-            } else {
-                told_private(Browser::of(app.path.as_deref()), &read, || {
-                    CHROME_QUERY.with(|query| query.borrow_mut().ask(front, time))
-                })
-            };
-            let made = title_event(
-                &state.floor,
-                state.gate.as_deref(),
-                (&app, window),
-                (read.text, why),
-                OsTick::new(time),
-            );
-            if let Some(event) = made {
-                state.producer.push(event);
-            }
+            look_at_the_ask(state, now, true);
         }
     });
+}
+
+/// The title thread's timer: one more look at the waiting ask.
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn look_timer(_hwnd: HWND, _message: u32, _id: usize, _time: u32) {
+    if super::reading_at_stop() {
+        return;
+    }
+    TITLE_CTX.with(|cell| {
+        if let Some(state) = cell.borrow_mut().as_mut() {
+            look_at_the_ask(state, super::now_tick(), false);
+        }
+    });
+}
+
+/// One look at the waiting ask: a decision writes the title, or not, by the
+/// floor; a wait sets the timer to its step; an end stops the timer.
+#[cfg(target_os = "windows")]
+fn look_at_the_ask(state: &mut TitleState, now: u32, at_the_ask: bool) {
+    // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+    let front = unsafe { GetForegroundWindow() }.0 as usize;
+    match state.waiting.look(state.gate.as_deref(), front, now) {
+        Look::Idle => state.stop_timer(),
+        Look::Left => {
+            state.counts.ended_unread(Some(&state.counts.left));
+            state.stop_timer();
+        }
+        Look::Decide(ask, reading) => {
+            state.stop_timer();
+            state
+                .counts
+                .decided(OsTick::new(ask.asked).age_at(now), at_the_ask);
+            decide_title(state, ask, reading);
+        }
+        Look::Wait(step) => state.start_timer(step),
+    }
+}
+
+/// The title of the ask's window, decided by `reading`, the gate's reading
+/// of a read of that window, or by the probe that reads Unknown where no
+/// gate runs.
+#[cfg(target_os = "windows")]
+fn decide_title(state: &mut TitleState, ask: TitleAsk, reading: Option<ContentReading>) {
+    let front = HWND(ask.window as *mut core::ffi::c_void);
+    let read = read_window_title(front);
+    if !state.last.shows_new(ask.window, &read.text) {
+        return;
+    }
+    let app = resolve_front(front).unwrap_or_default();
+    let window = if is_ghost_of_a_hung_window(&class_of(front), app.path.as_deref()) {
+        PrivateWindow::Private
+    } else {
+        told_private(Browser::of(app.path.as_deref()), &read, || {
+            CHROME_QUERY.with(|query| query.borrow_mut().ask(front, ask.tick))
+        })
+    };
+    let probe = match (state.gate.as_deref(), reading) {
+        (Some(gate), Some(reading)) => gate.probe_of(reading),
+        _ => PasswordFieldProbe::default(),
+    };
+    let made = title_event_at(
+        &state.floor,
+        &probe,
+        (&app, window),
+        (read.text, ask.why),
+        OsTick::new(ask.tick),
+    );
+    if let Some(event) = made {
+        state.producer.push(event);
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl TitleState {
+    /// Sets the thread's look timer to `step` milliseconds, or keeps it where
+    /// it runs at that step already.
+    fn start_timer(&mut self, step: u32) {
+        if self.timer.is_some_and(|(_, set)| set == step) {
+            return;
+        }
+        let id = self.timer.map_or(0, |(id, _)| id);
+        // SAFETY: a timer of this thread with no window, whose procedure has
+        // the TIMERPROC signature; an id that this thread's SetTimer gave is
+        // set again in place.
+        let set = unsafe { SetTimer(None, id, step, Some(look_timer)) };
+        self.timer = (set != 0).then_some((set, step));
+    }
+
+    /// Stops the thread's look timer, where one runs.
+    fn stop_timer(&mut self) {
+        if let Some((id, _)) = self.timer.take() {
+            // SAFETY: `id` is the timer that this thread's SetTimer gave.
+            unsafe {
+                let _ = KillTimer(None, id);
+            }
+        }
+    }
 }
 
 /// Leaves the apartment that the title thread joined, after the thread's
@@ -441,6 +755,7 @@ impl CaptureSource for WindowTitleSource {
             return self.life.off();
         }
         let gate = self.gate.clone();
+        let counts = Arc::clone(&self.waits);
         self.life
             .begin(&ctx, "halvo-window-title-forward", move |producer| {
                 let state = TitleState {
@@ -448,6 +763,9 @@ impl CaptureSource for WindowTitleSource {
                     floor,
                     gate,
                     last: LastTitle::default(),
+                    waiting: Waiting::default(),
+                    counts,
+                    timer: None,
                 };
                 super::spawn_pump("halvo-window-title".to_string(), move |ready, signal| {
                     run_title_hook(state, (installer, remover), ready, &signal)
@@ -503,12 +821,20 @@ fn run_title_hook(
     super::ensure_message_queue();
     ready.report(Ok(()));
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
-    emit_front_title(
+    ask_title(
         unsafe { GetForegroundWindow() },
         super::now_tick(),
-        TitleWhy::AppChange,
+        AskBy::Start,
     );
     super::pump_messages(signal);
+    TITLE_CTX.with(|cell| {
+        if let Some(state) = cell.borrow_mut().as_mut() {
+            state.stop_timer();
+            if state.waiting.stop() {
+                state.counts.ended_unread(None);
+            }
+        }
+    });
     signal.report_removal("UnhookWinEvent", remover(front_hook));
     signal.report_removal("UnhookWinEvent", remover(hook));
     TITLE_CTX.with(|cell| *cell.borrow_mut() = None);
@@ -517,6 +843,563 @@ fn run_title_hook(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The window left, the window that comes in front, and a third window.
+    const A: usize = 0x100;
+    const B: usize = 0x200;
+    const C: usize = 0x300;
+
+    fn answered(is_password: bool) -> crate::secure_input::windows::FocusRead {
+        crate::secure_input::windows::FocusRead::Answered {
+            is_password,
+            protected: false,
+            kind: crate::secure_input::windows::Kind::NativeEdit,
+        }
+    }
+
+    /// A title thread's ask with a gate and a floor of its own: what each
+    /// look gives, and whether a decided title is written.
+    struct Bench {
+        floor: Floor,
+        drops: Arc<DropCounts>,
+        gate: PasswordGate,
+        waiting: Waiting,
+    }
+
+    impl Bench {
+        fn new() -> Bench {
+            use crate::floor::exclude::FloorHandle;
+            let drops = Arc::new(DropCounts::default());
+            Bench {
+                floor: Floor::new(FloorHandle::default(), Arc::clone(&drops)),
+                drops,
+                gate: PasswordGate::new(),
+                waiting: Waiting::default(),
+            }
+        }
+
+        fn ask(&mut self, window: usize, by: AskBy, tick: u32) -> bool {
+            self.waiting.ask(window, by, tick, tick)
+        }
+
+        /// One look while `front` is in front: Some(written) where it decided
+        /// the title, None where the ask waits or ended.
+        fn look(&mut self, front: usize, now: u32) -> Option<bool> {
+            match self.waiting.look(Some(&self.gate), front, now) {
+                Look::Decide(ask, reading) => {
+                    assert_eq!(ask.window, front, "a decision for another window");
+                    let probe = reading.map_or_else(PasswordFieldProbe::default, |reading| {
+                        self.gate.probe_of(reading)
+                    });
+                    let app = FrontApp {
+                        pid: 9,
+                        path: Some("C:\\Apps\\vault.exe".to_string()),
+                    };
+                    Some(
+                        title_event_at(
+                            &self.floor,
+                            &probe,
+                            (&app, PrivateWindow::Unknown),
+                            ("Vault".to_string(), ask.why),
+                            OsTick::new(ask.tick),
+                        )
+                        .is_some(),
+                    )
+                }
+                Look::Idle | Look::Wait(_) | Look::Left => None,
+            }
+        }
+    }
+
+    #[test]
+    fn order_1_a_read_of_the_window_that_landed_before_its_switch_was_taken_decides_at_once() {
+        for (field, written) in [(true, false), (false, true)] {
+            let mut bench = Bench::new();
+            bench.gate.focus_read_in(Some(A), 900, answered(false));
+            bench.gate.focus_read_in(Some(B), 1_004, answered(field));
+            bench.ask(B, AskBy::Front, 1_000);
+            assert_eq!(
+                bench.look(B, 1_010),
+                Some(written),
+                "password field {field}"
+            );
+        }
+    }
+
+    #[test]
+    fn order_2_a_switch_before_the_read_waits_and_the_read_of_that_window_decides() {
+        use crate::secure_input::windows::{FocusRead, Kind};
+        let firefox = FocusRead::Answered {
+            is_password: false,
+            protected: false,
+            kind: Kind::Firefox,
+        };
+        let cases = [
+            (
+                "clear-then-password",
+                answered(false),
+                answered(true),
+                false,
+            ),
+            (
+                "no-answer-then-password",
+                FocusRead::NoAnswer { protected: false },
+                answered(true),
+                false,
+            ),
+            ("password-then-clear", answered(true), answered(false), true),
+            (
+                "firefox-then-no-answer",
+                firefox,
+                FocusRead::NoAnswer { protected: false },
+                true,
+            ),
+            (
+                "unreadable-then-clear",
+                FocusRead::Unreadable,
+                answered(false),
+                true,
+            ),
+        ];
+        for (case, left, entered, written) in cases {
+            let mut bench = Bench::new();
+            bench.gate.focus_read_in(Some(A), 900, left);
+            bench.ask(B, AskBy::Front, 1_000);
+            let at_the_switch = bench.look(B, 1_000);
+            bench.gate.focus_read_in(Some(B), 1_010, entered);
+            let at_the_read = bench.look(B, 1_016);
+            assert_eq!(
+                (at_the_switch, at_the_read),
+                (None, Some(written)),
+                "{case}"
+            );
+        }
+    }
+
+    #[test]
+    fn order_3_a_read_that_lands_behind_the_bound_decides_while_its_window_stays_in_front() {
+        let mut bench = Bench::new();
+        bench.gate.focus_read_in(Some(A), 900, answered(false));
+        bench.ask(B, AskBy::Front, 1_000);
+        let inside = bench.waiting.look(Some(&bench.gate), B, 2_999);
+        let behind = bench.waiting.look(Some(&bench.gate), B, 3_000);
+        let much_later = bench.waiting.look(Some(&bench.gate), B, 60_000);
+        bench.gate.focus_read_in(Some(B), 60_100, answered(true));
+        let decided = bench.look(B, 60_250);
+        assert_eq!(
+            (inside, behind, much_later, decided),
+            (
+                Look::Wait(16),
+                Look::Wait(250),
+                Look::Wait(250),
+                Some(false)
+            )
+        );
+        assert_eq!(bench.waiting.look(Some(&bench.gate), B, 60_500), Look::Idle);
+    }
+
+    #[test]
+    fn order_4_a_read_of_another_window_or_of_none_decides_nothing() {
+        let mut bench = Bench::new();
+        bench.gate.focus_read_in(Some(A), 900, answered(false));
+        bench.ask(B, AskBy::Front, 1_000);
+        bench.gate.focus_read_in(Some(A), 1_005, answered(false));
+        let at_a_late_read_of_the_window_left = bench.look(B, 1_008);
+        bench.gate.focus_read_in(Some(C), 1_010, answered(false));
+        let at_a_read_of_a_third_window = bench.look(B, 1_012);
+        bench.gate.focus_read_in(None, 1_014, answered(false));
+        let at_a_read_of_no_window = bench.look(B, 1_016);
+        bench.gate.own_read_in(Some(B), 1_020, answered(true));
+        let at_the_own_read_of_the_window = bench.look(B, 1_024);
+        assert_eq!(
+            (
+                at_a_late_read_of_the_window_left,
+                at_a_read_of_a_third_window,
+                at_a_read_of_no_window,
+                at_the_own_read_of_the_window
+            ),
+            (None, None, None, Some(false))
+        );
+    }
+
+    #[test]
+    fn order_5_a_second_change_inside_the_wait_takes_the_place_of_the_ask() {
+        let mut bench = Bench::new();
+        bench.gate.focus_read_in(Some(A), 900, answered(false));
+        let first = bench.ask(B, AskBy::Front, 1_000);
+        let at_b = bench.look(B, 1_000);
+        let replaced = bench.ask(C, AskBy::Front, 1_050);
+        bench.gate.focus_read_in(Some(B), 1_060, answered(false));
+        let at_the_read_of_b = bench.look(C, 1_064);
+        bench.gate.focus_read_in(Some(C), 1_070, answered(true));
+        let at_the_read_of_c = bench.look(C, 1_080);
+        assert_eq!(
+            (first, at_b, replaced, at_the_read_of_b, at_the_read_of_c),
+            (false, None, true, None, Some(false))
+        );
+        assert_eq!(bench.waiting.look(Some(&bench.gate), B, 1_100), Look::Idle);
+    }
+
+    #[test]
+    fn order_6_a_start_before_the_gates_first_read_waits_for_it() {
+        let mut bench = Bench::new();
+        bench.gate.started_at(1_000);
+        bench.gate.focus_read_in(Some(B), 1_002, answered(false));
+        bench.ask(B, AskBy::Start, 1_005);
+        let before_the_first_read = bench.look(B, 1_005);
+        bench.gate.own_read_in(Some(B), 1_400, answered(true));
+        let at_the_first_read = bench.look(B, 1_416);
+        let mut started = Bench::new();
+        started.gate.own_read_in(Some(B), 900, answered(false));
+        started.ask(B, AskBy::Start, 1_000);
+        let a_first_read_before_the_start = started.look(B, 1_000);
+        assert_eq!(
+            (
+                before_the_first_read,
+                at_the_first_read,
+                a_first_read_before_the_start
+            ),
+            (None, Some(false), Some(true))
+        );
+    }
+
+    #[test]
+    fn order_7_the_windows_own_element_while_the_focus_is_in_a_child_is_of_no_window() {
+        use crate::secure_input::windows::{
+            window_of_read, ElementPlace, FocusPlace, ReadBy, ReadElement,
+        };
+        const EDIT: usize = 0x210;
+        const PID: Option<u32> = Some(7);
+        let focus = |handle, root| {
+            Some(FocusPlace {
+                handle,
+                root,
+                pid: PID,
+            })
+        };
+        let element = |handle: Option<usize>, root: Option<usize>, pid| {
+            ReadElement::Read(ElementPlace { handle, root, pid })
+        };
+        let own_window = element(Some(B), Some(B), PID);
+        let cases = [
+            (
+                "own-window-focus-in-a-child",
+                window_of_read(own_window, ReadBy::Event, None, focus(EDIT, B)),
+                None,
+            ),
+            (
+                "own-window-focus-on-it",
+                window_of_read(own_window, ReadBy::Event, None, focus(B, B)),
+                Some(B),
+            ),
+            (
+                "a-child-with-a-handle",
+                window_of_read(
+                    element(Some(EDIT), Some(B), PID),
+                    ReadBy::Event,
+                    None,
+                    focus(EDIT, B),
+                ),
+                Some(B),
+            ),
+            (
+                "an-element-of-another-window",
+                window_of_read(
+                    element(Some(0x110), Some(A), PID),
+                    ReadBy::Event,
+                    None,
+                    focus(EDIT, B),
+                ),
+                Some(A),
+            ),
+            (
+                "no-handle-by-an-event",
+                window_of_read(
+                    element(None, None, PID),
+                    ReadBy::Event,
+                    None,
+                    focus(EDIT, B),
+                ),
+                None,
+            ),
+            (
+                "no-handle-by-an-own-read",
+                window_of_read(
+                    element(None, None, PID),
+                    ReadBy::OwnRead,
+                    focus(EDIT, B),
+                    focus(EDIT, B),
+                ),
+                Some(B),
+            ),
+            (
+                "no-handle-of-another-process",
+                window_of_read(
+                    element(None, None, Some(8)),
+                    ReadBy::OwnRead,
+                    focus(EDIT, B),
+                    focus(EDIT, B),
+                ),
+                None,
+            ),
+            (
+                "no-handle-across-a-switch",
+                window_of_read(
+                    element(None, None, PID),
+                    ReadBy::OwnRead,
+                    focus(0x110, A),
+                    focus(EDIT, B),
+                ),
+                None,
+            ),
+            (
+                "failed-by-an-event",
+                window_of_read(ReadElement::Failed, ReadBy::Event, None, focus(EDIT, B)),
+                Some(B),
+            ),
+            (
+                "failed-own-read",
+                window_of_read(
+                    ReadElement::Failed,
+                    ReadBy::OwnRead,
+                    focus(EDIT, B),
+                    focus(EDIT, B),
+                ),
+                Some(B),
+            ),
+            (
+                "failed-across-a-switch",
+                window_of_read(
+                    ReadElement::Failed,
+                    ReadBy::OwnRead,
+                    focus(0x110, A),
+                    focus(EDIT, B),
+                ),
+                None,
+            ),
+            (
+                "failed-with-no-focus",
+                window_of_read(ReadElement::Failed, ReadBy::Event, None, None),
+                None,
+            ),
+        ];
+        let wrong: Vec<String> = cases
+            .iter()
+            .filter(|(_, told, wanted)| told != wanted)
+            .map(|(case, told, _)| format!("{case}={told:?}"))
+            .collect();
+        assert!(wrong.is_empty(), "windows told otherwise: {wrong:?}");
+        let mut bench = Bench::new();
+        bench.gate.focus_read_in(Some(A), 900, answered(false));
+        bench.ask(B, AskBy::Front, 1_000);
+        bench.gate.focus_read_in(None, 1_004, answered(false));
+        let at_the_windows_own_element = bench.look(B, 1_008);
+        bench.gate.own_read_in(Some(B), 1_010, answered(true));
+        let at_its_password_field = bench.look(B, 1_016);
+        let mut early = Bench::new();
+        early.ask(B, AskBy::Front, 1_000);
+        early.gate.focus_read_in(Some(B), 1_004, answered(false));
+        let a_read_of_the_window_before_the_focus_moved = early.look(B, 1_008);
+        assert_eq!(
+            (
+                at_the_windows_own_element,
+                at_its_password_field,
+                a_read_of_the_window_before_the_focus_moved
+            ),
+            (None, Some(false), Some(true))
+        );
+    }
+
+    #[test]
+    fn order_8_a_read_of_the_window_from_before_its_switch_decides_nothing() {
+        let mut bench = Bench::new();
+        bench.ask(B, AskBy::Front, 500);
+        bench.gate.focus_read_in(Some(B), 600, answered(false));
+        let first_visit = bench.look(B, 610);
+        bench.ask(A, AskBy::Front, 800);
+        let in_a_window_that_gave_no_read = bench.look(A, 900);
+        bench.ask(B, AskBy::Front, 1_000);
+        let back_at_the_old_read = bench.look(B, 1_000);
+        bench.gate.focus_read_in(Some(B), 1_010, answered(true));
+        let at_the_new_read = bench.look(B, 1_016);
+        assert_eq!(
+            (
+                first_visit,
+                in_a_window_that_gave_no_read,
+                back_at_the_old_read,
+                at_the_new_read
+            ),
+            (Some(true), None, None, Some(false))
+        );
+    }
+
+    #[test]
+    fn order_9_a_desktop_switch_is_a_reading_of_no_window() {
+        let mut bench = Bench::new();
+        bench.ask(B, AskBy::Front, 1_000);
+        bench.gate.focus_read_in(Some(B), 1_010, answered(false));
+        let at_the_switch = bench.look(B, 1_016);
+        bench.gate.switch_desktop_at(1_100);
+        bench.ask(B, AskBy::Name, 1_200);
+        let a_name_change_after_the_desktop_switch = bench.look(B, 1_200);
+        bench.gate.focus_read_in(Some(B), 1_300, answered(true));
+        let at_the_read_behind_it = bench.look(B, 1_316);
+        assert_eq!(
+            (
+                at_the_switch,
+                a_name_change_after_the_desktop_switch,
+                at_the_read_behind_it
+            ),
+            (Some(true), None, Some(false))
+        );
+        assert_eq!(bench.drops.read().secure_input, 1);
+    }
+
+    #[test]
+    fn point_4_password_and_a_failed_read_and_firefox_drop_and_no_answer_keeps() {
+        use crate::secure_input::windows::{FocusRead, Kind};
+        let cases = [
+            ("password", answered(true), false),
+            ("protected", FocusRead::NoAnswer { protected: true }, false),
+            ("failed", FocusRead::Unreadable, false),
+            (
+                "firefox",
+                FocusRead::Answered {
+                    is_password: false,
+                    protected: false,
+                    kind: Kind::Firefox,
+                },
+                false,
+            ),
+            ("no-answer", FocusRead::NoAnswer { protected: false }, true),
+            ("clear", answered(false), true),
+        ];
+        for (case, read, written) in cases {
+            let mut bench = Bench::new();
+            bench.ask(B, AskBy::Front, 1_000);
+            bench.gate.focus_read_in(Some(B), 1_010, read);
+            assert_eq!(bench.look(B, 1_016), Some(written), "{case}");
+        }
+    }
+
+    #[test]
+    fn the_wait_holds_no_event_and_ends_with_its_window() {
+        let mut bench = Bench::new();
+        bench.ask(B, AskBy::Front, 1_000);
+        let began = std::time::Instant::now();
+        let first = bench.waiting.look(Some(&bench.gate), B, 1_000);
+        let took = began.elapsed();
+        let at_no_window_in_front = bench.waiting.look(Some(&bench.gate), 0, 1_100);
+        let another_in_front = bench.waiting.look(Some(&bench.gate), C, 1_200);
+        let after = bench.waiting.look(Some(&bench.gate), C, 1_300);
+        assert_eq!(
+            (first, at_no_window_in_front, another_in_front, after),
+            (Look::Wait(16), Look::Wait(16), Look::Left, Look::Idle)
+        );
+        assert!(took < Duration::from_millis(100), "a look took {took:?}");
+        bench.ask(B, AskBy::Front, 1_400);
+        let waited_at_the_stop = bench.waiting.stop();
+        let after_the_stop = bench.waiting.look(Some(&bench.gate), B, 1_500);
+        assert_eq!((waited_at_the_stop, after_the_stop), (true, Look::Idle));
+        let counts = WaitCounts::default();
+        counts.ended_unread(Some(&counts.replaced));
+        counts.ended_unread(Some(&counts.left));
+        counts.ended_unread(None);
+        counts.decided(Duration::ZERO, true);
+        counts.decided(Duration::from_millis(40), false);
+        counts.decided(Duration::from_millis(2_500), false);
+        assert_eq!(
+            counts.read(),
+            TitleWaits {
+                at_once: 1,
+                after_a_wait: 1,
+                behind_the_bound: 1,
+                replaced: 1,
+                left: 1,
+                ended_with_no_read: 3,
+                longest_wait_ms: 2_500,
+            }
+        );
+    }
+
+    #[test]
+    fn a_name_change_while_the_ask_waits_keeps_that_ask_and_its_time() {
+        let mut bench = Bench::new();
+        bench.ask(B, AskBy::Front, 1_000);
+        let replaced = bench.ask(B, AskBy::Name, 1_050);
+        bench.gate.focus_read_in(Some(B), 1_020, answered(false));
+        let decided = bench.waiting.look(Some(&bench.gate), B, 1_060);
+        assert!(!replaced, "a name change took the place of the ask");
+        assert!(
+            matches!(
+                decided,
+                Look::Decide(
+                    TitleAsk {
+                        why: TitleWhy::AppChange,
+                        tick: 1_000,
+                        since: Some(1_000),
+                        ..
+                    },
+                    Some(_)
+                )
+            ),
+            "{decided:?}"
+        );
+    }
+
+    #[test]
+    fn a_title_source_with_no_gate_decides_at_once_and_records_nothing() {
+        let mut bench = Bench::new();
+        bench.ask(B, AskBy::Front, 1_000);
+        let decided = bench.waiting.look(None, B, 1_000);
+        assert_eq!(
+            decided,
+            Look::Decide(
+                TitleAsk {
+                    window: B,
+                    why: TitleWhy::AppChange,
+                    tick: 1_000,
+                    since: Some(1_000),
+                    asked: 1_000,
+                },
+                None
+            )
+        );
+    }
+
+    #[test]
+    fn the_window_of_a_read_changes_no_answer_of_a_key() {
+        use crate::secure_input::windows::FocusRead;
+        let reads = [
+            answered(true),
+            answered(false),
+            FocusRead::NoAnswer { protected: false },
+            FocusRead::Unreadable,
+        ];
+        for read in reads {
+            let answers: Vec<_> = [None, Some(A), Some(B)]
+                .into_iter()
+                .map(|window| {
+                    let gate = PasswordGate::new();
+                    let key = gate.hold(1_000, false, 7);
+                    gate.focus_read_in(window, 1_010, read);
+                    gate.landing_at(1_012, crate::secure_input::windows::FieldState::Clear);
+                    gate.own_read_in(window, 1_130, read);
+                    let decided = |now| gate.clearance(&key, now).map(|answer| answer.map(|_| ()));
+                    (
+                        gate.field_now(),
+                        gate.typing_gate(),
+                        decided(1_140),
+                        decided(1_400),
+                    )
+                })
+                .collect();
+            assert!(
+                answers.windows(2).all(|pair| pair[0] == pair[1]),
+                "{read:?}: {answers:?}"
+            );
+        }
+    }
 
     #[test]
     fn a_title_leaves_no_event_while_the_gate_reads_password_or_unknown_and_one_while_it_reads_clear_or_no_answer(

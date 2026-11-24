@@ -688,6 +688,80 @@ fn judge_marks(m: &Marks, key: &HeldKey, now: u32) -> Judgment {
     }
 }
 
+/// The window that a read of the focused element was of, and the OS time at
+/// which the read ended: what the gate keeps beside its content reading, so
+/// that a window title or a screen frame is decided by a read of its own
+/// window alone. No rule of a key reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ReadOf {
+    pub(crate) window: usize,
+    pub(crate) tick: u32,
+}
+
+/// Where a read found its element: the element's own window handle, the
+/// top-level window of that handle, and the element's process.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct ElementPlace {
+    pub(crate) handle: Option<usize>,
+    pub(crate) root: Option<usize>,
+    pub(crate) pid: Option<u32>,
+}
+
+/// The focus window of the thread in front, its top-level window and its
+/// process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FocusPlace {
+    pub(crate) handle: usize,
+    pub(crate) root: usize,
+    pub(crate) pid: Option<u32>,
+}
+
+/// What a read gave of its element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReadElement {
+    /// No element, or an element that could not be read.
+    Failed,
+    /// An element that was read, where it was found.
+    Read(ElementPlace),
+}
+
+/// The window that a read was of. `before` is the focus place at the start
+/// of an own read, none for a focus event; `after` the focus place at the
+/// end of the read. A failed read is of the top-level window that holds the
+/// focus at its end. An element with a window handle of its own is of the
+/// top-level window of that handle, but the top-level window's own element is
+/// of no window while the focus is in a child of it. An element with no
+/// handle of its own is of no window when a focus event read it: the own read
+/// that the event asks places it. An own read places it, and a failed own
+/// read, only where the focus was in one top-level window at its start and at
+/// its end, and the element only where its process is the focus window's.
+pub(crate) fn window_of_read(
+    element: ReadElement,
+    by: ReadBy,
+    before: Option<FocusPlace>,
+    after: Option<FocusPlace>,
+) -> Option<usize> {
+    let steady = by == ReadBy::Event || before.map(|f| f.root) == after.map(|f| f.root);
+    match element {
+        ReadElement::Failed => after.filter(|_| steady).map(|f| f.root),
+        ReadElement::Read(ElementPlace {
+            handle: Some(handle),
+            root,
+            ..
+        }) => {
+            let root = root?;
+            let focus_in_a_child = after.is_some_and(|f| f.root == root && f.handle != root);
+            (handle != root || !focus_in_a_child).then_some(root)
+        }
+        ReadElement::Read(ElementPlace {
+            handle: None, pid, ..
+        }) => {
+            let focus = after.filter(|_| steady && by == ReadBy::OwnRead)?;
+            (pid.is_some() && focus.pid == pid).then_some(focus.root)
+        }
+    }
+}
+
 /// The probe of the Windows keyboard source: the gate's reading for one key.
 /// Outside the gate's module no probe with a reading of its own can be made:
 ///
@@ -742,10 +816,11 @@ struct Marks {
     pointer_since: Option<u32>,
     forwarded: Option<u32>,
     content: ContentReading,
+    content_of: Option<ReadOf>,
     writer: Option<u64>,
     asked: u64,
     held: u64,
-    pending: Option<(u64, ContentReading)>,
+    pending: Option<(u64, ContentReading, Option<ReadOf>)>,
     held_landings: VecDeque<(u64, u64)>,
     last_consumer: Option<u64>,
     owed: Debts,
@@ -808,10 +883,18 @@ impl Marks {
     /// two reads of one detector the one that was asked later holds, so a
     /// read asked before the reading that the gate holds writes nothing,
     /// whatever each read. Tickets are taken one at a time under the hold of
-    /// the marks, so no two reads have the same ticket.
-    fn set_content(&mut self, by: Option<u64>, ticket: u64, content: ContentReading) {
+    /// the marks, so no two reads have the same ticket. The window that the
+    /// read was of is kept with it.
+    fn set_content(
+        &mut self,
+        by: Option<u64>,
+        ticket: u64,
+        content: ContentReading,
+        of: Option<ReadOf>,
+    ) {
         if self.may_write(by) && ticket > self.held {
             self.content = content;
+            self.content_of = of;
             self.held = ticket;
         }
     }
@@ -822,6 +905,7 @@ impl Marks {
     fn give_up_the_writer(&mut self) {
         self.writer = None;
         self.content = ContentReading::default();
+        self.content_of = None;
         self.pending = None;
     }
 
@@ -1025,20 +1109,34 @@ impl Shared {
         (content, by, ticket): (ContentReading, Option<u64>, u64),
         seen: Option<String>,
     ) {
+        self.field_seen_in(at, state, (content, None, by, ticket), seen);
+    }
+
+    /// A focus event's read lands: its key's state and its content reading,
+    /// with the window that it was of, which ended at `at`.
+    fn field_seen_in(
+        &self,
+        at: u32,
+        state: FieldState,
+        (content, window, by, ticket): (ContentReading, Option<usize>, Option<u64>, u64),
+        seen: Option<String>,
+    ) {
+        let of = window.map(|window| ReadOf { window, tick: at });
         let mut marks = self.lock();
         marks.push(Some(at), at, Mark::Field(state));
         if marks.started.is_some() && marks.first_read.is_none() {
-            if marks.may_write(by) && marks.pending.is_none_or(|(asked, _)| ticket > asked) {
-                marks.pending = Some((ticket, content));
+            if marks.may_write(by) && marks.pending.is_none_or(|(asked, ..)| ticket > asked) {
+                marks.pending = Some((ticket, content, of));
             }
         } else {
-            marks.set_content(by, ticket, content);
+            marks.set_content(by, ticket, content, of);
         }
         marks.events_in_flight = marks.events_in_flight.saturating_sub(1);
         marks.ask_read(at);
         note_mark("event", Some(state), None, Some(at), at, seen);
     }
 
+    #[cfg(test)]
     fn read_seen(
         &self,
         began: u32,
@@ -1047,13 +1145,34 @@ impl Shared {
         moved: Moved,
         seen: Option<String>,
     ) {
+        self.read_seen_in(began, at, (state, content, None, by, ticket), moved, seen);
+    }
+
+    /// An own read lands: its key's state and its content reading, with the
+    /// window that it was of, which ended at `at`.
+    #[allow(clippy::type_complexity)]
+    fn read_seen_in(
+        &self,
+        began: u32,
+        at: u32,
+        (state, content, window, by, ticket): (
+            FieldState,
+            ContentReading,
+            Option<usize>,
+            Option<u64>,
+            u64,
+        ),
+        moved: Moved,
+        seen: Option<String>,
+    ) {
         note_mark("read", Some(state), Some(moved), Some(at), began, seen);
         let mut marks = self.lock();
         marks.push(Some(at), began, Mark::Read { state, moved });
-        if let Some((asked, carried)) = marks.pending.take() {
-            marks.set_content(by, asked, carried);
+        if let Some((asked, carried, carried_of)) = marks.pending.take() {
+            marks.set_content(by, asked, carried, carried_of);
         }
-        marks.set_content(by, ticket, content);
+        let of = window.map(|window| ReadOf { window, tick: at });
+        marks.set_content(by, ticket, content, of);
         if marks.settle_due.is_some_and(|due| not_after(due, began)) {
             marks.settle_due = None;
         }
@@ -1385,8 +1504,28 @@ impl PasswordGate {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// The probe of the reading of this moment, whatever window it is of.
+    #[cfg(test)]
     pub(crate) fn content_probe(&self) -> PasswordFieldProbe {
-        let reading = self.content_reading();
+        self.probe_of(self.content_reading())
+    }
+
+    /// The content reading where the gate's newest read is of `window` and
+    /// ended at or after `since`, where one is given; nothing is counted.
+    pub(crate) fn content_reading_of(
+        &self,
+        window: usize,
+        since: Option<u32>,
+    ) -> Option<ContentReading> {
+        let marks = self.shared.lock();
+        let of = marks.content_of?;
+        let in_time = since.is_none_or(|since| offset(of.tick, since) >= 0);
+        (of.window == window && in_time).then_some(marks.content)
+    }
+
+    /// The probe of `reading`, counted among the readings that the sources of
+    /// this gate asked of it.
+    pub(crate) fn probe_of(&self, reading: ContentReading) -> PasswordFieldProbe {
         self.shared
             .readings
             .lock()
@@ -1398,6 +1537,16 @@ impl PasswordGate {
             ContentReading::NoAnswer => SecureInputReading::NoAnswer,
             ContentReading::Unknown(_) => SecureInputReading::Unknown,
         })
+    }
+
+    /// The probe of a frame while `window` is in front: the gate's reading
+    /// where its newest read is of that window, else the probe that reads
+    /// Unknown, and then nothing is counted.
+    pub(crate) fn probe_for_window(&self, window: usize) -> PasswordFieldProbe {
+        self.content_reading_of(window, None)
+            .map_or_else(PasswordFieldProbe::default, |reading| {
+                self.probe_of(reading)
+            })
     }
 
     #[cfg(test)]
@@ -1423,6 +1572,35 @@ impl PasswordGate {
         let key = state_of(read, false);
         self.shared
             .field(at, key, content_of(read, firefox, key), None);
+    }
+
+    /// A focus event of one read that was of `window`, as the detector marks
+    /// it with no kept password element.
+    #[cfg(test)]
+    pub(crate) fn focus_read_in(&self, window: Option<usize>, at: u32, read: FocusRead) {
+        let key = state_of(read, false);
+        let (_, ticket) = self.shared.begin_asked_event();
+        self.shared.field_seen_in(
+            at,
+            key,
+            (content_of(read, false, key), window, None, ticket),
+            None,
+        );
+    }
+
+    /// An own read of one read that was of `window`, which began and ended
+    /// at `at`, as the detector marks it with no kept password element.
+    #[cfg(test)]
+    pub(crate) fn own_read_in(&self, window: Option<usize>, at: u32, read: FocusRead) {
+        let key = state_of(read, false);
+        let ticket = self.shared.lock().ask();
+        self.shared.read_seen_in(
+            at,
+            at,
+            (key, content_of(read, false, key), window, None, ticket),
+            Moved::Same,
+            None,
+        );
     }
 
     #[cfg(test)]
@@ -1514,18 +1692,21 @@ mod detector {
         IUIAutomationCacheRequest, IUIAutomationElement, IUIAutomationFocusChangedEventHandler,
         IUIAutomationFocusChangedEventHandler_Vtbl, SetWinEventHook, UIA_FrameworkIdPropertyId,
         UIA_IsPasswordPropertyId, UIA_LegacyIAccessiblePatternId,
-        UIA_LegacyIAccessibleStatePropertyId, UIA_ProcessIdPropertyId, UnhookWinEvent,
-        HWINEVENTHOOK,
+        UIA_LegacyIAccessibleStatePropertyId, UIA_NativeWindowHandlePropertyId,
+        UIA_ProcessIdPropertyId, UnhookWinEvent, HWINEVENTHOOK,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        DispatchMessageW, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindowLongW,
-        GetWindowThreadProcessId, MsgWaitForMultipleObjectsEx, PeekMessageW, TranslateMessage,
-        ES_PASSWORD, EVENT_OBJECT_VALUECHANGE, EVENT_SYSTEM_DESKTOPSWITCH, GUITHREADINFO,
-        GWL_STYLE, MSG, MWMO_INPUTAVAILABLE, PM_REMOVE, QS_ALLINPUT, STATE_SYSTEM_FOCUSED,
-        STATE_SYSTEM_PROTECTED, WINEVENT_OUTOFCONTEXT,
+        DispatchMessageW, GetAncestor, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo,
+        GetWindowLongW, GetWindowThreadProcessId, MsgWaitForMultipleObjectsEx, PeekMessageW,
+        TranslateMessage, ES_PASSWORD, EVENT_OBJECT_VALUECHANGE, EVENT_SYSTEM_DESKTOPSWITCH,
+        GA_ROOT, GUITHREADINFO, GWL_STYLE, MSG, MWMO_INPUTAVAILABLE, PM_REMOVE, QS_ALLINPUT,
+        STATE_SYSTEM_FOCUSED, STATE_SYSTEM_PROTECTED, WINEVENT_OUTOFCONTEXT,
     };
 
-    use super::{kind_of, FieldState, FocusRead, Kind, PasswordGate, Shared};
+    use super::{
+        kind_of, ElementPlace, FieldState, FocusPlace, FocusRead, Kind, PasswordGate, ReadElement,
+        Shared,
+    };
     use crate::source::CaptureError;
 
     fn os(stage: &'static str, error: &windows::core::Error) -> CaptureError {
@@ -1858,6 +2039,7 @@ mod detector {
             let at = tick();
             marks.push(Some(at), at, super::Mark::Field(FieldState::Unknown));
             marks.content = super::ContentReading::default();
+            marks.content_of = None;
             super::note_mark("stop", Some(FieldState::Unknown), None, Some(at), at, None);
             ended
         }
@@ -2005,6 +2187,69 @@ mod detector {
         (len > 0).then(|| String::from_utf16_lossy(&class[..len]))
     }
 
+    /// The focus window of the thread in front now, its top-level window and
+    /// its process: none where that thread has no focus window.
+    fn focus_place() -> Option<FocusPlace> {
+        let mut info = GUITHREADINFO {
+            cbSize: core::mem::size_of::<GUITHREADINFO>() as u32,
+            ..Default::default()
+        };
+        // SAFETY: GetForegroundWindow and GetWindowThreadProcessId read handle
+        // values; `info` is a live GUITHREADINFO whose size field is set.
+        let focus = unsafe {
+            let thread = GetWindowThreadProcessId(GetForegroundWindow(), None);
+            if thread == 0 || GetGUIThreadInfo(thread, &mut info).is_err() {
+                return None;
+            }
+            info.hwndFocus
+        };
+        if focus.0.is_null() {
+            return None;
+        }
+        let mut pid = 0u32;
+        // SAFETY: GetAncestor takes a handle value, and `pid` is a live u32
+        // that GetWindowThreadProcessId writes.
+        let (root, thread) = unsafe {
+            (
+                GetAncestor(focus, GA_ROOT),
+                GetWindowThreadProcessId(focus, Some(&mut pid)),
+            )
+        };
+        if root.0.is_null() {
+            return None;
+        }
+        Some(FocusPlace {
+            handle: focus.0 as usize,
+            root: root.0 as usize,
+            pid: (thread != 0 && pid != 0).then_some(pid),
+        })
+    }
+
+    /// Where the element was found: its own window handle from its cache,
+    /// the top-level window of that handle, and its process.
+    fn element_place(element: &IUIAutomationElement) -> ElementPlace {
+        // SAFETY: `element` is a live element whose cache holds the
+        // properties that the cache request names.
+        let handle = unsafe { element.CachedNativeWindowHandle() }
+            .ok()
+            .filter(|handle| !handle.0.is_null());
+        // SAFETY: GetAncestor takes a handle value; a handle that is no longer
+        // a window gives null.
+        let root = handle
+            .map(|handle| unsafe { GetAncestor(handle, GA_ROOT) })
+            .filter(|root| !root.0.is_null());
+        // SAFETY: as for the handle.
+        let pid = unsafe { element.CachedProcessId() }
+            .ok()
+            .and_then(|pid| u32::try_from(pid).ok())
+            .filter(|pid| *pid != 0);
+        ElementPlace {
+            handle: handle.map(|handle| handle.0 as usize),
+            root: root.map(|root| root.0 as usize),
+            pid,
+        }
+    }
+
     impl Reader {
         fn read(&self, element: &IUIAutomationElement) -> (FocusRead, bool) {
             // SAFETY: `element` is a live element whose cache holds the
@@ -2084,19 +2329,23 @@ mod detector {
             None
         }
 
+        /// The key's state and the content reading of one read of `element`,
+        /// and the window that the read was of; `before` is the focus place
+        /// at the start of an own read.
         fn state(
             &self,
             element: Option<&IUIAutomationElement>,
             by: super::ReadBy,
-            moves: u64,
-            events_in_flight: bool,
-        ) -> (FieldState, super::ContentReading) {
+            (moves, events_in_flight): (u64, bool),
+            before: Option<FocusPlace>,
+        ) -> (FieldState, super::ContentReading, Option<usize>) {
             let Some(element) = element else {
                 #[cfg(feature = "test-seam")]
                 self.saw("no_element".to_string());
                 return (
                     super::unreadable_state(),
                     super::ContentReading::Unknown(super::UnknownBy::Unreadable),
+                    super::window_of_read(ReadElement::Failed, by, before, focus_place()),
                 );
             };
             let mut kept = self
@@ -2142,14 +2391,24 @@ mod detector {
             let content = focus.map_or(super::ContentReading::Password, |(read, firefox)| {
                 super::content_of(read, firefox, state)
             });
-            (state, content)
+            let found = if matches!(focus, Some((FocusRead::Unreadable, _))) {
+                ReadElement::Failed
+            } else {
+                ReadElement::Read(element_place(element))
+            };
+            let window = super::window_of_read(found, by, before, focus_place());
+            (state, content, window)
         }
 
         fn own(
             &self,
             moves: u64,
             events_in_flight: bool,
-        ) -> ((FieldState, super::ContentReading), super::Moved) {
+        ) -> (
+            (FieldState, super::ContentReading, Option<usize>),
+            super::Moved,
+        ) {
+            let before = focus_place();
             // SAFETY: the cache request is live for the call.
             let element = unsafe { self.automation.GetFocusedElementBuildCache(&self.cache) }.ok();
             let mut last = self
@@ -2173,8 +2432,8 @@ mod detector {
                 self.state(
                     element.as_ref(),
                     super::ReadBy::OwnRead,
-                    moves,
-                    events_in_flight,
+                    (moves, events_in_flight),
+                    before,
                 ),
                 moved,
             )
@@ -2269,19 +2528,20 @@ mod detector {
             )
         };
         let (moves, ticket) = handler.shared.begin_asked_event();
-        let (state, content) = handler
-            .reader
-            .state(element, super::ReadBy::Event, moves, false);
+        let (state, content, window) =
+            handler
+                .reader
+                .state(element, super::ReadBy::Event, (moves, false), None);
         #[cfg(test)]
         IN_FLIGHT.with(|hook| {
             if let Some(hook) = hook.borrow().as_ref() {
                 hook();
             }
         });
-        handler.shared.field_seen(
+        handler.shared.field_seen_in(
             tick(),
             state,
-            (content, handler.writer, ticket),
+            (content, window, handler.writer, ticket),
             handler.reader.seen(),
         );
         handler.wake.set();
@@ -2431,6 +2691,7 @@ mod detector {
                 UIA_ProcessIdPropertyId,
                 UIA_LegacyIAccessibleStatePropertyId,
                 UIA_FrameworkIdPropertyId,
+                UIA_NativeWindowHandlePropertyId,
             ] {
                 cache
                     .AddProperty(property)
@@ -2482,11 +2743,11 @@ mod detector {
             let mut marks = shared.lock();
             (marks.moves, marks.events_in_flight > 0, marks.ask())
         };
-        let ((state, content), moved) = reader.own(moves, events_in_flight);
-        shared.read_seen(
+        let ((state, content, window), moved) = reader.own(moves, events_in_flight);
+        shared.read_seen_in(
             began,
             tick(),
-            (state, content, writer, ticket),
+            (state, content, window, writer, ticket),
             moved,
             reader.seen(),
         );
@@ -2845,8 +3106,9 @@ mod detector {
             assert!(joined.is_ok(), "{joined:?}");
             let _com = Com;
             let reader = new_reader().expect("the reader is made");
-            let (own, content) = reader.state(None, super::super::ReadBy::OwnRead, 0, false);
-            let (event, _) = reader.state(None, super::super::ReadBy::Event, 3, false);
+            let (own, content, _) =
+                reader.state(None, super::super::ReadBy::OwnRead, (0, false), None);
+            let (event, ..) = reader.state(None, super::super::ReadBy::Event, (3, false), None);
             let seen = reader.seen();
             drop(reader);
             assert_eq!(own, FieldState::Unknown);
