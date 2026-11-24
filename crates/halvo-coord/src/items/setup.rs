@@ -251,6 +251,13 @@ impl Setup {
         self.stored.of(param)
     }
 
+    /// The line of `param` that the item holds: the line taken at the item, else its stored line.
+    fn held(&self, param: Param) -> Option<&str> {
+        let i = self.at(param).ok()?;
+        let given = self.given[i].as_ref().and_then(|g| g.first());
+        given.map(String::as_str).or_else(|| self.stored(param))
+    }
+
     /// The body that the owner refused with `overlap`, kept in memory and never stored, which
     /// the flow sends once more after a read with no entry or a switch-off of an agent that the
     /// sentence names; none after any other move that ends it (I3.5 (a); ruling RD-67 3.2 (a)).
@@ -388,7 +395,9 @@ impl Setup {
     /// The line of Which spreadsheet file whose worksheets' names the core reads before it takes
     /// `text` as that question's answer (r4 U3.22c): where the item is open and asks Which sheet,
     /// `param` is Which spreadsheet file, and `text` is a line that the core takes on this build's
-    /// system (`typed_line`) and that differs from the line that the item holds; none otherwise.
+    /// system (`typed_line`) and that differs from the line taken at the item; none otherwise. So
+    /// the first such line of an item with stored lines reads the names ONCE, also where it equals
+    /// the stored line (`holding`; r4 U3.22g, the coordinator's ruling of its log line 19815).
     pub fn sheets_due(&self, param: Param, text: &str) -> Option<String> {
         if param != Param::Workbook || self.state != SetupState::Open {
             return None;
@@ -410,9 +419,10 @@ impl Setup {
 
     /// Which sheet after the item's line of Which spreadsheet file changed (r4 U3.22c): with
     /// `names` that fit (`fit_names`), they are its list, in the workbook's order, and the sheet
-    /// that the item held is dropped, chosen or typed, so that the person chooses from the new
-    /// list; without them, a list of an older line goes with the sheet chosen from it, the typed
-    /// line comes back, and a typed sheet stays. Nothing for an item that does not ask it.
+    /// that the item held is dropped, chosen, typed or stored (r4 U3.22g), so that the person
+    /// chooses from the new list; without them, a list of an older line goes with the sheet chosen
+    /// from it, the typed line comes back, and a typed sheet stays. Nothing for an item that does
+    /// not ask it.
     fn take_sheets(&mut self, names: Option<&[String]>) {
         let Ok(s) = self.at(Param::Sheet) else {
             return;
@@ -424,6 +434,7 @@ impl Setup {
                     .map(|name| (vec![name.clone()], CandidateFrom::Files))
                     .collect();
                 self.given[s] = None;
+                self.stored.sheet = None;
                 self.refused[s] = None;
                 self.untaken[s] = None;
             }
@@ -667,8 +678,8 @@ fn drive(path: &str) -> Option<&str> {
 /// gone, `state` while its body is owed, and `malformed` for a parameter that it does not ask, that
 /// has candidates, or that is neither Which spreadsheet file nor Where the data comes from. The
 /// chooser of Where the data comes from opens in the folder of the line of Which spreadsheet file
-/// that the item holds (`folder_of`); the other, and that one while the item holds no such line,
-/// where the system opens it.
+/// that the item holds, the line taken at the item or else its stored line (`folder_of`; r4
+/// U3.22g); the other, and that one while the item holds no such line, where the system opens it.
 pub fn choose_in(setup: &Setup, param: Param, system: System) -> Result<Option<String>, Cause> {
     match setup.state {
         SetupState::AgentGone => return Err(Cause::UnknownAgent),
@@ -682,8 +693,7 @@ pub fn choose_in(setup: &Setup, param: Param, system: System) -> Result<Option<S
     }
     Ok(match param {
         Param::Source => setup
-            .given(Param::Workbook)
-            .and_then(|line| line.first())
+            .held(Param::Workbook)
             .map(|workbook| folder_of(workbook, system).to_owned()),
         _ => None,
     })

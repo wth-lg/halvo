@@ -1245,3 +1245,74 @@ fn u322g_change_its_answers_puts_up_the_stored_answers_and_no_row_or_event_holds
     let item = sheet_setup(&failed).expect("the item is up with a read that failed");
     assert!(SHEET_PARAMS.iter().all(|p| stored_of(&item, *p).is_none()));
 }
+
+/// r4 U3.22g sentence 2: behind Change its answers with four stored answers, the press of Use these
+/// answers with ONE line turned sends what the page's press sends, the three stored lines and the
+/// new line of Where the data comes from, and the owner gets ONE body `set_bindings` whose four
+/// slots hold the three stored values and the new one. Not now sends nothing. The names of the
+/// workbook's sheets are not read at the put-up; the first line of Which spreadsheet file that the
+/// press sends reads them ONCE, though it did not change, and the sheet's line is taken where the
+/// workbook has a sheet of that name. Where it has none (the coordinator's log line 19815), the
+/// list stands at that press and nothing is stored.
+#[test]
+fn u322g_one_line_turned_behind_the_stored_answers_sends_one_body_with_the_three_stored_values() {
+    use crate::types::Choice;
+    let (c, item) = put_up_with(kept_answers());
+    let m = mark(&c);
+    assert_eq!(
+        c.answer(item.item(), Choice::None, None, item.step()),
+        Ok(())
+    );
+    assert!(sheet_setup(&c).is_none(), "Not now closes the item");
+    assert!(sent_or_stored(&c, m).is_empty(), "Not now sends nothing");
+
+    assert_eq!(c.control(&sheet_agent(), Action::ChangeAnswers), Ok(()));
+    let item = sheet_setup(&c).expect("the set-up item is up again");
+    assert!(
+        c.ports().sheet_reads.borrow().is_empty(),
+        "no names at the put-up"
+    );
+    let new = if cfg!(windows) {
+        "D:\\work\\December receipts.csv"
+    } else {
+        "/Volumes/work/December receipts.csv"
+    };
+    let book = kept_answer(Param::Workbook).to_owned();
+    let names = |n: &[&str]| n.iter().map(|s| (*s).to_owned()).collect::<Vec<String>>();
+    let has = names(&["Notes", kept_answer(Param::Sheet)]);
+    c.ports().sheets.borrow_mut().push((book.clone(), has));
+    let m = mark(&c);
+    for p in SHEET_PARAMS {
+        let line = match p {
+            Param::Source => new.to_owned(),
+            _ => stored_of(&item, p).expect("the stored line"),
+        };
+        let typed = c.setup_typed(item.item(), p, &line, item.step());
+        assert_eq!(typed, Ok(()), "{}", p.name());
+    }
+    let sent = set_bindings(&c, m);
+    assert_eq!(sent.len(), 1, "ONE body");
+    for p in [Param::Workbook, Param::Sheet, Param::Range] {
+        let slot = slot_of(&sent[0], p);
+        assert_eq!(slot, Some(vec![kept_answer(p).to_owned()]), "{}", p.name());
+    }
+    assert_eq!(slot_of(&sent[0], Param::Source), Some(vec![new.to_owned()]));
+    let reads = c.ports().sheet_reads.borrow().clone();
+    assert_eq!(
+        reads,
+        vec![book.clone()],
+        "the names read once, at the press"
+    );
+
+    let (lacks, item) = put_up_with(kept_answers());
+    let other = names(&["Plan", "Actual"]);
+    lacks.ports().sheets.borrow_mut().push((book, other));
+    let m = mark(&lacks);
+    for p in SHEET_PARAMS {
+        let line = stored_of(&item, p).expect("the stored line");
+        let typed = lacks.setup_typed(item.item(), p, &line, item.step());
+        assert_eq!(typed, Ok(()), "{}", p.name());
+    }
+    assert_eq!(sheet_list(&lacks), listed(&["Plan", "Actual"]), "the list");
+    assert!(sent_or_stored(&lacks, m).is_empty(), "nothing is stored");
+}
