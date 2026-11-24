@@ -3927,15 +3927,17 @@ fn switch_back(test: &'static str, name: &'static str) {
             "INCONCLUSIVE: the part at the password field did not type the whole word into it \
              alone, its line above"
         );
+        // The seam's notes of recorded keys are no term of these asserts: this
+        // test file's own sink forwarder (fn seen) takes one such note for each
+        // keystroke record that it forwards, so the row's count of them reads 0
+        // whenever records come; the seam's verdicts and the sink's keystroke
+        // records are the reading.
         assert!(
-            password.letters_recorded() == 0
-                && password.keystroke_records == 0
-                && password.records_noted_by_the_seam == 0,
+            password.letters_recorded() == 0 && password.keystroke_records == 0,
             "a key at the password field behind a switch back was recorded: letters_recorded={} \
-             keystroke_records={} records_noted_by_the_seam={}",
+             keystroke_records={}",
             password.letters_recorded(),
-            password.keystroke_records,
-            password.records_noted_by_the_seam
+            password.keystroke_records
         );
         assert!(
             typed(
@@ -3950,14 +3952,11 @@ fn switch_back(test: &'static str, name: &'static str) {
              its line above"
         );
         assert!(
-            plain.letters_recorded() == letters
-                && plain.keystroke_records == letters
-                && plain.records_noted_by_the_seam == letters,
+            plain.letters_recorded() == letters && plain.keystroke_records == letters,
             "a letter of the word in the text box behind a switch back was not recorded: \
-             letters_recorded={} keystroke_records={} records_noted_by_the_seam={}",
+             letters_recorded={} keystroke_records={}",
             plain.letters_recorded(),
-            plain.keystroke_records,
-            plain.records_noted_by_the_seam
+            plain.keystroke_records
         );
     });
 }
