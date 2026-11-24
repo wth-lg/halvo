@@ -1347,6 +1347,7 @@ fn helper_child_window() {
         Ok("own-window") => return child_own_window(),
         Ok("hang") => return child_hang(),
         Ok("background") => return child_background(secs),
+        Ok("front-on-go") => return browser::child_front_on_go(secs),
         _ => {}
     }
     let first = TestWindow::create(&normal_window(
