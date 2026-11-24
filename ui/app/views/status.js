@@ -167,7 +167,7 @@
     if (s.hold) reason.textContent = heldReason(s);
     else if (s.service !== "running") reason.textContent = "";
     else if (s.capture === "faulted") reason.textContent = FAULT[s.capture_reason] || "";
-    else reason.textContent = leftOutInDoubt(s) ? w.LEFT_OUT_IN_DOUBT : "";
+    else reason.textContent = leftOutInDoubt(s) ? w.LEFT_OUT_IN_DOUBT : keptPrivate(s) ? w.TYPING_KEPT_PRIVATE : "";
     renderToggle(s);
     renderSources(s);
     var d = s.drain;
@@ -186,6 +186,13 @@
 
   function leftOutInDoubt(s) {
     return (s.capture === "running" || s.capture === "partial") && s.left_out_in_doubt === true;
+  }
+
+  function keptPrivate(s) {
+    var kept = (s.sources || []).some(function (src) {
+      return src.name === "input" && src.state === "impaired" && src.reason === "secure_input_elsewhere";
+    });
+    return (s.capture === "running" || s.capture === "partial") && kept;
   }
 
   function crashReportLeft(folder) {
