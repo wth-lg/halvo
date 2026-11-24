@@ -118,33 +118,43 @@ impl Folder {
     /// has it, with one separator, the comma, the semicolon or the tab, and no header row; an
     /// empty file has no row. One UTF-8 byte-order mark at the file's first byte is skipped (a
     /// mark at another place is text), a line ends with LF or CRLF, and the last line reads the
-    /// same with its line end and without it. The separator is the semicolon where every line
-    /// that is not empty, read as a row of semicolons (a double quote at the line's start or
-    /// right behind a semicolon opens a quoted field, two double quotes in it are one, and the
-    /// semicolons inside it are not counted), holds one or more semicolons and as many as every
-    /// other such line; the tab by the same rule for tabs; the comma in every other file, so an
-    /// empty line counts for nothing and a file whose lines hold different counts of semicolons
-    /// is read by its commas (r3 U11.5). A field that begins with a double quote holds the
-    /// separator, and two double quotes in it are one; a double quote inside a field that does
-    /// not begin with one is text, and so is one behind a space; the two signs that are not the
-    /// separator are text. The quotes give the field's bounds and nothing else. In a file read by
-    /// commas a field, quoted or not, is a number when its text is digits with an optional
-    /// leading `-` and at most one `.`, with no zero before another digit of its whole part and
-    /// at most 15 significant digits; every other field is a text, as typed (`007` and a number
-    /// of 20 digits stay texts, and `"123"` is the number 123). In a file read by semicolons or
-    /// by tabs a field of that form with no decimal sign is a number, and the file has one
-    /// decimal sign: the comma where a field is a number with a decimal comma and none is one
-    /// with a decimal point, the point the other way round. Such a number holds its sign once,
-    /// with a digit on each side, and is not of the shape of a thousands group, one to three
-    /// digits other than a lone `0`, the sign and three digits, which has two readings (`1,234`
-    /// and `1.234` stay texts and decide nothing; `0,125` and `1234,567` have one). In a file
-    /// with a number of each sign, each of them stays a text, and so does every other field.
+    /// same with its line end and without it. A sign holds where every line that is not empty,
+    /// read as a row of that sign (a double quote at the line's start or right behind the sign
+    /// opens a quoted field, two double quotes in it are one, and the signs inside it are not
+    /// counted), holds one or more of the sign and as many as every other such line; an empty
+    /// line counts for nothing (r3 U11.5). A file in which the semicolon or the tab holds is read
+    /// by that sign, and a file in which neither holds by its commas, so a file whose lines hold
+    /// different counts of semicolons is read by its commas. Where the semicolon (or the tab) and
+    /// the comma both hold, the file is read by commas only where it speaks plainly for the comma
+    /// (r3 U11.6): its read by commas stands too, some comma outside its quoted fields does not
+    /// stand beside a digit with a digit or the edge of its field on its other side, no field of
+    /// the semicolon's (or the tab's) reading is, without the spaces at its ends and one sign of
+    /// money (€, $, £, ¥) or percent sign at either end, a number written with a comma (digits,
+    /// points and commas alone, a minus in front at most, a digit at each end, one comma or more),
+    /// and a field of that reading that holds a letter begins with a space and does not end with
+    /// one, where no field of the comma's reading begins with one; every other such file is read by
+    /// the semicolon (or the tab), and no count of numbers decides. A field that begins with a
+    /// double quote holds the separator, and two double quotes in it are one; a double quote inside
+    /// a field that does not begin with one is text, and so is one behind a space; the two signs
+    /// that are not the separator are text. The quotes give the field's bounds and nothing else. In
+    /// a file read by commas a field, quoted or not, is a number when its text is digits with an
+    /// optional leading `-` and at most one `.`, with no zero before another digit of its whole
+    /// part and at most 15 significant digits; every other field is a text, as typed (`007` and a
+    /// number of 20 digits stay texts, and `"123"` is the number 123). In a file read by semicolons
+    /// or by tabs a field of that form with no decimal sign is a number, and the file has one
+    /// decimal sign: the comma where a field is a number with a decimal comma and none is one with
+    /// a decimal point, the point the other way round. Such a number holds its sign once, with a
+    /// digit on each side, and is not of the shape of a thousands group, one to three digits other
+    /// than a lone `0`, the sign and three digits, which has two readings (`1,234` and `1.234` stay
+    /// texts and decide nothing; `0,125` and `1234,567` have one). In a file with a number of each
+    /// sign, each of them stays a text, and so does every other field.
     /// Refused with [`Error::Source`], in this order where two hold: the file is not UTF-8, whose
     /// cause by [`Error::source_cause`] is `data_encoding`; then, with the cause `data_form`: the
-    /// semicolon and the tab both hold as its separator; it holds a carriage return that no line
-    /// feed follows, a line break inside a quoted field, text behind a closing quote or a quote
-    /// that is never closed, the first of them in the file named; or its rows have different
-    /// lengths.
+    /// semicolon and the tab both hold as its separator; or, read by the separator that is told,
+    /// it holds a carriage return that no line feed follows, a line break inside a quoted field,
+    /// text behind a closing quote or a quote that is never closed, the first of them in the file
+    /// named, or its rows have different lengths. A file in which the semicolon or the tab holds
+    /// is refused for a fault of its read by that sign, even where the comma holds too.
     pub fn read_source(&self, source: &Path) -> Result<Vec<Vec<Value>>, Error> {
         let full = self.file(source)?;
         source::parse(&std::fs::read(full)?)

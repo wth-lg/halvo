@@ -1,0 +1,1 @@
+- Fixed: A comma data file whose every row holds a semicolon followed by a space in a text is read by its commas, where the named cells got its texts split at the semicolons before.
