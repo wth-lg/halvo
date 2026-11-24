@@ -291,7 +291,7 @@ test("status-honest: where Halvo left out every record by doubt, the line under 
 });
 
 test("typing-says: where the Mac's input row reads impaired by secure_input_elsewhere, the line under the heading says the ruled sentence with the heading and the dot as they are; plain, by another reason, as the pointer, on Windows, paused or held it does not, and beside the doubt the doubt's sentence alone shows", async () => {
-  const said = "Halvo is not recording typing, window titles or screen activity right now, because a password field or another app has asked your Mac to keep typing private. It records them again by itself when that ends.";
+  const said = "Halvo is not recording typing right now, because a password field or another app has asked your Mac to keep typing private. It records typing again by itself when that ends.";
   const doubt = "Halvo could not tell whether to leave out the app that you were using, so it has recorded nothing since then. It records again as soon as it can tell.";
   const turned = (status, name, row) => ({ ...status, sources: status.sources.map((src) => (src.name === name ? { ...src, ...row } : src)) });
   const elsewhere = { state: "impaired", reason: "secure_input_elsewhere" };
