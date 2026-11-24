@@ -43,9 +43,10 @@ type Rows<'a> = Vec<Vec<Cow<'a, str>>>;
 /// comma: its read by commas stands too, and all three hold: (i) some comma outside its quoted
 /// fields does not stand beside a digit with a digit or the edge of its field on its other side
 /// (`in_numbers`); (ii) no field of the semicolon's reading, without the spaces at its ends, is a
-/// number written with a comma (`comma_number`); (iii) a field of the semicolon's reading begins
-/// with a space and no field of the comma's reading does (`spaced`). In every other such file the
-/// semicolon (or the tab) stands. No count of numbers decides (r3 U11.6).
+/// number written with a comma (`comma_number`); (iii) a field of the semicolon's reading that is
+/// of no number's make (`number_make`) begins with a space, and no field of the comma's reading
+/// begins with one (`spaced`). In every other such file the semicolon (or the tab) stands. No
+/// count of numbers decides (r3 U11.6).
 fn reading(text: &str) -> Result<(u8, Rows<'_>), Error> {
     let sign = match (holds(text, b';'), holds(text, b'\t')) {
         (true, true) => return Err(Error::Source(SourceRefusal::TwoSeparators)),
@@ -54,39 +55,46 @@ fn reading(text: &str) -> Result<(u8, Rows<'_>), Error> {
         (false, false) => return Ok((b',', read(text, b',')?)),
     };
     let theirs = read(text, sign)?;
+    let texts = theirs.iter().flatten().filter(|cell| !number_make(cell));
     let stands = !holds(text, b',')
         || in_numbers(text, sign)
         || theirs.iter().flatten().any(|cell| comma_number(cell))
-        || !spaced(&theirs);
+        || !spaced(texts);
     if stands {
         return Ok((sign, theirs));
     }
     match read(text, b',') {
-        Ok(commas) if !spaced(&commas) => Ok((b',', commas)),
+        Ok(commas) if !spaced(commas.iter().flatten()) => Ok((b',', commas)),
         _ => Ok((sign, theirs)),
     }
 }
 
-/// Whether `cell`, without the spaces at its ends, is a number written with a comma, whatever
-/// the file's numbers make of it (`Numbers::of`): digits, points and commas alone, a minus in
-/// front at most, a digit at each end, one comma or more (`3.250,50`, `1,250`, `3,250.50`,
-/// `38,40,42`). Condition (ii) of `reading`.
-fn comma_number(cell: &str) -> bool {
+/// Whether `cell`, without the spaces at its ends, has a number's make, whatever the file's
+/// numbers make of it (`Numbers::of`): a minus in front at most, then digits, points and commas
+/// alone, a digit at each end (`500`, `3.250,50`, `-1.234,56`, `38,40,42`). A field of that make
+/// in the semicolon's reading is no sign for the comma by condition (iii) of `reading`, as a
+/// program writes a whole number of an accounting format with a space in front.
+fn number_make(cell: &str) -> bool {
     let cell = cell.trim_matches(' ');
     let body = cell.strip_prefix('-').unwrap_or(cell);
     let bytes = body.as_bytes();
-    bytes.contains(&b',')
-        && bytes.first().is_some_and(u8::is_ascii_digit)
+    bytes.first().is_some_and(u8::is_ascii_digit)
         && bytes.last().is_some_and(u8::is_ascii_digit)
         && bytes
             .iter()
             .all(|&b| b.is_ascii_digit() || b == b',' || b == b'.')
 }
 
-/// Whether a field of `rows` begins with a space: a sign inside a text is followed by a space,
-/// and a sign that a program writes between values is not. Condition (iii) of `reading`.
-fn spaced(rows: &Rows<'_>) -> bool {
-    rows.iter().flatten().any(|cell| cell.starts_with(' '))
+/// Whether `cell` is a number written with a comma: of a number's make (`number_make`), with one
+/// comma or more (`3.250,50`, `1,250`, `3,250.50`, `38,40,42`). Condition (ii) of `reading`.
+fn comma_number(cell: &str) -> bool {
+    number_make(cell) && cell.contains(',')
+}
+
+/// Whether one of `cells` begins with a space: a sign inside a text is followed by a space, and a
+/// sign that a program writes between values is not. Condition (iii) of `reading`.
+fn spaced<'a>(mut cells: impl Iterator<Item = &'a Cow<'a, str>>) -> bool {
+    cells.any(|cell| cell.starts_with(' '))
 }
 
 /// The lines of `text` that are not empty, each without its line end.
@@ -1076,6 +1084,52 @@ mod tests {
                 Ok(vec![
                     vec![t("Item"), t("note,1.50,1")],
                     vec![t("Item 2"), t("note,2.50,2")],
+                ]),
+            ),
+            (
+                "S1, the semicolon, (iii) fails: a whole number with a space in front is no sign",
+                file(&["Schraube,verzinkt; 500 ", "Mutter,M8; 250 "], "\r\n"),
+                Ok(vec![
+                    vec![t("Schraube,verzinkt"), t(" 500 ")],
+                    vec![t("Mutter,M8"), t(" 250 ")],
+                ]),
+            ),
+            (
+                "S2, the tab, (iii) fails: S1 in tabs",
+                file(&["Schraube,verzinkt\t 500 ", "Mutter,M8\t 250 "], "\r\n"),
+                Ok(vec![
+                    vec![t("Schraube,verzinkt"), t(" 500 ")],
+                    vec![t("Mutter,M8"), t(" 250 ")],
+                ]),
+            ),
+            (
+                "S3, the semicolon, (iii) fails: a padded number between two texts",
+                file(
+                    &[
+                        "Schraube,verzinkt,M8; 500 ;Lager A",
+                        "Mutter,M8,verzinkt; 250 ;Lager B",
+                    ],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("Schraube,verzinkt,M8"), t(" 500 "), t("Lager A")],
+                    vec![t("Mutter,M8,verzinkt"), t(" 250 "), t("Lager B")],
+                ]),
+            ),
+            (
+                "rest (5), the comma by (i), (ii), (iii): a text cell that begins with a space",
+                file(&["S,M; auf Lager", "L,XL; bestellt"], "\r\n"),
+                Ok(vec![
+                    vec![t("S"), t("M; auf Lager")],
+                    vec![t("L"), t("XL; bestellt")],
+                ]),
+            ),
+            (
+                "rest (6), the comma by (i), (ii), (iii): an amount padded with a sign of money",
+                file(&["Schraube,verzinkt; 500 € ", "Mutter,M8; 250 € "], "\r\n"),
+                Ok(vec![
+                    vec![t("Schraube"), t("verzinkt; 500 € ")],
+                    vec![t("Mutter"), t("M8; 250 € ")],
                 ]),
             ),
         ];
