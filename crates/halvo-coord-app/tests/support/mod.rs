@@ -641,6 +641,14 @@ impl Owner for Shared {
         let _turn = self.enter();
         self.ports.replies(workflow, agent, run)
     }
+    fn sheet_answers(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+    ) -> Result<halvo_coord::types::SheetAnswers, PortError> {
+        let _turn = self.enter();
+        self.ports.sheet_answers(workflow, agent)
+    }
 
     fn overlaps(
         &self,

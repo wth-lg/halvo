@@ -354,6 +354,13 @@ fn an_owner_that_does_not_read_overlaps_answers_no_service() {
         ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
             self.0.replies(workflow, agent, run)
         }
+        fn sheet_answers(
+            &self,
+            workflow: &halvo_coord::types::WorkflowId,
+            agent: &halvo_coord::types::AgentId,
+        ) -> Result<halvo_coord::types::SheetAnswers, PortError> {
+            self.0.sheet_answers(workflow, agent)
+        }
     }
     let p = ports(&[(APPROVED, ACCOUNT, &["ann@people.test"], &[])]);
     assert_eq!(
@@ -966,6 +973,13 @@ impl Owner for Misreply<'_> {
     ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
         self.0.replies(workflow, agent, run)
     }
+    fn sheet_answers(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+    ) -> Result<halvo_coord::types::SheetAnswers, PortError> {
+        self.0.sheet_answers(workflow, agent)
+    }
 }
 
 impl halvo_coord::ports::Runs for Misreply<'_> {
@@ -1108,6 +1122,13 @@ impl Owner for PausedLost<'_> {
         run: &halvo_coord::types::RunId,
     ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
         self.p.replies(workflow, agent, run)
+    }
+    fn sheet_answers(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+    ) -> Result<halvo_coord::types::SheetAnswers, PortError> {
+        self.p.sheet_answers(workflow, agent)
     }
     fn overlaps(
         &self,

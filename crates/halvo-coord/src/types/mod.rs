@@ -50,8 +50,8 @@ pub use run::{
 };
 pub use status::{StatusLine, System};
 pub use workflow::{
-    Agent, DismissedWorkflow, FullWorkflow, Kept, PastEffect, PastRun, RunHistory, Unknown,
-    Workflow,
+    Agent, DismissedWorkflow, FullWorkflow, Kept, PastEffect, PastRun, RunHistory, SheetAnswers,
+    Unknown, Workflow,
 };
 
 #[cfg(test)]

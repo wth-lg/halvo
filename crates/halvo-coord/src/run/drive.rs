@@ -262,6 +262,13 @@ impl<P: Owner> Owner for Watch<'_, P> {
     ) -> Result<Vec<ReplyRow>, PortError> {
         self.ports.replies(workflow, agent, run)
     }
+    fn sheet_answers(
+        &self,
+        workflow: &crate::types::WorkflowId,
+        agent: &crate::types::AgentId,
+    ) -> Result<crate::types::SheetAnswers, PortError> {
+        self.ports.sheet_answers(workflow, agent)
+    }
 
     fn overlaps(
         &self,
@@ -820,6 +827,14 @@ mod watch {
             _: &AgentId,
             _: &RunId,
         ) -> Result<Vec<ReplyRow>, PortError> {
+            Err(PortError::Busy)
+        }
+        fn sheet_answers(
+            &self,
+            workflow: &crate::types::WorkflowId,
+            agent: &crate::types::AgentId,
+        ) -> Result<crate::types::SheetAnswers, PortError> {
+            let _ = (workflow, agent);
             Err(PortError::Busy)
         }
 

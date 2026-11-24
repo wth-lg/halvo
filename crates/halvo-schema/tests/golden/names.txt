@@ -383,6 +383,7 @@ set_state
 setup
 sha256
 sheet
+sheet_answers
 shop_order
 shortcut
 show

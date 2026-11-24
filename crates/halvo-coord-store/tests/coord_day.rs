@@ -133,6 +133,14 @@ impl Owner for Pair {
     fn replies(&self, _: &WorkflowId, _: &AgentId, _: &RunId) -> Result<Vec<ReplyRow>, PortError> {
         Err(PortError::NoService)
     }
+    fn sheet_answers(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+    ) -> Result<halvo_coord::types::SheetAnswers, PortError> {
+        let _ = (workflow, agent);
+        Err(PortError::NoService)
+    }
 }
 
 fn hold() -> What {

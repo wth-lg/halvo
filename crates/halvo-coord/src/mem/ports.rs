@@ -6,8 +6,8 @@ use crate::ports::{
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, BindResult, Body, Category, ConfigView,
     Decision, DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome,
-    PastRun, Reply, ReplyRow, RunHistory, RunId, RunSpec, Runtime, Slot, Unknown, What, Workflow,
-    WorkflowId, WorkflowState,
+    PastRun, Reply, ReplyRow, RunHistory, RunId, RunSpec, Runtime, SheetAnswers, Slot, Unknown,
+    What, Workflow, WorkflowId, WorkflowState,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -81,6 +81,8 @@ pub enum Method {
     Overlaps,
     /// `Owner::delete`.
     Delete,
+    /// `Owner::sheet_answers`.
+    SheetAnswers,
 }
 
 /// A call of a port that changes or reads the world outside the coordinator; the reads of the
@@ -245,6 +247,11 @@ pub struct Ports<C> {
     pub overlap_reads: RefCell<Vec<(AgentId, Option<Vec<Slot>>)>>,
     /// The workflow of each decision `delete` that `Owner::delete` acknowledged, in order.
     pub deletes: RefCell<Vec<WorkflowId>>,
+    /// The stored answers that `Owner::sheet_answers` gives, each with its agent, which a test
+    /// fills; an agent that it does not hold has four answers of none (r3 U11.7).
+    pub answers: RefCell<Vec<(AgentId, SheetAnswers)>>,
+    /// The agent of each call of `Owner::sheet_answers`, in order, a refused one among them.
+    pub answer_reads: RefCell<Vec<AgentId>>,
     /// The texts that `Senders::read` refuses, each with its refusal; it takes every other text.
     pub senders: RefCell<Vec<(String, Refused)>>,
     /// The text of each call of `Senders::read`, in order.
@@ -298,6 +305,8 @@ impl<C> Ports<C> {
             reply_reads: RefCell::new(Vec::new()),
             overlap_reads: RefCell::new(Vec::new()),
             deletes: RefCell::new(Vec::new()),
+            answers: RefCell::new(Vec::new()),
+            answer_reads: RefCell::new(Vec::new()),
             senders: RefCell::new(Vec::new()),
             sender_reads: RefCell::new(Vec::new()),
             chosen: RefCell::new(VecDeque::new()),
@@ -1108,6 +1117,36 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
         let more = entries.len() > OVERLAPS_MAX;
         entries.truncate(OVERLAPS_MAX);
         Ok(Overlaps { entries, more })
+    }
+
+    /// As the agent store answers `sheet_answers`: `no_workflow` for a workflow that the list does
+    /// not hold, `binding` for an agent that is not the workflow's, `config` for a workflow of
+    /// another category than `spreadsheet_fill`, and else the answers that `answers` holds for the
+    /// agent, or four of none.
+    fn sheet_answers(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+    ) -> Result<SheetAnswers, PortError> {
+        self.answer_reads.borrow_mut().push(agent.clone());
+        self.refused(Method::SheetAnswers)?;
+        let spreadsheet = match self.workflows.borrow().iter().find(|w| w.id() == workflow) {
+            None => return Err(refusal("no_workflow")),
+            Some(w) => matches!(w, Workflow::Full(f) if f.category == Category::SpreadsheetFill),
+        };
+        if !self.bound(workflow, agent) {
+            return Err(refusal("binding"));
+        }
+        if !spreadsheet {
+            return Err(refusal("config"));
+        }
+        Ok(self
+            .answers
+            .borrow()
+            .iter()
+            .find(|(a, _)| a == agent)
+            .map(|(_, answers)| answers.clone())
+            .unwrap_or_default())
     }
 
     fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {

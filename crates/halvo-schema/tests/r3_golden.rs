@@ -12,8 +12,8 @@ use halvo_schema::executable::body::{
     ModelHold, ModelKeyState, ModelRoom, ModelSettle, ModelUsage, NewModelCount, Overlap,
     OverlapsReply, PastCheckpoint, PastEffect, PutCheckpoint, PutEffect, PutLog, PutModelKey,
     PutPlaybook, PutReplyRow, PutSession, ReadModelKey, RevReply, RoomReply, RunnerCall,
-    RunnerReply, SessionReply, SetBindings, SetModel, SetModelCap, SetState, StandsReply, StartRun,
-    StateReply, StepsReply, Stored, UnknownEffect,
+    RunnerReply, SessionReply, SetBindings, SetModel, SetModelCap, SetState, SheetAnswers,
+    SheetAnswersReply, StandsReply, StartRun, StateReply, StepsReply, Stored, UnknownEffect,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -1023,6 +1023,10 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             agent: Null,
             cap_minor: 2_000,
         }),
+        CoordinatorCall::SheetAnswers(SheetAnswers {
+            workflow: workflow(),
+            agent: agent(),
+        }),
     ]
 }
 
@@ -1254,6 +1258,18 @@ fn coordinator_replies() -> Vec<CoordinatorReply> {
         CoordinatorReply::Cap(CapReply {
             cap_minor: 2_000,
             new_count: YesNo::Yes,
+        }),
+        CoordinatorReply::SheetAnswers(SheetAnswersReply {
+            workbook: Some(own("/srv/sheets/Book.xlsx")),
+            sheet: Some(own("Sheet 1")),
+            range: Some(own("B2:D14")),
+            source: Some(own("/srv/sheets/Data.csv")),
+        }),
+        CoordinatorReply::SheetAnswers(SheetAnswersReply {
+            workbook: None,
+            sheet: None,
+            range: None,
+            source: None,
         }),
     ]
 }

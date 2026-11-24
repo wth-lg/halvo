@@ -6,7 +6,7 @@ use halvo_coord::ports::{
 };
 use halvo_coord::types::{
     Agent, AgentId, Answer, BindResult, Body, Class, Decision, Event, HandbackResult, Reply,
-    ReplyRow, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
+    ReplyRow, RunHistory, RunId, RunSpec, SheetAnswers, Workflow, WorkflowId,
 };
 use std::sync::Arc;
 
@@ -69,6 +69,14 @@ impl<P: Owner> Owner for Wired<P> {
         run: &RunId,
     ) -> Result<Vec<ReplyRow>, PortError> {
         self.ports.replies(workflow, agent, run)
+    }
+
+    fn sheet_answers(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+    ) -> Result<SheetAnswers, PortError> {
+        self.ports.sheet_answers(workflow, agent)
     }
 
     fn overlaps(

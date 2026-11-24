@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
+use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
-    AddOrigin, ListOverlaps, Overlap, OverlapsReply, RevReply, SetBindings, OVERLAPS_MAX,
+    AddOrigin, ListOverlaps, Overlap, OverlapsReply, RevReply, SetBindings, SheetAnswers,
+    SheetAnswersReply, OVERLAPS_MAX,
 };
 use halvo_schema::executable::names::{AgentState, YesNo};
 use halvo_schema::executable::record::Slot;
@@ -19,6 +21,9 @@ use crate::rows;
 use crate::workbook::{workbook_path, PathForm};
 
 const WORKBOOK: &str = "workbook";
+const SHEET: &str = "sheet";
+const RANGE: &str = "range";
+const SOURCE: &str = "source";
 const ACCOUNT_ADDRESS: &str = "account_address";
 const REPLY_SENDERS: &str = "reply_senders";
 const OVERLAP: &str = "overlap";
@@ -57,6 +62,39 @@ pub(crate) fn add_origin(
     let (rev, mut origins, slots) = next(newest)?;
     origins.push(b.origin.clone());
     store(host, &b.workflow, &b.agent, (rev, origins, slots))
+}
+
+/// `sheet_answers` (r3 U11.7): the agent's stored workflow must be of the category `spreadsheet_fill`, else `config`,
+/// checked before any binding is read; then the four slots of its newest bindings, each found by its name and no
+/// other slot read: a name that the revision does not hold, or holds with the empty value, answers none; a value of
+/// one piece answers that piece, which is the value joined; a value of more than one piece, above 1,024 bytes,
+/// refuses the read with `length`, whole, never cut. A refusal holds its name alone.
+pub(crate) fn sheet_answers(
+    host: &dyn Host,
+    b: &SheetAnswers,
+) -> Result<CoordinatorReply, ErrorName> {
+    let workflow = bind::of_agent(host, &b.workflow, &b.agent)?;
+    if workflow.category != SeedCategory::SpreadsheetFill {
+        return Err(Own::Config.into());
+    }
+    let slots = newest(host, &b.workflow, &b.agent)?.map_or_else(Vec::new, |n| n.slots);
+    let answer = |name: &str| -> Result<Option<OwnText>, ErrorName> {
+        match slots
+            .iter()
+            .find(|s| s.name.as_str() == name)
+            .map(|s| s.value.pieces())
+        {
+            None | Some([]) => Ok(None),
+            Some([one]) => OwnText::parse(one).map(Some).map_err(refused),
+            Some(_) => Err(Own::Length.into()),
+        }
+    };
+    Ok(CoordinatorReply::SheetAnswers(SheetAnswersReply {
+        workbook: answer(WORKBOOK)?,
+        sheet: answer(SHEET)?,
+        range: answer(RANGE)?,
+        source: answer(SOURCE)?,
+    }))
 }
 
 pub(crate) fn state_call(

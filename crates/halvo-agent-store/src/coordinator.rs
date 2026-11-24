@@ -236,6 +236,11 @@ use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 ///   answers as `set_model_cap` answers a new count, `{"cap_minor":N,"new_count":"yes"}`, and `length` for a cap
 ///   outside the bounds of a cap line. It lifts what is counted: the app sends it only where `model_room` answered the
 ///   fault of the store's read (halvo-coord-app's `model_limit`), and no other caller of the tree sends it.
+/// - `sheet_answers` (r3 U11.7): it stores nothing and changes no state. For an agent whose stored workflow is of the
+///   category `spreadsheet_fill`, it answers the four slots `workbook`, `sheet`, `range` and `source` of the agent's
+///   newest bindings of that workflow, read by those four names alone, each as one text or null where that revision
+///   holds no value of the name or an empty one. It refuses an agent of any other category with `config` before it
+///   reads a binding, and a stored value of more than 1,024 bytes with `length`, whole, never cut.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -263,6 +268,7 @@ pub fn coordinator(
         CoordinatorCall::ModelRoom(_) => count::room(&*host, now),
         CoordinatorCall::SetModelCap(b) => count::set_cap(host, now, &b),
         CoordinatorCall::NewModelCount(b) => count::start_anew(host, now, &b),
+        CoordinatorCall::SheetAnswers(b) => bindings::sheet_answers(&*host, &b),
     }
 }
 

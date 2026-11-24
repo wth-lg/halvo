@@ -1276,6 +1276,13 @@ impl<P: Owner> Owner for Late<'_, P> {
     ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
         self.ports.replies(workflow, agent, run)
     }
+    fn sheet_answers(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+    ) -> Result<halvo_coord::types::SheetAnswers, PortError> {
+        self.ports.sheet_answers(workflow, agent)
+    }
 }
 
 impl<P: Runs> Runs for Late<'_, P> {

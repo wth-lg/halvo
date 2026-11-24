@@ -4,7 +4,7 @@
 
 use crate::types::{
     Agent, AgentId, Answer, BindResult, Body, ConfigView, Decision, Event, HandbackResult, Name,
-    Reply, ReplyRow, RunHistory, RunId, RunSpec, Slot, Workflow, WorkflowId,
+    Reply, ReplyRow, RunHistory, RunId, RunSpec, SheetAnswers, Slot, Workflow, WorkflowId,
 };
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::fmt;
@@ -68,6 +68,21 @@ pub trait Owner {
         agent: &AgentId,
         run: &RunId,
     ) -> Result<Vec<ReplyRow>, PortError>;
+
+    /// The read `sheet_answers` of the agent-setup run (r3 U11.7), whose body holds `op`, then
+    /// `workflow` and `agent`: for an agent whose stored workflow is of the category
+    /// `spreadsheet_fill` alone, the stored values of the four slots `workbook`, `sheet`, `range`
+    /// and `source` of its newest bindings, each one text of 1 to 1,024 bytes or none where the
+    /// store holds no value of it. The owner refuses an agent of another category with `config`, a
+    /// stored value of more than 1,024 bytes with `length`, a workflow that is not in its list with
+    /// `no_workflow` and an agent that is not the workflow's with `binding`; a reply that the reader
+    /// cannot trust is `no_service`. It stores nothing. The method has no default body, so that
+    /// every owner and every wrapper of one names it (the coordinator's log line 19744).
+    fn sheet_answers(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+    ) -> Result<SheetAnswers, PortError>;
 
     /// The read `list_overlaps` of the agent-setup run's A7.2, whose body holds `op`, then
     /// `workflow` and `agent`, then `slots`: the other live agents that answer mail from a sender
