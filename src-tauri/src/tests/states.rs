@@ -1148,6 +1148,22 @@ fn the_open_view_asks_a_status_without_the_claim_and_the_poller_still_claims() {
 }
 
 #[test]
+fn the_view_hands_left_out_in_doubt_to_the_page_only_while_the_status_carries_it() {
+    for platform in [Platform::Macos, Platform::Windows] {
+        let view = |on: bool| {
+            let status = status_with(platform, |f| f.left_out_in_doubt = on);
+            serde_json::to_value(StatusView::of(&status)).expect("JSON")
+        };
+        assert_eq!(
+            view(true).get("left_out_in_doubt"),
+            Some(&Value::Bool(true)),
+            "{platform:?}"
+        );
+        assert_eq!(view(false).get("left_out_in_doubt"), None, "{platform:?}");
+    }
+}
+
+#[test]
 #[ignore = "prints the view of each state for a review of the fixtures"]
 fn print_the_views_of_the_states() {
     for (name, view) in states() {
