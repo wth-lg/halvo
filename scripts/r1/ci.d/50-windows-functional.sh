@@ -44,6 +44,7 @@ fail() {
 expected_tests() {
   cat <<'EOF'
 a_dropped_keyboard_source_stops_capturing group=native
+a_switch_records_a_title_only_by_the_gates_read_of_the_window_in_front group=native
 a_timed_out_stop_reads_no_input_posted_after_its_answer group=native
 a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event group=native
 a_title_change_while_an_element_with_no_answer_has_the_focus_gives_a_title_event_and_no_frame group=native

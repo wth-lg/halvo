@@ -1343,6 +1343,7 @@ fn helper_child_window() {
         Ok("root") => return child_root(secs),
         Ok("password-title") => return child_password_title(),
         Ok("no-answer-title") => return child_no_answer_title(),
+        Ok("own-window") => return child_own_window(),
         Ok("hang") => return child_hang(),
         Ok("background") => return child_background(secs),
         _ => {}
@@ -1669,6 +1670,107 @@ fn child_no_answer_title() {
              state_asked={state_asked}",
             phases[0],
             phases[1],
+            goes.iter().filter(|seen| **seen).count(),
+            goes.len()
+        ),
+    );
+}
+
+const OWN_WINDOW_PASSWORD_TITLE: &str = "halvo-verify-own-window-password";
+const OWN_WINDOW_PLAIN_TITLE: &str = "halvo-verify-own-window-plain";
+
+/// How long each wait of the row of a switch waits for its state: the child
+/// for each go of the test, the test for each reading of the gate and each
+/// title or drop.
+const OWN_WINDOW_STATE_WAIT: Duration = Duration::from_secs(20);
+
+/// The procedure of a window of the row of a switch: whenever the window is
+/// activated it puts the cursor into its first child window, its one edit,
+/// as a dialog does, so that the focus never rests on the window itself.
+unsafe extern "system" fn own_window_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindow, GW_CHILD, WA_INACTIVE, WM_ACTIVATE};
+    if msg == WM_ACTIVATE && (wparam.0 & 0xFFFF) as u32 != WA_INACTIVE {
+        // SAFETY: GetWindow and SetFocus take handle values of this thread's
+        // windows.
+        if let Ok(edit) = unsafe { GetWindow(hwnd, GW_CHILD) } {
+            // SAFETY: as above.
+            unsafe {
+                let _ = SetFocus(Some(edit));
+            }
+            return LRESULT(0);
+        }
+    }
+    // SAFETY: the arguments are the ones that the system passed.
+    unsafe { test_wnd_proc(hwnd, msg, wparam, lparam) }
+}
+
+/// A hidden window of the row of a switch with one edit, a password edit
+/// where `password` holds, into which its procedure puts the cursor when the
+/// window is activated.
+fn own_window(class: &str, title: &str, password: bool, x: i32) -> TestWindow {
+    use windows::Win32::UI::WindowsAndMessaging::{SetWindowLongPtrW, GWLP_WNDPROC};
+    let mut spec = normal_window(class, title, x, 40);
+    spec.style = WS_OVERLAPPEDWINDOW;
+    let window = TestWindow::create(&spec).expect("the window");
+    let style = if password { ES_PASSWORD_STYLE } else { 0 };
+    window
+        .child_control("EDIT", WINDOW_STYLE(style), 10)
+        .expect("the edit");
+    let procedure: unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT =
+        own_window_proc;
+    // SAFETY: the window belongs to this thread, and its new procedure has
+    // the WNDPROC signature and hands every other message to the class's
+    // procedure.
+    unsafe {
+        SetWindowLongPtrW(window.hwnd, GWLP_WNDPROC, procedure as usize as isize);
+    }
+    window
+}
+
+/// Two windows of the row of a switch: one whose cursor starts in a password
+/// edit, one whose cursor starts in a plain edit. The password window comes
+/// in front, then the plain one, then the password window again, each behind
+/// the test's go for the step before.
+fn child_own_window() {
+    let password = own_window(
+        "HalvoVerifyOwnWindowPassword",
+        OWN_WINDOW_PASSWORD_TITLE,
+        true,
+        40,
+    );
+    let plain = own_window(
+        "HalvoVerifyOwnWindowPlain",
+        OWN_WINDOW_PLAIN_TITLE,
+        false,
+        420,
+    );
+    let mut fronts = Vec::new();
+    let mut goes = Vec::new();
+    for (window, go) in [
+        (&password, "password-first"),
+        (&plain, "plain"),
+        (&password, "password-second"),
+    ] {
+        fronts.push(window.activate());
+        goes.push(wait_for_go(go, OWN_WINDOW_STATE_WAIT));
+    }
+    say(
+        "child",
+        format!(
+            "mode=own-window window_foreground={}/{} method={} goes_seen={}/{}",
+            fronts.iter().filter(|(foreground, _)| *foreground).count(),
+            fronts.len(),
+            fronts
+                .iter()
+                .map(|(_, method)| *method)
+                .collect::<Vec<_>>()
+                .join(","),
             goes.iter().filter(|seen| **seen).count(),
             goes.len()
         ),
@@ -7562,6 +7664,143 @@ fn a_title_change_while_an_element_with_no_answer_has_the_focus_gives_a_title_ev
         assert!(
             frame_drops.secure_input >= 1,
             "the screen source was offered no frame, so no frame shows nothing"
+        );
+    });
+}
+
+/// Waits, draining the events into `seen`, until `done` holds, the child
+/// ends or `limit` passes: whether `done` held.
+fn wait_for_state(
+    events: &Events,
+    seen: &mut Vec<Seen>,
+    child: &mut ChildProcess,
+    limit: Duration,
+    mut done: impl FnMut(&[Seen]) -> bool,
+) -> bool {
+    let began = Instant::now();
+    while !done(seen) && child.try_wait().is_none() && began.elapsed() < limit {
+        seen.extend(events.drain_for(Duration::from_millis(20)));
+    }
+    done(seen)
+}
+
+/// The title source of a service set and its gate, with a child whose two
+/// windows come in front in turn. Every step waits for a state, never for a
+/// time: the password window's ask is dropped once the gate reads its
+/// password edit; the plain window's title is recorded once the gate reads
+/// its plain edit; the password window's ask is dropped again behind it.
+#[test]
+#[ignore = "functional: the title at a switch is decided by the gate's read of the window in front"]
+fn a_switch_records_a_title_only_by_the_gates_read_of_the_window_in_front() {
+    with_deadline("own-window", Duration::from_secs(90), || {
+        env_report("own-window");
+        source_built_by_test("own-window", "window_title");
+        let (sink, events) = capture(4096);
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut title = set.gated_title(WindowTitleSource::new());
+        let title_start = title.begin(SourceContext::new(sink.clone()));
+        let drops = |title: &halvo_capture::windows::sources::Gated<WindowTitleSource>| {
+            title.source().drops().secure_input
+        };
+        let at_the_start = drops(&title);
+        let mut child = spawn_child("own-window", 0);
+        let mut seen = Vec::new();
+        let first_password_read = wait_for_reading(
+            &gate,
+            ContentReading::Password,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+        );
+        let first_dropped = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| drops(&title) > at_the_start,
+        );
+        child.go("password-first");
+        let plain_recorded = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |seen| titles_with(seen, OWN_WINDOW_PLAIN_TITLE) >= 1,
+        );
+        let reading_at_the_plain_title = gate.content_reading();
+        let before_the_second = drops(&title);
+        child.go("plain");
+        let second_password_read = wait_for_reading(
+            &gate,
+            ContentReading::Password,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+        );
+        let second_dropped = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| drops(&title) > before_the_second,
+        );
+        child.go("password-second");
+        while child.try_wait().is_none() {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+        }
+        seen.extend(events.drain_for(Duration::from_millis(800)));
+        let title_stop = stop_counted(&mut title, "window_title");
+        child.print_output();
+        gate_readings("own-window", &gate);
+        let waits = title.source().waits();
+        say(
+            "own-window",
+            format!(
+                "title_waits at_once={} after_a_wait={} behind_the_bound={} replaced={} \
+                 left={} ended_with_no_read={} longest_wait_ms={}",
+                waits.at_once,
+                waits.after_a_wait,
+                waits.behind_the_bound,
+                waits.replaced,
+                waits.left,
+                waits.ended_with_no_read,
+                waits.longest_wait_ms
+            ),
+        );
+        let at_password = titles_with(&seen, OWN_WINDOW_PASSWORD_TITLE);
+        let at_plain = titles_with(&seen, OWN_WINDOW_PLAIN_TITLE);
+        say(
+            "own-window",
+            format!(
+                "title_start={} title_stop={} first_password_read={first_password_read} \
+                 first_dropped={first_dropped} plain_recorded={plain_recorded} \
+                 reading_at_the_plain_title={reading_at_the_plain_title:?} \
+                 second_password_read={second_password_read} second_dropped={second_dropped} \
+                 title_events_of_the_password_window={at_password} \
+                 title_events_of_the_plain_window={at_plain} title_drops_at_secure_input={}",
+                show(&title_start),
+                show(&title_stop),
+                drops(&title)
+            ),
+        );
+        assert!(
+            title_start.is_ok() && title_stop.is_ok(),
+            "the title source must start and stop"
+        );
+        assert!(
+            first_password_read && first_dropped,
+            "the password window's first ask: read {first_password_read}, dropped {first_dropped}"
+        );
+        assert!(
+            plain_recorded,
+            "the plain window's title was not recorded once the gate read its edit"
+        );
+        assert!(
+            second_password_read && second_dropped,
+            "the password window's second ask: read {second_password_read}, dropped {second_dropped}"
+        );
+        assert_eq!(
+            at_password, 0,
+            "a title of the window whose cursor starts in a password edit was recorded"
         );
     });
 }
