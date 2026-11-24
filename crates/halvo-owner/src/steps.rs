@@ -126,7 +126,7 @@ fn proposer_only() -> StepList {
 /// The step list of the owner. It names halvo-identify's recurrence step `Proposer`; after it the learning run's
 /// lines (`learn::lines`): its step `LearnStep`, and `LearnHandlers` in front of the handlers of every `runner` request
 /// and of the `coordinator_write` bodies of `learn::OPS`; then the two handlers of the agent-setup run's family
-/// `agent`: the handler of every `runner` request and the handler of the `coordinator_write` bodies of the twenty-one
+/// `agent`: the handler of every `runner` request and the handler of the `coordinator_write` bodies of the twenty-two
 /// `op` names of `CoordinatorCall`; and then the interface run's family `coord`: the handler of the bodies `coord_log` and
 /// `coord_history` on the host's clock, and the guard that holds a workflow's delete while a run of it is live. A later
 /// run adds its lines here, in their order, a handler in front before the handler behind it:
