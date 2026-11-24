@@ -718,7 +718,7 @@ fn product_limits_are_the_values_of_i0_10() {
     assert_eq!(l.wait_limit_s, 900);
     assert_eq!(l.arm_ms, 500);
     assert_eq!(l.cancel_grace_s, 5);
-    assert_eq!(l.starts_per_day, 6);
+    assert_eq!(l.starts_per_day, 24);
     assert_eq!(l.items_per_run, 8);
     assert_eq!(l.fails_to_pause, 3);
     assert_eq!(l.catch_up_days, 7);
@@ -733,7 +733,7 @@ fn product_limits_are_the_values_of_i0_10() {
     assert_eq!(l.setup_candidates, 8);
 }
 
-const PRODUCT_JSON: &str = "{\"max_live_runs\":1,\"queue_max\":4,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":6,\"items_per_run\":8,\"fails_to_pause\":3,\"catch_up_days\":7,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":20,\"request_bytes\":16384,\"history_runs\":5,\"record_stuck_ticks\":3,\"setup_params\":8,\"setup_candidates\":8}";
+const PRODUCT_JSON: &str = "{\"max_live_runs\":1,\"queue_max\":4,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":24,\"items_per_run\":8,\"fails_to_pause\":3,\"catch_up_days\":7,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":20,\"request_bytes\":16384,\"history_runs\":5,\"record_stuck_ticks\":3,\"setup_params\":8,\"setup_candidates\":8}";
 
 #[test]
 fn the_products_body_bounds_equal_the_schemas() {

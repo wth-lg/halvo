@@ -697,20 +697,21 @@ fn refusal_auto_needs_person() {
 #[test]
 fn refusal_over_budget() {
     let mut w = world(&[manual()]);
-    for _ in 0..6 {
+    let day = w.limits.starts_per_day;
+    for _ in 0..day {
         let run = ok_run(&w.start(0));
         w.end(&run, Some(Outcome::Completed));
     }
     w.forget();
-    let seventh = w.start(0);
-    assert_eq!(seventh.answer, Err(Cause::Budget));
+    let one_more = w.start(0);
+    assert_eq!(one_more.answer, Err(Cause::Budget));
     assert_eq!(w.calls(), Vec::<String>::new());
     let today = w
         .stored()
         .iter()
         .filter(|e| e.day == DAY && matches!(e.what, What::RunStarted { .. }))
         .count();
-    assert_eq!(today, 6);
+    assert_eq!(today, day as usize);
     w.clock(T0 + 1, DAY + 1);
     w.tick();
     ok_run(&w.start(0));
