@@ -404,3 +404,44 @@ fn u323_on_a_day_with_all_its_starts_used_the_row_says_so_whatever_its_last_run_
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// r4 U3.23 sentence 2: where an agent has starts_per_day run_started events of today, so that
+/// step 2 of a start refuses a start of the person with budget, its row offers no Start now,
+/// whatever hold stands (here none, and the hold `failures`), and every other control as on main,
+/// Change its answers among them; with one start fewer today Start now stands.
+#[test]
+fn u323_on_a_day_with_all_its_starts_used_the_row_offers_no_start_now() {
+    use Control::{ChangeAnswers, Delete, RunNow, SwitchOff, SwitchOn};
+    let day = Limits::PRODUCT.starts_per_day;
+    let held = [What::HoldSet {
+        cause: HoldSetCause::Failures,
+    }];
+    let rows: [(&[What], u32, Vec<Control>); 4] = [
+        (&[], day, vec![SwitchOff, ChangeAnswers, Delete]),
+        (&[], day - 1, vec![RunNow, SwitchOff, ChangeAnswers, Delete]),
+        (&held, day, vec![SwitchOn, ChangeAnswers, Delete]),
+        (
+            &held,
+            day - 1,
+            vec![RunNow, SwitchOn, ChangeAnswers, Delete],
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (after, starts, want) in rows {
+        let f = u323_day(starts, RunEnd::Completed, None, after);
+        let line = status(&f, &Limits::PRODUCT, None);
+        let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+        let shown: Vec<Control> = r.controls.iter().map(|c| c.control).collect();
+        if shown != want {
+            let hold = if after.is_empty() {
+                "no hold"
+            } else {
+                "the hold failures"
+            };
+            wrong.push(format!(
+                "{hold}, {starts} starts today: {shown:?}, not {want:?}"
+            ));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}

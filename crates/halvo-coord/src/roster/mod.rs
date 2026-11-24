@@ -309,8 +309,9 @@ pub fn names<C>(
 
 /// The controls of a row (I2.5), in the order of `Control`: `run_now` while no hold but
 /// `failures`, `sign_in_refused` and `site_declined` stands, no run is live or queued and no
-/// set-up item is open, as one that Change its answers put up (r4 U3.22a); `stop`
-/// exactly while a run is live;
+/// set-up item is open, as one that Change its answers put up (r4 U3.22a), and the day has fewer
+/// than `starts_per_day` starts (`used_today`), whatever hold stands, since step 2 of a start
+/// refuses the person's start on such a day (r4 U3.23); `stop` exactly while a run is live;
 /// `take_back` while the agent's start that waits in the queue, whose trigger `waiting` gives,
 /// does not come back without the person once taken back: a start of the person, whatever hold
 /// stands, unless the agent does not ask first, has a finished run and has a slot due by
@@ -329,6 +330,7 @@ pub fn controls<C: ConfigView>(
     let mut out = Vec::new();
     if idle
         && !set_up
+        && !used_today(facts, limits)
         && standing
             .iter()
             .all(|h| matches!(h, Hold::Failures | Hold::SignInRefused | Hold::SiteDeclined))
