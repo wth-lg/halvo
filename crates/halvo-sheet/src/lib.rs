@@ -129,24 +129,23 @@ impl Folder {
     /// the semicolon's (or the tab's) reading is, without the spaces at its ends and one sign of
     /// money (€, $, £, ¥) or percent sign at either end, a number written with a comma (digits,
     /// points and commas alone, a minus in front at most, a digit at each end, one comma or more),
-    /// and a field of that reading that is of no such make with or without a comma begins with a
-    /// space and does not end with one, where no field of the comma's reading begins with one;
-    /// every other such file is read by the semicolon (or the tab), and no count of numbers
-    /// decides. A field that begins with a double quote holds the separator, and two double quotes
-    /// in it are one; a double quote inside a field that does not begin with one is text, and so is
-    /// one behind a space; the two signs that are not the separator are text. The quotes give the
-    /// field's bounds and nothing else. In a file read by commas a field, quoted or not, is a
-    /// number when its text is digits with an optional leading `-` and at most one `.`, with no
-    /// zero before another digit of its whole part and at most 15 significant digits; every other
-    /// field is a text, as typed (`007` and a number of 20 digits stay texts, and `"123"` is the
-    /// number 123). In a file read by semicolons or by tabs a field of that form with no decimal
-    /// sign is a number, and the file has one decimal sign: the comma where a field is a number
-    /// with a decimal comma and none is one with a decimal point, the point the other way round.
-    /// Such a number holds its sign once, with a digit on each side, and is not of the shape of a
-    /// thousands group, one to three digits other than a lone `0`, the sign and three digits, which
-    /// has two readings (`1,234` and `1.234` stay texts and decide nothing; `0,125` and `1234,567`
-    /// have one). In a file with a number of each sign, each of them stays a text, and so does
-    /// every other field.
+    /// and a field of that reading that holds a letter begins with a space and does not end with
+    /// one, where no field of the comma's reading begins with one; every other such file is read by
+    /// the semicolon (or the tab), and no count of numbers decides. A field that begins with a
+    /// double quote holds the separator, and two double quotes in it are one; a double quote inside
+    /// a field that does not begin with one is text, and so is one behind a space; the two signs
+    /// that are not the separator are text. The quotes give the field's bounds and nothing else. In
+    /// a file read by commas a field, quoted or not, is a number when its text is digits with an
+    /// optional leading `-` and at most one `.`, with no zero before another digit of its whole
+    /// part and at most 15 significant digits; every other field is a text, as typed (`007` and a
+    /// number of 20 digits stay texts, and `"123"` is the number 123). In a file read by semicolons
+    /// or by tabs a field of that form with no decimal sign is a number, and the file has one
+    /// decimal sign: the comma where a field is a number with a decimal comma and none is one with
+    /// a decimal point, the point the other way round. Such a number holds its sign once, with a
+    /// digit on each side, and is not of the shape of a thousands group, one to three digits other
+    /// than a lone `0`, the sign and three digits, which has two readings (`1,234` and `1.234` stay
+    /// texts and decide nothing; `0,125` and `1234,567` have one). In a file with a number of each
+    /// sign, each of them stays a text, and so does every other field.
     /// Refused with [`Error::Source`], in this order where two hold: the file is not UTF-8, whose
     /// cause by [`Error::source_cause`] is `data_encoding`; then, with the cause `data_form`: the
     /// semicolon and the tab both hold as its separator; or, read by the separator that is told,
