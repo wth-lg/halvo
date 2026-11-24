@@ -149,19 +149,22 @@ impl Folder {
     /// `0,125` and `1234,567` have one). In a file with a number of each sign, each of them stays
     /// a text. Every other field is an amount as a spreadsheet program shows it, or a text as
     /// typed (r3 U11.8). An amount is, without the spaces at its ends, one sign of money (`$`,
-    /// `€`, `£`, `¥`) at either end with a space or none between, a minus in front, or brackets
-    /// with a sign of money for a negative amount: digits with at most one decimal sign and a
-    /// thousands sign of another kind in groups of three (`$12.50`, `12,50 €`, `1,234.56`,
-    /// `1.234,56`, `($1,234.56)`, `1'234`, `1 234,56` with a no-break space). It is its number
-    /// where its decimal sign, where it has one, is the file's: the point in a file read by
-    /// commas; in a file read by semicolons or by tabs the sign that its numbers tell, or where
-    /// none tells one, the sign that its amounts tell where they tell one alone; a file with a
-    /// number of each sign has none. A column turns whole or not at all: where a field of the
-    /// column holds a digit and no sign but digits, the signs of an amount and a percent sign,
-    /// and is no number, no amount of that column turns; a field that is a number by the forms
-    /// above stays that number. Texts stay: the shape of a thousands group with a sign of money
-    /// (`$1,234`), a thousands sign repeated with no decimal sign (`1,234,567`), letters (`500
-    /// EUR`), a percent, brackets with no sign of money and a minus behind.
+    /// `€`, `£`, `¥`) at either end with a space or none between, a minus (`-` or U+2212) in
+    /// front, or brackets with a sign of money inside them, in front of them or behind them for
+    /// a negative amount: digits with at most one decimal sign and a thousands sign of another
+    /// kind in groups of three (`$12.50`, `12,50 €`, `1,234.56`, `1.234,56`, `($1,234.56)`,
+    /// `(12,50) €`, `1'234`, `1 234,56` with a no-break space). It is its number where its
+    /// decimal sign, where it has one, is the file's: the point in a file read by commas; in a
+    /// file read by semicolons or by tabs the sign that its numbers tell, or where none tells
+    /// one, the sign that its amounts tell where they tell one alone; a file with a number of
+    /// each sign has none. Halvo turns the amounts of a column into numbers only where it can
+    /// read every value of that column: every field that holds a digit and gets no number blocks
+    /// its column, but a field of the first row that holds a letter (a header); a blocked column
+    /// reads as before r3 U11.8, and a field that is a number by the forms above stays that
+    /// number. Texts stay: the shape of a thousands group with a sign of money (`$1,234`), a
+    /// thousands sign repeated with no decimal sign (`1,234,567`), letters (`500 EUR`), a
+    /// percent, brackets with no sign of money, a minus and brackets both (`(-$12.50)`), a minus
+    /// behind and a dash that is no minus.
     /// Refused with [`Error::Source`], in this order where two hold: the file is not UTF-8, whose
     /// cause by [`Error::source_cause`] is `data_encoding`; then, with the cause `data_form`: the
     /// semicolon and the tab both hold as its separator; or, read by the separator that is told,

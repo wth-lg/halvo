@@ -358,20 +358,25 @@ impl Numbers {
     }
 }
 
-/// Whether the amounts of each column of `rows` turn into their numbers (r3 U11.8): a column
-/// turns whole or not at all, so where one of its fields is of an amount's make (`amount_make`)
-/// and gets no number, no amount of that column turns. A field that is a number before r3 U11.8
-/// stays that number in every column (`Numbers::value`).
+/// Whether the amounts of each column of `rows` turn into their numbers (r3 U11.8): Halvo turns
+/// the amounts of a column into numbers only where it can read every value of that column. Every
+/// field that holds a digit (of any script) and gets no number blocks its column, but a field of
+/// the file's first row that holds a letter (of any script), which is taken for a header. A
+/// blocked column reads as before r3 U11.8, and a field that is a number before r3 U11.8 stays
+/// that number in every column (`Numbers::value`).
 fn turning(numbers: Numbers, rows: &[Vec<Cow<'_, str>>]) -> Vec<bool> {
     let width = rows.first().map_or(0, Vec::len);
     (0..width)
         .map(|at| {
-            rows.iter().filter_map(|row| row.get(at)).all(|cell| {
-                !amount_make(cell)
-                    || numbers
-                        .today(cell)
-                        .or_else(|| numbers.amount_number(cell))
-                        .is_some()
+            rows.iter().enumerate().all(|(line, row)| {
+                row.get(at).is_none_or(|cell| {
+                    (line == 0 && cell.chars().any(char::is_alphabetic))
+                        || !cell.chars().any(char::is_numeric)
+                        || numbers
+                            .today(cell)
+                            .or_else(|| numbers.amount_number(cell))
+                            .is_some()
+                })
             })
         })
         .collect()
@@ -438,26 +443,32 @@ const GAPS: [char; 3] = [' ', '\u{a0}', '\u{202f}'];
 /// a decimal sign (`amount`).
 const GROUPS: [char; 4] = ['\'', '\u{2019}', '\u{a0}', '\u{202f}'];
 
+/// The signs that an amount reads as a minus: the plain minus and the true minus sign U+2212; no
+/// other dash (`amount`).
+const MINUS: [char; 2] = ['-', '\u{2212}'];
+
 /// An amount as a spreadsheet program shows it, where its form has one reading (r3 U11.8): its
 /// number, and its decimal sign where it has one. Without the spaces (U+0020) at its ends, ONE
 /// sign of money of `MONEY` at either end with the spaces of `GAPS` or none between it and the
-/// digits, a minus in front of the digits or of the sign of money, or brackets round the amount
-/// with a sign of money inside them or in front of them (a negative amount), it is digits with
-/// at most one decimal sign, the comma or the point, and a thousands sign of another kind (the
-/// other of the two, or one of `GROUPS`) in groups of three behind a first group of one to three
-/// digits, with A11.3's form for its digits (`point_number`). A thousands sign of `GROUPS` needs
-/// no decimal part (`1'234`); the comma or the point as a thousands sign needs the other sign as
-/// the decimal sign (`1,234.56`). Not an amount: the shape of a thousands group with no other
-/// sign (`1,234`, `¥1,234`, `1,799 €`), which has two readings; a sign of thousands repeated with
-/// no decimal sign (`1,234,567`), which may be a list such as `38,40,42`; the Indian grouping
-/// (`12,34,567.89`); a plain space between groups; brackets with no sign of money (`(12.50)`);
-/// letters (`500 EUR`); a percent; and a minus behind (`12.50-`).
+/// digits, a minus of `MINUS` in front of the digits or of the sign of money, or brackets round
+/// the amount with a sign of money inside them, in front of them or behind them (a negative
+/// amount), it is digits with at most one decimal sign, the comma or the point, and a thousands
+/// sign of another kind (the other of the two, or one of `GROUPS`) in groups of three behind a
+/// first group of one to three digits, with A11.3's form for its digits (`point_number`). A
+/// thousands sign of `GROUPS` needs no decimal part (`1'234`); the comma or the point as a
+/// thousands sign needs the other sign as the decimal sign (`1,234.56`). Not an amount: the
+/// shape of a thousands group with no other sign (`1,234`, `¥1,234`, `1,799 €`), which has two
+/// readings; a sign of thousands repeated with no decimal sign (`1,234,567`), which may be a list
+/// such as `38,40,42`; the Indian grouping (`12,34,567.89`); a plain space between groups;
+/// brackets with no sign of money (`(12.50)`); a minus and brackets both, wherever the minus
+/// stands (`(-$12.50)`, `($-12.50)`, `-($12.50)`), which has two readings; letters (`500 EUR`);
+/// a percent; a minus behind (`12.50-`); and a dash that is no minus (U+2013).
 fn amount(cell: &str) -> Option<(f64, Option<char>)> {
     let cell = cell.trim_matches(' ');
     let (cell, outer) = bracketed(cell);
-    let (cell, minus) = match cell.strip_prefix('-') {
-        Some(rest) => (rest, true),
-        None => (cell, false),
+    let (cell, minus) = match cell.strip_prefix(MINUS) {
+        Some(rest) if !outer => (rest, true),
+        _ => (cell, false),
     };
     let (cell, money) = without_money(cell);
     let (cell, inner) = if outer || minus {
@@ -465,7 +476,7 @@ fn amount(cell: &str) -> Option<(f64, Option<char>)> {
     } else {
         bracketed(cell)
     };
-    let (cell, minus_inner) = match cell.strip_prefix('-') {
+    let (cell, minus_inner) = match cell.strip_prefix(MINUS) {
         Some(rest) if !(outer || minus || inner) => (rest, true),
         _ => (cell, false),
     };
@@ -547,19 +558,6 @@ fn amount_body(body: &str) -> Option<(f64, Option<char>)> {
         None => digits,
     };
     point_number(&text).map(|x| (x, decimal))
-}
-
-/// Whether `cell` is of an amount's make (r3 U11.8, the column of `turning`): without the spaces
-/// (U+0020) at its ends it holds a digit and no sign other than digits, the signs of an amount
-/// (`MONEY`, the comma and the point, `GROUPS`, the spaces of `GAPS`, the minus and the brackets)
-/// and the percent sign. A field with a letter is not.
-fn amount_make(cell: &str) -> bool {
-    let cell = cell.trim_matches(' ');
-    let sign = |c: char| {
-        MONEY.contains(&c) || GROUPS.contains(&c) || GAPS.contains(&c) || ",.-()%".contains(c)
-    };
-    cell.contains(|c: char| c.is_ascii_digit())
-        && cell.chars().all(|c| c.is_ascii_digit() || sign(c))
 }
 
 #[cfg(test)]
@@ -1433,6 +1431,8 @@ mod tests {
     fn an_amount_as_a_program_shows_it_is_its_number_where_its_form_has_one_reading() {
         let nb = '\u{a0}';
         let nnb = '\u{202f}';
+        let minus = '\u{2212}';
+        let dash = '\u{2013}';
         // The field, its cell in a file read by commas, its cell in a file read by semicolons.
         let alone: Vec<(String, Value, Value)> = vec![
             // A sign of money at an end, with and without a space.
@@ -1510,6 +1510,17 @@ mod tests {
             ("(12.50)".into(), t("(12.50)"), t("(12.50)")),
             ("12.50-".into(), t("12.50-"), t("12.50-")),
             ("-($12.50)".into(), t("-($12.50)"), t("-($12.50)")),
+            ("(-$12.50)".into(), t("(-$12.50)"), t("(-$12.50)")),
+            ("($-12.50)".into(), t("($-12.50)"), t("($-12.50)")),
+            ("(12,50) €".into(), t("(12,50) €"), n(-12.5)),
+            // The true minus sign U+2212 is a minus; no other dash is.
+            (format!("{minus}$3.00"), n(-3.0), n(-3.0)),
+            (format!("{minus}12.50"), n(-12.5), n(-12.5)),
+            (
+                format!("{dash}12.50"),
+                t(&format!("{dash}12.50")),
+                t(&format!("{dash}12.50")),
+            ),
             // A percent.
             ("50%".into(), t("50%"), t("50%")),
             ("12.5 %".into(), t("12.5 %"), t("12.5 %")),
@@ -1631,17 +1642,31 @@ mod tests {
         assert!(wrong.is_empty(), "{wrong:#?}");
     }
 
-    /// r3 U11.8, the coordinator's ruling P1: a column turns whole or not at all. Where one field
-    /// of an amount's make gets no number, no amount of its column turns; a column of amounts
-    /// that each have one reading turns whole. Each file is read by commas and by semicolons.
+    /// r3 U11.8, the coordinator's rulings P1 and of the round: Halvo turns the amounts of a
+    /// column into numbers only where it can read every value of that column. Where one field
+    /// that holds a digit gets no number, no amount of its column turns, but for a field of the
+    /// first row that holds a letter (a header); a column of amounts that each have one reading
+    /// turns whole. Each file is read by commas and by semicolons.
     #[test]
     fn a_column_of_amounts_turns_whole_or_not_at_all() {
-        let cases: [(&[&str], [Value; 3]); 2] = [
+        let cases: [(&[&str], Vec<Value>); 6] = [
             (
                 &["$950", "$1,234", "$12,500"],
-                [t("$950"), t("$1,234"), t("$12,500")],
+                vec![t("$950"), t("$1,234"), t("$12,500")],
             ),
-            (&["$5", "$12", "$40"], [n(5.0), n(12.0), n(40.0)]),
+            (&["$5", "$12", "$40"], vec![n(5.0), n(12.0), n(40.0)]),
+            // The round (log line 20002): every field that holds a digit and gets no number
+            // blocks its column, but a field of the first row that holds a letter.
+            (&["$12.50", "12.50 USD"], vec![t("$12.50"), t("12.50 USD")]),
+            (
+                &["Amount 2026", "$12.50", "$3.00"],
+                vec![t("Amount 2026"), n(12.5), n(3.0)],
+            ),
+            (&["12.50 USD", "$3.00"], vec![t("12.50 USD"), n(3.0)]),
+            (
+                &["$12.50", "see note 3"],
+                vec![t("$12.50"), t("see note 3")],
+            ),
         ];
         let mut wrong = Vec::new();
         for (cells, want) in &cases {
