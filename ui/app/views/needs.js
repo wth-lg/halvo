@@ -248,6 +248,7 @@
         line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken, p.needs_answer);
         const was = carry && carry.step === item.step ? carry.lines.get(p.name) : null;
         if (was) line.restore(was.text, was.stored && !p.not_taken);
+        else if (typeof p.stored === 'string') line.restore(p.stored, !p.not_taken);
         if (p.choose) set.appendChild(chooser(item, p.name, p.choose));
       }
       box.appendChild(set);
@@ -416,6 +417,7 @@
           return r.input.checked;
         })[0];
         if (picked) card.sent.set(a.param, picked.value);
+        else if (a.line && a.line.kept.trim() !== '') card.sent.set(a.param, a.line.kept);
       });
       const key = card.key;
       const went = [];
