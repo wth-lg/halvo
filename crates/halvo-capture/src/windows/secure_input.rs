@@ -308,6 +308,21 @@ pub(crate) fn lets_go(kept_move: u64, read_move: u64, events_in_flight: bool) ->
     !events_in_flight && read_move > kept_move
 }
 
+/// Whether a read's answer is that of the element read: not where the kept
+/// password element answers for another element, a read that is not of a
+/// password field, by with_kept's last arm. Such a read is of no window, so
+/// that no title or frame of the window in front takes it; the key's state
+/// that it gives stays.
+pub(crate) fn answers_for_its_element(
+    element: KeptElement,
+    read: FieldState,
+    state: FieldState,
+) -> bool {
+    !(element == KeptElement::Other
+        && read != FieldState::Password
+        && state == FieldState::Password)
+}
+
 pub const KEY_HOLD: Duration = Duration::from_millis(120);
 
 /// The largest delay from a key to its focus event that spike S3 measured.
@@ -2464,7 +2479,9 @@ mod detector {
             } else {
                 ReadElement::Read(element_place(element))
             };
-            let window = super::window_of_read(found, by, before, focus_place());
+            let window = super::answers_for_its_element(of_the_kept, read, state)
+                .then(|| super::window_of_read(found, by, before, focus_place()))
+                .flatten();
             (state, content, window)
         }
 

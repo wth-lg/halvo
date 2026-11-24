@@ -971,6 +971,144 @@ mod tests {
     }
 
     #[test]
+    fn a_read_answered_by_the_kept_password_element_decides_no_title_of_the_window_in_front() {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::floor::Switches;
+        use crate::secure_input::windows::{
+            answers_for_its_element, with_kept, FieldState, Kept, KeptElement, ReadBy,
+        };
+        use FieldState::{Clear, Password};
+        use KeptElement::{Other, Same};
+        let arms = [
+            (
+                "the kept element by an event",
+                Some(1),
+                Same,
+                Password,
+                ReadBy::Event,
+                1,
+                false,
+                true,
+            ),
+            (
+                "the kept element by an own read",
+                Some(1),
+                Same,
+                Password,
+                ReadBy::OwnRead,
+                1,
+                false,
+                true,
+            ),
+            (
+                "a read of a password field",
+                Some(1),
+                Other,
+                Password,
+                ReadBy::OwnRead,
+                1,
+                false,
+                true,
+            ),
+            (
+                "no kept element",
+                None,
+                Other,
+                Clear,
+                ReadBy::OwnRead,
+                1,
+                false,
+                true,
+            ),
+            (
+                "a focus event's own read",
+                Some(1),
+                Other,
+                Clear,
+                ReadBy::Event,
+                1,
+                false,
+                true,
+            ),
+            (
+                "a read that lets the kept element go",
+                Some(1),
+                Other,
+                Clear,
+                ReadBy::OwnRead,
+                2,
+                false,
+                true,
+            ),
+            (
+                "another element, no move counted",
+                Some(1),
+                Other,
+                Clear,
+                ReadBy::OwnRead,
+                1,
+                false,
+                false,
+            ),
+            (
+                "another element, an event in flight",
+                Some(1),
+                Other,
+                Clear,
+                ReadBy::OwnRead,
+                2,
+                true,
+                false,
+            ),
+        ];
+        let wrong: Vec<&str> = arms
+            .iter()
+            .filter(|(_, kept, element, read, by, moves, in_flight, own)| {
+                let (state, _) = with_kept(*kept, *element, *read, *by, *moves, *in_flight);
+                answers_for_its_element(*element, *read, state) != *own
+            })
+            .map(|(arm, ..)| *arm)
+            .collect();
+        assert!(wrong.is_empty(), "arms told otherwise: {wrong:?}");
+        let mut bench = Bench::new();
+        let mut screen_on = Switches::default();
+        screen_on.set(crate::floor::Switch::ScreenActivity, true);
+        let frames = Floor::new(
+            FloorHandle::new(None, Arc::new(NoLineage), screen_on),
+            Arc::new(DropCounts::default()),
+        );
+        let app = FrontApp {
+            pid: 9,
+            path: Some("C:\\Apps\\vault.exe".to_string()),
+        };
+        let frame = |gate: &PasswordGate| {
+            super::super::screen::frame_event_in(&frames, Some(gate), &app, B).is_some()
+        };
+        bench.gate.focus_read_in(Some(A), 900, answered(true));
+        bench.ask(B, AskBy::Front, 1_000);
+        let (state, kept) = with_kept(Some(1), Other, Clear, ReadBy::OwnRead, 1, false);
+        let window = answers_for_its_element(Other, Clear, state).then_some(B);
+        bench.gate.own_read_in(window, 1_100, answered(true));
+        let title_at_the_kept_answer = bench.look(B, 1_116);
+        let frame_at_the_kept_answer = frame(&bench.gate);
+        bench.gate.focus_read_in(Some(B), 1_200, answered(false));
+        let title_at_the_event = bench.look(B, 1_216);
+        let frame_at_the_event = frame(&bench.gate);
+        assert_eq!(
+            (
+                (state, kept, window),
+                title_at_the_kept_answer,
+                frame_at_the_kept_answer,
+                title_at_the_event,
+                frame_at_the_event
+            ),
+            ((Password, Kept::Leave, None), None, false, Some(true), true),
+            "the read answered by the kept element of the window left, then the focus event's \
+             read of the window in front: the title and a frame at each"
+        );
+    }
+
+    #[test]
     fn a_window_that_gives_no_focus_event_is_decided_by_the_read_asked_at_its_switch() {
         let mut bench = Bench::new();
         bench.gate.focus_read_in(Some(A), 900, answered(false));
