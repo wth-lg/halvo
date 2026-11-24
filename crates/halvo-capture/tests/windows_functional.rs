@@ -1733,11 +1733,21 @@ fn own_window(class: &str, title: &str, password: bool, x: i32) -> TestWindow {
     window
 }
 
-/// Two windows of the row of a switch: one whose cursor starts in a password
-/// edit, one whose cursor starts in a plain edit. The password window comes
-/// in front, then the plain one, then the password window again, each behind
-/// the test's go for the step before.
+/// Three windows of the row of a switch: a lead window with no edit, one
+/// whose cursor starts in a password edit, one whose cursor starts in a plain
+/// edit. The lead window comes in front first, so that the child's process
+/// holds the front and each later window comes in front at once, with its
+/// cursor put into its edit as it is activated; then the password window,
+/// the plain one and the password window again, each behind the test's go
+/// for the step before.
 fn child_own_window() {
+    let lead = TestWindow::create(&normal_window(
+        "HalvoVerifyOwnWindowLead",
+        "halvo-verify-own-window-lead",
+        40,
+        320,
+    ))
+    .expect("the lead window");
     let password = own_window(
         "HalvoVerifyOwnWindowPassword",
         OWN_WINDOW_PASSWORD_TITLE,
@@ -1753,6 +1763,7 @@ fn child_own_window() {
     let mut fronts = Vec::new();
     let mut goes = Vec::new();
     for (window, go) in [
+        (&lead, "lead"),
         (&password, "password-first"),
         (&plain, "plain"),
         (&password, "password-second"),
@@ -7684,11 +7695,12 @@ fn wait_for_state(
     done(seen)
 }
 
-/// The title source of a service set and its gate, with a child whose two
+/// The title source of a service set and its gate, with a child whose
 /// windows come in front in turn. Every step waits for a state, never for a
-/// time: the password window's ask is dropped once the gate reads its
-/// password edit; the plain window's title is recorded once the gate reads
-/// its plain edit; the password window's ask is dropped again behind it.
+/// time: the child's lead window in front and its ask settled; the password
+/// window's ask dropped once the gate reads its password edit; the plain
+/// window's title recorded once the gate reads its plain edit; the password
+/// window's ask dropped again behind it.
 #[test]
 #[ignore = "functional: the title at a switch is decided by the gate's read of the window in front"]
 fn a_switch_records_a_title_only_by_the_gates_read_of_the_window_in_front() {
@@ -7703,9 +7715,30 @@ fn a_switch_records_a_title_only_by_the_gates_read_of_the_window_in_front() {
         let drops = |title: &halvo_capture::windows::sources::Gated<WindowTitleSource>| {
             title.source().drops().secure_input
         };
-        let at_the_start = drops(&title);
+        let settled = |title: &halvo_capture::windows::sources::Gated<WindowTitleSource>| {
+            let waits = title.source().waits();
+            waits.at_once + waits.after_a_wait + waits.behind_the_bound + waits.ended_with_no_read
+        };
+        let settled_at_the_start = settled(&title);
         let mut child = spawn_child("own-window", 0);
+        let child_pid = child.id();
         let mut seen = Vec::new();
+        let lead_in_front = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| window_pid(foreground_window()) == child_pid,
+        );
+        let lead_settled = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| settled(&title) > settled_at_the_start,
+        );
+        let at_the_start = drops(&title);
+        child.go("lead");
         let first_password_read = wait_for_reading(
             &gate,
             ContentReading::Password,
@@ -7771,7 +7804,8 @@ fn a_switch_records_a_title_only_by_the_gates_read_of_the_window_in_front() {
         say(
             "own-window",
             format!(
-                "title_start={} title_stop={} first_password_read={first_password_read} \
+                "title_start={} title_stop={} lead_in_front={lead_in_front} \
+                 lead_settled={lead_settled} first_password_read={first_password_read} \
                  first_dropped={first_dropped} plain_recorded={plain_recorded} \
                  reading_at_the_plain_title={reading_at_the_plain_title:?} \
                  second_password_read={second_password_read} second_dropped={second_dropped} \
