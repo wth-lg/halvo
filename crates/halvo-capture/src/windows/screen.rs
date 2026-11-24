@@ -795,6 +795,31 @@ mod tests {
              desktop switch"
         );
         assert_eq!(drops.read().secure_input, 4);
+        let switched = PasswordGate::new();
+        let frame_of = |window| frame_event_in(&floor, Some(&switched), &front, window).is_some();
+        switched.focus_read_in(Some(IN_FRONT), 2_000, answered(false));
+        let before_any_switch = frame_of(IN_FRONT);
+        switched.switched_to(LEFT, 2_100);
+        let of_a_window_that_no_switch_named = frame_of(IN_FRONT);
+        switched.switched_to(IN_FRONT, 2_200);
+        let at_a_read_from_before_the_return = frame_of(IN_FRONT);
+        switched.own_read_in(Some(IN_FRONT), 2_300, answered(false));
+        let at_a_read_behind_the_return = frame_of(IN_FRONT);
+        switched.no_more_switches();
+        let after_the_title_source_stopped = frame_of(IN_FRONT);
+        assert_eq!(
+            (
+                before_any_switch,
+                of_a_window_that_no_switch_named,
+                at_a_read_from_before_the_return,
+                at_a_read_behind_the_return,
+                after_the_title_source_stopped,
+            ),
+            (true, false, false, true, true),
+            "a frame: before the title source told any switch; of a window that the latest \
+             switch is not of; at a read made before the return; at a read behind it; after \
+             the title source stopped"
+        );
     }
 
     fn screen_on(sink: crate::sink::SinkHandle) -> SourceContext {

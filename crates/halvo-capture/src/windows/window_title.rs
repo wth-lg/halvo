@@ -144,6 +144,10 @@ pub(crate) struct TitleAsk {
     pub(crate) why: TitleWhy,
     /// The OS time of the event that asked, which the record carries.
     pub(crate) tick: u32,
+    /// The number of the last read that the gate had asked when the title
+    /// source told it that the window came in front: only a read numbered
+    /// behind it decides; none where no gate runs.
+    pub(crate) after: Option<u64>,
     /// The OS time at which the title thread took the ask: the wait's start.
     pub(crate) asked: u32,
 }
@@ -163,18 +167,34 @@ pub(crate) enum Look {
     Left,
 }
 
-/// The one title ask that waits on the title thread.
+/// The one title ask that waits on the title thread, and the window in front
+/// with the number of its switch.
 #[derive(Debug, Default)]
 pub(crate) struct Waiting {
     ask: Option<TitleAsk>,
+    visit: Option<(usize, Option<u64>)>,
 }
 
 impl Waiting {
-    /// Takes an ask of `window` by the event of OS time `tick`, at `now`. An
-    /// ask of the window whose ask waits leaves that ask as it is; an ask of
-    /// another window takes its place. Answers whether it took the place of an
-    /// ask of another window.
-    pub(crate) fn ask(&mut self, window: usize, by: AskBy, tick: u32, now: u32) -> bool {
+    /// Takes an ask of `window` by the event of OS time `tick`, at `now`. A
+    /// change of the window in front, the start, and a change of the title of
+    /// a window that no switch named tell the gate of a switch by `switched`,
+    /// which asks the gate for a read and answers the number behind which a
+    /// read counts; a change of the title of the window of the visit takes
+    /// the visit's number. An ask of the window whose ask waits leaves that
+    /// ask as it is; an ask of another window takes its place. Answers whether
+    /// it took the place of an ask of another window.
+    pub(crate) fn ask(
+        &mut self,
+        (window, by): (usize, AskBy),
+        (tick, now): (u32, u32),
+        switched: impl FnOnce() -> Option<u64>,
+    ) -> bool {
+        let after = match self.visit {
+            Some((seen, after)) if seen == window && by == AskBy::Name => after,
+            _ => switched(),
+        };
+        self.visit = Some((window, after));
         if self.ask.is_some_and(|waiting| waiting.window == window) {
             return false;
         }
@@ -187,6 +207,7 @@ impl Waiting {
                 window,
                 why,
                 tick,
+                after,
                 asked: now,
             })
             .is_some()
@@ -198,9 +219,10 @@ impl Waiting {
     }
 
     /// Looks at the waiting ask while `front` is the window in front (0 for
-    /// none): where the gate's newest read is of the ask's window, its reading
-    /// decides it, at once and whatever came before; another window in front
-    /// ends it; else it waits, with no bound while its window stays in front.
+    /// none): where the gate's newest read is of the ask's window and
+    /// numbered behind its switch, its reading decides it, at once and
+    /// whatever came before; another window in front ends it; else it waits,
+    /// with no bound while its window stays in front.
     pub(crate) fn look(&mut self, gate: Option<&PasswordGate>, front: usize, now: u32) -> Look {
         let Some(ask) = self.ask else {
             return Look::Idle;
@@ -214,7 +236,7 @@ impl Waiting {
             return Look::Decide(ask, None);
         };
         if front == ask.window {
-            if let Some(reading) = gate.content_reading_of(ask.window) {
+            if let Some(reading) = gate.content_reading_of(ask.window, ask.after) {
                 self.ask = None;
                 return Look::Decide(ask, Some(reading));
             }
@@ -611,7 +633,10 @@ fn ask_title(front: HWND, time: u32, by: AskBy) {
     TITLE_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
             let now = super::now_tick();
-            if state.waiting.ask(front.0 as usize, by, time, now) {
+            let window = front.0 as usize;
+            let gate = state.gate.clone();
+            let switched = || gate.map(|gate| gate.switched_to(window, now));
+            if state.waiting.ask((window, by), (time, now), switched) {
                 state.counts.ended_unread(Some(&state.counts.replaced));
             }
             look_at_the_ask(state, now, true);
@@ -819,6 +844,9 @@ fn run_title_hook(
             if state.waiting.stop() {
                 state.counts.ended_unread(None);
             }
+            if let Some(gate) = &state.gate {
+                gate.no_more_switches();
+            }
         }
     });
     signal.report_removal("UnhookWinEvent", remover(front_hook));
@@ -865,7 +893,10 @@ mod tests {
         }
 
         fn ask(&mut self, window: usize, by: AskBy, tick: u32) -> bool {
-            self.waiting.ask(window, by, tick, tick)
+            let gate = &self.gate;
+            self.waiting.ask((window, by), (tick, tick), || {
+                Some(gate.switched_to(window, tick))
+            })
         }
 
         /// One look while `front` is in front: Some(written) where it decided
@@ -898,18 +929,59 @@ mod tests {
     }
 
     #[test]
-    fn order_1_a_read_of_the_window_that_landed_before_its_switch_was_taken_decides_at_once() {
+    fn order_1_a_read_that_landed_before_its_switch_was_taken_waits_for_the_read_asked_at_it() {
         for (field, written) in [(true, false), (false, true)] {
             let mut bench = Bench::new();
             bench.gate.focus_read_in(Some(A), 900, answered(false));
             bench.gate.focus_read_in(Some(B), 1_004, answered(field));
             bench.ask(B, AskBy::Front, 1_000);
+            let before_the_asked_read = bench.look(B, 1_010);
+            bench.gate.own_read_in(Some(B), 1_100, answered(field));
             assert_eq!(
-                bench.look(B, 1_010),
-                Some(written),
+                (before_the_asked_read, bench.look(B, 1_116)),
+                (None, Some(written)),
                 "password field {field}"
             );
         }
+    }
+
+    #[test]
+    fn a_stale_return_is_decided_by_the_read_asked_at_the_return() {
+        let mut bench = Bench::new();
+        bench.ask(B, AskBy::Front, 500);
+        bench.gate.focus_read_in(Some(B), 510, answered(false));
+        let first_visit = bench.look(B, 516);
+        bench.ask(A, AskBy::Front, 800);
+        let in_a_window_that_gave_no_read = bench.look(A, 900);
+        bench.ask(B, AskBy::Front, 1_000);
+        let at_the_return = bench.look(B, 1_000);
+        let asked = bench.gate.reads_asked_at().is_some_and(|due| due <= 1_100);
+        bench.gate.own_read_in(Some(B), 1_100, answered(true));
+        let at_the_read_asked_at_the_return = bench.look(B, 1_116);
+        assert_eq!(
+            (
+                first_visit,
+                in_a_window_that_gave_no_read,
+                at_the_return,
+                asked,
+                at_the_read_asked_at_the_return
+            ),
+            (Some(true), None, None, true, Some(false))
+        );
+    }
+
+    #[test]
+    fn a_window_that_gives_no_focus_event_is_decided_by_the_read_asked_at_its_switch() {
+        let mut bench = Bench::new();
+        bench.gate.focus_read_in(Some(A), 900, answered(false));
+        bench.ask(B, AskBy::Front, 1_000);
+        let asked = bench.gate.reads_asked_at().is_some_and(|due| due <= 1_100);
+        let before = bench.look(B, 1_050);
+        bench.gate.own_read_in(Some(B), 1_100, answered(false));
+        assert_eq!(
+            (asked, before, bench.look(B, 1_116)),
+            (true, None, Some(true))
+        );
     }
 
     #[test]
@@ -1038,14 +1110,17 @@ mod tests {
         let mut started = Bench::new();
         started.gate.own_read_in(Some(B), 900, answered(false));
         started.ask(B, AskBy::Start, 1_000);
-        let a_first_read_before_the_start = started.look(B, 1_000);
+        let a_read_before_the_start = started.look(B, 1_000);
+        started.gate.own_read_in(Some(B), 1_100, answered(false));
+        let the_read_asked_at_the_start = started.look(B, 1_116);
         assert_eq!(
             (
                 before_the_first_read,
                 at_the_first_read,
-                a_first_read_before_the_start
+                a_read_before_the_start,
+                the_read_asked_at_the_start
             ),
-            (None, Some(false), Some(true))
+            (None, Some(false), None, Some(true))
         );
     }
 
@@ -1197,7 +1272,7 @@ mod tests {
     }
 
     #[test]
-    fn order_8_a_return_to_a_window_whose_read_is_still_the_gates_newest_is_decided_by_it() {
+    fn order_8_a_return_is_decided_by_a_read_made_behind_the_return() {
         let mut bench = Bench::new();
         bench.ask(B, AskBy::Front, 500);
         bench.gate.focus_read_in(Some(B), 600, answered(false));
@@ -1206,13 +1281,16 @@ mod tests {
         let in_a_window_that_gave_no_read = bench.look(A, 900);
         bench.ask(B, AskBy::Front, 1_000);
         let back_at_the_earlier_read = bench.look(B, 1_000);
+        bench.gate.focus_read_in(Some(B), 1_010, answered(false));
+        let at_a_read_behind_the_return = bench.look(B, 1_016);
         assert_eq!(
             (
                 first_visit,
                 in_a_window_that_gave_no_read,
-                back_at_the_earlier_read
+                back_at_the_earlier_read,
+                at_a_read_behind_the_return
             ),
-            (Some(true), None, Some(true))
+            (Some(true), None, None, Some(true))
         );
     }
 
@@ -1330,10 +1408,12 @@ mod tests {
         let mut later = Bench::new();
         later.gate.focus_read_in(Some(B), 1_200, answered(true));
         later.ask(B, AskBy::Name, 2_000);
+        let before_the_asked_read = later.look(B, 2_000);
+        later.gate.own_read_in(Some(B), 2_100, answered(true));
         assert_eq!(
-            later.look(B, 2_000),
-            Some(false),
-            "a name change at a password field that the gate read before it"
+            (before_the_asked_read, later.look(B, 2_116)),
+            (None, Some(false)),
+            "a name change of a window that no switch named, at a password field"
         );
     }
 
@@ -1349,6 +1429,7 @@ mod tests {
                     window: B,
                     why: TitleWhy::AppChange,
                     tick: 1_000,
+                    after: Some(0),
                     asked: 1_000,
                 },
                 None

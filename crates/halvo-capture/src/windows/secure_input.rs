@@ -810,6 +810,10 @@ struct Marks {
     /// gate keeps so that a window title or a screen frame is decided by a
     /// read of its own window alone. No rule of a key reads it.
     content_of: Option<usize>,
+    /// The window of the latest switch that the title source told the gate
+    /// of, with the number of the last read asked before it: a frame of that
+    /// window is kept only by a read numbered behind it.
+    switch: Option<(usize, u64)>,
     writer: Option<u64>,
     asked: u64,
     held: u64,
@@ -1209,6 +1213,9 @@ impl Shared {
             last_consumer: marks.last_consumer,
             owed: std::mem::take(&mut marks.owed),
             next_key: marks.next_key,
+            asked: marks.asked,
+            held: marks.held,
+            switch: marks.switch,
             ..Marks::default()
         };
         *marks = kept;
@@ -1501,11 +1508,41 @@ impl PasswordGate {
         self.probe_of(self.content_reading())
     }
 
-    /// The content reading where the gate's newest read is of `window`;
-    /// nothing is counted.
-    pub(crate) fn content_reading_of(&self, window: usize) -> Option<ContentReading> {
+    /// The content reading where the gate's newest read is of `window` and,
+    /// where `after` is given, numbered behind it: each read takes its number
+    /// when it is asked; nothing is counted.
+    pub(crate) fn content_reading_of(
+        &self,
+        window: usize,
+        after: Option<u64>,
+    ) -> Option<ContentReading> {
         let marks = self.shared.lock();
-        (marks.content_of == Some(window)).then_some(marks.content)
+        let behind = after.is_none_or(|after| marks.held > after);
+        (marks.content_of == Some(window) && behind).then_some(marks.content)
+    }
+
+    /// The title source's word that `window` came in front at the OS time
+    /// `now`, or was in front at its start: the gate asks an own read of the
+    /// focused element one settle time later and wakes its detector, keeps
+    /// the window with the number of the last read asked so far, and answers
+    /// that number. Only a read numbered behind it is a read of the window
+    /// since it came in front. Nothing waits for the read.
+    pub(crate) fn switched_to(&self, window: usize, now: u32) -> u64 {
+        let number = {
+            let mut marks = self.shared.lock();
+            let number = marks.asked;
+            marks.switch = Some((window, number));
+            marks.ask_read(now.wrapping_add(ms(LATCH_SETTLE)));
+            number
+        };
+        self.wake_detector();
+        number
+    }
+
+    /// The title source's word that it tells the gate of no more switches,
+    /// at its stop: a frame goes by the gate's newest read again.
+    pub(crate) fn no_more_switches(&self) {
+        self.shared.lock().switch = None;
     }
 
     /// The probe of `reading`, counted among the readings that the sources of
@@ -1525,13 +1562,23 @@ impl PasswordGate {
     }
 
     /// The probe of a frame while `window` is in front: the gate's reading
-    /// where its newest read is of that window, else the probe that reads
-    /// Unknown, and then nothing is counted.
+    /// where its newest read is of that window and, where the title source
+    /// told the gate of a switch, numbered behind the switch into that
+    /// window; a frame of another window than the latest switch's goes by no
+    /// reading. Else the probe that reads Unknown, and nothing is counted.
     pub(crate) fn probe_for_window(&self, window: usize) -> PasswordFieldProbe {
-        self.content_reading_of(window)
-            .map_or_else(PasswordFieldProbe::default, |reading| {
-                self.probe_of(reading)
-            })
+        let reading = {
+            let marks = self.shared.lock();
+            let behind = match marks.switch {
+                Some((switched, number)) if switched == window => marks.held > number,
+                Some(_) => false,
+                None => true,
+            };
+            (marks.content_of == Some(window) && behind).then_some(marks.content)
+        };
+        reading.map_or_else(PasswordFieldProbe::default, |reading| {
+            self.probe_of(reading)
+        })
     }
 
     #[cfg(test)]
@@ -1571,6 +1618,12 @@ impl PasswordGate {
             (content_of(read, false, key), window, None, ticket),
             None,
         );
+    }
+
+    /// When the gate's next own read is due, as a switch or an event asked it.
+    #[cfg(test)]
+    pub(crate) fn reads_asked_at(&self) -> Option<u32> {
+        self.shared.lock().read_due
     }
 
     /// An own read of one read that was of `window`, which began and ended
