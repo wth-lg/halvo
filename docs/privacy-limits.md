@@ -170,8 +170,11 @@ Where a sentence names a unit, that unit makes it true.
   removed. A process number that a mark names is recorded again once another program
   holds it, because that program started at another time. Where the service cannot
   list that folder or read a mark, it records nothing at all until it can again;
-  Status meanwhile shows capture as running and counts nothing as left out, so a
-  fault of that folder that lasts stops all recording without a sign. The limits:
+  Status meanwhile shows capture as running and counts nothing as left out. From the
+  third event in a row that it leaves out in this way, the Status page says that
+  Halvo has recorded nothing since it could not tell whether to leave out the app in
+  use, and it says so until Halvo records again; the first two such events show
+  nothing. The limits:
   Halvo reads which app is in front every 0.4 seconds, so a click or a key in an
   agent's browser within 0.4 seconds after it comes to the front can be recorded for
   the app that was in front before; a capture service that the app did not start
