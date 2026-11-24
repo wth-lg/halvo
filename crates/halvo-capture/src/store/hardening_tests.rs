@@ -8307,6 +8307,26 @@ fn end_states_after_a_kill(dir: &Path, op: &str, expired: &[Uuid]) -> EndStates 
     }
 }
 
+/// The shape of the segments tree of a store that the kill table prepares:
+/// its shard folders and its segment files. A delete walks each folder, so
+/// the shape sets how many file system calls it makes.
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TreeShape {
+    shard_folders: usize,
+    segment_files: usize,
+}
+
+/// The shape of the segments tree under `store_dir`, as it stands.
+#[cfg(target_os = "macos")]
+fn tree_shape(store_dir: &Path) -> TreeShape {
+    let segments = store_dir.join("segments");
+    TreeShape {
+        shard_folders: std::fs::read_dir(&segments).map_or(0, Iterator::count),
+        segment_files: files_under(&segments).len(),
+    }
+}
+
 #[cfg(target_os = "macos")]
 #[test]
 fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind() {
@@ -8320,9 +8340,10 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
         .status()
         .unwrap();
     assert!(built.success(), "cc did not build the interposer");
-    let prepare = |op: &str| -> (tempfile::TempDir, Vec<Uuid>) {
+    let prepare = |op: &str| -> (tempfile::TempDir, Vec<Uuid>, TreeShape) {
         let dir = tempfile::tempdir().unwrap();
-        let (_, _, root_id, expired) = kill_table_store(dir.path());
+        let (store_dir, _, root_id, expired) = kill_table_store(dir.path());
+        let shape = tree_shape(&store_dir);
         std::fs::write(dir.path().join("root-id"), root_id.to_string()).unwrap();
         if op == "create" {
             let store_dir = dir.path().join("store");
@@ -8336,12 +8357,13 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
             )
             .unwrap();
         }
-        (dir, expired)
+        (dir, expired, shape)
     };
     let mut rows = 0;
     let mut wrong = Vec::new();
+    let mut other_shapes = Vec::new();
     for op in KILL_OPS {
-        let (dir, expired) = prepare(op);
+        let (dir, expired, trace_shape) = prepare(op);
         let before_the_run = finished_delete_all_reading(dir.path());
         let trace = work.path().join(format!("trace-{op}.txt"));
         let code = kill_table_child(dir.path(), op, 0, Some(&trace), &dylib);
@@ -8400,7 +8422,12 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
         let calls = std::fs::read_to_string(&trace).unwrap().lines().count();
         assert!(calls > 0, "the {op} child made no counted call");
         for at in 1..=calls {
-            let (dir, expired) = prepare(op);
+            let (dir, expired, shape) = prepare(op);
+            if shape != trace_shape {
+                other_shapes.push(format!(
+                    "{op} at call {at}: its store has {shape:?}, the store of its trace run {trace_shape:?}"
+                ));
+            }
             let code = kill_table_child(dir.path(), op, at, None, &dylib);
             let states = end_states_after_a_kill(dir.path(), op, &expired);
             rows += 1;
@@ -8419,6 +8446,7 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
         println!("KILL op={op} calls={calls}");
     }
     println!("KILL rows={rows}");
+    assert!(other_shapes.is_empty(), "{}", other_shapes.join("\n"));
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 
     let dir = tempfile::tempdir().unwrap();
