@@ -1,0 +1,1 @@
+- Changed: An agent may start 24 times a day instead of six, and on a day with all its starts used its row says so behind a failed run or saved answers and offers no Start now.
