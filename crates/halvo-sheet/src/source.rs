@@ -37,16 +37,15 @@ type Rows<'a> = Vec<Vec<Cow<'a, str>>>;
 /// line that is not empty holds one or more of it outside its quoted fields and as many as every
 /// other such line (`holds`); an empty line counts for nothing. A file in which the semicolon and
 /// the tab both hold is refused, as its separator is in doubt; a file in which neither holds is
-/// read by commas, as before r3 U11.5; a file in which the semicolon or the tab holds and the
-/// comma does not is read by that sign. Where the semicolon (or the tab) and the comma both hold,
-/// the file has two readings and is told by what it holds, never by a fixed order alone:
-/// (1) by the semicolon where every comma outside its quoted fields stands beside a digit, and on
-/// its other side a digit or the edge of its field (`in_numbers`), told by the signs before any
-/// read, so that a fault of that read refuses the file and the comma is not tried; (2) else each
-/// is read whole, a reading that meets a fault of the form or rows of unequal length is none, one
-/// reading that is left is taken, and of two the one in which more fields of the whole file are
-/// numbers (`numbers`); where both fault, the semicolon's fault is named; (3) where the numbers
-/// are as many, the semicolon.
+/// read by commas, as before r3 U11.5; a file in which the semicolon or the tab holds is read by
+/// that sign, and a fault of that read refuses it, as r3 U11.5 has it. Where the semicolon (or the
+/// tab) and the comma both hold, the file is read by commas only where it speaks plainly for the
+/// comma: its read by commas stands too, and all three hold: (i) some comma outside its quoted
+/// fields does not stand beside a digit with a digit or the edge of its field on its other side
+/// (`in_numbers`); (ii) no field of the semicolon's reading, without the spaces at its ends, is a
+/// number written with a comma (`comma_number`); (iii) a field of the semicolon's reading begins
+/// with a space and no field of the comma's reading does (`spaced`). In every other such file the
+/// semicolon (or the tab) stands. No count of numbers decides (r3 U11.6).
 fn reading(text: &str) -> Result<(u8, Rows<'_>), Error> {
     let sign = match (holds(text, b';'), holds(text, b'\t')) {
         (true, true) => return Err(Error::Source(SourceRefusal::TwoSeparators)),
@@ -54,17 +53,40 @@ fn reading(text: &str) -> Result<(u8, Rows<'_>), Error> {
         (false, true) => b'\t',
         (false, false) => return Ok((b',', read(text, b',')?)),
     };
-    if !holds(text, b',') || in_numbers(text, sign) {
-        return Ok((sign, read(text, sign)?));
+    let theirs = read(text, sign)?;
+    let stands = !holds(text, b',')
+        || in_numbers(text, sign)
+        || theirs.iter().flatten().any(|cell| comma_number(cell))
+        || !spaced(&theirs);
+    if stands {
+        return Ok((sign, theirs));
     }
-    match (read(text, sign), read(text, b',')) {
-        (Ok(theirs), Ok(commas)) if numbers(b',', &commas) > numbers(sign, &theirs) => {
-            Ok((b',', commas))
-        }
-        (Ok(theirs), _) => Ok((sign, theirs)),
-        (Err(_), Ok(commas)) => Ok((b',', commas)),
-        (Err(error), Err(_)) => Err(error),
+    match read(text, b',') {
+        Ok(commas) if !spaced(&commas) => Ok((b',', commas)),
+        _ => Ok((sign, theirs)),
     }
+}
+
+/// Whether `cell`, without the spaces at its ends, is a number written with a comma, whatever
+/// the file's numbers make of it (`Numbers::of`): digits, points and commas alone, a minus in
+/// front at most, a digit at each end, one comma or more (`3.250,50`, `1,250`, `3,250.50`,
+/// `38,40,42`). Condition (ii) of `reading`.
+fn comma_number(cell: &str) -> bool {
+    let cell = cell.trim_matches(' ');
+    let body = cell.strip_prefix('-').unwrap_or(cell);
+    let bytes = body.as_bytes();
+    bytes.contains(&b',')
+        && bytes.first().is_some_and(u8::is_ascii_digit)
+        && bytes.last().is_some_and(u8::is_ascii_digit)
+        && bytes
+            .iter()
+            .all(|&b| b.is_ascii_digit() || b == b',' || b == b'.')
+}
+
+/// Whether a field of `rows` begins with a space: a sign inside a text is followed by a space,
+/// and a sign that a program writes between values is not. Condition (iii) of `reading`.
+fn spaced(rows: &Rows<'_>) -> bool {
+    rows.iter().flatten().any(|cell| cell.starts_with(' '))
 }
 
 /// The lines of `text` that are not empty, each without its line end.
@@ -90,7 +112,7 @@ fn holds(text: &str, sign: u8) -> bool {
 /// Whether every comma of `text` outside its quoted fields, each line read as fields separated by
 /// `sign`, stands beside a digit, and on its other side a digit or the edge of its field, as in a
 /// number with a decimal comma or a thousands comma (`41,20`, `1,234`, `1.234,56`, `,5`, `5,`),
-/// and not in a text (`Müller, Hans`). Step (1) of `reading`.
+/// and not in a text (`Müller, Hans`). Where it holds, condition (i) of `reading` fails.
 fn in_numbers(text: &str, sign: u8) -> bool {
     lines(text).all(|line| {
         let bytes = line.as_bytes();
@@ -154,16 +176,6 @@ fn read(text: &str, separator: u8) -> Result<Rows<'_>, Error> {
         Some(at) => Err(Error::Source(SourceRefusal::Ragged { line: at + 1 })),
         None => Ok(rows),
     }
-}
-
-/// How many fields of the whole file `rows`, read by `separator`, are numbers, each told by the
-/// file's numbers for that separator (`Numbers::of`). Step (2) of `reading`.
-fn numbers(separator: u8, rows: &Rows<'_>) -> usize {
-    let numbers = Numbers::of(separator, rows);
-    rows.iter()
-        .flatten()
-        .filter(|cell| numbers.number(cell).is_some())
-        .count()
 }
 
 /// The fields of the line `line` that starts at the byte `at` of `text`, separated by
@@ -263,17 +275,13 @@ impl Numbers {
         }
     }
 
-    /// The number of `cell` in such a file, or none where it is a text.
-    fn number(self, cell: &str) -> Option<f64> {
-        match self {
+    fn value(self, cell: &str) -> Value {
+        let number = match self {
             Numbers::Points => point_number(cell),
             Numbers::Sign(sign) => whole_number(cell).or_else(|| with_sign(cell, sign)),
             Numbers::Whole => whole_number(cell),
-        }
-    }
-
-    fn value(self, cell: &str) -> Value {
-        match self.number(cell) {
+        };
+        match number {
             Some(x) => Value::Number(x),
             None => Value::Text(cell.to_string()),
         }
@@ -761,12 +769,13 @@ mod tests {
         assert!(wrong.is_empty(), "{wrong:#?}");
     }
 
-    /// r3 U11.6, the coordinator's ruling (its log line 19549): a file that holds by the
-    /// semicolon, or by the tab, and by the comma (each sign as many times outside quoted fields
-    /// in every line that is not empty) has two readings, and it is read by what it holds, never
-    /// by a fixed order alone (`reading`). Each row of the builder's table is a file here, named
-    /// by what it is and by the step that tells it, with the rows that it reads to or its
-    /// refusal; R14 and R15 hold by one sign alone and read as before.
+    /// r3 U11.6, the coordinator's rulings (its log lines 19549, 19557 and 19619): a file that
+    /// holds by the semicolon, or by the tab, and by the comma (each sign as many times outside
+    /// quoted fields in every line that is not empty) is read by commas only where it speaks
+    /// plainly for the comma, by the conditions (i), (ii) and (iii) of `reading`, and by the
+    /// semicolon (or the tab) in every other such file, a fault of that read refusing it. Each row
+    /// of the builder's tables is a file here, named by what it is and by the condition that tells
+    /// it, with the rows that it reads to or its refusal; R11, R14 and R15 hold by one sign alone.
     #[test]
     fn a_file_that_holds_by_the_comma_and_by_the_semicolon_or_the_tab_reads_by_what_it_holds() {
         fn file(lines: &[&str], end: &str) -> String {
@@ -779,30 +788,35 @@ mod tests {
             vec![t("Wasser"), n(41.2), n(3.5)],
             vec![t("Strom"), n(63.05), n(7.25)],
         ];
+        let names = vec![
+            vec![t("Müller, Hans"), t("Vertrieb"), t("3.250,50")],
+            vec![t("Schmidt, Eva"), t("Einkauf"), t("2.980,00")],
+        ];
         type Read = Result<Vec<Vec<Value>>, Error>;
-        let cases: Vec<(&str, String, Read)> = vec![
+        let cases: Vec<(&str, String, Read)> =
+            vec![
             (
-                "R1, step (2), a comma file with one semicolon a row in a text",
+                "R1, the comma by (i), (ii), (iii): a comma file, one semicolon a row in a text",
                 file(&["Item 1; note,1.50,1"; 5], "\n"),
                 Ok(five(vec![t("Item 1; note"), n(1.5), n(1.0)])),
             ),
             (
-                "R2, step (2), a comma file with two semicolons a row in a text",
+                "R2, the comma by (i), (ii), (iii): a comma file, two semicolons a row in a text",
                 file(&["Item 1; note; more,1.50,1"; 5], "\n"),
                 Ok(five(vec![t("Item 1; note; more"), n(1.5), n(1.0)])),
             ),
             (
-                "R3, step (1), a semicolon file with decimal commas",
+                "R3, the semicolon, (i) fails: a semicolon file with decimal commas",
                 file(&["Item 1 note;1,50;1"; 5], "\r\n"),
                 Ok(five(vec![t("Item 1 note"), n(1.5), n(1.0)])),
             ),
             (
-                "R4, step (1), a semicolon file with a decimal comma in every number",
+                "R4, the semicolon, (i) fails: a decimal comma in every number",
                 file(&["Wasser;41,20;3,50", "Strom;63,05;7,25"], "\r\n"),
                 Ok(water.clone()),
             ),
             (
-                "R5, step (2), a semicolon file with a comma in a text and decimal commas",
+                "R5, the semicolon, (ii) fails: a comma in a text and decimal commas",
                 file(&["Müller, Hans;41,20;7", "Schmidt, Eva;12,00;3"], "\r\n"),
                 Ok(vec![
                     vec![t("Müller, Hans"), n(41.2), n(7.0)],
@@ -810,7 +824,7 @@ mod tests {
                 ]),
             ),
             (
-                "R6, step (3), a semicolon file of texts with a comma in every row",
+                "R6, the semicolon, (iii) fails: texts with a comma in every row",
                 file(&["Müller, Hans;Berlin", "Schmidt, Eva;Köln"], "\r\n"),
                 Ok(vec![
                     vec![t("Müller, Hans"), t("Berlin")],
@@ -818,15 +832,15 @@ mod tests {
                 ]),
             ),
             (
-                "R7, step (3), its named rest: a comma file of texts with a semicolon in every row",
+                "R7, the comma by (i), (ii), (iii): a comma file of texts, a semicolon in each row",
                 file(&["Berlin; Mitte,Hans", "Köln; Ehrenfeld,Eva"], "\n"),
                 Ok(vec![
-                    vec![t("Berlin"), t(" Mitte,Hans")],
-                    vec![t("Köln"), t(" Ehrenfeld,Eva")],
+                    vec![t("Berlin; Mitte"), t("Hans")],
+                    vec![t("Köln; Ehrenfeld"), t("Eva")],
                 ]),
             ),
             (
-                "R8, step (1), a semicolon file with a comma in a thousands shape",
+                "R8, the semicolon, (i) fails: a comma in a thousands shape",
                 file(&["Miete;1,234", "Strom;2,500"], "\r\n"),
                 Ok(vec![
                     vec![t("Miete"), t("1,234")],
@@ -834,7 +848,7 @@ mod tests {
                 ]),
             ),
             (
-                "R9, step (2), a semicolon file with a comma in a text and decimal points",
+                "R9, the semicolon, (iii) fails: a comma in a text and decimal points",
                 file(&["Wasser, kalt;41.20", "Strom, Tag;63.05"], "\r\n"),
                 Ok(vec![
                     vec![t("Wasser, kalt"), n(41.2)],
@@ -842,7 +856,7 @@ mod tests {
                 ]),
             ),
             (
-                "R10, step (1), a semicolon file with a comma in a quoted text",
+                "R10, the semicolon, (i) fails: a comma in a quoted text",
                 file(
                     &["\"Müller, Hans\";41,20", "\"Schmidt, Eva\";12,00"],
                     "\r\n",
@@ -853,27 +867,27 @@ mod tests {
                 ]),
             ),
             (
-                "R11, one reading, a comma file with a semicolon in a quoted text",
+                "R11, one reading: a comma file with a semicolon in a quoted text",
                 file(&["\"a;b\",1.50", "\"c;d\",2.50"], "\n"),
                 Ok(vec![vec![t("a;b"), n(1.5)], vec![t("c;d"), n(2.5)]]),
             ),
             (
-                "R12, step (2), a comma file with two tabs a row in a text",
+                "R12, the tab, (iii) fails, rest (2): a comma file, two tabs a row in a text",
                 file(&["Item 1\tnote\tmore,1.50,1"; 5], "\n"),
-                Ok(five(vec![t("Item 1\tnote\tmore"), n(1.5), n(1.0)])),
+                Ok(five(vec![t("Item 1"), t("note"), t("more,1.50,1")])),
             ),
             (
-                "R13, step (1), a tab file with a decimal comma in every number",
+                "R13, the tab, (i) fails: a decimal comma in every number",
                 file(&["Wasser\t41,20\t3,50", "Strom\t63,05\t7,25"], "\r\n"),
                 Ok(water),
             ),
             (
-                "R14, one reading, one column of decimal commas: two columns of whole numbers",
+                "R14, one reading: one column of decimal commas, two columns of whole numbers",
                 file(&["3,5", "41,20"], "\r\n"),
                 Ok(vec![vec![n(3.0), n(5.0)], vec![n(41.0), n(20.0)]]),
             ),
             (
-                "R15, one reading, a semicolon file with rows of different lengths",
+                "R15, one reading: a semicolon file with rows of different lengths",
                 file(&["Wasser;41,20;3", "Strom;12,00"], "\r\n"),
                 Ok(vec![
                     vec![t("Wasser;41"), t("20;3")],
@@ -881,7 +895,7 @@ mod tests {
                 ]),
             ),
             (
-                "R16, step (1), its named rest: a comma file whose commas stand between digits",
+                "R16, the semicolon, (i) fails, rest (3): a comma file, its commas in numbers",
                 file(&["Room 1; Floor 2,450", "Room 2; Floor 3,380"], "\n"),
                 Ok(vec![
                     vec![t("Room 1"), t(" Floor 2,450")],
@@ -889,37 +903,179 @@ mod tests {
                 ]),
             ),
             (
-                "R17, step (1), a semicolon file with a decimal comma at a field's edge",
+                "R17, the semicolon, (i) fails: a decimal comma at a field's edge",
                 file(&["Wasser;,5"], "\r\n"),
                 Ok(vec![vec![t("Wasser"), t(",5")]]),
             ),
             (
-                "R18, step (1), a semicolon file with one decimal comma at a field's edge",
+                "R18, the semicolon, (i) fails: one decimal comma at a field's edge",
                 file(&["Wasser;0,5", "Strom;,75"], "\r\n"),
                 Ok(vec![vec![t("Wasser"), n(0.5)], vec![t("Strom"), t(",75")]]),
             ),
             (
-                "R19, step (1), a semicolon file with text behind a closing quote: refused",
+                "R19, the semicolon, (i) fails: text behind a closing quote, refused",
                 file(&["Wasser;\"a\"b;41,20", "Strom;\"c\"d;63,05"], "\r\n"),
                 Err(Error::Source(SourceRefusal::Quote { line: 1 })),
             ),
             (
-                "R20, step (2), its named clause: a comma in a text and a fault of the quotes",
+                "R20, the semicolon's read faults: a comma in a text and a fault of the quotes",
                 file(
                     &["Müller, Hans;\"Haus\"A;7", "Schmidt, Eva;\"Haus\"B;3"],
                     "\r\n",
                 ),
-                Ok(vec![
-                    vec![t("Müller"), t(" Hans;\"Haus\"A;7")],
-                    vec![t("Schmidt"), t(" Eva;\"Haus\"B;3")],
-                ]),
+                Err(Error::Source(SourceRefusal::Quote { line: 1 })),
             ),
             (
-                "R21, step (1), its named rest: a comma file whose text ends in a semicolon",
+                "R21, the semicolon, (i) fails: a comma file whose text ends in a semicolon",
                 file(&["Gas;,1.50", "Power;,2.25"], "\n"),
                 Ok(vec![
                     vec![t("Gas"), t(",1.50")],
                     vec![t("Power"), t(",2.25")],
+                ]),
+            ),
+            (
+                "F1, the semicolon, (ii) fails: a name with a comma and an amount",
+                file(
+                    &["Müller, Hans;Vertrieb;3.250,50", "Schmidt, Eva;Einkauf;2.980,00"],
+                    "\r\n",
+                ),
+                Ok(names.clone()),
+            ),
+            (
+                "F2, the semicolon, (ii) fails: amounts with three decimals",
+                file(
+                    &["Mehl, Type 405;Regal 1;1,250", "Zucker, fein;Regal 2;0,500"],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("Mehl, Type 405"), t("Regal 1"), t("1,250")],
+                    vec![t("Zucker, fein"), t("Regal 2"), n(0.5)],
+                ]),
+            ),
+            (
+                "F3, the semicolon, (ii) fails: bank lines",
+                file(
+                    &[
+                        "01.10.2026;Miete, Oktober;-1.234,56",
+                        "02.10.2026;Strom, Abschlag;-89,50",
+                    ],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("01.10.2026"), t("Miete, Oktober"), t("-1.234,56")],
+                    vec![t("02.10.2026"), t("Strom, Abschlag"), n(-89.5)],
+                ]),
+            ),
+            (
+                "F4, the tab, (ii) fails: F1 in tabs",
+                file(
+                    &["Müller, Hans\tVertrieb\t3.250,50", "Schmidt, Eva\tEinkauf\t2.980,00"],
+                    "\r\n",
+                ),
+                Ok(names.clone()),
+            ),
+            (
+                "F5, the semicolon, (ii) fails: numbers of both decimal signs",
+                file(
+                    &["Termin, früh;14.30;41,20", "Termin, spät;16.45;12,50"],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("Termin, früh"), t("14.30"), t("41,20")],
+                    vec![t("Termin, spät"), t("16.45"), t("12,50")],
+                ]),
+            ),
+            (
+                "F6, the semicolon, (ii) fails: a thousands comma",
+                file(
+                    &["Miller, John;Sales;3,250.50", "Smith, Ann;Buying;2,980.00"],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("Miller, John"), t("Sales"), t("3,250.50")],
+                    vec![t("Smith, Ann"), t("Buying"), t("2,980.00")],
+                ]),
+            ),
+            (
+                "F7, the semicolon, (ii) fails: the amount in the first column",
+                file(
+                    &["1,250;Mehl, Type 405;Regal 1", "0,500;Zucker, fein;Regal 2"],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("1,250"), t("Mehl, Type 405"), t("Regal 1")],
+                    vec![n(0.5), t("Zucker, fein"), t("Regal 2")],
+                ]),
+            ),
+            (
+                "F8, the semicolon, (ii) fails: a list of sizes",
+                file(&["Schuh, braun;38,40,42", "Stiefel, schwarz;39,41,43"], "\r\n"),
+                Ok(vec![
+                    vec![t("Schuh, braun"), t("38,40,42")],
+                    vec![t("Stiefel, schwarz"), t("39,41,43")],
+                ]),
+            ),
+            (
+                "F9, the semicolon, (ii) fails: a name with no space behind its comma",
+                file(
+                    &["Müller,Hans;Vertrieb;3.250,50", "Schmidt,Eva;Einkauf;2.980,00"],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("Müller,Hans"), t("Vertrieb"), t("3.250,50")],
+                    vec![t("Schmidt,Eva"), t("Einkauf"), t("2.980,00")],
+                ]),
+            ),
+            (
+                "F10, the semicolon, (iii) fails: an address list",
+                file(&["12, rue de la Paix;Paris", "7, avenue Foch;Lyon"], "\r\n"),
+                Ok(vec![
+                    vec![t("12, rue de la Paix"), t("Paris")],
+                    vec![t("7, avenue Foch"), t("Lyon")],
+                ]),
+            ),
+            (
+                "F11, the semicolon, (iii) fails, rest (4): a comma file typed with a space",
+                file(&["Item 1; a, 1.50, 1", "Item 2; b, 2.50, 2"], "\n"),
+                Ok(vec![
+                    vec![t("Item 1"), t(" a, 1.50, 1")],
+                    vec![t("Item 2"), t(" b, 2.50, 2")],
+                ]),
+            ),
+            (
+                "F12, the semicolon, (ii) fails: a semicolon file typed with a space",
+                file(
+                    &[
+                        "Müller, Hans; Vertrieb; 3.250,50",
+                        "Schmidt, Eva; Einkauf; 2.980,00",
+                    ],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("Müller, Hans"), t(" Vertrieb"), t(" 3.250,50")],
+                    vec![t("Schmidt, Eva"), t(" Einkauf"), t(" 2.980,00")],
+                ]),
+            ),
+            (
+                "A, the semicolon, (ii) fails without the spaces: a name with no space, typed `; `",
+                file(
+                    &[
+                        "Müller,Hans; Vertrieb; 3.250,50",
+                        "Schmidt,Eva; Einkauf; 2.980,00",
+                    ],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("Müller,Hans"), t(" Vertrieb"), t(" 3.250,50")],
+                    vec![t("Schmidt,Eva"), t(" Einkauf"), t(" 2.980,00")],
+                ]),
+            ),
+            (
+                "rest (1), the semicolon, (iii) fails: a semicolon with no space in a comma file",
+                file(&["Item;note,1.50,1", "Item 2;note,2.50,2"], "\n"),
+                Ok(vec![
+                    vec![t("Item"), t("note,1.50,1")],
+                    vec![t("Item 2"), t("note,2.50,2")],
                 ]),
             ),
         ];
