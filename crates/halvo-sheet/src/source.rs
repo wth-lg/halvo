@@ -44,8 +44,9 @@ type Rows<'a> = Vec<Vec<Cow<'a, str>>>;
 /// fields does not stand beside a digit with a digit or the edge of its field on its other side
 /// (`in_numbers`); (ii) no field of the semicolon's reading, without the spaces at its ends, is a
 /// number written with a comma (`comma_number`); (iii) a field of the semicolon's reading that is
-/// of no number's make (`number_make`) begins with a space, and no field of the comma's reading
-/// begins with one (`spaced`). In every other such file the semicolon (or the tab) stands. No
+/// of no number's make (`number_make`) and does not end with a space begins with one, and no
+/// field of the comma's reading begins with one (`spaced`): a field with a space at each end is a
+/// cell that a program padded. In every other such file the semicolon (or the tab) stands. No
 /// count of numbers decides (r3 U11.6).
 fn reading(text: &str) -> Result<(u8, Rows<'_>), Error> {
     let sign = match (holds(text, b';'), holds(text, b'\t')) {
@@ -55,7 +56,10 @@ fn reading(text: &str) -> Result<(u8, Rows<'_>), Error> {
         (false, false) => return Ok((b',', read(text, b',')?)),
     };
     let theirs = read(text, sign)?;
-    let texts = theirs.iter().flatten().filter(|cell| !number_make(cell));
+    let texts = theirs
+        .iter()
+        .flatten()
+        .filter(|cell| !number_make(cell) && !cell.ends_with(' '));
     let stands = !holds(text, b',')
         || in_numbers(text, sign)
         || theirs.iter().flatten().any(|cell| comma_number(cell))
@@ -69,13 +73,31 @@ fn reading(text: &str) -> Result<(u8, Rows<'_>), Error> {
     }
 }
 
-/// Whether `cell`, without the spaces at its ends, has a number's make, whatever the file's
-/// numbers make of it (`Numbers::of`): a minus in front at most, then digits, points and commas
-/// alone, a digit at each end (`500`, `3.250,50`, `-1.234,56`, `38,40,42`). A field of that make
-/// in the semicolon's reading is no sign for the comma by condition (iii) of `reading`, as a
-/// program writes a whole number of an accounting format with a space in front.
+/// The signs of money and the percent sign that a number may carry at one of its ends
+/// (`number_make`).
+const NUMBER_SIGNS: [char; 5] = ['€', '$', '£', '¥', '%'];
+
+/// Whether `cell`, without the spaces at its ends and without ONE sign of `NUMBER_SIGNS` at either
+/// end with its spaces, has a number's make, whatever the file's numbers make of it
+/// (`Numbers::of`): a minus in front at most, then digits, points and commas alone, a digit at
+/// each end (`500`, ` 3.250,50 € `, `€ 500`, ` 12 %`, `-1.234,56`, `38,40,42`); letters
+/// (`500 EUR`) keep a field a text. A field of that make in the semicolon's reading is no sign for
+/// the comma by condition (iii) of `reading`, as a program writes a whole number of an accounting
+/// format with a space in front.
 fn number_make(cell: &str) -> bool {
     let cell = cell.trim_matches(' ');
+    let cell = NUMBER_SIGNS
+        .iter()
+        .find_map(|&sign| {
+            let front = cell
+                .strip_prefix(sign)
+                .map(|rest| rest.trim_start_matches(' '));
+            front.or_else(|| {
+                cell.strip_suffix(sign)
+                    .map(|rest| rest.trim_end_matches(' '))
+            })
+        })
+        .unwrap_or(cell);
     let body = cell.strip_prefix('-').unwrap_or(cell);
     let bytes = body.as_bytes();
     bytes.first().is_some_and(u8::is_ascii_digit)
@@ -86,7 +108,8 @@ fn number_make(cell: &str) -> bool {
 }
 
 /// Whether `cell` is a number written with a comma: of a number's make (`number_make`), with one
-/// comma or more (`3.250,50`, `1,250`, `3,250.50`, `38,40,42`). Condition (ii) of `reading`.
+/// comma or more (`3.250,50`, ` 3.250,50 € `, `1,250`, `3,250.50`, `38,40,42`). Condition (ii) of
+/// `reading`.
 fn comma_number(cell: &str) -> bool {
     number_make(cell) && cell.contains(',')
 }
@@ -1125,11 +1148,38 @@ mod tests {
                 ]),
             ),
             (
-                "rest (6), the comma by (i), (ii), (iii): an amount padded with a sign of money",
+                "S4, the semicolon, (iii) fails: a whole amount with a sign of money is a number",
                 file(&["Schraube,verzinkt; 500 € ", "Mutter,M8; 250 € "], "\r\n"),
                 Ok(vec![
-                    vec![t("Schraube"), t("verzinkt; 500 € ")],
-                    vec![t("Mutter"), t("M8; 250 € ")],
+                    vec![t("Schraube,verzinkt"), t(" 500 € ")],
+                    vec![t("Mutter,M8"), t(" 250 € ")],
+                ]),
+            ),
+            (
+                "S5, the semicolon, (ii) fails: an amount with a decimal comma and a sign of money",
+                file(
+                    &["Schraube,verzinkt; 3.250,50 € ", "Mutter,M8; 250,00 € "],
+                    "\r\n",
+                ),
+                Ok(vec![
+                    vec![t("Schraube,verzinkt"), t(" 3.250,50 € ")],
+                    vec![t("Mutter,M8"), t(" 250,00 € ")],
+                ]),
+            ),
+            (
+                "S6, the semicolon, (iii) fails: a text padded on both sides",
+                file(&["Schraube,verzinkt; auf Lager ", "Mutter,M8; bestellt "], "\r\n"),
+                Ok(vec![
+                    vec![t("Schraube,verzinkt"), t(" auf Lager ")],
+                    vec![t("Mutter,M8"), t(" bestellt ")],
+                ]),
+            ),
+            (
+                "S7, the semicolon, (iii) fails: an amount with letters, padded on both sides",
+                file(&["Schraube,verzinkt; 500 EUR ", "Mutter,M8; 250 EUR "], "\r\n"),
+                Ok(vec![
+                    vec![t("Schraube,verzinkt"), t(" 500 EUR ")],
+                    vec![t("Mutter,M8"), t(" 250 EUR ")],
                 ]),
             ),
         ];
