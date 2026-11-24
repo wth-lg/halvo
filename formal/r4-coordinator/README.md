@@ -891,7 +891,7 @@ product's value. `export.sh` fails when a value here differs from `Schedule.cfg`
 |---|---|---|---|
 | `max_live_runs` | 2 | 1 | `MaxLive` |
 | `queue_max` | 2 | 4 | `QueueMax` |
-| `starts_per_day` | 2 | 6 | `StartsPerDay` |
+| `starts_per_day` | 2 | 24 | `StartsPerDay` |
 | `fails_to_pause` | 2 | 3 | `FailsToPause` |
 | `catch_up_days` | 0 | 7 | `CatchUpDays` |
 

@@ -1,0 +1,1 @@
+- Changed: An amount in a data file as a spreadsheet program writes it, with a money sign, a thousands sign, spaces at its ends or brackets for a negative, now lands in the workbook as its number where its form has one reading and every amount of its column turns; every other form stays a text, as before.

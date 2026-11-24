@@ -76,7 +76,7 @@ impl Limits {
         wait_limit_s: 900,
         arm_ms: 500,
         cancel_grace_s: 5,
-        starts_per_day: 6,
+        starts_per_day: 24,
         items_per_run: 8,
         fails_to_pause: 3,
         catch_up_days: 7,

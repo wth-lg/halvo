@@ -24,6 +24,7 @@ const WORDS = {
   CAPTURE_FAULTED: "Halvo is not capturing",
   CAPTURE_UNKNOWN: "Halvo cannot tell whether capture runs",
   LEFT_OUT_IN_DOUBT: "Halvo could not tell whether to leave out the app that you were using, so it has recorded nothing since then. It records again as soon as it can tell.",
+  TYPING_KEPT_PRIVATE: "Halvo is not recording typing right now, because a password field or another app has asked your Mac to keep typing private. It records typing again by itself when that ends.",
   FAULT_STORE: "Its store is not open.",
   FAULT_DRAIN: "It cannot save what it records.",
   FAULT_NO_SOURCE: "No part of capture could start.",

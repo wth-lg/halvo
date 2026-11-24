@@ -289,3 +289,26 @@ test("status-honest: where Halvo left out every record by doubt, the line under 
     assert.notEqual(held.text("capture-reason"), said, name);
   }
 });
+
+test("typing-says: where the Mac's input row reads impaired by secure_input_elsewhere, the line under the heading says the ruled sentence with the heading and the dot as they are; plain, by another reason, as the pointer, on Windows, paused or held it does not, and beside the doubt the doubt's sentence alone shows", async () => {
+  const said = "Halvo is not recording typing right now, because a password field or another app has asked your Mac to keep typing private. It records typing again by itself when that ends.";
+  const doubt = "Halvo could not tell whether to leave out the app that you were using, so it has recorded nothing since then. It records again as soon as it can tell.";
+  const turned = (status, name, row) => ({ ...status, sources: status.sources.map((src) => (src.name === name ? { ...src, ...row } : src)) });
+  const elsewhere = { state: "impaired", reason: "secure_input_elsewhere" };
+  const running = fixture("capture_status-running");
+  const kept = turned(running, "input", elsewhere);
+  for (const capture of ["running", "partial"]) {
+    const shown = await page({ ...kept, capture });
+    assert.equal(shown.text("capture-reason"), said, capture);
+    assert.equal(shown.text("state"), CAPTURE[capture], capture);
+    assert.equal(shown.byId("dot").classList.contains("on"), true, capture);
+  }
+  assert.equal((await page(running)).text("capture-reason"), "", "plain");
+  assert.equal((await page(turned(running, "input", { state: "impaired", reason: "permission" }))).text("capture-reason"), "", "permission");
+  assert.equal((await page(turned(kept, "input", { name: "pointer" }))).text("capture-reason"), "", "as the pointer");
+  const windows = fixture("capture_status-running-windows");
+  assert.equal((await page(turned(windows, "keyboard", elsewhere))).text("capture-reason"), "", "windows");
+  assert.equal((await page({ ...kept, desired: "paused", capture: "paused" })).text("capture-reason"), "", "paused");
+  assert.notEqual((await page({ ...kept, hold: { press: "resume" } })).text("capture-reason"), said, "held");
+  assert.equal((await page({ ...kept, left_out_in_doubt: true })).text("capture-reason"), doubt, "beside the doubt");
+});

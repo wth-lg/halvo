@@ -190,7 +190,7 @@ fn step_1_each_hold_is_hold() {
 #[test]
 fn step_2_starts_per_day_run_started_events_of_today_is_budget() {
     let mut whats = done_before();
-    for n in 0..6 {
+    for n in 0..L.starts_per_day {
         whats.push((TODAY, started(10 + n, Trigger::Person, None)));
         whats.push((TODAY, ended(10 + n, RunEnd::Failed)));
     }
@@ -206,7 +206,7 @@ fn step_2_starts_per_day_run_started_events_of_today_is_budget() {
         Verdict::Go(_)
     ));
     let mut yesterday = done_before();
-    for n in 0..6 {
+    for n in 0..L.starts_per_day {
         yesterday.push((TODAY - 1, started(10 + n, Trigger::Person, None)));
     }
     let y = facts(&AUTO, yesterday);
@@ -327,7 +327,7 @@ fn failing(steps: &[u8]) -> (Facts<Config>, Around) {
                 },
             )),
             2 => {
-                for n in 0..6 {
+                for n in 0..L.starts_per_day {
                     whats.push((TODAY, started(10 + n, Trigger::Schedule, None)));
                     whats.push((TODAY, ended(10 + n, RunEnd::Cancelled)));
                 }
