@@ -3105,6 +3105,869 @@ fn after_a_start_behind_another_window_in_edge() {
     after_a_start_behind_another_window("browser-after-start-edge", "edge");
 }
 
+/// The letters that each part of the row of a switch back sends: one word.
+const SWITCH_BACK_LETTERS: usize = 5;
+
+/// How long each wait of the row of a switch back waits for its state.
+const SWITCH_BACK_WAIT: Duration = Duration::from_secs(15);
+
+/// How long each wait of the row's warm-up waits for its state: the
+/// browser's first read of its page, and its first switch away and back.
+const WARM_UP_WAIT: Duration = Duration::from_secs(30);
+
+/// How far behind a switch the own read that it asks begins at the least:
+/// one settle time.
+const SWITCH_READ_BEHIND_MS: i32 = 100;
+
+/// What the row of a switch back took from the test seam and from its sink,
+/// in their order.
+#[derive(Default)]
+struct SwitchBackSeen {
+    marks: Vec<seam::MarkSeen>,
+    decided: Vec<seam::Decided>,
+    records: Vec<Seen>,
+    noted: usize,
+}
+
+impl SwitchBackSeen {
+    /// Takes what came since the last take, with one step of 20 ms on the sink.
+    fn take(&mut self, events: &Events) {
+        self.records
+            .extend(events.drain_for(Duration::from_millis(20)));
+        self.marks.extend(seam::take_marks());
+        self.decided.extend(seam::take());
+        while seam::next_recorded_tick().is_some() {
+            self.noted += 1;
+        }
+    }
+
+    /// Takes until `done` holds or `limit` ends: whether it held.
+    fn until(&mut self, events: &Events, limit: Duration, done: impl Fn(&Self) -> bool) -> bool {
+        let began = Instant::now();
+        loop {
+            self.take(events);
+            if done(self) {
+                return true;
+            }
+            if began.elapsed() >= limit {
+                return false;
+            }
+        }
+    }
+
+    /// The newest switch of the marks from `from` whose window in front was
+    /// of the process `pid`, and the first own read that began one settle
+    /// time or more behind it: the read that the switch asked.
+    fn switch_and_its_read(
+        &self,
+        from: usize,
+        pid: u32,
+    ) -> (Option<&seam::MarkSeen>, Option<&seam::MarkSeen>) {
+        let marks = &self.marks[from.min(self.marks.len())..];
+        let Some(at) = marks
+            .iter()
+            .rposition(|mark| mark.what == "switch" && mark.front_pid == pid)
+        else {
+            return (None, None);
+        };
+        let switch = &marks[at];
+        let tick = switch.at.unwrap_or(switch.began);
+        let read = marks[at..].iter().find(|mark| {
+            mark.what == "read" && mark.began.wrapping_sub(tick) as i32 >= SWITCH_READ_BEHIND_MS
+        });
+        (Some(switch), read)
+    }
+
+    /// Whether the marks from `from` hold an event or an own read of `state`,
+    /// of an element of Chrome where the state is Clear: the gate's read of
+    /// a page's field.
+    fn field_read(&self, from: usize, state: FieldState) -> bool {
+        self.marks[from.min(self.marks.len())..].iter().any(|mark| {
+            (mark.what == "event" || mark.what == "read")
+                && mark.state == Some(state)
+                && (state != FieldState::Clear || part_of(mark, "kind=", "") == "kind=Chrome")
+        })
+    }
+
+    /// The letters decided from the decision `from` on.
+    fn letters_from(&self, from: usize) -> Vec<seam::Decided> {
+        self.decided[from.min(self.decided.len())..]
+            .iter()
+            .filter(|key| key.class == seam::KeyClass::Printable)
+            .copied()
+            .collect()
+    }
+
+    /// The keystroke records of the sink from the record `from` on.
+    fn keystrokes_from(&self, from: usize) -> usize {
+        count(
+            &self.records[from.min(self.records.len())..],
+            Modality::Keystroke,
+        )
+    }
+}
+
+/// One switch of the row of a switch back, by the window alone: the OS tick
+/// of the call, which process made it (the test, or the other window), whether
+/// the window came in front, and the ticks of the switch that the gate holds of
+/// it and of the own read that the switch asked, as the row waited for them: a
+/// switch told late shows a title thread that was held.
+#[derive(Debug, Clone, Copy)]
+struct Switched {
+    call_at: u32,
+    by: &'static str,
+    pointer_over: &'static str,
+    front: bool,
+    at: Option<u32>,
+    read_at: Option<u32>,
+    told: bool,
+}
+
+impl Switched {
+    /// How long after its call the title source told the gate of the switch;
+    /// -1 where it did not.
+    fn late_ms(&self) -> i64 {
+        self.at
+            .map_or(-1, |at| i64::from(at.wrapping_sub(self.call_at) as i32))
+    }
+
+    /// Whether the window came in front by its one call of
+    /// SetForegroundWindow within FRONT_WAIT.
+    fn came(&self) -> bool {
+        self.front
+    }
+
+    /// How long after its call the read that the switch asked began; -1
+    /// where none did.
+    fn read_late_ms(&self) -> i64 {
+        self.read_at
+            .map_or(-1, |at| i64::from(at.wrapping_sub(self.call_at) as i32))
+    }
+
+    fn line(&self, which: &str) -> String {
+        format!(
+            "{which}_call_at={} {which}_by={} {which}_pointer_over={} {which}_front={} {which}_told={} \
+             {which}_switch_at={} {which}_switch_late_ms={} {which}_read_began_at={} \
+             {which}_read_late_ms={}",
+            self.call_at,
+            self.by,
+            self.pointer_over,
+            self.front,
+            self.told,
+            self.at.map_or(-1, i64::from),
+            self.late_ms(),
+            self.read_at.map_or(-1, i64::from),
+            self.read_late_ms()
+        )
+    }
+}
+
+/// How long the row of a switch back waits for a window in front after its
+/// one call of SetForegroundWindow.
+const FRONT_WAIT: Duration = Duration::from_secs(5);
+
+/// How long each try of the warm-up's switch waits for the gate to hold it.
+const WARM_UP_TRY_WAIT: Duration = Duration::from_secs(5);
+
+/// Waits up to FRONT_WAIT until `to` is in front, then up to `limit` until
+/// the gate holds the switch into it since the mark `from` and the own read
+/// that the switch asked.
+fn switch_told(
+    (to, from, call_at, by, pointer_over): (HWND, usize, u32, &'static str, &'static str),
+    seen: &mut SwitchBackSeen,
+    events: &Events,
+    limit: Duration,
+) -> Switched {
+    let pid = window_pid(to);
+    let front = seen.until(events, FRONT_WAIT, |_| foreground_window() == to);
+    let told = seen.until(events, limit, |seen| {
+        seen.switch_and_its_read(from, pid).1.is_some()
+    });
+    let (switch, read) = seen.switch_and_its_read(from, pid);
+    Switched {
+        call_at,
+        by,
+        pointer_over,
+        front,
+        at: switch.map(|mark| mark.at.unwrap_or(mark.began)),
+        read_at: read.map(|mark| mark.began),
+        told,
+    }
+}
+
+/// Which window the pointer stands over: the page that the switch leaves,
+/// the window with no edit, another window of the page's process, another
+/// window, or none.
+fn pointer_over(page: HWND, away: HWND) -> &'static str {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetAncestor, GetCursorPos, WindowFromPoint, GA_ROOT,
+    };
+    let mut at = POINT::default();
+    // SAFETY: `at` is a live POINT that the call writes into.
+    if unsafe { GetCursorPos(&mut at) }.is_err() {
+        return "none";
+    }
+    // SAFETY: WindowFromPoint and GetAncestor take plain values.
+    let root = unsafe { GetAncestor(WindowFromPoint(at), GA_ROOT) };
+    if root.0.is_null() {
+        "none"
+    } else if root == page {
+        "page"
+    } else if root == away {
+        "away_window"
+    } else if window_pid(root) == window_pid(page) {
+        "another_window_of_the_page"
+    } else {
+        "another_window"
+    }
+}
+
+/// The test's switch AWAY from the page `left` into `to`: ONE pointer move of
+/// the test by SendInput, one pixel and back (no click, no key), so that the
+/// test is the last input's provider, which the system lets set the
+/// foreground; then ONE call of SetForegroundWindow, and never the joined
+/// input of bring_to_front's way 3, since a switch made through the test's
+/// own input is raised in the test's process, whose events the title
+/// source's hooks skip as their own. Answers the switch and the count of
+/// marks before the move.
+fn switch_by_the_test(
+    (to, left): (HWND, HWND),
+    seen: &mut SwitchBackSeen,
+    events: &Events,
+    limit: Duration,
+) -> (Switched, usize) {
+    seen.take(events);
+    let from = seen.marks.len();
+    let over = pointer_over(left, to);
+    send(&[
+        mouse_input(1, 0, MOUSEEVENTF_MOVE),
+        mouse_input(-1, 0, MOUSEEVENTF_MOVE),
+    ]);
+    let call_at = tick_now();
+    set_foreground(to);
+    (
+        switch_told((to, from, call_at, "test", over), seen, events, limit),
+        from,
+    )
+}
+
+/// The title of the window of the child mode front-on-go.
+const AWAY_TITLE: &str = "halvo-verify-front-on-go";
+
+/// The window with no edit of the child mode front-on-go, in a process of its
+/// own, with the count of the goes that the test gave it.
+struct AwayWindow {
+    child: ChildProcess,
+    hwnd: HWND,
+    goes: u32,
+}
+
+/// The switch back into `to` made by the window with no edit itself, which
+/// holds the front then: another process than the test raises its event, as a
+/// program's or a person's switch does, and the test gives no input for it
+/// (its go is a file). Answers the switch and the count of marks before the go.
+fn switch_by_the_other_window(
+    away: &mut AwayWindow,
+    to: HWND,
+    seen: &mut SwitchBackSeen,
+    events: &Events,
+    limit: Duration,
+) -> (Switched, usize) {
+    seen.take(events);
+    let from = seen.marks.len();
+    away.goes += 1;
+    let go = format!("front-{}", away.goes);
+    std::fs::write(
+        away.child._dir.path().join(format!("{go}.window")),
+        (to.0 as usize).to_string(),
+    )
+    .expect("write the window of the child's go");
+    let call_at = tick_now();
+    away.child.go(&go);
+    (
+        switch_told(
+            (to, from, call_at, "other_window", "no_move"),
+            seen,
+            events,
+            limit,
+        ),
+        from,
+    )
+}
+
+/// The child mode front-on-go: a window with no edit that brings another
+/// window in front on the test's word. For each step N the test writes the
+/// file front-N.window with that window's handle in decimal, then the go
+/// front-N; the child, which holds the front then, calls SetForegroundWindow
+/// once for it and says whether the call answered yes. It answers its
+/// messages throughout and ends after `secs` or when the test ends it.
+pub(super) fn child_front_on_go(secs: u64) {
+    let _window = TestWindow::create(&normal_window("HalvoVerifyFrontOnGo", AWAY_TITLE, 420, 320))
+        .expect("the window");
+    let program = std::env::current_exe().expect("the child's program");
+    let deadline = Instant::now() + Duration::from_secs(secs);
+    let mut step = 0;
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        let go = format!("front-{}", step + 1);
+        if left.is_zero() || !wait_for_go(&go, left) {
+            break;
+        }
+        step += 1;
+        let handle = std::fs::read_to_string(program.with_file_name(format!("{go}.window")))
+            .ok()
+            .and_then(|text| text.trim().parse::<usize>().ok())
+            .unwrap_or(0);
+        // SAFETY: SetForegroundWindow takes a window handle by value; a stale
+        // handle makes the call fail and changes nothing.
+        let answered =
+            unsafe { SetForegroundWindow(HWND(handle as *mut core::ffi::c_void)) }.as_bool();
+        say(
+            "child",
+            format!("mode=front-on-go step={step} set_foreground_answered={answered}"),
+        );
+    }
+    say("child", format!("mode=front-on-go goes={step}"));
+}
+
+/// Opens a page window of `phase` as PhaseBrowser::open does, but brings it
+/// in front by ONE call of SetForegroundWindow, the front waited for as a
+/// state up to FRONT_WAIT: no click and no joined input. Chromium alone.
+fn open_by_the_window_alone(
+    browser: &mut PhaseBrowser,
+    (test, phase): (&str, &str),
+    seen: &mut SwitchBackSeen,
+    events: &Events,
+) -> Option<(HWND, bool)> {
+    browser.runs += 1;
+    let url = format!("{}?phase={phase}&hold=0&run={}", browser.page, browser.runs);
+    let profile = browser.profile.path().to_string_lossy().into_owned();
+    Command::new(&browser.exe)
+        .args([
+            format!("--user-data-dir={profile}"),
+            "--no-first-run".to_string(),
+            "--no-default-browser-check".to_string(),
+            "--disable-features=Translate".to_string(),
+            "--new-window".to_string(),
+            url,
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let prefix = format!("halvo-phase {phase}{} ", browser.runs);
+    let found = seen.until(events, Duration::from_secs(40), |_| {
+        window_titled(&prefix).is_some()
+    });
+    let (hwnd, _) = window_titled(&prefix)?;
+    set_foreground(hwnd);
+    let front = seen.until(events, FRONT_WAIT, |_| foreground_window() == hwnd);
+    say(
+        test,
+        format!(
+            "browser={} phase={phase} opened={found} front_by_one_call={front}",
+            browser.name
+        ),
+    );
+    Some((hwnd, front))
+}
+
+/// One part of the row of a switch back: its switch away and back, what the
+/// gate and the system gave between the switch back and the first letter,
+/// and its letters.
+struct SwitchBackPart {
+    part: &'static str,
+    away: Switched,
+    back: Switched,
+    keys_decided_in_the_part: usize,
+    page_counts_seen: bool,
+    read_behind_the_switch: Option<(Option<FieldState>, i64, u32)>,
+    focus_events_from_the_switch_back: usize,
+    focus_events_from_the_move: Vec<String>,
+    latches_from_the_move: usize,
+    reads_from_the_move: Vec<String>,
+    handler_entered_from_the_switch_to_the_letters: u64,
+    system_events_from_the_switch_to_the_letters: String,
+    gate_at_the_return: ContentReading,
+    newest_before_the_first_letter: String,
+    newest_is_the_read_behind_the_switch: bool,
+    page_at_the_return: PageRead,
+    page_after_the_letters: PageRead,
+    letters_sent: u32,
+    letters: Vec<seam::Decided>,
+    keystroke_records: usize,
+    records_noted_by_the_seam: usize,
+    marks: String,
+}
+
+impl SwitchBackPart {
+    fn letters_recorded(&self) -> usize {
+        self.letters
+            .iter()
+            .filter(|key| key.verdict == seam::Verdict::Recorded)
+            .count()
+    }
+
+    /// Whether the part's switches came by the window alone, the gate saw no
+    /// latch (no click, no focus key) between the switch back and the first
+    /// letter, and the page showed its count of the letters.
+    fn came_in_order(&self) -> bool {
+        self.away.came()
+            && self.back.came()
+            && self.latches_from_the_move == 0
+            && self.page_counts_seen
+    }
+
+    /// Whether the title source told the gate of each switch of the part and
+    /// the gate made the own read that the switch asked.
+    fn told_in_order(&self) -> bool {
+        self.away.told && self.back.told
+    }
+
+    fn line(&self) -> String {
+        let (read_state, read_ms) = self
+            .read_behind_the_switch
+            .map_or((None, -1), |(state, ms, _)| (state, ms));
+        let letters: Vec<String> = self
+            .letters
+            .iter()
+            .map(|key| {
+                format!(
+                    "input@{}:decided@{}:{:?}:{:?}",
+                    key.os_tick, key.decided_tick, key.verdict, key.rule
+                )
+            })
+            .collect();
+        format!(
+            "part={} {} {} keys_decided_in_the_part={} page_counts_seen={} read_behind_the_switch={} \
+             read_behind_the_switch_state={read_state:?} read_behind_the_switch_ms={read_ms} \
+             focus_events_from_the_switch_back={} latches_from_the_move={} \
+             focus_events_from_the_move=[{}] reads_from_the_move=[{}] \
+             handler_entered_from_the_switch_to_the_letters={} \
+             system_events_from_the_switch_to_the_letters=[{}] gate_at_the_return={:?} \
+             newest_before_the_first_letter={} newest_is_the_read_behind_the_switch={} \
+             page_focus_at_the_return={} letters_sent={} letters_decided={} letters_recorded={} \
+             first_letter_rule={:?} letters=[{}] keystroke_records={} records_noted_by_the_seam={} \
+             landed_text={} landed_password={}",
+            self.part,
+            self.away.line("away"),
+            self.back.line("back"),
+            self.keys_decided_in_the_part,
+            self.page_counts_seen,
+            self.read_behind_the_switch.is_some(),
+            self.focus_events_from_the_switch_back,
+            self.latches_from_the_move,
+            self.focus_events_from_the_move.join(","),
+            self.reads_from_the_move.join(","),
+            self.handler_entered_from_the_switch_to_the_letters,
+            self.system_events_from_the_switch_to_the_letters,
+            self.gate_at_the_return,
+            self.newest_before_the_first_letter,
+            self.newest_is_the_read_behind_the_switch,
+            self.page_at_the_return.focus,
+            self.letters_sent,
+            self.letters.len(),
+            self.letters_recorded(),
+            self.letters.first().and_then(|key| key.rule),
+            letters.join(","),
+            self.keystroke_records,
+            self.records_noted_by_the_seam,
+            self.page_after_the_letters.text,
+            self.page_after_the_letters.password,
+        )
+    }
+}
+
+/// The OS time now, in ticks of GetTickCount, as the seam's marks carry it.
+fn tick_now() -> u32 {
+    // SAFETY: GetTickCount takes no argument and reads a counter.
+    unsafe { GetTickCount() }
+}
+
+/// Leaves `page` for the window with no edit by the test's one call, and the
+/// window with no edit brings the page back itself: no click, no key and no
+/// input of the test between them, each switch waited for until the gate
+/// holds the switch and the own read that it asked; then sends the letters of
+/// one word and waits until the gate has decided each and the page shows its
+/// count of them.
+fn switch_back_part(
+    part: &'static str,
+    (page, away_window): (HWND, &mut AwayWindow),
+    gate: &PasswordGate,
+    seen: &mut SwitchBackSeen,
+    events: &Events,
+) -> SwitchBackPart {
+    seen.take(events);
+    let decided_from_away = seen.decided.len();
+    let (away, from_away) =
+        switch_by_the_test((away_window.hwnd, page), seen, events, SWITCH_BACK_WAIT);
+    let counter = EventCounter::start();
+    let handler_before = seam::detector().handler_entered;
+    let (back, from) =
+        switch_by_the_other_window(away_window, page, seen, events, SWITCH_BACK_WAIT);
+    let handler_entered_from_the_switch_to_the_letters = seam::detector()
+        .handler_entered
+        .saturating_sub(handler_before);
+    let system_events_from_the_switch_to_the_letters = counter.stop();
+    let gate_at_the_return = gate.content_reading();
+    let page_at_the_return = page_read(page).unwrap_or_default();
+    let decided_from = seen.decided.len();
+    let records_from = seen.records.len();
+    let noted_from = seen.noted;
+    let letters_sent = send_letters(SWITCH_BACK_LETTERS);
+    seen.until(events, SWITCH_BACK_WAIT, |seen| {
+        seen.letters_from(decided_from).len() >= SWITCH_BACK_LETTERS
+    });
+    let letters = seen.letters_from(decided_from);
+    let recorded = letters
+        .iter()
+        .filter(|key| key.verdict == seam::Verdict::Recorded)
+        .count();
+    seen.until(events, SWITCH_BACK_WAIT, |seen| {
+        seen.keystrokes_from(records_from) >= recorded
+    });
+    let page_counts_seen = seen.until(events, SWITCH_BACK_WAIT, |_| {
+        page_read(page).is_some_and(|page| page.text + page.password >= SWITCH_BACK_LETTERS as i64)
+    });
+    let page_after_the_letters = page_read(page).unwrap_or_default();
+    let keys_decided_in_the_part = seen.decided.len() - decided_from_away;
+    let (_, read) = seen.switch_and_its_read(from, window_pid(page));
+    let read_behind_the_switch = back.at.zip(read).map(|(at, read)| {
+        (
+            read.state,
+            i64::from(read.began.wrapping_sub(at) as i32),
+            read.began,
+        )
+    });
+    let first_letter = letters.first().map(|key| key.os_tick);
+    let not_after_the_first_letter = |mark: &seam::MarkSeen| {
+        first_letter.is_none_or(|key| mark.at.is_some_and(|at| key.wrapping_sub(at) as i32 >= 0))
+    };
+    let marks_of_the_return = &seen.marks[from.min(seen.marks.len())..];
+    let focus_events_from_the_switch_back = marks_of_the_return
+        .iter()
+        .filter(|mark| mark.what == "event" && not_after_the_first_letter(mark))
+        .count();
+    let marks_from_the_move: Vec<&seam::MarkSeen> = seen.marks[from_away.min(seen.marks.len())..]
+        .iter()
+        .filter(|mark| not_after_the_first_letter(mark))
+        .collect();
+    let focus_events_from_the_move: Vec<String> = marks_from_the_move
+        .iter()
+        .filter(|mark| mark.what == "event")
+        .map(|mark| {
+            format!(
+                "event@{}:{:?}:{}",
+                mark.at.unwrap_or(mark.began),
+                mark.state,
+                part_of(mark, "kind=", "kind=none")
+            )
+        })
+        .collect();
+    let latches_from_the_move = marks_from_the_move
+        .iter()
+        .filter(|mark| mark.what.starts_with("latch"))
+        .count();
+    let asked_by = |read: &seam::MarkSeen| {
+        if Some(read.began) == away.read_at {
+            "switch_away"
+        } else if Some(read.began) == back.read_at {
+            "switch_back"
+        } else if marks_from_the_move.iter().any(|mark| {
+            mark.what == "event"
+                && mark
+                    .at
+                    .is_some_and(|at| (0..=30).contains(&(read.began.wrapping_sub(at) as i32)))
+        }) {
+            "focus_event"
+        } else {
+            "other"
+        }
+    };
+    let reads_from_the_move: Vec<String> = marks_from_the_move
+        .iter()
+        .filter(|mark| mark.what == "read")
+        .map(|read| format!("read@{}:{:?}:{}", read.began, read.state, asked_by(read)))
+        .collect();
+    let newest = seen.marks[from_away.min(seen.marks.len())..]
+        .iter()
+        .rev()
+        .find(|mark| {
+            (mark.what == "read" || mark.what == "event") && not_after_the_first_letter(mark)
+        });
+    let newest_before_the_first_letter = newest.map_or("none".to_string(), |mark| {
+        format!(
+            "{}@{}:{:?}",
+            mark.what,
+            mark.at.unwrap_or(mark.began),
+            mark.state
+        )
+    });
+    let newest_is_the_read_behind_the_switch = newest
+        .zip(read_behind_the_switch)
+        .is_some_and(|(mark, (_, _, began))| mark.what == "read" && mark.began == began);
+    let keystroke_records = seen.keystrokes_from(records_from);
+    SwitchBackPart {
+        part,
+        away,
+        back,
+        keys_decided_in_the_part,
+        page_counts_seen,
+        read_behind_the_switch,
+        focus_events_from_the_switch_back,
+        focus_events_from_the_move,
+        latches_from_the_move,
+        reads_from_the_move,
+        handler_entered_from_the_switch_to_the_letters,
+        system_events_from_the_switch_to_the_letters,
+        gate_at_the_return,
+        newest_before_the_first_letter,
+        newest_is_the_read_behind_the_switch,
+        page_at_the_return,
+        page_after_the_letters,
+        letters_sent,
+        letters,
+        keystroke_records,
+        records_noted_by_the_seam: seen.noted - noted_from,
+        marks: full_marks(marks_of_the_return),
+    }
+}
+
+/// The keyboard source and the title source of one service set, made by the
+/// set's factory as the daemon makes them, on the set's one gate, with pages
+/// of `name` that a window with no edit takes the front from and gives it
+/// back to, by the window alone, with no click and no key. A first page
+/// warms the browser up: it moves its own focus, the gate reads its text box
+/// as Clear by Chrome, and one switch away and back is told to the gate with
+/// the read that each asked, so that the title source runs in time. Then a
+/// page whose own load puts the cursor in its text box, and one whose own
+/// load puts it in its password field; each part starts once the gate has
+/// read the page's field and the title source has told the gate of the
+/// page's switch, and at its return the browser gives the gate a focus event
+/// of the page's field, as the hosted runs show. In the text box every
+/// letter of the word is recorded; at the password field none is, and no
+/// keystroke record is written.
+fn switch_back(test: &'static str, name: &'static str) {
+    use halvo_capture::daemon::sources::SourceFactory;
+    use halvo_control::proto::SourceName;
+    with_deadline(test, Duration::from_secs(180), move || {
+        env_report(test);
+        source_built_by_test(test, "keyboard");
+        source_built_by_test(test, "window_title");
+        let away_child = spawn_child("front-on-go", 170);
+        let mut browser = open_browser(test, name);
+        let (sink, events) = capture(4096);
+        let mut seen = SwitchBackSeen::default();
+        let away_came = seen.until(&events, SWITCH_BACK_WAIT, |_| {
+            window_titled(AWAY_TITLE).is_some()
+        });
+        let (away_hwnd, _) = window_titled(AWAY_TITLE).unwrap_or_else(|| {
+            panic!("INCONCLUSIVE: the window with no edit did not come: {away_came}")
+        });
+        let mut away = AwayWindow {
+            child: away_child,
+            hwnd: away_hwnd,
+            goes: 0,
+        };
+        let mut set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut keyboard = set
+            .make(SourceName::Keyboard)
+            .expect("the set makes a keyboard source");
+        let mut title = set
+            .make(SourceName::WindowTitle)
+            .expect("the set makes a title source");
+        let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
+        let title_start = title.begin(SourceContext::new(sink.clone()));
+        assert!(
+            keyboard_start.is_ok() && title_start.is_ok(),
+            "the sources must start: keyboard {}, title {}",
+            show(&keyboard_start),
+            show(&title_start)
+        );
+        seen.take(&events);
+        let from_warm = seen.marks.len();
+        let warm_page = browser
+            .open(test, "after-start", 0)
+            .expect("INCONCLUSIVE: no first page window");
+        let warm_way = browser.front_method;
+        let warm_read = seen.until(&events, WARM_UP_WAIT, |seen| {
+            seen.field_read(from_warm, FieldState::Clear)
+                && page_read(warm_page).is_some_and(|page| page.moved_at >= 0)
+        });
+        let warm_began = Instant::now();
+        let mut warm_tries = 0;
+        let mut warm_told = false;
+        while !warm_told && warm_began.elapsed() < WARM_UP_WAIT {
+            warm_tries += 1;
+            let (warm_away, _) =
+                switch_by_the_test((away.hwnd, warm_page), &mut seen, &events, WARM_UP_TRY_WAIT);
+            let (warm_back, _) = switch_by_the_other_window(
+                &mut away,
+                warm_page,
+                &mut seen,
+                &events,
+                WARM_UP_TRY_WAIT,
+            );
+            warm_told = warm_away.told && warm_back.told;
+            say(
+                test,
+                format!(
+                    "browser={name} warm_up try={warm_tries} way_to_the_front={warm_way} \
+                     warm_read={warm_read} {} {} warm_told={warm_told} gate={:?}",
+                    warm_away.line("away"),
+                    warm_back.line("back"),
+                    gate.content_reading()
+                ),
+            );
+        }
+        if !(warm_read && warm_told) {
+            let _ = away.child.process.kill();
+            let _ = away.child.wait();
+            away.child.print_output();
+            panic!(
+                "INCONCLUSIVE: the warm-up did not end with a switch away and back that the gate \
+                 was told: warm_read={warm_read} warm_told={warm_told} warm_tries={warm_tries}"
+            );
+        }
+        let mut ready = |seen: &mut SwitchBackSeen, phase: &str, field: FieldState| {
+            seen.take(&events);
+            let from_open = seen.marks.len();
+            let (page, front) =
+                open_by_the_window_alone(&mut browser, (test, phase), seen, &events)
+                    .expect("INCONCLUSIVE: no page window");
+            let focus = if field == FieldState::Password {
+                "password"
+            } else {
+                "plain"
+            };
+            let came = |seen: &SwitchBackSeen| {
+                front
+                    && foreground_window() == page
+                    && seen.field_read(from_open, field)
+                    && page_read(page).is_some_and(|page| page.focus == focus)
+            };
+            let told = |seen: &SwitchBackSeen| {
+                seen.switch_and_its_read(from_open, window_pid(page))
+                    .1
+                    .is_some()
+            };
+            seen.until(&events, SWITCH_BACK_WAIT, |seen| came(seen) && told(seen));
+            (page, came(seen), told(seen))
+        };
+        let (plain_page, plain_ready, plain_told) = ready(&mut seen, "switch", FieldState::Clear);
+        let plain = switch_back_part("plain", (plain_page, &mut away), &gate, &mut seen, &events);
+        let (password_page, password_ready, password_told) =
+            ready(&mut seen, "cold", FieldState::Password);
+        let password = switch_back_part(
+            "password",
+            (password_page, &mut away),
+            &gate,
+            &mut seen,
+            &events,
+        );
+        let title_stop = stop_counted(title.as_mut(), "window_title");
+        let keyboard_stop = stop_counted(keyboard.as_mut(), "keyboard");
+        let _ = away.child.process.kill();
+        let _ = away.child.wait();
+        away.child.print_output();
+        gate_readings(test, &gate);
+        say(
+            test,
+            format!(
+                "browser={name} keyboard_start={} title_start={} keyboard_stop={} title_stop={} \
+                 plain_ready={plain_ready} plain_told={plain_told} \
+                 password_ready={password_ready} password_told={password_told} goes={}",
+                show(&keyboard_start),
+                show(&title_start),
+                show(&keyboard_stop),
+                show(&title_stop),
+                away.goes
+            ),
+        );
+        for part in [&plain, &password] {
+            say(test, format!("browser={name} {}", part.line()));
+            say(
+                test,
+                format!(
+                    "browser={name} part={} marks_from_the_switch_back=[{}]",
+                    part.part, part.marks
+                ),
+            );
+        }
+        let letters = SWITCH_BACK_LETTERS;
+        let typed = |part: &SwitchBackPart, (landed, elsewhere): (i64, i64), focus: &str| {
+            part.letters_sent as usize == 2 * letters
+                && part.letters.len() == letters
+                && part.keys_decided_in_the_part == letters
+                && part.page_at_the_return.focus == focus
+                && landed == letters as i64
+                && elsewhere == 0
+        };
+        assert!(
+            plain_ready && password_ready && plain.came_in_order() && password.came_in_order(),
+            "INCONCLUSIVE: a state of the row did not come: plain_ready={plain_ready} \
+             password_ready={password_ready}, the lines of the parts above"
+        );
+        assert!(
+            plain_told && password_told && plain.told_in_order() && password.told_in_order(),
+            "a switch of the row came with no read that it asked: plain_told={plain_told} \
+             password_told={password_told}, the lines of the parts above"
+        );
+        assert!(
+            typed(
+                &password,
+                (
+                    password.page_after_the_letters.password,
+                    password.page_after_the_letters.text
+                ),
+                "password"
+            ),
+            "INCONCLUSIVE: the part at the password field did not type the whole word into it \
+             alone, its line above"
+        );
+        // The seam's notes of recorded keys are no term of these asserts: this
+        // test file's own sink forwarder (fn seen) takes one such note for each
+        // keystroke record that it forwards, so the row's count of them reads 0
+        // whenever records come; the seam's verdicts and the sink's keystroke
+        // records are the reading.
+        assert!(
+            password.letters_recorded() == 0 && password.keystroke_records == 0,
+            "a key at the password field behind a switch back was recorded: letters_recorded={} \
+             keystroke_records={}",
+            password.letters_recorded(),
+            password.keystroke_records
+        );
+        assert!(
+            typed(
+                &plain,
+                (
+                    plain.page_after_the_letters.text,
+                    plain.page_after_the_letters.password
+                ),
+                "plain"
+            ),
+            "INCONCLUSIVE: the part at the text box did not type the whole word into it alone, \
+             its line above"
+        );
+        assert!(
+            plain.letters_recorded() == letters && plain.keystroke_records == letters,
+            "a letter of the word in the text box behind a switch back was not recorded: \
+             letters_recorded={} keystroke_records={}",
+            plain.letters_recorded(),
+            plain.keystroke_records
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn a_switch_back_to_chrome_that_gives_a_focus_event_records_a_word_and_no_key_at_a_password_field()
+{
+    switch_back("browser-switch-back-chrome", "chrome");
+}
+
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop and Chrome"]
 fn another_field_that_changes_its_value_by_itself_records_no_password_letter_in_chrome() {
