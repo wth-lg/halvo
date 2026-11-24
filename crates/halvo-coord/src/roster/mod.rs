@@ -23,10 +23,13 @@ use crate::words;
 /// `last_cause` where they hold one that a row says for the agent's runtime (`FILE_CAUSES` for
 /// the runtime file alone, r4 U3.22a), or that its answers are saved where a set-up's answers
 /// were stored behind that run's end (r4 U3.22a), a day with `starts_per_day` starts, and the
-/// end of the last run. `confirm` is the state of the agent's open confirmation where the
-/// coordinator holds it: a confirmation waits for the person only while it is `shown` or `armed`
-/// (I1.2, I4.2), and a run that waits for an answered one is `working`. The end of a run is the
-/// cause of its newest `run_ended` event, which holds the coordinator's own causes.
+/// end of the last run. On a day with `starts_per_day` starts, on which step 2 of a start
+/// refuses the person's Start now, the row of a failed run says so too (r4 U3.23): saved answers
+/// read `problem.answers_saved_today`, and a cause of `START_AGAIN_CAUSES` or a run with no said
+/// cause reads `problem.tried_today`. `confirm` is the state of the agent's open confirmation
+/// where the coordinator holds it: a confirmation waits for the person only while it is `shown`
+/// or `armed` (I1.2, I4.2), and a run that waits for an answered one is `working`. The end of a
+/// run is the cause of its newest `run_ended` event, which holds the coordinator's own causes.
 pub fn status<C: ConfigView>(
     facts: &Facts<C>,
     limits: &Limits,
@@ -87,21 +90,25 @@ pub fn status_of<C: ConfigView>(
         What::RunEnded { cause, .. } => Some(cause),
         _ => None,
     });
+    let used = used_today(facts, limits);
     if let Some(failure) = last.and_then(RunEnd::failure) {
         if answered_since_the_last_end(facts) {
-            return StatusLine::AnswersSaved;
+            return if used {
+                StatusLine::AnswersSavedToday
+            } else {
+                StatusLine::AnswersSaved
+            };
         }
-        return match facts.last_cause {
-            Some(cause) if said(cause, facts.config.runtime()) => StatusLine::LastCause(cause),
+        let cause = facts
+            .last_cause
+            .filter(|c| said(*c, facts.config.runtime()));
+        return match cause {
+            Some(c) if !(used && START_AGAIN_CAUSES.contains(&c)) => StatusLine::LastCause(c),
+            _ if used => StatusLine::FailedToday,
             _ => StatusLine::Problem(failure),
         };
     }
-    let today = facts
-        .events
-        .iter()
-        .filter(|e| e.day == facts.today && matches!(e.what, What::RunStarted { .. }))
-        .count();
-    if today >= limits.starts_per_day as usize {
+    if used {
         return StatusLine::TriedToday;
     }
     match last {
@@ -111,6 +118,33 @@ pub fn status_of<C: ConfigView>(
         Some(_) => StatusLine::StoppedEarly,
     }
 }
+
+/// Whether the agent of `facts` has `starts_per_day` `run_started` events with the facts' day, the
+/// count of step 2 of a start (I5.5, `schedule::start_step`), which then refuses a start with
+/// `budget`, a start of the person among them (r4 U3.23).
+fn used_today<C>(facts: &Facts<C>, limits: &Limits) -> bool {
+    let today = facts
+        .events
+        .iter()
+        .filter(|e| e.day == facts.today && matches!(e.what, What::RunStarted { .. }))
+        .count();
+    today >= limits.starts_per_day as usize
+}
+
+/// The causes of a failed run whose sentence tells the person to start the agent again, by Start
+/// now or by Run the agent again (r4 U3.23, the coordinator's ruling of log line 19955): on a day
+/// with `starts_per_day` starts the row of such a cause says `problem.tried_today` in place of
+/// that sentence, since step 2 of a start then refuses that start; every other cause keeps its
+/// sentence, which names Change its answers or no press.
+pub const START_AGAIN_CAUSES: [LastCause; 7] = [
+    LastCause::NoChannel,
+    LastCause::BrowserStart,
+    LastCause::NoBrowser,
+    LastCause::Changed,
+    LastCause::NotReplaced,
+    LastCause::NoAccess,
+    LastCause::DataEncoding,
+];
 
 /// Whether the agent's rows hold a set-up's `item_answered` behind the end of its newest run, as
 /// Use these answers stores it (r4 U3.22a, the fifth ruling): a row of a failed run then reads
