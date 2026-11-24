@@ -1,0 +1,1 @@
+- Fixed: On a Mac with typing on, where a password field or another app has kept typing private for half a minute or more, the Status page now says that Halvo is not recording typing, window titles or screen activity right now; before, it said only that Halvo is capturing.
