@@ -5,6 +5,7 @@
 
 use std::fmt;
 use std::marker::PhantomData;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, PoisonError, RwLock};
 
 use super::kind::Recorded;
@@ -15,6 +16,11 @@ use crate::secure_input::{SecureInputProbe, SecureInputReading};
 /// The most parent steps of one lineage walk; a longer walk is an unknown
 /// lineage.
 pub const LINEAGE_WALK_MAX_STEPS: usize = 64;
+
+/// The drops by doubt in a row, with no record built between them, from which the
+/// status says that the capture service left out every record by doubt: one stray drop
+/// by doubt is ordinary on Windows, as where no app is known in front at a switch.
+pub const DOUBT_DROPS_IN_A_ROW: u64 = 3;
 
 /// Password managers and Halvo's own app, by bundle id (macOS). Only
 /// `com.apple.Passwords` and `com.apple.keychainaccess` were read from a bundle;
@@ -220,19 +226,24 @@ pub enum DropReason {
 pub struct Keep<K> {
     subject: Subject,
     site_read: bool,
+    built: Arc<AtomicU64>,
     kind: PhantomData<K>,
 }
 
 impl<K: Recorded> Keep<K> {
-    fn issue(subject: Subject, site_read: bool) -> Keep<K> {
+    fn issue(subject: Subject, site_read: bool, built: Arc<AtomicU64>) -> Keep<K> {
         Keep {
             subject,
             site_read,
+            built,
             kind: PhantomData,
         }
     }
 
+    /// The parts of the record that is built from this verdict; the build ends the row of
+    /// drops by doubt of the handle that issued the verdict and of its clones.
     pub(crate) fn into_parts(self) -> (Subject, bool) {
+        self.built.store(0, Ordering::Relaxed);
         (self.subject, self.site_read)
     }
 }
@@ -259,6 +270,7 @@ pub struct FloorHandle {
     lineage: Arc<dyn Lineage>,
     switches: Switches,
     marks: Arc<Marks>,
+    doubt: Arc<AtomicU64>,
 }
 
 impl Default for FloorHandle {
@@ -291,6 +303,7 @@ impl FloorHandle {
             lineage,
             switches,
             marks: Arc::new(Marks::new(Box::new(NoCreationTime))),
+            doubt: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -347,9 +360,32 @@ impl FloorHandle {
         let rules = self.rules(&marks);
         let reading = || probe.read();
         match decide(&rules, K::KIND, &subject.app, subject.pid, window, reading) {
-            Ok(()) => Verdict::Keep(Keep::issue(subject, self.switches.is_on(Switch::SiteRead))),
-            Err(reason) => Verdict::Drop(reason),
+            Ok(()) => Verdict::Keep(Keep::issue(
+                subject,
+                self.switches.is_on(Switch::SiteRead),
+                Arc::clone(&self.doubt),
+            )),
+            Err(reason) => {
+                if reason == DropReason::UnknownLineage {
+                    self.note_doubt();
+                }
+                Verdict::Drop(reason)
+            }
         }
+    }
+
+    /// Counts one event left out by doubt: of a process whose line of parents could not
+    /// be followed, or while the set of the runs' marks is unread. A record built from a
+    /// verdict of this handle or of a clone sets the count to zero.
+    pub(crate) fn note_doubt(&self) {
+        self.doubt.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Whether [`DOUBT_DROPS_IN_A_ROW`] or more events were left out by doubt since the last
+    /// record built from a verdict of this handle or of a clone; a drop on purpose between
+    /// them neither counts nor ends the row.
+    pub fn left_out_in_doubt(&self) -> bool {
+        self.doubt.load(Ordering::Relaxed) >= DOUBT_DROPS_IN_A_ROW
     }
 
     fn rules<'a>(&'a self, marks: &'a Listing) -> Rules<'a> {
@@ -495,7 +531,7 @@ fn walk(rules: &Rules<'_>, pid: ProcessId) -> Tree {
 /// function.
 #[cfg(debug_assertions)]
 pub fn synthetic_keep<K: Recorded>(subject: Subject) -> Keep<K> {
-    Keep::issue(subject, true)
+    Keep::issue(subject, true, Arc::default())
 }
 
 #[cfg(test)]
@@ -790,7 +826,7 @@ mod tests {
         use crate::event::EventClock;
         let event = |name: &str, pid: u32| {
             let subject = Subject::new(app(name), ProcessId::new(pid));
-            let keep = Keep::<kind::ForegroundApp>::issue(subject, false);
+            let keep = Keep::<kind::ForegroundApp>::issue(subject, false, Arc::default());
             FloorEvent::foreground_app(keep, None, EventClock::system())
         };
         let floor = handle(Some(APP), Switches::default());
@@ -807,7 +843,7 @@ mod tests {
         );
         let frame = {
             let subject = Subject::new(app("com.apple.Terminal"), ProcessId::new(200));
-            let keep = Keep::<kind::ScreenFrame>::issue(subject, false);
+            let keep = Keep::<kind::ScreenFrame>::issue(subject, false, Arc::default());
             FloorEvent::screen_frame(keep, None, EventClock::system())
         };
         assert_eq!(floor.recheck(&frame), Err(DropReason::SwitchOff));

@@ -163,6 +163,7 @@ impl Floor {
     ) -> Option<Keep<K>> {
         if unplaced::<K>(front) {
             self.drops.count(DropReason::UnknownLineage);
+            self.handle.note_doubt();
             return None;
         }
         match self.handle.decide::<K>(front.subject(), window, probe) {
@@ -187,6 +188,7 @@ impl Floor {
     ) -> Option<Keep<K>> {
         if unplaced::<K>(front) {
             self.drops.count(DropReason::UnknownLineage);
+            self.handle.note_doubt();
             return None;
         }
         match self.handle.decide::<K>(

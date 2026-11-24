@@ -923,6 +923,10 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             input_keys,
             held: self.held,
             typing_off_unsaved: self.off_unsaved,
+            left_out_in_doubt: self
+                .ctx
+                .as_ref()
+                .is_some_and(|ctx| ctx.floor().left_out_in_doubt()),
         }
     }
 

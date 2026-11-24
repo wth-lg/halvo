@@ -562,6 +562,9 @@ pub struct StatusParts {
     /// A turn of typing to off that the state file did not take, which the
     /// status carries beside key_class off alone.
     pub typing_off_unsaved: Option<proto::TypingOffUnsaved>,
+    /// Whether the floor left out events by doubt in a row since the last record built
+    /// ([`crate::floor::exclude::FloorHandle::left_out_in_doubt`]).
+    pub left_out_in_doubt: bool,
 }
 
 /// The status of a service run (contracts.md C2.1, C2.3) on the system of
@@ -675,6 +678,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         typing: TYPING,
         keys_withheld: figures.keys_withheld,
         typing_gate: figures.typing_gate,
+        left_out_in_doubt: parts.left_out_in_doubt,
         title_read_errors: figures.title_read_errors,
         last_flush_at: snapshot.and_then(|snapshot| second_of(snapshot.last_flush_at)),
         expiry: Health::Healthy,
@@ -952,6 +956,7 @@ mod tests {
                 input_keys: false,
                 held: false,
                 typing_off_unsaved: None,
+                left_out_in_doubt: false,
             };
             let facts = RunFacts {
                 started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1045,6 +1050,7 @@ mod tests {
             input_keys: false,
             held: false,
             typing_off_unsaved: None,
+            left_out_in_doubt: false,
         };
         let facts = RunFacts {
             started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1165,6 +1171,7 @@ mod tests {
                 input_keys: false,
                 held: false,
                 typing_off_unsaved: None,
+                left_out_in_doubt: false,
             };
             let facts = RunFacts {
                 started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1287,10 +1294,14 @@ mod tests {
         let read_again = || marks.take(Listing::default());
         let inactive = FixedProbe(SecureInputReading::Inactive);
         let active = FixedProbe(SecureInputReading::Active);
-        let app = |id: &str| Subject::new(AppIdentity::bundle_id(id.to_string()), ProcessId::new(200));
+        let app =
+            |id: &str| Subject::new(AppIdentity::bundle_id(id.to_string()), ProcessId::new(200));
         let terminal = || {
-            let verdict =
-                floor.decide::<kind::ForegroundApp>(app("com.apple.Terminal"), PrivateWindow::Unknown, &inactive);
+            let verdict = floor.decide::<kind::ForegroundApp>(
+                app("com.apple.Terminal"),
+                PrivateWindow::Unknown,
+                &inactive,
+            );
             match verdict {
                 Verdict::Keep(keep) => {
                     let _ = FloorEvent::foreground_app(keep, None, EventClock::system());
@@ -1376,8 +1387,18 @@ mod tests {
         assert_eq!(shown(), None, "a record built");
         unread();
         assert_eq!(
-            [terminal(), halvo_s_own_window(), terminal(), halvo_s_own_window()],
-            [doubt, Some(DropReason::ListedApp), doubt, Some(DropReason::ListedApp)]
+            [
+                terminal(),
+                halvo_s_own_window(),
+                terminal(),
+                halvo_s_own_window()
+            ],
+            [
+                doubt,
+                Some(DropReason::ListedApp),
+                doubt,
+                Some(DropReason::ListedApp)
+            ]
         );
         assert_eq!(
             shown(),

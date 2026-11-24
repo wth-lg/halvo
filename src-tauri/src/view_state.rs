@@ -146,6 +146,9 @@ pub struct RunningView {
     /// this view's screen source does not run: the page then says to quit Halvo and open it
     /// again.
     pub screen_not_renewed: bool,
+    /// The status's left_out_in_doubt: the page then says, under its heading, that Halvo has
+    /// recorded nothing since it could not tell whether to leave out the app in front.
+    pub left_out_in_doubt: bool,
     /// The first run's rows of what a start records, which the question of a reset of the
     /// settings shows: on a settings file that cannot be read alone.
     pub reset_recorded: Option<Vec<Recorded>>,
@@ -698,6 +701,8 @@ struct WireView<'a> {
     state_file: Option<SettingsUnread>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     screen_not_renewed: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    left_out_in_doubt: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     reset_recorded: Option<&'a [Recorded]>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -737,6 +742,7 @@ impl Serialize for StatusView {
                 data_folder: view.data_folder.as_deref(),
                 state_file: view.state_file,
                 screen_not_renewed: view.screen_not_renewed,
+                left_out_in_doubt: view.left_out_in_doubt,
                 reset_recorded: view.reset_recorded.as_deref(),
                 typing_switch: view.typing_switch.as_ref(),
                 crash_reports_left: view.crash_reports_left.as_deref(),
@@ -772,6 +778,7 @@ impl Serialize for StatusView {
                 data_folder: view.data_folder.as_deref(),
                 state_file: None,
                 screen_not_renewed: false,
+                left_out_in_doubt: false,
                 reset_recorded: None,
                 typing_switch: None,
                 crash_reports_left: view.crash_reports_left.as_deref(),
@@ -928,6 +935,7 @@ impl StatusView {
             typing_switch: typing_shown(status).then(|| typing_switch(status)),
             login_item_written: None,
             screen_not_renewed: false,
+            left_out_in_doubt: f.left_out_in_doubt,
             crash_reports_left: None,
         }))
     }
