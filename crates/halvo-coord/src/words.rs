@@ -179,6 +179,14 @@ pub const KEYS: &[(&str, &str)] = &[
         "Its answers are saved. Choose Start now to try again.",
     ),
     (
+        "line.problem.answers_saved_today",
+        "Its answers are saved. It has started as often as it may today, so it waits until tomorrow.",
+    ),
+    (
+        "line.problem.tried_today",
+        "Last time, it could not finish its task. It has started as often as it may today, so it waits until tomorrow.",
+    ),
+    (
         "line.problem.no_workbook",
         "Halvo did not find the spreadsheet file where you said it is. Then choose Change its answers.",
     ),
