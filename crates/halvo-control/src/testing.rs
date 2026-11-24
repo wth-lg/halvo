@@ -161,6 +161,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
         typing: None,
         keys_withheld: false,
         typing_gate: (platform == Platform::Windows).then_some(TypingGate::Ok),
+        left_out_in_doubt: false,
         title_read_errors: 0,
         last_flush_at: Some(at("2026-11-12T09:00:05Z")),
         expiry: Health::Healthy,

@@ -270,3 +270,22 @@ test("typing-words-mac: What Halvo keeps shows the sentence on withheld keys und
   const none = await page(running);
   assert.equal(none.byId("keeps-limits").children.some((el) => el.textContent === withheld), false);
 });
+
+test("status-honest: where Halvo left out every record by doubt, the line under the heading says the ruled sentence with the heading and the dot as they are; plain, paused or held it does not", async () => {
+  const said = "Halvo could not tell whether to leave out the app that you were using, so it has recorded nothing since then. It records again as soon as it can tell.";
+  for (const name of ["capture_status-running", "capture_status-running-windows"]) {
+    const running = fixture(name);
+    for (const capture of ["running", "partial"]) {
+      const doubt = await page({ ...running, capture, left_out_in_doubt: true });
+      assert.equal(doubt.text("capture-reason"), said, `${name} ${capture}`);
+      assert.equal(doubt.text("state"), CAPTURE[capture], `${name} ${capture}`);
+      assert.equal(doubt.byId("dot").classList.contains("on"), true, `${name} ${capture}`);
+    }
+    const plain = await page(running);
+    assert.equal(plain.text("capture-reason"), "", name);
+    const paused = await page({ ...running, desired: "paused", capture: "paused", left_out_in_doubt: true });
+    assert.equal(paused.text("capture-reason"), "", name);
+    const held = await page({ ...running, hold: { press: "resume" }, left_out_in_doubt: true });
+    assert.notEqual(held.text("capture-reason"), said, name);
+  }
+});

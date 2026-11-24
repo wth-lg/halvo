@@ -388,6 +388,7 @@ mod tests {
             input_keys: false,
             held: false,
             typing_off_unsaved: None,
+            left_out_in_doubt: false,
         };
         let facts = RunFacts {
             started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),

@@ -562,6 +562,9 @@ pub struct StatusParts {
     /// A turn of typing to off that the state file did not take, which the
     /// status carries beside key_class off alone.
     pub typing_off_unsaved: Option<proto::TypingOffUnsaved>,
+    /// Whether the floor left out events by doubt in a row since the last record built
+    /// ([`crate::floor::exclude::FloorHandle::left_out_in_doubt`]).
+    pub left_out_in_doubt: bool,
 }
 
 /// The status of a service run (contracts.md C2.1, C2.3) on the system of
@@ -675,6 +678,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         typing: TYPING,
         keys_withheld: figures.keys_withheld,
         typing_gate: figures.typing_gate,
+        left_out_in_doubt: parts.left_out_in_doubt,
         title_read_errors: figures.title_read_errors,
         last_flush_at: snapshot.and_then(|snapshot| second_of(snapshot.last_flush_at)),
         expiry: Health::Healthy,
@@ -952,6 +956,7 @@ mod tests {
                 input_keys: false,
                 held: false,
                 typing_off_unsaved: None,
+                left_out_in_doubt: false,
             };
             let facts = RunFacts {
                 started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1045,6 +1050,7 @@ mod tests {
             input_keys: false,
             held: false,
             typing_off_unsaved: None,
+            left_out_in_doubt: false,
         };
         let facts = RunFacts {
             started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1165,6 +1171,7 @@ mod tests {
                 input_keys: false,
                 held: false,
                 typing_off_unsaved: None,
+                left_out_in_doubt: false,
             };
             let facts = RunFacts {
                 started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1242,5 +1249,180 @@ mod tests {
             "the screen and capture lines at a first start that failed and behind the \
              restart's make"
         );
+    }
+
+    #[test]
+    fn the_status_says_left_out_in_doubt_from_the_third_drop_by_doubt_in_a_row_until_a_record_is_built(
+    ) {
+        use crate::event::{AppIdentity, EventClock, FloorEvent};
+        use crate::floor::exclude::{
+            DropReason, FloorHandle, Listing, Marks, NoCreationTime, NoLineage, PrivateWindow,
+            ProcessId, Subject, Verdict,
+        };
+        use crate::floor::kind::{self, Recorded};
+        use crate::secure_input::{FixedProbe, SecureInputReading};
+        use halvo_control::model::{StorageCap, UtcSecond};
+
+        fn reason<K: Recorded>(verdict: Verdict<K>) -> Option<DropReason> {
+            match verdict {
+                Verdict::Keep(_) => None,
+                Verdict::Drop(reason) => Some(reason),
+            }
+        }
+
+        let platform = if cfg!(windows) {
+            Platform::Windows
+        } else {
+            Platform::Macos
+        };
+        let mut every_switch_on = Switches::default();
+        for switch in Switch::ALL {
+            every_switch_on.set(switch, true);
+        }
+        let marks = Arc::new(Marks::new(Box::new(NoCreationTime)));
+        let floor = FloorHandle::new(None, Arc::new(NoLineage), every_switch_on)
+            .with_marks(Arc::clone(&marks));
+        let mut keys_off = every_switch_on;
+        keys_off.set(Switch::KeyClass, false);
+        let typing_off = floor.clone().with_switches(keys_off);
+        let unread = || {
+            marks.take(Listing {
+                named: Vec::new(),
+                unread: true,
+            });
+        };
+        let read_again = || marks.take(Listing::default());
+        let inactive = FixedProbe(SecureInputReading::Inactive);
+        let active = FixedProbe(SecureInputReading::Active);
+        let app =
+            |id: &str| Subject::new(AppIdentity::bundle_id(id.to_string()), ProcessId::new(200));
+        let terminal = || {
+            let verdict = floor.decide::<kind::ForegroundApp>(
+                app("com.apple.Terminal"),
+                PrivateWindow::Unknown,
+                &inactive,
+            );
+            match verdict {
+                Verdict::Keep(keep) => {
+                    let _ = FloorEvent::foreground_app(keep, None, EventClock::system());
+                    None
+                }
+                Verdict::Drop(reason) => Some(reason),
+            }
+        };
+        let halvo_s_own_window = || {
+            reason(floor.decide::<kind::ForegroundApp>(
+                app("com.halvo.desktop"),
+                PrivateWindow::Unknown,
+                &inactive,
+            ))
+        };
+        let private_window = || {
+            reason(floor.decide::<kind::WindowTitle>(
+                app("com.apple.Safari"),
+                PrivateWindow::Private,
+                &inactive,
+            ))
+        };
+        let password_field = || {
+            reason(floor.decide::<kind::WindowTitle>(
+                app("com.apple.Safari"),
+                PrivateWindow::Unknown,
+                &active,
+            ))
+        };
+        let key_with_typing_off = || {
+            reason(typing_off.decide::<kind::Keystroke>(
+                app("com.apple.Terminal"),
+                PrivateWindow::Unknown,
+                &inactive,
+            ))
+        };
+        let facts = RunFacts {
+            started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+            parent: proto::Parent::None,
+            last_stop: proto::LastStop::None,
+            rss_peak_bytes: 0,
+        };
+        let shown = || {
+            let parts = StatusParts {
+                board: Board::new(platform),
+                desired: Desired::Running,
+                lease: proto::Lease::Fresh,
+                slot: Slot::Opening,
+                obstructed: None,
+                health: StateHealth::Ok,
+                cap: StateCap::Known(StorageCap::DEFAULT),
+                switches: every_switch_on,
+                once_granted: Vec::new(),
+                asked: Vec::new(),
+                input_keys: false,
+                held: false,
+                typing_off_unsaved: None,
+                left_out_in_doubt: floor.left_out_in_doubt(),
+            };
+            let status = status_of(&parts, &facts).unwrap();
+            serde_json::to_value(&status)
+                .unwrap()
+                .get("left_out_in_doubt")
+                .cloned()
+        };
+        let doubt = Some(DropReason::UnknownLineage);
+        let yes = Some(serde_json::Value::Bool(true));
+
+        unread();
+        assert_eq!([terminal(), terminal()], [doubt, doubt]);
+        assert_eq!(shown(), None, "two drops by doubt in a row");
+        assert_eq!(terminal(), doubt);
+        assert_eq!(shown(), yes, "the third drop by doubt in a row");
+        assert_eq!(halvo_s_own_window(), Some(DropReason::ListedApp));
+        assert_eq!(
+            shown(),
+            yes,
+            "a drop on purpose behind them: a person who reads the page with Halvo's own window \
+             in front"
+        );
+        read_again();
+        assert_eq!(terminal(), None);
+        assert_eq!(shown(), None, "a record built");
+        unread();
+        assert_eq!(
+            [
+                terminal(),
+                halvo_s_own_window(),
+                terminal(),
+                halvo_s_own_window()
+            ],
+            [
+                doubt,
+                Some(DropReason::ListedApp),
+                doubt,
+                Some(DropReason::ListedApp)
+            ]
+        );
+        assert_eq!(
+            shown(),
+            None,
+            "two more drops by doubt with drops on purpose between them"
+        );
+        read_again();
+        assert_eq!(terminal(), None);
+        for _ in 0..25 {
+            assert_eq!(
+                [
+                    halvo_s_own_window(),
+                    private_window(),
+                    password_field(),
+                    key_with_typing_off()
+                ],
+                [
+                    Some(DropReason::ListedApp),
+                    Some(DropReason::PrivateWindow),
+                    Some(DropReason::SecureInput),
+                    Some(DropReason::SwitchOff)
+                ]
+            );
+        }
+        assert_eq!(shown(), None, "a hundred drops on purpose alone");
     }
 }

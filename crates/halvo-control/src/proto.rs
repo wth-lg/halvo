@@ -1679,6 +1679,14 @@ pub struct StatusFields {
     /// protocol number does not move for it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub typing_gate: Option<TypingGate>,
+    /// Whether the capture service left out three or more events in a row by doubt, of a
+    /// program whose line of parents or file it could not read or while it could not read
+    /// the marks of its agents' programs, with no record built since, where a drop on
+    /// purpose neither counts nor ends the row; it crosses the wire only while it stands, so
+    /// that a status of a daemon that sends none reads false, and the protocol number does
+    /// not move for it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub left_out_in_doubt: bool,
     pub title_read_errors: u64,
     #[serde(deserialize_with = "required")]
     pub last_flush_at: Option<UtcSecond>,

@@ -165,7 +165,9 @@
     dot.classList.toggle("on", !s.hold && s.service === "running" && (s.capture === "running" || s.capture === "partial"));
     state.textContent = heading(s);
     if (s.hold) reason.textContent = heldReason(s);
-    else reason.textContent = s.service === "running" && s.capture === "faulted" ? FAULT[s.capture_reason] || "" : "";
+    else if (s.service !== "running") reason.textContent = "";
+    else if (s.capture === "faulted") reason.textContent = FAULT[s.capture_reason] || "";
+    else reason.textContent = leftOutInDoubt(s) ? w.LEFT_OUT_IN_DOUBT : "";
     renderToggle(s);
     renderSources(s);
     var d = s.drain;
@@ -180,6 +182,10 @@
     settingsReset.classList.toggle("hidden", !resetOffered(s));
     settingsDelete.classList.toggle("hidden", s.state_file !== "newer_version");
     renderFirstRun(s);
+  }
+
+  function leftOutInDoubt(s) {
+    return (s.capture === "running" || s.capture === "partial") && s.left_out_in_doubt === true;
   }
 
   function crashReportLeft(folder) {
