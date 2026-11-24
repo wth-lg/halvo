@@ -29,7 +29,7 @@
 !define HALVO_DATA_DIR_UNUSABLE 66
 ; The exit of a SILENT uninstall that went to its end while a crash report of Halvo's window, or
 ; the folder of that window, stays; a caller reads it with _?=. A run with windows never sets it:
-; the template's own installer, at its step Uninstall before installing, starts the uninstaller
+; the template's own installer, at its choice uninstallBeforeInstalling, starts the uninstaller
 ; with windows and _?= and reads every exit but 0 and 1 as a failed uninstall.
 !define HALVO_EXIT_REPORT_STAYS 3
 ; The key of the person's own registry that holds the Run value Halvo, Halvo's start at sign-in.
