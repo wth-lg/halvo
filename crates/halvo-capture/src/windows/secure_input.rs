@@ -688,16 +688,6 @@ fn judge_marks(m: &Marks, key: &HeldKey, now: u32) -> Judgment {
     }
 }
 
-/// The window that a read of the focused element was of, and the OS time at
-/// which the read ended: what the gate keeps beside its content reading, so
-/// that a window title or a screen frame is decided by a read of its own
-/// window alone. No rule of a key reads it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ReadOf {
-    pub(crate) window: usize,
-    pub(crate) tick: u32,
-}
-
 /// Where a read found its element: the element's own window handle, the
 /// top-level window of that handle, and the element's process.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -816,11 +806,14 @@ struct Marks {
     pointer_since: Option<u32>,
     forwarded: Option<u32>,
     content: ContentReading,
-    content_of: Option<ReadOf>,
+    /// The window that the read of the content reading was of, which the
+    /// gate keeps so that a window title or a screen frame is decided by a
+    /// read of its own window alone. No rule of a key reads it.
+    content_of: Option<usize>,
     writer: Option<u64>,
     asked: u64,
     held: u64,
-    pending: Option<(u64, ContentReading, Option<ReadOf>)>,
+    pending: Option<(u64, ContentReading, Option<usize>)>,
     held_landings: VecDeque<(u64, u64)>,
     last_consumer: Option<u64>,
     owed: Debts,
@@ -890,7 +883,7 @@ impl Marks {
         by: Option<u64>,
         ticket: u64,
         content: ContentReading,
-        of: Option<ReadOf>,
+        of: Option<usize>,
     ) {
         if self.may_write(by) && ticket > self.held {
             self.content = content;
@@ -1112,8 +1105,8 @@ impl Shared {
         self.field_seen_in(at, state, (content, None, by, ticket), seen);
     }
 
-    /// A focus event's read lands: its key's state and its content reading,
-    /// with the window that it was of, which ended at `at`.
+    /// A focus event's read lands at `at`: its key's state and its content
+    /// reading, with the window that it was of.
     fn field_seen_in(
         &self,
         at: u32,
@@ -1121,15 +1114,14 @@ impl Shared {
         (content, window, by, ticket): (ContentReading, Option<usize>, Option<u64>, u64),
         seen: Option<String>,
     ) {
-        let of = window.map(|window| ReadOf { window, tick: at });
         let mut marks = self.lock();
         marks.push(Some(at), at, Mark::Field(state));
         if marks.started.is_some() && marks.first_read.is_none() {
             if marks.may_write(by) && marks.pending.is_none_or(|(asked, ..)| ticket > asked) {
-                marks.pending = Some((ticket, content, of));
+                marks.pending = Some((ticket, content, window));
             }
         } else {
-            marks.set_content(by, ticket, content, of);
+            marks.set_content(by, ticket, content, window);
         }
         marks.events_in_flight = marks.events_in_flight.saturating_sub(1);
         marks.ask_read(at);
@@ -1148,8 +1140,8 @@ impl Shared {
         self.read_seen_in(began, at, (state, content, None, by, ticket), moved, seen);
     }
 
-    /// An own read lands: its key's state and its content reading, with the
-    /// window that it was of, which ended at `at`.
+    /// An own read lands at `at`: its key's state and its content reading,
+    /// with the window that it was of.
     #[allow(clippy::type_complexity)]
     fn read_seen_in(
         &self,
@@ -1171,8 +1163,7 @@ impl Shared {
         if let Some((asked, carried, carried_of)) = marks.pending.take() {
             marks.set_content(by, asked, carried, carried_of);
         }
-        let of = window.map(|window| ReadOf { window, tick: at });
-        marks.set_content(by, ticket, content, of);
+        marks.set_content(by, ticket, content, window);
         if marks.settle_due.is_some_and(|due| not_after(due, began)) {
             marks.settle_due = None;
         }
@@ -1510,17 +1501,11 @@ impl PasswordGate {
         self.probe_of(self.content_reading())
     }
 
-    /// The content reading where the gate's newest read is of `window` and
-    /// ended at or after `since`, where one is given; nothing is counted.
-    pub(crate) fn content_reading_of(
-        &self,
-        window: usize,
-        since: Option<u32>,
-    ) -> Option<ContentReading> {
+    /// The content reading where the gate's newest read is of `window`;
+    /// nothing is counted.
+    pub(crate) fn content_reading_of(&self, window: usize) -> Option<ContentReading> {
         let marks = self.shared.lock();
-        let of = marks.content_of?;
-        let in_time = since.is_none_or(|since| offset(of.tick, since) >= 0);
-        (of.window == window && in_time).then_some(marks.content)
+        (marks.content_of == Some(window)).then_some(marks.content)
     }
 
     /// The probe of `reading`, counted among the readings that the sources of
@@ -1543,7 +1528,7 @@ impl PasswordGate {
     /// where its newest read is of that window, else the probe that reads
     /// Unknown, and then nothing is counted.
     pub(crate) fn probe_for_window(&self, window: usize) -> PasswordFieldProbe {
-        self.content_reading_of(window, None)
+        self.content_reading_of(window)
             .map_or_else(PasswordFieldProbe::default, |reading| {
                 self.probe_of(reading)
             })

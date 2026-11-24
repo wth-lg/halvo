@@ -144,10 +144,6 @@ pub(crate) struct TitleAsk {
     pub(crate) why: TitleWhy,
     /// The OS time of the event that asked, which the record carries.
     pub(crate) tick: u32,
-    /// The OS time from which a read of the window counts: that of the change
-    /// that brought the window in front; none for a window that was in front
-    /// at the start.
-    pub(crate) since: Option<u32>,
     /// The OS time at which the title thread took the ask: the wait's start.
     pub(crate) asked: u32,
 }
@@ -167,27 +163,18 @@ pub(crate) enum Look {
     Left,
 }
 
-/// The one title ask that waits on the title thread, and the window in front
-/// with the time from which a read of it counts.
+/// The one title ask that waits on the title thread.
 #[derive(Debug, Default)]
 pub(crate) struct Waiting {
     ask: Option<TitleAsk>,
-    visit: Option<(usize, Option<u32>)>,
 }
 
 impl Waiting {
-    /// Takes an ask of `window` by the event of OS time `tick`, at `now`. A
-    /// window keeps the time from which its reads count until another window
-    /// comes in front. An ask of the window whose ask waits leaves that ask
-    /// as it is; an ask of another window takes its place. Answers whether
-    /// it took the place of an ask of another window.
+    /// Takes an ask of `window` by the event of OS time `tick`, at `now`. An
+    /// ask of the window whose ask waits leaves that ask as it is; an ask of
+    /// another window takes its place. Answers whether it took the place of an
+    /// ask of another window.
     pub(crate) fn ask(&mut self, window: usize, by: AskBy, tick: u32, now: u32) -> bool {
-        let since = match self.visit {
-            Some((seen, since)) if seen == window => since,
-            _ if by == AskBy::Start => None,
-            _ => Some(tick),
-        };
-        self.visit = Some((window, since));
         if self.ask.is_some_and(|waiting| waiting.window == window) {
             return false;
         }
@@ -200,7 +187,6 @@ impl Waiting {
                 window,
                 why,
                 tick,
-                since,
                 asked: now,
             })
             .is_some()
@@ -212,9 +198,9 @@ impl Waiting {
     }
 
     /// Looks at the waiting ask while `front` is the window in front (0 for
-    /// none): a read of the ask's window that counts for it decides it, at
-    /// once and whatever came before; another window in front ends it; else
-    /// it waits, with no bound while its window stays in front.
+    /// none): where the gate's newest read is of the ask's window, its reading
+    /// decides it, at once and whatever came before; another window in front
+    /// ends it; else it waits, with no bound while its window stays in front.
     pub(crate) fn look(&mut self, gate: Option<&PasswordGate>, front: usize, now: u32) -> Look {
         let Some(ask) = self.ask else {
             return Look::Idle;
@@ -228,7 +214,7 @@ impl Waiting {
             return Look::Decide(ask, None);
         };
         if front == ask.window {
-            if let Some(reading) = gate.content_reading_of(ask.window, ask.since) {
+            if let Some(reading) = gate.content_reading_of(ask.window) {
                 self.ask = None;
                 return Look::Decide(ask, Some(reading));
             }
@@ -1211,7 +1197,7 @@ mod tests {
     }
 
     #[test]
-    fn order_8_a_read_of_the_window_from_before_its_switch_decides_nothing() {
+    fn order_8_a_return_to_a_window_whose_read_is_still_the_gates_newest_is_decided_by_it() {
         let mut bench = Bench::new();
         bench.ask(B, AskBy::Front, 500);
         bench.gate.focus_read_in(Some(B), 600, answered(false));
@@ -1219,17 +1205,14 @@ mod tests {
         bench.ask(A, AskBy::Front, 800);
         let in_a_window_that_gave_no_read = bench.look(A, 900);
         bench.ask(B, AskBy::Front, 1_000);
-        let back_at_the_old_read = bench.look(B, 1_000);
-        bench.gate.focus_read_in(Some(B), 1_010, answered(true));
-        let at_the_new_read = bench.look(B, 1_016);
+        let back_at_the_earlier_read = bench.look(B, 1_000);
         assert_eq!(
             (
                 first_visit,
                 in_a_window_that_gave_no_read,
-                back_at_the_old_read,
-                at_the_new_read
+                back_at_the_earlier_read
             ),
-            (Some(true), None, None, Some(false))
+            (Some(true), None, Some(true))
         );
     }
 
@@ -1337,13 +1320,20 @@ mod tests {
                     TitleAsk {
                         why: TitleWhy::AppChange,
                         tick: 1_000,
-                        since: Some(1_000),
                         ..
                     },
                     Some(_)
                 )
             ),
             "{decided:?}"
+        );
+        let mut later = Bench::new();
+        later.gate.focus_read_in(Some(B), 1_200, answered(true));
+        later.ask(B, AskBy::Name, 2_000);
+        assert_eq!(
+            later.look(B, 2_000),
+            Some(false),
+            "a name change at a password field that the gate read before it"
         );
     }
 
@@ -1359,7 +1349,6 @@ mod tests {
                     window: B,
                     why: TitleWhy::AppChange,
                     tick: 1_000,
-                    since: Some(1_000),
                     asked: 1_000,
                 },
                 None

@@ -1239,7 +1239,10 @@ mod tests {
             protected: false,
             kind: Kind::NativeEdit,
         };
-        gate.focus_read_at(super::super::now_tick(), read, false);
+        // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+        let in_front =
+            unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() }.0 as usize;
+        gate.focus_read_in(Some(in_front), super::super::now_tick(), read);
         let mut source = ScreenSource::new(Arc::default()).with_password_gate(Arc::new(gate));
         source.life = ScreenLife::with_spawner(always_refuses);
         let started = source.begin(screen_on(sink));
