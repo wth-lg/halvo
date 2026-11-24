@@ -814,6 +814,11 @@ struct Marks {
     /// of, with the number of the last read asked before it: a frame of that
     /// window is kept only by a read numbered behind it.
     switch: Option<(usize, u64)>,
+    /// The own read that the latest switch asked: when it is due, and the
+    /// switch's number. Only an own read numbered behind that number which
+    /// began at or after that time ends it; the reads that a key or a focus
+    /// event asks are not it.
+    switch_read: Option<(u32, u64)>,
     writer: Option<u64>,
     asked: u64,
     held: u64,
@@ -1056,6 +1061,20 @@ impl Marks {
             _ => from,
         });
     }
+
+    /// When the detector's next own read is due: the earliest of the settle
+    /// of a latch, the read that a key or a focus event asked, and the read
+    /// that a switch asked.
+    fn next_read_due(&self) -> Option<u32> {
+        [
+            self.settle_due,
+            self.read_due,
+            self.switch_read.map(|(due, _)| due),
+        ]
+        .into_iter()
+        .flatten()
+        .reduce(|a, b| if not_after(a, b) { a } else { b })
+    }
 }
 
 #[derive(Debug, Default)]
@@ -1174,6 +1193,12 @@ impl Shared {
         if marks.read_due.is_some_and(|due| not_after(due, began)) {
             marks.read_due = None;
         }
+        if marks
+            .switch_read
+            .is_some_and(|(due, number)| ticket > number && not_after(due, began))
+        {
+            marks.switch_read = None;
+        }
     }
 
     fn landing(&self, at: u32, state: FieldState, folds: bool, thread: u32) {
@@ -1216,6 +1241,7 @@ impl Shared {
             asked: marks.asked,
             held: marks.held,
             switch: marks.switch,
+            switch_read: marks.switch_read,
             ..Marks::default()
         };
         *marks = kept;
@@ -1526,13 +1552,15 @@ impl PasswordGate {
     /// focused element one settle time later and wakes its detector, keeps
     /// the window with the number of the last read asked so far, and answers
     /// that number. Only a read numbered behind it is a read of the window
-    /// since it came in front. Nothing waits for the read.
+    /// since it came in front. The request is the switch's own: a read asked
+    /// before the switch that lands after it does not end it. Nothing waits
+    /// for the read.
     pub(crate) fn switched_to(&self, window: usize, now: u32) -> u64 {
         let number = {
             let mut marks = self.shared.lock();
             let number = marks.asked;
             marks.switch = Some((window, number));
-            marks.ask_read(now.wrapping_add(ms(LATCH_SETTLE)));
+            marks.switch_read = Some((now.wrapping_add(ms(LATCH_SETTLE)), number));
             number
         };
         self.wake_detector();
@@ -1620,10 +1648,11 @@ impl PasswordGate {
         );
     }
 
-    /// When the gate's next own read is due, as a switch or an event asked it.
+    /// When the gate's next own read is due, as a latch, a key, an event or a
+    /// switch asked it.
     #[cfg(test)]
     pub(crate) fn reads_asked_at(&self) -> Option<u32> {
-        self.shared.lock().read_due
+        self.shared.lock().next_read_due()
     }
 
     /// An own read of one read that was of `window`, which began and ended
@@ -2863,11 +2892,7 @@ mod detector {
         loop {
             let (stopping, due) = {
                 let marks = shared.lock();
-                let due = match (marks.settle_due, marks.read_due) {
-                    (Some(a), Some(b)) => Some(if super::not_after(a, b) { a } else { b }),
-                    (due, None) | (None, due) => due,
-                };
-                (marks.stopping, due)
+                (marks.stopping, marks.next_read_due())
             };
             if stopping {
                 break;
@@ -5744,6 +5769,51 @@ mod tests {
         assert_eq!(
             control, clear,
             "an own read that began after the password event"
+        );
+    }
+
+    #[test]
+    fn a_read_asked_at_a_switch_is_not_taken_away_by_an_own_read_asked_before_the_switch() {
+        const LEFT: usize = 0xA0;
+        const IN_FRONT: usize = 0xB0;
+        let gate = PasswordGate::new();
+        let clear = ContentReading::Clear(ClearBy::NativeEdit);
+        let (_, event) = gate.shared.begin_asked_event();
+        gate.shared.field_seen_in(
+            1_000,
+            FieldState::Clear,
+            (clear, Some(LEFT), None, event),
+            None,
+        );
+        let running = gate.shared.lock().ask();
+        let number = gate.switched_to(IN_FRONT, 1_010);
+        gate.shared.read_seen_in(
+            1_005,
+            1_020,
+            (FieldState::Clear, clear, Some(LEFT), None, running),
+            Moved::Same,
+            None,
+        );
+        let still_due = gate.reads_asked_at();
+        let before_it = gate.content_reading_of(IN_FRONT, Some(number));
+        gate.own_read_in(
+            Some(IN_FRONT),
+            1_110,
+            answered(true, false, Kind::NativeEdit),
+        );
+        let at_it = gate.content_reading_of(IN_FRONT, Some(number));
+        assert_eq!(
+            (number, still_due, before_it, at_it, gate.reads_asked_at()),
+            (
+                running,
+                Some(1_110),
+                None,
+                Some(ContentReading::Password),
+                None
+            ),
+            "the switch's number, the read still due after the running read landed, the \
+             reading of the window in front before and at the read asked at the switch, and \
+             a read due after it"
         );
     }
 
