@@ -499,10 +499,14 @@ mod tests {
     /// r4 U3.22e, the product's own close, on a hosted runner of GitHub Actions alone, with no
     /// keyboard and no pointer input: where the system refuses the display affinity, the
     /// product's event sink closes the chooser through IFileDialog::Close from inside its own
-    /// event. The case hands the product's code a call of the affinity that answers refused, and
-    /// reads within 5 s of the show that the refusal ran at an event with a window, what the
-    /// close from inside that event answered, what Show answered, and that the show answers
-    /// `Chosen::Closed`; it writes its line as the case above does.
+    /// event. The case hands the product's code a call of the affinity that answers refused. It
+    /// waits up to 10 s from the show, the bound of the case above, for that refusal at the
+    /// chooser's first event with a window, and up to 5 s from the refusal for the show's answer
+    /// (r4 U3.22f); it reads what the close from inside that event answered, what Show answered,
+    /// and that the show answers `Chosen::Closed`. Every wait has its bound, so it ends within
+    /// the two together, 15 s from the show and one poll of 10 ms. It writes its line as the case
+    /// above does, with the milliseconds from the show to the refusal and from the refusal to the
+    /// answer.
     #[cfg(windows)]
     #[test]
     fn u322e_on_a_hosted_runner_the_windows_chooser_closes_at_once_through_its_own_interface_where_the_affinity_is_refused(
@@ -757,10 +761,9 @@ mod tests {
             Ok(Answer { rx, got: None })
         }
 
-        /// The end of a case that showed the chooser: where the show has not answered yet, one
-        /// more wait of `CLOSE_BOUND`; the owner's thread ends where the show answered, and else
-        /// stays, with the chooser, until the test process ends; then the case's one line, with
-        /// what Show and the show answered.
+        /// The end of a case that showed the chooser, after its waits: the owner's thread ends
+        /// where the show answered, and else stays, with the chooser, until the test process
+        /// ends; then the case's one line, with what Show and the show answered.
         fn end(
             name: &str,
             failures: &[String],
@@ -770,7 +773,7 @@ mod tests {
             owner: &Owner,
             shown: &Mutex<Option<String>>,
         ) {
-            let got = answer.within(CLOSE_BOUND);
+            let got = answer.within(Duration::ZERO);
             if got.is_some() {
                 owner.stop.store(true, Ordering::SeqCst);
             }
@@ -815,6 +818,8 @@ mod tests {
                     let reads =
                         opening_reads(&mut failures, &windows, &mut answer, owner.window, start);
                     let total = ms(start);
+                    // Where the show has not answered yet, one more wait of `CLOSE_BOUND`.
+                    answer.within(CLOSE_BOUND);
                     end(
                         name,
                         &failures,
@@ -964,36 +969,8 @@ mod tests {
                     return failures;
                 }
             };
-            let got = answer.within(CLOSE_BOUND);
+            let reads = refused_reads(&mut failures, &mut answer, start);
             let total = ms(start);
-            let refusals = REFUSALS.load(Ordering::SeqCst);
-            let mut reads = vec![format!(
-                "the affinity refused {refusals} times{}",
-                read(&REFUSED_AT).map_or_else(String::new, |at| format!(
-                    ", first at {} ms",
-                    at.duration_since(start).as_millis()
-                ))
-            )];
-            let close = read(&REFUSED_CLOSE);
-            reads.push(format!(
-                "the close from inside the event answered {}",
-                close.as_deref().unwrap_or("nothing")
-            ));
-            if refusals == 0 {
-                failures.push(format!("no event of the chooser had a window within {} s of the show, so its sink never decided", CLOSE_BOUND.as_secs()));
-            } else if close.is_none() {
-                failures.push("the sink did not close the chooser from inside its event".into());
-            }
-            match got {
-                Some(Chosen::Closed) => {}
-                Some(other) => failures.push(format!(
-                    "the chooser whose affinity was refused answered {other:?}, not closed"
-                )),
-                None => failures.push(format!(
-                    "the chooser whose affinity was refused did not answer within {} s of the show; it stays on the runner's screen until the test process ends",
-                    CLOSE_BOUND.as_secs()
-                )),
-            }
             end(
                 name,
                 &failures,
@@ -1004,6 +981,81 @@ mod tests {
                 &REFUSED_SHOWN,
             );
             failures
+        }
+
+        /// The reads of the refused case, in order; each miss goes to `failures`. It waits for the
+        /// refusal at the chooser's first event with a window up to `WINDOW_BOUND` from the show,
+        /// and takes an answer of the show that comes before it; behind a refusal it waits for
+        /// the answer up to `CLOSE_BOUND` from that refusal. It answers what it read, for the
+        /// case's line.
+        fn refused_reads(
+            failures: &mut Vec<String>,
+            answer: &mut Answer,
+            start: Instant,
+        ) -> Vec<String> {
+            // The answer first: `refuse` keeps the refusal before the show can answer, so a
+            // refusal read behind an answer is never missed.
+            let refused_at = loop {
+                let answered = answer.within(Duration::ZERO).is_some();
+                if let Some(at) = read(&REFUSED_AT) {
+                    break Some(at);
+                }
+                if answered || start.elapsed() > WINDOW_BOUND {
+                    break None;
+                }
+                std::thread::sleep(POLL);
+            };
+            let waited = ms(start);
+            let (got, after) = match refused_at {
+                Some(at) => {
+                    let left = (at + CLOSE_BOUND).saturating_duration_since(Instant::now());
+                    let got = answer.within(left);
+                    (got, Some(ms(at)))
+                }
+                None => (answer.within(Duration::ZERO), None),
+            };
+            let mut reads = vec![format!(
+                "the affinity refused {} times{}",
+                REFUSALS.load(Ordering::SeqCst),
+                refused_at.map_or_else(String::new, |at| format!(
+                    ", first {} ms from the show",
+                    at.duration_since(start).as_millis()
+                ))
+            )];
+            if let (Some(after), Some(_)) = (after, &got) {
+                reads.push(format!("the answer {after} ms from the refusal"));
+            }
+            let close = read(&REFUSED_CLOSE);
+            reads.push(format!(
+                "the close from inside the event answered {}",
+                close.as_deref().unwrap_or("nothing")
+            ));
+            match (refused_at, got) {
+                (None, Some(chosen)) => failures.push(format!(
+                    "the chooser closed by itself {waited} ms after the show began, with the answer {chosen:?}, before any event of it had a window, so its sink never decided"
+                )),
+                (None, None) => failures.push(format!(
+                    "no event of the chooser had a window within {} s of the show, so its sink never decided; the case leaves the chooser on the runner's screen",
+                    WINDOW_BOUND.as_secs()
+                )),
+                (Some(_), got) => {
+                    if close.is_none() {
+                        failures
+                            .push("the sink did not close the chooser from inside its event".into());
+                    }
+                    match got {
+                        Some(Chosen::Closed) => {}
+                        Some(other) => failures.push(format!(
+                            "the chooser whose affinity was refused answered {other:?}, not closed"
+                        )),
+                        None => failures.push(format!(
+                            "the chooser whose affinity was refused did not answer within {} s of the refusal; the case leaves it on the runner's screen",
+                            CLOSE_BOUND.as_secs()
+                        )),
+                    }
+                }
+            }
+            reads
         }
     }
 }
