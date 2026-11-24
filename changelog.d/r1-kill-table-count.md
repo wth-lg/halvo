@@ -1,0 +1,1 @@
+- Fixed: A test of the store that stops a delete before each of its steps no longer fails by chance: each of its runs now starts from a store whose files stand in the same folders, so each run makes the same steps.
