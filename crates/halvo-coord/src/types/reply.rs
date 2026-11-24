@@ -1030,8 +1030,10 @@ pub struct Field {
     pub from_text: String,
 }
 
-/// A parameter of a setup item (I3.5).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+/// A parameter of a setup item (I3.5). Its `Debug` form prints every field as a derived form
+/// would, but of `stored` the length in bytes alone, never its text (r4 U3.22g, the coordinator's
+/// log line 19851), so that no log line of an item can carry a person's stored path.
+#[derive(Clone, PartialEq, Eq, Serialize)]
 pub struct ParamEntry {
     /// `name`.
     pub name: Param,
@@ -1083,6 +1085,25 @@ pub struct ParamEntry {
     /// while none stands.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stored: Option<String>,
+}
+
+impl std::fmt::Debug for ParamEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ParamEntry")
+            .field("name", &self.name)
+            .field("label", &self.label)
+            .field("candidates", &self.candidates)
+            .field("typed", &self.typed)
+            .field("full", &self.full)
+            .field("too_long", &self.too_long)
+            .field("hint", &self.hint)
+            .field("needs_answer", &self.needs_answer)
+            .field("choose", &self.choose)
+            .field("refused", &self.refused)
+            .field("not_taken", &self.not_taken)
+            .field("stored", &self.stored.as_ref().map(String::len))
+            .finish()
+    }
 }
 
 /// A candidate of a parameter (I3.5).

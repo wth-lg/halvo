@@ -1123,11 +1123,11 @@ fn u322c_which_sheet_offers_the_names_that_the_read_of_the_workbook_answers_as_i
 /// that the core takes on this build's system, and a text that no other call of these tests holds.
 fn kept_answer(param: Param) -> &'static str {
     match (param, cfg!(windows)) {
-        (Param::Workbook, false) => "/Volumes/work/Stored budget.xlsx",
-        (Param::Workbook, true) => "D:\\work\\Stored budget.xlsx",
-        (Param::Source, false) => "/Volumes/work/stored receipts.csv",
-        (Param::Source, true) => "D:\\work\\stored receipts.csv",
-        (Param::Sheet, _) => "Stored sheet",
+        (Param::Workbook, false) => "/Qx7mnt/Zqv8 Kxjw",
+        (Param::Workbook, true) => "D:\\Qx7mnt\\Zqv8 Kxjw",
+        (Param::Source, false) => "/Qx7mnt/zqv8 Bxyl",
+        (Param::Source, true) => "D:\\Qx7mnt\\zqv8 Bxyl",
+        (Param::Sheet, _) => "Zqv8 Hjk",
         _ => "B3:D9",
     }
 }
@@ -1173,7 +1173,9 @@ fn put_up_with(answers: crate::types::SheetAnswers) -> (Coordinator<Ports<Config
 /// path is dropped; a read that fails leaves all four lines empty and the item open. No row that
 /// the presses store and no event that they publish holds a value: of every call that Change its
 /// answers and the four lines of the press of Use these answers make, the one body `set_bindings`
-/// alone holds one.
+/// alone holds one. The plain and the pretty Debug form of the item that holds the stored lines
+/// hold no four bytes in a row of a stored value (the coordinator's log line 19851), so that no
+/// later log line of an item can carry a person's paths.
 #[test]
 fn u322g_change_its_answers_puts_up_the_stored_answers_and_no_row_or_event_holds_one() {
     let c = sheet_world(&SHEET_SLOTS, true);
@@ -1192,6 +1194,15 @@ fn u322g_change_its_answers_puts_up_the_stored_answers_and_no_row_or_event_holds
     for p in SHEET_PARAMS {
         let stored = stored_of(&item, p);
         assert_eq!(stored.as_deref(), Some(kept_answer(p)), "{}", p.name());
+    }
+    for form in [format!("{item:?}"), format!("{item:#?}")] {
+        for p in SHEET_PARAMS {
+            let value = kept_answer(p).as_bytes();
+            let held = |w: &[u8]| form.as_bytes().windows(4).any(|f| f == w);
+            let four = value.windows(4).find(|w| held(w));
+            let four = four.map(String::from_utf8_lossy);
+            assert_eq!(four, None, "{}: the item's Debug form: {form}", p.name());
+        }
     }
     for p in SHEET_PARAMS {
         let typed = c.setup_typed(item.item(), p, kept_answer(p), item.step());
@@ -1273,9 +1284,9 @@ fn u322g_one_line_turned_behind_the_stored_answers_sends_one_body_with_the_three
         "no names at the put-up"
     );
     let new = if cfg!(windows) {
-        "D:\\work\\December receipts.csv"
+        "D:\\Qx7mnt\\December receipts.csv"
     } else {
-        "/Volumes/work/December receipts.csv"
+        "/Qx7mnt/December receipts.csv"
     };
     let book = kept_answer(Param::Workbook).to_owned();
     let names = |n: &[&str]| n.iter().map(|s| (*s).to_owned()).collect::<Vec<String>>();
