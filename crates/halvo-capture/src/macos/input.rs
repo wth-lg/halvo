@@ -218,6 +218,7 @@ struct InputFigures {
     pointer_dropped_at_stop: AtomicU64,
     keys_withheld: AtomicBool,
     stalled: AtomicBool,
+    kept_private: AtomicBool,
     secure_released_keystrokes: AtomicU64,
     secure_held_keystrokes: AtomicU64,
     secure_held_suppressed_down: AtomicU64,
@@ -327,6 +328,16 @@ impl InputCounters {
 
     fn stalled(&self) -> bool {
         self.0.stalled.load(Ordering::Relaxed)
+    }
+
+    /// Marks that every reading of the secure-input state for thirty seconds or more read on,
+    /// or takes the mark back.
+    fn set_kept_private(&self, kept: bool) {
+        self.0.kept_private.store(kept, Ordering::Relaxed);
+    }
+
+    fn kept_private(&self) -> bool {
+        self.0.kept_private.load(Ordering::Relaxed)
     }
 
     /// Key downs that came in time and were read while secure input was on; each
@@ -7064,6 +7075,58 @@ mod tests {
             }
         );
         source.counters.set_stalled(false);
+        assert_eq!(source.health().state, SourceState::Running);
+        source.shutdown().expect("the source stops");
+    }
+
+    #[test]
+    fn thirty_seconds_of_on_at_the_fold_timer_read_impaired_secure_input_elsewhere_and_off_takes_it_back(
+    ) {
+        let mut held = held(100);
+        let info = std::ptr::from_ref(&*held.ctx).cast_mut().cast::<c_void>();
+        let fire = || fold_timer_fired(std::ptr::null_mut(), info);
+        answer(Reading::On);
+        fire();
+        advance(29_999);
+        fire();
+        assert!(!held.counters.kept_private(), "29.999 s of on");
+        advance(1);
+        fire();
+        assert!(held.counters.kept_private(), "30 s of on");
+        answer(Reading::Off);
+        fire();
+        assert!(!held.counters.kept_private(), "a reading of off");
+        answer(Reading::On);
+        fire();
+        advance(30_000);
+        answer(Reading::Unknown);
+        fire();
+        assert!(!held.counters.kept_private(), "a reading of unknown");
+        held.ctx.keys_asked = false;
+        let before = asked();
+        answer(Reading::On);
+        fire();
+        advance(30_000);
+        fire();
+        assert!(!held.counters.kept_private(), "a tap that asked no key type");
+        assert_eq!(asked(), before, "a tap that asked no key type reads nothing");
+
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source_with(HoldPlan::Never);
+        source.session = || Session::NotAtConsole;
+        let (ended_tx, _ended_rx) = channel();
+        source
+            .begin_with(handle, FakeMaker(ended_tx), || {})
+            .expect("the source starts with a fake tap");
+        assert_eq!(source.health().state, SourceState::Running);
+        source.counters.set_kept_private(true);
+        assert_eq!(
+            source.health().state,
+            SourceState::Impaired {
+                reason: HealthReason::SecureInputElsewhere
+            }
+        );
+        source.counters.set_kept_private(false);
         assert_eq!(source.health().state, SourceState::Running);
         source.shutdown().expect("the source stops");
     }
