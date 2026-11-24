@@ -1,26 +1,26 @@
-; The English strings of the NSIS template of the Tauri bundler (tauri-cli 2.12.4,
-; languages/English.nsh), named by bundle.windows.nsis.customLanguageFiles in
-; src-tauri/tauri.windows.conf.json; it holds every string of that file, since the bundler takes it
-; in place of its own, with the label of the uninstaller's box (deleteAppData) in Halvo's words.
-LangString addOrReinstall ${LANG_ENGLISH} "Add/Reinstall components"
-LangString alreadyInstalled ${LANG_ENGLISH} "Already Installed"
-LangString alreadyInstalledLong ${LANG_ENGLISH} "${PRODUCTNAME} ${VERSION} is already installed. Select the operation you want to perform and click Next to continue."
-LangString appRunning ${LANG_ENGLISH} "{{product_name}} is running! Please close it first then try again."
-LangString appRunningOkKill ${LANG_ENGLISH} "{{product_name}} is running!$\nClick OK to kill it"
-LangString chooseMaintenanceOption ${LANG_ENGLISH} "Choose the maintenance option to perform."
-LangString chooseHowToInstall ${LANG_ENGLISH} "Choose how you want to install ${PRODUCTNAME}."
-LangString createDesktop ${LANG_ENGLISH} "Create desktop shortcut"
-LangString dontUninstall ${LANG_ENGLISH} "Do not uninstall"
+; The English strings of the NSIS template of tauri-bundler 2.10.4 (languages/English.nsh), which
+; tauri-cli 2.12.4 pins. src-tauri/tauri.windows.conf.json names this file under
+; bundle.windows.nsis.customLanguageFiles in place of the bundler's own, so it holds every name
+; of that file. Lines 5-13, 15, 17, 19, 21-23 and 31 are Halvo's words; the rest are the bundler's.
+LangString addOrReinstall ${LANG_ENGLISH} "Install Halvo again"
+LangString alreadyInstalled ${LANG_ENGLISH} "Halvo is already installed"
+LangString alreadyInstalledLong ${LANG_ENGLISH} "${PRODUCTNAME} ${VERSION} is already on this computer. Halvo's data stays unless you tick the box that deletes it on the next page. Choose one, then choose Next."
+LangString appRunning ${LANG_ENGLISH} "{{product_name}} is still open. Quit it from its icon near the clock, then try again."
+LangString appRunningOkKill ${LANG_ENGLISH} "{{product_name}} is open.$\nChoose OK to close it and go on, or Cancel to stop."
+LangString chooseMaintenanceOption ${LANG_ENGLISH} "Choose how to install Halvo again."
+LangString chooseHowToInstall ${LANG_ENGLISH} "Choose how to install this version of ${PRODUCTNAME}."
+LangString createDesktop ${LANG_ENGLISH} "Put a Halvo icon on the desktop"
+LangString dontUninstall ${LANG_ENGLISH} "Install over the installed Halvo"
 LangString dontUninstallDowngrade ${LANG_ENGLISH} "Do not uninstall (Downgrading without uninstall is disabled for this installer)"
-LangString failedToKillApp ${LANG_ENGLISH} "Failed to kill {{product_name}}. Please close it first then try again"
+LangString failedToKillApp ${LANG_ENGLISH} "{{product_name}} did not close. Quit it from its icon near the clock, then try again."
 LangString installingWebview2 ${LANG_ENGLISH} "Installing WebView2..."
-LangString newerVersionInstalled ${LANG_ENGLISH} "A newer version of ${PRODUCTNAME} is already installed! It is not recommended that you install an older version. If you really want to install this older version, it's better to uninstall the current version first. Select the operation you want to perform and click Next to continue."
+LangString newerVersionInstalled ${LANG_ENGLISH} "This installer is older than the ${PRODUCTNAME} on this computer. To keep that one, choose Cancel. Halvo's data stays unless you tick the box that deletes it."
 LangString older ${LANG_ENGLISH} "older"
-LangString olderOrUnknownVersionInstalled ${LANG_ENGLISH} "An $R4 version of ${PRODUCTNAME} is installed on your system. It's recommended that you uninstall the current version before installing. Select the operation you want to perform and click Next to continue."
+LangString olderOrUnknownVersionInstalled ${LANG_ENGLISH} "An $R4 version of ${PRODUCTNAME} is on this computer. Halvo's data stays unless you tick the box that deletes it on the next page. Choose one, then choose Next."
 LangString silentDowngrades ${LANG_ENGLISH} "Downgrades are disabled for this installer, can't proceed with the silent installer, please use the graphical interface installer instead.$\n"
-LangString unableToUninstall ${LANG_ENGLISH} "Unable to uninstall!"
-LangString uninstallApp ${LANG_ENGLISH} "Uninstall ${PRODUCTNAME}"
-LangString uninstallBeforeInstalling ${LANG_ENGLISH} "Uninstall before installing"
+LangString unableToUninstall ${LANG_ENGLISH} "The installed Halvo was not removed. Choose OK to go back and choose again."
+LangString uninstallApp ${LANG_ENGLISH} "Remove ${PRODUCTNAME} first, then install it again"
+LangString uninstallBeforeInstalling ${LANG_ENGLISH} "Remove the installed Halvo first, then install this version"
 LangString unknown ${LANG_ENGLISH} "unknown"
 LangString webview2AbortError ${LANG_ENGLISH} "Failed to install WebView2! The app can't run without it. Try restarting the installer."
 LangString webview2DownloadError ${LANG_ENGLISH} "Error: Downloading WebView2 Failed - $0"

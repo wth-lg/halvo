@@ -142,10 +142,17 @@ The installer installs Halvo for the person who runs it alone, into
 uninstall entry under `HKCU`. `src-tauri/windows/hooks.nsh` holds Halvo's hooks
 of the installer template of the Tauri bundler, which
 `bundle.windows.nsis.installerHooks` of `src-tauri/tauri.windows.conf.json`
-names. `src-tauri/windows/English.nsh` is the template's English text of
-tauri-cli 2.12.4, with the label of the uninstaller's box in Halvo's words; the
+names. `src-tauri/windows/English.nsh` holds every string of the English file of
+that template in tauri-cli 2.12.4, which pins tauri-bundler 2.10.4, since the
 bundler takes it in place of its own, so a later CLI that adds a string needs the
-string here too. The hooks hold every sentence that a person reads from them.
+string here too. Its sentences that a person can meet in this build are in
+Halvo's words: the page "Halvo is already installed" with its choices, the box
+when the removal that it starts fails, the question while Halvo is open with the
+two lines after it, the box on the installer's last page and the label of the
+uninstaller's box. The words `older` and `unknown`, which that page's sentence
+reads at an update, and the strings that this build never shows stay as the
+bundler wrote them; the installer's other pages speak NSIS's own English. The
+hooks hold every sentence that a person reads from them.
 
 Before an uninstall, and before an install over an installed copy, the hooks stop
 Halvo in this order: `halvo-capture.exe ctl stop` from the install folder (exit
@@ -283,8 +290,9 @@ also where the write-back of the uninstall entry failed. A
 silent run that left a report ends with exit 3, read with `_?=`: a silent run
 ends with 3 where a report or the folder of Halvo's window stays, with the box or
 without. A run with windows never ends with 3, since the template's own
-installer, at its step "Uninstall before installing", starts the uninstaller
-with windows and `_?=` and reads every exit but 0 and 1 as a failed uninstall.
+installer, at its choice "Remove the installed Halvo first, then install this
+version", starts the uninstaller with windows and `_?=` and reads every exit but
+0 and 1 as a failed uninstall.
 Without `_?=` the uninstaller starts a copy of itself and exits at once, so the
 caller reads 0 whatever the copy did.
 
