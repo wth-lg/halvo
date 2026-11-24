@@ -18,15 +18,22 @@ pub enum Value {
 /// names the line. A file that is not UTF-8 is refused first; then the file's separator is told
 /// and the file is read by it (`reading`), where a file whose separator is in doubt is refused, a
 /// fault of the form stops the read where it stands, and rows of unequal length are refused. Each
-/// field's value is told last, by the file's numbers (`Numbers::of`).
+/// field's value is told last, by the file's numbers (`Numbers::of`) and by its column, in which
+/// an amount as a spreadsheet program shows it turns whole or not at all (`turning`).
 pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
     let text = std::str::from_utf8(bytes).map_err(|_| Error::Source(SourceRefusal::Encoding))?;
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let (separator, rows) = reading(text)?;
     let numbers = Numbers::of(separator, &rows);
+    let turning = turning(numbers, &rows);
     Ok(rows
         .iter()
-        .map(|row| row.iter().map(|cell| numbers.value(cell)).collect())
+        .map(|row| {
+            row.iter()
+                .enumerate()
+                .map(|(at, cell)| numbers.value(cell, turning.get(at) == Some(&true)))
+                .collect()
+        })
         .collect())
 }
 
@@ -278,7 +285,8 @@ enum Numbers {
     /// the comma or the point, and none of the other (r3 U11.5, `with_sign`).
     Sign(char),
     /// A file read by semicolons or by tabs in which no field, or a field of each sign, is a
-    /// number with a decimal sign: its whole numbers alone are numbers.
+    /// number with a decimal sign, and no amount (`amount`) or an amount of each sign tells one:
+    /// its whole numbers alone are numbers.
     Whole,
 }
 
@@ -287,7 +295,9 @@ impl Numbers {
     /// semicolons or by tabs has one decimal sign, the comma where a field is a number with a
     /// decimal comma and none is one with a decimal point, the point the other way round. A
     /// field of the shape of a thousands group, of either sign, has two readings and decides
-    /// nothing.
+    /// nothing. Only where no field tells a sign, an amount as a spreadsheet program shows it
+    /// (`amount`) tells it the same way (r3 U11.8); where fields tell both signs, no amount
+    /// tells one.
     fn of(separator: u8, rows: &[Vec<Cow<'_, str>>]) -> Numbers {
         if separator == b',' {
             return Numbers::Points;
@@ -297,24 +307,74 @@ impl Numbers {
                 .flatten()
                 .any(|cell| with_sign(cell, sign).is_some())
         };
+        let tells = |sign: char| {
+            rows.iter()
+                .flatten()
+                .any(|cell| amount(cell).is_some_and(|(_, decimal)| decimal == Some(sign)))
+        };
+        let one = |comma: bool, point: bool| match (comma, point) {
+            (true, false) => Some(Numbers::Sign(',')),
+            (false, true) => Some(Numbers::Sign('.')),
+            _ => None,
+        };
         match (has(','), has('.')) {
-            (true, false) => Numbers::Sign(','),
-            (false, true) => Numbers::Sign('.'),
-            _ => Numbers::Whole,
+            (false, false) => one(tells(','), tells('.')).unwrap_or(Numbers::Whole),
+            (comma, point) => one(comma, point).unwrap_or(Numbers::Whole),
         }
     }
 
-    fn value(self, cell: &str) -> Value {
-        let number = match self {
+    /// The number of `cell` before r3 U11.8.
+    fn today(self, cell: &str) -> Option<f64> {
+        match self {
             Numbers::Points => point_number(cell),
             Numbers::Sign(sign) => whole_number(cell).or_else(|| with_sign(cell, sign)),
             Numbers::Whole => whole_number(cell),
+        }
+    }
+
+    /// The number of `cell` as an amount (`amount`) whose decimal sign, where it has one, is the
+    /// file's: the point in a file read by commas, the sign that the file tells in a file read by
+    /// semicolons or by tabs; in a file that tells none, an amount with no decimal sign alone.
+    fn amount_number(self, cell: &str) -> Option<f64> {
+        let (x, decimal) = amount(cell)?;
+        let sign = match self {
+            Numbers::Points => Some('.'),
+            Numbers::Sign(sign) => Some(sign),
+            Numbers::Whole => None,
         };
+        (decimal.is_none() || decimal == sign).then_some(x)
+    }
+
+    /// The value of `cell`: its number of before r3 U11.8, else its number as an amount where
+    /// the amounts of its column `turn` (`turning`), else its text.
+    fn value(self, cell: &str, turn: bool) -> Value {
+        let number = self
+            .today(cell)
+            .or_else(|| turn.then(|| self.amount_number(cell)).flatten());
         match number {
             Some(x) => Value::Number(x),
             None => Value::Text(cell.to_string()),
         }
     }
+}
+
+/// Whether the amounts of each column of `rows` turn into their numbers (r3 U11.8): a column
+/// turns whole or not at all, so where one of its fields is of an amount's make (`amount_make`)
+/// and gets no number, no amount of that column turns. A field that is a number before r3 U11.8
+/// stays that number in every column (`Numbers::value`).
+fn turning(numbers: Numbers, rows: &[Vec<Cow<'_, str>>]) -> Vec<bool> {
+    let width = rows.first().map_or(0, Vec::len);
+    (0..width)
+        .map(|at| {
+            rows.iter().filter_map(|row| row.get(at)).all(|cell| {
+                !amount_make(cell)
+                    || numbers
+                        .today(cell)
+                        .or_else(|| numbers.amount_number(cell))
+                        .is_some()
+            })
+        })
+        .collect()
 }
 
 /// The number of a field of A11.3's form (`is_number`).
@@ -366,6 +426,140 @@ fn is_number(cell: &str) -> bool {
         .skip_while(|b| *b == b'0')
         .count();
     significant <= 15
+}
+
+/// The signs of money that an amount may carry at one of its ends (`amount`).
+const MONEY: [char; 4] = ['$', '€', '£', '¥'];
+
+/// The spaces that may stand between an amount's sign of money and its digits (`amount`).
+const GAPS: [char; 3] = [' ', '\u{a0}', '\u{202f}'];
+
+/// The signs that group an amount's thousands beside the comma and the point, and that are never
+/// a decimal sign (`amount`).
+const GROUPS: [char; 4] = ['\'', '\u{2019}', '\u{a0}', '\u{202f}'];
+
+/// An amount as a spreadsheet program shows it, where its form has one reading (r3 U11.8): its
+/// number, and its decimal sign where it has one. Without the spaces (U+0020) at its ends, ONE
+/// sign of money of `MONEY` at either end with the spaces of `GAPS` or none between it and the
+/// digits, a minus in front of the digits or of the sign of money, or brackets round the amount
+/// with a sign of money inside them or in front of them (a negative amount), it is digits with
+/// at most one decimal sign, the comma or the point, and a thousands sign of another kind (the
+/// other of the two, or one of `GROUPS`) in groups of three behind a first group of one to three
+/// digits, with A11.3's form for its digits (`point_number`). A thousands sign of `GROUPS` needs
+/// no decimal part (`1'234`); the comma or the point as a thousands sign needs the other sign as
+/// the decimal sign (`1,234.56`). Not an amount: the shape of a thousands group with no other
+/// sign (`1,234`, `¥1,234`, `1,799 €`), which has two readings; a sign of thousands repeated with
+/// no decimal sign (`1,234,567`), which may be a list such as `38,40,42`; the Indian grouping
+/// (`12,34,567.89`); a plain space between groups; brackets with no sign of money (`(12.50)`);
+/// letters (`500 EUR`); a percent; and a minus behind (`12.50-`).
+fn amount(cell: &str) -> Option<(f64, Option<char>)> {
+    let cell = cell.trim_matches(' ');
+    let (cell, outer) = bracketed(cell);
+    let (cell, minus) = match cell.strip_prefix('-') {
+        Some(rest) => (rest, true),
+        None => (cell, false),
+    };
+    let (cell, money) = without_money(cell);
+    let (cell, inner) = if outer || minus {
+        (cell, false)
+    } else {
+        bracketed(cell)
+    };
+    let (cell, minus_inner) = match cell.strip_prefix('-') {
+        Some(rest) if !(outer || minus || inner) => (rest, true),
+        _ => (cell, false),
+    };
+    if (outer || inner) && !money {
+        return None;
+    }
+    let (x, decimal) = amount_body(cell)?;
+    let negative = outer || inner || minus || minus_inner;
+    Some((if negative { -x } else { x }, decimal))
+}
+
+/// `cell` without the brackets round it, and whether it had them.
+fn bracketed(cell: &str) -> (&str, bool) {
+    match cell
+        .strip_prefix('(')
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        Some(inside) => (inside, true),
+        None => (cell, false),
+    }
+}
+
+/// `cell` without ONE sign of money of `MONEY` at either end and the spaces of `GAPS` between it
+/// and the rest, and whether it had one.
+fn without_money(cell: &str) -> (&str, bool) {
+    let front = cell
+        .strip_prefix(MONEY)
+        .map(|rest| rest.trim_start_matches(GAPS));
+    let back = || {
+        cell.strip_suffix(MONEY)
+            .map(|rest| rest.trim_end_matches(GAPS))
+    };
+    match front.or_else(back) {
+        Some(rest) => (rest, true),
+        None => (cell, false),
+    }
+}
+
+/// The number of an amount's digits and signs (`amount`), and its decimal sign where it has one.
+fn amount_body(body: &str) -> Option<(f64, Option<char>)> {
+    let digit_ends = body.starts_with(|c: char| c.is_ascii_digit())
+        && body.ends_with(|c: char| c.is_ascii_digit());
+    if !digit_ends {
+        return None;
+    }
+    let (whole, decimal, fraction) = match body.rfind([',', '.']) {
+        Some(at) => (&body[..at], body[at..].chars().next(), &body[at + 1..]),
+        None => (body, None, ""),
+    };
+    if !fraction.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let mut signs = whole.chars().filter(|c| !c.is_ascii_digit());
+    let group = signs.next();
+    if signs.any(|c| Some(c) != group) {
+        return None;
+    }
+    let digits = match group {
+        Some(sign) => {
+            let other = [',', '.'].contains(&sign) && Some(sign) != decimal;
+            let mut parts = whole.split(sign);
+            let first = parts.next().unwrap_or_default();
+            let threes = parts.all(|part| part.len() == 3);
+            if !(GROUPS.contains(&sign) || other) || !(1..=3).contains(&first.len()) || !threes {
+                return None;
+            }
+            whole.replace(sign, "")
+        }
+        None => {
+            let shape = whole != "0" && (1..=3).contains(&whole.len()) && fraction.len() == 3;
+            if decimal.is_some() && shape {
+                return None;
+            }
+            whole.to_string()
+        }
+    };
+    let text = match decimal {
+        Some(_) => format!("{digits}.{fraction}"),
+        None => digits,
+    };
+    point_number(&text).map(|x| (x, decimal))
+}
+
+/// Whether `cell` is of an amount's make (r3 U11.8, the column of `turning`): without the spaces
+/// (U+0020) at its ends it holds a digit and no sign other than digits, the signs of an amount
+/// (`MONEY`, the comma and the point, `GROUPS`, the spaces of `GAPS`, the minus and the brackets)
+/// and the percent sign. A field with a letter is not.
+fn amount_make(cell: &str) -> bool {
+    let cell = cell.trim_matches(' ');
+    let sign = |c: char| {
+        MONEY.contains(&c) || GROUPS.contains(&c) || GAPS.contains(&c) || ",.-()%".contains(c)
+    };
+    cell.contains(|c: char| c.is_ascii_digit())
+        && cell.chars().all(|c| c.is_ascii_digit() || sign(c))
 }
 
 #[cfg(test)]
@@ -741,7 +935,7 @@ mod tests {
             ("-0,5", n(-0.5)),
             (",5", t(",5")),
             ("5,", t("5,")),
-            ("1.234,56", t("1.234,56")),
+            ("1.234,56", n(1234.56)),
             ("1,234", t("1,234")),
             ("1 234,56", t("1 234,56")),
             ("12,3,4", t("12,3,4")),
@@ -757,7 +951,7 @@ mod tests {
             ("1234,567", n(1234.567)),
             ("1234.567", n(1234.567)),
             ("1,2345", n(1.2345)),
-            ("1,234.56", t("1,234.56")),
+            ("1,234.56", n(1234.56)),
             (".5", t(".5")),
             ("5.", t("5.")),
             ("00,5", t("00,5")),
@@ -818,8 +1012,8 @@ mod tests {
             vec![t("Strom"), n(63.05), n(7.25)],
         ];
         let names = vec![
-            vec![t("Müller, Hans"), t("Vertrieb"), t("3.250,50")],
-            vec![t("Schmidt, Eva"), t("Einkauf"), t("2.980,00")],
+            vec![t("Müller, Hans"), t("Vertrieb"), n(3250.5)],
+            vec![t("Schmidt, Eva"), t("Einkauf"), n(2980.0)],
         ];
         type Read = Result<Vec<Vec<Value>>, Error>;
         let cases: Vec<(&str, String, Read)> =
@@ -991,7 +1185,7 @@ mod tests {
                     "\r\n",
                 ),
                 Ok(vec![
-                    vec![t("01.10.2026"), t("Miete, Oktober"), t("-1.234,56")],
+                    vec![t("01.10.2026"), t("Miete, Oktober"), n(-1234.56)],
                     vec![t("02.10.2026"), t("Strom, Abschlag"), n(-89.5)],
                 ]),
             ),
@@ -1021,8 +1215,8 @@ mod tests {
                     "\r\n",
                 ),
                 Ok(vec![
-                    vec![t("Miller, John"), t("Sales"), t("3,250.50")],
-                    vec![t("Smith, Ann"), t("Buying"), t("2,980.00")],
+                    vec![t("Miller, John"), t("Sales"), n(3250.5)],
+                    vec![t("Smith, Ann"), t("Buying"), n(2980.0)],
                 ]),
             ),
             (
@@ -1051,8 +1245,8 @@ mod tests {
                     "\r\n",
                 ),
                 Ok(vec![
-                    vec![t("Müller,Hans"), t("Vertrieb"), t("3.250,50")],
-                    vec![t("Schmidt,Eva"), t("Einkauf"), t("2.980,00")],
+                    vec![t("Müller,Hans"), t("Vertrieb"), n(3250.5)],
+                    vec![t("Schmidt,Eva"), t("Einkauf"), n(2980.0)],
                 ]),
             ),
             (
@@ -1081,8 +1275,8 @@ mod tests {
                     "\r\n",
                 ),
                 Ok(vec![
-                    vec![t("Müller, Hans"), t(" Vertrieb"), t(" 3.250,50")],
-                    vec![t("Schmidt, Eva"), t(" Einkauf"), t(" 2.980,00")],
+                    vec![t("Müller, Hans"), t(" Vertrieb"), n(3250.5)],
+                    vec![t("Schmidt, Eva"), t(" Einkauf"), n(2980.0)],
                 ]),
             ),
             (
@@ -1095,8 +1289,8 @@ mod tests {
                     "\r\n",
                 ),
                 Ok(vec![
-                    vec![t("Müller,Hans"), t(" Vertrieb"), t(" 3.250,50")],
-                    vec![t("Schmidt,Eva"), t(" Einkauf"), t(" 2.980,00")],
+                    vec![t("Müller,Hans"), t(" Vertrieb"), n(3250.5)],
+                    vec![t("Schmidt,Eva"), t(" Einkauf"), n(2980.0)],
                 ]),
             ),
             (
@@ -1111,16 +1305,16 @@ mod tests {
                 "S1, the semicolon, (iii) fails: a whole number with a space in front is no sign",
                 file(&["Schraube,verzinkt; 500 ", "Mutter,M8; 250 "], "\r\n"),
                 Ok(vec![
-                    vec![t("Schraube,verzinkt"), t(" 500 ")],
-                    vec![t("Mutter,M8"), t(" 250 ")],
+                    vec![t("Schraube,verzinkt"), n(500.0)],
+                    vec![t("Mutter,M8"), n(250.0)],
                 ]),
             ),
             (
                 "S2, the tab, (iii) fails: S1 in tabs",
                 file(&["Schraube,verzinkt\t 500 ", "Mutter,M8\t 250 "], "\r\n"),
                 Ok(vec![
-                    vec![t("Schraube,verzinkt"), t(" 500 ")],
-                    vec![t("Mutter,M8"), t(" 250 ")],
+                    vec![t("Schraube,verzinkt"), n(500.0)],
+                    vec![t("Mutter,M8"), n(250.0)],
                 ]),
             ),
             (
@@ -1133,8 +1327,8 @@ mod tests {
                     "\r\n",
                 ),
                 Ok(vec![
-                    vec![t("Schraube,verzinkt,M8"), t(" 500 "), t("Lager A")],
-                    vec![t("Mutter,M8,verzinkt"), t(" 250 "), t("Lager B")],
+                    vec![t("Schraube,verzinkt,M8"), n(500.0), t("Lager A")],
+                    vec![t("Mutter,M8,verzinkt"), n(250.0), t("Lager B")],
                 ]),
             ),
             (
@@ -1149,8 +1343,8 @@ mod tests {
                 "S4, the semicolon, (iii) fails: a whole amount with a sign of money is a number",
                 file(&["Schraube,verzinkt; 500 € ", "Mutter,M8; 250 € "], "\r\n"),
                 Ok(vec![
-                    vec![t("Schraube,verzinkt"), t(" 500 € ")],
-                    vec![t("Mutter,M8"), t(" 250 € ")],
+                    vec![t("Schraube,verzinkt"), n(500.0)],
+                    vec![t("Mutter,M8"), n(250.0)],
                 ]),
             ),
             (
@@ -1160,8 +1354,8 @@ mod tests {
                     "\r\n",
                 ),
                 Ok(vec![
-                    vec![t("Schraube,verzinkt"), t(" 3.250,50 € ")],
-                    vec![t("Mutter,M8"), t(" 250,00 € ")],
+                    vec![t("Schraube,verzinkt"), n(3250.5)],
+                    vec![t("Mutter,M8"), n(250.0)],
                 ]),
             ),
             (
@@ -1226,6 +1420,251 @@ mod tests {
             let got = parse(text.as_bytes());
             if got != want {
                 wrong.push(format!("{name}: {}: got {got:?}", text.escape_debug()));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.8, the coordinator's table: an amount as a spreadsheet program shows it is its
+    /// number where its form has one reading, and a form of two readings stays a text, as before.
+    /// Each form stands alone in a file read by commas (quoted where it holds a comma) and in a
+    /// file read by semicolons; then the files of more rows show the file's one decimal sign.
+    #[test]
+    fn an_amount_as_a_program_shows_it_is_its_number_where_its_form_has_one_reading() {
+        let nb = '\u{a0}';
+        let nnb = '\u{202f}';
+        // The field, its cell in a file read by commas, its cell in a file read by semicolons.
+        let alone: Vec<(String, Value, Value)> = vec![
+            // A sign of money at an end, with and without a space.
+            ("$12.50".into(), n(12.5), n(12.5)),
+            ("$ 12.50".into(), n(12.5), n(12.5)),
+            ("€12.50".into(), n(12.5), n(12.5)),
+            ("12,50 €".into(), t("12,50 €"), n(12.5)),
+            ("€ 12,50".into(), t("€ 12,50"), n(12.5)),
+            (format!("12,50{nb}€"), t(&format!("12,50{nb}€")), n(12.5)),
+            ("1.250,00 €".into(), t("1.250,00 €"), n(1250.0)),
+            ("£1,234.56".into(), n(1234.56), n(1234.56)),
+            ("$1,234.56".into(), n(1234.56), n(1234.56)),
+            ("¥1,234".into(), t("¥1,234"), t("¥1,234")),
+            ("1,799 €".into(), t("1,799 €"), t("1,799 €")),
+            ("12.50 USD".into(), t("12.50 USD"), t("12.50 USD")),
+            ("CHF 12.50".into(), t("CHF 12.50"), t("CHF 12.50")),
+            ("kr 12,50".into(), t("kr 12,50"), t("kr 12,50")),
+            ("500 EUR".into(), t("500 EUR"), t("500 EUR")),
+            // A whole amount with a sign of money (the ruling's P2).
+            ("$500".into(), n(500.0), n(500.0)),
+            ("500 €".into(), n(500.0), n(500.0)),
+            ("¥500".into(), n(500.0), n(500.0)),
+            (" 500 € ".into(), n(500.0), n(500.0)),
+            // A thousands sign that is never a decimal sign, with no decimal part (P2).
+            ("1'234".into(), n(1234.0), n(1234.0)),
+            ("1’234".into(), n(1234.0), n(1234.0)),
+            (format!("1{nb}234"), n(1234.0), n(1234.0)),
+            (format!("1{nnb}234"), n(1234.0), n(1234.0)),
+            // A thousands sign with a decimal part behind the other sign.
+            ("1,234.56".into(), n(1234.56), n(1234.56)),
+            ("1.234,56".into(), t("1.234,56"), n(1234.56)),
+            ("12,345,678.90".into(), n(12_345_678.9), n(12_345_678.9)),
+            ("-1,234.56".into(), n(-1234.56), n(-1234.56)),
+            ("-1.234,56".into(), t("-1.234,56"), n(-1234.56)),
+            (
+                format!("1{nb}234,56"),
+                t(&format!("1{nb}234,56")),
+                n(1234.56),
+            ),
+            (
+                format!("1{nnb}234,56"),
+                t(&format!("1{nnb}234,56")),
+                n(1234.56),
+            ),
+            (
+                format!("1{nnb}234,56{nb}€"),
+                t(&format!("1{nnb}234,56{nb}€")),
+                n(1234.56),
+            ),
+            ("1'234.56".into(), n(1234.56), n(1234.56)),
+            ("1’234.56".into(), n(1234.56), n(1234.56)),
+            // The shapes of two readings, and forms of more than one group, stay as they were.
+            ("1,234".into(), t("1,234"), t("1,234")),
+            ("1.234".into(), n(1.234), t("1.234")),
+            ("1,234,567".into(), t("1,234,567"), t("1,234,567")),
+            ("1.234.567".into(), t("1.234.567"), t("1.234.567")),
+            ("12,34,567.89".into(), t("12,34,567.89"), t("12,34,567.89")),
+            ("1 234,56".into(), t("1 234,56"), t("1 234,56")),
+            ("1,234,56".into(), t("1,234,56"), t("1,234,56")),
+            ("$007.50".into(), t("$007.50"), t("$007.50")),
+            // Spaces at a field's ends, as an accounting format pads a cell and as a person types.
+            (" 12.50".into(), n(12.5), n(12.5)),
+            ("12.50 ".into(), n(12.5), n(12.5)),
+            (" $ 1,234.56 ".into(), n(1234.56), n(1234.56)),
+            (" 12,50".into(), t(" 12,50"), n(12.5)),
+            (" 1.234,56 € ".into(), t(" 1.234,56 € "), n(1234.56)),
+            // A negative amount in each way that a program writes it.
+            ("-12.50".into(), n(-12.5), n(-12.5)),
+            ("-$12.50".into(), n(-12.5), n(-12.5)),
+            ("$-12.50".into(), n(-12.5), n(-12.5)),
+            ("-12,50 €".into(), t("-12,50 €"), n(-12.5)),
+            ("($1,234.56)".into(), n(-1234.56), n(-1234.56)),
+            (" $ (1,234.56)".into(), n(-1234.56), n(-1234.56)),
+            ("(1.234,56 €)".into(), t("(1.234,56 €)"), n(-1234.56)),
+            ("(12.50)".into(), t("(12.50)"), t("(12.50)")),
+            ("12.50-".into(), t("12.50-"), t("12.50-")),
+            ("-($12.50)".into(), t("-($12.50)"), t("-($12.50)")),
+            // A percent.
+            ("50%".into(), t("50%"), t("50%")),
+            ("12.5 %".into(), t("12.5 %"), t("12.5 %")),
+            ("12,5 %".into(), t("12,5 %"), t("12,5 %")),
+            // The forms that stay texts whatever is ruled.
+            ("007".into(), t("007"), t("007")),
+            ("+5".into(), t("+5"), t("+5")),
+            ("1e5".into(), t("1e5"), t("1e5")),
+            ("2026-10-01".into(), t("2026-10-01"), t("2026-10-01")),
+            ("01.10.2026".into(), t("01.10.2026"), t("01.10.2026")),
+            (
+                "+49 30 1234567".into(),
+                t("+49 30 1234567"),
+                t("+49 30 1234567"),
+            ),
+            ("030 1234567".into(), t("030 1234567"), t("030 1234567")),
+            ("38,40,42".into(), t("38,40,42"), t("38,40,42")),
+            ("$".into(), t("$"), t("$")),
+            ("-".into(), t("-"), t("-")),
+        ];
+        // Files of more rows: the file's one decimal sign (point (b) of the table; P3).
+        let files: [(&str, &str, Vec<Value>); 13] = [
+            (
+                "b1",
+                "Miete;1.250,00 €\nStrom;63,05 €\n",
+                vec![n(1250.0), n(63.05)],
+            ),
+            (
+                "b1 tabs",
+                "Miete\t1.250,00 €\nStrom\t63,05 €\n",
+                vec![n(1250.0), n(63.05)],
+            ),
+            (
+                "b2",
+                "Miete;1.250,00\nStrom;63,05\n",
+                vec![n(1250.0), n(63.05)],
+            ),
+            (
+                "b2'",
+                "Miete;1.250\nStrom;63,05\n",
+                vec![t("1.250"), n(63.05)],
+            ),
+            (
+                "b3",
+                "Miete;1.234,56\nRent;1,234.56\n",
+                vec![t("1.234,56"), t("1,234.56")],
+            ),
+            (
+                "b3'",
+                "Miete;1.234,56 €\nRent;$1,234.56\n",
+                vec![t("1.234,56 €"), t("$1,234.56")],
+            ),
+            (
+                "b4",
+                "Miete;1.234,56\nAnzahl;12\n",
+                vec![n(1234.56), n(12.0)],
+            ),
+            (
+                "b4'",
+                "Miete;1.234,56\nAnzahl;1.234\n",
+                vec![t("1.234,56"), t("1.234")],
+            ),
+            (
+                "P3",
+                "A;1,5\nB;1.5\nC;1.234,56 €\n",
+                vec![t("1,5"), t("1.5"), t("1.234,56 €")],
+            ),
+            (
+                "b5",
+                "Rent;$1,250.00\nPower;$63.05\n",
+                vec![n(1250.0), n(63.05)],
+            ),
+            (
+                "b6",
+                "Strom;63,05\nRent;$1,234.56\n",
+                vec![n(63.05), t("$1,234.56")],
+            ),
+            (
+                "c1",
+                "Miete,\"1.250,00 €\"\nStrom,\"63,05 €\"\n",
+                vec![t("1.250,00 €"), t("63,05 €")],
+            ),
+            (
+                "c3",
+                "Rent,\"$1,250.00\"\nPower, $ 63.05 \n",
+                vec![n(1250.0), n(63.05)],
+            ),
+        ];
+        let mut wrong = Vec::new();
+        for (field, commas, semicolons) in &alone {
+            let quoted = if field.contains(',') {
+                format!("\"{field}\"")
+            } else {
+                field.clone()
+            };
+            for (text, want) in [
+                (format!("a,{quoted}\n"), commas),
+                (format!("a;{field}\n"), semicolons),
+            ] {
+                let got = parse(text.as_bytes());
+                if got != Ok(vec![vec![t("a"), want.clone()]]) {
+                    wrong.push(format!(
+                        "{}: got {got:?}, want {want:?}",
+                        text.escape_debug()
+                    ));
+                }
+            }
+        }
+        for (name, text, want) in files {
+            let got = parse(text.as_bytes()).map(|rows| rows.into_iter().map(|row| row[1].clone()));
+            let got: Result<Vec<Value>, Error> = got.map(Iterator::collect);
+            if got != Ok(want.clone()) {
+                wrong.push(format!(
+                    "{name}: {}: got {got:?}, want {want:?}",
+                    text.escape_debug()
+                ));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.8, the coordinator's ruling P1: a column turns whole or not at all. Where one field
+    /// of an amount's make gets no number, no amount of its column turns; a column of amounts
+    /// that each have one reading turns whole. Each file is read by commas and by semicolons.
+    #[test]
+    fn a_column_of_amounts_turns_whole_or_not_at_all() {
+        let cases: [(&[&str], [Value; 3]); 2] = [
+            (
+                &["$950", "$1,234", "$12,500"],
+                [t("$950"), t("$1,234"), t("$12,500")],
+            ),
+            (&["$5", "$12", "$40"], [n(5.0), n(12.0), n(40.0)]),
+        ];
+        let mut wrong = Vec::new();
+        for (cells, want) in &cases {
+            for sign in [',', ';'] {
+                let text: String = cells
+                    .iter()
+                    .map(|cell| {
+                        if sign == ',' && cell.contains(',') {
+                            format!("Rent{sign}\"{cell}\"\r\n")
+                        } else {
+                            format!("Rent{sign}{cell}\r\n")
+                        }
+                    })
+                    .collect();
+                let want: Vec<Vec<Value>> =
+                    want.iter().map(|v| vec![t("Rent"), v.clone()]).collect();
+                let got = parse(text.as_bytes());
+                if got != Ok(want.clone()) {
+                    wrong.push(format!(
+                        "{}: got {got:?}, want {want:?}",
+                        text.escape_debug()
+                    ));
+                }
             }
         }
         assert!(wrong.is_empty(), "{wrong:#?}");
