@@ -503,10 +503,14 @@ mod tests {
     /// waits up to 10 s from the show, the bound of the case above, for that refusal at the
     /// chooser's first event with a window, and up to 5 s from the refusal for the show's answer
     /// (r4 U3.22f); it reads what the close from inside that event answered, what Show answered,
-    /// and that the show answers `Chosen::Closed`. Every wait has its bound, so it ends within
-    /// the two together, 15 s from the show and one poll of 10 ms. It writes its line as the case
-    /// above does, with the milliseconds from the show to the refusal and from the refusal to the
-    /// answer.
+    /// and that the show answers `Chosen::Closed`. Where the first show gives no event with a
+    /// window within 10 s, the case leaves that chooser where it stands, reads whether a window
+    /// that its owner owns stands visible, and reads the same at ONE more show; there is no
+    /// third. Every wait has its bound, so it ends within 15 s of the show and one poll of 10 ms,
+    /// and with a second show within 25 s of the first and two polls, beside the making of its
+    /// second window. It writes its line as the case above does, with the milliseconds from the
+    /// show to the refusal and from the refusal to the answer; with a second show the text of its
+    /// line begins with SECOND SHOW.
     #[cfg(windows)]
     #[test]
     fn u322e_on_a_hosted_runner_the_windows_chooser_closes_at_once_through_its_own_interface_where_the_affinity_is_refused(
@@ -517,14 +521,14 @@ mod tests {
     #[cfg(windows)]
     mod hosted {
         use super::super::windows::{choose, Watch};
-        use ::windows::core::{w, Result as WinResult};
+        use ::windows::core::{w, Result as WinResult, BOOL};
         use ::windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
         use ::windows::Win32::UI::Shell::IFileDialog;
         use ::windows::Win32::UI::WindowsAndMessaging::{
-            CreateWindowExW, DestroyWindow, DispatchMessageW, GetWindow, GetWindowDisplayAffinity,
-            IsWindow, IsWindowVisible, PeekMessageW, PostMessageW, TranslateMessage, GW_OWNER, MSG,
-            PM_REMOVE, WDA_EXCLUDEFROMCAPTURE, WINDOW_DISPLAY_AFFINITY, WINDOW_EX_STYLE, WM_CLOSE,
-            WS_POPUP,
+            CreateWindowExW, DestroyWindow, DispatchMessageW, EnumWindows, GetClassNameW,
+            GetWindow, GetWindowDisplayAffinity, IsWindow, IsWindowVisible, PeekMessageW,
+            PostMessageW, TranslateMessage, GW_OWNER, MSG, PM_REMOVE, WDA_EXCLUDEFROMCAPTURE,
+            WINDOW_DISPLAY_AFFINITY, WINDOW_EX_STYLE, WM_CLOSE, WS_POPUP,
         };
         use halvo_coord::ports::Chosen;
         use std::ffi::c_void;
@@ -559,17 +563,26 @@ mod tests {
             ..Watch::PRODUCT
         };
 
-        /// The refused case's: how often the affinity was refused and when first, what the close
-        /// from inside the event answered, and what Show answered.
-        static REFUSALS: AtomicUsize = AtomicUsize::new(0);
-        static REFUSED_AT: Mutex<Option<Instant>> = Mutex::new(None);
-        static REFUSED_CLOSE: Mutex<Option<String>> = Mutex::new(None);
-        static REFUSED_SHOWN: Mutex<Option<String>> = Mutex::new(None);
-        const REFUSED_WATCH: Watch = Watch {
-            protect: refuse,
-            decided: refused_decided,
-            shown: refused_shown,
-        };
+        /// The refused case's, one slot for each of its two shows at most: how often the affinity
+        /// was refused and when first, what the close from inside the event answered, and what
+        /// Show answered. A first show that gave no event within its bound keeps its chooser,
+        /// whose event may still come, so the second show reads slots of its own.
+        static REFUSALS: [AtomicUsize; 2] = [AtomicUsize::new(0), AtomicUsize::new(0)];
+        static REFUSED_AT: [Mutex<Option<Instant>>; 2] = [Mutex::new(None), Mutex::new(None)];
+        static REFUSED_CLOSE: [Mutex<Option<String>>; 2] = [Mutex::new(None), Mutex::new(None)];
+        static REFUSED_SHOWN: [Mutex<Option<String>>; 2] = [Mutex::new(None), Mutex::new(None)];
+        const REFUSED_WATCH: [Watch; 2] = [
+            Watch {
+                protect: refuse::<0>,
+                decided: refused_decided::<0>,
+                shown: refused_shown::<0>,
+            },
+            Watch {
+                protect: refuse::<1>,
+                decided: refused_decided::<1>,
+                shown: refused_shown::<1>,
+            },
+        ];
 
         fn keep<T>(slot: &Mutex<Option<T>>, value: Option<T>) {
             *slot.lock().unwrap_or_else(PoisonError::into_inner) = value;
@@ -605,21 +618,25 @@ mod tests {
             keep(&OPENING_SHOWN, Some(word(shown)));
         }
 
-        fn refuse(_: HWND, _: WINDOW_DISPLAY_AFFINITY) -> bool {
-            if REFUSALS.fetch_add(1, Ordering::SeqCst) == 0 {
-                keep(&REFUSED_AT, Some(Instant::now()));
+        fn refuse<const S: usize>(_: HWND, _: WINDOW_DISPLAY_AFFINITY) -> bool {
+            if REFUSALS[S].fetch_add(1, Ordering::SeqCst) == 0 {
+                keep(&REFUSED_AT[S], Some(Instant::now()));
             }
             false
         }
 
-        fn refused_decided(_: &IFileDialog, _: HWND, closed: Option<&WinResult<()>>) {
+        fn refused_decided<const S: usize>(
+            _: &IFileDialog,
+            _: HWND,
+            closed: Option<&WinResult<()>>,
+        ) {
             if let Some(closed) = closed {
-                keep(&REFUSED_CLOSE, Some(word(closed)));
+                keep(&REFUSED_CLOSE[S], Some(word(closed)));
             }
         }
 
-        fn refused_shown(shown: &WinResult<()>) {
-            keep(&REFUSED_SHOWN, Some(word(shown)));
+        fn refused_shown<const S: usize>(shown: &WinResult<()>) {
+            keep(&REFUSED_SHOWN[S], Some(word(shown)));
         }
 
         /// Whether this is a hosted runner of GitHub Actions, where the cases run, as the
@@ -763,9 +780,10 @@ mod tests {
 
         /// The end of a case that showed the chooser, after its waits: the owner's thread ends
         /// where the show answered, and else stays, with the chooser, until the test process
-        /// ends; then the case's one line, with what Show and the show answered.
+        /// ends; then the case's one line, with what Show and the show answered, behind `head`:
+        /// the case's name, and on a second show the words before the second show's text.
         fn end(
-            name: &str,
+            head: &str,
             failures: &[String],
             total: u128,
             mut reads: Vec<String>,
@@ -787,7 +805,7 @@ mod tests {
             ));
             let reads = reads.join(", ");
             line(
-                name,
+                head,
                 &if failures.is_empty() {
                     format!("{total} ms from the show to the answer closed ({reads})")
                 } else {
@@ -947,98 +965,206 @@ mod tests {
             reads
         }
 
-        /// The refused case: what failed, each in its sentence, after its one line.
+        /// One show of the refused case: its slots `s`, 0 or 1, the window of the case's own that
+        /// owns it, its answer, and the instant at which it began.
+        struct Shown {
+            s: usize,
+            owner: Owner,
+            answer: Answer,
+            start: Instant,
+        }
+
+        /// How the wait of a show of the refused case for its chooser's first event with a
+        /// window ended.
+        enum Wait {
+            /// The refusal came, at this instant.
+            Refused(Instant),
+            /// The show answered this before any refusal, this many ms after it began.
+            Answered(Chosen, u128),
+            /// Neither came within `WINDOW_BOUND`.
+            Silent,
+        }
+
+        /// The refused case: what failed, each in its sentence, after its one line. Where its
+        /// first show gives no event with a window within `WINDOW_BOUND`, it leaves that chooser
+        /// where it stands, reads whether a window that its owner owns stands visible, and reads
+        /// its claim at ONE more show, under the same hold of `ALONE`; the text of its line then
+        /// begins with SECOND SHOW. There is no third show: where the second gives no event
+        /// either, the case is red with the ends of both.
         pub fn refused(name: &str) -> Vec<String> {
             let mut failures = Vec::new();
-            REFUSALS.store(0, Ordering::SeqCst);
-            keep(&REFUSED_AT, None);
-            keep(&REFUSED_CLOSE, None);
-            keep(&REFUSED_SHOWN, None);
-            let Some(owner) = owner() else {
-                failures
-                    .push("the case could not make a window of its own in the app's place".into());
-                line(name, "red: no window of the case's own in the app's place");
-                return failures;
-            };
-            let start = Instant::now();
-            let mut answer = match show(owner.window, REFUSED_WATCH) {
-                Ok(answer) => answer,
-                Err(e) => {
-                    failures.push(format!("no thread for the show: {e}"));
-                    line(name, "red: no thread for the show");
+            let mut first = match refused_show(0) {
+                Ok(first) => first,
+                Err((failure, text)) => {
+                    failures.push(failure);
+                    line(name, text);
                     return failures;
                 }
             };
-            let reads = refused_reads(&mut failures, &mut answer, start);
-            let total = ms(start);
+            let wait = refusal(&mut first);
+            if !matches!(wait, Wait::Silent) {
+                let reads = refused_reads(&mut failures, wait, &mut first);
+                let total = ms(first.start);
+                end(
+                    name,
+                    &failures,
+                    total,
+                    reads,
+                    &mut first.answer,
+                    &first.owner,
+                    &REFUSED_SHOWN[0],
+                );
+                return failures;
+            }
+            let stood = format!(
+                "the first show gave no event with a window within {} s, and at that end {}",
+                WINDOW_BOUND.as_secs(),
+                standing(first.owner.window)
+            );
+            let mut second = match refused_show(1) {
+                Ok(second) => second,
+                Err((failure, text)) => {
+                    failures.push(format!("{stood}; then {failure}"));
+                    line(&format!("{name}: SECOND SHOW: {stood}"), text);
+                    return failures;
+                }
+            };
+            let wait = refusal(&mut second);
+            if matches!(wait, Wait::Silent) {
+                failures.push(format!(
+                    "{stood}; the case leaves that chooser on the runner's screen"
+                ));
+            }
+            let reads = refused_reads(&mut failures, wait, &mut second);
+            let total = ms(second.start);
+            // The first chooser by now: its first event with a window where it came late, and
+            // its owner's thread ends where its show has answered.
+            let late = read(&REFUSED_AT[0]).map_or_else(
+                || "its first event with a window had not come by the end".to_owned(),
+                |at| {
+                    format!(
+                        "its first event with a window came {} ms after it",
+                        at.duration_since(first.start).as_millis()
+                    )
+                },
+            );
+            if first.answer.within(Duration::ZERO).is_some() {
+                first.owner.stop.store(true, Ordering::SeqCst);
+            }
             end(
-                name,
+                &format!("{name}: SECOND SHOW: {stood}; {late}; at the second"),
                 &failures,
                 total,
                 reads,
-                &mut answer,
-                &owner,
-                &REFUSED_SHOWN,
+                &mut second.answer,
+                &second.owner,
+                &REFUSED_SHOWN[1],
             );
             failures
         }
 
-        /// The reads of the refused case, in order; each miss goes to `failures`. It waits for the
-        /// refusal at the chooser's first event with a window up to `WINDOW_BOUND` from the show,
-        /// and takes an answer of the show that comes before it; behind a refusal it waits for
-        /// the answer up to `CLOSE_BOUND` from that refusal. It answers what it read, for the
-        /// case's line.
-        fn refused_reads(
-            failures: &mut Vec<String>,
-            answer: &mut Answer,
-            start: Instant,
-        ) -> Vec<String> {
-            // The answer first: `refuse` keeps the refusal before the show can answer, so a
-            // refusal read behind an answer is never missed.
-            let refused_at = loop {
-                let answered = answer.within(Duration::ZERO).is_some();
-                if let Some(at) = read(&REFUSED_AT) {
-                    break Some(at);
+        /// Starts show `s` of the refused case with its slots cleared: a window of the case's own
+        /// in the app's place, and the chooser shown through the product's code, owned by it.
+        /// Where either fails, its failure and the text of the case's line.
+        fn refused_show(s: usize) -> Result<Shown, (String, &'static str)> {
+            REFUSALS[s].store(0, Ordering::SeqCst);
+            keep(&REFUSED_AT[s], None);
+            keep(&REFUSED_CLOSE[s], None);
+            keep(&REFUSED_SHOWN[s], None);
+            let Some(owner) = owner() else {
+                return Err((
+                    "the case could not make a window of its own in the app's place".into(),
+                    "red: no window of the case's own in the app's place",
+                ));
+            };
+            let start = Instant::now();
+            match show(owner.window, REFUSED_WATCH[s]) {
+                Ok(answer) => Ok(Shown {
+                    s,
+                    owner,
+                    answer,
+                    start,
+                }),
+                Err(e) => Err((
+                    format!("no thread for the show: {e}"),
+                    "red: no thread for the show",
+                )),
+            }
+        }
+
+        /// Waits for the refusal of `shown` at its chooser's first event with a window, up to
+        /// `WINDOW_BOUND` from the show, and takes an answer of the show that comes before it.
+        fn refusal(shown: &mut Shown) -> Wait {
+            loop {
+                // The answer first: `refuse` keeps the refusal before the show can answer, so a
+                // refusal read behind an answer is never missed.
+                let answered = shown.answer.within(Duration::ZERO);
+                if let Some(at) = read(&REFUSED_AT[shown.s]) {
+                    return Wait::Refused(at);
                 }
-                if answered || start.elapsed() > WINDOW_BOUND {
-                    break None;
+                if let Some(chosen) = answered {
+                    return Wait::Answered(chosen, ms(shown.start));
+                }
+                if shown.start.elapsed() > WINDOW_BOUND {
+                    return Wait::Silent;
                 }
                 std::thread::sleep(POLL);
+            }
+        }
+
+        /// The reads of a show of the refused case behind its wait for the first event, in
+        /// order; each miss goes to `failures`. Behind a refusal it waits for the answer up to
+        /// `CLOSE_BOUND` from that refusal. It answers what it read, for the case's line.
+        fn refused_reads(failures: &mut Vec<String>, wait: Wait, shown: &mut Shown) -> Vec<String> {
+            let s = shown.s;
+            let which = if s == 0 {
+                "the show"
+            } else {
+                "the second show"
             };
-            let waited = ms(start);
-            let (got, after) = match refused_at {
-                Some(at) => {
-                    let left = (at + CLOSE_BOUND).saturating_duration_since(Instant::now());
-                    let got = answer.within(left);
-                    (got, Some(ms(at)))
+            let (got, after) = match &wait {
+                Wait::Refused(at) => {
+                    let left = (*at + CLOSE_BOUND).saturating_duration_since(Instant::now());
+                    let got = shown.answer.within(left);
+                    (got, Some(ms(*at)))
                 }
-                None => (answer.within(Duration::ZERO), None),
+                Wait::Answered(..) | Wait::Silent => (shown.answer.within(Duration::ZERO), None),
+            };
+            let first = match &wait {
+                Wait::Refused(at) => format!(
+                    ", first {} ms from the show",
+                    at.duration_since(shown.start).as_millis()
+                ),
+                Wait::Answered(..) | Wait::Silent => String::new(),
             };
             let mut reads = vec![format!(
-                "the affinity refused {} times{}",
-                REFUSALS.load(Ordering::SeqCst),
-                refused_at.map_or_else(String::new, |at| format!(
-                    ", first {} ms from the show",
-                    at.duration_since(start).as_millis()
-                ))
+                "the affinity refused {} times{first}",
+                REFUSALS[s].load(Ordering::SeqCst)
             )];
             if let (Some(after), Some(_)) = (after, &got) {
                 reads.push(format!("the answer {after} ms from the refusal"));
             }
-            let close = read(&REFUSED_CLOSE);
+            let close = read(&REFUSED_CLOSE[s]);
             reads.push(format!(
                 "the close from inside the event answered {}",
                 close.as_deref().unwrap_or("nothing")
             ));
-            match (refused_at, got) {
-                (None, Some(chosen)) => failures.push(format!(
-                    "the chooser closed by itself {waited} ms after the show began, with the answer {chosen:?}, before any event of it had a window, so its sink never decided"
+            match wait {
+                Wait::Answered(chosen, waited) => failures.push(format!(
+                    "the chooser closed by itself {waited} ms after {which} began, with the answer {chosen:?}, before any event of it had a window, so its sink never decided"
                 )),
-                (None, None) => failures.push(format!(
-                    "no event of the chooser had a window within {} s of the show, so its sink never decided; the case leaves the chooser on the runner's screen",
-                    WINDOW_BOUND.as_secs()
-                )),
-                (Some(_), got) => {
+                Wait::Silent => {
+                    let stands = standing(shown.owner.window);
+                    reads.push(format!(
+                        "no event with a window within {} s, and at that end {stands}",
+                        WINDOW_BOUND.as_secs()
+                    ));
+                    failures.push(format!(
+                        "no event of the chooser had a window within {} s of {which}, so its sink never decided, and at that end {stands}; the case leaves the chooser on the runner's screen",
+                        WINDOW_BOUND.as_secs()
+                    ));
+                }
+                Wait::Refused(_) => {
                     if close.is_none() {
                         failures
                             .push("the sink did not close the chooser from inside its event".into());
@@ -1056,6 +1182,64 @@ mod tests {
                 }
             }
             reads
+        }
+
+        /// What `standing` gathers: the owner whose windows it looks for, and each one found.
+        struct Search {
+            owner: isize,
+            found: Vec<String>,
+        }
+
+        /// One top-level window of the system's list: kept, with its class and its display
+        /// affinity, where the searched owner owns it and it stands visible. The list goes on.
+        unsafe extern "system" fn each(window: HWND, search: LPARAM) -> BOOL {
+            // SAFETY: `search` is the address of the `Search` that `standing` holds for its whole
+            // call of EnumWindows, the only call that hands it here.
+            let search = unsafe { &mut *(search.0 as *mut Search) };
+            // SAFETY: a read of a window that the system's list holds, or of one that has gone,
+            // which fails.
+            let owner = unsafe { GetWindow(window, GW_OWNER) }
+                .ok()
+                .map(|owner| owner.0 as isize);
+            if owner == Some(search.owner) && visible(window) {
+                let mut class = [0u16; 64];
+                // SAFETY: `class` is a live local, and the call writes at most its length.
+                let length = unsafe { GetClassNameW(window, &mut class) };
+                let class = usize::try_from(length)
+                    .ok()
+                    .and_then(|length| class.get(..length))
+                    .map_or_else(String::new, String::from_utf16_lossy);
+                search.found.push(format!(
+                    "{} of the class {class}, display affinity {:?}",
+                    window.0 as isize,
+                    affinity(window)
+                ));
+            }
+            true.into()
+        }
+
+        /// Whether a window that the case's window `owner` owns stands visible, as the chooser's
+        /// own window does once the system has made it, each with its class and its display
+        /// affinity: a read alone, by which no case turns red or green (r4 U3.22f).
+        fn standing(owner: isize) -> String {
+            let mut search = Search {
+                owner,
+                found: Vec::new(),
+            };
+            // SAFETY: `each` reads its LPARAM as `search`, which lives for this whole call.
+            let listed =
+                unsafe { EnumWindows(Some(each), LPARAM(&mut search as *mut Search as isize)) };
+            if search.found.is_empty() {
+                format!(
+                    "no window that its owner owns stands visible (the list of windows answered {})",
+                    word(&listed)
+                )
+            } else {
+                format!(
+                    "a window that its owner owns stands visible: {}",
+                    search.found.join(", ")
+                )
+            }
         }
     }
 }
