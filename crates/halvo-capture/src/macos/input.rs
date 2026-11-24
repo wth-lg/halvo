@@ -72,6 +72,10 @@ fn hid_key_downs() -> u32 {
 /// The step of the samples of the secure-input state in the held phase.
 pub const HELD_SAMPLE_STEP: Duration = Duration::from_millis(250);
 
+/// How long every reading of the secure-input state at the fold timer's fires must read on
+/// before the input source reads impaired with the reason secure_input_elsewhere.
+pub const KEPT_PRIVATE_AFTER: Duration = Duration::from_secs(30);
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct TapInformation {
@@ -218,6 +222,7 @@ struct InputFigures {
     pointer_dropped_at_stop: AtomicU64,
     keys_withheld: AtomicBool,
     stalled: AtomicBool,
+    kept_private: AtomicBool,
     secure_released_keystrokes: AtomicU64,
     secure_held_keystrokes: AtomicU64,
     secure_held_suppressed_down: AtomicU64,
@@ -327,6 +332,16 @@ impl InputCounters {
 
     fn stalled(&self) -> bool {
         self.0.stalled.load(Ordering::Relaxed)
+    }
+
+    /// Marks that every reading of the secure-input state for [`KEPT_PRIVATE_AFTER`] or more
+    /// read on, or takes the mark back.
+    fn set_kept_private(&self, kept: bool) {
+        self.0.kept_private.store(kept, Ordering::Relaxed);
+    }
+
+    fn kept_private(&self) -> bool {
+        self.0.kept_private.load(Ordering::Relaxed)
     }
 
     /// Key downs that came in time and were read while secure input was on; each
@@ -864,6 +879,9 @@ struct TapContext {
     clock: &'static EventClock,
     folds: Mutex<Folds>,
     fold_timer: Mutex<Option<ReadingTimer>>,
+    /// The stamp of the first reading of a row that read on at the fold timer's fires
+    /// ([`TapContext::read_kept_private`]); none after a reading of off or unknown.
+    private_since: Mutex<Option<Monotonic>>,
     held_phase: Arc<AtomicBool>,
     /// Whether the start of this context asked its tap for key types: a key
     /// event that reaches a context whose start asked for none makes no record,
@@ -1509,6 +1527,29 @@ impl TapContext {
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = Some(ReadingTimer(timer));
     }
+
+    /// One reading of the secure-input state at a fire of the fold timer, once a second
+    /// ([`POINTER_FOLD_INTERVAL`]), for a context whose start asked for the key types: the
+    /// input figures are marked once every reading since the first of a row that read on has
+    /// read on for [`KEPT_PRIVATE_AFTER`] or more, and a reading of off or unknown takes the
+    /// mark back. It runs on the tap thread, whose stop a shutdown waits for
+    /// [`INPUT_STOP_DEADLINE`] at most.
+    fn read_kept_private(&self) {
+        if !self.keys_asked {
+            return;
+        }
+        let on = (self.secure)((self.session)()) == Reading::On;
+        let now = (self.clocks.stamps)();
+        let mut since = self
+            .private_since
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        *since = if on { Some(since.unwrap_or(now)) } else { None };
+        let kept = since.is_some_and(|first| {
+            Duration::from_nanos(now.nanos().saturating_sub(first.nanos())) >= KEPT_PRIVATE_AFTER
+        });
+        self.counters.set_kept_private(kept);
+    }
 }
 
 fn event_age(event: &TapEvent) -> Option<Duration> {
@@ -1571,11 +1612,14 @@ fn close_interval(ctx: &TapContext) {
     }
 }
 
+/// The fold timer's fire: it closes the pointer interval and takes one reading of
+/// [`TapContext::read_kept_private`].
 extern "C" fn fold_timer_fired(_timer: CFRunLoopTimerRef, info: *mut c_void) {
     // SAFETY: as in `reading_timer_fired`: `info` is the address of the boxed
     // TapContext that armed this timer and invalidates it in its Drop.
     let ctx = unsafe { &*info.cast::<TapContext>() };
     close_interval(ctx);
+    ctx.read_kept_private();
 }
 
 fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
@@ -1754,6 +1798,7 @@ fn tap_context(
         clock: EventClock::system(),
         folds: Mutex::new(Folds::default()),
         fold_timer: Mutex::new(None),
+        private_since: Mutex::new(None),
         held_phase: Arc::new(AtomicBool::new(false)),
         keys_asked: true,
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -2375,6 +2420,7 @@ impl InputSource {
         *self.refusal.lock().unwrap_or_else(PoisonError::into_inner) = None;
         *self.released.lock().unwrap_or_else(PoisonError::into_inner) = None;
         self.counters.set_stalled(false);
+        self.counters.set_kept_private(false);
         self.keys_missing.store(false, Ordering::SeqCst);
         let events = self.start_events();
         self.off = events.is_empty();
@@ -2591,7 +2637,13 @@ impl CaptureSource for InputSource {
     /// start asked for the pointer types alone where typing and key_class would
     /// ask for the key types reads impaired with the reason permission, before
     /// any other reason, so that its line tells that it holds no key type; a
-    /// tap whose start asked for the key types never reads so.
+    /// tap whose start asked for the key types never reads so. A running tap
+    /// whose start asked for the key types, and at whose fold timer every
+    /// reading of the secure-input state for [`KEPT_PRIVATE_AFTER`] or more
+    /// read on, reads impaired with the reason secure_input_elsewhere, after
+    /// the reasons thread_ended, permission and run_loop_stalled; the next
+    /// reading of off or unknown, and a new begin, take it back. Health reads
+    /// that mark alone and calls the system for nothing.
     fn health(&self) -> SourceHealth {
         let state = match (&self.tap, &self.failure) {
             (Some(tap), _) if tap.ended() => source_failure(CaptureError::ThreadEnded),
@@ -2600,6 +2652,9 @@ impl CaptureSource for InputSource {
             },
             (Some(_), _) if self.counters.stalled() => SourceState::Impaired {
                 reason: HealthReason::RunLoopStalled,
+            },
+            (Some(_), _) if self.counters.kept_private() => SourceState::Impaired {
+                reason: HealthReason::SecureInputElsewhere,
             },
             (Some(_), _) => SourceState::Running,
             (None, Some(error)) => source_failure(error.clone()),
@@ -7064,6 +7119,65 @@ mod tests {
             }
         );
         source.counters.set_stalled(false);
+        assert_eq!(source.health().state, SourceState::Running);
+        source.shutdown().expect("the source stops");
+    }
+
+    #[test]
+    fn thirty_seconds_of_on_at_the_fold_timer_read_impaired_secure_input_elsewhere_and_off_takes_it_back(
+    ) {
+        let mut held = held(100);
+        let info = std::ptr::from_ref(&*held.ctx).cast_mut().cast::<c_void>();
+        let fire = || fold_timer_fired(std::ptr::null_mut(), info);
+        answer(Reading::On);
+        fire();
+        advance(29_999);
+        fire();
+        assert!(!held.counters.kept_private(), "29.999 s of on");
+        advance(1);
+        fire();
+        assert!(held.counters.kept_private(), "30 s of on");
+        answer(Reading::Off);
+        fire();
+        assert!(!held.counters.kept_private(), "a reading of off");
+        answer(Reading::On);
+        fire();
+        advance(30_000);
+        answer(Reading::Unknown);
+        fire();
+        assert!(!held.counters.kept_private(), "a reading of unknown");
+        held.ctx.keys_asked = false;
+        let before = asked();
+        answer(Reading::On);
+        fire();
+        advance(30_000);
+        fire();
+        assert!(
+            !held.counters.kept_private(),
+            "a tap that asked no key type"
+        );
+        assert_eq!(
+            asked(),
+            before,
+            "a tap that asked no key type reads nothing"
+        );
+
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source_with(HoldPlan::Never);
+        source.session = || Session::NotAtConsole;
+        let (ended_tx, _ended_rx) = channel();
+        source
+            .begin_with(handle, FakeMaker(ended_tx), || {})
+            .expect("the source starts with a fake tap");
+        assert_eq!(source.health().state, SourceState::Running);
+        source.counters.set_kept_private(true);
+        assert_eq!(
+            source.health().state,
+            SourceState::Impaired {
+                reason: HealthReason::SecureInputElsewhere
+            }
+        );
+        source.counters.set_kept_private(false);
         assert_eq!(source.health().state, SourceState::Running);
         source.shutdown().expect("the source stops");
     }
