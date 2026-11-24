@@ -8327,6 +8327,25 @@ fn tree_shape(store_dir: &Path) -> TreeShape {
     }
 }
 
+/// A temp directory with the kill table's store, made anew until each of
+/// its segment files stands in a shard folder of its own, with that store's
+/// root id, expired segments and shape. The ids are random and the tree is
+/// sharded by an id's first byte, so without this about one store in 43
+/// holds two files in one folder and a delete makes three calls fewer than
+/// the trace run counted.
+#[cfg(target_os = "macos")]
+fn kill_table_store_of_one_shape() -> (tempfile::TempDir, RootId, Vec<Uuid>, TreeShape) {
+    for _ in 0..64 {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, _, root_id, expired) = kill_table_store(dir.path());
+        let shape = tree_shape(&store_dir);
+        if shape.shard_folders == shape.segment_files {
+            return (dir, root_id, expired, shape);
+        }
+    }
+    panic!("in 64 stores of the kill table no store held each segment file in a folder of its own");
+}
+
 #[cfg(target_os = "macos")]
 #[test]
 fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind() {
@@ -8341,9 +8360,7 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
         .unwrap();
     assert!(built.success(), "cc did not build the interposer");
     let prepare = |op: &str| -> (tempfile::TempDir, Vec<Uuid>, TreeShape) {
-        let dir = tempfile::tempdir().unwrap();
-        let (store_dir, _, root_id, expired) = kill_table_store(dir.path());
-        let shape = tree_shape(&store_dir);
+        let (dir, root_id, expired, shape) = kill_table_store_of_one_shape();
         std::fs::write(dir.path().join("root-id"), root_id.to_string()).unwrap();
         if op == "create" {
             let store_dir = dir.path().join("store");
