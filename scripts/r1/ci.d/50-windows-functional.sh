@@ -44,6 +44,7 @@ fail() {
 expected_tests() {
   cat <<'EOF'
 a_dropped_keyboard_source_stops_capturing group=native
+a_switch_records_a_title_only_by_the_gates_read_of_the_window_in_front group=native
 a_timed_out_stop_reads_no_input_posted_after_its_answer group=native
 a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event group=native
 a_title_change_while_an_element_with_no_answer_has_the_focus_gives_a_title_event_and_no_frame group=native
@@ -110,6 +111,7 @@ daemon_refuses_a_second_account group=native
 helper_child_window group=native
 helper_limited_listener group=native
 helper_second_account group=native
+keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks group=native
 keys_queued_before_a_stop_are_delivered_or_counted group=native
 known_defect::browser_an_earlier_keys_landing_before_the_pages_late_move_in_chrome W6-earlier-key group=browser scope=long-only-shows-sometimes
 known_defect::browser_an_earlier_keys_landing_before_the_pages_late_move_in_edge W6-earlier-key group=browser scope=long-only-shows-sometimes

@@ -192,8 +192,26 @@ impl FrameCounters {
 }
 
 /// The screen record of one changed frame: the floor's decision on the
-/// process in front when the frame arrives, with the reading of the keyboard
-/// source's gate where one runs. It holds no pixel and no size.
+/// process in front when the frame arrives, with the reading of the gate
+/// where one runs and its newest read is of `window`, the window in front;
+/// a reading of another window, or of none, is no reading of this frame. It
+/// holds no pixel and no size.
+pub(crate) fn frame_event_in(
+    floor: &Floor,
+    gate: Option<&PasswordGate>,
+    front: &super::FrontApp,
+    window: usize,
+) -> Option<FloorEvent> {
+    let probe = gate.map_or_else(PasswordFieldProbe::default, |gate| {
+        gate.probe_for_window(window)
+    });
+    let keep = floor.keep::<kind::ScreenFrame>(front, PrivateWindow::Unknown, &probe)?;
+    Some(FloorEvent::screen_frame(keep, None, EventClock::system()))
+}
+
+/// The screen record at the gate's reading of this moment, whatever window
+/// it is of: the floor's decision at each reading, for the tests.
+#[cfg(test)]
 pub(crate) fn frame_event(
     floor: &Floor,
     gate: Option<&PasswordGate>,
@@ -264,7 +282,11 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
             return Ok(());
         }
         let front = self.front.now();
-        if let Some(event) = frame_event(&self.floor, self.gate.as_deref(), &front) {
+        // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+        let window = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+        if let Some(event) =
+            frame_event_in(&self.floor, self.gate.as_deref(), &front, window.0 as usize)
+        {
             self.producer.push(event);
         }
         if self.producer.writer_gone() {
@@ -722,6 +744,84 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_frame_is_kept_only_where_the_gates_newest_read_is_of_the_window_in_front() {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::floor::Switches;
+        use crate::secure_input::windows::{FocusRead, Kind};
+        const LEFT: usize = 0x100;
+        const IN_FRONT: usize = 0x200;
+        let mut switches = Switches::default();
+        switches.set(Switch::ScreenActivity, true);
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(
+            FloorHandle::new(None, Arc::new(NoLineage), switches),
+            Arc::clone(&drops),
+        );
+        let front = super::super::FrontApp {
+            pid: 9,
+            path: Some("C:\\Apps\\vault.exe".to_string()),
+        };
+        let gate = PasswordGate::new();
+        let answered = |is_password| FocusRead::Answered {
+            is_password,
+            protected: false,
+            kind: Kind::NativeEdit,
+        };
+        let frame = |window| frame_event_in(&floor, Some(&gate), &front, window).is_some();
+        gate.focus_read_in(Some(LEFT), 1_000, answered(false));
+        let in_the_window_left = frame(LEFT);
+        let at_the_switch = frame(IN_FRONT);
+        gate.focus_read_in(Some(IN_FRONT), 1_010, answered(true));
+        let at_its_password_field = frame(IN_FRONT);
+        gate.focus_read_in(None, 1_020, answered(false));
+        let at_a_read_of_no_window = frame(IN_FRONT);
+        gate.focus_read_in(Some(IN_FRONT), 1_030, answered(false));
+        let at_its_plain_field = frame(IN_FRONT);
+        gate.switch_desktop_at(1_040);
+        let after_a_desktop_switch = frame(IN_FRONT);
+        assert_eq!(
+            (
+                in_the_window_left,
+                at_the_switch,
+                at_its_password_field,
+                at_a_read_of_no_window,
+                at_its_plain_field,
+                after_a_desktop_switch,
+            ),
+            (true, false, false, false, true, false),
+            "a frame: of the window left at its Clear read; in front before its read; \
+             at its password field; at a read of no window; at its plain field; after a \
+             desktop switch"
+        );
+        assert_eq!(drops.read().secure_input, 4);
+        let switched = PasswordGate::new();
+        let frame_of = |window| frame_event_in(&floor, Some(&switched), &front, window).is_some();
+        switched.focus_read_in(Some(IN_FRONT), 2_000, answered(false));
+        let before_any_switch = frame_of(IN_FRONT);
+        switched.switched_to(LEFT, 2_100);
+        let of_a_window_that_no_switch_named = frame_of(IN_FRONT);
+        switched.switched_to(IN_FRONT, 2_200);
+        let at_a_read_from_before_the_return = frame_of(IN_FRONT);
+        switched.own_read_in(Some(IN_FRONT), 2_300, answered(false));
+        let at_a_read_behind_the_return = frame_of(IN_FRONT);
+        switched.no_more_switches();
+        let after_the_title_source_stopped = frame_of(IN_FRONT);
+        assert_eq!(
+            (
+                before_any_switch,
+                of_a_window_that_no_switch_named,
+                at_a_read_from_before_the_return,
+                at_a_read_behind_the_return,
+                after_the_title_source_stopped,
+            ),
+            (true, false, false, true, true),
+            "a frame: before the title source told any switch; of a window that the latest \
+             switch is not of; at a read made before the return; at a read behind it; after \
+             the title source stopped"
+        );
+    }
+
     fn screen_on(sink: crate::sink::SinkHandle) -> SourceContext {
         use crate::floor::exclude::{FloorHandle, NoLineage};
         let mut switches = crate::floor::Switches::default();
@@ -1164,7 +1264,10 @@ mod tests {
             protected: false,
             kind: Kind::NativeEdit,
         };
-        gate.focus_read_at(super::super::now_tick(), read, false);
+        // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+        let in_front =
+            unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() }.0 as usize;
+        gate.focus_read_in(Some(in_front), super::super::now_tick(), read);
         let mut source = ScreenSource::new(Arc::default()).with_password_gate(Arc::new(gate));
         source.life = ScreenLife::with_spawner(always_refuses);
         let started = source.begin(screen_on(sink));

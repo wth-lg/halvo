@@ -1817,7 +1817,7 @@ mod tests {
             ),
             (
                 "the start of Chrome or Edge",
-                "On Windows, when you start Chrome or Edge and type at once, Halvo can leave out what you type until you click or press Enter, Tab or Escape: only then does it read which field has the cursor.".to_string(),
+                "On Windows, when you start Chrome or Edge and type at once, Halvo can leave out what you type until it has read which field has the cursor. It reads that when you click or press Enter, Tab or Escape, and, where it records window titles, also a moment after the window comes in front.".to_string(),
             ),
             (
                 "W3 under the label",

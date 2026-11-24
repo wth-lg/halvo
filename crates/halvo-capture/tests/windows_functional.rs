@@ -832,6 +832,7 @@ fn known_titles() -> Vec<String> {
     ] {
         titles.extend((0..3).map(|step| format!("{prefix}-{step}")));
     }
+    titles.extend([OWN_WINDOW_PASSWORD_TITLE, OWN_WINDOW_PLAIN_TITLE].map(str::to_string));
     titles.push(GHOST_CAPTION.to_string());
     titles.push(GHOST_CAPTION.to_string() + GHOST_CAPTION_ENDING);
     titles
@@ -1343,6 +1344,8 @@ fn helper_child_window() {
         Ok("root") => return child_root(secs),
         Ok("password-title") => return child_password_title(),
         Ok("no-answer-title") => return child_no_answer_title(),
+        Ok("own-window") => return child_own_window(false),
+        Ok("switch-keys") => return child_own_window(true),
         Ok("hang") => return child_hang(),
         Ok("background") => return child_background(secs),
         _ => {}
@@ -1669,6 +1672,128 @@ fn child_no_answer_title() {
              state_asked={state_asked}",
             phases[0],
             phases[1],
+            goes.iter().filter(|seen| **seen).count(),
+            goes.len()
+        ),
+    );
+}
+
+const OWN_WINDOW_PASSWORD_TITLE: &str = "halvo-verify-own-window-password";
+const OWN_WINDOW_PLAIN_TITLE: &str = "halvo-verify-own-window-plain";
+
+/// How long each wait of the row of a switch waits for its state: the child
+/// for each go of the test, the test for each reading of the gate and each
+/// title or drop.
+const OWN_WINDOW_STATE_WAIT: Duration = Duration::from_secs(20);
+
+/// The procedure of a window of the row of a switch: whenever the window is
+/// activated it puts the cursor into its first child window, its one edit,
+/// as a dialog does, so that the focus never rests on the window itself.
+unsafe extern "system" fn own_window_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindow, GW_CHILD, WA_INACTIVE, WM_ACTIVATE};
+    if msg == WM_ACTIVATE && (wparam.0 & 0xFFFF) as u32 != WA_INACTIVE {
+        // SAFETY: GetWindow and SetFocus take handle values of this thread's
+        // windows.
+        if let Ok(edit) = unsafe { GetWindow(hwnd, GW_CHILD) } {
+            // SAFETY: as above.
+            unsafe {
+                let _ = SetFocus(Some(edit));
+            }
+            return LRESULT(0);
+        }
+    }
+    // SAFETY: the arguments are the ones that the system passed.
+    unsafe { test_wnd_proc(hwnd, msg, wparam, lparam) }
+}
+
+/// A hidden window of the row of a switch with one edit, a password edit
+/// where `password` holds, into which its procedure puts the cursor when the
+/// window is activated.
+fn own_window(class: &str, title: &str, password: bool, x: i32) -> TestWindow {
+    use windows::Win32::UI::WindowsAndMessaging::{SetWindowLongPtrW, GWLP_WNDPROC};
+    let mut spec = normal_window(class, title, x, 40);
+    spec.style = WS_OVERLAPPEDWINDOW;
+    let window = TestWindow::create(&spec).expect("the window");
+    let style = if password { ES_PASSWORD_STYLE } else { 0 };
+    window
+        .child_control("EDIT", WINDOW_STYLE(style), 10)
+        .expect("the edit");
+    let procedure: unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT =
+        own_window_proc;
+    // SAFETY: the window belongs to this thread, and its new procedure has
+    // the WNDPROC signature and hands every other message to the class's
+    // procedure.
+    unsafe {
+        SetWindowLongPtrW(window.hwnd, GWLP_WNDPROC, procedure as usize as isize);
+    }
+    window
+}
+
+/// The windows of a row of a switch: a lead window with no edit, one
+/// whose cursor starts in a password edit, one whose cursor starts in a plain
+/// edit. The lead window comes in front first, so that the child's process
+/// holds the front and each later window comes in front at once, with its
+/// cursor put into its edit as it is activated; then the password window,
+/// the plain one and the password window again, each behind the test's go
+/// for the step before.
+///
+/// With `keys`, the row of keys behind a switch: the lead window, then the
+/// plain window, entered from the lead window, then the password window,
+/// entered from the plain one, on the goes "lead", "plain" and "password".
+fn child_own_window(keys: bool) {
+    let lead = TestWindow::create(&normal_window(
+        "HalvoVerifyOwnWindowLead",
+        "halvo-verify-own-window-lead",
+        40,
+        320,
+    ))
+    .expect("the lead window");
+    let password = own_window(
+        "HalvoVerifyOwnWindowPassword",
+        OWN_WINDOW_PASSWORD_TITLE,
+        true,
+        40,
+    );
+    let plain = own_window(
+        "HalvoVerifyOwnWindowPlain",
+        OWN_WINDOW_PLAIN_TITLE,
+        false,
+        420,
+    );
+    let mut fronts = Vec::new();
+    let mut goes = Vec::new();
+    let order = if keys {
+        vec![(&lead, "lead"), (&plain, "plain"), (&password, "password")]
+    } else {
+        vec![
+            (&lead, "lead"),
+            (&password, "password-first"),
+            (&plain, "plain"),
+            (&password, "password-second"),
+        ]
+    };
+    for (window, go) in order {
+        fronts.push(window.activate());
+        goes.push(wait_for_go(go, OWN_WINDOW_STATE_WAIT));
+    }
+    say(
+        "child",
+        format!(
+            "mode={} window_foreground={}/{} method={} goes_seen={}/{}",
+            if keys { "switch-keys" } else { "own-window" },
+            fronts.iter().filter(|(foreground, _)| *foreground).count(),
+            fronts.len(),
+            fronts
+                .iter()
+                .map(|(_, method)| *method)
+                .collect::<Vec<_>>()
+                .join(","),
             goes.iter().filter(|seen| **seen).count(),
             goes.len()
         ),
@@ -7562,6 +7687,447 @@ fn a_title_change_while_an_element_with_no_answer_has_the_focus_gives_a_title_ev
         assert!(
             frame_drops.secure_input >= 1,
             "the screen source was offered no frame, so no frame shows nothing"
+        );
+    });
+}
+
+/// Waits, draining the events into `seen`, until `done` holds, the child
+/// ends or `limit` passes: whether `done` held.
+fn wait_for_state(
+    events: &Events,
+    seen: &mut Vec<Seen>,
+    child: &mut ChildProcess,
+    limit: Duration,
+    mut done: impl FnMut(&[Seen]) -> bool,
+) -> bool {
+    let began = Instant::now();
+    while !done(seen) && child.try_wait().is_none() && began.elapsed() < limit {
+        seen.extend(events.drain_for(Duration::from_millis(20)));
+    }
+    done(seen)
+}
+
+/// The title source of a service set and its gate, with a child whose
+/// windows come in front in turn. Every step waits for a state, never for a
+/// time: the child's lead window in front and its ask settled; the password
+/// window's ask dropped once the gate reads its password edit; the plain
+/// window's title recorded once the gate reads its plain edit; the password
+/// window's ask dropped again behind it.
+#[test]
+#[ignore = "functional: the title at a switch is decided by the gate's read of the window in front"]
+fn a_switch_records_a_title_only_by_the_gates_read_of_the_window_in_front() {
+    with_deadline("own-window", Duration::from_secs(90), || {
+        env_report("own-window");
+        source_built_by_test("own-window", "window_title");
+        let (sink, events) = capture(4096);
+        let set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut title = set.gated_title(WindowTitleSource::new());
+        let title_start = title.begin(SourceContext::new(sink.clone()));
+        let drops = |title: &halvo_capture::windows::sources::Gated<WindowTitleSource>| {
+            title.source().drops().secure_input
+        };
+        let settled = |title: &halvo_capture::windows::sources::Gated<WindowTitleSource>| {
+            let waits = title.source().waits();
+            waits.at_once + waits.after_a_wait + waits.behind_the_bound + waits.ended_with_no_read
+        };
+        let settled_at_the_start = settled(&title);
+        let mut child = spawn_child("own-window", 0);
+        let child_pid = child.id();
+        let mut seen = Vec::new();
+        let lead_in_front = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| window_pid(foreground_window()) == child_pid,
+        );
+        let lead_settled = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| settled(&title) > settled_at_the_start,
+        );
+        let at_the_start = drops(&title);
+        child.go("lead");
+        let first_password_read = wait_for_reading(
+            &gate,
+            ContentReading::Password,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+        );
+        let first_dropped = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| drops(&title) > at_the_start,
+        );
+        child.go("password-first");
+        let plain_recorded = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |seen| titles_with(seen, OWN_WINDOW_PLAIN_TITLE) >= 1,
+        );
+        let reading_at_the_plain_title = gate.content_reading();
+        let before_the_second = drops(&title);
+        child.go("plain");
+        let second_password_read = wait_for_reading(
+            &gate,
+            ContentReading::Password,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+        );
+        let second_dropped = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| drops(&title) > before_the_second,
+        );
+        child.go("password-second");
+        while child.try_wait().is_none() {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+        }
+        seen.extend(events.drain_for(Duration::from_millis(800)));
+        let title_stop = stop_counted(&mut title, "window_title");
+        child.print_output();
+        gate_readings("own-window", &gate);
+        let waits = title.source().waits();
+        say(
+            "own-window",
+            format!(
+                "title_waits at_once={} after_a_wait={} behind_the_bound={} replaced={} \
+                 left={} ended_with_no_read={} longest_wait_ms={}",
+                waits.at_once,
+                waits.after_a_wait,
+                waits.behind_the_bound,
+                waits.replaced,
+                waits.left,
+                waits.ended_with_no_read,
+                waits.longest_wait_ms
+            ),
+        );
+        let at_password = titles_with(&seen, OWN_WINDOW_PASSWORD_TITLE);
+        let at_plain = titles_with(&seen, OWN_WINDOW_PLAIN_TITLE);
+        say(
+            "own-window",
+            format!(
+                "title_start={} title_stop={} lead_in_front={lead_in_front} \
+                 lead_settled={lead_settled} first_password_read={first_password_read} \
+                 first_dropped={first_dropped} plain_recorded={plain_recorded} \
+                 reading_at_the_plain_title={reading_at_the_plain_title:?} \
+                 second_password_read={second_password_read} second_dropped={second_dropped} \
+                 title_events_of_the_password_window={at_password} \
+                 title_events_of_the_plain_window={at_plain} title_drops_at_secure_input={}",
+                show(&title_start),
+                show(&title_stop),
+                drops(&title)
+            ),
+        );
+        assert!(
+            title_start.is_ok() && title_stop.is_ok(),
+            "the title source must start and stop"
+        );
+        assert!(
+            first_password_read && first_dropped,
+            "the password window's first ask: read {first_password_read}, dropped {first_dropped}"
+        );
+        assert!(
+            plain_recorded,
+            "the plain window's title was not recorded once the gate read its edit"
+        );
+        assert!(
+            second_password_read && second_dropped,
+            "the password window's second ask: read {second_password_read}, dropped {second_dropped}"
+        );
+        assert_eq!(
+            at_password, 0,
+            "a title of the window whose cursor starts in a password edit was recorded"
+        );
+    });
+}
+
+/// The letters that the row of keys behind a switch sends in each part.
+const SWITCH_KEYS_LETTERS: usize = 3;
+
+/// The test seam's gate marks and decided keys that the row of keys behind a
+/// switch took, in their order.
+#[derive(Default)]
+struct SwitchSeen {
+    marks: Vec<seam::MarkSeen>,
+    decided: Vec<seam::Decided>,
+}
+
+impl SwitchSeen {
+    fn take(&mut self) {
+        self.marks.extend(seam::take_marks());
+        self.decided.extend(seam::take());
+    }
+
+    /// Whether the marks from `from` hold a switch and an own read that began
+    /// at least one settle time (100 ms) behind it: the read that the switch
+    /// asked, or one that serves it.
+    fn read_behind_a_switch(&self, from: usize) -> bool {
+        self.switch_and_its_read(from).1.is_some()
+    }
+
+    /// The last switch of the marks from `from`, and the first own read that
+    /// began at least 100 ms behind it.
+    fn switch_and_its_read(&self, from: usize) -> (Option<u32>, Option<&seam::MarkSeen>) {
+        let marks = &self.marks[from.min(self.marks.len())..];
+        let switch = marks
+            .iter()
+            .rev()
+            .find(|mark| mark.what == "switch")
+            .and_then(|mark| mark.at);
+        let read = switch.and_then(|at| {
+            marks
+                .iter()
+                .find(|mark| mark.what == "read" && (mark.began.wrapping_sub(at) as i32) >= 100)
+        });
+        (switch, read)
+    }
+
+    /// One part's line: the switch and the read behind it, the newest read or
+    /// event before the part's first key, and the part's keys.
+    fn part_line(&self, part: &str, marks_from: usize, decided_from: usize) -> (String, usize) {
+        let (switch, read) = self.switch_and_its_read(marks_from);
+        let keys = &self.decided[decided_from.min(self.decided.len())..];
+        let first_key = keys.first().map(|key| key.os_tick);
+        let newest = first_key.and_then(|key| {
+            self.marks[marks_from.min(self.marks.len())..]
+                .iter()
+                .rev()
+                .find(|mark| {
+                    (mark.what == "read" || mark.what == "event")
+                        && mark.at.is_some_and(|at| (key.wrapping_sub(at) as i32) >= 0)
+                })
+        });
+        let recorded = keys
+            .iter()
+            .filter(|key| key.verdict == seam::Verdict::Recorded)
+            .count();
+        let line = format!(
+            "part={part} switch_seen={} read_behind_the_switch={} read_behind_the_switch_state={:?} \
+             read_behind_the_switch_ms={} newest_before_the_first_key={}:{:?} letters_decided={} \
+             letters_recorded={recorded} first_rule={:?}",
+            switch.is_some(),
+            read.is_some(),
+            read.and_then(|mark| mark.state),
+            match (switch, read) {
+                (Some(at), Some(mark)) => i64::from(mark.began.wrapping_sub(at) as i32),
+                _ => -1,
+            },
+            newest.map_or("none", |mark| mark.what),
+            newest.and_then(|mark| mark.state),
+            keys.len(),
+            keys.first().and_then(|key| key.rule),
+        );
+        (line, recorded)
+    }
+}
+
+/// Sends `count` letters, each a press and a release: how many events the
+/// system took.
+fn send_letters(count: usize) -> u32 {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_A;
+    let mut accepted = 0;
+    for _ in 0..count {
+        accepted += send(&[key_input(VK_A, false)]);
+        accepted += send(&[key_input(VK_A, true)]);
+    }
+    accepted
+}
+
+/// The keyboard source and the title source of one service set, made by the
+/// set as the daemon makes them, on its one gate, with a child whose windows
+/// come in front in turn, each with its cursor put into its one edit and no
+/// click and no focus key. Every step waits for a state: (2) the window with
+/// the plain edit in front, entered from the lead window, its title recorded
+/// and a read behind its switch, then letters: all three recorded, and the
+/// row waits for their records; (1) the window with the password edit in
+/// front, entered from the plain window, the gate reading Password, its title
+/// ask dropped and a read behind its switch, then letters: none is recorded,
+/// each by the rule of a password edit, and no title.
+#[test]
+#[ignore = "functional: keys behind a switch alone are decided beside the read that the switch asks"]
+fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks() {
+    use halvo_capture::daemon::sources::SourceFactory;
+    use halvo_capture::secure_input::windows::Rule;
+    use halvo_control::proto::SourceName;
+    with_deadline("switch-keys", Duration::from_secs(90), || {
+        env_report("switch-keys");
+        source_built_by_test("switch-keys", "keyboard");
+        source_built_by_test("switch-keys", "window_title");
+        let (sink, events) = capture(4096);
+        let mut set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut keyboard = set
+            .make(SourceName::Keyboard)
+            .expect("the set makes a keyboard source");
+        let mut title = set.gated_title(WindowTitleSource::new());
+        let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
+        let title_start = title.begin(SourceContext::new(sink.clone()));
+        let drops = |title: &halvo_capture::windows::sources::Gated<WindowTitleSource>| {
+            title.source().drops().secure_input
+        };
+        let settled = |title: &halvo_capture::windows::sources::Gated<WindowTitleSource>| {
+            let waits = title.source().waits();
+            waits.at_once + waits.after_a_wait + waits.behind_the_bound + waits.ended_with_no_read
+        };
+        let settled_at_the_start = settled(&title);
+        let mut seam_seen = SwitchSeen::default();
+        seam_seen.take();
+        let mut child = spawn_child("switch-keys", 0);
+        let child_pid = child.id();
+        let mut seen = Vec::new();
+        let lead_in_front = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| window_pid(foreground_window()) == child_pid,
+        );
+        let lead_settled = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| settled(&title) > settled_at_the_start,
+        );
+        seam_seen.take();
+        let marks_of_part_2 = seam_seen.marks.len();
+        child.go("lead");
+        let mut ready_2 = false;
+        let began = Instant::now();
+        while child.try_wait().is_none() && began.elapsed() < OWN_WINDOW_STATE_WAIT {
+            seen.extend(events.drain_for(Duration::from_millis(20)));
+            seam_seen.take();
+            if titles_with(&seen, OWN_WINDOW_PLAIN_TITLE) >= 1
+                && seam_seen.read_behind_a_switch(marks_of_part_2)
+            {
+                ready_2 = true;
+                break;
+            }
+        }
+        let decided_of_part_2 = seam_seen.decided.len();
+        let sent_2 = send_letters(SWITCH_KEYS_LETTERS);
+        let began = Instant::now();
+        while seam_seen.decided.len() < decided_of_part_2 + SWITCH_KEYS_LETTERS
+            && child.try_wait().is_none()
+            && began.elapsed() < OWN_WINDOW_STATE_WAIT
+        {
+            seen.extend(events.drain_for(Duration::from_millis(20)));
+            seam_seen.take();
+        }
+        let decided_2 = seam_seen.decided.len() - decided_of_part_2;
+        let (line_2, recorded_2) = seam_seen.part_line("plain", marks_of_part_2, decided_of_part_2);
+        let records_2 = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |seen| count(seen, Modality::Keystroke) >= recorded_2,
+        );
+        let keystrokes_after_part_2 = count(&seen, Modality::Keystroke);
+        let at_the_plain_window = drops(&title);
+        let marks_of_part_1 = seam_seen.marks.len();
+        child.go("plain");
+        let mut ready_1 = false;
+        let began = Instant::now();
+        while child.try_wait().is_none() && began.elapsed() < OWN_WINDOW_STATE_WAIT {
+            seen.extend(events.drain_for(Duration::from_millis(20)));
+            seam_seen.take();
+            if gate.content_reading() == ContentReading::Password
+                && drops(&title) > at_the_plain_window
+                && seam_seen.read_behind_a_switch(marks_of_part_1)
+            {
+                ready_1 = true;
+                break;
+            }
+        }
+        let decided_of_part_1 = seam_seen.decided.len();
+        let sent_1 = send_letters(SWITCH_KEYS_LETTERS);
+        let began = Instant::now();
+        while seam_seen.decided.len() < decided_of_part_1 + SWITCH_KEYS_LETTERS
+            && child.try_wait().is_none()
+            && began.elapsed() < OWN_WINDOW_STATE_WAIT
+        {
+            seen.extend(events.drain_for(Duration::from_millis(20)));
+            seam_seen.take();
+        }
+        let decided_1 = seam_seen.decided.len() - decided_of_part_1;
+        let rules_1: Vec<Option<Rule>> = seam_seen.decided[decided_of_part_1..]
+            .iter()
+            .map(|key| key.rule)
+            .collect();
+        let (line_1, recorded_1) =
+            seam_seen.part_line("password", marks_of_part_1, decided_of_part_1);
+        child.go("password");
+        while child.try_wait().is_none() {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+        }
+        seen.extend(events.drain_for(Duration::from_millis(800)));
+        let title_stop = stop_counted(&mut title, "window_title");
+        let keyboard_stop = stop_counted(keyboard.as_mut(), "keyboard");
+        child.print_output();
+        gate_readings("switch-keys", &gate);
+        say("switch-keys", &line_2);
+        say("switch-keys", &line_1);
+        let keystrokes_at_the_end = count(&seen, Modality::Keystroke);
+        let at_password = titles_with(&seen, OWN_WINDOW_PASSWORD_TITLE);
+        let waits = title.source().waits();
+        say(
+            "switch-keys",
+            format!(
+                "keyboard_start={} title_start={} keyboard_stop={} title_stop={} \
+                 lead_in_front={lead_in_front} lead_settled={lead_settled} ready_2={ready_2} \
+                 ready_1={ready_1} sent_2={sent_2} decided_2={decided_2} records_2={records_2} \
+                 sent_1={sent_1} decided_1={decided_1} rules_1={rules_1:?} \
+                 keystroke_records_after_part_2={keystrokes_after_part_2} \
+                 keystroke_records_at_the_end={keystrokes_at_the_end} \
+                 title_events_of_the_password_window={at_password} \
+                 title_events_of_the_plain_window={} title_drops_at_secure_input={} \
+                 title_waits_ended_with_no_read={}",
+                show(&keyboard_start),
+                show(&title_start),
+                show(&keyboard_stop),
+                show(&title_stop),
+                titles_with(&seen, OWN_WINDOW_PLAIN_TITLE),
+                drops(&title),
+                waits.ended_with_no_read
+            ),
+        );
+        let letters = SWITCH_KEYS_LETTERS;
+        let events_sent = 2 * u32::try_from(letters).expect("a few letters");
+        assert!(
+            keyboard_start.is_ok() && title_start.is_ok(),
+            "the sources must start"
+        );
+        assert!(
+            ready_2 && sent_2 == events_sent && decided_2 == letters,
+            "part (2): state {ready_2}, sent {sent_2}, decided {decided_2}: {line_2}"
+        );
+        assert!(
+            recorded_2 == letters && records_2 && keystrokes_after_part_2 == letters,
+            "part (2): the letters typed behind a switch into the plain edit were not all \
+             recorded: {line_2}"
+        );
+        assert!(
+            ready_1 && sent_1 == events_sent && decided_1 == letters,
+            "part (1): state {ready_1}, sent {sent_1}, decided {decided_1}: {line_1}"
+        );
+        assert!(
+            recorded_1 == 0
+                && keystrokes_at_the_end == keystrokes_after_part_2
+                && rules_1.iter().all(|rule| *rule == Some(Rule::PasswordEdit))
+                && at_password == 0,
+            "part (1): a key or a title at the password edit behind a switch alone, or a rule \
+             other than the password edit's: {rules_1:?}: {line_1}"
         );
     });
 }
