@@ -7840,6 +7840,260 @@ fn a_switch_records_a_title_only_by_the_gates_read_of_the_window_in_front() {
     });
 }
 
+/// The letters that the row of keys behind a switch sends in each part.
+const SWITCH_KEYS_LETTERS: usize = 3;
+
+/// The test seam's gate marks and decided keys that the row of keys behind a
+/// switch took, in their order.
+#[derive(Default)]
+struct SwitchSeen {
+    marks: Vec<seam::MarkSeen>,
+    decided: Vec<seam::Decided>,
+}
+
+impl SwitchSeen {
+    fn take(&mut self) {
+        self.marks.extend(seam::take_marks());
+        self.decided.extend(seam::take());
+    }
+
+    /// Whether the marks from `from` hold a switch and an own read that began
+    /// at least one settle time (100 ms) behind it: the read that the switch
+    /// asked, or one that serves it.
+    fn read_behind_a_switch(&self, from: usize) -> bool {
+        self.switch_and_its_read(from).1.is_some()
+    }
+
+    /// The last switch of the marks from `from`, and the first own read that
+    /// began at least 100 ms behind it.
+    fn switch_and_its_read(&self, from: usize) -> (Option<u32>, Option<&seam::MarkSeen>) {
+        let marks = &self.marks[from.min(self.marks.len())..];
+        let switch = marks
+            .iter()
+            .rev()
+            .find(|mark| mark.what == "switch")
+            .and_then(|mark| mark.at);
+        let read = switch.and_then(|at| {
+            marks
+                .iter()
+                .find(|mark| mark.what == "read" && (mark.began.wrapping_sub(at) as i32) >= 100)
+        });
+        (switch, read)
+    }
+
+    /// One part's line: the switch and the read behind it, the newest read or
+    /// event before the part's first key, and the part's keys.
+    fn part_line(&self, part: &str, marks_from: usize, decided_from: usize) -> (String, usize) {
+        let (switch, read) = self.switch_and_its_read(marks_from);
+        let keys = &self.decided[decided_from.min(self.decided.len())..];
+        let first_key = keys.first().map(|key| key.os_tick);
+        let newest = first_key.and_then(|key| {
+            self.marks[marks_from.min(self.marks.len())..]
+                .iter()
+                .rev()
+                .find(|mark| {
+                    (mark.what == "read" || mark.what == "event")
+                        && mark.at.is_some_and(|at| (key.wrapping_sub(at) as i32) >= 0)
+                })
+        });
+        let recorded = keys
+            .iter()
+            .filter(|key| key.verdict == seam::Verdict::Recorded)
+            .count();
+        let line = format!(
+            "part={part} switch_seen={} read_behind_the_switch={} read_behind_the_switch_state={:?} \
+             read_behind_the_switch_ms={} newest_before_the_first_key={}:{:?} letters_decided={} \
+             letters_recorded={recorded} first_rule={:?}",
+            switch.is_some(),
+            read.is_some(),
+            read.and_then(|mark| mark.state),
+            match (switch, read) {
+                (Some(at), Some(mark)) => i64::from(mark.began.wrapping_sub(at) as i32),
+                _ => -1,
+            },
+            newest.map_or("none", |mark| mark.what),
+            newest.and_then(|mark| mark.state),
+            keys.len(),
+            keys.first().and_then(|key| key.rule),
+        );
+        (line, recorded)
+    }
+}
+
+/// Sends `count` letters, each a press and a release: how many events the
+/// system took.
+fn send_letters(count: usize) -> u32 {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_A;
+    let mut accepted = 0;
+    for _ in 0..count {
+        accepted += send(&[key_input(VK_A, false)]);
+        accepted += send(&[key_input(VK_A, true)]);
+    }
+    accepted
+}
+
+/// The keyboard source and the title source of one service set, made by the
+/// set as the daemon makes them, on its one gate, with a child whose windows
+/// come in front in turn, each with its cursor put into its one edit and no
+/// click and no focus key. Every step waits for a state: (1) the window with
+/// the password edit in front, the gate reading Password, its title ask
+/// dropped and a read behind its switch, then letters: none is recorded and
+/// no title; (2) the window with the plain edit in front, its title recorded
+/// and a read behind its switch, then letters: they are recorded.
+#[test]
+#[ignore = "functional: keys behind a switch alone are decided beside the read that the switch asks"]
+fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks() {
+    use halvo_capture::daemon::sources::SourceFactory;
+    use halvo_control::proto::SourceName;
+    with_deadline("switch-keys", Duration::from_secs(90), || {
+        env_report("switch-keys");
+        source_built_by_test("switch-keys", "keyboard");
+        source_built_by_test("switch-keys", "window_title");
+        let (sink, events) = capture(4096);
+        let mut set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut keyboard = set
+            .make(SourceName::Keyboard)
+            .expect("the set makes a keyboard source");
+        let mut title = set.gated_title(WindowTitleSource::new());
+        let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
+        let title_start = title.begin(SourceContext::new(sink.clone()));
+        let drops = |title: &halvo_capture::windows::sources::Gated<WindowTitleSource>| {
+            title.source().drops().secure_input
+        };
+        let settled = |title: &halvo_capture::windows::sources::Gated<WindowTitleSource>| {
+            let waits = title.source().waits();
+            waits.at_once + waits.after_a_wait + waits.behind_the_bound + waits.ended_with_no_read
+        };
+        let settled_at_the_start = settled(&title);
+        let mut seam_seen = SwitchSeen::default();
+        seam_seen.take();
+        let mut child = spawn_child("own-window", 0);
+        let child_pid = child.id();
+        let mut seen = Vec::new();
+        let lead_in_front = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| window_pid(foreground_window()) == child_pid,
+        );
+        let lead_settled = wait_for_state(
+            &events,
+            &mut seen,
+            &mut child,
+            OWN_WINDOW_STATE_WAIT,
+            |_| settled(&title) > settled_at_the_start,
+        );
+        let at_the_lead = drops(&title);
+        seam_seen.take();
+        let marks_of_part_1 = seam_seen.marks.len();
+        child.go("lead");
+        let mut ready_1 = false;
+        let began = Instant::now();
+        while child.try_wait().is_none() && began.elapsed() < OWN_WINDOW_STATE_WAIT {
+            seen.extend(events.drain_for(Duration::from_millis(20)));
+            seam_seen.take();
+            if gate.content_reading() == ContentReading::Password
+                && drops(&title) > at_the_lead
+                && seam_seen.read_behind_a_switch(marks_of_part_1)
+            {
+                ready_1 = true;
+                break;
+            }
+        }
+        let decided_of_part_1 = seam_seen.decided.len();
+        let sent_1 = send_letters(SWITCH_KEYS_LETTERS);
+        let began = Instant::now();
+        while seam_seen.decided.len() < decided_of_part_1 + SWITCH_KEYS_LETTERS
+            && child.try_wait().is_none()
+            && began.elapsed() < OWN_WINDOW_STATE_WAIT
+        {
+            seen.extend(events.drain_for(Duration::from_millis(20)));
+            seam_seen.take();
+        }
+        let keystrokes_after_part_1 = count(&seen, Modality::Keystroke);
+        let (line_1, recorded_1) =
+            seam_seen.part_line("password", marks_of_part_1, decided_of_part_1);
+        let marks_of_part_2 = seam_seen.marks.len();
+        child.go("password-first");
+        let mut ready_2 = false;
+        let began = Instant::now();
+        while child.try_wait().is_none() && began.elapsed() < OWN_WINDOW_STATE_WAIT {
+            seen.extend(events.drain_for(Duration::from_millis(20)));
+            seam_seen.take();
+            if titles_with(&seen, OWN_WINDOW_PLAIN_TITLE) >= 1
+                && seam_seen.read_behind_a_switch(marks_of_part_2)
+            {
+                ready_2 = true;
+                break;
+            }
+        }
+        let decided_of_part_2 = seam_seen.decided.len();
+        let sent_2 = send_letters(SWITCH_KEYS_LETTERS);
+        let began = Instant::now();
+        while seam_seen.decided.len() < decided_of_part_2 + SWITCH_KEYS_LETTERS
+            && child.try_wait().is_none()
+            && began.elapsed() < OWN_WINDOW_STATE_WAIT
+        {
+            seen.extend(events.drain_for(Duration::from_millis(20)));
+            seam_seen.take();
+        }
+        let keystrokes_after_part_2 = count(&seen, Modality::Keystroke);
+        let (line_2, recorded_2) = seam_seen.part_line("plain", marks_of_part_2, decided_of_part_2);
+        child.go("plain");
+        child.go("password-second");
+        while child.try_wait().is_none() {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+        }
+        seen.extend(events.drain_for(Duration::from_millis(800)));
+        let title_stop = stop_counted(&mut title, "window_title");
+        let keyboard_stop = stop_counted(keyboard.as_mut(), "keyboard");
+        child.print_output();
+        gate_readings("switch-keys", &gate);
+        say("switch-keys", &line_1);
+        say("switch-keys", &line_2);
+        let at_password = titles_with(&seen, OWN_WINDOW_PASSWORD_TITLE);
+        let waits = title.source().waits();
+        say(
+            "switch-keys",
+            format!(
+                "keyboard_start={} title_start={} keyboard_stop={} title_stop={} \
+                 lead_in_front={lead_in_front} lead_settled={lead_settled} ready_1={ready_1} \
+                 ready_2={ready_2} sent_1={sent_1} sent_2={sent_2} \
+                 keystroke_records_after_part_1={keystrokes_after_part_1} \
+                 keystroke_records_after_part_2={keystrokes_after_part_2} \
+                 title_events_of_the_password_window={at_password} \
+                 title_events_of_the_plain_window={} title_drops_at_secure_input={} \
+                 title_waits_ended_with_no_read={}",
+                show(&keyboard_start),
+                show(&title_start),
+                show(&keyboard_stop),
+                show(&title_stop),
+                titles_with(&seen, OWN_WINDOW_PLAIN_TITLE),
+                drops(&title),
+                waits.ended_with_no_read
+            ),
+        );
+        assert!(
+            keyboard_start.is_ok() && title_start.is_ok(),
+            "the sources must start"
+        );
+        assert!(
+            ready_1 && ready_2,
+            "a part's state did not come: password {ready_1}, plain {ready_2}"
+        );
+        assert!(
+            recorded_1 == 0 && keystrokes_after_part_1 == 0 && at_password == 0,
+            "a key or a title at the password edit behind a switch alone: {line_1}"
+        );
+        assert!(
+            recorded_2 >= 1 && keystrokes_after_part_2 > keystrokes_after_part_1,
+            "no key recorded at the plain edit behind a switch alone: {line_2}"
+        );
+    });
+}
+
 const SECOND_ACCOUNT_TEST: &str = "daemon_refuses_a_second_account";
 const SECOND_ACCOUNT_TAG: &str = "second_account";
 const SECOND_ACCOUNT_REQUEST: &str = "second-account-request.txt";

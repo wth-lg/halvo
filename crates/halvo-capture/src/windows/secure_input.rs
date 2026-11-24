@@ -1563,6 +1563,7 @@ impl PasswordGate {
             marks.switch_read = Some((now.wrapping_add(ms(LATCH_SETTLE)), number));
             number
         };
+        note_mark("switch", None, None, Some(now), now, None);
         self.wake_detector();
         number
     }

@@ -111,6 +111,7 @@ daemon_refuses_a_second_account group=native
 helper_child_window group=native
 helper_limited_listener group=native
 helper_second_account group=native
+keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks group=native
 keys_queued_before_a_stop_are_delivered_or_counted group=native
 known_defect::browser_an_earlier_keys_landing_before_the_pages_late_move_in_chrome W6-earlier-key group=browser scope=long-only-shows-sometimes
 known_defect::browser_an_earlier_keys_landing_before_the_pages_late_move_in_edge W6-earlier-key group=browser scope=long-only-shows-sometimes
