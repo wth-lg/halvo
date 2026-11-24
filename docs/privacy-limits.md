@@ -124,14 +124,16 @@ Where a sentence names a unit, that unit makes it true.
   password field. While the program says yes, Halvo records no window title. Where a
   program gives no answer, Halvo records the window title, also while you type a
   password into a box that such a program draws by itself. It records no key there.
-  On Windows, for a moment after you switch to another window, Halvo still goes by the
-  field that had the cursor in the window you left. If that field was not a password
-  field, or its program gave no answer, Halvo can record the title of the new window,
-  even where the cursor starts in a password field there. The same holds for screen
-  activity, where that is switched on and the field you left was not a password field.
-  It records no key. In Chrome and Edge, a page's title that changes in the instant in
-  which the page takes the cursor can be recorded although the cursor lands in a
-  password field.
+  On Windows, when Halvo starts and when you switch to another window, Halvo records the
+  title of the window in front only after it has read where the cursor is in that
+  window. Until that read comes it records no title of that window, and where the read
+  finds a password field, or fails, it records none. The same holds for screen activity,
+  where that is switched on. It records no key. A program that puts the cursor on its
+  window first, and moves it into a password field only after Halvo has read the window,
+  can have that window's title recorded. In Chrome and Edge, a page's title that changes
+  in the instant in which the page takes the cursor, or the title of a window that you
+  switch to in that instant, can be recorded although the cursor lands in a password
+  field.
 - Some programs show what you type in the title of their window, for example the name of
   a document or the words of a search. Halvo records such a title like any other. It
   holds a title back while it can tell that the cursor is in a password field, and on
