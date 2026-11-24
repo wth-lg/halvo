@@ -832,6 +832,7 @@ fn known_titles() -> Vec<String> {
     ] {
         titles.extend((0..3).map(|step| format!("{prefix}-{step}")));
     }
+    titles.extend([OWN_WINDOW_PASSWORD_TITLE, OWN_WINDOW_PLAIN_TITLE].map(str::to_string));
     titles.push(GHOST_CAPTION.to_string());
     titles.push(GHOST_CAPTION.to_string() + GHOST_CAPTION_ENDING);
     titles
