@@ -4,7 +4,7 @@ use super::{bound_field, value_bound, Marking, SetupParam};
 use crate::ports::{Refused, Shared};
 use crate::types::{
     AgentId, Body, BoundFrom, CandidateFrom, Category, Cause, Class, Item, ItemId, Limits, Name,
-    Overlapping, Param, Slot, System, WorkflowId,
+    Overlapping, Param, SheetAnswers, Slot, System, WorkflowId,
 };
 
 const TYPED_MAX: usize = 1024;
@@ -144,8 +144,8 @@ impl NotTaken {
 /// parameters with their candidates, the value given for each so far, the refusal by entry that
 /// the reader of senders gave the newest answer for each, the reason why the core did not take
 /// the newest typed line of each, whether the owner refused its answers by a name after which
-/// another value can pass, whether it asks again answers that its agent has stored, and its
-/// state.
+/// another value can pass, whether it asks again answers that its agent has stored, the stored
+/// answers that it holds as lines of the core (`holding`), and its state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Setup {
     item: ItemId,
@@ -154,6 +154,7 @@ pub struct Setup {
     category: Category,
     params: Vec<SetupParam>,
     given: Vec<Option<Vec<String>>>,
+    stored: SheetAnswers,
     refused: Vec<Option<Refused>>,
     untaken: Vec<Option<NotTaken>>,
     not_taken: bool,
@@ -190,6 +191,7 @@ impl Setup {
             agent,
             category,
             given: vec![None; params.len()],
+            stored: SheetAnswers::default(),
             refused: vec![None; params.len()],
             untaken: vec![None; params.len()],
             params,
@@ -216,6 +218,44 @@ impl Setup {
     /// Whether the item asks again the answers that its agent has stored (`asked_again`).
     pub fn is_asked_again(&self) -> bool {
         self.again
+    }
+
+    /// The item holding the stored answers `answers` of its agent, which the read at the press of
+    /// Change its answers gave (r4 U3.22g), as lines that the core holds: of each question that the
+    /// item asks, the stored answer where it is a line that the core takes as that question's
+    /// typed line on this build's system as it stands (`kept_line`), and none otherwise. A line so
+    /// held is no answer given at the item: the one body still waits for a line taken at the item
+    /// for every question, so that a press sends each line that shows text. The lines go at the
+    /// move that makes the body, at the close, and at each move after which the item asks every
+    /// parameter again (`setup_step`).
+    pub fn holding(self, answers: &SheetAnswers) -> Setup {
+        let kept = |param: Param| {
+            answers
+                .of(param)
+                .filter(|line| {
+                    self.at(param).is_ok() && kept_line(self.category, param, line, System::HOST)
+                })
+                .map(str::to_owned)
+        };
+        let stored = SheetAnswers {
+            workbook: kept(Param::Workbook),
+            sheet: kept(Param::Sheet),
+            range: kept(Param::Range),
+            source: kept(Param::Source),
+        };
+        Setup { stored, ..self }
+    }
+
+    /// The stored line of `param` that the item holds (`holding`); none for every other.
+    pub fn stored(&self, param: Param) -> Option<&str> {
+        self.stored.of(param)
+    }
+
+    /// The line of `param` that the item holds: the line taken at the item, else its stored line.
+    fn held(&self, param: Param) -> Option<&str> {
+        let i = self.at(param).ok()?;
+        let given = self.given[i].as_ref().and_then(|g| g.first());
+        given.map(String::as_str).or_else(|| self.stored(param))
     }
 
     /// The body that the owner refused with `overlap`, kept in memory and never stored, which
@@ -344,13 +384,20 @@ impl Setup {
                 item = item.not_taken_at(p.param, sentence);
             }
         }
+        for p in &self.params {
+            if let Some(line) = self.stored(p.param) {
+                item = item.stored_at(p.param, line);
+            }
+        }
         Ok(item)
     }
 
     /// The line of Which spreadsheet file whose worksheets' names the core reads before it takes
     /// `text` as that question's answer (r4 U3.22c): where the item is open and asks Which sheet,
     /// `param` is Which spreadsheet file, and `text` is a line that the core takes on this build's
-    /// system (`typed_line`) and that differs from the line that the item holds; none otherwise.
+    /// system (`typed_line`) and that differs from the line taken at the item; none otherwise. So
+    /// the first such line of an item with stored lines reads the names ONCE, also where it equals
+    /// the stored line (`holding`; r4 U3.22g, the coordinator's ruling of its log line 19815).
     pub fn sheets_due(&self, param: Param, text: &str) -> Option<String> {
         if param != Param::Workbook || self.state != SetupState::Open {
             return None;
@@ -372,9 +419,10 @@ impl Setup {
 
     /// Which sheet after the item's line of Which spreadsheet file changed (r4 U3.22c): with
     /// `names` that fit (`fit_names`), they are its list, in the workbook's order, and the sheet
-    /// that the item held is dropped, chosen or typed, so that the person chooses from the new
-    /// list; without them, a list of an older line goes with the sheet chosen from it, the typed
-    /// line comes back, and a typed sheet stays. Nothing for an item that does not ask it.
+    /// that the item held is dropped, chosen, typed or stored (r4 U3.22g), so that the person
+    /// chooses from the new list; without them, a list of an older line goes with the sheet chosen
+    /// from it, the typed line comes back, and a typed sheet stays. Nothing for an item that does
+    /// not ask it.
     fn take_sheets(&mut self, names: Option<&[String]>) {
         let Ok(s) = self.at(Param::Sheet) else {
             return;
@@ -386,6 +434,7 @@ impl Setup {
                     .map(|name| (vec![name.clone()], CandidateFrom::Files))
                     .collect();
                 self.given[s] = None;
+                self.stored.sheet = None;
                 self.refused[s] = None;
                 self.untaken[s] = None;
             }
@@ -482,6 +531,18 @@ fn typed(text: &str) -> Result<(), Cause> {
     } else {
         Err(Cause::Malformed)
     }
+}
+
+/// Whether `line`, a stored answer of `param` of an agent of `category`, is a line that the core
+/// takes as that question's typed line on `system` as it stands (r4 U3.22g): a typed answer
+/// (`typed`) that holds to the predicate of a deciding field (`fits`), with no character that has
+/// no visible form (`chars::no_form`), and whose line by `typed_line` is the very text, so that
+/// what the card shows is what a press sends, byte for byte.
+fn kept_line(category: Category, param: Param, line: &str, system: System) -> bool {
+    typed(line).is_ok()
+        && fits(category, param, line)
+        && !line.chars().any(no_form)
+        && typed_line(param, line, system).is_ok_and(|taken| taken == line)
 }
 
 /// Whether the names of a workbook's worksheets fit Which sheet's list (r4 U3.22c, the
@@ -617,8 +678,8 @@ fn drive(path: &str) -> Option<&str> {
 /// gone, `state` while its body is owed, and `malformed` for a parameter that it does not ask, that
 /// has candidates, or that is neither Which spreadsheet file nor Where the data comes from. The
 /// chooser of Where the data comes from opens in the folder of the line of Which spreadsheet file
-/// that the item holds (`folder_of`); the other, and that one while the item holds no such line,
-/// where the system opens it.
+/// that the item holds, the line taken at the item or else its stored line (`folder_of`; r4
+/// U3.22g); the other, and that one while the item holds no such line, where the system opens it.
 pub fn choose_in(setup: &Setup, param: Param, system: System) -> Result<Option<String>, Cause> {
     match setup.state {
         SetupState::AgentGone => return Err(Cause::UnknownAgent),
@@ -632,8 +693,7 @@ pub fn choose_in(setup: &Setup, param: Param, system: System) -> Result<Option<S
     }
     Ok(match param {
         Param::Source => setup
-            .given(Param::Workbook)
-            .and_then(|line| line.first())
+            .held(Param::Workbook)
             .map(|workbook| folder_of(workbook, system).to_owned()),
         _ => None,
     })
@@ -688,7 +748,19 @@ fn folder_of(path: &str, system: System) -> &str {
 /// Which sheet is taken where it equals a name of the PRESENT list and leaves the question with no
 /// answer otherwise, with no refusal, so that no set-up ends. A move after which the item asks
 /// every parameter again drops the list.
+/// The stored lines that the item holds (`Setup::holding`, r4 U3.22g) go at every move after which
+/// the item is no longer open, the one that makes its body among them, and at every move after
+/// which it asks every parameter again, so that it then starts with empty lines.
 pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
+    let mut next = step_of(setup, mv)?;
+    if next.state != SetupState::Open || next.step != setup.step {
+        next.stored = SheetAnswers::default();
+    }
+    Ok(next)
+}
+
+/// `setup_step` but for the stored lines.
+fn step_of(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
     let mut next = setup.clone();
     if !matches!(mv, SetupMove::Input(SetupInput::None)) {
         next.waits = None;

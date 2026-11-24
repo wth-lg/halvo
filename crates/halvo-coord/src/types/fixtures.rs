@@ -892,6 +892,7 @@ fn param(param: Param, candidate: Option<&str>) -> ParamEntry {
         },
         refused: None,
         not_taken: None,
+        stored: None,
     }
 }
 
