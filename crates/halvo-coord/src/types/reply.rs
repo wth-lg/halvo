@@ -1006,6 +1006,15 @@ impl Item {
         }
         self
     }
+
+    /// The item with `line` as the key `stored` of its parameter `param` (r4 U3.22g); the item as
+    /// it was where it asks no such parameter.
+    pub fn stored_at(mut self, param: Param, line: &str) -> Item {
+        for p in self.params.iter_mut().filter(|p| p.name == param) {
+            p.stored = Some(line.to_owned());
+        }
+        self
+    }
 }
 
 /// A field of an item (I3.4).
@@ -1068,6 +1077,12 @@ pub struct ParamEntry {
     /// U3.22a); the key is left out while none stands.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub not_taken: Option<String>,
+    /// `stored`: the line of the answer that the agent uses now, which the item holds for the
+    /// parameter since the press of Change its answers put it up (r4 U3.22g), and which the card
+    /// shows in the parameter's typed line as a line that the core holds; the key is left out
+    /// while none stands.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stored: Option<String>,
 }
 
 /// A candidate of a parameter (I3.5).

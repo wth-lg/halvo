@@ -3211,12 +3211,15 @@ where
 
     /// The person's `change_answers` (r4 U3.22a): after the quit's first step, and where the
     /// agent's row does not offer Change its answers (`roster::offers_change_answers`), it answers
-    /// `state`. Else it sends nothing to the owner and stores nothing: the agent holds a new
-    /// set-up item open on the board, which no row raised, and the coordinator puts it up asking
-    /// every question of the agent's category with empty lines, as asked again
-    /// (`Setup::asked_again`), so that Not now closes it with the stored answers standing and Use
-    /// these answers sends ONE body `set_bindings` with a slot for every question. Named limit:
-    /// such an item is gone when Halvo starts again, and the stored answers stand.
+    /// `state`. Else it asks the owner ONCE, with the lock held, for the agent's stored answers
+    /// (`Owner::sheet_answers`, r3 U11.7; r4 U3.22g), sends no body and stores nothing: the agent
+    /// holds a new set-up item open on the board, which no row raised, and the coordinator puts it
+    /// up asking every question of the agent's category, as asked again (`Setup::asked_again`),
+    /// each line holding its stored answer where the core takes it as that question's typed line
+    /// (`Setup::holding`) and empty otherwise, every line empty where the read fails; so that Not
+    /// now closes it with the stored answers standing and Use these answers sends ONE body
+    /// `set_bindings` with a slot for every question. Named limit: such an item is gone when Halvo
+    /// starts again, and the stored answers stand.
     fn change_answers(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
         if st.quitting {
             return Err(Cause::State);
@@ -3226,6 +3229,10 @@ where
         if !roster::offers_change_answers(facts) {
             return Err(Cause::State);
         }
+        let stored = self
+            .ports
+            .sheet_answers(&facts.workflow.id, &facts.agent)
+            .unwrap_or_default();
         let minted = self.ports.bytes16().map_err(|e| cause_of(&e))?;
         let item = ItemId::parse(&crate::types::hex(minted)).map_err(|_| Cause::NoService)?;
         let asked = params(facts.workflow.category)
@@ -3243,7 +3250,8 @@ where
             facts.workflow.category,
             asked,
         )?
-        .asked_again();
+        .asked_again()
+        .holding(&stored);
         board.members[i].facts.doing = Doing::Idle(Some(crate::types::OwnItem {
             item,
             kind: OwnItemKind::Setup,

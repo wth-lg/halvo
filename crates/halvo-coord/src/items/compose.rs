@@ -786,6 +786,7 @@ pub(crate) fn setup_on(
             },
             refused: None,
             not_taken: None,
+            stored: None,
         });
     }
     let line = line.map(halvo_said).transpose()?;

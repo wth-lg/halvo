@@ -1118,3 +1118,130 @@ fn u322c_which_sheet_offers_the_names_that_the_read_of_the_workbook_answers_as_i
         "the older choice went with its list"
     );
 }
+
+/// The stored answer of each question of the spreadsheet agent in the tests of r4 U3.22g: a line
+/// that the core takes on this build's system, and a text that no other call of these tests holds.
+fn kept_answer(param: Param) -> &'static str {
+    match (param, cfg!(windows)) {
+        (Param::Workbook, false) => "/Volumes/work/Stored budget.xlsx",
+        (Param::Workbook, true) => "D:\\work\\Stored budget.xlsx",
+        (Param::Source, false) => "/Volumes/work/stored receipts.csv",
+        (Param::Source, true) => "D:\\work\\stored receipts.csv",
+        (Param::Sheet, _) => "Stored sheet",
+        _ => "B3:D9",
+    }
+}
+
+/// The four stored answers of `kept_answer`.
+fn kept_answers() -> crate::types::SheetAnswers {
+    let kept = |p| Some(kept_answer(p).to_owned());
+    crate::types::SheetAnswers {
+        workbook: kept(Param::Workbook),
+        sheet: kept(Param::Sheet),
+        range: kept(Param::Range),
+        source: kept(Param::Source),
+    }
+}
+
+/// The key `stored` of the question `param` of `item` as the page gets it.
+fn stored_of(item: &Item, param: Param) -> Option<String> {
+    let json = serde_json::to_value(item).expect("the item as the page gets it");
+    let entry = json["params"]
+        .as_array()?
+        .iter()
+        .find(|p| p["name"] == param.name())?;
+    entry["stored"].as_str().map(str::to_owned)
+}
+
+/// The world of `sheet_world` with the four stored slots, whose read of the stored answers answers
+/// `answers`, and the open set-up item that the press of Change its answers put up there.
+fn put_up_with(answers: crate::types::SheetAnswers) -> (Coordinator<Ports<Config>>, Item) {
+    let c = sheet_world(&SHEET_SLOTS, true);
+    c.ports()
+        .answers
+        .borrow_mut()
+        .push((sheet_agent(), answers));
+    assert_eq!(c.control(&sheet_agent(), Action::ChangeAnswers), Ok(()));
+    let item = sheet_setup(&c).expect("the set-up item is up again");
+    (c, item)
+}
+
+/// r4 U3.22g sentence 1, OF WEIGHT: the core asks the owner for the stored answers at the press of
+/// Change its answers alone, ONCE, for that agent (`Owner::sheet_answers`, r3 U11.7), and the
+/// set-up item that it puts up holds each of the four as its question's stored line. A read that
+/// answers one value gone leaves that line empty; a value of Which spreadsheet file that is no full
+/// path is dropped; a read that fails leaves all four lines empty and the item open. No row that
+/// the presses store and no event that they publish holds a value: of every call that Change its
+/// answers and the four lines of the press of Use these answers make, the one body `set_bindings`
+/// alone holds one.
+#[test]
+fn u322g_change_its_answers_puts_up_the_stored_answers_and_no_row_or_event_holds_one() {
+    let c = sheet_world(&SHEET_SLOTS, true);
+    c.ports()
+        .answers
+        .borrow_mut()
+        .push((sheet_agent(), kept_answers()));
+    assert!(
+        c.ports().answer_reads.borrow().is_empty(),
+        "no read at a tick"
+    );
+    let m = mark(&c);
+    assert_eq!(c.control(&sheet_agent(), Action::ChangeAnswers), Ok(()));
+    assert_eq!(*c.ports().answer_reads.borrow(), vec![sheet_agent()]);
+    let item = sheet_setup(&c).expect("the set-up item is up again");
+    for p in SHEET_PARAMS {
+        let stored = stored_of(&item, p);
+        assert_eq!(stored.as_deref(), Some(kept_answer(p)), "{}", p.name());
+    }
+    for p in SHEET_PARAMS {
+        let typed = c.setup_typed(item.item(), p, kept_answer(p), item.step());
+        assert_eq!(typed, Ok(()), "{}", p.name());
+    }
+    assert_eq!(
+        set_bindings(&c, m).len(),
+        1,
+        "the press of Use these answers"
+    );
+    assert!(sheet_setup(&c).is_none(), "the item closed");
+    assert_eq!(c.ports().answer_reads.borrow().len(), 1, "asked ONCE");
+    let calls = c.ports().calls.borrow();
+    assert!(calls[m..].iter().any(|t| matches!(t.call, Call::Log(_))));
+    for t in &calls[m..] {
+        if matches!(t.call, Call::Send(Body::SetBindings { .. })) {
+            continue;
+        }
+        let call = format!("{:?}", t.call);
+        for p in SHEET_PARAMS {
+            assert!(!call.contains(kept_answer(p)), "{}: {call}", p.name());
+        }
+    }
+    drop(calls);
+
+    let mut some = kept_answers();
+    some.range = None;
+    some.workbook = Some("Stored budget.xlsx".to_owned());
+    let (_, item) = put_up_with(some);
+    let lines: Vec<Option<String>> = SHEET_PARAMS.iter().map(|p| stored_of(&item, *p)).collect();
+    let kept = |p| Some(kept_answer(p).to_owned());
+    assert_eq!(
+        lines,
+        [None, kept(Param::Sheet), None, kept(Param::Source)],
+        "a value gone and a workbook that is no full path: those two lines empty"
+    );
+
+    let failed = sheet_world(&SHEET_SLOTS, true);
+    failed
+        .ports()
+        .answers
+        .borrow_mut()
+        .push((sheet_agent(), kept_answers()));
+    failed
+        .ports()
+        .refuse(Method::SheetAnswers, PortError::NoService);
+    assert_eq!(
+        failed.control(&sheet_agent(), Action::ChangeAnswers),
+        Ok(())
+    );
+    let item = sheet_setup(&failed).expect("the item is up with a read that failed");
+    assert!(SHEET_PARAMS.iter().all(|p| stored_of(&item, *p).is_none()));
+}
