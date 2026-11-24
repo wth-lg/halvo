@@ -2324,6 +2324,41 @@ mod tests {
         }
     }
 
+    /// r3 U11.7, a gap that its reader named (the coordinator's log line 19829's round): the `Debug` forms of the core's
+    /// `SheetAnswers` and of the reply's type `SheetAnswersReply`, which the app reads, print no four bytes in a row of a
+    /// value that they hold, in the plain and in the pretty form.
+    #[test]
+    fn the_debug_forms_of_the_sheet_answers_print_no_value() {
+        let values = [
+            "/srv/U117Book/Monat.xlsx",
+            "U117Blatt März",
+            "U117:D14",
+            "/srv/U117Daten.csv",
+        ];
+        let core = SheetAnswers {
+            workbook: Some(values[0].to_owned()),
+            sheet: Some(values[1].to_owned()),
+            range: Some(values[2].to_owned()),
+            source: Some(values[3].to_owned()),
+        };
+        let stored = serde_json::json!({
+            "workbook": values[0], "sheet": values[1], "range": values[2], "source": values[3],
+        });
+        let reply = SheetAnswersReply::parse(stored.to_string().as_bytes()).expect("the reply");
+        for text in [
+            format!("{core:?}"),
+            format!("{core:#?}"),
+            format!("{reply:?}"),
+            format!("{reply:#?}"),
+        ] {
+            for value in values {
+                for piece in value.as_bytes().windows(4) {
+                    assert!(!text.as_bytes().windows(4).any(|w| w == piece), "{text}");
+                }
+            }
+        }
+    }
+
     /// r4 U2.4y, sentence 3: the body `drop_sessions` goes out as r3 U5.2c built it, with the keys `op`,
     /// `workflow` and `agent` in that order and nothing else.
     #[test]

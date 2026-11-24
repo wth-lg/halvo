@@ -1304,38 +1304,150 @@ fn on_a_stream_a_runner_request_reaches_the_store_and_an_interface_read_answers_
     assert_eq!(owner.reply().outcome.unwrap_err(), ErrorName::Role);
 }
 
-/// r3 U11.7, point (m) of the coordinator's log line 19741: the read `sheet_answers` is a `coordinator_write` on a
-/// stream alone. On a stream the `coordinator_write` that holds it reaches the agent store, which answers `no_workflow`
-/// for a workflow that it does not hold; a `runner` request on the same stream whose body holds it reaches the store's
-/// handler of `runner` requests, which takes no such call; and on the starter's channel, which carries the daemon's
-/// relay of the role `interface`, the same `coordinator_write` answers `role` and reaches no handler.
+/// r3 U11.7, point (m) of the coordinator's log line 19741, over stored values (a gap that the unit's reader named, the
+/// coordinator's log line 19829's round): a spreadsheet agent whose bindings `set_bindings` stored, its four values
+/// and a payment's slot beside them. On a stream the `coordinator_write` that holds the read `sheet_answers` reaches
+/// the agent store and answers the four values; a `runner` request on the same stream whose body holds it reaches the
+/// store's handler of `runner` requests, which takes no such call and answers `malformed`; and on the starter's
+/// channel, which carries the daemon's relay of the role `interface`, the same `coordinator_write` answers `role` and
+/// reaches no handler. The bytes of each of the two refusals hold no four bytes in a row of a stored value.
 #[test]
 fn the_read_of_the_sheet_answers_is_a_coordinator_write_on_a_stream_alone() {
     let scratch = Scratch::new("owner-sheet-answers-roles");
-    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let mut owner = start_on(
+        stream_channel(),
+        &scratch.0,
+        KEY,
+        1,
+        true,
+        &["--check-ms=60000"],
+    );
+    let day = two_days_ago();
+    let episodes: Vec<Episode> = (1..=3)
+        .map(|n| Episode {
+            category: SeedCategory::SpreadsheetFill,
+            ..episode(n, day, FAR)
+        })
+        .collect();
+    owner.write(&analysis_write(episodes, Position { seg: 4, idx: 0 }));
+    assert!(matches!(
+        owner.worker_reply().outcome,
+        Ok(ReplyResult::Null)
+    ));
+    owner.send(&read_workflows());
+    let ids = workflows(owner.reply());
+    assert_eq!(ids.len(), 1, "the three episodes make one workflow");
+    let approve = halvo_schema_core::request::InterfaceDecision::approve(
+        &InterfaceRole::claim(),
+        request_id(),
+        ids[0].clone(),
+    );
+    owner.send(&approve.to_bytes().unwrap());
+    assert!(matches!(owner.reply().outcome, Ok(ReplyResult::Null)));
     let (mut stream, answer) = hand_over(&mut owner);
     assert_eq!(answer, TAKEN);
+    let workflow = ids[0].as_str().to_owned();
+    let agent = "40000000000000000000000000000117";
+    let created = coordinator(&mut stream, &workflow, agent, "create_agent", "");
+    assert_eq!(created, r#"{"rev":1}"#);
+    let book = if cfg!(windows) {
+        "C:\\U117Book\\Monat.xlsx"
+    } else {
+        "/srv/U117Book/Monat.xlsx"
+    };
+    let values = [
+        book,
+        "U117Blatt März",
+        "U117:D14",
+        "/srv/U117Daten.csv",
+        "U117Karte-4111",
+    ];
+    let slots = serde_json::json!([
+        {"name": "workbook", "value": [values[0]]},
+        {"name": "sheet", "value": [values[1]]},
+        {"name": "range", "value": [values[2]]},
+        {"name": "source", "value": [values[3]]},
+        {"name": "instrument", "value": [values[4]]},
+    ]);
+    let bound = coordinator(
+        &mut stream,
+        &workflow,
+        agent,
+        "set_bindings",
+        &format!(r#","slots":{slots}"#),
+    );
+    assert_eq!(bound, r#"{"rev":1}"#);
     let request = |name: &str, body: String| {
         let id = serde_json::to_string(&request_id()).unwrap();
         format!(r#"{{"v":1,"id":{id},"request":"{name}","body":{body}}}"#).into_bytes()
     };
-    let (workflow, agent, run) = ("3".repeat(32), "4".repeat(32), "5".repeat(32));
     let read = request(
         "coordinator_write",
         format!(r#"{{"op":"sheet_answers","workflow":"{workflow}","agent":"{agent}"}}"#),
     );
+    let holds_no_value = |frame: &[u8]| {
+        values.iter().all(|value| {
+            value
+                .as_bytes()
+                .windows(4)
+                .all(|piece| !frame.windows(4).any(|w| w == piece))
+        })
+    };
+
     stream.send(&read);
-    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::NoWorkflow);
+    let answered: Value = match stream.reply().outcome {
+        Ok(ReplyResult::Raw(raw)) => serde_json::from_str(raw.get()).unwrap(),
+        other => panic!("the read answers {other:?}"),
+    };
+    assert_eq!(
+        answered,
+        serde_json::json!({
+            "workbook": values[0], "sheet": values[1], "range": values[2], "source": values[3],
+        })
+    );
 
     let runner = request(
         "runner",
-        format!(r#"{{"op":"sheet_answers","agent":"{agent}","run":"{run}"}}"#),
+        format!(
+            r#"{{"op":"sheet_answers","agent":"{agent}","run":"{}"}}"#,
+            "5".repeat(32)
+        ),
     );
     stream.send(&runner);
-    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Malformed);
+    let refused = stream
+        .frames
+        .recv_timeout(WAIT)
+        .expect("the owner sends no reply on the stream")
+        .expect("the stream ended before its reply");
+    assert!(
+        holds_no_value(&refused),
+        "{}",
+        String::from_utf8_lossy(&refused)
+    );
+    assert_eq!(
+        decode_reply(&refused).unwrap().outcome.unwrap_err(),
+        ErrorName::Malformed
+    );
 
     owner.send(&read);
-    assert_eq!(owner.reply().outcome.unwrap_err(), ErrorName::Role);
+    let refused = loop {
+        let frame = owner
+            .frames
+            .recv_timeout(WAIT)
+            .expect("the owner sends no reply");
+        if is_report(&frame).is_none() {
+            break frame;
+        }
+    };
+    assert!(
+        holds_no_value(&refused),
+        "{}",
+        String::from_utf8_lossy(&refused)
+    );
+    assert_eq!(
+        decode_reply(&refused).unwrap().outcome.unwrap_err(),
+        ErrorName::Role
+    );
 }
 
 /// The test's `Ends` in the product's link: the one end that the hand-over returned, once; after it `internal`.
