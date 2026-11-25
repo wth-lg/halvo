@@ -29,7 +29,8 @@ const AX_ERROR_ATTRIBUTE_UNSUPPORTED: i32 = -25205;
 
 pub const TITLE_READ_CAP_UNITS: usize = 1024;
 
-/// The UTF-16 units at the end of a title that the private-window rule reads.
+/// The UTF-16 units at the end of a title that the rule by the browser's own
+/// name reads.
 pub const TITLE_ENDING_UNITS: usize = 64;
 
 pub const TITLE_READ_DEADLINE: Duration = crate::macos::foreground::FOREGROUND_POLL;
@@ -74,8 +75,8 @@ impl TitleText {
     }
 
     /// Whether its browser's rule leaves the title out: it was read from
-    /// Chrome, and its ending does not end with Chrome's own name as
-    /// [`OwnName`] reads it.
+    /// Chrome or Edge, and its ending does not end with that browser's own
+    /// name as [`OwnName`] reads it.
     pub(crate) fn left_out_by_its_browser(&self) -> bool {
         self.own_name.is_some_and(|own| !own.ends(&self.ending))
     }
@@ -156,20 +157,34 @@ fn bounded_title(text: &CFString) -> TitleText {
 /// words and the name is each translation's own, and no other is read.
 pub(crate) const ENGLISH: &str = "en";
 
-/// What a title of Chrome ends with where Halvo keeps it: the browser's own
-/// name as it ends the title of an ordinary window.
+/// What a title of Chrome or Edge ends with where Halvo keeps it: the
+/// browser's own name as it ends the title of an ordinary window, and whether
+/// a closing bracket may not be the last letter, digit or closing bracket
+/// before it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct OwnName {
     name: &'static str,
+    no_bracket_before: bool,
 }
 
 impl OwnName {
     /// Whether `ending`, with zero-width characters and marks of writing
     /// direction taken out and the blanks at its end trimmed, ends with the
-    /// name.
+    /// name, and, where the browser asks it, no closing bracket is the last
+    /// letter, digit or closing bracket before the name.
     fn ends(self, ending: &str) -> bool {
         let text: String = ending.chars().filter(|&c| !is_invisible_mark(c)).collect();
-        text.trim_end().ends_with(self.name)
+        let Some(head) = text.trim_end().strip_suffix(self.name) else {
+            return false;
+        };
+        if !self.no_bracket_before {
+            return true;
+        }
+        let last = head
+            .chars()
+            .rev()
+            .find(|&c| c.is_alphanumeric() || matches!(c, ']' | '\u{FF3D}'));
+        !matches!(last, Some(']' | '\u{FF3D}'))
     }
 }
 
@@ -182,20 +197,32 @@ fn is_invisible_mark(c: char) -> bool {
     )
 }
 
-/// Chrome, matched whole, with the ending of an ordinary window's title in the
-/// localization [`ENGLISH`]: the end of its format for the accessible title of
-/// a tabbed window, ` - Google Chrome`. The title of its Incognito, Guest or
-/// isolated window, of a window under one of several profiles, of an app
-/// window and of a dialog in front ends otherwise. Edge is not here: no source
-/// and no run has read how it ends a title on a Mac, so its id falls to the
-/// closed list and none of its titles is read. Safari is not here either: its
-/// titles are not read.
-pub(crate) const NAME_ENDINGS: [(&str, OwnName); 1] = [(
-    "com.google.Chrome",
-    OwnName {
-        name: " - Google Chrome",
-    },
-)];
+/// Chrome and Edge, each matched whole, with the ending of an ordinary
+/// window's title in the localization [`ENGLISH`]. Chrome's is the end of its
+/// format for the accessible title of a tabbed window, ` - Google Chrome`; the
+/// title of its Incognito, Guest or isolated window, of a window under one of
+/// several profiles, of an app window and of a dialog in front ends otherwise.
+/// Edge's source is not public: its ` - Microsoft Edge` is the ending of an
+/// ordinary window that a hosted Mac read from Edge 157.0.4341.60, whose
+/// InPrivate and Guest windows and message box ended otherwise; it keeps the
+/// guard of the Windows rule, where an InPrivate window puts its bracketed
+/// mark before the name. Safari is not here: its titles are not read.
+pub(crate) const NAME_ENDINGS: [(&str, OwnName); 2] = [
+    (
+        "com.google.Chrome",
+        OwnName {
+            name: " - Google Chrome",
+            no_bracket_before: false,
+        },
+    ),
+    (
+        "com.microsoft.edgemac",
+        OwnName {
+            name: " - Microsoft Edge",
+            no_bracket_before: true,
+        },
+    ),
+];
 
 /// Whether `place`, a bundle's place as the system gives it, lies under
 /// /Applications, /System/Applications or the Applications folder of `home`,
@@ -294,7 +321,7 @@ pub(crate) fn listed(bundle_id: &str) -> Listed {
 }
 
 /// `Private` for an app that a full id of the closed list names, other than
-/// the one of [`NAME_ENDINGS`]: its titles are not read, whatever the
+/// the two of [`NAME_ENDINGS`]: its titles are not read, whatever the
 /// system says. Every other app's titles are left to the title rules.
 pub(crate) fn window_privacy(bundle_id: Option<&str>) -> PrivateWindow {
     if bundle_id.is_some_and(|id| listed(id) == Listed::Browser) {

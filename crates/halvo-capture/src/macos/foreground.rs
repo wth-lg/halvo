@@ -561,10 +561,10 @@ type HandlerRead = Box<dyn FnMut() -> Option<Vec<String>> + Send>;
 enum TitleRule {
     /// No browser: its title is read and kept as any app's.
     Kept,
-    /// Chrome in a process that runs in English: its title is read, and left
-    /// out unless it ends with Chrome's own name.
+    /// Chrome or Edge in a process that runs in English: its title is read,
+    /// and left out unless it ends with that browser's own name.
     NameEnding(window_title::OwnName),
-    /// Any other browser, and Chrome under another language or at a failed
+    /// Any other browser, and the two under another language or at a failed
     /// reading: no title is read.
     NoTitle,
 }
@@ -595,9 +595,9 @@ impl Place {
     }
 }
 
-/// The decision for one process of Chrome, found by the browser, the pid
-/// and the start of the process in ticks: taken at its first title request
-/// and kept until another process of that browser is decided.
+/// The decision for one process of Chrome or Edge, found by the browser, the
+/// pid and the start of the process in ticks: taken at its first title
+/// request and kept until another process of that browser is decided.
 struct Decided {
     browser: &'static str,
     pid: libc::pid_t,
@@ -612,7 +612,7 @@ struct Decided {
 /// the app in front whose request reaches the rules; the two places of each
 /// browser's language (its own value and the person's global list), each
 /// after a synchronize call, at the source's start and at each such change;
-/// the start of a process of Chrome at each of its title requests;
+/// the start of a process of Chrome or Edge at each of its title requests;
 /// and its localization once, read only from a bundle under an Applications
 /// folder.
 pub(crate) struct TitleRules {
@@ -800,7 +800,7 @@ impl TitleRules {
 #[cfg(test)]
 impl TitleRules {
     /// Rules whose reads of the system all fail, and read nothing of it: the
-    /// closed list alone stands, and Chrome keeps no title.
+    /// closed list alone stands, and Chrome and Edge keep no title.
     pub(crate) fn unread() -> Self {
         struct Unread;
         impl LanguageReads for Unread {
@@ -2319,8 +2319,8 @@ mod tests {
         }
 
         /// The kinds of the events made since the last call, the texts of its
-        /// title events, the titles read from a window and the private titles
-        /// dropped.
+        /// title events, the titles read from a window and the titles that the
+        /// rule by the name left out.
         fn made(&self) -> (Vec<Modality>, Vec<String>, usize, u64) {
             let events = floor_events(&self.writer);
             let texts = events
@@ -2379,7 +2379,7 @@ mod tests {
     }
 
     #[test]
-    fn chrome_keeps_a_normal_title_and_drops_a_private_one_under_english_alone_and_edge_safari_and_a_browser_outside_the_applications_folders_keep_none(
+    fn chrome_and_edge_keep_a_normal_title_and_drop_a_private_one_under_english_alone_and_safari_and_a_browser_outside_the_applications_folders_keep_none(
     ) {
         let chrome_normal = "Quarterly plan - Google Docs - Google Chrome";
         let edge_normal = "Quarterly plan - Google Docs - Microsoft Edge";
@@ -2426,9 +2426,9 @@ mod tests {
                 "New Tab - Microsoft Edge (InPrivate)",
                 None,
                 list_of("en-US"),
-                &[][..],
-                0,
-                0,
+                &[edge_normal][..],
+                2,
+                1,
             ),
             (
                 "com.microsoft.edgemac",
