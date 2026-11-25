@@ -190,6 +190,13 @@ pub trait Control: Send + Sync {
     /// comes back.
     fn set_typing(&self, made: Made, on: bool) -> Result<DaemonStatus, ClientError>;
 
+    /// Sends one set_search, which turns the search for repeated tasks, and answers the status
+    /// that comes back. A control that reaches no service of its own answers
+    /// `ClientError::Unsupported`.
+    fn set_search(&self, _made: Made, _on: bool) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
     /// Asks the daemon for one end of a new owner stream (the workflows run's W-C24.13), on which the coordinator's
     /// requests reach the owner of the derived store.
     #[cfg(any(target_os = "macos", windows))]
@@ -392,6 +399,12 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
     fn set_typing(&self, made: Made, on: bool) -> Result<DaemonStatus, ClientError> {
         self.run(made, &Request::SetTyping { on }, |client| {
             client.set_typing(on)
+        })
+    }
+
+    fn set_search(&self, made: Made, on: bool) -> Result<DaemonStatus, ClientError> {
+        self.run(made, &Request::SetSearch { on }, |client| {
+            client.set_search(on)
         })
     }
 
@@ -807,6 +820,11 @@ impl<C: Control> Control for Watching<C> {
     fn set_typing(&self, made: Made, on: bool) -> Result<DaemonStatus, ClientError> {
         let before = self.pid.get();
         self.took_status(before, self.inner.set_typing(made, on))
+    }
+
+    fn set_search(&self, made: Made, on: bool) -> Result<DaemonStatus, ClientError> {
+        let before = self.pid.get();
+        self.took_status(before, self.inner.set_search(made, on))
     }
 
     #[cfg(any(target_os = "macos", windows))]

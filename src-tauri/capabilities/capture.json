@@ -20,6 +20,7 @@
     "allow-remove-halvo",
     "allow-reset-settings",
     "allow-set-typing",
+    "allow-set-search",
     "core:app:allow-version"
   ]
 }
