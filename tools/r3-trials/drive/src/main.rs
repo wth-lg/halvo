@@ -17,7 +17,7 @@ use lines::{Cell, Kind, Run};
 
 const USAGE: &str = "r3-drive --repo DIR --model TOKEN --weights FILE --child FILE --settings FILE --task bill|order|reply --seed 1|2|3 --browser PATH --port N --machine NAME --run-dir DIR [--compile-variant NAME]";
 
-const ROUND_USAGE: &str = "r3-drive --round --repo DIR --model TOKEN --settings FILE --browser PATH --port N --machine NAME --run-dir DIR --door FILE --tier low_cost_hosted|frontier --ceiling MINOR --key-file FILE --origin ORIGIN [--egress-list FILE] [--standin-host PORT]";
+const ROUND_USAGE: &str = "r3-drive --round --repo DIR --model TOKEN --settings FILE --browser PATH --port N --machine NAME --run-dir DIR --door FILE --tier low_cost_hosted|frontier --ceiling MINOR --key-file FILE --origin ORIGIN [--egress-list FILE] [--standin-host PORT] [--cell TASK:SEED]";
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Args {
@@ -355,7 +355,7 @@ fn ctx_of(args: &Args, inputs: Inputs, model: model::Spec, stop: Stop) -> Ctx {
             goal: inputs.goal,
         },
         recoveries: inputs.recoveries,
-        reply_tokens: inputs.reply_tokens,
+        reply_tokens: Some(inputs.reply_tokens),
         compile_variants: args.compile_variant.clone().into_iter().collect(),
         stop,
         trace: std::sync::Mutex::new(inputs.trace),
@@ -378,7 +378,8 @@ const CELLS: [(&str, u8); 9] = [
 ];
 
 /// The hosted round (unit U0.8): every cell of A13.6 in one process, with the door `halvo-model` as
-/// the child, the key read once, and one count whose cap is the ceiling.
+/// the child, the key read once, and one count whose cap is the ceiling. `--cell <task>:<seed>`
+/// (r3 U0.8b) makes it a round of that one cell, under the same count and the same bound.
 #[derive(Debug, Default)]
 struct Round {
     repo: PathBuf,
@@ -442,6 +443,12 @@ fn parse_round(argv: &[String]) -> Result<Round, String> {
             "--egress-list" => r.egress_list = Some(PathBuf::from(value)),
             "--standin-host" => {
                 r.standin_host = Some(port(value).ok_or("--standin-host takes 1024 to 65535")?)
+            }
+            "--cell" => {
+                r.cells = vec![*CELLS
+                    .iter()
+                    .find(|(task, seed)| format!("{task}:{seed}") == *value)
+                    .ok_or("--cell takes bill:1 to reply:3")?]
             }
             "--model" | "--machine" | "--tier" | "--origin" => {
                 return Err(format!("{flag} takes no {value}"))
@@ -602,13 +609,22 @@ async fn round(
             }),
         };
         let mut ctx = ctx_of(&args, inputs, spec, stop.clone());
-        ctx.reply_tokens = u64::from(halvo_route_wire::MAX_OUTPUT_TOKENS);
+        // r3 U0.8b: the door refuses an answer that its limit cut (`cut`), so no count of tokens is
+        // held against a bound in the round's reply rule.
+        ctx.reply_tokens = None;
+        let before = spend.lock().map(|s| s.ends()).unwrap_or_default();
         let began = std::time::Instant::now();
         let cause = cell(args, ctx, out, plant).await;
         eprintln!(
             "round cell task={task} seed={seed} ms={}",
             began.elapsed().as_millis()
         );
+        let after = spend.lock().map(|s| s.ends()).unwrap_or_default();
+        out(&lines::ends(
+            &cell_lines,
+            after[0].saturating_sub(before[0]),
+            after[1].saturating_sub(before[1]),
+        ));
         dirs.push(dir);
         if cause.is_some() {
             stopped = cause;
@@ -676,7 +692,7 @@ fn round_main(argv: &[String]) -> ExitCode {
                 match host::Host::start(
                     port,
                     Some(r.run_dir.join("host-requests.txt")),
-                    host::Walk::Right,
+                    host::Walk::Ends,
                 ) {
                     Ok(h) => Some(h),
                     Err(e) => {
@@ -1012,6 +1028,8 @@ mod tests {
                 vec![
                     "notrun model=standin_host machine=test task=bill seed=1 cause=ceiling"
                         .to_string(),
+                    "ends model=standin_host machine=test task=bill seed=1 cut=0 declined=0"
+                        .to_string(),
                     "spend tier=frontier requests=0 spent_micro=0 ceiling_minor=1".to_string()
                 ],
                 0
@@ -1103,6 +1121,99 @@ mod tests {
         );
     }
 
+    /// r3 U0.8b: `--cell <task>:<seed>` makes a round of that one cell of `CELLS`, and hosted.sh
+    /// refuses it beside `--standin`, whose control reads all nine cells, before it builds or starts
+    /// anything.
+    #[test]
+    fn the_cell_argument_runs_one_cell_and_is_refused_beside_standin() {
+        let base: Vec<String> = [
+            "--repo",
+            "r",
+            "--model",
+            "standin_host",
+            "--settings",
+            "s",
+            "--browser",
+            "b",
+            "--port",
+            "18471",
+            "--machine",
+            "test",
+            "--run-dir",
+            "d",
+            "--door",
+            "x",
+            "--tier",
+            "frontier",
+            "--ceiling",
+            "2000",
+            "--key-file",
+            "k",
+            "--origin",
+            "http://127.0.0.1:47201",
+        ]
+        .iter()
+        .map(|a| a.to_string())
+        .collect();
+        let with = |cell: &str| {
+            let mut a = base.clone();
+            a.extend(["--cell".to_string(), cell.to_string()]);
+            parse_round(&a).map(|r| r.cells)
+        };
+        let refused: Vec<bool> = ["fill:1", "bill:4", "bill", "bill:1:2", ""]
+            .iter()
+            .map(|c| with(c).is_err())
+            .collect();
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("..");
+        let hosted = |cell: &str| {
+            let ran = std::process::Command::new("sh")
+                .args([
+                    "tools/r3-trials/drive/hosted.sh",
+                    "--standin",
+                    "--cell",
+                    cell,
+                ])
+                .current_dir(&repo)
+                .output()
+                .expect("sh runs hosted.sh");
+            (
+                ran.status.code(),
+                String::from_utf8_lossy(&ran.stdout).into_owned(),
+                String::from_utf8_lossy(&ran.stderr).into_owned(),
+            )
+        };
+        assert_eq!(
+            (
+                parse_round(&base).map(|r| r.cells),
+                with("bill:2"),
+                with("reply:3"),
+                refused,
+                hosted("bill:1"),
+                hosted(""),
+            ),
+            (
+                Ok(CELLS.to_vec()),
+                Ok(vec![("bill", 2)]),
+                Ok(vec![("reply", 3)]),
+                vec![true; 5],
+                (
+                    Some(2),
+                    String::new(),
+                    "REFUSED usage: --cell is not taken with --standin: the control reads all nine cells\n"
+                        .to_string(),
+                ),
+                (
+                    Some(2),
+                    String::new(),
+                    "REFUSED usage: --cell takes bill:1 to reply:3\n".to_string(),
+                ),
+            )
+        );
+    }
+
     #[test]
     #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
     fn a_round_sends_no_request_past_its_bound() {
@@ -1135,7 +1246,7 @@ mod tests {
         let tail: Vec<&str> = lines
             .iter()
             .rev()
-            .take(2)
+            .take(3)
             .rev()
             .map(String::as_str)
             .collect();
@@ -1147,6 +1258,7 @@ mod tests {
                 drives,
                 replies,
                 tail.first().copied(),
+                tail.get(1).copied(),
                 tail.last()
                     .is_some_and(|l| l.starts_with("spend tier=frontier requests=53 "))
             ),
@@ -1157,7 +1269,60 @@ mod tests {
                 6,
                 2,
                 Some("notrun model=standin_host machine=test task=reply seed=3 cause=requests"),
+                Some("ends model=standin_host machine=test task=reply seed=3 cut=0 declined=0"),
                 true
+            ),
+            "lines: {lines:?}"
+        );
+    }
+
+    /// r3 U0.8b: where the door answers `cut` or `declined`, the round counts it in the cell's `ends`
+    /// line and as no ask that the model failed. The walk `Ends` of the scripted host cuts the first
+    /// action ask and declines the second (both in the compile of bill seed 1) and cuts the first ask
+    /// for a reply body: the compile asks again and passes, the cut message gets no body while the
+    /// write goes on to the next, and the spend line counts every request that the host received.
+    #[test]
+    #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
+    fn the_round_counts_the_hosts_two_ends_apart_from_a_failed_ask() {
+        let b = bench("ends");
+        let host = host::Host::start(0, None, host::Walk::Ends).expect("the scripted host");
+        let r = round_of(&b, 18495, &[("bill", 1), ("reply", 1)]);
+        let key = model::Key::of(b"u08-test-key-made-up-not-a-host-key").expect("a key");
+        let (lines, cause) = run(&r, key, &host, None, None);
+        let requests = format!(" requests={} ", host.received().len());
+        assert_eq!(
+            (
+                cause,
+                lines
+                    .iter()
+                    .filter(|l| l.starts_with("drive ")
+                        && l.contains(" compile=ok replays_ok=3 of=3 recover=ok ")
+                        && l.ends_with(" typed_credential=0 effects_without_confirm=0"))
+                    .count(),
+                lines
+                    .iter()
+                    .filter(|l| l.starts_with("reply ") && l.contains(" seed=1 bodies=1 of=2 "))
+                    .count(),
+                lines
+                    .iter()
+                    .filter(|l| l.starts_with("ends "))
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                lines
+                    .iter()
+                    .any(|l| l.starts_with("spend ") && l.contains(&requests)),
+            ),
+            (
+                None,
+                1,
+                1,
+                vec![
+                    "ends model=standin_host machine=test task=bill seed=1 cut=1 declined=1"
+                        .to_string(),
+                    "ends model=standin_host machine=test task=reply seed=1 cut=1 declined=0"
+                        .to_string(),
+                ],
+                true,
             ),
             "lines: {lines:?}"
         );

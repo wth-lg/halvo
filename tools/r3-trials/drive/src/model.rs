@@ -95,6 +95,8 @@ pub struct Spend {
     ceiling_minor: u64,
     holds: u64,
     bound: u64,
+    /// The requests that the door answered with the refusal `cut`, then `declined` (r3 U0.8b).
+    ends: [u64; 2],
 }
 
 impl Spend {
@@ -113,7 +115,13 @@ impl Spend {
             ceiling_minor,
             holds: 0,
             bound: REQUESTS_MAX,
+            ends: [0, 0],
         })
+    }
+
+    /// The requests so far that the door answered `cut` and `declined`, in that order.
+    pub fn ends(&self) -> [u64; 2] {
+        self.ends
     }
 
     /// The count with `bound` in the place of `REQUESTS_MAX`: a test's own lower bound.
@@ -205,8 +213,14 @@ enum Settle {
 }
 
 /// The door's causes of a refusal after which the request may have left: the request went out and
-/// no usage came back.
-const LEFT: [&str; 3] = ["no_answer", "status", "answer"];
+/// no usage came back. `cut` and `declined` are the host's answers that the door gives no text of
+/// (r3 U0.8b): the host answered, and the door's refusal carries none of its counts.
+const LEFT: [&str; 5] = ["no_answer", "status", "answer", "cut", "declined"];
+
+/// The door's two refusals for an answer that the host ended without one (r3 U0.8b): an answer
+/// that the output limit cut, and one that the host declined. A run counts them apart from the
+/// asks that the model failed.
+pub const ENDS: [&str; 2] = ["cut", "declined"];
 
 /// The user's text of the door: the prompt, then the snapshot between the two marker lines of A9.5,
 /// as the door makes it (halvo-model's `user_text`).
@@ -471,6 +485,11 @@ impl Child {
             };
             if let Ok(mut spend) = h.spend.lock() {
                 spend.settle(hold, &end);
+                if let Err(Fault::Refused(cause)) = &parsed {
+                    if let Some(at) = ENDS.iter().position(|end| end == cause) {
+                        spend.ends[at] += 1;
+                    }
+                }
             }
         }
         parsed
