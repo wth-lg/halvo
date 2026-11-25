@@ -3,19 +3,23 @@ use std::path::PathBuf;
 
 use halvo_control::paths::{DataDir, PathError};
 use halvo_schema::executable::day::UTC_OFFSET_S_MAX;
-use halvo_schema::executable::names::Mode;
+use halvo_schema::executable::names::{Mode, ModelTier};
 use halvo_schema::executable::RunId;
 use halvo_schema::{AgentId, WorkflowId};
 
 /// The arguments of A6.1: `--run <run id> --agent <agent id> --workflow <workflow id> --mode compile|replay
-/// --utc-offset SECONDS [--browser PATH] [--model FILE] [--headed]`, each once, in any order, and `[--data-dir DIR]`,
+/// --utc-offset SECONDS [--browser PATH] [--model FILE] [--headed] [--hosted low_cost_hosted|frontier]`, each once,
+/// in any order, and `[--data-dir DIR]`,
 /// Halvo's data directory, whose `agents/locks/` the file steps lock (the coordinator's ruling CP-134). The supervisor
 /// library passes `--data-dir` with the directory that its caller resolved (U4.7); the argument stays optional here,
 /// as A6.1 writes it, and a file step or a web step of a runner without it fails with `step_failed`. It keeps
 /// `--browser` and `--headed`, which the start of the run's browser takes at its first web step (crate::web); a run
-/// given no `--browser` finds the person's browser there (crate::find, U9.10). This build starts no model, so it
-/// checks the form of `--model` and keeps it not. A build with the feature `loopback`, and the crate's unit tests, take
-/// one argument more, `--stand-in-person` (`STAND_IN_PERSON`); every other build refuses it as an unknown argument.
+/// given no `--browser` finds the person's browser there (crate::find, U9.10). This build loads no model on the
+/// computer, so it checks the form of `--model` and keeps it not. `--hosted` names the hosted tier that the person
+/// allowed this agent to use, as the supervisor library writes it from its start's field `hosted` (r3 U7.2a), and a
+/// compile of an agent at a hosted tier that it does not name hands its work back and asks for no key and holds no
+/// cost (crate::model). A build with the feature `loopback`, and the crate's unit tests, take one argument more,
+/// `--stand-in-person` (`STAND_IN_PERSON`); every other build refuses it as an unknown argument.
 #[derive(Debug)]
 pub(crate) struct Args {
     pub run: RunId,
@@ -37,6 +41,8 @@ pub(crate) struct Args {
     /// Whether a person can answer a handback at a sign-in: `--headed` was given, or, in a build of the tests alone,
     /// `--stand-in-person`. Where none can, a credential field ends the run (`Runner::no_window`, r3 U5.15r).
     pub person: bool,
+    /// The hosted tier of `--hosted`, the person's agreement to that tier; none without the argument.
+    pub hosted: Option<ModelTier>,
 }
 
 /// The switch of the tests' builds alone (r3 U5.15r, the coordinator's ruling of log line 16634 (1)): it says that a
@@ -67,7 +73,7 @@ fn stand_in_person(_: &OsString, _: &mut bool) -> Result<bool, Usage> {
 /// The detail of a refusal with the cause `usage`.
 pub(crate) type Usage = &'static str;
 
-const KEYS: [&str; 8] = [
+const KEYS: [&str; 9] = [
     "--run",
     "--agent",
     "--workflow",
@@ -76,9 +82,10 @@ const KEYS: [&str; 8] = [
     "--model",
     "--data-dir",
     "--utc-offset",
+    "--hosted",
 ];
 
-const TWICE: [Usage; 8] = [
+const TWICE: [Usage; 9] = [
     "--run twice",
     "--agent twice",
     "--workflow twice",
@@ -87,7 +94,17 @@ const TWICE: [Usage; 8] = [
     "--model twice",
     "--data-dir twice",
     "--utc-offset twice",
+    "--hosted twice",
 ];
+
+/// The tier of `--hosted`: `low_cost_hosted` or `frontier`, or the detail of its refusal.
+fn hosted(value: &OsString) -> Result<ModelTier, Usage> {
+    const NOT_HOSTED: Usage = "--hosted is not a hosted tier";
+    ModelTier::parse(text(value, NOT_HOSTED)?)
+        .ok()
+        .filter(|tier| *tier != ModelTier::OnDevice)
+        .ok_or(NOT_HOSTED)
+}
 
 /// The detail of a `--utc-offset` that is no whole number from -50,400 to 50,400 in the decimal form that `i32`
 /// writes, which has no sign before a positive number and no leading zero.
@@ -145,7 +162,7 @@ pub(crate) fn asks_sheet_names(args: &[OsString]) -> Option<Result<&OsString, Us
 
 /// Reads the arguments, or the detail of the refusal `usage`.
 pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
-    let mut values: [Option<&OsString>; 8] = [None; 8];
+    let mut values: [Option<&OsString>; 9] = [None; 9];
     let mut headed = false;
     let mut stand_in = false;
     let mut at = args.iter();
@@ -170,7 +187,7 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
             return Err(TWICE[index]);
         }
     }
-    let [run, agent, workflow, mode, browser, _model, data_dir, offset] = values;
+    let [run, agent, workflow, mode, browser, _model, data_dir, offset, hosted_tier] = values;
     let run = run.ok_or("no --run")?;
     let agent = agent.ok_or("no --agent")?;
     let workflow = workflow.ok_or("no --workflow")?;
@@ -189,6 +206,7 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
         browser: browser.map(PathBuf::from),
         headed,
         person: headed || stand_in,
+        hosted: hosted_tier.map(hosted).transpose()?,
     })
 }
 

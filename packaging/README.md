@@ -1,10 +1,11 @@
 # Packaging
 
 This directory holds what the packaging of the app reads. One command builds the
-Mac app bundle, sealed ad hoc, with four helpers inside it, and one disk image
+Mac app bundle, sealed ad hoc, with five helpers inside it, and one disk image
 that holds the bundle. The helpers are the capture daemon `halvo-capture`, the
-owner of the derived store `halvo-owner`, the analysis worker `halvo-analysis`
-and the runner of an agent `halvo-runner`:
+owner of the derived store `halvo-owner`, the analysis worker `halvo-analysis`,
+the runner of an agent `halvo-runner` and the door to a model's host
+`halvo-model`:
 
 ```sh
 npm run tauri build -- -- --locked
@@ -16,7 +17,9 @@ It writes `target/release/bundle/macos/Halvo.app` and the disk image
 binary of the Tauri bundler. The daemon starts `halvo-owner` and `halvo-analysis`
 from the directory of its own binary, so they ship beside it. On a Mac the app
 looks for `halvo-runner` beside its own executable when a person starts an agent,
-so the runner ships there too. The check `scripts/r1/ci.d/70-package-macos.sh`
+so the runner ships there too. The runner looks for `halvo-model` beside its own
+executable when it starts the door, so the door ships there too. The check
+`scripts/r1/ci.d/70-package-macos.sh`
 builds the bundle by that command and reads it, and it fails when
 `Contents/MacOS` holds an entry other than `halvo` and the helpers. It also
 copies the app out of the disk image, starts the copy hidden on a scratch data
@@ -46,7 +49,7 @@ version=none
 `sh scripts/r1/ci.d/62-build.sh --files`, by which check 70 reads what it built,
 starts each file with `--version`. It reads a helper with that fourth line for
 the markers and the imports as every other file, and does not start it. The
-files of `halvo-owner` and `halvo-analysis` hold the line.
+files of `halvo-owner`, `halvo-analysis` and `halvo-model` hold the line.
 
 For `build` and `bundle`, and for no other command of the Tauri CLI,
 `scripts/tauri.js` does this in order:
@@ -58,7 +61,7 @@ For `build` and `bundle`, and for no other command of the Tauri CLI,
 3. For each helper it runs, at the repository root,
    `cargo build --release --locked --manifest-path <manifest> -p <package> --bin <bin>`,
    with no feature and no test target. These are the same builds as the second
-   to the fifth call of `scripts/r1/ci.d/62-build.sh`, so cargo builds the
+   to the sixth call of `scripts/r1/ci.d/62-build.sh`, so cargo builds the
    dependencies once for both.
 4. It copies the built binary to `target/helpers/<name>-<triple>`, with `.exe` at
    the end on Windows. It copies only when the bytes differ.

@@ -7,7 +7,7 @@ use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::{
     Done, Handback, HandbackReply, Hello, Progress, ReplyError, Store, StoreReplyFrame,
 };
-use halvo_schema::executable::names::{HandbackReason, LogEvent, Runtime, StepKind};
+use halvo_schema::executable::names::{HandbackReason, LogEvent, Mode, Runtime, StepKind};
 use halvo_schema::executable::step::{Target, WebTarget};
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
@@ -117,6 +117,15 @@ pub(crate) struct Runner {
     /// The roots under which a run given no `--browser` finds the person's browser (crate::find): this system's, and
     /// none in a unit test unless the test gives some.
     pub(crate) roots: crate::find::Roots,
+    /// The hosted model of a compile that may ask one, its tier, the person's key and its door (crate::model).
+    pub(crate) hosted: Option<crate::model::Hosted>,
+    /// The stand-in door that a unit test gives in the place of halvo-model beside the runner.
+    #[cfg(test)]
+    pub(crate) stand_in_door: Option<crate::model::ask::Place>,
+    /// The requests that a unit test's stand-in drive asks after the check of a compile, in the place of the drive
+    /// of r3 U7.2b.
+    #[cfg(test)]
+    pub(crate) drive: Vec<crate::model::ask::ModelRequest>,
 }
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
@@ -134,13 +143,14 @@ impl Runner {
         self.end(end)
     }
 
-    /// Ends the run after `end`: the sign-ins of its origins stored where the link holds, the browser stopped, then
-    /// the run's end written.
+    /// Ends the run after `end`: the sign-ins of its origins stored where the link holds, the browser stopped, the
+    /// door of its hosted model ended (crate::model), then the run's end written.
     pub(crate) fn end(mut self, end: Result<Outcome, Stop>) -> i32 {
         if !matches!(end, Err(Stop::Link(_))) {
             self.keep_sessions();
         }
         self.stop_browser();
+        self.end_door();
         self.close(end)
     }
 
@@ -176,6 +186,11 @@ impl Runner {
             roots: crate::find::Roots::of_this_system(),
             #[cfg(test)]
             roots: crate::find::Roots::default(),
+            hosted: None,
+            #[cfg(test)]
+            stand_in_door: None,
+            #[cfg(test)]
+            drive: Vec::new(),
         }
     }
 
@@ -187,6 +202,13 @@ impl Runner {
         }))?;
         let loaded = self.load()?;
         self.check()?;
+        if self.args.mode == Mode::Compile {
+            self.hosted_model(&loaded.config)?;
+            #[cfg(test)]
+            for request in std::mem::take(&mut self.drive) {
+                self.ask(&request)?;
+            }
+        }
         let steps = self.playbook(&loaded)?;
         let of = NonZeroU32::new(steps.len() as u32).unwrap_or(NonZeroU32::MIN);
         for step in &steps {
