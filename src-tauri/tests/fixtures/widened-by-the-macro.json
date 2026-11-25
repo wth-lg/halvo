@@ -34,6 +34,7 @@
     "allow-approve-workflow",
     "allow-dismiss-workflow",
     "allow-delete-workflow",
+    "allow-set-up-sheet-agent",
     "allow-model-key-state",
     "allow-save-model-key",
     "allow-remove-model-key",

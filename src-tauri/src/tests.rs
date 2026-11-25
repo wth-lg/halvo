@@ -630,11 +630,12 @@ const UNIT_PERMISSIONS: [&str; 16] = [
     "core:app:allow-version",
 ];
 
-const WORKFLOWS_PERMISSIONS: [&str; 4] = [
+const WORKFLOWS_PERMISSIONS: [&str; 5] = [
     "allow-workflows",
     "allow-approve-workflow",
     "allow-dismiss-workflow",
     "allow-delete-workflow",
+    "allow-set-up-sheet-agent",
 ];
 
 fn permission_names(permissions: &Value) -> BTreeSet<String> {
@@ -739,7 +740,7 @@ fn is_refused(reply: &Result<Value, Value>) -> bool {
 #[test]
 fn every_command_of_the_manifests_answers_from_the_window_main_at_the_app_origin_alone() {
     let commands = manifest_commands();
-    assert_eq!(commands.len(), 199, "commands of the generated manifests");
+    assert_eq!(commands.len(), 200, "commands of the generated manifests");
     let test = test_app(scratch_dir("every-command"));
     let main = main_window(&test.app);
     let other = WebviewWindowBuilder::new(

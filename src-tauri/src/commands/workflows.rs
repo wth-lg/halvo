@@ -225,16 +225,26 @@ pub enum DecisionError {
     Other(ActionError),
 }
 
-/// The id of a request, from 16 bytes of the keys of std's `RandomState`, which the system seeds
-/// per process, as halvo-agent-gate mints an id. The owner keeps no log of request ids.
-fn request_id() -> RequestId {
+/// 16 bytes of the keys of std's `RandomState`, which the system seeds per process, as
+/// halvo-agent-gate mints an id.
+fn random_bytes() -> [u8; 16] {
     let mut bytes = [0u8; 16];
     for half in bytes.chunks_mut(8) {
         let mut hasher = RandomState::new().build_hasher();
         hasher.write_u8(0);
         half.copy_from_slice(&hasher.finish().to_le_bytes());
     }
-    RequestId::from_random(bytes)
+    bytes
+}
+
+/// The id of a request, from `random_bytes`. The owner keeps no log of request ids.
+fn request_id() -> RequestId {
+    RequestId::from_random(random_bytes())
+}
+
+/// The id of the workflow that the person sets up by hand, minted as a request id is.
+fn workflow_id() -> WorkflowId {
+    WorkflowId::from_random(random_bytes())
 }
 
 /// What a request got.
@@ -364,8 +374,9 @@ pub fn decide(
         Asked::Owner(Err(ErrorName::State)) if decision == Decision::Delete => {
             Err(DecisionError::InUse)
         }
-        // An approval or a dismissal of a workflow that is no longer proposed counts as done:
-        // the page reads again and shows what is stored.
+        // An approval or a dismissal of a workflow that is no longer proposed, and a set-up by
+        // hand where a workflow set up by hand already stands, count as done: the page reads
+        // again and shows what is stored.
         Asked::Owner(Err(ErrorName::State)) => Ok(()),
         Asked::Owner(_) | Asked::NoReply => Err(DecisionError::Other(ActionError::BrokenReply)),
         // No daemon, or one that does not know the request: nothing was decided.
@@ -475,6 +486,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         approve_workflow,
         dismiss_workflow,
         delete_workflow,
+        set_up_sheet_agent,
     ];
     handle(invoke)
 }
@@ -515,4 +527,13 @@ pub async fn delete_workflow(
     workflow: String,
 ) -> Result<(), DecisionError> {
     decided(&state, Decision::Delete, workflow).await
+}
+
+/// Sets up the spreadsheet agent by hand: sends the decision `set_up` for a workflow id that it
+/// mints, and answers as `approve_workflow` does. It takes no argument. The store's answer
+/// `state`, which it gives where a workflow that was set up by hand already stands, counts as
+/// done: the page reads again and shows what is stored.
+#[tauri::command]
+pub async fn set_up_sheet_agent(state: State<'_, AppState>) -> Result<(), DecisionError> {
+    decided(&state, Decision::SetUp, workflow_id().as_str().to_owned()).await
 }
