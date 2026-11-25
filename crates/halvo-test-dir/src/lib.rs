@@ -4,9 +4,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[cfg(test)]
-mod tests;
-
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 /// Longest name that [`make`] takes, in bytes.
