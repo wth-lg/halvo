@@ -352,7 +352,7 @@ impl Runner {
     /// of the settle, also where the request failed or the key's read ended the run. A run that holds no hosted
     /// model asks nothing and ends `handed_back` with `no_agreement`. A request that got no answer ends the run
     /// `failed` with `step_failed` after its settle. `ask` takes the router's pick for the request (`picked`, which
-    /// crate::route's `pick` alone makes, so that a caller that did not pick does not compile) and reads the request
+    /// crate::route's `picked` alone makes, so that a caller that did not pick does not compile) and reads the request
     /// line's level from it; a pick of a tier other than the run's hosted tier, and a pick for a kind of call whose
     /// grammar is not the request's (a compile asks in the grammar `action`, a writer in the grammar `text`), end the
     /// run `failed` with `step_failed` before the hold, and the hold and the door keep the run's hosted tier.
