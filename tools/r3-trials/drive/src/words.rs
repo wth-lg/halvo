@@ -8,6 +8,12 @@ use crate::action::{Action, Refused};
 /// The question of a compile request.
 pub const NEXT: &str = "Give the next action.";
 
+/// The fixed text of the action's form (r3 U0.8d): the hosted form puts it behind the boundary text
+/// in the `system` of an ask of the grammar `action`, because the door sends no grammar to a host.
+/// A template of the five keys of A12.4, true of `action::parse` and of the grammar file
+/// tools/r3-trials/model/grammars/action.gbnf; it holds no ref of a page and no example object.
+pub const ACTION_FORM_HOSTED: &str = "Write each action as one JSON object and nothing else: no word before or after it and no code fence around it. The object has exactly the five keys of this template, and each value is a string in double quotes or null:\n{\"action\":ACTION,\"ref\":REF,\"slot\":SLOT,\"key\":KEY,\"name\":NAME}\nACTION is one of \"click\", \"fill\", \"select\", \"press\", \"extract\", \"handback\" and \"done\". REF is a ref. A ref is the first word of a page line. SLOT and NAME are names of 1 to 32 lower-case letters, digits and _. KEY is \"Enter\", \"Tab\" or \"Escape\". A click names REF; a fill and a select name REF and SLOT; a press names REF and KEY; an extract names REF and NAME; a handback and a done name none of them. A value that the action does not name is null.";
+
 /// The first line of a compile's list: the harness opened the start page.
 pub const NAVIGATE_START: &str = "navigate start";
 

@@ -1156,6 +1156,57 @@ mod tests {
         );
     }
 
+    /// r3 U0.8d: the door's ask of the grammar `action` carries the fixed text of the action's form
+    /// behind the boundary text, its ask of `text` does not, and the local child's line for `action`
+    /// is, byte for byte, the line that the tree wrote before the unit.
+    #[test]
+    fn the_door_ask_of_an_action_carries_its_form_and_the_local_ask_is_pinned() {
+        let snapshot = Some("e1 button \"Pay\"");
+        let system_in = |line: &str| -> String {
+            let value: serde_json::Value = serde_json::from_str(line).expect("a request line");
+            value["system"].as_str().unwrap_or_default().to_string()
+        };
+        assert_eq!(
+            (
+                system_in(&model::ask_line(true, 2, "Boundary.", "Pay.", snapshot, "action")),
+                system_in(&model::ask_line(true, 3, "Boundary.", "Write.", None, "text")),
+                model::ask_line(false, 4, "Boundary.", "Pay.", snapshot, "action"),
+            ),
+            (
+                format!("Boundary.\n\n{}", words::ACTION_FORM_HOSTED),
+                "Boundary.".to_string(),
+                r#"{"id":4,"system":"Boundary.","prompt":"Pay.","snapshot":"e1 button \"Pay\"","grammar":"action","level":"medium"}"#
+                    .to_string(),
+            )
+        );
+    }
+
+    /// r3 U0.8d: against a scripted host that answers an action ask in words unless the request's
+    /// `system` holds the fixed text of the action's form, the one cell compiles, replays and
+    /// recovers. Before the unit every action reply was refused `action_form` and the compile ended
+    /// at the cap of asks, as in the pilot of r3 U0.9.
+    #[test]
+    #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
+    fn the_hosted_ask_of_an_action_tells_the_model_its_form() {
+        let b = bench("form");
+        let host = host::Host::start(0, None, host::Walk::Words).expect("the scripted host");
+        let r = round_of(&b, 18496, &[("bill", 1)]);
+        let key = model::Key::of(b"u08-test-key-made-up-not-a-host-key").expect("a key");
+        let (lines, cause) = run(&r, key, &host, None, None);
+        let drive: Vec<&String> = lines.iter().filter(|l| l.starts_with("drive ")).collect();
+        assert_eq!(
+            (
+                cause,
+                drive.len(),
+                drive
+                    .iter()
+                    .all(|l| l.contains(" compile=ok replays_ok=3 of=3 recover=ok ")),
+            ),
+            (None, 1, true),
+            "lines: {lines:?}"
+        );
+    }
+
     /// r3 U0.8b: `--cell <task>:<seed>` makes a round of that one cell of `CELLS`, and hosted.sh
     /// refuses it beside `--standin`, whose control reads all nine cells, before it builds or starts
     /// anything.

@@ -1,0 +1,1 @@
+- Changed: (agents run, U0.8d) The hosted driver trial tells a hosted model the form of an action: its ask of the grammar `action` to the door carries one fixed text, a template of the five keys of the action object, behind the boundary text; an ask of `text`, the local child's requests and the pinned prompt files are unchanged.
