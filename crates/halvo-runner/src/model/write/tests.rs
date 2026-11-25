@@ -1097,13 +1097,18 @@ fn with_no_writer_no_agreement_or_the_cap_reached_the_body_is_the_const_text_and
         let record = halvo_test_dir::make(&dir, "record").expect("the record directory");
         let mailbox = Mailbox::start(vec![message("m1", "Can we meet on Friday? [plain]")]);
         let seen = run_once(&setup, &mailbox, &record);
+        let frames = seen.model_frames();
         println!(
-            "{name}: model frames {:?} door starts {} end {:?}",
-            seen.model_frames(),
+            "{name}: request lines {} key asks {} holds {} settles {} door starts {} drafts {:?} end {:?}",
+            request_lines(&record).len(),
+            frames.iter().filter(|f| **f == "secret").count(),
+            frames.iter().filter(|f| **f == "hold").count(),
+            frames.iter().filter(|f| **f == "settle").count(),
             starts(&record),
+            mailbox.patches(),
             seen.end()
         );
-        assert_eq!(seen.model_frames(), model, "{name}: the model's frames");
+        assert_eq!(frames, model, "{name}: the model's frames");
         assert_eq!(starts(&record), 0, "{name}: no door");
         assert!(request_lines(&record).is_empty(), "{name}: no request line");
         assert_eq!(
