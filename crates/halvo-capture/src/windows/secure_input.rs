@@ -5986,6 +5986,13 @@ mod tests {
                 Some(Kept::Leave),
             ),
             (
+                "the kept element where a read of it would say that it is no password field",
+                Same,
+                FieldState::Clear,
+                None,
+                Some(Kept::Leave),
+            ),
+            (
                 "a native password field of the window in front",
                 Other,
                 Password,
