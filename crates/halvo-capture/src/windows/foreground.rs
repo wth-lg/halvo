@@ -161,6 +161,27 @@ pub(crate) fn hosted_pid(frame_pid: u32, child_pids: &[u32]) -> Option<u32> {
         .find(|&pid| pid != 0 && pid != frame_pid)
 }
 
+/// The program inside a frame of the frame host, from the processes of the
+/// windows on the line from the focus window up to the frame, the focus
+/// window first.
+pub(crate) fn program_on_the_focus_line(host_pid: u32, line: &[u32]) -> Option<u32> {
+    hosted_pid(host_pid, line)
+}
+
+/// The app of a window of the frame host whose process is `host_pid`: the
+/// program inside it with that program's path where one is found.
+pub(crate) fn front_of_a_frame(
+    host_pid: u32,
+    program: Option<u32>,
+    path_of: impl Fn(u32) -> Option<String>,
+) -> FrontApp {
+    let pid = program.unwrap_or(host_pid);
+    FrontApp {
+        pid,
+        path: path_of(pid),
+    }
+}
+
 pub(crate) fn is_frame_host(path: &str) -> bool {
     let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
     name.eq_ignore_ascii_case("ApplicationFrameHost.exe")
@@ -314,12 +335,8 @@ pub(crate) fn resolve_front(hwnd: HWND) -> Option<FrontApp> {
     }
     let path = process_path(pid);
     if path.as_deref().is_some_and(is_frame_host) {
-        if let Some(hosted) = hosted_pid(pid, &child_pids(hwnd)) {
-            return Some(FrontApp {
-                pid: hosted,
-                path: process_path(hosted),
-            });
-        }
+        let program = program_on_the_focus_line(pid, &child_pids(hwnd));
+        return Some(front_of_a_frame(pid, program, process_path));
     }
     Some(FrontApp { pid, path })
 }
@@ -488,6 +505,39 @@ mod tests {
         ));
         assert!(is_frame_host("applicationframehost.EXE"));
         assert!(!is_frame_host("C:\\Windows\\explorer.exe"));
+    }
+
+    #[test]
+    fn a_frame_names_the_outermost_program_on_the_focus_line_and_never_its_host() {
+        const HOST: u32 = 40;
+        let path_of = |pid: u32| {
+            Some(match pid {
+                HOST => "C:\\Windows\\System32\\ApplicationFrameHost.exe".to_string(),
+                pid => format!("C:\\apps\\program-{pid}.exe"),
+            })
+        };
+        let picks = [
+            program_on_the_focus_line(HOST, &[77]),
+            program_on_the_focus_line(HOST, &[90, 77]),
+            program_on_the_focus_line(HOST, &[90, 77, HOST]),
+            program_on_the_focus_line(HOST, &[HOST]),
+            program_on_the_focus_line(HOST, &[]),
+        ];
+        assert_eq!(picks, [Some(77), Some(77), Some(77), None, None]);
+        assert_eq!(
+            front_of_a_frame(HOST, Some(77), path_of),
+            FrontApp {
+                pid: 77,
+                path: Some("C:\\apps\\program-77.exe".to_string()),
+            }
+        );
+        assert_eq!(
+            front_of_a_frame(HOST, None, path_of),
+            FrontApp {
+                pid: HOST,
+                path: None,
+            }
+        );
     }
 
     #[test]
