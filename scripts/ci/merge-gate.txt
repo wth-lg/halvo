@@ -3,7 +3,10 @@
 # it runs the red control, scripts/ci/red-control, a check that always fails, and goes on only when
 # the driver's run of it failed.
 # A line is a job, macos or windows, a blank and the name of a check of that job.
-# Every other check that CI runs, and every self-test, stands in a slice of scripts/ci/slices.txt.
+# Every other check that CI runs stands in a slice of scripts/ci/slices.txt, which runs only by
+# hand, or runs only when a run by hand names it. No slice names a self-test: a step of
+# .github/workflows/ci.yml that names a self-test runs it, and a run by hand with the input checks
+# runs each named check with its self-test first.
 # The run of both jobs ends in under 1,200 s. Before you add a line, name the seconds of the check
 # in that job and what it protects; scripts/ci/README.md, The merge gate, holds the measured seconds.
 # 11-clippy stands in the windows list alone; the lint of the macos job runs in the slice wed2.

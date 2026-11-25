@@ -12,7 +12,7 @@
 #            units   unit tests, as <package> for all of them or <package>::<module path> for a group
 #   place    gate       the merge gate runs it, on every push and pull request (scripts/ci/merge-gate.txt;
 #                       for a test: 12-test runs it in the form of the merge gate)
-#            scheduled  a slice runs it, once a week and in a run by hand (scripts/ci/slices.txt; for a
+#            scheduled  a slice runs it, in a run by hand of that slice (scripts/ci/slices.txt; for a
 #                       test: 12-test runs it in the group form, by its group in scripts/ci/slow-tests.txt)
 #            by-hand    no run of CI runs it: the carrier of a unit that touches its part runs it, and the
 #                       coordinator before a build is named (scripts/ci/README.md, The merge gate)
