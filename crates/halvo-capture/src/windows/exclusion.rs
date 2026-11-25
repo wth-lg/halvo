@@ -460,9 +460,10 @@ pub(crate) trait ChromeTreeReads {
 /// What the query tells of a Chrome window by `reads`, in this order: the
 /// panes, and nothing more where they tell no ordinary window; then the
 /// buttons and the toolbars; then the panes once more, which must tell an
-/// ordinary window too, so that a pane that bore the title of a child widget
-/// of the window while the buttons and the toolbars were read keeps no title;
-/// answered by [`chrome_window_answer`]; `None` where a read gives no answer.
+/// ordinary window too, so that a window whose pane bore a child widget's
+/// title at the first read, with the browser's own toolbar read behind it, and
+/// its own marked name at the last read keeps no title; answered by
+/// [`chrome_window_answer`]; `None` where a read gives no answer.
 pub(crate) fn chrome_window_query(reads: &mut impl ChromeTreeReads) -> Option<bool> {
     let panes = reads.panes()?;
     if !pane_tells_an_ordinary_window(&panes) {
@@ -1367,6 +1368,24 @@ mod tests {
             told,
             PrivateWindow::Private,
             "a Guest window whose pane bore a dialog's title at the first read and its own mark behind the toolbar"
+        );
+    }
+
+    #[test]
+    fn the_rules_limit_a_private_mark_behind_a_profiles_name_is_kept() {
+        let toolbars = vec![(
+            vec!["Back", "Forward", "Reload", "Sign in to Chrome?", "Chrome"],
+            false,
+        )];
+        let all = vec!["Back", "Forward", "Reload", "Sign in to Chrome?", "Chrome"];
+        let panes = vec!["", "PAGE - Google Chrome - Person 1 (Guest)"];
+        let told = private_window(Browser::Chrome, "PAGE - Google Chrome", || {
+            chrome_window_answer(&panes, &toolbars, &all)
+        });
+        assert_eq!(
+            told,
+            PrivateWindow::Unknown,
+            "the rule keeps a pane whose name holds a profile's name and a private mark behind it"
         );
     }
 }

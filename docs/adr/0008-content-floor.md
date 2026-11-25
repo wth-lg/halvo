@@ -69,11 +69,14 @@ The limits, which docs/privacy-limits.md states with their sources:
   closing square bracket before the name must not be a closing square bracket. On
   Windows, a title of Edge is stored only where it ends with Edge's name and the last
   letter, digit or closing bracket before the name is not a closing bracket, and a title
-  of Chrome only where the window's toolbar holds a button named Back, Forward or Reload
-  and no button of the window carries the word Incognito. No title of Firefox, Safari or
-  another browser that Halvo knows by name is stored, and the title of a private window
-  of a browser that Halvo does not know as one is stored (macos-4, win-4 and
-  mac-title-ends).
+  of Chrome only where the name that Chrome gives the inside of the window ends with
+  Chrome's own name, alone or followed by a profile's name, which the names of its
+  private and Guest windows, of an app window and of a window with a dialog in front do
+  not, where the browser's own toolbar outside the page holds a button named Back,
+  Forward or Reload, and where no button of the window carries the word Incognito. No
+  title of Firefox, Safari or another browser that Halvo knows by name is stored, and
+  the title of a private window of a browser that Halvo does not know as one is stored
+  (macos-4, win-4, mac-title-ends and win-chrome-guest).
 - A terminal that does not assert secure input gets no protection, so key classes
   and the window title are recorded while a password is typed there (macos-4).
 - Characters and key codes are never stored (core-2's types).

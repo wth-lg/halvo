@@ -171,8 +171,9 @@ Where a sentence names a unit, that unit makes it true.
   before this change the titles of a Guest window were kept, and so were those of an
   Incognito or a Guest window in full screen whose page showed a toolbar of its own. The
   names are those of the Chrome on the machines of those runs: a version of Chrome that
-  named the inside of a private window as it names an ordinary one's, and showed no
-  button with the word Incognito, would have that window's titles kept.
+  named the inside of a private window as it names an ordinary one's, or put the mark of a
+  private window behind a profile's name, and showed no button with the word Incognito,
+  would have that window's titles kept.
 - On Windows, Halvo asks the program in front whether the field with the cursor is a
   password field. While the program says yes, Halvo records no window title. Where a
   program gives no answer, Halvo records the window title, also while you type a
