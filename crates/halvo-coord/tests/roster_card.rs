@@ -6,7 +6,8 @@ use halvo_coord::roster::{card, names, plain_site};
 use halvo_coord::types::fixtures::{facts, State};
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Body, CardEffect, Class, Digest, EffectId, Event, Kept, Limits,
-    Name, Outcome, PastEffect, PastRun, Reply, RunHistory, RunId, Unknown, Workflow, WorkflowId,
+    Name, Outcome, PageCause, PastEffect, PastRun, Reply, RunHistory, RunId, Unknown, Workflow,
+    WorkflowId,
 };
 use halvo_coord::types::{
     Answered, ApprovalId, DecisionEntry, EffectAnswer, ItemId, LapseCause, Lapsed, Raised, RunEnd,
@@ -17,7 +18,7 @@ use serde_json::Value;
 const TRACKED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../ui/tests/fixtures/coord");
 
 /// A committed payment with the four kept fields of its class (A-A9.3), as the fixture of the
-/// state `card` holds it.
+/// state `card` holds it, whose page afterwards was read and matched (r4 U3.29).
 fn payment() -> PastEffect {
     let kept = |name: &str, value: &str| Kept {
         name: Name::parse(name).unwrap(),
@@ -35,7 +36,7 @@ fn payment() -> PastEffect {
             kept("instrument", "Card ending 4242"),
             kept("origin", "https://site1.example:443"),
         ],
-        page: None,
+        page: Some(PageCause::AmountMatched),
     }
 }
 

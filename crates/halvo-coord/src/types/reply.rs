@@ -568,19 +568,23 @@ impl CardEffect {
 
     /// The entry of a committed effect of `class` on which the agents run's read names what the
     /// site's page afterwards gave, `page` (r4 U3.29, rows 1, 2, 11 and 12 of the ruled words of
-    /// the coordinator's log lines 20376, 20377 and 20492): for a `payment` or a `purchase` with a
-    /// cause, `run.effect.<class>.<cause>` with the kept fields as `committed` shows them, but the
-    /// amount under `field.<class>.amount_allowed` and, beside `amount_differs`, the page's amount
-    /// right after it under `field.<class>.page_amount`, written as digits, a point and two
-    /// decimals with no currency sign, and left out where the read holds none; with no cause, or
-    /// for another class, the entry of `committed`. `malformed` where `committed` refuses the kept
-    /// fields.
+    /// the coordinator's log lines 20376, 20377 and 20492): for a `payment` or a `purchase` whose
+    /// page was read and matched, the entry of `committed`, whose sentence says that the page
+    /// showed the allowed amount; for one with another cause, or with none, which reads as a page
+    /// that could not be read (way (a) of the coordinator's log line 20557),
+    /// `run.effect.<class>.<cause>` with the kept fields as `committed` shows them, but the amount
+    /// under `field.<class>.amount_allowed` and, beside `amount_differs`, the page's amount right
+    /// after it under `field.<class>.page_amount`, written as digits, a point and two decimals
+    /// with no currency sign, and left out where the read holds none; for another class, the entry
+    /// of `committed`. `malformed` where `committed` refuses the kept fields.
     pub fn sent(class: Class, kept: &[Kept], page: Option<PageCause>) -> Result<CardEffect, Cause> {
         let plain = CardEffect::committed(class, kept)?;
-        let Some(page) = page.filter(|_| matches!(class, Class::Payment | Class::Purchase)) else {
+        if !matches!(class, Class::Payment | Class::Purchase) {
             return Ok(plain);
-        };
+        }
+        let page = page.unwrap_or(PageCause::PageUnread);
         let case = match page {
+            PageCause::AmountMatched => return Ok(plain),
             PageCause::AmountDiffers { .. } => "amount_differs",
             PageCause::AmountUnread => "amount_unread",
             PageCause::PageUnread => "page_unread",

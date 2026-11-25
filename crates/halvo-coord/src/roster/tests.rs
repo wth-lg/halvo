@@ -458,11 +458,11 @@ fn u323_on_a_day_with_all_its_starts_used_the_row_offers_no_start_now() {
 
 /// r4 U3.29 sentence 2: the card's entry of a payment or an order that left says what the site's
 /// page afterwards gave, from the two keys of the agents run's read on its effect, to the letter of
-/// the ruled rows (the coordinator's log lines 20376, 20377 and 20492): no cause, row 1; the amount
-/// could not be matched, row 2 with the amount that the person allowed under row 9 and the page's
-/// amount under row 10 as digits, a point and two decimals; no amount found, row 11; the page
-/// could not be read, row 12; row 9's label in the last three alone; each for an order in its
-/// twin's words.
+/// the ruled rows (the coordinator's log lines 20376, 20377 and 20492): a page that was read and
+/// matched, row 1 (way (a) of the coordinator's log line 20557); the amount could not be matched,
+/// row 2 with the amount that the person allowed under row 9 and the page's amount under row 10 as
+/// digits, a point and two decimals; no amount found, row 11; the page could not be read, and no
+/// cause, row 12; row 9's label in all but the first; each for an order in its twin's words.
 #[test]
 fn u329_the_card_says_what_the_page_after_a_payment_or_an_order_gave() {
     use crate::types::{Digest, EffectId, Name, Outcome, PageCause};
@@ -473,14 +473,16 @@ fn u329_the_card_says_what_the_page_after_a_payment_or_an_order_gave() {
     };
     let differs = PageCause::AmountDiffers { amount: Some(1334) };
     let rows = [
-        (Class::Payment, None, "It sent this payment, and the site's page afterwards showed the amount you allowed.", vec![("Pay to", "City Power"), ("Amount", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Payment, Some(PageCause::AmountMatched), "It sent this payment, and the site's page afterwards showed the amount you allowed.", vec![("Pay to", "City Power"), ("Amount", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
         (Class::Payment, Some(differs), "It sent this payment, but Halvo could not match the amount on the site's page afterwards to the one you allowed. Check your bank or the site to see what was paid.", vec![("Pay to", "City Power"), ("Amount you allowed", "42.10 USD"), ("Amount on the site's page afterwards", "13.34"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
         (Class::Payment, Some(PageCause::AmountUnread), "It sent this payment, but Halvo found no amount on the site's page afterwards. Check your bank or the site to see whether it was paid, and how much.", vec![("Pay to", "City Power"), ("Amount you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
         (Class::Payment, Some(PageCause::PageUnread), "It sent this payment, but Halvo could not read the site's page afterwards. Check your bank or the site to see whether it was paid, and how much.", vec![("Pay to", "City Power"), ("Amount you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
-        (Class::Purchase, None, "It sent this order, and the site's page afterwards showed the total you allowed.", vec![("Shop", "City Power"), ("Total", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Payment, None, "It sent this payment, but Halvo could not read the site's page afterwards. Check your bank or the site to see whether it was paid, and how much.", vec![("Pay to", "City Power"), ("Amount you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Purchase, Some(PageCause::AmountMatched), "It sent this order, and the site's page afterwards showed the total you allowed.", vec![("Shop", "City Power"), ("Total", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
         (Class::Purchase, Some(differs), "It sent this order, but Halvo could not match the total on the site's page afterwards to the one you allowed. Check the shop's order page to see what was ordered, and for how much.", vec![("Shop", "City Power"), ("Total you allowed", "42.10 USD"), ("Total on the site's page afterwards", "13.34"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
         (Class::Purchase, Some(PageCause::AmountUnread), "It sent this order, but Halvo found no total on the site's page afterwards. Check the shop's order page to see whether it was placed, and for how much.", vec![("Shop", "City Power"), ("Total you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
         (Class::Purchase, Some(PageCause::PageUnread), "It sent this order, but Halvo could not read the site's page afterwards. Check the shop's order page to see whether it was placed, and for how much.", vec![("Shop", "City Power"), ("Total you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Purchase, None, "It sent this order, but Halvo could not read the site's page afterwards. Check the shop's order page to see whether it was placed, and for how much.", vec![("Shop", "City Power"), ("Total you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
     ];
     let mut wrong = Vec::new();
     for (class, page, text, fields) in rows {

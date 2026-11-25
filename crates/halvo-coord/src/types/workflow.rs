@@ -240,9 +240,12 @@ pub struct PastEffect {
 /// What Halvo found on the site's page after a committed payment or order, as the agents run's
 /// read names it on the effect (r4 U3.29): its key `page_cause`, with the page's amount in minor
 /// units of its key `page_amount` beside `amount_differs` alone. A null cause, a missing key and a
-/// name that the read does not list are no `PageCause`.
+/// name that the read does not list are no `PageCause`, which the card reads as a page that could
+/// not be read (way (a) of the coordinator's log line 20557).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PageCause {
+    /// The page was read and named the allowed amount.
+    AmountMatched,
     /// `amount_differs`: the page's amount could not be matched to the allowed amount, with the
     /// first such amount in minor units, or none where the read holds none.
     AmountDiffers {

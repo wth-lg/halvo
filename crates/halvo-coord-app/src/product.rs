@@ -1248,11 +1248,17 @@ fn last_cause_of(entry: &Value) -> Option<LastCause> {
     }
 }
 
+/// The value of an effect's `page_cause` for a page that was read and named the allowed amount (r4 U3.29, way (a) of
+/// the coordinator's log line 20557), as the agents run's read spells it: its one place in this reader.
+const AMOUNT_MATCHED: &str = "amount_matched";
+
 /// What an effect of `agent_history` names of the site's page after a payment or an order left (r4 U3.29): its
-/// `page_cause` `amount_differs`, with the page's amount in minor units of `page_amount` where that is a number that
-/// fits, `amount_unread` or `page_unread`; null, a missing key and any other value as none, as on main.
+/// `page_cause` `AMOUNT_MATCHED`, `amount_differs`, with the page's amount in minor units of `page_amount` where that
+/// is a number that fits, `amount_unread` or `page_unread`; null, a missing key and any other value as none, which
+/// the card reads as a page that could not be read.
 fn page_of(effect: &Value) -> Option<PageCause> {
     match effect["page_cause"].as_str()? {
+        AMOUNT_MATCHED => Some(PageCause::AmountMatched),
         "amount_differs" => Some(PageCause::AmountDiffers {
             amount: effect["page_amount"]
                 .as_u64()
@@ -2511,7 +2517,8 @@ mod tests {
     /// says whether a payment or an order of that run left: `amount_differs` with `yes` as the cause of a sent payment
     /// whose amount could not be matched, with `no` as one that was held back, and `page_unread` with `yes`; an entry
     /// without `left` reads both names as none, as on main. `agent_history` takes an effect's `page_cause` with the
-    /// page's amount `page_amount` beside `amount_differs`; an effect without the two keys reads as on main.
+    /// page's amount `page_amount` beside `amount_differs`, and `amount_matched` for a page that was read and matched; an
+    /// effect without the two keys reads as on main.
     #[test]
     fn u329_the_reader_takes_the_last_cause_with_left_and_the_page_of_an_effect() {
         let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
@@ -2549,6 +2556,10 @@ mod tests {
             (
                 r#","page_cause":"amount_differs","page_amount":1334"#,
                 Some(PageCause::AmountDiffers { amount: Some(1334) }),
+            ),
+            (
+                r#","page_cause":"amount_matched""#,
+                Some(PageCause::AmountMatched),
             ),
             ("", None),
         ];
