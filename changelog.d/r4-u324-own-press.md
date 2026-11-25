@@ -1,0 +1,1 @@
+- Changed: A person's own Start now is no longer refused by the day's bound of 24 starts; the bound holds only for a start that Halvo makes by itself, and on such a day an agent's row offers Start now and reads as on any other day.

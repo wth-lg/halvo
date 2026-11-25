@@ -659,7 +659,7 @@ mod tests {
     use halvo_web::cdp::{PausedRequest, SessionState, Sign};
 
     use super::*;
-    use crate::release::suite::{run_web_step, slot, Plan, Record};
+    use crate::release::suite::{run_web_step, run_web_steps, slot, Plan, Record};
     use crate::web::Page;
 
     type Log = Arc<Mutex<Vec<String>>>;
@@ -716,7 +716,8 @@ mod tests {
 
     /// The stand-in of the executor: an arm in `Mode::Fail` fails what it holds, a click holds the requests that the
     /// test gave, an extract reads `12.34`, a release of a held id gives the status that the test gave, the page after
-    /// it names the amounts that the test gave, the rule's record holds the requests that the test gave in `before`
+    /// it names the amounts that the test gave (each read in turn those of `pages`, then those of `amounts`), the
+    /// rule's record holds the requests that the test gave in `before`
     /// until the arm of the hold mode empties it, as the executor's arm does, those of `waited` from its second read
     /// after that arm on (the first is the read right after the act), and those of `after` once a request left; the
     /// held requests gain the test's `second` from their third read on (the act's two reads come first); the top page's
@@ -728,6 +729,8 @@ mod tests {
         status: Option<i64>,
         released: bool,
         amounts: Result<Vec<u64>, ()>,
+        /// The reads of the page after a reply, one for each read in turn, before `amounts` (r3 U5.10-P).
+        pages: Vec<Result<Vec<u64>, ()>>,
         before: Vec<PausedRequest>,
         waited: Vec<PausedRequest>,
         after: Vec<PausedRequest>,
@@ -747,6 +750,7 @@ mod tests {
                 status: Some(200),
                 released: false,
                 amounts: Ok(vec![1234]),
+                pages: Vec::new(),
                 before: Vec::new(),
                 waited: Vec::new(),
                 after: Vec::new(),
@@ -905,6 +909,9 @@ mod tests {
 
         fn page_amounts(&mut self) -> Result<Vec<u64>, ()> {
             note(&self.log, "read page");
+            if !self.pages.is_empty() {
+                return self.pages.remove(0);
+            }
             self.amounts.clone()
         }
     }
@@ -989,7 +996,8 @@ mod tests {
 
     /// r3 U4.1w-2 (1): an effect step arms the bindings' origins in `Mode::Hold` for that step alone, acts, and gives
     /// its one held request to the confirm path; after `allow_once` the request leaves once, the reply 200 is made and
-    /// committed, the page after it is read, and the rule is armed in `Mode::Fail` again.
+    /// committed, the page after it is read and, since it names the card's amount alone, gives the row `amount_matched`
+    /// (r3 U5.10-P), and the rule is armed in `Mode::Fail` again.
     #[test]
     fn an_effect_step_leaves_once_after_the_yes() {
         let log: Log = Arc::default();
@@ -1020,7 +1028,13 @@ mod tests {
                 EffectState::Committed
             ]
         );
-        assert_eq!(rows(&record), [(LogEvent::Confirm, None, None)]);
+        assert_eq!(
+            rows(&record),
+            [
+                (LogEvent::Confirm, None, None),
+                (LogEvent::Stopped, Some(3), Some(Cause::AmountMatched))
+            ]
+        );
         assert_eq!(record.done(), Some(Outcome::Completed));
     }
 
@@ -1132,7 +1146,8 @@ mod tests {
 
     /// r3 U5.10-B (1), on the stand-in: an effect step reads its conditions `post` after the release of its request
     /// and its reply, never while the request is held; where one does not hold after a made reply, the step's row says
-    /// `step_failed` and the run ends `failed`, the request having left once and its effect staying `committed`.
+    /// `step_failed` and the run ends `failed`, the request having left once and its effect staying `committed`. The
+    /// page names the card's amount alone, so its row `amount_matched` (r3 U5.10-P) comes first in both.
     #[test]
     fn on_the_stand_in_an_effect_step_reads_its_post_conditions_after_the_release() {
         for fails in [false, true] {
@@ -1161,6 +1176,7 @@ mod tests {
                     rows(&record),
                     [
                         (LogEvent::Confirm, None, None),
+                        (LogEvent::Stopped, Some(3), Some(Cause::AmountMatched)),
                         (LogEvent::StepFailed, Some(3), Some(Cause::StepFailed)),
                         (LogEvent::Stopped, None, Some(Cause::StepFailed)),
                     ],
@@ -1168,7 +1184,14 @@ mod tests {
                 );
                 assert_eq!(record.done(), Some(Outcome::Failed));
             } else {
-                assert_eq!(rows(&record), [(LogEvent::Confirm, None, None)], "{log:?}");
+                assert_eq!(
+                    rows(&record),
+                    [
+                        (LogEvent::Confirm, None, None),
+                        (LogEvent::Stopped, Some(3), Some(Cause::AmountMatched))
+                    ],
+                    "{log:?}"
+                );
                 assert_eq!(record.done(), Some(Outcome::Completed));
             }
         }
@@ -1583,5 +1606,75 @@ mod tests {
             );
             assert_eq!(record.done(), Some(Outcome::Failed), "{name}");
         }
+    }
+
+    /// r3 U5.10-P, sentence (1), with the ruled row of a matched page (the coordinator's log lines 20487 and 20577):
+    /// one run of two payment steps on the stand-in, each on its own card, the page after each reply read in turn: the
+    /// first names no amount and the second the card's amount alone. Each `stopped` row of a page read names its own
+    /// effect, `amount_unread` the first payment's and `amount_matched` the second's, each row read as its JSON, the
+    /// form that the store keeps.
+    #[test]
+    fn u510p_a_stopped_row_of_a_page_read_names_its_own_effect_where_one_run_holds_two_payments() {
+        let log: Log = Arc::default();
+        let mut stand_in = StandIn::new(&log, vec![held(7)]);
+        stand_in.pages = vec![Ok(Vec::new()), Ok(vec![1234])];
+        let (kept, extracts) = kept_amount();
+        let record = run_web_steps(
+            Category::UtilityBillPayment,
+            (
+                vec![WebOrigin::parse(BOUND).expect("an origin")],
+                vec![
+                    slot("payee", "Larkspur Power"),
+                    slot("instrument", "Card ending 4417"),
+                ],
+            ),
+            Web(Box::new(stand_in)),
+            &[step(PAY), step(&PAY.replace(r#""n":3"#, r#""n":4"#))],
+            kept,
+            extracts,
+            Plan::plain(),
+        );
+        let mut effects: Vec<serde_json::Value> = Vec::new();
+        for e in record.effects() {
+            let id = serde_json::json!(e.effect.as_str());
+            if !effects.contains(&id) {
+                effects.push(id);
+            }
+        }
+        let rows: Vec<serde_json::Value> = record
+            .logs()
+            .iter()
+            .map(|l| serde_json::from_str(&l.to_json().expect("a log row")).expect("its JSON"))
+            .collect();
+        let named: Vec<(serde_json::Value, serde_json::Value, serde_json::Value)> = rows
+            .iter()
+            .filter(|l| {
+                l["event"] == "stopped"
+                    && matches!(
+                        l["cause"].as_str(),
+                        Some("amount_unread" | "amount_matched")
+                    )
+            })
+            .map(|l| (l["step"].clone(), l["cause"].clone(), l["effect"].clone()))
+            .collect();
+        assert_eq!(
+            (record.done(), named),
+            (
+                Some(Outcome::Completed),
+                vec![
+                    (
+                        serde_json::json!(3),
+                        serde_json::json!("amount_unread"),
+                        effects.first().cloned().unwrap_or_default()
+                    ),
+                    (
+                        serde_json::json!(4),
+                        serde_json::json!("amount_matched"),
+                        effects.get(1).cloned().unwrap_or_default()
+                    ),
+                ]
+            ),
+            "(the run's end, the rows of the page reads): rows {rows:?}"
+        );
     }
 }
