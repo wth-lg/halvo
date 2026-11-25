@@ -26,7 +26,7 @@ use crate::model::ask;
     not(test),
     expect(
         dead_code,
-        reason = "no shipped build asks the router until r3 U7.2b's compile asks with Compile and r3 U7.4's writer with Write"
+        reason = "no shipped code makes the variant Compile; r3 U7.2b makes it live"
     )
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

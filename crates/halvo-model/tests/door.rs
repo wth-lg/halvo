@@ -551,7 +551,7 @@ const ROUTE_PACKAGE: &str = concat!("halvo", "-route");
 /// log line 22454): the pick, the policy and the id types of the bridge between the schema's ids
 /// and the router's. In a file under crates/halvo-runner the crate's path name stands only right
 /// before `::` and one of these paths whole, behind which its line holds, after white space, `;`
-/// and nothing else: the end of a whole `use` line. So the runner names nothing else of the crate, by an alias, a glob import or a group
+/// and nothing else; the rule reads that tail alone and not the head of the line. So the runner names nothing else of the crate, by an alias, a glob import or a group
 /// import; and since none of these paths makes or gives a grant (the one maker is
 /// `leave::grant`), it holds no way to a grant of the router by the crate's own name.
 const RUNNER_ROUTE_PATHS: [&str; 8] = [
@@ -573,7 +573,8 @@ const RUNNER_ROUTE_DEPENDENCY: (&str, &str) = (
 );
 
 /// Each place of `text` where the router's crate is named by its path name otherwise than by a
-/// path of `RUNNER_ROUTE_PATHS` whole at the end of a whole `use` line, as the text from that name
+/// path of `RUNNER_ROUTE_PATHS` whole behind which its line holds, after white space, `;` and nothing else (the
+/// tail alone, not the head of the line), as the text from that name
 /// to the end of its line, at most 60 signs.
 fn route_names_off_the_list(text: &str) -> Vec<String> {
     let mut found = Vec::new();
@@ -748,7 +749,7 @@ fn operation_refusals(base: &std::path::Path, listed: &[(&str, usize, &str)]) ->
                 }
                 for shown in route_names_off_the_list(&text) {
                     refusals.push(format!(
-                        "{file}: names the router's crate as `{shown}`, which is no path of RUNNER_ROUTE_PATHS whole at the end of a whole `use` line (behind the path the line holds `;` and nothing else: no alias, no call, no comment); the runner names the pick, the policy and the id types of the bridge alone, each by a `use` line of its own, and holds no way to a grant of the router"
+                        "{file}: names the router's crate as `{shown}`, which is no path of RUNNER_ROUTE_PATHS whole with `;` and nothing else behind it on its line (no alias, no call, no comment); the runner names the pick, the policy and the id types of the bridge alone, each by a `use` line of its own, and holds no way to a grant of the router"
                     ));
                 }
                 let (manifest, dependency) = RUNNER_ROUTE_DEPENDENCY;
