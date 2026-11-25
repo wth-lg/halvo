@@ -424,7 +424,12 @@ where
                 .and_then(|i| {
                     let param = Param::parse(args.text("param"))?;
                     let step = args.count("step").ok_or(Cause::Malformed)?;
-                    self.coord.setup_typed(&i, param, args.text("text"), step)
+                    let text = args.text("text");
+                    if args.text("more") == "yes" {
+                        self.coord.setup_typed_more(&i, param, text, step)
+                    } else {
+                        self.coord.setup_typed(&i, param, text, step)
+                    }
                 })
                 .into(),
             "agents_choose_file" => match item().and_then(|i| {
@@ -473,7 +478,12 @@ where
             _ => None,
         };
         let step = args.count("step").ok_or(Cause::Malformed)?;
-        self.coord.answer(&item, choice, pick, step)
+        match pick {
+            Some((param, n)) if args.text("more") == "yes" => {
+                self.coord.choose_more(&item, param, n, step)
+            }
+            _ => self.coord.answer(&item, choice, pick, step),
+        }
     }
 
     fn present(&self, item: ItemId) -> Result<(), Cause> {

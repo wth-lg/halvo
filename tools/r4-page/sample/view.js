@@ -135,7 +135,7 @@
         input.setAttribute('data-param', p.name);
         input.setAttribute('data-n', String(c.n));
         input.addEventListener('change', function () {
-          call('agents_answer', { item: item.item, step: item.step, choice: 'choose', param: p.name, n: c.n });
+          call('agents_answer', { item: item.item, step: item.step, choice: 'choose', param: p.name, n: c.n, more: 'no' });
         });
         label.appendChild(input);
         label.appendChild(document.createTextNode(c.value.join(' ')));

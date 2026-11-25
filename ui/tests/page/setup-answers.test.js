@@ -53,8 +53,8 @@ const press = (page, el) => page.click(el, { detail: 0 });
 /** A stand-in of the core for the spreadsheet agent's set-up item, as the page reads it: it answers each typed line,
  * taking a line of a path question only where it starts with a slash, as a full path of a Mac does, and every other
  * line as typed; a line that it does not take empties that question and carries its sentence. It publishes a new
- * state, with a new seq, only where the state changed, as the core does, and closes the item when every question holds
- * a value. `other(id)` puts up an item of another id. */
+ * state, with a new seq, only where the state changed, as the core does, and closes the item at a call that does not
+ * say that more follow (`more` `yes`) when every question holds a value. `other(id)` puts up an item of another id. */
 function sheetCore() {
   const [base] = setup.items;
   const fresh = () => Object.keys(HINTS).map((name) => entry(name, null));
@@ -81,7 +81,7 @@ function sheetCore() {
       else held.delete(args.param);
       const notTaken = taken ? null : words["param_typed.not_path_mac"];
       const params = item.params.map((p) => (p.name === args.param ? entry(p.name, notTaken) : p));
-      publish(held.size === params.length ? null : { ...item, params });
+      publish(held.size === params.length && args.more !== "yes" ? null : { ...item, params });
       return { ok: "yes" };
     },
     agents_control: { ok: "yes" },
@@ -179,7 +179,7 @@ test("a second line of one question that the core does not take shows its senten
   assert.deepEqual(sentencesOf(page, "workbook"), [], "a line that is taken takes it away");
 });
 
-test("behind a line that the core does not take the card keeps every line as typed, the next press sends the lines that the core holds first, and a card of another item starts with empty lines", async () => {
+test("behind a line that the core does not take the card keeps every line as typed, the next press sends every line again in the card's order, the last as the one call that may save, and a card of another item starts with empty lines", async () => {
   const core = sheetCore();
   const page = await openPage({ replies: core.replies });
   const typed = { workbook: "Budget.xlsx", sheet: "Sheet1", range: "A2:C11", source: "/Volumes/work/receipts.csv" };
@@ -191,14 +191,14 @@ test("behind a line that the core does not take the card keeps every line as typ
   await typeLine(page, "workbook", "/Volumes/work/Budget.xlsx");
   await press(page, useAnswers(page));
   assert.deepEqual(
-    page.calls("agents_setup_typed").slice(before).map((c) => [c.args.param, c.args.text]),
+    page.calls("agents_setup_typed").slice(before).map((c) => [c.args.param, c.args.text, c.args.more]),
     [
-      ["sheet", "Sheet1"],
-      ["range", "A2:C11"],
-      ["source", "/Volumes/work/receipts.csv"],
-      ["workbook", "/Volumes/work/Budget.xlsx"],
+      ["workbook", "/Volumes/work/Budget.xlsx", "yes"],
+      ["sheet", "Sheet1", "yes"],
+      ["range", "A2:C11", "yes"],
+      ["source", "/Volumes/work/receipts.csv", "no"],
     ],
-    "the lines that the core holds go first and the mended line last, so that the body holds what every line shows",
+    "every line goes again in the card's order and the last call alone may save, so that the body holds what every line shows",
   );
   core.other("0000000000000000000000000000000a");
   await page.settle();

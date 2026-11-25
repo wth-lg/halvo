@@ -75,14 +75,16 @@ fn i8_1() -> Value {
             arg("step", "count", None, None),
             arg("choice", "name", None, Some(choices)),
             arg("param", "name", Some("choose"), Some(params.clone())),
-            arg("n", "count", Some("choose"), None)],
+            arg("n", "count", Some("choose"), None),
+            arg("more", "name", Some("choose"), Some(vec!["yes", "no"]))],
          "replies": ["reply-ok"],
          "errors": ["stale", "presenter", "early", "hold", "state", "queue_full", "unknown_item", "no_service", "busy", "malformed"]},
         {"command": "agents_setup_typed", "args": [
             arg("item", "id", None, None),
             arg("step", "count", None, None),
             arg("param", "name", None, Some(params.clone())),
-            arg("text", "text", None, None)],
+            arg("text", "text", None, None),
+            arg("more", "name", None, Some(vec!["yes", "no"]))],
          "replies": ["reply-ok"], "errors": ["stale", "state", "unknown_item", "malformed", "no_service"]},
         {"command": "agents_choose_file", "args": [
             arg("item", "id", None, None),

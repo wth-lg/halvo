@@ -165,6 +165,9 @@ function plan(item, choice) {
       }
     }
     acts.push({ act: 'choose', param: item.item });
+    calls.forEach((c, i) => {
+      c.args.more = i === calls.length - 1 ? 'no' : 'yes';
+    });
     return { acts, calls };
   }
   return {
