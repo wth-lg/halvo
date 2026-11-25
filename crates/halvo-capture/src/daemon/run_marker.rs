@@ -284,6 +284,13 @@ pub fn give_back(run: &HeldRun, begun: &Begun) -> io::Result<()> {
     }
 }
 
+/// Takes the line of a loss out of the marker that stands in `run`, the
+/// held folder, as the offline delete of everything does before its steps.
+pub fn forget_the_loss(run: &HeldRun) -> io::Result<()> {
+    let _ = run;
+    Ok(())
+}
+
 /// Whether the marker that stands holds the hold of ruling PL-3 part (5).
 pub fn held(dir: &DataDir) -> bool {
     read(dir).is_ok_and(|text| text.as_deref().is_some_and(holds_the_hold))
@@ -1039,6 +1046,85 @@ mod tests {
             );
             let_typing_go(&run).unwrap();
             assert!(!moved.join("run").join(TYPING_OFF).exists());
+        }
+    }
+
+    #[test]
+    fn an_offline_delete_takes_the_loss_line_out_of_the_marker_and_a_marker_it_cannot_write_leaves_the_delete_as_it_was(
+    ) {
+        let delete = |dir: &DataDir| {
+            let rows = super::super::delete_all::rows();
+            let how = super::super::delete_all::Offline {
+                rows: &rows,
+                select: super::super::custody_policy::of_this_build,
+                hands: &super::super::delete_all::SystemHands,
+            };
+            let (mut out, mut err) = (Vec::new(), Vec::new());
+            let status = super::super::delete_all::run(dir, &how, &mut out, &mut err);
+            (status, out, err)
+        };
+        let with_a_loss =
+            "pid=1\nhold=yes\nended=stop\nlost=stop events=3 first=- last=- error=- final=yes\n";
+        let (_root, dir) = scratch();
+        stand(&dir, with_a_loss);
+        let taken = delete(&dir);
+        assert_eq!(
+            taken.0,
+            halvo_control::exit::CLEAN,
+            "{}",
+            String::from_utf8_lossy(&taken.2)
+        );
+        assert_eq!(
+            marker(&dir).as_deref(),
+            Some("pid=1\nhold=yes\nended=stop\n"),
+            "the loss line goes and every other line stays byte for byte"
+        );
+        assert_eq!(
+            begin(&dir).lost,
+            None,
+            "no start reads a loss behind the press"
+        );
+
+        let (_root, dir) = scratch();
+        stand(&dir, "ended=stop\n");
+        let before = std::fs::metadata(dir.run_marker())
+            .unwrap()
+            .modified()
+            .unwrap();
+        let plain = delete(&dir);
+        assert_eq!(plain.0, halvo_control::exit::CLEAN);
+        assert_eq!(marker(&dir).as_deref(), Some("ended=stop\n"));
+        assert_eq!(
+            std::fs::metadata(dir.run_marker())
+                .unwrap()
+                .modified()
+                .unwrap(),
+            before,
+            "a marker with no loss line is not written"
+        );
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let (_root, dir) = scratch();
+            stand(&dir, with_a_loss);
+            let run = dir.run_dir();
+            std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o500)).unwrap();
+            let refused = delete(&dir);
+            std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let report = |out: &[u8]| {
+                String::from_utf8_lossy(out)
+                    .lines()
+                    .skip(1)
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                (refused.0, report(&refused.1), &refused.2),
+                (taken.0, report(&taken.1), &taken.2),
+                "a marker that cannot be written back leaves the delete's outcome and report as they were"
+            );
+            assert_eq!(marker(&dir).as_deref(), Some(with_a_loss), "the line stays");
         }
     }
 }

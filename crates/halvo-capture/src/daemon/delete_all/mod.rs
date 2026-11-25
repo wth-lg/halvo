@@ -454,7 +454,7 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
         text.push_str("no_store\n");
         return print(out, err, &text, None, exit::CLEAN);
     }
-    let _held = match InstanceLock::take(dir) {
+    let held = match InstanceLock::take(dir) {
         Ok(Some(lock)) => lock,
         Ok(None) => return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY),
         Err(error) => {
@@ -465,6 +465,11 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
             return print(out, err, &text, Some(cause), exit::DATA_DIR_UNUSABLE);
         }
     };
+    #[cfg(any(target_os = "macos", windows))]
+    let _ = held
+        .state_dir()
+        .and_then(|folder| super::run_marker::HeldRun::of(&folder))
+        .and_then(|run| super::run_marker::forget_the_loss(&run));
     if nothing_stands(path, how.rows) {
         text.push_str("no_store\n");
         return print(out, err, &text, None, exit::CLEAN);
