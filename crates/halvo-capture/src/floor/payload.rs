@@ -14,8 +14,12 @@ use crate::event::Modality;
 /// key-down of a modifier key (Shift, Caps Lock, Control, Option or Alt,
 /// Command or the Windows key, Fn) is no event, whether the modifier is
 /// released alone or starts a chord. A key-down while Command, Control, Option
-/// or Alt, or the Windows key is held is one [`KeyClass::Shortcut`]; a key-down
-/// while Shift alone is held is one event of its own class.
+/// or Alt, or the Windows key is held is one [`KeyClass::Shortcut`], but on a
+/// Mac a key of the class [`KeyClass::Printable`] pressed while Option is held
+/// and neither Command nor Control is one [`KeyClass::Printable`], since a
+/// layout types a sign with it and no line reads which; on Windows a key
+/// pressed with AltGr stays one [`KeyClass::Shortcut`]. A key-down while Shift
+/// alone is held is one event of its own class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyClass {
     /// A key that types a character: a letter, a digit, punctuation, space.
@@ -26,7 +30,9 @@ pub enum KeyClass {
     Navigation,
     Enter,
     Tab,
-    /// A key pressed while a command, control, option or alt, or Windows key is held.
+    /// A key pressed while a command, control, option or alt, or Windows key is
+    /// held, but for a printable key pressed on a Mac with Option alone, as
+    /// [`KeyClass`] says; on Windows a key pressed with AltGr stays a shortcut.
     Shortcut,
     /// Any other key, such as a function key or escape.
     Other,
