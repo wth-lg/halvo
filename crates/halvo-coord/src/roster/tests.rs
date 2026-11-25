@@ -305,7 +305,8 @@ fn u322d_a_file_run_that_the_system_refused_says_what_to_do_on_each_system() {
 /// of a run that stopped early.
 #[test]
 fn u72a_a_run_handed_back_before_its_model_says_why_and_every_other_reads_as_today() {
-    let early = "Last time, it stopped before the task was done, and it needs nothing from you now.";
+    let early =
+        "Last time, it stopped before the task was done, and it needs nothing from you now.";
     let rows = [
         (
             Some(LastCause::NoAgreement),
