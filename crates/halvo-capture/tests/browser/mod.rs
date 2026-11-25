@@ -4160,9 +4160,65 @@ setInterval(tick, 1000);
 </script></body></html>
 "#;
 
+/// One event as the row reads it: the sink's event and its floor value where
+/// it has one.
+struct Arrived {
+    event: CaptureStreamEvent,
+    floor: Option<halvo_capture::sink::FloorReceived>,
+}
+
+/// The row's own sink and the events that reach it, each kept with its floor
+/// value, so that the row tells a title of chrome.exe by the event's own
+/// program.
+fn row_capture(capacity: usize) -> (SinkHandle, mpsc::Receiver<Arrived>) {
+    let (sink, writer) = channel(capacity);
+    let (tx, rx) = mpsc::channel();
+    std::thread::Builder::new()
+        .name("tf-row-forward".to_string())
+        .spawn(move || loop {
+            match writer.recv_timeout(Duration::from_secs(60)) {
+                Ok(received) => {
+                    let event = received.event().clone();
+                    let floor = received.into_floor().ok();
+                    if tx.send(Arrived { event, floor }).is_err() {
+                        break;
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+        })
+        .expect("spawn the row's forwarder");
+    (sink, rx)
+}
+
+/// Takes the row's events for `window`, keeping each.
+fn drain_row(events: &mpsc::Receiver<Arrived>, window: Duration, seen: &mut Vec<Arrived>) {
+    let deadline = Instant::now() + window;
+    loop {
+        let now = Instant::now();
+        if now >= deadline {
+            break;
+        }
+        match events.recv_timeout(deadline - now) {
+            Ok(arrived) => seen.push(arrived),
+            Err(RecvTimeoutError::Timeout) => break,
+            Err(RecvTimeoutError::Disconnected) => sink_closed(),
+        }
+    }
+}
+
+/// Whether `arrived` is a window title whose own program is chrome.exe.
+fn chrome_title(arrived: &Arrived) -> bool {
+    arrived.event.modality == Modality::WindowTitle
+        && arrived.floor.as_ref().is_some_and(|floor| {
+            seam::view(floor.event(), &["chrome.exe"], &[]).app == seam::AppSeen::Named(0)
+        })
+}
+
 /// What one window of the row gave: whether it came, came in front and came
-/// back in front behind the window with no edit, the titles of chrome.exe
-/// written, and the titles that the title source dropped at the private
+/// back in front behind the window with no edit, the titles whose own program
+/// is chrome.exe, and the titles that the title source dropped at the private
 /// window.
 struct ChromeWindowPart {
     found: bool,
@@ -4181,7 +4237,7 @@ fn chrome_window_part(
     (exe, flag, base): (&Path, Option<&str>, &str),
     full_screen: bool,
     (events, title, away): (
-        &Events,
+        &mpsc::Receiver<Arrived>,
         &halvo_capture::windows::sources::Gated<WindowTitleSource>,
         HWND,
     ),
@@ -4227,27 +4283,22 @@ fn chrome_window_part(
             send(&[key_input(VK_F11, false)]);
             send(&[key_input(VK_F11, true)]);
         }
-        seen.extend(events.drain_for(Duration::from_millis(3_500)));
+        drain_row(events, Duration::from_millis(3_500), &mut seen);
         let _ = bring_to_front(away, false);
-        seen.extend(events.drain_for(Duration::from_millis(400)));
+        drain_row(events, Duration::from_millis(400), &mut seen);
         back = bring_to_front(window, false).0;
-        seen.extend(events.drain_for(Duration::from_millis(4_000)));
+        drain_row(events, Duration::from_millis(4_000), &mut seen);
     }
     let _ = Command::new("taskkill.exe")
         .args(["/IM", "chrome.exe", "/F", "/T"])
         .output();
-    seen.extend(events.drain_for(Duration::from_millis(900)));
+    drain_row(events, Duration::from_millis(900), &mut seen);
     let after = title.source().drops();
     ChromeWindowPart {
         found: window.is_some(),
         front,
         back,
-        title_events: seen
-            .iter()
-            .filter(|event| {
-                event.modality == Modality::WindowTitle && event.foreground_app == "other.exe"
-            })
-            .count(),
+        title_events: seen.iter().filter(|arrived| chrome_title(arrived)).count(),
         private_drops: after.private_window - before.private_window,
     }
 }
@@ -4259,7 +4310,9 @@ fn chrome_window_part(
 /// in front, goes behind the window with no edit and comes back. The ordinary
 /// window writes at least one title of chrome.exe; each private one writes
 /// none, and the title source drops at least one of its titles at the private
-/// window.
+/// window. A part counts the titles whose own program is chrome.exe alone, so
+/// that the title of the window in front when the sources began, the runner's
+/// terminal in the first run that read it, counts in no part.
 fn chrome_windows_keep_titles_only_when_ordinary(test: &'static str) {
     use halvo_capture::daemon::sources::SourceFactory;
     use halvo_control::proto::SourceName;
@@ -4278,7 +4331,7 @@ fn chrome_windows_keep_titles_only_when_ordinary(test: &'static str) {
         .map(Path::new)
         .find(|path| path.is_file())
         .map(Path::to_path_buf);
-    let (sink, events) = capture(8192);
+    let (sink, events) = row_capture(8192);
     let mut set = ServiceSet::new();
     let mut keyboard = set
         .make(SourceName::Keyboard)
