@@ -16,10 +16,10 @@ mod setup;
 #[cfg(test)]
 pub(crate) use compose::setup_on;
 pub use compose::{
-    admits, bound_field, class_fields, compose_bind, compose_check, compose_confirm,
-    compose_link_account, compose_plain, compose_setup, compose_sign_in, field_from, kept_source,
-    native_card, native_lines, param_hint, site_name, value_bound, Marking, NativeCard, Plain,
-    SetupParam, CARD_COLUMNS, CARD_LINES,
+    admits, bound_field, class_fields, compose_amounts, compose_bind, compose_check,
+    compose_confirm, compose_link_account, compose_plain, compose_setup, compose_sign_in,
+    field_from, kept_source, native_card, native_lines, param_hint, site_name, value_bound,
+    Differs, Marking, NativeCard, Plain, SetupParam, CARD_COLUMNS, CARD_LINES,
 };
 pub use confirm::{confirm_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 pub use key::Key;

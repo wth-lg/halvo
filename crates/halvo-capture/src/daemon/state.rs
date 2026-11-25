@@ -1,7 +1,8 @@
 //! The daemon's state file, daemon-state.json (contracts.md C3.7 and C13.5):
 //! whether the person wants capture running or paused, the storage cap, the
 //! permissions that were once granted and that were asked for, the five
-//! switches and the mark that a store was made.
+//! switches, the mark that a store was made and whether the search for
+//! repeated tasks is on.
 
 use std::ffi::OsStr;
 use std::fmt;
@@ -181,6 +182,9 @@ pub struct DaemonState {
     /// The mark that a store was made or opened under this data directory; it
     /// holds no id (contracts.md C3.7, ruling ST-34).
     pub store_made: bool,
+    /// Whether the search for repeated tasks is on: on by default, and the
+    /// file holds the key `search` only while it is off.
+    pub search: bool,
 }
 
 impl Default for DaemonState {
@@ -192,14 +196,18 @@ impl Default for DaemonState {
             permissions_asked: Vec::new(),
             switches: Switches::default(),
             store_made: false,
+            search: true,
         }
     }
 }
 
-/// The state of a state file that does not load: the defaults, with no cap.
+/// The state of a state file that does not load: the defaults, with no cap
+/// and the search for repeated tasks off, so that memory differs from the
+/// file toward not searching, as it differs toward not capturing.
 fn unread() -> DaemonState {
     DaemonState {
         storage_cap: Cap::Unread,
+        search: false,
         ..DaemonState::default()
     }
 }
@@ -609,6 +617,14 @@ fn is_unset(mark: &bool) -> bool {
     !*mark
 }
 
+fn search_default() -> bool {
+    true
+}
+
+fn is_on(search: &bool) -> bool {
+    *search
+}
+
 fn parse(bytes: &[u8]) -> Result<DaemonState, Loaded> {
     let value: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| Loaded::Corrupt)?;
     let fields = value.as_object().ok_or(Loaded::Corrupt)?;
@@ -630,6 +646,7 @@ fn parse(bytes: &[u8]) -> Result<DaemonState, Loaded> {
         permissions_asked: on_disk.permissions_asked,
         switches: on_disk.switches.0,
         store_made: on_disk.store_made,
+        search: on_disk.search,
     })
 }
 
@@ -642,6 +659,7 @@ fn encode(state: &DaemonState) -> io::Result<Vec<u8>> {
         permissions_asked: state.permissions_asked.clone(),
         switches: SwitchMap(state.switches),
         store_made: state.store_made,
+        search: state.search,
     };
     let mut bytes = serde_json::to_vec(&on_disk).map_err(io::Error::other)?;
     bytes.push(b'\n');
@@ -665,6 +683,10 @@ struct OnDisk {
     switches: SwitchMap,
     #[serde(default, skip_serializing_if = "is_unset")]
     store_made: bool,
+    /// Written only while off, so that a build that does not know the key
+    /// reads a file with the search on as before.
+    #[serde(default = "search_default", skip_serializing_if = "is_on")]
+    search: bool,
 }
 
 #[derive(Default)]

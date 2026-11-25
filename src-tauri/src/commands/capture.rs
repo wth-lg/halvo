@@ -138,6 +138,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         remove_halvo,
         reset_settings,
         set_typing,
+        set_search,
     ];
     handle(invoke)
 }
@@ -1249,6 +1250,29 @@ pub async fn set_typing(state: State<'_, AppState>, on: bool) -> Result<StatusVi
     let control = Arc::clone(&state.control);
     let views = Arc::clone(&state.views);
     let answer = off_the_main_thread(move || typing(control.as_ref(), &views, on)).await?;
+    draw_off_the_main_thread(&state.views).await;
+    answer
+}
+
+/// The turn of the search for repeated tasks, the command `set_search`: one set_search request,
+/// whose status the views take as the answer of a mutation, and its view. A refusal is answered as
+/// the command's error, and no second request goes out: an older service's unsupported_op is
+/// [`ActionError::UpdateTheApp`].
+pub fn search(control: &dyn Control, views: &Views, on: bool) -> Result<StatusView, ActionError> {
+    let made = control.places().make();
+    let call = made.number();
+    let answer = control.set_search(made, on);
+    let next_number_at_answer = control.places().next_number();
+    let status = answer.map_err(|error| not_taken(&error))?;
+    views.take_mutation(call, next_number_at_answer, &status);
+    Ok(views.marked(StatusView::of(&status)))
+}
+
+#[tauri::command]
+pub async fn set_search(state: State<'_, AppState>, on: bool) -> Result<StatusView, ActionError> {
+    let control = Arc::clone(&state.control);
+    let views = Arc::clone(&state.views);
+    let answer = off_the_main_thread(move || search(control.as_ref(), &views, on)).await?;
     draw_off_the_main_thread(&state.views).await;
     answer
 }

@@ -1,4 +1,4 @@
-use super::check::{raise_checks, read_replies};
+use super::check::{raise_amounts, raise_checks, read_replies};
 use crate::items::drive::{class_of, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs, Stamp};
 use crate::schedule::{
@@ -47,6 +47,7 @@ fn lapse_of(raised: &Raised) -> Lapsed {
         Raised::Setup => Lapsed::Setup(other),
         Raised::Ready => Lapsed::Ready(other),
         Raised::Show(_) => Lapsed::Show(other),
+        Raised::Amounts(_) => Lapsed::Amounts(other),
     }
 }
 
@@ -619,6 +620,7 @@ where
     let listed: Vec<_> = workflows.iter().map(|w| w.id().clone()).collect();
     hold_refusals_at(ports, &mut board, limits, stamp, &listed);
     let checked = raise_checks(ports, &mut board, limits, None, stamp);
+    raise_amounts(ports, &mut board, limits, None, stamp);
     Ok(Life {
         board,
         ended,

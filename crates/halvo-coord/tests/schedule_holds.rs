@@ -402,6 +402,7 @@ fn holds_come_in_the_order_of_i5_4() {
             "site_declined",
             "failures",
             "check",
+            "amounts",
             "setup"
         ]
     );

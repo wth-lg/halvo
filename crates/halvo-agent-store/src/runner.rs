@@ -47,8 +47,9 @@ use crate::{bind, checkpoint, count, day, effect, end, reply};
 /// - `put_playbook`: `playbook` unless the number is the newest stored number or the next one (1 for the first),
 ///   for a first step after a gap in the steps of that number, and for a step whose number and `n` hold another
 ///   stored step; where `check_playbook` refuses the steps of that number that would be held, `playbook` for its
-///   cause `workbook`, a write to a file that is not the slot `workbook` (CP-218 (c)), and `class` for any other
-///   cause. It stores each step that is not stored and answers the count of the body's steps.
+///   cause `workbook`, a write to a file that is not the slot `workbook` (CP-218 (c)), and for its cause
+///   `two_paying_steps`, a second step that pays or orders (r3 U5.10-S), and `class` for any other cause. It stores
+///   each step that is not stored and answers the count of the body's steps.
 /// - `put_session`: `binding` where the revision is more than one above the newest stored revision of the origin, by
 ///   every stored part of the agent's session of that origin, a part of a revision that a fault cut and a drop row
 ///   among them (any revision but 1 where none is stored), so that a run keeps to Halvo's own numbering (U5.11);
@@ -382,7 +383,7 @@ fn put_playbook(host: &mut dyn Host, now: Now, b: &PutPlaybook) -> Result<Runner
     }
     steps.sort_by_key(|s| s.n);
     check_playbook(config.category, &steps).map_err(|refusal| match refusal.cause() {
-        Cause::Workbook => Own::Playbook,
+        Cause::Workbook | Cause::TwoPayingSteps => Own::Playbook,
         _ => Own::Class,
     })?;
     let records = new

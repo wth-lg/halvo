@@ -47,7 +47,7 @@
                 - {"role":"paragraph","text":"It finished the task."}
                 - {"role":"list"}
                   - {"role":"listitem"}
-                    - {"role":"paragraph","text":"It made this payment."}
+                    - {"role":"paragraph","text":"It sent this payment, and the site's page afterwards showed the amount you allowed."}
                     - {"role":"term","text":"Pay to"}
                     - {"role":"definition","text":"City Power You gave this"}
                     - {"role":"term","text":"Amount"}
@@ -57,7 +57,7 @@
                     - {"role":"term","text":"Site"}
                     - {"role":"definition","text":"site1.example Set by Halvo"}
                   - {"role":"listitem"}
-                    - {"role":"paragraph","text":"It made a payment, but Halvo cannot show its details."}
+                    - {"role":"paragraph","text":"It sent a payment, but Halvo cannot show its details."}
               - {"role":"listitem"}
                 - {"role":"paragraph","text":"24 September 2026"}
                 - {"role":"paragraph","text":"It found nothing to do."}
