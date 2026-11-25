@@ -859,7 +859,9 @@ struct TitleHealth {
     not_trusted: AtomicBool,
     stop_asked: AtomicBool,
     dropped_at_stop: AtomicU64,
-    private_dropped: AtomicU64,
+    /// The titles that the rule by the name leaves out at their read, with any
+    /// title read of a window that the closed list tells private.
+    left_out_by_the_name: AtomicU64,
 }
 
 impl TitleHealth {
@@ -950,7 +952,9 @@ impl Poller {
         };
         let window = window_of(&front);
         if window == PrivateWindow::Private || title.left_out_by_its_browser() {
-            self.health.private_dropped.fetch_add(1, Ordering::Relaxed);
+            self.health
+                .left_out_by_the_name
+                .fetch_add(1, Ordering::Relaxed);
             self.last_title = Some(title.into_text());
             return;
         }
@@ -1683,7 +1687,10 @@ mod tests {
             [],
             "the private ending lies past unit 1,024"
         );
-        assert_eq!(poller.health.private_dropped.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            poller.health.left_out_by_the_name.load(Ordering::Relaxed),
+            1
+        );
         drop(poller);
     }
 
@@ -2143,7 +2150,10 @@ mod tests {
             &handle,
         );
         assert_eq!(titles(&writer), []);
-        assert_eq!(poller.health.private_dropped.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            poller.health.left_out_by_the_name.load(Ordering::Relaxed),
+            1
+        );
         poller.step(
             chrome,
             answer(1, read("Private Browsing tips - Google Chrome")),
@@ -2331,7 +2341,7 @@ mod tests {
                 self.reads.swap(0, Ordering::SeqCst),
                 self.poller
                     .health
-                    .private_dropped
+                    .left_out_by_the_name
                     .swap(0, Ordering::Relaxed),
             )
         }
@@ -2463,10 +2473,10 @@ mod tests {
             for title in [normal, private] {
                 through.shows(&front, title, at(10));
             }
-            let (_, titles, read, private_dropped) = through.made();
+            let (_, titles, read, left_out) = through.made();
             let asked_outside = said.said().asked.iter().any(|asked| asked == outside);
             assert_eq!(
-                (titles, read, private_dropped, asked_outside),
+                (titles, read, left_out, asked_outside),
                 (
                     kept.iter().map(|title| title.to_string()).collect(),
                     reads,
