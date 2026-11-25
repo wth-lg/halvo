@@ -8,9 +8,10 @@
 //! `shortfall`. Step 1 is the runner's own `navigate` to the slot `start`. Then, until the model answers `done`:
 //! the reading of A6.4, which hands the browser to the person at a credential field and adds a `handback` step for
 //! each handback that ended in a bind, so that no request holds a page with a credential field; the page's lines,
-//! masked so that no text of a slot of the load leaves (crate::model::snapshot, the one maker of a request's snapshot);
-//! the limits `wall` and `tokens` of A6.5; the pick again; ONE request through `ask`, the one way of the runner to
-//! its model; the limits again, with the reply's tokens counted. Each action of a reply is carried out by
+//! masked so that no text of a slot of the load leaves (crate::model::snapshot, whose makers alone make a request's
+//! snapshot); the limit `wall`, the person's stop and the limit `tokens` of A6.5, read before the pick of each
+//! request; the pick again; ONE request through `ask`, the one way of the runner to its model; the limits again, with
+//! the reply's tokens counted. Each action of a reply is carried out by
 //! `Runner::web_step` as the step that it becomes, the code that replays it, and the step is stored (`put_playbook`)
 //! once it is done. A reply that makes no step adds one line to the list `Done so far:` and counts toward `wall` and
 //! `tokens` alone; no count of asks and no repeated reply ends a compile. The texts of a request are the trial's,
@@ -22,7 +23,7 @@ use halvo_schema::executable::body::{LoadReply, PutPlaybook};
 use halvo_schema::executable::names::LogEvent;
 use halvo_schema::executable::{Cause, ExecutableStep, Outcome, RunnerCall, WebOrigin};
 use halvo_schema::SeedCategory;
-use halvo_web::cdp::SnapshotLine;
+use halvo_web::cdp::{Sign, SnapshotLine};
 
 use crate::action::{self, Action};
 use crate::model::ask::{Answer, Grammar, ModelRequest, OUTPUT_LIMIT};
@@ -32,8 +33,10 @@ use crate::route::{self, Call};
 use crate::run::{cause_of, Failure, Runner, Stop};
 use crate::words;
 
-/// The most steps of a playbook (A3.4). The closed list `Cause` holds no `length`, so a compile that would store
-/// more ends `failed` with `step_failed`; the limit `steps` of every preset is lower and ends it first.
+/// The most steps of a playbook (A3.4), read by `Runner::keep` before each store: a 65th step is carried out and not
+/// stored, and the compile ends `failed` with `step_failed`, since the closed list `Cause` holds no `length`. The limit
+/// `steps` of every preset is lower and ends a compile first, but a `handback` step that the reading writes counts
+/// toward no `steps`.
 const STEPS_MAX: usize = 64;
 
 /// The door's refusals of a request that left and got no action from the host: an answer cut at the output limit
@@ -332,6 +335,8 @@ impl Runner {
         loop {
             let (lines, snapshot) = self.read_for_a_request(&mut drive, loaded)?;
             let text = snapshot.text().to_owned();
+            self.within_wall()?;
+            self.check()?;
             self.within_tokens(&drive, loaded)?;
             let level = route::level(loaded, Call::Compile).map_err(|_| shortfall())?;
             let request = ModelRequest {
@@ -382,47 +387,68 @@ impl Runner {
                 Action::Handback => self.model_handback(&mut drive, loaded)?,
                 _ => self.act(&mut drive, loaded, &action, &lines, text)?,
             }
-            if drive.steps.len() > STEPS_MAX {
-                return Err(failed(Cause::StepFailed));
-            }
         }
     }
 
     /// The reading of A6.4 before a request and the page's lines after it: a `handback` step for each handback that
-    /// ended in a bind, the form of the list's line of the action carried out last, and the page's text.
+    /// ended in a bind, the form of the list's line of the action carried out last, and the page's text. THE LINES
+    /// THAT LEAVE ARE THE LINES THAT ARE READ (the static seat's F2 at 3048dbfd): where the lines of the snapshot hold
+    /// one with the credential mark, the runner hands back as at the reading's own finding (the reason `sign_in`) and
+    /// reads the page again from the top; the lines that pass this check are the request's, and no reading of the
+    /// page comes behind it.
     fn read_for_a_request(
         &mut self,
         drive: &mut Drive,
         loaded: &LoadReply,
     ) -> Result<(Vec<SnapshotLine>, Snapshot), Stop> {
         let mut handbacks = 0;
-        loop {
+        let lines = loop {
             let n = NonZeroU32::new(drive.next() as u32).unwrap_or(NonZeroU32::MAX);
             let mut web = self.web.take().ok_or_else(|| failed(Cause::StepFailed))?;
             let read = self.read_page(&mut *web.0, loaded, n);
-            self.web = Some(web);
-            match read {
-                Ok(false) => break,
-                Ok(true) => {
-                    handbacks += 1;
-                    if handbacks > crate::handback::IN_A_ROW {
-                        return Err(Stop::End(Outcome::HandedBack, None));
-                    }
-                    drive.list.push(words::HANDBACK.to_owned());
-                    let step = handback_step(drive.category, drive.next())
-                        .ok_or_else(|| failed(Cause::StepFailed))?;
-                    self.keep(drive, step)?;
+            let handed_by_the_reading = matches!(read, Ok(true));
+            let lines = match read {
+                Ok(false) => web.0.snapshot().map_err(|()| failed(Cause::StepFailed)),
+                Ok(true) => Ok(Vec::new()),
+                Err(failure) => Err(match failure {
+                    Failure::Stop(stop) => stop,
+                    Failure::Step(cause) => failed(cause),
+                }),
+            };
+            let lines = match lines {
+                Ok(lines) => lines,
+                Err(stop) => {
+                    self.web = Some(web);
+                    return Err(stop);
                 }
+            };
+            let marked = lines.iter().any(|line| line.credential);
+            if !handed_by_the_reading && !marked {
+                self.web = Some(web);
+                break lines;
+            }
+            let handed = if marked {
+                self.open_handback(&mut *web.0, loaded, n, Sign::Secret)
+            } else {
+                Ok(true)
+            };
+            self.web = Some(web);
+            let bound = match handed {
+                Ok(bound) => bound,
                 Err(Failure::Stop(stop)) => return Err(stop),
                 Err(Failure::Step(cause)) => return Err(failed(cause)),
+            };
+            handbacks += 1;
+            if handbacks > crate::handback::IN_A_ROW {
+                return Err(Stop::End(Outcome::HandedBack, None));
             }
-        }
-        let lines = self
-            .web
-            .as_mut()
-            .ok_or(())
-            .and_then(|web| web.0.snapshot())
-            .map_err(|()| failed(Cause::StepFailed))?;
+            if bound {
+                drive.list.push(words::HANDBACK.to_owned());
+                let step = handback_step(drive.category, drive.next())
+                    .ok_or_else(|| failed(Cause::StepFailed))?;
+                self.keep(drive, step)?;
+            }
+        };
         let snapshot = Snapshot::masked(&lines, slots(loaded));
         if let Some(carried) = drive.carried.take() {
             drive.list[carried.at] = words::carried(
@@ -585,6 +611,9 @@ impl Runner {
     /// Stores `step` under the compile's number (`put_playbook`) and keeps it; the run's `finish` names the number
     /// from the first stored step on.
     fn keep(&mut self, drive: &mut Drive, step: ExecutableStep) -> Result<(), Stop> {
+        if drive.steps.len() >= STEPS_MAX {
+            return Err(failed(Cause::StepFailed));
+        }
         let call = RunnerCall::PutPlaybook(PutPlaybook {
             agent: self.args.agent.clone(),
             run: self.args.run.clone(),

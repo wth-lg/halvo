@@ -10,7 +10,8 @@
 //! a text box, what a line's value can hold). ASCII letters are compared with no regard to case. One pass from the
 //! left, the longest text that stands at a place wins, so a mark is never read again; two slots of one text are
 //! named by the first in the load's order; a slot whose text is empty is skipped, and the slot `start` is a slot like
-//! any other. Then the two marker strings of A9.5 are taken out of the joined text until none stands.
+//! any other. BEFORE the mask reads a field, the two marker strings of A9.5 leave it (`cleaned`), and the mask reads
+//! each slot's text through the same taking-out, so no later step joins a slot's text again (pr-review-90's F1).
 //!
 //! THE SECOND MAKER, for a message that the agent answers (the coordinator's log line 22541): the trial's form of a
 //! message, `From:`, `Subject:` and the body, with the From line `From: [slot reply_senders]` always and never the
@@ -33,32 +34,38 @@ const FROM: &str = "From: [slot reply_senders]";
 /// The head of every mark.
 const MARK_HEAD: &str = "[slot ";
 
-/// The snapshot's text of a model request, which `Snapshot::masked` alone makes.
+/// The snapshot's text of a model request, which `Snapshot::masked` and `Snapshot::of_a_message` alone make.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Snapshot(String);
 
 impl Snapshot {
-    /// The snapshot of `lines` for a request of a run whose load's slots are `slots`: each line masked and rendered
-    /// in the form of A11.1, one a line, and the marker strings of A9.5 taken out.
+    /// The snapshot of `lines` for a request of a run whose load's slots are `slots`: each field of a line cleaned of
+    /// the marker strings of A9.5 (`cleaned`) and masked, then each line rendered in the form of A11.1, one a line.
     pub(crate) fn masked(lines: &[SnapshotLine], slots: &[Slot]) -> Snapshot {
         let forms = forms(slots);
         let text = lines
             .iter()
             .map(|line| {
                 let mut line = line.clone();
-                line.name = mask(&line.name, &forms);
-                line.value = line.value.as_deref().map(|value| mask(value, &forms));
-                line.frame = line.frame.as_deref().map(|frame| mask(frame, &forms));
+                line.name = mask(&cleaned(&line.name), &forms);
+                line.value = line
+                    .value
+                    .as_deref()
+                    .map(|value| mask(&cleaned(value), &forms));
+                line.frame = line
+                    .frame
+                    .as_deref()
+                    .map(|frame| mask(&cleaned(frame), &forms));
                 line.render()
             })
             .collect::<Vec<_>>()
             .join("\n");
-        Snapshot(unmarked(text))
+        Snapshot(text)
     }
 
     /// The snapshot of a message that the agent answers, for a run whose load's slots are `slots`: the From line
-    /// `FROM`, the subject and the body masked, in the trial's form `From: ...`, `Subject: ...`, the body; the marker
-    /// strings of A9.5 taken out.
+    /// `FROM`, the subject and the body each cleaned of the marker strings of A9.5 (`cleaned`) and masked, in the
+    /// trial's form `From: ...`, `Subject: ...`, the body.
     #[cfg_attr(
         not(test),
         expect(
@@ -68,11 +75,11 @@ impl Snapshot {
     )]
     pub(crate) fn of_a_message(subject: &str, body: &str, slots: &[Slot]) -> Snapshot {
         let forms = forms(slots);
-        Snapshot(unmarked(format!(
+        Snapshot(format!(
             "{FROM}\nSubject: {}\n{}",
-            mask(subject, &forms),
-            mask(body, &forms)
-        )))
+            mask(&cleaned(subject), &forms),
+            mask(&cleaned(body), &forms)
+        ))
     }
 
     /// The text, as the request line holds it.
@@ -87,6 +94,21 @@ fn unmarked(mut text: String) -> String {
         text = text.replace(marker, "");
     }
     text
+}
+
+/// A field of a page's line, a subject or a body before the mask reads it (pr-review-90's F1 at 3048dbfd): where it
+/// holds a marker string of A9.5, the markers taken out (`unmarked`) and the rest squeezed (`cdp::squeeze`), so that
+/// a marker that stood between two words leaves one space as a page's name holds it (a body or a value with a marker
+/// so becomes one line); every other text as it is. The
+/// mask reads each slot's text through the same taking-out (`forms`), so that cleaning is one that both sides pass;
+/// and no later step can join a slot's text again: a mark holds no `<`, `>` or `DATA>>>`, the render adds quotes,
+/// spaces, the line's own words and its ref, and the lines are joined by line breaks, none of which makes a marker.
+fn cleaned(text: &str) -> String {
+    if MARKERS.iter().any(|marker| text.contains(marker)) {
+        squeeze(&unmarked(text.to_owned()))
+    } else {
+        text.to_owned()
+    }
 }
 
 /// Whether a text that the model wrote holds the mark's head `[slot ` (ASCII letters with no regard to case): such a
@@ -115,6 +137,8 @@ fn forms(slots: &[Slot]) -> Vec<(String, String)> {
             kinds.extend(text.split('\n').map(str::to_owned));
         }
         let mark = format!("[slot {}]", slot.name.as_str());
+        let unmarked_kinds: Vec<String> = kinds.iter().map(|kind| unmarked(kind.clone())).collect();
+        kinds.extend(unmarked_kinds);
         for kind in kinds {
             let cleaned = [
                 Some(kind.clone()),
@@ -202,7 +226,8 @@ mod tests {
                 .all(|address| !snapshot.text().contains(address.as_str())));
             made.push(snapshot.text().to_owned());
         }
-        let want = "From: [slot reply_senders]\nSubject: About [slot payee]\nHello,\nthe bill of [slot payee] is due.\n";
+        // The body holds a marker string, so the cleaning squeezes it to one line before the mask.
+        let want = "From: [slot reply_senders]\nSubject: About [slot payee]\nHello, the bill of [slot payee] is due.";
         assert_eq!(made, [want, want]);
         let marks = [
             ("Sure, [slot payee] is paid.", true),

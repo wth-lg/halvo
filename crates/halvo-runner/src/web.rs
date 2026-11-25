@@ -580,7 +580,8 @@ fn of_the_page(request: &PausedRequest) -> bool {
 /// The origin of the bindings of `loaded` to which a state-changing request of the run's page went that the rule
 /// failed, where every request of the page that the rule failed is such a request (r3 U7.2b, (d1)); none where the rule
 /// failed none, and none where it failed a load or a request to another origin, which stays the refusal `origin`. A
-/// method other than GET, HEAD and OPTIONS changes state; an origin is compared by its text.
+/// method other than GET, HEAD and OPTIONS changes state; an origin of the bindings is compared in the form in which
+/// the rule's record writes a request's origin (`rule_origin`: no port where the port is the scheme's own).
 fn a_bound_origin_whose_change_failed(
     record: &[PausedRequest],
     loaded: &LoadReply,
@@ -589,7 +590,7 @@ fn a_bound_origin_whose_change_failed(
     let bound = |request: &PausedRequest| {
         origins
             .iter()
-            .find(|origin| origin.as_str() == request.origin)
+            .find(|origin| rule_origin(origin) == request.origin)
             .cloned()
     };
     let refused: Vec<&PausedRequest> = record
