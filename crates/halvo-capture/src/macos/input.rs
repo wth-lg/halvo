@@ -4918,7 +4918,7 @@ mod tests {
         let command = 0x10_0000;
         let pad = 0x20_0000;
         let fn_bit = 0x80_0000;
-        let rows: [(i64, u64, KeyClass, &str); 24] = [
+        let rows: [(i64, u64, KeyClass, &str); 28] = [
             (0x00, 0, KeyClass::Printable, "a letter"),
             (0x2D, shift, KeyClass::Printable, "a letter with shift"),
             (0x12, 0, KeyClass::Printable, "a digit"),
@@ -4951,7 +4951,31 @@ mod tests {
                 KeyClass::Shortcut,
                 "an arrow with control",
             ),
-            (0x00, option, KeyClass::Shortcut, "a letter with option"),
+            (0x00, option, KeyClass::Printable, "a letter with option"),
+            (
+                0x13,
+                option | shift,
+                KeyClass::Printable,
+                "a key with option and shift",
+            ),
+            (
+                0x04,
+                option | command,
+                KeyClass::Shortcut,
+                "a letter with option and command",
+            ),
+            (
+                0x00,
+                option | control,
+                KeyClass::Shortcut,
+                "a letter with option and control",
+            ),
+            (
+                0x7B,
+                option | pad | fn_bit,
+                KeyClass::Shortcut,
+                "an arrow with option",
+            ),
             (
                 0x24,
                 command | shift,
