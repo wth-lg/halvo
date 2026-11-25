@@ -1,4 +1,4 @@
-use super::check::raise_checks;
+use super::check::{raise_amounts, raise_checks};
 use super::{delete_step, run_step, Ending, Next, Phase, RunMove, StopCause};
 use crate::guard::Table;
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
@@ -449,7 +449,9 @@ where
     P::Config: ConfigView,
 {
     report.stamp.map_or_else(Vec::new, |stamp| {
-        raise_checks(ports, board, limits, only, stamp)
+        let checked = raise_checks(ports, board, limits, only, stamp);
+        raise_amounts(ports, board, limits, only, stamp);
+        checked
     })
 }
 

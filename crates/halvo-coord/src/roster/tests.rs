@@ -421,3 +421,209 @@ fn u324_on_a_day_with_all_its_starts_used_the_row_offers_start_now_and_says_what
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// r4 U3.29 sentence 2: the card's entry of a payment or an order that left says what the site's
+/// page afterwards gave, from the two keys of the agents run's read on its effect, to the letter of
+/// the ruled rows (the coordinator's log lines 20376, 20377 and 20492): a page that was read and
+/// matched, row 1 (way (a) of the coordinator's log line 20557); the amount could not be matched,
+/// row 2 with the amount that the person allowed under row 9 and the page's amount under row 10 as
+/// digits, a point and two decimals; no amount found, row 11; the page could not be read, and no
+/// cause, row 12; row 9's label in all but the first; each for an order in its twin's words.
+#[test]
+fn u329_the_card_says_what_the_page_after_a_payment_or_an_order_gave() {
+    use crate::types::{Digest, EffectId, Name, Outcome, PageCause};
+    let base = facts(State::Card).remove(0);
+    let kept = |name: &str, value: &str| Kept {
+        name: Name::parse(name).unwrap(),
+        value: vec![value.into()],
+    };
+    let differs = PageCause::AmountDiffers { amount: Some(1334) };
+    let rows = [
+        (Class::Payment, Some(PageCause::AmountMatched), "It sent this payment, and the site's page afterwards showed the amount you allowed.", vec![("Pay to", "City Power"), ("Amount", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Payment, Some(differs), "It sent this payment, but Halvo could not match the amount on the site's page afterwards to the one you allowed. Check your bank or the site to see what was paid.", vec![("Pay to", "City Power"), ("Amount you allowed", "42.10 USD"), ("Amount on the site's page afterwards", "13.34"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Payment, Some(PageCause::AmountUnread), "It sent this payment, but Halvo found no amount on the site's page afterwards. Check your bank or the site to see whether it was paid, and how much.", vec![("Pay to", "City Power"), ("Amount you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Payment, Some(PageCause::PageUnread), "It sent this payment, but Halvo could not read the site's page afterwards. Check your bank or the site to see whether it was paid, and how much.", vec![("Pay to", "City Power"), ("Amount you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Payment, None, "It sent this payment, but Halvo could not read the site's page afterwards. Check your bank or the site to see whether it was paid, and how much.", vec![("Pay to", "City Power"), ("Amount you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Purchase, Some(PageCause::AmountMatched), "It sent this order, and the site's page afterwards showed the total you allowed.", vec![("Shop", "City Power"), ("Total", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Purchase, Some(differs), "It sent this order, but Halvo could not match the total on the site's page afterwards to the one you allowed. Check the shop's order page to see what was ordered, and for how much.", vec![("Shop", "City Power"), ("Total you allowed", "42.10 USD"), ("Total on the site's page afterwards", "13.34"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Purchase, Some(PageCause::AmountUnread), "It sent this order, but Halvo found no total on the site's page afterwards. Check the shop's order page to see whether it was placed, and for how much.", vec![("Shop", "City Power"), ("Total you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Purchase, Some(PageCause::PageUnread), "It sent this order, but Halvo could not read the site's page afterwards. Check the shop's order page to see whether it was placed, and for how much.", vec![("Shop", "City Power"), ("Total you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Purchase, None, "It sent this order, but Halvo could not read the site's page afterwards. Check the shop's order page to see whether it was placed, and for how much.", vec![("Shop", "City Power"), ("Total you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+    ];
+    let mut wrong = Vec::new();
+    for (class, page, text, fields) in rows {
+        let first = if class == Class::Payment {
+            "payee"
+        } else {
+            "seller"
+        };
+        let history = [RunHistory {
+            run: PastRun {
+                run: RunId::parse(&format!("{:032x}", 0x7901)).unwrap(),
+                day: base.today,
+                outcome: Outcome::Completed,
+                unknown: 0,
+            },
+            effects: vec![PastEffect {
+                effect: EffectId::parse(&format!("{:032x}", 0x7902)).unwrap(),
+                digest: Digest::parse(&"ab".repeat(32)).unwrap(),
+                class,
+                state: EffectState::Committed,
+                cause: None,
+                kept: vec![
+                    kept(first, "City Power"),
+                    kept("amount", "42.10 USD"),
+                    kept("instrument", "Card ending 4242"),
+                    kept("origin", "https://site1.example:443"),
+                ],
+                page,
+            }],
+        }];
+        let c = card(&base, NAME, &history, &Limits::PRODUCT).unwrap();
+        let entry = &c.runs[0].effects[0];
+        let got: Vec<(&str, String, &str)> = entry
+            .fields()
+            .iter()
+            .map(|f| (f.label.as_str(), f.value.concat(), f.from_text.as_str()))
+            .collect();
+        let want: Vec<(&str, String, &str)> = fields
+            .iter()
+            .map(|(label, value)| {
+                let from = match *label {
+                    "Pay to" | "Shop" | "Pay with" => "You gave this",
+                    "Site" => "Set by Halvo",
+                    _ => "From the site",
+                };
+                (*label, (*value).to_owned(), from)
+            })
+            .collect();
+        if entry.text() != text || got != want {
+            wrong.push(format!("{class} {page:?}: {:?} {got:?}", entry.text()));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+/// The agent of the state `ten` of `category` whose newest run `run` the agent store ended
+/// `failed` with the last cause `cause`, with that run's `run_started` and `run_ended` rows and
+/// the events `after` behind them.
+fn u329_ended(category: crate::types::Category, cause: LastCause, after: &[What]) -> Facts<Config> {
+    use crate::types::Outcome;
+    let mut f = facts(State::Ten).remove(0);
+    f.workflow.category = category;
+    let run = RunId::parse(&format!("{:032x}", 0x7a01)).unwrap();
+    f.runs.insert(
+        0,
+        PastRun {
+            run: run.clone(),
+            day: f.today,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        },
+    );
+    let mut whats = vec![
+        What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+        What::RunEnded {
+            run,
+            cause: RunEnd::Failed,
+            defers: None,
+        },
+    ];
+    whats.extend_from_slice(after);
+    for what in whats {
+        f.events.push(Event {
+            workflow: f.workflow.id.clone(),
+            agent: f.agent.clone(),
+            seq: std::num::NonZeroU32::MIN.saturating_add(f.events.len() as u32),
+            day: f.today,
+            at: i64::from(f.today) * 86_400_000_000_000,
+            what,
+        });
+    }
+    f.last_cause = Some(cause);
+    f
+}
+
+/// r4 U3.29 sentence 3: the row's and the run's lines of the three ends of a run that paid or
+/// ordered, each to the letter of the ruled rows, with the class of the agent's category (way (i)
+/// of the coordinator's log line 20557): a payment whose amount could not be matched, behind the
+/// person's answer (the `hold_cleared` of the cause `amounts` that names the run), rows 8 and 7;
+/// a page that could not be read, rows 14 and 13; a payment that was held back, rows 16 and 15;
+/// each for an order in its twin's words.
+#[test]
+fn u329_the_row_and_the_run_say_how_a_payment_or_an_order_ended() {
+    use crate::types::{Category, Cleared, Digest, EffectId, Name, PageCause};
+    let answered = [What::HoldCleared {
+        cause: Cleared::Amounts {
+            run: RunId::parse(&format!("{:032x}", 0x7a01)).unwrap(),
+        },
+    }];
+    let rows = [
+        (Category::UtilityBillPayment, LastCause::AmountDiffers, Some(PageCause::AmountDiffers { amount: Some(1334) }),
+            "Last time, it sent a payment, and Halvo could not match the amount on the site's page afterwards.",
+            "It sent a payment, then stopped because Halvo could not match the amount on the site's page afterwards."),
+        (Category::UtilityBillPayment, LastCause::PageUnread, Some(PageCause::PageUnread),
+            "Last time, it sent a payment, but Halvo could not read the site's page afterwards.",
+            "It sent a payment, then stopped because Halvo could not read the site's page afterwards."),
+        (Category::UtilityBillPayment, LastCause::AmountNotSent, None,
+            "Last time, it did not pay, because the payment that the site prepared named another amount than its page showed.",
+            "It did not pay, because the payment that the site prepared named another amount than its page showed."),
+        (Category::ShopOrder, LastCause::AmountDiffers, Some(PageCause::AmountDiffers { amount: Some(1334) }),
+            "Last time, it sent an order, and Halvo could not match the total on the site's page afterwards.",
+            "It sent an order, then stopped because Halvo could not match the total on the site's page afterwards."),
+        (Category::ShopOrder, LastCause::PageUnread, Some(PageCause::PageUnread),
+            "Last time, it sent an order, but Halvo could not read the site's page afterwards.",
+            "It sent an order, then stopped because Halvo could not read the site's page afterwards."),
+        (Category::ShopOrder, LastCause::AmountNotSent, None,
+            "Last time, it did not order, because the order that the site prepared named another total than its page showed.",
+            "It did not order, because the order that the site prepared named another total than its page showed."),
+    ];
+    let kept = |name: &str, value: &str| Kept {
+        name: Name::parse(name).unwrap(),
+        value: vec![value.into()],
+    };
+    let mut wrong = Vec::new();
+    for (category, cause, page, row_line, run_line) in rows {
+        let after: &[What] = if cause == LastCause::AmountDiffers {
+            &answered
+        } else {
+            &[]
+        };
+        let f = u329_ended(category, cause, after);
+        let effects = page
+            .map(|page| PastEffect {
+                effect: EffectId::parse(&format!("{:032x}", 0x7a02)).unwrap(),
+                digest: Digest::parse(&"ab".repeat(32)).unwrap(),
+                class: Class::Payment,
+                state: EffectState::Committed,
+                cause: None,
+                kept: vec![
+                    kept("payee", "City Power"),
+                    kept("amount", "42.10 USD"),
+                    kept("instrument", "Card ending 4242"),
+                    kept("origin", "https://site1.example:443"),
+                ],
+                page: Some(page),
+            })
+            .into_iter()
+            .collect();
+        let history = [RunHistory {
+            run: f.runs[0].clone(),
+            effects,
+        }];
+        let line = status(&f, &Limits::PRODUCT, None);
+        let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+        let c = card(&f, NAME, &history, &Limits::PRODUCT).unwrap();
+        if r.line != row_line || c.runs[0].text != run_line {
+            wrong.push(format!(
+                "{category} {cause}: {:?} / {:?}",
+                r.line, c.runs[0].text
+            ));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}

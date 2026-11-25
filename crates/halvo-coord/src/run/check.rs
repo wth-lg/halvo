@@ -24,6 +24,109 @@ pub fn check_due<C: ConfigView>(facts: &Facts<C>, gone: bool) -> bool {
     !gone && idle && holds(facts).contains(&Hold::Check)
 }
 
+/// Whether the coordinator raises the item `amounts` for the agent of `facts` (r4 U3.29): the
+/// agent is idle with no open item, its workflow is not gone, the hold `amounts` stands, and the
+/// hold `off` does not, so that an item closed by Switch it off comes again at Switch on (way (x)
+/// of the coordinator's log line 20557).
+pub fn amounts_due<C: ConfigView>(facts: &Facts<C>, gone: bool) -> bool {
+    let standing = holds(facts);
+    !gone
+        && facts.doing == Doing::Idle(None)
+        && standing.contains(&Hold::Amounts)
+        && !standing.contains(&Hold::Off)
+}
+
+/// Raises the item `amounts` for each agent of the board, or for `only`, for which `amounts_due`
+/// holds and whose place the board does not hold, as `raise_checks` raises the item `check` (r4
+/// U3.29): numbered after the agent's stored last, it stores in one body the owed `item_lapsed` of
+/// each `amounts` item of an earlier life that the events do not close and then `item_raised` of
+/// the kind `amounts` with the run of the hold, the agent's newest; the agent holds the item once
+/// the owner acknowledged the body. After a refusal `seq` the move reads the owner's events, and
+/// an open `amounts` item among them is the agent's; else the next move raises again. Every row is
+/// stamped by `stamp`. The moves that raise the item `check` raise it, and so does the switch-on
+/// of the agent, at which the item that Switch it off closed comes again.
+pub(crate) fn raise_amounts<P, C>(
+    ports: &P,
+    board: &mut Board<C>,
+    limits: &Limits,
+    only: Option<&AgentId>,
+    stamp: Stamp,
+) where
+    P: Owner + Rng,
+    C: ConfigView,
+{
+    for i in 0..board.members.len() {
+        let agent = board.members[i].facts.agent.clone();
+        let gone = board.gone.contains(&board.members[i].facts.workflow.id);
+        if only.is_some_and(|a| a != &agent)
+            || board.place_held(&agent)
+            || board.dismissed_unread(&agent)
+            || !amounts_due(&board.members[i].facts, gone)
+        {
+            continue;
+        }
+        let Some(run) = board.members[i].facts.runs.first().map(|r| r.run.clone()) else {
+            continue;
+        };
+        let Ok(Ok(item)) = ports.bytes16().map(|b| ItemId::parse(&hex(b))) else {
+            continue;
+        };
+        let facts = &board.members[i].facts;
+        let last = board.stored_last(i);
+        let raise = What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Amounts(run),
+        };
+        let events: Vec<Event> = owed_of_kind(board, i, ItemKind::Amounts)
+            .into_iter()
+            .chain(std::iter::once(raise))
+            .zip(0u32..)
+            .map(|(what, k)| Event {
+                workflow: facts.workflow.id.clone(),
+                agent: facts.agent.clone(),
+                seq: NonZeroU32::MIN.saturating_add(last.saturating_add(k)),
+                day: stamp.day(),
+                at: stamp.at(),
+                what,
+            })
+            .collect();
+        match log_body(ports, board, i, events) {
+            Ok(()) => {
+                board.members[i].facts.doing = Doing::Idle(Some(OwnItem {
+                    item,
+                    kind: OwnItemKind::Amounts,
+                }));
+            }
+            Err(e) if seq_refusal(&e) => {
+                if read_back(ports, limits, stamp, board, i).is_ok() {
+                    take_open_amounts(&mut board.members[i].facts);
+                }
+            }
+            Err(_) => {}
+        }
+    }
+}
+
+/// An idle agent with no open item takes the newest open `amounts` item of its events.
+fn take_open_amounts<C>(facts: &mut Facts<C>) {
+    if facts.doing != Doing::Idle(None) {
+        return;
+    }
+    let open = facts.events.iter().rev().find_map(|e| match &e.what {
+        What::ItemRaised {
+            item,
+            raised: Raised::Amounts(_),
+        } if !item_closed(&facts.events, item) => Some(item.clone()),
+        _ => None,
+    });
+    if let Some(item) = open {
+        facts.doing = Doing::Idle(Some(OwnItem {
+            item,
+            kind: OwnItemKind::Amounts,
+        }));
+    }
+}
+
 /// The read of the reply rows of an agent of the category `email` (rulings RD-67 3.3, 3.4, RD-81
 /// 8.4), which each move that computes the agent's holds makes once its facts hold the owner's
 /// answer of that move: the move that raises the item `check` and each tick while it is open

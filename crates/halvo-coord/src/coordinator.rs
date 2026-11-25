@@ -1,9 +1,9 @@
 use crate::guard::{self, EffectRecord, Policy, Refusal, Table};
 use crate::items::drive::{self as items, Held, HeldBind, Ledger, SetupDone};
 use crate::items::{
-    admits, compose_check, compose_link_account, compose_plain, compose_sign_in, native_card,
-    params, raise_confirm, raise_step, ConfirmAnswer, ConfirmMove, ConfirmState, NativeCard, Plain,
-    Raise, Setup, SetupInput, SetupParam, Source,
+    admits, compose_amounts, compose_check, compose_link_account, compose_plain, compose_sign_in,
+    native_card, params, raise_confirm, raise_step, ConfirmAnswer, ConfirmMove, ConfirmState,
+    Differs, NativeCard, Plain, Raise, Setup, SetupInput, SetupParam, Source,
 };
 use crate::ports::{
     Analysis, Chosen, Clock, Files, Owner, Page, PortError, Rng, Runs, Senders, Tray,
@@ -13,10 +13,11 @@ use crate::run::{self, Act, Done, StopBy};
 use crate::schedule::{self, Board, Move, Report};
 use crate::sync::{Next, Sync};
 use crate::types::{
-    Action, AgentId, BusyHistory, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView,
-    Doing, Facts, FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live,
-    OtherLapse, OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind,
-    Snapshot, Status, StatusLine, System, Unknown, WorkflowId,
+    Action, AgentId, AmountsAnswer, BusyHistory, CandidateFrom, Card, Cause, CheckAnswer, Choice,
+    Class, ConfigView, Doing, Facts, FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause,
+    Limits, Live, OtherLapse, OwnItemKind, PageCause, Param, PayClass, Presenter, Row, RunEnd,
+    RunEvent, RunId, RunItem, RunItemKind, Snapshot, Status, StatusLine, System, Unknown,
+    WorkflowId,
 };
 use crate::words;
 use std::cell::RefCell;
@@ -169,6 +170,10 @@ struct State<C> {
     /// gates of U2.4e, ruling RD-152 (4)).
     taken_back: Vec<(AgentId, Option<ItemId>)>,
     checks: Vec<(ItemId, Vec<Unknown>)>,
+    /// For each open item `amounts`, the payment or order of its run as the first read of the
+    /// agent's history that answered gave it, or none where that read holds none (r4 U3.29); an
+    /// item that no read answered yet is no entry. The fields live in this life's state alone.
+    amounts: Vec<(ItemId, Option<Differs>)>,
     /// The runs of an earlier life that this life's `Runs::reap` answered `alive` and whose kill
     /// at the second step of the quit this life's library answered Ok.
     killed_kept: Vec<RunId>,
@@ -525,6 +530,7 @@ where
                 deleting: Vec::new(),
                 taken_back: Vec::new(),
                 checks: Vec::new(),
+                amounts: Vec::new(),
                 killed_kept: Vec::new(),
             }),
             last_read: AtomicU64::new(NO_READ),
@@ -2388,6 +2394,10 @@ where
                     let answer = CheckAnswer::parse(choice.name())?;
                     self.schedule(st, Move::Check { agent, answer })
                 }
+                (OwnItemKind::Amounts, Choice::SwitchOff | Choice::Seen) => {
+                    let answer = AmountsAnswer::parse(choice.name())?;
+                    self.schedule(st, Move::Amounts { agent, answer })
+                }
                 (OwnItemKind::Setup, Choice::None) => self.setup(st, item, SetupInput::None, step),
                 (OwnItemKind::Setup, Choice::Choose) => {
                     let (param, n) = pick.ok_or(Cause::Malformed)?;
@@ -2729,6 +2739,9 @@ where
         share_lasts(board, ledgers);
         let report = schedule::drive(&self.ports, board, &self.limits, mv);
         self.noted(report.read);
+        if let (Some(agent), Some(stamp)) = (&on, report.stamp) {
+            run::raise_amounts(&self.ports, board, &self.limits, Some(agent), stamp);
+        }
         if let Some(agent) = on {
             st.refused_on.retain(|(a, _)| a != &agent);
             if let Some(shared) = report.shared.clone() {
@@ -3744,6 +3757,7 @@ where
                 .collect();
         }
         Self::keep_check_fields(st);
+        self.keep_amounts_fields(st);
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();
         let changed = if st.mark.unpublished {
@@ -3786,6 +3800,56 @@ where
                 Some((_, kept)) => kept.clone_from(unknown),
                 None => checks.push((item, unknown.clone())),
             }
+        }
+    }
+
+    /// Keeps, for each open item `amounts`, the committed payment or order of the agent's newest
+    /// run whose page afterwards could not be matched, as one read of the agent's history gives
+    /// it, and forgets the entry of an item that is no longer open (r4 U3.29). A read that does
+    /// not answer keeps nothing, and the next publish reads again.
+    fn keep_amounts_fields(&self, st: &mut State<Cfg<P>>) {
+        let State { board, amounts, .. } = st;
+        let open: Vec<(ItemId, &Facts<Cfg<P>>)> = board.as_ref().map_or_else(Vec::new, |b| {
+            b.members
+                .iter()
+                .filter_map(|m| {
+                    let item = m.facts.doing.item()?;
+                    (item.kind == ItemKind::Amounts).then_some((item.item, &m.facts))
+                })
+                .collect()
+        });
+        amounts.retain(|(item, _)| open.iter().any(|(i, _)| i == item));
+        for (item, facts) in open {
+            if amounts.iter().any(|(i, _)| *i == item) {
+                continue;
+            }
+            let Some(newest) = facts.runs.first() else {
+                continue;
+            };
+            let Ok(history) = self
+                .ports
+                .agent_history(&facts.workflow.id, &facts.agent, 1)
+            else {
+                continue;
+            };
+            let differs = history
+                .iter()
+                .filter(|h| h.run.run == newest.run)
+                .flat_map(|h| &h.effects)
+                .find_map(|e| match e.page {
+                    Some(PageCause::AmountDiffers { amount })
+                        if e.state == guard::EffectState::Committed
+                            && matches!(e.class, Class::Payment | Class::Purchase) =>
+                    {
+                        Some(Differs {
+                            class: e.class,
+                            kept: e.kept.clone(),
+                            amount,
+                        })
+                    }
+                    _ => None,
+                });
+            amounts.push((item, differs));
         }
     }
 
@@ -4058,6 +4122,15 @@ where
                     Doing::Live(_) => &[],
                 };
                 compose_check(item, agent, name, unknown).ok()
+            }
+            ItemKind::Amounts => {
+                let differs = st
+                    .amounts
+                    .iter()
+                    .find(|(i, _)| i == item)
+                    .and_then(|(_, d)| d.as_ref());
+                let category = PayClass::of(facts.workflow.category);
+                compose_amounts(item, agent, name, category, differs).ok()
             }
         }
     }

@@ -1,0 +1,1 @@
+- Added: check_playbook refuses a playbook that holds a second step of the class payment or purchase, with the new cause two_paying_steps; the store's put_playbook answers playbook for it, and the runner refuses such a playbook at every run before its first step.

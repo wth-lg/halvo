@@ -379,6 +379,7 @@ fn what_name(w: &What) -> String {
             Cleared::Failures => "hold_cleared failures".into(),
             Cleared::Check { answer, .. } => format!("hold_cleared check {answer}"),
             Cleared::SignInRefused { .. } => "hold_cleared sign_in_refused".into(),
+            Cleared::Amounts { .. } => "hold_cleared amounts".into(),
         },
         What::SlotSkipped { slot } => format!(
             "slot_skipped {}",
