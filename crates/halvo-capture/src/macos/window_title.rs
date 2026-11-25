@@ -160,8 +160,8 @@ pub(crate) const ENGLISH: &str = "en";
 /// What a title of Chrome or Edge ends with where Halvo keeps it: the
 /// browser's own name as it ends the title of an ordinary window, behind
 /// whose last place may stand ` - ` and a profile's name, and whether a
-/// closing bracket may not be the last letter, digit or closing bracket
-/// before it.
+/// closing square bracket may not be the last letter, digit or closing
+/// square bracket before it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct OwnName {
     name: &'static str,
@@ -172,8 +172,9 @@ impl OwnName {
     /// Whether `ending`, with zero-width characters and marks of writing
     /// direction taken out and the blanks at its end trimmed, holds the name
     /// with nothing behind its last place, or ` - ` and a name of a profile
-    /// that is not blank; and, where the browser asks it, no closing bracket
-    /// is the last letter, digit or closing bracket before the name.
+    /// that is not blank; and, where the browser asks it, no closing square
+    /// bracket is the last letter, digit or closing square bracket before
+    /// the name.
     fn ends(self, ending: &str) -> bool {
         let text: String = ending.chars().filter(|&c| !is_invisible_mark(c)).collect();
         let text = text.trim_end();
@@ -213,13 +214,13 @@ fn is_invisible_mark(c: char) -> bool {
 /// format for the accessible title of a tabbed window, ` - Google Chrome`,
 /// behind which a window under one of several profiles has ` - ` and the
 /// profile's name; the title of its Incognito, Guest or isolated window, of an
-/// app window and of a dialog in front ends otherwise.
-/// Edge's source is not public: its ` - Microsoft Edge`, with ` - ` and the
-/// profile's name behind it for a second profile, is the ending that hosted
-/// Macs read from Edge 157.0.4341.60, whose InPrivate and Guest windows and
-/// message box ended otherwise; it keeps the guard of the Windows rule, where
-/// an InPrivate window puts its bracketed mark before the name. Safari is not
-/// here: its titles are not read.
+/// app window and of a dialog in front ends otherwise. Edge's source is not
+/// public: its ` - Microsoft Edge`, with ` - ` and the profile's name behind
+/// it for a second profile, is the ending that GitHub's hosted Macs read from
+/// Edge 157.0.4341.60, whose InPrivate and Guest windows and message box ended
+/// otherwise; it keeps the guard of the Windows rule, where an InPrivate
+/// window puts its bracketed mark before the name. Safari is not here: its
+/// titles are not read.
 pub(crate) const NAME_ENDINGS: [(&str, OwnName); 2] = [
     (
         "com.google.Chrome",
@@ -597,10 +598,10 @@ mod tests {
         }
     }
 
-    /// One title a row: made-up titles, and the titles that three runs on a
-    /// hosted Mac read from Chrome 158.0.8127.37 and Edge 157.0.4341.60, sign
-    /// for sign (`as-run` and `run3-`); the port in a message box's title is
-    /// that run's own and differs from run to run.
+    /// One title a row: made-up titles, and the titles that three runs on
+    /// GitHub's hosted Macs read from Chrome 158.0.8127.37 and Edge
+    /// 157.0.4341.60, sign for sign (`as-run` and `run3-`); the port in a
+    /// message box's title is that run's own and differs from run to run.
     #[test]
     fn a_chrome_or_edge_title_is_kept_only_where_it_ends_with_the_browsers_own_name() {
         let kept = |id: &str, title: &str| match listed(id) {
