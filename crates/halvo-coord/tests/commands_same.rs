@@ -75,7 +75,7 @@ fn i8_1() -> Value {
             arg("param", "name", Some("choose"), Some(params.clone())),
             arg("n", "count", Some("choose"), None)],
          "replies": ["reply-ok"],
-         "errors": ["stale", "presenter", "early", "hold", "state", "budget", "queue_full", "unknown_item", "no_service", "busy", "malformed"]},
+         "errors": ["stale", "presenter", "early", "hold", "state", "queue_full", "unknown_item", "no_service", "busy", "malformed"]},
         {"command": "agents_setup_typed", "args": [
             arg("item", "id", None, None),
             arg("step", "count", None, None),
@@ -93,7 +93,7 @@ fn i8_1() -> Value {
             arg("agent", "id", None, None),
             arg("action", "name", None, Some(vec!["run_now", "stop", "take_back", "switch_off", "switch_on", "stop_sign_in", "use_model", "this_computer_only", "change_answers"]))],
          "replies": ["reply-ok"],
-         "errors": ["hold", "state", "budget", "queue_full", "unknown_agent", "no_service", "busy", "overlap", "day", "malformed"]},
+         "errors": ["hold", "state", "queue_full", "unknown_agent", "no_service", "busy", "overlap", "day", "malformed"]},
         {"command": "agents_shown", "args": [
             arg("item", "id", None, None),
             arg("step", "count", None, None)],

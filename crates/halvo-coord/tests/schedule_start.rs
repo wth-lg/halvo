@@ -196,13 +196,13 @@ fn step_2_starts_per_day_run_started_events_of_today_is_budget() {
     }
     let f = facts(&AUTO, whats.clone());
     assert_eq!(
-        cause(&start_step(&f, Trigger::Person, &L, &free())),
+        cause(&start_step(&f, Trigger::Schedule, &L, &free())),
         Some(Cause::Budget)
     );
     whats.truncate(whats.len() - 2);
     let g = facts(&AUTO, whats);
     assert!(matches!(
-        start_step(&g, Trigger::Person, &L, &free()).verdict,
+        start_step(&g, Trigger::Schedule, &L, &free()).verdict,
         Verdict::Go(_)
     ));
     let mut yesterday = done_before();
@@ -211,7 +211,7 @@ fn step_2_starts_per_day_run_started_events_of_today_is_budget() {
     }
     let y = facts(&AUTO, yesterday);
     assert!(matches!(
-        start_step(&y, Trigger::Person, &L, &free()).verdict,
+        start_step(&y, Trigger::Schedule, &L, &free()).verdict,
         Verdict::Go(_)
     ));
 }
@@ -681,7 +681,7 @@ fn step_3_a_newest_run_that_the_agent_store_has_not_ended_is_state() {
     let (mut spent, a) = failing(&[2]);
     spent.store_ended = false;
     assert_eq!(
-        cause(&start_step(&spent, Trigger::Person, &L, &a)),
+        cause(&start_step(&spent, Trigger::Schedule, &L, &a)),
         Some(Cause::Budget),
         "step 2 comes before step 3"
     );
@@ -755,4 +755,43 @@ fn active_is_wanted_for_an_approved_agent_with_no_hold_and_for_web_after_a_compl
     held.workflow.state = WorkflowState::Approved;
     held.workflow.category = Category::Email;
     assert!(!wants_active(&held), "the hold setup");
+}
+
+/// r4 U3.24 sentence 1: where the agent has `starts_per_day` `run_started` events of today, each
+/// ended `cancelled` so that its slot stays due, and no hold stands, a start of the person reads
+/// the verdict that the same facts give with one start fewer, at the press and leaving the queue,
+/// and a start of the scheduler for its due slot reads the refusal `budget`.
+#[test]
+fn u324_a_used_day_refuses_a_start_of_the_scheduler_and_no_start_of_the_person() {
+    let day = |starts: u32| {
+        let mut whats = done_before();
+        for n in 0..starts {
+            whats.push((TODAY, started(10 + n, Trigger::Person, None)));
+            whats.push((TODAY, ended(10 + n, RunEnd::Cancelled)));
+        }
+        facts(&AUTO, whats)
+    };
+    let (used, fewer) = (day(L.starts_per_day), day(L.starts_per_day - 1));
+    let pressed = start_step(&fewer, Trigger::Person, &L, &free());
+    assert!(matches!(pressed.verdict, Verdict::Go(_)), "{pressed:?}");
+    assert_eq!(
+        start_step(&used, Trigger::Person, &L, &free()),
+        pressed,
+        "a press of the person"
+    );
+    let queue = Around {
+        from_queue: true,
+        ..free()
+    };
+    assert_eq!(
+        start_step(&used, Trigger::Person, &L, &queue),
+        start_step(&fewer, Trigger::Person, &L, &queue),
+        "a start of the person that leaves the queue"
+    );
+    assert_eq!(go(&start_step(&fewer, Trigger::Schedule, &L, &free())).slot, Some(107));
+    assert_eq!(
+        cause(&start_step(&used, Trigger::Schedule, &L, &free())),
+        Some(Cause::Budget),
+        "a start of the scheduler"
+    );
 }
