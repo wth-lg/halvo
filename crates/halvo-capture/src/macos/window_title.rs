@@ -158,24 +158,22 @@ fn bounded_title(text: &CFString) -> TitleText {
 pub(crate) const ENGLISH: &str = "en";
 
 /// What a title of Chrome or Edge ends with where Halvo keeps it: the
-/// browser's own name as it ends the title of an ordinary window, whether
-/// ` - ` and a profile's name may stand behind the name's last place, and
-/// whether a closing bracket may not be the last letter, digit or closing
-/// bracket before it.
+/// browser's own name as it ends the title of an ordinary window, behind
+/// whose last place may stand ` - ` and a profile's name, and whether a
+/// closing bracket may not be the last letter, digit or closing bracket
+/// before it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct OwnName {
     name: &'static str,
-    profile_after: bool,
     no_bracket_before: bool,
 }
 
 impl OwnName {
     /// Whether `ending`, with zero-width characters and marks of writing
     /// direction taken out and the blanks at its end trimmed, holds the name
-    /// with nothing behind its last place, or, where the browser asks it,
-    /// ` - ` and a name of a profile that is not blank; and, where the browser
-    /// asks it, no closing bracket is the last letter, digit or closing
-    /// bracket before the name.
+    /// with nothing behind its last place, or ` - ` and a name of a profile
+    /// that is not blank; and, where the browser asks it, no closing bracket
+    /// is the last letter, digit or closing bracket before the name.
     fn ends(self, ending: &str) -> bool {
         let text: String = ending.chars().filter(|&c| !is_invisible_mark(c)).collect();
         let text = text.trim_end();
@@ -184,10 +182,9 @@ impl OwnName {
         };
         let (head, tail) = (&text[..at], &text[at + self.name.len()..]);
         let tail_kept = tail.is_empty()
-            || (self.profile_after
-                && tail
-                    .strip_prefix(" - ")
-                    .is_some_and(|profile| !profile.trim().is_empty()));
+            || tail
+                .strip_prefix(" - ")
+                .is_some_and(|profile| !profile.trim().is_empty());
         if !tail_kept {
             return false;
         }
@@ -217,17 +214,17 @@ fn is_invisible_mark(c: char) -> bool {
 /// behind which a window under one of several profiles has ` - ` and the
 /// profile's name; the title of its Incognito, Guest or isolated window, of an
 /// app window and of a dialog in front ends otherwise.
-/// Edge's source is not public: its ` - Microsoft Edge` is the ending of an
-/// ordinary window that a hosted Mac read from Edge 157.0.4341.60, whose
-/// InPrivate and Guest windows and message box ended otherwise; it keeps the
-/// guard of the Windows rule, where an InPrivate window puts its bracketed
-/// mark before the name. Safari is not here: its titles are not read.
+/// Edge's source is not public: its ` - Microsoft Edge`, with ` - ` and the
+/// profile's name behind it for a second profile, is the ending that hosted
+/// Macs read from Edge 157.0.4341.60, whose InPrivate and Guest windows and
+/// message box ended otherwise; it keeps the guard of the Windows rule, where
+/// an InPrivate window puts its bracketed mark before the name. Safari is not
+/// here: its titles are not read.
 pub(crate) const NAME_ENDINGS: [(&str, OwnName); 2] = [
     (
         "com.google.Chrome",
         OwnName {
             name: " - Google Chrome",
-            profile_after: true,
             no_bracket_before: false,
         },
     ),
@@ -235,7 +232,6 @@ pub(crate) const NAME_ENDINGS: [(&str, OwnName); 2] = [
         "com.microsoft.edgemac",
         OwnName {
             name: " - Microsoft Edge",
-            profile_after: false,
             no_bracket_before: true,
         },
     ),
