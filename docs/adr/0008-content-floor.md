@@ -70,9 +70,8 @@ The limits, which docs/privacy-limits.md states with their sources:
   Windows, a title of Edge is stored only where it ends with Edge's name and the last
   letter, digit or closing bracket before the name is not a closing bracket, and a title
   of Chrome only where the name that Chrome gives the inside of the window ends with
-  Chrome's own name, alone or followed by a profile's name, which the names of its
-  private and Guest windows do
-  not, where the browser's own toolbar outside the page holds a button named Back,
+  Chrome's own name, alone or followed by a profile's name,
+  where the browser's own toolbar outside the page holds a button named Back,
   Forward or Reload, and where no button of the window carries the word Incognito. No
   title of Firefox, Safari or another browser that Halvo knows by name is stored, and
   the title of a private window of a browser that Halvo does not know as one is stored
