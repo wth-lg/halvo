@@ -24,7 +24,8 @@
 # targets of the packages that hold a core promise (scripts/ci/core-promises.txt): halvo,
 # halvo-capture, halvo-derived, halvo-learn, halvo-learn-gate, halvo-learn-store, halvo-redact,
 # halvo-route, halvo-route-gate and halvo-route-wire. In those, a target or a group of unit tests
-# is here when it took about 6 s or more in one of the two jobs.
+# is here when it took about 6 s or more in one of the two jobs. The gate of the macos job runs no
+# test of a package whose code holds no cfg by system: the windows gate runs it (the group H).
 # The groups: A the tests of the store (the slice mon); B the test targets of the agent packages and
 # of halvo-policy and the unit tests of three packages (tue); C the name
 # parts of halvo-capture's unit tests and the doc-tests (fri in the macos job, fri in the windows job);
@@ -35,7 +36,11 @@
 # cli of halvo-capture, whose file holds tests of a macos build alone (wed2 in the macos job; no
 # windows slice runs it, where the windows gate runs every test of it that a windows build holds); G
 # the test targets of halvo-runner and of the coordinator packages, the target formal_traces and the
-# unit tests of halvo-web and halvo-route-gate (tue2).
+# unit tests of halvo-web and halvo-route-gate (tue2); H what the gate of the macos job leaves to the
+# windows gate by the job word macos, the tests of the packages whose source and halvo dependencies
+# hold no cfg by system (target_os, unix, windows) but for the targets whose own file holds one, and
+# the 12-test copy of halvo-redact's tests, which 22-redact runs in the windows gate (no slice runs H;
+# r8 cut-2, rule R4: a test of code that is the same on both systems runs in the windows job alone).
 # The seconds of the lines of F are those of the macos job in the pull request runs 45111247085,
 # 45112524657 and 45111386498, from libtest's lines, and for a test line the gaps before its lines in
 # the third run's 12-test/line-seconds.txt. B and D were one group,
@@ -97,3 +102,43 @@ test windows::input::tests::keys_wait_for_a_held_pointer_pump_and_an_idle_pointe
 test windows::input::tests::a_keyboard_stop_lets_the_click_route_go_only_when_its_window_and_gate_are_its_own C halvo-capture 9 s windows
 test daemon::owner_props F halvo-capture macos 8 s macos in the run 45111386498, 8 tests; the windows gate runs all 8
 doc-tests C 12 s macos after a build of 29 s, in the push run 44893237714
+units halvo-connect H macos 58 tests in 1.42 s in the macos gate of the push run 45421682892; the windows gate runs them
+units halvo-derived H macos 22 tests in 0.23 s in the macos gate of the push run 45421682892; the windows gate runs them
+units halvo-identify H macos 17 tests in 0.01 s in the macos gate of the push run 45421682892; the windows gate runs them
+units halvo-learn H macos 0 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+units halvo-model H macos 0 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+units halvo-policy H macos 2 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+units halvo-route H macos 60 tests in 0.15 s in the macos gate of the push run 45421682892; the windows gate runs them
+units halvo-route-wire H macos 0 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+units halvo-sample H macos 1 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+units halvo-schema H macos 19 tests in 0.03 s in the macos gate of the push run 45421682892; the windows gate runs them
+units halvo-schema-core H macos 0 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+units halvo-seam H macos 0 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+targets halvo-derived H macos 15 test targets, 142 tests in 15.96 s in the macos gate of the push run 45421682892; the windows gate runs them
+targets halvo-identify H macos 1 test targets, 1 tests in 0.18 s in the macos gate of the push run 45421682892; the windows gate runs them
+targets halvo-learn H macos 4 test targets, 30 tests in 0.27 s in the macos gate of the push run 45421682892; the windows gate runs them
+targets halvo-learn-store H macos 1 test targets, 1 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+targets halvo-model H macos 2 test targets, 8 tests in 2.62 s in the macos gate of the push run 45421682892; the windows gate runs them
+targets halvo-route H macos 8 test targets, 38 tests in 1.87 s in the macos gate of the push run 45421682892; the windows gate runs them
+target generate_specimen H macos halvo-route-gate: 6 tests in 1.36 s in the macos gate of the push run 45421682892; the windows gate runs them
+target import_golden H macos halvo-route-gate: 2 tests in 0.09 s in the macos gate of the push run 45421682892; the windows gate runs them
+target import_write H macos halvo-route-gate: 5 tests in 0.03 s in the macos gate of the push run 45421682892; the windows gate runs them
+target out_file H macos halvo-route-gate: 4 tests in 0.02 s in the macos gate of the push run 45421682892; the windows gate runs them
+target product_bar H macos halvo-route-gate: 1 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+target product_cli H macos halvo-route-gate: 5 tests in 0.24 s in the macos gate of the push run 45421682892; the windows gate runs them
+target product_recorded H macos halvo-route-gate: 4 tests in 0.01 s in the macos gate of the push run 45421682892; the windows gate runs them
+target product_recorded_cli H macos halvo-route-gate: 2 tests in 0.08 s in the macos gate of the push run 45421682892; the windows gate runs them
+target product_router H macos halvo-route-gate: 4 tests in 1.35 s in the macos gate of the push run 45421682892; the windows gate runs them
+target score_lines H macos halvo-route-gate: 15 tests in 0.04 s in the macos gate of the push run 45421682892; the windows gate runs them
+target selftest_line H macos halvo-route-gate: 3 tests in 1.66 s in the macos gate of the push run 45421682892; the windows gate runs them
+target sequences_same H macos halvo-route-gate: 3 tests in 1.20 s in the macos gate of the push run 45421682892; the windows gate runs them
+target table_reader H macos halvo-route-gate: 4 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+target answer_parse H macos halvo-route-wire: 10 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+target answers_hold H macos halvo-route-wire: 3 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+target body_parse H macos halvo-route-wire: 17 tests in 0.01 s in the macos gate of the push run 45421682892; the windows gate runs them
+target body_write H macos halvo-route-wire: 7 tests in 0.37 s in the macos gate of the push run 45421682892; the windows gate runs them
+target debug_text H macos halvo-route-wire: 1 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them
+target files_form H macos halvo-route-wire: 4 tests in 0.01 s in the macos gate of the push run 45421682892; the windows gate runs them
+target vectors_hold H macos halvo-route-wire: 3 tests in 0.03 s in the macos gate of the push run 45421682892; the windows gate runs them
+targets halvo-redact H 2 test targets, 50 tests in 4.73 s in the macos gate of the push run 45421682892: 22-redact runs them in the windows gate
+units halvo-redact H 2 tests in the macos gate of the push run 45421682892: 22-redact runs them in the windows gate

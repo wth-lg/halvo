@@ -106,6 +106,8 @@ fn the_cause_list_holds_unauthorized_not_selected_and_no_start_in_the_order_of_t
             "read_only",
             "no_access",
             "data_encoding",
+            "two_sheets",
+            "data_narrow",
         ]
     );
     for cause in Cause::ALL {
