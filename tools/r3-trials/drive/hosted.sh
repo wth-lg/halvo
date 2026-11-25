@@ -19,8 +19,10 @@ The paid form is ONE round on one Mac. It refuses to start, before it reads the 
 a browser, a door or a count, while the rate of the tier in crates/halvo-route/data/prices.tsv
 has a source that begins fixture: (REFUSED prices). It builds the door in release without the
 feature loopback, and starts it for each run that asks the model under sh
-scripts/egress/check.sh with the list FILE, which must hold ONE entry, the host:443 of the
-origin of the row of the tier in crates/halvo-route/data/hosts.tsv. The key is read ONCE from
+scripts/egress/check.sh --one-named-host with the list FILE, which must hold ONE entry, the
+host:443 of the origin of the row of the tier in crates/halvo-route/data/hosts.tsv; the check
+takes a name behind that argument alone, and then lets name lookups and tcp to port 443 through
+and denies and logs all else (r3 U0.8c). The key is read ONCE from
 the key file, by r3-drive, and goes to the door as its first line behind its length line;
 no line and no file of a cell holds it.
 

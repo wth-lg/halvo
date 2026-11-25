@@ -33,10 +33,17 @@ with `--cell` runs one of the cells alone (point 8).
 ## What differs from the first trial
 
 1. The child. In the place of `r3-model`, the harness starts the door `halvo-model` (A12.6), built
-   in release without the cargo feature `loopback`, under `sh scripts/egress/check.sh` with a list
-   of ONE origin, the origin of the row below. The key of the host is read ONCE from the file that
-   the command names and goes to the door as its first line behind its length line; it stands in no
-   line that the command prints and in no file of a cell.
+   in release without the cargo feature `loopback`, under `sh scripts/egress/check.sh --one-named-host`
+   with a list of ONE entry, the host name of the origin of the row below on port 443. Under that
+   argument, which the paid form alone passes and no check of CI passes, the check's wall on this Mac
+   opens the name lookup through the system's resolver and tcp to port 443, of any name and any
+   address, and denies and logs every other connection, datagram and service that it denies without
+   the argument: a sandbox profile names a host only as `*` or `localhost`, so the wall cannot name
+   the host. What shows the ONE host is the door: it sends to the origin of its row alone, which the
+   `host` line below names, and TLS proves the name, since its request leaves only on a connection
+   whose certificate the system's trust store takes for that name. The key of the host is read ONCE
+   from the file that the command names and goes to the door as its first line behind its length
+   line; it stands in no line that the command prints and in no file of a cell.
 2. No weights and no model lock. There is no file of weights, no cap of A13.1 and no model lock, so
    `wall_s` holds no load time and no wait for a lock.
 3. The settings of the hosted row. The model word, the origin and the adapter word are those of the
@@ -99,10 +106,14 @@ below and with the coordinator's line that the verdict stands:
   compiles, 18 in recoveries, 6 for replies. The recovery asks twice at each stored step that finds
   no control, and a right walk has nine such steps in its six cells: two in each cell of `bill` and
   one in each cell of `order`.
-- `egress list=<file> origin=<origin> starts=<n> runs=<n> denied=0`: the one origin of the list,
-  the number of the door's starts under the egress check, the number of the egress check's own
-  lines that the round read, equal to the starts, and no connection outside the list. Where the
-  lines are fewer or more than the starts, the round says so and gives no verdict.
+- `egress list=<file> origin=<origin> starts=<n> runs=<n> denied=0`: the list of one name on port
+  443, the origin of the row, the number of the door's starts under the egress check with
+  `--one-named-host`, the number of the egress check's own lines that the round read, equal to the
+  starts, and no denied attempt: no connection to a port other than 443, no datagram, no ICMP, no
+  URL session and no opening of another program. The wall logs no name lookup and no connection to
+  port 443, so `denied=0` does not name the address that the door reached; the `host` line and TLS
+  show the one host. Where the lines are fewer or more than the starts, the round says so and gives
+  no verdict.
 - `host tier=<tier> origin=<origin> model=<word> adapter=<word>`: the row of the table of hosts that
   the door used.
 
