@@ -5903,6 +5903,127 @@ mod tests {
     }
 
     #[test]
+    fn a_switch_out_of_a_password_field_lets_the_read_that_it_asks_decide_the_word_typed_behind_it()
+    {
+        use FieldState::{Clear, Password};
+        const LEFT: usize = 0xA0;
+        const IN_FRONT: usize = 0xB0;
+        let gate = plain();
+        let (kept, event) = gate.shared.begin_asked_event();
+        gate.shared.field_seen_in(
+            1_100,
+            Password,
+            (ContentReading::Password, Some(LEFT), None, event),
+            None,
+        );
+        let number = gate.switched_to(IN_FRONT, 1_200);
+        let (moves, in_flight, asked) = {
+            let mut marks = gate.shared.lock();
+            (marks.moves, marks.events_in_flight > 0, marks.ask())
+        };
+        let read = answered(false, false, Kind::NativeEdit);
+        let (state, change) = with_kept(
+            Some(kept),
+            KeptElement::Other,
+            state_of(read, false),
+            ReadBy::OwnRead,
+            moves,
+            in_flight,
+        );
+        let window = answers_for_its_element(KeptElement::Other, state_of(read, false), state)
+            .then_some(IN_FRONT);
+        gate.shared.read_seen_in(
+            1_300,
+            1_305,
+            (state, content_of(read, false, state), window, None, asked),
+            Moved::Another,
+            None,
+        );
+        let title = gate.content_reading_of(IN_FRONT, Some(number));
+        let word = [2_000, 2_400, 2_800].map(|at| {
+            let letter = key(&gate, at);
+            gate.landing_at(at, Clear);
+            gate.read_at(at + HOLD, Clear, Moved::Same);
+            reading(&gate, &letter, at + HOLD + 10)
+        });
+        assert_eq!(
+            ((state, change, window), title, word),
+            (
+                (Clear, Kept::Drop, Some(IN_FRONT)),
+                Some(ContentReading::Clear(ClearBy::NativeEdit)),
+                [Some(Ok(())), Some(Ok(())), Some(Ok(()))]
+            ),
+            "the read asked at a switch out of a password field into a plain edit: its key's \
+             state, the kept element and its window; the title's reading of the window in \
+             front; the three letters typed behind it"
+        );
+    }
+
+    #[test]
+    fn behind_a_counted_switch_the_kept_element_and_a_password_field_stay_password() {
+        use FieldState::{Password, Unknown};
+        use KeptElement::{Other, Same};
+        let gate = PasswordGate::new();
+        let (kept, event) = gate.shared.begin_asked_event();
+        gate.shared.field_seen(
+            1_000,
+            Password,
+            (ContentReading::Password, None, event),
+            None,
+        );
+        gate.switched_to(0xB0, 1_100);
+        let moves = gate.shared.lock().moves;
+        let rows = [
+            (
+                "the kept element read again",
+                Same,
+                Password,
+                None,
+                Some(Kept::Leave),
+            ),
+            (
+                "a native password field of the window in front",
+                Other,
+                Password,
+                Some(answered(true, false, Kind::NativeEdit)),
+                Some(Kept::Set),
+            ),
+            (
+                "a password field of a page in Chrome",
+                Other,
+                Password,
+                Some(answered(true, false, Kind::Chrome)),
+                Some(Kept::Set),
+            ),
+            (
+                "a field in Firefox",
+                Other,
+                Unknown,
+                Some(answered(false, false, Kind::Firefox)),
+                None,
+            ),
+        ];
+        let wrong: Vec<&str> = rows
+            .iter()
+            .filter(|(_, element, read, focus, kept_as)| {
+                let (state, change) =
+                    with_kept(Some(kept), *element, *read, ReadBy::OwnRead, moves, false);
+                let reading = focus.map_or(ContentReading::Password, |focus| {
+                    content_of(focus, false, state)
+                });
+                let kept_out = state != FieldState::Clear
+                    && !matches!(reading, ContentReading::Clear(_) | ContentReading::NoAnswer);
+                let stays_password = kept_as.is_none_or(|kept_change| {
+                    (state, change, reading) == (Password, kept_change, ContentReading::Password)
+                });
+                !(kept_out && stays_password)
+            })
+            .map(|(row, ..)| *row)
+            .collect();
+        assert!(wrong.is_empty(), "rows told otherwise: {wrong:?}");
+    }
+
+    #[test]
     fn the_deciding_reads_own_state_joins_the_verdict() {
         let gate = plain();
         let letter = key(&gate, 2_000);
