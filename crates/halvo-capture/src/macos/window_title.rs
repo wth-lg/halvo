@@ -29,7 +29,8 @@ const AX_ERROR_ATTRIBUTE_UNSUPPORTED: i32 = -25205;
 
 pub const TITLE_READ_CAP_UNITS: usize = 1024;
 
-/// The UTF-16 units at the end of a title that the private-window rule reads.
+/// The UTF-16 units at the end of a title that the rule by the browser's own
+/// name reads.
 pub const TITLE_ENDING_UNITS: usize = 64;
 
 pub const TITLE_READ_DEADLINE: Duration = crate::macos::foreground::FOREGROUND_POLL;
@@ -48,7 +49,7 @@ const _: () = assert!(crate::floor::text::TEXT_MAX_BYTES <= TITLE_READ_CAP_UNITS
 pub struct TitleText {
     text: String,
     ending: String,
-    private_words: Option<&'static str>,
+    own_name: Option<OwnName>,
 }
 
 impl TitleText {
@@ -64,20 +65,20 @@ impl TitleText {
         &self.ending
     }
 
-    /// The same title, read from a window of a browser whose private window
-    /// ends its title with `words`.
-    pub(crate) fn of_a_browser_ending_private_with(self, words: &'static str) -> Self {
+    /// The same title, read from a window of a browser whose titles are kept
+    /// only where they end with `own`.
+    pub(crate) fn of_a_browser_kept_by_its_name(self, own: OwnName) -> Self {
         Self {
-            private_words: Some(words),
+            own_name: Some(own),
             ..self
         }
     }
 
-    /// Whether the title ends with the words that its browser puts at the end
-    /// of a private window's title.
-    pub(crate) fn is_private(&self) -> bool {
-        self.private_words
-            .is_some_and(|words| self.ending.ends_with(words))
+    /// Whether its browser's rule leaves the title out: it was read from
+    /// Chrome or Edge, and [`OwnName`] of that browser does not keep its
+    /// ending.
+    pub(crate) fn left_out_by_its_browser(&self) -> bool {
+        self.own_name.is_some_and(|own| !own.ends(&self.ending))
     }
 
     #[cfg(test)]
@@ -87,7 +88,7 @@ impl TitleText {
         Self {
             text: lossy(&units[..units.len().min(HEAD_READ_UNITS)]),
             ending: lossy(&units[start..]),
-            private_words: None,
+            own_name: None,
         }
     }
 }
@@ -146,22 +147,96 @@ fn bounded_title(text: &CFString) -> TitleText {
     TitleText {
         text: lossy(&head),
         ending: lossy(&units_of(string, start, total - start)),
-        private_words: None,
+        own_name: None,
     }
 }
 
 /// The name of the localization of a browser's bundle under which the rules
-/// keep its titles: the bundle's `en`, for which [`ENGLISH_ENDINGS`] holds
-/// the US-English words of a private window. Whether a bundle's `en` holds
-/// those words is each bundle's own.
+/// keep its titles: the bundle's `en`, for which [`NAME_ENDINGS`] holds the
+/// US-English ending of an ordinary window. Where a language puts its private
+/// words and the name is each translation's own, and no other is read.
 pub(crate) const ENGLISH: &str = "en";
 
-/// Chrome and Edge, each matched whole, with the words that end the title of
-/// its private window in the localization [`ENGLISH`]. Safari is not here: its
-/// titles are not read.
-pub(crate) const ENGLISH_ENDINGS: [(&str, &str); 2] = [
-    ("com.google.Chrome", "(Incognito)"),
-    ("com.microsoft.edgemac", "(InPrivate)"),
+/// What a title of Chrome or Edge ends with where Halvo keeps it: the
+/// browser's own name as it ends the title of an ordinary window, behind
+/// whose last place may stand ` - ` and a profile's name, and whether the
+/// last letter, digit or closing square bracket before it must be a letter
+/// or a digit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OwnName {
+    name: &'static str,
+    letter_or_digit_before: bool,
+}
+
+impl OwnName {
+    /// Whether `ending`, with zero-width characters and marks of writing
+    /// direction taken out and the blanks at its end trimmed, holds the name
+    /// with nothing behind its last place, or ` - ` and a name of a profile
+    /// that is not blank; and, where the browser asks it, the last letter,
+    /// digit or closing square bracket before the name in that ending is a
+    /// letter or a digit, so that an ending with none of them leaves the
+    /// title out.
+    fn ends(self, ending: &str) -> bool {
+        let text: String = ending.chars().filter(|&c| !is_invisible_mark(c)).collect();
+        let text = text.trim_end();
+        let Some(at) = text.rfind(self.name) else {
+            return false;
+        };
+        let (head, tail) = (&text[..at], &text[at + self.name.len()..]);
+        let tail_kept = tail.is_empty()
+            || tail
+                .strip_prefix(" - ")
+                .is_some_and(|profile| !profile.trim().is_empty());
+        if !tail_kept {
+            return false;
+        }
+        if !self.letter_or_digit_before {
+            return true;
+        }
+        head.chars()
+            .rev()
+            .find(|&c| c.is_alphanumeric() || matches!(c, ']' | '\u{FF3D}'))
+            .is_some_and(char::is_alphanumeric)
+    }
+}
+
+/// Whether `c` counts as nothing at the end of a title: a zero-width
+/// character or a mark of writing direction.
+fn is_invisible_mark(c: char) -> bool {
+    matches!(
+        c,
+        '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{2069}' | '\u{FEFF}'
+    )
+}
+
+/// Chrome and Edge, each matched whole, with the ending of an ordinary
+/// window's title in the localization [`ENGLISH`]. Chrome's is the end of its
+/// format for the accessible title of a tabbed window, ` - Google Chrome`,
+/// behind which a window under one of several profiles has ` - ` and the
+/// profile's name; the title of its Incognito, Guest or isolated window, of an
+/// app window and of a dialog in front ends otherwise. Edge's source is not
+/// public: its ` - Microsoft Edge`, with ` - ` and the profile's name behind
+/// it for a second profile, is the ending that GitHub's hosted Macs read from
+/// Edge 157.0.4341.60, whose InPrivate and Guest windows and message box ended
+/// otherwise; it keeps the guard of the Windows rule, where an InPrivate
+/// window puts its bracketed mark before the name, and leaves a title out
+/// where the end that is read holds no letter or digit before the name. Safari
+/// is not here: its titles are not read.
+pub(crate) const NAME_ENDINGS: [(&str, OwnName); 2] = [
+    (
+        "com.google.Chrome",
+        OwnName {
+            name: " - Google Chrome",
+            letter_or_digit_before: false,
+        },
+    ),
+    (
+        "com.microsoft.edgemac",
+        OwnName {
+            name: " - Microsoft Edge",
+            letter_or_digit_before: true,
+        },
+    ),
 ];
 
 /// Whether `place`, a bundle's place as the system gives it, lies under
@@ -222,8 +297,8 @@ const BROWSER_BUNDLE_IDS: [&str; 34] = [
 /// What the closed list of browsers says of an app.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Listed {
-    /// One of [`ENGLISH_ENDINGS`], matched whole: the browser and its words.
-    Ending(&'static str, &'static str),
+    /// One of [`NAME_ENDINGS`], matched whole: the browser and its ending.
+    Ending(&'static str, OwnName),
     /// Named by a full id of the list, matched as the head of the app's id
     /// (so com.google.Chrome.canary counts): a browser whatever the system
     /// lists.
@@ -236,11 +311,11 @@ pub(crate) enum Listed {
 }
 
 pub(crate) fn listed(bundle_id: &str) -> Listed {
-    if let Some(&(browser, words)) = ENGLISH_ENDINGS
+    if let Some(&(browser, own)) = NAME_ENDINGS
         .iter()
         .find(|(browser, _)| bundle_id.eq_ignore_ascii_case(browser))
     {
-        return Listed::Ending(browser, words);
+        return Listed::Ending(browser, own);
     }
     let mut domain = false;
     for entry in BROWSER_BUNDLE_IDS {
@@ -261,7 +336,7 @@ pub(crate) fn listed(bundle_id: &str) -> Listed {
 }
 
 /// `Private` for an app that a full id of the closed list names, other than
-/// the three of [`ENGLISH_ENDINGS`]: its titles are not read, whatever the
+/// the two of [`NAME_ENDINGS`]: its titles are not read, whatever the
 /// system says. Every other app's titles are left to the title rules.
 pub(crate) fn window_privacy(bundle_id: Option<&str>) -> PrivateWindow {
     if bundle_id.is_some_and(|id| listed(id) == Listed::Browser) {
@@ -522,6 +597,297 @@ mod tests {
         for other in [Some("com.example.editor"), Some("com.apple.TextEdit"), None] {
             assert_eq!(window_privacy(other), PrivateWindow::Unknown, "{other:?}");
         }
+    }
+
+    /// One title a row: made-up titles, and the titles that three runs on
+    /// GitHub's hosted Macs read from Chrome 158.0.8127.37 and Edge
+    /// 157.0.4341.60, sign for sign (`as-run` and `run3-`); the port in a
+    /// message box's title is that run's own and differs from run to run.
+    #[test]
+    fn a_chrome_or_edge_title_is_kept_only_where_it_ends_with_the_browsers_own_name() {
+        let kept = |id: &str, title: &str| match listed(id) {
+            Listed::Ending(_, own) => !TitleText::for_test(title)
+                .of_a_browser_kept_by_its_name(own)
+                .left_out_by_its_browser(),
+            _ => false,
+        };
+        let chrome = "com.google.Chrome";
+        let edge = "com.microsoft.edgemac";
+        let profile_of =
+            |name: &str, units: usize| format!("Inbox - {name} - {}", "a".repeat(units));
+        let (chrome_45, chrome_46) = (
+            profile_of("Google Chrome", 45),
+            profile_of("Google Chrome", 46),
+        );
+        let (edge_43, edge_44) = (
+            profile_of("Microsoft Edge", 43),
+            profile_of("Microsoft Edge", 44),
+        );
+        let bracket_behind_a_44_unit_profile =
+            format!("Notes [x] - Microsoft Edge - {}", "a".repeat(44));
+        let bracket_outside_the_end = format!("Notes ]{} - Microsoft Edge", "-".repeat(50));
+        let cases = [
+            ("ordinary", chrome, "Inbox - Google Chrome", true),
+            (
+                "chrome-profile-name-of-45-units",
+                chrome,
+                chrome_45.as_str(),
+                true,
+            ),
+            (
+                "chrome-profile-name-of-46-units",
+                chrome,
+                chrome_46.as_str(),
+                false,
+            ),
+            (
+                "edge-profile-name-of-43-units",
+                edge,
+                edge_43.as_str(),
+                true,
+            ),
+            (
+                "edge-profile-name-of-44-units",
+                edge,
+                edge_44.as_str(),
+                false,
+            ),
+            (
+                "edge-bracket-before-the-name-behind-a-44-unit-profile",
+                edge,
+                bracket_behind_a_44_unit_profile.as_str(),
+                false,
+            ),
+            (
+                "edge-bracket-just-outside-the-end-that-is-read",
+                edge,
+                bracket_outside_the_end.as_str(),
+                false,
+            ),
+            (
+                "edge-no-letter-digit-or-bracket-before-the-name",
+                edge,
+                "--- - Microsoft Edge",
+                false,
+            ),
+            (
+                "sound",
+                chrome,
+                "Inbox - Audio playing - Google Chrome",
+                true,
+            ),
+            ("pop-up", chrome, "Sign in - Google Chrome", true),
+            (
+                "edge-ordinary-as-run",
+                edge,
+                "Halvo probe page - Microsoft Edge",
+                true,
+            ),
+            (
+                "edge-bracket-earlier-in-the-page-title",
+                edge,
+                "Docs [draft] report - Microsoft Edge",
+                true,
+            ),
+            ("profiles", chrome, "Inbox - Google Chrome - Work", true),
+            (
+                "profile-of-chrome-s-own-name",
+                chrome,
+                "Inbox - Google Chrome - Person 2",
+                true,
+            ),
+            (
+                "a-dash-and-no-name",
+                chrome,
+                "Inbox - Google Chrome - ",
+                false,
+            ),
+            ("another-tail", chrome, "Inbox - Google Chrome x", false),
+            (
+                "incognito-page-title-holding-the-name-and-a-dash",
+                chrome,
+                "Notes - Google Chrome - x - Google Chrome (Incognito)",
+                false,
+            ),
+            (
+                "incognito",
+                chrome,
+                "Inbox - Google Chrome (Incognito)",
+                false,
+            ),
+            ("guest", chrome, "Inbox - Google Chrome (Guest)", false),
+            (
+                "isolated",
+                chrome,
+                "Inbox - Google Chrome (Isolated)",
+                false,
+            ),
+            (
+                "incognito-pop-up",
+                chrome,
+                "Sign in - Google Chrome (Incognito)",
+                false,
+            ),
+            ("app-window", chrome, "Docs", false),
+            ("dialog", chrome, "example.com says", false),
+            (
+                "dialog-of-a-frame",
+                chrome,
+                "An embedded page at example.com says",
+                false,
+            ),
+            ("dialog-of-a-data-page", chrome, "This page says", false),
+            ("beta-ending", chrome, "Inbox - Google Chrome Beta", false),
+            (
+                "page-named-like-the-browser",
+                chrome,
+                "Notes - Google Chrome - Google Chrome (Incognito)",
+                false,
+            ),
+            (
+                "edge-bracketed-marker",
+                edge,
+                "Inbox - [InPrivate] - Microsoft Edge",
+                false,
+            ),
+            (
+                "edge-inprivate",
+                edge,
+                "Inbox - Microsoft Edge (InPrivate)",
+                false,
+            ),
+            (
+                "edge-profile",
+                edge,
+                "Inbox - Microsoft Edge - Personal",
+                true,
+            ),
+            (
+                "edge-a-dash-and-no-name",
+                edge,
+                "Inbox - Microsoft Edge - ",
+                false,
+            ),
+            ("edge-another-tail", edge, "Inbox - Microsoft Edge x", false),
+            (
+                "inprivate-page-title-holding-the-name-and-a-dash",
+                edge,
+                "Notes - Microsoft Edge - x - Microsoft Edge (InPrivate)",
+                false,
+            ),
+            (
+                "run3-chrome-ordinary",
+                chrome,
+                "Halvo probe page - Google Chrome",
+                true,
+            ),
+            (
+                "run3-chrome-private",
+                chrome,
+                "Halvo probe page - Google Chrome (Incognito)",
+                false,
+            ),
+            (
+                "run3-chrome-guest",
+                chrome,
+                "Halvo probe page - Google Chrome (Guest)",
+                false,
+            ),
+            (
+                "run3-chrome-message-box",
+                chrome,
+                "127.0.0.1:49297 says",
+                false,
+            ),
+            (
+                "run3-chrome-private-message-box",
+                chrome,
+                "127.0.0.1:49297 says",
+                false,
+            ),
+            (
+                "run3-chrome-second-profile",
+                chrome,
+                "Halvo probe page - Google Chrome - Person 1",
+                true,
+            ),
+            (
+                "run3-chrome-second-profile-private",
+                chrome,
+                "Halvo probe page - Google Chrome (Incognito)",
+                false,
+            ),
+            (
+                "run3-edge-ordinary",
+                edge,
+                "Halvo probe page - Microsoft Edge",
+                true,
+            ),
+            (
+                "run3-edge-private",
+                edge,
+                "Halvo probe page - Microsoft Edge (InPrivate)",
+                false,
+            ),
+            (
+                "run3-edge-guest",
+                edge,
+                "Halvo probe page - Microsoft Edge (Guest)",
+                false,
+            ),
+            ("run3-edge-message-box", edge, "127.0.0.1:49297 says", false),
+            (
+                "run3-edge-private-message-box",
+                edge,
+                "127.0.0.1:49297 says",
+                false,
+            ),
+            (
+                "run3-edge-second-profile",
+                edge,
+                "Halvo probe page - Microsoft Edge - Profile 2",
+                true,
+            ),
+            (
+                "run3-edge-second-profile-private",
+                edge,
+                "Halvo probe page - Microsoft Edge (InPrivate)",
+                false,
+            ),
+            (
+                "edge-inprivate-as-run",
+                edge,
+                "Halvo probe page - Microsoft Edge (InPrivate)",
+                false,
+            ),
+            (
+                "edge-guest-as-run",
+                edge,
+                "Halvo probe page - Microsoft Edge (Guest)",
+                false,
+            ),
+            (
+                "edge-message-box-as-run",
+                edge,
+                "127.0.0.1:49289 says",
+                false,
+            ),
+            (
+                "edge-page-title-ending-in-a-bracket",
+                edge,
+                "Notes [draft] - Microsoft Edge",
+                false,
+            ),
+        ];
+        let wrong: Vec<&str> = cases
+            .iter()
+            .filter(|(_, id, title, wanted)| kept(id, title) != *wanted)
+            .map(|(case, ..)| *case)
+            .collect();
+        assert!(
+            wrong.is_empty(),
+            "told against the browser's own name: {wrong:?}"
+        );
     }
 
     #[test]

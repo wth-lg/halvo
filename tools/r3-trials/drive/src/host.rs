@@ -28,11 +28,15 @@ pub const VERSION: &str = "2026-10-21";
 /// refuses, and the next one right; or as a right driver whose host ends three answers without one
 /// (r3 U0.8b; the walk of `--standin-host`): the first action ask that it receives ends at the
 /// output limit (`stop_reason` `max_tokens`), the second is declined (`refusal`), and the first ask
-/// for a reply body ends at the output limit.
+/// for a reply body ends at the output limit. `Words` (r3 U0.8d, in the tests alone) walks as a right
+/// driver but answers an action ask in words, as the hosted models of the pilot of r3 U0.9 did,
+/// unless the request's `system` holds the fixed text of the action's form.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Walk {
     #[cfg(test)]
     Right,
+    #[cfg(test)]
+    Words,
     FirstRecoveryRefused,
     Ends,
 }
@@ -241,11 +245,12 @@ fn answer(request: &Received, walk: Walk, seen: &mut Seen) -> (u16, String) {
         };
         let first_recovery =
             prompt.contains(crate::words::REPAIR_HOSTED) && !ask.last_line_refused();
-        if walk == Walk::FirstRecoveryRefused && first_recovery {
+        let reply = if walk == Walk::FirstRecoveryRefused && first_recovery {
             action("handback", None, None, None)
         } else {
             next(&ask)
-        }
+        };
+        as_told(walk, system, reply)
     } else {
         "Thank you for the message, I will reply soon".to_string()
     };
@@ -387,6 +392,38 @@ impl Ask<'_> {
                 (n.bytes().all(|b| b.is_ascii_digit()) && !a.contains("(refused")).then_some(a)
             })
             .collect()
+    }
+}
+
+/// The reply to an action ask as the walk gives it: under `Walk::Words`, in words unless `system`
+/// holds the fixed text of the action's form; under every other walk, as it stands.
+#[cfg(test)]
+fn as_told(walk: Walk, system: &str, reply: String) -> String {
+    if walk == Walk::Words && !system.contains(crate::words::ACTION_FORM_HOSTED) {
+        in_words(&reply)
+    } else {
+        reply
+    }
+}
+
+#[cfg(not(test))]
+fn as_told(_walk: Walk, _system: &str, reply: String) -> String {
+    reply
+}
+
+/// The action of one JSON reply of the right walk in words, as a model that was not told the form
+/// writes it (the replies of the pilot of r3 U0.9): `click e20`, `fill e3 with email`,
+/// `extract e6 as amount_due`, `handback`.
+#[cfg(test)]
+fn in_words(json: &str) -> String {
+    let value: Value = serde_json::from_str(json).unwrap_or_default();
+    let word = |key: &str| value[key].as_str().unwrap_or_default().to_string();
+    match word("action").as_str() {
+        "fill" | "select" => format!("{} {} with {}", word("action"), word("ref"), word("slot")),
+        "extract" => format!("extract {} as {}", word("ref"), word("name")),
+        "press" => format!("press {} {}", word("ref"), word("key")),
+        "handback" | "done" => word("action"),
+        other => format!("{other} {}", word("ref")),
     }
 }
 
