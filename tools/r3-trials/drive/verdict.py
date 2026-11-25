@@ -1946,6 +1946,11 @@ def self_test():
             (2, "", [wanted["egress-space.txt"]]),
         )
         expect(
+            "a hosted block with a line of another first word is refused, with its place",
+            hosted_call(["--hosted", os.path.join(blocks, "egress-tab.txt")]),
+            (2, "", [wanted["egress-tab.txt"]]),
+        )
+        expect(
             "a hosted block against a given line: same=yes, and same=no",
             [
                 hosted_call(["--hosted", driver_block, "--expect", wanted["driver.txt"]]),
