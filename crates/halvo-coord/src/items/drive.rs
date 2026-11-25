@@ -4,7 +4,7 @@
 //! acknowledges it (I3.5).
 
 use super::{choices, compose_bind, compose_confirm, confirm_step, handback_kind, handback_result};
-use super::{setup_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
+use super::{setup_step, setup_step_more, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 use super::{Setup, SetupBody, SetupInput, SetupMove, SetupParam, SetupState};
 use crate::guard::Table;
 use crate::ports::{Clock, Owner, PortError, Reading, Rng, Runs, Senders, Shared, Stamp};
@@ -2345,10 +2345,10 @@ fn offers<P: Senders>(
 /// the item stays open and nothing is kept, sent or stored, also where the answer was the last
 /// open parameter (ruling RD-81 9.1, 9.2); a reader that did not answer is `busy` or
 /// `no_service` and changes nothing. `none` keeps the item open with its answers and stores and
-/// sends nothing (I3.5, ruling RD-23 (b)). When the answer gives the last parameter, the one body
-/// `set_bindings` goes to the owner in this move; at its acknowledgement the item closes, its row
-/// is stored and the rule of `active` of I5.5 runs once for the agent, and a refusal decides as
-/// `refused_body` gives.
+/// sends nothing (I3.5, ruling RD-23 (b)). When an answer whose call does not say `more` leaves no
+/// parameter without a value, the one body `set_bindings` goes to the owner in this move; at its
+/// acknowledgement the item closes, its row is stored and the rule of `active` of I5.5 runs once
+/// for the agent, and a refusal decides as `refused_body` gives.
 pub fn answer_setup<P: Owner + Clock + Senders, C: ConfigView + Clone>(
     ports: &P,
     ledger: &mut Ledger,
@@ -2357,8 +2357,39 @@ pub fn answer_setup<P: Owner + Clock + Senders, C: ConfigView + Clone>(
     facts: &Facts<C>,
     answer: SetupInput<'_>,
 ) -> Result<SetupDone, Cause> {
+    answered(ports, ledger, limits, setup, facts, answer, false)
+}
+
+/// `answer_setup` of a call that says that more calls of its press follow (I8.1 `more`; r4
+/// U3.30): the answer is taken or refused as `answer_setup` does it, the reader of senders among
+/// it, and no body is made, also where every parameter then holds a value (`setup_step_more`).
+pub fn answer_setup_more<P: Owner + Clock + Senders, C: ConfigView + Clone>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    setup: &mut Setup,
+    facts: &Facts<C>,
+    answer: SetupInput<'_>,
+) -> Result<SetupDone, Cause> {
+    answered(ports, ledger, limits, setup, facts, answer, true)
+}
+
+/// `answer_setup` where `more` is false and `answer_setup_more` where it is true.
+fn answered<P: Owner + Clock + Senders, C: ConfigView + Clone>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    setup: &mut Setup,
+    facts: &Facts<C>,
+    answer: SetupInput<'_>,
+    more: bool,
+) -> Result<SetupDone, Cause> {
     same_agent(setup, facts, ledger)?;
-    let next = setup_step(setup, SetupMove::Input(answer))?;
+    let next = if more {
+        setup_step_more(setup, answer)?
+    } else {
+        setup_step(setup, SetupMove::Input(answer))?
+    };
     if let SetupInput::Typed {
         param: param @ Param::ReplySenders,
         text,

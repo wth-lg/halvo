@@ -110,7 +110,7 @@ test("Choose a file stands beside the lines of the two file questions alone; a p
   );
 });
 
-test("at a press of Use these answers each line that stands empty shows the sentence under it with the focus on the first: with no line typed no call is made, the typed lines go as today, and a line that the core holds and that was emptied makes the press send nothing", async () => {
+test("at a press of Use these answers each line that stands empty shows the sentence under it with the focus on the first: with no line typed no call is made, the typed lines go as today, and behind a line that was sent and then emptied the press sends the other lines, each as a call that says that more follow", async () => {
   const [base] = setup.items;
   const item = { ...base, params: Object.keys(HINTS).map(entry) };
   const page = await openPage({
@@ -143,7 +143,14 @@ test("at a press of Use these answers each line that stands empty shows the sent
   await typeLine(page, "workbook", "");
   await typeLine(page, "sheet", "Sheet1");
   await press(page, useAnswers(page));
-  assert.deepEqual(sentencesOf(page, "workbook"), [sentence], "the line that the core holds, emptied");
+  assert.deepEqual(sentencesOf(page, "workbook"), [sentence], "the line that was sent, emptied");
   assert.equal(page.document.activeElement, lineOf(page, "workbook"), "the focus on that line");
-  assert.equal(page.calls("agents_setup_typed").length, 2, "the press sends nothing");
+  assert.deepEqual(
+    page.calls("agents_setup_typed").slice(2).map((c) => [c.args.param, c.args.text, c.args.more]),
+    [
+      ["sheet", "Sheet1", "yes"],
+      ["range", "A2:C11", "yes"],
+    ],
+    "the other lines go, and no call of the press may save",
+  );
 });

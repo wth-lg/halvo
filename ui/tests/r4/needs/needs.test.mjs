@@ -165,6 +165,9 @@ function plan(item, choice) {
       }
     }
     acts.push({ act: 'choose', param: item.item });
+    calls.forEach((c, i) => {
+      c.args.more = i === calls.length - 1 ? 'no' : 'yes';
+    });
     return { acts, calls };
   }
   return {
@@ -603,7 +606,7 @@ async function setups(origin, dir) {
   } finally {
     await h.close();
   }
-  const k = await open({ origin, replies: [{ state: snap(1, [one, two]) }, { call: 'agents_answer', args: { item: one.item, step: one.step, choice: 'choose', param: one.params[0].name, n: 1 }, reply: { ok: 'yes' } }], views: [CONFIRM, VIEW], out: outDir() });
+  const k = await open({ origin, replies: [{ state: snap(1, [one, two]) }, { call: 'agents_answer', args: { item: one.item, step: one.step, choice: 'choose', param: one.params[0].name, n: 1, more: 'no' }, reply: { ok: 'yes' } }], views: [CONFIRM, VIEW], out: outDir() });
   try {
     const radios = k.page.locator('[data-act="candidate"][data-param="' + one.params[0].name + '"]');
     await radios.nth(0).check();
@@ -2199,7 +2202,7 @@ async function press(origin, dir) {
     { state: 'test_two_setups' },
   );
   const gate = { call: 'agents_card', args: { agent: 'e'.repeat(32) }, reply: { error: 'busy' } };
-  const typedLine = (text, extra) => ({ call: 'agents_setup_typed', args: { item: item.item, step: item.step, param: p.name, text }, ...extra });
+  const typedLine = (text, extra) => ({ call: 'agents_setup_typed', args: { item: item.item, step: item.step, param: p.name, text, more: 'yes' }, ...extra });
   await run(
     'p12_a_card_that_waits_for_a_reply',
     async (h, out, k) => {
@@ -2219,9 +2222,9 @@ async function press(origin, dir) {
       if (typedSent(out).length !== before) faults.push(t + ':click_after_the_reply_sent');
       await k.click0(choose);
       await settled(h);
-      if (typedSent(out).length !== before + 1) faults.push(t + ':no_call_at_the_next_click=' + typedSent(out).length);
+      if (typedSent(out).length !== before) faults.push(t + ':a_call_while_the_first_call_is_unanswered=' + typedSent(out).length);
     },
-    { replies: [{ state: snap(1, [item]) }, typedLine(xs(1018), { hold: true }), gate, { state: snap(2, [item]) }, typedLine(xs(1018), { reply: { ok: 'yes' } })] },
+    { replies: [{ state: snap(1, [item]) }, typedLine(xs(1018), { hold: true }), gate, { state: snap(2, [item]) }] },
   );
   await run('p13_a_commit_by_the_protocol_insert_text_then_a_pointer_press(limit_of_4_5,pinned_as_ruled)', async (h, out) => {
     const t = 'p13_a_commit_by_the_protocol_insert_text_then_a_pointer_press(limit_of_4_5,pinned_as_ruled)';

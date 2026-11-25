@@ -1112,13 +1112,13 @@ mod mac {
                 };
                 hub.call(
                     "agents_setup_typed",
-                    Some(&json!({"item": id, "step": step, "param": name, "text": text})),
+                    Some(&json!({"item": id, "step": step, "param": name, "text": text, "more": "no"})),
                 )
             } else {
                 assert_ne!(name, "workbook", "the workbook is a typed line: {item}");
                 hub.call(
                     "agents_answer",
-                    Some(&json!({"item": id, "step": step, "choice": "choose", "param": name, "n": 1})),
+                    Some(&json!({"item": id, "step": step, "choice": "choose", "param": name, "n": 1, "more": "no"})),
                 )
             };
             replies.push((name, reply));

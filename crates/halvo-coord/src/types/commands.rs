@@ -121,6 +121,8 @@ const ACTIONS: [&str; 9] = [
     "change_answers",
 ];
 
+const MORE: [&str; 2] = ["yes", "no"];
+
 const fn arg(name: &'static str, kind: ArgType) -> Arg {
     Arg {
         name,
@@ -140,7 +142,10 @@ const OK: &[&str] = &["reply-ok"];
 /// `present`, which the page sends as `agents_present`. `agents_shown` is the page's report that
 /// it opened a page confirmation at the step mark that it shows (ruling RD-80 5.1, 5.2).
 /// `agents_delete` is the person's yes to the question of a row's Delete, which removes the
-/// agent with its workflow (ruling RD-19 (c) rule 7).
+/// agent with its workflow (ruling RD-19 (c) rule 7). `more` of `agents_setup_typed`, and of
+/// `agents_answer` with the choice `choose`, says whether more calls of the same press follow:
+/// with `yes` the core takes the answer and makes no body of a set-up, and with `no` it makes
+/// the body where every question then holds an answer (r4 U3.30).
 pub const LIST: [Command; 10] = [
     Command {
         name: "agents_snapshot",
@@ -178,6 +183,11 @@ pub const LIST: [Command; 10] = [
                 when: Some(Choice::Choose),
                 ..arg("n", ArgType::Count)
             },
+            Arg {
+                when: Some(Choice::Choose),
+                values: Some(&MORE),
+                ..arg("more", ArgType::Name)
+            },
         ],
         replies: OK,
         errors: &[
@@ -203,6 +213,10 @@ pub const LIST: [Command; 10] = [
                 ..arg("param", ArgType::Name)
             },
             arg("text", ArgType::Text),
+            Arg {
+                values: Some(&MORE),
+                ..arg("more", ArgType::Name)
+            },
         ],
         replies: OK,
         errors: &[
