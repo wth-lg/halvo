@@ -31,14 +31,15 @@ else none; under path B the writer is the first candidate with bodies=2 on all s
           point 4: one machine, mac, six drive lines and three reply lines a model, the models in the
           order of their first line; each line of the block begins with a word that the round
           prints (attempt, drive, reply, load, ends, prompt, spend, egress, host, verdict) and one
-          space; each model's call, the run of lines that ends at its host line, ends with its
-          spend, egress and host lines, the spend at or under its ceiling and the egress line with
-          denied=0 and as many runs as starts; prints its verdict line, and with --expect LINE also
-          "verdict check same=yes" or "verdict check same=no" (exit 1). Any other line, with its
-          place in the block, a notrun line (a round with one gives no verdict), an attempt, drive
-          or reply line of another machine, a missing line, a spend or an egress line before its
-          call's last three lines, an end line that fails and every refusal of the block's lines
-          above are refusals with their cause.
+          space, and holds the printable signs of ASCII alone (the block is split at LF); each
+          model's call, the run of lines that ends at its host line, ends with its spend, egress and
+          host lines, the spend at or under its ceiling and the egress line with denied=0 and as
+          many runs as starts; prints its verdict line, and with --expect LINE also "verdict check
+          same=yes" or "verdict check same=no" (exit 1). Any other line, with its place in the
+          block, any other sign, with its line and its place in the line, a notrun line (a round
+          with one gives no verdict), an attempt, drive or reply line of another machine, a missing
+          line, a spend or an egress line before its call's last three lines, an end line that fails
+          and every refusal of the block's lines above are refusals with their cause.
 --self-test runs the rule on fixtures of its own and on each pair of trial files that a test
           of crates/halvo-route-gate/tests/import_rules.rs at d6fca8dc reads, each with the
           importer's detail.
@@ -623,7 +624,11 @@ def hosted_words(body):
     the start of the line, one space behind it, and neither a space nor a tab after that space. Any other
     line, one that begins with a space or a tab, an empty line and a word that a tab follows among them,
     is refused with its place in the block. A notrun line is refused with its own cause: the rule file
-    gives no verdict for a round with one. The content of prompt, load, ends and verdict lines is not held."""
+    gives no verdict for a round with one. The block is split at LF alone, and a line of the round holds
+    the printable signs of ASCII alone, space to tilde: any other sign, a carriage return, a tab, a form
+    feed, NEL, U+2028 or a sign of no width among them, is refused with its line and its place in the
+    line, so that no record rides inside a line past the reader. Beyond that, the content of prompt,
+    load, ends and verdict lines is not held."""
     for at, line in enumerate(body, 1):
         word, space, rest = line.partition(" ")
         if word == "notrun":
@@ -635,6 +640,12 @@ def hosted_words(body):
                 "source",
                 "a line that no word of the round begins with one space behind it, at line %d: %r" % (at, line[:60]),
             )
+        for place, sign in enumerate(line, 1):
+            if not " " <= sign <= "~":
+                raise Refusal(
+                    "source",
+                    "a sign that the round does not print, U+%04X, at line %d, sign %d" % (ord(sign), at, place),
+                )
 
 
 def hosted_verdict(body):
@@ -1950,6 +1961,24 @@ def self_test():
             hosted_call(["--hosted", os.path.join(blocks, "egress-tab.txt")]),
             (2, "", [wanted["egress-tab.txt"]]),
         )
+        # The review seat's F5 (its Q01): driver.txt with one line more before its line 88, an ends line, a
+        # carriage return and the denied=1 egress record; built here, so that no tracked file holds a carriage
+        # return (tools/r3-trials/drive/.gitattributes gives the folder eol=lf).
+        with open(driver_block, encoding="utf-8", newline="") as f:
+            lines = f.read().split("\n")
+        ridden = lines[:87] + [
+            "ends model=m_high machine=mac task=reply seed=3 cut=0 declined=0"
+            "\regress list=hosted-list.txt origin=https://stand-in.invalid starts=15 runs=15 denied=1"
+        ] + lines[87:]
+        with tempfile.TemporaryDirectory() as root:
+            ridden_block = os.path.join(root, "ends-cr-egress.txt")
+            with open(ridden_block, "w", encoding="utf-8", newline="") as f:
+                f.write("\n".join(ridden))
+            expect(
+                "a hosted block with a record behind a carriage return inside a line is refused, with its place",
+                hosted_call(["--hosted", ridden_block]),
+                (2, "", ["REFUSED source: a sign that the round does not print, U+000D, at line 88, sign 65"]),
+            )
         expect(
             "a hosted block against a given line: same=yes, and same=no",
             [
