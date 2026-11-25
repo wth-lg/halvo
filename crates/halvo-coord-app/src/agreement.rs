@@ -1,8 +1,8 @@
 //! The gate between the person's yes to a hosted model and a run (r4 U3.17a). An agent's agreement, as the newest
 //! reply of `list_agents` hands it (r3 U7.7), stands for a hosted tier only while its triple of that tier equals the
 //! row of that tier in this build's table of hosts by its bytes (`stands`). The app's start of a run names a hosted
-//! tier, the one case in which the library reads the person's key for the run, from `stands` alone (`hosted`). With
-//! main's data, whose table holds no row, no agreement stands and no start names a hosted tier.
+//! tier, the one case in which the library reads the person's key for the run, from `stands` alone (`hosted`). Where
+//! the table holds no row of a tier, no agreement stands for that tier and no start names it.
 #![cfg(any(target_os = "macos", windows))]
 
 use halvo_agent_client::Hosted;
@@ -62,7 +62,7 @@ pub(crate) struct KeptAgent {
 /// table of hosts, `halvo_route::release::ruling().row(tier)`. It stands only where the agreement holds a triple of
 /// `tier` whose origin and model word equal the origin and the model word of that row by their bytes; it does not
 /// stand at a null agreement, with no triple of `tier`, where one byte differs, where the table has no row of `tier`,
-/// and for `on_device`. With main's data, whose table holds no row, it stands for no agent.
+/// and for `on_device`.
 pub(crate) fn stands(agreement: Option<&Agreement>, tier: Tier) -> bool {
     let ruling = halvo_route::release::ruling();
     let row = halvo_route::tier::Tier::parse(tier.name())
@@ -126,8 +126,8 @@ mod tests {
     /// r4 U3.17a sentence 1: an agreement stands for a hosted tier only where it holds a triple of that tier whose
     /// origin and model word equal the row of that tier by their bytes; not at a null agreement, with no triple of
     /// that tier (also where the other tier's only triple holds the row's origin and model word), where one byte
-    /// differs, where the table has no row of that tier, and for `on_device`. With main's table of hosts nothing
-    /// stands.
+    /// differs, where the table has no row of that tier, and for `on_device`. Over this build's table of hosts an
+    /// agreement whose triples name `https://hosted-model.test` stands for no tier.
     #[test]
     fn an_agreement_stands_only_where_its_triple_of_the_tier_equals_the_row_by_its_bytes() {
         let both = Agreement {
