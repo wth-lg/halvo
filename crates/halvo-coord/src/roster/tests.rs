@@ -585,11 +585,17 @@ fn u329_ended(category: crate::types::Category, cause: LastCause, after: &[What]
 /// r4 U3.29 sentence 3: the row's and the run's lines of the three ends of a run that paid or
 /// ordered, each to the letter of the ruled rows, with the class of the agent's category (way (i)
 /// of the coordinator's log line 20557): a payment whose amount could not be matched, behind the
-/// person's answer, rows 8 and 7; a page that could not be read, rows 14 and 13; a payment that
-/// was held back, rows 16 and 15; each for an order in its twin's words.
+/// person's answer (the `hold_cleared` of the cause `amounts` that names the run), rows 8 and 7;
+/// a page that could not be read, rows 14 and 13; a payment that was held back, rows 16 and 15;
+/// each for an order in its twin's words.
 #[test]
 fn u329_the_row_and_the_run_say_how_a_payment_or_an_order_ended() {
-    use crate::types::{Category, Digest, EffectId, Name, PageCause};
+    use crate::types::{Category, Cleared, Digest, EffectId, Name, PageCause};
+    let answered = [What::HoldCleared {
+        cause: Cleared::Amounts {
+            run: RunId::parse(&format!("{:032x}", 0x7a01)).unwrap(),
+        },
+    }];
     let rows = [
         (Category::UtilityBillPayment, LastCause::AmountDiffers, Some(PageCause::AmountDiffers { amount: Some(1334) }),
             "Last time, it sent a payment, and Halvo could not match the amount on the site's page afterwards.",
@@ -616,7 +622,12 @@ fn u329_the_row_and_the_run_say_how_a_payment_or_an_order_ended() {
     };
     let mut wrong = Vec::new();
     for (category, cause, page, row_line, run_line) in rows {
-        let f = u329_ended(category, cause, &[]);
+        let after: &[What] = if cause == LastCause::AmountDiffers {
+            &answered
+        } else {
+            &[]
+        };
+        let f = u329_ended(category, cause, after);
         let effects = page
             .map(|page| PastEffect {
                 effect: EffectId::parse(&format!("{:032x}", 0x7a02)).unwrap(),

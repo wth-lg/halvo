@@ -298,7 +298,11 @@ fn expected_keys() -> BTreeSet<String> {
             k.insert(format!("line.run.{end}.{class}"));
             k.insert(format!("line.problem.{end}.{class}"));
         }
+        k.insert(format!("item.amounts.title.{class}"));
+        k.insert(format!("line.needs_you.amounts.{class}"));
     }
+    k.insert("choice.amounts.switch_off".to_owned());
+    k.insert("choice.amounts.seen".to_owned());
     k.insert("line.run.stopped".to_owned());
     for key in [
         "line.quitting",
@@ -553,7 +557,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 400);
+    assert_eq!(seen.len(), 406);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -585,6 +589,9 @@ fn placeholders_are_the_ones_that_the_contract_names() {
     }
     for kind in ItemKind::ALL.iter().filter(|k| **k != ItemKind::Confirm) {
         want.insert(format!("item.{}.title", kind.name()), vec!["name"]);
+    }
+    for class in ["payment", "purchase"] {
+        want.insert(format!("item.amounts.title.{class}"), vec!["name"]);
     }
     want.insert("item.sign_in.bind".into(), vec!["origin"]);
     want.insert("item.sign_in.site".into(), vec!["origin"]);

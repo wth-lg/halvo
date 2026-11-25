@@ -390,6 +390,24 @@ pub const KEYS: &[(&str, &str)] = &[
     ("choice.ready.start", "Start now"),
     ("choice.show.decline", "Stop this time"),
     ("choice.show.done", "Done"),
+    ("choice.amounts.switch_off", "Switch it off"),
+    ("choice.amounts.seen", "I have checked it"),
+    (
+        "item.amounts.title.payment",
+        "“{name}” sent a payment, and Halvo could not match its amount",
+    ),
+    (
+        "item.amounts.title.purchase",
+        "“{name}” sent an order, and Halvo could not match its total",
+    ),
+    (
+        "line.needs_you.amounts.payment",
+        "It needs you to look at a payment whose amount Halvo could not match.",
+    ),
+    (
+        "line.needs_you.amounts.purchase",
+        "It needs you to look at an order whose total Halvo could not match.",
+    ),
     ("param.start", "Where to start"),
     ("param.payee", "Who to pay"),
     ("param.instrument", "How to pay"),

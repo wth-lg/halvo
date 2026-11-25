@@ -26,6 +26,7 @@ allow
 allow_once
 amount_differs
 amount_unread
+amounts
 analysis
 analysis_write
 anchor
@@ -419,6 +420,7 @@ summaries
 summary
 superseded
 support
+switch_off
 tab
 target
 target_kept

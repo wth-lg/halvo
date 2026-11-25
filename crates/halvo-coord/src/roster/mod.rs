@@ -17,8 +17,10 @@ use crate::types::{ModelUse, SpendLimit};
 use crate::words;
 
 /// The status of the agent of `facts` with the case of its line (I1.3): the first row that fits
-/// of an open item that waits for the person, the holds `not_yet`, `off`, `sign_in_refused`
-/// (ruling RD-73 4.3), `site_declined` (r4 U2.4a) and `failures`, a live
+/// of an open item that waits for the person, the item `amounts` in the words of the class of the
+/// agent's category, and of a payment where it has none (r4 U3.29), the holds `not_yet`, `off`,
+/// `sign_in_refused` (ruling RD-73 4.3), `site_declined` (r4 U2.4a), `failures`, `check` and
+/// `amounts`, a live
 /// run with its phase, a queued start, a newest run that the agent store has not ended, a last
 /// run that ended with a cause of the failure class, said by the sentence of the facts'
 /// `last_cause` where they hold one that a row says for the agent's runtime (`FILE_CAUSES` for
@@ -53,9 +55,14 @@ pub fn status_of<C: ConfigView>(
     if stuck {
         return StatusLine::Record;
     }
+    let amounts =
+        StatusLine::Amounts(PayClass::of(facts.workflow.category).unwrap_or(PayClass::Payment));
     if let Some(open) = facts.doing.item() {
         let waits =
             open.kind != ItemKind::Confirm || confirm.is_none_or(ConfirmState::waits_for_person);
+        if open.kind == ItemKind::Amounts {
+            return amounts;
+        }
         if waits {
             return StatusLine::NeedsYou(open.kind);
         }
@@ -71,6 +78,7 @@ pub fn status_of<C: ConfigView>(
         (Hold::SiteDeclined, StatusLine::SiteDeclined),
         (Hold::Failures, StatusLine::Failures),
         (Hold::Check, StatusLine::NeedsYou(ItemKind::Check)),
+        (Hold::Amounts, amounts),
     ] {
         if standing.contains(&hold) {
             return line;

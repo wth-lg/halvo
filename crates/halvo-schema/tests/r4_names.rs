@@ -3,8 +3,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use halvo_schema::coordinator::names::{
-    BindResult, CheckAnswer, ConfirmLapse, DoneAnswer, EffectAnswer, Event, HoldCause,
-    HoldSetCause, ItemKind, OtherKind, OtherLapse, ReadyAnswer, RunEnd, SetupAnswer, Trigger,
+    AmountsAnswer, BindResult, CheckAnswer, ConfirmLapse, DoneAnswer, EffectAnswer, Event,
+    HoldCause, HoldSetCause, ItemKind, OtherKind, OtherLapse, ReadyAnswer, RunEnd, SetupAnswer,
+    Trigger,
 };
 use halvo_schema::coordinator::{ERROR_NAMES, KINDS, NAMES};
 use halvo_schema::executable::names::YesNo;
@@ -54,6 +55,7 @@ fn derived() -> BTreeSet<String> {
         CheckAnswer::ALL.iter().map(|v| v.as_str()).collect(),
         SetupAnswer::ALL.iter().map(|v| v.as_str()).collect(),
         ReadyAnswer::ALL.iter().map(|v| v.as_str()).collect(),
+        AmountsAnswer::ALL.iter().map(|v| v.as_str()).collect(),
         vec!["defer_launch", "defer_ticks_failed"],
         YesNo::ALL.iter().map(|v| v.as_str()).collect(),
     ];

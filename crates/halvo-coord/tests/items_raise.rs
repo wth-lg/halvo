@@ -594,6 +594,7 @@ fn the_choices_of_the_eight_kinds_stand_safe_one_first() {
         (ItemKind::Setup, [None, Choose]),
         (ItemKind::Ready, [Skip, Start]),
         (ItemKind::Show, [Decline, Done]),
+        (ItemKind::Amounts, [SwitchOff, Seen]),
     ];
     let kinds: Vec<_> = table.iter().map(|(k, _)| *k).collect();
     assert_eq!(kinds, ItemKind::ALL);

@@ -69,6 +69,10 @@ pub enum StatusLine {
     /// `no_access_mac` or `no_access_windows` (`key_on`, r4 U3.22d). `all` does not list it until
     /// its fixture state of I8.3 is written.
     LastCause(LastCause),
+    /// `needs_you.amounts.<class>`: the open item `amounts`, or the hold `amounts` before its item
+    /// is up, of an agent of the class of its category (r4 U3.29). `all` does not list it until
+    /// its fixture state of I8.3 is written.
+    Amounts(PayClass),
     /// `problem.<end>.<class>`: the row of `Problem` for an agent whose newest started run paid or
     /// ordered and ended with a last cause of `PaidEnd`, with the class of the agent's category
     /// (r4 U3.29). `all` does not list it until its fixture state of I8.3 is written.
@@ -112,7 +116,12 @@ impl StatusLine {
     /// Every status line, in the order of I1.3.
     pub fn all() -> Vec<StatusLine> {
         let mut all = vec![StatusLine::Record];
-        all.extend(ItemKind::ALL.iter().map(|k| StatusLine::NeedsYou(*k)));
+        all.extend(
+            ItemKind::ALL
+                .iter()
+                .filter(|k| **k != ItemKind::Amounts)
+                .map(|k| StatusLine::NeedsYou(*k)),
+        );
         all.extend([
             StatusLine::NotYet,
             StatusLine::Off,
@@ -140,7 +149,7 @@ impl StatusLine {
     /// The status.
     pub fn status(self) -> Status {
         match self {
-            StatusLine::NeedsYou(_) => Status::NeedsYou,
+            StatusLine::NeedsYou(_) | StatusLine::Amounts(_) => Status::NeedsYou,
             StatusLine::NotYet => Status::NotYet,
             StatusLine::Off => Status::Off,
             StatusLine::Kept => Status::Off,
@@ -178,8 +187,14 @@ impl StatusLine {
     /// do on that system (r4 U3.22d), and the same key on every system for every other line; for
     /// a run that paid or ordered `line.problem.<end>.<class>` (r4 U3.29).
     pub fn key_on(self, system: System) -> String {
-        if let StatusLine::Paid(end, class) = self {
-            return format!("line.problem.{}.{}", end.name(), class.name());
+        match self {
+            StatusLine::Paid(end, class) => {
+                return format!("line.problem.{}.{}", end.name(), class.name())
+            }
+            StatusLine::Amounts(class) => {
+                return format!("line.needs_you.amounts.{}", class.name())
+            }
+            _ => {}
         }
         let case = match self {
             StatusLine::NeedsYou(kind) => kind.name(),
@@ -203,6 +218,7 @@ impl StatusLine {
             },
             StatusLine::LastCause(c) => c.name(),
             StatusLine::Paid(end, _) => end.name(),
+            StatusLine::Amounts(_) => "amounts",
             StatusLine::AnswersSaved => "answers_saved",
             StatusLine::AnswersSavedToday => "answers_saved_today",
             StatusLine::FailedToday | StatusLine::TriedToday => "tried_today",

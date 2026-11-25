@@ -706,8 +706,9 @@ impl CardEffect {
 /// An item, as the page gets it (I3.4), made by the one constructor of its kind: a
 /// confirmation has its presenter and an empty `text`, every other kind a null presenter and
 /// `armed` `no`;
-/// `fields` stand only in a confirmation, a check, a `link_account` item, which holds the one
-/// field of its site, and a setup that asks again, which holds the one line that says so, and
+/// `fields` stand only in a confirmation, a check, an `amounts` item, a `link_account` item, which
+/// holds the one field of its site, and a setup that asks again, which holds the one line that
+/// says so, and
 /// `params` only in a setup.
 ///
 /// ```
@@ -924,6 +925,22 @@ impl Item {
             fields,
             choices,
             ..Item::of_kind(ItemKind::Check, item, agent, YesNo::No, title, text)
+        }
+    }
+
+    /// An `amounts` item with the fields of its payment or order (r4 U3.29).
+    pub fn amounts(
+        item: ItemId,
+        agent: AgentId,
+        title: String,
+        text: String,
+        fields: Vec<Field>,
+        choices: Vec<ChoiceText>,
+    ) -> Item {
+        Item {
+            fields,
+            choices,
+            ..Item::of_kind(ItemKind::Amounts, item, agent, YesNo::No, title, text)
         }
     }
 

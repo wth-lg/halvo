@@ -51,6 +51,8 @@ fn i8_1() -> Value {
         "choose",
         "skip",
         "start",
+        "switch_off",
+        "seen",
     ];
     let params = vec![
         "start",

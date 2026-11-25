@@ -62,7 +62,9 @@ names! {
 }
 
 names! {
-    /// The eight kinds of item, the only things that put an agent under `needs_you` (I3.1).
+    /// The nine kinds of item, the only things that put an agent under `needs_you` (I3.1): the
+    /// eight of I3.1 and `amounts`, the item of a payment or an order whose amount on the site's
+    /// page afterwards could not be matched to the allowed amount (r4 U3.29).
     ItemKind {
         Confirm = "confirm",
         SignIn = "sign_in",
@@ -72,12 +74,14 @@ names! {
         Setup = "setup",
         Ready = "ready",
         Show = "show",
+        Amounts = "amounts",
     }
 }
 
 names! {
-    /// The choices of the kinds of I3.1, in the order of first use there, and `present`, the
-    /// one page choice of a confirmation of the presenter `native` (I3.4).
+    /// The choices of the kinds of I3.1, in the order of first use there, the two of `amounts`
+    /// (r4 U3.29), and `present`, the one page choice of a confirmation of the presenter `native`
+    /// (I3.4).
     Choice {
         Reject = "reject",
         Allow = "allow",
@@ -89,6 +93,8 @@ names! {
         Choose = "choose",
         Skip = "skip",
         Start = "start",
+        SwitchOff = "switch_off",
+        Seen = "seen",
         Present = "present",
     }
 }

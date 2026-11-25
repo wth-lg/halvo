@@ -56,15 +56,15 @@ use halvo_coord::ports::{
     Rng, Runs, Senders,
 };
 use halvo_coord::types::{
-    Agent, AgentId, AgentState, Answer, Answered, ApprovalId, AskedEffect, BindAnswer, BindAsk,
-    BindResult, Body, BoundField, BoundFrom, Category, CheckAnswer, Class, Cleared, ConfigView,
-    ConfirmAsk, Decision, DecisionEntry, Defers, Digest, DismissedWorkflow, DoneAnswer,
-    EffectAnswer, EffectId, Event, FullWorkflow, HandbackAsk, HandbackReason, HandbackResult,
-    HoldSetCause, ItemId, ItemKind, Kept, LapseCause, Lapsed, LastCause, LinkAnswer, Name, Origin,
-    OtherLapse, Outcome, PageCause, PastEffect, PastRun, Progress, Raised, ReadyAnswer, Reply,
-    ReplyRow, RunEnd as CoordRunEnd, RunEvent, RunHistory, RunId, RunSpec, SetupAnswer,
-    SheetAnswers, SignInAnswer, Slot, Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState,
-    WorkflowTrigger,
+    Agent, AgentId, AgentState, AmountsAnswer, Answer, Answered, ApprovalId, AskedEffect,
+    BindAnswer, BindAsk, BindResult, Body, BoundField, BoundFrom, Category, CheckAnswer, Class,
+    Cleared, ConfigView, ConfirmAsk, Decision, DecisionEntry, Defers, Digest, DismissedWorkflow,
+    DoneAnswer, EffectAnswer, EffectId, Event, FullWorkflow, HandbackAsk, HandbackReason,
+    HandbackResult, HoldSetCause, ItemId, ItemKind, Kept, LapseCause, Lapsed, LastCause,
+    LinkAnswer, Name, Origin, OtherLapse, Outcome, PageCause, PastEffect, PastRun, Progress,
+    Raised, ReadyAnswer, Reply, ReplyRow, RunEnd as CoordRunEnd, RunEvent, RunHistory, RunId,
+    RunSpec, SetupAnswer, SheetAnswers, SignInAnswer, Slot, Trigger, Unknown, What, Workflow,
+    WorkflowId, WorkflowState, WorkflowTrigger,
 };
 use halvo_coord::types::{Autonomy, Budget, Limits, Permission, Reasoning, Runtime, Tier};
 use halvo_coord::types::{ModelUse, SpendLimit};
@@ -1031,6 +1031,7 @@ fn event_of(r: &Value) -> Option<Event> {
                 ItemKind::Setup => Raised::Setup,
                 ItemKind::Ready => Raised::Ready,
                 ItemKind::Show => Raised::Show(run()?),
+                ItemKind::Amounts => Raised::Amounts(run()?),
             },
         },
         "item_answered" => {
@@ -1058,6 +1059,7 @@ fn event_of(r: &Value) -> Option<Event> {
                     ItemKind::Setup => Answered::Setup(SetupAnswer::parse(answer()?).ok()?),
                     ItemKind::Ready => Answered::Ready(ReadyAnswer::parse(answer()?).ok()?),
                     ItemKind::Show => Answered::Show(DoneAnswer::parse(answer()?).ok()?),
+                    ItemKind::Amounts => Answered::Amounts(AmountsAnswer::parse(answer()?).ok()?),
                 },
             }
         }
@@ -1074,6 +1076,7 @@ fn event_of(r: &Value) -> Option<Event> {
                     ItemKind::Setup => Lapsed::Setup(other()?),
                     ItemKind::Ready => Lapsed::Ready(other()?),
                     ItemKind::Show => Lapsed::Show(other()?),
+                    ItemKind::Amounts => Lapsed::Amounts(other()?),
                 },
             }
         }
@@ -1098,6 +1101,7 @@ fn event_of(r: &Value) -> Option<Event> {
                     answer: CheckAnswer::parse(s("answer")?).ok()?,
                 },
                 "sign_in_refused" => Cleared::SignInRefused { run: run()? },
+                "amounts" => Cleared::Amounts { run: run()? },
                 _ => return None,
             },
         },
