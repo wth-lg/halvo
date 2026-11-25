@@ -15,7 +15,7 @@ use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
 
-use super::exclusion::{chrome_window_is_incognito, private_window, Browser};
+use super::exclusion::{chrome_window_is_private, private_window, Browser};
 use super::{DropCounts, Drops, Floor, FrontApp, Lifecycle, OsTick, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
@@ -506,7 +506,7 @@ impl ChromeQuery {
                 *automation =
                     unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) }.ok();
             }
-            chrome_window_is_incognito(automation.as_ref()?, window)
+            chrome_window_is_private(automation.as_ref()?, window)
         })
     }
 }
@@ -1902,9 +1902,9 @@ mod tests {
 
     #[test]
     fn a_chrome_window_in_another_language_is_told_private() {
-        use super::super::exclusion::incognito_of_names;
+        use super::super::exclusion::private_of_names;
         let told =
-            |names: &[&str]| private_window(Browser::Chrome, "Notes", || incognito_of_names(names));
+            |names: &[&str]| private_window(Browser::Chrome, "Notes", || private_of_names(names));
         let cases = [
             (
                 "german-incognito",

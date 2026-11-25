@@ -324,7 +324,7 @@ const ENGLISH_TOOLBAR_NAMES: [&str; 3] = ["Back", "Forward", "Reload"];
 /// have an English interface (a button named Back, Forward or Reload) and none
 /// holds that word, and `None` for every other window, a window in another
 /// language among them, so that its title is dropped.
-pub(crate) fn incognito_of_names<S: AsRef<str>>(names: &[S]) -> Option<bool> {
+pub(crate) fn private_of_names<S: AsRef<str>>(names: &[S]) -> Option<bool> {
     if names
         .iter()
         .any(|name| name.as_ref().to_ascii_lowercase().contains("incognito"))
@@ -342,27 +342,27 @@ pub(crate) fn incognito_of_names<S: AsRef<str>>(names: &[S]) -> Option<bool> {
 /// What the names of a Chrome window's buttons tell of it, given the names of
 /// its toolbar's own buttons and of every button below the window: `Some(true)`
 /// when any button holds the word Incognito, and otherwise what the toolbar's
-/// names tell by [`incognito_of_names`], so that a button named Back, Forward
+/// names tell by [`private_of_names`], so that a button named Back, Forward
 /// or Reload outside the toolbar (a bookmark, an extension, the page) makes no
 /// window English.
-pub(crate) fn incognito_of_buttons<S: AsRef<str>>(toolbar: &[S], all: &[S]) -> Option<bool> {
+pub(crate) fn private_of_buttons<S: AsRef<str>>(toolbar: &[S], all: &[S]) -> Option<bool> {
     if all
         .iter()
         .any(|name| name.as_ref().to_ascii_lowercase().contains("incognito"))
     {
         return Some(true);
     }
-    incognito_of_names(toolbar)
+    private_of_names(toolbar)
 }
 
 /// What the UI Automation query tells of a Chrome window, by the names of its
-/// buttons ([`incognito_of_buttons`]): the English names count only among the
+/// buttons ([`private_of_buttons`]): the English names count only among the
 /// own buttons of the first element below the window whose control type is
 /// ToolBar, and a window with no such element is told by the word Incognito
 /// alone; `None` when the query gives no answer.
 /// The calling thread must be in an apartment of COM.
 #[cfg(target_os = "windows")]
-pub(crate) fn chrome_window_is_incognito(
+pub(crate) fn chrome_window_is_private(
     automation: &windows::Win32::UI::Accessibility::IUIAutomation,
     window: windows::Win32::Foundation::HWND,
 ) -> Option<bool> {
@@ -420,7 +420,7 @@ pub(crate) fn chrome_window_is_incognito(
             Ok(toolbar) => names(&toolbar.FindAll(TreeScope_Children, &button).ok()?)?,
             Err(_) => Vec::new(),
         };
-        incognito_of_buttons(&toolbar_names, &all)
+        private_of_buttons(&toolbar_names, &all)
     }
 }
 
@@ -646,12 +646,12 @@ mod tests {
         let cases = [
             (
                 "german-toolbar-and-a-button-named-back-elsewhere",
-                incognito_of_buttons(&toolbar, &all),
+                private_of_buttons(&toolbar, &all),
                 None,
             ),
             (
                 "english-toolbar",
-                incognito_of_buttons(&english, &english),
+                private_of_buttons(&english, &english),
                 Some(false),
             ),
         ];
