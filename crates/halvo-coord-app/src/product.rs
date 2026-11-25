@@ -61,9 +61,9 @@ use halvo_coord::types::{
     ConfirmAsk, Decision, DecisionEntry, Defers, Digest, DismissedWorkflow, DoneAnswer,
     EffectAnswer, EffectId, Event, FullWorkflow, HandbackAsk, HandbackReason, HandbackResult,
     HoldSetCause, ItemId, ItemKind, Kept, LapseCause, Lapsed, LastCause, LinkAnswer, Name, Origin,
-    OtherLapse, Outcome, PastEffect, PastRun, Progress, Raised, ReadyAnswer, Reply, ReplyRow,
-    RunEnd as CoordRunEnd, RunEvent, RunHistory, RunId, RunSpec, SetupAnswer, SheetAnswers,
-    SignInAnswer, Slot, Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState,
+    OtherLapse, Outcome, PageCause, PastEffect, PastRun, Progress, Raised, ReadyAnswer, Reply,
+    ReplyRow, RunEnd as CoordRunEnd, RunEvent, RunHistory, RunId, RunSpec, SetupAnswer,
+    SheetAnswers, SignInAnswer, Slot, Trigger, Unknown, What, Workflow, WorkflowId, WorkflowState,
     WorkflowTrigger,
 };
 use halvo_coord::types::{Autonomy, Budget, Limits, Permission, Reasoning, Runtime, Tier};
@@ -1225,11 +1225,43 @@ fn agent_of(entry: &Value) -> Option<Agent<AgentConfig>> {
         last,
         unknown,
         refused_run,
-        last_cause: entry["last_cause"]
-            .as_str()
-            .and_then(|cause| LastCause::parse(cause).ok()),
+        last_cause: last_cause_of(entry),
         config,
     })
+}
+
+/// The `last_cause` of an entry of `list_agents` with its key `left`, whether a payment or an order of the run that
+/// `last_cause` reads left (r4 U3.29): a name of the core's list `LastCause` as that cause, but `amount_differs` and
+/// `page_unread` only beside `left` `yes`, and `amount_differs` beside `left` `no` as `amount_not_sent`, a payment or
+/// an order that was held back; without `left`, or with any other value of it, as on main, where the core's list held
+/// neither name; null, a missing key and any other value as none.
+fn last_cause_of(entry: &Value) -> Option<LastCause> {
+    let cause = LastCause::parse(entry["last_cause"].as_str()?).ok()?;
+    let left = entry["left"].as_str();
+    match (cause, left) {
+        (LastCause::AmountDiffers, Some("yes")) | (LastCause::PageUnread, Some("yes")) => {
+            Some(cause)
+        }
+        (LastCause::AmountDiffers, Some("no")) => Some(LastCause::AmountNotSent),
+        (LastCause::AmountDiffers | LastCause::PageUnread | LastCause::AmountNotSent, _) => None,
+        _ => Some(cause),
+    }
+}
+
+/// What an effect of `agent_history` names of the site's page after a payment or an order left (r4 U3.29): its
+/// `page_cause` `amount_differs`, with the page's amount in minor units of `page_amount` where that is a number that
+/// fits, `amount_unread` or `page_unread`; null, a missing key and any other value as none, as on main.
+fn page_of(effect: &Value) -> Option<PageCause> {
+    match effect["page_cause"].as_str()? {
+        "amount_differs" => Some(PageCause::AmountDiffers {
+            amount: effect["page_amount"]
+                .as_u64()
+                .and_then(|minor| u32::try_from(minor).ok()),
+        }),
+        "amount_unread" => Some(PageCause::AmountUnread),
+        "page_unread" => Some(PageCause::PageUnread),
+        _ => None,
+    }
 }
 
 /// One entry of the reply of `list_agents` as `agent_of` reads it, with the agreement of its key `agreement` (r3 U7.7):
@@ -1356,7 +1388,7 @@ fn history_of(run: &Value) -> Option<RunHistory> {
                     c => Some(Name::parse(c.as_str()?).ok()?),
                 },
                 kept: kept_of(&e["kept"])?,
-                page: None,
+                page: page_of(e),
             })
         })
         .collect::<Option<Vec<_>>>()?;
@@ -2473,6 +2505,57 @@ mod tests {
             agent_of(&entry(r#""wall""#)).map(|a| a.last_cause),
             Some(None)
         );
+    }
+
+    /// r4 U3.29 sentence 4: `list_agents` takes the two new names of an entry's `last_cause` with its key `left`, which
+    /// says whether a payment or an order of that run left: `amount_differs` with `yes` as the cause of a sent payment
+    /// whose amount could not be matched, with `no` as one that was held back, and `page_unread` with `yes`; an entry
+    /// without `left` reads both names as none, as on main. `agent_history` takes an effect's `page_cause` with the
+    /// page's amount `page_amount` beside `amount_differs`; an effect without the two keys reads as on main.
+    #[test]
+    fn u329_the_reader_takes_the_last_cause_with_left_and_the_page_of_an_effect() {
+        let workflow = WorkflowId::parse(&"f1".repeat(16)).unwrap();
+        let agent = AgentId::parse(&"a1".repeat(16)).unwrap();
+        let entry = |cause: &str, left: &str| -> Value {
+            serde_json::from_str(&format!(
+                r#"{{"config":{{"v":1,"workflow":"{workflow}","agent":"{agent}","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"yes","private":"yes","external":"yes"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":[],"runtime":"web","playbook":null}},"state":"active","slots":[],"session":"yes","last":null,"unknown":[],"refused_run":null,"reply_unknown":"no","refused_slots":[],"last_cause":"{cause}"{left},"window":"yes"}}"#
+            ))
+            .unwrap()
+        };
+        let rows = [
+            ("amount_differs", r#","left":"yes""#, Some("amount_differs")),
+            ("amount_differs", r#","left":"no""#, Some("amount_not_sent")),
+            ("page_unread", r#","left":"yes""#, Some("page_unread")),
+            ("amount_differs", "", None),
+            ("page_unread", "", None),
+        ];
+        for (cause, left, want) in rows {
+            assert_eq!(
+                agent_of(&entry(cause, left)).map(|a| a.last_cause.map(LastCause::name)),
+                Some(want),
+                "{cause} {left}"
+            );
+        }
+        let run = |effect: &str| -> Value {
+            serde_json::from_str(&format!(
+                r#"{{"run":{{"run":"{}","day":20700,"outcome":"failed","unknown":0}},"effects":[{{"effect":"{}","digest":"{}","class":"payment","state":"committed","cause":null,"kept":[]{effect}}}]}}"#,
+                "c1".repeat(16),
+                "e1".repeat(16),
+                "ab".repeat(32)
+            ))
+            .unwrap()
+        };
+        let pages = [
+            (
+                r#","page_cause":"amount_differs","page_amount":1334"#,
+                Some(PageCause::AmountDiffers { amount: Some(1334) }),
+            ),
+            ("", None),
+        ];
+        for (keys, want) in pages {
+            let read = history_of(&run(keys)).map(|h| h.effects[0].page);
+            assert_eq!(read, Some(want), "{keys}");
+        }
     }
 
     /// r4 U3.17a sentence 2: `list_agents` takes an entry's `agreement` as r3 U7.7 hands it: null as none, and the

@@ -190,10 +190,19 @@ pub const FILE_CAUSES: [LastCause; 15] = [
     LastCause::DataEncoding,
 ];
 
+/// The causes of a run that paid or ordered (r4 U3.29), whose lines name the class of the
+/// payment or the order.
+pub const PAID_CAUSES: [LastCause; 3] = [
+    LastCause::AmountDiffers,
+    LastCause::PageUnread,
+    LastCause::AmountNotSent,
+];
+
 /// Whether a row says the sentence of the last cause `cause` for an agent of `runtime`: a cause
-/// of `FILE_CAUSES` for the runtime file alone, every other cause for every runtime.
+/// of `FILE_CAUSES` for the runtime file alone, none of `PAID_CAUSES`, and every other cause for
+/// every runtime.
 fn said(cause: LastCause, runtime: Runtime) -> bool {
-    runtime == Runtime::File || !FILE_CAUSES.contains(&cause)
+    !PAID_CAUSES.contains(&cause) && (runtime == Runtime::File || !FILE_CAUSES.contains(&cause))
 }
 
 fn text(key: &str, pairs: &[(&str, &str)]) -> Result<String, Cause> {

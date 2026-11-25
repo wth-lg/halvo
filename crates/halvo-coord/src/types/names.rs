@@ -332,7 +332,13 @@ names! {
     /// which the roster says for an agent of that runtime alone (r4 U3.22a, `roster::FILE_CAUSES`);
     /// the nine from `no_workbook` to `read_only` are the names of the agents run's unit r3 U11.3,
     /// `no_access` is the name of its unit r3 U11.4 (r4 U3.22d), and `data_encoding` that of its
-    /// unit r3 U11.5.
+    /// unit r3 U11.5. The last three are the ends of a run that paid or ordered (r4 U3.29), which
+    /// the reader takes only beside the key `left` of the same entry, whether a payment or an order
+    /// of that run left: `amount_differs` with `left` `yes`, the page's amount afterwards could not
+    /// be matched to the allowed amount; `page_unread` with `left` `yes`, the page afterwards could
+    /// not be read; and `amount_not_sent`, the core's name of the store's `amount_differs` with
+    /// `left` `no`, a payment or an order that was held back because its prepared request named
+    /// another amount.
     LastCause {
         NoChannel = "no_channel",
         BrowserStart = "browser_start",
@@ -352,6 +358,9 @@ names! {
         ReadOnly = "read_only",
         NoAccess = "no_access",
         DataEncoding = "data_encoding",
+        AmountDiffers = "amount_differs",
+        PageUnread = "page_unread",
+        AmountNotSent = "amount_not_sent",
     }
 }
 
