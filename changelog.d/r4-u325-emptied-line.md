@@ -1,0 +1,1 @@
+- Fixed: At Change its answers, emptying an answer that came from the store and picking another workbook now offers that workbook's sheets as a list, and one press of Use these answers saves the answers where the core did not take the stored workbook line or an earlier typed one.
