@@ -1,0 +1,1 @@
+- Security: On a Mac, Halvo no longer records the title of a dialog in a Chrome Incognito window or the titles of a Chrome Guest window; it now keeps a Chrome title only where the title ends with Chrome's own name, so none for a person with several Chrome profiles, and it keeps no title of Edge.
