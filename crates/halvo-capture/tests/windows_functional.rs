@@ -5204,17 +5204,37 @@ fn x14_foreground_app_of_a_hosted_app() {
         seen.extend(events.drain_for(Duration::from_millis(500)));
         let settings_processes = processes_named("SystemSettings.exe");
         let foreground_now = current_foreground_app().unwrap_or_default();
+        let mut title_seen = title_events.drain_for(Duration::from_millis(200));
+        let kept_window = TestWindow::create(&normal_window(
+            "HalvoVerifyKept",
+            "halvo-verify-kept",
+            90,
+            90,
+        ))
+        .expect("the kept window");
+        let (kept_window_front, _) = foreground_without_input(kept_window.hwnd, true);
+        pump_thread(Duration::from_secs(3));
         let _ = stop_counted(&mut foreground, "foreground");
         let title_stop = stop_counted(&mut title, "window_title");
         let keyboard_stop = keyboard
             .as_mut()
             .map(|keyboard| stop_counted(keyboard.as_mut(), "keyboard"));
-        let title_seen = title_events.drain_for(Duration::from_millis(500));
+        let kept_seen = title_events.drain_for(Duration::from_millis(500));
+        drop(kept_window);
         let _ = Command::new("taskkill.exe")
             .args(["/IM", "SystemSettings.exe", "/F"])
             .output();
         drop(anchor);
         summarize("x14", "after-opening-settings", &seen);
+        let own_file = own_exe_file();
+        let title_events_kept = kept_seen
+            .iter()
+            .filter(|e| {
+                e.modality == Modality::WindowTitle
+                    && file_name(&e.foreground_app).eq_ignore_ascii_case(&own_file)
+            })
+            .count();
+        title_seen.extend(kept_seen);
         let titles_named = |file: &str| {
             title_seen
                 .iter()
@@ -5231,6 +5251,7 @@ fn x14_foreground_app_of_a_hosted_app() {
             format!(
                 "title_events_systemsettings={title_events_systemsettings} \
                  title_events_applicationframehost={title_events_applicationframehost} \
+                 title_events_kept={title_events_kept} kept_window_front={kept_window_front} \
                  keyboard_start={} title_start={} title_stop={} keyboard_stop={}",
                 keyboard_start.as_ref().map_or("none".to_string(), show),
                 show(&title_start),
@@ -5273,9 +5294,20 @@ fn x14_foreground_app_of_a_hosted_app() {
         assert!(settings >= 1, "{evidence}");
         assert!(title_start.is_ok(), "title_start_ok=false");
         assert!(
-            title_events_systemsettings >= 1 && title_events_applicationframehost == 0,
-            "title_events_systemsettings={title_events_systemsettings} \
-             title_events_applicationframehost={title_events_applicationframehost}"
+            title_events_applicationframehost == 0,
+            "title_events_applicationframehost={title_events_applicationframehost}"
+        );
+        assert!(
+            title_events_systemsettings == 0,
+            "title_events_systemsettings={title_events_systemsettings}"
+        );
+        assert!(
+            frame_host == 0,
+            "events_naming_applicationframehost={frame_host}"
+        );
+        assert!(
+            title_events_kept >= 1,
+            "title_events_kept={title_events_kept} kept_window_front={kept_window_front}"
         );
     });
 }

@@ -20,8 +20,7 @@ use super::{DropCounts, Drops, Floor, FrontApp, Lifecycle, OsTick, Producer, Pum
 
 #[cfg(target_os = "windows")]
 use super::foreground::{
-    frame_with_no_program, resolve_front, set_win_event_hook, unhook_win_event, HookInstaller,
-    HookRemover,
+    resolve_front, set_win_event_hook, unhook_win_event, HookInstaller, HookRemover,
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HWND;
@@ -168,14 +167,12 @@ pub(crate) enum Look {
     Left,
 }
 
-/// The one title ask that waits on the title thread, the window in front
-/// with the number of its switch, and whether the ask waits for the program
-/// of its frame.
+/// The one title ask that waits on the title thread, and the window in front
+/// with the number of its switch.
 #[derive(Debug, Default)]
 pub(crate) struct Waiting {
     ask: Option<TitleAsk>,
     visit: Option<(usize, Option<u64>)>,
-    for_a_program: bool,
 }
 
 impl Waiting {
@@ -205,7 +202,6 @@ impl Waiting {
             AskBy::Start | AskBy::Front => TitleWhy::AppChange,
             AskBy::Name => TitleWhy::TitleChange,
         };
-        self.for_a_program = false;
         self.ask
             .replace(TitleAsk {
                 window,
@@ -219,54 +215,21 @@ impl Waiting {
 
     /// Ends the waiting ask at the source's stop: whether one waited.
     pub(crate) fn stop(&mut self) -> bool {
-        self.for_a_program = false;
         self.ask.take().is_some()
-    }
-
-    /// Puts back an ask whose window is a frame with no program found in it
-    /// yet: it waits, and no reading decides it, until
-    /// [`Waiting::program_found`].
-    pub(crate) fn wait_for_a_program(&mut self, ask: TitleAsk) {
-        self.ask = Some(ask);
-        self.for_a_program = true;
-    }
-
-    /// The window of the waiting ask where it waits for the program of its
-    /// frame.
-    pub(crate) fn frame_awaiting_a_program(&self) -> Option<usize> {
-        self.ask
-            .filter(|_| self.for_a_program)
-            .map(|ask| ask.window)
-    }
-
-    /// The program of the waiting ask's frame is found: only a read numbered
-    /// behind `after`, the number of the read that the gate was asked for
-    /// now, decides the ask.
-    pub(crate) fn program_found(&mut self, after: Option<u64>) {
-        self.for_a_program = false;
-        if let Some(ask) = self.ask.as_mut() {
-            ask.after = after;
-            self.visit = Some((ask.window, after));
-        }
     }
 
     /// Looks at the waiting ask while `front` is the window in front (0 for
     /// none): where the gate's newest read is of the ask's window and
     /// numbered behind its switch, its reading decides it, at once and
-    /// whatever came before; another window in front ends it; an ask that
-    /// waits for the program of its frame waits; else it waits, with no
-    /// bound while its window stays in front.
+    /// whatever came before; another window in front ends it; else it waits,
+    /// with no bound while its window stays in front.
     pub(crate) fn look(&mut self, gate: Option<&PasswordGate>, front: usize, now: u32) -> Look {
         let Some(ask) = self.ask else {
             return Look::Idle;
         };
         if front != 0 && front != ask.window {
             self.ask = None;
-            self.for_a_program = false;
             return Look::Left;
-        }
-        if self.for_a_program {
-            return wait_step(ask, now);
         }
         let Some(gate) = gate else {
             self.ask = None;
@@ -278,17 +241,11 @@ impl Waiting {
                 return Look::Decide(ask, Some(reading));
             }
         }
-        wait_step(ask, now)
-    }
-}
-
-/// The wait of `ask` at `now`: the next look after the look step inside the
-/// bound, after the late step behind it.
-fn wait_step(ask: TitleAsk, now: u32) -> Look {
-    if OsTick::new(ask.asked).age_at(now) < TITLE_WAIT_BOUND {
-        Look::Wait(ms_of(TITLE_LOOK_STEP))
-    } else {
-        Look::Wait(ms_of(TITLE_LATE_STEP))
+        if OsTick::new(ask.asked).age_at(now) < TITLE_WAIT_BOUND {
+            Look::Wait(ms_of(TITLE_LOOK_STEP))
+        } else {
+            Look::Wait(ms_of(TITLE_LATE_STEP))
+        }
     }
 }
 
@@ -701,36 +658,16 @@ unsafe extern "system" fn look_timer(_hwnd: HWND, _message: u32, _id: usize, _ti
 }
 
 /// One look at the waiting ask: a decision writes the title, or not, by the
-/// floor; a wait sets the timer to its step; an end stops the timer. An ask
-/// of a frame in which no program is found yet waits for the program, and
-/// once it is found the gate is asked for a read, behind which alone a read
-/// decides the ask.
+/// floor; a wait sets the timer to its step; an end stops the timer.
 #[cfg(target_os = "windows")]
 fn look_at_the_ask(state: &mut TitleState, now: u32, at_the_ask: bool) {
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
     let front = unsafe { GetForegroundWindow() }.0 as usize;
-    if let Some(window) = state.waiting.frame_awaiting_a_program() {
-        if window == front && !frame_with_no_program(HWND(window as *mut core::ffi::c_void)) {
-            let after = state
-                .gate
-                .as_deref()
-                .map(|gate| gate.switched_to(window, now));
-            state.waiting.program_found(after);
-        }
-    }
     match state.waiting.look(state.gate.as_deref(), front, now) {
         Look::Idle => state.stop_timer(),
         Look::Left => {
             state.counts.ended_unread(Some(&state.counts.left));
             state.stop_timer();
-        }
-        Look::Decide(ask, _)
-            if frame_with_no_program(HWND(ask.window as *mut core::ffi::c_void)) =>
-        {
-            state.waiting.wait_for_a_program(ask);
-            if let Look::Wait(step) = state.waiting.look(state.gate.as_deref(), front, now) {
-                state.start_timer(step);
-            }
         }
         Look::Decide(ask, reading) => {
             state.stop_timer();
