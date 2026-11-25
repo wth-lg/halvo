@@ -188,11 +188,12 @@ Where a sentence names a unit, that unit makes it true.
   process tree leaves an agent's browser out.
 - On Windows, Halvo records no window title and no screen activity of a program that
   Windows shows inside a frame of its own, such as Settings or the Calculator, while
-  that frame is in front, whatever has the cursor. It records the app in front, keys
-  and clicks of such a program under the program's own name. While the program's own
-  window does not hold the cursor, as while the program opens or wakes, Halvo records
-  nothing of that window, and in that time the Status page can say that Halvo could not
-  tell whether to leave out the app in use.
+  that frame is in front, whatever has the cursor. It records the app in front and
+  clicks of such a program under the program's own name, and no key that you type in
+  it. While such a frame is in front and the program's own window does not hold the
+  cursor, as while the program opens or wakes, Halvo records nothing of that window, and
+  in that time the Status page can say that Halvo could not tell whether to leave out
+  the app in use.
 
 The first-run text and the data view quote these three sentences word for word.
 The owner approves them once, in the table of user-visible sentences for each
