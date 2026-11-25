@@ -285,10 +285,22 @@ pub fn give_back(run: &HeldRun, begun: &Begun) -> io::Result<()> {
 }
 
 /// Takes the line of a loss out of the marker that stands in `run`, the
-/// held folder, as the offline delete of everything does before its steps.
+/// held folder, as the offline delete of everything does before its steps:
+/// where the marker holds such a line, it is written back without it by the
+/// durable write, every other line byte for byte; where it holds none, or no
+/// marker stands, nothing is written.
 pub fn forget_the_loss(run: &HeldRun) -> io::Result<()> {
-    let _ = run;
-    Ok(())
+    let Some(text) = read_in(run)? else {
+        return Ok(());
+    };
+    if !text.lines().any(|line| line.starts_with(LOST)) {
+        return Ok(());
+    }
+    let kept: String = text
+        .split_inclusive('\n')
+        .filter(|line| !line.starts_with(LOST))
+        .collect();
+    replace_in(run, kept.as_bytes())
 }
 
 /// Whether the marker that stands holds the hold of ruling PL-3 part (5).

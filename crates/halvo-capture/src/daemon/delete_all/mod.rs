@@ -437,7 +437,11 @@ const BUSY_LINE: &str =
 /// `deleted` line still stands: the counts of segments and keys and
 /// `root_destroyed` read `unknown`, `root_id` reads `-` and `not_followed`
 /// reads 0, and `files_left` and `database_left` are read from what stands
-/// of the store after the steps.
+/// of the store after the steps. Right behind the take of the lock and
+/// before every step, it takes the line of a loss of the last life out of
+/// the run marker (`run_marker::forget_the_loss`), so that no start reads
+/// that loss behind the press; where that write fails, the delete goes on
+/// and answers as it would, and the line stays.
 pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let path = dir.path();
     let mut text = format!("data_dir={}\n", one_line(&path.to_string_lossy()));
