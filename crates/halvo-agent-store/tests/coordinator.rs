@@ -2171,6 +2171,7 @@ fn as_last_row(store: &MemoryStore, e: u32) -> Value {
     json!({
         "effect": last["effect"], "digest": last["digest"], "class": last["class"],
         "state": last["state"], "cause": last["cause"], "kept": last["kept"],
+        "page_cause": null, "page_amount": null,
     })
 }
 

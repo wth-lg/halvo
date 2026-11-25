@@ -13,7 +13,7 @@ use halvo_schema::executable::names::{
     ActionClass, AgentState, Cause, CheckpointState, EffectState, FieldName, LogEvent, Mode,
     ReplyState, YesNo,
 };
-use halvo_schema::executable::record::Slot;
+use halvo_schema::executable::record::{Slot, PAGE_CAUSES};
 use halvo_schema::executable::text::{Name, V1};
 use halvo_schema::executable::{
     reply_senders, AgentAgreement, AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentReply,
@@ -117,9 +117,14 @@ use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 ///   `reply_senders`, a slot with no reader never; `last_cause`, the cause of the end of the agent's newest started
 ///   run, as `refused_run` finds that run, else null: null until the run's `agent_run` record stands, then the cause
 ///   of the run's `stopped` row with no step, else of its `stopped` row with a step, each whose cause is not in
-///   `GOES_ON_AFTER` (`not_selected` and `amount_unread`, steps after which the run goes on, and `session_size`, a
-///   sign-in over the limit that the run does not keep, at a handback's opening or before its end), else null; a
-///   name of the closed list of causes alone, never a text of a page, of a site or of an error. A `stopped` row
+///   `GOES_ON_AFTER` (`not_selected`, `amount_unread` and `amount_matched`, steps after which the run goes on, and
+///   `session_size`, a sign-in over the limit that the run does not keep, at a handback's opening or before its end),
+///   else null; a
+///   name of the closed list of causes alone, never a text of a page, of a site or of an error; `left` (r3 U5.10-P),
+///   `yes` where an effect of the run of the agent's newest start row, as `refused_run` finds that run, of the class
+///   `payment` or `purchase`, has `committed` as its newest row by seq, whether or not the run's record stands, else
+///   `no`, also where no start row stands, so that a payment held back before any card, which leaves no effect row,
+///   reads `no` beside the `last_cause` `amount_differs` that a payment that left reads beside `yes`. A `stopped` row
 ///   whose stored cause is no name of the list reads with the cause null, so it gives `last_cause` null and does not
 ///   refuse the roster; every other `agent_log` row that the typed reader refuses refuses it with `store`. `window` is
 ///   `no` where the agent's next run needs no browser window: the run of the agent's newest start row, as `refused_run`
@@ -151,7 +156,11 @@ use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 /// - `agent_history`: `no_workflow`; `binding`. It stores nothing and changes no state. Of the agent's runs, only
 ///   those whose `agent_run` record is stored count, in the order of `last` of `list_agents`, newest first, and it
 ///   gives the first `runs` of them: each with its record and the effects whose rows name the run, in ascending order
-///   of effect id, each as its newest row by seq holds it: its id, digest, class, state, cause and kept fields. An
+///   of effect id, each as its newest row by seq holds it: its id, digest, class, state, cause and kept fields, and
+///   `page_cause` and `page_amount` (r3 U5.10-P): for a `committed` effect of the class `payment` or `purchase`, the
+///   cause of `PAGE_CAUSES` and the `page_amount` of the `stopped` row of its run that names the effect under the key
+///   `effect`, of the greatest seq where two stand, else null; null on every other effect. A row of a build before
+///   that key stood names no effect and gives null; no time and no step ties a row to an effect. An
 ///   effect of the class `local_edit` also gives `checkpoint`: the newest row by seq of the run's checkpoint of the
 ///   workbook path that is the effect's kept `file`, with its state, its instant and the copy's name, or null where
 ///   no such row stands or that row is `planned`; `store` where that name is longer than one `own_text`. The reply
@@ -430,6 +439,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
         let refused_run = refused_run(&logs, &starts, &agent);
         let reply_unknown = reply_unknown(&replies, last.as_ref());
         let last_cause = last_cause(&logs, &starts, &runs, &agent);
+        let left = left(&effects, &starts, &agent);
         let window = window(&logs, &starts, &runs, &agent, session);
         let agreement =
             rows::standing_under(set_ups.get(&agent).copied(), &agent, &mut agreement_rows)?.map(
@@ -449,6 +459,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
             reply_unknown,
             refused_slots,
             last_cause,
+            left,
             window,
             agreement,
         });
@@ -509,10 +520,16 @@ fn newest_start<'a>(starts: &'a [AgentLog], agent: &AgentId) -> Option<&'a Agent
 /// send whose message the reply rule no longer selects; `session_size`, the row with no step that the runner writes
 /// once a run for a sign-in over the limit that it does not keep, at the opening of a handback or at its end before
 /// its own end row (r3 U5.2, U5.2f); and
-/// `amount_unread`, the row of a committed payment or purchase whose page after the reply names no amount (r3 U4.1w-2).
+/// `amount_unread`, the row of a committed payment or purchase whose page after the reply names no amount (r3 U4.1w-2);
+/// and `amount_matched`, the row of one whose page names the kept amount alone (r3 U5.10-P).
 /// `last_cause` of `list_agents` never reads such a row as the row of a run's end. The list is the runner's knowledge
 /// held by name: a second such cause of the runner reads as the cause of an end until it stands here.
-pub const GOES_ON_AFTER: &[Cause] = &[Cause::NotSelected, Cause::SessionSize, Cause::AmountUnread];
+pub const GOES_ON_AFTER: &[Cause] = &[
+    Cause::NotSelected,
+    Cause::SessionSize,
+    Cause::AmountUnread,
+    Cause::AmountMatched,
+];
 
 /// The cause of the end of the run of the agent's newest start row, none where that run has not ended or ended with
 /// no cause. The run has ended where its `agent_run` record of the agent stands. The cause of its end is that of the
@@ -540,6 +557,52 @@ fn last_cause(
     let end = ends().filter(|l| l.step.is_none()).max_by_key(|l| l.seq);
     let step = ends().filter(|l| l.step.is_some()).max_by_key(|l| l.seq);
     end.or(step)?.cause
+}
+
+/// `left` of `list_agents` (r3 U5.10-P): `yes` where an effect of the run of the agent's newest start row, of the class
+/// `payment` or `purchase`, has `committed` as its newest row by seq, else `no`, also where no start row stands. It
+/// reads no row of another agent.
+fn left(effects: &[AgentEffect], starts: &[AgentLog], agent: &AgentId) -> YesNo {
+    let Some(newest) = newest_start(starts, agent) else {
+        return YesNo::No;
+    };
+    let committed = last_rows(
+        effects
+            .iter()
+            .filter(|r| &r.agent == agent && r.run == newest.run),
+    )
+    .into_values()
+    .any(|row| {
+        matches!(row.class, ActionClass::Payment | ActionClass::Purchase)
+            && row.state == EffectState::Committed
+    });
+    if committed {
+        YesNo::Yes
+    } else {
+        YesNo::No
+    }
+}
+
+/// `page_cause` and `page_amount` of the effect of the row `effect` in `agent_history` (r3 U5.10-P): for a `committed`
+/// effect of the class `payment` or `purchase`, the cause and the amount of the `stopped` row of its run and agent that
+/// names it under the key `effect` with a cause of `PAGE_CAUSES`, of the greatest seq where two stand; none for every
+/// other effect, and where no row names it, as a row of a build before the key stood does not.
+fn page_end(logs: &[AgentLog], effect: &AgentEffect) -> (Option<Cause>, Option<u32>) {
+    if !matches!(effect.class, ActionClass::Payment | ActionClass::Purchase)
+        || effect.state != EffectState::Committed
+    {
+        return (None, None);
+    }
+    logs.iter()
+        .filter(|l| {
+            l.agent == effect.agent
+                && l.run == effect.run
+                && l.event == LogEvent::Stopped
+                && l.effect.as_ref() == Some(&effect.effect)
+                && l.cause.is_some_and(|c| PAGE_CAUSES.contains(&c))
+        })
+        .max_by_key(|l| l.seq)
+        .map_or((None, None), |l| (l.cause, l.page_amount))
 }
 
 /// The run of the agent's newest start row, of the greatest `at` and then run id, where a log row of that run and the
@@ -727,7 +790,8 @@ fn page(entries: Vec<ListedAgent>) -> Result<AgentsReply, ErrorName> {
 fn agent_history(host: &dyn Host, b: &AgentHistory) -> Result<CoordinatorReply, ErrorName> {
     bind::of_agent(host, &b.workflow, &b.agent)?;
     let rows = host.rows();
-    let starts = start_rows(&rows::logs(rows)?);
+    let logs = rows::logs(rows)?;
+    let starts = start_rows(&logs);
     let mut records: Vec<AgentRun> = rows::runs(rows)?
         .into_iter()
         .filter(|r| r.agent == b.agent)
@@ -745,6 +809,7 @@ fn agent_history(host: &dyn Host, b: &AgentHistory) -> Result<CoordinatorReply, 
             } else {
                 None
             };
+            let (page_cause, page_amount) = page_end(&logs, row);
             past.push(PastEffect {
                 effect: row.effect.clone(),
                 digest: row.digest.clone(),
@@ -752,6 +817,8 @@ fn agent_history(host: &dyn Host, b: &AgentHistory) -> Result<CoordinatorReply, 
                 state: row.state,
                 cause: row.cause,
                 kept: row.kept.clone(),
+                page_cause,
+                page_amount,
                 checkpoint,
             });
         }
@@ -880,6 +947,7 @@ fn start_run(host: &mut dyn Host, now: Now, b: &StartRun) -> Result<CoordinatorR
             tokens_in: None,
             tokens_out: None,
             page_amount: None,
+            effect: None,
         };
         day::commit(host, now, vec![record(rows::AGENT_LOG, row.to_json())?])?;
     }

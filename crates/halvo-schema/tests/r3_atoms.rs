@@ -110,6 +110,7 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
             "amount_differs",
             "amount_unread",
             "page_unread",
+            "amount_matched",
             "no_workbook",
             "no_sheet",
             "no_range",

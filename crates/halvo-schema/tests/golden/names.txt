@@ -25,6 +25,7 @@ agreement
 allow
 allow_once
 amount_differs
+amount_matched
 amount_unread
 analysis
 analysis_write
@@ -294,6 +295,7 @@ outcome
 output_limit
 overlaps
 page_amount
+page_cause
 page_unread
 part
 parts

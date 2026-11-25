@@ -24,6 +24,8 @@ mod workbook;
 mod agreement_tests;
 #[cfg(test)]
 mod answers_tests;
+#[cfg(test)]
+mod page_end_tests;
 
 pub use coordinator::{coordinator, GOES_ON_AFTER};
 pub use effect::allowed_not_done;
