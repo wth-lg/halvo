@@ -615,7 +615,26 @@ mod tests {
                 "Docs [draft] report - Microsoft Edge",
                 true,
             ),
-            ("profiles", chrome, "Inbox - Google Chrome - Work", false),
+            ("profiles", chrome, "Inbox - Google Chrome - Work", true),
+            (
+                "profile-of-chrome-s-own-name",
+                chrome,
+                "Inbox - Google Chrome - Person 2",
+                true,
+            ),
+            (
+                "a-dash-and-no-name",
+                chrome,
+                "Inbox - Google Chrome - ",
+                false,
+            ),
+            ("another-tail", chrome, "Inbox - Google Chrome x", false),
+            (
+                "incognito-page-title-holding-the-name-and-a-dash",
+                chrome,
+                "Notes - Google Chrome - x - Google Chrome (Incognito)",
+                false,
+            ),
             (
                 "incognito",
                 chrome,
