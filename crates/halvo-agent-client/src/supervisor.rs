@@ -24,7 +24,7 @@ use halvo_schema::RequestId;
 
 use crate::acts::Acts;
 use crate::api::{
-    absolute_paths, CallError, Config, EndRun, ForcedPath, ListFailed, NotStarted, Parts,
+    absolute_paths, CallError, Config, EndRun, ForcedPath, Hosted, ListFailed, NotStarted, Parts,
     ReapAnswer, ReapHook, ReapStep, Reaped, RelativePath, RunEnd, RunSpec, RunnerExit, StartError,
     SystemValue, MODEL_KEY,
 };
@@ -436,6 +436,12 @@ impl Supervisor {
         }
         if spec.headed {
             cmd.arg("--headed");
+        }
+        if let Some(hosted) = spec.hosted {
+            cmd.arg("--hosted").arg(match hosted {
+                Hosted::LowCostHosted => "low_cost_hosted",
+                Hosted::Frontier => "frontier",
+            });
         }
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())

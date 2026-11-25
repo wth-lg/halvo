@@ -1,0 +1,4 @@
+package=halvo-model
+bin=halvo-model
+manifest=crates/halvo-model/Cargo.toml
+version=none

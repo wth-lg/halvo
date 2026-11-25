@@ -88,6 +88,7 @@ Var HalvoRunValue
     !insertmacro HALVO_HELD "${MAINBINARYNAME}.exe"
     !insertmacro HALVO_HELD "halvo-analysis.exe"
     !insertmacro HALVO_HELD "halvo-capture.exe"
+    !insertmacro HALVO_HELD "halvo-model.exe"
     !insertmacro HALVO_HELD "halvo-owner.exe"
     !insertmacro HALVO_HELD "halvo-runner.exe"
     ${If} $R4 == ""

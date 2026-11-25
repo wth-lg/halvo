@@ -11,6 +11,7 @@ mod file;
 mod find;
 mod handback;
 mod link;
+mod model;
 mod names;
 mod playbook;
 #[cfg_attr(
@@ -35,9 +36,24 @@ pub use link::LINK_END;
 /// a value reaches standard error.
 pub const PANIC_LINE: &str = "run panic=yes";
 
-/// Writes one line on standard error; a standard error that the supervisor closed changes nothing.
+/// Writes one line on standard error; a standard error that the supervisor closed changes nothing. In a unit test the
+/// line is also kept for the thread that wrote it (`tests_lines`).
 fn line(text: &str) {
+    #[cfg(test)]
+    LINES.with(|lines| lines.borrow_mut().push(text.to_owned()));
     let _ = writeln!(std::io::stderr(), "{text}");
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The lines that `line` wrote on this thread, for a unit test that reads what a run wrote on standard error.
+    static LINES: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The lines that `line` wrote on this thread so far, taken.
+#[cfg(test)]
+pub(crate) fn tests_lines() -> Vec<String> {
+    LINES.with(|lines| std::mem::take(&mut *lines.borrow_mut()))
 }
 
 /// The version that `--version` prints: the package's, which scripts/r1/ci.d/61-version.sh compares with the

@@ -300,6 +300,38 @@ fn u322d_a_file_run_that_the_system_refused_says_what_to_do_on_each_system() {
     }
 }
 
+/// r3 U7.2a: the row of an agent whose newest run ended `handed_back` with one of the three causes
+/// of a hosted model says the ruled problem line of that cause, byte for byte (the coordinator's
+/// log lines 22166 and 22216); a handed-back run with another cause, or with none, keeps the line
+/// of a run that stopped early.
+#[test]
+fn u72a_a_run_handed_back_before_its_model_says_why_and_every_other_reads_as_today() {
+    let early =
+        "Last time, it stopped before the task was done, and it needs nothing from you now.";
+    let rows = [
+        (
+            Some(LastCause::NoAgreement),
+            "This agent may use an AI model only after you allow it. To allow it, choose Use an AI model.",
+        ),
+        (
+            Some(LastCause::NoModelKey),
+            "This agent needs a key for its AI model, and no key is saved. Save a key under AI model, then run the agent again.",
+        ),
+        (
+            Some(LastCause::OverCap),
+            "This agent stopped at your spending limit. It waits until the limit's period ends or until you raise the limit under AI model.",
+        ),
+        (Some(LastCause::NoBrowser), early),
+        (None, early),
+    ];
+    for (cause, want) in rows {
+        let f = u323_day(1, RunEnd::HandedBack, cause, &[]);
+        let line = status(&f, &Limits::PRODUCT, None);
+        let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+        assert_eq!(r.line, want, "{cause:?}");
+    }
+}
+
 /// The spreadsheet agent of the state `ten` (runtime file, every question answered) with `starts`
 /// runs that the person started today, each but the last ended `completed` and the last ended
 /// `last`, with the last cause `cause`, and the events `after` stored behind that end.

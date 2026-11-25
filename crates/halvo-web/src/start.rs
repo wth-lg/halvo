@@ -251,6 +251,28 @@ pub fn start_with(
     sys::start_with(held, spec, placed)
 }
 
+/// A child on two pipes of its standard streams: the child, the end to which this process writes
+/// the child's standard input, and the end from which it reads the child's standard output.
+pub struct OnStdio {
+    pub child: Started,
+    pub to_child: File,
+    pub from_child: File,
+}
+
+/// Starts a program for a child that speaks on its standard streams (the model's door of the
+/// agents run, contracts A12.3). The child gets the read end of one new pipe as its standard
+/// input, the write end of another as its standard output, the null device as its standard error,
+/// no other descriptor or handle of this process, the whole environment `spec.env` and the
+/// working directory `spec.dir`: on macOS by `posix_spawn` with `POSIX_SPAWN_CLOEXEC_DEFAULT`, as
+/// the leader of a process group of its own; on Windows by `CreateProcessW` with the handle list
+/// of exactly those three. This process keeps the other end of each pipe (`to_child`,
+/// `from_child`), with close-on-exec (macOS) or not inheritable (Windows), and closes its copies
+/// of the child's two ends when the start returns.
+pub fn start_on_stdio(held: &StartLock, spec: &Spec<'_>) -> Result<OnStdio, StartFault> {
+    absolute(spec)?;
+    sys::start_on_stdio(held, spec)
+}
+
 #[cfg(unix)]
 pub type RawPlaced = std::os::fd::RawFd;
 #[cfg(windows)]
@@ -286,7 +308,7 @@ pub fn quote_windows_arg(arg: &str) -> String {
 
 #[cfg(target_os = "macos")]
 mod sys {
-    use super::{OnPipe, PipeIds, RawPlaced, Spec, StartFault, StartLock, Started};
+    use super::{OnPipe, OnStdio, PipeIds, RawPlaced, Spec, StartFault, StartLock, Started};
     use std::ffi::{CString, OsString};
     use std::fs::File;
     use std::os::fd::{FromRawFd, RawFd};
@@ -391,11 +413,16 @@ mod sys {
             .collect()
     }
 
-    /// Runs `posix_spawn` with `POSIX_SPAWN_CLOEXEC_DEFAULT`: the child gets the null device at 0
-    /// to 2 and `placed[i]` at `3 + i` and nothing else, its working directory `spec.dir`, the
-    /// environment `spec.env` alone, and a process group of its own.
+    /// Runs `posix_spawn` with `POSIX_SPAWN_CLOEXEC_DEFAULT`: the child gets `streams[0]` at 0 and
+    /// `streams[1]` at 1, the null device in place of each that is none and at 2, `placed[i]` at
+    /// `3 + i`, and nothing else, its working directory `spec.dir`, the environment `spec.env`
+    /// alone, and a process group of its own.
     #[allow(clippy::disallowed_methods)]
-    fn spawn(spec: &Spec<'_>, placed: &[RawFd]) -> Result<u32, StartFault> {
+    fn spawn(
+        spec: &Spec<'_>,
+        streams: [Option<RawFd>; 2],
+        placed: &[RawFd],
+    ) -> Result<u32, StartFault> {
         let program = cstring(spec.program.as_os_str().as_bytes())?;
         let mut argv_owned = vec![program.clone()];
         for a in &spec.args {
@@ -415,7 +442,9 @@ mod sys {
         // SAFETY: every pointer passed below points to a value that lives until the end of this
         // block: the action list and the attributes are initialised before use and destroyed
         // once, the strings are owned by `argv_owned`, `env_owned`, `dir` and `null`, and the
-        // two pointer arrays end with a null pointer as posix_spawn requires.
+        // two pointer arrays end with a null pointer as posix_spawn requires. Each descriptor of
+        // `streams` and `placed` is open in this process and owned by the caller until the call
+        // returns; a copy action places it in the child alone.
         unsafe {
             if libc::posix_spawn_file_actions_init(&mut actions) != 0 {
                 return Err(StartFault::last("spawn_actions"));
@@ -436,21 +465,28 @@ mod sys {
             rc |= libc::posix_spawnattr_setpgroup(&mut attr, 0);
             rc |= libc::posix_spawnattr_setsigmask(&mut attr, &empty);
             rc |= libc::posix_spawnattr_setsigdefault(&mut attr, &defaults);
-            rc |= libc::posix_spawn_file_actions_addopen(
-                &mut actions,
-                0,
-                null.as_ptr(),
-                libc::O_RDONLY,
-                0,
-            );
-            for out in [1, 2] {
-                rc |= libc::posix_spawn_file_actions_addopen(
+            let [input, output] = streams;
+            rc |= match input {
+                Some(fd) => libc::posix_spawn_file_actions_adddup2(&mut actions, fd, 0),
+                None => libc::posix_spawn_file_actions_addopen(
                     &mut actions,
-                    out,
-                    null.as_ptr(),
-                    libc::O_WRONLY,
                     0,
-                );
+                    null.as_ptr(),
+                    libc::O_RDONLY,
+                    0,
+                ),
+            };
+            for (out, given) in [(1, output), (2, None)] {
+                rc |= match given {
+                    Some(fd) => libc::posix_spawn_file_actions_adddup2(&mut actions, fd, out),
+                    None => libc::posix_spawn_file_actions_addopen(
+                        &mut actions,
+                        out,
+                        null.as_ptr(),
+                        libc::O_WRONLY,
+                        0,
+                    ),
+                };
             }
             for (i, fd) in placed.iter().enumerate() {
                 rc |= libc::posix_spawn_file_actions_adddup2(&mut actions, *fd, 3 + i as i32);
@@ -516,7 +552,7 @@ mod sys {
         {
             *slot = pipe_handle(fd).unwrap_or(0);
         }
-        let spawned = spawn(spec, &[browser_reads, browser_writes]);
+        let spawned = spawn(spec, [None, None], &[browser_reads, browser_writes]);
         close_all(&[browser_reads, browser_writes]);
         let pid = match spawned {
             Ok(pid) => pid,
@@ -555,11 +591,60 @@ mod sys {
         placed: RawPlaced,
     ) -> Result<Started, StartFault> {
         let lifted = lifted_copy(placed)?;
-        let spawned = spawn(spec, &[lifted]);
+        let spawned = spawn(spec, [None, None], &[lifted]);
         close_all(&[lifted]);
         Ok(Started {
             pid: spawned?,
             reaped: false,
+        })
+    }
+
+    pub(super) fn start_on_stdio(
+        _held: &StartLock,
+        spec: &Spec<'_>,
+    ) -> Result<OnStdio, StartFault> {
+        let mut input = [0; 2];
+        let mut output = [0; 2];
+        // SAFETY: pipe writes two descriptors into the two-element array.
+        if unsafe { libc::pipe(input.as_mut_ptr()) } != 0 {
+            return Err(StartFault::last("pipe"));
+        }
+        // SAFETY: as above.
+        if unsafe { libc::pipe(output.as_mut_ptr()) } != 0 {
+            let fault = StartFault::last("pipe");
+            close_all(&input);
+            return Err(fault);
+        }
+        let ends = [input[0], input[1], output[0], output[1]];
+        let mut lifted = Vec::with_capacity(4);
+        for fd in ends {
+            match lift(fd) {
+                Ok(l) => lifted.push(l),
+                Err(f) => {
+                    close_all(&lifted);
+                    close_all(&ends[lifted.len() + 1..]);
+                    return Err(f);
+                }
+            }
+        }
+        let (child_reads, we_write, we_read, child_writes) =
+            (lifted[0], lifted[1], lifted[2], lifted[3]);
+        let spawned = spawn(spec, [Some(child_reads), Some(child_writes)], &[]);
+        close_all(&[child_reads, child_writes]);
+        let pid = match spawned {
+            Ok(pid) => pid,
+            Err(f) => {
+                close_all(&[we_write, we_read]);
+                return Err(f);
+            }
+        };
+        // SAFETY: both descriptors are open, owned here alone, and moved into one `File` each.
+        let (to_child, from_child) =
+            unsafe { (File::from_raw_fd(we_write), File::from_raw_fd(we_read)) };
+        Ok(OnStdio {
+            child: Started { pid, reaped: false },
+            to_child,
+            from_child,
         })
     }
 }
@@ -567,7 +652,8 @@ mod sys {
 #[cfg(windows)]
 mod sys {
     use super::{
-        quote_windows_arg, OnPipe, PipeIds, RawPlaced, Spec, StartFault, StartLock, Started,
+        quote_windows_arg, OnPipe, OnStdio, PipeIds, RawPlaced, Spec, StartFault, StartLock,
+        Started,
     };
     use std::ffi::OsString;
     use std::fs::File;
@@ -715,29 +801,49 @@ mod sys {
 
     /// Runs `CreateProcessW` with a handle list of the standard handles and `placed`, each made
     /// inheritable for the call alone and made not inheritable again after it.
-    fn spawn(spec: &Spec<'_>, placed: &[HANDLE]) -> Result<Started, StartFault> {
-        let stdin = null_handle(false)?;
-        let stdout = match null_handle(true) {
+    fn spawn(
+        spec: &Spec<'_>,
+        streams: [Option<HANDLE>; 2],
+        placed: &[HANDLE],
+    ) -> Result<Started, StartFault> {
+        let [input, output] = streams;
+        let stdin = match input {
+            Some(h) => h,
+            None => null_handle(false)?,
+        };
+        let opened = |given: Option<HANDLE>| given.is_none();
+        let stdout = match output.map_or_else(|| null_handle(true), Ok) {
             Ok(h) => h,
             Err(f) => {
-                close_all(&[stdin]);
+                if opened(input) {
+                    close_all(&[stdin]);
+                }
                 return Err(f);
             }
         };
         let stderr = match null_handle(true) {
             Ok(h) => h,
             Err(f) => {
-                close_all(&[stdin, stdout]);
+                for (h, given) in [(stdin, input), (stdout, output)] {
+                    if opened(given) {
+                        close_all(&[h]);
+                    }
+                }
                 return Err(f);
             }
         };
         let mut list: Vec<HANDLE> = vec![stdin, stdout, stderr];
         list.extend_from_slice(placed);
         let result = spawn_listed(spec, &list, [stdin, stdout, stderr]);
-        for h in placed {
+        for h in placed.iter().chain(input.iter()).chain(output.iter()) {
             inheritable(*h, false);
         }
-        close_all(&[stdin, stdout, stderr]);
+        for (h, given) in [(stdin, input), (stdout, output)] {
+            if opened(given) {
+                close_all(&[h]);
+            }
+        }
+        close_all(&[stderr]);
         result
     }
 
@@ -900,7 +1006,7 @@ mod sys {
             "--remote-debugging-io-pipes={},{}",
             browser_reads as usize, browser_writes as usize
         )));
-        let started = spawn(&with_pipes, &[browser_reads, browser_writes]);
+        let started = spawn(&with_pipes, [None, None], &[browser_reads, browser_writes]);
         close_all(&[browser_reads, browser_writes]);
         let child = match started {
             Ok(c) => c,
@@ -943,7 +1049,48 @@ mod sys {
         spec: &Spec<'_>,
         placed: RawPlaced,
     ) -> Result<Started, StartFault> {
-        spawn(spec, &[placed])
+        spawn(spec, [None, None], &[placed])
+    }
+
+    pub(super) fn start_on_stdio(
+        _held: &StartLock,
+        spec: &Spec<'_>,
+    ) -> Result<OnStdio, StartFault> {
+        let mut child_reads: HANDLE = std::ptr::null_mut();
+        let mut we_write: HANDLE = std::ptr::null_mut();
+        let mut we_read: HANDLE = std::ptr::null_mut();
+        let mut child_writes: HANDLE = std::ptr::null_mut();
+        // SAFETY: CreatePipe writes two new handles, made not inheritable by the null attributes.
+        if unsafe { CreatePipe(&mut child_reads, &mut we_write, std::ptr::null(), 0) } == 0 {
+            return Err(StartFault::last("pipe"));
+        }
+        // SAFETY: as above.
+        if unsafe { CreatePipe(&mut we_read, &mut child_writes, std::ptr::null(), 0) } == 0 {
+            let fault = StartFault::last("pipe");
+            close_all(&[child_reads, we_write]);
+            return Err(fault);
+        }
+        let started = spawn(spec, [Some(child_reads), Some(child_writes)], &[]);
+        close_all(&[child_reads, child_writes]);
+        let child = match started {
+            Ok(c) => c,
+            Err(f) => {
+                close_all(&[we_write, we_read]);
+                return Err(f);
+            }
+        };
+        // SAFETY: both handles are open, owned here alone, and moved into one `File` each.
+        let (to_child, from_child) = unsafe {
+            (
+                File::from_raw_handle(we_write as _),
+                File::from_raw_handle(we_read as _),
+            )
+        };
+        Ok(OnStdio {
+            child,
+            to_child,
+            from_child,
+        })
     }
 }
 
@@ -1253,6 +1400,58 @@ mod tests {
             libc::close(spare_read);
             libc::close(spare_write);
         }
+    }
+
+    /// r3 U7.2a, A12.3: a child of `start_on_stdio` holds the descriptors 0, 1 and 2 alone, while
+    /// this process holds a pipe that is not close-on-exec; its 0 and 1 are the two pipes, its 2
+    /// is no pipe, and the two ends that this process keeps are close-on-exec.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_child_on_its_standard_streams_holds_the_descriptors_0_1_and_2_alone() {
+        use std::os::fd::AsRawFd;
+        let (spare_read, spare_write) = {
+            let _held = lock();
+            let mut fds = [0; 2];
+            // SAFETY: pipe writes two new descriptors into the array; they are not close-on-exec.
+            assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+            (fds[0], fds[1])
+        };
+        let work = system_dir().unwrap();
+        let spec = Spec {
+            program: Path::new("/bin/sleep"),
+            args: vec!["5".into()],
+            env: Vec::new(),
+            dir: &work,
+        };
+        let mut on = {
+            let held = lock();
+            start_on_stdio(&held, &spec).expect("start")
+        };
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let pid = on.child.pid();
+        let mut fds = crate::peer::fds_of(pid).expect("fds");
+        fds.sort_unstable();
+        let numbers: Vec<i32> = fds.iter().map(|(fd, _)| *fd).collect();
+        let pipes: Vec<i32> = crate::peer::pipe_handles_of(pid)
+            .expect("pipes")
+            .iter()
+            .map(|(fd, _)| *fd)
+            .collect();
+        for fd in [on.to_child.as_raw_fd(), on.from_child.as_raw_fd()] {
+            // SAFETY: F_GETFD reads the flags of an open descriptor of this process.
+            assert_eq!(
+                unsafe { libc::fcntl(fd, libc::F_GETFD) } & libc::FD_CLOEXEC,
+                libc::FD_CLOEXEC
+            );
+        }
+        on.child.kill();
+        // SAFETY: the two spare descriptors are owned here and closed once.
+        unsafe {
+            libc::close(spare_read);
+            libc::close(spare_write);
+        }
+        assert_eq!(numbers, vec![0, 1, 2]);
+        assert_eq!(pipes, vec![0, 1]);
     }
 
     #[cfg(target_os = "macos")]

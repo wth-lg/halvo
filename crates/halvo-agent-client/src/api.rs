@@ -131,7 +131,8 @@ pub enum Hosted {
 /// What a start gives the runner: its arguments `--run`, `--agent`, `--workflow`, `--mode`, `--browser` as the
 /// caller gave it, `--utc-offset`, `--model` and `--headed`. The start also gives `--data-dir` with
 /// `Config::data_dir`, the data directory under whose `agents/locks/` the runner locks a workbook's folder. `hosted`
-/// is the library's own and no argument of the runner.
+/// reaches the runner as `--hosted <tier>`, the agreement of the person to that tier, which the runner needs before
+/// it asks for the key or starts the door (r3 U7.2a).
 #[derive(Clone, Debug)]
 pub struct RunSpec {
     pub run: RunId,
