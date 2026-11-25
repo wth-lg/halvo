@@ -1,1 +1,3 @@
 tier	origin	model	adapter	source	date
+low_cost_hosted	https://api.anthropic.com	claude-haiku-5-5	anthropic-messages-2026-10-21	https://www.anthropic.com/legal/commercial-terms	2026-11-25
+frontier	https://api.anthropic.com	claude-opus-5-5	anthropic-messages-2026-10-21	https://www.anthropic.com/legal/commercial-terms	2026-11-25

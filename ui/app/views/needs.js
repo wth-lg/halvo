@@ -18,6 +18,7 @@
   let pointerRead = [];
   let closing = false;
   let choosing = false;
+  const underWay = new Set();
 
   function fresh() {
     serial += 1;
@@ -49,7 +50,7 @@
   }
 
   function limit(typed, full, tooLong, hintId, notTaken, needsAnswer) {
-    const line = { kept: '', composing: false, ended: false, held: false, stored: false, field: typed, sent: null, text: null };
+    const line = { kept: '', composing: false, ended: false, held: false, field: typed, sent: null, text: null };
     let mark = false;
     let shown = null;
     let note = null;
@@ -117,10 +118,9 @@
     line.fill = function (text) {
       if (judge(text, null)) typed.value = line.kept;
     };
-    line.restore = function (text, stored) {
+    line.restore = function (text) {
       typed.value = text;
       line.kept = text;
-      line.stored = stored;
     };
     line.text = function () {
       return textOf(shown);
@@ -247,8 +247,8 @@
         set.appendChild(typed);
         line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken, p.needs_answer);
         const was = carry && carry.step === item.step ? carry.lines.get(p.name) : null;
-        if (was) line.restore(was.text, was.stored && !p.not_taken);
-        else if (typeof p.stored === 'string') line.restore(p.stored, !p.not_taken);
+        if (was) line.restore(was.text);
+        else if (typeof p.stored === 'string') line.restore(p.stored);
         if (p.choose) set.appendChild(chooser(item, p.name, p.choose));
       }
       box.appendChild(set);
@@ -289,35 +289,47 @@
     b.setAttribute('data-act', 'choose_file');
     b.setAttribute('data-param', param);
     b.addEventListener('click', function () {
-      if (choosing) return;
+      if (choosing || underWay.has(way(item))) return;
       choosing = true;
-      call('agents_choose_file', { item: item.item, step: item.step, param: param }).then(function (reply) {
+      during(item, call('agents_choose_file', { item: item.item, step: item.step, param: param }).then(function (reply) {
         choosing = false;
-        if (!reply || typeof reply.path !== 'string') return;
+        if (!reply || typeof reply.path !== 'string') return null;
         const card = Array.from(cards.values()).filter(function (c) {
           return c.id === item.item && c.step === item.step;
         })[0];
         const a = card && card.answers.filter(function (x) {
           return x.param === param && x.line;
         })[0];
-        if (!a) return;
+        if (!a) return null;
         a.line.fill(reply.path);
-        if (param !== 'workbook' || a.line.kept !== reply.path) return;
-        const last = card.answers.every(function (x) {
-          return x === a || (x.line !== null && x.line.stored);
-        });
-        if (last) return;
-        const key = card.key;
-        held(card, call('agents_setup_typed', { item: item.item, step: item.step, param: param, text: reply.path })).then(function (r) {
-          if (r && !r.error) settle(key, item, [param]);
-        });
-      });
+        if (param !== 'workbook' || a.line.kept !== reply.path) return null;
+        return held(card, call('agents_setup_typed', { item: item.item, step: item.step, param: param, text: reply.path, more: 'yes' }));
+      }));
     });
     return b;
   }
 
+  function way(item) {
+    return item.item + ':' + item.step;
+  }
+
+  function during(item, sent) {
+    const key = way(item);
+    const ended = function (reply) {
+      underWay.delete(key);
+      return reply;
+    };
+    underWay.add(key);
+    return sent.then(ended, ended);
+  }
+
+  function shows(a) {
+    return a.radios.some(function (r) {
+      return r.input.checked;
+    }) || (a.line !== null && a.line.kept.trim() !== '');
+  }
+
   function chosen(item, answers) {
-    const first = [];
     const calls = [];
     answers.forEach(function (a) {
       const picked = a.radios.filter(function (r) {
@@ -328,10 +340,14 @@
       } else if (picked) {
         calls.push(['agents_answer', { item: item.item, step: item.step, choice: 'choose', param: a.param, n: picked.n }]);
       } else if (a.line && a.line.kept.trim() !== '') {
-        (a.line.stored ? first : calls).push(['agents_setup_typed', { item: item.item, step: item.step, param: a.param, text: a.line.kept }]);
+        calls.push(['agents_setup_typed', { item: item.item, step: item.step, param: a.param, text: a.line.kept }]);
       }
     });
-    return first.concat(calls);
+    const whole = answers.every(shows);
+    calls.forEach(function (c, i) {
+      c[1].more = whole && i === calls.length - 1 ? 'no' : 'yes';
+    });
+    return calls;
   }
 
   function held(card, sent) {
@@ -389,6 +405,7 @@
       return;
     }
     if (choice.choice === 'choose' && item.params.length > 0) {
+      if (underWay.has(way(item))) return;
       const empty = card.answers.filter(function (a) {
         return a.line && a.line.kept.trim() === '';
       });
@@ -407,9 +424,6 @@
         return empty.indexOf(a) >= 0 || unpicked.indexOf(a) >= 0;
       })[0];
       if (lacking) (lacking.line ? lacking.line.field : lacking.radios[0].input).focus();
-      if (empty.some(function (a) {
-        return a.line.stored;
-      })) return;
       const calls = chosen(item, card.answers);
       if (calls.length === 0) return;
       card.answers.forEach(function (a) {
@@ -419,20 +433,12 @@
         if (picked) card.sent.set(a.param, picked.value);
         else if (a.line && a.line.kept.trim() !== '') card.sent.set(a.param, a.line.kept);
       });
-      const key = card.key;
-      const went = [];
-      held(card, calls.reduce(function (done, c) {
+      during(item, held(card, calls.reduce(function (done, c) {
         return done.then(function (reply) {
           if (reply === null || reply.error) return reply;
-          return call(c[0], c[1]).then(function (r) {
-            if (r && !r.error && c[0] === 'agents_setup_typed') went.push(c[1].param);
-            return r;
-          });
+          return call(c[0], c[1]);
         });
-      }, Promise.resolve({})).then(function (reply) {
-        settle(key, item, went);
-        return reply;
-      }));
+      }, Promise.resolve({}))));
       card.answers.forEach(function (a) {
         if (a.line) a.line.sent();
       });
@@ -448,23 +454,11 @@
     });
   }
 
-  function settle(key, item, went) {
-    const card = cards.get(key);
-    if (!card || card.item.step !== item.step) return;
-    card.answers.forEach(function (a) {
-      if (!a.line || went.indexOf(a.param) < 0) return;
-      const entry = card.item.params.filter(function (p) {
-        return p.name === a.param;
-      })[0];
-      a.line.stored = !(entry && entry.not_taken);
-    });
-  }
-
   function kept(card) {
     const lines = new Map();
     const picks = new Map();
     card.answers.forEach(function (a) {
-      if (a.line) lines.set(a.param, { text: a.line.kept, stored: a.line.stored });
+      if (a.line) lines.set(a.param, { text: a.line.kept });
       const picked = a.radios.filter(function (r) {
         return r.input.checked;
       })[0];

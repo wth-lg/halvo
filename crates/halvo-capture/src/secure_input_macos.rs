@@ -1944,7 +1944,11 @@ mod tests {
             let mark = NoticeMark::new();
             let mut thread = in_doubt_of_1(&mark);
             FRONT.store(0, Ordering::SeqCst);
+            let at_the_store = thread.steps().front_reads;
             std::thread::sleep(Duration::from_millis(200));
+            until(Duration::from_millis(500), || {
+                thread.steps().front_reads >= at_the_store + 2
+            });
             let standing = (mark.doubt(), mark.get());
             assert!(thread.stop_within(Duration::from_millis(100)));
             assert_eq!(
@@ -2040,6 +2044,9 @@ mod tests {
                 let mark = NoticeMark::new();
                 let mut thread = started(&mark);
                 std::thread::sleep(Duration::from_millis(150));
+                until(Duration::from_millis(500), || {
+                    thread.steps().front_reads >= 2
+                });
                 let seen = (mark.doubt(), mark.get());
                 assert!(thread.stop_within(Duration::from_millis(100)));
                 assert_eq!(seen, (false, None), "{code}");
@@ -2202,10 +2209,13 @@ mod tests {
             OBSERVE.store(-25204, Ordering::SeqCst);
             let mark = NoticeMark::new();
             let mut thread = started(&mark);
+            let at_the_stores = thread.steps();
             std::thread::sleep(Duration::from_millis(200));
             assert!(
-                mark.doubt(),
-                "a doubt stands while the program does not answer"
+                until(Duration::from_millis(500), || mark.doubt()),
+                "a doubt stands while the program does not answer; the thread: {at_the_stores:?} behind the stores, {:?} at the bound, tries of program 1: {}",
+                thread.steps(),
+                observed_of(1).len()
             );
             assert_eq!(
                 mark.get(),
@@ -2215,19 +2225,34 @@ mod tests {
             assert_eq!(mark.kind(), MarkKind::Doubt);
             OBSERVE.store(0, Ordering::SeqCst);
             SUBROLE.store(1, Ordering::SeqCst);
+            let at_the_stores = thread.steps();
             std::thread::sleep(Duration::from_millis(200));
             assert!(
-                !mark.doubt(),
-                "a registration of that program that succeeds ends it"
+                until(Duration::from_millis(500), || !mark.doubt()),
+                "a registration of that program that succeeds ends it; the thread: {at_the_stores:?} behind the stores, {:?} at the bound, tries of program 1: {}",
+                thread.steps(),
+                observed_of(1).len()
             );
-            FRONT.store(2, Ordering::SeqCst);
             OBSERVE.store(-25204, Ordering::SeqCst);
+            FRONT.store(2, Ordering::SeqCst);
+            let at_the_stores = thread.steps();
             std::thread::sleep(Duration::from_millis(200));
-            assert!(mark.doubt());
-            FRONT.store(3, Ordering::SeqCst);
+            assert!(
+                until(Duration::from_millis(500), || mark.doubt()),
+                "a doubt stands while program 2 does not answer; the thread: {at_the_stores:?} behind the stores, {:?} at the bound, tries of program 2: {}",
+                thread.steps(),
+                observed_of(2).len()
+            );
             OBSERVE.store(-25208, Ordering::SeqCst);
+            FRONT.store(3, Ordering::SeqCst);
+            let at_the_stores = thread.steps();
             std::thread::sleep(Duration::from_millis(200));
-            assert!(!mark.doubt(), "another program in front ends it");
+            assert!(
+                until(Duration::from_millis(500), || !mark.doubt()),
+                "another program in front ends it; the thread: {at_the_stores:?} behind the stores, {:?} at the bound, tries of program 3: {}",
+                thread.steps(),
+                observed_of(3).len()
+            );
             assert!(thread.stop_within(Duration::from_millis(100)));
         }
 
@@ -2239,6 +2264,7 @@ mod tests {
             let mark = NoticeMark::new();
             let mut thread = started(&mark);
             std::thread::sleep(Duration::from_millis(200));
+            until(Duration::from_millis(500), || mark.get().is_some());
             assert!(thread.stop_within(Duration::from_millis(100)));
             assert_eq!(
                 mark.get(),
@@ -2255,11 +2281,15 @@ mod tests {
             let mark = NoticeMark::new();
             let mut thread = started(&mark);
             std::thread::sleep(Duration::from_millis(200));
+            until(Duration::from_millis(500), || mark.get().is_some());
             assert_eq!(mark.get(), Some(Uptime::from_nanos(TEN_S)));
             assert_eq!(mark.kind(), MarkKind::Start);
             NOW.store(2 * TEN_S, Ordering::SeqCst);
             FRONT.store(2, Ordering::SeqCst);
             std::thread::sleep(Duration::from_millis(200));
+            until(Duration::from_millis(500), || {
+                mark.get() == Some(Uptime::from_nanos(2 * TEN_S))
+            });
             assert_eq!(
                 mark.get(),
                 Some(Uptime::from_nanos(2 * TEN_S)),

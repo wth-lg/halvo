@@ -64,7 +64,7 @@ const radiosOf = (page, name) => page.document.querySelectorAll(`input.hn-radio[
 
 /** The replies of a page whose first snapshot holds `item` and whose next snapshot answers the page's latest wait
  * when `next` is called. */
-function replies(item) {
+function replies(item, extra = {}) {
   let next = null;
   return {
     next: (snapshot) => next({ ...snapshot, seq: setup.seq + 1 }),
@@ -76,8 +76,111 @@ function replies(item) {
         }),
       agents_setup_typed: { ok: "yes" },
       agents_answer: { ok: "yes" },
+      ...extra,
     },
   };
+}
+
+const QUESTIONS = Object.keys(HINTS);
+const chooseOf = (page, name) => page.document.querySelector(`button[data-act="choose_file"][data-param="${name}"]`);
+
+/** Types `text` into the line of `name` as a person does, in place of what it held. */
+async function typeLine(page, name, text) {
+  const line = lineOf(page, name);
+  line.focus();
+  line.value = text;
+  await line.dispatchEvent(makeEvent("input"));
+  await page.settle();
+}
+
+/** A stand-in of the core for the four questions of the spreadsheet agent's set-up item `item`, by the core's rules
+ * (crates/halvo-coord/src/items/setup.rs, `setup_step` and `setup_step_more`). It lives on behind a page that is
+ * loaded anew, and it keeps the lines that it took. A line of a path question is taken where it starts with a slash, a
+ * line of Which cells where it names cells, a line of Which sheet as typed, or, while a list stands, where the list
+ * has it; a line that it does not take leaves its question with no line and, for a typed question, under its sentence.
+ * With `names`, a line of Which spreadsheet file that it takes and did not hold makes them Which sheet's list and drops
+ * the sheet that it held. It makes the ONE body, with the line that it holds of each question, at a call whose `more`
+ * is not `yes` once it holds a line of every question; the item then leaves the read, and every later call answers
+ * `stale`. It publishes a read with a new seq where the item's read changed, as the core does. `refuse(param)` makes
+ * each later call of that question answer `no_service`, with nothing changed. */
+function coreOver(item, names = null) {
+  const held = {};
+  let now = item;
+  let seq = setup.seq;
+  let body = null;
+  let refused = null;
+  let waiting = [];
+  const snapshot = () => ({ ...setup, seq, items: now ? [now] : [] });
+  const publish = (next) => {
+    if (JSON.stringify(next) === JSON.stringify(now)) return;
+    now = next;
+    seq += 1;
+    waiting.forEach((resolve) => resolve(snapshot()));
+    waiting = [];
+  };
+  const takes = (param, text, listed) => {
+    if (listed.length > 0) return listed.includes(text);
+    if (FILES.includes(param)) return text.startsWith("/");
+    return param !== "range" || /^[A-Z]+[1-9][0-9]*(:[A-Z]+[1-9][0-9]*)?$/.test(text);
+  };
+  const sentence = (param) => words[param === "range" ? "param_typed.not_cells" : "param_typed.not_path_mac"];
+  return {
+    saved: () => body,
+    snapshot,
+    next: (args) => (args.after !== seq ? snapshot() : new Promise((resolve) => waiting.push(resolve))),
+    refuse(param) {
+      refused = param;
+    },
+    typed(args) {
+      if (body) return { error: "stale" };
+      if (args.param === refused) return { error: "no_service" };
+      const asked = now.params.find((p) => p.name === args.param);
+      const listed = asked.candidates.map((c) => c.value[0]);
+      const taken = takes(args.param, args.text, listed);
+      const fresh = taken && held[args.param] !== args.text;
+      if (taken) held[args.param] = args.text;
+      else delete held[args.param];
+      let params = now.params.map((p) => {
+        if (p.name !== args.param || listed.length > 0) return p;
+        const { not_taken: _, ...plain } = p;
+        return taken ? plain : { ...plain, not_taken: sentence(p.name) };
+      });
+      if (args.param === "workbook" && fresh && names) {
+        delete held.sheet;
+        params = params.map((p) => (p.name === "sheet" ? listEntry(names) : p));
+      }
+      const full = QUESTIONS.every((name) => typeof held[name] === "string");
+      if (full && args.more !== "yes") body = Object.fromEntries(QUESTIONS.map((name) => [name, held[name]]));
+      publish(body ? null : { ...now, params });
+      return { ok: "yes" };
+    },
+  };
+}
+
+/** The options of a page over the stand-in `core`; a pick in a chooser answers `picked`. */
+function over(core, picked = null) {
+  return {
+    replies: {
+      agents_snapshot: () => core.snapshot(),
+      agents_next: (args) => core.next(args),
+      agents_setup_typed: (args) => core.typed(args),
+      agents_answer: { ok: "yes" },
+      agents_choose_file: picked === null ? { closed: "yes" } : { path: picked },
+    },
+  };
+}
+
+/** What the card shows as the answer of each question: the text of its line, or the name chosen in its list; an empty
+ * text where it shows no answer. */
+function shownOn(page) {
+  return Object.fromEntries(
+    QUESTIONS.map((name) => {
+      const line = lineOf(page, name);
+      if (line) return [name, line.value];
+      const chosen = radiosOf(page, name).filter((r) => r.checked)[0];
+      return [name, chosen ? chosen.parentNode.textContent : ""];
+    }),
+  );
 }
 
 test("a set-up item whose four questions carry stored lines draws each line filled with its stored line, as text, under its hint; one line turned and Use these answers make the calls with the three stored lines and the new one; where the workbook lacks the sheet's name the list stands with its sentence under it at that press; an item whose questions carry no stored line draws empty lines", async () => {
@@ -130,5 +233,215 @@ test("a set-up item whose four questions carry stored lines draws each line fill
     Object.keys(HINTS).map((name) => lineOf(empty, name).value),
     ["", "", "", ""],
     "no stored line: every line empty",
+  );
+});
+
+test("at Change its answers a line that the person empties is an empty line again: with Which sheet emptied, a pick in the chooser of Which spreadsheet file sends its line at once, as a call that says that more follow, and the list of that workbook's sheets comes", async () => {
+  const picked = "/Volumes/work/Budget-2027.xlsx";
+  const one = replies(storedItem, { agents_choose_file: { path: picked } });
+  const page = await openPage(one);
+  await typeLine(page, "sheet", "");
+  await page.click(chooseOf(page, "workbook"), { detail: 0 });
+  assert.deepEqual(
+    page.calls("agents_setup_typed").map((c) => c.args),
+    [{ item: storedItem.item, step: storedItem.step, param: "workbook", text: picked, more: "yes" }],
+    "the picked line goes at the pick",
+  );
+  const names = ["January", "February"];
+  one.next({ ...setup, items: [{ ...storedItem, params: storedItem.params.map((p) => (p.name === "sheet" ? listEntry(names) : p)) }] });
+  await page.settle();
+  assert.deepEqual(
+    radiosOf(page, "sheet").map((r) => r.parentNode.textContent),
+    names,
+    "the list of the picked workbook's sheets comes",
+  );
+});
+
+test("what a press of Use these answers or a pick in a chooser saves is what the card shows, or nothing is saved: behind a press that left the set-up open and a page that is then loaded anew, where the core still holds the lines of that press, a question that shows no answer keeps every save back, an empty line and a list with none chosen alike, a line typed anew is saved as typed, and a pick saves nothing; a second press does nothing while a press of the same item is under way, and a press works again behind a chain that ended in a refusal; behind a call that the core refuses no call of that press may save; a line emptied and typed again, and a line typed again behind a press that went out with it empty, are saved as typed", async () => {
+  const w2 = "/Volumes/work/Budget-2028.xlsx";
+  const d1 = "/Volumes/work/receipts-november.csv";
+  const d2 = "/Volumes/work/receipts-december.csv";
+  const noPath = "Budget.xlsx";
+  const clauses = [];
+  let shown = null;
+  /** A press of Use these answers, with what the card shows at that press kept in `shown`. */
+  const press = async (page) => {
+    shown = shownOn(page);
+    await page.click(useAnswers(page), { detail: 0 });
+  };
+  const said = (row, saved) => console.log(`u330 ${row}: SAVED ${JSON.stringify(saved)} | THE CARD SHOWS ${JSON.stringify(shown)}`);
+  /** One state: the card of `item` over a stand-in of the core; `earlier` is a press that leaves the set-up open, behind
+   * which the page is loaded anew over the same core; `act` is what the person does then, and it ends in a press or in
+   * a pick; what is saved stands beside what the card shows at that press or pick, and `saves` says which of the two
+   * the rule asks for. */
+  async function state(row, { item, names = null, picked = null, earlier = null, act, saves }) {
+    const core = coreOver(item, names);
+    let page = await openPage(over(core, picked));
+    if (earlier) {
+      await earlier(page);
+      page = await page.reopen();
+    }
+    await act(page);
+    const saved = core.saved();
+    said(row, saved);
+    clauses.push({ row, broken: JSON.stringify(saved) !== JSON.stringify(saves === "the card" ? shown : null) });
+  }
+
+  await state("row 11, an empty line of a question whose line the core holds", {
+    item: { ...base, params: [entry("workbook", false), entry("sheet", true), entry("range", true), entry("source", true)] },
+    earlier: async (page) => {
+      await typeLine(page, "workbook", "/Volumes/work/Budget-2027.xlsx");
+      await typeLine(page, "range", "zzz");
+      await press(page);
+    },
+    act: press,
+    saves: "nothing",
+  });
+
+  const sourceDropped = { ...base, params: [entry("workbook", true), entry("sheet", true), entry("range", true), entry("source", false)] };
+  const workbookNotTaken = async (page) => {
+    await typeLine(page, "workbook", noPath);
+    await typeLine(page, "source", d1);
+    await press(page);
+  };
+  await state("row 12, a line typed anew behind a line that the core lacks", {
+    item: sourceDropped,
+    earlier: workbookNotTaken,
+    act: async (page) => {
+      await typeLine(page, "workbook", w2);
+      await typeLine(page, "source", d2);
+      await press(page);
+    },
+    saves: "the card",
+  });
+
+  await state("row 13, a pick of a workbook while the core holds every other line", {
+    item: sourceDropped,
+    picked: w2,
+    earlier: workbookNotTaken,
+    act: async (page) => {
+      await typeLine(page, "range", "B2:D12");
+      shown = { ...shownOn(page), workbook: w2 };
+      await page.click(chooseOf(page, "workbook"), { detail: 0 });
+    },
+    saves: "nothing",
+  });
+
+  await state("row 19, a first set-up whose three taken lines show empty", {
+    item: emptyItem,
+    earlier: async (page) => {
+      await typeLine(page, "workbook", noPath);
+      await typeLine(page, "sheet", STORED.sheet);
+      await typeLine(page, "range", STORED.range);
+      await typeLine(page, "source", d1);
+      await press(page);
+    },
+    act: async (page) => {
+      await typeLine(page, "workbook", w2);
+      await press(page);
+    },
+    saves: "nothing",
+  });
+
+  await state("row 20, a list with none chosen whose sheet the core holds", {
+    item: storedItem,
+    names: ["Notes", STORED.sheet],
+    earlier: async (page) => {
+      await typeLine(page, "range", "zzz");
+      await press(page);
+    },
+    act: async (page) => {
+      await typeLine(page, "range", "B2:D12");
+      await press(page);
+    },
+    saves: "nothing",
+  });
+
+  {
+    const row = "row 21, a second press while a press of the same item is under way";
+    const core = coreOver(storedItem);
+    let next = null;
+    let refuseFirst = null;
+    const page = await openPage({
+      replies: {
+        agents_snapshot: { ...setup, items: [storedItem] },
+        agents_next: () =>
+          new Promise((resolve) => {
+            next = resolve;
+          }),
+        agents_setup_typed: (args) => {
+          if (refuseFirst !== null) return core.typed(args);
+          return new Promise((resolve) => {
+            refuseFirst = () => resolve({ error: "no_service" });
+          });
+        },
+        agents_answer: { ok: "yes" },
+      },
+    });
+    await typeLine(page, "source", d1);
+    await press(page);
+    next({ ...setup, seq: setup.seq + 1, items: [storedItem] });
+    await page.settle();
+    await typeLine(page, "source", d2);
+    await press(page);
+    const under = page.calls("agents_setup_typed").length;
+    refuseFirst();
+    await page.settle();
+    await press(page);
+    const behind = page.calls("agents_setup_typed").length - under;
+    const saved = core.saved();
+    console.log(`u330 ${row}: CALLS WHILE THE FIRST PRESS IS UNDER WAY ${under} (1 is its own first call) | CALLS OF A PRESS BEHIND THE REFUSED CHAIN ${behind} | SAVED ${JSON.stringify(saved)} | THE CARD SHOWS ${JSON.stringify(shown)}`);
+    clauses.push({ row, broken: under !== 1 || behind !== QUESTIONS.length || JSON.stringify(saved) !== JSON.stringify(shown) });
+  }
+
+  {
+    const row = "a call of the press that the core refuses";
+    const core = coreOver(storedItem);
+    const page = await openPage(over(core));
+    await typeLine(page, "workbook", noPath);
+    await press(page);
+    const before = page.calls("agents_setup_typed").length;
+    await typeLine(page, "workbook", w2);
+    await typeLine(page, "range", "B2:D12");
+    core.refuse("range");
+    await press(page);
+    const sent = page.calls("agents_setup_typed").slice(before).map((c) => [c.args.param, c.args.more]);
+    const saved = core.saved();
+    console.log(`u330 ${row}: CALLS ${JSON.stringify(sent)} | SAVED ${JSON.stringify(saved)} | THE CARD SHOWS ${JSON.stringify(shown)}`);
+    const last = sent[sent.length - 1] || [];
+    clauses.push({ row, broken: saved !== null || last[0] !== "range" || sent.some((call) => call[1] === "no") });
+  }
+
+  await state("STATE 1, a line emptied and typed again behind a page loaded anew, and the lacking line mended", {
+    item: storedItem,
+    earlier: async (page) => {
+      await typeLine(page, "workbook", noPath);
+      await press(page);
+    },
+    act: async (page) => {
+      await typeLine(page, "range", "");
+      await typeLine(page, "range", "B2:D12");
+      await typeLine(page, "workbook", w2);
+      await press(page);
+    },
+    saves: "the card",
+  });
+
+  await state("STATE 2, a press with a line emptied, then that line typed again and another changed", {
+    item: storedItem,
+    act: async (page) => {
+      await typeLine(page, "workbook", "");
+      await press(page);
+      await typeLine(page, "workbook", w2);
+      await typeLine(page, "range", "B2:D12");
+      await press(page);
+    },
+    saves: "the card",
+  });
+
+  assert.deepEqual(
+    clauses.filter((c) => c.broken).map((c) => c.row),
+    [],
+    "the states in which another text is saved than the card shows, a text is saved while a question shows no answer, a call goes while a press is under way, or a call that may save goes behind a refused one",
   );
 });

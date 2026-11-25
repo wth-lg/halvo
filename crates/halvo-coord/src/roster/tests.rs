@@ -37,7 +37,8 @@ fn model(stands: bool) -> ModelUse {
 /// the app hands the agent's model (this build's table of hosts holds a row and names one origin), the agent's runtime
 /// asks a model (`MODEL_RUNTIMES`), and its stored tier is `on_device` or its stored yes does not stand; it offers Use
 /// this computer only where its stored tier is a hosted tier; both stand before Delete. Where the app hands none, as
-/// with main's table, a row offers neither, whatever its tier; a file agent in a build with a host is offered nothing.
+/// with a table of hosts that holds no row, a row offers neither, whatever its tier; a file agent in a build with a
+/// host is offered nothing.
 #[test]
 fn a_row_offers_the_two_controls_of_an_ai_model_by_the_tier_the_yes_and_the_runtime() {
     use Control::{ThisComputerOnly as Back, UseModel as Use};

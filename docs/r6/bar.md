@@ -9,7 +9,7 @@ This page states the bar that a model tier must pass before the routing table ma
 - The five seed categories with no runtime are `tenant_rent`, `lease_renewal_or_change`, `tenant_application_review`, `ride_order` and `daily_chart_check`. `CategoryId::has_runtime` in `crates/halvo-route/src/tier.rs` names the five that have one, and the policy hands every call of the other five back to the person.
 - The three seeds and the two machines are the values that the reader of the outcome table accepts in a recorded row: the seeds 1, 2 and 3 and the machines `mac` and `hosted-win` (`Seed` and `Machine` in `crates/halvo-route-gate/src/table.rs`).
 - The model that decides a cell is the `driver` of the freeze file for the kinds `compile` and `recover`, and its `writer` for the kind `write` (`Setup::fill` in `crates/halvo-route-gate/src/lib.rs`). Rows of every other model stay in the table and are counted in no line.
-- No hosted row exists because the ruling of `crates/halvo-route/data/ruling.txt` is `ruling=none`, which allows the tier `on_device` alone (`Ruling::allowed` in `crates/halvo-route/src/ruling.rs`).
+- No hosted row exists: the ruling of `crates/halvo-route/data/ruling.txt` is `ruling=hosted`, which with the two rows of `crates/halvo-route/data/hosts.tsv` allows both hosted tiers (`Ruling::allowed` in `crates/halvo-route/src/ruling.rs`), and `docs/r6/outcomes/recorded.tsv` holds no row of a hosted tier.
 
 ## The line
 

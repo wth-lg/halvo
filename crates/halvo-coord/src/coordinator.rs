@@ -133,6 +133,8 @@ struct AnsweredBy {
     step: Option<u32>,
     from: Presenter,
     now: Option<u64>,
+    /// Whether the call says that more calls of its press follow (I8.1 `more`; r4 U3.30).
+    more: bool,
 }
 
 struct State<C> {
@@ -2239,6 +2241,25 @@ where
         pick: Option<(Param, u32)>,
         step: u32,
     ) -> Result<(), Cause> {
+        self.answer_of_page(item, choice, pick, step, false)
+    }
+
+    /// The choice `choose` of `agents_answer` whose call says that more calls of its press follow
+    /// (I8.1 `more`; r4 U3.30): `answer` with that choice and the candidate `n` of `param`, but
+    /// the set-up item takes the candidate and makes no body, also where every question then
+    /// holds an answer.
+    pub fn choose_more(&self, item: &ItemId, param: Param, n: u32, step: u32) -> Result<(), Cause> {
+        self.answer_of_page(item, Choice::Choose, Some((param, n)), step, true)
+    }
+
+    fn answer_of_page(
+        &self,
+        item: &ItemId,
+        choice: Choice,
+        pick: Option<(Param, u32)>,
+        step: u32,
+        more: bool,
+    ) -> Result<(), Cause> {
         let now = self.clock_now().ok();
         let mut st = self.enter(Entry::Move);
         if Self::waits_on_item(&st, item) {
@@ -2252,6 +2273,7 @@ where
                 step: Some(step),
                 from: Presenter::Page,
                 now,
+                more,
             };
             self.answer_in(&mut st, item, choice, pick, by)
         };
@@ -2290,6 +2312,7 @@ where
                 step: None,
                 from: Presenter::Native,
                 now,
+                more: false,
             };
             self.answer_in(&mut st, item, choice, None, by)
         };
@@ -2398,10 +2421,12 @@ where
                     let answer = AmountsAnswer::parse(choice.name())?;
                     self.schedule(st, Move::Amounts { agent, answer })
                 }
-                (OwnItemKind::Setup, Choice::None) => self.setup(st, item, SetupInput::None, step),
+                (OwnItemKind::Setup, Choice::None) => {
+                    self.setup(st, item, SetupInput::None, step, false)
+                }
                 (OwnItemKind::Setup, Choice::Choose) => {
                     let (param, n) = pick.ok_or(Cause::Malformed)?;
-                    self.setup(st, item, SetupInput::Choose { param, n }, step)
+                    self.setup(st, item, SetupInput::Choose { param, n }, step, by.more)
                 }
                 _ => Err(Cause::Malformed),
             },
@@ -2517,6 +2542,7 @@ where
         item: &ItemId,
         input: SetupInput<'_>,
         step: u32,
+        more: bool,
     ) -> Result<(), Cause> {
         let k = st
             .setups
@@ -2536,7 +2562,12 @@ where
         let i = index(board, setups[k].agent()).ok_or(Cause::State)?;
         let l = ledger(ledgers, board, i);
         let facts = &board.members[i].facts;
-        let done = items::answer_setup(&self.ports, l, &self.limits, &mut setups[k], facts, input);
+        let setup = &mut setups[k];
+        let done = if more {
+            items::answer_setup_more(&self.ports, l, &self.limits, setup, facts, input)
+        } else {
+            items::answer_setup(&self.ports, l, &self.limits, setup, facts, input)
+        };
         let out = done.map(|_| ());
         self.setup_done(st, k, done);
         out
@@ -2550,13 +2581,41 @@ where
     /// through `Files::sheets`, with the coordinator's lock released as `setup_choose` releases
     /// it, and the move then takes the line with the names that the read answered, none where it
     /// failed (`SetupInput::Book`; r4 U3.22c). The move finds the item again under the lock, as
-    /// every move does: another line, a lapse or another step mark may stand by then.
+    /// every move does: another line, a lapse or another step mark may stand by then. This is the
+    /// call that does not say `more`: where the line leaves no question without an answer, the
+    /// one body is made in this move.
     pub fn setup_typed(
         &self,
         item: &ItemId,
         param: Param,
         text: &str,
         step: u32,
+    ) -> Result<(), Cause> {
+        self.typed_line(item, param, text, step, false)
+    }
+
+    /// `setup_typed` of a call that says that more calls of its press follow (I8.1 `more`; r4
+    /// U3.30): the line is taken, not taken or refused as `setup_typed` does it, the names of a
+    /// workbook's worksheets are read as there, and NO body is made, also where every question
+    /// then holds a line. So the body of a set-up holds the answers of ONE press: the call that
+    /// does not say `more` makes it, behind every other call of that press.
+    pub fn setup_typed_more(
+        &self,
+        item: &ItemId,
+        param: Param,
+        text: &str,
+        step: u32,
+    ) -> Result<(), Cause> {
+        self.typed_line(item, param, text, step, true)
+    }
+
+    fn typed_line(
+        &self,
+        item: &ItemId,
+        param: Param,
+        text: &str,
+        step: u32,
+        more: bool,
     ) -> Result<(), Cause> {
         let due = {
             let st = self.lock();
@@ -2578,7 +2637,7 @@ where
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);
-        let out = self.setup(&mut st, item, input, step);
+        let out = self.setup(&mut st, item, input, step, more);
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out

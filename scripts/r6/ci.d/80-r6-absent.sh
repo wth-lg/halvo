@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Read from the commit at their paths as regular files reached through trees alone, with no link, no twin in another letter case and no name outside ASCII at those places, the ruling file is the one line ruling=none, the table of hosts crates/halvo-route/data/hosts.tsv is its header line alone, and no row of the policy or of the recorded table names a hosted tier, the lines of cargo tree for the normal dependencies of the run's three crates name none of a closed list of 11 packages, the egress lists hold no entry, cargo test of halvo-route prints the ok lines of no_grant_in_release and pinned_files_hold_their_hashes under the target tests/no_grant_in_release.rs in the debug and the release profile, a program of another crate built with --cfg test set from outside stops with E0624 where it names Ruling::read_with_table, the reader of a ruling line with a table, which is private to the crate, while its control compiles and answers ruling for both hosted tiers under the release data and a third program prints the one origin http://127.0.0.1:4040 of the value of Ruling::loopback_for_tests(4040, ...), and no cargo command leaves the tree changed; 40-r6-policy holds this script by the blob id of its content, and the check holds none of these: code that runs in the job before it and writes what it reads (SG-30), a network package outside the list such as tungstenite, or std::net, a build or a development dependency, a forged ok line in the release profile with the pin test switched off (30-r6-table refuses it in the debug profile alone), a data file that release.rs reads from another path, a call of Ruling::loopback_for_tests in product code (the maker stands in every build, the product's too, and the closed list of the tree rule in crates/halvo-route/tests/no_grant_in_release.rs alone holds it out of product code), the origin that the maker makes for another port, a tracked cargo configuration (40-r6-policy refuses it), and the pair's text, which the blob id and the real path hold because the self-test compiles nothing; a job that turns warnings into errors fails it.
+# rule: Read from the commit at their paths as regular files reached through trees alone, with no link, no twin in another letter case and no name outside ASCII at those places, the ruling file is the one line ruling=hosted, the table of hosts crates/halvo-route/data/hosts.tsv is its header line and one row or two, each of another hosted tier, with an origin of https:// and a host name alone, a source cell that is not empty, not - and holds no space or double quote, and a date of the form YYYY-MM-DD, and no row of the policy or of the recorded table names a hosted tier, the lines of cargo tree for the normal dependencies of the run's three crates name none of a closed list of 11 packages, the egress lists under scripts/r6/egress/ hold no entry, cargo test of halvo-route prints the ok lines of the_release_data_grants_the_tabled_origin_alone and pinned_files_hold_their_hashes under the target tests/no_grant_in_release.rs in the debug and the release profile, a program of another crate built with --cfg test set from outside stops with E0624 where it names Ruling::read_with_table, the reader of a ruling line with a table, which is private to the crate, while its control compiles and prints for each hosted tier the origin of that tier's row of release::ruling(), which is the origin of its row of the committed table (none for a tier with no row), the answer for that origin (grant) and for 127.0.0.1:1 (origin), and a third program prints the one origin http://127.0.0.1:4040 of the value of Ruling::loopback_for_tests(4040, ...), and no cargo command leaves the tree changed; 40-r6-policy holds this script by the blob id of its content, and the check holds none of these: whether a row and a rate are the host's own (it reads their form; that no rate of a row's tier has a source that begins with fixture: is held by release::ruling() and the test whose ok line it reads), what the host does with a request, the address that a host name resolves to (it reads text and resolves nothing), code that runs in the job before it and writes what it reads (SG-30), a network package outside the list such as tungstenite, or std::net, a build or a development dependency, a forged ok line in the release profile with the pin test switched off, a data file that release.rs reads from another path, a call of Ruling::loopback_for_tests in product code (the maker stands in every build, the product's too, and the closed list of the tree rule in crates/halvo-route/tests/no_grant_in_release.rs alone holds it out of product code), the origin that the maker makes for another port, a tracked cargo configuration (40-r6-policy refuses it), and the pair's text, which the blob id and the real path hold because the self-test compiles nothing; a job that turns warnings into errors fails it.
 set -u
 name=80-r6-absent
 case $0 in
@@ -25,17 +25,15 @@ use halvo_route::tier::Tier;
 fn main() {
     let ruling = halvo_route::release::ruling();
     for tier in [Tier::LowCostHosted, Tier::Frontier] {
-        let answer = match grant(&ruling, tier, Tier::Frontier, &[PartKind::Text], "127.0.0.1:1", Consent::Recorded) {
+        let origin = ruling.row(tier).map_or("none", |row| row.origin());
+        let answer = |asked: &str| match grant(&ruling, tier, Tier::Frontier, &[PartKind::Text], asked, Consent::Recorded) {
             Ok(_) => "grant",
             Err(cause) => cause.as_str(),
         };
-        println!("control tier={} answer={}", tier.as_str(), answer);
+        println!("control tier={} origin={} row={} other={}", tier.as_str(), origin, answer(origin), answer("127.0.0.1:1"));
     }
     println!("control cfg_test={}", if cfg!(test) { "yes" } else { "no" });
 }'
-control_want='control tier=low_cost_hosted answer=ruling
-control tier=frontier answer=ruling
-control cfg_test=yes'
 loopback_source='use halvo_route::ruling::Ruling;
 
 fn main() {
@@ -243,22 +241,79 @@ holds_nul() {
   return 1
 }
 
+# holds_cr FILE: exits 0 when FILE holds a carriage return, read by its bytes: an awk that takes CR LF
+# as a line end, as on the Windows runner, never sees the CR before a LF.
+holds_cr() {
+  od -An -v -tx1 "$1" >"$scratch/bytes.txt" 2>/dev/null || return 0
+  while IFS= read -r bytes; do
+    case " $bytes " in
+      *' 0d '*) return 0 ;;
+    esac
+  done <"$scratch/bytes.txt"
+  return 1
+}
+
 ruling_of() {
-  printf 'ruling=none\n' >"$scratch/ruling-none"
-  if cmp -s "$1" "$scratch/ruling-none"; then
-    printf 'none\n'
+  printf 'ruling=hosted\n' >"$scratch/ruling-hosted"
+  if cmp -s "$1" "$scratch/ruling-hosted"; then
+    printf 'hosted\n'
   else
     printf 'other\n'
   fi
 }
 
+# hosts_of FILE: prints the number of rows of a table of hosts, 1 or 2, or other: the header line,
+# then rows of six cells, each of another hosted tier, with an origin of https:// and a host name
+# alone (labels of lower-case letters, digits and hyphens, the last of letters and not localhost),
+# a model word and an adapter word, a source cell that is not empty, not - and holds no space or
+# double quote, and a date of the form YYYY-MM-DD; LF at each line end, no CR, no NUL byte.
 hosts_of() {
-  printf '%s\n' "$hosts_header" >"$scratch/hosts-header"
-  if cmp -s "$1" "$scratch/hosts-header"; then
-    printf 'header\n'
-  else
+  if [ ! -f "$1" ] || [ ! -r "$1" ] || holds_nul "$1" || holds_cr "$1"; then
     printf 'other\n'
+    return
   fi
+  last_byte=$(tail -c 1 "$1" | od -An -tx1 | tr -d ' \n') || last_byte=
+  if [ "$last_byte" != 0a ]; then
+    printf 'other\n'
+    return
+  fi
+  awk -v header="$hosts_header" '
+    BEGIN { ok = 1; rows = 0 }
+    /\r/ { ok = 0 }
+    NR == 1 { if ($0 != header) ok = 0; next }
+    {
+      n = split($0, cell, "\t")
+      if (n != 6) { ok = 0; next }
+      if ((cell[1] != "low_cost_hosted" && cell[1] != "frontier") || (cell[1] in seen)) ok = 0
+      seen[cell[1]] = 1
+      if (cell[2] !~ /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+$/) ok = 0
+      last = cell[2]
+      sub(/.*\./, "", last)
+      if (last !~ /^[a-z]+$/ || last == "localhost") ok = 0
+      for (i = 3; i <= 4; i++) if (cell[i] !~ /^[A-Za-z0-9._:-]+$/ || length(cell[i]) > 64) ok = 0
+      if (cell[5] == "" || cell[5] == "-" || cell[5] ~ /[ "]/) ok = 0
+      if (cell[6] !~ /^[0-9][0-9][0-9][0-9]-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/) ok = 0
+      rows++
+    }
+    END { if (NR < 2 || rows < 1 || rows > 2 || !ok) print "other"; else print rows }
+  ' "$1" 2>/dev/null || printf 'other\n'
+}
+
+# control_want_of FILE: the lines that the control program must print over the table of hosts FILE:
+# for each hosted tier the origin of its row, a grant for that origin and the cause origin for
+# 127.0.0.1:1, or none and the cause ruling twice where the table holds no row of the tier.
+control_want_of() {
+  awk -F "$tab" '
+    NR > 1 { origin[$1] = $2 }
+    END {
+      n = split("low_cost_hosted frontier", tier, " ")
+      for (i = 1; i <= n; i++) {
+        if (tier[i] in origin) printf "control tier=%s origin=%s row=grant other=origin\n", tier[i], origin[tier[i]]
+        else printf "control tier=%s origin=none row=ruling other=ruling\n", tier[i]
+      }
+      print "control cfg_test=yes"
+    }
+  ' "$1" 2>/dev/null
 }
 
 hosted_rows() {
@@ -373,7 +428,7 @@ grant_lines_hold() {
       next
     }
     target != "no_grant_in_release tests/no_grant_in_release.rs" { next }
-    $0 == "test no_grant_in_release ... ok" { grant_ok++ }
+    $0 == "test the_release_data_grants_the_tabled_origin_alone ... ok" { grant_ok++ }
     $0 == "test pinned_files_hold_their_hashes ... ok" { pins_ok++ }
     END {
       if (seen) finish()
@@ -470,7 +525,7 @@ EOF
   if [ -z "$probe_line" ] || [ "$probe_code" = 0 ] || [ -z "$probe_code" ] || ! probe_stops "$artifacts/probe.txt" "$probe_line"; then
     misses=$((misses + 1))
   fi
-  printf '%s\n' "$control_want" >"$scratch/control.want"
+  control_want_of "$want_hosts" >"$scratch/control.want"
   if [ "$control_code" != 0 ] || ! cmp -s "$artifacts/control.out" "$scratch/control.want"; then
     misses=$((misses + 1))
   fi
@@ -525,13 +580,14 @@ measure() {
   crates_of
 
   grants
+  want_hosts=$committed/hosts.tsv
   test_value
 
   printf 'absent ruling=%s hosts=%s hosted_picks=%s hosted_rows=%s net_crates=%s entries=%s grants=%s test_value=%s\n' \
     "$ruling" "$hosts" "$picks" "$rows" "$crates" "$entries" "$grant_count" "$value_count"
   cause=
-  [ "$ruling" = none ] || cause=ruling
-  [ "$hosts" = header ] || cause=${cause:-hosts}
+  [ "$ruling" = hosted ] || cause=ruling
+  [ "$hosts" != other ] || cause=${cause:-hosts}
   [ "$picks" = 0 ] || cause=${cause:-picks}
   [ "$rows" = 0 ] || cause=${cause:-rows}
   [ "$crates" = 0 ] || cause=${cause:-crates}
@@ -760,7 +816,7 @@ case $kind in
       exit "$STUB_PROBE_EXIT"
     fi
     if [ "$reached" = no ]; then
-      printf 'control tier=low_cost_hosted answer=ruling\ncontrol tier=frontier answer=ruling\ncontrol cfg_test=no\n'
+      printf 'control tier=low_cost_hosted origin=https://low.invalid row=grant other=origin\ncontrol tier=frontier origin=https://top.invalid row=grant other=origin\ncontrol cfg_test=no\n'
       exit 0
     fi
     put "$STUB_CONTROL_OUT"
@@ -791,8 +847,8 @@ test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 running 3 tests
 test lib_rs_is_the_forbid_line_and_the_module_lines ... ok
-test no_grant_in_release ... ok
 test pinned_files_hold_their_hashes ... ok
+test the_release_data_grants_the_tabled_origin_alone ... ok
 
 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
@@ -810,24 +866,28 @@ EOF
   sed 's|target/debug/|target/release/|; s|test profile \[unoptimized + debuginfo\]|release profile [optimized]|' "$stub/debug.out" >"$stub/release.out" || fixture_fail
   printf 'halvo-route v0.0.0 (crates/halvo-route)\n\nhalvo-route-wire v0.0.0 (crates/halvo-route-wire)\n\342\224\234\342\224\200\342\224\200 serde v1.0.229\n\342\224\224\342\224\200\342\224\200 serde_json v1.0.154\n' >"$stub/tree.out" || fixture_fail
   printf '   Compiling r6-absent-pair v0.0.0 (pair)\nsrc/bin/probe.rs:4:26: error[E0624]: associated function read_with_table is private: private associated function\nerror: could not compile r6-absent-pair (bin "probe") due to 1 previous error\n' >"$stub/probe.out" || fixture_fail
-  printf 'control tier=low_cost_hosted answer=ruling\ncontrol tier=frontier answer=ruling\ncontrol cfg_test=yes\n' >"$stub/control.out" || fixture_fail
-  printf 'control tier=low_cost_hosted answer=ruling\ncontrol tier=frontier answer=grant\ncontrol cfg_test=yes\n' >"$stub/control-frontier-grant.out" || fixture_fail
+  printf 'control tier=low_cost_hosted origin=https://low.invalid row=grant other=origin\ncontrol tier=frontier origin=https://top.invalid row=grant other=origin\ncontrol cfg_test=yes\n' >"$stub/control.out" || fixture_fail
+  printf 'control tier=low_cost_hosted origin=https://low.invalid row=grant other=origin\ncontrol tier=frontier origin=https://top.invalid row=grant other=grant\ncontrol cfg_test=yes\n' >"$stub/control-frontier-grant.out" || fixture_fail
   printf 'halvo-route-wire v0.0.0 (crates/halvo-route-wire)\n\342\224\224\342\224\200\342\224\200 reqwest v0.12.0\n' >"$stub/tree-reqwest.out" || fixture_fail
-  awk '$0 != "test no_grant_in_release ... ok"' "$stub/debug.out" >"$stub/debug-no-grant.out" || fixture_fail
-  awk '$0 != "test no_grant_in_release ... ok"' "$stub/release.out" >"$stub/release-no-grant.out" || fixture_fail
+  awk '$0 != "test the_release_data_grants_the_tabled_origin_alone ... ok"' "$stub/debug.out" >"$stub/debug-no-grant.out" || fixture_fail
+  awk '$0 != "test the_release_data_grants_the_tabled_origin_alone ... ok"' "$stub/release.out" >"$stub/release-no-grant.out" || fixture_fail
   printf '' >"$stub/empty.out" || fixture_fail
   printf 'src/bin/probe.rs:4:26: error[E0624]: associated function read_with_table is private\n' >"$stub/probe-text.out" || fixture_fail
-  printf 'control tier=low_cost_hosted answer=grant\ncontrol tier=frontier answer=grant\ncontrol cfg_test=yes\n' >"$stub/control-grant.out" || fixture_fail
+  printf 'control tier=low_cost_hosted origin=https://other.invalid row=grant other=origin\ncontrol tier=frontier origin=https://top.invalid row=grant other=origin\ncontrol cfg_test=yes\n' >"$stub/control-grant.out" || fixture_fail
   printf 'loopback origin=http://127.0.0.1:4040\n' >"$stub/loopback.out" || fixture_fail
   printf 'loopback origin=http://127.0.0.1:4041\n' >"$stub/loopback-other-port.out" || fixture_fail
   printf 'loopback origin=http://127.0.0.1:4040\nloopback origin=https://top.invalid\n' >"$stub/loopback-two-origins.out" || fixture_fail
   printf 'loopback origin=http://localhost:4040\n' >"$stub/loopback-localhost.out" || fixture_fail
 }
 
+# The two rows of the self-test's table of hosts, which the stub's control lines name.
+hosts_rows="low_cost_hosted${tab}https://low.invalid${tab}low-model${tab}adapter-a${tab}page:test${tab}2026-11-22
+frontier${tab}https://top.invalid${tab}top-model${tab}adapter-b${tab}page:test${tab}2026-11-22"
+
 make_commit() {
   mkdir -p "$1/crates/halvo-route/data" "$1/scripts/r6" "$1/docs/r6" || fixture_fail
-  printf 'ruling=none\n' >"$1/crates/halvo-route/data/ruling.txt" || fixture_fail
-  printf '%s\n' "$hosts_header" >"$1/crates/halvo-route/data/hosts.tsv" || fixture_fail
+  printf 'ruling=hosted\n' >"$1/crates/halvo-route/data/ruling.txt" || fixture_fail
+  printf '%s\n%s\n' "$hosts_header" "$hosts_rows" >"$1/crates/halvo-route/data/hosts.tsv" || fixture_fail
   cp crates/halvo-route/data/policy.tsv "$1/crates/halvo-route/data/policy.tsv" || fixture_fail
 }
 
@@ -904,8 +964,8 @@ data_case() {
         ;;
     esac
     cause=
-    [ "$ruling" = none ] || cause=ruling
-    [ "$hosts" = header ] || cause=${cause:-hosts}
+    [ "$ruling" = hosted ] || cause=ruling
+    [ "$hosts" != other ] || cause=${cause:-hosts}
     [ "$picks" = 0 ] || cause=${cause:-picks}
     [ "$rows" = 0 ] || cause=${cause:-rows}
     [ "$entries" = 0 ] || cause=${cause:-entries}
@@ -949,7 +1009,7 @@ exec "$R6_REAL_GIT" "$@"
 EOF
   chmod +x "$work/failgit/git" || fixture_fail
   d=$work/d
-  printf 'ruling=none\n' >"$d/ruling" || fixture_fail
+  printf 'ruling=hosted\n' >"$d/ruling" || fixture_fail
   cp crates/halvo-route/data/policy.tsv "$d/policy" || fixture_fail
   printf '%s\n' "$recorded_header" >"$d/header" || fixture_fail
   row="bill${tab}utility_bill_payment${tab}compile${tab}TIER${tab}m1${tab}mac${tab}1${tab}dev${tab}1${tab}yes${tab}3${tab}10${tab}5${tab}5${tab}low${tab}s1"
@@ -961,10 +1021,10 @@ EOF
   printf '[fixed]' >"$d/fixed-link" || fixture_fail
   printf '../elsewhere' >"$d/elsewhere-link" || fixture_fail
   printf '../other' >"$d/other-link" || fixture_fail
-  printf 'ruling=none' >"$d/ruling-link" || fixture_fail
+  printf 'ruling=hosted' >"$d/ruling-link" || fixture_fail
   printf 'policy-target.tsv' >"$d/policy-link" || fixture_fail
-  printf '%s\n' "$hosts_header" >"$d/hosts" || fixture_fail
-  printf '%s\nfrontier\thttps://top.invalid\tm\ta\tfixture:test\t2026-11-22\n' "$hosts_header" >"$d/hosts-row" || fixture_fail
+  printf '%s\n%s\n' "$hosts_header" "$hosts_rows" >"$d/hosts" || fixture_fail
+  printf '%s\n' "$hosts_header" >"$d/hosts-row" || fixture_fail
   printf '%s' "$hosts_header" >"$d/hosts-link" || fixture_fail
   git -C "$data" hash-object -w "$d/ruling" "$d/policy" "$d/header" "$d/frontier" "$d/device" "$d/entry" "$d/headings" \
     "$d/header-link" "$d/fixed-link" "$d/elsewhere-link" "$d/other-link" "$d/ruling-link" "$d/policy-link" \
@@ -1005,7 +1065,7 @@ EOF
   data_case policy-twin-in-another-letter-case picks "$base\n100644 $o_policy${t}crates/halvo-route/data/Policy.tsv"
   data_case policy-as-a-link picks "$ruling_line\n$hosts_line\n120000 $o_policy_link${t}crates/halvo-route/data/policy.tsv\n100644 $o_policy${t}crates/halvo-route/data/policy-target.tsv"
   data_case no-policy picks "$ruling_line\n$hosts_line"
-  data_case hosts-with-a-row hosts "$ruling_line\n100644 $o_hosts_row${t}crates/halvo-route/data/hosts.tsv\n$policy_line"
+  data_case hosts-header-alone hosts "$ruling_line\n100644 $o_hosts_row${t}crates/halvo-route/data/hosts.tsv\n$policy_line"
   data_case no-hosts hosts "$ruling_line\n$policy_line"
   data_case hosts-as-a-link hosts "$ruling_line\n120000 $o_hosts_link${t}crates/halvo-route/data/hosts.tsv\n$policy_line"
   data_case hosts-twin-in-another-letter-case hosts "$base\n100644 $o_hosts${t}crates/halvo-route/data/Hosts.tsv"
@@ -1024,32 +1084,98 @@ EOF
 
 ruling_units() {
   u=$work/u
-  for fixture in other-line:'ruling=hosted\n' without-its-lf:'ruling=none' line-twice:'ruling=none\nruling=none\n' \
-    carriage-return:'ruling=none\r\n' leading-space:' ruling=none\n'; do
+  for fixture in other-line:'ruling=none\n' without-its-lf:'ruling=hosted' line-twice:'ruling=hosted\nruling=hosted\n' \
+    carriage-return:'ruling=hosted\r\n' leading-space:' ruling=hosted\n'; do
     printf '%b' "${fixture#*:}" >"$u/ruling-${fixture%%:*}" || fixture_fail
     unit "ruling-${fixture%%:*}" other failing ruling_of "$u/ruling-${fixture%%:*}"
   done
   unit ruling-missing other failing ruling_of "$u/no-such-file"
   mkdir "$u/ruling-directory" || fixture_fail
   unit ruling-directory other failing ruling_of "$u/ruling-directory"
-  printf 'ruling=none\n' >"$u/ruling-none" || fixture_fail
-  unit ruling-none none passing ruling_of "$u/ruling-none"
+  printf 'ruling=hosted\n' >"$u/ruling-hosted" || fixture_fail
+  unit ruling-hosted hosted passing ruling_of "$u/ruling-hosted"
 }
 
 hosts_units() {
   u=$work/u
-  for fixture in with-a-row:"$hosts_header\nfrontier\thttps://top.invalid\tm\ta\tfixture:test\t2026-11-22\n" \
-    without-its-lf:"$hosts_header" header-twice:"$hosts_header\n$hosts_header\n" carriage-return:"$hosts_header\r\n" \
-    blank-line:"$hosts_header\n\n" other-header:'tier\torigin\tmodel\tadapter\tsource\n'; do
+  good="frontier\thttps://top.invalid\ttop-model\tadapter-b\tpage:test\t2026-11-22"
+  low="low_cost_hosted\thttps://low.invalid\tlow-model\tadapter-a\tpage:test\t2026-11-22"
+  for fixture in header-alone:"$hosts_header\n" without-its-lf:"$hosts_header\n$good" header-twice:"$hosts_header\n$hosts_header\n$good\n" \
+    carriage-return:"$hosts_header\n$good\r\n" blank-line:"$hosts_header\n$good\n\n" other-header:"tier\torigin\tmodel\tadapter\tsource\n$good\n" \
+    on-device-row:"$hosts_header\non_device\thttps://top.invalid\tm\ta\tpage:test\t2026-11-22\n" \
+    tier-twice:"$hosts_header\n$good\n$good\n" three-rows:"$hosts_header\n$low\n$good\n$good\n" \
+    plain-http:"$hosts_header\nfrontier\thttp://top.invalid\tm\ta\tpage:test\t2026-11-22\n" \
+    port:"$hosts_header\nfrontier\thttps://top.invalid:443\tm\ta\tpage:test\t2026-11-22\n" \
+    path:"$hosts_header\nfrontier\thttps://top.invalid/v1\tm\ta\tpage:test\t2026-11-22\n" \
+    address:"$hosts_header\nfrontier\thttps://10.0.0.1\tm\ta\tpage:test\t2026-11-22\n" \
+    localhost:"$hosts_header\nfrontier\thttps://top.localhost\tm\ta\tpage:test\t2026-11-22\n" \
+    one-label:"$hosts_header\nfrontier\thttps://top\tm\ta\tpage:test\t2026-11-22\n" \
+    upper-case:"$hosts_header\nfrontier\thttps://TOP.invalid\tm\ta\tpage:test\t2026-11-22\n" \
+    empty-label:"$hosts_header\nfrontier\thttps://top..invalid\tm\ta\tpage:test\t2026-11-22\n" \
+    model-with-a-space:"$hosts_header\nfrontier\thttps://top.invalid\tm m\ta\tpage:test\t2026-11-22\n" \
+    empty-adapter:"$hosts_header\nfrontier\thttps://top.invalid\tm\t\tpage:test\t2026-11-22\n" \
+    source-dash:"$hosts_header\nfrontier\thttps://top.invalid\tm\ta\t-\t2026-11-22\n" \
+    empty-source:"$hosts_header\nfrontier\thttps://top.invalid\tm\ta\t\t2026-11-22\n" \
+    source-with-a-space:"$hosts_header\nfrontier\thttps://top.invalid\tm\ta\tpage test\t2026-11-22\n" \
+    month-13:"$hosts_header\nfrontier\thttps://top.invalid\tm\ta\tpage:test\t2026-13-22\n" \
+    short-date:"$hosts_header\nfrontier\thttps://top.invalid\tm\ta\tpage:test\t26-11-22\n" \
+    five-cells:"$hosts_header\nfrontier\thttps://top.invalid\tm\ta\tpage:test\n"; do
     printf '%b' "${fixture#*:}" >"$u/hosts-${fixture%%:*}" || fixture_fail
     unit "hosts-${fixture%%:*}" other failing hosts_of "$u/hosts-${fixture%%:*}"
   done
+  # The reader under an awk that takes CR LF as a line end and never sees the CR, as the awk of the
+  # Windows runner does (hosted run 44790676474): the stand-in hands each file of its arguments to
+  # the real awk with the CR before each LF dropped.
+  mkdir -p "$work/crlfawk" "$work/crlfawk-in" || fixture_fail
+  R6_REAL_AWK=$(command -v awk) || fixture_fail
+  R6_CRLF_IN=$work/crlfawk-in
+  export R6_REAL_AWK R6_CRLF_IN
+  cat >"$work/crlfawk/awk" <<'EOF' || fixture_fail
+#!/bin/sh
+i=0
+for arg do
+  shift
+  if [ -f "$arg" ]; then
+    i=$((i + 1))
+    "$R6_REAL_AWK" '{ sub(/\r$/, ""); print }' "$arg" >"$R6_CRLF_IN/$i" || exit 2
+    set -- "$@" "$R6_CRLF_IN/$i"
+  else
+    set -- "$@" "$arg"
+  fi
+done
+exec "$R6_REAL_AWK" "$@"
+EOF
+  chmod +x "$work/crlfawk/awk" || fixture_fail
+  got=$(
+    PATH=$work/crlfawk:$work/bin:$entry_path
+    export PATH
+    hosts_of "$u/hosts-carriage-return"
+  ) || got=exit-status
+  verdict hosts-carriage-return-under-an-awk-of-crlf-lines other "$got" failing
+  printf '%s\n%s\000\n' "$hosts_header" "frontier${tab}https://top.invalid${tab}m${tab}a${tab}page:test${tab}2026-11-22" >"$u/hosts-nul-byte" || fixture_fail
+  unit hosts-nul-byte other failing hosts_of "$u/hosts-nul-byte"
   unit hosts-missing other failing hosts_of "$u/no-such-file"
   mkdir "$u/hosts-directory" || fixture_fail
   unit hosts-directory other failing hosts_of "$u/hosts-directory"
-  printf '%s\n' "$hosts_header" >"$u/hosts-header" || fixture_fail
-  unit hosts-header-alone header passing hosts_of "$u/hosts-header"
-  unit hosts-committed header passing hosts_of crates/halvo-route/data/hosts.tsv
+  printf '%b\n' "$hosts_header\n$good" >"$u/hosts-one-row" || fixture_fail
+  unit hosts-one-row 1 passing hosts_of "$u/hosts-one-row"
+  printf '%s\n%s\n' "$hosts_header" "$hosts_rows" >"$u/hosts-two-rows" || fixture_fail
+  unit hosts-two-rows 2 passing hosts_of "$u/hosts-two-rows"
+  unit hosts-committed 2 passing hosts_of crates/halvo-route/data/hosts.tsv
+  printf 'control tier=low_cost_hosted origin=https://low.invalid row=grant other=origin\ncontrol tier=frontier origin=https://top.invalid row=grant other=origin\ncontrol cfg_test=yes\n' >"$u/want-two-rows" || fixture_fail
+  control_want_of "$u/hosts-two-rows" >"$u/want-two-rows-got" || fixture_fail
+  if cmp -s "$u/want-two-rows" "$u/want-two-rows-got"; then
+    verdict want-of-two-rows same same passing
+  else
+    verdict want-of-two-rows same differs passing
+  fi
+  printf 'control tier=low_cost_hosted origin=none row=ruling other=ruling\ncontrol tier=frontier origin=https://top.invalid row=grant other=origin\ncontrol cfg_test=yes\n' >"$u/want-one-row" || fixture_fail
+  control_want_of "$u/hosts-one-row" >"$u/want-one-row-got" || fixture_fail
+  if cmp -s "$u/want-one-row" "$u/want-one-row-got"; then
+    verdict want-of-one-row same same passing
+  else
+    verdict want-of-one-row same differs passing
+  fi
 }
 
 row_units() {
@@ -1147,15 +1273,15 @@ grant_units() {
     fi
   }
   awk '$0 != "test pinned_files_hold_their_hashes ... ok"' "$base" >"$u/grants-without-the-pins-ok" || fixture_fail
-  awk '$0 != "test no_grant_in_release ... ok"' "$base" >"$u/grants-without-the-grant-ok" || fixture_fail
-  awk '/^test (no_grant_in_release|pinned_files_hold_their_hashes) \.\.\. ok$/ { held = held $0 "\n"; next } { print } $0 == "test pick_rule ... ok" { printf "%s", held }' "$base" >"$u/grants-under-the-next-target" || fixture_fail
+  awk '$0 != "test the_release_data_grants_the_tabled_origin_alone ... ok"' "$base" >"$u/grants-without-the-grant-ok" || fixture_fail
+  awk '/^test (the_release_data_grants_the_tabled_origin_alone|pinned_files_hold_their_hashes) \.\.\. ok$/ { held = held $0 "\n"; next } { print } $0 == "test pick_rule ... ok" { printf "%s", held }' "$base" >"$u/grants-under-the-next-target" || fixture_fail
   awk '!/Running tests\/no_grant_in_release\.rs /' "$base" >"$u/grants-without-the-target-line" || fixture_fail
   awk '{ print } /Running tests\/no_grant_in_release\.rs / { print }' "$base" >"$u/grants-target-line-twice" || fixture_fail
   awk '{ sub(/deps\/no_grant_in_release-/, "deps/pick_rules-") } { print }' "$base" >"$u/grants-other-binary" || fixture_fail
   awk '{ sub(/Running tests\/no_grant_in_release\.rs /, "Running tests/forge.rs ") } { print }' "$base" >"$u/grants-other-source" || fixture_fail
-  awk '$0 == "test no_grant_in_release ... ok" { print "   Doc-tests halvo_route" } { print }' "$base" >"$u/grants-after-a-doc-tests-line" || fixture_fail
+  awk '$0 == "test the_release_data_grants_the_tabled_origin_alone ... ok" { print "   Doc-tests halvo_route" } { print }' "$base" >"$u/grants-after-a-doc-tests-line" || fixture_fail
   awk '$0 == "test pinned_files_hold_their_hashes ... ok" { $0 = "test pinned_files_hold_their_hashes - should panic ... ok" } { print }' "$base" >"$u/grants-should-panic" || fixture_fail
-  awk '{ print } $0 == "test no_grant_in_release ... ok" { print }' "$base" >"$u/grants-ok-line-twice" || fixture_fail
+  awk '{ print } $0 == "test the_release_data_grants_the_tabled_origin_alone ... ok" { print }' "$base" >"$u/grants-ok-line-twice" || fixture_fail
   awk '/Running tests\/no_grant_in_release\.rs / { sub(/\)$/, "") } { print }' "$base" >"$u/grants-target-line-without-its-paren" || fixture_fail
   for fixture in without-the-pins-ok without-the-grant-ok under-the-next-target without-the-target-line target-line-twice \
     other-binary other-source after-a-doc-tests-line should-panic ok-line-twice target-line-without-its-paren; do
@@ -1220,6 +1346,7 @@ put_file() {
 }
 
 judge_units() {
+  want_hosts=$work/commit/crates/halvo-route/data/hosts.tsv
   judge_case probe-exits-0-with-the-error-text 1 0 probe-text.out 0 control.out
   judge_case control-answers-grant 1 101 probe.out 0 control-grant.out
   judge_case control-exits-1 1 101 probe.out 1 control.out
@@ -1243,15 +1370,15 @@ judge_units() {
 }
 
 full_cases() {
-  check all-hold PASS 'absent ruling=none hosts=header hosted_picks=0 hosted_rows=0 net_crates=0 entries=0 grants=0 test_value=0'
+  check all-hold PASS 'absent ruling=hosted hosts=2 hosted_picks=0 hosted_rows=0 net_crates=0 entries=0 grants=0 test_value=0'
 
   for variant in ruling policy recorded egress; do
     mkdir "$work/commit-$variant" || fixture_fail
     make_commit "$work/commit-$variant"
   done
-  printf 'ruling=hosted\n' >"$work/commit-ruling/crates/halvo-route/data/ruling.txt" || fixture_fail
+  printf 'ruling=none\n' >"$work/commit-ruling/crates/halvo-route/data/ruling.txt" || fixture_fail
   STUB_COMMIT=$work/commit-ruling
-  check ruling-file-with-another-line FAIL 'absent ruling=other hosts=header hosted_picks=0 ' "FAIL $name (ruling)"
+  check ruling-file-with-another-line FAIL 'absent ruling=other hosts=2 hosted_picks=0 ' "FAIL $name (ruling)"
   cp "$work/u/policy-frontier" "$work/commit-policy/crates/halvo-route/data/policy.tsv" || fixture_fail
   STUB_COMMIT=$work/commit-policy
   check policy-pick-raised-to-frontier FAIL ' hosted_picks=1 hosted_rows=0 ' "FAIL $name (picks)"
@@ -1283,20 +1410,20 @@ full_cases() {
   check commit-without-a-policy FAIL ' hosted_picks=1 hosted_rows=0 ' "FAIL $name (picks)"
   mkdir "$work/commit-ruling-and-pick" || fixture_fail
   make_commit "$work/commit-ruling-and-pick"
-  printf 'ruling=hosted\n' >"$work/commit-ruling-and-pick/crates/halvo-route/data/ruling.txt" || fixture_fail
+  printf 'ruling=none\n' >"$work/commit-ruling-and-pick/crates/halvo-route/data/ruling.txt" || fixture_fail
   cp "$work/u/policy-frontier" "$work/commit-ruling-and-pick/crates/halvo-route/data/policy.tsv" || fixture_fail
   STUB_COMMIT=$work/commit-ruling-and-pick
-  check ruling-and-pick-name-the-ruling FAIL 'absent ruling=other hosts=header hosted_picks=1 ' "FAIL $name (ruling)"
+  check ruling-and-pick-name-the-ruling FAIL 'absent ruling=other hosts=2 hosted_picks=1 ' "FAIL $name (ruling)"
   for variant in hosts-row no-hosts; do
     mkdir "$work/commit-$variant" || fixture_fail
     make_commit "$work/commit-$variant"
   done
-  printf 'frontier\thttps://top.invalid\tm\ta\tfixture:test\t2026-11-22\n' >>"$work/commit-hosts-row/crates/halvo-route/data/hosts.tsv" || fixture_fail
+  printf '%s\n' "$hosts_header" >"$work/commit-hosts-row/crates/halvo-route/data/hosts.tsv" || fixture_fail
   STUB_COMMIT=$work/commit-hosts-row
-  check table-of-hosts-with-a-row FAIL 'absent ruling=none hosts=other hosted_picks=0 ' "FAIL $name (hosts)"
+  check table-of-hosts-with-its-header-alone FAIL 'absent ruling=hosted hosts=other hosted_picks=0 ' "FAIL $name (hosts)"
   mv "$work/commit-no-hosts/crates/halvo-route/data/hosts.tsv" "$work/commit-no-hosts/hosts.away" || fixture_fail
   STUB_COMMIT=$work/commit-no-hosts
-  check commit-without-a-table-of-hosts FAIL 'absent ruling=none hosts=other hosted_picks=0 ' "FAIL $name (hosts)"
+  check commit-without-a-table-of-hosts FAIL 'absent ruling=hosted hosts=other hosted_picks=0 ' "FAIL $name (hosts)"
 
   STUB_TREE_OUT=$work/stub/tree-reqwest.out
   check tree-names-a-network-package FAIL ' net_crates=1 entries=0 ' "FAIL $name (crates)"

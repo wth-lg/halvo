@@ -1009,9 +1009,10 @@ mod mac {
     }
 
     /// r4 U3.17a sentence 5, with a stored yes (verifier-104, its second issue): a stored yes alone hands no key. The
-    /// test writes a yes for the agent into the store by the body `set_model`, the tier `frontier` with its triple,
-    /// and the roster's entry of the agent holds that agreement; main's table of hosts holds no row, so it does not
-    /// stand. A key is saved, a Run now starts the runner through the hub, and the stand-in runner's frame `secret`
+    /// test writes a yes for the agent into the store by the body `set_model`, the tier `frontier` with a triple of
+    /// `https://hosted-model.test` and `test-model-large`, and the roster's entry of the agent holds that agreement;
+    /// that triple is no row of this build's table of hosts, so it does not stand. A key is saved, a Run now starts the
+    /// runner through the hub, and the stand-in runner's frame `secret`
     /// for `model_key` is answered none stored. The key is a made-up text that names itself as a test value. The test's
     /// own link goes before the hub starts: the owner holds four streams at most, and the key's link, the hub's two and
     /// each read of the runs hold one.
@@ -1111,13 +1112,13 @@ mod mac {
                 };
                 hub.call(
                     "agents_setup_typed",
-                    Some(&json!({"item": id, "step": step, "param": name, "text": text})),
+                    Some(&json!({"item": id, "step": step, "param": name, "text": text, "more": "no"})),
                 )
             } else {
                 assert_ne!(name, "workbook", "the workbook is a typed line: {item}");
                 hub.call(
                     "agents_answer",
-                    Some(&json!({"item": id, "step": step, "choice": "choose", "param": name, "n": 1})),
+                    Some(&json!({"item": id, "step": step, "choice": "choose", "param": name, "n": 1, "more": "no"})),
                 )
             };
             replies.push((name, reply));

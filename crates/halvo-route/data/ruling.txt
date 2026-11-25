@@ -1,1 +1,1 @@
-ruling=none
+ruling=hosted

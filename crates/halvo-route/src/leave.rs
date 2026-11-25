@@ -91,8 +91,9 @@ impl LeaveCause {
 /// was made for. It has private fields, no public maker but `grant`, and neither `Clone` nor
 /// `Copy`, so one grant serves one request. One field is of a private type of no size that is
 /// neither `Clone` nor `Copy` either, so no code can copy a grant from a borrowed one by a struct
-/// update. `grant` makes one only under a hosted ruling, for the origin of its row for the tier,
-/// and never under the release ruling of main, which is `ruling=none` over a table with no row.
+/// update. `grant` makes one only under a hosted ruling, for the origin of its row for the tier:
+/// under the release ruling, for the origin of the row of that tier in the table of hosts
+/// `crates/halvo-route/data/hosts.tsv`.
 ///
 /// This file is pinned whole, its test module included, as lib.rs, ruling.rs and tier.rs are: the
 /// test `pinned_files_hold_their_hashes` of tests/no_grant_in_release.rs holds its SHA-256. A pin
@@ -199,8 +200,8 @@ impl fmt::Debug for Seal {
 /// ruling `None`, and a hosted ruling that holds no row for the tier, give `ruling`; a tier above
 /// `ceiling` gives `ceiling`; a part that is not `text` gives `part`; an origin that is not, by
 /// equal bytes, the origin of the ruling's row for that tier gives `origin`; the consent `missing`
-/// gives `consent`; else the grant, which holds a copy of that row. Under the release ruling of
-/// main, `ruling=none` over a table with no row, no build makes a grant.
+/// gives `consent`; else the grant, which holds a copy of that row. Under the release ruling a
+/// grant names the origin of the row of its tier in the table of hosts and no other origin.
 pub fn grant(
     ruling: &Ruling,
     tier: Tier,

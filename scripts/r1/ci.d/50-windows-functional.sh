@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b), whose vocabulary reads this check's lists macos_only_paths and expected_tests in their here-document form, and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended), and a listed defect must fail with its marker; a test's WF line carries the last rounds_decided_by_the_time_rule=N that a TF line of a log that the rule passed holds (ruling W3-32); the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds of the short form in both forms of the check, which hands HALVO_WF_FORM=short to each test and refuses any other word of the caller in that variable; the short form (50-windows-functional, 52-windows-browser) prints a row marked scope=long-only or scope=long-only-shows-sometimes with result=long-form-only and runs it not, every form prints a row marked scope=no-form, a test of the test file that no form runs, with result=in-no-form and runs it not, and the list takes no other scope word; the long form (WF_FORM=long, a run by hand alone, in no slice and no schedule) runs one part of one group in each of four checks, part modules (the rows whose name holds ::) in 53-windows-long-native-modules and 57-windows-long-browser-modules and part top (the other rows) in 56-windows-long-native-top and 58-windows-long-browser-top, every row of the part by the same rules, but a row marked scope=long-only-shows-sometimes that reads 0 is printed with result=not-shown and fails nothing
+# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b), whose vocabulary reads this check's lists macos_only_paths and expected_tests in their here-document form, and the check fails on any line that the rule prints and prints nothing of such a log but the test's exit code and libtest's result line in libtest's whole form, each only where the rule passes it and else a fixed word (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended), and a listed defect must fail with its marker; a test's WF line carries the last rounds_decided_by_the_time_rule=N that a TF line of a log that the rule passed holds (ruling W3-32); the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds of the short form in both forms of the check, which hands HALVO_WF_FORM=short to each test and refuses any other word of the caller in that variable; the short form (50-windows-functional, 52-windows-browser) prints a row marked scope=long-only or scope=long-only-shows-sometimes with result=long-form-only and runs it not, every form prints a row marked scope=no-form, a test of the test file that no form runs, with result=in-no-form and runs it not, and the list takes no other scope word; the long form (WF_FORM=long, a run by hand alone, in no slice and no schedule) runs one part of one group in each of four checks, part modules (the rows whose name holds ::) in 53-windows-long-native-modules and 57-windows-long-browser-modules and part top (the other rows) in 56-windows-long-native-top and 58-windows-long-browser-top, every row of the part by the same rules, but a row marked scope=long-only-shows-sometimes that reads 0 is printed with result=not-shown and fails nothing
 # lane: alone
 set -u
 name_of() {
@@ -24,10 +24,11 @@ if [ -z "$name" ]; then
 fi
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=52
+failing_fixtures=53
 form_test=stall::the_round_count_of_the_stall_tests
 prints_rule=scripts/r1/windows-prints-rule.sh
 prints_rule_line='^prints-rule [A-Za-z0-9_:]+ line=[0-9]+ length=[0-9]+ token=[0-9]+$'
+libtest_result_line='^test result: (ok|FAILED)\. [0-9]+ passed; [0-9]+ failed; [0-9]+ ignored; [0-9]+ measured; [0-9]+ filtered out; finished in [0-9]+\.[0-9]+s$'
 shutdown_line='TF shutdown source='
 fixtures_at_once=4
 LC_ALL=C
@@ -245,6 +246,15 @@ scan_log() {
   done <"$1"
 }
 
+withheld_tail() {
+  printf '%s\n' "$2" >"$work/withheld-tail" || fail "a line of the withheld log of $1 cannot be written for the prints rule"
+  if wpr_check_log "$1" "$work/withheld-tail" "$work/vocabulary" >/dev/null 2>&1; then
+    tail_shown="$name: $1: $2"
+  else
+    tail_shown="$name: $1: $3=not-printed"
+  fi
+}
+
 judge() {
   verdict=FAIL
   id=
@@ -457,6 +467,7 @@ measure() {
     rule_out=$(wpr_check_log "$test" "$log" "$work/vocabulary" 2>&1)
     rule_code=$?
     time_rule=
+    withheld=
     if [ "$rule_code" -eq 0 ]; then
       judge "$test" "$code" "$log" "$want_id"
       time_rule=$(tr -d '\r' <"$log" | sed -E -n 's/^TF .* (rounds_decided_by_the_time_rule=[0-9]+)( .*)?$/\1/p' | tail -n 1)
@@ -469,6 +480,17 @@ measure() {
       verdict=FAIL
       id=
       cause="wpr_check_log exited $rule_code with $broken lines that break the prints rule, so its log is not printed"
+      withheld_tail "$test" "exit_code=$code" exit_code
+      withheld=$tail_shown
+      result_line=$(tr -d '\r' <"$log" | grep -E "$libtest_result_line" | tail -n 1)
+      if [ -n "$result_line" ]; then
+        withheld_tail "$test" "$result_line" result_line
+        withheld="$withheld${nl}$tail_shown"
+      elif tr -d '\r' <"$log" | grep -q '^test result: '; then
+        withheld="$withheld${nl}$name: $test: result_line=not-printed"
+      else
+        withheld="$withheld${nl}$name: $test: result_line=none"
+      fi
     fi
     if [ "$verdict" = FIXED-BUT-LISTED ] && [ "$scope" = long-only-shows-sometimes ]; then
       verdict=not-shown
@@ -483,6 +505,7 @@ measure() {
       *) failed=$((failed + 1)) ;;
     esac
     [ -z "$cause" ] || printf '%s: %s: %s\n' "$name" "$test" "$cause"
+    [ -z "$withheld" ] || printf '%s\n' "$withheld"
     line="WF $test result=$verdict${id:+ id=$id}${time_rule:+ $time_rule}"
     printf '%s\n' "$line"
     printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
@@ -821,6 +844,14 @@ case $kind in
     printf 'TF %s typed=BREAKS-THE-RULE hunter2-typed-text\n' "$test"
     panic "$thread" "KNOWN-DEFECT $id"
     printf 'test %s ... FAILED\n\n%s\n\n' "$test" "$failed"
+    exit 101
+    ;;
+  rule-break-result)
+    printf 'TF %s typed=BREAKS-THE-RULE\ntest %s ... ok\n\ntest result: the password of the window is hunter2-typed-text\n\n' "$test" "$test"
+    exit 0
+    ;;
+  rule-break-no-summary)
+    printf 'TF %s typed=BREAKS-THE-RULE\n' "$test"
     exit 101
     ;;
   form-break)
@@ -1356,7 +1387,7 @@ fixtures() {
       "!STUB-POWERSHELL-RAN" "!STUB-STANDARD-COMMAND-RAN" "!standard_account"
   done
   check two-logs-that-break-the-prints-rule-are-not-printed FAIL "c1_raw_input|rule-break${nl}helper_child_window|rule-break${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "prints-rule c1_raw_input line=3 length=" "$name: c1_raw_input: wpr_check_log exited 1 with 1 lines that break the prints rule, so its log is not printed${nl}WF c1_raw_input result=FAIL${nl}" \
+    "prints-rule c1_raw_input line=3 length=" "$name: c1_raw_input: wpr_check_log exited 1 with 1 lines that break the prints rule, so its log is not printed${nl}$name: c1_raw_input: exit_code=0${nl}$name: c1_raw_input: test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.01s${nl}WF c1_raw_input result=FAIL${nl}" \
     "${nl}prints-rule helper_child_window line=3 length=" "${nl}prints_rule broken_lines=2 withheld_logs=2${nl}" \
     "FAIL $name (the logs of 2 tests hold 2 lines that break the prints rule of scripts/r1/windows-prints-rule.sh, and those logs are not printed" \
     "!hunter2-typed-text"
@@ -1366,7 +1397,12 @@ fixtures() {
     "FAIL $name (the logs of 1 tests hold 0 lines that break the prints rule of scripts/r1/windows-prints-rule.sh, and those logs are not printed"
   check a-failing-test-and-a-known-defect-whose-logs-break-the-rule FAIL "c1_raw_input|rule-break-fail${nl}helper_child_window|pass${nl}known_defect::x1_password|rule-break-defect|RR-windows-01" \
     "prints-rule c1_raw_input line=3 length=" "${nl}prints-rule known_defect::x1_password line=3 length=" "${nl}prints_rule broken_lines=2 withheld_logs=2${nl}" \
+    "${nl}$name: c1_raw_input: exit_code=101${nl}$name: c1_raw_input: test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.01s${nl}WF c1_raw_input result=FAIL${nl}" \
     "FAIL $name (the logs of 2 tests hold 2 lines that break the prints rule" "!hunter2-typed-text" "@prints_rule broken_lines=2 withheld_logs=2"
+  check a-withheld-log-prints-a-result-line-of-libtest-s-whole-form-alone FAIL "c1_raw_input|rule-break-result${nl}helper_child_window|rule-break-no-summary${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}$name: c1_raw_input: exit_code=0${nl}$name: c1_raw_input: result_line=not-printed${nl}WF c1_raw_input result=FAIL${nl}" \
+    "${nl}$name: helper_child_window: exit_code=101${nl}$name: helper_child_window: result_line=none${nl}WF helper_child_window result=FAIL${nl}" \
+    "!hunter2-typed-text"
   expected="$small${nl}$form_test"
   check a-form-test-log-that-breaks-the-rule-stops-before-the-form-reads FAIL "$right${nl}$form_test|form-break" \
     "${nl}prints-rule $form_test line=4 length=" "FAIL $name (the logs of 1 tests hold 1 lines that break the prints rule" \

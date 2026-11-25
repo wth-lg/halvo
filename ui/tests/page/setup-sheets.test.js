@@ -121,8 +121,8 @@ test("Which sheet with a list of three names draws three choices, each name as t
   await press(listed, useAnswers(listed));
   assert.equal(listed.calls("agents_answer").length, 0, "no choice goes by its number");
   assert.deepEqual(
-    listed.calls("agents_setup_typed").slice(-1).map((c) => c.args),
-    [{ item: listItem.item, step: listItem.step, param: "sheet", text: NAMES[1] }],
+    listed.calls("agents_setup_typed").filter((c) => c.args.param === "sheet").map((c) => c.args),
+    [{ item: listItem.item, step: listItem.step, param: "sheet", text: NAMES[1], more: "yes" }],
     "the chosen sheet goes by its name",
   );
 
@@ -133,9 +133,9 @@ test("Which sheet with a list of three names draws three choices, each name as t
     listed.calls("agents_setup_typed").slice(sent).map((c) => [c.args.param, c.args.text]),
     [
       ["workbook", "/Volumes/work/Plan.xlsx"],
+      ["sheet", NAMES[1]],
       ["range", "A2:C11"],
       ["source", "/Volumes/work/receipts.csv"],
-      ["sheet", NAMES[1]],
     ],
     "the marked sheet goes by its name behind the new workbook's line",
   );
@@ -167,7 +167,7 @@ test("Which sheet with a list of three names draws three choices, each name as t
   );
 });
 
-test("a pick in the chooser of Which spreadsheet file sends its line at once and brings the list with no press, the other lines kept; where the pick is the last answer that the item lacks it makes no call before the press of Use these answers", async () => {
+test("a pick in the chooser of Which spreadsheet file sends its line at once, as a call that says that more follow, and brings the list with no press, the other lines kept; where the pick is the last answer that the item lacks it goes at once all the same, and the press of Use these answers sends every line again", async () => {
   const path = "/Volumes/work/Budget.xlsx";
   const one = replies(typedItem, { agents_choose_file: { path } });
   const page = await openPage(one);
@@ -175,7 +175,7 @@ test("a pick in the chooser of Which spreadsheet file sends its line at once and
   await press(page, chooseOf(page, "workbook"));
   assert.deepEqual(
     page.calls("agents_setup_typed").map((c) => c.args),
-    [{ item: typedItem.item, step: typedItem.step, param: "workbook", text: path }],
+    [{ item: typedItem.item, step: typedItem.step, param: "workbook", text: path, more: "yes" }],
     "the picked line goes at once",
   );
   one.next({ ...setup, items: [listItem] });
@@ -190,14 +190,22 @@ test("a pick in the chooser of Which spreadsheet file sends its line at once and
   await typeLine(last, "range", "A2:C11");
   await typeLine(last, "source", "/Volumes/work/receipts.csv");
   await press(last, useAnswers(last));
-  assert.equal(last.calls("agents_setup_typed").length, 3, "the three other answers are held by the core");
+  assert.equal(last.calls("agents_setup_typed").length, 3, "the three other answers went");
   await press(last, chooseOf(last, "workbook"));
   assert.equal(lineOf(last, "workbook").value, path, "the pick fills the line");
-  assert.equal(last.calls("agents_setup_typed").length, 3, "the last answer lacking makes no call at the pick");
   await press(last, useAnswers(last));
   assert.deepEqual(
-    last.calls("agents_setup_typed").map((c) => c.args.param),
-    ["sheet", "range", "source", "sheet", "range", "source", "workbook"],
-    "it goes at the press, behind the lines that the core holds",
+    last.calls("agents_setup_typed").map((c) => [c.args.param, c.args.more]),
+    [
+      ["sheet", "yes"],
+      ["range", "yes"],
+      ["source", "yes"],
+      ["workbook", "yes"],
+      ["workbook", "yes"],
+      ["sheet", "yes"],
+      ["range", "yes"],
+      ["source", "no"],
+    ],
+    "the pick goes at once as a call that says that more follow, and the press sends every line in the card's order, the last as the one call that may save",
   );
 });

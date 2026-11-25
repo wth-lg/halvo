@@ -4308,6 +4308,23 @@ fn the_first_own_read_after_a_start_reads_the_focused_password_field() {
     });
 }
 
+/// The switch of the control of capture_times_follow_the_input_order: where
+/// it holds 1, the row moves each keystroke record one second later before
+/// its prints and its question, so that a real run reads the row red. No line
+/// of the product reads it.
+const ORDER_SECOND_LATER_ENV: &str = "HALVO_VERIFY_ORDER_SECOND_LATER";
+
+/// How far after the order row's own read behind a key's send the key's
+/// record may lie, in tick periods. The record is the clock less the key's
+/// age, a difference of two readings of GetTickCount (the message time of the
+/// key's WM_INPUT and the tick of its release, windows/secure_input.rs),
+/// rounded down to its second; that counter moves at each clock interrupt,
+/// "typically in the range of 10 milliseconds to 16 milliseconds" (Microsoft
+/// Learn, GetTickCount). One period is the age's own error, the other the
+/// release's time between its tick read and the stamp's clock read, which no
+/// line bounds. Only a record of the next second can lie after the read.
+const ORDER_EDGE_PERIODS: u128 = 2;
+
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn capture_times_follow_the_input_order() {
@@ -4339,10 +4356,18 @@ fn capture_times_follow_the_input_order() {
         let events = forward(writer).drain_for(Duration::from_secs(3));
         let _ = stop_counted(&mut keyboard, "keyboard");
         let _ = stop_counted(&mut pointer, "pointer");
+        let second_later = std::env::var(ORDER_SECOND_LATER_ENV).is_ok_and(|value| value == "1");
         let mut key_times: Vec<SystemTime> = events
             .iter()
             .filter(|e| e.modality == Modality::Keystroke)
             .map(|e| e.captured_at.wall_clock)
+            .map(|at| {
+                if second_later {
+                    at + Duration::from_secs(1)
+                } else {
+                    at
+                }
+            })
             .collect();
         key_times.sort();
         let scrolls: Vec<(u64, SystemTime)> = events
@@ -4358,11 +4383,48 @@ fn capture_times_follow_the_input_order() {
                 .unwrap_or_default()
                 .as_millis()
         };
+        let (tick_period_ms, tick_period_from) = tick_period();
+        let edge_bound = Duration::from_millis(
+            u64::try_from(ORDER_EDGE_PERIODS * tick_period_ms).unwrap_or(u64::MAX),
+        );
+        let in_their_second = |at: &SystemTime, sent: &SystemTime| match sent.duration_since(*at) {
+            Ok(before) => before < Duration::from_millis(1_250),
+            Err(after) => after.duration() <= edge_bound,
+        };
         let keys_in_their_second = key_times.len() == ROUNDS
-            && key_times.iter().zip(&keys_sent).all(|(at, sent)| {
-                sent.duration_since(*at)
-                    .is_ok_and(|before| before < Duration::from_millis(1_250))
-            });
+            && key_times
+                .iter()
+                .zip(&keys_sent)
+                .all(|(at, sent)| in_their_second(at, sent));
+        let read_after_record =
+            |at: &SystemTime, sent: &SystemTime| match sent.duration_since(*at) {
+                Ok(before) => i128::try_from(before.as_millis()).unwrap_or(i128::MAX),
+                Err(after) => -i128::try_from(after.duration().as_micros().div_ceil(1_000))
+                    .unwrap_or(i128::MAX),
+            };
+        let read_after_record_ms = if key_times.is_empty() {
+            "-".to_string()
+        } else {
+            keys_sent
+                .iter()
+                .enumerate()
+                .map(|(index, sent)| {
+                    key_times.get(index).map_or("-".to_string(), |at| {
+                        read_after_record(at, sent).to_string()
+                    })
+                })
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        let read_place_in_second_ms = keys_sent
+            .iter()
+            .map(|sent| {
+                sent.duration_since(SystemTime::UNIX_EPOCH)
+                    .map_or(0, |since| since.subsec_millis())
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join(",");
         let scroll_distance_ms = scrolls
             .first()
             .map_or(u128::MAX, |(_, at)| distance_ms(*at, turns_sent[0]));
@@ -4379,6 +4441,16 @@ fn capture_times_follow_the_input_order() {
                 key_times.len(),
                 scrolls.len(),
                 scrolls.first().map_or(0, |(count, _)| *count),
+            ),
+        );
+        say(
+            "order",
+            format!(
+                "read_after_record_ms={read_after_record_ms} \
+                 read_place_in_second_ms={read_place_in_second_ms} edge_bound_ms={} \
+                 tick_period_ms={tick_period_ms} tick_period_from={tick_period_from} \
+                 second_later_control={second_later}",
+                edge_bound.as_millis(),
             ),
         );
         assert!(keyboard_start.is_ok(), "the keyboard source must start");

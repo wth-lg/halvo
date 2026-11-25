@@ -28,7 +28,9 @@ fn args_of(command: &str) -> Value {
         "agents_next" => json!({"after": 0}),
         "agents_card" => json!({"agent": agent(0).to_string()}),
         "agents_answer" => json!({"item": item, "step": 0, "choice": "allow"}),
-        "agents_setup_typed" => json!({"item": item, "step": 0, "param": "payee", "text": "x"}),
+        "agents_setup_typed" => {
+            json!({"item": item, "step": 0, "param": "payee", "text": "x", "more": "no"})
+        }
         "agents_choose_file" => json!({"item": item, "step": 0, "param": "workbook"}),
         "agents_present" => json!({"item": item}),
         "agents_control" => json!({"agent": agent(0).to_string(), "action": "run_now"}),
@@ -188,7 +190,7 @@ fn malformed_arguments_answer_malformed() {
         ("agents_answer", json!({"item": item, "choice": "allow"})),
         (
             "agents_setup_typed",
-            json!({"item": item, "param": "payee", "text": "x"}),
+            json!({"item": item, "param": "payee", "text": "x", "more": "no"}),
         ),
         (
             "agents_answer",
@@ -196,11 +198,15 @@ fn malformed_arguments_answer_malformed() {
         ),
         (
             "agents_answer",
-            json!({"item": item, "step": 0, "choice": "choose"}),
+            json!({"item": item, "step": 0, "choice": "choose", "more": "no"}),
         ),
         (
             "agents_answer",
-            json!({"item": item, "step": 0, "choice": "choose", "param": "payee"}),
+            json!({"item": item, "step": 0, "choice": "choose", "param": "payee", "more": "no"}),
+        ),
+        (
+            "agents_answer",
+            json!({"item": item, "step": 0, "choice": "choose", "param": "payee", "n": 1}),
         ),
         (
             "agents_answer",
@@ -208,15 +214,19 @@ fn malformed_arguments_answer_malformed() {
         ),
         (
             "agents_answer",
-            json!({"item": item, "step": 0, "choice": "choose", "param": "colour", "n": 1}),
+            json!({"item": item, "step": 0, "choice": "choose", "param": "colour", "n": 1, "more": "no"}),
         ),
         (
             "agents_setup_typed",
-            json!({"item": item, "step": 0, "param": "payee"}),
+            json!({"item": item, "step": 0, "param": "payee", "more": "no"}),
         ),
         (
             "agents_setup_typed",
-            json!({"item": item, "step": 0, "param": "payee", "text": 3}),
+            json!({"item": item, "step": 0, "param": "payee", "text": 3, "more": "no"}),
+        ),
+        (
+            "agents_setup_typed",
+            json!({"item": item, "step": 0, "param": "payee", "text": "x"}),
         ),
         ("agents_control", json!({"agent": a, "action": "delete"})),
         ("agents_control", json!({"agent": a})),
@@ -401,7 +411,11 @@ fn a_call_whose_arguments_have_the_shape_of_the_list_reaches_the_core() {
     let cases = [
         (
             "agents_answer",
-            json!({"item": item, "step": 0, "choice": "choose", "param": "payee", "n": 0}),
+            json!({"item": item, "step": 0, "choice": "choose", "param": "payee", "n": 0, "more": "no"}),
+        ),
+        (
+            "agents_answer",
+            json!({"item": item, "step": 0, "choice": "choose", "param": "payee", "n": 0, "more": "yes"}),
         ),
         (
             "agents_answer",
@@ -409,7 +423,11 @@ fn a_call_whose_arguments_have_the_shape_of_the_list_reaches_the_core() {
         ),
         (
             "agents_setup_typed",
-            json!({"item": item, "step": 0, "param": "payee", "text": "City Power"}),
+            json!({"item": item, "step": 0, "param": "payee", "text": "City Power", "more": "no"}),
+        ),
+        (
+            "agents_setup_typed",
+            json!({"item": item, "step": 0, "param": "payee", "text": "City Power", "more": "yes"}),
         ),
     ];
     for (command, args) in cases {
@@ -817,7 +835,7 @@ fn through_the_app_a_set_up_answer_refused_with_overlap_names_the_agent_that_sha
     let reply = invoke(
         &main,
         "agents_setup_typed",
-        json!({"item": setup.0.to_string(), "step": setup.1, "param": "reply_senders", "text": support::ANN}),
+        json!({"item": setup.0.to_string(), "step": setup.1, "param": "reply_senders", "text": support::ANN, "more": "no"}),
     );
     println!("setup_typed answered: {reply:?}");
     assert_eq!(overlap_reads(&hub), reads + 1, "the read reached the owner");

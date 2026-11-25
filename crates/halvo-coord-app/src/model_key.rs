@@ -21,8 +21,7 @@ use crate::product::{hex, json_str, link_over, random16, result_of, StreamCall};
 pub const KEY_MAX: usize = 1024;
 
 /// The host of this build: the origin of the rows of `halvo_route::release::ruling()` without its `https://`, where
-/// every row names the same one origin, and none where the ruling holds no row or its rows name two origins. With
-/// main's data it is none.
+/// every row names the same one origin, and none where the ruling holds no row or its rows name two origins.
 pub fn host() -> Option<String> {
     host_of(
         halvo_route::release::ruling()
@@ -221,7 +220,7 @@ mod tests {
 
     /// U3.18 sentence 1: the host is the one origin of the rows without its `https://`: none for no row, the host for
     /// one row and for two rows of the same origin, none for two origins; this build's host is the one of the rows of its
-    /// release ruling (none with main's table, which holds no row).
+    /// release ruling.
     #[test]
     fn the_host_is_the_one_origin_of_the_rows_without_https() {
         assert_eq!(host_of([]), None);
