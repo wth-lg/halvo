@@ -1,6 +1,6 @@
 # The gateway request
 
-This file states what a request to the model gateway may hold and how a device reads the answer. It is written for the reader of the billing run, which owns the gateway, its answers and the adapter to a model host. The routing run owns this contract (its item T11). The crate `halvo-route-wire` holds it as code, and the files of this directory hold it as data that both sides test against. Nothing in the app sends a request yet.
+This file states what a request to the model gateway may hold and how a device reads the answer. It is written for the reader of the billing run, which owns the gateway, its answers and the adapter to a model host. The routing run owns this contract (its item T11). The crate `halvo-route-wire` holds it as code, and the files of this directory hold it as data that both sides test against. In a build with no account the program halvo-model makes this body and sends the host its adapter's form of it; nothing sends this body to a gateway yet.
 
 ## The envelope
 

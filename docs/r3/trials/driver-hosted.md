@@ -64,13 +64,13 @@ with `--cell` runs one of the cells alone (point 8).
    action's words on the page's own references, and the run's refused replies. The first trial's
    recovery ask named the step.
 6. The prices. The count that holds the ceiling counts by the price file of the build,
-   `crates/halvo-route/data/prices.tsv`, whose rates are fixture rates (source `fixture:B-3.2`, dated
-   2026-11-10), not by the host's bill. Before each ask the harness reserves a hold for the body's
-   bytes and 2,048 output tokens, and after the answer it settles at the token counts that the host's
-   answer reports. A ceiling held at made-up rates is no ceiling, so the paid round refuses to start,
-   before it starts a browser, a door or a count and before it sends anything, while the rate of the
-   round's tier in that file has a source that begins `fixture:`; the stand-in form runs on the
-   fixture rates.
+   `crates/halvo-route/data/prices.tsv`, not by the host's bill. Before each ask the harness reserves
+   a hold for the body's bytes and 2,048 output tokens, and after the answer it settles at the token
+   counts that the host's answer reports. A ceiling held at made-up rates is no ceiling, so the paid
+   round refuses to start, before it starts a browser, a door or a count and before it sends anything,
+   while the rate of the round's tier in that file has a source that begins `fixture:`. The rates of
+   both hosted tiers in that file are the host's own, from its price page with their source and their
+   date, and the stand-in form counts at them too.
 7. The door's two ends. A request that the door answers `cut` or `declined` is no ask that the model
    failed. In a compile and in a recovery it counts against the asks of that run (32, `recoveries`),
    each being a request that counts against the ceiling, and the run asks again on the page as it then

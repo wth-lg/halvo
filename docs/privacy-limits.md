@@ -221,7 +221,8 @@ the kept sign-in of one site of the agent. Two bodies more answer no record:
 they hold and settle the cost of one model request against the person's cap.
 
 For an agent that the person allowed to use a hosted model, the supervisor also
-hands the run the key of that model's host. No build starts such a run yet.
+hands the run the key of that model's host when the run asks for it. No runner of
+this build asks for it, so no run gets the key.
 
 The test `a_runner_body_answers_no_kind_outside_the_closed_list`
 (`crates/halvo-learn-store/src/tests/kinds.rs`) holds that list.

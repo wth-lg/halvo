@@ -62,36 +62,97 @@ fn the_manifest_holds_the_package_and_the_dev_dependencies_alone() {
     );
 }
 
+/// The compiled-in table of hosts, as `release::ruling()` reads it.
+const HOSTS: &str = include_str!("../data/hosts.tsv");
+
+/// Under the release data the router grants a request for the origin of the table's row of its
+/// tier and for no other origin: the release ruling holds the rows of the table, at least one, in
+/// its order; every grant that `grant` makes over every tier, ceiling, list of parts, consent and a
+/// list of origins near the tabled ones names its tier's row and that row's origin; and each row
+/// gets its grant for its own origin, under each ceiling at or above its tier, for each list of
+/// parts that holds no part but text, with the consent recorded, and no other grant is made.
 #[test]
-fn no_grant_in_release() {
+fn the_release_data_grants_the_tabled_origin_alone() {
     let ruling = release::ruling();
+    let tabled: Vec<(Tier, &str, &str, &str)> = HOSTS
+        .lines()
+        .skip(1)
+        .map(|line| {
+            let cells: Vec<&str> = line.split('\t').collect();
+            let tier = Tier::parse(cells[0]).expect("a tier of the table");
+            (tier, cells[1], cells[2], cells[3])
+        })
+        .collect();
+    assert!(
+        !tabled.is_empty(),
+        "the release table of hosts holds no row, so the release data grants no origin"
+    );
+    let rows: Vec<(Tier, &str, &str, &str)> = ruling
+        .rows()
+        .iter()
+        .map(|row| (row.tier(), row.origin(), row.model(), row.adapter()))
+        .collect();
+    assert_eq!(
+        rows, tabled,
+        "the release ruling holds the rows of the table"
+    );
+
     let mut lists: Vec<Vec<PartKind>> = PartKind::ALL.iter().map(|part| vec![*part]).collect();
     lists.push(Vec::new());
     lists.push(PartKind::ALL.to_vec());
-    let mut calls = 0;
+    let mut origins: Vec<String> = [
+        "127.0.0.1:1",
+        "example.invalid:443",
+        "http://127.0.0.1:4040",
+    ]
+    .map(str::to_owned)
+    .to_vec();
+    for (_, origin, _, _) in &tabled {
+        origins.push((*origin).to_owned());
+        origins.push(format!("{origin}/"));
+        origins.push(format!("{origin}:443"));
+        origins.push(origin.replacen("https://", "http://", 1));
+        origins.push(origin.to_ascii_uppercase());
+    }
+    origins.sort();
+    origins.dedup();
+    let (mut calls, mut grants) = (0, 0);
     for tier in Tier::ALL {
-        let cause = if tier == Tier::OnDevice {
-            LeaveCause::Local
-        } else {
-            LeaveCause::Ruling
-        };
         for ceiling in Tier::ALL {
             for parts in &lists {
                 for consent in Consent::ALL {
-                    for origin in ["127.0.0.1:1", "example.invalid:443"] {
-                        let answer = grant(&ruling, tier, ceiling, parts, origin, consent);
-                        assert_eq!(
-                            answer.err(),
-                            Some(cause),
-                            "{tier:?} {ceiling:?} {parts:?} {consent:?} {origin}"
-                        );
+                    for origin in &origins {
                         calls += 1;
+                        if let Ok(made) = grant(&ruling, tier, ceiling, parts, origin, consent) {
+                            grants += 1;
+                            let row = ruling.row(tier).expect("a grant for a tier with a row");
+                            assert_eq!(made.row(), row, "{tier:?} {origin}");
+                            assert_eq!(origin, row.origin(), "{tier:?} {ceiling:?}");
+                        }
                     }
                 }
             }
         }
     }
-    assert_eq!(calls, 3 * 3 * 7 * 2 * 2);
+    let text_alone = lists
+        .iter()
+        .filter(|parts| parts.iter().all(|part| *part == PartKind::Text))
+        .count();
+    let wanted: usize = tabled
+        .iter()
+        .map(|(tier, ..)| {
+            Tier::ALL
+                .iter()
+                .filter(|ceiling| **ceiling as usize >= *tier as usize)
+                .count()
+                * text_alone
+        })
+        .sum();
+    println!(
+        "rows of the release table: {}, calls of grant: {calls}, grants: {grants}",
+        tabled.len()
+    );
+    assert_eq!(grants, wanted);
 }
 
 const CRATE_MODULES: [&str; 13] = [
