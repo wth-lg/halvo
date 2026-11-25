@@ -163,22 +163,36 @@ pub(crate) fn hosted_pid(frame_pid: u32, child_pids: &[u32]) -> Option<u32> {
 
 /// The program inside a frame of the frame host, from the processes of the
 /// windows on the line from the focus window up to the frame, the focus
-/// window first.
+/// window first: the process of the outermost window of that line that is
+/// not the host's, so that a window of a third process inside the program's
+/// own window does not name that third process; none where every window of
+/// the line is the host's.
 pub(crate) fn program_on_the_focus_line(host_pid: u32, line: &[u32]) -> Option<u32> {
-    hosted_pid(host_pid, line)
+    line.iter()
+        .rev()
+        .copied()
+        .find(|&pid| pid != 0 && pid != host_pid)
 }
 
 /// The app of a window of the frame host whose process is `host_pid`: the
-/// program inside it with that program's path where one is found.
+/// program inside it with that program's path where one is found; where none
+/// is found, the host's process with no path, which every kind of record
+/// reads as an app that cannot be placed, so that nothing of that window is
+/// recorded under the host's name.
 pub(crate) fn front_of_a_frame(
     host_pid: u32,
     program: Option<u32>,
     path_of: impl Fn(u32) -> Option<String>,
 ) -> FrontApp {
-    let pid = program.unwrap_or(host_pid);
-    FrontApp {
-        pid,
-        path: path_of(pid),
+    match program {
+        Some(pid) => FrontApp {
+            pid,
+            path: path_of(pid),
+        },
+        None => FrontApp {
+            pid: host_pid,
+            path: None,
+        },
     }
 }
 
@@ -335,11 +349,108 @@ pub(crate) fn resolve_front(hwnd: HWND) -> Option<FrontApp> {
     }
     let path = process_path(pid);
     if path.as_deref().is_some_and(is_frame_host) {
-        let program = program_on_the_focus_line(pid, &child_pids(hwnd));
-        return Some(front_of_a_frame(pid, program, process_path));
+        return Some(front_of_a_frame(
+            pid,
+            program_of_frame(hwnd, pid),
+            process_path,
+        ));
     }
     Some(FrontApp { pid, path })
 }
+
+/// The app of `hwnd` read again where the app that a cache holds for that
+/// window can have changed while the window stayed: a window of the frame
+/// host, whose program can come, go or change, and a window whose path could
+/// not be read. None where `cached` still stands.
+#[cfg(target_os = "windows")]
+pub(crate) fn front_again(hwnd: HWND, cached: &FrontApp) -> Option<FrontApp> {
+    let mut pid: u32 = 0;
+    // SAFETY: `pid` is a live local that the call writes.
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == 0 {
+        return None;
+    }
+    let fresh = if cached.pid != 0 && cached.pid != pid {
+        let program = program_of_frame(hwnd, pid);
+        if program == Some(cached.pid) {
+            return None;
+        }
+        front_of_a_frame(pid, program, process_path)
+    } else if cached.path.is_none() {
+        resolve_front(hwnd)?
+    } else {
+        return None;
+    };
+    (fresh != *cached).then_some(fresh)
+}
+
+/// Whether `hwnd` is a window of the frame host in which no program is found
+/// now.
+#[cfg(target_os = "windows")]
+pub(crate) fn frame_with_no_program(hwnd: HWND) -> bool {
+    let mut pid: u32 = 0;
+    // SAFETY: `pid` is a live local that the call writes.
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    pid != 0
+        && process_path(pid).as_deref().is_some_and(is_frame_host)
+        && program_of_frame(hwnd, pid).is_none()
+}
+
+/// The program inside the frame `hwnd` of the frame host whose process is
+/// `host_pid`. Where the frame is the window in front: the outermost window
+/// that is not the host's on the line from the focus window of the frame's
+/// thread up to the frame, and none where the focus window is not inside
+/// the frame. Where it is not in front, as under the pointer: its first
+/// child window of another process.
+#[cfg(target_os = "windows")]
+fn program_of_frame(hwnd: HWND, host_pid: u32) -> Option<u32> {
+    // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+    if unsafe { GetForegroundWindow() } != hwnd {
+        return hosted_pid(host_pid, &child_pids(hwnd));
+    }
+    program_on_the_focus_line(host_pid, &focus_line(hwnd)?)
+}
+
+/// The processes of the windows on the line from the focus window of the
+/// thread of `frame` up to `frame`, the focus window first; none where that
+/// thread has no focus window or the line does not reach `frame`.
+#[cfg(target_os = "windows")]
+fn focus_line(frame: HWND) -> Option<Vec<u32>> {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetAncestor, GetGUIThreadInfo, GA_PARENT, GUITHREADINFO,
+    };
+    let mut info = GUITHREADINFO {
+        cbSize: core::mem::size_of::<GUITHREADINFO>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: GetWindowThreadProcessId reads a handle value; `info` is a live
+    // GUITHREADINFO whose size field is set.
+    let focus = unsafe {
+        let thread = GetWindowThreadProcessId(frame, None);
+        if thread == 0 || GetGUIThreadInfo(thread, &mut info).is_err() {
+            return None;
+        }
+        info.hwndFocus
+    };
+    let mut line = Vec::new();
+    let mut window = focus;
+    while !window.0.is_null() && window != frame && line.len() < FOCUS_LINE_MAX {
+        let mut pid: u32 = 0;
+        // SAFETY: `pid` is a live local that the call writes, and GetAncestor
+        // takes a handle value; a handle that is no longer a window gives 0
+        // and null.
+        window = unsafe {
+            GetWindowThreadProcessId(window, Some(&mut pid));
+            GetAncestor(window, GA_PARENT)
+        };
+        line.push(pid);
+    }
+    (window == frame).then_some(line)
+}
+
+/// The most windows that the line from a focus window up to its frame holds.
+#[cfg(target_os = "windows")]
+const FOCUS_LINE_MAX: usize = 64;
 
 #[cfg(target_os = "windows")]
 fn child_pids(hwnd: HWND) -> Vec<u32> {

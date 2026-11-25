@@ -711,9 +711,11 @@ impl Drop for Lifecycle {
     }
 }
 
-/// The process of the window in front, read again only when the window in
-/// front changes, and the process of the top-level window under the pointer,
-/// read again only when that window changes.
+/// The process of the window in front, read again when the window in front
+/// changes, and the process of the top-level window under the pointer, read
+/// again when that window changes. A window of the frame host, whose program
+/// can come, go or change while the window stays, and a window whose path
+/// could not be read, are read again at each call.
 #[derive(Debug, Default)]
 pub(crate) struct FrontCache {
     window: usize,
@@ -729,6 +731,8 @@ impl FrontCache {
         if window.0 as usize != self.window {
             self.window = window.0 as usize;
             self.front = foreground::resolve_front(window).unwrap_or_default();
+        } else if let Some(front) = foreground::front_again(window, &self.front) {
+            self.front = front;
         }
         self.front.clone()
     }
@@ -755,6 +759,8 @@ impl FrontCache {
         if window.0 as usize != self.under {
             self.under = window.0 as usize;
             self.under_front = foreground::resolve_front(window).unwrap_or_default();
+        } else if let Some(front) = foreground::front_again(window, &self.under_front) {
+            self.under_front = front;
         }
         self.under_front.clone()
     }
