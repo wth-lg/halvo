@@ -618,10 +618,13 @@ mod tests {
             profile_of("Google Chrome", 45),
             profile_of("Google Chrome", 46),
         );
-        let (edge_44, edge_45) = (
+        let (edge_43, edge_44) = (
+            profile_of("Microsoft Edge", 43),
             profile_of("Microsoft Edge", 44),
-            profile_of("Microsoft Edge", 45),
         );
+        let bracket_behind_a_44_unit_profile =
+            format!("Notes [x] - Microsoft Edge - {}", "a".repeat(44));
+        let bracket_outside_the_end = format!("Notes ]{} - Microsoft Edge", "-".repeat(50));
         let cases = [
             ("ordinary", chrome, "Inbox - Google Chrome", true),
             (
@@ -637,15 +640,33 @@ mod tests {
                 false,
             ),
             (
-                "edge-profile-name-of-44-units",
+                "edge-profile-name-of-43-units",
                 edge,
-                edge_44.as_str(),
+                edge_43.as_str(),
                 true,
             ),
             (
-                "edge-profile-name-of-45-units",
+                "edge-profile-name-of-44-units",
                 edge,
-                edge_45.as_str(),
+                edge_44.as_str(),
+                false,
+            ),
+            (
+                "edge-bracket-before-the-name-behind-a-44-unit-profile",
+                edge,
+                bracket_behind_a_44_unit_profile.as_str(),
+                false,
+            ),
+            (
+                "edge-bracket-just-outside-the-end-that-is-read",
+                edge,
+                bracket_outside_the_end.as_str(),
+                false,
+            ),
+            (
+                "edge-no-letter-digit-or-bracket-before-the-name",
+                edge,
+                "--- - Microsoft Edge",
                 false,
             ),
             (
