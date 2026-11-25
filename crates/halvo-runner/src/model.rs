@@ -12,13 +12,14 @@
 //! `model_key`) in the one place of the runner that asks for it and then starts the door with the key as the first
 //! line of its standard input; one request line out and one line in; and the settle of the hold (`model_settle`).
 //! The door is the program `halvo-model` beside the runner's own executable, and the run ends it before the run's
-//! end is written (`end_door`). The writer of a reply's body calls `ask` for a body only where the router's `pick`
-//! for the kind `write` names the run's tier, and never for a message whose draft of an earlier run waits
-//! (crate::model::write, r3 U7.4). While every `write` row of the router's table (its file policy.tsv) hands back,
-//! no shipped run reaches it, so no shipped run asks for the key or starts the door, and until the compile's drive of
-//! r3 U7.2b calls it, no compile does; the unit tests do.
+//! end is written (`end_door`). The writer of a reply's body (crate::model::write, r3 U7.4) and the compile's drive
+//! (crate::compile, r3 U7.2b) call `ask` with the router's pick for their kind of call (crate::route's `picked`),
+//! only where that pick names the run's tier; the writer never calls it for a message whose draft of an earlier run
+//! waits. While every `compile` and every `write` row of the router's table (its file policy.tsv) hands back, no
+//! shipped run reaches `ask`: no shipped run asks for the key or starts the door; the unit tests do.
 
 pub(crate) mod ask;
+pub(crate) mod snapshot;
 #[cfg(test)]
 mod tests;
 pub(crate) mod texts;

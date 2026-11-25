@@ -55,6 +55,7 @@ const OPEN: &str = "email\twrite\tfrontier\tmedium\tline_met\t4\t4";
 
 /// The texts of the stand-in door's answers.
 const PLAIN: &str = "Friday at ten suits me. Thank you for asking.";
+const MARKED: &str = "I will write to [slot reply_senders] on Friday.";
 const SECRET_A: &str = "SECRET-A-the-sender-wants-a-time";
 const SECRET_B: &str = "SECRET-B-friday-could-work";
 const BODY_A: &str = "Friday at ten suits me, see you then.";
@@ -89,6 +90,7 @@ fn output(word: &str) -> Result<String, &'static str> {
         )),
         "open" => Ok(format!("<think>\n{SECRET_B}: I should answer that")),
         "long" => Ok(long_body()),
+        "marked" => Ok(MARKED.to_owned()),
         "bound" => Ok(at_bound(0)),
         "over" => Ok(at_bound(1)),
         "cut" => Err("cut"),
@@ -96,11 +98,14 @@ fn output(word: &str) -> Result<String, &'static str> {
     }
 }
 
-/// The word in square brackets of `text`, `plain` where it holds none.
+/// The first word in square brackets of `text` that is no mark `[slot NAME]` of the mask, `plain` where it holds
+/// none.
 fn word_of(text: &str) -> &str {
-    text.split_once('[')
-        .and_then(|(_, rest)| rest.split_once(']'))
-        .map_or("plain", |(word, _)| word)
+    text.split('[')
+        .skip(1)
+        .filter_map(|rest| rest.split_once(']').map(|(word, _)| word))
+        .find(|word| !word.starts_with("slot "))
+        .unwrap_or("plain")
 }
 
 /// THE STAND-IN DOOR: in a run of the tests it returns at once; started by a test's runner, with the record directory
@@ -170,10 +175,11 @@ fn message(id: &str, words: &str) -> Value {
     })
 }
 
-/// The text of `message` as a request must hold it.
+/// The text of `message` as a request must hold it: the mark of the listed senders in the place of the sender, and
+/// its subject and its body, which hold no text of a slot of the load.
 fn text_of(message: &Value) -> String {
     format!(
-        "From: {SENDER}\nSubject: {}\n{}",
+        "From: [slot reply_senders]\nSubject: {}\n{}",
         message["subject"].as_str().unwrap_or(""),
         message["body"]["content"].as_str().unwrap_or("")
     )
@@ -735,7 +741,8 @@ fn trial(path: &str) -> String {
 
 /// Sentence 1: the body of a reply is the writer model's text, asked through `ask` alone: one request line for each
 /// message, with the trial's boundary text whole as its `system`, the trial's goal text of a reply with its end
-/// trimmed as its `prompt`, the message's sender, subject and body as its `snapshot` and nothing else of the mail,
+/// trimmed as its `prompt`, the mark of the listed senders and the message's subject and body as its `snapshot` and
+/// nothing else of the mail,
 /// the grammar `text` and the pick's level `medium`, a hold before it and a settle behind it; the draft's PATCH and
 /// the card hold the model's text with the source `model`. A message whose text would make the line pass the door's
 /// bound is cut at its last line end that fits, so that the hold names what the door would send.
@@ -1180,6 +1187,41 @@ fn with_no_writer_no_agreement_or_the_cap_reached_the_body_is_the_const_text_and
             .map(|s| s.contains("Monday")),
         Some(true)
     );
+    assert_eq!(
+        mailbox.patches(),
+        [
+            ("draft-m1".to_owned(), constant()),
+            ("draft-m2".to_owned(), PLAIN.to_owned())
+        ]
+    );
+    assert_eq!(
+        seen.cards(),
+        [vec![
+            (constant(), Source::Const),
+            (PLAIN.to_owned(), Source::Model)
+        ]]
+    );
+}
+
+/// The coordinator's log line 22541 (3): a body that the writer model wrote and that holds a mark of the mask is no
+/// body: the first message's draft and the card get the const text with `const`, and the second message's body is the
+/// model's text.
+#[test]
+fn u72b_a_written_body_that_holds_a_mark_gives_the_const_text() {
+    let dir = scratch("a-mark-in-a-body");
+    let record = halvo_test_dir::make(&dir, "record").expect("the record directory");
+    let mailbox = Mailbox::start(vec![
+        message("m1", "Who will you write to? [marked]"),
+        message("m2", "Can we meet on Friday? [plain]"),
+    ]);
+    let seen = run_once(&Setup::allowed(), &mailbox, &record);
+    println!(
+        "a mark in a written body: request lines {} patches {:?} cards {:?}",
+        request_lines(&record).len(),
+        mailbox.patches(),
+        seen.cards()
+    );
+    assert_eq!(request_lines(&record).len(), 2);
     assert_eq!(
         mailbox.patches(),
         [

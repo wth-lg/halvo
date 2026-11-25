@@ -102,6 +102,12 @@ pub(crate) trait Page: Send {
     fn stop(self: Box<Self>) -> bool;
     /// The reading of A6.4: the strongest sign of a credential field that the page shows (A8.2), none for none.
     fn sign(&mut self) -> Result<Option<Sign>, ()>;
+    /// The page's lines in the form of A11.1, the top document's and those of every frame in it, for the request
+    /// of a compile to its model (crate::compile); a fault where they cannot be read. The stand-ins of the unit tests
+    /// of crate::handback, crate::session and crate::web::maker take the default, a page that cannot be read.
+    fn snapshot(&mut self) -> Result<Vec<cdp::SnapshotLine>, ()> {
+        Err(())
+    }
     /// The second reading (r3 U5.14), made after a web step that failed alone: whether the page shows a link or a
     /// button that asks for a sign-in by its name (halvo-web's `Executor::asks_for_a_sign_in`). The stand-ins of the
     /// unit tests of crate::session and crate::web::maker take the default, a page that asks for none.
@@ -571,6 +577,35 @@ fn of_the_page(request: &PausedRequest) -> bool {
     !request.frame.is_empty()
 }
 
+/// The origin of the bindings of `loaded` to which a state-changing request of the run's page went that the rule
+/// failed, where every request of the page that the rule failed is such a request (r3 U7.2b, (d1)); none where the rule
+/// failed none, and none where it failed a load or a request to another origin, which stays the refusal `origin`. A
+/// method other than GET, HEAD and OPTIONS changes state; an origin of the bindings is compared in the form in which
+/// the rule's record writes a request's origin (`rule_origin`: no port where the port is the scheme's own).
+fn a_bound_origin_whose_change_failed(
+    record: &[PausedRequest],
+    loaded: &LoadReply,
+) -> Option<WebOrigin> {
+    let origins = loaded.bindings.as_ref().map_or(&[][..], |b| &b.origins[..]);
+    let bound = |request: &PausedRequest| {
+        origins
+            .iter()
+            .find(|origin| rule_origin(origin) == request.origin)
+            .cloned()
+    };
+    let refused: Vec<&PausedRequest> = record
+        .iter()
+        .filter(|request| failed(request) && of_the_page(request))
+        .collect();
+    let changes = |request: &PausedRequest| {
+        !matches!(request.method.as_str(), "GET" | "HEAD" | "OPTIONS") && bound(request).is_some()
+    };
+    match refused.first() {
+        Some(first) if refused.iter().all(|request| changes(request)) => bound(first),
+        _ => None,
+    }
+}
+
 /// Whether the rule failed a request of the run's page (A9.2). A request of the browser's own level that the rule
 /// failed stays failed, and nothing of it left, but it sets no outcome: the person's site never made it.
 fn refused_by_the_page(requests: &[PausedRequest]) -> bool {
@@ -886,6 +921,11 @@ impl Page for Live {
         told("sign", self.runtime.block_on(executor.sign()))
     }
 
+    fn snapshot(&mut self) -> Result<Vec<cdp::SnapshotLine>, ()> {
+        let executor = &mut self.executor;
+        told("snapshot", self.runtime.block_on(executor.snapshot()))
+    }
+
     fn asks_for_a_sign_in(&mut self) -> Result<bool, ()> {
         let executor = &mut self.executor;
         told(
@@ -1111,6 +1151,12 @@ impl Runner {
                 if !asked && self.asked_at_a_failure(loaded, step.n)? {
                     asked = true;
                     continue;
+                }
+            }
+            if self.compiling && matches!(act, Act::Click(_) | Act::Press(..)) {
+                if let Some(origin) = a_bound_origin_whose_change_failed(&record, loaded) {
+                    self.effect_origin = Some(origin);
+                    return Ok(());
                 }
             }
             if let (Some((name, parse)), Some(value)) = (as_parsed, end_of_step(done, &record)?) {

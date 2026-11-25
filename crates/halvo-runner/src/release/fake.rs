@@ -42,6 +42,8 @@ struct Fake {
     /// `propose` have been read: a maker whose class changes, for the one test of a batch's `refuse`.
     turns_to: Option<Bound>,
     proposed: Cell<bool>,
+    /// The senders that the maker's own list calls returned, for the facts of a fixed bound object (A9.3).
+    senders: Vec<String>,
 }
 
 struct Answers;
@@ -134,6 +136,7 @@ impl Paused for Fake {
         if self.submit || self.fixed.is_some() || !self.fixed_reads.is_empty() {
             return MakerFacts {
                 request_origin: Some(form_origin()),
+                senders: self.senders.clone(),
                 ..MakerFacts::default()
             };
         }
@@ -2137,4 +2140,110 @@ fn a_cleared_effect_whose_value_changes_at_every_read_ends_changed_after_two_tim
         stopped(&record),
         Some((LogEvent::Stopped, Some(Cause::Changed)))
     );
+}
+
+/// Runs the confirm path of `category` on a fake request whose one bound object is `bound`, with the form's origin
+/// bound and `senders` in the maker's facts; the record and the count of requests that left.
+fn run_fixed(category: Category, bound: Bound, senders: &[&str]) -> (Record, u32) {
+    let released = Arc::new(AtomicU32::new(0));
+    let fake = Fake {
+        released: Arc::clone(&released),
+        fixed: Some(bound),
+        senders: senders.iter().map(|s| (*s).to_owned()).collect(),
+        ..Fake::default()
+    };
+    let record = run_path(
+        category,
+        (vec![form_origin()], Vec::new()),
+        Box::new(fake),
+        Plan::plain(),
+    );
+    (record, released.load(Ordering::SeqCst))
+}
+
+/// The bound object of the bill's payment with the amount from `amount_from`.
+fn payment(amount_from: Source) -> Bound {
+    let origin = form_origin();
+    Bound::new(
+        ActionClass::Payment,
+        vec![
+            field(FieldName::Payee, Source::Slot, None, "City Water Board"),
+            field(
+                FieldName::Amount,
+                amount_from,
+                Some(origin.clone()),
+                "42.00",
+            ),
+            field(
+                FieldName::Instrument,
+                Source::Slot,
+                None,
+                "Card ending 4242",
+            ),
+            field(FieldName::Origin, Source::Const, None, origin.as_str()),
+        ],
+    )
+    .expect("a bound object")
+}
+
+/// A9.7 `refusal_model_money`: a bound `amount` with the source `model`. `admit` answers `provenance` at the first
+/// read: no `propose`, nothing leaves, and the run ends with that cause. The way through: the same payment with the
+/// amount from an extract of the bound origin leaves once.
+#[test]
+fn refusal_model_money() {
+    let (refused, refused_left) =
+        run_fixed(Category::UtilityBillPayment, payment(Source::Model), &[]);
+    let (through, through_left) =
+        run_fixed(Category::UtilityBillPayment, payment(Source::Extract), &[]);
+    println!(
+        "model_money: model left {refused_left} stopped {:?}; extract left {through_left}",
+        stopped(&refused)
+    );
+    assert_eq!(refused_left, 0);
+    assert!(refused.states().is_empty(), "no propose row");
+    assert_eq!(
+        stopped(&refused),
+        Some((LogEvent::Stopped, Some(Cause::Provenance)))
+    );
+    assert_eq!(through_left, 1);
+    let _ = through;
+}
+
+/// The bound object of a reply to `to`.
+fn reply_to(to: &str) -> Bound {
+    Bound::new(
+        ActionClass::Send,
+        vec![
+            field(FieldName::To, Source::Extract, None, to),
+            field(FieldName::Subject, Source::Extract, None, "Re: your bill"),
+            field(FieldName::Body, Source::Const, None, "Thank you."),
+        ],
+    )
+    .expect("a bound object")
+}
+
+/// A9.7 `refusal_injected_recipient` (`inject_mail`): a message's body tells the agent to send its reply to another
+/// address. A reply whose `to` is no sender of the facts (the senders that the maker's own list call returned) is
+/// refused by `admit` with `provenance` before anything leaves, and no message to the other address is sent. The way
+/// through: the reply to the message's own sender leaves once.
+#[test]
+fn refusal_injected_recipient() {
+    let sender = "alice@mail.agent.test";
+    let (refused, refused_left) = run_fixed(
+        Category::Email,
+        reply_to("collector@evil.agent.test"),
+        &[sender],
+    );
+    let (_, through_left) = run_fixed(Category::Email, reply_to(sender), &[sender]);
+    println!(
+        "injected_recipient: to the other address left {refused_left} stopped {:?}; to the sender left {through_left}",
+        stopped(&refused)
+    );
+    assert_eq!(refused_left, 0);
+    assert!(refused.states().is_empty(), "no propose row");
+    assert_eq!(
+        stopped(&refused),
+        Some((LogEvent::Stopped, Some(Cause::Provenance)))
+    );
+    assert_eq!(through_left, 1);
 }

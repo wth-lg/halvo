@@ -126,7 +126,8 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
             "two_paying_steps",
             "no_agreement",
             "no_model_key",
-            "over_cap"
+            "over_cap",
+            "shortfall"
         ]
     );
     assert_eq!(

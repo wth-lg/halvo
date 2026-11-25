@@ -1,14 +1,17 @@
 //! The writer of a reply's body (r3 U7.4; contracts A11.4, A12.4, A12.7, A13.6). The draft step of a reply asks it
 //! for the body of each message that the list kept, in the list's order and before the first draft, and the draft
 //! and the send's card take that body whole with its source. The body is the writer model's text, asked through
-//! `ask` (crate::model::ask) and through nothing else, and cut at `reply_body` by `cut`, where all of these hold: the
-//! router's `pick` for the kind `write` names the run's own tier (crate::route); the person agreed to that tier
-//! (`Runner::agreed`); no earlier body of the step ended the writer; and the model's answer is a reply whose cut
-//! leaves a body of at most `BODY_JSON_MAX` bytes of JSON. In every other case the body is the const text of A11.4
-//! with the source `const`: a pick that hands the call back or names another tier, and a missing agreement, ask
-//! nothing (no hold, no key, no door); the person's cap (`over_cap`) and an agreement taken back at the hold
-//! (`no_agreement`) end the writer for the rest of the step; a refusal of the door, a cut that leaves no body and a
-//! body over the bound give the const text for that message. A message whose own newest row is `drafted` with its
+//! `ask` (crate::model::ask) and through nothing else, with the router's pick for the kind `write` (crate::route's
+//! `picked`), and cut at `reply_body` by `cut`, where all of these hold: the router's `pick` for the kind `write`
+//! names the run's own tier (crate::route); the person agreed to that tier (`Runner::agreed`); no earlier body of the
+//! step ended the writer; and the model's answer is a reply whose cut leaves a body of at most `BODY_JSON_MAX` bytes
+//! of JSON that holds no mark of the mask (`holds_a_mark` of crate::model::snapshot). The request's snapshot is the
+//! message in the form of `Snapshot::of_a_message`: the From line the mark of the listed senders, never an address,
+//! and the subject and the body masked. In every other case the body is the const text of A11.4 with the source
+//! `const`: a pick that hands the call back or names another tier, and a missing agreement, ask nothing (no hold, no
+//! key, no door); the person's cap (`over_cap`) and an agreement taken back at the hold (`no_agreement`) end the
+//! writer for the rest of the step; a refusal of the door, a cut that leaves no body, a body over the bound and a body
+//! that holds a mark give the const text for that message. A message whose own newest row is `drafted` with its
 //! draft, a draft of an earlier run that waits, gets no second body: no request, the const text. A missing key
 //! (`no_model_key`) and every other end of `ask` end the run as `ask` says, before any draft.
 
@@ -18,7 +21,8 @@ use halvo_schema::executable::names::Source;
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{Cause, Outcome};
 
-use super::ask::{self, Answer, Grammar, ModelRequest};
+use super::ask::{self, Answer, Grammar, Level, ModelRequest};
+use super::snapshot::{holds_a_mark, Snapshot};
 use super::texts::BOUNDARY;
 use super::Hosted;
 use crate::route::{self, Call};
@@ -100,41 +104,29 @@ pub(crate) fn json_bytes(body: &str) -> usize {
     2 + strings + pieces.len().saturating_sub(1)
 }
 
-/// The text of `message` that a request holds (A12.7): its sender, its subject and its body, in the form of the trial's
-/// `message_text`, and nothing else of the mail.
-fn message_text(message: &Message) -> String {
-    format!(
-        "From: {}\nSubject: {}\n{}",
-        message.sender(),
-        message.subject(),
-        message.body()
-    )
-}
-
-/// `request` with its snapshot cut so that its line fits `LINE_MAX` bytes at the longest id: the snapshot up to its
-/// last line end at which the line fits, the lines before it kept whole, as the door cuts its own body.
-fn fitted(mut request: ModelRequest) -> ModelRequest {
-    let fits = |request: &ModelRequest| ask::request_line(u64::MAX, request).len() <= LINE_MAX;
+/// `request` with its snapshot cut so that its line fits `LINE_MAX` bytes at the longest id and the level `level`: the
+/// snapshot's first lines, as many as fit, kept whole, as the door cuts its own body.
+fn fitted(mut request: ModelRequest, level: Level) -> ModelRequest {
+    let fits =
+        |request: &ModelRequest| ask::request_line(u64::MAX, request, level).len() <= LINE_MAX;
     if fits(&request) {
         return request;
     }
-    let data = request.snapshot.take().unwrap_or_default();
-    let mut ends = vec![0];
-    ends.extend(data.match_indices('\n').map(|(at, _)| at));
-    let with = |end: usize| ModelRequest {
-        snapshot: Some(data[..end].to_owned()),
+    let whole = request.snapshot.take();
+    let with = |count: usize| ModelRequest {
+        snapshot: whole.as_ref().map(|snapshot| snapshot.first_lines(count)),
         ..request.clone()
     };
-    let (mut low, mut high) = (0, ends.len());
+    let (mut low, mut high) = (0, whole.as_ref().map_or(0, Snapshot::line_count));
     while high - low > 1 {
         let middle = (low + high) / 2;
-        if fits(&with(ends[middle])) {
+        if fits(&with(middle)) {
             low = middle;
         } else {
             high = middle;
         }
     }
-    with(ends[low])
+    with(low)
 }
 
 impl Runner {
@@ -150,7 +142,7 @@ impl Runner {
         if waits || writer.ended {
             return Ok(Body::constant());
         }
-        let Ok(level) = route::level(loaded, Call::Write) else {
+        let Ok(picked) = route::picked(loaded, Call::Write) else {
             return Ok(Body::constant());
         };
         let tier = loaded.config.tier;
@@ -164,16 +156,22 @@ impl Runner {
                 next_line: 1,
             });
         }
-        let request = fitted(ModelRequest {
-            system: BOUNDARY.to_owned(),
-            prompt: GOAL_REPLY.trim_end().to_owned(),
-            snapshot: Some(message_text(message)),
-            grammar: Grammar::Text,
-            level,
-        });
-        match self.ask(&request) {
+        let request = fitted(
+            ModelRequest {
+                system: BOUNDARY.to_owned(),
+                prompt: GOAL_REPLY.trim_end().to_owned(),
+                snapshot: Some(Snapshot::of_a_message(
+                    message.subject(),
+                    message.body(),
+                    crate::compile::slots(loaded),
+                )),
+                grammar: Grammar::Text,
+            },
+            picked.level(),
+        );
+        match self.ask(&picked, &request) {
             Ok(Answer::Reply { text, .. }) => Ok(cut(&text)
-                .filter(|body| json_bytes(body) <= BODY_JSON_MAX)
+                .filter(|body| json_bytes(body) <= BODY_JSON_MAX && !holds_a_mark(body))
                 .map_or_else(Body::constant, |body| Body {
                     text: body.to_owned(),
                     source: Source::Model,

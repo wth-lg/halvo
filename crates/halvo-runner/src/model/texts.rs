@@ -6,15 +6,39 @@
 /// of every model request (A9.5).
 pub(crate) const BOUNDARY: &str = include_str!("../../prompts/boundary.txt");
 
+/// The goal text of the task bill, the category `utility_bill_payment` (A9.5): crates/halvo-runner/prompts/goal-bill.txt.
+pub(crate) const GOAL_BILL: &str = include_str!("../../prompts/goal-bill.txt");
+
+/// The goal text of the task order, the category `shop_order` (A9.5): crates/halvo-runner/prompts/goal-order.txt.
+pub(crate) const GOAL_ORDER: &str = include_str!("../../prompts/goal-order.txt");
+
 #[cfg(test)]
 mod tests {
-    use super::BOUNDARY;
+    use super::{BOUNDARY, GOAL_BILL, GOAL_ORDER};
 
     /// Each copy of the runner and the trial's file that it copies, by their paths from the workspace's root.
-    const COPIES: [(&str, &str); 1] = [(
-        "crates/halvo-runner/prompts/boundary.txt",
-        "tools/r3-trials/drive/prompts/boundary.txt",
-    )];
+    const COPIES: [(&str, &str); 5] = [
+        (
+            "crates/halvo-runner/prompts/boundary.txt",
+            "tools/r3-trials/drive/prompts/boundary.txt",
+        ),
+        (
+            "crates/halvo-runner/prompts/goal-bill.txt",
+            "tools/r3-trials/drive/prompts/goal-bill.txt",
+        ),
+        (
+            "crates/halvo-runner/prompts/goal-order.txt",
+            "tools/r3-trials/drive/prompts/goal-order.txt",
+        ),
+        (
+            "crates/halvo-runner/src/words.rs",
+            "tools/r3-trials/drive/src/words.rs",
+        ),
+        (
+            "crates/halvo-runner/src/action.rs",
+            "tools/r3-trials/drive/src/action.rs",
+        ),
+    ];
 
     #[test]
     fn u72b_the_texts_of_a_request_are_the_trials_byte_for_byte() {
@@ -30,5 +54,7 @@ mod tests {
             assert!(ours == theirs, "{copy} differs from {trial}");
         }
         assert_eq!(BOUNDARY.as_bytes(), read(COPIES[0].0));
+        assert_eq!(GOAL_BILL.as_bytes(), read(COPIES[1].0));
+        assert_eq!(GOAL_ORDER.as_bytes(), read(COPIES[2].0));
     }
 }

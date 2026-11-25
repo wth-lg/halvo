@@ -16,7 +16,9 @@ use halvo_schema::executable::{Cause, ModelRequestId, Outcome, RunnerCall};
 use halvo_web::start::{start_on_stdio, Spec, Started};
 
 use super::handed_back;
+use super::snapshot::Snapshot;
 use crate::clock::random16;
+use crate::route::{Call, Picked};
 use crate::run::{cause_of, Runner, Stop};
 
 /// The door's program, beside the runner's own executable.
@@ -70,13 +72,6 @@ impl std::fmt::Debug for Key {
 }
 
 /// The grammar of a request line (A12.2): an action, or a text.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the writer of r3 U7.4 asks with Text alone; no shipped build asks with Action until r3 U7.2b's compile"
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Grammar {
     Action,
@@ -92,7 +87,8 @@ impl Grammar {
     }
 }
 
-/// The level of a request line (A12.2), which the door sends as the host's effort.
+/// The level of a request line (A12.2), which the door sends as the host's effort: the level that the router's pick
+/// chose (crate::route::Picked).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Level {
     Low,
@@ -110,15 +106,16 @@ impl Level {
     }
 }
 
-/// One request of a run to its model: the texts and words of a request line of A12.2 but its id, which `ask` counts.
-/// What the texts may hold is the duty of the caller (A12.7).
+/// One request of a run to its model: the texts and words of a request line of A12.2 but its id, which `ask` counts,
+/// and its level, which `ask` reads from the router's pick (crate::route::Picked).
+/// What the texts may hold is the duty of the caller (A12.7), but for the snapshot, which is a `Snapshot` that the
+/// mask alone makes, from a page's lines or from a message's text (crate::model::snapshot, r3 U7.2b).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ModelRequest {
     pub(crate) system: String,
     pub(crate) prompt: String,
-    pub(crate) snapshot: Option<String>,
+    pub(crate) snapshot: Option<Snapshot>,
     pub(crate) grammar: Grammar,
-    pub(crate) level: Level,
 }
 
 /// The door's line for a request: the model's text with the tokens that the host reported, or a refusal with its
@@ -236,20 +233,20 @@ fn door_env() -> Option<Vec<(OsString, OsString)>> {
     Some(env)
 }
 
-/// The request line of A12.2 for `request` with the id `id`: one JSON object of the six keys in the contract's
-/// order.
-pub(super) fn request_line(id: u64, request: &ModelRequest) -> String {
+/// The request line of A12.2 for `request` with the id `id` at the level `level`: one JSON object of the six keys in
+/// the contract's order.
+pub(super) fn request_line(id: u64, request: &ModelRequest, level: Level) -> String {
     let text = |s: &str| serde_json::Value::String(s.to_owned()).to_string();
     let snapshot = request
         .snapshot
-        .as_deref()
-        .map_or_else(|| "null".to_owned(), text);
+        .as_ref()
+        .map_or_else(|| "null".to_owned(), |snapshot| text(snapshot.text()));
     format!(
         "{{\"id\":{id},\"system\":{},\"prompt\":{},\"snapshot\":{snapshot},\"grammar\":\"{}\",\"level\":\"{}\"}}",
         text(&request.system),
         text(&request.prompt),
         request.grammar.word(),
-        request.level.word()
+        level.word()
     )
 }
 
@@ -354,15 +351,26 @@ impl Runner {
     /// request line and reads one line. (4) Settles the hold by the body `model_settle` at `usage_of`, the one branch
     /// of the settle, also where the request failed or the key's read ended the run. A run that holds no hosted
     /// model asks nothing and ends `handed_back` with `no_agreement`. A request that got no answer ends the run
-    /// `failed` with `step_failed` after its settle.
-    pub(crate) fn ask(&mut self, request: &ModelRequest) -> Result<Answer, Stop> {
+    /// `failed` with `step_failed` after its settle. `ask` takes the router's pick for the request (`picked`, which
+    /// crate::route's `picked` alone makes, so that a caller that did not pick does not compile) and reads the request
+    /// line's level from it; a pick of a tier other than the run's hosted tier, and a pick for a kind of call whose
+    /// grammar is not the request's (a compile asks in the grammar `action`, a writer in the grammar `text`), end the
+    /// run `failed` with `step_failed` before the hold, and the hold and the door keep the run's hosted tier.
+    pub(crate) fn ask(&mut self, picked: &Picked, request: &ModelRequest) -> Result<Answer, Stop> {
         let Some(hosted) = self.hosted.as_mut() else {
             return Err(handed_back(Cause::NoAgreement));
         };
+        let grammar_of_the_call = match picked.call() {
+            Call::Compile => Grammar::Action,
+            Call::Write => Grammar::Text,
+        };
+        if picked.tier() != hosted.tier || request.grammar != grammar_of_the_call {
+            return Err(Stop::End(Outcome::Failed, Some(Cause::StepFailed)));
+        }
         let id = hosted.next_line;
         hosted.next_line += 1;
         let tier = hosted.tier;
-        let line = request_line(id, request);
+        let line = request_line(id, request, picked.level());
         let body_bytes = line.len() as u64;
         let held = ModelRequestId::from_random(random16());
         let hold = RunnerCall::ModelHold(ModelHold {

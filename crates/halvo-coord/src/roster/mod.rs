@@ -25,7 +25,7 @@ use crate::words;
 /// run that ended with a cause of the failure class, said by the sentence of the facts'
 /// `last_cause` where they hold one that a row says for the agent's runtime (`FILE_CAUSES` for
 /// the runtime file alone, r4 U3.22a), a last run that ended `handed_back` with a cause of
-/// `MODEL_CAUSES`, said by the sentence of that cause (r3 U7.2a), for a run that paid or ordered
+/// `MODEL_CAUSES`, said by the sentence of that cause (r3 U7.2a, r3 U7.2b), for a run that paid or ordered
 /// with the class of the agent's category (`StatusLine::Paid`, r4 U3.29), or that its answers are
 /// saved where a set-up's answers
 /// were stored behind that run's end (r4 U3.22a), and the end of the last run. A day with
@@ -152,13 +152,15 @@ fn answered_since_the_last_end<C>(facts: &Facts<C>) -> bool {
 }
 
 /// The causes of a run that handed its work back before anything was sent to a model's host (the agents run's units
-/// r3 U7.2a and r3 U7.4): the person has not allowed the model, no key is saved, or the person's spending limit is
-/// reached. A row says the sentence of such a cause for a last run that ended `handed_back` (the coordinator's log
-/// line 22216); every other handed-back run keeps the row line of a run that stopped early.
-pub const MODEL_CAUSES: [LastCause; 3] = [
+/// r3 U7.2a, r3 U7.4 and r3 U7.2b): the person has not allowed the model, no key is saved, the person's spending limit
+/// is reached, or the router does not let the model that the agent may use do its task (`shortfall`). A row says the
+/// sentence of such a cause for a last run that ended `handed_back` (the coordinator's log line 22216); every other
+/// handed-back run keeps the row line of a run that stopped early.
+pub const MODEL_CAUSES: [LastCause; 4] = [
     LastCause::NoAgreement,
     LastCause::NoModelKey,
     LastCause::OverCap,
+    LastCause::Shortfall,
 ];
 
 /// The causes of a failed run of the runtime file whose sentence a row says for an agent of that

@@ -249,7 +249,9 @@ names! {
     /// first step (r3 U5.10-S). Three names end a run `handed_back` before anything is sent to a model's host
     /// (r3 U7.2a), each in the run's `stopped` line and in no row of an effect: `no_agreement`, the person has not
     /// allowed the agent's hosted model; `no_model_key`, no key for the model's host is stored; `over_cap`, the hold
-    /// of a model request does not fit the person's cap.
+    /// of a model request does not fit the person's cap. One name ends a run `handed_back` where the router lets no
+    /// model request of it leave (r3 U7.2b), in the run's `stopped` line and in no row of an effect: `shortfall`, the
+    /// router's pick hands the call back or picks a tier other than the agent's own.
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -306,6 +308,7 @@ names! {
         NoAgreement = "no_agreement",
         NoModelKey = "no_model_key",
         OverCap = "over_cap",
+        Shortfall = "shortfall",
     }
 }
 

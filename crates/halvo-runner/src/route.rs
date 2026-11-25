@@ -22,17 +22,46 @@ use halvo_schema::SeedCategory;
 use crate::model::ask;
 
 /// The kind of a run's model request: the next action of a compile, or the body of a reply.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "no shipped code makes the variant Compile; r3 U7.2b makes it live"
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Call {
     Compile,
     Write,
+}
+
+/// What the router's pick chose for one model request of a run: the kind of the call, the run's own tier and the level
+/// of the request. `picked` alone makes it, since its fields are private to this module, and `ask` takes it
+/// (crate::model::ask), so that a caller that did not pick does not compile; `ask` reads the request's level from it
+/// and from nowhere else, and holds the request's grammar against its kind of call (the coordinator's ruling on the
+/// pick as a value).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Picked {
+    call: Call,
+    tier: ModelTier,
+    level: ask::Level,
+}
+
+impl Picked {
+    /// The kind of the call that the pick was made for, which `ask` holds against the request's grammar.
+    pub(crate) fn call(&self) -> Call {
+        self.call
+    }
+
+    /// The tier that the pick chose, which is always the run's own tier.
+    pub(crate) fn tier(&self) -> ModelTier {
+        self.tier
+    }
+
+    /// The level that the pick chose for the request.
+    pub(crate) fn level(&self) -> ask::Level {
+        self.level
+    }
+}
+
+/// The pick of a unit test's request, made by hand: in a test build alone, for the tests that ask with a kind of call,
+/// a tier and a level of their own through a run whose release policy hands every call back (crate::model's tests).
+#[cfg(test)]
+pub(crate) fn picked_for_a_test(call: Call, tier: ModelTier, level: ask::Level) -> Picked {
+    Picked { call, tier, level }
 }
 
 /// The router handed the call back, or picked a tier other than the run's own: the run sends no model request and
@@ -46,11 +75,12 @@ thread_local! {
     pub(crate) static TEST_POLICY: std::cell::Cell<Option<&'static Policy>> = const { std::cell::Cell::new(None) };
 }
 
-/// The level of the request of the kind `call` of a run whose load is `loaded`: the router's pick on the release
-/// policy, for the agent's category and `call`, with the agent's own tier as the ceiling. The pick's level where
-/// the pick's tier is the agent's own tier, the tier that the person allowed and the door is started with; else
-/// `Shortfall`, for a pick that hands the call back and for a pick of a lower tier.
-pub(crate) fn level(loaded: &LoadReply, call: Call) -> Result<ask::Level, Shortfall> {
+/// The pick for the request of the kind `call` of a run whose load is `loaded`, the one maker of `Picked`: the router's
+/// pick on the release policy, for the agent's category and `call`, with the agent's own tier as the ceiling. A
+/// `Picked` of `call`, that tier and the pick's level where the pick's tier is the agent's own tier, the tier that the
+/// person allowed and the door is started with; else `Shortfall`, for a pick that hands the call back and for a pick
+/// of a lower tier.
+pub(crate) fn picked(loaded: &LoadReply, call: Call) -> Result<Picked, Shortfall> {
     #[cfg(test)]
     let table = TEST_POLICY
         .with(std::cell::Cell::get)
@@ -63,10 +93,14 @@ pub(crate) fn level(loaded: &LoadReply, call: Call) -> Result<ask::Level, Shortf
         Call::Write => CallKind::Write,
     };
     match pick(table, category(loaded.config.category), kind, own) {
-        Pick::Tier { tier, level } if tier == own => Ok(match level {
-            Level::Low => ask::Level::Low,
-            Level::Medium => ask::Level::Medium,
-            Level::High => ask::Level::High,
+        Pick::Tier { tier, level } if tier == own => Ok(Picked {
+            call,
+            tier: loaded.config.tier,
+            level: match level {
+                Level::Low => ask::Level::Low,
+                Level::Medium => ask::Level::Medium,
+                Level::High => ask::Level::High,
+            },
         }),
         Pick::Tier { .. } | Pick::HandBack(_) | Pick::NoModel => Err(Shortfall),
     }
@@ -140,7 +174,7 @@ pub(crate) mod tests {
         Box::leak(Box::new(table))
     }
 
-    /// The level that `level` answers for a run of `category` at `tier` that asks for `call` on `table`.
+    /// The level of the pick that `picked` makes for a run of `category` at `tier` that asks for `call` on `table`.
     fn level_on(
         table: &'static Policy,
         category: Category,
@@ -148,7 +182,7 @@ pub(crate) mod tests {
         call: Call,
     ) -> Result<ask::Level, Shortfall> {
         TEST_POLICY.with(|cell| cell.set(Some(table)));
-        let answer = level(&loaded(category, tier), call);
+        let answer = picked(&loaded(category, tier), call).map(|pick| pick.level());
         TEST_POLICY.with(|cell| cell.set(None));
         answer
     }
@@ -243,5 +277,84 @@ pub(crate) mod tests {
             "{tiers:?}"
         );
         assert_eq!(tiers.len(), Tier::ALL.len());
+    }
+
+    /// The categories and kinds of call that read the limit `tokens` (A6.5: a compile and a step's recovery) for
+    /// which `table` picks a tier, among the categories whose row of halvo-policy's limits holds `model_tokens` 0: a
+    /// compile of such a category would end `limit` with `tokens` before its first request.
+    fn picked_with_no_tokens(table: &Policy) -> Vec<(&'static str, &'static str)> {
+        let mut picked = Vec::new();
+        for seed in SeedCategory::ALL {
+            if halvo_policy::LIMITS.of(*seed).model_tokens != 0 {
+                continue;
+            }
+            for kind in [CallKind::Compile, CallKind::Recover] {
+                if let Pick::Tier { .. } = pick(table, category(*seed), kind, Tier::Frontier) {
+                    picked.push((seed.as_str(), kind.as_str()));
+                }
+            }
+        }
+        picked
+    }
+
+    /// THE FACT of `model_tokens` 0 (the coordinator's log line 22546): the release policy picks no tier for a call
+    /// that reads `tokens` of a category whose limits give it no tokens, so a data unit that opens such a cell beside
+    /// a 0 fails here, and no person gets a compile that ends at once.
+    #[test]
+    fn u72b_no_call_that_reads_tokens_is_picked_for_a_category_with_no_tokens() {
+        let zero = SeedCategory::ALL
+            .iter()
+            .filter(|seed| halvo_policy::LIMITS.of(**seed).model_tokens == 0)
+            .count();
+        let picked = picked_with_no_tokens(policy());
+        println!(
+            "tokens: categories with model_tokens 0: {zero} of {}; picked calls that read tokens: {picked:?}",
+            SeedCategory::ALL.len()
+        );
+        assert_eq!(picked, Vec::<(&str, &str)>::new());
+    }
+
+    /// A test's probe of whether `T` has a default, or converts from `U`: the inherent const where the bound holds,
+    /// the trait's otherwise (the form of crate::model::snapshot's test of its type).
+    struct Probe<T, U>(std::marker::PhantomData<(T, U)>);
+
+    trait NoBuild {
+        const BUILDS: bool = false;
+    }
+
+    impl<T, U> NoBuild for Probe<T, U> {}
+
+    impl<T: From<U>, U> Probe<T, U> {
+        const BUILDS: bool = true;
+    }
+
+    struct Default_<T>(std::marker::PhantomData<T>);
+    impl<T> NoBuild for Default_<T> {}
+    impl<T: Default> Default_<T> {
+        const BUILDS: bool = true;
+    }
+
+    /// The pick is a value that `picked` alone makes: a value made by hand does not build as it. Its fields are
+    /// private to this module, so no struct literal of another module compiles (the compiler says it); and it has no
+    /// default and no conversion from what it carries, which this test reads.
+    #[test]
+    fn u72b_a_value_made_by_hand_does_not_build_as_the_pick() {
+        let builds = [
+            ("Default", Default_::<Picked>::BUILDS),
+            ("From<Call>", Probe::<Picked, Call>::BUILDS),
+            ("From<ModelTier>", Probe::<Picked, ModelTier>::BUILDS),
+            ("From<Level>", Probe::<Picked, ask::Level>::BUILDS),
+            (
+                "From<(Call, ModelTier, Level)>",
+                Probe::<Picked, (Call, ModelTier, ask::Level)>::BUILDS,
+            ),
+        ];
+        let control = [
+            ("String: Default", Default_::<String>::BUILDS),
+            ("String: From<&str>", Probe::<String, &str>::BUILDS),
+        ];
+        println!("the pick: {builds:?}; control: {control:?}");
+        assert!(builds.iter().all(|(_, b)| !b), "{builds:?}");
+        assert!(control.iter().all(|(_, b)| *b), "{control:?}");
     }
 }

@@ -296,6 +296,7 @@ record::run_list! { names_with_run_list
     "no_agreement",
     "no_model_key",
     "over_cap",
+    "shortfall",
     "not_made",
     "start_accepted",
     "message",
