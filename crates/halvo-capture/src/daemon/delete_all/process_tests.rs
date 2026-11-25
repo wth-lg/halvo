@@ -791,6 +791,7 @@ fn a_start_whose_retry_is_again_not_whole_sets_the_field_too() {
         input_keys: false,
         held: false,
         typing_off_unsaved: None,
+        search: None,
         left_out_in_doubt: false,
     };
     let facts = crate::daemon::server::RunFacts {

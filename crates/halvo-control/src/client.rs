@@ -121,7 +121,10 @@ impl Deadlines {
     pub fn of(&self, request: &Request) -> Duration {
         match request {
             Request::Status { .. } | Request::Inventory => self.read,
-            Request::Pause | Request::ResetSettings | Request::SetTyping { .. } => self.pause,
+            Request::Pause
+            | Request::ResetSettings
+            | Request::SetTyping { .. }
+            | Request::SetSearch { .. } => self.pause,
             Request::Resume => self.resume,
             Request::Stop => self.stop,
             Request::DeleteAll { .. } => self.delete_all,
@@ -399,6 +402,11 @@ impl<C: Connector> Client<C> {
     /// Turns the switch of keys and answers the status after the turn.
     pub fn set_typing(&self, on: bool) -> Result<DaemonStatus, ClientError> {
         self.status_reply(Request::SetTyping { on })
+    }
+
+    /// Turns the search for repeated tasks and answers the status after the turn.
+    pub fn set_search(&self, on: bool) -> Result<DaemonStatus, ClientError> {
+        self.status_reply(Request::SetSearch { on })
     }
 }
 
