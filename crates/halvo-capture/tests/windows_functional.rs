@@ -7855,6 +7855,11 @@ fn a_switch_records_a_title_only_by_the_gates_read_of_the_window_in_front() {
 /// The letters that the row of keys behind a switch sends in each part.
 const SWITCH_KEYS_LETTERS: usize = 3;
 
+/// How long the row of keys behind a switch waits for the gate's clock to
+/// pass the landing of the read behind a switch, which one tick of about
+/// 16 ms does.
+const SWITCH_KEYS_TICK_WAIT: Duration = Duration::from_secs(1);
+
 /// The test seam's gate marks and decided keys that the row of keys behind a
 /// switch took, in their order.
 #[derive(Default)]
@@ -7893,8 +7898,32 @@ impl SwitchSeen {
         (switch, read)
     }
 
-    /// One part's line: the switch and the read behind it, the newest read or
-    /// event before the part's first key, and the part's keys.
+    /// Waits, up to `bound`, until GetTickCount, the clock by which the gate
+    /// stamps its marks, has passed the landing tick of the read behind the
+    /// last switch from the mark `from`: the gate orders a mark of a key's own
+    /// tick after the key, so a letter sent in that tick is not decided beside
+    /// that read. Answers that landing tick and whether the clock passed it.
+    fn wait_past_the_read(&self, from: usize, bound: Duration) -> (Option<u32>, bool) {
+        let Some(landed) = self.switch_and_its_read(from).1.and_then(|read| read.at) else {
+            return (None, false);
+        };
+        let began = Instant::now();
+        loop {
+            // SAFETY: GetTickCount takes no argument and reads a counter.
+            let now = unsafe { GetTickCount() };
+            if (now.wrapping_sub(landed) as i32) > 0 {
+                return (Some(landed), true);
+            }
+            if began.elapsed() >= bound {
+                return (Some(landed), false);
+            }
+            std::thread::yield_now();
+        }
+    }
+
+    /// One part's line: the switch and the read behind it with the tick of
+    /// its landing, the part's first key with its tick and the difference, the
+    /// newest read or event before that key, and the part's keys.
     fn part_line(&self, part: &str, marks_from: usize, decided_from: usize) -> (String, usize) {
         let (switch, read) = self.switch_and_its_read(marks_from);
         let keys = &self.decided[decided_from.min(self.decided.len())..];
@@ -7912,10 +7941,12 @@ impl SwitchSeen {
             .iter()
             .filter(|key| key.verdict == seam::Verdict::Recorded)
             .count();
+        let landed = read.and_then(|mark| mark.at);
         let line = format!(
             "part={part} switch_seen={} read_behind_the_switch={} read_behind_the_switch_state={:?} \
-             read_behind_the_switch_ms={} newest_before_the_first_key={}:{:?} letters_decided={} \
-             letters_recorded={recorded} first_rule={:?}",
+             read_behind_the_switch_ms={} read_landing_tick={landed:?} first_key_tick={first_key:?} \
+             first_key_behind_the_read_landing_ms={:?} newest_before_the_first_key={}:{:?} \
+             letters_decided={} letters_recorded={recorded} first_rule={:?}",
             switch.is_some(),
             read.is_some(),
             read.and_then(|mark| mark.state),
@@ -7923,6 +7954,9 @@ impl SwitchSeen {
                 (Some(at), Some(mark)) => i64::from(mark.began.wrapping_sub(at) as i32),
                 _ => -1,
             },
+            landed
+                .zip(first_key)
+                .map(|(landed, key)| i64::from(key.wrapping_sub(landed) as i32)),
             newest.map_or("none", |mark| mark.what),
             newest.and_then(|mark| mark.state),
             keys.len(),
@@ -7953,7 +7987,11 @@ fn send_letters(count: usize) -> u32 {
 /// row waits for their records; (1) the window with the password edit in
 /// front, entered from the plain window, the gate reading Password, its title
 /// ask dropped and a read behind its switch, then letters: none is recorded,
-/// each by the rule of a password edit, and no title.
+/// each by the rule of a password edit, and no title. In each part the
+/// letters wait until the gate's clock has passed the tick at which the read
+/// behind the switch landed, since the gate orders a mark of a key's own tick
+/// after the key; each part's line prints that tick, the first key's tick and
+/// their difference.
 #[test]
 #[ignore = "functional: keys behind a switch alone are decided beside the read that the switch asks"]
 fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks() {
@@ -8015,6 +8053,7 @@ fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks()
                 break;
             }
         }
+        let (_, past_2) = seam_seen.wait_past_the_read(marks_of_part_2, SWITCH_KEYS_TICK_WAIT);
         let decided_of_part_2 = seam_seen.decided.len();
         let sent_2 = send_letters(SWITCH_KEYS_LETTERS);
         let began = Instant::now();
@@ -8051,6 +8090,7 @@ fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks()
                 break;
             }
         }
+        let (_, past_1) = seam_seen.wait_past_the_read(marks_of_part_1, SWITCH_KEYS_TICK_WAIT);
         let decided_of_part_1 = seam_seen.decided.len();
         let sent_1 = send_letters(SWITCH_KEYS_LETTERS);
         let began = Instant::now();
@@ -8087,7 +8127,8 @@ fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks()
             format!(
                 "keyboard_start={} title_start={} keyboard_stop={} title_stop={} \
                  lead_in_front={lead_in_front} lead_settled={lead_settled} ready_2={ready_2} \
-                 ready_1={ready_1} sent_2={sent_2} decided_2={decided_2} records_2={records_2} \
+                 past_the_read_2={past_2} ready_1={ready_1} past_the_read_1={past_1} \
+                 sent_2={sent_2} decided_2={decided_2} records_2={records_2} \
                  sent_1={sent_1} decided_1={decided_1} rules_1={rules_1:?} \
                  keystroke_records_after_part_2={keystrokes_after_part_2} \
                  keystroke_records_at_the_end={keystrokes_at_the_end} \
@@ -8110,8 +8151,9 @@ fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks()
             "the sources must start"
         );
         assert!(
-            ready_2 && sent_2 == events_sent && decided_2 == letters,
-            "part (2): state {ready_2}, sent {sent_2}, decided {decided_2}: {line_2}"
+            ready_2 && past_2 && sent_2 == events_sent && decided_2 == letters,
+            "part (2): state {ready_2}, past the read {past_2}, sent {sent_2}, decided \
+             {decided_2}: {line_2}"
         );
         assert!(
             recorded_2 == letters && records_2 && keystrokes_after_part_2 == letters,
@@ -8119,8 +8161,9 @@ fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks()
              recorded: {line_2}"
         );
         assert!(
-            ready_1 && sent_1 == events_sent && decided_1 == letters,
-            "part (1): state {ready_1}, sent {sent_1}, decided {decided_1}: {line_1}"
+            ready_1 && past_1 && sent_1 == events_sent && decided_1 == letters,
+            "part (1): state {ready_1}, past the read {past_1}, sent {sent_1}, decided \
+             {decided_1}: {line_1}"
         );
         assert!(
             recorded_1 == 0
