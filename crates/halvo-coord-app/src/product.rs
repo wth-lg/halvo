@@ -2544,7 +2544,7 @@ mod tests {
         }
     }
 
-    /// r4 U3.22a at its take-in (the coordinator's log lines 18826 and 18902): each of the fifteen causes whose
+    /// r4 U3.22a at its take-in (the coordinator's log lines 18826 and 18902): each of the sixteen causes whose
     /// sentence a row says for an agent of the runtime file (`roster::FILE_CAUSES`) is a name of the agent store's
     /// closed list of causes, read by halvo-schema's own parse of that list; the test names each that the list lacks.
     #[test]
