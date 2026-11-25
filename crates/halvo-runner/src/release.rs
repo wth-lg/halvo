@@ -10,7 +10,8 @@ use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::WebOrigin;
 use halvo_schema::executable::{
-    ActionClass, AgentConfig, Bound, Cause, EffectState, FromRunner, Outcome, ReplyState, ToRunner,
+    ActionClass, AgentConfig, Bound, Cause, EffectId, EffectState, FromRunner, Outcome, ReplyState,
+    ToRunner,
 };
 
 use crate::connect::slot;
@@ -156,10 +157,11 @@ pub(crate) trait Left {
 /// and (2), and 15717), with the amount that the step's `stopped` row holds: `page_unread` where the page could not
 /// be read; `amount_unread` where it names no amount; `amount_differs` where it names an amount that is not the kept
 /// `amount` of `bound`, each amount read in minor units by `extract_amount`, with the first such amount that the page
-/// names, none where it does not fit the row's count; none where every amount that it names is the kept one.
-fn amount_cause(bound: &Bound, named: &Result<Vec<u64>, ()>) -> (Option<Cause>, Option<u32>) {
+/// names, none where it does not fit the row's count; `amount_matched` where every amount that it names is the kept
+/// one (r3 U5.10-P, the coordinator's ruling of log line 20577).
+fn amount_cause(bound: &Bound, named: &Result<Vec<u64>, ()>) -> (Cause, Option<u32>) {
     let Ok(named) = named else {
-        return (Some(Cause::PageUnread), None);
+        return (Cause::PageUnread, None);
     };
     let kept = bound
         .fields()
@@ -167,11 +169,11 @@ fn amount_cause(bound: &Bound, named: &Result<Vec<u64>, ()>) -> (Option<Cause>, 
         .find(|f| f.name == FieldName::Amount)
         .and_then(|f| halvo_web::extract_amount(&f.value.joined()));
     if named.is_empty() {
-        return (Some(Cause::AmountUnread), None);
+        return (Cause::AmountUnread, None);
     }
     match named.iter().find(|n| Some(**n) != kept) {
-        Some(other) => (Some(Cause::AmountDiffers), u32::try_from(*other).ok()),
-        None => (None, None),
+        Some(other) => (Cause::AmountDiffers, u32::try_from(*other).ok()),
+        None => (Cause::AmountMatched, None),
     }
 }
 
@@ -365,8 +367,9 @@ impl Runner {
     /// (`after_the_reply`, r3 U5.10-B): for a `payment` or a `purchase`, a page that could not be read writes
     /// `page_unread` and one that names another amount than the kept `amount` writes `amount_differs` with that amount,
     /// each in the step's `stopped` row, the effect staying `committed`, and the run makes no further step and ends
-    /// `failed` with that cause; one that names no amount writes `amount_unread` and the run goes on (the coordinator's
-    /// rulings of log lines 14717, points (1) and (2), and 15717). Then a request of the page that the rule failed
+    /// `failed` with that cause; one that names no amount writes `amount_unread`, and one that names the kept amount
+    /// alone `amount_matched`, and the run goes on (the coordinator's rulings of log lines 14717, points (1) and (2),
+    /// 15717 and 20577). That row names the effect (r3 U5.10-P). Then a request of the page that the rule failed
     /// ends the run `refused` with `origin` (A9.2), and a condition `post` of the step that does not hold writes
     /// `step_failed` for the step and ends the run `failed`.
     pub(crate) fn release(&mut self, requests: Vec<Box<dyn Paused>>) -> Result<(), Stop> {
@@ -470,23 +473,30 @@ impl Runner {
         self.reply_row(&reply.message, state, Some(&reply.draft), Some(&effect))
     }
 
-    /// The ends that the read of the page after a made reply gives, in this order (r3 U5.10-B): where `amounts`, the
-    /// cause of `amount_cause` in the `stopped` row of `step` with its amount, after which `page_unread` and
-    /// `amount_differs` end the run `failed`; a request of the page that the rule failed ends it `refused` with
-    /// `origin` (A9.2); a condition `post` that does not hold writes `step_failed` for `step` and ends it `failed`.
+    /// The ends that the read of the page after a made reply of the effect `effect` gives, in this order (r3 U5.10-B):
+    /// where `amounts`, the cause of `amount_cause` in the `stopped` row of `step` with its amount and the effect's id
+    /// (r3 U5.10-P), after which `page_unread` and `amount_differs` end the run `failed`; a request of the page that
+    /// the rule failed ends it `refused` with `origin` (A9.2); a condition `post` that does not hold writes
+    /// `step_failed` for `step` and ends it `failed`.
     fn after_the_reply(
         &mut self,
         step: Option<NonZeroU32>,
         bound: &Bound,
         amounts: bool,
         after: &PageAfter,
+        effect: EffectId,
     ) -> Result<(), Stop> {
         if amounts {
-            if let (Some(cause), page_amount) = amount_cause(bound, &after.amounts) {
-                self.log_amount(LogEvent::Stopped, step, Some(cause), page_amount)?;
-                if cause != Cause::AmountUnread {
-                    return Err(failed(cause));
-                }
+            let (cause, page_amount) = amount_cause(bound, &after.amounts);
+            self.log_amount(
+                LogEvent::Stopped,
+                step,
+                Some(cause),
+                page_amount,
+                Some(effect),
+            )?;
+            if matches!(cause, Cause::AmountDiffers | Cause::PageUnread) {
+                return Err(failed(cause));
             }
         }
         if after.refused {
@@ -599,7 +609,8 @@ impl Runner {
                         self.reply_moved(one.at, reply.as_ref(), ReplyState::Committed)?;
                         let amounts = matches!(class, ActionClass::Payment | ActionClass::Purchase);
                         let after = page.map_or_else(PageAfter::of_no_page, |read| read(amounts));
-                        self.after_the_reply(step, &now, amounts, &after)?;
+                        let effect = self.effects[one.at].id().clone();
+                        self.after_the_reply(step, &now, amounts, &after, effect)?;
                         Ok(Through::Left)
                     }
                     Replied::NotMade(case) => {

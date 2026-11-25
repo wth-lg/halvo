@@ -113,9 +113,11 @@ pub const THINK_CLOSE: &str = "</think>";
 /// The body of a reply (ruling CP-179 (6) (a)): the output from the end of its last closing mark
 /// on, trimmed of white space, or the whole output when it holds no mark. None when an opening mark
 /// has no closing mark after it, when a mark is left after the cut, or when the output's count of
-/// tokens equals the level's `reply_tokens`, because the limit cut it.
-pub fn body_of(output: &str, tokens_out: u64, reply_tokens: u64) -> Option<&str> {
-    if tokens_out == reply_tokens {
+/// tokens equals `reply_tokens`, the level's bound of a child that reads no stop reason, because the
+/// limit cut it. The hosted round passes none (r3 U0.8b): there the door refuses an answer that its
+/// limit cut, with the cause `cut`, so no reply that it gives was cut.
+pub fn body_of(output: &str, tokens_out: u64, reply_tokens: Option<u64>) -> Option<&str> {
+    if reply_tokens == Some(tokens_out) {
         return None;
     }
     let close = output.rfind(THINK_CLOSE);
@@ -135,7 +137,7 @@ pub fn body_of(output: &str, tokens_out: u64, reply_tokens: u64) -> Option<&str>
 
 /// Whether a reply's body counts in this trial (ruling CP-179 (6) (c)): it has three words or more,
 /// divided by white space, and `counts` holds for it. The floor of three words is the trial's alone.
-pub fn counted(output: &str, tokens_out: u64, reply_tokens: u64) -> bool {
+pub fn counted(output: &str, tokens_out: u64, reply_tokens: Option<u64>) -> bool {
     body_of(output, tokens_out, reply_tokens)
         .is_some_and(|b| b.split_whitespace().count() >= 3 && counts(b))
 }
@@ -610,7 +612,8 @@ mod tests {
         assert!(!counts("Use \"localhost:8080\"."));
     }
 
-    const LIMIT: u64 = 512;
+    const TOKENS: u64 = 512;
+    const LIMIT: Option<u64> = Some(TOKENS);
 
     #[test]
     fn a_closed_block_with_an_answer_gives_the_answer() {
@@ -676,9 +679,9 @@ mod tests {
     #[test]
     fn an_output_at_the_token_limit_has_no_body() {
         let out = "<think>a</think> Friday at ten suits me.";
-        assert_eq!(body_of(out, LIMIT, LIMIT), None);
-        assert!(!counted(out, LIMIT, LIMIT));
-        assert!(counted(out, LIMIT - 1, LIMIT));
+        assert_eq!(body_of(out, TOKENS, LIMIT), None);
+        assert!(!counted(out, TOKENS, LIMIT));
+        assert!(counted(out, TOKENS - 1, LIMIT));
     }
 
     #[test]
@@ -724,9 +727,9 @@ mod tests {
                 // Each reply has at most LIMIT tokens: a run below LIMIT has no reply at the limit,
                 // and a run of two replies with 2 * LIMIT has both at it.
                 let (tokens, limit) = match run_tokens {
-                    Some(t) if t < LIMIT => (0, "below"),
-                    Some(t) if t == 2 * LIMIT && parts.len() == 2 => (LIMIT, "at"),
-                    _ => (LIMIT + 1, "unknown"),
+                    Some(t) if t < TOKENS => (0, "below"),
+                    Some(t) if t == 2 * TOKENS && parts.len() == 2 => (TOKENS, "at"),
+                    _ => (TOKENS + 1, "unknown"),
                 };
                 let under_rule = counted(body, tokens, LIMIT);
                 let thinking = body.rfind(THINK_CLOSE).map_or("", |c| &body[..c]);

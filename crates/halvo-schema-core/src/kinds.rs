@@ -280,7 +280,8 @@ fn keys_in_order(entry: &KindEntry) -> Vec<&'static str> {
 /// kept entry of origin capture with a field of the type `Instant`, `Ordinal`, `Token`, `Text` or `OwnText`; an entry
 /// of origin own or person with a field of the type `Ordinal`, `Token` or `Text`; a window entry with a field of the
 /// type `OwnText`; an example that `check_record` refuses;
-/// and an example whose top-level keys are not the keys of the fields in their order.
+/// and an example whose top-level keys are not the keys of the fields in their order, where a key that the kind
+/// may lack (`ABSENT_KEYS`) may also be missing from the example.
 pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
     let mut reports = Vec::new();
     let mut seen: Vec<&str> = Vec::new();
@@ -481,7 +482,11 @@ pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
                 let example: Vec<String> = Fields::read(entry.example.as_bytes())
                     .map(|fields| fields.0.into_iter().map(|(key, _)| key).collect())
                     .unwrap_or_default();
-                if example != keys_in_order(entry) {
+                let keys: Vec<&str> = keys_in_order(entry)
+                    .into_iter()
+                    .filter(|key| !may_lack(entry, key) || example.iter().any(|k| k == key))
+                    .collect();
+                if example != keys {
                     reports.push(format!(
                         "{kind}: the top-level keys of the example are not the keys of the fields in their order"
                     ));
@@ -657,12 +662,26 @@ fn segments(value: &RawValue) -> Result<(), &'static str> {
         .try_for_each(|item| one_value(item, &[FieldType::Ordinal]))
 }
 
+/// The keys, each with its kind, that a record of the kind may lack: each was added to the kind after records
+/// without it were stored, so that such a record still passes, and a writer writes the key only where it holds a
+/// value. `effect` of `agent_log` names the effect of a line of a page read (r3 U5.10-P).
+pub const ABSENT_KEYS: &[(&str, &str)] = &[("agent_log", "effect")];
+
+/// Whether a record of the kind of `entry` may lack `key` (`ABSENT_KEYS`).
+fn may_lack(entry: &KindEntry, key: &str) -> bool {
+    ABSENT_KEYS
+        .iter()
+        .any(|(kind, k)| *kind == entry.name && *k == key)
+}
+
 /// The one parser of a record against an entry: `Ok` when the text is one JSON object whose top-level keys are
-/// the keys of the entry's fields, each once, in any order, and no other, and whose value under each key passes.
+/// the keys of the entry's fields, each once, but a key that the kind may lack (`ABSENT_KEYS`), which stands once or
+/// is missing, in any order, and no other, and whose value under each key passes.
 /// The rule keys, read from the entry, hold what the store's rules read: under the key `day` of a bounded kind one
 /// value of the type `Day`, under `expires` of a window kind one value of the type `Instant`, under `segments` of a
 /// window kind a list of one or more values of the type `Ordinal`, under the key that `workflow_key` names one
-/// value of the type `Id`, and under `v`, where the fields list it, one value of its type; `null`, a list or an
+/// value of the type `Id`, under `v`, where the fields list it, and under a key that the kind may lack, where it
+/// stands, one value of its type; `null`, a list or an
 /// object in place of the one value is refused with the rule `not_one_value`, a value under `segments` that is no
 /// list with `not_a_list` and an empty list there with `empty_list`. Under every other key the value passes the
 /// walk by the types of that key: `null` passes; an object passes whole when `Site` is among the types and it
@@ -693,6 +712,7 @@ pub fn check_record(entry: &KindEntry, json: &str) -> Result<(), String> {
     }
     for key in &keys {
         match fields.0.iter().filter(|(k, _)| k == key).count() {
+            0 if may_lack(entry, key) => {}
             0 => return fail(key, "missing_key"),
             1 => {}
             _ => return fail(key, "repeated_key"),
@@ -709,6 +729,7 @@ pub fn check_record(entry: &KindEntry, json: &str) -> Result<(), String> {
             let checked = match rule_of(entry, key) {
                 Some(Rule::One(types)) => one_value(value, &types),
                 Some(Rule::Segments) => segments(value),
+                None if may_lack(entry, key) => one_value(value, &types),
                 None => walk(value, &types),
             };
             if let Err(rule) = checked {

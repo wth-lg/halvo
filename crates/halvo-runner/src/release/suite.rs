@@ -780,6 +780,28 @@ pub(crate) fn run_web_step(
     extracts: HashMap<String, (WebTarget, String)>,
     plan: Plan,
 ) -> Record {
+    run_web_steps(
+        category,
+        bindings,
+        web,
+        std::slice::from_ref(step),
+        kept,
+        extracts,
+        plan,
+    )
+}
+
+/// Runs the web steps `steps` in their order in one run, as [`run_web_step`] runs one, and ends the run at the first
+/// step that fails, as it ends one (r3 U5.10-P: two payments of one run).
+pub(crate) fn run_web_steps(
+    category: Category,
+    bindings: (Vec<WebOrigin>, Vec<Slot>),
+    web: crate::web::Web,
+    steps: &[ExecutableStep],
+    kept: HashMap<String, Vec<Vec<halvo_sheet::Value>>>,
+    extracts: HashMap<String, (WebTarget, String)>,
+    plan: Plan,
+) -> Record {
     let run = RunId::from_random([0x54; 16]);
     let agent = AgentId::from_random([0x55; 16]);
     let workflow = WorkflowId::from_random([0x56; 16]);
@@ -828,16 +850,22 @@ pub(crate) fn run_web_step(
     runner.web = Some(web);
     runner.kept = kept;
     runner.extracts = extracts;
-    let end = match runner.web_step(step, &loaded) {
-        Ok(()) => Ok(Outcome::Completed),
-        Err(Failure::Stop(stop)) => Err(stop),
-        Err(Failure::Step(cause)) => {
-            match runner.log(LogEvent::StepFailed, Some(step.n), Some(cause)) {
-                Err(stop) => Err(stop),
-                Ok(()) => Err(Stop::End(Outcome::Failed, Some(cause))),
+    let mut end = Ok(Outcome::Completed);
+    for step in steps {
+        end = match runner.web_step(step, &loaded) {
+            Ok(()) => Ok(Outcome::Completed),
+            Err(Failure::Stop(stop)) => Err(stop),
+            Err(Failure::Step(cause)) => {
+                match runner.log(LogEvent::StepFailed, Some(step.n), Some(cause)) {
+                    Err(stop) => Err(stop),
+                    Ok(()) => Err(Stop::End(Outcome::Failed, Some(cause))),
+                }
             }
+        };
+        if end.is_err() {
+            break;
         }
-    };
+    }
     let status = runner.close(end);
     let (frames, after_end) = supervisor.join().expect("the supervisor");
     Record {

@@ -74,19 +74,6 @@ pub enum StatusLine {
     /// of the failure class (r4 U3.22a, the coordinator's fifth ruling on its words). `all` does
     /// not list it until its fixture state of I8.3 is written.
     AnswersSaved,
-    /// `problem.answers_saved_today`: the row of `AnswersSaved` on a day with `starts_per_day`
-    /// starts, on which step 2 of a start refuses the person's Start now (r4 U3.23, the
-    /// coordinator's ruling of log line 19955). `all` does not list it until its fixture state of
-    /// I8.3 is written.
-    AnswersSavedToday,
-    /// `problem.tried_today`: the row of `Problem`, and of `LastCause` for a cause of
-    /// `roster::START_AGAIN_CAUSES`, on a day with `starts_per_day` starts (r4 U3.23, the
-    /// coordinator's ruling of log line 19955). `all` does not list it until its fixture state of
-    /// I8.3 is written.
-    FailedToday,
-    /// `all_set.tried_today`: a day with `starts_per_day` starts behind a last run that did not
-    /// fail.
-    TriedToday,
     /// `all_set.new`: no run of the agent has ended.
     New,
     /// `all_set.done`: the last run ended `completed`.
@@ -123,7 +110,6 @@ impl StatusLine {
         ]);
         all.extend(Failure::ALL.iter().map(|f| StatusLine::Problem(*f)));
         all.extend([
-            StatusLine::TriedToday,
             StatusLine::New,
             StatusLine::Done,
             StatusLine::Nothing,
@@ -146,8 +132,6 @@ impl StatusLine {
             | StatusLine::Problem(_)
             | StatusLine::LastCause(_)
             | StatusLine::AnswersSaved
-            | StatusLine::AnswersSavedToday
-            | StatusLine::FailedToday
             | StatusLine::Record => Status::Problem,
             StatusLine::Starting
             | StatusLine::Working
@@ -155,11 +139,9 @@ impl StatusLine {
             | StatusLine::KillStuck(_)
             | StatusLine::Deleting => Status::Working,
             StatusLine::Queued | StatusLine::Store => Status::WaitingTurn,
-            StatusLine::TriedToday
-            | StatusLine::New
-            | StatusLine::Done
-            | StatusLine::Nothing
-            | StatusLine::StoppedEarly => Status::AllSet,
+            StatusLine::New | StatusLine::Done | StatusLine::Nothing | StatusLine::StoppedEarly => {
+                Status::AllSet
+            }
         }
     }
 
@@ -194,8 +176,6 @@ impl StatusLine {
             },
             StatusLine::LastCause(c) => c.name(),
             StatusLine::AnswersSaved => "answers_saved",
-            StatusLine::AnswersSavedToday => "answers_saved_today",
-            StatusLine::FailedToday | StatusLine::TriedToday => "tried_today",
             StatusLine::New => "new",
             StatusLine::Done => "done",
             StatusLine::Nothing => "nothing",

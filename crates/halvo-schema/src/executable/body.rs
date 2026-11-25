@@ -17,7 +17,8 @@ use super::names::{
 };
 use super::record::{
     checkpoint_copy, hosts_up_to, origins_and_slots, part_of, slot_names_once, AgentCheckpoint,
-    AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, Hosted, Slot, SESSION_PARTS_MAX,
+    AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, Hosted, Slot, PAGE_CAUSES,
+    SESSION_PARTS_MAX,
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
 use super::text::{
@@ -1259,11 +1260,13 @@ object_type! {
     /// the run of `last` left a reply in the state `unknown`), `refused_slots` (the names of the slots of those
     /// bindings that their one reader refuses), `last_cause` (the cause that the `stopped` row of the agent's
     /// newest started run holds, or null where that run has not ended, ended with no cause or holds a cause that is no
-    /// name of the list) and `window` (`yes` where the agent's next run needs a browser window, `no` where it needs
-    /// none, read from the agent's own rows). The five keys after `unknown` hold a run id, a yes or no, slot names, a
-    /// name of the closed list of causes and a yes or no alone: never a slot's value, no site, no count, no secret and
-    /// no text, of a page, of a site or of an error. `agreement` (r3 U7.7) is the person's yes that stands for the
-    /// agent, its ceiling tier and its triples, only where its tier is the tier of `config`, else null. An entry that
+    /// name of the list), `left` (`yes` where an effect of the class `payment` or `purchase` of that run stands
+    /// `committed`, else `no`; r3 U5.10-P) and `window` (`yes` where the agent's next run needs a browser window, `no`
+    /// where it needs none, read from the agent's own rows). The six keys after `unknown` hold a run id, a yes or no,
+    /// slot names, a name of the closed list of causes and two yes or no alone: never a slot's value, no site, no
+    /// count, no secret and no text, of a page, of a site or of an error. `agreement` (r3 U7.7) is the person's yes
+    /// that stands for the agent, its ceiling tier and its triples, only where its tier is the tier of `config`, else
+    /// null. An entry that
     /// lacks a key is refused, `window` and `agreement` among them. A run record of another agent is refused,
     /// `reply_unknown` `yes` beside `last` null, and an agreement whose tier is not the tier of `config`.
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1278,6 +1281,7 @@ object_type! {
         pub reply_unknown: YesNo = "reply_unknown" => from_json,
         pub refused_slots: Vec<Name> = "refused_slots" => list(from_json),
         pub last_cause: Option<Cause> = "last_cause" => opt(from_json),
+        pub left: YesNo = "left" => from_json,
         pub window: YesNo = "window" => from_json,
         pub agreement: Option<ListedAgreement> = "agreement" => opt(ListedAgreement::from_raw),
     }
@@ -1341,9 +1345,12 @@ object_type! {
 }
 
 /// One effect of a run in the reply of `agent_history`, as its last row holds it: the effect id, the digest of that
-/// row, the class, the state, the cause of that row or null, and the kept fields of the class. An effect of the class
-/// `local_edit` also holds the key `checkpoint`, its checkpoint or null; an effect of another class holds no such
-/// key, and its `checkpoint` is none.
+/// row, the class, the state, the cause of that row or null, and the kept fields of the class; and `page_cause` and
+/// `page_amount` (r3 U5.10-P): the cause and the amount of the `stopped` row of the read of the page after the reply
+/// that names the effect, for a `committed` effect of the class `payment` or `purchase` alone, the cause one of
+/// `PAGE_CAUSES` and the amount, in minor units, beside `amount_differs` alone; null where no such row names the effect
+/// and on every other effect. An effect of the class `local_edit` also holds the key `checkpoint`, its checkpoint or
+/// null; an effect of another class holds no such key, and its `checkpoint` is none.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PastEffect {
     pub effect: EffectId,
@@ -1352,6 +1359,8 @@ pub struct PastEffect {
     pub state: EffectState,
     pub cause: Option<Cause>,
     pub kept: Vec<KeptField>,
+    pub page_cause: Option<Cause>,
+    pub page_amount: Option<u32>,
     pub checkpoint: Option<PastCheckpoint>,
 }
 
@@ -1363,23 +1372,37 @@ impl PastEffect {
         "state",
         "cause",
         "kept",
+        "page_cause",
+        "page_amount",
         "checkpoint",
     ];
 
-    /// The keys of an effect of the class: all seven for `local_edit`, the first six for any other.
+    /// The keys of an effect of the class: all nine for `local_edit`, the first eight for any other.
     fn keys(class: ActionClass) -> &'static [&'static str] {
         if class == ActionClass::LocalEdit {
             Self::KEYS
         } else {
-            &Self::KEYS[..6]
+            &Self::KEYS[..8]
         }
     }
 
-    /// Checks the kept fields against the class, and that a checkpoint stands on a `local_edit` effect alone.
+    /// Checks the kept fields against the class, that a checkpoint stands on a `local_edit` effect alone, that a page
+    /// cause stands on a `committed` effect of the class `payment` or `purchase` alone and is one of `PAGE_CAUSES`,
+    /// and that a page amount stands beside `amount_differs` alone.
     pub fn rules(&self) -> Result<(), Refusal> {
+        let fail = |key, rule| Err(Refusal::malformed("PastEffect", rule).at(key));
         check_kept(self.class, &self.kept).map_err(|r| r.at("kept"))?;
         if self.class != ActionClass::LocalEdit && self.checkpoint.is_some() {
-            return Err(Refusal::malformed("PastEffect", "checkpoint_of_class").at("checkpoint"));
+            return fail("checkpoint", "checkpoint_of_class");
+        }
+        if let Some(cause) = self.page_cause {
+            let paid = matches!(self.class, ActionClass::Payment | ActionClass::Purchase);
+            if !paid || self.state != EffectState::Committed || !PAGE_CAUSES.contains(&cause) {
+                return fail("page_cause", "page_cause_of_effect");
+            }
+        }
+        if self.page_amount.is_some() && self.page_cause != Some(Cause::AmountDiffers) {
+            return fail("page_amount", "page_amount_of_cause");
         }
         Ok(())
     }
@@ -1395,6 +1418,8 @@ impl PastEffect {
             state: obj.read("state", from_json)?,
             cause: obj.read("cause", opt(from_json))?,
             kept: obj.read("kept", list(KeptField::from_raw))?,
+            page_cause: obj.read("page_cause", opt(from_json))?,
+            page_amount: obj.read("page_amount", opt(from_json))?,
             checkpoint: if class == ActionClass::LocalEdit {
                 obj.read("checkpoint", opt(PastCheckpoint::from_raw))?
             } else {
@@ -1418,6 +1443,8 @@ impl Serialize for PastEffect {
         map.serialize_entry("state", &self.state)?;
         map.serialize_entry("cause", &self.cause)?;
         map.serialize_entry("kept", &self.kept)?;
+        map.serialize_entry("page_cause", &self.page_cause)?;
+        map.serialize_entry("page_amount", &self.page_amount)?;
         if keys.len() == Self::KEYS.len() {
             map.serialize_entry("checkpoint", &self.checkpoint)?;
         }
