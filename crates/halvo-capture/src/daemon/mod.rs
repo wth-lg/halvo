@@ -2864,6 +2864,8 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                             .admitting()
                             .hold_owner(Some(owner.watched.handle.clone()));
                         #[cfg(feature = "r2")]
+                        supervisor.mark_the_search();
+                        #[cfg(feature = "r2")]
                         r2::service::open(
                             dir.path(),
                             children::own_dir(),
@@ -3124,6 +3126,20 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
             typing_turn(asked, on, supervisor, serving, store);
             return;
         }
+        Request::SetSearch { on } => match supervisor.set_search(on) {
+            None => Reply::Error(ErrorReply::new(
+                ErrorCode::Internal,
+                "the capture service holds no state file",
+            )),
+            Some(Err(error)) => Reply::Error(ErrorReply::new(
+                ErrorCode::StateFile,
+                format!("the search for repeated tasks was not turned: {error}"),
+            )),
+            Some(Ok(())) => status_reply(supervisor, serving).map_or_else(
+                |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+                Reply::Status,
+            ),
+        },
         _ => Reply::Error(ErrorReply::new(
             ErrorCode::UnsupportedOp,
             "this build of the capture service does not serve the op",
