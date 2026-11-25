@@ -19,6 +19,7 @@ export const VARIANTS = [
   'form_amount',
   'form_amount_other',
   'slow_charge',
+  'charge_redirect',
   'draft_no_recipient',
   'draft_two_recipients',
   'draft_copy',
@@ -271,6 +272,7 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
     fx.sessions = new Map();
     fx.devices = new Set();
     fx.tokens = new Map();
+    fx.receipts = new Map();
     fx.withheld = false;
     fx.changed = false;
     fx.receivedBase = Date.now();
@@ -574,7 +576,19 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
         setTimeout(() => html(ctx, 200, page.charged(kind, charged, opts())), SLOW_CHARGE_MS);
         return;
       }
+      // With charge_redirect a recorded charge is answered 303 to its receipt page, by a Location
+      // relative to the pay host, and that page is the page after the charge (r3 U5.10-R).
+      if (has('charge_redirect')) {
+        const id = String(fx.receipts.size + 1);
+        fx.receipts.set(id, { kind, charged });
+        return redirect(ctx, `/receipt?id=${id}`);
+      }
       return html(ctx, 200, page.charged(kind, charged, opts()));
+    }
+    if (ctx.path === '/receipt' && ctx.method === 'GET' && has('charge_redirect')) {
+      const receipt = fx.receipts.get(ctx.url.searchParams.get('id'));
+      if (!receipt) return text(ctx, 404, 'not found\n');
+      return html(ctx, 200, page.charged(receipt.kind, receipt.charged, opts()));
     }
     return text(ctx, 404, 'not found\n');
   }

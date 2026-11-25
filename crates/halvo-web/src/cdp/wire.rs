@@ -73,6 +73,9 @@ pub(crate) struct Facts {
     pub hook: Option<(String, u16)>,
     /// What the wire read of the request's body (`form_of`).
     pub form: HeldForm,
+    /// Whether the paused response's headers hold a Location line with a value (`has_location`);
+    /// false at the request stage.
+    pub location: bool,
 }
 
 /// What the wire read of the body and the address of a paused request (r3 U5.10-C; the
@@ -327,8 +330,8 @@ fn fold(name: &str) -> String {
 /// The facts of the request that the browser paused in `ev` (CP-186 T4 (a)): its number, whether
 /// the pause is a redirect's hop (the event's `redirectedRequestId`), its method, address, origin,
 /// path and frame, whether it is a service worker's script, the host and port for the runner's
-/// hook when it is a document of the executor's own page `home`, and what the wire read of its
-/// body (`form_of`).
+/// hook when it is a document of the executor's own page `home`, what the wire read of its body
+/// (`form_of`), and whether a paused response names a place to go (`has_location`).
 pub(crate) fn facts_of_event(ev: &EventRequestPaused, home: Option<&str>) -> Facts {
     let (origin, path) = split_url(&ev.request.url);
     let document = matches!(ev.resource_type, ResourceType::Document);
@@ -345,6 +348,7 @@ pub(crate) fn facts_of_event(ev: &EventRequestPaused, home: Option<&str>) -> Fac
         frame: ev.frame_id.inner().clone(),
         worker_script: is_worker_script(ev.request.headers.inner()),
         form: form_of(ev),
+        location: has_location(ev.response_headers.as_deref().unwrap_or_default()),
     }
 }
 
@@ -378,12 +382,14 @@ struct Held {
 
 /// The state-changing requests of one arm (CP-176 A1): what is held, whether a release was made
 /// since the arm, the status of the response of the one request that the release let through,
-/// and the executor's next id, which is never given twice in its life.
+/// the status of a redirect that answered that request while its one hop has not answered
+/// (`on_response`), and the executor's next id, which is never given twice in its life.
 #[derive(Default)]
 pub(crate) struct Holds {
     held: Vec<Held>,
     released: bool,
     status: Option<i64>,
+    hop: Option<i64>,
     next: u64,
 }
 
@@ -406,8 +412,19 @@ impl Holds {
     /// names a frame goes on but the script of a service worker, and every other is failed. A second pause of one request (the same
     /// number, address, method and hop) from a level that has not paused it follows the answer of the first; a pause from a
     /// level that has paused it already is a request of its own (r3 U4.1w-2, CP-186 (7)): held before the release, failed
-    /// after it, so that it errs toward an effect that is not known and never toward a second request.
+    /// after it, so that it errs toward an effect that is not known and never toward a second request. Where the rule
+    /// fails the hop of a redirect that answered the released request (`on_response`), the redirect's status is kept at
+    /// once, as the status of that request (r3 U5.10-R).
     pub(crate) fn on_pause(&mut self, rule: Option<&Rule>, f: &Facts, pause: Pause) -> (Act, bool) {
+        let (act, new) = self.answer(rule, f, pause);
+        if act == Act::Fail && f.redirected && self.of_the_released(f) && self.status.is_none() {
+            self.status = self.hop;
+        }
+        (act, new)
+    }
+
+    /// The rule's answer to one pause, as `on_pause` gives it.
+    fn answer(&mut self, rule: Option<&Rule>, f: &Facts, pause: Pause) -> (Act, bool) {
         if rule.is_some_and(|r| r.mode == Mode::Handback) {
             let passes = !f.frame.is_empty() && !f.worker_script;
             return (if passes { Act::Continue } else { Act::Fail }, true);
@@ -540,32 +557,56 @@ impl Holds {
         self.held.clear();
         self.released = false;
         self.status = None;
+        self.hop = None;
         fail
     }
 
-    /// Keeps `code`, the status of a response that the browser paused with the facts `f`, where it
-    /// is the first response of the one request that the release of this arm let through (the same
-    /// number, address and method); a response of any other request is not kept (the coordinator's
-    /// ruling of log line 14732).
+    /// Whether `f` carries the browser's number of the one request that the release of this arm
+    /// let through, which every hop of its redirects carries too.
+    fn of_the_released(&self, f: &Facts) -> bool {
+        f.network.as_ref().is_some_and(|network| {
+            self.held
+                .iter()
+                .any(|h| h.state == HoldState::Released && h.key.0 == *network)
+        })
+    }
+
+    /// Keeps the status of the one request that the release of this arm let through, from `code`,
+    /// the status of a response that the browser paused with the facts `f` (the coordinator's
+    /// rulings of log lines 14732 and 17941). Its first response (the same number, address and
+    /// method) is kept, unless it is a 301, 302 or 303 with a Location: then the browser's ONE hop,
+    /// a request that changes no state and passes by the rule alone, is waited for, and the first
+    /// response with that number and a method that changes no state is kept, whatever its status,
+    /// a second redirect among them. Every other response is not kept: one of another request, and
+    /// a second pause of the redirect itself. The hop of a 307 or a 308 keeps its method, so the
+    /// rule fails it after the release and the 307 or 308 is kept; the rule's failure of a hop
+    /// keeps the redirect's status (`on_pause`); a hop with no answer leaves none.
     pub(crate) fn on_response(&mut self, f: &Facts, code: i64) {
-        if self.status.is_some() {
+        if self.status.is_some() || !self.of_the_released(f) {
             return;
         }
-        let released = f.network.as_ref().is_some_and(|network| {
-            self.held.iter().any(|h| {
-                h.state == HoldState::Released
-                    && h.key.0 == *network
-                    && h.key.1 == f.url
-                    && h.key.2 == f.method
-            })
-        });
-        if released {
+        if self.hop.is_some() {
+            if !changes_state(&f.method) {
+                self.status = Some(code);
+            }
+            return;
+        }
+        let first = self
+            .held
+            .iter()
+            .any(|h| h.state == HoldState::Released && h.key.1 == f.url && h.key.2 == f.method);
+        if !first {
+            return;
+        }
+        if matches!(code, 301..=303) && f.location {
+            self.hop = Some(code);
+        } else {
             self.status = Some(code);
         }
     }
 
-    /// The status of the response of the one request that the release of this arm let through,
-    /// none before that response and in an arm with no release.
+    /// The status of the one request that the release of this arm let through, as `on_response`
+    /// and `on_pause` keep it; none before it and in an arm with no release.
     pub(crate) fn released_status(&self) -> Option<i64> {
         self.status
     }
@@ -887,7 +928,7 @@ impl Wire {
             .unwrap_or_default()
     }
 
-    /// The status of the response of the one request that the release of this arm let through.
+    /// The status of the one request that the release of this arm let through (`Holds::on_response`).
     pub(crate) fn released_status(&self) -> Option<i64> {
         self.book.lock().ok()?.holds.released_status()
     }
@@ -1828,6 +1869,7 @@ mod tests {
             worker_script: false,
             hook: None,
             form: HeldForm::NoBody,
+            location: false,
         }
     }
 
@@ -2018,6 +2060,142 @@ mod tests {
         assert_eq!(h.released_status(), Some(402), "the first response alone");
         h.end_arm();
         assert_eq!(h.released_status(), None, "a new arm has none");
+    }
+
+    /// A paused event of a document request `method` `url` with the browser's number `n1`, as the
+    /// browser sends it: with the mark of a redirect's hop when `hop`, and at the response stage,
+    /// with the status and, where one is given, a Location line, when `answer` gives them.
+    fn paused(
+        url: &str,
+        method: &str,
+        hop: bool,
+        answer: Option<(i64, Option<&str>)>,
+    ) -> EventRequestPaused {
+        let mut v = serde_json::json!({
+            "requestId": "interception-9",
+            "request": {
+                "url": url,
+                "method": method,
+                "headers": {},
+                "initialPriority": "VeryHigh",
+                "referrerPolicy": "strict-origin-when-cross-origin"
+            },
+            "frameId": "F1",
+            "resourceType": "Document",
+            "networkId": "n1"
+        });
+        if hop {
+            v["redirectedRequestId"] = serde_json::json!("interception-8");
+        }
+        if let Some((code, location)) = answer {
+            let mut headers =
+                vec![serde_json::json!({"name": "Content-Type", "value": "text/html"})];
+            if let Some(location) = location {
+                headers.push(serde_json::json!({"name": "Location", "value": location}));
+            }
+            v["responseStatusCode"] = serde_json::json!(code);
+            v["responseHeaders"] = serde_json::json!(headers);
+        }
+        serde_json::from_value(v).unwrap()
+    }
+
+    /// The holds of an arm in `Mode::Hold` with the list `[U]` after the payment `POST {U}/charge`
+    /// was held, let through, and answered `code` with a Location `/receipt?id=1`, that response
+    /// paused at both levels of the browser; every event is read through `facts_of_event`, as the
+    /// wire reads it. Gives the rule, the holds and the status right after that response.
+    fn redirected(code: i64) -> (Rule, Holds, Option<i64>) {
+        let r = rule(&[U], Mode::Hold);
+        let mut h = Holds::default();
+        let charge = format!("{U}/charge");
+        let held = facts_of_event(&paused(&charge, "POST", false, None), None);
+        let (Act::Hold(id), true) = h.on_pause(Some(&r), &held, pause("p1")) else {
+            panic!("{code}: the payment is held")
+        };
+        h.release(id).unwrap();
+        let answer = paused(&charge, "POST", false, Some((code, Some("/receipt?id=1"))));
+        h.on_response(&facts_of_event(&answer, None), code);
+        h.on_response(&facts_of_event(&answer, None), code);
+        let status = h.released_status();
+        (r, h, status)
+    }
+
+    /// The pause of the hop `GET url` and, where `answer` gives one, its response with that status
+    /// and Location, each through `facts_of_event`; gives the rule's answer to the hop's pause.
+    fn hop(h: &mut Holds, r: &Rule, url: &str, answer: Option<(i64, Option<&str>)>) -> Act {
+        let (act, _) = h.on_pause(
+            Some(r),
+            &facts_of_event(&paused(url, "GET", true, None), None),
+            pause("p2"),
+        );
+        if let Some((code, location)) = answer {
+            let response = paused(url, "GET", true, Some((code, location)));
+            h.on_response(&facts_of_event(&response, None), code);
+        }
+        act
+    }
+
+    /// r3 U5.10-R, sentence (1): a payment that the site answers 301, 302 or 303 with a Location
+    /// is read at its ONE hop: no status is kept at the redirect, also where the browser pauses that
+    /// response at its second level, the hop (a GET to an allowed origin) passes by today's rule,
+    /// and the status of the released request is that of the hop's response, 200, which the maker
+    /// reads as made.
+    #[test]
+    fn a_payment_answered_301_302_or_303_reads_the_200_of_its_one_hop() {
+        let mut got = Vec::new();
+        for code in [301, 302, 303] {
+            let (r, mut h, at_the_redirect) = redirected(code);
+            let act = hop(&mut h, &r, &format!("{U}/receipt?id=1"), Some((200, None)));
+            got.push((code, at_the_redirect, act, h.released_status()));
+        }
+        assert_eq!(
+            got,
+            [301, 302, 303].map(|code| (code, None, Act::Continue, Some(200))),
+            "(status, the redirect's status kept, the hop's act, the status kept)"
+        );
+    }
+
+    /// r3 U5.10-R, sentence (2): a hop that does not end at 200 leaves no 200, so the maker leaves
+    /// the effect not known: a second redirect keeps the hop's own status, also where the second
+    /// hop answers 200; another status is kept as it is; a hop to an origin outside the rule's list
+    /// is failed by today's rule and keeps the redirect's status at once; and a hop that is not
+    /// answered leaves no status, which the maker reads as no reply after `STEP_TIMEOUT`.
+    #[test]
+    fn a_hop_that_does_not_end_at_200_leaves_no_200() {
+        let receipt = format!("{U}/receipt?id=1");
+        let mut got = Vec::new();
+
+        let (r, mut h, _) = redirected(303);
+        hop(&mut h, &r, &receipt, Some((302, Some("/receipt?id=2"))));
+        let second = hop(&mut h, &r, &format!("{U}/receipt?id=2"), Some((200, None)));
+        got.push(("a second redirect", second, h.released_status()));
+
+        let (r, mut h, _) = redirected(303);
+        let act = hop(&mut h, &r, &receipt, Some((404, None)));
+        got.push(("another status", act, h.released_status()));
+
+        let (r, mut h, _) = redirected(303);
+        let act = hop(
+            &mut h,
+            &r,
+            "http://evil.agent.test:18090/receipt?id=1",
+            None,
+        );
+        got.push(("an origin outside the list", act, h.released_status()));
+
+        let (r, mut h, _) = redirected(303);
+        let act = hop(&mut h, &r, &receipt, None);
+        got.push(("no answer", act, h.released_status()));
+
+        assert_eq!(
+            got,
+            [
+                ("a second redirect", Act::Continue, Some(302)),
+                ("another status", Act::Continue, Some(404)),
+                ("an origin outside the list", Act::Fail, Some(303)),
+                ("no answer", Act::Continue, None),
+            ],
+            "(row, the rule's act on the last hop, the status kept)"
+        );
     }
 
     /// r3 U4.1w-2 (4), CP-186 (7): a pause from a level that has paused that request already is a
