@@ -388,16 +388,14 @@ pub(crate) fn front_again(hwnd: HWND, cached: &FrontApp) -> Option<FrontApp> {
     (fresh != *cached).then_some(fresh)
 }
 
-/// Whether `hwnd` is a window of the frame host in which no program is found
-/// now.
+/// Whether `hwnd` is a window of the frame host, ApplicationFrameHost.exe: a
+/// frame in which Windows shows the window of another program.
 #[cfg(target_os = "windows")]
-pub(crate) fn frame_with_no_program(hwnd: HWND) -> bool {
+pub(crate) fn is_a_frame_of_the_host(hwnd: HWND) -> bool {
     let mut pid: u32 = 0;
     // SAFETY: `pid` is a live local that the call writes.
     unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
-    pid != 0
-        && process_path(pid).as_deref().is_some_and(is_frame_host)
-        && program_of_frame(hwnd, pid).is_none()
+    pid != 0 && process_path(pid).as_deref().is_some_and(is_frame_host)
 }
 
 /// The program inside the frame `hwnd` of the frame host whose process is

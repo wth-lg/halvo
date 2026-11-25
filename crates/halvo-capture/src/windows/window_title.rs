@@ -20,7 +20,8 @@ use super::{DropCounts, Drops, Floor, FrontApp, Lifecycle, OsTick, Producer, Pum
 
 #[cfg(target_os = "windows")]
 use super::foreground::{
-    resolve_front, set_win_event_hook, unhook_win_event, HookInstaller, HookRemover,
+    is_a_frame_of_the_host, resolve_front, set_win_event_hook, unhook_win_event, HookInstaller,
+    HookRemover,
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HWND;
@@ -658,7 +659,10 @@ unsafe extern "system" fn look_timer(_hwnd: HWND, _message: u32, _id: usize, _ti
 }
 
 /// One look at the waiting ask: a decision writes the title, or not, by the
-/// floor; a wait sets the timer to its step; an end stops the timer.
+/// floor; a wait sets the timer to its step; an end stops the timer. A
+/// decision for a window of the frame host, a frame in which Windows shows
+/// another program's window, writes no title, whatever the read answered, and
+/// counts one event left out under unknown lineage.
 #[cfg(target_os = "windows")]
 fn look_at_the_ask(state: &mut TitleState, now: u32, at_the_ask: bool) {
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
@@ -674,7 +678,13 @@ fn look_at_the_ask(state: &mut TitleState, now: u32, at_the_ask: bool) {
             state
                 .counts
                 .decided(OsTick::new(ask.asked).age_at(now), at_the_ask);
-            decide_title(state, ask, reading);
+            if is_a_frame_of_the_host(HWND(ask.window as *mut core::ffi::c_void)) {
+                state
+                    .floor
+                    .left_out(crate::floor::exclude::DropReason::UnknownLineage);
+            } else {
+                decide_title(state, ask, reading);
+            }
         }
         Look::Wait(step) => state.start_timer(step),
     }

@@ -155,6 +155,12 @@ impl Floor {
         self.handle.switches().is_on(switch)
     }
 
+    /// Counts one event that a source leaves out under `reason` by a rule of
+    /// its own, before any decision of the floor; no doubt is noted.
+    pub(crate) fn left_out(&self, reason: DropReason) {
+        self.drops.count(reason);
+    }
+
     pub(crate) fn keep<K: Recorded>(
         &self,
         front: &FrontApp,
