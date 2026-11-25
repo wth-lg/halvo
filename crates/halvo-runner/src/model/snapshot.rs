@@ -2,12 +2,16 @@
 //! that the mask alone makes, so that no caller of `ask` can hand the door a page's text that the mask has not read.
 //!
 //! THE MASK. No text of a slot of the run's load leaves in a model request, as a box's value or as plain text of a
-//! later page: on every line of the snapshot, in its name, its value and its frame label, before the line is rendered,
-//! the mark `[slot NAME]` stands in the place of each occurrence of the text of a slot of the load, NAME the slot's
-//! own name. The ref and the role of a line are never changed. The mask reads a slot's text THROUGH THE SNAPSHOT'S OWN
-//! TWO CLEANINGS, by the same functions of halvo-web: beside the text and each of its lines as they are, the squeeze
-//! of each (`cdp::squeeze`, what a line's name can hold) and each with CR, LF and TAB as spaces (`cdp::line_value` for
-//! a text box, what a line's value can hold). ASCII letters are compared with no regard to case. One pass from the
+//! later page: on every line of the snapshot, in its name, its value and its frame label, the mark `[slot NAME]` stands
+//! in the place of each occurrence of the text of a slot of the load, NAME the slot's own name. The ref and the role
+//! of a line are never changed. The mask reads each field IN THE FORM IN WHICH IT LEAVES: a name and a value after
+//! the render's one change of their text (`cdp::quote`, a double quote as two single quotes), a frame label as it is;
+//! and a slot's text THROUGH THE SNAPSHOT'S OWN THREE CLEANINGS, by the same functions of halvo-web: beside the text
+//! and each of its lines as they are, the squeeze of each (`cdp::squeeze`, what a line's name can hold), each with
+//! CR, LF and TAB as spaces (`cdp::line_value` for a text box, what a line's value can hold), and each of these after
+//! `cdp::quote` (the verifier-153's F3). A line is written only where its render holds each field as the mask left
+//! it, so a step that a later render would add behind the mask leaves that line out of the snapshot and puts no
+//! slot's text in it. ASCII letters are compared with no regard to case. One pass from the
 //! left, the longest text that stands at a place wins, so a mark is never read again; two slots of one text are
 //! named by the first in the load's order; a slot whose text is empty is skipped, and the slot `start` is a slot like
 //! any other. BEFORE the mask reads a field, the two marker strings of A9.5 leave it (`cleaned`), and the mask reads
@@ -23,7 +27,7 @@
 //! of a slot's text, and a letter outside ASCII in another case.
 
 use halvo_schema::executable::record::Slot;
-use halvo_web::cdp::{line_value, squeeze, SnapshotLine};
+use halvo_web::cdp::{line_value, quote, squeeze, SnapshotLine};
 
 /// The two marker strings of A9.5, which the door puts around the snapshot and which the snapshot never holds.
 const MARKERS: [&str; 2] = ["<<<DATA", "DATA>>>"];
@@ -40,23 +44,26 @@ pub(crate) struct Snapshot(String);
 
 impl Snapshot {
     /// The snapshot of `lines` for a request of a run whose load's slots are `slots`: each field of a line cleaned of
-    /// the marker strings of A9.5 (`cleaned`) and masked, then each line rendered in the form of A11.1, one a line.
+    /// the marker strings of A9.5 (`cleaned`), put in the form in which it leaves (a name and a value by `cdp::quote`)
+    /// and masked, then each line rendered in the form of A11.1, one a line, where the render holds each field as the
+    /// mask left it (`as_masked`); a line whose render changed a field is left out.
     pub(crate) fn masked(lines: &[SnapshotLine], slots: &[Slot]) -> Snapshot {
         let forms = forms(slots);
         let text = lines
             .iter()
-            .map(|line| {
+            .filter_map(|line| {
                 let mut line = line.clone();
-                line.name = mask(&cleaned(&line.name), &forms);
+                line.name = mask(&quote(&cleaned(&line.name)), &forms);
                 line.value = line
                     .value
                     .as_deref()
-                    .map(|value| mask(&cleaned(value), &forms));
+                    .map(|value| mask(&quote(&cleaned(value)), &forms));
                 line.frame = line
                     .frame
                     .as_deref()
                     .map(|frame| mask(&cleaned(frame), &forms));
-                line.render()
+                let rendered = line.render();
+                as_masked(&line, &rendered).then_some(rendered)
             })
             .collect::<Vec<_>>()
             .join("\n");
@@ -98,6 +105,23 @@ impl Snapshot {
     }
 }
 
+/// Whether `rendered`, the render of `line`, holds each field of the line as the mask left it: the name and, where
+/// the render writes one, the value between double quotes, and the frame label behind `frame=`. A step of the render
+/// that changes a field's text makes it false.
+fn as_masked(line: &SnapshotLine, rendered: &str) -> bool {
+    let name = rendered.contains(&format!("\"{}\"", line.name));
+    let value = line
+        .value
+        .as_ref()
+        .filter(|_| !line.credential)
+        .is_none_or(|value| rendered.contains(&format!(" value=\"{value}\"")));
+    let frame = line
+        .frame
+        .as_ref()
+        .is_none_or(|frame| rendered.contains(&format!(" frame={frame}")));
+    name && value && frame
+}
+
 /// `text` with the marker strings of A9.5 taken out until none stands.
 fn unmarked(mut text: String) -> String {
     while let Some(marker) = MARKERS.iter().find(|marker| text.contains(**marker)) {
@@ -130,7 +154,8 @@ pub(crate) fn holds_a_mark(text: &str) -> bool {
 }
 
 /// Every form in which a slot's text can stand on a line, each with the mark of its slot, longest first and, for
-/// texts of one length, in the load's order: the text and each of its lines, and the two cleanings of each.
+/// texts of one length, in the load's order: the text and each of its lines, the two cleanings of each, and each of
+/// these after the render's `cdp::quote`.
 fn forms(slots: &[Slot]) -> Vec<(String, String)> {
     let mut forms: Vec<(String, String)> = Vec::new();
     for slot in slots {
@@ -148,7 +173,8 @@ fn forms(slots: &[Slot]) -> Vec<(String, String)> {
                 Some(squeeze(&kind)),
                 line_value(false, "textbox", &kind),
             ];
-            for form in cleaned.into_iter().flatten() {
+            let quoted: Vec<String> = cleaned.iter().flatten().map(|form| quote(form)).collect();
+            for form in cleaned.into_iter().flatten().chain(quoted) {
                 let taken = forms
                     .iter()
                     .any(|(held, _)| held.eq_ignore_ascii_case(&form));
@@ -194,6 +220,7 @@ fn mask(text: &str, forms: &[(String, String)]) -> String {
 mod tests {
     use halvo_schema::executable::record::Slot;
     use halvo_schema::executable::text::{Name, OwnValue};
+    use halvo_web::cdp::SnapshotLine;
 
     use super::{holds_a_mark, Snapshot};
 
@@ -242,6 +269,47 @@ mod tests {
             println!("holds a mark: {text:?}: {}", holds_a_mark(text));
             assert_eq!(holds_a_mark(text), holds, "{text}");
         }
+    }
+
+    /// The verifier-153's F3: the render writes a double quote of a name or of a value as two single quotes, and the
+    /// mask reads each of them in that form, so a slot's text that holds two single quotes gives its mark where the
+    /// page shows a double quote, in a line's name and in a box's value; a message's body, which passes no such step,
+    /// gives the mark where it holds the slot's text.
+    #[test]
+    fn u72b_the_mask_reads_a_name_and_a_value_in_the_form_that_the_render_writes() {
+        let slots = [slot("pipe", "Pipe 5'' wide")];
+        let line =
+            |reference: &str, role: &'static str, name: &str, value: Option<&str>| SnapshotLine {
+                reference: reference.to_owned(),
+                role,
+                name: name.to_owned(),
+                value: value.map(str::to_owned),
+                credential: false,
+                frame: None,
+            };
+        let page = Snapshot::masked(
+            &[
+                line("e1", "text", "Order: Pipe 5\" wide", None),
+                line("e2", "textbox", "Size", Some("Pipe 5\" wide")),
+            ],
+            &slots,
+        );
+        let message = Snapshot::of_a_message("Your order", "Order: Pipe 5'' wide", &slots);
+        println!("page: {:?}; message: {:?}", page.text(), message.text());
+        for text in [page.text(), message.text()] {
+            assert!(
+                !text.to_ascii_lowercase().contains("pipe 5'' wide"),
+                "{text}"
+            );
+        }
+        assert_eq!(
+            page.text(),
+            "e1 text \"Order: [slot pipe]\"\ne2 textbox \"Size\" value=\"[slot pipe]\""
+        );
+        assert_eq!(
+            message.text(),
+            "From: [slot reply_senders]\nSubject: Your order\nOrder: [slot pipe]"
+        );
     }
 
     /// A test's probe of whether a type converts from a plain text: the inherent const where the bound holds, the

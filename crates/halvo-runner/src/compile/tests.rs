@@ -49,6 +49,37 @@ const DATA_DIR: &str = if cfg!(windows) {
 /// The biller's origin, the one origin of the bindings.
 const ORIGIN: &str = "http://bill.test:8080";
 
+/// The `system` of a compile's request as the trial's texts make it, read by this test from the trial's own files and
+/// not through crate::compile: the boundary text (tools/r3-trials/drive/prompts/boundary.txt), two line ends, and the
+/// action's form (the const `ACTION_FORM_HOSTED` of tools/r3-trials/drive/src/words.rs, its escapes read back).
+fn trials_system() -> String {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let read = |path: &str| std::fs::read_to_string(root.join(path)).expect("a file of the trial");
+    let words = read("tools/r3-trials/drive/src/words.rs");
+    let literal = words
+        .lines()
+        .find_map(|line| line.strip_prefix("pub const ACTION_FORM_HOSTED: &str = \""))
+        .and_then(|rest| rest.strip_suffix("\";"))
+        .expect("the trial's action form on one line");
+    let mut form = String::new();
+    let mut chars = literal.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            form.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('n') => form.push('\n'),
+            Some(other) => form.push(other),
+            None => {}
+        }
+    }
+    format!(
+        "{}\n\n{form}",
+        read("tools/r3-trials/drive/prompts/boundary.txt")
+    )
+}
+
 /// The cell of the test's policy that lets a compile of a bill at `frontier` ask the model at the level `high`.
 const OPEN: &str = "utility_bill_payment\tcompile\tfrontier\thigh\tline_met\t4\t4";
 
@@ -722,8 +753,9 @@ fn u72b_a_compile_drives_its_task_through_ask_and_stores_a_playbook_that_a_repla
     assert_eq!(ran.bodies(|b| matches!(b, RunnerCall::ModelHold(_))), 3);
     assert_eq!(ran.bodies(|b| matches!(b, RunnerCall::ModelSettle(_))), 3);
     assert_eq!(ran.starts, 1);
+    let system = trials_system();
     for request in &ran.requests {
-        assert_eq!(request["system"], super::system().as_str());
+        assert_eq!(request["system"], system.as_str());
         assert_eq!(request["grammar"], "action");
         assert_eq!(request["level"], "high");
     }

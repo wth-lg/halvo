@@ -335,7 +335,10 @@ impl SnapshotLine {
     }
 }
 
-fn quote(s: &str) -> String {
+/// The one change that `SnapshotLine::render` makes to the text of a name or of a value: a double quote written as
+/// two single quotes. The runner's mask reads a name and a value in this form, by this function, before the render
+/// writes them.
+pub fn quote(s: &str) -> String {
     s.replace('"', "''")
 }
 

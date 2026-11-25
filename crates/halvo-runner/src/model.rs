@@ -15,8 +15,8 @@
 //! end is written (`end_door`). The writer of a reply's body (crate::model::write, r3 U7.4) and the compile's drive
 //! (crate::compile, r3 U7.2b) call `ask` with the router's pick for their kind of call (crate::route's `picked`),
 //! only where that pick names the run's tier; the writer never calls it for a message whose draft of an earlier run
-//! waits. Every `compile` and every `write` row of the router's table (its file policy.tsv) hands back, so no shipped
-//! run reaches `ask`: no shipped run asks for the key or starts the door; the unit tests do.
+//! waits. While every `compile` and every `write` row of the router's table (its file policy.tsv) hands back, no
+//! shipped run reaches `ask`: no shipped run asks for the key or starts the door; the unit tests do.
 
 pub(crate) mod ask;
 pub(crate) mod snapshot;
