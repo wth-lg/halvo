@@ -459,8 +459,10 @@ pub(crate) trait ChromeTreeReads {
 
 /// What the query tells of a Chrome window by `reads`, in this order: the
 /// panes, and nothing more where they tell no ordinary window; then the
-/// buttons and the toolbars, answered by [`chrome_window_answer`]; `None`
-/// where a read gives no answer.
+/// buttons and the toolbars; then the panes once more, which must tell an
+/// ordinary window too, so that a pane that bore the title of a child widget
+/// of the window while the buttons and the toolbars were read keeps no title;
+/// answered by [`chrome_window_answer`]; `None` where a read gives no answer.
 pub(crate) fn chrome_window_query(reads: &mut impl ChromeTreeReads) -> Option<bool> {
     let panes = reads.panes()?;
     if !pane_tells_an_ordinary_window(&panes) {
@@ -468,6 +470,10 @@ pub(crate) fn chrome_window_query(reads: &mut impl ChromeTreeReads) -> Option<bo
     }
     let all = reads.buttons()?;
     let toolbars = reads.toolbars()?;
+    let behind = reads.panes()?;
+    if !pane_tells_an_ordinary_window(&behind) {
+        return None;
+    }
     chrome_window_answer(&panes, &toolbars, &all)
 }
 
