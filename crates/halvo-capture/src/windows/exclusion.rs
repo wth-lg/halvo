@@ -324,7 +324,7 @@ const ENGLISH_TOOLBAR_NAMES: [&str; 3] = ["Back", "Forward", "Reload"];
 /// have an English interface (a button named Back, Forward or Reload) and none
 /// holds that word, and `None` for every other window, a window in another
 /// language among them, so that its title is dropped.
-pub(crate) fn incognito_of_names<S: AsRef<str>>(names: &[S]) -> Option<bool> {
+pub(crate) fn private_of_names<S: AsRef<str>>(names: &[S]) -> Option<bool> {
     if names
         .iter()
         .any(|name| name.as_ref().to_ascii_lowercase().contains("incognito"))
@@ -342,86 +342,252 @@ pub(crate) fn incognito_of_names<S: AsRef<str>>(names: &[S]) -> Option<bool> {
 /// What the names of a Chrome window's buttons tell of it, given the names of
 /// its toolbar's own buttons and of every button below the window: `Some(true)`
 /// when any button holds the word Incognito, and otherwise what the toolbar's
-/// names tell by [`incognito_of_names`], so that a button named Back, Forward
+/// names tell by [`private_of_names`], so that a button named Back, Forward
 /// or Reload outside the toolbar (a bookmark, an extension, the page) makes no
 /// window English.
-pub(crate) fn incognito_of_buttons<S: AsRef<str>>(toolbar: &[S], all: &[S]) -> Option<bool> {
+pub(crate) fn private_of_buttons<S: AsRef<str>>(toolbar: &[S], all: &[S]) -> Option<bool> {
     if all
         .iter()
         .any(|name| name.as_ref().to_ascii_lowercase().contains("incognito"))
     {
         return Some(true);
     }
-    incognito_of_names(toolbar)
+    private_of_names(toolbar)
 }
 
-/// What the UI Automation query tells of a Chrome window, by the names of its
-/// buttons ([`incognito_of_buttons`]): the English names count only among the
-/// own buttons of the first element below the window whose control type is
-/// ToolBar, and a window with no such element is told by the word Incognito
-/// alone; `None` when the query gives no answer.
-/// The calling thread must be in an apartment of COM.
+/// The name of Chrome that ends the name of the pane of an ordinary window,
+/// and that a profile's name follows where Chrome holds several profiles.
+const CHROME_NAME: &str = " - Google Chrome";
+
+/// Whether the names of a Chrome window's own panes tell an ordinary window:
+/// exactly one pane bears a name, and behind the last ` - Google Chrome` of
+/// that name stands nothing, or ` - ` and a profile's name. Chrome writes the
+/// mark of an Incognito, a Guest or an isolated window behind its name in the
+/// place of a profile's name, so no such window passes, and no other tail does.
+fn pane_tells_an_ordinary_window<S: AsRef<str>>(panes: &[S]) -> bool {
+    let mut named = panes
+        .iter()
+        .map(AsRef::as_ref)
+        .filter(|name| !name.trim().is_empty());
+    let (Some(name), None) = (named.next(), named.next()) else {
+        return false;
+    };
+    let Some(at) = name.rfind(CHROME_NAME) else {
+        return false;
+    };
+    let tail = &name[at + CHROME_NAME.len()..];
+    tail.is_empty()
+        || tail
+            .strip_prefix(" - ")
+            .is_some_and(|profile| !profile.is_empty())
+}
+
+/// What a Chrome window's tree tells of it, given the names of the window
+/// element's own children of the type Pane, the toolbars below the window in
+/// the order of the tree (the names of each one's own buttons, and whether it
+/// stands inside a document), and the names of every button below the window:
+/// `None` unless the panes tell an ordinary window
+/// ([`pane_tells_an_ordinary_window`]), and then the answer of
+/// [`private_of_buttons`] over the own buttons of the first toolbar that
+/// stands inside no document, so that a page's own toolbar tells nothing.
+pub(crate) fn chrome_window_answer<S: AsRef<str>>(
+    panes: &[S],
+    toolbars: &[(Vec<S>, bool)],
+    all: &[S],
+) -> Option<bool> {
+    if !pane_tells_an_ordinary_window(panes) {
+        return None;
+    }
+    let toolbar: &[S] = toolbars
+        .iter()
+        .find(|(_, in_document)| !in_document)
+        .map_or(&[], |(names, _)| names.as_slice());
+    private_of_buttons(toolbar, all)
+}
+
+/// The most ancestors that the query walks up from a toolbar to the window.
 #[cfg(target_os = "windows")]
-pub(crate) fn chrome_window_is_incognito(
+const ANCESTOR_STEPS: usize = 64;
+
+/// Whether `bar` stands inside a document of the window whose element is
+/// `window`: an ancestor of the type Document comes before the window's own
+/// element as `walker` goes up; `None` where the walk gives no answer or does
+/// not reach the window within [`ANCESTOR_STEPS`].
+#[cfg(target_os = "windows")]
+fn stands_in_a_document(
+    automation: &windows::Win32::UI::Accessibility::IUIAutomation,
+    walker: &windows::Win32::UI::Accessibility::IUIAutomationTreeWalker,
+    window: &windows::Win32::UI::Accessibility::IUIAutomationElement,
+    bar: &windows::Win32::UI::Accessibility::IUIAutomationElement,
+) -> Option<bool> {
+    use windows::Win32::UI::Accessibility::UIA_DocumentControlTypeId;
+    let mut at = bar.clone();
+    for _ in 0..ANCESTOR_STEPS {
+        // SAFETY: the calls take the live client, walker and elements; each
+        // returns an owned COM pointer, a value or an error.
+        let parent = unsafe { walker.GetParentElement(&at) }.ok()?;
+        // SAFETY: as above.
+        if unsafe { automation.CompareElements(&parent, window) }
+            .ok()?
+            .as_bool()
+        {
+            return Some(false);
+        }
+        // SAFETY: as above.
+        if unsafe { parent.CurrentControlType() }.ok()? == UIA_DocumentControlTypeId {
+            return Some(true);
+        }
+        at = parent;
+    }
+    None
+}
+
+/// The reads that the Chrome query makes of one window's tree, each `None`
+/// where the read gives no answer.
+pub(crate) trait ChromeTreeReads {
+    /// The names of the window element's own children of the type Pane.
+    fn panes(&mut self) -> Option<Vec<String>>;
+
+    /// The names of every button below the window.
+    fn buttons(&mut self) -> Option<Vec<String>>;
+
+    /// The toolbars below the window in the order of the tree, each with the
+    /// names of its own buttons and whether it stands inside a document, up to
+    /// the first that stands in none.
+    fn toolbars(&mut self) -> Option<Vec<(Vec<String>, bool)>>;
+}
+
+/// What the query tells of a Chrome window by `reads`, in this order: the
+/// panes, and nothing more where they tell no ordinary window; then the
+/// buttons and the toolbars; then the panes once more, which must tell an
+/// ordinary window too, so that a window whose pane bore a child widget's
+/// title at the first read, with the browser's own toolbar read behind it, and
+/// its own marked name at the last read keeps no title; answered by
+/// [`chrome_window_answer`]; `None` where a read gives no answer.
+pub(crate) fn chrome_window_query(reads: &mut impl ChromeTreeReads) -> Option<bool> {
+    let panes = reads.panes()?;
+    if !pane_tells_an_ordinary_window(&panes) {
+        return None;
+    }
+    let all = reads.buttons()?;
+    let toolbars = reads.toolbars()?;
+    let behind = reads.panes()?;
+    if !pane_tells_an_ordinary_window(&behind) {
+        return None;
+    }
+    chrome_window_answer(&panes, &toolbars, &all)
+}
+
+/// The condition of UI Automation that selects the elements of one control
+/// type.
+#[cfg(target_os = "windows")]
+fn of_control_type(
+    automation: &windows::Win32::UI::Accessibility::IUIAutomation,
+    control: i32,
+) -> Option<windows::Win32::UI::Accessibility::IUIAutomationCondition> {
+    use windows::Win32::System::Variant::{VARIANT, VT_I4};
+    use windows::Win32::UI::Accessibility::UIA_ControlTypePropertyId;
+    let mut value = VARIANT::default();
+    // SAFETY: the value holds nothing; the tag and the member that it names
+    // are written together, and an integer owns nothing to free.
+    unsafe {
+        (*value.Anonymous.Anonymous).vt = VT_I4;
+        (*value.Anonymous.Anonymous).Anonymous.lVal = control;
+    }
+    // SAFETY: the call takes the live client and a value that it reads.
+    unsafe { automation.CreatePropertyCondition(UIA_ControlTypePropertyId, &value) }.ok()
+}
+
+/// The names of the elements of `found`, or `None` where one cannot be read.
+#[cfg(target_os = "windows")]
+fn names_of(
+    found: &windows::Win32::UI::Accessibility::IUIAutomationElementArray,
+) -> Option<Vec<String>> {
+    // SAFETY: the calls read a live array of elements and their names.
+    unsafe {
+        let count = found.Length().ok()?;
+        let mut names = Vec::new();
+        for index in 0..count {
+            names.push(
+                found
+                    .GetElement(index)
+                    .ok()?
+                    .CurrentName()
+                    .ok()?
+                    .to_string(),
+            );
+        }
+        Some(names)
+    }
+}
+
+/// The query's reads of one window's element through UI Automation.
+#[cfg(target_os = "windows")]
+struct UiaChromeReads<'a> {
+    automation: &'a windows::Win32::UI::Accessibility::IUIAutomation,
+    element: windows::Win32::UI::Accessibility::IUIAutomationElement,
+}
+
+#[cfg(target_os = "windows")]
+impl ChromeTreeReads for UiaChromeReads<'_> {
+    fn panes(&mut self) -> Option<Vec<String>> {
+        use windows::Win32::UI::Accessibility::{TreeScope_Children, UIA_PaneControlTypeId};
+        let pane = of_control_type(self.automation, UIA_PaneControlTypeId.0)?;
+        // SAFETY: the call takes the live element and a condition that it made.
+        names_of(&unsafe { self.element.FindAll(TreeScope_Children, &pane) }.ok()?)
+    }
+
+    fn buttons(&mut self) -> Option<Vec<String>> {
+        use windows::Win32::UI::Accessibility::{TreeScope_Descendants, UIA_ButtonControlTypeId};
+        let button = of_control_type(self.automation, UIA_ButtonControlTypeId.0)?;
+        // SAFETY: the call takes the live element and a condition that it made.
+        names_of(&unsafe { self.element.FindAll(TreeScope_Descendants, &button) }.ok()?)
+    }
+
+    fn toolbars(&mut self) -> Option<Vec<(Vec<String>, bool)>> {
+        use windows::Win32::UI::Accessibility::{
+            TreeScope_Children, TreeScope_Descendants, UIA_ButtonControlTypeId,
+            UIA_ToolBarControlTypeId,
+        };
+        let button = of_control_type(self.automation, UIA_ButtonControlTypeId.0)?;
+        let toolbar = of_control_type(self.automation, UIA_ToolBarControlTypeId.0)?;
+        // SAFETY: the calls take the live client, element and conditions that
+        // they made; each returns an owned COM pointer, a value or an error.
+        unsafe {
+            let found = self.element.FindAll(TreeScope_Descendants, &toolbar).ok()?;
+            let walker = self.automation.RawViewWalker().ok()?;
+            let mut toolbars = Vec::new();
+            for index in 0..found.Length().ok()? {
+                let bar = found.GetElement(index).ok()?;
+                let in_document =
+                    stands_in_a_document(self.automation, &walker, &self.element, &bar)?;
+                toolbars.push((
+                    names_of(&bar.FindAll(TreeScope_Children, &button).ok()?)?,
+                    in_document,
+                ));
+                if !in_document {
+                    break;
+                }
+            }
+            Some(toolbars)
+        }
+    }
+}
+
+/// What the UI Automation query tells of a Chrome window
+/// ([`chrome_window_query`] over the window's element); `None` when the
+/// query gives no answer. The calling thread must be in an apartment of COM.
+#[cfg(target_os = "windows")]
+pub(crate) fn chrome_window_is_private(
     automation: &windows::Win32::UI::Accessibility::IUIAutomation,
     window: windows::Win32::Foundation::HWND,
 ) -> Option<bool> {
-    use windows::Win32::System::Variant::{VARIANT, VT_I4};
-    use windows::Win32::UI::Accessibility::{
-        IUIAutomationElementArray, TreeScope_Children, TreeScope_Descendants,
-        UIA_ButtonControlTypeId, UIA_ControlTypePropertyId, UIA_ToolBarControlTypeId,
-    };
-    let of_type = |control: i32| {
-        let mut value = VARIANT::default();
-        // SAFETY: the value holds nothing; the tag and the member that it
-        // names are written together, and an integer owns nothing to free.
-        unsafe {
-            (*value.Anonymous.Anonymous).vt = VT_I4;
-            (*value.Anonymous.Anonymous).Anonymous.lVal = control;
-        }
-        value
-    };
-    let names = |found: &IUIAutomationElementArray| -> Option<Vec<String>> {
-        // SAFETY: the calls read a live array of elements and their names.
-        unsafe {
-            let count = found.Length().ok()?;
-            let mut names = Vec::new();
-            for index in 0..count {
-                names.push(
-                    found
-                        .GetElement(index)
-                        .ok()?
-                        .CurrentName()
-                        .ok()?
-                        .to_string(),
-                );
-            }
-            Some(names)
-        }
-    };
-    // SAFETY: the calls take the live client, a window handle value and the
-    // conditions that they made; each returns an owned COM pointer or an error.
-    unsafe {
-        let element = automation.ElementFromHandle(window).ok()?;
-        let button = automation
-            .CreatePropertyCondition(
-                UIA_ControlTypePropertyId,
-                &of_type(UIA_ButtonControlTypeId.0),
-            )
-            .ok()?;
-        let toolbar = automation
-            .CreatePropertyCondition(
-                UIA_ControlTypePropertyId,
-                &of_type(UIA_ToolBarControlTypeId.0),
-            )
-            .ok()?;
-        let all = names(&element.FindAll(TreeScope_Descendants, &button).ok()?)?;
-        let toolbar_names = match element.FindFirst(TreeScope_Descendants, &toolbar) {
-            Ok(toolbar) => names(&toolbar.FindAll(TreeScope_Children, &button).ok()?)?,
-            Err(_) => Vec::new(),
-        };
-        incognito_of_buttons(&toolbar_names, &all)
-    }
+    // SAFETY: the call takes the live client and a window handle value.
+    let element = unsafe { automation.ElementFromHandle(window) }.ok()?;
+    chrome_window_query(&mut UiaChromeReads {
+        automation,
+        element,
+    })
 }
 
 #[cfg(test)]
@@ -646,12 +812,12 @@ mod tests {
         let cases = [
             (
                 "german-toolbar-and-a-button-named-back-elsewhere",
-                incognito_of_buttons(&toolbar, &all),
+                private_of_buttons(&toolbar, &all),
                 None,
             ),
             (
                 "english-toolbar",
-                incognito_of_buttons(&english, &english),
+                private_of_buttons(&english, &english),
                 Some(false),
             ),
         ];
@@ -864,5 +1030,362 @@ mod tests {
                 "{answer:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_chrome_title_is_kept_only_under_a_pane_that_ends_with_chromes_name() {
+        let ordinary_toolbar = vec!["Back", "Forward", "Reload", "Sign in to Chrome?", "Chrome"];
+        let page_toolbar = vec!["Back", "Forward", "Reload"];
+        let ordinary_all = vec![
+            "Minimize",
+            "Maximize",
+            "Close",
+            "Back",
+            "Forward",
+            "Reload",
+            "File",
+            "Bookmark this tab",
+            "Sign in to Chrome?",
+            "Chrome",
+            "Back",
+            "Forward",
+            "Reload",
+            "probe own button",
+            "Tab search",
+            "Close",
+            "New Tab",
+        ];
+        let ordinary_toolbars = vec![(ordinary_toolbar, false), (page_toolbar.clone(), true)];
+        let guest_toolbar = vec!["Back", "Forward", "Reload", "Guest", "Chrome"];
+        let guest_all = vec![
+            "Minimize",
+            "Maximize",
+            "Close",
+            "Back",
+            "Forward",
+            "Reload",
+            "File",
+            "Guest",
+            "Chrome",
+            "Back",
+            "Forward",
+            "Reload",
+            "probe own button",
+            "Tab search",
+            "Close",
+            "New Tab",
+        ];
+        let full_screen_all = vec!["Back", "Forward", "Reload", "probe own button"];
+        let with_pane = |pane: &'static str| vec!["", pane];
+        let cases = vec![
+            (
+                "ordinary-as-read",
+                with_pane("probe9 5 - Google Chrome"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                true,
+            ),
+            (
+                "guest-as-read",
+                with_pane("probe11 5 - Google Chrome (Guest)"),
+                vec![(guest_toolbar, false), (page_toolbar.clone(), true)],
+                guest_all,
+                false,
+            ),
+            (
+                "full-screen-incognito-with-the-pages-toolbar-as-read",
+                with_pane("probe1 5 - Google Chrome (Incognito)"),
+                vec![(page_toolbar.clone(), true)],
+                full_screen_all.clone(),
+                false,
+            ),
+            (
+                "full-screen-guest-with-the-pages-toolbar-as-read",
+                with_pane("probe3 5 - Google Chrome (Guest)"),
+                vec![(page_toolbar, true)],
+                full_screen_all,
+                false,
+            ),
+            (
+                "a-profiles-name-behind-chromes-name",
+                with_pane("Notes - Google Chrome - Work"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                true,
+            ),
+            (
+                "incognito-behind-chromes-name",
+                with_pane("Notes - Google Chrome (Incognito)"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "guest-behind-chromes-name",
+                with_pane("Notes - Google Chrome (Guest)"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "isolated-behind-chromes-name",
+                with_pane("Notes - Google Chrome (Isolated)"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "another-build-behind-chromes-name",
+                with_pane("Notes - Google Chrome Beta"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "a-pages-own-title-with-chromes-name-and-a-name-in-incognito",
+                with_pane("Notes - Google Chrome - x - Google Chrome (Incognito)"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "no-named-pane",
+                vec!["", ""],
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "two-named-panes",
+                vec!["Notes - Google Chrome", "Notes - Google Chrome"],
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "a-new-windows-one-pane-at-once-as-read",
+                vec!["probe1 1 - Google Chrome"],
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                true,
+            ),
+            (
+                "a-second-profile-as-read",
+                with_pane("probe2 5 - Google Chrome - Person 1"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                true,
+            ),
+            (
+                "incognito-of-a-second-profile-as-read",
+                with_pane("probe3 5 - Google Chrome (Incognito)"),
+                vec![
+                    (
+                        vec!["Back", "Forward", "Reload", "Incognito", "Chrome"],
+                        false,
+                    ),
+                    (vec!["Back", "Forward", "Reload"], true),
+                ],
+                vec![
+                    "Minimize",
+                    "Maximize",
+                    "Close",
+                    "Back",
+                    "Forward",
+                    "Reload",
+                    "File",
+                    "Bookmark this tab",
+                    "Incognito",
+                    "Chrome",
+                    "Back",
+                    "Forward",
+                    "Reload",
+                    "probe own button",
+                    "Tab search",
+                    "Close",
+                    "New Tab",
+                ],
+                false,
+            ),
+            (
+                "a-message-box-as-read",
+                with_pane("This page says"),
+                vec![],
+                vec!["OK"],
+                false,
+            ),
+            (
+                "german-as-read",
+                with_pane("probe6 5 - Google Chrome"),
+                vec![
+                    (
+                        vec![
+                            "Zur\u{fc}ck",
+                            "Vorw\u{e4}rts",
+                            "Neu laden",
+                            "In Chrome anmelden?",
+                            "Chrome",
+                        ],
+                        false,
+                    ),
+                    (vec!["Back", "Forward", "Reload"], true),
+                ],
+                vec![
+                    "Zur\u{fc}ck",
+                    "Vorw\u{e4}rts",
+                    "Neu laden",
+                    "In Chrome anmelden?",
+                    "Chrome",
+                    "Back",
+                    "Forward",
+                    "Reload",
+                    "probe own button",
+                ],
+                false,
+            ),
+            (
+                "german-incognito-as-read",
+                with_pane("probe7 5 - Google Chrome (anonym)"),
+                vec![
+                    (
+                        vec![
+                            "Zur\u{fc}ck",
+                            "Vorw\u{e4}rts",
+                            "Neu laden",
+                            "Inkognito",
+                            "Chrome",
+                        ],
+                        false,
+                    ),
+                    (vec!["Back", "Forward", "Reload"], true),
+                ],
+                vec![
+                    "Zur\u{fc}ck",
+                    "Vorw\u{e4}rts",
+                    "Neu laden",
+                    "Inkognito",
+                    "Chrome",
+                    "Back",
+                    "Forward",
+                    "Reload",
+                    "probe own button",
+                ],
+                false,
+            ),
+            (
+                "an-app-window-with-the-pages-toolbar-as-read",
+                with_pane("probe8 5"),
+                vec![(vec!["Back", "Forward", "Reload"], true)],
+                vec![
+                    "",
+                    "Minimize",
+                    "Maximize",
+                    "Close",
+                    "Back",
+                    "Forward",
+                    "Reload",
+                    "probe own button",
+                ],
+                false,
+            ),
+        ];
+        let wrong: Vec<&str> = cases
+            .iter()
+            .filter(|(_, panes, toolbars, all, kept)| {
+                let told = private_window(Browser::Chrome, "Notes - Google Chrome", || {
+                    chrome_window_answer(panes, toolbars, all)
+                });
+                (told == PrivateWindow::Unknown) != *kept
+            })
+            .map(|(case, ..)| *case)
+            .collect();
+        assert!(
+            wrong.is_empty(),
+            "told against the window's named pane: {wrong:?}"
+        );
+    }
+
+    /// The query's reads as a test gives them: each read of the panes takes
+    /// the next list, and a read with no list left gives no answer.
+    struct StandInReads {
+        panes: Vec<Vec<&'static str>>,
+        buttons: Vec<&'static str>,
+        toolbars: Vec<(Vec<&'static str>, bool)>,
+    }
+
+    impl ChromeTreeReads for StandInReads {
+        fn panes(&mut self) -> Option<Vec<String>> {
+            (!self.panes.is_empty())
+                .then(|| self.panes.remove(0).into_iter().map(String::from).collect())
+        }
+
+        fn buttons(&mut self) -> Option<Vec<String>> {
+            Some(self.buttons.iter().map(|name| name.to_string()).collect())
+        }
+
+        fn toolbars(&mut self) -> Option<Vec<(Vec<String>, bool)>> {
+            Some(
+                self.toolbars
+                    .iter()
+                    .map(|(names, in_document)| {
+                        (
+                            names.iter().map(|name| name.to_string()).collect(),
+                            *in_document,
+                        )
+                    })
+                    .collect(),
+            )
+        }
+    }
+
+    #[test]
+    fn a_guest_window_whose_pane_bore_a_dialogs_title_at_the_first_read_keeps_no_title() {
+        let mut reads = StandInReads {
+            panes: vec![
+                vec!["", "Certificate Viewer: x - Google Chrome"],
+                vec!["", "probe11 5 - Google Chrome (Guest)"],
+            ],
+            buttons: vec![
+                "Minimize",
+                "Maximize",
+                "Close",
+                "Back",
+                "Forward",
+                "Reload",
+                "File",
+                "Guest",
+                "Chrome",
+                "Tab search",
+                "Close",
+                "New Tab",
+            ],
+            toolbars: vec![(vec!["Back", "Forward", "Reload", "Guest", "Chrome"], false)],
+        };
+        let told = private_window(Browser::Chrome, "probe11 5 - Google Chrome", || {
+            chrome_window_query(&mut reads)
+        });
+        assert_eq!(
+            told,
+            PrivateWindow::Private,
+            "a Guest window whose pane bore a dialog's title at the first read and its own mark behind the toolbar"
+        );
+    }
+
+    #[test]
+    fn the_rules_limit_a_private_mark_behind_a_profiles_name_is_kept() {
+        let toolbars = vec![(
+            vec!["Back", "Forward", "Reload", "Sign in to Chrome?", "Chrome"],
+            false,
+        )];
+        let all = vec!["Back", "Forward", "Reload", "Sign in to Chrome?", "Chrome"];
+        let panes = vec!["", "PAGE - Google Chrome - Person 1 (Guest)"];
+        let told = private_window(Browser::Chrome, "PAGE - Google Chrome", || {
+            chrome_window_answer(&panes, &toolbars, &all)
+        });
+        assert_eq!(
+            told,
+            PrivateWindow::Unknown,
+            "the rule keeps a pane whose name holds a profile's name and a private mark behind it"
+        );
     }
 }
