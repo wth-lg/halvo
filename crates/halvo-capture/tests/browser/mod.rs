@@ -4144,16 +4144,15 @@ fn a_renamed_copy_of_chrome_reads_unknown_and_records_nothing() {
     renamed_copy_phases("browser-renamed-chrome", &CHROME);
 }
 
-/// The page of the private-window row: its title is `base n`, with n counting
-/// up each second, so that the window's title changes behind its first two
-/// seconds; it holds a toolbar of its own with buttons named Back, Forward and
-/// Reload.
-const PRIVATE_ROW_PAGE: &str = r#"<!doctype html>
-<html><head><meta charset="utf-8"><title>private row</title></head><body>
+/// The page of the Chrome row: its title is `base n`, with n counting up each
+/// second, so that the window's title changes behind its first two seconds; it
+/// holds a toolbar of its own with buttons named Back, Forward and Reload.
+const CHROME_ROW_PAGE: &str = r#"<!doctype html>
+<html><head><meta charset="utf-8"><title>chrome row</title></head><body>
 <div role="toolbar" aria-label="page tools"><button>Back</button><button>Forward</button><button>Reload</button></div>
-<p>private row</p>
+<p>chrome row</p>
 <script>
-const base = new URLSearchParams(location.search).get('base') || 'privaterow';
+const base = new URLSearchParams(location.search).get('base') || 'chromerow';
 let n = 0;
 function tick() { n++; document.title = base + ' ' + n; }
 tick();
@@ -4161,11 +4160,11 @@ setInterval(tick, 1000);
 </script></body></html>
 "#;
 
-/// What one private window of the row gave: whether it came, came in front
-/// and came back in front behind the window with no edit, the titles of
-/// chrome.exe written, and the titles that the title source dropped at the
-/// private window.
-struct PrivateWindowPart {
+/// What one window of the row gave: whether it came, came in front and came
+/// back in front behind the window with no edit, the titles of chrome.exe
+/// written, and the titles that the title source dropped at the private
+/// window.
+struct ChromeWindowPart {
     found: bool,
     front: bool,
     back: bool,
@@ -4173,38 +4172,40 @@ struct PrivateWindowPart {
     private_drops: u64,
 }
 
-/// Starts the runner's Chrome with `flag` on the row's page under `base`, with
-/// a profile of its own, brings the window in front, puts it in full screen at
-/// once where `full_screen` is set (inside its first two seconds), sends it
-/// behind the window `away` and brings it back, and ends Chrome.
-fn private_window_part(
-    (exe, flag, base): (&Path, &str, &str),
+/// Starts the runner's Chrome on the row's page under `base`, with a profile
+/// of its own and with `flag` where one is given, brings the window in front,
+/// puts it in full screen at once where `full_screen` is set (inside its first
+/// two seconds), sends it behind the window `away` and brings it back, and
+/// ends Chrome.
+fn chrome_window_part(
+    (exe, flag, base): (&Path, Option<&str>, &str),
     full_screen: bool,
     (events, title, away): (
         &Events,
         &halvo_capture::windows::sources::Gated<WindowTitleSource>,
         HWND,
     ),
-) -> PrivateWindowPart {
+) -> ChromeWindowPart {
     use windows::Win32::UI::Input::KeyboardAndMouse::VK_F11;
     let profile = scratch_dir();
-    let page_path = profile.path().join("private.html");
-    let page_written = std::fs::write(&page_path, PRIVATE_ROW_PAGE).is_ok();
+    let page_path = profile.path().join("chrome.html");
+    let page_written = std::fs::write(&page_path, CHROME_ROW_PAGE).is_ok();
     let url = format!(
         "file:///{}?base={base}",
         page_path.to_string_lossy().replace('\\', "/")
     );
+    let mut args = vec![
+        format!("--user-data-dir={}", profile.path().join("data").display()),
+        "--no-first-run".to_string(),
+        "--no-default-browser-check".to_string(),
+        "--disable-features=Translate".to_string(),
+    ];
+    args.extend(flag.map(str::to_string));
+    args.push(url);
     let before = title.source().drops();
     let started = page_written
         && Command::new(exe)
-            .args([
-                format!("--user-data-dir={}", profile.path().join("data").display()),
-                "--no-first-run".to_string(),
-                "--no-default-browser-check".to_string(),
-                "--disable-features=Translate".to_string(),
-                flag.to_string(),
-                url,
-            ])
+            .args(&args)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -4237,7 +4238,7 @@ fn private_window_part(
         .output();
     seen.extend(events.drain_for(Duration::from_millis(900)));
     let after = title.source().drops();
-    PrivateWindowPart {
+    ChromeWindowPart {
         found: window.is_some(),
         front,
         back,
@@ -4251,13 +4252,15 @@ fn private_window_part(
     }
 }
 
-/// A real Chrome Guest window, and a real Incognito window in full screen whose
-/// page holds a toolbar of its own, give no title: each starts on a page of the
-/// test's own, with the keyboard source and the title source of one service
-/// set running, comes in front, goes behind the window with no edit and comes
-/// back. No title of chrome.exe is written, and the title source drops at
-/// least one title at the private window, in each.
-fn chrome_private_windows_give_no_title(test: &'static str) {
+/// A real ordinary Chrome window gives its titles, and a real Chrome Guest
+/// window and a real Incognito window in full screen whose page holds a
+/// toolbar of its own give none. Each starts on a page of the test's own, with
+/// the keyboard source and the title source of one service set running, comes
+/// in front, goes behind the window with no edit and comes back. The ordinary
+/// window writes at least one title of chrome.exe; each private one writes
+/// none, and the title source drops at least one of its titles at the private
+/// window.
+fn chrome_windows_keep_titles_only_when_ordinary(test: &'static str) {
     use halvo_capture::daemon::sources::SourceFactory;
     use halvo_control::proto::SourceName;
     env_report(test);
@@ -4285,14 +4288,16 @@ fn chrome_private_windows_give_no_title(test: &'static str) {
     let title_start = title.begin(SourceContext::new(sink.clone()));
     let parts = exe.as_ref().map(|exe| {
         [
-            ("guest", "--guest", false),
-            ("private_full_screen", "--incognito", true),
+            ("ordinary", None, false, true),
+            ("guest", Some("--guest"), false, false),
+            ("private_full_screen", Some("--incognito"), true, false),
         ]
-        .map(|(part, flag, full_screen)| {
-            let base = format!("privaterow{part}");
+        .map(|(part, flag, full_screen, kept)| {
+            let base = format!("chromerow{part}");
             (
                 part,
-                private_window_part(
+                kept,
+                chrome_window_part(
                     (exe.as_path(), flag, base.as_str()),
                     full_screen,
                     (&events, &title, away),
@@ -4317,8 +4322,8 @@ fn chrome_private_windows_give_no_title(test: &'static str) {
             show(&title_stop)
         ),
     );
-    let parts: Vec<(&str, PrivateWindowPart)> = parts.map(Vec::from).unwrap_or_default();
-    for (part, got) in &parts {
+    let parts: Vec<(&str, bool, ChromeWindowPart)> = parts.map(Vec::from).unwrap_or_default();
+    for (part, _, got) in &parts {
         say(
             test,
             format!(
@@ -4329,10 +4334,16 @@ fn chrome_private_windows_give_no_title(test: &'static str) {
     }
     let wrong: Vec<&str> = parts
         .iter()
-        .filter(|(_, got)| {
-            !(got.found && got.front && got.back && got.title_events == 0 && got.private_drops > 0)
+        .filter(|(_, kept, got)| {
+            let came = got.found && got.front && got.back;
+            let as_ruled = if *kept {
+                got.title_events > 0
+            } else {
+                got.title_events == 0 && got.private_drops > 0
+            };
+            !(came && as_ruled)
         })
-        .map(|(part, _)| *part)
+        .map(|(part, ..)| *part)
         .collect();
     assert!(
         exe.is_some() && wrong.is_empty(),
@@ -4351,6 +4362,6 @@ fn a_chrome_guest_window_gives_no_title() {
         return;
     }
     with_deadline(test, Duration::from_secs(150), move || {
-        chrome_private_windows_give_no_title(test)
+        chrome_windows_keep_titles_only_when_ordinary(test)
     });
 }
