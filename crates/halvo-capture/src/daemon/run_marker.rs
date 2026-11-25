@@ -19,8 +19,9 @@ use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::Path;
 
 use halvo_control::paths::DataDir;
-use halvo_control::proto::{LastStop, StopKind};
+use halvo_control::proto::{LastStop, LostRecord, StopKind};
 
+use super::board::LastLife;
 use super::state::StateDir;
 
 const MARKER_READ_MAX_BYTES: u64 = 4_096;
@@ -143,10 +144,12 @@ pub fn let_typing_go(run: &HeldRun) -> io::Result<()> {
 }
 
 /// What a start found in the marker and made of it: its reading, the result
-/// of its write, and the marker that it found, which [`give_back`] puts back.
+/// of its write, the loss of the last life that the marker held, and the
+/// marker that it found, which [`give_back`] puts back.
 pub struct Begun {
     pub last_stop: LastStop,
     pub written: io::Result<()>,
+    pub lost: Option<LastLife>,
     found: Option<String>,
 }
 
@@ -230,6 +233,7 @@ pub fn begin(dir: &DataDir) -> Begun {
     Begun {
         last_stop,
         written,
+        lost: None,
         found,
     }
 }
@@ -289,7 +293,13 @@ pub fn held(dir: &DataDir) -> bool {
 /// At 1 a marker that cannot be read, or a write that fails, gives what
 /// [`decided`] gives. Every read and write goes through `run`, the held
 /// folder.
-pub fn at_the_end(run: &HeldRun, status: i32, ended_by: Option<StopKind>) -> io::Result<()> {
+pub fn at_the_end(
+    run: &HeldRun,
+    status: i32,
+    ended_by: Option<StopKind>,
+    lost: Option<&LostRecord>,
+) -> io::Result<()> {
+    let _ = lost;
     match (status, ended_by) {
         (halvo_control::exit::CLEAN, _) => end(run, ended_by),
         (halvo_control::exit::ERROR, Some(kind @ (StopKind::Stop | StopKind::Signal))) => {
@@ -678,7 +688,7 @@ mod tests {
             format!("pid={}\nended=stop\n", std::process::id()),
             "the line in the held folder"
         );
-        at_the_end(&run, halvo_control::exit::CLEAN, Some(StopKind::Stop)).unwrap();
+        at_the_end(&run, halvo_control::exit::CLEAN, Some(StopKind::Stop), None).unwrap();
         assert_eq!(names(&data), Vec::<String>::new(), "nothing at the name");
         assert_eq!(
             std::fs::read_to_string(moved.join("run").join("running")).unwrap(),
@@ -727,6 +737,7 @@ mod tests {
             &run_of(&dir),
             halvo_control::exit::SOURCE_NOT_STOPPED,
             Some(StopKind::Stop),
+            None,
         )
         .unwrap();
         assert_eq!(
@@ -742,6 +753,7 @@ mod tests {
             &run_of(&dir),
             halvo_control::exit::CLEAN,
             Some(StopKind::Stop),
+            None,
         )
         .unwrap();
         assert_eq!(
@@ -774,7 +786,7 @@ mod tests {
                     stand(&dir, record);
                 }
                 assert!(begin(&dir).written.is_ok(), "{end}");
-                at_the_end(&run_of(&dir), ERROR, Some(kind)).unwrap();
+                at_the_end(&run_of(&dir), ERROR, Some(kind), None).unwrap();
                 let hold_line = if hold { "hold=yes\n" } else { "" };
                 assert_eq!(
                     marker(&dir),
@@ -813,7 +825,7 @@ mod tests {
             if let Some(stood) = stood {
                 stand(&dir, stood);
             }
-            at_the_end(&run_of(&dir), status, ended_by).unwrap();
+            at_the_end(&run_of(&dir), status, ended_by, None).unwrap();
             assert_eq!(marker(&dir), left, "{status} {ended_by:?}");
         }
     }
