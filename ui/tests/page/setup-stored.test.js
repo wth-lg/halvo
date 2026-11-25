@@ -61,10 +61,11 @@ function listEntry(names) {
 }
 
 const radiosOf = (page, name) => page.document.querySelectorAll(`input.hn-radio[data-param="${name}"]`);
+const chooseOf = (page, name) => page.document.querySelector(`button[data-act="choose_file"][data-param="${name}"]`);
 
 /** The replies of a page whose first snapshot holds `item` and whose next snapshot answers the page's latest wait
  * when `next` is called. */
-function replies(item) {
+function replies(item, extra = {}) {
   let next = null;
   return {
     next: (snapshot) => next({ ...snapshot, seq: setup.seq + 1 }),
@@ -76,6 +77,7 @@ function replies(item) {
         }),
       agents_setup_typed: { ok: "yes" },
       agents_answer: { ok: "yes" },
+      ...extra,
     },
   };
 }
@@ -130,5 +132,30 @@ test("a set-up item whose four questions carry stored lines draws each line fill
     Object.keys(HINTS).map((name) => lineOf(empty, name).value),
     ["", "", "", ""],
     "no stored line: every line empty",
+  );
+});
+
+test("a line that came filled from the store and that the person empties is no stored line any more: with Which sheet emptied, a pick in the chooser of Which spreadsheet file sends its line at once and the list of that workbook's sheets comes", async () => {
+  const picked = "/Volumes/work/Budget-2027.xlsx";
+  const one = replies(storedItem, { agents_choose_file: { path: picked } });
+  const page = await openPage(one);
+  const sheet = lineOf(page, "sheet");
+  sheet.focus();
+  sheet.value = "";
+  await sheet.dispatchEvent(makeEvent("input"));
+  await page.settle();
+  await page.click(chooseOf(page, "workbook"), { detail: 0 });
+  assert.deepEqual(
+    page.calls("agents_setup_typed").map((c) => c.args),
+    [{ item: storedItem.item, step: storedItem.step, param: "workbook", text: picked }],
+    "the picked line goes at the pick",
+  );
+  const names = ["January", "February"];
+  one.next({ ...setup, items: [{ ...storedItem, params: storedItem.params.map((p) => (p.name === "sheet" ? listEntry(names) : p)) }] });
+  await page.settle();
+  assert.deepEqual(
+    radiosOf(page, "sheet").map((r) => r.parentNode.textContent),
+    names,
+    "the list of the picked workbook's sheets comes",
   );
 });

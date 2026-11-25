@@ -49,7 +49,7 @@
   }
 
   function limit(typed, full, tooLong, hintId, notTaken, needsAnswer) {
-    const line = { kept: '', composing: false, ended: false, held: false, stored: false, field: typed, sent: null, text: null };
+    const line = { kept: '', composing: false, ended: false, held: false, stored: false, taken: false, field: typed, sent: null, text: null };
     let mark = false;
     let shown = null;
     let note = null;
@@ -101,6 +101,7 @@
         return false;
       }
       line.kept = now;
+      if (now.trim() === '' && !line.taken) line.stored = false;
       if (shown === 'needs') show(rest());
       if (change.added === 0) {
         mark = false;
@@ -117,10 +118,11 @@
     line.fill = function (text) {
       if (judge(text, null)) typed.value = line.kept;
     };
-    line.restore = function (text, stored) {
+    line.restore = function (text, stored, taken) {
       typed.value = text;
       line.kept = text;
       line.stored = stored;
+      line.taken = taken;
     };
     line.text = function () {
       return textOf(shown);
@@ -247,8 +249,8 @@
         set.appendChild(typed);
         line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken, p.needs_answer);
         const was = carry && carry.step === item.step ? carry.lines.get(p.name) : null;
-        if (was) line.restore(was.text, was.stored && !p.not_taken);
-        else if (typeof p.stored === 'string') line.restore(p.stored, !p.not_taken);
+        if (was) line.restore(was.text, was.stored && !p.not_taken, was.taken && !p.not_taken);
+        else if (typeof p.stored === 'string') line.restore(p.stored, !p.not_taken, false);
         if (p.choose) set.appendChild(chooser(item, p.name, p.choose));
       }
       box.appendChild(set);
@@ -457,6 +459,7 @@
         return p.name === a.param;
       })[0];
       a.line.stored = !(entry && entry.not_taken);
+      a.line.taken = a.line.stored;
     });
   }
 
@@ -464,7 +467,7 @@
     const lines = new Map();
     const picks = new Map();
     card.answers.forEach(function (a) {
-      if (a.line) lines.set(a.param, { text: a.line.kept, stored: a.line.stored });
+      if (a.line) lines.set(a.param, { text: a.line.kept, stored: a.line.stored, taken: a.line.taken });
       const picked = a.radios.filter(function (r) {
         return r.input.checked;
       })[0];
