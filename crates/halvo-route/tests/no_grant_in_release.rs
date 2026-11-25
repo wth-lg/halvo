@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 const PINNED: [(&str, &str); 5] = [
     (
         "src/leave.rs",
-        "c0155aaf2817a46a99b9f1f0022a16ccc96d1c090b5fbc22ec8dd537b39f9c86",
+        "982efd67d95d49bb9522cd04ef7cd60b1d9c8633674ad2ff6ae1924cbe5b9c49",
     ),
     (
         "src/lib.rs",
@@ -68,9 +68,10 @@ const HOSTS: &str = include_str!("../data/hosts.tsv");
 /// Under the release data the router grants a request for the origin of the table's row of its
 /// tier and for no other origin: the release ruling holds the rows of the table, at least one, in
 /// its order; every grant that `grant` makes over every tier, ceiling, list of parts, consent and a
-/// list of origins near the tabled ones names its tier's row and that row's origin; and each row
-/// gets its grant for its own origin, under each ceiling at or above its tier, for each list of
-/// parts that holds no part but text, with the consent recorded, and no other grant is made.
+/// list of origins near the tabled ones names its tier's row and that row's origin; and the number
+/// of grants is one for each row, each ceiling at or above its tier and each list of parts that
+/// holds no part but text. The test does not check under which ceiling, list of parts or consent a
+/// single grant was made; the unit tests of src/leave.rs hold the order of the rules.
 #[test]
 fn the_release_data_grants_the_tabled_origin_alone() {
     let ruling = release::ruling();

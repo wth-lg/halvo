@@ -1289,7 +1289,7 @@ pub(crate) fn hosting(
 }
 
 /// `hosting` with this build's host (`model_key::host`) and the model words of the rows of its table, in the order of
-/// `Ruling::allowed()`. With main's table, which holds no row, it is none and sends nothing.
+/// `Ruling::allowed()`. Where the build names no host, it is none and sends nothing.
 fn hosting_of_build(link: &Arc<dyn OwnerLink>, memory: &RowsMemory, asks: bool) -> Option<Hosting> {
     let ruling = halvo_route::release::ruling();
     let models: Vec<&str> = ruling
@@ -2623,7 +2623,7 @@ mod tests {
         .expect("a configuration of the agent store")
     }
 
-    /// r4 U3.17b sentence 1: where the build names no host (a table of hosts with no row, as on main, gives none), the
+    /// r4 U3.17b sentence 1: where the build names no host (a table of hosts with no row gives none), the
     /// read for a list with an agent whose runtime asks a model sends nothing and hands no model, so that no row offers
     /// either control, whatever the agent's tier and agreement, and no card shows a line of a host.
     #[test]
