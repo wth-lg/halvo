@@ -26,9 +26,11 @@ struct Rule {
     /// is empty.
     topic: &'static [&'static str],
     /// The words of the task done: its act as a title names it (`paid`, `payment`, `pay`), or a thing that only
-    /// the finished task leaves (`driver`, `outcome`). The rule needs one of them in a step of the episode. A word
-    /// that also names what a person only looks at (`addendum`, `screening`, `sign` as in a sign-in) is none of
-    /// them, though it may be a word of the topic, which names nothing alone.
+    /// the finished task leaves (`driver`, `outcome`). The rule needs one of them in a step of the episode. The
+    /// rule of choice for this list: a word that pages a person only looks at are known to write (`addendum`,
+    /// `screening`, `sign` as in a sign-in) is left out of it, though it may be a word of the topic, which names
+    /// nothing alone. The choice holds for the pages that were weighed and no further: a page that a person only
+    /// looks at is still named where its own title holds a topic word and a done word.
     done: &'static [&'static str],
 }
 
@@ -78,14 +80,11 @@ const fn rule(category: SeedCategory) -> Rule {
                 "signed",
                 "export",
                 "exported",
-                "request",
                 "requested",
                 "submitted",
                 "accepted",
                 "countersigned",
                 "executed",
-                "complete",
-                "completed",
             ],
         },
         SeedCategory::TenantApplicationReview => Rule {
@@ -111,15 +110,7 @@ const fn rule(category: SeedCategory) -> Rule {
                 "mail", "email", "inbox", "mailbox", "message", "messages", "emails", "mails",
                 "outbox", "reply",
             ],
-            done: &[
-                "sent",
-                "replied",
-                "forwarded",
-                "archived",
-                "forward",
-                "compose",
-                "delivered",
-            ],
+            done: &["sent", "replied", "forwarded", "archived", "compose"],
         },
         SeedCategory::SpreadsheetFill => Rule {
             topic: &[
@@ -215,7 +206,6 @@ const fn rule(category: SeedCategory) -> Rule {
                 "pickup",
                 "driver",
                 "reserved",
-                "scheduled",
                 "dispatched",
                 "arriving",
             ],
@@ -522,7 +512,12 @@ mod tests {
                 None,
                 Category::TenantApplicationReview,
             ),
-            ("Reply delivered", "postwick.example", None, Category::Email),
+            (
+                "Compose - family emails",
+                "postwick.example",
+                None,
+                Category::Email,
+            ),
             (
                 "Allotment workbook — Edited",
                 "plotbook.example",
