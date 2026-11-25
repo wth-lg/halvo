@@ -282,6 +282,35 @@ pub fn request_line(
     )
 }
 
+/// The `system` of an ask: for the door's child (`hosted`) and the grammar `action`, the boundary
+/// text, a blank line and the fixed text of the action's form (r3 U0.8d); for the grammar `text`
+/// and for the local child, the boundary text as it stands.
+pub fn system_of<'a>(hosted: bool, system: &'a str, grammar: &str) -> std::borrow::Cow<'a, str> {
+    if hosted && grammar == "action" {
+        std::borrow::Cow::Owned(format!("{system}\n\n{}", crate::words::ACTION_FORM_HOSTED))
+    } else {
+        std::borrow::Cow::Borrowed(system)
+    }
+}
+
+/// The request line of one ask of a child: [`request_line`] with the `system` of [`system_of`].
+pub fn ask_line(
+    hosted: bool,
+    id: u64,
+    system: &str,
+    prompt: &str,
+    snapshot: Option<&str>,
+    grammar: &str,
+) -> String {
+    request_line(
+        id,
+        &system_of(hosted, system, grammar),
+        prompt,
+        snapshot,
+        grammar,
+    )
+}
+
 /// Parses one reply line of A12.2 for the request `id`.
 pub fn parse_reply(line: &str, id: u64) -> Result<Reply, String> {
     let v: Value = serde_json::from_str(line).map_err(|_| "the reply is no JSON".to_string())?;
@@ -445,17 +474,23 @@ impl Child {
         snapshot: Option<&str>,
         grammar: &str,
     ) -> Result<Reply, Fault> {
+        let hosted = self.hosted.is_some();
         let hold = match &self.hosted {
             Some(h) => {
                 let mut spend = h.spend.lock().map_err(|_| Fault::Child("count".into()))?;
-                let bytes = body_bytes(spend.tier(), system, prompt, snapshot);
+                let bytes = body_bytes(
+                    spend.tier(),
+                    &system_of(hosted, system, grammar),
+                    prompt,
+                    snapshot,
+                );
                 Some(spend.hold(bytes)?)
             }
             None => None,
         };
         let id = self.next;
         self.next += 1;
-        let line = request_line(id, system, prompt, snapshot, grammar);
+        let line = ask_line(hosted, id, system, prompt, snapshot, grammar);
         let sent = self
             .input
             .as_mut()

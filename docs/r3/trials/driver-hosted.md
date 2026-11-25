@@ -61,8 +61,17 @@ with `--cell` runs one of the cells alone (point 8).
    that the door answered `cut` has no body; no count of tokens is held against a bound. The door
    cuts a snapshot at the last line end that keeps the body within 131,072 bytes, not at
    `snapshot_tokens`. The grammar does not leave the door, so a reply that is no action of A12.4 is
-   refused as `action_form` and counts as an ask. `recoveries` stays 2, the value of the level
-   `medium` of `docs/r3/model-settings.toml`.
+   refused as `action_form` and counts as an ask. REVISION OF 2026-11-25 BY r3 U0.8d: the pilot of r3
+   U0.9, one cell `bill:1` a tier, found every action reply of both tiers refused as `action_form`,
+   because nothing told a hosted model the form of an action: the boundary text names the actions in
+   words, the harness reads the JSON object of five keys alone, and the door sends no grammar. No
+   verdict line stood before this revision. Since it, the harness's ask of the grammar `action` to the
+   door carries one fixed text of the form, a template of its five keys (`ACTION_FORM_HOSTED` of
+   `tools/r3-trials/drive/src/words.rs`), behind the boundary text in its `system`; an ask of the
+   grammar `text` and every request of the local child do not, and the four prompt files do not
+   change. The form is told, not enforced: a reply that still is no action is refused as
+   `action_form` and counts as an ask. `recoveries` stays 2, the value of the level `medium` of
+   `docs/r3/model-settings.toml`.
 4. ONE round on one Mac. Every cell runs on `mac`, one round and no other machine, so in the rule
    above "all twelve `drive` lines" reads as the six `drive` lines of `mac` and "all six `reply`
    lines" as the three `reply` lines of `mac`. A call with `--cell` (point 8) is no round.
