@@ -423,11 +423,17 @@ fn is_tap_disabled(etype: CGEventType) -> bool {
 
 const CHORD_MASKS: u64 = 0x001C_0000;
 
+/// The Option bit of the flags, one of the three of [`CHORD_MASKS`].
+const OPTION_MASK: u64 = 0x0008_0000;
+
+/// The class of a key down, from its key code and the flags of its own event.
+/// A key pressed while none of Control, Option and Command is held keeps the
+/// class of its code. A key whose code is of the class printable, pressed while
+/// Option is the only one of the three that is held, stays printable, since a
+/// layout types a sign with it; no line reads which sign. Every other key
+/// pressed while one of the three is held is a shortcut.
 fn key_class(key_code: Option<i64>, flags: u64) -> KeyClass {
-    if flags & CHORD_MASKS != 0 {
-        return KeyClass::Shortcut;
-    }
-    match key_code {
+    let own = match key_code {
         Some(0x24 | 0x4C) => KeyClass::Enter,
         Some(0x30) => KeyClass::Tab,
         Some(0x33 | 0x72 | 0x75) => KeyClass::Editing,
@@ -436,6 +442,11 @@ fn key_class(key_code: Option<i64>, flags: u64) -> KeyClass {
             KeyClass::Printable
         }
         _ => KeyClass::Other,
+    };
+    match flags & CHORD_MASKS {
+        0 => own,
+        OPTION_MASK if own == KeyClass::Printable => own,
+        _ => KeyClass::Shortcut,
     }
 }
 
