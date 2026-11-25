@@ -101,30 +101,31 @@ Where a sentence names a unit, that unit makes it true.
   records no title of their beta, developer and test builds. Halvo also leaves out an
   Edge title where a closing square bracket stands before ` - Microsoft Edge` with
   nothing but signs that are neither letters nor digits between them, because there Edge
-  on Windows puts the mark of its InPrivate window. Chrome and Edge end the title of a
-  private window with `(Incognito)` or `(InPrivate)` and of a Guest window with
-  `(Guest)`, and while a dialog over the page has the focus the title is the dialog's
-  own: Halvo records none of these titles. Chrome also opens windows that keep no
-  history and that no person opens by a command of private browsing, such as the window
-  of a developer tool's own session or the sign-in page of a network that asks for one:
-  Chrome names such a window neither Incognito nor Guest, its title ends with Chrome's
-  own name, and Halvo records it. Where Chrome or Edge gives no title of its own making
-  for a window, the Mac gives the page's own title, and a page whose own title ends as
-  an ordinary window's does would then be recorded, in a private window too; no line
-  that has been read shows when that happens. Halvo tells the language from the one that
-  the browser is set to, or else from the list of languages that you prefer, and from
-  the languages that the browser comes in. Where it cannot tell that the browser shows
-  English, it records no title of that browser, so under any other language it records
-  none. A Chrome or Edge that was already open when Halvo started, or when you last
-  changed one of those languages, has no title recorded until you quit it and open it
-  again. Halvo records no title of any other browser that it knows by name, such as
-  Safari, Firefox, Brave, Opera or Vivaldi, with their beta, developer, nightly and test
-  builds, and none of an app that your Mac lists as one that can open web links. Where
-  Halvo cannot read that list, or cannot tell where such an app lies on your Mac, it
-  records the titles of that app, a browser and its private windows among them.
-  Thunderbird and the other apps of Mozilla, of the Tor Project and of Chromium that
-  Halvo does not know by name have their titles recorded only where Halvo could read
-  that list and the app is not on it. Halvo records the titles of every other app,
+  on Windows puts the mark of its InPrivate window, and where the end of the title that
+  it reads holds no letter, digit or bracket before that name. Chrome and Edge end the
+  title of a private window with `(Incognito)` or `(InPrivate)` and of a Guest window
+  with `(Guest)`, and while a dialog over the page has the focus the title is the
+  dialog's own: Halvo records none of these titles. Chrome also opens windows that keep
+  no history and that no person opens by a command of private browsing, such as the
+  window of a developer tool's own session or the sign-in page of a network that asks
+  for one: Chrome names such a window neither Incognito nor Guest, its title ends with
+  Chrome's own name, and Halvo records it. Where Chrome or Edge gives no title of its
+  own making for a window, the Mac gives the page's own title, and a page whose own
+  title ends as an ordinary window's does would then be recorded, in a private window
+  too; no line that has been read shows when that happens. Halvo tells the language from
+  the one that the browser is set to, or else from the list of languages that you
+  prefer, and from the languages that the browser comes in. Where it cannot tell that
+  the browser shows English, it records no title of that browser, so under any other
+  language it records none. A Chrome or Edge that was already open when Halvo started,
+  or when you last changed one of those languages, has no title recorded until you quit
+  it and open it again. Halvo records no title of any other browser that it knows by
+  name, such as Safari, Firefox, Brave, Opera or Vivaldi, with their beta, developer,
+  nightly and test builds, and none of an app that your Mac lists as one that can open
+  web links. Where Halvo cannot read that list, or cannot tell where such an app lies on
+  your Mac, it records the titles of that app, a browser and its private windows among
+  them. Thunderbird and the other apps of Mozilla, of the Tor Project and of Chromium
+  that Halvo does not know by name have their titles recorded only where Halvo could
+  read that list and the app is not on it. Halvo records the titles of every other app,
   except its own and the password managers that it leaves out whole. For a browser, the
   app and the time are recorded as for every app. A browser that Halvo does not know and
   that your Mac does not list for web links has its titles recorded like any app's, its
