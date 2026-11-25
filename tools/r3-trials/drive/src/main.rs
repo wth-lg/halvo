@@ -1168,35 +1168,48 @@ mod tests {
             .join("..")
             .join("..")
             .join("..");
-        let ran = std::process::Command::new("sh")
-            .args([
-                "tools/r3-trials/drive/hosted.sh",
-                "--standin",
-                "--cell",
-                "bill:1",
-            ])
-            .current_dir(&repo)
-            .output()
-            .expect("sh runs hosted.sh");
+        let hosted = |cell: &str| {
+            let ran = std::process::Command::new("sh")
+                .args([
+                    "tools/r3-trials/drive/hosted.sh",
+                    "--standin",
+                    "--cell",
+                    cell,
+                ])
+                .current_dir(&repo)
+                .output()
+                .expect("sh runs hosted.sh");
+            (
+                ran.status.code(),
+                String::from_utf8_lossy(&ran.stdout).into_owned(),
+                String::from_utf8_lossy(&ran.stderr).into_owned(),
+            )
+        };
         assert_eq!(
             (
                 parse_round(&base).map(|r| r.cells),
                 with("bill:2"),
                 with("reply:3"),
                 refused,
-                ran.status.code(),
-                String::from_utf8_lossy(&ran.stdout).into_owned(),
-                String::from_utf8_lossy(&ran.stderr).into_owned(),
+                hosted("bill:1"),
+                hosted(""),
             ),
             (
                 Ok(CELLS.to_vec()),
                 Ok(vec![("bill", 2)]),
                 Ok(vec![("reply", 3)]),
                 vec![true; 5],
-                Some(2),
-                String::new(),
-                "REFUSED usage: --cell is not taken with --standin: the control reads all nine cells\n"
-                    .to_string(),
+                (
+                    Some(2),
+                    String::new(),
+                    "REFUSED usage: --cell is not taken with --standin: the control reads all nine cells\n"
+                        .to_string(),
+                ),
+                (
+                    Some(2),
+                    String::new(),
+                    "REFUSED usage: --cell takes bill:1 to reply:3\n".to_string(),
+                ),
             )
         );
     }

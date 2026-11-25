@@ -88,6 +88,9 @@ model=
 list=
 key_file=
 cell=
+# Whether --cell was given is a fact of its own, set when the argument is seen: an empty value is a
+# --cell all the same, which the check below refuses, and never a call of every cell.
+cell_given=
 while [ $# -gt 0 ]; do
   case $1 in
     --help)
@@ -102,7 +105,7 @@ while [ $# -gt 0 ]; do
     --tier | --ceiling | --browser | --port | --model | --list | --key-file | --cell)
       [ $# -ge 2 ] || refuse usage "$1 has no value"
       case $1 in
-        --cell) [ -z "$cell" ] || refuse usage "--cell is given twice"; cell=$2 ;;
+        --cell) [ -z "$cell_given" ] || refuse usage "--cell is given twice"; cell_given=yes; cell=$2 ;;
         --tier) [ -z "$tier" ] || refuse usage "--tier is given twice"; tier=$2 ;;
         --ceiling) [ -z "$ceiling" ] || refuse usage "--ceiling is given twice"; ceiling=$2 ;;
         --browser) [ -z "$browser" ] || refuse usage "--browser is given twice"; browser=$2 ;;
@@ -116,12 +119,12 @@ while [ $# -gt 0 ]; do
     *) refuse usage "unknown argument $1" ;;
   esac
 done
-if [ -n "$cell" ]; then
-  [ -z "$standin" ] || refuse usage "--cell is not taken with --standin: the control reads all nine cells"
+if [ -n "$cell_given" ]; then
   case $cell in
     bill:[123] | order:[123] | reply:[123]) ;;
     *) refuse usage "--cell takes bill:1 to reply:3" ;;
   esac
+  [ -z "$standin" ] || refuse usage "--cell is not taken with --standin: the control reads all nine cells"
 fi
 case $tier in
   low_cost_hosted | frontier) ;;
@@ -254,7 +257,7 @@ if [ -n "$standin" ]; then
 else
   set -- "$@" --key-file "$key_file"
 fi
-[ -z "$cell" ] || set -- "$@" --cell "$cell"
+[ -z "$cell_given" ] || set -- "$@" --cell "$cell"
 
 pid=
 # shellcheck disable=SC2329
