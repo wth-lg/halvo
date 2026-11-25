@@ -1,0 +1,1 @@
+- Fixed: (routing run, U5.2a) A build with the cargo feature `loopback` now takes the loopback origin alone in the model adapter and refuses a named origin before a client exists; the door's tests run on a stand-in alone; and the tests that read the router's release data as closed or at the fixture rates stand on texts of their own.
