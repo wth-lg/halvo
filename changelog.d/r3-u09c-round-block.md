@@ -1,0 +1,1 @@
+- Changed: (agents run, U0.9c) docs/r3/trials/driver-hosted.md holds the hosted round's block by its sha256, its count of lines and its verdict line, with a dated revision that says the block lies outside the tree, that the verdict line was read from it by counts by hand under the verdict rule of A13.6, and that no tool of the tree reads a hosted block.
