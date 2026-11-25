@@ -159,22 +159,23 @@ pub(crate) const ENGLISH: &str = "en";
 
 /// What a title of Chrome or Edge ends with where Halvo keeps it: the
 /// browser's own name as it ends the title of an ordinary window, behind
-/// whose last place may stand ` - ` and a profile's name, and whether a
-/// closing square bracket may not be the last letter, digit or closing
-/// square bracket before it.
+/// whose last place may stand ` - ` and a profile's name, and whether the
+/// last letter, digit or closing square bracket before it must be a letter
+/// or a digit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct OwnName {
     name: &'static str,
-    no_bracket_before: bool,
+    letter_or_digit_before: bool,
 }
 
 impl OwnName {
     /// Whether `ending`, with zero-width characters and marks of writing
     /// direction taken out and the blanks at its end trimmed, holds the name
     /// with nothing behind its last place, or ` - ` and a name of a profile
-    /// that is not blank; and, where the browser asks it, no closing square
-    /// bracket is the last letter, digit or closing square bracket before
-    /// the name.
+    /// that is not blank; and, where the browser asks it, the last letter,
+    /// digit or closing square bracket before the name in that ending is a
+    /// letter or a digit, so that an ending with none of them leaves the
+    /// title out.
     fn ends(self, ending: &str) -> bool {
         let text: String = ending.chars().filter(|&c| !is_invisible_mark(c)).collect();
         let text = text.trim_end();
@@ -189,14 +190,13 @@ impl OwnName {
         if !tail_kept {
             return false;
         }
-        if !self.no_bracket_before {
+        if !self.letter_or_digit_before {
             return true;
         }
-        let last = head
-            .chars()
+        head.chars()
             .rev()
-            .find(|&c| c.is_alphanumeric() || matches!(c, ']' | '\u{FF3D}'));
-        !matches!(last, Some(']' | '\u{FF3D}'))
+            .find(|&c| c.is_alphanumeric() || matches!(c, ']' | '\u{FF3D}'))
+            .is_some_and(char::is_alphanumeric)
     }
 }
 
@@ -219,21 +219,22 @@ fn is_invisible_mark(c: char) -> bool {
 /// it for a second profile, is the ending that GitHub's hosted Macs read from
 /// Edge 157.0.4341.60, whose InPrivate and Guest windows and message box ended
 /// otherwise; it keeps the guard of the Windows rule, where an InPrivate
-/// window puts its bracketed mark before the name. Safari is not here: its
-/// titles are not read.
+/// window puts its bracketed mark before the name, and leaves a title out
+/// where the end that is read holds no letter or digit before the name. Safari
+/// is not here: its titles are not read.
 pub(crate) const NAME_ENDINGS: [(&str, OwnName); 2] = [
     (
         "com.google.Chrome",
         OwnName {
             name: " - Google Chrome",
-            no_bracket_before: false,
+            letter_or_digit_before: false,
         },
     ),
     (
         "com.microsoft.edgemac",
         OwnName {
             name: " - Microsoft Edge",
-            no_bracket_before: true,
+            letter_or_digit_before: true,
         },
     ),
 ];
