@@ -27,7 +27,8 @@ The cells are those of A13.6: for `bill` and `order`, seeds 1 to 3, one compile 
 three replays with no model and one recovery on `changed_page_2`; for `reply`, seeds 1 to 3, one
 run that writes two bodies. The four prompt files are those of the first trial: the command refuses
 to run when a `prompt` line of `run.sh --prompt-lines` for `boundary.txt`, `goal-bill.txt`,
-`goal-order.txt` or `goal-reply.txt` differs from the line of `docs/r3/trials/driver.md`.
+`goal-order.txt` or `goal-reply.txt` differs from the line of `docs/r3/trials/driver.md`. A call
+with `--cell` runs one of the cells alone (point 8).
 
 ## What differs from the first trial
 
@@ -40,15 +41,21 @@ to run when a `prompt` line of `run.sh --prompt-lines` for `boundary.txt`, `goal
    `wall_s` holds no load time and no wait for a lock.
 3. The settings of the hosted row. The model word, the origin and the adapter word are those of the
    row of the table of hosts for the round's tier. The level `medium` goes into the request line and
-   does not leave the door, so the host answers at its own default effort. The door's output limit is
-   2,048 tokens and it reads no `stop_reason`, so in the reply rule above "the level's `reply_tokens`"
-   reads as 2,048. The door cuts a snapshot at the last line end that keeps the body within 131,072
-   bytes, not at `snapshot_tokens`. The grammar does not leave the door, so a reply that is no action
-   of A12.4 is refused as `action_form` and counts as an ask. `recoveries` stays 2, the value of the
-   level `medium` of `docs/r3/model-settings.toml`.
+   the door sends it as the host's effort, `output_config.effort` `medium`, which is the default
+   effort of claude-haiku-5-5 and of claude-opus-5-5, so the round asks both at the effort that a
+   request without it gets. The door's output limit is 2,048 tokens, and the model's thinking counts
+   against it beside the reply's text. The door reads each answer's `stop_reason`: an answer that
+   ended at the limit is the refusal `cut` and one that the host declined the refusal `declined`, and
+   neither holds a byte of the answer's text. So in the reply rule above, "an output whose count of
+   tokens equals the level's `reply_tokens` is no body, because the limit cut it" reads as: a request
+   that the door answered `cut` has no body; no count of tokens is held against a bound. The door
+   cuts a snapshot at the last line end that keeps the body within 131,072 bytes, not at
+   `snapshot_tokens`. The grammar does not leave the door, so a reply that is no action of A12.4 is
+   refused as `action_form` and counts as an ask. `recoveries` stays 2, the value of the level
+   `medium` of `docs/r3/model-settings.toml`.
 4. ONE round on one Mac. Every cell runs on `mac`, one round and no other machine, so in the rule
    above "all twelve `drive` lines" reads as the six `drive` lines of `mac` and "all six `reply`
-   lines" as the three `reply` lines of `mac`.
+   lines" as the three `reply` lines of `mac`. A call with `--cell` (point 8) is no round.
 5. The recovery ask. A request holds the fixed texts, the page's text, the message's text and this
    run's own lines of what was done, and never a word of a stored step (A12.7). So the recovery ask
    names no stored step: its question is the fixed text "A saved step found no control on this page.
@@ -62,12 +69,26 @@ to run when a `prompt` line of `run.sh --prompt-lines` for `boundary.txt`, `goal
    bytes and 2,048 output tokens, and after the answer it settles at the token counts that the host's
    answer reports. A ceiling held at made-up rates is no ceiling, so the paid round refuses to start,
    before it starts a browser, a door or a count and before it sends anything, while the rate of the
-   round's tier in that file has a source that begins `fixture:`; the unit that writes the first row of
-   the table of hosts, behind the owner's key and ceiling, writes that model's rates from the host's
-   own price page with their date, and the stand-in form runs on the fixture rates.
+   round's tier in that file has a source that begins `fixture:`; the stand-in form runs on the
+   fixture rates.
+7. The door's two ends. A request that the door answers `cut` or `declined` is no ask that the model
+   failed. In a compile and in a recovery it counts against the asks of that run (32, `recoveries`),
+   each being a request that counts against the ceiling, and the run asks again on the page as it then
+   stands, with nothing added to `Done so far`; in a write that message gets no body, as the reply
+   rule says of a cut output, and the run goes on to the next message. After each cell's lines the
+   round prints `ends model=<token> machine=<m> task=<t> seed=<n> cut=<n> declined=<n>`, the requests
+   of that cell that the door answered so. The count settles each at its whole hold, as for
+   `no_answer`, `status` and `answer`, because the door's refusal carries no counts of the host's
+   answer.
+8. One cell. `--cell <task>:<seed>` (`bill:1` to `reply:3`) runs that one cell alone, under the
+   ceiling's count and the bound of 216 requests as a round does, and prints its lines, its `ends`
+   line and the three lines below. `--cell` beside `--standin` is refused, because the control reads
+   all nine cells. No line of a call with `--cell` enters a verdict: a verdict stands on the lines of
+   the nine cells of ONE round.
 
 ## The lines that the paid round adds
 
+Behind each cell's lines the round prints its `ends` line of point 7, which conditions no verdict.
 At its end the command prints three lines, and a verdict of the round stands only with all three as
 below and with the coordinator's line that the verdict stands:
 
@@ -92,4 +113,6 @@ the line `notrun` and the cause `requests`, and the command stops.
 
 A verdict line stands only beside the control of this harness at the same commit:
 `sh tools/r3-trials/drive/hosted.sh --standin`, the same cells against a scripted host on 127.0.0.1,
-which walks each task as a right driver would and reads as expected.
+which walks each task as a right driver would and reads as expected, and which answers the round's
+first ask with the stop reason `max_tokens`, its second with `refusal` and the first ask for a reply
+body with `max_tokens`, so that the control's lines show both ends counted apart.
