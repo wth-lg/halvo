@@ -589,13 +589,14 @@ mod tests {
     }
 
     /// Sentence (1): a hold that does not fit the room left is refused with `over_cap`, and the row stays as it was. The
-    /// person's cap holds one hold of the test's size and not two; the first hold is admitted and the second, which alone
-    /// would fit the cap, is refused, and the stored row is the same text before and after it.
+    /// person's cap is the least whole number of minor units that holds one hold of the test's size at the build's rates,
+    /// so it holds one and not two, whatever those rates are; the first hold is admitted and the second, which alone would
+    /// fit the cap, is refused, and the stored row is the same text before and after it.
     #[test]
     fn a_hold_above_the_room_left_is_refused() {
         let mut store = store_with();
         let one = Prices::release().hold(Tier::Frontier, 10_000, 1_000);
-        let cap: u32 = 40;
+        let cap = u32::try_from(one.div_ceil(MICRO_PER_MINOR)).expect("a cap in minor units");
         let cap_micro = u64::from(cap) * MICRO_PER_MINOR;
         assert!(
             one <= cap_micro && 2 * one > cap_micro,

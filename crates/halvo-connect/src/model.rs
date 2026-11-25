@@ -87,8 +87,8 @@ const ANSWER_BOUND: usize = 4_194_304;
 pub enum SendError {
     /// The grant's row names an adapter word that this crate does not have: nothing was sent.
     Adapter,
-    /// The origin of the grant's row is not `https://` and a host name alone (or, in a build with
-    /// the feature `loopback`, `http://127.0.0.1:<port>`): nothing was sent.
+    /// The origin of the grant's row is not `https://` and a host name alone (in a build with the
+    /// feature `loopback`, it is not `http://127.0.0.1:<port>`): nothing was sent.
     Origin,
     /// The TLS configuration or the HTTP client could not be built on this system: nothing was
     /// sent.
@@ -167,10 +167,12 @@ struct Host {
 
 impl Host {
     /// The host at `origin` for `adapter`. `origin` must be `https://` and a host name alone; a
-    /// build with the feature `loopback` also takes `http://127.0.0.1:<port>`.
+    /// build with the feature `loopback` takes `http://127.0.0.1:<port>` alone and no named origin,
+    /// so a build that can reach a stand-in reaches no host that is not this machine (r6 U5.2a).
     fn new(adapter: Adapter, origin: &str, limit: Duration) -> Result<Host, SendError> {
         let parsed = Url::parse(origin).map_err(|_| SendError::Origin)?;
-        let named = parsed.scheme() == "https"
+        let named = !cfg!(feature = "loopback")
+            && parsed.scheme() == "https"
             && parsed.domain().map(|name| format!("https://{name}")) == Some(origin.to_owned());
         if !named && !loopback(&parsed, origin) {
             return Err(SendError::Origin);
@@ -251,6 +253,34 @@ impl fmt::Debug for Host {
             .field("url", &self.url.as_str())
             .field("adapter", &self.adapter)
             .finish_non_exhaustive()
+    }
+}
+
+/// The tests of `Host::new`, behind it.
+#[cfg(all(test, feature = "loopback"))]
+mod host_tests {
+    use super::*;
+
+    /// r6 U5.2a: a build with the feature `loopback`, which the test builds of this crate, of the
+    /// door halvo-model and of the runner turn on, takes `http://127.0.0.1:<port>` alone. A named
+    /// origin, which a row of the table of hosts holds, gives `Origin` before any client exists, so
+    /// no test of such a build reaches a host that is not this machine.
+    #[test]
+    fn a_build_that_can_reach_a_stand_in_takes_no_named_origin() {
+        for adapter in Adapter::ALL {
+            for origin in [
+                "https://api.host.invalid",
+                "https://host.invalid",
+                "https://localhost.invalid",
+            ] {
+                assert_eq!(
+                    Host::new(adapter, origin, TIME_LIMIT).err(),
+                    Some(SendError::Origin),
+                    "{adapter:?} {origin}"
+                );
+            }
+            assert!(Host::new(adapter, "http://127.0.0.1:4040", TIME_LIMIT).is_ok());
+        }
     }
 }
 

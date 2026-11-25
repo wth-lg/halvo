@@ -13,7 +13,7 @@ use halvo_schema_core::request::{
     decode_reply, ErrorName, InterfaceDecision, InterfaceRead, InterfaceRole, ReplyResult,
 };
 use halvo_schema_core::{
-    Decision, RequestId, SiteValue, Workflow, WorkflowId, WorkflowItem, WorkflowState,
+    Decision, RequestId, SiteValue, Trigger, Workflow, WorkflowId, WorkflowItem, WorkflowState,
 };
 use serde::Serialize;
 use tauri::ipc::Invoke;
@@ -79,9 +79,12 @@ pub struct Listed {
     pub id: String,
     /// Whether the workflow is in the state `proposed`.
     pub proposed: bool,
+    /// Whether the person set the workflow up by hand: its trigger is `manual`, which the
+    /// noticing never gives.
+    pub by_hand: bool,
     pub category: String,
     /// The display name that the operating system gives for the workflow's app, if it gives one;
-    /// never the app id or a part of it.
+    /// never the app id or a part of it, and none for a workflow set up by hand.
     pub app: Option<String>,
     pub site: Option<String>,
     /// The ids of the summaries that support the workflow, in ascending order.
@@ -90,18 +93,20 @@ pub struct Listed {
 
 impl Listed {
     /// One item of a page of the read `workflows`. The app is the name that `app_name` gives for
-    /// the workflow's app id, none where it gives none. The site is the domain of a workflow whose
-    /// site is a domain, and the item's hint for a site that comes from a window title.
+    /// the workflow's app id, none where it gives none and for a workflow set up by hand, whose
+    /// app id names no app. The site is the domain of a workflow whose site is a domain, and the
+    /// item's hint for a site that comes from a window title.
     fn of(item: &WorkflowItem, app_name: &dyn Fn(&str) -> Option<String>) -> Listed {
-        let (id, proposed, category, site, app) = match &item.workflow {
+        let (id, proposed, by_hand, category, site, app) = match &item.workflow {
             Workflow::Full(w) => (
                 &w.id,
                 w.state == WorkflowState::Proposed,
+                w.trigger == Trigger::Manual,
                 w.category,
                 &w.site,
                 &w.app,
             ),
-            Workflow::Dismissed(w) => (&w.id, false, w.category, &w.site, &w.app),
+            Workflow::Dismissed(w) => (&w.id, false, false, w.category, &w.site, &w.app),
         };
         let site = match site {
             Some(SiteValue::Domain { key, .. }) => Some(key.as_str().to_string()),
@@ -113,8 +118,13 @@ impl Listed {
         Listed {
             id: id.as_str().to_string(),
             proposed,
+            by_hand,
             category: category.as_str().to_string(),
-            app: app_name(app.as_str()),
+            app: if by_hand {
+                None
+            } else {
+                app_name(app.as_str())
+            },
             site,
             summaries: item
                 .summaries
@@ -150,8 +160,9 @@ pub fn proposals(listed: &[Listed]) -> Vec<&Listed> {
         .collect()
 }
 
-/// A row of the page: the workflow id, the category id, the app's display name, the site and the
-/// number of supporting summaries. The page composes the text from them.
+/// A row of the page: the workflow id, the category id, the app's display name, the site, the
+/// number of supporting summaries and whether the person set the workflow up by hand. The page
+/// composes the text from them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Row {
     pub id: String,
@@ -159,6 +170,7 @@ pub struct Row {
     pub app: Option<String>,
     pub site: Option<String>,
     pub count: usize,
+    pub by_hand: bool,
 }
 
 impl Row {
@@ -169,6 +181,7 @@ impl Row {
             app: w.app.clone(),
             site: w.site.clone(),
             count: w.summaries.len(),
+            by_hand: w.by_hand,
         })
     }
 }
@@ -212,16 +225,26 @@ pub enum DecisionError {
     Other(ActionError),
 }
 
-/// The id of a request, from 16 bytes of the keys of std's `RandomState`, which the system seeds
-/// per process, as halvo-agent-gate mints an id. The owner keeps no log of request ids.
-fn request_id() -> RequestId {
+/// 16 bytes of the keys of std's `RandomState`, which the system seeds per process, as
+/// halvo-agent-gate mints an id.
+fn random_bytes() -> [u8; 16] {
     let mut bytes = [0u8; 16];
     for half in bytes.chunks_mut(8) {
         let mut hasher = RandomState::new().build_hasher();
         hasher.write_u8(0);
         half.copy_from_slice(&hasher.finish().to_le_bytes());
     }
-    RequestId::from_random(bytes)
+    bytes
+}
+
+/// The id of a request, from `random_bytes`. The owner keeps no log of request ids.
+fn request_id() -> RequestId {
+    RequestId::from_random(random_bytes())
+}
+
+/// The id of the workflow that the person sets up by hand, minted as a request id is.
+fn workflow_id() -> WorkflowId {
+    WorkflowId::from_random(random_bytes())
 }
 
 /// What a request got.
@@ -340,6 +363,7 @@ pub fn decide(
         Decision::Approve => InterfaceDecision::approve(&role, request_id(), workflow),
         Decision::Dismiss => InterfaceDecision::dismiss(&role, request_id(), workflow),
         Decision::Delete => InterfaceDecision::delete(&role, request_id(), workflow),
+        Decision::SetUp => InterfaceDecision::set_up(&role, request_id(), workflow),
     }
     .to_bytes()
     .map_err(|_| DecisionError::Other(ActionError::Internal))?;
@@ -350,8 +374,9 @@ pub fn decide(
         Asked::Owner(Err(ErrorName::State)) if decision == Decision::Delete => {
             Err(DecisionError::InUse)
         }
-        // An approval or a dismissal of a workflow that is no longer proposed counts as done:
-        // the page reads again and shows what is stored.
+        // An approval or a dismissal of a workflow that is no longer proposed, and a set-up by
+        // hand where a workflow set up by hand already stands, count as done: the page reads
+        // again and shows what is stored.
         Asked::Owner(Err(ErrorName::State)) => Ok(()),
         Asked::Owner(_) | Asked::NoReply => Err(DecisionError::Other(ActionError::BrokenReply)),
         // No daemon, or one that does not know the request: nothing was decided.
@@ -461,6 +486,7 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
         approve_workflow,
         dismiss_workflow,
         delete_workflow,
+        set_up_sheet_agent,
     ];
     handle(invoke)
 }
@@ -501,4 +527,13 @@ pub async fn delete_workflow(
     workflow: String,
 ) -> Result<(), DecisionError> {
     decided(&state, Decision::Delete, workflow).await
+}
+
+/// Sets up the spreadsheet agent by hand: sends the decision `set_up` for a workflow id that it
+/// mints, and answers as `approve_workflow` does. It takes no argument. The store's answer
+/// `state`, which it gives where a workflow that was set up by hand already stands, counts as
+/// done: the page reads again and shows what is stored.
+#[tauri::command]
+pub async fn set_up_sheet_agent(state: State<'_, AppState>) -> Result<(), DecisionError> {
+    decided(&state, Decision::SetUp, workflow_id().as_str().to_owned()).await
 }

@@ -1,13 +1,23 @@
+use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::WorkflowId;
-use halvo_schema_core::record::{DismissedWorkflow, Workflow, WorkflowState};
+use halvo_schema_core::record::{
+    Confidence, DismissedWorkflow, FullWorkflow, Recurrence, Trigger, Workflow, WorkflowState,
+};
 use halvo_schema_core::request::{Decision, ErrorName, InterfaceDecision};
+use halvo_schema_core::site::AppId;
 
 use crate::batch::this_run;
-use crate::db::{one, rows, Checkpointed, Removes, Tx};
+use crate::db::{one, rows, Checkpointed, NewRow, Removes, Tx};
 use crate::error::{Error, Fault};
 use crate::guard::Guards;
+use crate::propose::workflow_of_key;
 use crate::sql;
 use crate::Store;
+
+/// The app id of the workflow that the person sets up by hand, and the second word of its key. The second word of
+/// every key that `key_of` makes is `app`, `title` or a domain's source, never `by_hand`, so no proposal and no
+/// summary holds that key.
+const BY_HAND: &str = "by_hand";
 
 /// The stored workflow of an id: its row id and its record.
 pub(crate) fn workflow_by_id(
@@ -43,6 +53,45 @@ fn approve(tx: &Tx<'_>, id: &WorkflowId) -> Result<(), Error> {
         Some((_, Workflow::Full(full))) if full.state == WorkflowState::Approved => Ok(()),
         Some(_) => Err(Error::Refused(ErrorName::State)),
     }
+}
+
+/// Stores the spreadsheet workflow that the person sets up by hand: one row of the kind `workflow` under `id`,
+/// `approved`, with the trigger `manual` and a recurrence of count 1 on the store's day `today`, under the key of its
+/// category and `by_hand`. Where a row holds that id or that key already, it answers `state` and stores nothing.
+fn set_up(tx: &Tx<'_>, today: i64, id: &WorkflowId) -> Result<(), Error> {
+    let key = format!("{} {BY_HAND}", SeedCategory::SpreadsheetFill);
+    if workflow_by_id(tx, id)?.is_some() || workflow_of_key(tx, &key)?.is_some() {
+        return Err(Error::Refused(ErrorName::State));
+    }
+    let day = u32::try_from(today).map_err(|_| Fault::Row)?;
+    let workflow = Workflow::Full(FullWorkflow {
+        id: id.clone(),
+        state: WorkflowState::Approved,
+        category: SeedCategory::SpreadsheetFill,
+        site: None,
+        app: AppId::parse(BY_HAND).map_err(|_| Fault::Row)?,
+        trigger: Trigger::Manual,
+        recurrence: Recurrence {
+            count: 1,
+            period: None,
+            first: day,
+            last: day,
+        },
+        confidence: Confidence(0),
+        agent: None,
+    });
+    let body = serde_json::to_string(&workflow).map_err(|_| Fault::Row)?;
+    tx.insert(&NewRow {
+        entry: this_run("workflow")?,
+        day: None,
+        expires: None,
+        workflow: Some(id.as_str()),
+        summary: None,
+        wkey: Some(&key),
+        body: &body,
+        segments: &[],
+    })?;
+    Ok(())
 }
 
 fn dismiss(tx: &Checkpointed<'_, '_>, id: &WorkflowId) -> Result<(), Error> {
@@ -100,8 +149,15 @@ impl Store {
     /// it under its workflow key, the kinds of later runs included, every stored summary whose key is its key, in
     /// its support set or not, the evidence of those summaries, and every support row that names one of them; that
     /// is all that ever supported it, because the store refuses a proposal that names a summary of another key; a
-    /// workflow that is not stored changes nothing. Each raises the revision of every family that gained, changed or
-    /// lost a row. The truncating checkpoint runs after a dismissal and after a deletion.
+    /// workflow that is not stored changes nothing. `set_up` stores the spreadsheet workflow that the person sets up
+    /// by hand: one row of the kind `workflow` under the decision's id, `approved`, of the category
+    /// `spreadsheet_fill`, with no site, the app id `by_hand`, the trigger `manual`, a recurrence of count 1 with no
+    /// period whose first and last day are the clock's day when the call starts, confidence 0 and no agent, under the
+    /// key `spreadsheet_fill by_hand`, which no proposal and no summary holds; where a row holds that id or that key
+    /// already, it answers `state` and stores nothing. From that row on the workflow is an approved one as after
+    /// `approve`, and `delete` removes it and every row that names it by the cascade. Each raises the revision of
+    /// every family that gained, changed or lost a row. The truncating checkpoint runs after a dismissal and after a
+    /// deletion.
     ///
     /// Before the delete of a stored workflow removes a row, in the same transaction, it calls each delete guard of
     /// the host (`Host::delete_guard`) in the order in which the host added them, with the workflow id, the read of
@@ -120,6 +176,10 @@ impl Store {
         match decision.decision() {
             Decision::Approve => db.write(|tx| approve(tx, id)),
             Decision::Dismiss => db.write_checkpointed(|tx| dismiss(tx, id)),
+            Decision::SetUp => {
+                let today = db.now().today;
+                db.write(|tx| set_up(tx, today, id))
+            }
             Decision::Delete => {
                 let guards = Guards {
                     db,

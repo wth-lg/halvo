@@ -1513,8 +1513,8 @@ use support::browser::{framed_pay_click, Hang};
 const RECEIVED: &str = "<h1>Payment received</h1>";
 
 /// What a run of `framed_payment` leaves: what the supervisor saw, the fixture's state after the run and right before
-/// the runner started (after the test's sign-in), the origin of the page `/pay` and of its payment frame, and the
-/// playbook that the store served the run.
+/// the runner started (after the test's sign-in), the origin of the page `/pay` and of its payment frame, the
+/// playbook that the store served the run, and the method and path of each request that the payment forwarder took.
 struct Paid {
     seen: Seen,
     state: serde_json::Value,
@@ -1522,6 +1522,7 @@ struct Paid {
     top: WebOrigin,
     frame: WebOrigin,
     steps: Vec<ExecutableStep>,
+    pay: Vec<(String, String)>,
 }
 
 /// r3 U5.10-B part two: a run of the supervisor `n` on the product's own framed fixture, the page `/pay` of the
@@ -1598,6 +1599,7 @@ fn framed_payment(
         top,
         frame,
         steps: sup.steps,
+        pay: pay.requests(),
     }
 }
 
@@ -1870,4 +1872,86 @@ fn a_held_request_leaves_only_where_the_amount_that_its_form_names_is_the_cards(
         "no state-changing request reached the fixture during the run: {} before {}",
         paid.state, paid.before
     );
+}
+
+/// r3 U5.10-R, sentence (4) (the coordinator's log line 17941): on the product's framed fixture with the variant
+/// `charge_redirect`, whose `/charge` answers 303 to its receipt page, the browser's one hop to that page is followed
+/// and its 200 is read as made. After the yes the payment leaves once: the payment forwarder takes one `POST /charge`
+/// and then `GET /receipt?id=1`, and one state-changing request reaches the fixture during the run. The effect is
+/// `committed`, the receipt page is read in the payment frame and names the amount due, so no row says `page_unread`,
+/// `amount_unread` or `amount_differs`, and the run is `completed`; the fixture records one payment at the amount due.
+#[test]
+fn a_payment_that_the_site_answers_with_a_redirect_is_made_at_its_receipt_page() {
+    const TEST: &str =
+        "a_payment_that_the_site_answers_with_a_redirect_is_made_at_its_receipt_page";
+    let Some(browser) = hosted(TEST) else {
+        return;
+    };
+    let paid = framed_payment(
+        &browser,
+        234,
+        |_| Vec::new(),
+        None,
+        &[],
+        &["charge_redirect"],
+    );
+    let got = rows(&paid.seen);
+    say(TEST, &format!("rows {got:?} pay {:?}", paid.pay));
+    assert_eq!(
+        paid.seen.done(),
+        Some(Outcome::Completed),
+        "{}",
+        paid.seen.stderr
+    );
+    assert_eq!(
+        paid.seen.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Releasing,
+            EffectState::Committed
+        ],
+        "{}",
+        paid.seen.stderr
+    );
+    assert!(
+        !got.iter().any(|(_, _, cause)| matches!(
+            cause,
+            Some(Cause::PageUnread | Cause::AmountUnread | Cause::AmountDiffers)
+        )),
+        "{got:?}"
+    );
+    assert!(
+        paid.seen.stderr.contains("run effect=made page=read"),
+        "{}",
+        paid.seen.stderr
+    );
+    let posts: Vec<&str> = paid
+        .pay
+        .iter()
+        .filter(|(method, _)| method != "GET")
+        .map(|(_, path)| path.as_str())
+        .collect();
+    assert_eq!(posts, ["/charge"], "{:?}", paid.pay);
+    assert!(
+        paid.pay
+            .iter()
+            .any(|(method, path)| method == "GET" && path == "/receipt?id=1"),
+        "the hop to the receipt page: {:?}",
+        paid.pay
+    );
+    let changing = |state: &serde_json::Value| {
+        state["requests"]["state_changing"]
+            .as_u64()
+            .expect("a count")
+    };
+    assert_eq!(
+        changing(&paid.state),
+        changing(&paid.before) + 1,
+        "one state-changing request reached the fixture during the run: {} before {}",
+        paid.state,
+        paid.before
+    );
+    let (made, due) = payments(&paid);
+    assert_eq!(made, [due], "{}", paid.state);
 }

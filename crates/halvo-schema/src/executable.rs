@@ -289,6 +289,8 @@ record::run_list! { names_with_run_list
     "read_only",
     "no_access",
     "data_encoding",
+    "two_sheets",
+    "data_narrow",
     "not_made",
     "start_accepted",
     "message",

@@ -146,16 +146,23 @@ fn door(args: &[String], input: &str) -> (i32, String, String) {
     )
 }
 
-fn args(tier: &str, ceiling: &str, consent: &str, port: Option<u16>) -> Vec<String> {
-    let mut args: Vec<String> = ["--tier", tier, "--ceiling", ceiling, "--consent", consent]
-        .iter()
-        .map(|arg| (*arg).to_owned())
-        .collect();
-    if let Some(port) = port {
-        args.push("--loopback-port".to_owned());
-        args.push(port.to_string());
-    }
-    args
+/// The door's arguments, always with the port of a stand-in host on the loopback: a test of this
+/// file runs the door on a stand-in alone, never on the release ruling (r6 U5.2a).
+fn args(tier: &str, ceiling: &str, consent: &str, port: u16) -> Vec<String> {
+    let port = port.to_string();
+    [
+        "--tier",
+        tier,
+        "--ceiling",
+        ceiling,
+        "--consent",
+        consent,
+        "--loopback-port",
+        &port,
+    ]
+    .iter()
+    .map(|arg| (*arg).to_owned())
+    .collect()
 }
 
 /// The input of the door: the key in the form that its starter writes (the count of its bytes and
@@ -173,10 +180,9 @@ fn request(id: u64) -> String {
 #[test]
 fn with_no_grant_the_door_opens_no_connection() {
     let host = StandIn::start(200, ANSWER);
-    let port = Some(host.port);
+    let port = host.port;
     let mut got = Vec::new();
     for (args, cause) in [
-        (args("frontier", "frontier", "recorded", None), "ruling"),
         (args("frontier", "frontier", "missing", port), "consent"),
         (
             args("frontier", "low_cost_hosted", "recorded", port),
@@ -209,12 +215,12 @@ fn with_a_grant_one_request_reaches_the_granted_origin_alone() {
     let other = StandIn::start(200, ANSWER);
     let input = keyed(KEY, &format!("{}\n", request(7)));
     let refused = door(
-        &args("frontier", "frontier", "missing", Some(granted.port)),
+        &args("frontier", "frontier", "missing", granted.port),
         &input,
     );
     let refused_seen = (refused, granted.accepted(), other.accepted());
     let (code, out, err) = door(
-        &args("frontier", "frontier", "recorded", Some(granted.port)),
+        &args("frontier", "frontier", "recorded", granted.port),
         &input,
     );
     let reply: serde_json::Value = serde_json::from_str(out.trim_end()).expect("one JSON line");
@@ -263,7 +269,7 @@ fn with_a_grant_one_request_reaches_the_granted_origin_alone() {
 fn the_request_that_leaves_holds_the_closed_fields_alone() {
     let host = StandIn::start(200, ANSWER);
     let (code, out, err) = door(
-        &args("low_cost_hosted", "frontier", "recorded", Some(host.port)),
+        &args("low_cost_hosted", "frontier", "recorded", host.port),
         &keyed(KEY, &format!("{}\n", request(3))),
     );
     assert_eq!((code, err.as_str()), (0, ""), "{out}");
@@ -329,27 +335,24 @@ fn the_key_stands_in_no_line_that_the_door_writes() {
     let mut seen = Vec::new();
     for (args, input) in [
         (
-            args("frontier", "frontier", "recorded", Some(ok.port)),
+            args("frontier", "frontier", "recorded", ok.port),
             lines.clone(),
         ),
         (
-            args("frontier", "frontier", "recorded", Some(unauthorized.port)),
+            args("frontier", "frontier", "recorded", unauthorized.port),
             lines.clone(),
         ),
         (
-            args("frontier", "frontier", "recorded", Some(unreadable.port)),
+            args("frontier", "frontier", "recorded", unreadable.port),
             lines.clone(),
         ),
         (
-            args("frontier", "frontier", "recorded", None),
+            args("frontier", "frontier", "missing", ok.port),
             lines.clone(),
         ),
+        (args("frontier", "frontier", KEY, ok.port), lines.clone()),
         (
-            args("frontier", "frontier", KEY, Some(ok.port)),
-            lines.clone(),
-        ),
-        (
-            args("frontier", "frontier", "recorded", Some(ok.port)),
+            args("frontier", "frontier", "recorded", ok.port),
             keyed(&format!("{KEY} {KEY}"), &format!("{}\n", request(1))),
         ),
     ] {
@@ -363,7 +366,7 @@ fn the_key_stands_in_no_line_that_the_door_writes() {
         halvo_model::Key::read(&mut Cursor::new(keyed(KEY, "").into_bytes()))
     );
     assert_eq!(seen, [0, 0, 0, 0, 2, 2], "{written}");
-    for refusal in ["status", "answer", "ruling", "request"] {
+    for refusal in ["status", "answer", "consent", "request"] {
         assert!(
             written.contains(&format!("\"refused\":\"{refusal}\"")),
             "{refusal}: {written}"
@@ -404,10 +407,7 @@ fn no_line_that_the_door_writes_holds_a_byte_of_a_key_or_of_a_refused_request() 
         ("missing", keyed(KEY, &requests)),
         ("recorded", keyed(KEY, &format!("{line}\n{too_large}\n"))),
     ] {
-        let (code, out, err) = door(
-            &args("frontier", "frontier", consent, Some(host.port)),
-            &input,
-        );
+        let (code, out, err) = door(&args("frontier", "frontier", consent, host.port), &input);
         seen.push(code);
         written.push_str(&out);
         written.push_str(&err);
@@ -460,7 +460,7 @@ fn an_answer_that_ends_past_the_time_limit_is_no_answer() {
     let started = std::time::Instant::now();
     let (mut out, mut err) = (Vec::new(), Vec::new());
     let code = halvo_model::run_with_limit(
-        &args("frontier", "frontier", "recorded", Some(host.port)),
+        &args("frontier", "frontier", "recorded", host.port),
         limit,
         Cursor::new(keyed(KEY, &format!("{}\n", request(9))).into_bytes()),
         &mut out,
@@ -616,8 +616,10 @@ fn name_sign(c: char) -> bool {
 
 /// The refusals of the rule over the tree at `base`: each Rust file whose count of the operation's
 /// name differs from its entry of `listed` (a file not listed is allowed none, a listed file that is
-/// gone holds none), each file under crates/halvo-runner that names one of `RUNNER_NAMES`, and
-/// each fault of the walk.
+/// gone holds none), each file under crates/halvo-runner that names one of `RUNNER_NAMES`, each
+/// Rust file outside crates/halvo-model/src that starts the door (it names `halvo_model` or the
+/// door's built binary `CARGO_BIN_EXE_halvo-model`) and never names `--loopback-port`, and each
+/// fault of the walk.
 fn operation_refusals(base: &std::path::Path, listed: &[(&str, usize, &str)]) -> Vec<String> {
     let (mut rust, mut faults) = (Vec::new(), Vec::new());
     let is_rust = |name: &str| name.to_ascii_lowercase().ends_with(".rs");
@@ -625,10 +627,20 @@ fn operation_refusals(base: &std::path::Path, listed: &[(&str, usize, &str)]) ->
     let mut counts: Vec<(String, usize)> = Vec::new();
     for file in &rust {
         match std::fs::read_to_string(base.join(file)) {
-            Ok(text) => match words(&text, OPERATION, rust_sign) {
-                0 => {}
-                n => counts.push((file.clone(), n)),
-            },
+            Ok(text) => {
+                let door = words(&text, "halvo_model", rust_sign)
+                    + words(&text, "CARGO_BIN_EXE_halvo-model", name_sign);
+                if door > 0
+                    && !file.starts_with("crates/halvo-model/src/")
+                    && !text.contains("--loopback-port")
+                {
+                    faults.push(format!("{file}: starts the door halvo-model and never names --loopback-port; a test runs the door on a stand-in host on 127.0.0.1 alone (r6 U5.2a)"));
+                }
+                match words(&text, OPERATION, rust_sign) {
+                    0 => {}
+                    n => counts.push((file.clone(), n)),
+                }
+            }
             Err(e) => faults.push(format!("{file} cannot be read as UTF-8 text: {e}")),
         }
     }
