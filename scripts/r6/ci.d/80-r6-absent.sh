@@ -241,6 +241,18 @@ holds_nul() {
   return 1
 }
 
+# holds_cr FILE: exits 0 when FILE holds a carriage return, read by its bytes: an awk that takes CR LF
+# as a line end, as on the Windows runner, never sees the CR before a LF.
+holds_cr() {
+  od -An -v -tx1 "$1" >"$scratch/bytes.txt" 2>/dev/null || return 0
+  while IFS= read -r bytes; do
+    case " $bytes " in
+      *' 0d '*) return 0 ;;
+    esac
+  done <"$scratch/bytes.txt"
+  return 1
+}
+
 ruling_of() {
   printf 'ruling=hosted\n' >"$scratch/ruling-hosted"
   if cmp -s "$1" "$scratch/ruling-hosted"; then
@@ -256,7 +268,7 @@ ruling_of() {
 # a model word and an adapter word, a source cell that is not empty, not - and holds no space or
 # double quote, and a date of the form YYYY-MM-DD; LF at each line end, no CR, no NUL byte.
 hosts_of() {
-  if [ ! -f "$1" ] || [ ! -r "$1" ] || holds_nul "$1"; then
+  if [ ! -f "$1" ] || [ ! -r "$1" ] || holds_nul "$1" || holds_cr "$1"; then
     printf 'other\n'
     return
   fi
@@ -1111,6 +1123,35 @@ hosts_units() {
     printf '%b' "${fixture#*:}" >"$u/hosts-${fixture%%:*}" || fixture_fail
     unit "hosts-${fixture%%:*}" other failing hosts_of "$u/hosts-${fixture%%:*}"
   done
+  # The reader under an awk that takes CR LF as a line end and never sees the CR, as the awk of the
+  # Windows runner does (hosted run 44790676474): the stand-in hands each file of its arguments to
+  # the real awk with the CR before each LF dropped.
+  mkdir -p "$work/crlfawk" "$work/crlfawk-in" || fixture_fail
+  R6_REAL_AWK=$(command -v awk) || fixture_fail
+  R6_CRLF_IN=$work/crlfawk-in
+  export R6_REAL_AWK R6_CRLF_IN
+  cat >"$work/crlfawk/awk" <<'EOF' || fixture_fail
+#!/bin/sh
+i=0
+for arg do
+  shift
+  if [ -f "$arg" ]; then
+    i=$((i + 1))
+    "$R6_REAL_AWK" '{ sub(/\r$/, ""); print }' "$arg" >"$R6_CRLF_IN/$i" || exit 2
+    set -- "$@" "$R6_CRLF_IN/$i"
+  else
+    set -- "$@" "$arg"
+  fi
+done
+exec "$R6_REAL_AWK" "$@"
+EOF
+  chmod +x "$work/crlfawk/awk" || fixture_fail
+  got=$(
+    PATH=$work/crlfawk:$work/bin:$entry_path
+    export PATH
+    hosts_of "$u/hosts-carriage-return"
+  ) || got=exit-status
+  verdict hosts-carriage-return-under-an-awk-of-crlf-lines other "$got" failing
   printf '%s\n%s\000\n' "$hosts_header" "frontier${tab}https://top.invalid${tab}m${tab}a${tab}page:test${tab}2026-11-22" >"$u/hosts-nul-byte" || fixture_fail
   unit hosts-nul-byte other failing hosts_of "$u/hosts-nul-byte"
   unit hosts-missing other failing hosts_of "$u/no-such-file"

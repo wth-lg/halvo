@@ -11,7 +11,7 @@ bar=docs/r6/bar.md
 recorded=docs/r6/outcomes/recorded.tsv
 freeze=docs/r6/outcomes/freeze.txt
 pinned_path=scripts/r6/ci.d/80-r6-absent.sh
-pinned_blob=278e4823584fb462a1bf24731a9abcab24cd8311
+pinned_blob=9307cb6cb50a338344b051ae874a94b09c7295f6
 env_keys='SQLCIPHER_LIB_DIR SQLCIPHER_NO_PKG_CONFIG'
 specimen=crates/halvo-route-gate/tests/data/specimen.tsv
 cap_line='default_cap amount=2000 currency=usd period=month status=provisional'
