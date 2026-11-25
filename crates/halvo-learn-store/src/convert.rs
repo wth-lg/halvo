@@ -55,13 +55,13 @@ pub(crate) fn outcome(outcome: Outcome) -> learn::Outcome {
     }
 }
 
-/// The cause of a log line as halvo-learn names it. The twenty-nine causes that the schema's list holds and
+/// The cause of a log line as halvo-learn names it. The thirty-two causes that the schema's list holds and
 /// halvo-learn's does not, `secret`, `unauthorized`, `not_sent`, `not_replaced`, `throttled`, `not_selected`,
 /// `no_start`, `no_channel`, `browser_start`, `senders_unread`, `reproposed`, `no_browser`, `amount_differs`,
 /// `amount_unread`, `page_unread`, `amount_matched` (r3 U5.10-P), the eight of a file run (r3 U11.3) `no_workbook`,
 /// `no_sheet`, `no_range`, `data_shape`, `no_data_file`, `data_outside`, `data_form` and `read_only`, `no_access`
-/// (r3 U11.4), `data_encoding` (r3 U11.5), `two_sheets` and `data_narrow` (r3 U11.9), and `two_paying_steps`
-/// (r3 U5.10-S), are no counted cause (contracts.md L3.5 counts `step_failed`, `class_mismatch` and `origin` alone)
+/// (r3 U11.4), `data_encoding` (r3 U11.5), `two_sheets` and `data_narrow` (r3 U11.9), `two_paying_steps`
+/// (r3 U5.10-S), and `no_agreement`, `no_model_key` and `over_cap` (r3 U7.2a), are no counted cause (contracts.md L3.5 counts `step_failed`, `class_mismatch` and `origin` alone)
 /// and map to none (CP-188).
 pub(crate) fn log_cause(cause: Cause) -> Option<learn::LogCause> {
     Some(match cause {
@@ -116,7 +116,10 @@ pub(crate) fn log_cause(cause: Cause) -> Option<learn::LogCause> {
         | Cause::DataEncoding
         | Cause::TwoSheets
         | Cause::DataNarrow
-        | Cause::TwoPayingSteps => return None,
+        | Cause::TwoPayingSteps
+        | Cause::NoAgreement
+        | Cause::NoModelKey
+        | Cause::OverCap => return None,
     })
 }
 
@@ -205,6 +208,9 @@ mod tests {
             Cause::TwoSheets,
             Cause::DataNarrow,
             Cause::TwoPayingSteps,
+            Cause::NoAgreement,
+            Cause::NoModelKey,
+            Cause::OverCap,
         ];
         for cause in none {
             assert_eq!(log_cause(cause), None, "{} maps to none", cause.as_str());

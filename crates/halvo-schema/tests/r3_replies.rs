@@ -109,6 +109,9 @@ fn the_cause_list_holds_unauthorized_not_selected_and_no_start_in_the_order_of_t
             "two_sheets",
             "data_narrow",
             "two_paying_steps",
+            "no_agreement",
+            "no_model_key",
+            "over_cap",
         ]
     );
     for cause in Cause::ALL {

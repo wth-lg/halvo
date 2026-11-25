@@ -246,7 +246,10 @@ names! {
     /// field of the data file is number signs alone, as a spreadsheet program writes a value whose column was too
     /// narrow to show it (r3 U11.9). `two_paying_steps` is the cause of `check_playbook` of halvo-policy for a
     /// playbook that holds a second step of the class `payment` or `purchase`, which ends a run `failed` before its
-    /// first step (r3 U5.10-S).
+    /// first step (r3 U5.10-S). Three names end a run `handed_back` before anything is sent to a model's host
+    /// (r3 U7.2a), each in the run's `stopped` line and in no row of an effect: `no_agreement`, the person has not
+    /// allowed the agent's hosted model; `no_model_key`, no key for the model's host is stored; `over_cap`, the hold
+    /// of a model request does not fit the person's cap.
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -300,6 +303,9 @@ names! {
         TwoSheets = "two_sheets",
         DataNarrow = "data_narrow",
         TwoPayingSteps = "two_paying_steps",
+        NoAgreement = "no_agreement",
+        NoModelKey = "no_model_key",
+        OverCap = "over_cap",
     }
 }
 

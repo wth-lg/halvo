@@ -123,7 +123,10 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
             "data_encoding",
             "two_sheets",
             "data_narrow",
-            "two_paying_steps"
+            "two_paying_steps",
+            "no_agreement",
+            "no_model_key",
+            "over_cap"
         ]
     );
     assert_eq!(
