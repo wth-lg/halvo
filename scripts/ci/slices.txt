@@ -14,7 +14,7 @@
 #                     group of that capital letter, and no other test; one tests line a slice and job
 # A job of a slice ends in under 1,200 s, the owner's bound for every job of every run. Before you
 # add a line, name the seconds of the check in that job: the newest reading of the slice's job stays
-# under 1,000 s with them, or another day takes the line. scripts/ci/README.md, The slices, holds the
+# under 1,000 s with them, or another slice takes the line. scripts/ci/README.md, The slices, holds the
 # measured seconds and what each slice builds.
 
 mon macos tests A
