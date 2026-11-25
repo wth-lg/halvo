@@ -537,3 +537,116 @@ fn u329_the_card_says_what_the_page_after_a_payment_or_an_order_gave() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// The agent of the state `ten` of `category` whose newest run `run` the agent store ended
+/// `failed` with the last cause `cause`, with that run's `run_started` and `run_ended` rows and
+/// the events `after` behind them.
+fn u329_ended(category: crate::types::Category, cause: LastCause, after: &[What]) -> Facts<Config> {
+    use crate::types::Outcome;
+    let mut f = facts(State::Ten).remove(0);
+    f.workflow.category = category;
+    let run = RunId::parse(&format!("{:032x}", 0x7a01)).unwrap();
+    f.runs.insert(
+        0,
+        PastRun {
+            run: run.clone(),
+            day: f.today,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        },
+    );
+    let mut whats = vec![
+        What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+        What::RunEnded {
+            run,
+            cause: RunEnd::Failed,
+            defers: None,
+        },
+    ];
+    whats.extend_from_slice(after);
+    for what in whats {
+        f.events.push(Event {
+            workflow: f.workflow.id.clone(),
+            agent: f.agent.clone(),
+            seq: std::num::NonZeroU32::MIN.saturating_add(f.events.len() as u32),
+            day: f.today,
+            at: i64::from(f.today) * 86_400_000_000_000,
+            what,
+        });
+    }
+    f.last_cause = Some(cause);
+    f
+}
+
+/// r4 U3.29 sentence 3: the row's and the run's lines of the three ends of a run that paid or
+/// ordered, each to the letter of the ruled rows, with the class of the agent's category (way (i)
+/// of the coordinator's log line 20557): a payment whose amount could not be matched, behind the
+/// person's answer, rows 8 and 7; a page that could not be read, rows 14 and 13; a payment that
+/// was held back, rows 16 and 15; each for an order in its twin's words.
+#[test]
+fn u329_the_row_and_the_run_say_how_a_payment_or_an_order_ended() {
+    use crate::types::{Category, Digest, EffectId, Name, PageCause};
+    let rows = [
+        (Category::UtilityBillPayment, LastCause::AmountDiffers, Some(PageCause::AmountDiffers { amount: Some(1334) }),
+            "Last time, it sent a payment, and Halvo could not match the amount on the site's page afterwards.",
+            "It sent a payment, then stopped because Halvo could not match the amount on the site's page afterwards."),
+        (Category::UtilityBillPayment, LastCause::PageUnread, Some(PageCause::PageUnread),
+            "Last time, it sent a payment, but Halvo could not read the site's page afterwards.",
+            "It sent a payment, then stopped because Halvo could not read the site's page afterwards."),
+        (Category::UtilityBillPayment, LastCause::AmountNotSent, None,
+            "Last time, it did not pay, because the payment that the site prepared named another amount than its page showed.",
+            "It did not pay, because the payment that the site prepared named another amount than its page showed."),
+        (Category::ShopOrder, LastCause::AmountDiffers, Some(PageCause::AmountDiffers { amount: Some(1334) }),
+            "Last time, it sent an order, and Halvo could not match the total on the site's page afterwards.",
+            "It sent an order, then stopped because Halvo could not match the total on the site's page afterwards."),
+        (Category::ShopOrder, LastCause::PageUnread, Some(PageCause::PageUnread),
+            "Last time, it sent an order, but Halvo could not read the site's page afterwards.",
+            "It sent an order, then stopped because Halvo could not read the site's page afterwards."),
+        (Category::ShopOrder, LastCause::AmountNotSent, None,
+            "Last time, it did not order, because the order that the site prepared named another total than its page showed.",
+            "It did not order, because the order that the site prepared named another total than its page showed."),
+    ];
+    let kept = |name: &str, value: &str| Kept {
+        name: Name::parse(name).unwrap(),
+        value: vec![value.into()],
+    };
+    let mut wrong = Vec::new();
+    for (category, cause, page, row_line, run_line) in rows {
+        let f = u329_ended(category, cause, &[]);
+        let effects = page
+            .map(|page| PastEffect {
+                effect: EffectId::parse(&format!("{:032x}", 0x7a02)).unwrap(),
+                digest: Digest::parse(&"ab".repeat(32)).unwrap(),
+                class: Class::Payment,
+                state: EffectState::Committed,
+                cause: None,
+                kept: vec![
+                    kept("payee", "City Power"),
+                    kept("amount", "42.10 USD"),
+                    kept("instrument", "Card ending 4242"),
+                    kept("origin", "https://site1.example:443"),
+                ],
+                page: Some(page),
+            })
+            .into_iter()
+            .collect();
+        let history = [RunHistory {
+            run: f.runs[0].clone(),
+            effects,
+        }];
+        let line = status(&f, &Limits::PRODUCT, None);
+        let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+        let c = card(&f, NAME, &history, &Limits::PRODUCT).unwrap();
+        if r.line != row_line || c.runs[0].text != run_line {
+            wrong.push(format!(
+                "{category} {cause}: {:?} / {:?}",
+                r.line, c.runs[0].text
+            ));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}

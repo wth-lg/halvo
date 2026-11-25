@@ -1,4 +1,4 @@
-use super::{Failure, ItemKind, LastCause, Status};
+use super::{Failure, ItemKind, LastCause, PaidEnd, PayClass, Status};
 
 /// The system that Halvo runs on, which chooses the words of `working.kill_stuck`, because the
 /// way to quit Halvo differs on each (I5.7).
@@ -69,6 +69,10 @@ pub enum StatusLine {
     /// `no_access_mac` or `no_access_windows` (`key_on`, r4 U3.22d). `all` does not list it until
     /// its fixture state of I8.3 is written.
     LastCause(LastCause),
+    /// `problem.<end>.<class>`: the row of `Problem` for an agent whose newest started run paid or
+    /// ordered and ended with a last cause of `PaidEnd`, with the class of the agent's category
+    /// (r4 U3.29). `all` does not list it until its fixture state of I8.3 is written.
+    Paid(PaidEnd, PayClass),
     /// `problem.answers_saved`: the row of `Problem` and of `LastCause` for an agent whose rows
     /// hold a set-up's `item_answered` behind the end of its newest run, which ended with a cause
     /// of the failure class (r4 U3.22a, the coordinator's fifth ruling on its words). `all` does
@@ -145,6 +149,7 @@ impl StatusLine {
             | StatusLine::Failures
             | StatusLine::Problem(_)
             | StatusLine::LastCause(_)
+            | StatusLine::Paid(..)
             | StatusLine::AnswersSaved
             | StatusLine::AnswersSavedToday
             | StatusLine::FailedToday
@@ -170,8 +175,12 @@ impl StatusLine {
 
     /// The words key of the line on `system`: `line.problem.no_access_mac` or
     /// `line.problem.no_access_windows` for the last cause `no_access`, whose sentence says what to
-    /// do on that system (r4 U3.22d), and the same key on every system for every other line.
+    /// do on that system (r4 U3.22d), and the same key on every system for every other line; for
+    /// a run that paid or ordered `line.problem.<end>.<class>` (r4 U3.29).
     pub fn key_on(self, system: System) -> String {
+        if let StatusLine::Paid(end, class) = self {
+            return format!("line.problem.{}.{}", end.name(), class.name());
+        }
         let case = match self {
             StatusLine::NeedsYou(kind) => kind.name(),
             StatusLine::NotYet => "category",
@@ -193,6 +202,7 @@ impl StatusLine {
                 System::Windows => "no_access_windows",
             },
             StatusLine::LastCause(c) => c.name(),
+            StatusLine::Paid(end, _) => end.name(),
             StatusLine::AnswersSaved => "answers_saved",
             StatusLine::AnswersSavedToday => "answers_saved_today",
             StatusLine::FailedToday | StatusLine::TriedToday => "tried_today",

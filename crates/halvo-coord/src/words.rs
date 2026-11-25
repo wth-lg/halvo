@@ -704,6 +704,54 @@ pub const KEYS: &[(&str, &str)] = &[
         "One step may have been done; Halvo could not tell. Check where this agent works before you run it again.",
     ),
     ("line.run.stopped", "It stopped before the task was done."),
+    (
+        "line.run.amount_differs.payment",
+        "It sent a payment, then stopped because Halvo could not match the amount on the site's page afterwards.",
+    ),
+    (
+        "line.run.amount_differs.purchase",
+        "It sent an order, then stopped because Halvo could not match the total on the site's page afterwards.",
+    ),
+    (
+        "line.problem.amount_differs.payment",
+        "Last time, it sent a payment, and Halvo could not match the amount on the site's page afterwards.",
+    ),
+    (
+        "line.problem.amount_differs.purchase",
+        "Last time, it sent an order, and Halvo could not match the total on the site's page afterwards.",
+    ),
+    (
+        "line.run.page_unread.payment",
+        "It sent a payment, then stopped because Halvo could not read the site's page afterwards.",
+    ),
+    (
+        "line.run.page_unread.purchase",
+        "It sent an order, then stopped because Halvo could not read the site's page afterwards.",
+    ),
+    (
+        "line.problem.page_unread.payment",
+        "Last time, it sent a payment, but Halvo could not read the site's page afterwards.",
+    ),
+    (
+        "line.problem.page_unread.purchase",
+        "Last time, it sent an order, but Halvo could not read the site's page afterwards.",
+    ),
+    (
+        "line.run.amount_not_sent.payment",
+        "It did not pay, because the payment that the site prepared named another amount than its page showed.",
+    ),
+    (
+        "line.run.amount_not_sent.purchase",
+        "It did not order, because the order that the site prepared named another total than its page showed.",
+    ),
+    (
+        "line.problem.amount_not_sent.payment",
+        "Last time, it did not pay, because the payment that the site prepared named another amount than its page showed.",
+    ),
+    (
+        "line.problem.amount_not_sent.purchase",
+        "Last time, it did not order, because the order that the site prepared named another total than its page showed.",
+    ),
     ("field.local_edit.file", "File"),
     ("field.local_edit.range", "Where in the file"),
     (

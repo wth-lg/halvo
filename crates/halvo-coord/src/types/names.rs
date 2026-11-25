@@ -365,6 +365,51 @@ names! {
 }
 
 names! {
+    /// The class of a payment's or an order's lines on a row and of a run (r4 U3.29), the class of
+    /// the agent's category (way (i) of the coordinator's log line 20557), each named as its class
+    /// of `Class`.
+    PayClass {
+        Payment = "payment",
+        Purchase = "purchase",
+    }
+}
+
+names! {
+    /// The ends of a run that paid or ordered that a row and a run's line say (r4 U3.29), each the
+    /// name of its last cause in `LastCause`.
+    PaidEnd {
+        AmountDiffers = "amount_differs",
+        PageUnread = "page_unread",
+        AmountNotSent = "amount_not_sent",
+    }
+}
+
+impl PaidEnd {
+    /// The end of the last cause `cause`, or none for a cause of another run.
+    pub const fn of(cause: LastCause) -> Option<PaidEnd> {
+        match cause {
+            LastCause::AmountDiffers => Some(PaidEnd::AmountDiffers),
+            LastCause::PageUnread => Some(PaidEnd::PageUnread),
+            LastCause::AmountNotSent => Some(PaidEnd::AmountNotSent),
+            _ => None,
+        }
+    }
+}
+
+impl PayClass {
+    /// The class of the agent's category (way (i) of the coordinator's log line 20557):
+    /// `utility_bill_payment` and `tenant_rent` pay, `shop_order` and `ride_order` order, and any
+    /// other category has none, so that its lines read as the lines of a failed run.
+    pub const fn of(category: Category) -> Option<PayClass> {
+        match category {
+            Category::UtilityBillPayment | Category::TenantRent => Some(PayClass::Payment),
+            Category::ShopOrder | Category::RideOrder => Some(PayClass::Purchase),
+            _ => None,
+        }
+    }
+}
+
+names! {
     /// The phases of a live run (I5.6); `ended` is no phase of a live run.
     LivePhase {
         Starting = "starting",

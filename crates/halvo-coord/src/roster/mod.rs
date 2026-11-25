@@ -8,8 +8,9 @@ use crate::schedule::{finished, holds, needs_person, next_slot, slot_due, Hold};
 use crate::types::{
     Answered, BindResult, Card, CardEffect, CardLine, CardRun, Cause, Cleared, ConfigView, Control,
     ControlText, Doing, EffectAnswer, Event, Facts, FullWorkflow, HoldSetCause, ItemId, ItemKind,
-    LastCause, Limits, LineKey, LivePhase, OwnItemKind, PastEffect, PastRun, Permission, Raised,
-    Row, RunEnd, RunHistory, RunId, Runtime, SignInAnswer, StatusLine, System, Tier, Trigger, What,
+    LastCause, Limits, LineKey, LivePhase, OwnItemKind, PageCause, PaidEnd, PastEffect, PastRun,
+    PayClass, Permission, Raised, Row, RunEnd, RunHistory, RunId, Runtime, SignInAnswer,
+    StatusLine, System, Tier, Trigger, What,
 };
 use crate::types::{Ask, AskAct, AskControl, AskEffect, AskKind, Class, Kept};
 use crate::types::{ModelUse, SpendLimit};
@@ -21,7 +22,8 @@ use crate::words;
 /// run with its phase, a queued start, a newest run that the agent store has not ended, a last
 /// run that ended with a cause of the failure class, said by the sentence of the facts'
 /// `last_cause` where they hold one that a row says for the agent's runtime (`FILE_CAUSES` for
-/// the runtime file alone, r4 U3.22a), or that its answers are saved where a set-up's answers
+/// the runtime file alone, r4 U3.22a), for a run that paid or ordered with the class of the
+/// agent's category (`StatusLine::Paid`, r4 U3.29), or that its answers are saved where a set-up's answers
 /// were stored behind that run's end (r4 U3.22a), a day with `starts_per_day` starts, and the
 /// end of the last run. On a day with `starts_per_day` starts, on which step 2 of a start
 /// refuses the person's Start now, the row of a failed run says so too (r4 U3.23): saved answers
@@ -98,6 +100,13 @@ pub fn status_of<C: ConfigView>(
             } else {
                 StatusLine::AnswersSaved
             };
+        }
+        let paid = facts
+            .last_cause
+            .and_then(PaidEnd::of)
+            .zip(PayClass::of(facts.workflow.category));
+        if let Some((end, class)) = paid {
+            return StatusLine::Paid(end, class);
         }
         let cause = facts
             .last_cause
@@ -190,19 +199,12 @@ pub const FILE_CAUSES: [LastCause; 15] = [
     LastCause::DataEncoding,
 ];
 
-/// The causes of a run that paid or ordered (r4 U3.29), whose lines name the class of the
-/// payment or the order.
-pub const PAID_CAUSES: [LastCause; 3] = [
-    LastCause::AmountDiffers,
-    LastCause::PageUnread,
-    LastCause::AmountNotSent,
-];
-
-/// Whether a row says the sentence of the last cause `cause` for an agent of `runtime`: a cause
-/// of `FILE_CAUSES` for the runtime file alone, none of `PAID_CAUSES`, and every other cause for
-/// every runtime.
+/// Whether a row says the sentence of the last cause `cause` for an agent of `runtime` as a line
+/// of `StatusLine::LastCause`: a cause of `FILE_CAUSES` for the runtime file alone, none of a run
+/// that paid or ordered (`PaidEnd`), which `StatusLine::Paid` says where the agent's category has
+/// a class, and every other cause for every runtime.
 fn said(cause: LastCause, runtime: Runtime) -> bool {
-    !PAID_CAUSES.contains(&cause) && (runtime == Runtime::File || !FILE_CAUSES.contains(&cause))
+    PaidEnd::of(cause).is_none() && (runtime == Runtime::File || !FILE_CAUSES.contains(&cause))
 }
 
 fn text(key: &str, pairs: &[(&str, &str)]) -> Result<String, Cause> {
@@ -998,15 +1000,38 @@ fn shown_end(events: &[Event], run: &PastRun) -> RunEnd {
     }
 }
 
+/// How a run that the agent store ended `failed` paid or ordered (r4 U3.29): `amount_differs`
+/// where an effect of it was committed and its page afterwards could not be matched,
+/// `page_unread` where such an effect's page could not be read, and `amount_not_sent` where the
+/// run is the agent's newest and the facts' last cause says that its payment or order was held
+/// back, since no effect of it was recorded; none otherwise.
+fn paid_end<C>(facts: &Facts<C>, h: &RunHistory) -> Option<PaidEnd> {
+    let page = |want: fn(&PageCause) -> bool| {
+        h.effects
+            .iter()
+            .any(|e| e.state == EffectState::Committed && e.page.as_ref().is_some_and(want))
+    };
+    if page(|p| matches!(p, PageCause::AmountDiffers { .. })) {
+        return Some(PaidEnd::AmountDiffers);
+    }
+    if page(|p| *p == PageCause::PageUnread) {
+        return Some(PaidEnd::PageUnread);
+    }
+    let newest = facts.runs.first().is_some_and(|r| r.run == h.run.run);
+    (newest && facts.last_cause == Some(LastCause::AmountNotSent)).then_some(PaidEnd::AmountNotSent)
+}
+
 /// One run of a card (I2.6): its day; its line, the sentence of `line.run.<end>` for the end
 /// that `shown_end` gives, except that a `declined` run with no effect that the person refused
 /// and no no at its sign-in question (`said_no_at_sign_in`) has the neutral `line.run.stopped`
-/// (ruling RD-85 item 3); and, in the order of the reply, one
+/// (ruling RD-85 item 3), and a `failed` run that paid or ordered (`paid_end`) of an agent whose
+/// category has a class has `line.run.<end>.<class>` (r4 U3.29); and, in the order of the reply, one
 /// entry for each committed effect, by `CardEffect::sent` with what the agents run's read names of
 /// the site's page afterwards (r4 U3.29) or, where that refuses it, `CardEffect::unshown`, for each effect whose last row is `rejected` with a null cause, by
 /// `CardEffect::not_done`, and for each effect whose last state is `unknown`, whatever its
 /// cause, by `CardEffect::unknown` (ruling RD-126 item 10).
-fn card_run(events: &[Event], h: &RunHistory) -> Result<CardRun, Cause> {
+fn card_run<C>(facts: &Facts<C>, h: &RunHistory) -> Result<CardRun, Cause> {
+    let events = &facts.events[..];
     let refused = |e: &PastEffect| said_no(events, &h.run.run, e);
     let mut effects = Vec::new();
     for e in &h.effects {
@@ -1022,12 +1047,17 @@ fn card_run(events: &[Event], h: &RunHistory) -> Result<CardRun, Cause> {
             _ => {}
         }
     }
+    let class = PayClass::of(facts.workflow.category);
     let key = match shown_end(events, &h.run) {
         RunEnd::Declined
             if !h.effects.iter().any(refused) && !said_no_at_sign_in(events, &h.run.run) =>
         {
             "line.run.stopped".to_owned()
         }
+        RunEnd::Failed => match paid_end(facts, h).zip(class) {
+            Some((end, class)) => format!("line.run.{}.{}", end.name(), class.name()),
+            None => "line.run.failed".to_owned(),
+        },
         end => format!("line.run.{}", end.name()),
     };
     Ok(CardRun {
@@ -1053,7 +1083,7 @@ pub fn card<C: ConfigView>(
         runs: history
             .iter()
             .take(limits.history_runs as usize)
-            .map(|h| card_run(&facts.events, h))
+            .map(|h| card_run(facts, h))
             .collect::<Result<_, _>>()?,
         history: None,
     })

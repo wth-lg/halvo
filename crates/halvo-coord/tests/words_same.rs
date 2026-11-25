@@ -294,6 +294,10 @@ fn expected_keys() -> BTreeSet<String> {
         for field in ["amount_allowed", "page_amount"] {
             k.insert(format!("field.{class}.{field}"));
         }
+        for end in ["amount_differs", "page_unread", "amount_not_sent"] {
+            k.insert(format!("line.run.{end}.{class}"));
+            k.insert(format!("line.problem.{end}.{class}"));
+        }
     }
     k.insert("line.run.stopped".to_owned());
     for key in [
@@ -549,7 +553,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 388);
+    assert_eq!(seen.len(), 400);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {

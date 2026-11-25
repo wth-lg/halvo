@@ -34,9 +34,9 @@ pub use limits::Limits;
 pub use names::{
     Action, AgentState, ArgType, Autonomy, BoundFrom, CandidateFrom, Category, Choice, Class,
     Control, EffectAnswer, Failure, FieldFrom, HandbackReason, HandbackResult, HistoryRead,
-    HoldSetCause, ItemKind, LapseCause, LastCause, LineKey, LivePhase, Mode, Outcome, Param,
-    Period, Permission, Presenter, Reasoning, RunEnd, Runtime, Status, Tier, Trigger,
-    WorkflowState, WorkflowTrigger, YesNo,
+    HoldSetCause, ItemKind, LapseCause, LastCause, LineKey, LivePhase, Mode, Outcome, PaidEnd,
+    Param, PayClass, Period, Permission, Presenter, Reasoning, RunEnd, Runtime, Status, Tier,
+    Trigger, WorkflowState, WorkflowTrigger, YesNo,
 };
 pub use reply::{Ask, AskAct, AskControl, AskEffect, AskKind};
 pub use reply::{
