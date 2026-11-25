@@ -2379,7 +2379,7 @@ mod tests {
     /// agreement null, and a yes with the ceiling tier, the highest that the ruling allows, and one triple for each
     /// hosted tier that it allows up to it, from the table's rows: the keys in the order op, workflow, agent, tier,
     /// agreement. Each parses as the schema's own `SetModel` and holds those values. No allowed tier gives none, and
-    /// so does main's ruling.
+    /// the yes of this build is the one of the rows of its table of hosts, none where the table holds no row.
     #[test]
     fn the_yes_and_the_way_back_are_written_as_the_set_model_of_r3() {
         use halvo_schema::executable::body::SetModel;
@@ -2443,11 +2443,18 @@ mod tests {
             });
             assert_eq!(read, hosts, "{want}");
         }
-        assert_eq!(yes_text(head, &[]), None, "no allowed tier");
+        assert_eq!(yes_text(head.clone(), &[]), None, "no allowed tier");
+        let ruling = halvo_route::release::ruling();
+        let rows: Vec<[&str; 3]> = ruling
+            .allowed()
+            .iter()
+            .filter_map(|tier| ruling.row(*tier))
+            .map(|row| [row.tier().as_str(), row.origin(), row.model()])
+            .collect();
         assert_eq!(
             body_text(&Body::AgreeHosted { workflow, agent }, &RunsOf::default()),
-            None,
-            "main's ruling allows no hosted tier"
+            yes_text(head, &rows),
+            "the yes of this build names the rows of its table of hosts, and none where the table holds no row"
         );
     }
 
@@ -2616,7 +2623,7 @@ mod tests {
         .expect("a configuration of the agent store")
     }
 
-    /// r4 U3.17b sentence 1: over this build's table of hosts (`release::ruling()`, which holds no row on main), the
+    /// r4 U3.17b sentence 1: where the build names no host (a table of hosts with no row, as on main, gives none), the
     /// read for a list with an agent whose runtime asks a model sends nothing and hands no model, so that no row offers
     /// either control, whatever the agent's tier and agreement, and no card shows a line of a host.
     #[test]
@@ -2624,7 +2631,7 @@ mod tests {
         let kept = Arc::new(Kept(Mutex::new(Vec::new())));
         let link: Arc<dyn OwnerLink> = kept.clone();
         let memory = RowsMemory::default();
-        let hosting = hosting_of_build(&link, &memory, true);
+        let hosting = hosting(&link, &memory, None, &[], true);
         assert_eq!(hosting, None);
         assert!(lock(&kept.0).is_empty(), "no request");
         let both = Agreement::of(&serde_json::json!({

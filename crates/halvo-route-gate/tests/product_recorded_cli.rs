@@ -3,6 +3,8 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use halvo_route::policy::Policy;
+use halvo_route::release;
+use halvo_route::tier::Tier;
 use halvo_route_gate::table::HEADER;
 
 fn case_dir(case: &str) -> PathBuf {
@@ -123,13 +125,17 @@ fn the_tool_reads_a_recorded_table_with_its_freeze_file() {
         text.replacen("\ton_device\tmedium\t", "\tfrontier\tmedium\t", 1),
     )
     .expect("fixture");
-    assert_refused(
-        &[
-            "score", "--table", &table, "--router", "product", "--policy", &hosted, "--freeze",
-            &freeze,
-        ],
-        "REFUSED policy: ruling",
-    );
+    let hosted_args = [
+        "score", "--table", &table, "--router", "product", "--policy", &hosted, "--freeze", &freeze,
+    ];
+    // The tool reads a policy with the tiers that the build's ruling allows: a pick of frontier is
+    // refused where the ruling does not allow it, and read where it does.
+    if release::ruling().allowed().contains(&Tier::Frontier) {
+        let taken = run(&hosted_args);
+        assert!(!taken.stderr.contains("REFUSED policy"), "{}", taken.stderr);
+    } else {
+        assert_refused(&hosted_args, "REFUSED policy: ruling");
+    }
 }
 
 #[test]
