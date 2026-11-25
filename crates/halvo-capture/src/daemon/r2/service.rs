@@ -20,9 +20,10 @@
 //!   which the next pass ends.
 //! - THE SHREDDED SEGMENTS. Before the slot's own pass, each pass of the driver hands the owner that runs the
 //!   ordinals that the store's maintenance shredded since the last hand-over (`OwnerSlot::hand_over`), under the
-//!   lock, whatever the maintenance pass that shredded them answered: it starts no owner and stops none, so a
-//!   worker's batch goes on. With no owner running they wait for the next start, which hands them on before its
-//!   first request. An [`open`] or a [`delete`] makes the cell forget them; the next start then takes those
+//!   lock, whatever the maintenance pass that shredded them answered: it stops no owner, so a worker's batch goes on.
+//!   With no owner running it starts one for them and hands them to it, at most once in 60 s and none where no
+//!   derived database stands; within those 60 s they wait for the next hand-over or start, which hands them on before
+//!   its first request. An [`open`] or a [`delete`] makes the cell forget them; the next start then takes those
 //!   segments by `purge_below` or by the keyless list of the fresh read from ordinal 0.
 //! - THE SOURCE. The form's source gives what [`DaemonCaller::reading`] gives at the clock's reading of the call:
 //!   the origin, with the watermark as the one that a yes carries; none with no slot in the form.

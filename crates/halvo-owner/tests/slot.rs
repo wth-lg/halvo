@@ -61,14 +61,15 @@ struct Seen {
     folder_mode: u32,
 }
 
-/// The test's daemon: a key source that reads the pid file when it is asked, the flag of the delete, and the ordinals
-/// of shredded segments that it names for a start.
+/// The test's daemon: a key source that reads the pid file when it is asked, the flag of the delete, the ordinals of
+/// shredded segments that it names for a start, and the ordinals that passes shredded, which a hand-over takes.
 struct Daemon {
     key: [u8; 32],
     pid_file: PathBuf,
     deleting: AtomicBool,
     seen: Mutex<Vec<Seen>>,
     gone: Mutex<Vec<u64>>,
+    shredded: Mutex<Vec<u64>>,
 }
 
 impl Daemon {
@@ -79,6 +80,7 @@ impl Daemon {
             deleting: AtomicBool::new(false),
             seen: Mutex::new(Vec::new()),
             gone: Mutex::new(Vec::new()),
+            shredded: Mutex::new(Vec::new()),
         })
     }
 
@@ -128,6 +130,10 @@ impl Caller for Daemon {
 
     fn gone(&self) -> Vec<u64> {
         self.gone.lock().unwrap().clone()
+    }
+
+    fn shredded(&self) -> Vec<u64> {
+        std::mem::take(&mut *self.shredded.lock().unwrap())
     }
 }
 
@@ -589,14 +595,9 @@ fn read_evidence(workflow: &WorkflowId) -> Vec<u8> {
     .unwrap()
 }
 
-/// The start with none alive (the deletion's promise): an owner started for a worker commits the evidence rows of the
-/// segments 1, 2 and 3; the daemon then names the segment 2, above the lowest live one 1, as shredded, and the next
-/// start hands it to its owner before the first request, whose answer names the rows of the segments 1 and 3 alone.
-#[test]
-fn a_start_hands_its_owner_the_shredded_ordinals_before_the_first_request() {
-    let scratch = Scratch::new("slot-gone");
-    let daemon = Daemon::new(&scratch, KEY);
-    let mut slot = slot(&scratch, &daemon, None);
+/// An owner that `slot` starts for a worker commits the evidence rows of the segments 1, 2 and 3, whose one workflow
+/// the call reads; the slot then stops it, so that no owner runs. The id of that workflow.
+fn evidence_of_three_segments(slot: &mut OwnerSlot) -> WorkflowId {
     let (owner_reads, mut worker_writes) = std::io::pipe().unwrap();
     let (mut worker_reads, owner_writes) = std::io::pipe().unwrap();
     slot.start_with_worker((owner_reads, owner_writes)).unwrap();
@@ -632,8 +633,38 @@ fn a_start_hands_its_owner_the_shredded_ordinals_before_the_first_request() {
     );
     slot.stop();
     drop((worker_writes, worker_reads));
+    ids[0].clone()
+}
+
+/// The start with none alive (the deletion's promise): an owner started for a worker commits the evidence rows of the
+/// segments 1, 2 and 3; the daemon then names the segment 2, above the lowest live one 1, as shredded, and the next
+/// start hands it to its owner before the first request, whose answer names the rows of the segments 1 and 3 alone.
+#[test]
+fn a_start_hands_its_owner_the_shredded_ordinals_before_the_first_request() {
+    let scratch = Scratch::new("slot-gone");
+    let daemon = Daemon::new(&scratch, KEY);
+    let mut slot = slot(&scratch, &daemon, None);
+    let workflow = evidence_of_three_segments(&mut slot);
 
     *daemon.gone.lock().unwrap() = vec![2];
-    let read = read_evidence(&ids[0]);
+    let read = read_evidence(&workflow);
+    assert_eq!(evidence_segments(&slot.relay(&read).unwrap()), [[1], [3]]);
+}
+
+/// The hand-over with none alive (the deletion's promise where no request and no worker starts an owner): an owner
+/// started for a worker commits the evidence rows of the segments 1, 2 and 3 and is stopped; a pass then shreds the
+/// segment 2, and the hand-over starts an owner and hands it the segment. The read after it names the rows of the
+/// segments 1 and 3 alone, although the daemon names no shredded segment for a start.
+#[test]
+fn a_hand_over_with_no_owner_running_starts_one_that_removes_the_rows_of_the_shredded_segments() {
+    let scratch = Scratch::new("slot-hand-over");
+    let daemon = Daemon::new(&scratch, KEY);
+    let mut slot = slot(&scratch, &daemon, None);
+    let workflow = evidence_of_three_segments(&mut slot);
+    assert_eq!(slot.pid(), None, "an owner runs before the hand-over");
+
+    *daemon.shredded.lock().unwrap() = vec![2];
+    slot.hand_over();
+    let read = read_evidence(&workflow);
     assert_eq!(evidence_segments(&slot.relay(&read).unwrap()), [[1], [3]]);
 }
