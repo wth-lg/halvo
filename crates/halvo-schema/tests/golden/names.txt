@@ -380,6 +380,7 @@ set_bindings
 set_model
 set_model_cap
 set_state
+set_up
 setup
 sha256
 sheet
