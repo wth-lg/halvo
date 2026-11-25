@@ -7,8 +7,9 @@
 # The run of both jobs ends in under 1,200 s. Before you add a line, name the seconds of the check
 # in that job and what it protects; scripts/ci/README.md, The merge gate, holds the measured seconds.
 # 11-clippy stands in the windows list alone; the lint of the macos job runs in the slice wed2.
-# A check that reads the same files and runs the same code on both systems stands in the windows
-# list alone (r8 cut-2): a minute of a Mac costs about five of Windows.
+# Tests of code that is the same on both systems run in the windows job alone, because a Mac job is
+# the slower and the scarcer one (r8 cut-2): a check that reads the same files and runs the same code
+# on both systems stands in the windows list alone.
 macos 12-test
 macos 17-workflow-lint
 macos 18-hook-scan
