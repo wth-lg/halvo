@@ -231,6 +231,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "This agent stopped at your spending limit. It waits until the limit's period ends or until you raise the limit under AI model.",
     ),
     (
+        "line.problem.shortfall",
+        "Halvo cannot do this agent's task with the AI model that this agent may use. The agent hands its work back to you each time it starts.",
+    ),
+    (
         "line.problem.not_replaced",
         "Halvo could not save the spreadsheet file. Close it in other programs and check that you may change it, then choose Start now.",
     ),

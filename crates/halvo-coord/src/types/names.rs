@@ -373,6 +373,7 @@ names! {
         NoAgreement = "no_agreement",
         NoModelKey = "no_model_key",
         OverCap = "over_cap",
+        Shortfall = "shortfall",
         AmountDiffers = "amount_differs",
         PageUnread = "page_unread",
         AmountNotSent = "amount_not_sent",

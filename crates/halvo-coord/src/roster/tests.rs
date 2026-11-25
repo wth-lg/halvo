@@ -300,10 +300,10 @@ fn u322d_a_file_run_that_the_system_refused_says_what_to_do_on_each_system() {
     }
 }
 
-/// r3 U7.2a: the row of an agent whose newest run ended `handed_back` with one of the three causes
-/// of a hosted model says the ruled problem line of that cause, byte for byte (the coordinator's
-/// log lines 22166 and 22216); a handed-back run with another cause, or with none, keeps the line
-/// of a run that stopped early.
+/// r3 U7.2a: the row of an agent whose newest run ended `handed_back` with one of the causes of a
+/// hosted model says the ruled problem line of that cause, byte for byte (the coordinator's log
+/// lines 22166 and 22216, and for `shortfall` of r3 U7.2b line 22454); a handed-back run with
+/// another cause, or with none, keeps the line of a run that stopped early.
 #[test]
 fn u72a_a_run_handed_back_before_its_model_says_why_and_every_other_reads_as_today() {
     let early =
@@ -320,6 +320,10 @@ fn u72a_a_run_handed_back_before_its_model_says_why_and_every_other_reads_as_tod
         (
             Some(LastCause::OverCap),
             "This agent stopped at your spending limit. It waits until the limit's period ends or until you raise the limit under AI model.",
+        ),
+        (
+            Some(LastCause::Shortfall),
+            "Halvo cannot do this agent's task with the AI model that this agent may use. The agent hands its work back to you each time it starts.",
         ),
         (Some(LastCause::NoBrowser), early),
         (None, early),
