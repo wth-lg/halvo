@@ -24,8 +24,8 @@
 # the same code on both systems (rule R4 of r8 cut-2). A line moves to scheduled only with its
 # reason. A test target under about 6 s stays in the gate, and so does a check under about 60 s
 # where the job has room. What holds the rule on egress in the gate: 21-tree-bans in the windows
-# job, 60-r6-egress in the macos job and the tests of 12-test; 10-egress, 80-r6-absent,
-# 38-app-engine-routes and 20-r6-gateway run in slices.
+# job, 60-r6-egress and 61-r6-senders-egress in the macos job and the tests of 12-test; 10-egress,
+# 80-r6-absent, 38-app-engine-routes and 20-r6-gateway run in slices.
 # Before a release the nine slices are run by hand at the commit of the release
 # (scripts/ci/README.md, The slices). The seconds of a check are those of the pull request run
 # 44877874023, which ran the whole table, unless the clause names another run; those of a group of
@@ -115,6 +115,7 @@ billing check 10-r7-account by-hand the windows job, 124 s on an AMD EPYC 7763 i
 
 egress check 60-r6-egress gate macos job, 69 s there in the push run 44895970784
 egress check 60-r6-egress scheduled wed2 the windows job, 167 s on an AMD EPYC 7763 in the slice wed of the run 45096596639
+egress check 61-r6-senders-egress gate macos job, which alone has the check (the egress check's mode sandbox runs on macOS alone), 41 s on a developer's Mac, its hosted seconds in the run of the pull request that added it; the tests of the packages that can start a sender open no connection outside 127.0.0.1 at the ports 49152 to 65535
 egress check 21-tree-bans gate windows job, whose cargo tree calls name each target and --target all (r8 cut-2, rule R4: it reads the same files and runs the same code on both systems, so the macos gate leaves it to the windows gate)
 egress target halvo-route/no_grant_in_release gate windows job (r8 cut-2, rule R4: its code holds no cfg by system, so the macos gate leaves it to the windows gate); under the release data a grant is made for the origin of the table's row of its tier and for no other; a ruling made for a test names http://127.0.0.1:<port> alone; no Rust file but the maker's own and the listed test files names the maker of that ruling; the pins of five files
 egress units halvo-route::leave gate windows job (r8 cut-2, rule R4: its code holds no cfg by system, so the macos gate leaves it to the windows gate); under a hosted ruling a grant is made for the origin of the row of its tier alone, by equal bytes, and names that row
