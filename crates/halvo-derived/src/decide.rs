@@ -14,8 +14,9 @@ use crate::propose::workflow_of_key;
 use crate::sql;
 use crate::Store;
 
-/// The app id of the workflow that the person sets up by hand, and the second word of its key. `key_of` makes keys
-/// of three words whose second is `app`, `title` or a domain source, so no proposal and no summary holds that key.
+/// The app id of the workflow that the person sets up by hand, and the second word of its key. The second word of
+/// every key that `key_of` makes is `app`, `title` or a domain's source, never `by_hand`, so no proposal and no
+/// summary holds that key.
 const BY_HAND: &str = "by_hand";
 
 /// The stored workflow of an id: its row id and its record.
