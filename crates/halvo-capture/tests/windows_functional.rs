@@ -5142,6 +5142,8 @@ fn settings_window() -> Option<HWND> {
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn x14_foreground_app_of_a_hosted_app() {
+    use halvo_capture::daemon::sources::SourceFactory;
+    use halvo_control::proto::SourceName;
     use windows::Win32::UI::WindowsAndMessaging::{AllowSetForegroundWindow, ASFW_ANY};
     with_deadline("x14", Duration::from_secs(150), || {
         env_report("x14");
@@ -5167,6 +5169,94 @@ fn x14_foreground_app_of_a_hosted_app() {
         let (sink, events) = capture(4096);
         let mut foreground = ForegroundAppSource::new();
         let start = foreground.begin(SourceContext::new(sink.clone()));
+        let (title_sink, title_events) = capture(4096);
+        let mut set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut keyboard = set.make(SourceName::Keyboard);
+        let mut title = set.gated_title(WindowTitleSource::new());
+        let keyboard_start = keyboard
+            .as_mut()
+            .map(|keyboard| keyboard.begin(SourceContext::new(title_sink.clone())));
+        let title_start = title.begin(SourceContext::new(title_sink.clone()));
+        let (gate_first_clear, gate_waited) = wait_for_clear(&gate, GATE_CLEAR_WAIT);
+        let waits_before_kept = title.source().waits();
+        let mut kept_child = spawn_child("front-on-go", 120);
+        let child_came = Instant::now();
+        let mut kept_window = None;
+        while kept_window.is_none() && child_came.elapsed() < Duration::from_secs(20) {
+            pump_thread(Duration::from_millis(200));
+            kept_window = window_titled("halvo-verify-front-on-go").map(|(hwnd, _)| hwnd);
+        }
+        let kept_window_found = kept_window.is_some();
+        let kept = |e: &Seen| {
+            e.modality == Modality::WindowTitle
+                && file_name(&e.foreground_app).eq_ignore_ascii_case(CHILD_EXE_NAME)
+        };
+        let go_the_child = |step: u32, window: HWND| {
+            std::fs::write(
+                kept_child._dir.path().join(format!("front-{step}.window")),
+                (window.0 as usize).to_string(),
+            )
+            .expect("write the window of the child's go");
+            kept_child.go(&format!("front-{step}"));
+        };
+        // SAFETY: AllowSetForegroundWindow takes a plain value.
+        let kept_child_allowed = unsafe { AllowSetForegroundWindow(kept_child.id()) }.is_ok();
+        let mut kept_window_front = false;
+        let mut kept_front_by = "none";
+        let mut kept_title_changed = false;
+        if let Some(window) = kept_window {
+            go_the_child(1, window);
+            let asked_at = Instant::now();
+            while !kept_window_front && asked_at.elapsed() < Duration::from_secs(3) {
+                pump_thread(Duration::from_millis(50));
+                kept_window_front = foreground_window() == window;
+            }
+            if kept_window_front {
+                kept_front_by = "child";
+            } else {
+                kept_window_front = foreground_without_input(window, false).0;
+                if kept_window_front {
+                    kept_front_by = "test";
+                }
+            }
+        }
+        if let Some(window) = kept_window.filter(|_| kept_window_front) {
+            let kept_title: Vec<u16> = "halvo-verify-front-on-go-kept\0".encode_utf16().collect();
+            // SAFETY: WM_SETTEXT takes a pointer to a NUL-ended UTF-16 text that
+            // lives through the call; the child's own thread sets the text.
+            kept_title_changed = unsafe {
+                windows::Win32::UI::WindowsAndMessaging::SendMessageW(
+                    window,
+                    windows::Win32::UI::WindowsAndMessaging::WM_SETTEXT,
+                    Some(WPARAM(0)),
+                    Some(LPARAM(kept_title.as_ptr() as isize)),
+                )
+            }
+            .0 != 0;
+        }
+        let mut kept_seen = Vec::new();
+        let kept_began = Instant::now();
+        while kept_began.elapsed() < Duration::from_secs(15) {
+            pump_thread(Duration::from_millis(100));
+            kept_seen.extend(title_events.drain_for(Duration::from_millis(100)));
+            if kept_seen.iter().any(kept) {
+                break;
+            }
+        }
+        let kept_waited = kept_began.elapsed();
+        let kept_gate_reading = gate.content_reading();
+        let waits_after_kept = title.source().waits();
+        let decided = |w: &halvo_capture::windows::window_title::TitleWaits| {
+            w.at_once + w.after_a_wait + w.behind_the_bound
+        };
+        let kept_waits_decided = decided(&waits_after_kept) - decided(&waits_before_kept);
+        let kept_waits_left = waits_after_kept.left - waits_before_kept.left;
+        let kept_waits_ended_with_no_read =
+            waits_after_kept.ended_with_no_read - waits_before_kept.ended_with_no_read;
+        go_the_child(2, anchor.hwnd);
+        pump_thread(Duration::from_millis(500));
+        let anchor_front_again = foreground_window() == anchor.hwnd;
         let launched = Command::new("cmd.exe")
             .args(["/c", "start", "ms-settings:"])
             .status()
@@ -5195,11 +5285,53 @@ fn x14_foreground_app_of_a_hosted_app() {
         let settings_processes = processes_named("SystemSettings.exe");
         let foreground_now = current_foreground_app().unwrap_or_default();
         let _ = stop_counted(&mut foreground, "foreground");
+        let title_stop = stop_counted(&mut title, "window_title");
+        let keyboard_stop = keyboard
+            .as_mut()
+            .map(|keyboard| stop_counted(keyboard.as_mut(), "keyboard"));
+        let title_seen = title_events.drain_for(Duration::from_millis(500));
+        let _ = kept_child.process.kill();
+        let _ = kept_child.process.wait();
+        kept_child.print_output();
         let _ = Command::new("taskkill.exe")
             .args(["/IM", "SystemSettings.exe", "/F"])
             .output();
         drop(anchor);
         summarize("x14", "after-opening-settings", &seen);
+        let title_events_kept = kept_seen.iter().filter(|e| kept(e)).count();
+        let titles_named = |file: &str| {
+            title_seen
+                .iter()
+                .filter(|e| {
+                    e.modality == Modality::WindowTitle
+                        && file_name(&e.foreground_app).eq_ignore_ascii_case(file)
+                })
+                .count()
+        };
+        let title_events_systemsettings = titles_named("SystemSettings.exe");
+        let title_events_applicationframehost = titles_named("ApplicationFrameHost.exe");
+        say(
+            "x14",
+            format!(
+                "title_events_systemsettings={title_events_systemsettings} \
+                 title_events_applicationframehost={title_events_applicationframehost} \
+                 title_events_kept={title_events_kept} kept_window_found={kept_window_found} \
+                 kept_child_allowed={kept_child_allowed} kept_front_by={kept_front_by} \
+                 kept_window_front={kept_window_front} \
+                 kept_title_changed={kept_title_changed} kept_gate_reading={kept_gate_reading:?} \
+                 anchor_front_again={anchor_front_again} gate_first_clear={gate_first_clear} \
+                 gate_waited_ms={} kept_waited_ms={} kept_waits_decided={kept_waits_decided} \
+                 kept_waits_left={kept_waits_left} \
+                 kept_waits_ended_with_no_read={kept_waits_ended_with_no_read} \
+                 keyboard_start={} title_start={} title_stop={} keyboard_stop={}",
+                gate_waited.as_millis(),
+                kept_waited.as_millis(),
+                keyboard_start.as_ref().map_or("none".to_string(), show),
+                show(&title_start),
+                show(&title_stop),
+                keyboard_stop.as_ref().map_or("none".to_string(), show),
+            ),
+        );
         let named = |file: &str| {
             seen.iter()
                 .filter(|e| file_name(&e.foreground_app).eq_ignore_ascii_case(file))
@@ -5233,6 +5365,23 @@ fn x14_foreground_app_of_a_hosted_app() {
         let evidence: String = format!("TF x14 events_naming_systemsettings={settings}");
         println!("{evidence}");
         assert!(settings >= 1, "{evidence}");
+        assert!(title_start.is_ok(), "title_start_ok=false");
+        assert!(
+            title_events_applicationframehost == 0,
+            "title_events_applicationframehost={title_events_applicationframehost}"
+        );
+        assert!(
+            title_events_systemsettings == 0,
+            "title_events_systemsettings={title_events_systemsettings}"
+        );
+        assert!(
+            frame_host == 0,
+            "events_naming_applicationframehost={frame_host}"
+        );
+        assert!(
+            title_events_kept >= 1,
+            "title_events_kept={title_events_kept} kept_window_front={kept_window_front}"
+        );
     });
 }
 
