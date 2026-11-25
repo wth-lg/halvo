@@ -558,7 +558,7 @@ mod tests {
     }
 
     #[test]
-    fn a_chrome_title_is_kept_only_where_it_ends_with_its_own_name_and_no_edge_title_is_kept() {
+    fn a_chrome_or_edge_title_is_kept_only_where_it_ends_with_the_browsers_own_name() {
         let kept = |id: &str, title: &str| match listed(id) {
             Listed::Ending(_, own) => !TitleText::for_test(title)
                 .of_a_browser_kept_by_its_name(own)
@@ -576,7 +576,18 @@ mod tests {
                 true,
             ),
             ("pop-up", chrome, "Sign in - Google Chrome", true),
-            ("edge-ordinary", edge, "Inbox - Microsoft Edge", false),
+            (
+                "edge-ordinary-as-run",
+                edge,
+                "Halvo probe page - Microsoft Edge",
+                true,
+            ),
+            (
+                "edge-bracket-earlier-in-the-page-title",
+                edge,
+                "Docs [draft] report - Microsoft Edge",
+                true,
+            ),
             ("profiles", chrome, "Inbox - Google Chrome - Work", false),
             (
                 "incognito",
@@ -629,6 +640,30 @@ mod tests {
                 "edge-profile",
                 edge,
                 "Inbox - Microsoft Edge - Personal",
+                false,
+            ),
+            (
+                "edge-inprivate-as-run",
+                edge,
+                "Halvo probe page - Microsoft Edge (InPrivate)",
+                false,
+            ),
+            (
+                "edge-guest-as-run",
+                edge,
+                "Halvo probe page - Microsoft Edge (Guest)",
+                false,
+            ),
+            (
+                "edge-message-box-as-run",
+                edge,
+                "127.0.0.1:49289 says",
+                false,
+            ),
+            (
+                "edge-page-title-ending-in-a-bracket",
+                edge,
+                "Notes [draft] - Microsoft Edge",
                 false,
             ),
         ];
