@@ -71,7 +71,7 @@
       if (ids.length > 0) typed.setAttribute('aria-describedby', ids.join(' '));
       else typed.removeAttribute('aria-describedby');
     }
-    function show(which) {
+    function show(which, quiet) {
       if (shown === which) return;
       shown = which;
       if (note) {
@@ -85,7 +85,7 @@
         typed.parentNode.insertBefore(note, typed.nextSibling);
       }
       describe();
-      if (text) tell(text, line);
+      if (text && !quiet) tell(text, line);
     }
     function atBound() {
       return mark || bytes(line.kept) >= 1024;
@@ -112,8 +112,11 @@
     line.sent = function () {
       if (shown === 'too_long') show(rest());
     };
-    line.needs = function () {
-      show('needs');
+    line.needs = function (quiet) {
+      show('needs', quiet);
+    };
+    line.needing = function () {
+      return shown === 'needs';
     };
     line.fill = function (text) {
       if (judge(text, null)) typed.value = line.kept;
@@ -189,71 +192,87 @@
 
   function addParams(box, item, answers, carry) {
     item.params.forEach(function (p) {
-      const set = el('fieldset', 'hn-param', '');
-      const legend = el('legend', null, p.label);
-      legend.id = fresh();
-      const group = fresh();
-      set.appendChild(legend);
-      let hint = null;
-      if (p.hint) {
-        hint = el('p', 'hn-hint', p.hint);
-        hint.id = fresh();
-        set.appendChild(hint);
-      }
-      const radios = [];
-      const names = p.candidates.length > 0 && p.candidates.every(function (c) {
-        return c.from === 'files';
-      });
-      const holder = names ? el('div', 'hn-names', '') : set;
-      if (names) set.appendChild(holder);
-      const carried = carry && carry.step === item.step ? carry : null;
-      const was = carried ? carried.picks.get(p.name) || (carried.lines.get(p.name) || {}).text : null;
-      p.candidates.forEach(function (c) {
-        const label = el('label', 'hn-choice', '');
-        const input = document.createElement('input');
-        input.type = 'radio';
-        input.className = 'hn-radio';
-        input.name = group;
-        input.setAttribute('data-act', 'candidate');
-        input.setAttribute('data-param', p.name);
-        input.setAttribute('data-n', String(c.n));
-        label.appendChild(input);
-        c.value.forEach(function (piece) {
-          label.appendChild(document.createTextNode(piece));
-        });
-        holder.appendChild(label);
-        const value = c.value.join('');
-        if (names && was === value) input.checked = true;
-        radios.push({ input: input, n: c.n, value: value });
-      });
-      const unanswered = names ? needsUnder(set, radios, p.needs_answer) : null;
-      const gone = carried && carried.sent.has(p.name) && !radios.some(function (r) {
-        return r.value === carried.sent.get(p.name);
-      });
-      if (unanswered && gone) unanswered.needs();
-      let typed = null;
-      let line = null;
-      if (p.typed === 'yes') {
-        typed = document.createElement('input');
-        typed.type = 'text';
-        typed.className = 'hn-typed';
-        typed.setAttribute('data-act', 'typed');
-        typed.setAttribute('data-param', p.name);
-        typed.setAttribute('aria-labelledby', legend.id);
-        typed.setAttribute('autocomplete', 'off');
-        typed.setAttribute('autocorrect', 'off');
-        typed.setAttribute('autocapitalize', 'off');
-        typed.setAttribute('spellcheck', 'false');
-        set.appendChild(typed);
-        line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken, p.needs_answer);
-        const was = carry && carry.step === item.step ? carry.lines.get(p.name) : null;
-        if (was) line.restore(was.text);
-        else if (typeof p.stored === 'string') line.restore(p.stored);
-        if (p.choose) set.appendChild(chooser(item, p.name, p.choose));
-      }
-      box.appendChild(set);
-      answers.push({ param: p.name, radios: radios, typed: typed, line: line, list: unanswered });
+      const a = question(item, p, carry);
+      box.appendChild(a.set);
+      answers.push(a);
     });
+  }
+
+  function question(item, p, carry) {
+    const set = el('fieldset', 'hn-param', '');
+    const legend = el('legend', null, p.label);
+    legend.id = fresh();
+    const group = fresh();
+    set.appendChild(legend);
+    let hint = null;
+    if (p.hint) {
+      hint = el('p', 'hn-hint', p.hint);
+      hint.id = fresh();
+      set.appendChild(hint);
+    }
+    const radios = [];
+    const names = p.candidates.length > 0 && p.candidates.every(function (c) {
+      return c.from === 'files';
+    });
+    const holder = names ? el('div', 'hn-names', '') : set;
+    if (names) set.appendChild(holder);
+    const carried = carry && carry.step === item.step ? carry : null;
+    const was = carried ? carried.picks.get(p.name) || (carried.lines.get(p.name) || {}).text : null;
+    p.candidates.forEach(function (c) {
+      const label = el('label', 'hn-choice', '');
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.className = 'hn-radio';
+      input.name = group;
+      input.setAttribute('data-act', 'candidate');
+      input.setAttribute('data-param', p.name);
+      input.setAttribute('data-n', String(c.n));
+      label.appendChild(input);
+      c.value.forEach(function (piece) {
+        label.appendChild(document.createTextNode(piece));
+      });
+      holder.appendChild(label);
+      const value = c.value.join('');
+      if (names && was === value) input.checked = true;
+      radios.push({ input: input, n: c.n, value: value });
+    });
+    const unanswered = names ? needsUnder(set, radios, p.needs_answer) : null;
+    const gone = carried && carried.sent.has(p.name) && !radios.some(function (r) {
+      return r.value === carried.sent.get(p.name);
+    });
+    let typed = null;
+    let line = null;
+    if (p.typed === 'yes') {
+      typed = document.createElement('input');
+      typed.type = 'text';
+      typed.className = 'hn-typed';
+      typed.setAttribute('data-act', 'typed');
+      typed.setAttribute('data-param', p.name);
+      typed.setAttribute('aria-labelledby', legend.id);
+      typed.setAttribute('autocomplete', 'off');
+      typed.setAttribute('autocorrect', 'off');
+      typed.setAttribute('autocapitalize', 'off');
+      typed.setAttribute('spellcheck', 'false');
+      set.appendChild(typed);
+      line = limit(typed, p.full, p.too_long, hint ? hint.id : '', p.not_taken, p.needs_answer);
+      const was = carried ? carried.lines.get(p.name) : null;
+      if (was) line.restore(was.text);
+      else if (typeof p.stored === 'string') line.restore(p.stored);
+      if (p.choose) set.appendChild(chooser(item, p.name, p.choose));
+    }
+    const a = { param: p.name, set: set, radios: radios, typed: typed, line: line, list: unanswered };
+    if (unanswered && gone && !shows(a)) unanswered.needs();
+    if (carried && carried.needing.has(p.name) && !shows(a)) need(a, true);
+    return a;
+  }
+
+  function need(a, quiet) {
+    if (a.line) a.line.needs(quiet);
+    else if (a.list) a.list.needs(quiet);
+  }
+
+  function needing(a) {
+    return a.line ? a.line.needing() : a.list !== null && a.list.needing();
   }
 
   function needsUnder(set, radios, text) {
@@ -270,7 +289,7 @@
       r.input.addEventListener('change', hide);
     });
     return {
-      needs: function () {
+      needs: function (quiet) {
         if (note || !text) return;
         note = el('p', 'hn-full', text);
         note.id = fresh();
@@ -278,7 +297,10 @@
         radios.forEach(function (r) {
           r.input.setAttribute('aria-describedby', note.id);
         });
-        if (region && !holding()) addition([text]);
+        if (!quiet && region && !holding()) addition([text]);
+      },
+      needing: function () {
+        return note !== null;
       }
     };
   }
@@ -351,9 +373,10 @@
   }
 
   function held(card, sent) {
-    card.busy = true;
+    const mine = {};
+    card.busy = mine;
     return sent.then(function (reply) {
-      card.busy = false;
+      if (card.busy === mine) card.busy = false;
       return reply;
     });
   }
@@ -457,14 +480,42 @@
   function kept(card) {
     const lines = new Map();
     const picks = new Map();
+    const under = new Set();
     card.answers.forEach(function (a) {
       if (a.line) lines.set(a.param, { text: a.line.kept });
       const picked = a.radios.filter(function (r) {
         return r.input.checked;
       })[0];
       if (picked) picks.set(a.param, picked.value);
+      if (needing(a)) under.add(a.param);
     });
-    return { step: card.step, lines: lines, picks: picks, sent: card.sent };
+    return { step: card.step, lines: lines, picks: picks, sent: card.sent, needing: under, focused: card.li.contains(document.activeElement) };
+  }
+
+  function beside(item) {
+    return asHeld(Object.assign({}, item, { params: [] }));
+  }
+
+  function inPlace(card, item) {
+    const was = card.item.params;
+    const same = item.params.length === was.length && item.params.every(function (p, i) {
+      return p.name === was[i].name;
+    });
+    if (!same || beside(item) !== beside(card.item)) return false;
+    const carry = kept(card);
+    item.params.forEach(function (p, i) {
+      if (JSON.stringify(p) === JSON.stringify(was[i])) return;
+      const old = card.answers[i];
+      const focused = old.set.contains(document.activeElement);
+      const a = question(item, p, carry);
+      old.set.parentNode.insertBefore(a.set, old.set);
+      old.set.remove();
+      card.answers[i] = a;
+      if (focused && card.heading) card.heading.focus();
+    });
+    card.item = item;
+    card.json = asHeld(item);
+    return true;
   }
 
   function input(event) {
@@ -502,12 +553,16 @@
   }
 
   function build(item, key, carry) {
-    const card = { id: item.item, item: item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false, sent: new Map() };
+    const card = { id: item.item, item: item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), heading: null, dialog: null, handle: null, answers: [], gone: false, busy: false, sent: new Map() };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
       const title = el('h3', 'hn-title', item.title);
       title.id = fresh();
+      if (!page) {
+        title.setAttribute('tabindex', '-1');
+        card.heading = title;
+      }
       box.appendChild(title);
     }
     const about = el('div', null, '');
@@ -592,12 +647,15 @@
       return item.item + '#' + n;
     });
     const now = new Map();
+    const coming = new Map();
     items.forEach(function (item, i) {
       now.set(keys[i], asHeld(item));
+      coming.set(keys[i], item);
     });
     const carried = new Map();
     Array.from(cards.keys()).forEach(function (key) {
       if (now.get(key) === cards.get(key).json) return;
+      if (now.has(key) && inPlace(cards.get(key), coming.get(key))) return;
       if (now.has(key)) carried.set(key, kept(cards.get(key)));
       drop(key);
     });
@@ -613,6 +671,7 @@
         if (card) drop(keys[i]);
         card = build(item, keys[i], carry);
         list.insertBefore(card.li, ref);
+        if (carry && carry.focused && card.heading) card.heading.focus();
       }
       next.set(keys[i], card);
     });
