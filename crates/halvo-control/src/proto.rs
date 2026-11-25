@@ -1204,8 +1204,8 @@ one_spelling!(StopKind, "stop kind", [
     GrantAppeared => "grant_appeared",
 ]);
 
-/// What the last life received and did not store. With `final_figures` false the count is an
-/// upper bound.
+/// What the last life received and did not store. With `final_figures` false the count is the
+/// lost count alone of an end whose store did not answer its close: a lower bound.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LostRecord {
     pub events: u64,

@@ -10,6 +10,7 @@
   var toggle;
   var failed;
   var drain;
+  var lostLine;
   var expiry;
   var screenLine;
   var crashLine;
@@ -172,6 +173,7 @@
     renderSources(s);
     var d = s.drain;
     drain.textContent = d && d.state === "failing" ? w.NOT_SAVING + " " + (DRAIN[d.error] || w.CAUSE_IO) : "";
+    lostLine.textContent = s.service === "running" && partLost(s) ? w.PART_NOT_SAVED : "";
     var x = s.expiry;
     expiry.textContent =
       x && x.state === "failing" ? w.EXPIRY_FAILING + " " + (EXPIRY[x.error] || w.CAUSE_IO) + (x.last_at ? " " + w.EXPIRY_SINCE + " " + x.last_at + "." : "") : "";
@@ -186,6 +188,12 @@
 
   function leftOutInDoubt(s) {
     return (s.capture === "running" || s.capture === "partial") && s.left_out_in_doubt === true;
+  }
+
+  function partLost(s) {
+    var loss = s.loss || {};
+    var last = loss.last_stop_lost || {};
+    return loss.events_lost > 0 || last.events > 0;
   }
 
   function keptPrivate(s) {
@@ -347,6 +355,7 @@
       toggle.onclick = onToggle;
       failed = Halvo.el("ul", { id: "failed-sources", class: "hidden" });
       drain = Halvo.el("p", { id: "drain-line" });
+      lostLine = Halvo.el("p", { id: "lost-line" });
       expiry = Halvo.el("p", { id: "expiry-line" });
       screenLine = Halvo.el("p", { id: "screen-line" });
       crashLine = Halvo.el("p", { id: "crash-report-line" });
@@ -379,6 +388,7 @@
         Halvo.el("div", { class: "row status-row" }, [dot, Halvo.el("p", { class: "state-line" }, [state, " ", reason]), toggle]),
         failed,
         drain,
+        lostLine,
         expiry,
         screenLine,
         crashLine,

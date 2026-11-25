@@ -56,6 +56,15 @@ pub struct SourceEntry {
     pub unstopped: bool,
 }
 
+/// What the last life of the data directory lost, as the start read it in the
+/// run marker: the trigger of the stop that ended that life and what it did
+/// not store.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LastLife {
+    pub kind: proto::StopKind,
+    pub lost: proto::LostRecord,
+}
+
 /// What a run reports.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Board {
@@ -70,6 +79,9 @@ pub struct Board {
     pub figures: SourceCounters,
     pub failed: Vec<(SourceName, CaptureError)>,
     pub password_guard: PasswordGuard,
+    /// The loss of the last life that the start read, until a delete of
+    /// everything takes it back.
+    pub last_life: Option<LastLife>,
 }
 
 impl Board {
@@ -98,6 +110,7 @@ impl Board {
                 Platform::Macos => PasswordGuard::Os,
                 Platform::Windows => PasswordGuard::Halvo,
             },
+            last_life: None,
         }
     }
 

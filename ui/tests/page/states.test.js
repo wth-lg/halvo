@@ -312,3 +312,37 @@ test("typing-says: where the Mac's input row reads impaired by secure_input_else
   assert.notEqual((await page({ ...kept, hold: { press: "resume" } })).text("capture-reason"), said, "held");
   assert.equal((await page({ ...kept, left_out_in_doubt: true })).text("capture-reason"), doubt, "beside the doubt");
 });
+
+test("lost-says: where this life's count or the last life's count of a loss is over 0 and the service answers, a line of its own behind the drain line says the ruled sentence, in every capture state, beside the doubt's and the typing's sentences; where both are 0 or the service does not answer it does not", async () => {
+  const said = "Halvo could not save part of what it recorded earlier, and that part cannot be brought back.";
+  const lostLine = (p) => (p.document.getElementById("lost-line") || { textContent: "" }).textContent;
+  const losing = (status, events_lost, events) => ({ ...status, loss: { ...status.loss, events_lost, last_stop_lost: { ...status.loss.last_stop_lost, events } } });
+  for (const name of ["capture_status-running", "capture_status-running-windows"]) {
+    const running = fixture(name);
+    for (const [events_lost, events] of [[3, 0], [0, 3], [3, 3]]) {
+      for (const capture of Object.keys(CAPTURE)) {
+        const shown = await page({ ...losing(running, events_lost, events), capture });
+        assert.equal(lostLine(shown), said, `${name} ${events_lost} ${events} ${capture}`);
+        assert.equal(shown.text("state"), CAPTURE[capture], `${name} ${capture}`);
+      }
+      const held = await page({ ...losing(running, events_lost, events), hold: { press: "resume" } });
+      assert.equal(lostLine(held), said, `${name} held`);
+    }
+    const lines = [...(await page({ ...losing(running, 3, 0), drain: { state: "failing", error: "no_space", since: null } })).byId("drain-line").parentNode.childNodes].map((node) => node.id);
+    assert.equal(lines.indexOf("lost-line"), lines.indexOf("drain-line") + 1, `${name}: behind the drain line`);
+    assert.equal(lostLine(await page(running)), "", `${name}: both 0`);
+    assert.equal(lostLine(await page(losing(running, 0, 0))), "", `${name}: both 0 again`);
+    const doubt = await page({ ...losing(running, 3, 0), left_out_in_doubt: true });
+    assert.equal(lostLine(doubt), said, `${name}: beside the doubt`);
+    assert.equal(doubt.text("capture-reason"), "Halvo could not tell whether to leave out the app that you were using, so it has recorded nothing since then. It records again as soon as it can tell.", name);
+  }
+  const mac = fixture("capture_status-running");
+  const kept = { ...losing(mac, 0, 3), sources: mac.sources.map((src) => (src.name === "input" ? { ...src, state: "impaired", reason: "secure_input_elsewhere" } : src)) };
+  const both = await page(kept);
+  assert.equal(lostLine(both), said, "beside the typing's sentence");
+  assert.equal(both.text("capture-reason"), "Halvo is not recording typing right now, because a password field or another app has asked your Mac to keep typing private. It records typing again by itself when that ends.");
+  const { loss, ...none } = losing(mac, 3, 3);
+  for (const service of ["not_running", "connecting", "status_refused"]) {
+    assert.equal(lostLine(await page({ ...none, service })), "", service);
+  }
+});

@@ -18,9 +18,11 @@ use std::io::{self, Read, Write};
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::Path;
 
+use halvo_control::model::UtcSecond;
 use halvo_control::paths::DataDir;
-use halvo_control::proto::{LastStop, StopKind};
+use halvo_control::proto::{LastStop, LostRecord, StopKind};
 
+use super::board::LastLife;
 use super::state::StateDir;
 
 const MARKER_READ_MAX_BYTES: u64 = 4_096;
@@ -32,6 +34,8 @@ const ENDED: &str = "ended=";
 const PID: &str = "pid=";
 
 const RECORD: &str = "last_stop=";
+
+const LOST: &str = "lost=";
 
 const TYPING_OFF: &str = "typing-off";
 
@@ -143,10 +147,12 @@ pub fn let_typing_go(run: &HeldRun) -> io::Result<()> {
 }
 
 /// What a start found in the marker and made of it: its reading, the result
-/// of its write, and the marker that it found, which [`give_back`] puts back.
+/// of its write, the loss of the last life that the marker held, and the
+/// marker that it found, which [`give_back`] puts back.
 pub struct Begun {
     pub last_stop: LastStop,
     pub written: io::Result<()>,
+    pub lost: Option<LastLife>,
     found: Option<String>,
 }
 
@@ -208,7 +214,9 @@ impl LastEnd {
 }
 
 /// Reads the marker that the last life left and writes the marker of this
-/// one, with the hold when the marker that stood held it. No marker and no
+/// one, with the hold when the marker that stood held it. The loss that the
+/// last life carried in its line of a loss is read into [`Begun`], and the
+/// marker of this life holds no such line, so a loss stands for one life. No marker and no
 /// run/ before it is a first life (`none`); no marker in a run/ that stands,
 /// or a marker whose lines are the hold and the line of an end in order,
 /// either or both, is a life that ended in order (`clean`); any other marker
@@ -226,10 +234,12 @@ pub fn begin(dir: &DataDir) -> Begun {
         Ok(Some(_)) | Err(_) => LastStop::Unclean,
     };
     let found = read.as_ref().ok().cloned().flatten();
+    let lost = found.as_deref().and_then(lost_of);
     let written = read.and_then(|text| write(dir, text.as_deref().is_some_and(holds_the_hold)));
     Begun {
         last_stop,
         written,
+        lost,
         found,
     }
 }
@@ -258,12 +268,13 @@ pub fn last_end(dir: &DataDir) -> LastEnd {
 
 /// At a start that cannot bind its channel: where the start read the marker
 /// clean or found none, it puts back the marker that it found (no marker
-/// stays none; the hold and the line of an end in order stay), so that the
-/// next start reads what this one read; where it found the marker of a life
-/// that did not end in order, the marker that `begin` wrote in its place
-/// stays, so that the next start reads unclean too: a start that cannot bind
-/// hides no lost batch; where `begin` wrote no marker, it writes nothing.
-/// It writes through `run`, the held folder.
+/// stays none; the hold, the line of an end in order and the line of a loss
+/// stay), so that the next start reads what this one read; where it found
+/// the marker of a life that did not end in order, the marker that `begin`
+/// wrote in its place stays, so that the next start reads unclean too, and
+/// the line of a loss that the marker held goes with it: no later start
+/// reads that loss; where `begin` wrote no marker, it writes nothing. It
+/// writes through `run`, the held folder.
 pub fn give_back(run: &HeldRun, begun: &Begun) -> io::Result<()> {
     if begun.last_stop == LastStop::Unclean || begun.written.is_err() {
         return Ok(());
@@ -272,6 +283,25 @@ pub fn give_back(run: &HeldRun, begun: &Begun) -> io::Result<()> {
         Some(text) => replace_in(run, text.as_bytes()),
         None => remove_in(run),
     }
+}
+
+/// Takes the line of a loss out of the marker that stands in `run`, the
+/// held folder, as the offline delete of everything does before its steps:
+/// where the marker holds such a line, it is written back without it by the
+/// durable write, every other line byte for byte; where it holds none, or no
+/// marker stands, nothing is written.
+pub fn forget_the_loss(run: &HeldRun) -> io::Result<()> {
+    let Some(text) = read_in(run)? else {
+        return Ok(());
+    };
+    if !text.lines().any(|line| line.starts_with(LOST)) {
+        return Ok(());
+    }
+    let kept: String = text
+        .split_inclusive('\n')
+        .filter(|line| !line.starts_with(LOST))
+        .collect();
+    replace_in(run, kept.as_bytes())
 }
 
 /// Whether the marker that stands holds the hold of ruling PL-3 part (5).
@@ -287,13 +317,23 @@ pub fn held(dir: &DataDir) -> bool {
 /// end the marker stays as the life left it: its process line alone, the
 /// form of the decision, or the record of ruling PL-3 at an end with 5.
 /// At 1 a marker that cannot be read, or a write that fails, gives what
-/// [`decided`] gives. Every read and write goes through `run`, the held
-/// folder.
-pub fn at_the_end(run: &HeldRun, status: i32, ended_by: Option<StopKind>) -> io::Result<()> {
+/// [`decided`] gives. Where `lost` holds what the life did not store and a
+/// trigger other than a delete's end stands, those two writes, and no other,
+/// carry it in the line of the loss, which the next start reads ([`begin`]).
+/// Every read and write goes through `run`, the held folder.
+pub fn at_the_end(
+    run: &HeldRun,
+    status: i32,
+    ended_by: Option<StopKind>,
+    lost: Option<&LostRecord>,
+) -> io::Result<()> {
+    let carried = ended_by
+        .filter(|kind| *kind != StopKind::DeleteAll)
+        .zip(lost);
     match (status, ended_by) {
-        (halvo_control::exit::CLEAN, _) => end(run, ended_by),
+        (halvo_control::exit::CLEAN, _) => end(run, ended_by, carried),
         (halvo_control::exit::ERROR, Some(kind @ (StopKind::Stop | StopKind::Signal))) => {
-            decided(run, kind)
+            decision(run, kind, carried)
         }
         _ => Ok(()),
     }
@@ -311,6 +351,14 @@ pub fn at_the_end(run: &HeldRun, status: i32, ended_by: Option<StopKind>) -> io:
 /// behind the rename fails, on a Mac, the decision stands and the call
 /// answers that error. It reads and writes through `run`, the held folder.
 pub fn decided(run: &HeldRun, kind: StopKind) -> io::Result<()> {
+    decision(run, kind, None)
+}
+
+fn decision(
+    run: &HeldRun,
+    kind: StopKind,
+    carried: Option<(StopKind, &LostRecord)>,
+) -> io::Result<()> {
     let found = read_in(run)?;
     let mut text = format!("{PID}{}\n", std::process::id());
     if found.as_deref().is_some_and(holds_the_hold) {
@@ -320,17 +368,25 @@ pub fn decided(run: &HeldRun, kind: StopKind) -> io::Result<()> {
     text.push_str(ENDED);
     text.push_str(kind.as_str());
     text.push('\n');
+    if let Some((kind, lost)) = carried {
+        text.push_str(&lost_line(kind, lost));
+    }
     replace_in(run, text.as_bytes())
 }
 
 /// Ends the marker of a life that ended in order: in its place the hold,
-/// while it stands, and the line of `ended_by`, the trigger of the end, by
-/// the durable write. With no trigger, or where that write fails while no
-/// hold stands, a removal of the marker and a sync of run/ are tried, as an
-/// end in order did before the line, which a start that no press stands
-/// behind reads, where the removal was made, as an end that does not tell.
-/// It reads and writes through `run`, the held folder.
-pub fn end(run: &HeldRun, ended_by: Option<StopKind>) -> io::Result<()> {
+/// while it stands, the line of `ended_by`, the trigger of the end, and the
+/// line of the loss that `carried` holds, by the durable write. With no
+/// trigger, or where that write fails while no hold stands, a removal of the
+/// marker and a sync of run/ are tried, as an end in order did before the
+/// line, which a start that no press stands behind reads, where the removal
+/// was made, as an end that does not tell. It reads and writes through
+/// `run`, the held folder.
+pub fn end(
+    run: &HeldRun,
+    ended_by: Option<StopKind>,
+    carried: Option<(StopKind, &LostRecord)>,
+) -> io::Result<()> {
     let hold = read_in(run).is_ok_and(|text| text.as_deref().is_some_and(holds_the_hold));
     let mut text = String::new();
     if hold {
@@ -341,6 +397,9 @@ pub fn end(run: &HeldRun, ended_by: Option<StopKind>) -> io::Result<()> {
         text.push_str(ENDED);
         text.push_str(kind.as_str());
         text.push('\n');
+    }
+    if let Some((kind, lost)) = carried {
+        text.push_str(&lost_line(kind, lost));
     }
     if text.is_empty() {
         return remove_in(run);
@@ -360,7 +419,68 @@ fn ended_in_order(text: &str) -> bool {
                 || line
                     .strip_prefix(ENDED)
                     .is_some_and(|word| word.parse::<StopKind>().is_ok())
+                || line
+                    .strip_prefix(LOST)
+                    .is_some_and(|rest| lost_in(rest).is_some())
         })
+}
+
+/// The line of the loss of a life that ended behind `kind`, in the words of
+/// the status's `last_stop_lost` (contracts.md C2.3) after the kind.
+fn lost_line(kind: StopKind, lost: &LostRecord) -> String {
+    let second = |at: Option<UtcSecond>| at.map_or_else(|| "-".to_owned(), |at| at.to_string());
+    format!(
+        "{LOST}{} events={} first={} last={} error={} final={}\n",
+        kind.as_str(),
+        lost.events,
+        second(lost.first),
+        second(lost.last),
+        lost.error.as_ref().map_or("-", |error| error.as_str()),
+        if lost.final_figures { "yes" } else { "no" },
+    )
+}
+
+/// The loss of the last life in the marker's `text`: its first line of a
+/// loss, where that line reads whole.
+fn lost_of(text: &str) -> Option<LastLife> {
+    text.lines()
+        .find_map(|line| line.strip_prefix(LOST))
+        .and_then(lost_in)
+}
+
+fn lost_in(rest: &str) -> Option<LastLife> {
+    let mut words = rest.split(' ');
+    let kind = words.next()?.parse::<StopKind>().ok()?;
+    let mut field = |name: &str| words.next().and_then(|word| word.strip_prefix(name));
+    let events = field("events=")?.parse().ok()?;
+    let second = |word: &str| match word {
+        "-" => Some(None),
+        word => word.parse::<UtcSecond>().ok().map(Some),
+    };
+    let first = second(field("first=")?)?;
+    let last = second(field("last=")?)?;
+    let error = match field("error=")? {
+        "-" => None,
+        word => Some(word.parse().ok()?),
+    };
+    let final_figures = match field("final=")? {
+        "yes" => true,
+        "no" => false,
+        _ => return None,
+    };
+    if words.next().is_some() {
+        return None;
+    }
+    Some(LastLife {
+        kind,
+        lost: LostRecord {
+            events,
+            first,
+            last,
+            error,
+            final_figures,
+        },
+    })
 }
 
 fn holds_the_hold(text: &str) -> bool {
@@ -606,7 +726,7 @@ mod tests {
         ] {
             let (_root, dir) = scratch();
             assert_eq!(begin(&dir).last_stop, LastStop::None, "{kind:?}");
-            end(&run_of(&dir), Some(kind)).unwrap();
+            end(&run_of(&dir), Some(kind), None).unwrap();
             assert_eq!(
                 marker(&dir),
                 Some(format!("ended={}\n", kind.as_str())),
@@ -626,7 +746,7 @@ mod tests {
         );
         assert_eq!(begin(&dir).last_stop, LastStop::Unclean);
         assert!(held(&dir), "a record's hold goes on into the next life");
-        end(&run_of(&dir), Some(StopKind::Lifeline)).unwrap();
+        end(&run_of(&dir), Some(StopKind::Lifeline), None).unwrap();
         assert_eq!(
             marker(&dir).as_deref(),
             Some("hold=yes\nended=lifeline\n"),
@@ -637,7 +757,7 @@ mod tests {
         assert!(held(&dir), "the next life holds the hold");
         stand(&dir, &format!("pid={}\n", std::process::id()));
         assert!(!held(&dir), "a Resume's marker lifts the hold");
-        end(&run_of(&dir), Some(StopKind::Signal)).unwrap();
+        end(&run_of(&dir), Some(StopKind::Signal), None).unwrap();
         assert_eq!(marker(&dir).as_deref(), Some("ended=signal\n"));
         assert_eq!(begin(&dir).last_stop, LastStop::Clean);
         assert!(!held(&dir), "the hold stays lifted");
@@ -678,7 +798,7 @@ mod tests {
             format!("pid={}\nended=stop\n", std::process::id()),
             "the line in the held folder"
         );
-        at_the_end(&run, halvo_control::exit::CLEAN, Some(StopKind::Stop)).unwrap();
+        at_the_end(&run, halvo_control::exit::CLEAN, Some(StopKind::Stop), None).unwrap();
         assert_eq!(names(&data), Vec::<String>::new(), "nothing at the name");
         assert_eq!(
             std::fs::read_to_string(moved.join("run").join("running")).unwrap(),
@@ -727,6 +847,7 @@ mod tests {
             &run_of(&dir),
             halvo_control::exit::SOURCE_NOT_STOPPED,
             Some(StopKind::Stop),
+            None,
         )
         .unwrap();
         assert_eq!(
@@ -742,6 +863,7 @@ mod tests {
             &run_of(&dir),
             halvo_control::exit::CLEAN,
             Some(StopKind::Stop),
+            None,
         )
         .unwrap();
         assert_eq!(
@@ -774,7 +896,7 @@ mod tests {
                     stand(&dir, record);
                 }
                 assert!(begin(&dir).written.is_ok(), "{end}");
-                at_the_end(&run_of(&dir), ERROR, Some(kind)).unwrap();
+                at_the_end(&run_of(&dir), ERROR, Some(kind), None).unwrap();
                 let hold_line = if hold { "hold=yes\n" } else { "" };
                 assert_eq!(
                     marker(&dir),
@@ -813,7 +935,7 @@ mod tests {
             if let Some(stood) = stood {
                 stand(&dir, stood);
             }
-            at_the_end(&run_of(&dir), status, ended_by).unwrap();
+            at_the_end(&run_of(&dir), status, ended_by, None).unwrap();
             assert_eq!(marker(&dir), left, "{status} {ended_by:?}");
         }
     }
@@ -937,6 +1059,85 @@ mod tests {
             );
             let_typing_go(&run).unwrap();
             assert!(!moved.join("run").join(TYPING_OFF).exists());
+        }
+    }
+
+    #[test]
+    fn an_offline_delete_takes_the_loss_line_out_of_the_marker_and_a_marker_it_cannot_write_leaves_the_delete_as_it_was(
+    ) {
+        let delete = |dir: &DataDir| {
+            let rows = super::super::delete_all::rows();
+            let how = super::super::delete_all::Offline {
+                rows: &rows,
+                select: super::super::custody_policy::of_this_build,
+                hands: &super::super::delete_all::SystemHands,
+            };
+            let (mut out, mut err) = (Vec::new(), Vec::new());
+            let status = super::super::delete_all::run(dir, &how, &mut out, &mut err);
+            (status, out, err)
+        };
+        let with_a_loss =
+            "pid=1\nhold=yes\nended=stop\nlost=stop events=3 first=- last=- error=- final=yes\n";
+        let (_root, dir) = scratch();
+        stand(&dir, with_a_loss);
+        let taken = delete(&dir);
+        assert_eq!(
+            taken.0,
+            halvo_control::exit::CLEAN,
+            "{}",
+            String::from_utf8_lossy(&taken.2)
+        );
+        assert_eq!(
+            marker(&dir).as_deref(),
+            Some("pid=1\nhold=yes\nended=stop\n"),
+            "the loss line goes and every other line stays byte for byte"
+        );
+        assert_eq!(
+            begin(&dir).lost,
+            None,
+            "no start reads a loss behind the press"
+        );
+
+        let (_root, dir) = scratch();
+        stand(&dir, "ended=stop\n");
+        let before = std::fs::metadata(dir.run_marker())
+            .unwrap()
+            .modified()
+            .unwrap();
+        let plain = delete(&dir);
+        assert_eq!(plain.0, halvo_control::exit::CLEAN);
+        assert_eq!(marker(&dir).as_deref(), Some("ended=stop\n"));
+        assert_eq!(
+            std::fs::metadata(dir.run_marker())
+                .unwrap()
+                .modified()
+                .unwrap(),
+            before,
+            "a marker with no loss line is not written"
+        );
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let (_root, dir) = scratch();
+            stand(&dir, with_a_loss);
+            let run = dir.run_dir();
+            std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o500)).unwrap();
+            let refused = delete(&dir);
+            std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let report = |out: &[u8]| {
+                String::from_utf8_lossy(out)
+                    .lines()
+                    .skip(1)
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                (refused.0, report(&refused.1), &refused.2),
+                (taken.0, report(&taken.1), &taken.2),
+                "a marker that cannot be written back leaves the delete's outcome and report as they were"
+            );
+            assert_eq!(marker(&dir).as_deref(), Some(with_a_loss), "the line stays");
         }
     }
 }
