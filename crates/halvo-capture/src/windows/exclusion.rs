@@ -355,8 +355,23 @@ pub(crate) fn private_of_buttons<S: AsRef<str>>(toolbar: &[S], all: &[S]) -> Opt
     private_of_names(toolbar)
 }
 
+/// What a Chrome window's tree tells of it, given the names of the window
+/// element's own children of the type Pane, the toolbars below the window in
+/// the order of the tree (the names of each one's own buttons, and whether it
+/// stands inside a document), and the names of every button below the window:
+/// the answer of [`private_of_buttons`] over the own buttons of the first
+/// toolbar, whether it stands inside a document or not. The panes are not read.
+pub(crate) fn chrome_window_answer<S: AsRef<str>>(
+    _panes: &[S],
+    toolbars: &[(Vec<S>, bool)],
+    all: &[S],
+) -> Option<bool> {
+    let toolbar: &[S] = toolbars.first().map_or(&[], |(names, _)| names.as_slice());
+    private_of_buttons(toolbar, all)
+}
+
 /// What the UI Automation query tells of a Chrome window, by the names of its
-/// buttons ([`private_of_buttons`]): the English names count only among the
+/// buttons ([`chrome_window_answer`]): the English names count only among the
 /// own buttons of the first element below the window whose control type is
 /// ToolBar, and a window with no such element is told by the word Incognito
 /// alone; `None` when the query gives no answer.
@@ -416,11 +431,14 @@ pub(crate) fn chrome_window_is_private(
             )
             .ok()?;
         let all = names(&element.FindAll(TreeScope_Descendants, &button).ok()?)?;
-        let toolbar_names = match element.FindFirst(TreeScope_Descendants, &toolbar) {
-            Ok(toolbar) => names(&toolbar.FindAll(TreeScope_Children, &button).ok()?)?,
+        let toolbars = match element.FindFirst(TreeScope_Descendants, &toolbar) {
+            Ok(toolbar) => vec![(
+                names(&toolbar.FindAll(TreeScope_Children, &button).ok()?)?,
+                false,
+            )],
             Err(_) => Vec::new(),
         };
-        private_of_buttons(&toolbar_names, &all)
+        chrome_window_answer::<String>(&[], &toolbars, &all)
     }
 }
 
@@ -864,5 +882,278 @@ mod tests {
                 "{answer:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_chrome_title_is_kept_only_under_a_pane_that_ends_with_chromes_name() {
+        let ordinary_toolbar = vec!["Back", "Forward", "Reload", "Sign in to Chrome?", "Chrome"];
+        let page_toolbar = vec!["Back", "Forward", "Reload"];
+        let ordinary_all = vec![
+            "Minimize",
+            "Maximize",
+            "Close",
+            "Back",
+            "Forward",
+            "Reload",
+            "File",
+            "Bookmark this tab",
+            "Sign in to Chrome?",
+            "Chrome",
+            "Back",
+            "Forward",
+            "Reload",
+            "probe own button",
+            "Tab search",
+            "Close",
+            "New Tab",
+        ];
+        let ordinary_toolbars = vec![(ordinary_toolbar, false), (page_toolbar.clone(), true)];
+        let guest_toolbar = vec!["Back", "Forward", "Reload", "Guest", "Chrome"];
+        let guest_all = vec![
+            "Minimize",
+            "Maximize",
+            "Close",
+            "Back",
+            "Forward",
+            "Reload",
+            "File",
+            "Guest",
+            "Chrome",
+            "Back",
+            "Forward",
+            "Reload",
+            "probe own button",
+            "Tab search",
+            "Close",
+            "New Tab",
+        ];
+        let full_screen_all = vec!["Back", "Forward", "Reload", "probe own button"];
+        let with_pane = |pane: &'static str| vec!["", pane];
+        let cases = vec![
+            (
+                "ordinary-as-read",
+                with_pane("probe9 5 - Google Chrome"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                true,
+            ),
+            (
+                "guest-as-read",
+                with_pane("probe11 5 - Google Chrome (Guest)"),
+                vec![(guest_toolbar, false), (page_toolbar.clone(), true)],
+                guest_all,
+                false,
+            ),
+            (
+                "full-screen-incognito-with-the-pages-toolbar-as-read",
+                with_pane("probe1 5 - Google Chrome (Incognito)"),
+                vec![(page_toolbar.clone(), true)],
+                full_screen_all.clone(),
+                false,
+            ),
+            (
+                "full-screen-guest-with-the-pages-toolbar-as-read",
+                with_pane("probe3 5 - Google Chrome (Guest)"),
+                vec![(page_toolbar, true)],
+                full_screen_all,
+                false,
+            ),
+            (
+                "a-profiles-name-behind-chromes-name",
+                with_pane("Notes - Google Chrome - Work"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                true,
+            ),
+            (
+                "incognito-behind-chromes-name",
+                with_pane("Notes - Google Chrome (Incognito)"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "guest-behind-chromes-name",
+                with_pane("Notes - Google Chrome (Guest)"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "isolated-behind-chromes-name",
+                with_pane("Notes - Google Chrome (Isolated)"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "another-build-behind-chromes-name",
+                with_pane("Notes - Google Chrome Beta"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "a-pages-own-title-with-chromes-name-and-a-name-in-incognito",
+                with_pane("Notes - Google Chrome - x - Google Chrome (Incognito)"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "no-named-pane",
+                vec!["", ""],
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "two-named-panes",
+                vec!["Notes - Google Chrome", "Notes - Google Chrome"],
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                false,
+            ),
+            (
+                "a-new-windows-one-pane-at-once-as-read",
+                vec!["probe1 1 - Google Chrome"],
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                true,
+            ),
+            (
+                "a-second-profile-as-read",
+                with_pane("probe2 5 - Google Chrome - Person 1"),
+                ordinary_toolbars.clone(),
+                ordinary_all.clone(),
+                true,
+            ),
+            (
+                "incognito-of-a-second-profile-as-read",
+                with_pane("probe3 5 - Google Chrome (Incognito)"),
+                vec![
+                    (
+                        vec!["Back", "Forward", "Reload", "Incognito", "Chrome"],
+                        false,
+                    ),
+                    (vec!["Back", "Forward", "Reload"], true),
+                ],
+                vec![
+                    "Minimize",
+                    "Maximize",
+                    "Close",
+                    "Back",
+                    "Forward",
+                    "Reload",
+                    "File",
+                    "Bookmark this tab",
+                    "Incognito",
+                    "Chrome",
+                    "Back",
+                    "Forward",
+                    "Reload",
+                    "probe own button",
+                    "Tab search",
+                    "Close",
+                    "New Tab",
+                ],
+                false,
+            ),
+            (
+                "a-message-box-as-read",
+                with_pane("This page says"),
+                vec![],
+                vec!["OK"],
+                false,
+            ),
+            (
+                "german-as-read",
+                with_pane("probe6 5 - Google Chrome"),
+                vec![
+                    (
+                        vec![
+                            "Zur\u{fc}ck",
+                            "Vorw\u{e4}rts",
+                            "Neu laden",
+                            "In Chrome anmelden?",
+                            "Chrome",
+                        ],
+                        false,
+                    ),
+                    (vec!["Back", "Forward", "Reload"], true),
+                ],
+                vec![
+                    "Zur\u{fc}ck",
+                    "Vorw\u{e4}rts",
+                    "Neu laden",
+                    "In Chrome anmelden?",
+                    "Chrome",
+                    "Back",
+                    "Forward",
+                    "Reload",
+                    "probe own button",
+                ],
+                false,
+            ),
+            (
+                "german-incognito-as-read",
+                with_pane("probe7 5 - Google Chrome (anonym)"),
+                vec![
+                    (
+                        vec![
+                            "Zur\u{fc}ck",
+                            "Vorw\u{e4}rts",
+                            "Neu laden",
+                            "Inkognito",
+                            "Chrome",
+                        ],
+                        false,
+                    ),
+                    (vec!["Back", "Forward", "Reload"], true),
+                ],
+                vec![
+                    "Zur\u{fc}ck",
+                    "Vorw\u{e4}rts",
+                    "Neu laden",
+                    "Inkognito",
+                    "Chrome",
+                    "Back",
+                    "Forward",
+                    "Reload",
+                    "probe own button",
+                ],
+                false,
+            ),
+            (
+                "an-app-window-with-the-pages-toolbar-as-read",
+                with_pane("probe8 5"),
+                vec![(vec!["Back", "Forward", "Reload"], true)],
+                vec![
+                    "",
+                    "Minimize",
+                    "Maximize",
+                    "Close",
+                    "Back",
+                    "Forward",
+                    "Reload",
+                    "probe own button",
+                ],
+                false,
+            ),
+        ];
+        let wrong: Vec<&str> = cases
+            .iter()
+            .filter(|(_, panes, toolbars, all, kept)| {
+                let told = private_window(Browser::Chrome, "Notes - Google Chrome", || {
+                    chrome_window_answer(panes, toolbars, all)
+                });
+                (told == PrivateWindow::Unknown) != *kept
+            })
+            .map(|(case, ..)| *case)
+            .collect();
+        assert!(
+            wrong.is_empty(),
+            "told against the window's named pane: {wrong:?}"
+        );
     }
 }
