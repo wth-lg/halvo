@@ -3,3 +3,5 @@ none.txt verdict driver=none path=B writer=m_low
 contradicted.txt REFUSED source: a drive line disagrees with its attempts: m_high mac bill 1
 egress-denied.txt REFUSED source: an egress line with denied above 0: the call of m_high
 egress-elsewhere.txt REFUSED source: an egress line before the last three lines of its call: the call of m_high
+notrun.txt REFUSED source: a notrun line, and a round with one gives no verdict, at line 88: notrun model=m_high machine=mac task=reply seed=3 cause=ceiling
+egress-space.txt REFUSED source: a line that no word of the round begins with one space behind it, at line 88: ' egress list=hosted-list.txt origin=https://stand-in.invalid'

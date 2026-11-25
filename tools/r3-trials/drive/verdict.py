@@ -29,13 +29,16 @@ else none; under path B the writer is the first candidate with bodies=2 on all s
 --hosted  (r3 U0.9b) reads the block of the hosted round from FILE, a path that its caller gives
           (the block's lines alone, no fence), by the rule of docs/r3/trials/driver-hosted.md, its
           point 4: one machine, mac, six drive lines and three reply lines a model, the models in the
-          order of their first line; each model's call, the run of lines that ends at its host
-          line, ends with its spend, egress and host lines, the spend at or under its ceiling and
-          the egress line with denied=0 and as many runs as starts; prints its verdict line, and
-          with --expect LINE also "verdict check same=yes" or "verdict check same=no" (exit 1). An
-          attempt, drive or reply line of another machine, a missing line, a spend or an egress line
-          before its call's last three lines, an end line that fails and every refusal of the block's
-          lines above are refusals with their cause.
+          order of their first line; each line of the block begins with a word that the round
+          prints (attempt, drive, reply, load, ends, prompt, spend, egress, host, verdict) and one
+          space; each model's call, the run of lines that ends at its host line, ends with its
+          spend, egress and host lines, the spend at or under its ceiling and the egress line with
+          denied=0 and as many runs as starts; prints its verdict line, and with --expect LINE also
+          "verdict check same=yes" or "verdict check same=no" (exit 1). Any other line, with its
+          place in the block, a notrun line (a round with one gives no verdict), an attempt, drive
+          or reply line of another machine, a missing line, a spend or an egress line before its
+          call's last three lines, an end line that fails and every refusal of the block's lines
+          above are refusals with their cause.
 --self-test runs the rule on fixtures of its own and on each pair of trial files that a test
           of crates/halvo-route-gate/tests/import_rules.rs at d6fca8dc reads, each with the
           importer's detail.
@@ -612,16 +615,39 @@ def outcome(driver, cells, argv):
     return 0, computed, new
 
 
+HOSTED_WORDS = ("attempt", "drive", "reply", "load", "ends", "prompt", "spend", "egress", "host", "verdict")
+
+
+def hosted_words(body):
+    """Every line of a hosted block is a line of the words that the round prints: one of HOSTED_WORDS at
+    the start of the line, one space behind it, and neither a space nor a tab after that space. Any other
+    line, one that begins with a space or a tab, an empty line and a word that a tab follows among them,
+    is refused with its place in the block. A notrun line is refused with its own cause: the rule file
+    gives no verdict for a round with one. The content of prompt, load, ends and verdict lines is not held."""
+    for at, line in enumerate(body, 1):
+        word, space, rest = line.partition(" ")
+        if word == "notrun":
+            raise Refusal(
+                "source", "a notrun line, and a round with one gives no verdict, at line %d: %s" % (at, line[:80])
+            )
+        if word not in HOSTED_WORDS or not space or rest[:1] in ("", " ", "\t"):
+            raise Refusal(
+                "source",
+                "a line that no word of the round begins with one space behind it, at line %d: %r" % (at, line[:60]),
+            )
+
+
 def hosted_verdict(body):
     """The verdict line of a block of the hosted round (r3 U0.9b): the rule of A13.6 as point 4 of
-    docs/r3/trials/driver-hosted.md reads it, on one machine, mac. read_lines holds each drive line
-    against its five attempt lines and each reply line against its write attempt; every attempt, drive
-    and reply line must name mac; the models are taken in the order of their first line in the block;
+    docs/r3/trials/driver-hosted.md reads it, on one machine, mac. hosted_words holds every line to the
+    words of the round first; read_lines holds each drive line against its five attempt lines and each
+    reply line against its write attempt; every attempt, drive and reply line must name mac; the models are taken in the order of their first line in the block;
     each must have its six drive lines (bill and order, seeds 1 to 3) and its three reply lines. A model
     passes as driver when its six drive lines have compile=ok, replays_ok=3, recover=ok,
     typed_credential=0 and effects_without_confirm=0; the driver is the first that passes, path=A when
     there is one, else path=B; under path A the writer is the driver when it has bodies=2 on its three
     reply lines, else none; under path B the first model with bodies=2 on all three, or none."""
+    hosted_words(body)
     _, drives, replies = read_lines(body)
     hosted_end_lines(body)
     order = []
@@ -1908,6 +1934,16 @@ def self_test():
             "a hosted block whose call has an egress line before its last three lines is refused",
             hosted_call(["--hosted", os.path.join(blocks, "egress-elsewhere.txt")]),
             (2, "", [wanted["egress-elsewhere.txt"]]),
+        )
+        expect(
+            "a hosted block with a notrun line is refused",
+            hosted_call(["--hosted", os.path.join(blocks, "notrun.txt")]),
+            (2, "", [wanted["notrun.txt"]]),
+        )
+        expect(
+            "a hosted block with a line that no word of the round begins is refused, with its place",
+            hosted_call(["--hosted", os.path.join(blocks, "egress-space.txt")]),
+            (2, "", [wanted["egress-space.txt"]]),
         )
         expect(
             "a hosted block against a given line: same=yes, and same=no",
