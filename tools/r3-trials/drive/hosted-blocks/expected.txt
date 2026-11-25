@@ -2,3 +2,4 @@ driver.txt verdict driver=m_high path=A writer=m_high
 none.txt verdict driver=none path=B writer=m_low
 contradicted.txt REFUSED source: a drive line disagrees with its attempts: m_high mac bill 1
 egress-denied.txt REFUSED source: an egress line with denied above 0: the call of m_high
+egress-elsewhere.txt REFUSED source: an egress line before the last three lines of its call: the call of m_high

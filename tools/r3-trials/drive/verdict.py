@@ -32,9 +32,10 @@ else none; under path B the writer is the first candidate with bodies=2 on all s
           order of their first line; each model's call, the run of lines that ends at its host
           line, ends with its spend, egress and host lines, the spend at or under its ceiling and
           the egress line with denied=0 and as many runs as starts; prints its verdict line, and
-          with --expect LINE also "verdict check same=yes" or "verdict check same=no" (exit 1). A
-          line of another machine, a missing line, an end line that fails and every refusal of the
-          block's lines above are refusals with their cause.
+          with --expect LINE also "verdict check same=yes" or "verdict check same=no" (exit 1). An
+          attempt, drive or reply line of another machine, a missing line, a spend or an egress line
+          before its call's last three lines, an end line that fails and every refusal of the block's
+          lines above are refusals with their cause.
 --self-test runs the rule on fixtures of its own and on each pair of trial files that a test
           of crates/halvo-route-gate/tests/import_rules.rs at d6fca8dc reads, each with the
           importer's detail.
@@ -670,7 +671,8 @@ def hosted_verdict(body):
 def hosted_end_lines(body):
     """Each call's three end lines (the rule file's section "The lines that the paid round adds"): a
     call is the run of lines that ends at a host line, and its last three lines are its spend, egress
-    and host lines; its attempt, drive and reply lines name one model, and no model has two calls.
+    and host lines; a spend or an egress line anywhere else in a call, also as the block's first
+    line, is refused; its attempt, drive and reply lines name one model, and no model has two calls.
     The spend line has spent_micro at most ceiling_minor times 10,000; the egress line has denied=0 and
     as many runs as starts; the host line stands in its form. Lines after the last host line may be no
     line of a call."""
@@ -701,6 +703,14 @@ def hosted_end_lines(body):
         seen.add(model)
         if [each.split(" ", 1)[0] for each in call[-3:]] != list(end_words):
             raise Refusal("source", "a call without its end lines: %s" % model)
+        for each in call[:-3]:
+            word = each.split(" ", 1)[0]
+            if word in ("spend", "egress"):
+                raise Refusal(
+                    "source",
+                    "%s %s line before the last three lines of its call: the call of %s"
+                    % ("an" if word == "egress" else "a", word, model),
+                )
         spend = words(call[-3], "spend", ("tier", "requests", "spent_micro", "ceiling_minor"))
         egress = words(call[-2], "egress", ("list", "origin", "starts", "runs", "denied"))
         host = words(call[-1], "host", ("tier", "origin", "model", "adapter"))
@@ -1893,6 +1903,11 @@ def self_test():
             "a hosted block whose call has an egress line with denied above 0 is refused",
             hosted_call(["--hosted", os.path.join(blocks, "egress-denied.txt")]),
             (2, "", [wanted["egress-denied.txt"]]),
+        )
+        expect(
+            "a hosted block whose call has an egress line before its last three lines is refused",
+            hosted_call(["--hosted", os.path.join(blocks, "egress-elsewhere.txt")]),
+            (2, "", [wanted["egress-elsewhere.txt"]]),
         )
         expect(
             "a hosted block against a given line: same=yes, and same=no",
