@@ -415,8 +415,12 @@ impl LastTitle {
     }
 
     /// A frame of the frame host came in front with `title`, and rule P
-    /// wrote no title of it.
-    pub(crate) fn passed_by_a_frame(&mut self, _window: usize, _title: &str) {}
+    /// wrote no title of it: the rule holds the frame from now on, as a
+    /// decision for the frame did before rule P, so that the title of the
+    /// window left is new again at the return to it.
+    pub(crate) fn passed_by_a_frame(&mut self, window: usize, title: &str) {
+        let _ = self.is_new(window, title);
+    }
 }
 
 struct TitleState {
