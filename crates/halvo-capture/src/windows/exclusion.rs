@@ -355,27 +355,100 @@ pub(crate) fn private_of_buttons<S: AsRef<str>>(toolbar: &[S], all: &[S]) -> Opt
     private_of_names(toolbar)
 }
 
+/// The name of Chrome that ends the name of the pane of an ordinary window,
+/// and that a profile's name follows where Chrome holds several profiles.
+const CHROME_NAME: &str = " - Google Chrome";
+
+/// Whether the names of a Chrome window's own panes tell an ordinary window:
+/// exactly one pane bears a name, and behind the last ` - Google Chrome` of
+/// that name stands nothing, or ` - ` and a profile's name. Chrome writes the
+/// mark of an Incognito, a Guest or an isolated window behind its name in the
+/// place of a profile's name, so no such window passes, and no other tail does.
+fn pane_tells_an_ordinary_window<S: AsRef<str>>(panes: &[S]) -> bool {
+    let mut named = panes
+        .iter()
+        .map(AsRef::as_ref)
+        .filter(|name| !name.trim().is_empty());
+    let (Some(name), None) = (named.next(), named.next()) else {
+        return false;
+    };
+    let Some(at) = name.rfind(CHROME_NAME) else {
+        return false;
+    };
+    let tail = &name[at + CHROME_NAME.len()..];
+    tail.is_empty()
+        || tail
+            .strip_prefix(" - ")
+            .is_some_and(|profile| !profile.is_empty())
+}
+
 /// What a Chrome window's tree tells of it, given the names of the window
 /// element's own children of the type Pane, the toolbars below the window in
 /// the order of the tree (the names of each one's own buttons, and whether it
 /// stands inside a document), and the names of every button below the window:
-/// the answer of [`private_of_buttons`] over the own buttons of the first
-/// toolbar, whether it stands inside a document or not. The panes are not read.
+/// `None` unless the panes tell an ordinary window
+/// ([`pane_tells_an_ordinary_window`]), and then the answer of
+/// [`private_of_buttons`] over the own buttons of the first toolbar that
+/// stands inside no document, so that a page's own toolbar tells nothing.
 pub(crate) fn chrome_window_answer<S: AsRef<str>>(
-    _panes: &[S],
+    panes: &[S],
     toolbars: &[(Vec<S>, bool)],
     all: &[S],
 ) -> Option<bool> {
-    let toolbar: &[S] = toolbars.first().map_or(&[], |(names, _)| names.as_slice());
+    if !pane_tells_an_ordinary_window(panes) {
+        return None;
+    }
+    let toolbar: &[S] = toolbars
+        .iter()
+        .find(|(_, in_document)| !in_document)
+        .map_or(&[], |(names, _)| names.as_slice());
     private_of_buttons(toolbar, all)
 }
 
-/// What the UI Automation query tells of a Chrome window, by the names of its
-/// buttons ([`chrome_window_answer`]): the English names count only among the
-/// own buttons of the first element below the window whose control type is
-/// ToolBar, and a window with no such element is told by the word Incognito
-/// alone; `None` when the query gives no answer.
-/// The calling thread must be in an apartment of COM.
+/// The most ancestors that the query walks up from a toolbar to the window.
+#[cfg(target_os = "windows")]
+const ANCESTOR_STEPS: usize = 64;
+
+/// Whether `bar` stands inside a document of the window whose element is
+/// `window`: an ancestor of the type Document comes before the window's own
+/// element as `walker` goes up; `None` where the walk gives no answer or does
+/// not reach the window within [`ANCESTOR_STEPS`].
+#[cfg(target_os = "windows")]
+fn stands_in_a_document(
+    automation: &windows::Win32::UI::Accessibility::IUIAutomation,
+    walker: &windows::Win32::UI::Accessibility::IUIAutomationTreeWalker,
+    window: &windows::Win32::UI::Accessibility::IUIAutomationElement,
+    bar: &windows::Win32::UI::Accessibility::IUIAutomationElement,
+) -> Option<bool> {
+    use windows::Win32::UI::Accessibility::UIA_DocumentControlTypeId;
+    let mut at = bar.clone();
+    for _ in 0..ANCESTOR_STEPS {
+        // SAFETY: the calls take the live client, walker and elements; each
+        // returns an owned COM pointer, a value or an error.
+        let parent = unsafe { walker.GetParentElement(&at) }.ok()?;
+        // SAFETY: as above.
+        if unsafe { automation.CompareElements(&parent, window) }
+            .ok()?
+            .as_bool()
+        {
+            return Some(false);
+        }
+        // SAFETY: as above.
+        if unsafe { parent.CurrentControlType() }.ok()? == UIA_DocumentControlTypeId {
+            return Some(true);
+        }
+        at = parent;
+    }
+    None
+}
+
+/// What the UI Automation query tells of a Chrome window
+/// ([`chrome_window_answer`]): the names of the window element's own panes
+/// are read first, and nothing more where they tell no ordinary window; then
+/// the names of every button below the window, and the toolbars below it in
+/// the order of the tree, each with whether it stands inside a document,
+/// until the first that stands in none; `None` when the query gives no
+/// answer. The calling thread must be in an apartment of COM.
 #[cfg(target_os = "windows")]
 pub(crate) fn chrome_window_is_private(
     automation: &windows::Win32::UI::Accessibility::IUIAutomation,
@@ -384,7 +457,8 @@ pub(crate) fn chrome_window_is_private(
     use windows::Win32::System::Variant::{VARIANT, VT_I4};
     use windows::Win32::UI::Accessibility::{
         IUIAutomationElementArray, TreeScope_Children, TreeScope_Descendants,
-        UIA_ButtonControlTypeId, UIA_ControlTypePropertyId, UIA_ToolBarControlTypeId,
+        UIA_ButtonControlTypeId, UIA_ControlTypePropertyId, UIA_PaneControlTypeId,
+        UIA_ToolBarControlTypeId,
     };
     let of_type = |control: i32| {
         let mut value = VARIANT::default();
@@ -418,27 +492,34 @@ pub(crate) fn chrome_window_is_private(
     // conditions that they made; each returns an owned COM pointer or an error.
     unsafe {
         let element = automation.ElementFromHandle(window).ok()?;
-        let button = automation
-            .CreatePropertyCondition(
-                UIA_ControlTypePropertyId,
-                &of_type(UIA_ButtonControlTypeId.0),
-            )
-            .ok()?;
-        let toolbar = automation
-            .CreatePropertyCondition(
-                UIA_ControlTypePropertyId,
-                &of_type(UIA_ToolBarControlTypeId.0),
-            )
-            .ok()?;
-        let all = names(&element.FindAll(TreeScope_Descendants, &button).ok()?)?;
-        let toolbars = match element.FindFirst(TreeScope_Descendants, &toolbar) {
-            Ok(toolbar) => vec![(
-                names(&toolbar.FindAll(TreeScope_Children, &button).ok()?)?,
-                false,
-            )],
-            Err(_) => Vec::new(),
+        let condition = |control: i32| {
+            automation
+                .CreatePropertyCondition(UIA_ControlTypePropertyId, &of_type(control))
+                .ok()
         };
-        chrome_window_answer::<String>(&[], &toolbars, &all)
+        let pane = condition(UIA_PaneControlTypeId.0)?;
+        let panes = names(&element.FindAll(TreeScope_Children, &pane).ok()?)?;
+        if !pane_tells_an_ordinary_window(&panes) {
+            return None;
+        }
+        let button = condition(UIA_ButtonControlTypeId.0)?;
+        let toolbar = condition(UIA_ToolBarControlTypeId.0)?;
+        let all = names(&element.FindAll(TreeScope_Descendants, &button).ok()?)?;
+        let found = element.FindAll(TreeScope_Descendants, &toolbar).ok()?;
+        let walker = automation.RawViewWalker().ok()?;
+        let mut toolbars = Vec::new();
+        for index in 0..found.Length().ok()? {
+            let bar = found.GetElement(index).ok()?;
+            let in_document = stands_in_a_document(automation, &walker, &element, &bar)?;
+            toolbars.push((
+                names(&bar.FindAll(TreeScope_Children, &button).ok()?)?,
+                in_document,
+            ));
+            if !in_document {
+                break;
+            }
+        }
+        chrome_window_answer(&panes, &toolbars, &all)
     }
 }
 
