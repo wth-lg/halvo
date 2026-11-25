@@ -1,7 +1,8 @@
 #!/bin/sh
 # jobs: macos
-# rule: The test build of each package that can start a sender, halvo-model and halvo-connect, which turns on their feature loopback, runs its lib, bin and test targets under sh scripts/egress/check.sh in its mode sandbox with a list of 127.0.0.1 at the ports 49152 to 65535 alone, which this row writes at its run: every test passes and no process opens a connection, sends a datagram or resolves a name outside that list, and the check fails where cargo test fails or where denied is above 0, with the denied lines in its artifacts. It does not show the windows job, the doc tests of these packages, the five tests of halvo-connect's target fixture that start the setuid program ps (skipped by their exact names), a test of a package that it does not list, or what the egress check does not see (an xpc service, a launch-service open, what a process does after the command ends).
+# rule: The test build of each package that can start a sender, halvo-model and halvo-connect, which turns on their feature loopback, runs its lib, bin and test targets under sh scripts/egress/check.sh in its mode sandbox with a list of 127.0.0.1 at the ports 49152 to 65535 alone, which this row writes at its run: every test passes and no process opens a connection, sends a datagram or resolves a name outside that list, and the check fails where cargo test fails or where denied is above 0, with the denied lines. It does not show the windows job, the doc tests of these packages, the five tests of halvo-connect's target fixture that start the setuid program ps (skipped by their exact names), a test of a package that it does not list, or what the egress check does not see (an xpc service, a launch-service open, what a process does after the command ends).
 # lane: alone
+# self-test: alone
 set -u
 set -f
 name=61-r6-senders-egress
@@ -20,6 +21,12 @@ skips='a_guard_ends_the_process_whose_pair_matches a_disarmed_guard_leaves_the_p
 # which a stand-in on 127.0.0.1:0 gets.
 first_port=49152
 last_port=65535
+
+# The control of the row, an ignored test of crates/halvo-connect/tests/egress_control.rs that
+# connects to 192.0.2.1:443 and sends nothing. The self-test alone runs it, by this exact name with
+# --ignored, through the call of the measure.
+control=the_control_of_the_senders_row_connects_to_a_documentation_address_and_sends_nothing
+control_dest=192.0.2.1:443
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -122,23 +129,36 @@ denied_kinds() {
     END { printf "loopback=%d dns=%d other=%d\n", l, d, n - l - d }' "$1"
 }
 
-measure() {
-  cd "$CI_D_REPO" || exit 2
+# prepare: in the repo root, makes the work directory, writes the list, fetches the crates of the
+# lock outside the egress check (so that the calls under it run offline) and writes the calls.
+prepare() {
+  cd "${CI_D_REPO:-.}" || exit 2
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  CI_D_ARTIFACTS=${CI_D_ARTIFACTS:-$work}
   write_list "$work/list.txt" || fail 'the list of the egress check could not be written'
   calls "$entries" >"$work/calls.txt" || fail 'an entry of the row is neither a package nor <package>:<target>'
   [ -s "$work/calls.txt" ] || fail 'the row lists no entry'
-  printf 'list entries=%s\n' "$(grep -c '^127\.0\.0\.1:' "$work/list.txt")"
   cargo fetch --locked >"$CI_D_ARTIFACTS/fetch.txt" 2>&1 </dev/null ||
     fail "cargo fetch --locked exited $?: read $name/fetch.txt of the artifacts"
+}
+
+# run_call LINE FILE: runs cargo with the arguments of LINE under the egress check with the list,
+# its output in FILE; sets code to the check's exit status.
+run_call() {
+  # The line holds words of a-z, 0-9, _, - and : alone, and the shell splits it on purpose.
+  # shellcheck disable=SC2086
+  sh scripts/egress/check.sh --mode sandbox "$work/list.txt" -- cargo $1 >"$2" 2>&1 </dev/null
+  code=$?
+}
+
+measure() {
+  prepare
+  printf 'list entries=%s\n' "$(grep -c '^127\.0\.0\.1:' "$work/list.txt")"
   i=0
   while IFS= read -r line; do
     i=$((i + 1))
     out=$CI_D_ARTIFACTS/call-$i.txt
-    # The line holds words of a-z, 0-9, _, - and : alone, and the shell splits it on purpose.
-    # shellcheck disable=SC2086
-    sh scripts/egress/check.sh --mode sandbox "$work/list.txt" -- cargo $line >"$out" 2>&1 </dev/null
-    code=$?
+    run_call "$line" "$out"
     read -r passed failed ignored results <<EOF
 $(tests_counts "$out")
 EOF
@@ -230,6 +250,33 @@ test --locked --offline -p halvo-runner --test door_run -- --exact --skip s1 --s
     printf 'case %s/kinds want=%s got=%s\n' "$name" ok "other ($kinds)"
     wrong="$wrong kinds"
   fi
+
+  # The red: the control test, by its exact name with --ignored, through the first call of the
+  # measure under the egress check. The verdict must read FAIL, with one denied line at the control's
+  # address in the log of the check.
+  st_work=$work
+  prepare
+  line=$(sed 1q "$work/calls.txt")
+  run_call "$line --ignored $control" "$CI_D_ARTIFACTS/control.txt"
+  got=PASS
+  defect=$(verdict_defect "$code" "$CI_D_ARTIFACTS/control.txt") || got=FAIL
+  log=$(grep '^egress mode=' "$CI_D_ARTIFACTS/control.txt" | sed -n '1s/.* log=\([^ ]*\).*/\1/p')
+  at=0
+  if [ -n "$log" ] && [ -f "$log" ]; then
+    cp "$log" "$CI_D_ARTIFACTS/control-denied.log"
+    at=$(grep -c " dest=$control_dest " "$log")
+  fi
+  read -r passed _ ignored _ <<EOF
+$(tests_counts "$CI_D_ARTIFACTS/control.txt")
+EOF
+  printf 'case %s/control want=FAIL got=%s (%s; denied lines at the control address=%s; passed=%s ignored=%s)\n' \
+    "$name" "$got" "${defect:-no defect}" "$at" "$passed" "$ignored"
+  if [ "$got" = FAIL ] && [ "$at" -ge 1 ] && [ "$passed" -eq 1 ]; then
+    rejected=$((rejected + 1))
+  else
+    wrong="$wrong control"
+  fi
+  work=$st_work
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

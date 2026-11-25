@@ -83,8 +83,9 @@ The seconds of each check of `scripts/ci/merge-gate.txt` as a check of the merge
 | 55-sqlcipher-unmended | 1 | 0 |
 | 60-r5-privacy | - | 29 |
 | 60-r6-egress | 44 | - |
+| 61-r6-senders-egress | 42 on a developer's Mac | - |
 | 72-notices | 2 | - |
-| sum of the lines | 532 | 723 |
+| sum of the lines | 532, and 42 on a developer's Mac | 723 |
 
 The checks of the billing server and of the account (20-r7-backend-static, 21-r7-backend-test, 25-r7-backend-licenses, 27-r7-metering-self and 10-r7-account) are run by hand, with the input `checks` of a run by hand: the carrier of a unit that touches that part runs them, and the coordinator runs them before a build is named.
 
