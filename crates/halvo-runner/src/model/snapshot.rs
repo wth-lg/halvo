@@ -48,26 +48,7 @@ impl Snapshot {
     /// and masked, then each line rendered in the form of A11.1, one a line, where the render holds each field as the
     /// mask left it (`as_masked`); a line whose render changed a field is left out.
     pub(crate) fn masked(lines: &[SnapshotLine], slots: &[Slot]) -> Snapshot {
-        let forms = forms(slots);
-        let text = lines
-            .iter()
-            .filter_map(|line| {
-                let mut line = line.clone();
-                line.name = mask(&quote(&cleaned(&line.name)), &forms);
-                line.value = line
-                    .value
-                    .as_deref()
-                    .map(|value| mask(&quote(&cleaned(value)), &forms));
-                line.frame = line
-                    .frame
-                    .as_deref()
-                    .map(|frame| mask(&cleaned(frame), &forms));
-                let rendered = line.render();
-                as_masked(&line, &rendered).then_some(rendered)
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        Snapshot(text)
+        masked_by(lines, slots, SnapshotLine::render)
     }
 
     /// The snapshot of a message that the agent answers, for a run whose load's slots are `slots`: the From line
@@ -105,21 +86,51 @@ impl Snapshot {
     }
 }
 
-/// Whether `rendered`, the render of `line`, holds each field of the line as the mask left it: the name and, where
-/// the render writes one, the value between double quotes, and the frame label behind `frame=`. A step of the render
-/// that changes a field's text makes it false.
+/// `Snapshot::masked` with `render` as the render of a line: the render of A11.1 (`SnapshotLine::render`), or a
+/// test's render that changes a field behind the mask.
+fn masked_by(
+    lines: &[SnapshotLine],
+    slots: &[Slot],
+    render: impl Fn(&SnapshotLine) -> String,
+) -> Snapshot {
+    let forms = forms(slots);
+    let text = lines
+        .iter()
+        .filter_map(|line| {
+            let mut line = line.clone();
+            line.name = mask(&quote(&cleaned(&line.name)), &forms);
+            line.value = line
+                .value
+                .as_deref()
+                .map(|value| mask(&quote(&cleaned(value)), &forms));
+            line.frame = line
+                .frame
+                .as_deref()
+                .map(|frame| mask(&cleaned(frame), &forms));
+            let rendered = render(&line);
+            as_masked(&line, &rendered).then_some(rendered)
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    Snapshot(text)
+}
+
+/// Whether `rendered`, the render of `line`, holds each field of the line as the mask left it, each at its own place
+/// of the form of A11.1, and nothing else: the ref, the role and the name between double quotes; then ` value="..."`
+/// where the render writes a value; ` credential` for a credential field; ` frame=...` for a frame label. A step of
+/// the render that changes a field's text makes it false, and no other field of the line can answer for that field.
 fn as_masked(line: &SnapshotLine, rendered: &str) -> bool {
-    let name = rendered.contains(&format!("\"{}\"", line.name));
-    let value = line
-        .value
-        .as_ref()
-        .filter(|_| !line.credential)
-        .is_none_or(|value| rendered.contains(&format!(" value=\"{value}\"")));
-    let frame = line
-        .frame
-        .as_ref()
-        .is_none_or(|frame| rendered.contains(&format!(" frame={frame}")));
-    name && value && frame
+    let mut want = format!("{} {} \"{}\"", line.reference, line.role, line.name);
+    if let Some(value) = line.value.as_ref().filter(|_| !line.credential) {
+        want.push_str(&format!(" value=\"{value}\""));
+    }
+    if line.credential {
+        want.push_str(" credential");
+    }
+    if let Some(frame) = &line.frame {
+        want.push_str(&format!(" frame={frame}"));
+    }
+    rendered == want
 }
 
 /// `text` with the marker strings of A9.5 taken out until none stands.
@@ -222,7 +233,7 @@ mod tests {
     use halvo_schema::executable::text::{Name, OwnValue};
     use halvo_web::cdp::SnapshotLine;
 
-    use super::{holds_a_mark, Snapshot};
+    use super::{holds_a_mark, masked_by, Snapshot};
 
     fn slot(name: &str, value: &str) -> Slot {
         Slot {
@@ -310,6 +321,55 @@ mod tests {
             message.text(),
             "From: [slot reply_senders]\nSubject: Your order\nOrder: [slot pipe]"
         );
+    }
+
+    /// The guard `as_masked` (the verifier-153's finding at 535e9f0d): on a render that turns a low line of a NAME into
+    /// a space behind the mask, a text box whose value holds the name's masked text is left out of the snapshot (G2),
+    /// and so is a line of text (G1); a line whose name holds no low line is written as the render writes it (G3).
+    #[test]
+    fn u72b_on_a_render_that_changes_a_name_the_line_is_left_out() {
+        let slots = [slot("payee", "Harbor  Light Co-op ")];
+        let line =
+            |reference: &str, role: &'static str, name: &str, value: Option<&str>| SnapshotLine {
+                reference: reference.to_owned(),
+                role,
+                name: name.to_owned(),
+                value: value.map(str::to_owned),
+                credential: false,
+                frame: None,
+            };
+        let changed = |line: &SnapshotLine| {
+            let mut shown = line.clone();
+            shown.name = shown.name.replace('_', " ");
+            shown.render()
+        };
+        let rows = [
+            (
+                "G1",
+                line("e1", "text", "Pay Harbor_Light_Co-op now", None),
+                "",
+            ),
+            (
+                "G2",
+                line(
+                    "e2",
+                    "textbox",
+                    "Harbor_Light_Co-op",
+                    Some("Harbor_Light_Co-op"),
+                ),
+                "",
+            ),
+            (
+                "G3",
+                line("e3", "textbox", "Payee", Some("Harbor_Light_Co-op")),
+                "e3 textbox \"Payee\" value=\"Harbor_Light_Co-op\"",
+            ),
+        ];
+        for (case, line, want) in rows {
+            let snapshot = masked_by(&[line], &slots, changed);
+            println!("{case}: {:?}", snapshot.text());
+            assert_eq!(snapshot.text(), want, "{case}");
+        }
     }
 
     /// A test's probe of whether a type converts from a plain text: the inherent const where the bound holds, the
