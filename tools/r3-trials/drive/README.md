@@ -305,7 +305,13 @@ sh tools/r3-trials/drive/hosted.sh ... --cell bill:1    # one cell of the paid f
 ```
 
 - The door starts under `sh scripts/egress/check.sh` with a list of one origin, for each run that
-  asks the model (a compile, a recovery, a write). The key is read once from the key file by
+  asks the model (a compile, a recovery, a write). In the paid form the list holds the host's name
+  on port 443, and `r3-drive` passes the check its argument `--one-named-host`, behind which alone
+  the check takes a name: its wall then lets the resolver daemon's socket and service whole (name
+  lookups, and also local-link service registrations, browses and gateway port mappings) and tcp to
+  port 443 through, unlogged, and denies and logs all else that it denies without the argument, and
+  the door's row and TLS hold the one host (r3 U0.8c). The stand-in form passes
+  `scripts/egress/lists/loopback.txt` and no argument. The key is read once from the key file by
   `r3-drive` and goes to the door as its first line behind its length line; the door writes no
   ready line. A refusal line of the door ends the run, with its cause in the trace, but for the
   door's two ends of r3 U0.8b: `cut` (the host's answer ended at the output limit) and `declined`
@@ -336,7 +342,9 @@ sh tools/r3-trials/drive/hosted.sh ... --cell bill:1    # one cell of the paid f
 - The door reads each answer's stop reason: an answer that its limit of 2,048 output tokens cut is
   the refusal `cut`, and that cause takes the place of the count against the level's `reply_tokens`
   in the reply rule. The level leaves the door as the host's effort (`output_config.effort`); the
-  grammar does not leave it.
+  grammar does not leave it, so since r3 U0.8d the harness's ask of the grammar `action` to the door
+  carries the fixed text of the form, a template of its five keys (`words::ACTION_FORM_HOSTED`),
+  behind the boundary text in its `system`; an ask of `text` and the local child's requests do not.
 - After the cells the round prints `spend tier=.. requests=.. spent_micro=.. ceiling_minor=..`
   (`requests` counts the requests handed to the door) and
   `egress list=.. origin=.. starts=.. runs=.. denied=..` (the door's starts and the egress check's
@@ -351,7 +359,7 @@ sh tools/r3-trials/drive/hosted.sh ... --cell bill:1    # one cell of the paid f
   one (its walk `Ends`): the round's first action ask at the output limit, its second as declined,
   and the first ask for a reply body at the output limit, so the control's lines show both counts.
   The check `scripts/r3/ci.d/65-drive-hosted.sh` runs
-  the tool's tests, the five whole rounds of its tests against the scripted host
+  the tool's tests, the six whole rounds of its tests against the scripted host
   (`cargo test --locked -- --ignored`), the paid form's refusal on a price file of fixture rates of
   its own and
   `--standin`. It joins no slice and no merge gate (the coordinator's log line 17943): it runs by

@@ -604,6 +604,10 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     /// The status's key_class as the last publish gave it, for the same test.
     #[cfg(test)]
     published_keys: Option<Arc<Mutex<Option<bool>>>>,
+    /// The mark of the search for repeated tasks that the driver of the
+    /// analysis reads: the r2 service's own, or a test's.
+    #[cfg(feature = "r2")]
+    search_mark: &'static super::r2::service::Searching,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -662,6 +666,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             published_input: None,
             #[cfg(test)]
             published_keys: None,
+            #[cfg(feature = "r2")]
+            search_mark: super::r2::service::searching(),
         }
     }
 
@@ -933,6 +939,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             input_keys,
             held: self.held,
             typing_off_unsaved: self.off_unsaved,
+            search: state.map(|state| state.search),
             left_out_in_doubt: self
                 .ctx
                 .as_ref()
@@ -999,6 +1006,40 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         change: impl FnOnce(&mut super::state::DaemonState),
     ) -> Option<Result<(), StateError>> {
         self.state_file().map(|mut state| state.update(change))
+    }
+
+    /// A client's turn of the search for repeated tasks (`set_search`):
+    /// written through the state file's one writer, and in force only behind
+    /// the write; a turn whose write fails leaves the search as memory holds
+    /// it after the failed write. The mark of the analysis then takes the
+    /// search as memory holds it. None where the supervisor holds no state
+    /// file.
+    #[cfg(any(target_os = "macos", windows))]
+    pub(crate) fn set_search(&mut self, on: bool) -> Option<Result<(), StateError>> {
+        let turned = self.update_state(|state| state.search = on);
+        #[cfg(feature = "r2")]
+        self.mark_the_search();
+        turned
+    }
+
+    /// Hands the mark of the analysis the search as the state file holds it
+    /// in memory, on where the supervisor holds no state file: at each open
+    /// of the capture store and behind each turn.
+    #[cfg(feature = "r2")]
+    pub(crate) fn mark_the_search(&self) {
+        self.search_mark
+            .set(self.state_file().is_none_or(|state| state.state().search));
+    }
+
+    /// The mark of the search that this supervisor sets, in place of the r2
+    /// service's own.
+    #[cfg(all(test, feature = "r2"))]
+    pub(crate) fn with_search_mark(
+        mut self,
+        mark: &'static super::r2::service::Searching,
+    ) -> Supervisor<F, L> {
+        self.search_mark = mark;
+        self
     }
 
     pub fn factory(&self) -> &F {
@@ -3876,6 +3917,68 @@ mod tests {
                 .start_switches()
                 .is_on(crate::floor::Switch::KeyClass),
             "a store opened behind it starts with typing off"
+        );
+    }
+
+    /// The search for repeated tasks as a new life reads it from the state file in `dir`.
+    fn search_in_the_file(dir: &std::path::Path) -> bool {
+        crate::daemon::state::StateFile::open(
+            crate::daemon::state::StateDir::open(dir).unwrap(),
+            Box::new(crate::daemon::state::tests::TestWrite::default()),
+        )
+        .state()
+        .search
+    }
+
+    /// r2 search-switch, the service: a turn is written by the state file's one writer and a new life reads it;
+    /// the status and the mark of the analysis follow it, and while it is off the mark turns the driver's yes into
+    /// a no; a turn whose write fails is refused, off as on, and changes nothing; a state file that does not load
+    /// reads the search off.
+    #[cfg(feature = "r2")]
+    #[test]
+    fn a_turn_of_the_search_is_kept_in_the_state_file_and_while_it_is_off_no_worker_may_run() {
+        use crate::daemon::r2::service::Searching;
+        use crate::daemon::r2::worker_slot::MayRun;
+        const YES: MayRun = MayRun::Yes { watermark: None };
+        let mark: &'static Searching = Box::leak(Box::new(Searching::new()));
+        let (mut f, dir, writer) = with_state_file(fixture(Factory::new()));
+        f.supervisor = f.supervisor.with_search_mark(mark);
+        f.start(&two());
+        let search_of = |f: &Fixture<Factory>| f.supervisor.status_parts(None).search;
+        assert_eq!(search_of(&f), Some(true), "on by default");
+        assert!(matches!(f.supervisor.set_search(false), Some(Ok(()))));
+        assert_eq!(search_of(&f), Some(false), "off in the status");
+        assert!(!search_in_the_file(dir.path()), "a new life reads off");
+        assert_eq!(mark.may_run(YES), MayRun::No, "off turns a yes into a no");
+        writer.failing.store(true, Ordering::SeqCst);
+        assert!(
+            matches!(f.supervisor.set_search(true), Some(Err(_))),
+            "a turn on whose write fails is refused"
+        );
+        assert_eq!(search_of(&f), Some(false));
+        assert!(!search_in_the_file(dir.path()));
+        assert_eq!(mark.may_run(YES), MayRun::No);
+        writer.failing.store(false, Ordering::SeqCst);
+        assert!(matches!(f.supervisor.set_search(true), Some(Ok(()))));
+        assert_eq!(search_of(&f), Some(true));
+        assert!(search_in_the_file(dir.path()), "a new life reads on");
+        assert_eq!(mark.may_run(YES), YES, "on lets the yes through");
+        writer.failing.store(true, Ordering::SeqCst);
+        assert!(
+            matches!(f.supervisor.set_search(false), Some(Err(_))),
+            "a turn off whose write fails is refused"
+        );
+        assert_eq!(search_of(&f), Some(true), "the search stays on");
+        assert!(search_in_the_file(dir.path()));
+        assert_eq!(mark.may_run(YES), YES);
+        std::fs::write(
+            dir.path().join(halvo_control::paths::STATE_FILE),
+            b"not a state file",
+        )
+        .unwrap();
+        assert!(
+            !search_in_the_file(dir.path()),
+            "a state file that does not load reads the search off"
         );
     }
 

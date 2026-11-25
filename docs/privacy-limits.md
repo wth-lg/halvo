@@ -92,13 +92,57 @@ the policy (ADR 0010).
 
 Where a sentence names a unit, that unit makes it true.
 
-- On a Mac, Halvo records no title of a browser's window, private or not: the app and
-  the time are recorded as for every app, and the title is never read. This holds for
-  every browser that Halvo knows by name: Chrome, Edge, Firefox, Safari and the other
-  browsers in wide use, with their beta, developer, nightly and test builds. Halvo
-  records no title of Thunderbird's windows either, because Thunderbird's id shares the
-  beginning of Firefox's. A browser that Halvo does not know as one has its titles
-  recorded like any app's, its private windows too.
+- On a Mac, Halvo reads the title of the window in front only while you have given it
+  the Accessibility permission. For a browser it decides by the browser. Chrome and
+  Edge: Halvo records a title only where the browser shows English and lies in an
+  Applications folder, and only where the title ends with the browser's own name,
+  ` - Google Chrome` or ` - Microsoft Edge`, or with its own name and then ` - ` and the
+  name of a profile, as both end the titles of a person with several profiles; it
+  records no title of their beta, developer and test builds. Halvo also leaves out an
+  Edge title where a closing square bracket stands before ` - Microsoft Edge` with
+  nothing but signs that are neither letters nor digits between them, because there Edge
+  on Windows puts the mark of its InPrivate window, and where the end of the title that
+  it reads holds no letter, digit or bracket before that name. Chrome and Edge end the
+  title of a private window with `(Incognito)` or `(InPrivate)` and of a Guest window
+  with `(Guest)`, and while a dialog over the page has the focus the title is the
+  dialog's own: Halvo records none of these titles. Chrome also opens windows that keep
+  no history and that no person opens by a command of private browsing, such as the
+  window of a developer tool's own session or the sign-in page of a network that asks
+  for one: Chrome names such a window neither Incognito nor Guest, its title ends with
+  Chrome's own name, and Halvo records it. Where Chrome or Edge gives no title of its
+  own making for a window, the Mac gives the page's own title, and a page whose own
+  title ends as an ordinary window's does would then be recorded, in a private window
+  too; no line that has been read shows when that happens. Halvo tells the language from
+  the one that the browser is set to, or else from the list of languages that you
+  prefer, and from the languages that the browser comes in. Where it cannot tell that
+  the browser shows English, it records no title of that browser, so under any other
+  language it records none. A Chrome or Edge that was already open when Halvo started,
+  or when you last changed one of those languages, has no title recorded until you quit
+  it and open it again. Halvo records no title of any other browser that it knows by
+  name, such as Safari, Firefox, Brave, Opera or Vivaldi, with their beta, developer,
+  nightly and test builds, and none of an app that your Mac lists as one that can open
+  web links. Where Halvo cannot read that list, or cannot tell where such an app lies on
+  your Mac, it records the titles of that app, a browser and its private windows among
+  them. Thunderbird and the other apps of Mozilla, of the Tor Project and of Chromium
+  that Halvo does not know by name have their titles recorded only where Halvo could
+  read that list and the app is not on it. Halvo records the titles of every other app,
+  except its own and the password managers that it leaves out whole. For a browser, the
+  app and the time are recorded as for every app. A browser that Halvo does not know and
+  that your Mac does not list for web links has its titles recorded like any app's, its
+  private windows too. How Chrome ends its titles is read from Chrome's public source as
+  of 25 November 2026. Three runs on 25 November 2026 read the titles of real windows of
+  Chrome 158.0.8127.37 and Edge 157.0.4341.60 on a Mac: an ordinary window ended with
+  the browser's own name; a private and a Guest window ended as said above; a page's
+  message box gave the title `127.0.0.1:<port> says` in an ordinary and in a private
+  window alike; a second profile's window ended with ` - ` and the profile's name behind
+  the browser's own, and that profile's private window ended as a private window does.
+  Set against these titles in its tests, Halvo's rule keeps the ordinary window's and
+  the second profile's and leaves the others out. The runs read the titles alone: they
+  did not show Halvo recording a title of either browser through the whole of its rule,
+  and on them Halvo could not read the language that Chrome was set to. They read one
+  version of each browser and one language. If another version of Chrome or Edge ended
+  the title of a private window as it ends an ordinary one, or put the mark of a private
+  window behind a profile's name, Halvo would record the titles of that window.
 - On Windows, Halvo records the titles of browser windows for Edge and Chrome alone.
   It records no title of a Firefox window, and none of a window of another browser
   whose program it knows by name, such as Brave, Opera or Vivaldi; the name of the
@@ -111,15 +155,25 @@ Where a sentence names a unit, that unit makes it true.
   it read the same, with an en dash or a hyphen before the brand. A page whose own
   title ends in a closing bracket is not kept. If Edge marked a private window
   otherwise under some interface language, the titles of that window would be kept.
-- On Windows the title of a Chrome window does not tell a private window (it read
-  `PAGE - Google Chrome` in 3 of 3 runs). Halvo asks the window instead, through UI
-  Automation, and keeps a title only where the window's toolbar holds a button named
-  Back, Forward or Reload and no button of the window carries the word Incognito; it
-  keeps no title of a window in the first two seconds after it first sees the
-  window. So a Chrome window under another interface language keeps no title. If an
-  Incognito window showed one of those English names on its toolbar and no button
-  with the word Incognito, its titles would be kept; no run has yet opened Chrome in
-  Incognito to show the rule on a real window.
+- On Windows the title of a Chrome window does not tell a private window: it reads
+  `PAGE - Google Chrome` in an Incognito and in a Guest window too. Halvo asks the
+  window instead, through UI Automation, and keeps a title of Chrome only where three
+  things hold: the name that Chrome gives the inside of the window ends with
+  ` - Google Chrome`, or with ` - Google Chrome - ` and the name of a profile where Chrome
+  holds several; the browser's own toolbar, outside the page, holds a button named Back,
+  Forward or Reload; and no button of the window carries the word Incognito. In an
+  Incognito or a Guest window that inside name ends with the window's mark instead, so
+  none of their titles is kept, in full screen and in a pop-up too. Halvo also keeps no
+  title of a window in the first two seconds after it first sees the window, none while a
+  page's dialog is in front, none of an app window, none under another interface
+  language, and, by Chrome's public source alone, none of Chrome Beta, Dev or Canary or
+  of Chromium. Four runs on 25 November 2026 opened Chrome on Windows in these states;
+  before this change the titles of a Guest window were kept, and so were those of an
+  Incognito or a Guest window in full screen whose page showed a toolbar of its own. The
+  names are those of the Chrome on the machines of those runs: a version of Chrome that
+  named the inside of a private window as it names an ordinary one's, or put the mark of a
+  private window behind a profile's name, and showed no button with the word Incognito,
+  would have that window's titles kept.
 - On Windows, Halvo asks the program in front whether the field with the cursor is a
   password field. While the program says yes, Halvo records no window title. Where a
   program gives no answer, Halvo records the window title, also while you type a
@@ -186,6 +240,14 @@ Where a sentence names a unit, that unit makes it true.
   does not know that run's browser; a service on another data directory reads only
   that directory's marks; on Windows Halvo does not read the marks, so there only the
   process tree leaves an agent's browser out.
+- On Windows, Halvo records no window title and no screen activity of a program that
+  Windows shows inside a frame of its own, such as Settings or the Calculator, while
+  that frame is in front, whatever has the cursor. It records the app in front and
+  clicks of such a program under the program's own name, and no key that you type in
+  it. While such a frame is in front and the program's own window does not hold the
+  cursor, as while the program opens or wakes, Halvo records nothing of that window, and
+  in that time the Status page can say that Halvo could not tell whether to leave out
+  the app in use.
 
 The first-run text and the data view quote these three sentences word for word.
 The owner approves them once, in the table of user-visible sentences for each

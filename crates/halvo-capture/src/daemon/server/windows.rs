@@ -388,6 +388,7 @@ mod tests {
             input_keys: false,
             held: false,
             typing_off_unsaved: None,
+            search: None,
             left_out_in_doubt: false,
         };
         let facts = RunFacts {

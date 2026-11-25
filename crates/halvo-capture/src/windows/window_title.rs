@@ -15,12 +15,13 @@ use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
 
-use super::exclusion::{chrome_window_is_incognito, private_window, Browser};
+use super::exclusion::{chrome_window_is_private, private_window, Browser};
 use super::{DropCounts, Drops, Floor, FrontApp, Lifecycle, OsTick, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
 use super::foreground::{
-    resolve_front, set_win_event_hook, unhook_win_event, HookInstaller, HookRemover,
+    is_a_frame_of_the_host, resolve_front, set_win_event_hook, unhook_win_event, HookInstaller,
+    HookRemover,
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HWND;
@@ -412,6 +413,14 @@ impl LastTitle {
     pub(crate) fn shows_new(&mut self, window: usize, title: &str) -> bool {
         self.is_new(window, title) && !title.trim().is_empty()
     }
+
+    /// A frame of the frame host came in front with `title`, and rule P
+    /// wrote no title of it: the rule holds the frame from now on, as a
+    /// decision for the frame did before rule P, so that the title of the
+    /// window left is new again at the return to it.
+    pub(crate) fn passed_by_a_frame(&mut self, window: usize, title: &str) {
+        let _ = self.is_new(window, title);
+    }
 }
 
 struct TitleState {
@@ -450,7 +459,7 @@ pub(crate) fn kept_answer(
 }
 
 /// How long a Chrome window is told Private after the title path first saw
-/// it, since its Incognito button may not exist yet.
+/// it, since the named pane and the buttons that tell it may not exist yet.
 const CHROME_YOUNG_MS: u32 = 2_000;
 
 /// The answers of the Chrome query on the title thread, with the OS time at
@@ -506,7 +515,7 @@ impl ChromeQuery {
                 *automation =
                     unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) }.ok();
             }
-            chrome_window_is_incognito(automation.as_ref()?, window)
+            chrome_window_is_private(automation.as_ref()?, window)
         })
     }
 }
@@ -658,7 +667,10 @@ unsafe extern "system" fn look_timer(_hwnd: HWND, _message: u32, _id: usize, _ti
 }
 
 /// One look at the waiting ask: a decision writes the title, or not, by the
-/// floor; a wait sets the timer to its step; an end stops the timer.
+/// floor; a wait sets the timer to its step; an end stops the timer. A
+/// decision for a window of the frame host, a frame in which Windows shows
+/// another program's window, writes no title, whatever the read answered, and
+/// counts one event left out under unknown lineage.
 #[cfg(target_os = "windows")]
 fn look_at_the_ask(state: &mut TitleState, now: u32, at_the_ask: bool) {
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
@@ -674,7 +686,16 @@ fn look_at_the_ask(state: &mut TitleState, now: u32, at_the_ask: bool) {
             state
                 .counts
                 .decided(OsTick::new(ask.asked).age_at(now), at_the_ask);
-            decide_title(state, ask, reading);
+            let window = HWND(ask.window as *mut core::ffi::c_void);
+            if is_a_frame_of_the_host(window) {
+                let read = read_window_title(window);
+                state.last.passed_by_a_frame(ask.window, &read.text);
+                state
+                    .floor
+                    .left_out(crate::floor::exclude::DropReason::UnknownLineage);
+            } else {
+                decide_title(state, ask, reading);
+            }
         }
         Look::Wait(step) => state.start_timer(step),
     }
@@ -1082,7 +1103,7 @@ mod tests {
             path: Some("C:\\Apps\\vault.exe".to_string()),
         };
         let frame = |gate: &PasswordGate| {
-            super::super::screen::frame_event_in(&frames, Some(gate), &app, B).is_some()
+            super::super::screen::frame_event_in(&frames, Some(gate), &app, (B, false)).is_some()
         };
         bench.gate.focus_read_in(Some(A), 900, answered(true));
         bench.ask(B, AskBy::Front, 1_000);
@@ -1902,9 +1923,9 @@ mod tests {
 
     #[test]
     fn a_chrome_window_in_another_language_is_told_private() {
-        use super::super::exclusion::incognito_of_names;
+        use super::super::exclusion::private_of_names;
         let told =
-            |names: &[&str]| private_window(Browser::Chrome, "Notes", || incognito_of_names(names));
+            |names: &[&str]| private_window(Browser::Chrome, "Notes", || private_of_names(names));
         let cases = [
             (
                 "german-incognito",
@@ -2078,6 +2099,20 @@ mod tests {
         assert!(last.is_new(2, "Inbox"));
         assert!(last.is_new(2, "Inbox (1)"));
         assert!(last.is_new(1, "Inbox"));
+    }
+
+    #[test]
+    fn a_return_from_a_frame_of_the_host_emits_the_title_again() {
+        let mut last = LastTitle::default();
+        let first = last.shows_new(1, "Inbox");
+        last.passed_by_a_frame(2, "Settings");
+        let at_the_return = last.shows_new(1, "Inbox");
+        let once_more = last.shows_new(1, "Inbox");
+        assert_eq!(
+            (first, at_the_return, once_more),
+            (true, true, false),
+            "a title, the same title at the return from a frame of the host, and again"
+        );
     }
 
     #[test]

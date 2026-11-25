@@ -195,13 +195,20 @@ impl FrameCounters {
 /// process in front when the frame arrives, with the reading of the gate
 /// where one runs and its newest read is of `window`, the window in front;
 /// a reading of another window, or of none, is no reading of this frame. It
-/// holds no pixel and no size.
+/// holds no pixel and no size. While `window` is a frame of the frame host,
+/// in which Windows shows another program's window, no frame is recorded,
+/// whatever the gate read, and one event left out is counted under unknown
+/// lineage.
 pub(crate) fn frame_event_in(
     floor: &Floor,
     gate: Option<&PasswordGate>,
     front: &super::FrontApp,
-    window: usize,
+    (window, frame_of_the_host): (usize, bool),
 ) -> Option<FloorEvent> {
+    if frame_of_the_host {
+        floor.left_out(crate::floor::exclude::DropReason::UnknownLineage);
+        return None;
+    }
     let probe = gate.map_or_else(PasswordFieldProbe::default, |gate| {
         gate.probe_for_window(window)
     });
@@ -284,9 +291,13 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
         let front = self.front.now();
         // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
         let window = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
-        if let Some(event) =
-            frame_event_in(&self.floor, self.gate.as_deref(), &front, window.0 as usize)
-        {
+        let in_a_frame = super::foreground::is_a_frame_of_the_host(window);
+        if let Some(event) = frame_event_in(
+            &self.floor,
+            self.gate.as_deref(),
+            &front,
+            (window.0 as usize, in_a_frame),
+        ) {
             self.producer.push(event);
         }
         if self.producer.writer_gone() {
@@ -745,6 +756,43 @@ mod tests {
     }
 
     #[test]
+    fn no_frame_is_recorded_while_a_frame_of_the_frame_host_is_in_front() {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::floor::Switches;
+        use crate::secure_input::windows::{FocusRead, Kind};
+        const FRAME: usize = 0x200;
+        let mut switches = Switches::default();
+        switches.set(Switch::ScreenActivity, true);
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(
+            FloorHandle::new(None, Arc::new(NoLineage), switches),
+            Arc::clone(&drops),
+        );
+        let front = super::super::FrontApp {
+            pid: 9,
+            path: Some("C:\\Apps\\settings.exe".to_string()),
+        };
+        let gate = PasswordGate::new();
+        gate.own_read_in(
+            Some(FRAME),
+            1_000,
+            FocusRead::Answered {
+                is_password: false,
+                protected: false,
+                kind: Kind::NativeEdit,
+            },
+        );
+        let kept_beside = frame_event_in(&floor, Some(&gate), &front, (FRAME, false)).is_some();
+        let kept_in_a_frame = frame_event_in(&floor, Some(&gate), &front, (FRAME, true)).is_some();
+        assert_eq!(
+            (kept_beside, kept_in_a_frame, drops.read().unknown_lineage),
+            (true, false, 1),
+            "a frame at a Clear read of the window in front: kept for a window of its own, \
+             left out under unknown lineage for a frame of the frame host"
+        );
+    }
+
+    #[test]
     fn a_frame_is_kept_only_where_the_gates_newest_read_is_of_the_window_in_front() {
         use crate::floor::exclude::{FloorHandle, NoLineage};
         use crate::floor::Switches;
@@ -768,7 +816,7 @@ mod tests {
             protected: false,
             kind: Kind::NativeEdit,
         };
-        let frame = |window| frame_event_in(&floor, Some(&gate), &front, window).is_some();
+        let frame = |window| frame_event_in(&floor, Some(&gate), &front, (window, false)).is_some();
         gate.focus_read_in(Some(LEFT), 1_000, answered(false));
         let in_the_window_left = frame(LEFT);
         let at_the_switch = frame(IN_FRONT);
@@ -796,7 +844,8 @@ mod tests {
         );
         assert_eq!(drops.read().secure_input, 4);
         let switched = PasswordGate::new();
-        let frame_of = |window| frame_event_in(&floor, Some(&switched), &front, window).is_some();
+        let frame_of =
+            |window| frame_event_in(&floor, Some(&switched), &front, (window, false)).is_some();
         switched.focus_read_in(Some(IN_FRONT), 2_000, answered(false));
         let before_any_switch = frame_of(IN_FRONT);
         switched.switched_to(LEFT, 2_100);

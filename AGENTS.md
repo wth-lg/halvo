@@ -5,7 +5,7 @@ background get work done through AI agents. This repository holds the Tauri 2 ap
 `src-tauri/`, the capture crate in `crates/`, and the scripts and CI workflow that
 build, check and release them.
 
-On a push and on a pull request CI runs the merge gate, the checks that `scripts/ci/merge-gate.txt` names for each job, in a run that ends in under 20 minutes; every other check and every self-test that CI runs stands in one of the nine slices of `scripts/ci/slices.txt`, which run one a day and a second on Tuesday and on Wednesday, and in a run by hand, and `scripts/ci/README.md` says how a check or a test enters or leaves the merge gate or a slice.
+On a push and on a pull request CI runs the merge gate, the checks that `scripts/ci/merge-gate.txt` names for each job, in a run that ends in under 20 minutes; every other check that CI runs stands in one of the nine slices of `scripts/ci/slices.txt`, which run only by hand, one slice a run, or runs only when a run by hand names it; no slice names a self-test: a step of `.github/workflows/ci.yml` that names a self-test runs it, in every run or in the slice fri, and a run by hand with the input `checks` runs each named check with its self-test first; and `scripts/ci/README.md` says how a check or a test enters or leaves the merge gate or a slice.
 
 ## Rules
 

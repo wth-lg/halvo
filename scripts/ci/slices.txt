@@ -1,5 +1,5 @@
-# The nine slices: what CI runs outside the merge gate, one slice a day, tue2 a second slice on
-# Tuesday and wed2 a second slice on Wednesday.
+# The nine slices: what CI runs outside the merge gate. A slice runs only by hand: the event
+# workflow_dispatch of .github/workflows/ci.yml with the input slice, one slice a run.
 # sh scripts/ci/run-ci-d.sh <job> --slice <slice> runs the lines of its slice and job: first the
 # self-tests, then the checks. A check or a self-test that no line here and no line of
 # scripts/ci/merge-gate.txt names runs in no run of CI.
@@ -8,12 +8,13 @@
 #   slice  mon, tue, tue2, wed, wed2, thu, fri, sat or sun
 #   job    macos or windows
 #   kind   check      the check of that name
-#          self-test  the self-test of the check of that name
+#          self-test  the self-test of the check of that name (no line names one since r8 cut-2: a run by
+#                     hand with the input checks runs a check with its self-test first)
 #          tests      12-test in its group form: the tests that scripts/ci/slow-tests.txt gives the
 #                     group of that capital letter, and no other test; one tests line a slice and job
 # A job of a slice ends in under 1,200 s, the owner's bound for every job of every run. Before you
 # add a line, name the seconds of the check in that job: the newest reading of the slice's job stays
-# under 1,000 s with them, or another day takes the line. scripts/ci/README.md, The slices, holds the
+# under 1,000 s with them, or another slice takes the line. scripts/ci/README.md, The slices, holds the
 # measured seconds and what each slice builds.
 
 mon macos tests A
@@ -21,15 +22,13 @@ mon macos check 31-store-full-volume
 mon macos check 25-advisories
 mon windows tests A
 mon windows check 24-hook-imports
-mon windows check 20-app-links-no-store
-mon windows check 35-app-windows-memory
 
 tue macos tests B
 tue macos check 55-r6-formal
 tue macos check 25-advisories
 tue windows tests B
 
-# tue2 runs at 04:47 UTC on Tuesday. Its group G came out of the group B, whose slice tue took 994 s in
+# The group G of tue2 came out of the group B, whose slice tue took 994 s in
 # the macos job, on an Apple M1 (Virtual) with 3 processors, and 1,072 s in the windows job, on an AMD
 # EPYC 7763, in the run by hand 45116131132: the lines of G took 224 s and 168 s of the tests there.
 tue2 macos tests G
@@ -43,7 +42,7 @@ wed macos check 32-app-check-page
 wed macos check 25-advisories
 wed windows check 50-windows-functional
 
-# wed2 runs at 04:47 UTC on Wednesday. Its windows checks came from the days that were over 1,000 s on an
+# The windows checks of wed2 came from the slices that were over 1,000 s on an
 # AMD EPYC 7763, each with its seconds there: 60-r6-egress 167 (wed, run 45096596639), 10-egress 215 (thu,
 # 45086425387), 38-app-engine-routes 197 and 80-r6-absent 52 (sat, 45098472482), 10-r7-account 124 (mon,
 # 45050615172); with 141 to 156 s of steps the job is reckoned at 896 to 911 s on that kind. Its run by
@@ -51,74 +50,32 @@ wed windows check 50-windows-functional
 # from the merge gate of the macos job the lint 11-clippy (77, 93 and 141 s in the pull request runs
 # 45111247085, 45112524657 and 45111386498) and the group F (about 81 s of tests in the third, before
 # its builds); with them, and the test targets of halvo-owner then in F, it took 523 s in the run by
-# hand 45118372937, the step ci.d slice 371 s.
+# hand 45118372937, the step ci.d slice 371 s. Since r8 cut-2 10-r7-account is run by hand, and the
+# windows job runs the group I, the tests of the groups of the slices whose code holds no cfg by system, which
+# no macos job runs any more: their tests took 229 s of the windows jobs of mon, tue, tue2 and sat in
+# the runs of 2026-11-24 (by libtest's lines, before their builds), and the windows job of wed2 took
+# 660 s in the run 45396357837 with 10-r7-account's 82 s.
 wed2 macos check 11-clippy
 wed2 macos tests F
 wed2 macos check 38-app-engine-routes
 wed2 macos check 25-advisories
+wed2 windows tests I
 wed2 windows check 38-app-engine-routes
 wed2 windows check 10-egress
 wed2 windows check 60-r6-egress
 wed2 windows check 80-r6-absent
-wed2 windows check 10-r7-account
 
-thu macos check 62-build
 thu macos check 60-release-dry-run
 thu macos check 10-egress
-thu macos check 20-r6-gateway
-thu macos check 80-r6-absent
 thu macos check 25-advisories
 thu windows check 52-windows-browser
 
-fri macos self-test 12-test
-fri macos self-test 17-workflow-lint
-fri macos self-test 18-hook-scan
-fri macos self-test 19-control-links-no-store
-fri macos self-test 20-app-links-no-store
-fri macos self-test 23-daemon-port-only
-fri macos self-test 23-licences
-fri macos self-test 25-advisories
-fri macos self-test 30-core-boundary-proofs
-fri macos self-test 31-app-page-layout
-fri macos self-test 31-store-full-volume
-fri macos self-test 39-store-no-analyze
-fri macos self-test 51-macos-stall
-fri macos self-test 55-sqlcipher-unmended
-fri macos self-test 62-build
-fri macos self-test 63-maker-marker
-fri macos self-test 70-package-macos
-fri macos self-test 10-egress
-fri macos self-test 22-redact
-fri macos self-test 64-model-egress
-fri macos self-test 60-r5-privacy
-fri macos self-test 40-r6-policy
-fri macos self-test 55-r6-formal
-fri macos self-test 21-r7-backend-test
-fri macos self-test 27-r7-metering-self
-fri macos self-test 72-notices
 fri macos tests C
 fri macos check 25-advisories
-fri windows self-test 12-test
-fri windows self-test 19-control-links-no-store
-fri windows self-test 20-app-links-no-store
-fri windows self-test 23-daemon-port-only
-fri windows self-test 39-store-no-analyze
-fri windows self-test 50-windows-functional
-fri windows self-test 52-windows-browser
-fri windows self-test 55-sqlcipher-unmended
-fri windows self-test 62-build
-fri windows self-test 70-package-windows
-fri windows self-test 10-egress
-fri windows self-test 22-redact
-fri windows self-test 64-model-egress
-fri windows self-test 60-r5-privacy
-fri windows self-test 40-r6-policy
-fri windows self-test 27-r7-metering-self
 fri windows tests C
 
 sat macos check 16-shell-lint
 sat macos tests D
-sat macos check 10-r7-account
 sat macos check 25-advisories
 sat windows check 32-app-check-page
 sat windows check 34-app-windows-start

@@ -484,7 +484,9 @@ fn read_key(path: &std::path::Path) -> Result<model::Key, &'static str> {
 
 /// The door's command: `halvo-model --tier T --ceiling T --consent recorded`, with
 /// `--loopback-port P` for the scripted host, under `sh scripts/egress/check.sh LIST --` when the
-/// round names a list.
+/// round names a list. With no loopback port, which is the paid form alone, the check gets its
+/// argument `--one-named-host` (r3 U0.8c): the list holds the host's name on port 443, and the
+/// check takes a name only behind that argument.
 fn door_command(r: &Round, loopback: Option<u16>) -> (PathBuf, Vec<std::ffi::OsString>) {
     let mut door: Vec<std::ffi::OsString> = [
         "--tier",
@@ -503,12 +505,15 @@ fn door_command(r: &Round, loopback: Option<u16>) -> (PathBuf, Vec<std::ffi::OsS
     }
     match &r.egress_list {
         Some(list) => {
-            let mut args: Vec<std::ffi::OsString> = vec![
-                "scripts/egress/check.sh".into(),
+            let mut args: Vec<std::ffi::OsString> = vec!["scripts/egress/check.sh".into()];
+            if loopback.is_none() {
+                args.push("--one-named-host".into());
+            }
+            args.extend([
                 list.clone().into_os_string(),
                 "--".into(),
                 r.door.clone().into_os_string(),
-            ];
+            ]);
             args.extend(door);
             (PathBuf::from("sh"), args)
         }
@@ -1118,6 +1123,87 @@ mod tests {
                     false
                 ),
             ]
+        );
+    }
+
+    /// r3 U0.8c: the paid form, which has a list and no loopback port, starts the door under the
+    /// egress check with its argument of the one named host; the stand-in form, which has the
+    /// scripted host's port, starts it under the check without that argument.
+    #[test]
+    fn the_paid_form_alone_starts_the_door_under_the_argument_of_the_one_named_host() {
+        let r = Round {
+            door: PathBuf::from("door"),
+            tier: "frontier".to_string(),
+            egress_list: Some(PathBuf::from("list.txt")),
+            ..Round::default()
+        };
+        let words = |(program, args): (PathBuf, Vec<std::ffi::OsString>)| -> Vec<String> {
+            std::iter::once(program.into_os_string())
+                .chain(args)
+                .map(|w| w.to_string_lossy().into_owned())
+                .collect()
+        };
+        let door = "door --tier frontier --ceiling frontier --consent recorded";
+        assert_eq!(
+            [
+                words(door_command(&r, None)).join(" "),
+                words(door_command(&r, Some(47201))).join(" "),
+            ],
+            [
+                format!("sh scripts/egress/check.sh --one-named-host list.txt -- {door}"),
+                format!("sh scripts/egress/check.sh list.txt -- {door} --loopback-port 47201"),
+            ]
+        );
+    }
+
+    /// r3 U0.8d: the door's ask of the grammar `action` carries the fixed text of the action's form
+    /// behind the boundary text, its ask of `text` does not, and the local child's line for `action`
+    /// is, byte for byte, the line that the tree wrote before the unit.
+    #[test]
+    fn the_door_ask_of_an_action_carries_its_form_and_the_local_ask_is_pinned() {
+        let snapshot = Some("e1 button \"Pay\"");
+        let system_in = |line: &str| -> String {
+            let value: serde_json::Value = serde_json::from_str(line).expect("a request line");
+            value["system"].as_str().unwrap_or_default().to_string()
+        };
+        assert_eq!(
+            (
+                system_in(&model::ask_line(true, 2, "Boundary.", "Pay.", snapshot, "action")),
+                system_in(&model::ask_line(true, 3, "Boundary.", "Write.", None, "text")),
+                model::ask_line(false, 4, "Boundary.", "Pay.", snapshot, "action"),
+            ),
+            (
+                format!("Boundary.\n\n{}", words::ACTION_FORM_HOSTED),
+                "Boundary.".to_string(),
+                r#"{"id":4,"system":"Boundary.","prompt":"Pay.","snapshot":"e1 button \"Pay\"","grammar":"action","level":"medium"}"#
+                    .to_string(),
+            )
+        );
+    }
+
+    /// r3 U0.8d: against a scripted host that answers an action ask in words unless the request's
+    /// `system` holds the fixed text of the action's form, the one cell compiles, replays and
+    /// recovers. Before the unit every action reply was refused `action_form` and the compile ended
+    /// at the cap of asks, as in the pilot of r3 U0.9.
+    #[test]
+    #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
+    fn the_hosted_ask_of_an_action_tells_the_model_its_form() {
+        let b = bench("form");
+        let host = host::Host::start(0, None, host::Walk::Words).expect("the scripted host");
+        let r = round_of(&b, 18496, &[("bill", 1)]);
+        let key = model::Key::of(b"u08-test-key-made-up-not-a-host-key").expect("a key");
+        let (lines, cause) = run(&r, key, &host, None, None);
+        let drive: Vec<&String> = lines.iter().filter(|l| l.starts_with("drive ")).collect();
+        assert_eq!(
+            (
+                cause,
+                drive.len(),
+                drive
+                    .iter()
+                    .all(|l| l.contains(" compile=ok replays_ok=3 of=3 recover=ok ")),
+            ),
+            (None, 1, true),
+            "lines: {lines:?}"
         );
     }
 

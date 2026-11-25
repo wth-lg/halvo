@@ -244,7 +244,9 @@ names! {
     /// keeps `not_replaced`. `data_encoding` stands there where the data file is not UTF-8 (r3 U11.5).
     /// `two_sheets` stands there where two sheets of the workbook bear the sheet's name, and `data_narrow` where a
     /// field of the data file is number signs alone, as a spreadsheet program writes a value whose column was too
-    /// narrow to show it (r3 U11.9).
+    /// narrow to show it (r3 U11.9). `two_paying_steps` is the cause of `check_playbook` of halvo-policy for a
+    /// playbook that holds a second step of the class `payment` or `purchase`, which ends a run `failed` before its
+    /// first step (r3 U5.10-S).
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -297,6 +299,7 @@ names! {
         DataEncoding = "data_encoding",
         TwoSheets = "two_sheets",
         DataNarrow = "data_narrow",
+        TwoPayingSteps = "two_paying_steps",
     }
 }
 

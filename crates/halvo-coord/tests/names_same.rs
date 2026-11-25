@@ -55,7 +55,7 @@ fn status_names_are_the_seven_of_i1_2() {
 }
 
 #[test]
-fn item_kind_names_are_the_eight_of_i3_1() {
+fn item_kind_names_are_the_eight_of_i3_1_and_amounts() {
     assert_eq!(
         names(ItemKind::ALL, ItemKind::name),
         [
@@ -67,6 +67,7 @@ fn item_kind_names_are_the_eight_of_i3_1() {
             "setup",
             "ready",
             "show",
+            "amounts",
         ]
     );
 }
@@ -86,6 +87,8 @@ fn choice_names_are_those_of_i3_1_and_present_of_i3_4() {
             "choose",
             "skip",
             "start",
+            "switch_off",
+            "seen",
             "present",
         ]
     );
@@ -453,7 +456,7 @@ fn param_names_are_the_nine_of_i3_5() {
 fn own_item_kind_names_are_the_kinds_that_no_run_raises_of_i3_1() {
     assert_eq!(
         names(OwnItemKind::ALL, OwnItemKind::name),
-        ["check", "setup", "ready"]
+        ["check", "setup", "ready", "amounts"]
     );
     for k in OwnItemKind::ALL {
         assert_eq!(k.kind().name(), k.name());
@@ -582,6 +585,7 @@ fn answered_kind(a: &Answered) -> &'static str {
         Answered::Setup(_) => "setup",
         Answered::Ready(_) => "ready",
         Answered::Show(_) => "show",
+        Answered::Amounts(_) => "amounts",
     }
 }
 
@@ -623,6 +627,7 @@ fn raised_kind(r: &Raised) -> &'static str {
         Raised::Setup => "setup",
         Raised::Ready => "ready",
         Raised::Show(_) => "show",
+        Raised::Amounts(_) => "amounts",
     }
 }
 
@@ -655,6 +660,7 @@ fn lapsed_kind(l: &Lapsed) -> &'static str {
         Lapsed::Setup(_) => "setup",
         Lapsed::Ready(_) => "ready",
         Lapsed::Show(_) => "show",
+        Lapsed::Amounts(_) => "amounts",
     }
 }
 

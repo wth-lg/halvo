@@ -516,6 +516,7 @@ fn raised(kind: ItemKind, live: Option<RunId>) -> Raised {
         ItemKind::Check => Raised::Check(None),
         ItemKind::Setup => Raised::Setup,
         ItemKind::Ready => Raised::Ready,
+        ItemKind::Amounts => Raised::Amounts(live.clone().expect("the run that the hold names")),
     }
 }
 
@@ -966,6 +967,11 @@ fn item(state: State, b: &Built) -> Option<Item> {
             let kept = fields(Class::Payment, &PAYMENT);
             Item::check(id, agent, title, text, kept, choices)
         }
+        ItemKind::Amounts => {
+            let title = tp("item.amounts.title.payment", &[("name", &name)]);
+            let text = t("run.effect.payment.amount_differs");
+            Item::amounts(id, agent, title, text, Vec::new(), two_choices(kind))
+        }
         ItemKind::Setup => {
             let (title, text, choices) = plain();
             let site = b.facts.workflow.site.clone().expect("a site");
@@ -1202,7 +1208,10 @@ mod tests {
         let paid = &newer.effects[0];
         assert_eq!(
             (paid.key().as_str(), paid.text()),
-            ("run.effect.payment", "It made this payment.")
+            (
+                "run.effect.payment",
+                "It sent this payment, and the site's page afterwards showed the amount you allowed."
+            )
         );
         let fields: Vec<(&str, &[String], FieldFrom)> = paid
             .fields()

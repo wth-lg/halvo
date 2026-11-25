@@ -8,8 +8,8 @@ mod drive;
 mod recover;
 mod step;
 
-pub use check::check_due;
-pub(crate) use check::read_replies;
+pub use check::{amounts_due, check_due};
+pub(crate) use check::{raise_amounts, read_replies};
 pub use delete::{delete_step, forgotten, Gone};
 pub use drive::{drive, send_cancel, stop_unstamped, Act, Done, StopBy};
 pub(crate) use recover::{kept_runs, kill_kept, write_not_stopped};

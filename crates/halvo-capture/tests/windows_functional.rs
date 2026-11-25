@@ -5142,6 +5142,8 @@ fn settings_window() -> Option<HWND> {
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn x14_foreground_app_of_a_hosted_app() {
+    use halvo_capture::daemon::sources::SourceFactory;
+    use halvo_control::proto::SourceName;
     use windows::Win32::UI::WindowsAndMessaging::{AllowSetForegroundWindow, ASFW_ANY};
     with_deadline("x14", Duration::from_secs(150), || {
         env_report("x14");
@@ -5167,6 +5169,94 @@ fn x14_foreground_app_of_a_hosted_app() {
         let (sink, events) = capture(4096);
         let mut foreground = ForegroundAppSource::new();
         let start = foreground.begin(SourceContext::new(sink.clone()));
+        let (title_sink, title_events) = capture(4096);
+        let mut set = ServiceSet::new();
+        let gate = set.password_gate();
+        let mut keyboard = set.make(SourceName::Keyboard);
+        let mut title = set.gated_title(WindowTitleSource::new());
+        let keyboard_start = keyboard
+            .as_mut()
+            .map(|keyboard| keyboard.begin(SourceContext::new(title_sink.clone())));
+        let title_start = title.begin(SourceContext::new(title_sink.clone()));
+        let (gate_first_clear, gate_waited) = wait_for_clear(&gate, GATE_CLEAR_WAIT);
+        let waits_before_kept = title.source().waits();
+        let mut kept_child = spawn_child("front-on-go", 120);
+        let child_came = Instant::now();
+        let mut kept_window = None;
+        while kept_window.is_none() && child_came.elapsed() < Duration::from_secs(20) {
+            pump_thread(Duration::from_millis(200));
+            kept_window = window_titled("halvo-verify-front-on-go").map(|(hwnd, _)| hwnd);
+        }
+        let kept_window_found = kept_window.is_some();
+        let kept = |e: &Seen| {
+            e.modality == Modality::WindowTitle
+                && file_name(&e.foreground_app).eq_ignore_ascii_case(CHILD_EXE_NAME)
+        };
+        let go_the_child = |step: u32, window: HWND| {
+            std::fs::write(
+                kept_child._dir.path().join(format!("front-{step}.window")),
+                (window.0 as usize).to_string(),
+            )
+            .expect("write the window of the child's go");
+            kept_child.go(&format!("front-{step}"));
+        };
+        // SAFETY: AllowSetForegroundWindow takes a plain value.
+        let kept_child_allowed = unsafe { AllowSetForegroundWindow(kept_child.id()) }.is_ok();
+        let mut kept_window_front = false;
+        let mut kept_front_by = "none";
+        let mut kept_title_changed = false;
+        if let Some(window) = kept_window {
+            go_the_child(1, window);
+            let asked_at = Instant::now();
+            while !kept_window_front && asked_at.elapsed() < Duration::from_secs(3) {
+                pump_thread(Duration::from_millis(50));
+                kept_window_front = foreground_window() == window;
+            }
+            if kept_window_front {
+                kept_front_by = "child";
+            } else {
+                kept_window_front = foreground_without_input(window, false).0;
+                if kept_window_front {
+                    kept_front_by = "test";
+                }
+            }
+        }
+        if let Some(window) = kept_window.filter(|_| kept_window_front) {
+            let kept_title: Vec<u16> = "halvo-verify-front-on-go-kept\0".encode_utf16().collect();
+            // SAFETY: WM_SETTEXT takes a pointer to a NUL-ended UTF-16 text that
+            // lives through the call; the child's own thread sets the text.
+            kept_title_changed = unsafe {
+                windows::Win32::UI::WindowsAndMessaging::SendMessageW(
+                    window,
+                    windows::Win32::UI::WindowsAndMessaging::WM_SETTEXT,
+                    Some(WPARAM(0)),
+                    Some(LPARAM(kept_title.as_ptr() as isize)),
+                )
+            }
+            .0 != 0;
+        }
+        let mut kept_seen = Vec::new();
+        let kept_began = Instant::now();
+        while kept_began.elapsed() < Duration::from_secs(15) {
+            pump_thread(Duration::from_millis(100));
+            kept_seen.extend(title_events.drain_for(Duration::from_millis(100)));
+            if kept_seen.iter().any(kept) {
+                break;
+            }
+        }
+        let kept_waited = kept_began.elapsed();
+        let kept_gate_reading = gate.content_reading();
+        let waits_after_kept = title.source().waits();
+        let decided = |w: &halvo_capture::windows::window_title::TitleWaits| {
+            w.at_once + w.after_a_wait + w.behind_the_bound
+        };
+        let kept_waits_decided = decided(&waits_after_kept) - decided(&waits_before_kept);
+        let kept_waits_left = waits_after_kept.left - waits_before_kept.left;
+        let kept_waits_ended_with_no_read =
+            waits_after_kept.ended_with_no_read - waits_before_kept.ended_with_no_read;
+        go_the_child(2, anchor.hwnd);
+        pump_thread(Duration::from_millis(500));
+        let anchor_front_again = foreground_window() == anchor.hwnd;
         let launched = Command::new("cmd.exe")
             .args(["/c", "start", "ms-settings:"])
             .status()
@@ -5195,11 +5285,53 @@ fn x14_foreground_app_of_a_hosted_app() {
         let settings_processes = processes_named("SystemSettings.exe");
         let foreground_now = current_foreground_app().unwrap_or_default();
         let _ = stop_counted(&mut foreground, "foreground");
+        let title_stop = stop_counted(&mut title, "window_title");
+        let keyboard_stop = keyboard
+            .as_mut()
+            .map(|keyboard| stop_counted(keyboard.as_mut(), "keyboard"));
+        let title_seen = title_events.drain_for(Duration::from_millis(500));
+        let _ = kept_child.process.kill();
+        let _ = kept_child.process.wait();
+        kept_child.print_output();
         let _ = Command::new("taskkill.exe")
             .args(["/IM", "SystemSettings.exe", "/F"])
             .output();
         drop(anchor);
         summarize("x14", "after-opening-settings", &seen);
+        let title_events_kept = kept_seen.iter().filter(|e| kept(e)).count();
+        let titles_named = |file: &str| {
+            title_seen
+                .iter()
+                .filter(|e| {
+                    e.modality == Modality::WindowTitle
+                        && file_name(&e.foreground_app).eq_ignore_ascii_case(file)
+                })
+                .count()
+        };
+        let title_events_systemsettings = titles_named("SystemSettings.exe");
+        let title_events_applicationframehost = titles_named("ApplicationFrameHost.exe");
+        say(
+            "x14",
+            format!(
+                "title_events_systemsettings={title_events_systemsettings} \
+                 title_events_applicationframehost={title_events_applicationframehost} \
+                 title_events_kept={title_events_kept} kept_window_found={kept_window_found} \
+                 kept_child_allowed={kept_child_allowed} kept_front_by={kept_front_by} \
+                 kept_window_front={kept_window_front} \
+                 kept_title_changed={kept_title_changed} kept_gate_reading={kept_gate_reading:?} \
+                 anchor_front_again={anchor_front_again} gate_first_clear={gate_first_clear} \
+                 gate_waited_ms={} kept_waited_ms={} kept_waits_decided={kept_waits_decided} \
+                 kept_waits_left={kept_waits_left} \
+                 kept_waits_ended_with_no_read={kept_waits_ended_with_no_read} \
+                 keyboard_start={} title_start={} title_stop={} keyboard_stop={}",
+                gate_waited.as_millis(),
+                kept_waited.as_millis(),
+                keyboard_start.as_ref().map_or("none".to_string(), show),
+                show(&title_start),
+                show(&title_stop),
+                keyboard_stop.as_ref().map_or("none".to_string(), show),
+            ),
+        );
         let named = |file: &str| {
             seen.iter()
                 .filter(|e| file_name(&e.foreground_app).eq_ignore_ascii_case(file))
@@ -5233,6 +5365,23 @@ fn x14_foreground_app_of_a_hosted_app() {
         let evidence: String = format!("TF x14 events_naming_systemsettings={settings}");
         println!("{evidence}");
         assert!(settings >= 1, "{evidence}");
+        assert!(title_start.is_ok(), "title_start_ok=false");
+        assert!(
+            title_events_applicationframehost == 0,
+            "title_events_applicationframehost={title_events_applicationframehost}"
+        );
+        assert!(
+            title_events_systemsettings == 0,
+            "title_events_systemsettings={title_events_systemsettings}"
+        );
+        assert!(
+            frame_host == 0,
+            "events_naming_applicationframehost={frame_host}"
+        );
+        assert!(
+            title_events_kept >= 1,
+            "title_events_kept={title_events_kept} kept_window_front={kept_window_front}"
+        );
     });
 }
 
@@ -7855,6 +8004,11 @@ fn a_switch_records_a_title_only_by_the_gates_read_of_the_window_in_front() {
 /// The letters that the row of keys behind a switch sends in each part.
 const SWITCH_KEYS_LETTERS: usize = 3;
 
+/// How long the row of keys behind a switch waits for the gate's clock to
+/// pass the landing of the read behind a switch, which one tick of about
+/// 16 ms does.
+const SWITCH_KEYS_TICK_WAIT: Duration = Duration::from_secs(1);
+
 /// The test seam's gate marks and decided keys that the row of keys behind a
 /// switch took, in their order.
 #[derive(Default)]
@@ -7893,8 +8047,32 @@ impl SwitchSeen {
         (switch, read)
     }
 
-    /// One part's line: the switch and the read behind it, the newest read or
-    /// event before the part's first key, and the part's keys.
+    /// Waits, up to `bound`, until GetTickCount, the clock by which the gate
+    /// stamps its marks, has passed the landing tick of the read behind the
+    /// last switch from the mark `from`: the gate orders a mark of a key's own
+    /// tick after the key, so a letter sent in that tick is not decided beside
+    /// that read. Answers that landing tick and whether the clock passed it.
+    fn wait_past_the_read(&self, from: usize, bound: Duration) -> (Option<u32>, bool) {
+        let Some(landed) = self.switch_and_its_read(from).1.and_then(|read| read.at) else {
+            return (None, false);
+        };
+        let began = Instant::now();
+        loop {
+            // SAFETY: GetTickCount takes no argument and reads a counter.
+            let now = unsafe { GetTickCount() };
+            if (now.wrapping_sub(landed) as i32) > 0 {
+                return (Some(landed), true);
+            }
+            if began.elapsed() >= bound {
+                return (Some(landed), false);
+            }
+            std::thread::yield_now();
+        }
+    }
+
+    /// One part's line: the switch and the read behind it with the tick of
+    /// its landing, the part's first key with its tick and the difference, the
+    /// newest read or event before that key, and the part's keys.
     fn part_line(&self, part: &str, marks_from: usize, decided_from: usize) -> (String, usize) {
         let (switch, read) = self.switch_and_its_read(marks_from);
         let keys = &self.decided[decided_from.min(self.decided.len())..];
@@ -7912,10 +8090,12 @@ impl SwitchSeen {
             .iter()
             .filter(|key| key.verdict == seam::Verdict::Recorded)
             .count();
+        let landed = read.and_then(|mark| mark.at);
         let line = format!(
             "part={part} switch_seen={} read_behind_the_switch={} read_behind_the_switch_state={:?} \
-             read_behind_the_switch_ms={} newest_before_the_first_key={}:{:?} letters_decided={} \
-             letters_recorded={recorded} first_rule={:?}",
+             read_behind_the_switch_ms={} read_landing_tick={landed:?} first_key_tick={first_key:?} \
+             first_key_behind_the_read_landing_ms={:?} newest_before_the_first_key={}:{:?} \
+             letters_decided={} letters_recorded={recorded} first_rule={:?}",
             switch.is_some(),
             read.is_some(),
             read.and_then(|mark| mark.state),
@@ -7923,6 +8103,9 @@ impl SwitchSeen {
                 (Some(at), Some(mark)) => i64::from(mark.began.wrapping_sub(at) as i32),
                 _ => -1,
             },
+            landed
+                .zip(first_key)
+                .map(|(landed, key)| i64::from(key.wrapping_sub(landed) as i32)),
             newest.map_or("none", |mark| mark.what),
             newest.and_then(|mark| mark.state),
             keys.len(),
@@ -7953,7 +8136,11 @@ fn send_letters(count: usize) -> u32 {
 /// row waits for their records; (1) the window with the password edit in
 /// front, entered from the plain window, the gate reading Password, its title
 /// ask dropped and a read behind its switch, then letters: none is recorded,
-/// each by the rule of a password edit, and no title.
+/// each by the rule of a password edit, and no title. In each part the
+/// letters wait until the gate's clock has passed the tick at which the read
+/// behind the switch landed, since the gate orders a mark of a key's own tick
+/// after the key; each part's line prints that tick, the first key's tick and
+/// their difference.
 #[test]
 #[ignore = "functional: keys behind a switch alone are decided beside the read that the switch asks"]
 fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks() {
@@ -8015,6 +8202,7 @@ fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks()
                 break;
             }
         }
+        let (_, past_2) = seam_seen.wait_past_the_read(marks_of_part_2, SWITCH_KEYS_TICK_WAIT);
         let decided_of_part_2 = seam_seen.decided.len();
         let sent_2 = send_letters(SWITCH_KEYS_LETTERS);
         let began = Instant::now();
@@ -8051,6 +8239,7 @@ fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks()
                 break;
             }
         }
+        let (_, past_1) = seam_seen.wait_past_the_read(marks_of_part_1, SWITCH_KEYS_TICK_WAIT);
         let decided_of_part_1 = seam_seen.decided.len();
         let sent_1 = send_letters(SWITCH_KEYS_LETTERS);
         let began = Instant::now();
@@ -8087,7 +8276,8 @@ fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks()
             format!(
                 "keyboard_start={} title_start={} keyboard_stop={} title_stop={} \
                  lead_in_front={lead_in_front} lead_settled={lead_settled} ready_2={ready_2} \
-                 ready_1={ready_1} sent_2={sent_2} decided_2={decided_2} records_2={records_2} \
+                 past_the_read_2={past_2} ready_1={ready_1} past_the_read_1={past_1} \
+                 sent_2={sent_2} decided_2={decided_2} records_2={records_2} \
                  sent_1={sent_1} decided_1={decided_1} rules_1={rules_1:?} \
                  keystroke_records_after_part_2={keystrokes_after_part_2} \
                  keystroke_records_at_the_end={keystrokes_at_the_end} \
@@ -8110,8 +8300,9 @@ fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks()
             "the sources must start"
         );
         assert!(
-            ready_2 && sent_2 == events_sent && decided_2 == letters,
-            "part (2): state {ready_2}, sent {sent_2}, decided {decided_2}: {line_2}"
+            ready_2 && past_2 && sent_2 == events_sent && decided_2 == letters,
+            "part (2): state {ready_2}, past the read {past_2}, sent {sent_2}, decided \
+             {decided_2}: {line_2}"
         );
         assert!(
             recorded_2 == letters && records_2 && keystrokes_after_part_2 == letters,
@@ -8119,8 +8310,9 @@ fn keys_behind_a_switch_alone_are_decided_beside_the_read_that_the_switch_asks()
              recorded: {line_2}"
         );
         assert!(
-            ready_1 && sent_1 == events_sent && decided_1 == letters,
-            "part (1): state {ready_1}, sent {sent_1}, decided {decided_1}: {line_1}"
+            ready_1 && past_1 && sent_1 == events_sent && decided_1 == letters,
+            "part (1): state {ready_1}, past the read {past_1}, sent {sent_1}, decided \
+             {decided_1}: {line_1}"
         );
         assert!(
             recorded_1 == 0

@@ -492,7 +492,8 @@ fn r4_record_the_closed_lists_hold_the_names_of_the_contract() {
             "check",
             "setup",
             "ready",
-            "show"
+            "show",
+            "amounts"
         ]
     );
     assert_eq!(
@@ -546,7 +547,7 @@ fn r4_record_the_closed_lists_hold_the_names_of_the_contract() {
     );
     assert_eq!(
         names(HoldCause::ALL.iter().map(|v| v.as_str()).collect()),
-        ["person", "failures", "check", "sign_in_refused"]
+        ["person", "failures", "check", "sign_in_refused", "amounts"]
     );
     assert_eq!(
         names(EffectAnswer::ALL.iter().map(|v| v.as_str()).collect()),

@@ -33,10 +33,20 @@ with `--cell` runs one of the cells alone (point 8).
 ## What differs from the first trial
 
 1. The child. In the place of `r3-model`, the harness starts the door `halvo-model` (A12.6), built
-   in release without the cargo feature `loopback`, under `sh scripts/egress/check.sh` with a list
-   of ONE origin, the origin of the row below. The key of the host is read ONCE from the file that
-   the command names and goes to the door as its first line behind its length line; it stands in no
-   line that the command prints and in no file of a cell.
+   in release without the cargo feature `loopback`, under `sh scripts/egress/check.sh --one-named-host`
+   with a list of ONE entry, the host name of the origin of the row below on port 443. Under that
+   argument, which the paid form alone passes and no check of CI passes, the check's wall on this Mac
+   opens the system's resolver daemon whole, its socket and its service, and tcp to port 443 of any
+   address, and denies and logs every other connection, datagram and service that it denies without
+   the argument: a sandbox profile names a host only as `*` or `localhost`, so the wall cannot name
+   the host. Through that daemon a program can look up any name, and can also register or browse a
+   service on the local link or ask the gateway for a port mapping, none of it logged; the door asks
+   lookups alone, and no run has shown a registration, a browse or a mapping under the profile.
+   What shows the ONE host is the door: it sends to the origin of its row alone, which the
+   `host` line below names, and TLS proves the name, since its request leaves only on a connection
+   whose certificate the system's trust store takes for that name. The key of the host is read ONCE
+   from the file that the command names and goes to the door as its first line behind its length
+   line; it stands in no line that the command prints and in no file of a cell.
 2. No weights and no model lock. There is no file of weights, no cap of A13.1 and no model lock, so
    `wall_s` holds no load time and no wait for a lock.
 3. The settings of the hosted row. The model word, the origin and the adapter word are those of the
@@ -51,8 +61,17 @@ with `--cell` runs one of the cells alone (point 8).
    that the door answered `cut` has no body; no count of tokens is held against a bound. The door
    cuts a snapshot at the last line end that keeps the body within 131,072 bytes, not at
    `snapshot_tokens`. The grammar does not leave the door, so a reply that is no action of A12.4 is
-   refused as `action_form` and counts as an ask. `recoveries` stays 2, the value of the level
-   `medium` of `docs/r3/model-settings.toml`.
+   refused as `action_form` and counts as an ask. REVISION OF 2026-11-25 BY r3 U0.8d: the pilot of r3
+   U0.9, one cell `bill:1` a tier, found every action reply of both tiers refused as `action_form`,
+   because nothing told a hosted model the form of an action: the boundary text names the actions in
+   words, the harness reads the JSON object of five keys alone, and the door sends no grammar. No
+   verdict line stood before this revision. Since it, the harness's ask of the grammar `action` to the
+   door carries one fixed text of the form, a template of its five keys (`ACTION_FORM_HOSTED` of
+   `tools/r3-trials/drive/src/words.rs`), behind the boundary text in its `system`; an ask of the
+   grammar `text` and every request of the local child do not, and the four prompt files do not
+   change. The form is told, not enforced: a reply that still is no action is refused as
+   `action_form` and counts as an ask. `recoveries` stays 2, the value of the level `medium` of
+   `docs/r3/model-settings.toml`.
 4. ONE round on one Mac. Every cell runs on `mac`, one round and no other machine, so in the rule
    above "all twelve `drive` lines" reads as the six `drive` lines of `mac` and "all six `reply`
    lines" as the three `reply` lines of `mac`. A call with `--cell` (point 8) is no round.
@@ -99,10 +118,15 @@ below and with the coordinator's line that the verdict stands:
   compiles, 18 in recoveries, 6 for replies. The recovery asks twice at each stored step that finds
   no control, and a right walk has nine such steps in its six cells: two in each cell of `bill` and
   one in each cell of `order`.
-- `egress list=<file> origin=<origin> starts=<n> runs=<n> denied=0`: the one origin of the list,
-  the number of the door's starts under the egress check, the number of the egress check's own
-  lines that the round read, equal to the starts, and no connection outside the list. Where the
-  lines are fewer or more than the starts, the round says so and gives no verdict.
+- `egress list=<file> origin=<origin> starts=<n> runs=<n> denied=0`: the list of one name on port
+  443, the origin of the row, the number of the door's starts under the egress check with
+  `--one-named-host`, the number of the egress check's own lines that the round read, equal to the
+  starts, and no denied attempt: no connection to a port other than 443, no datagram, no ICMP, no
+  URL session and no opening of another program. The wall logs no request to the resolver daemon, a
+  name lookup among them, and no connection to
+  port 443, so `denied=0` does not name the address that the door reached; the `host` line and TLS
+  show the one host. Where the lines are fewer or more than the starts, the round says so and gives
+  no verdict.
 - `host tier=<tier> origin=<origin> model=<word> adapter=<word>`: the row of the table of hosts that
   the door used.
 

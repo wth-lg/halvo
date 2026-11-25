@@ -33,7 +33,7 @@ cpu_max_pct_of_one_core=20
 # the real store.
 disk_max_bytes_per_day=2000000000
 # ci_gate_job_timeout_min: the limit of every job of CI, on every event: a job
-# of the merge gate (push and pull_request), of a slice (the schedule) and of a
+# of the merge gate (push and pull_request), of a slice (a run by hand with the input slice) and of a
 # run by hand. Since the unit slices-1 of 2026-11-21 no run of CI runs the whole
 # table; the key ci_job_timeout_min, its limit of 180 minutes, had no reader
 # left and is gone. The rule, by the

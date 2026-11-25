@@ -323,7 +323,7 @@ fn raised_run(raised: &Raised) -> Option<&RunId> {
         | Raised::Stuck(run)
         | Raised::Show(run) => Some(run),
         Raised::Check(run) => run.as_ref(),
-        Raised::Setup | Raised::Ready => None,
+        Raised::Setup | Raised::Ready | Raised::Amounts(_) => None,
     }
 }
 
@@ -337,6 +337,7 @@ fn app_ended(raised: &Raised) -> Lapsed {
         Raised::Setup => Lapsed::Setup(OtherLapse::AppEnded),
         Raised::Ready => Lapsed::Ready(OtherLapse::AppEnded),
         Raised::Show(_) => Lapsed::Show(OtherLapse::AppEnded),
+        Raised::Amounts(_) => Lapsed::Amounts(OtherLapse::AppEnded),
     }
 }
 
@@ -548,6 +549,7 @@ impl<'a> Record<'a> {
                         (Some(run.as_str()), Some(answer.name()), "check")
                     }
                     Cleared::SignInRefused { run } => (Some(run.as_str()), None, "sign_in_refused"),
+                    Cleared::Amounts { run } => (Some(run.as_str()), None, "amounts"),
                 };
                 Record {
                     event: "hold_cleared",
@@ -1607,7 +1609,7 @@ pub fn time_out<P: Owner + Runs + Clock>(
     )
 }
 
-/// The lapse of an open item that no run raised, `ready`, `check` or `setup`, with `cause`
+/// The lapse of an open item that no run raised, `ready`, `check`, `setup` or `amounts`, with `cause`
 /// (I7.1), as the app's quit lapses every open item with `app_ended` (I4.5): stores its
 /// `item_lapsed`, which waits in the ledger when the owner does not acknowledge it.
 pub fn lapse_own<P: Owner + Clock>(
@@ -1621,6 +1623,7 @@ pub fn lapse_own<P: Owner + Clock>(
         OwnItemKind::Ready => Lapsed::Ready(cause),
         OwnItemKind::Check => Lapsed::Check(cause),
         OwnItemKind::Setup => Lapsed::Setup(cause),
+        OwnItemKind::Amounts => Lapsed::Amounts(cause),
     };
     let row = What::ItemLapsed {
         item: open.item.clone(),

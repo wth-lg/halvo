@@ -292,6 +292,7 @@ record::run_list! { names_with_run_list
     "data_encoding",
     "two_sheets",
     "data_narrow",
+    "two_paying_steps",
     "not_made",
     "start_accepted",
     "message",

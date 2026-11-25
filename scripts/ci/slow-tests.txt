@@ -24,23 +24,39 @@
 # targets of the packages that hold a core promise (scripts/ci/core-promises.txt): halvo,
 # halvo-capture, halvo-derived, halvo-learn, halvo-learn-gate, halvo-learn-store, halvo-redact,
 # halvo-route, halvo-route-gate and halvo-route-wire. In those, a target or a group of unit tests
-# is here when it took about 6 s or more in one of the two jobs. The gate of the macos job runs no
-# test of a package whose code holds no cfg by system: the windows gate runs it (the group H).
-# The groups: A the tests of the store (the slice mon); B the test targets of the agent packages and
-# of halvo-policy and the unit tests of three packages (tue); C the name
+# is here when it took about 6 s or more in one of the two jobs. The gate of the macos job leaves to
+# the windows gate the tests that the group H names.
+# The groups: A the unit tests of halvo-sqlcipher and the seam's target set_reader (the slice mon); B
+# the test targets of halvo-agent-client and halvo-agent-gate, two targets by name and the unit tests
+# of two packages (tue); C the name
 # parts of halvo-capture's unit tests and the doc-tests (fri in the macos job, fri in the windows job);
-# D the test targets of seven more packages and three targets by name (sat); E the one target
+# D the test targets of four more packages and eight targets by name (sat); E the one target
 # macos_stall_fixture (wed in the macos job, before 51-macos-stall, which reads from 12-test's list
 # that the launch-path test of that target ran; no windows slice runs it, where every test of it is
 # ignored); F what the merge gate of the macos job alone skips, by the job word macos, and the target
 # cli of halvo-capture, whose file holds tests of a macos build alone (wed2 in the macos job; no
 # windows slice runs it, where the windows gate runs every test of it that a windows build holds); G
-# the test targets of halvo-runner and of the coordinator packages, the target formal_traces and the
-# unit tests of halvo-web and halvo-route-gate (tue2); H what the gate of the macos job leaves to the
-# windows gate by the job word macos, the tests of the packages whose source and halvo dependencies
-# hold no cfg by system (target_os, unix, windows) but for the targets whose own file holds one, and
-# the 12-test copy of halvo-redact's tests, which 22-redact runs in the windows gate (no slice runs H;
-# r8 cut-2, rule R4: a test of code that is the same on both systems runs in the windows job alone).
+# the test targets of halvo-runner and of the coordinator packages and the unit tests of halvo-web
+# (tue2); H what the gate of the macos job leaves to the
+# windows gate by the job word macos, the tests of the packages whose source holds no cfg by system
+# (target_os, unix, windows) and whose halvo dependencies hold none in their source (halvo-derived's
+# dependency halvo-sqlcipher builds its C code for the target's system in its build.rs, and its own
+# unit tests stay in both jobs), but for the targets whose own file holds one; the test target
+# learn_step of halvo-learn-store, whose dependency halvo-agent-store picks a path form by
+# cfg!(windows) in its src/workbook.rs, and which names no path of a file; and
+# the 12-test copy of halvo-redact's tests, which 22-redact runs in the windows gate, the part
+# daemon::owner_props of halvo-capture's unit tests, and halvo-capture's one test
+# daemon::supervisor::tests::a_turn_of_the_search_is_kept_in_the_state_file_and_while_it_is_off_no_worker_may_run
+# (r2 search-switch) (no slice runs H; r8 cut-2, rule R4: a test of code
+# that is the same on both systems runs in the windows job alone); I the tests of the groups of the slices
+# that no macos job runs, whose own files hold no cfg by system: the test targets of halvo-schema,
+# halvo-schema-core, halvo-seam, halvo-connect, halvo-policy, halvo-agent-store and halvo-sample, five
+# targets by name and the unit tests of halvo-route-gate and halvo-learn-store (wed2 in the windows
+# job alone). halvo-agent-store's src/workbook.rs picks a path form by cfg!(windows), and
+# halvo-learn-store depends on that package; of halvo-agent-store's targets, the ten in I hold no case
+# whose result differs by system. A target of those packages whose own file holds a cfg by system,
+# halvo-agent-store's bindings among them, stays in its group as well, so the windows job runs it
+# in two slices.
 # The seconds of the lines of F are those of the macos job in the pull request runs 45111247085,
 # 45112524657 and 45111386498, from libtest's lines, and for a test line the gaps before its lines in
 # the third run's 12-test/line-seconds.txt. B and D were one group,
@@ -56,30 +72,38 @@
 # 12-test/line-seconds.txt), where the unit tests of halvo-capture took 273 s and 272 s.
 targets halvo-agent-client B 12 test targets: 57 s macos, 42 s windows
 targets halvo-agent-gate B 2 test targets: 3 s macos, 2 s windows
-targets halvo-agent-store B 10 test targets: 6 s macos, 5 s windows
+targets halvo-agent-store I 10 test targets: 6 s macos, 5 s windows (run 44877874023); the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+target bindings B 1 s: its file holds a cfg by system, so both jobs run it in the group B (the windows job also in the group I)
 targets halvo-analysis F macos 7 test targets: 27.4, 28.4 and 33.6 s macos; the windows gate runs them, 18.6 s in the run 45111247085
 targets halvo-cap D 4 test targets: 6 s macos, 6 s windows
 targets halvo-checkpoint D 10 test targets: 13 s macos, 3 s windows
-targets halvo-connect D 8 test targets: 24 s macos, 19 s windows
+targets halvo-connect I 8 test targets: 24 s macos, 19 s windows (run 44877874023); the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+target fixture D 8 s: its file holds a cfg by system, so both jobs run it in the group D (the windows job also in the group I)
 targets halvo-coord G 40 test targets: 17 s macos, 11 s windows
 targets halvo-coord-app G 13 test targets: 21 s macos, 16 s windows
 targets halvo-coord-store G 8 test targets: under 1 s in each job
-targets halvo-policy B 10 test targets: under 1 s in each job
+targets halvo-policy I 10 test targets: under 1 s in each job; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+target agent_config B 1 s: its file holds a cfg by system, so both jobs run it in the group B (the windows job also in the group I)
 targets halvo-runner G 14 test targets: no seconds read for the 14; the 10 of the run 44877874023 took 9 s macos, 9 s windows
-targets halvo-sample D 9 test targets: 8 s macos, 5 s windows
-targets halvo-schema A 43 test targets: 78 s macos, 56 s windows
-targets halvo-schema-core A 1 test target: under 1 s in each job
-targets halvo-seam A 11 test targets: 46 s macos, 28 s windows
+targets halvo-sample I 9 test targets: 8 s macos, 5 s windows (run 44877874023); the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+target build D 1 s: its file holds a cfg by system, so both jobs run it in the group D (the windows job also in the group I)
+target check_labels D 1 s: its file holds a cfg by system, so both jobs run it in the group D (the windows job also in the group I)
+target compose D 1 s: its file holds a cfg by system, so both jobs run it in the group D (the windows job also in the group I)
+target input_copy D 1 s: its file holds a cfg by system, so both jobs run it in the group D (the windows job also in the group I)
+target links D 1 s: its file holds a cfg by system, so both jobs run it in the group D (the windows job also in the group I)
+target split D 1 s: its file holds a cfg by system, so both jobs run it in the group D (the windows job also in the group I)
+targets halvo-schema I 43 test targets: 78 s macos, 56 s windows (run 44877874023); the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+targets halvo-schema-core I 1 test target: under 1 s in each job; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+targets halvo-seam I 10 test targets: 33.7 s macos, 14.9 s windows in the slice mon of the run 45390714934; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+target set_reader A 1 s: its file holds a cfg by system, so both jobs run it in the group A (the windows job also in the group I)
 targets halvo-sheet D 19 test targets: 42 s macos, 23 s windows
-targets halvo-test-dir D 1 test target: under 1 s in each job
 targets halvo-web D 1 test target: 33 s macos, 33 s windows
-target privacy A halvo-derived: 52 s macos, 60 s windows
-target replaced A halvo-derived: 8 s macos, 7 s windows
-target page_gap_check A halvo-derived: 6 s macos, 4 s windows
-target formal_traces G halvo-route: 15 s macos, 10 s windows
-target derive_rules D halvo-route-gate: 12 s macos, 8 s windows
+target privacy I halvo-derived: 52 s macos, 60 s windows; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+target replaced I halvo-derived: 8 s macos, 7 s windows; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+target page_gap_check I halvo-derived: 6 s macos, 4 s windows; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+target formal_traces I halvo-route: 15 s macos, 10 s windows; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+target derive_rules I halvo-route-gate: 12 s macos, 8 s windows; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
 target drift_cli D halvo-learn-gate: 9 s macos, 5 s windows
-target app_start_windows D halvo: no test on macos, 18 s windows; its waits behind a stop and before Start are spans of seconds, beside check 34
 target macos_stall_fixture E halvo-capture: 10 s macos, every test ignored on windows
 target cli F halvo-capture: 25.7, 24.5 and 25.6 s macos, two tests; its file holds tests of a macos build alone, so a windows job runs none of it
 units halvo-learn-gate B 42 s macos, 24 s windows
@@ -89,8 +113,8 @@ units halvo-web G 24 s macos, 7 s windows
 units halvo-control B 16 s macos, 10 s windows
 kept halvo-control _windows::tests:: windows the three peer checks of the Windows control channel: client_windows::tests::the_pipe_client_refuses_a_server_of_another_user, child_windows::tests::a_child_inherits_the_listed_handles_and_no_other and r2::owner_stream_windows::tests::an_end_goes_to_no_process_of_another_user, which the kept part r2:: matches too; the windows job alone has them
 kept halvo-control r2:: windows the unit tests of the module r2, which the package builds by default: the five of the request relay, the three of the request defer, the two of protocol version 2, the one of the run marks and the owner stream's one of each system; nine in the windows job, where the four that serve a request on a socket pair are not built and the owner stream's test of Windows is; the twelve of a Mac run in the group B, and the merge gate of the macos job builds no unit test of the package (that build took 6.3, 9.1 and 13.9 s in the pull request runs 45111247085, 45112524657 and 45111386498)
-units halvo-route-gate G 13 s macos, 9 s windows
-units halvo-learn-store B 7 s macos, 5 s windows
+units halvo-route-gate I 13 s macos, 9 s windows; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+units halvo-learn-store I 7 s macos, 5 s windows; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
 units halvo-runner F macos 12.3, 12.9 and 13.4 s macos; the windows gate runs them
 test daemon::supervisor::tests::stress_cases C halvo-capture 88 s macos, 38 s windows, 48 tests
 test daemon::supervisor::tests::the_stop_path_with_every_wait_at_its_limit_ends_inside_the_budget C halvo-capture 13 s macos, 2 s windows
@@ -100,7 +124,8 @@ test store::hardening_tests::a_kill_before_each_file_system_call_of_each_operati
 test store::hardening_tests::page_gap_probe C halvo-capture 2 s macos, 26 s windows
 test windows::input::tests::keys_wait_for_a_held_pointer_pump_and_an_idle_pointer_source_lets_them_through C halvo-capture 12 s windows
 test windows::input::tests::a_keyboard_stop_lets_the_click_route_go_only_when_its_window_and_gate_are_its_own C halvo-capture 9 s windows
-test daemon::owner_props F halvo-capture macos 8 s macos in the run 45111386498, 8 tests; the windows gate runs all 8
+test daemon::owner_props H halvo-capture macos 8 s macos in the run 45111386498, 8 tests; the windows gate runs all 8, so no slice runs them on a Mac (r8 cut-2 rule R4)
+test daemon::supervisor::tests::a_turn_of_the_search_is_kept_in_the_state_file_and_while_it_is_off_no_worker_may_run H halvo-capture macos 0.00 s on a Mac by hand, 1 test (r2 search-switch); its code is the same on both systems, so the windows gate runs it
 doc-tests C 12 s macos after a build of 29 s, in the push run 44893237714
 units halvo-connect H macos 58 tests in 1.42 s in the macos gate of the push run 45421682892; the windows gate runs them
 units halvo-derived H macos 22 tests in 0.23 s in the macos gate of the push run 45421682892; the windows gate runs them

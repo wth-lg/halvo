@@ -1,0 +1,2 @@
+- Added: When an agent has sent a payment or an order and Halvo could not match the amount on the site's page afterwards to the amount that the person allowed, the agent waits for the person with both amounts and starts nothing until the person answers; the card, the row and the run's line say what the site's page afterwards gave.
+- Changed: The card says that a payment or an order was sent, and says that the site's page showed the allowed amount only where Halvo read and matched it.
