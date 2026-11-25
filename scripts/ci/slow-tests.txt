@@ -44,8 +44,10 @@
 # unit tests stay in both jobs), but for the targets whose own file holds one; the test target
 # learn_step of halvo-learn-store, whose dependency halvo-agent-store picks a path form by
 # cfg!(windows) in its src/workbook.rs, and which names no path of a file; and
-# the 12-test copy of halvo-redact's tests, which 22-redact runs in the windows gate, and the part
-# daemon::owner_props of halvo-capture's unit tests (no slice runs H; r8 cut-2, rule R4: a test of code
+# the 12-test copy of halvo-redact's tests, which 22-redact runs in the windows gate, the part
+# daemon::owner_props of halvo-capture's unit tests, and halvo-capture's one test
+# daemon::supervisor::tests::a_turn_of_the_search_is_kept_in_the_state_file_and_while_it_is_off_no_worker_may_run
+# (r2 search-switch) (no slice runs H; r8 cut-2, rule R4: a test of code
 # that is the same on both systems runs in the windows job alone); I the tests of the weekly groups
 # that no macos job runs, whose own files hold no cfg by system: the test targets of halvo-schema,
 # halvo-schema-core, halvo-seam, halvo-connect, halvo-policy, halvo-agent-store and halvo-sample, five
