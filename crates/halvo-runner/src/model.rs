@@ -23,6 +23,7 @@
 pub(crate) mod ask;
 #[cfg(test)]
 mod tests;
+pub(crate) mod texts;
 
 use halvo_schema::executable::config::AgentConfig;
 use halvo_schema::executable::names::ModelTier;

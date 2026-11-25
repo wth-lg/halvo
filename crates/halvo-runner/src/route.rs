@@ -1,0 +1,275 @@
+//! The router's pick before a run's model request (the routing plan's requirement A5), with the bridge between the
+//! schema's ids and the router's (the routing run's U5.1), as the coordinator ruled on 2026-11-25 (log line 22454):
+//! the runner calls the pick itself, on the release policy, with the agent's category, the call's kind and the
+//! agent's own tier as the ceiling. A pick that hands the call back, or that picks a tier other than the run's own,
+//! lets no request leave. The one file of the runner that names the router's crate, and it names the pick, the policy
+//! and the id types alone: crates/halvo-model/tests/door.rs holds the closed list of what the runner may name of
+//! that crate.
+
+use halvo_route::pick::pick;
+use halvo_route::pick::Pick;
+#[cfg(test)]
+use halvo_route::policy::Policy;
+use halvo_route::release::policy;
+use halvo_route::tier::CallKind;
+use halvo_route::tier::CategoryId;
+use halvo_route::tier::Level;
+use halvo_route::tier::Tier;
+use halvo_schema::executable::body::LoadReply;
+use halvo_schema::executable::names::ModelTier;
+use halvo_schema::SeedCategory;
+
+use crate::model::ask;
+
+/// The kind of a run's model request: the next action of a compile, or the body of a reply.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no shipped build asks the router until r3 U7.2b's compile asks with Compile and r3 U7.4's writer with Write"
+    )
+)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Call {
+    Compile,
+    Write,
+}
+
+/// The router handed the call back, or picked a tier other than the run's own: the run sends no model request and
+/// ends `handed_back` with the cause `shortfall`.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls level"
+    )
+)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Shortfall;
+
+#[cfg(test)]
+thread_local! {
+    /// The policy that a unit test gives in the place of the release policy, for the calls of its own thread.
+    pub(crate) static TEST_POLICY: std::cell::Cell<Option<&'static Policy>> = const { std::cell::Cell::new(None) };
+}
+
+/// The level of the request of the kind `call` of a run whose load is `loaded`: the router's pick on the release
+/// policy, for the agent's category and `call`, with the agent's own tier as the ceiling. The pick's level where
+/// the pick's tier is the agent's own tier, the tier that the person allowed and the door is started with; else
+/// `Shortfall`, for a pick that hands the call back and for a pick of a lower tier.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls it"
+    )
+)]
+pub(crate) fn level(loaded: &LoadReply, call: Call) -> Result<ask::Level, Shortfall> {
+    #[cfg(test)]
+    let table = TEST_POLICY
+        .with(std::cell::Cell::get)
+        .unwrap_or_else(policy);
+    #[cfg(not(test))]
+    let table = policy();
+    let own = tier(loaded.config.tier);
+    let kind = match call {
+        Call::Compile => CallKind::Compile,
+        Call::Write => CallKind::Write,
+    };
+    match pick(table, category(loaded.config.category), kind, own) {
+        Pick::Tier { tier, level } if tier == own => Ok(match level {
+            Level::Low => ask::Level::Low,
+            Level::Medium => ask::Level::Medium,
+            Level::High => ask::Level::High,
+        }),
+        Pick::Tier { .. } | Pick::HandBack(_) | Pick::NoModel => Err(Shortfall),
+    }
+}
+
+/// The router's id of a seed category of the schema, by its equal name (`ids_equal_schema`).
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls level"
+    )
+)]
+fn category(seed: SeedCategory) -> CategoryId {
+    match seed {
+        SeedCategory::UtilityBillPayment => CategoryId::UtilityBillPayment,
+        SeedCategory::TenantRent => CategoryId::TenantRent,
+        SeedCategory::LeaseRenewalOrChange => CategoryId::LeaseRenewalOrChange,
+        SeedCategory::TenantApplicationReview => CategoryId::TenantApplicationReview,
+        SeedCategory::Email => CategoryId::Email,
+        SeedCategory::SpreadsheetFill => CategoryId::SpreadsheetFill,
+        SeedCategory::ShopOrder => CategoryId::ShopOrder,
+        SeedCategory::CalendarCleanup => CategoryId::CalendarCleanup,
+        SeedCategory::RideOrder => CategoryId::RideOrder,
+        SeedCategory::DailyChartCheck => CategoryId::DailyChartCheck,
+    }
+}
+
+/// The router's tier of a model tier of the schema, by its equal name (`ids_equal_schema`).
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls level"
+    )
+)]
+fn tier(tier: ModelTier) -> Tier {
+    match tier {
+        ModelTier::OnDevice => Tier::OnDevice,
+        ModelTier::LowCostHosted => Tier::LowCostHosted,
+        ModelTier::Frontier => Tier::Frontier,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use halvo_schema::{AgentId, Category, WorkflowId};
+
+    use super::*;
+
+    /// The load of an agent of `category` at `tier`, as the store answers it for a run with no stored playbook.
+    fn loaded(category: Category, tier: ModelTier) -> LoadReply {
+        let mut config = halvo_policy::preset(
+            category,
+            WorkflowId::from_random([0x91; 16]),
+            AgentId::from_random([0x92; 16]),
+        )
+        .expect("a preset");
+        config.tier = tier;
+        LoadReply {
+            config,
+            playbook: None,
+            next_playbook: std::num::NonZeroU32::MIN,
+            bindings: None,
+            sessions: Vec::new(),
+            start: None,
+        }
+    }
+
+    /// The release policy's text with `cells` in the place of the rows of their category and kind.
+    fn policy_with(cells: &[&str]) -> &'static Policy {
+        let mut text = policy().to_text();
+        for cell in cells {
+            let head: Vec<&str> = cell.split('\t').take(2).collect();
+            let prefix = format!("{}\t{}\t", head[0], head[1]);
+            let line = text
+                .lines()
+                .find(|line| line.starts_with(&prefix))
+                .expect("a row of the cell")
+                .to_owned();
+            text = text.replacen(&format!("{line}\n"), &format!("{cell}\n"), 1);
+        }
+        let table = Policy::parse_for(&text, &[Tier::LowCostHosted, Tier::Frontier])
+            .expect("the test's policy parses");
+        Box::leak(Box::new(table))
+    }
+
+    /// The level that `level` answers for a run of `category` at `tier` that asks for `call` on `table`.
+    fn level_on(
+        table: &'static Policy,
+        category: Category,
+        tier: ModelTier,
+        call: Call,
+    ) -> Result<ask::Level, Shortfall> {
+        TEST_POLICY.with(|cell| cell.set(Some(table)));
+        let answer = level(&loaded(category, tier), call);
+        TEST_POLICY.with(|cell| cell.set(None));
+        answer
+    }
+
+    /// The function on a policy of its own: a cell at the run's tier gives its level; a cell above the run's tier,
+    /// a cell below it, and a cell that hands back give `Shortfall`.
+    #[test]
+    fn u72b_the_pick_gives_the_level_of_a_cell_at_the_runs_own_tier_and_else_a_shortfall() {
+        let table = policy_with(&[
+            "utility_bill_payment\tcompile\tfrontier\thigh\tline_met\t4\t4",
+            "shop_order\tcompile\tlow_cost_hosted\tmedium\tline_met\t4\t4",
+        ]);
+        let rows = [
+            (
+                "a cell at the run's tier",
+                level_on(
+                    table,
+                    Category::UtilityBillPayment,
+                    ModelTier::Frontier,
+                    Call::Compile,
+                ),
+                Ok(ask::Level::High),
+            ),
+            (
+                "a cell above the run's tier",
+                level_on(
+                    table,
+                    Category::UtilityBillPayment,
+                    ModelTier::LowCostHosted,
+                    Call::Compile,
+                ),
+                Err(Shortfall),
+            ),
+            (
+                "a cell below the run's tier",
+                level_on(
+                    table,
+                    Category::ShopOrder,
+                    ModelTier::Frontier,
+                    Call::Compile,
+                ),
+                Err(Shortfall),
+            ),
+            (
+                "a cell that hands back",
+                level_on(table, Category::Email, ModelTier::Frontier, Call::Write),
+                Err(Shortfall),
+            ),
+        ];
+        for (row, got, want) in rows {
+            println!("row: {row}: {got:?}");
+            assert_eq!(got, want, "{row}");
+        }
+    }
+
+    /// The bridge of the routing run's U5.1: each seed category of the schema maps to the router's category of the
+    /// same name, and each of the router's categories but `other`, which no agent of the schema has, is the map of
+    /// one of them; each model tier of the schema maps to the router's tier of the same name, and the router has no
+    /// tier more.
+    #[test]
+    fn ids_equal_schema() {
+        let seeds: Vec<(&str, &str)> = SeedCategory::ALL
+            .iter()
+            .map(|seed| (seed.as_str(), category(*seed).as_str()))
+            .collect();
+        let mut routed: Vec<&str> = seeds.iter().map(|(_, routed)| *routed).collect();
+        routed.sort_unstable();
+        let mut others: Vec<&str> = CategoryId::ALL
+            .iter()
+            .map(|id| id.as_str())
+            .filter(|name| *name != "other")
+            .collect();
+        others.sort_unstable();
+        let tiers: Vec<(&str, &str)> = ModelTier::ALL
+            .iter()
+            .map(|model| (model.as_str(), tier(*model).as_str()))
+            .collect();
+        println!(
+            "categories: {} of the schema, {} of the router; tiers: {} of the schema, {} of the router",
+            seeds.len(),
+            CategoryId::ALL.len(),
+            tiers.len(),
+            Tier::ALL.len()
+        );
+        assert!(
+            seeds.iter().all(|(seed, routed)| seed == routed),
+            "{seeds:?}"
+        );
+        assert_eq!(routed, others);
+        assert!(
+            tiers.iter().all(|(model, routed)| model == routed),
+            "{tiers:?}"
+        );
+        assert_eq!(tiers.len(), Tier::ALL.len());
+    }
+}

@@ -22,6 +22,7 @@ mod playbook;
     )
 )]
 mod release;
+mod route;
 mod run;
 mod secret;
 mod session;

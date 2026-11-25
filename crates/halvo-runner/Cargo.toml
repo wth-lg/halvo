@@ -22,6 +22,7 @@ halvo-checkpoint = { path = "../halvo-checkpoint" }
 halvo-connect = { path = "../halvo-connect" }
 halvo-control = { path = "../halvo-control", default-features = false }
 halvo-policy = { path = "../halvo-policy" }
+halvo-route = { path = "../halvo-route" }
 halvo-schema = { path = "../halvo-schema" }
 halvo-sheet = { path = "../halvo-sheet" }
 halvo-web = { path = "../halvo-web" }
