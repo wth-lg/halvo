@@ -17,13 +17,17 @@ pub enum Value {
 /// mark at the first byte. No line break stands inside a field, so a row is a line and a refusal
 /// names the line. A file that is not UTF-8 is refused first; then the file's separator is told
 /// and the file is read by it (`reading`), where a file whose separator is in doubt is refused, a
-/// fault of the form stops the read where it stands, and rows of unequal length are refused. Each
-/// field's value is told last, by the file's numbers (`Numbers::of`) and by its column, in which
-/// an amount as a spreadsheet program shows it turns whole or not at all (`turning`).
+/// fault of the form stops the read where it stands, and rows of unequal length are refused. Then
+/// a file with a field of number signs alone is refused (`number_signs`, r3 U11.9). Each field's
+/// value is told last, by the file's numbers (`Numbers::of`) and by its column, in which an amount
+/// as a spreadsheet program shows it turns whole or not at all (`turning`).
 pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
     let text = std::str::from_utf8(bytes).map_err(|_| Error::Source(SourceRefusal::Encoding))?;
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let (separator, rows) = reading(text)?;
+    if let Some(line) = number_signs(&rows) {
+        return Err(Error::Source(SourceRefusal::NumberSigns { line }));
+    }
     let numbers = Numbers::of(separator, &rows);
     let turning = turning(numbers, &rows);
     Ok(rows
@@ -39,6 +43,24 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
 
 /// The fields of a file's rows, as `read` gives them.
 type Rows<'a> = Vec<Vec<Cow<'a, str>>>;
+
+/// The line (counted from 1; a row is a line) of the first field of `rows` that, without the
+/// spaces (U+0020) at its ends, is one number sign `#` or more and nothing else, quoted or not:
+/// what a spreadsheet program writes for a value whose column was too narrow to show it when the
+/// file was saved, whose value the file no longer holds (r3 U11.9). A field of the first row that
+/// is one `#` alone is the title of a column (of row numbers, as a rule) and passes, since the
+/// file's form has no row of titles that `reading` could tell. Every other field passes: `#N/A`,
+/// `#REF!` and a word hold another sign.
+fn number_signs(rows: &Rows<'_>) -> Option<usize> {
+    rows.iter().enumerate().find_map(|(at, row)| {
+        row.iter()
+            .map(|cell| cell.trim_matches(' '))
+            .any(|cell| {
+                !cell.is_empty() && cell.bytes().all(|b| b == b'#') && !(at == 0 && cell == "#")
+            })
+            .then_some(at + 1)
+    })
+}
 
 /// The separator of a file and its rows by it (r3 U11.5, r3 U11.6). A sign holds where every
 /// line that is not empty holds one or more of it outside its quoted fields and as many as every
@@ -758,6 +780,58 @@ mod tests {
             }
         }
         assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.9: a data file in which a field, quoted or not and without the spaces at its ends,
+    /// is one number sign or more and nothing else, as a spreadsheet program writes a value whose
+    /// column was too narrow to show it, is refused whole with `data_narrow`, its first such line
+    /// named, before the run's write step: read by commas, by semicolons or by tabs, in a column
+    /// of numbers or of texts, in the first row too. A field of the first row that is one `#` alone
+    /// is a title and passes; `#N/A`, `#REF!`, `#DIV/0!` and a word read as before, and a file
+    /// that `reading` refuses keeps its refusal.
+    #[test]
+    fn a_data_file_with_a_field_of_number_signs_alone_is_refused_before_any_write() {
+        let refused: [(&[u8], usize); 11] = [
+            (b"Rent,500\nPower,#\n", 2),
+            (b"Rent,500\nPower,##\n", 2),
+            (b"Rent,500\nPower,########\n", 2),
+            (b"Rent,500\nPower,\"########\"\n", 2),
+            (b"Rent,500\nPower, ######## \n", 2),
+            (b"Rent,500\nPower,\"  ##\"\n", 2),
+            (b"Rent;500\r\nPower;########\r\n", 2),
+            (b"Rent\t500\nPower\t#####\n", 2),
+            (b"Rent,500\n###,63\n", 2),
+            (b"########,500\nPower,63\n", 1),
+            (b"#,Item\n1,Rent\n2,#\n", 3),
+        ];
+        for (bytes, line) in refused {
+            let got = parse(bytes).map_err(|e| (e.source_cause().name(), e.cause().name(), e));
+            let want = Error::Source(SourceRefusal::NumberSigns { line });
+            assert_eq!(
+                got,
+                Err(("data_narrow", "data_narrow", want)),
+                "{}",
+                shown(bytes)
+            );
+        }
+        let titled = b"#,Item\n1,Rent\n";
+        let want = vec![vec![t("#"), t("Item")], vec![n(1.0), t("Rent")]];
+        assert_eq!(parse(titled), Ok(want), "{}", shown(titled));
+        let others = b"Rent,#N/A\nPower,#REF!\nGas,#DIV/0!\nWater,Total\nHeat,\n";
+        let want: Vec<Vec<Value>> = [
+            ["Rent", "#N/A"],
+            ["Power", "#REF!"],
+            ["Gas", "#DIV/0!"],
+            ["Water", "Total"],
+            ["Heat", ""],
+        ]
+        .iter()
+        .map(|row| row.iter().map(|cell| t(cell)).collect())
+        .collect();
+        assert_eq!(parse(others), Ok(want), "{}", shown(others));
+        let ragged = b"Rent,500\nPower,########,x\n";
+        let want = Err(Error::Source(SourceRefusal::Ragged { line: 2 }));
+        assert_eq!(parse(ragged), want, "{}", shown(ragged));
     }
 
     /// r3 U11.5: the files that the reader refused before as read by another separator read by

@@ -101,6 +101,7 @@ daily_chart_check
 data
 data_encoding
 data_form
+data_narrow
 data_outside
 data_shape
 day
@@ -439,6 +440,7 @@ tokens_in
 tokens_out
 trigger
 try_again
+two_sheets
 unattended
 unauthorized
 unknown

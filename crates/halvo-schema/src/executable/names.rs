@@ -240,6 +240,9 @@ names! {
     /// stands there where the system refused, for the permission, the open or the read of the workbook or of the
     /// data file, the walk to it, or the making of a file in the workbook's folder (r3 U11.4); a refused rename
     /// keeps `not_replaced`. `data_encoding` stands there where the data file is not UTF-8 (r3 U11.5).
+    /// `two_sheets` stands there where two sheets of the workbook bear the sheet's name, and `data_narrow` where a
+    /// field of the data file is number signs alone, as a spreadsheet program writes a value whose column was too
+    /// narrow to show it (r3 U11.9).
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -289,6 +292,8 @@ names! {
         ReadOnly = "read_only",
         NoAccess = "no_access",
         DataEncoding = "data_encoding",
+        TwoSheets = "two_sheets",
+        DataNarrow = "data_narrow",
     }
 }
 

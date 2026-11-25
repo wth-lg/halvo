@@ -822,14 +822,21 @@ pub(crate) fn linked(entries: &Entries, part: &str, kind: &str) -> Result<Vec<St
 }
 
 /// The entry of the sheet named `sheet` (compared byte for byte), as the archive spells it.
-/// [`Error::NoSheet`] when the workbook names no such sheet. Refused when its relationship is
-/// missing, names no entry, or names another entry than the one that the reader reads.
+/// [`Error::NoSheet`] when the workbook names no such sheet, and [`Error::TwoSheets`] when two
+/// or more of its elements `sheet` bear that name, counted over every such element, the hidden
+/// and the very hidden ones and the sheets of the other types too (r3 U11.9): a run then could
+/// fill another sheet than the one that the person meant. Two other sheets that are alike are no
+/// reason to refuse. Refused when its relationship is missing, names no entry, or names another
+/// entry than the one that the reader reads.
 pub(crate) fn part_of(entries: &Entries, sheet: &str) -> Result<String, Error> {
     let names = Names::new(entries);
-    let found = sheets(&names)?
+    let mut bearers = sheets(&names)?
         .into_iter()
-        .find(|found| found.name == sheet)
-        .ok_or(Error::NoSheet)?;
+        .filter(|found| found.name == sheet);
+    let found = bearers.next().ok_or(Error::NoSheet)?;
+    if bearers.next().is_some() {
+        return Err(Error::TwoSheets);
+    }
     match found.part {
         Some(part) if found.agrees => Ok(part.to_string()),
         _ => Err(relationship()),
@@ -894,8 +901,8 @@ fn listed_sheet(tail: &str, state: Option<&str>) -> bool {
 /// hidden one is a name like any other. Refused: a workbook part that names two sheets alike,
 /// counted over EVERY element `sheet` (a very hidden one, a chart, dialog or macro sheet too) and
 /// compared as `part_of` compares a sheet to a name, the decoded name of `sheets` byte for byte,
-/// since `part_of` takes the first of them and a pick of the list could then name another sheet
-/// than the one that a run fills (the coordinator's ruling of its log line 19558)
+/// since a pick of the list could then name a sheet whose name another sheet bears, which
+/// `part_of` refuses (the coordinator's ruling of its log line 19558; r3 U11.9)
 /// ([`Refusal::Relationship`]); an element `sheet` whose relationship is missing, marked
 /// `External`, or does not name its part as the reader reads it ([`Refusal::Relationship`]); and
 /// more than [`NAMES_MAX`] names or a name of more than
