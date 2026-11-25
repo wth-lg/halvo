@@ -1,5 +1,6 @@
 #!/bin/sh
 # sh scripts/egress/check.sh [--mode MODE] LISTFILE -- COMMAND [ARG...]
+# sh scripts/egress/check.sh [--mode sandbox] --one-named-host LISTFILE -- COMMAND [ARG...]
 # sh scripts/egress/check.sh [--mode MODE] --self-test [--control-no-deny]
 set -u
 LC_ALL=C
@@ -13,12 +14,19 @@ refuse() {
 help() {
   cat <<'EOF'
 sh scripts/egress/check.sh [--mode MODE] LISTFILE -- COMMAND [ARG...]
+sh scripts/egress/check.sh [--mode sandbox] --one-named-host LISTFILE -- COMMAND [ARG...]
 sh scripts/egress/check.sh [--mode MODE] --self-test [--control-no-deny]
 sh scripts/egress/check.sh --help
 sh scripts/egress/probe.sh NAME
 Runs COMMAND with its outbound connections, datagrams and name lookups outside LISTFILE denied,
 or logged where the mode cannot stop them, and writes each to target/egress/<n>/denied.log
 (contracts.md C26).
+--one-named-host, in the mode sandbox alone, takes a LISTFILE of ONE entry, a name on port 443,
+and lets COMMAND reach the resolver daemon's socket and service whole (a name lookup, and also a
+registration or a browse of a service on the local link and a port mapping asked of the gateway)
+and connect by tcp to port 443 of any address, none of it logged; every other connection, datagram
+and service that it denies without the argument stays denied and logged. A sandbox profile cannot
+name one host.
 EOF
 }
 
@@ -75,14 +83,14 @@ sandbox_profile() {
   [ "$2" -eq 1 ] || return 0
   printf '(deny network-outbound (with message "%s other"))\n' "$1"
   printf '(allow network-outbound (remote unix-socket))\n'
-  printf '(deny network-outbound (remote unix-socket (path-literal "/private/var/run/mDNSResponder")) (with message "%s dns"))\n' "$1"
+  [ "$one_host" -eq 1 ] || printf '(deny network-outbound (remote unix-socket (path-literal "/private/var/run/mDNSResponder")) (with message "%s dns"))\n' "$1"
   for family in tcp4 tcp6 udp4 udp6; do
     printf '(deny network-outbound (remote %s "*:*") (with message "%s %s any"))\n' "$family" "$1" "$family"
     printf '(deny network-outbound (remote %s "localhost:*") (with message "%s %s lo"))\n' "$family" "$1" "$family"
   done
   printf '(deny network-outbound (socket-protocol 1) (with message "%s icmp4"))\n' "$1"
   printf '(deny network-outbound (socket-protocol 58) (with message "%s icmp6"))\n' "$1"
-  printf '(deny mach-lookup (global-name "com.apple.dnssd.service") (with message "%s dns"))\n' "$1"
+  [ "$one_host" -eq 1 ] || printf '(deny mach-lookup (global-name "com.apple.dnssd.service") (with message "%s dns"))\n' "$1"
   printf '(deny mach-lookup (global-name "com.apple.nsurlsessiond") (global-name "com.apple.nsurlsessiond-launchondemand") (with message "%s session"))\n' "$1"
   printf '(deny lsopen (with message "%s open"))\n' "$1"
   while read -r number part kind host port; do
@@ -91,6 +99,7 @@ sandbox_profile() {
       v4:*) printf '(allow network-outbound (remote ip4 "localhost:%s"))\n' "$port" ;;
     esac
   done <"$dir/entries"
+  [ "$one_host" -eq 0 ] || printf '(allow network-outbound (remote tcp4 "*:443"))\n(allow network-outbound (remote tcp6 "*:443"))\n'
 }
 
 sandbox_mark() {
@@ -352,12 +361,19 @@ mode=
 given=0
 self_test=0
 control=0
+one_host=0
+one_host_name=
 list=
 while [ $# -gt 0 ]; do
   case $1 in
     --help)
       help
       exit 0
+      ;;
+    --one-named-host)
+      [ "$one_host" -eq 0 ] || refuse usage "--one-named-host given twice"
+      one_host=1
+      shift
       ;;
     --mode)
       [ $# -ge 2 ] || refuse usage "--mode needs a MODE"
@@ -397,6 +413,9 @@ if [ "$self_test" -eq 0 ] && [ -z "$list" ]; then
 fi
 if [ "$control" -eq 1 ] && [ "$self_test" -eq 0 ]; then
   refuse usage "--control-no-deny needs --self-test"
+fi
+if [ "$one_host" -eq 1 ] && [ "$self_test" -eq 1 ]; then
+  refuse usage "--one-named-host takes a LISTFILE and a COMMAND, and no --self-test"
 fi
 if [ "$control" -eq 1 ] && [ "${GITHUB_ACTIONS:-}" != true ]; then
   refuse usage "--control-no-deny runs on a hosted runner only"
@@ -449,6 +468,9 @@ if [ "$given" -eq 0 ]; then
   mode=$(default_mode "$platform")
   [ "$mode" != none ] || refuse mode "no default mode on $platform"
 fi
+if [ "$one_host" -eq 1 ] && [ "$mode" != sandbox ]; then
+  refuse mode "--one-named-host runs in the mode sandbox alone"
+fi
 case $platform:$mode in
   this-mac:sandbox | macos-15:sandbox | windows-2025:wfp) ;;
   macos-15:pf) ;;
@@ -463,11 +485,19 @@ esac
 if [ -n "$list" ]; then
   while read -r number part kind host port; do
     [ -n "$number" ] || continue
+    if [ "$one_host" -eq 1 ]; then
+      [ "$kind" = name ] && [ "$port" = 443 ] && [ -z "$one_host_name" ] || refuse entry "$number"
+      one_host_name=$host
+      continue
+    fi
     [ "$kind" != name ] || refuse entry "$number"
     mode_entry "$part" "$kind" "$host" "$port" || refuse entry "$number"
   done <<EOF
 $entries
 EOF
+  if [ "$one_host" -eq 1 ] && [ -z "$one_host_name" ]; then
+    refuse list "$list holds no entry, and --one-named-host takes one, a name on port 443"
+  fi
 fi
 
 mode_rights || refuse mode "$rights"
@@ -586,8 +616,13 @@ first_form() {
     refuse mode "$lost"
   fi
   run_denied=$(awk 'END { print NR }' "$dir/denied.log") || refuse output "target/egress/$n/denied.log"
-  printf 'egress mode=%s list=%s command=%s denied=%s log=target/egress/%s/denied.log\n' \
-    "$mode" "$run_list" "$run_status" "$run_denied" "$n" >&2
+  if [ "$one_host" -eq 1 ]; then
+    printf 'egress mode=%s list=%s name=%s:443 command=%s denied=%s log=target/egress/%s/denied.log\n' \
+      "$mode" "$run_list" "$one_host_name" "$run_status" "$run_denied" "$n" >&2
+  else
+    printf 'egress mode=%s list=%s command=%s denied=%s log=target/egress/%s/denied.log\n' \
+      "$mode" "$run_list" "$run_status" "$run_denied" "$n" >&2
+  fi
   if [ "$run_status" = 0 ] && [ "$run_denied" -eq 0 ]; then
     run_code=0
   else

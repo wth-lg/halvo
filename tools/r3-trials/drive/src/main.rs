@@ -484,7 +484,9 @@ fn read_key(path: &std::path::Path) -> Result<model::Key, &'static str> {
 
 /// The door's command: `halvo-model --tier T --ceiling T --consent recorded`, with
 /// `--loopback-port P` for the scripted host, under `sh scripts/egress/check.sh LIST --` when the
-/// round names a list.
+/// round names a list. With no loopback port, which is the paid form alone, the check gets its
+/// argument `--one-named-host` (r3 U0.8c): the list holds the host's name on port 443, and the
+/// check takes a name only behind that argument.
 fn door_command(r: &Round, loopback: Option<u16>) -> (PathBuf, Vec<std::ffi::OsString>) {
     let mut door: Vec<std::ffi::OsString> = [
         "--tier",
@@ -503,12 +505,15 @@ fn door_command(r: &Round, loopback: Option<u16>) -> (PathBuf, Vec<std::ffi::OsS
     }
     match &r.egress_list {
         Some(list) => {
-            let mut args: Vec<std::ffi::OsString> = vec![
-                "scripts/egress/check.sh".into(),
+            let mut args: Vec<std::ffi::OsString> = vec!["scripts/egress/check.sh".into()];
+            if loopback.is_none() {
+                args.push("--one-named-host".into());
+            }
+            args.extend([
                 list.clone().into_os_string(),
                 "--".into(),
                 r.door.clone().into_os_string(),
-            ];
+            ]);
             args.extend(door);
             (PathBuf::from("sh"), args)
         }
@@ -1117,6 +1122,36 @@ mod tests {
                     format!("egress list=l.txt origin={o} starts=15 runs=0 denied=0"),
                     false
                 ),
+            ]
+        );
+    }
+
+    /// r3 U0.8c: the paid form, which has a list and no loopback port, starts the door under the
+    /// egress check with its argument of the one named host; the stand-in form, which has the
+    /// scripted host's port, starts it under the check without that argument.
+    #[test]
+    fn the_paid_form_alone_starts_the_door_under_the_argument_of_the_one_named_host() {
+        let r = Round {
+            door: PathBuf::from("door"),
+            tier: "frontier".to_string(),
+            egress_list: Some(PathBuf::from("list.txt")),
+            ..Round::default()
+        };
+        let words = |(program, args): (PathBuf, Vec<std::ffi::OsString>)| -> Vec<String> {
+            std::iter::once(program.into_os_string())
+                .chain(args)
+                .map(|w| w.to_string_lossy().into_owned())
+                .collect()
+        };
+        let door = "door --tier frontier --ceiling frontier --consent recorded";
+        assert_eq!(
+            [
+                words(door_command(&r, None)).join(" "),
+                words(door_command(&r, Some(47201))).join(" "),
+            ],
+            [
+                format!("sh scripts/egress/check.sh --one-named-host list.txt -- {door}"),
+                format!("sh scripts/egress/check.sh list.txt -- {door} --loopback-port 47201"),
             ]
         );
     }

@@ -13,11 +13,11 @@
 //!   were. The process has one cell, which its one cursor holds.
 //! - The shredded segments. Behind each pass of the store's maintenance, whatever it answered, `Schedule::run` of
 //!   daemon/maintenance.rs leaves in the cell the ordinals whose keys the store cleared and committed, which the
-//!   port's `take_shredded` gives. [`Caller::shredded`] takes them for the owner that runs, which the
-//!   driver's next turn hands them (`OwnerSlot::hand_over`); [`Caller::gone`] takes them for a start, together with
-//!   the keyless ordinals of the newest read, and the slot hands the owner those at or above the start's
-//!   `--first-live` before its first request. Nothing else enters the two lists. They live in memory alone, and the
-//!   cell forgets them with its figures.
+//!   port's `take_shredded` gives. [`Caller::shredded`] takes them for the driver's next turn, which hands them to
+//!   the owner that runs or to one that it starts for them (`OwnerSlot::hand_over`); [`Caller::gone`] takes them for a
+//!   start, together with the keyless ordinals of the newest read, and the slot hands the owner those at or above the
+//!   start's `--first-live` before its first request. Nothing else enters the two lists. They live in memory alone,
+//!   and the cell forgets them with its figures.
 //! - The key. [`Caller::key`] calls `DataDirStore::derived_store_key` anew at each call, so the daemon holds no key
 //!   of the derived store between two starts of the owner. A fault answers none and writes one line, which names the
 //!   fault and holds no byte of a key or of a key file:

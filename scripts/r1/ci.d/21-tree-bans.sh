@@ -129,6 +129,7 @@ measure() {
 
   seam_manifests
   grant_roots
+  git grep -q -I -e '--one-named-hos[t]' -- 'scripts/*/ci.d/*' '.github/*'; [ $? -eq 1 ] || fail "a file of a ci.d directory or of .github names the argument of the egress check for one named host, which the trial's real form alone passes, or git grep cannot read the tree"
 
   tree=$(cargo tree --workspace --target all --all-features --prefix none --locked) ||
     fail "cargo tree failed for the workspace"
@@ -363,6 +364,14 @@ EOF
   trees door-links-another-client
   printf 'ureq v3.1.2\n' >>"$work/door-links-another-client/halvo-model-aarch64-apple-darwin.txt"
   check door-links-another-client FAIL 'halvo-model on aarch64-apple-darwin: a network client beyond the tree of halvo-connect: ureq v3.1.2)'
+  trees check-passes-the-one-named-host
+  repo=$work/one-named-host-repo
+  mkdir -p "$repo" || exit 2
+  cp -R "$work/repo/." "$repo/"
+  mkdir -p "$repo/scripts/r3/ci.d" || exit 2
+  printf 'sh scripts/egress/check.sh --one-named-%s list.txt -- door\n' host >"$repo/scripts/r3/ci.d/99-fixture.sh"
+  git -C "$repo" add scripts/r3/ci.d/99-fixture.sh || exit 2
+  check check-passes-the-one-named-host FAIL 'names the argument of the egress check for one named host'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

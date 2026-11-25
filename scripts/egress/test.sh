@@ -1,5 +1,5 @@
 #!/bin/sh
-# Tests of the egress check that send nothing off the machine: sh scripts/egress/test.sh [probe|lists|sandbox|wfp|wfp-rules|search]...
+# Tests of the egress check that send nothing off the machine: sh scripts/egress/test.sh [probe|lists|sandbox|named|wfp|wfp-rules|search]...
 set -u
 LC_ALL=C
 export LC_ALL
@@ -519,7 +519,55 @@ PY
   expect_refusal sandbox/self-test-unknown-argument usage sh scripts/egress/check.sh --self-test --verbose
   expect_refusal sandbox/pf-off-a-runner mode env -u GITHUB_ACTIONS sh scripts/egress/check.sh --mode pf "$e" -- sh "$pr" none
   expect_refusal sandbox/wfp-on-macos mode sh scripts/egress/check.sh --mode wfp "$e" -- sh "$pr" none
+  test_named
   test_search
+}
+
+# profile_without_token DIR: prints the profile of the run DIR with the run's own token replaced by TOKEN.
+profile_without_token() {
+  run_token=$(sed -n 's/^token=//p' "$1/state") || return 1
+  [ -n "$run_token" ] || return 1
+  sed "s/$run_token/TOKEN/g" "$1/profile.sb"
+}
+
+# test_named: the argument --one-named-host (r3 U0.8c), in the mode sandbox. The list's one name is a
+# .invalid one, and no row looks a name up or connects to port 443, so no row sends anything off the
+# machine.
+test_named() {
+  e=scripts/egress/lists/empty.txt
+  pr=scripts/egress/probe.sh
+  printf '[fixed]\nhalvo-egress-probe.invalid:443\n[agent]\n' >"$work/named.txt"
+  expect_refusal sandbox/named-list-without-the-argument entry sh scripts/egress/check.sh "$work/named.txt" -- sh "$pr" none
+  result sandbox/named-list-without-the-argument-detail 'REFUSED entry: 2' "$(cat "$work/err")"
+  printf '[fixed]\nhalvo-egress-probe-a.invalid:443\nhalvo-egress-probe-b.invalid:443\n[agent]\n' >"$work/named-two.txt"
+  printf '[fixed]\nhalvo-egress-probe.invalid:80\n[agent]\n' >"$work/named-port.txt"
+  printf '[fixed]\n127.0.0.1:47201\n[agent]\n' >"$work/named-address.txt"
+  for other in two:3 port:2 address:2; do
+    expect_refusal "sandbox/one-named-host-refuses-${other%:*}" entry sh scripts/egress/check.sh --one-named-host "$work/named-${other%:*}.txt" -- sh "$pr" none
+    result "sandbox/one-named-host-refuses-${other%:*}-detail" "REFUSED entry: ${other#*:}" "$(cat "$work/err")"
+  done
+  for other in wfp pf; do
+    expect_refusal "sandbox/one-named-host-refused-in-the-mode-$other" mode sh scripts/egress/check.sh --mode "$other" --one-named-host "$work/named.txt" -- sh "$pr" none
+    result "sandbox/one-named-host-refused-in-the-mode-$other-detail" 'REFUSED mode: --one-named-host runs in the mode sandbox alone' "$(cat "$work/err")"
+  done
+  run_check sandbox/one-named-host-base sh scripts/egress/check.sh "$e" -- sh "$pr" none
+  base_run=${log%/denied.log}
+  expect_run sandbox/one-named-host-taken 0 0 0 sh scripts/egress/check.sh --one-named-host "$work/named.txt" -- sh "$pr" none
+  result sandbox/one-named-host-name-field halvo-egress-probe.invalid:443 "$(field_of name)"
+  named_run=${log%/denied.log}
+  {
+    profile_without_token "$base_run" | grep -v -F -e '"/private/var/run/mDNSResponder"' -e '"com.apple.dnssd.service"'
+    printf '%s\n' '(allow network-outbound (remote tcp4 "*:443"))' '(allow network-outbound (remote tcp6 "*:443"))'
+  } >"$work/named-want.sb"
+  profile_without_token "$named_run" >"$work/named-got.sb"
+  if [ -s "$work/named-want.sb" ] && cmp -s "$work/named-want.sb" "$work/named-got.sb"; then
+    result sandbox/one-named-host-profile yes yes
+  else
+    result sandbox/one-named-host-profile "the empty list's profile less its two lines of the resolver, with tcp4 and tcp6 *:443 at its end" \
+      "$(diff "$work/named-want.sb" "$work/named-got.sb" 2>&1 | tr '\n' ';')"
+  fi
+  expect_run sandbox/one-named-host-other-port-denied 1 1 1 sh scripts/egress/check.sh --one-named-host "$work/named.txt" -- sh "$pr" loopback
+  expect_logged sandbox/one-named-host-other-port-line ' proto=tcp dest=127.0.0.1:47201 pid=[0-9]* image=egress-probe$'
 }
 
 test_wfp() {
@@ -744,6 +792,7 @@ for part in "$@"; do
     probe) test_probe ;;
     lists) test_lists ;;
     sandbox) test_sandbox ;;
+    named) test_named ;;
     wfp) test_wfp ;;
     wfp-rules) test_wfp_rules ;;
     search) test_search ;;
