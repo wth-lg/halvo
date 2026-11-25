@@ -5142,6 +5142,8 @@ fn settings_window() -> Option<HWND> {
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn x14_foreground_app_of_a_hosted_app() {
+    use halvo_capture::daemon::sources::SourceFactory;
+    use halvo_control::proto::SourceName;
     use windows::Win32::UI::WindowsAndMessaging::{AllowSetForegroundWindow, ASFW_ANY};
     with_deadline("x14", Duration::from_secs(150), || {
         env_report("x14");
@@ -5167,6 +5169,14 @@ fn x14_foreground_app_of_a_hosted_app() {
         let (sink, events) = capture(4096);
         let mut foreground = ForegroundAppSource::new();
         let start = foreground.begin(SourceContext::new(sink.clone()));
+        let (title_sink, title_events) = capture(4096);
+        let mut set = ServiceSet::new();
+        let mut keyboard = set.make(SourceName::Keyboard);
+        let mut title = set.gated_title(WindowTitleSource::new());
+        let keyboard_start = keyboard
+            .as_mut()
+            .map(|keyboard| keyboard.begin(SourceContext::new(title_sink.clone())));
+        let title_start = title.begin(SourceContext::new(title_sink.clone()));
         let launched = Command::new("cmd.exe")
             .args(["/c", "start", "ms-settings:"])
             .status()
@@ -5195,11 +5205,39 @@ fn x14_foreground_app_of_a_hosted_app() {
         let settings_processes = processes_named("SystemSettings.exe");
         let foreground_now = current_foreground_app().unwrap_or_default();
         let _ = stop_counted(&mut foreground, "foreground");
+        let title_stop = stop_counted(&mut title, "window_title");
+        let keyboard_stop = keyboard
+            .as_mut()
+            .map(|keyboard| stop_counted(keyboard.as_mut(), "keyboard"));
+        let title_seen = title_events.drain_for(Duration::from_millis(500));
         let _ = Command::new("taskkill.exe")
             .args(["/IM", "SystemSettings.exe", "/F"])
             .output();
         drop(anchor);
         summarize("x14", "after-opening-settings", &seen);
+        let titles_named = |file: &str| {
+            title_seen
+                .iter()
+                .filter(|e| {
+                    e.modality == Modality::WindowTitle
+                        && file_name(&e.foreground_app).eq_ignore_ascii_case(file)
+                })
+                .count()
+        };
+        let title_events_systemsettings = titles_named("SystemSettings.exe");
+        let title_events_applicationframehost = titles_named("ApplicationFrameHost.exe");
+        say(
+            "x14",
+            format!(
+                "title_events_systemsettings={title_events_systemsettings} \
+                 title_events_applicationframehost={title_events_applicationframehost} \
+                 keyboard_start={} title_start={} title_stop={} keyboard_stop={}",
+                keyboard_start.as_ref().map_or("none".to_string(), show),
+                show(&title_start),
+                show(&title_stop),
+                keyboard_stop.as_ref().map_or("none".to_string(), show),
+            ),
+        );
         let named = |file: &str| {
             seen.iter()
                 .filter(|e| file_name(&e.foreground_app).eq_ignore_ascii_case(file))
@@ -5233,6 +5271,12 @@ fn x14_foreground_app_of_a_hosted_app() {
         let evidence: String = format!("TF x14 events_naming_systemsettings={settings}");
         println!("{evidence}");
         assert!(settings >= 1, "{evidence}");
+        assert!(title_start.is_ok(), "title_start_ok=false");
+        assert!(
+            title_events_systemsettings >= 1 && title_events_applicationframehost == 0,
+            "title_events_systemsettings={title_events_systemsettings} \
+             title_events_applicationframehost={title_events_applicationframehost}"
+        );
     });
 }
 
