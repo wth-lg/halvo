@@ -71,7 +71,7 @@ The limits, which docs/privacy-limits.md states with their sources:
   letter, digit or closing bracket before the name is not a closing bracket, and a title
   of Chrome only where the name that Chrome gives the inside of the window ends with
   Chrome's own name, alone or followed by a profile's name, which the names of its
-  private and Guest windows, of an app window and of a window with a dialog in front do
+  private and Guest windows do
   not, where the browser's own toolbar outside the page holds a button named Back,
   Forward or Reload, and where no button of the window carries the word Incognito. No
   title of Firefox, Safari or another browser that Halvo knows by name is stored, and
