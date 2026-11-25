@@ -7945,7 +7945,7 @@ impl SwitchSeen {
         let line = format!(
             "part={part} switch_seen={} read_behind_the_switch={} read_behind_the_switch_state={:?} \
              read_behind_the_switch_ms={} read_landing_tick={landed:?} first_key_tick={first_key:?} \
-             first_key_minus_read_landing_ms={:?} newest_before_the_first_key={}:{:?} \
+             first_key_behind_the_read_landing_ms={:?} newest_before_the_first_key={}:{:?} \
              letters_decided={} letters_recorded={recorded} first_rule={:?}",
             switch.is_some(),
             read.is_some(),
