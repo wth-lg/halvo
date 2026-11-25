@@ -561,10 +561,10 @@ type HandlerRead = Box<dyn FnMut() -> Option<Vec<String>> + Send>;
 enum TitleRule {
     /// No browser: its title is read and kept as any app's.
     Kept,
-    /// Chrome, Edge or Safari in a process that runs in English: its title is
-    /// read, and dropped as private when it ends with these words.
-    PrivateEnding(&'static str),
-    /// Any other browser, and the three under another language or at a failed
+    /// Chrome in a process that runs in English: its title is read, and left
+    /// out unless it ends with Chrome's own name.
+    NameEnding(window_title::OwnName),
+    /// Any other browser, and Chrome under another language or at a failed
     /// reading: no title is read.
     NoTitle,
 }
@@ -572,7 +572,7 @@ enum TitleRule {
 impl TitleRule {
     fn mark(self, title: TitleText) -> TitleText {
         match self {
-            Self::PrivateEnding(words) => title.of_a_browser_ending_private_with(words),
+            Self::NameEnding(own) => title.of_a_browser_kept_by_its_name(own),
             Self::Kept | Self::NoTitle => title,
         }
     }
@@ -595,9 +595,9 @@ impl Place {
     }
 }
 
-/// The decision for one process of Chrome or Edge, found by the browser, the
-/// pid and the start of the process in ticks: taken at its first title
-/// request and kept until another process of that browser is decided.
+/// The decision for one process of Chrome, found by the browser, the pid
+/// and the start of the process in ticks: taken at its first title request
+/// and kept until another process of that browser is decided.
 struct Decided {
     browser: &'static str,
     pid: libc::pid_t,
@@ -612,7 +612,7 @@ struct Decided {
 /// the app in front whose request reaches the rules; the two places of each
 /// browser's language (its own value and the person's global list), each
 /// after a synchronize call, at the source's start and at each such change;
-/// the start of a process of Chrome or Edge at each of its title requests;
+/// the start of a process of Chrome at each of its title requests;
 /// and its localization once, read only from a bundle under an Applications
 /// folder.
 pub(crate) struct TitleRules {
@@ -655,7 +655,7 @@ impl TitleRules {
     /// runs keeps no title until it starts again.
     fn begin(&mut self) {
         let global = self.languages.global();
-        let own: Vec<(&'static str, Languages)> = window_title::ENGLISH_ENDINGS
+        let own: Vec<(&'static str, Languages)> = window_title::NAME_ENDINGS
             .iter()
             .map(|&(browser, _)| (browser, self.languages.own(browser)))
             .collect();
@@ -702,9 +702,9 @@ impl TitleRules {
         };
         let id = id.as_str();
         match window_title::listed(id) {
-            Listed::Ending(browser, words) => {
+            Listed::Ending(browser, own) => {
                 if self.english(browser, id, request.front.pid) {
-                    TitleRule::PrivateEnding(words)
+                    TitleRule::NameEnding(own)
                 } else {
                     TitleRule::NoTitle
                 }
@@ -800,7 +800,7 @@ impl TitleRules {
 #[cfg(test)]
 impl TitleRules {
     /// Rules whose reads of the system all fail, and read nothing of it: the
-    /// closed list alone stands, and Chrome and Edge keep no title.
+    /// closed list alone stands, and Chrome keeps no title.
     pub(crate) fn unread() -> Self {
         struct Unread;
         impl LanguageReads for Unread {
@@ -949,7 +949,7 @@ impl Poller {
             return;
         };
         let window = window_of(&front);
-        if window == PrivateWindow::Private || title.is_private() {
+        if window == PrivateWindow::Private || title.left_out_by_its_browser() {
             self.health.private_dropped.fetch_add(1, Ordering::Relaxed);
             self.last_title = Some(title.into_text());
             return;
@@ -1039,8 +1039,8 @@ struct TitleThread {
 
 /// The title thread's answer to one request: no title where the floor refuses
 /// it before or after the read, or where the title rules read none; else the
-/// title read, marked with the words of its browser's private window where the
-/// rules tell a private window by them.
+/// title read, marked with its browser's own name where the rules keep a
+/// title only by that name.
 fn answer_of(
     request: &TitleRequest,
     rules: &mut TitleRules,
@@ -1675,7 +1675,8 @@ mod tests {
         let chrome = app("com.google.Chrome", 40);
         poller.step(chrome.clone(), Vec::new(), &handle);
         let long = format!("{} - Google Chrome (Incognito)", "a".repeat(1_100));
-        let english = TitleText::for_test(&long).of_a_browser_ending_private_with("(Incognito)");
+        let (_, own) = window_title::NAME_ENDINGS[0];
+        let english = TitleText::for_test(&long).of_a_browser_kept_by_its_name(own);
         poller.step(chrome, answer(1, Ok(Some(english))), &handle);
         assert_eq!(
             titles(&writer),
@@ -2368,9 +2369,10 @@ mod tests {
     }
 
     #[test]
-    fn chrome_and_edge_keep_a_normal_title_and_drop_a_private_one_under_english_alone_and_safari_and_a_browser_outside_the_applications_folders_keep_none(
+    fn chrome_keeps_a_normal_title_and_drops_a_private_one_under_english_alone_and_edge_safari_and_a_browser_outside_the_applications_folders_keep_none(
     ) {
-        let normal = "Quarterly plan - Google Docs";
+        let chrome_normal = "Quarterly plan - Google Docs - Google Chrome";
+        let edge_normal = "Quarterly plan - Google Docs - Microsoft Edge";
         let outside = "/Volumes/Stick/Google Chrome.app";
         for (bundle_id, private, place, language, kept, reads, dropped) in [
             (
@@ -2387,7 +2389,7 @@ mod tests {
                 "New Tab - Google Chrome (Incognito)",
                 None,
                 list_of("en-US"),
-                &[normal][..],
+                &[chrome_normal][..],
                 2,
                 1,
             ),
@@ -2414,9 +2416,9 @@ mod tests {
                 "New Tab - Microsoft Edge (InPrivate)",
                 None,
                 list_of("en-US"),
-                &[normal][..],
-                2,
-                1,
+                &[][..],
+                0,
+                0,
             ),
             (
                 "com.microsoft.edgemac",
@@ -2446,6 +2448,11 @@ mod tests {
                 0,
             ),
         ] {
+            let normal = if bundle_id == "com.microsoft.edgemac" {
+                edge_normal
+            } else {
+                chrome_normal
+            };
             let said = SaidLanguage::new(language.clone());
             said.started(40, at(5));
             if let Some(place) = place {
@@ -2498,7 +2505,7 @@ mod tests {
     #[test]
     fn a_language_changed_after_a_browser_started_keeps_no_title_of_that_process_and_the_next_one_has_its_titles(
     ) {
-        let normal = "Quarterly plan - Google Docs";
+        let normal = "Quarterly plan - Google Docs - Google Chrome";
         let private = "New Tab - Google Chrome (Incognito)";
         let chrome = |pid| app("com.google.Chrome", pid);
 

@@ -48,7 +48,7 @@ const _: () = assert!(crate::floor::text::TEXT_MAX_BYTES <= TITLE_READ_CAP_UNITS
 pub struct TitleText {
     text: String,
     ending: String,
-    private_words: Option<&'static str>,
+    own_name: Option<OwnName>,
 }
 
 impl TitleText {
@@ -64,20 +64,20 @@ impl TitleText {
         &self.ending
     }
 
-    /// The same title, read from a window of a browser whose private window
-    /// ends its title with `words`.
-    pub(crate) fn of_a_browser_ending_private_with(self, words: &'static str) -> Self {
+    /// The same title, read from a window of a browser whose titles are kept
+    /// only where they end with `own`.
+    pub(crate) fn of_a_browser_kept_by_its_name(self, own: OwnName) -> Self {
         Self {
-            private_words: Some(words),
+            own_name: Some(own),
             ..self
         }
     }
 
-    /// Whether the title ends with the words that its browser puts at the end
-    /// of a private window's title.
-    pub(crate) fn is_private(&self) -> bool {
-        self.private_words
-            .is_some_and(|words| self.ending.ends_with(words))
+    /// Whether its browser's rule leaves the title out: it was read from
+    /// Chrome, and its ending does not end with Chrome's own name as
+    /// [`OwnName`] reads it.
+    pub(crate) fn left_out_by_its_browser(&self) -> bool {
+        self.own_name.is_some_and(|own| !own.ends(&self.ending))
     }
 
     #[cfg(test)]
@@ -87,7 +87,7 @@ impl TitleText {
         Self {
             text: lossy(&units[..units.len().min(HEAD_READ_UNITS)]),
             ending: lossy(&units[start..]),
-            private_words: None,
+            own_name: None,
         }
     }
 }
@@ -146,23 +146,56 @@ fn bounded_title(text: &CFString) -> TitleText {
     TitleText {
         text: lossy(&head),
         ending: lossy(&units_of(string, start, total - start)),
-        private_words: None,
+        own_name: None,
     }
 }
 
 /// The name of the localization of a browser's bundle under which the rules
-/// keep its titles: the bundle's `en`, for which [`ENGLISH_ENDINGS`] holds
-/// the US-English words of a private window. Whether a bundle's `en` holds
-/// those words is each bundle's own.
+/// keep its titles: the bundle's `en`, for which [`NAME_ENDINGS`] holds the
+/// US-English ending of an ordinary window. Where a language puts its private
+/// words and the name is each translation's own, and no other is read.
 pub(crate) const ENGLISH: &str = "en";
 
-/// Chrome and Edge, each matched whole, with the words that end the title of
-/// its private window in the localization [`ENGLISH`]. Safari is not here: its
+/// What a title of Chrome ends with where Halvo keeps it: the browser's own
+/// name as it ends the title of an ordinary window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OwnName {
+    name: &'static str,
+}
+
+impl OwnName {
+    /// Whether `ending`, with zero-width characters and marks of writing
+    /// direction taken out and the blanks at its end trimmed, ends with the
+    /// name.
+    fn ends(self, ending: &str) -> bool {
+        let text: String = ending.chars().filter(|&c| !is_invisible_mark(c)).collect();
+        text.trim_end().ends_with(self.name)
+    }
+}
+
+/// Whether `c` counts as nothing at the end of a title: a zero-width
+/// character or a mark of writing direction.
+fn is_invisible_mark(c: char) -> bool {
+    matches!(
+        c,
+        '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{2069}' | '\u{FEFF}'
+    )
+}
+
+/// Chrome, matched whole, with the ending of an ordinary window's title in the
+/// localization [`ENGLISH`]: the end of its format for the accessible title of
+/// a tabbed window, ` - Google Chrome`. The title of its Incognito, Guest or
+/// isolated window, of a window under one of several profiles, of an app
+/// window and of a dialog in front ends otherwise. Edge is not here: no source
+/// and no run has read how it ends a title on a Mac, so its id falls to the
+/// closed list and none of its titles is read. Safari is not here either: its
 /// titles are not read.
-pub(crate) const ENGLISH_ENDINGS: [(&str, &str); 2] = [
-    ("com.google.Chrome", "(Incognito)"),
-    ("com.microsoft.edgemac", "(InPrivate)"),
-];
+pub(crate) const NAME_ENDINGS: [(&str, OwnName); 1] = [(
+    "com.google.Chrome",
+    OwnName {
+        name: " - Google Chrome",
+    },
+)];
 
 /// Whether `place`, a bundle's place as the system gives it, lies under
 /// /Applications, /System/Applications or the Applications folder of `home`,
@@ -222,8 +255,8 @@ const BROWSER_BUNDLE_IDS: [&str; 34] = [
 /// What the closed list of browsers says of an app.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Listed {
-    /// One of [`ENGLISH_ENDINGS`], matched whole: the browser and its words.
-    Ending(&'static str, &'static str),
+    /// One of [`NAME_ENDINGS`], matched whole: the browser and its ending.
+    Ending(&'static str, OwnName),
     /// Named by a full id of the list, matched as the head of the app's id
     /// (so com.google.Chrome.canary counts): a browser whatever the system
     /// lists.
@@ -236,11 +269,11 @@ pub(crate) enum Listed {
 }
 
 pub(crate) fn listed(bundle_id: &str) -> Listed {
-    if let Some(&(browser, words)) = ENGLISH_ENDINGS
+    if let Some(&(browser, own)) = NAME_ENDINGS
         .iter()
         .find(|(browser, _)| bundle_id.eq_ignore_ascii_case(browser))
     {
-        return Listed::Ending(browser, words);
+        return Listed::Ending(browser, own);
     }
     let mut domain = false;
     for entry in BROWSER_BUNDLE_IDS {
@@ -261,7 +294,7 @@ pub(crate) fn listed(bundle_id: &str) -> Listed {
 }
 
 /// `Private` for an app that a full id of the closed list names, other than
-/// the three of [`ENGLISH_ENDINGS`]: its titles are not read, whatever the
+/// the one of [`NAME_ENDINGS`]: its titles are not read, whatever the
 /// system says. Every other app's titles are left to the title rules.
 pub(crate) fn window_privacy(bundle_id: Option<&str>) -> PrivateWindow {
     if bundle_id.is_some_and(|id| listed(id) == Listed::Browser) {
@@ -527,9 +560,9 @@ mod tests {
     #[test]
     fn a_chrome_title_is_kept_only_where_it_ends_with_its_own_name_and_no_edge_title_is_kept() {
         let kept = |id: &str, title: &str| match listed(id) {
-            Listed::Ending(_, words) => !TitleText::for_test(title)
-                .of_a_browser_ending_private_with(words)
-                .is_private(),
+            Listed::Ending(_, own) => !TitleText::for_test(title)
+                .of_a_browser_kept_by_its_name(own)
+                .left_out_by_its_browser(),
             _ => false,
         };
         let chrome = "com.google.Chrome";
