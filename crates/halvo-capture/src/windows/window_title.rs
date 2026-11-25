@@ -413,6 +413,10 @@ impl LastTitle {
     pub(crate) fn shows_new(&mut self, window: usize, title: &str) -> bool {
         self.is_new(window, title) && !title.trim().is_empty()
     }
+
+    /// A frame of the frame host came in front with `title`, and rule P
+    /// wrote no title of it.
+    pub(crate) fn passed_by_a_frame(&mut self, _window: usize, _title: &str) {}
 }
 
 struct TitleState {
@@ -678,7 +682,10 @@ fn look_at_the_ask(state: &mut TitleState, now: u32, at_the_ask: bool) {
             state
                 .counts
                 .decided(OsTick::new(ask.asked).age_at(now), at_the_ask);
-            if is_a_frame_of_the_host(HWND(ask.window as *mut core::ffi::c_void)) {
+            let window = HWND(ask.window as *mut core::ffi::c_void);
+            if is_a_frame_of_the_host(window) {
+                let read = read_window_title(window);
+                state.last.passed_by_a_frame(ask.window, &read.text);
                 state
                     .floor
                     .left_out(crate::floor::exclude::DropReason::UnknownLineage);
@@ -2088,6 +2095,20 @@ mod tests {
         assert!(last.is_new(2, "Inbox"));
         assert!(last.is_new(2, "Inbox (1)"));
         assert!(last.is_new(1, "Inbox"));
+    }
+
+    #[test]
+    fn a_return_from_a_frame_of_the_host_emits_the_title_again() {
+        let mut last = LastTitle::default();
+        let first = last.shows_new(1, "Inbox");
+        last.passed_by_a_frame(2, "Settings");
+        let at_the_return = last.shows_new(1, "Inbox");
+        let once_more = last.shows_new(1, "Inbox");
+        assert_eq!(
+            (first, at_the_return, once_more),
+            (true, true, false),
+            "a title, the same title at the return from a frame of the host, and again"
+        );
     }
 
     #[test]
