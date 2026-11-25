@@ -186,6 +186,13 @@ Where a sentence names a unit, that unit makes it true.
   does not know that run's browser; a service on another data directory reads only
   that directory's marks; on Windows Halvo does not read the marks, so there only the
   process tree leaves an agent's browser out.
+- On Windows, a program that Windows shows inside a frame of its own, such as Settings
+  or the Calculator, is recorded under the program's own name. While such a program
+  opens or wakes and its own window does not yet hold the cursor, Halvo records nothing
+  of that window: no app in front, no title, no key, no click and no screen activity,
+  and in that time the Status page can say that Halvo could not tell whether to leave
+  out the app in use. It records the window's title once it has read where the cursor
+  is in the program's own window.
 
 The first-run text and the data view quote these three sentences word for word.
 The owner approves them once, in the table of user-visible sentences for each
