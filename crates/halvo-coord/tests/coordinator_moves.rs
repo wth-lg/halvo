@@ -6024,7 +6024,10 @@ fn rd52a_the_start_of_a_ready_item_answers_queue_full_as_its_row_says() {
         ),
         Err(Cause::QueueFull)
     );
-    assert!(row.errors.contains(&Cause::QueueFull), "queue_full in the row");
+    assert!(
+        row.errors.contains(&Cause::QueueFull),
+        "queue_full in the row"
+    );
     assert!(row.errors.contains(&Cause::Hold), "hold in the row");
 }
 

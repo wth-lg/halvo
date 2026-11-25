@@ -139,10 +139,9 @@ impl StatusLine {
             | StatusLine::KillStuck(_)
             | StatusLine::Deleting => Status::Working,
             StatusLine::Queued | StatusLine::Store => Status::WaitingTurn,
-            StatusLine::New
-            | StatusLine::Done
-            | StatusLine::Nothing
-            | StatusLine::StoppedEarly => Status::AllSet,
+            StatusLine::New | StatusLine::Done | StatusLine::Nothing | StatusLine::StoppedEarly => {
+                Status::AllSet
+            }
         }
     }
 

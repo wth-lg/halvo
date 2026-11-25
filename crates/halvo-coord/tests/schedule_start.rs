@@ -788,7 +788,10 @@ fn u324_a_used_day_refuses_a_start_of_the_scheduler_and_no_start_of_the_person()
         start_step(&fewer, Trigger::Person, &L, &queue),
         "a start of the person that leaves the queue"
     );
-    assert_eq!(go(&start_step(&fewer, Trigger::Schedule, &L, &free())).slot, Some(107));
+    assert_eq!(
+        go(&start_step(&fewer, Trigger::Schedule, &L, &free())).slot,
+        Some(107)
+    );
     assert_eq!(
         cause(&start_step(&used, Trigger::Schedule, &L, &free())),
         Some(Cause::Budget),

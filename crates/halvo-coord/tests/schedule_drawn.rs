@@ -1080,13 +1080,7 @@ fn drawn_sequences_keep_the_schedule_properties_with_the_limits_of_the_models() 
             .unwrap();
     let seen = run_all(limits, 400);
     covered(&seen, &COVERED);
-    covered(
-        &seen,
-        &[
-            "answer Err(QueueFull)",
-            "left Err(State)",
-        ],
-    );
+    covered(&seen, &["answer Err(QueueFull)", "left Err(State)"]);
 }
 
 #[test]
