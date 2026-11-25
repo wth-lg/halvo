@@ -1,7 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # self-test: alone
-# rule: cargo deny check advisories accepts the shipped graph against the committed deny.toml, with no yanked crate and every ignored advisory present in the lock, and npm audit reports no high or critical advisory; both read advisory databases that change with no commit, so the check stands in each daily slice of the macos job and not in the merge gate.
+# rule: cargo deny check advisories accepts the shipped graph against the committed deny.toml, with no yanked crate and every ignored advisory present in the lock, and npm audit reports no high or critical advisory; both read advisory databases that change with no commit, so the check stands in each slice of the macos job and not in the merge gate.
 set -u
 name=25-advisories
 deny_fix='in a pull request of its own, update Cargo.lock to the version that the advisory names as mended, or add { id = "<id>", reason = "<why it does not reach Halvo>, <date>" } to the ignore list of [advisories] in deny.toml; delete an ignore that cargo deny calls advisory-not-detected'

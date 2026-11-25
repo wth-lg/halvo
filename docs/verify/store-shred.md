@@ -2420,7 +2420,7 @@ This file describes the checks of the commit that holds it. One run keeps
 that true for each merged commit, and it needs no commit id that a squash
 merge would change:
 
-- In the Sunday run of the CI workflow and in a run by hand, `12-test` runs
+- In a run by hand of the slice fri, whose group C holds them, `12-test` runs
   the eight tests. In the merge gate of a push or a pull request it skips
   them, because `scripts/ci/slow-tests.txt` names `store::formal_tests`.
 

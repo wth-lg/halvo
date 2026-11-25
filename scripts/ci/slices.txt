@@ -1,5 +1,5 @@
-# The nine slices: what CI runs outside the merge gate, one slice a day, tue2 a second slice on
-# Tuesday and wed2 a second slice on Wednesday.
+# The nine slices: what CI runs outside the merge gate. A slice runs only by hand: the event
+# workflow_dispatch of .github/workflows/ci.yml with the input slice, one slice a run.
 # sh scripts/ci/run-ci-d.sh <job> --slice <slice> runs the lines of its slice and job: first the
 # self-tests, then the checks. A check or a self-test that no line here and no line of
 # scripts/ci/merge-gate.txt names runs in no run of CI.
@@ -28,7 +28,7 @@ tue macos check 55-r6-formal
 tue macos check 25-advisories
 tue windows tests B
 
-# tue2 runs at 04:47 UTC on Tuesday. Its group G came out of the group B, whose slice tue took 994 s in
+# The group G of tue2 came out of the group B, whose slice tue took 994 s in
 # the macos job, on an Apple M1 (Virtual) with 3 processors, and 1,072 s in the windows job, on an AMD
 # EPYC 7763, in the run by hand 45116131132: the lines of G took 224 s and 168 s of the tests there.
 tue2 macos tests G
@@ -42,7 +42,7 @@ wed macos check 32-app-check-page
 wed macos check 25-advisories
 wed windows check 50-windows-functional
 
-# wed2 runs at 04:47 UTC on Wednesday. Its windows checks came from the days that were over 1,000 s on an
+# The windows checks of wed2 came from the slices that were over 1,000 s on an
 # AMD EPYC 7763, each with its seconds there: 60-r6-egress 167 (wed, run 45096596639), 10-egress 215 (thu,
 # 45086425387), 38-app-engine-routes 197 and 80-r6-absent 52 (sat, 45098472482), 10-r7-account 124 (mon,
 # 45050615172); with 141 to 156 s of steps the job is reckoned at 896 to 911 s on that kind. Its run by
@@ -51,7 +51,7 @@ wed windows check 50-windows-functional
 # 45111247085, 45112524657 and 45111386498) and the group F (about 81 s of tests in the third, before
 # its builds); with them, and the test targets of halvo-owner then in F, it took 523 s in the run by
 # hand 45118372937, the step ci.d slice 371 s. Since r8 cut-2 10-r7-account is run by hand, and the
-# windows job runs the group I, the tests of the weekly groups whose code holds no cfg by system, which
+# windows job runs the group I, the tests of the groups of the slices whose code holds no cfg by system, which
 # no macos job runs any more: their tests took 229 s of the windows jobs of mon, tue, tue2 and sat in
 # the runs of 2026-11-24 (by libtest's lines, before their builds), and the windows job of wed2 took
 # 660 s in the run 45396357837 with 10-r7-account's 82 s.

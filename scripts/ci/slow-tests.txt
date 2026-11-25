@@ -48,7 +48,7 @@
 # daemon::owner_props of halvo-capture's unit tests, and halvo-capture's one test
 # daemon::supervisor::tests::a_turn_of_the_search_is_kept_in_the_state_file_and_while_it_is_off_no_worker_may_run
 # (r2 search-switch) (no slice runs H; r8 cut-2, rule R4: a test of code
-# that is the same on both systems runs in the windows job alone); I the tests of the weekly groups
+# that is the same on both systems runs in the windows job alone); I the tests of the groups of the slices
 # that no macos job runs, whose own files hold no cfg by system: the test targets of halvo-schema,
 # halvo-schema-core, halvo-seam, halvo-connect, halvo-policy, halvo-agent-store and halvo-sample, five
 # targets by name and the unit tests of halvo-route-gate and halvo-learn-store (wed2 in the windows
@@ -56,7 +56,7 @@
 # halvo-learn-store depends on that package; of halvo-agent-store's targets, the ten in I hold no case
 # whose result differs by system. A target of those packages whose own file holds a cfg by system,
 # halvo-agent-store's bindings among them, stays in its group as well, so the windows job runs it
-# twice in a week.
+# in two slices.
 # The seconds of the lines of F are those of the macos job in the pull request runs 45111247085,
 # 45112524657 and 45111386498, from libtest's lines, and for a test line the gaps before its lines in
 # the third run's 12-test/line-seconds.txt. B and D were one group,
