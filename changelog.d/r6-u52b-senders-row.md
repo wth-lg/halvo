@@ -1,0 +1,1 @@
+- Added: (routing run, U5.2b) The macos merge gate runs the check 61-r6-senders-egress: the lib, bin and test targets of halvo-model and halvo-connect run under the egress check in its sandbox mode with a list of 127.0.0.1 at the ports 49152 to 65535, and the check fails where a test fails or where a connection, a datagram or a name lookup outside that list is denied.
