@@ -108,7 +108,6 @@ fn expected_keys() -> BTreeSet<String> {
         "problem.refused",
         "problem.budget",
         "problem.kind",
-        "all_set.tried_today",
         "all_set.new",
         "all_set.done",
         "all_set.nothing",
@@ -321,8 +320,6 @@ fn expected_keys() -> BTreeSet<String> {
         "line.problem.no_access_mac",
         "line.problem.no_access_windows",
         "line.problem.answers_saved",
-        "line.problem.answers_saved_today",
-        "line.problem.tried_today",
     ] {
         k.insert(key.to_owned());
     }
@@ -543,7 +540,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 380);
+    assert_eq!(seen.len(), 377);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -1115,7 +1112,7 @@ fn every_status_line_has_its_key_and_its_status() {
         assert_eq!(line.status().name(), status, "{key}");
         assert!(keys.insert(key));
     }
-    assert_eq!(keys.len(), 31);
+    assert_eq!(keys.len(), 30);
 }
 
 #[test]

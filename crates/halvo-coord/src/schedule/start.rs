@@ -105,9 +105,11 @@ pub struct StartStep {
 /// of the person that does not leave the queue then ends the holds `failures` and
 /// `sign_in_refused`; (1) no hold stands, else `hold`, where a
 /// start of the person passes the hold `site_declined` with nothing stored or sent for it,
-/// because its own `run_started` ends that hold (r4 U2.4a); (2) fewer
-/// than `starts_per_day`
-/// `run_started` events of the agent have the facts' day, else `budget`; (3) no run of the
+/// because its own `run_started` ends that hold (r4 U2.4a); (2) for a start of the scheduler, at
+/// the tick or leaving the queue, fewer than `starts_per_day` `run_started` events of the agent
+/// have the facts' day, whatever their triggers, else `budget`; a start of the person passes step
+/// 2 on any day, at the press or leaving the queue, where it is the press's own start, delayed (r4
+/// U3.24); (3) no run of the
 /// agent is live or queued, the agent store has ended its newest run and no `run_ended` of the
 /// agent is owed, else `state`; for a
 /// start of the scheduler the slot rule of I5.3 then holds, for an agent that needs no person
@@ -149,7 +151,7 @@ pub fn start_step<C: ConfigView>(
         .iter()
         .filter(|e| e.day == facts.today && matches!(e.what, What::RunStarted { .. }))
         .count();
-    if today >= limits.starts_per_day as usize {
+    if trigger == Trigger::Schedule && today >= limits.starts_per_day as usize {
         return refused(clear, Cause::Budget);
     }
     let mine = match &facts.doing {
