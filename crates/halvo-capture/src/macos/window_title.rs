@@ -601,6 +601,10 @@ mod tests {
         }
     }
 
+    /// One title a row: made-up titles, and the titles that three runs on a
+    /// hosted Mac read from Chrome 158.0.8127.37 and Edge 157.0.4341.60, sign
+    /// for sign (`as-run` and `run3-`); the port in a message box's title is
+    /// that run's own and differs from run to run.
     #[test]
     fn a_chrome_or_edge_title_is_kept_only_where_it_ends_with_the_browsers_own_name() {
         let kept = |id: &str, title: &str| match listed(id) {
@@ -703,6 +707,98 @@ mod tests {
                 "edge-profile",
                 edge,
                 "Inbox - Microsoft Edge - Personal",
+                true,
+            ),
+            (
+                "edge-a-dash-and-no-name",
+                edge,
+                "Inbox - Microsoft Edge - ",
+                false,
+            ),
+            ("edge-another-tail", edge, "Inbox - Microsoft Edge x", false),
+            (
+                "inprivate-page-title-holding-the-name-and-a-dash",
+                edge,
+                "Notes - Microsoft Edge - x - Microsoft Edge (InPrivate)",
+                false,
+            ),
+            (
+                "run3-chrome-ordinary",
+                chrome,
+                "Halvo probe page - Google Chrome",
+                true,
+            ),
+            (
+                "run3-chrome-private",
+                chrome,
+                "Halvo probe page - Google Chrome (Incognito)",
+                false,
+            ),
+            (
+                "run3-chrome-guest",
+                chrome,
+                "Halvo probe page - Google Chrome (Guest)",
+                false,
+            ),
+            (
+                "run3-chrome-message-box",
+                chrome,
+                "127.0.0.1:49297 says",
+                false,
+            ),
+            (
+                "run3-chrome-private-message-box",
+                chrome,
+                "127.0.0.1:49297 says",
+                false,
+            ),
+            (
+                "run3-chrome-second-profile",
+                chrome,
+                "Halvo probe page - Google Chrome - Person 1",
+                true,
+            ),
+            (
+                "run3-chrome-second-profile-private",
+                chrome,
+                "Halvo probe page - Google Chrome (Incognito)",
+                false,
+            ),
+            (
+                "run3-edge-ordinary",
+                edge,
+                "Halvo probe page - Microsoft Edge",
+                true,
+            ),
+            (
+                "run3-edge-private",
+                edge,
+                "Halvo probe page - Microsoft Edge (InPrivate)",
+                false,
+            ),
+            (
+                "run3-edge-guest",
+                edge,
+                "Halvo probe page - Microsoft Edge (Guest)",
+                false,
+            ),
+            ("run3-edge-message-box", edge, "127.0.0.1:49297 says", false),
+            (
+                "run3-edge-private-message-box",
+                edge,
+                "127.0.0.1:49297 says",
+                false,
+            ),
+            (
+                "run3-edge-second-profile",
+                edge,
+                "Halvo probe page - Microsoft Edge - Profile 2",
+                true,
+            ),
+            (
+                "run3-edge-second-profile-private",
+                edge,
+                "Halvo probe page - Microsoft Edge (InPrivate)",
                 false,
             ),
             (
