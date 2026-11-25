@@ -10,7 +10,8 @@ use crate::guard::Table;
 use crate::types::{
     AgentId, AskedEffect, BindResult, BoundField, BoundFrom, Candidate, CandidateFrom, CardEffect,
     Cause, Choice, ChoiceText, Class, ConfirmAsk, Field, FieldFrom, HandbackAsk, HandbackReason,
-    Item, ItemId, ItemKind, Limits, Origin, Param, ParamEntry, Presenter, System, Unknown, YesNo,
+    Item, ItemId, ItemKind, Kept, Limits, Origin, PageCause, Param, ParamEntry, PayClass,
+    Presenter, System, Unknown, YesNo,
 };
 
 const PIECE_MAX: usize = 1024;
@@ -657,6 +658,62 @@ pub fn compose_check(
         text,
         fields,
         two_choices(ItemKind::Check)?,
+    )
+    .said_by(name)
+}
+
+/// The committed payment or order of the run that holds the hold `amounts`, as the read of the
+/// agent's history gives it (r4 U3.29): its class, its kept fields and the page's amount
+/// afterwards in minor units, or none where the read holds none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Differs {
+    /// The effect's class, `payment` or `purchase`.
+    pub class: Class,
+    /// Its kept fields.
+    pub kept: Vec<Kept>,
+    /// `page_amount`.
+    pub amount: Option<u32>,
+}
+
+/// The item `amounts` (r4 U3.29, rows 2 to 5, 9 and 10 of the ruled words): the title of
+/// `item.amounts.title.<class>` with the agent's name, the text of the card's entry of the
+/// payment or the order, `run.effect.<class>.amount_differs`, the fields of that entry (the payee
+/// or the shop, the allowed amount, the page's amount, the instrument, the site), and the two
+/// choices, Switch it off first. The class is that of `differs`, or of the agent's category
+/// where the read gave none, `category`, and else that of a payment; with no `differs`, or one
+/// whose kept fields the card's reader refuses, the item holds no field.
+pub fn compose_amounts(
+    item: &ItemId,
+    agent: &AgentId,
+    name: &str,
+    category: Option<PayClass>,
+    differs: Option<&Differs>,
+) -> Result<Item, Cause> {
+    let class = differs
+        .and_then(|d| match d.class {
+            Class::Payment => Some(PayClass::Payment),
+            Class::Purchase => Some(PayClass::Purchase),
+            _ => None,
+        })
+        .or(category)
+        .unwrap_or(PayClass::Payment);
+    let title =
+        Key::parse(&format!("item.amounts.title.{}", class.name()))?.text(&[("name", name)])?;
+    let text = say(&format!("run.effect.{}.amount_differs", class.name()))?;
+    let fields = differs
+        .and_then(|d| {
+            let page = PageCause::AmountDiffers { amount: d.amount };
+            CardEffect::sent(d.class, &d.kept, Some(page)).ok()
+        })
+        .map(|entry| entry.fields().to_vec())
+        .unwrap_or_default();
+    Item::amounts(
+        item.clone(),
+        agent.clone(),
+        title,
+        text,
+        fields,
+        two_choices(ItemKind::Amounts)?,
     )
     .said_by(name)
 }

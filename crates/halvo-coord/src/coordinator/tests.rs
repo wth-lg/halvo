@@ -1327,3 +1327,295 @@ fn u322g_one_line_turned_behind_the_stored_answers_sends_one_body_with_the_three
     assert_eq!(sheet_list(&lacks), listed(&["Plan", "Actual"]), "the list");
     assert!(sent_or_stored(&lacks, m).is_empty(), "nothing is stored");
 }
+
+fn pay_agent() -> AgentId {
+    AgentId::parse(&format!("{:032x}", 0xa9)).unwrap()
+}
+
+fn pay_flow() -> WorkflowId {
+    WorkflowId::parse(&format!("{:032x}", 0xf9)).unwrap()
+}
+
+fn pay_run() -> RunId {
+    RunId::parse(&format!("{:032x}", 0x79)).unwrap()
+}
+
+/// The run of the agent of `pay_world` that sent a payment whose amount the site's page afterwards
+/// did not match, as the agent store's record gives it.
+fn pay_past() -> crate::types::PastRun {
+    crate::types::PastRun {
+        run: pay_run(),
+        day: DAY - 1,
+        outcome: crate::types::Outcome::Failed,
+        unknown: 0,
+    }
+}
+
+/// A coordinator after its first tick over the stand-in owner alone, with one scheduled agent of
+/// the category `utility_bill_payment` that does not ask before a start, whose slot is due today,
+/// whose stored events are `stored` and whose newest run, `pay_run`, sent a payment whose amount
+/// on the site's page afterwards could not be matched: the roster's last cause `amount_differs`
+/// with `left` `yes`, and that run's history with the committed payment and the page's amount.
+/// Its stand-in draws one id for each stored event first, so that a new life over the events of
+/// an earlier one mints other item ids, as random ids are.
+fn pay_world(stored: Vec<crate::types::Event>) -> Coordinator<Ports<Config>> {
+    use crate::types::{
+        Class, Digest, EffectId, Kept, LastCause, PageCause, PastEffect, RunHistory,
+    };
+    let ports: Ports<Config> = Ports::with_limits(T0, DAY, Limits::PRODUCT);
+    let config = Config::parse(&format!(
+        "{{\"v\":1,\"workflow\":\"{}\",\"agent\":\"{}\",\"rev\":1,\"category\":\"utility_bill_payment\",\"tier\":\"on_device\",\"reasoning\":\"medium\",\"autonomy\":\"draft_and_confirm\",\"allow\":[],\"caps\":{{\"untrusted\":\"yes\",\"private\":\"yes\",\"external\":\"no\"}},\"limits\":{{\"steps\":20,\"wall_s\":120,\"model_tokens\":0}},\"budget\":null,\"permissions\":[],\"runtime\":\"web\",\"playbook\":1}}",
+        pay_flow(),
+        pay_agent(),
+    ))
+    .unwrap();
+    ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(FullWorkflow {
+            id: pay_flow(),
+            state: WorkflowState::Active,
+            category: Category::UtilityBillPayment,
+            site: None,
+            trigger: WorkflowTrigger::Schedule,
+            period: NonZeroU32::new(2),
+            last: DAY - 2,
+            agent: Some(pay_agent()),
+        }));
+    ports.agents.borrow_mut().push(Agent {
+        workflow: pay_flow(),
+        agent: pay_agent(),
+        config,
+        state: AgentState::Active,
+        slots: ["start", "payee", "instrument"]
+            .iter()
+            .map(|s| Name::parse(s).unwrap())
+            .collect(),
+        session: false,
+        window: false,
+        last: Some(pay_past()),
+        unknown: Vec::new(),
+        refused_run: None,
+        last_cause: Some(LastCause::AmountDiffers),
+    });
+    let kept = |name: &str, value: &str| Kept {
+        name: Name::parse(name).unwrap(),
+        value: vec![value.into()],
+    };
+    ports.histories.borrow_mut().push((
+        pay_agent(),
+        RunHistory {
+            run: pay_past(),
+            effects: vec![PastEffect {
+                effect: EffectId::parse(&format!("{:032x}", 0xe9)).unwrap(),
+                digest: Digest::parse(&"ab".repeat(32)).unwrap(),
+                class: Class::Payment,
+                state: crate::guard::EffectState::Committed,
+                cause: None,
+                kept: vec![
+                    kept("payee", "City Power"),
+                    kept("amount", "42.10 USD"),
+                    kept("instrument", "Card ending 4242"),
+                    kept("origin", "https://site1.example:443"),
+                ],
+                page: Some(PageCause::AmountDiffers { amount: Some(1334) }),
+            }],
+        },
+    ));
+    for _ in 0..stored.len() {
+        let _ = crate::ports::Rng::bytes16(&ports);
+    }
+    ports.events.borrow_mut().extend(stored);
+    let c = Coordinator::new(ports, Limits::PRODUCT);
+    c.tick();
+    c
+}
+
+/// The stored events of a first life of `pay_world`: a run that finished three days ago, so that
+/// the scheduler starts the agent without asking, and the run that sent the payment, of yesterday.
+fn pay_ran() -> Vec<crate::types::Event> {
+    use crate::types::{Event, Trigger, What};
+    let done = RunId::parse(&format!("{:032x}", 0x78)).unwrap();
+    [
+        (
+            DAY - 3,
+            What::RunStarted {
+                run: done.clone(),
+                trigger: Trigger::Person,
+                slot: None,
+            },
+        ),
+        (
+            DAY - 3,
+            What::RunEnded {
+                run: done,
+                cause: RunEnd::Completed,
+                defers: None,
+            },
+        ),
+        (
+            DAY - 1,
+            What::RunStarted {
+                run: pay_run(),
+                trigger: Trigger::Person,
+                slot: None,
+            },
+        ),
+        (
+            DAY - 1,
+            What::RunEnded {
+                run: pay_run(),
+                cause: RunEnd::Failed,
+                defers: None,
+            },
+        ),
+    ]
+    .into_iter()
+    .zip(1..)
+    .map(|((day, what), n)| Event {
+        workflow: pay_flow(),
+        agent: pay_agent(),
+        seq: NonZeroU32::new(n).unwrap(),
+        day,
+        at: i64::from(day) * 86_400_000_000_000,
+        what,
+    })
+    .collect()
+}
+
+fn pay_row(c: &Coordinator<Ports<Config>>) -> Row {
+    c.snapshot()
+        .rows
+        .into_iter()
+        .find(|r| r.agent == pay_agent())
+        .expect("the agent's row")
+}
+
+/// The agent's open items as the page gets them.
+fn pay_items(c: &Coordinator<Ports<Config>>) -> Vec<Item> {
+    c.snapshot()
+        .items
+        .into_iter()
+        .filter(|i| i.agent() == &pay_agent())
+        .collect()
+}
+
+/// The count of the agent's stored `run_started` events.
+fn pay_starts(c: &Coordinator<Ports<Config>>) -> usize {
+    c.ports()
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == pay_agent())
+        .filter(|e| matches!(e.what, crate::types::What::RunStarted { .. }))
+        .count()
+}
+
+/// r4 U3.29 sentence 1: where the agent's newest run ended with the cause `amount_differs` behind
+/// a payment that left (`left` `yes`) and the core's own events hold no answer of the person for
+/// that run, a hold of its own stands: the row reads row 6 of the ruled words and offers what a row
+/// under the hold `check` offers, Switch it off and Delete; ONE item waits with the title of row 3,
+/// the text of row 2, the fields (the payee, the allowed amount under row 9, the page's amount
+/// under row 10, the instrument, the site) and the choices of rows 4 and 5; the scheduler's start
+/// and the person's press are refused. The hold is derived from the record: it stands the same in
+/// a new life, behind the lapse of the earlier life's item. Switch it off sets the hold `off`,
+/// closes the item and leaves the hold standing, so the item comes again at Switch on (way (x) of
+/// the coordinator's log line 20557); I have checked it ends the hold and stores the answer, and
+/// the row then reads row 8, with Start now offered, and the scheduler starts at its next tick.
+#[test]
+fn u329_an_amount_that_could_not_be_matched_is_an_item_under_a_hold_that_the_record_gives() {
+    use crate::types::{Cleared, ItemKind, What};
+    let waits = "It needs you to look at a payment whose amount Halvo could not match.";
+    let fields = [
+        ("Pay to", "City Power"),
+        ("Amount you allowed", "42.10 USD"),
+        ("Amount on the site's page afterwards", "13.34"),
+        ("Pay with", "Card ending 4242"),
+        ("Site", "site1.example"),
+    ];
+    let held = |c: &Coordinator<Ports<Config>>, life: &str| -> Item {
+        let row = pay_row(c);
+        assert_eq!(row.line, waits, "{life}: the row");
+        let controls: Vec<Control> = row.controls.iter().map(|x| x.control).collect();
+        assert_eq!(controls, [Control::SwitchOff, Control::Delete], "{life}");
+        let items = pay_items(c);
+        assert_eq!(items.len(), 1, "{life}: ONE item");
+        let item = items[0].clone();
+        assert_eq!(item.kind(), ItemKind::Amounts, "{life}");
+        assert_eq!(
+            item.title(),
+            "“Paying a utility bill” sent a payment, and Halvo could not match its amount",
+            "{life}"
+        );
+        assert_eq!(item.text(), "It sent this payment, but Halvo could not match the amount on the site's page afterwards to the one you allowed. Check your bank or the site to see what was paid.", "{life}");
+        let shown: Vec<(&str, String)> = item
+            .fields()
+            .iter()
+            .map(|f| (f.label.as_str(), f.value.concat()))
+            .collect();
+        let want: Vec<(&str, String)> = fields.iter().map(|(l, v)| (*l, (*v).to_owned())).collect();
+        assert_eq!(shown, want, "{life}: the fields");
+        let choices: Vec<(Choice, &str)> = item
+            .choices()
+            .iter()
+            .map(|c| (c.choice, c.text.as_str()))
+            .collect();
+        assert_eq!(
+            choices,
+            [
+                (Choice::SwitchOff, "Switch it off"),
+                (Choice::Seen, "I have checked it")
+            ],
+            "{life}: the choices"
+        );
+        let starts = pay_starts(c);
+        assert_eq!(
+            c.control(&pay_agent(), Action::RunNow),
+            Err(Cause::Hold),
+            "{life}: the person's press"
+        );
+        c.tick();
+        assert_eq!(pay_starts(c), starts, "{life}: the scheduler's start");
+        item
+    };
+    let first = pay_world(pay_ran());
+    let earlier = held(&first, "the first life");
+    let stored = first.ports().events.borrow().clone();
+    let c = pay_world(stored);
+    let item = held(&c, "a new life");
+    assert_ne!(
+        item.item(),
+        earlier.item(),
+        "a new item behind the lapse of the earlier one"
+    );
+    assert_eq!(
+        c.answer(item.item(), Choice::SwitchOff, None, item.step()),
+        Ok(())
+    );
+    let off = pay_row(&c);
+    assert_eq!(off.line, "You switched it off, so it does not start.");
+    assert!(pay_items(&c).is_empty(), "Switch it off closes the item");
+    assert_eq!(c.control(&pay_agent(), Action::SwitchOn), Ok(()));
+    let again = held(&c, "behind Switch on");
+    assert_eq!(
+        c.answer(again.item(), Choice::Seen, None, again.step()),
+        Ok(())
+    );
+    let answered = pay_row(&c);
+    assert_eq!(
+        answered.line,
+        "Last time, it sent a payment, and Halvo could not match the amount on the site's page afterwards."
+    );
+    assert!(answered
+        .controls
+        .iter()
+        .any(|x| x.control == Control::RunNow));
+    assert!(pay_items(&c).is_empty(), "no item waits");
+    let cleared = c.ports().events.borrow().iter().any(|e| {
+        matches!(&e.what, What::HoldCleared { cause: Cleared::Amounts { run } } if *run == pay_run())
+    });
+    assert!(cleared, "the answer is stored");
+    let starts = pay_starts(&c);
+    c.tick();
+    assert_eq!(pay_starts(&c), starts + 1, "the scheduler starts it");
+}

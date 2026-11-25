@@ -108,6 +108,7 @@ pub const fn choices(kind: ItemKind) -> [Choice; 2] {
         ItemKind::Check => [Choice::TryAgain, Choice::WentThrough],
         ItemKind::Setup => [Choice::None, Choice::Choose],
         ItemKind::Ready => [Choice::Skip, Choice::Start],
+        ItemKind::Amounts => [Choice::SwitchOff, Choice::Seen],
     }
 }
 

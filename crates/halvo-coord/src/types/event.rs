@@ -168,6 +168,8 @@ pub enum Answered {
     Ready(ReadyAnswer),
     /// `show`.
     Show(DoneAnswer),
+    /// `amounts` (r4 U3.29).
+    Amounts(AmountsAnswer),
 }
 
 impl Answered {
@@ -182,6 +184,7 @@ impl Answered {
             Answered::Setup(_) => ItemKind::Setup,
             Answered::Ready(_) => ItemKind::Ready,
             Answered::Show(_) => ItemKind::Show,
+            Answered::Amounts(_) => ItemKind::Amounts,
         }
     }
 
@@ -196,6 +199,7 @@ impl Answered {
             Answered::Check(a) => Some(a.choice()),
             Answered::Setup(a) => Some(a.choice()),
             Answered::Ready(a) => Some(a.choice()),
+            Answered::Amounts(a) => Some(a.choice()),
         }
     }
 }
@@ -281,6 +285,26 @@ names! {
     }
 }
 
+names! {
+    /// The two choices of `amounts` (r4 U3.29, rows 4 and 5 of the ruled words): `switch_off`
+    /// sets the hold `off` and leaves the hold `amounts` standing; `seen`, the person's I have
+    /// checked it, ends the hold `amounts`.
+    AmountsAnswer {
+        SwitchOff = "switch_off",
+        Seen = "seen",
+    }
+}
+
+impl AmountsAnswer {
+    /// The choice.
+    pub const fn choice(self) -> Choice {
+        match self {
+            AmountsAnswer::SwitchOff => Choice::SwitchOff,
+            AmountsAnswer::Seen => Choice::Seen,
+        }
+    }
+}
+
 impl DoneAnswer {
     /// The choice.
     pub const fn choice(self) -> Choice {
@@ -357,6 +381,8 @@ pub enum Lapsed {
     Ready(OtherLapse),
     /// `show`.
     Show(OtherLapse),
+    /// `amounts` (r4 U3.29).
+    Amounts(OtherLapse),
 }
 
 names! {
@@ -426,6 +452,7 @@ impl Lapsed {
             Lapsed::Setup(_) => ItemKind::Setup,
             Lapsed::Ready(_) => ItemKind::Ready,
             Lapsed::Show(_) => ItemKind::Show,
+            Lapsed::Amounts(_) => ItemKind::Amounts,
         }
     }
 
@@ -439,7 +466,8 @@ impl Lapsed {
             | Lapsed::Check(o)
             | Lapsed::Setup(o)
             | Lapsed::Ready(o)
-            | Lapsed::Show(o) => o.cause(),
+            | Lapsed::Show(o)
+            | Lapsed::Amounts(o) => o.cause(),
         }
     }
 }
@@ -480,6 +508,9 @@ pub enum Raised {
     Ready,
     /// `show`, from the first run in the mode `compile`.
     Show(RunId),
+    /// `amounts`, from the hold `amounts`, with the run whose payment or order it names (r4
+    /// U3.29).
+    Amounts(RunId),
 }
 
 impl Raised {
@@ -494,6 +525,7 @@ impl Raised {
             Raised::Setup => ItemKind::Setup,
             Raised::Ready => ItemKind::Ready,
             Raised::Show(_) => ItemKind::Show,
+            Raised::Amounts(_) => ItemKind::Amounts,
         }
     }
 
@@ -504,7 +536,8 @@ impl Raised {
             | Raised::SignIn(r)
             | Raised::LinkAccount(r)
             | Raised::Stuck(r)
-            | Raised::Show(r) => Some(r),
+            | Raised::Show(r)
+            | Raised::Amounts(r) => Some(r),
             Raised::Check(r) => r.as_ref(),
             Raised::Setup | Raised::Ready => None,
         }
@@ -542,6 +575,11 @@ pub enum Cleared {
     /// `sign_in_refused`: the hold after a refused sign-in ended, with the run whose sign it
     /// answered (ruling RD-73 4.2).
     SignInRefused {
+        /// `run`.
+        run: RunId,
+    },
+    /// `amounts`: the hold `amounts` of a run ended by the person's I have checked it (r4 U3.29).
+    Amounts {
         /// `run`.
         run: RunId,
     },
