@@ -15,6 +15,7 @@ const WRITES = [
   "approve_workflow",
   "dismiss_workflow",
   "delete_workflow",
+  "set_up_sheet_agent",
   "agents_answer",
   "agents_setup_typed",
   "agents_present",

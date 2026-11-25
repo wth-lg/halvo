@@ -196,7 +196,7 @@ mod tests {
             for running in [&[][..], &[1], &[60_000]] {
                 for estimate in [1, 4_000, 50_000, 50_001, u64::MAX] {
                     assert_eq!(
-                        admit(&release::ruling(), room, estimate, running),
+                        admit(&Ruling::None, room, estimate, running),
                         Admission::Refuse(AdmitCause::Ruling),
                         "{room:?} {running:?} {estimate}"
                     );
@@ -316,14 +316,14 @@ mod tests {
         );
     }
 
-    fn under_release(room: Option<&Room>, estimate: Micro, running: &[Micro]) -> Admission {
-        admit(&release::ruling(), room, estimate, running)
+    fn under_none(room: Option<&Room>, estimate: Micro, running: &[Micro]) -> Admission {
+        admit(&Ruling::None, room, estimate, running)
     }
 
     #[test]
     fn admit_estimate_zero_comes_first() {
         type Ask = fn(Option<&Room>, Micro, &[Micro]) -> Admission;
-        let asks: [(&str, Ask); 2] = [("release", under_release), ("test", admit_under_test_value)];
+        let asks: [(&str, Ask); 2] = [("none", under_none), ("test", admit_under_test_value)];
         for (ruling, ask) in asks {
             for room in [Some(&ROOM), None] {
                 for running in [&[][..], &[u64::MAX, u64::MAX], &[60_000]] {

@@ -8,6 +8,7 @@
     "allow-workflows",
     "allow-approve-workflow",
     "allow-dismiss-workflow",
-    "allow-delete-workflow"
+    "allow-delete-workflow",
+    "allow-set-up-sheet-agent"
   ]
 }

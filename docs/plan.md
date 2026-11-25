@@ -93,7 +93,7 @@ depends-on: R1
 gate: verifier | on a labelled capture sample the identifier proposes the seed workflow categories with precision and recall recorded against a held-out set
 
 ### R3: Agent setup
-goal: configure one agent per identified workflow with a preset model tier, reasoning level, budget and autonomy, and decide whether each agent is confirmed before it runs
+goal: configure one agent per identified workflow, and one for a spreadsheet workflow that the person sets up by hand without waiting for one to be identified, with a preset model tier, reasoning level, budget and autonomy, and decide whether each agent is confirmed before it runs
 owner: builder and researcher (counts set by the next run)
 writes: the product agent-configuration module
 fan-out: per option
@@ -145,14 +145,14 @@ open: subscription, billing and backend architecture, holding no captured data: 
 ### Core data structures
 These are the product's records for later runs; they stay in plan.md and are not committed as code in this run.
 - Capture stream event: one record inside an encrypted segment: an id (UUID v7), the capture instant with the sink's sequence number, the kind (screen_frame, keystroke, pointer, foreground_app, window_title, system_audio, microphone, camera), the app id (bundle id or executable path) and a payload typed for the kind. The database holds no per-event row (ADR 0009). A record carries no flag for derived data and no retention class. The segment reference and the segment key id are facts of the segment row, not of an event. The read position is a segment ordinal plus a record index, and it is never reused. core-2 and store-4 fix the exact field names.
-- Workflow model: workflow_id (UUID), label (string), trigger (sum type: app_context, schedule, manual), steps (ordered list of action descriptors), recurrence (observed count plus period), confidence (float 0 to 1), state (enum: proposed, approved, active, paused, deleted), agent_id (optional foreign key).
+- Workflow model: workflow_id (UUID), label (string), trigger (sum type: app_context, schedule, manual), steps (ordered list of action descriptors), recurrence (observed count plus period; a count of 1 and no period for a workflow that the person set up by hand), confidence (float 0 to 1), state (enum: proposed, approved, active, paused, deleted), agent_id (optional foreign key).
 - Agent configuration: agent_id (UUID), workflow_id (foreign key), model_tier (enum: on_device, low_cost_hosted, frontier; no vendor name), reasoning_level (enum: low, medium, high), budget_cap (minor-currency integer plus a period enum), autonomy_mode (enum: observe, draft_and_confirm, unattended), required_permissions (set of OS permission ids), playbook_ref (handle to the context playbook or Agent Skills folder), state_version (integer, versioned per edit).
 
 ### Concurrency and shared state
 - capture: the capture daemon, the only process that opens the capture store and the sole writer of the capture stream and the encrypted segments. The app starts it as its child (ADR 0007): on macOS the login item com.halvo.desktop starts the app with --background and has KeepAlive with SuccessfulExit false; on Windows the per-user Run value starts the app with --background. Owns the capture-stream store.
 - analysis and workflow identification: a child that the capture daemon starts; it holds no key and reads the capture stream through the daemon, over an inherited byte stream, a read channel that R1 does not build (contract C18 item 6); it writes the workflow store and the playbooks, which sit in a registered subdirectory of the one data directory. Owns the workflow store.
 - agents: per-workflow runners; read the agent configuration and the playbook, write run logs and append playbook deltas. Own the run-log store; playbook writes are serialized through the analysis writer so no store has two writers.
-- interface: the Tauri window; reads workflow and agent state read-only, writes user decisions (approve, spend cap, answers). Owns the user-decision store.
+- interface: the Tauri window; reads workflow and agent state read-only, writes user decisions (approve, set up by hand, spend cap, answers). Owns the user-decision store.
 - shared state: the capture stream (capture writes, analysis reads), the version string (read-only, from Cargo.toml), and a key chain of three levels (ADR 0005): the custody root wraps the store key, the store key wraps each segment key, and each segment key encrypts one segment. The custody follows the cargo feature secure-enclave (ADR 0010): an unsigned build keeps the root in a per-user root file under roots/ of the data directory, protected by DPAPI on Windows. Derived stores sit in registered subdirectories of the one data directory. Each store has exactly one writer.
 
 ### Frontend and backend boundary

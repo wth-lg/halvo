@@ -1,6 +1,6 @@
 use halvo_route::leave::{grant, Consent, LeaveCause, PartKind};
 use halvo_route::prices::Micro;
-use halvo_route::release;
+use halvo_route::ruling::Ruling;
 use halvo_route::spend::{step, Account, Hold, Move, SpendCause, State};
 use halvo_route::tier::Tier;
 
@@ -150,7 +150,7 @@ fn refusal_second_dispatch() {
 
 #[test]
 fn refusal_ruling_none() {
-    let ruling = release::ruling();
+    let ruling = Ruling::None;
     for tier in [Tier::LowCostHosted, Tier::Frontier] {
         let answer = grant(
             &ruling,

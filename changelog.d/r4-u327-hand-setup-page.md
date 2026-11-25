@@ -1,0 +1,1 @@
+- Added: Set up the spreadsheet agent by hand with the button Set up a spreadsheet agent at the end of What Halvo noticed, without waiting for Halvo to notice a task; Halvo keeps one such agent at a time

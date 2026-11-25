@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 const PINNED: [(&str, &str); 5] = [
     (
         "src/leave.rs",
-        "991379b4cb1f90816d00fcd5b4ea4c754354d41cf360f9af2f14984ea9c61c3f",
+        "c0155aaf2817a46a99b9f1f0022a16ccc96d1c090b5fbc22ec8dd537b39f9c86",
     ),
     (
         "src/lib.rs",
@@ -14,7 +14,7 @@ const PINNED: [(&str, &str); 5] = [
     ),
     (
         "src/ruling.rs",
-        "58f146ea9865fe9c070fb15eded36eb4f22bb60a9fafe54025b888bfd462b80d",
+        "e425bcb3f02cd9a06312ec5a27a141149ff3dc3b909080dc6e7cc89705584541",
     ),
     (
         "src/tier.rs",
