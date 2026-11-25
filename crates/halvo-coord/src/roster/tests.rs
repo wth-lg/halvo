@@ -328,41 +328,32 @@ fn u323_day(starts: u32, last: RunEnd, cause: Option<LastCause>, after: &[What])
     f
 }
 
-/// r4 U3.23 sentence 1, as the coordinator's ruling of log line 19955 words it: where an agent has
-/// starts_per_day run_started events of today, no hold and no item that waits for the person, its
-/// row behind a last run that failed with a cause whose sentence names a new start (a) or with no
-/// cause (e) says that it could not finish and has started as often as it may today; behind a
-/// cause whose sentence names Change its answers (b) it keeps that sentence; behind answers saved
-/// after a failed run (c) it says that they are saved and that it has started as often as it may
-/// today; behind a last run that finished (d) it says the day's line of main. With one start fewer
-/// today each row reads the line of main.
+/// r4 U3.24 sentence 2: where an agent has starts_per_day run_started events of today, its row
+/// offers the controls that it offers with one start fewer, Start now among them, with no hold
+/// and with the hold `failures` (f); and its line in each state of the ruling reads the ruled
+/// sentence: behind a failed run with a cause whose sentence names a new start (a) or names
+/// Change its answers (b), behind answers saved after a failed run (c), behind a run that
+/// finished (d), behind a failed run with no cause (e), and under the hold `failures` (f).
 #[test]
-fn u323_on_a_day_with_all_its_starts_used_the_row_says_so_whatever_its_last_run_did() {
+fn u324_on_a_day_with_all_its_starts_used_the_row_offers_start_now_and_says_what_is_true() {
     let day = Limits::PRODUCT.starts_per_day;
     let failed = RunEnd::Failed;
-    let failed_today = "Last time, it could not finish its task. It has started as often as it may today, so it waits until tomorrow.";
-    let no_workbook = "Halvo did not find the spreadsheet file where you said it is. Then choose Change its answers.";
     let saved = [What::ItemAnswered {
         item: ItemId::parse(&format!("{:032x}", 0x78ff)).unwrap(),
         answer: Answered::Setup(crate::types::SetupAnswer::Choose),
     }];
-    /// A case: its name, the last run's end and cause, the events behind that end, the line with
-    /// all the day's starts used and the line with one start fewer.
-    type Case<'a> = (
-        &'a str,
-        RunEnd,
-        Option<LastCause>,
-        &'a [What],
-        &'a str,
-        &'a str,
-    );
-    let rows: [Case; 5] = [
+    let held = [What::HoldSet {
+        cause: HoldSetCause::Failures,
+    }];
+    /// A case: its name, the last run's end and cause, the events behind that end, and the line
+    /// with all the day's starts used.
+    type Case<'a> = (&'a str, RunEnd, Option<LastCause>, &'a [What], &'a str);
+    let rows: [Case; 6] = [
         (
             "a",
             failed,
             Some(LastCause::Changed),
             &[],
-            failed_today,
             "The spreadsheet file changed while the agent worked, so Halvo left it as it was. Choose Start now to try again.",
         ),
         (
@@ -370,15 +361,13 @@ fn u323_on_a_day_with_all_its_starts_used_the_row_says_so_whatever_its_last_run_
             failed,
             Some(LastCause::NoWorkbook),
             &[],
-            no_workbook,
-            no_workbook,
+            "Halvo did not find the spreadsheet file where you said it is. Then choose Change its answers.",
         ),
         (
             "c",
             failed,
             Some(LastCause::Changed),
             &saved,
-            "Its answers are saved. It has started as often as it may today, so it waits until tomorrow.",
             "Its answers are saved. Choose Start now to try again.",
         ),
         (
@@ -386,7 +375,6 @@ fn u323_on_a_day_with_all_its_starts_used_the_row_says_so_whatever_its_last_run_
             RunEnd::Completed,
             None,
             &[],
-            "It has started as often as it may today, so it waits until tomorrow.",
             "Last time, it finished its task.",
         ),
         (
@@ -394,63 +382,33 @@ fn u323_on_a_day_with_all_its_starts_used_the_row_says_so_whatever_its_last_run_
             failed,
             None,
             &[],
-            failed_today,
             "Last time, it could not finish its task.",
+        ),
+        (
+            "f",
+            RunEnd::Completed,
+            None,
+            &held,
+            "Halvo switched it off after several tries in a row did not work. To try again, choose Switch on.",
         ),
     ];
     let mut wrong = Vec::new();
-    for (case, last, cause, after, used, fewer) in rows {
-        for (starts, want) in [(day, used), (day - 1, fewer)] {
+    for (case, last, cause, after, want) in rows {
+        let read = |starts: u32| {
             let f = u323_day(starts, last, cause, after);
             let line = status(&f, &Limits::PRODUCT, None);
             let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
-            if r.line != want {
-                wrong.push(format!(
-                    "({case}) with {starts} starts today reads {:?}, not {want:?}",
-                    r.line
-                ));
-            }
-        }
-    }
-    assert!(wrong.is_empty(), "{wrong:#?}");
-}
-
-/// r4 U3.23 sentence 2: where an agent has starts_per_day run_started events of today, so that
-/// step 2 of a start refuses a start of the person with budget, its row offers no Start now,
-/// whatever hold stands (here none, and the hold `failures`), and every other control as on main,
-/// Change its answers among them; with one start fewer today Start now stands.
-#[test]
-fn u323_on_a_day_with_all_its_starts_used_the_row_offers_no_start_now() {
-    use Control::{ChangeAnswers, Delete, RunNow, SwitchOff, SwitchOn};
-    let day = Limits::PRODUCT.starts_per_day;
-    let held = [What::HoldSet {
-        cause: HoldSetCause::Failures,
-    }];
-    let rows: [(&[What], u32, Vec<Control>); 4] = [
-        (&[], day, vec![SwitchOff, ChangeAnswers, Delete]),
-        (&[], day - 1, vec![RunNow, SwitchOff, ChangeAnswers, Delete]),
-        (&held, day, vec![SwitchOn, ChangeAnswers, Delete]),
-        (
-            &held,
-            day - 1,
-            vec![RunNow, SwitchOn, ChangeAnswers, Delete],
-        ),
-    ];
-    let mut wrong = Vec::new();
-    for (after, starts, want) in rows {
-        let f = u323_day(starts, RunEnd::Completed, None, after);
-        let line = status(&f, &Limits::PRODUCT, None);
-        let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
-        let shown: Vec<Control> = r.controls.iter().map(|c| c.control).collect();
-        if shown != want {
-            let hold = if after.is_empty() {
-                "no hold"
-            } else {
-                "the hold failures"
-            };
+            let controls: Vec<Control> = r.controls.iter().map(|c| c.control).collect();
+            (r.line, controls)
+        };
+        let ((line, used), (_, fewer)) = (read(day), read(day - 1));
+        if used != fewer || !fewer.contains(&Control::RunNow) {
             wrong.push(format!(
-                "{hold}, {starts} starts today: {shown:?}, not {want:?}"
+                "({case}) controls {used:?} with all starts used, {fewer:?} with one fewer"
             ));
+        }
+        if line != want {
+            wrong.push(format!("({case}) reads {line:?}, not {want:?}"));
         }
     }
     assert!(wrong.is_empty(), "{wrong:#?}");

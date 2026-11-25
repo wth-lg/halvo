@@ -2547,9 +2547,16 @@ fn a_run_started_whose_acknowledgement_was_lost_is_closed_in_this_life_and_count
     );
     c.ports().ports.set_clock(T0 + 3_000, DAY);
     c.tick();
-    assert_eq!(
-        row_line(&c.snapshot(), 0),
-        text(&halvo_coord::types::StatusLine::TriedToday.key()),
+    let today = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.day == DAY && matches!(e.what, What::RunStarted { .. }))
+        .count();
+    assert!(
+        today >= limits.starts_per_day as usize,
         "the lost row and the next start make starts_per_day"
     );
 }
