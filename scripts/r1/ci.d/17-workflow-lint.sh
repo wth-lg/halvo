@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read, actions: write at most (for the step Keep one Rust cache) and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the one line timeout-minutes with the bound ci_gate_job_timeout_min, on every event, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag but one whose name begins with dev- (a development snapshot); pull_request is the other event, no event schedule stands, and the event workflow_dispatch is taken when it is its line and the lines of pin_dispatch under it, the inputs slice and checks, and is not required. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, and no line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are runs-on, timeout-minutes and steps at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at crons_text blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, or those lines and the line pin_id after them, and the letters rust-cache stand on no other line but one that runs scripts/ci/keep-one-rust-cache.sh with a job or --self-test. A step condition must be always(), or one of seven that each belong to their steps alone: the step ci.d merge gate carries github.event_name == 'push' || github.event_name == 'pull_request', so a push and a pull request run the merge gate and no slice; the steps Slice and ci.d slice carry github.event_name == 'workflow_dispatch'; the steps Self-tests that commit in throwaway repositories and Scripts and hook in a core.autocrlf=true clone carry steps.slice.outputs.name == 'fri'; the step Keep one Rust cache carries github.event_name == 'push' && github.ref == 'refs/heads/main'; the step Restore the release build of the slice sun carries steps.slice.outputs.name == 'sun' || steps.slice.outputs.name == 'tue'; the step Save the release build of the slice sun, in each job, carries steps.slice.outputs.name == 'sun' && github.ref == 'refs/heads/main'; the step Restore the release build of the slice sun for thu and sun carries steps.slice.outputs.name == 'sun' || steps.slice.outputs.name == 'thu'; a step must have no continue-on-error key. The lint reads a condition by the value that YAML decodes from a plain scalar, so lines folded into one, a comment behind it and blanks around it change nothing, refuses a condition in quotes or in a block, and reads a step's name by its value in any style. Review each changed step command in the diff; this pin does not read what a step runs, and so not which slice the step Slice takes from the input slice. The block concurrency: stands once, as the line 'concurrency:' in column 1 with the two pinned lines pin_group and pin_cancel under it and nothing else, and no other line names concurrency or cancel-in-progress: the push runs of the branch main share one group, in which the run at work ends and one pending run waits, a pull request has a group by its ref, in which alone a newer run cancels the run at work, and every other run has a group by its commit or by its run. The push filters are pin_branches and pin_tags. The cache lines are pin_uses, pin_with, pin_prefix, pin_save and pin_id below; they make every event restore the Rust build cache of main and a push to main alone save one.
+# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read, actions: write at most (for the step Keep one Rust cache) and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the one line timeout-minutes with the bound ci_gate_job_timeout_min, on every event, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag but one whose name begins with dev- (a development snapshot); pull_request is the other event, no event schedule stands, and the event workflow_dispatch is taken when it is its line and the lines of pin_dispatch under it, the inputs slice, checks and os, and is not required. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, and no line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are runs-on, timeout-minutes, steps and if at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at crons_text blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, or those lines and the line pin_id after them, and the letters rust-cache stand on no other line but one that runs scripts/ci/keep-one-rust-cache.sh with a job or --self-test. A job's condition, its key if, is the one line pin_if_macos in the job macos and pin_if_windows in the job windows, also by the value that YAML decodes, and where the block on: holds the event workflow_dispatch each job holds it: so a push run and a pull request's run start both jobs, and a run by hand starts the job of each system that its input os names, both where it is not given. A step condition must be always(), or one of seven that each belong to their steps alone: the step ci.d merge gate carries github.event_name == 'push' || github.event_name == 'pull_request', so a push and a pull request run the merge gate and no slice; the steps Slice and ci.d slice carry github.event_name == 'workflow_dispatch'; the steps Self-tests that commit in throwaway repositories and Scripts and hook in a core.autocrlf=true clone carry steps.slice.outputs.name == 'fri'; the step Keep one Rust cache carries github.event_name == 'push' && github.ref == 'refs/heads/main'; the step Restore the release build of the slice sun carries steps.slice.outputs.name == 'sun' || steps.slice.outputs.name == 'tue'; the step Save the release build of the slice sun, in each job, carries steps.slice.outputs.name == 'sun' && github.ref == 'refs/heads/main'; the step Restore the release build of the slice sun for thu and sun carries steps.slice.outputs.name == 'sun' || steps.slice.outputs.name == 'thu'; a step must have no continue-on-error key. The lint reads a condition by the value that YAML decodes from a plain scalar, so lines folded into one, a comment behind it and blanks around it change nothing, refuses a condition in quotes or in a block, and reads a step's name by its value in any style. Review each changed step command in the diff; this pin does not read what a step runs, and so not which slice the step Slice takes from the input slice. The block concurrency: stands once, as the line 'concurrency:' in column 1 with the two pinned lines pin_group and pin_cancel under it and nothing else, and no other line names concurrency or cancel-in-progress: the push runs of the branch main share one group, in which the run at work ends and one pending run waits, a pull request has a group by its ref, in which alone a newer run cancels the run at work, and every other run has a group by its commit or by its run. The push filters are pin_branches and pin_tags. The cache lines are pin_uses, pin_with, pin_prefix, pin_save and pin_id below; they make every event restore the Rust build cache of main and a push to main alone save one.
 set -u
 name=17-workflow-lint
 pinned_version=1.7.12
@@ -15,7 +15,9 @@ pin_with="        with:"
 pin_prefix="          prefix-key: v0-rust"
 pin_save="          save-if: \${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}"
 pin_id="        id: cache"
-pin_dispatch="    inputs:${nl}      slice:${nl}        description: The slice of scripts/ci/slices.txt to run${nl}        type: choice${nl}        options: [mon, tue, tue2, wed, wed2, thu, fri, sat, sun]${nl}        default: mon${nl}      checks:${nl}        description: In place of the slice, these checks alone, each with its self-test (names with blanks between them)${nl}        type: string${nl}        default: ''"
+pin_dispatch="    inputs:${nl}      slice:${nl}        description: The slice of scripts/ci/slices.txt to run${nl}        type: choice${nl}        options: [mon, tue, tue2, wed, wed2, thu, fri, sat, sun]${nl}        default: mon${nl}      checks:${nl}        description: In place of the slice, these checks alone, each with its self-test (names with blanks between them)${nl}        type: string${nl}        default: ''${nl}      os:${nl}        description: The system whose job runs, both or one alone (the job of the other system is skipped and takes no runner)${nl}        type: choice${nl}        options: [both, macos, windows]${nl}        default: both"
+pin_if_macos="    if: github.event_name != 'workflow_dispatch' || inputs.os == 'both' || inputs.os == 'macos'"
+pin_if_windows="    if: github.event_name != 'workflow_dispatch' || inputs.os == 'both' || inputs.os == 'windows'"
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -185,7 +187,7 @@ EOF
       ;;
   esac
 
-  pins=$(LC_ALL=C PIN_DISPATCH=$pin_dispatch PIN_BRANCHES=$pin_branches PIN_TAGS=$pin_tags PIN_USES=$pin_uses PIN_WITH=$pin_with PIN_PREFIX=$pin_prefix PIN_SAVE=$pin_save PIN_ID=$pin_id awk -v q="'" '
+  pins=$(LC_ALL=C PIN_DISPATCH=$pin_dispatch PIN_IF_MACOS=$pin_if_macos PIN_IF_WINDOWS=$pin_if_windows PIN_BRANCHES=$pin_branches PIN_TAGS=$pin_tags PIN_USES=$pin_uses PIN_WITH=$pin_with PIN_PREFIX=$pin_prefix PIN_SAVE=$pin_save PIN_ID=$pin_id awk -v q="'" '
     function decode(s,    out, h, n, k) {
       out = ""
       while (match(s, /\\(x[0-9A-Fa-f][0-9A-Fa-f]|u[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]|U[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f])/)) {
@@ -301,6 +303,8 @@ EOF
         if (line == "  macos:" || line == "  windows:") {
           job = substr(line, 3, length(line) - 3)
           jline = NR
+          jn[jid] = job
+          jl[jid] = NR
           jfirst = 1
           insteps = 0
           stepsseen = 0
@@ -347,6 +351,11 @@ EOF
         if (v ~ /^[|>]/) {
           add(NR, shown(line) " is an own key of the job " job " whose value begins a block scalar; this lint reads no block scalar on a job" q "s own key; write the value on its line")
           bad()
+          return
+        }
+        if (line ~ /^    if:( |$)/) {
+          jif[jid]++
+          if (line != wantif[job]) add(NR, shown(line) " stands where this lint reads the condition of the job " job ", " shown(wantif[job]) "; " differ(line, wantif[job]) "; write " shown(wantif[job]) held("pin_if_" job))
         }
         return
       }
@@ -394,6 +403,10 @@ EOF
       pinned["pin_with"] = "with line of the Rust cache step"
       pinned["pin_prefix"] = "prefix-key line"
       pinned["pin_save"] = "save-if line"
+      pinned["pin_if_macos"] = "condition of the job macos"
+      pinned["pin_if_windows"] = "condition of the job windows"
+      wantif["macos"] = ENVIRON["PIN_IF_MACOS"]
+      wantif["windows"] = ENVIRON["PIN_IF_WINDOWS"]
       PIN_USES = want[1]; PIN_WITH = want[2]; PIN_PREFIX = want[3]; PIN_SAVE = want[4]
       dispatch_want = split(ENVIRON["PIN_DISPATCH"], dispatch, "\n")
     }
@@ -435,6 +448,9 @@ EOF
       if (!ons && !onother) add(0, "no line of the file is " shown("on:") " alone in column 1; this lint reads the events under that line; write them")
       if (!nf && (pushes != 1 || pull_requests != 1 || branch_filters != 1 || tag_filters != 1 || other_event || dispatches > 1 || (dispatches == 1 && dispatch_lines != dispatch_want)))
         add(onstart, "write the push filters and the pull_request event under " shown("on:") ": under " shown("  push:") " write " shown(ENVIRON["PIN_BRANCHES"]) " and " shown(ENVIRON["PIN_TAGS"]) "; write " shown("  pull_request:") " without filters; the event of a run by hand is the line " shown("  workflow_dispatch:") " with the " dispatch_want " lines of the variable pin_dispatch at the top of scripts/r1/ci.d/17-workflow-lint.sh under it and nothing else")
+      if (dispatches)
+        for (j = 1; j <= jid; j++)
+          if (jn[j] != "" && !jbad[j] && !jif[j]) add(jl[j], "the job " jn[j] " holds no line " shown(wantif[jn[j]]) "; where the block on: holds the event workflow_dispatch, this lint reads that line among the job" q "s own keys above " shown("    steps:") ", so that a run by hand starts the job only where its input os names the job" q "s system or both; write it" held("pin_if_" jn[j]))
       for (a = 2; a <= nf; a++)
         for (b = a; b > 1 && at[b - 1] > at[b]; b--) {
           t = at[b]; at[b] = at[b - 1]; at[b - 1] = t
@@ -449,7 +465,7 @@ $pins
 EOF
 
   if [ "$findings" -eq 0 ]; then
-    policy=$(ruby -rpsych -e '
+    policy=$(PIN_IF_MACOS=$pin_if_macos PIN_IF_WINDOWS=$pin_if_windows ruby -rpsych -e '
       def pairs(mapping)
         mapping.children.each_slice(2)
       end
@@ -467,8 +483,13 @@ EOF
       _, jobs = pairs(workflow).find { |key, _| key.value == "jobs" }
       pairs(jobs).each do |job, mapping|
         pairs(mapping).each do |key, value|
+          if key.value == "if"
+            wanted = ENV.fetch(job.value == "macos" ? "PIN_IF_MACOS" : "PIN_IF_WINDOWS").delete_prefix("    if: ")
+            puts "job #{job.value}: the condition of the job is the plain scalar #{wanted} alone, on its line, the variable pin_if_#{job.value}" unless plain.call(value) == wanted
+            next
+          end
           unless %w[runs-on timeout-minutes steps].include?(key.value)
-            puts "job #{job.value} has key #{key.value}; use only runs-on, timeout-minutes and steps"
+            puts "job #{job.value} has key #{key.value}; use only runs-on, timeout-minutes and steps, and the condition if that this lint pins for the job"
             next
           end
           next unless key.value == "steps"
@@ -615,17 +636,17 @@ EOF
   ci=
 
   lines job-if-pr-only 18 "  windows:${nl}    if: github.event_name == 'pull_request'" 9 "  macos:${nl}    if: github.event_name == 'pull_request'"
-  check job-if-pr-only FAIL 'use only runs-on, timeout-minutes and steps'
+  check job-if-pr-only FAIL "' stands where this lint reads the condition of the job macos, '${pin_if_macos}'"
   lines job-if-skip-tags 18 "  windows:${nl}    if: \"!startsWith(github.ref, 'refs/tags/')\"" 9 "  macos:${nl}    if: \"!startsWith(github.ref, 'refs/tags/')\""
-  check job-if-skip-tags FAIL 'use only runs-on, timeout-minutes and steps'
+  check job-if-skip-tags FAIL "' stands where this lint reads the condition of the job macos, '${pin_if_macos}'"
   lines job-if-skip-main 18 "  windows:${nl}    if: github.ref != 'refs/heads/main'" 9 "  macos:${nl}    if: github.ref != 'refs/heads/main'"
-  check job-if-skip-main FAIL 'use only runs-on, timeout-minutes and steps'
+  check job-if-skip-main FAIL "' stands where this lint reads the condition of the job macos, '${pin_if_macos}'"
   lines job-if-skip-schedule 18 "  windows:${nl}    if: github.event_name != 'schedule'" 9 "  macos:${nl}    if: github.event_name != 'schedule'"
-  check job-if-skip-schedule FAIL 'use only runs-on, timeout-minutes and steps'
+  check job-if-skip-schedule FAIL "' stands where this lint reads the condition of the job macos, '${pin_if_macos}'"
   lines job-if-skip-scratch 18 "  windows:${nl}    if: github.event_name != 'push' || github.ref == 'refs/heads/main'" 9 "  macos:${nl}    if: github.event_name != 'push' || github.ref == 'refs/heads/main'"
-  check job-if-skip-scratch FAIL 'use only runs-on, timeout-minutes and steps'
+  check job-if-skip-scratch FAIL "' stands where this lint reads the condition of the job macos, '${pin_if_macos}'"
   lines job-if-push-only 9 "  macos:${nl}    if: github.event_name == 'push'"
-  check job-if-push-only FAIL 'use only runs-on, timeout-minutes and steps'
+  check job-if-push-only FAIL "' stands where this lint reads the condition of the job macos, '${pin_if_macos}'"
   lines job-key-continue-on-error 9 "  macos:${nl}    continue-on-error: true"
   check job-key-continue-on-error FAIL 'use only runs-on, timeout-minutes and steps'
   lines job-key-strategy 9 "  macos:${nl}    strategy: {matrix: {build: [check]}}"
@@ -680,6 +701,10 @@ EOF
   check c01-a-push-run-of-main-cancels-the-run-at-work FAIL 'ci.yml must hold the block concurrency: once'
   lines c02-no-concurrency-block 7 - 6 - 5 -
   check c02-no-concurrency-block FAIL 'ci.yml must hold the block concurrency: once'
+  lines o01-macos-condition-that-skips-a-push-run 34 "  pull_request:${nl}  workflow_dispatch:${nl}$pin_dispatch" 18 "  windows:${nl}$pin_if_windows" 9 "  macos:${nl}    if: inputs.os == 'both' || inputs.os == 'macos'"
+  check o01-macos-condition-that-skips-a-push-run FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 10: '    if: inputs.os == 'both' || inputs.os == 'macos'' stands where this lint reads the condition of the job macos, '${pin_if_macos}'; it differs from the line to write first at column 9, which holds the sign i where the line to write holds the sign g; write '${pin_if_macos}'; the pin holds the condition of the job macos in the variable pin_if_macos at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
+  lines o02-windows-condition-missing-beside-the-dispatch 34 "  pull_request:${nl}  workflow_dispatch:${nl}$pin_dispatch" 9 "  macos:${nl}$pin_if_macos"
+  check o02-windows-condition-missing-beside-the-dispatch FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 19: the job windows holds no line '${pin_if_windows}'; where the block on: holds the event workflow_dispatch, this lint reads that line among the job's own keys above '    steps:', so that a run by hand starts the job only where its input os names the job's system or both; write it; the pin holds the condition of the job windows in the variable pin_if_windows at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
   tree pinned-and-timed ''
   check pinned-and-timed PASS 'jobs: 2, uses keys: 4, findings: 0'
   tree action-on-a-tag '13s/@[0-9a-f]* # v7.0.1/@v7/'
