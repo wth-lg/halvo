@@ -20,6 +20,7 @@ use halvo_schema::{AgentId, Category, ErrorName, WorkflowId};
 
 use super::ask::{Grammar, Level, ModelRequest, Place, OUTPUT_LIMIT};
 use crate::link::{encode, Link};
+use crate::route::{Call, Picked};
 use crate::run::Runner;
 
 /// The made-up key of these tests: visible ASCII, held by no file but this one.
@@ -130,18 +131,26 @@ fn scratch(name: &str) -> PathBuf {
         .expect("make the scratch directory")
 }
 
-fn request(prompt: &str) -> ModelRequest {
+fn request(prompt: &str) -> (Picked, ModelRequest) {
     asked(prompt, Grammar::Action, Level::Medium)
 }
 
-fn asked(prompt: &str, grammar: Grammar, level: Level) -> ModelRequest {
-    ModelRequest {
-        system: "Be brief.".to_owned(),
-        prompt: prompt.to_owned(),
-        snapshot: None,
-        grammar,
-        level,
-    }
+/// A request of `grammar` and the pick of a test that it is asked with: the kind of call of that grammar, the tier
+/// `frontier` and `level` (crate::route::picked_for_a_test).
+fn asked(prompt: &str, grammar: Grammar, level: Level) -> (Picked, ModelRequest) {
+    let call = match grammar {
+        Grammar::Action => Call::Compile,
+        Grammar::Text => Call::Write,
+    };
+    (
+        crate::route::picked_for_a_test(call, ModelTier::Frontier, level),
+        ModelRequest {
+            system: "Be brief.".to_owned(),
+            prompt: prompt.to_owned(),
+            snapshot: None,
+            grammar,
+        },
+    )
 }
 
 /// What `supervise` gives back: every frame of the runner, parsed and as its bytes; every frame to the runner as its
@@ -236,7 +245,7 @@ fn supervise(
 fn run_once(
     hosted: bool,
     answers: Answers,
-    drive: Vec<ModelRequest>,
+    drive: Vec<(Picked, ModelRequest)>,
     record: &Path,
     data: &Path,
 ) -> Seen {

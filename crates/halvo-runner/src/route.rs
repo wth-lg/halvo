@@ -22,17 +22,46 @@ use halvo_schema::SeedCategory;
 use crate::model::ask;
 
 /// The kind of a run's model request: the next action of a compile, or the body of a reply.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "no shipped code makes the variant Compile; r3 U7.2b makes it live"
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Call {
     Compile,
     Write,
+}
+
+/// What the router's pick chose for one model request of a run: the kind of the call, the run's own tier and the level
+/// of the request. `picked` alone makes it, since its fields are private to this module, and `ask` takes it
+/// (crate::model::ask), so that a caller that did not pick does not compile; `ask` reads the request's level from it
+/// and from nowhere else, and holds the request's grammar against its kind of call (the coordinator's ruling on the
+/// pick as a value).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Picked {
+    call: Call,
+    tier: ModelTier,
+    level: ask::Level,
+}
+
+impl Picked {
+    /// The kind of the call that the pick was made for, which `ask` holds against the request's grammar.
+    pub(crate) fn call(&self) -> Call {
+        self.call
+    }
+
+    /// The tier that the pick chose, which is always the run's own tier.
+    pub(crate) fn tier(&self) -> ModelTier {
+        self.tier
+    }
+
+    /// The level that the pick chose for the request.
+    pub(crate) fn level(&self) -> ask::Level {
+        self.level
+    }
+}
+
+/// The pick of a unit test's request, made by hand: in a test build alone, for the tests that ask with a kind of call,
+/// a tier and a level of their own through a run whose release policy hands every call back (crate::model's tests).
+#[cfg(test)]
+pub(crate) fn picked_for_a_test(call: Call, tier: ModelTier, level: ask::Level) -> Picked {
+    Picked { call, tier, level }
 }
 
 /// The router handed the call back, or picked a tier other than the run's own: the run sends no model request and
@@ -46,11 +75,12 @@ thread_local! {
     pub(crate) static TEST_POLICY: std::cell::Cell<Option<&'static Policy>> = const { std::cell::Cell::new(None) };
 }
 
-/// The level of the request of the kind `call` of a run whose load is `loaded`: the router's pick on the release
-/// policy, for the agent's category and `call`, with the agent's own tier as the ceiling. The pick's level where
-/// the pick's tier is the agent's own tier, the tier that the person allowed and the door is started with; else
-/// `Shortfall`, for a pick that hands the call back and for a pick of a lower tier.
-pub(crate) fn level(loaded: &LoadReply, call: Call) -> Result<ask::Level, Shortfall> {
+/// The pick for the request of the kind `call` of a run whose load is `loaded`, the one maker of `Picked`: the router's
+/// pick on the release policy, for the agent's category and `call`, with the agent's own tier as the ceiling. A
+/// `Picked` of `call`, that tier and the pick's level where the pick's tier is the agent's own tier, the tier that the
+/// person allowed and the door is started with; else `Shortfall`, for a pick that hands the call back and for a pick
+/// of a lower tier.
+pub(crate) fn picked(loaded: &LoadReply, call: Call) -> Result<Picked, Shortfall> {
     #[cfg(test)]
     let table = TEST_POLICY
         .with(std::cell::Cell::get)
@@ -63,10 +93,14 @@ pub(crate) fn level(loaded: &LoadReply, call: Call) -> Result<ask::Level, Shortf
         Call::Write => CallKind::Write,
     };
     match pick(table, category(loaded.config.category), kind, own) {
-        Pick::Tier { tier, level } if tier == own => Ok(match level {
-            Level::Low => ask::Level::Low,
-            Level::Medium => ask::Level::Medium,
-            Level::High => ask::Level::High,
+        Pick::Tier { tier, level } if tier == own => Ok(Picked {
+            call,
+            tier: loaded.config.tier,
+            level: match level {
+                Level::Low => ask::Level::Low,
+                Level::Medium => ask::Level::Medium,
+                Level::High => ask::Level::High,
+            },
         }),
         Pick::Tier { .. } | Pick::HandBack(_) | Pick::NoModel => Err(Shortfall),
     }
@@ -95,27 +129,6 @@ fn tier(tier: ModelTier) -> Tier {
         ModelTier::LowCostHosted => Tier::LowCostHosted,
         ModelTier::Frontier => Tier::Frontier,
     }
-}
-
-/// A policy for a unit test of another module of the runner (the tests of crate::compile): the release policy's text
-/// with `cells` in the place of the rows of their category and kind, read for both hosted tiers, as the test module's
-/// own `policy_with` makes it.
-#[cfg(test)]
-pub(crate) fn test_policy(cells: &[&str]) -> &'static Policy {
-    let mut text = policy().to_text();
-    for cell in cells {
-        let head: Vec<&str> = cell.split('\t').take(2).collect();
-        let prefix = format!("{}\t{}\t", head[0], head[1]);
-        let line = text
-            .lines()
-            .find(|line| line.starts_with(&prefix))
-            .expect("a row of the cell")
-            .to_owned();
-        text = text.replacen(&format!("{line}\n"), &format!("{cell}\n"), 1);
-    }
-    let table = Policy::parse_for(&text, &[Tier::LowCostHosted, Tier::Frontier])
-        .expect("the test's policy parses");
-    Box::leak(Box::new(table))
 }
 
 #[cfg(test)]
@@ -161,7 +174,7 @@ pub(crate) mod tests {
         Box::leak(Box::new(table))
     }
 
-    /// The level that `level` answers for a run of `category` at `tier` that asks for `call` on `table`.
+    /// The level of the pick that `picked` makes for a run of `category` at `tier` that asks for `call` on `table`.
     fn level_on(
         table: &'static Policy,
         category: Category,
@@ -169,7 +182,7 @@ pub(crate) mod tests {
         call: Call,
     ) -> Result<ask::Level, Shortfall> {
         TEST_POLICY.with(|cell| cell.set(Some(table)));
-        let answer = level(&loaded(category, tier), call);
+        let answer = picked(&loaded(category, tier), call).map(|pick| pick.level());
         TEST_POLICY.with(|cell| cell.set(None));
         answer
     }
@@ -299,5 +312,49 @@ pub(crate) mod tests {
             SeedCategory::ALL.len()
         );
         assert_eq!(picked, Vec::<(&str, &str)>::new());
+    }
+
+    /// A test's probe of whether `T` has a default, or converts from `U`: the inherent const where the bound holds,
+    /// the trait's otherwise (the form of crate::model::snapshot's test of its type).
+    struct Probe<T, U>(std::marker::PhantomData<(T, U)>);
+
+    trait NoBuild {
+        const BUILDS: bool = false;
+    }
+
+    impl<T, U> NoBuild for Probe<T, U> {}
+
+    impl<T: From<U>, U> Probe<T, U> {
+        const BUILDS: bool = true;
+    }
+
+    struct Default_<T>(std::marker::PhantomData<T>);
+    impl<T> NoBuild for Default_<T> {}
+    impl<T: Default> Default_<T> {
+        const BUILDS: bool = true;
+    }
+
+    /// The pick is a value that `picked` alone makes: a value made by hand does not build as it. Its fields are
+    /// private to this module, so no struct literal of another module compiles (the compiler says it); and it has no
+    /// default and no conversion from what it carries, which this test reads.
+    #[test]
+    fn u72b_a_value_made_by_hand_does_not_build_as_the_pick() {
+        let builds = [
+            ("Default", Default_::<Picked>::BUILDS),
+            ("From<Call>", Probe::<Picked, Call>::BUILDS),
+            ("From<ModelTier>", Probe::<Picked, ModelTier>::BUILDS),
+            ("From<Level>", Probe::<Picked, ask::Level>::BUILDS),
+            (
+                "From<(Call, ModelTier, Level)>",
+                Probe::<Picked, (Call, ModelTier, ask::Level)>::BUILDS,
+            ),
+        ];
+        let control = [
+            ("String: Default", Default_::<String>::BUILDS),
+            ("String: From<&str>", Probe::<String, &str>::BUILDS),
+        ];
+        println!("the pick: {builds:?}; control: {control:?}");
+        assert!(builds.iter().all(|(_, b)| !b), "{builds:?}");
+        assert!(control.iter().all(|(_, b)| *b), "{control:?}");
     }
 }

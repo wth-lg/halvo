@@ -4,7 +4,7 @@
 //! each act and one after each handback; the door is a STAND-IN: this test binary started as the entry
 //! `stand_in_model` alone, which records each request line and answers it from the test's script. No test here
 //! starts halvo-model or opens a socket. The router's policy is the release policy, where every compile cell hands
-//! back, or a policy of the test (crate::route::test_policy) set for the test's own thread.
+//! back, or a policy of the test (crate::route::tests::policy_with) set for the test's own thread.
 
 use std::collections::VecDeque;
 use std::ffi::OsString;
@@ -589,7 +589,7 @@ fn run(
         program: std::env::current_exe().expect("the test binary"),
         before,
     });
-    let policy = open.map(crate::route::test_policy);
+    let policy = open.map(crate::route::tests::policy_with);
     crate::route::TEST_POLICY.with(|cell| cell.set(policy));
     let status = runner.run();
     crate::route::TEST_POLICY.with(|cell| cell.set(None));

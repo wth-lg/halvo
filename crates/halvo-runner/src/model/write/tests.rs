@@ -96,11 +96,14 @@ fn output(word: &str) -> Result<String, &'static str> {
     }
 }
 
-/// The word in square brackets of `text`, `plain` where it holds none.
+/// The first word in square brackets of `text` that is no mark `[slot NAME]` of the mask, `plain` where it holds
+/// none.
 fn word_of(text: &str) -> &str {
-    text.split_once('[')
-        .and_then(|(_, rest)| rest.split_once(']'))
-        .map_or("plain", |(word, _)| word)
+    text.split('[')
+        .skip(1)
+        .filter_map(|rest| rest.split_once(']').map(|(word, _)| word))
+        .find(|word| !word.starts_with("slot "))
+        .unwrap_or("plain")
 }
 
 /// THE STAND-IN DOOR: in a run of the tests it returns at once; started by a test's runner, with the record directory
@@ -170,10 +173,11 @@ fn message(id: &str, words: &str) -> Value {
     })
 }
 
-/// The text of `message` as a request must hold it.
+/// The text of `message` as a request must hold it: the mark of the listed senders in the place of the sender, and
+/// its subject and its body, which hold no text of a slot of the load.
 fn text_of(message: &Value) -> String {
     format!(
-        "From: {SENDER}\nSubject: {}\n{}",
+        "From: [slot reply_senders]\nSubject: {}\n{}",
         message["subject"].as_str().unwrap_or(""),
         message["body"]["content"].as_str().unwrap_or("")
     )
@@ -735,7 +739,8 @@ fn trial(path: &str) -> String {
 
 /// Sentence 1: the body of a reply is the writer model's text, asked through `ask` alone: one request line for each
 /// message, with the trial's boundary text whole as its `system`, the trial's goal text of a reply with its end
-/// trimmed as its `prompt`, the message's sender, subject and body as its `snapshot` and nothing else of the mail,
+/// trimmed as its `prompt`, the mark of the listed senders and the message's subject and body as its `snapshot` and
+/// nothing else of the mail,
 /// the grammar `text` and the pick's level `medium`, a hold before it and a settle behind it; the draft's PATCH and
 /// the card hold the model's text with the source `model`. A message whose text would make the line pass the door's
 /// bound is cut at its last line end that fits, so that the hold names what the door would send.

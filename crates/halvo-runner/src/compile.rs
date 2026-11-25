@@ -307,7 +307,7 @@ fn failed(cause: Cause) -> Stop {
 impl Runner {
     /// The compile's drive of the agent of `loaded` (the module's doc): `completed` once the model answers `done`.
     pub(crate) fn compile(&mut self, loaded: &LoadReply) -> Result<Outcome, Stop> {
-        route::level(loaded, Call::Compile).map_err(|_| shortfall())?;
+        route::picked(loaded, Call::Compile).map_err(|_| shortfall())?;
         let goal = goal(loaded.config.category).ok_or_else(shortfall)?;
         let category = loaded.config.category;
         let mut drive = Drive {
@@ -338,7 +338,7 @@ impl Runner {
             self.within_wall()?;
             self.check()?;
             self.within_tokens(&drive, loaded)?;
-            let level = route::level(loaded, Call::Compile).map_err(|_| shortfall())?;
+            let picked = route::picked(loaded, Call::Compile).map_err(|_| shortfall())?;
             let request = ModelRequest {
                 system: system(),
                 prompt: words::frame(
@@ -350,9 +350,8 @@ impl Runner {
                 ),
                 snapshot: Some(snapshot),
                 grammar: Grammar::Action,
-                level,
             };
-            let reply = match self.ask(&request)? {
+            let reply = match self.ask(&picked, &request)? {
                 Answer::Reply {
                     text,
                     tokens_in,
@@ -639,7 +638,7 @@ impl Runner {
 }
 
 /// The load's slots, in the load's order.
-fn slots(loaded: &LoadReply) -> &[halvo_schema::executable::record::Slot] {
+pub(crate) fn slots(loaded: &LoadReply) -> &[halvo_schema::executable::record::Slot] {
     loaded
         .bindings
         .as_ref()

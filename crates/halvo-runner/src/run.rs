@@ -130,10 +130,10 @@ pub(crate) struct Runner {
     /// The stand-in door that a unit test gives in the place of halvo-model beside the runner.
     #[cfg(test)]
     pub(crate) stand_in_door: Option<crate::model::ask::Place>,
-    /// The requests that a unit test of crate::model asks through `ask` after the check of a compile and before its
-    /// drive (crate::compile).
+    /// The requests that a unit test of crate::model asks through `ask`, each with the pick of a test
+    /// (`crate::route::picked_for_a_test`), after the check of a compile and before its drive (crate::compile).
     #[cfg(test)]
-    pub(crate) drive: Vec<crate::model::ask::ModelRequest>,
+    pub(crate) drive: Vec<(crate::route::Picked, crate::model::ask::ModelRequest)>,
 }
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
@@ -215,8 +215,8 @@ impl Runner {
         if self.args.mode == Mode::Compile {
             self.hosted_model(&loaded.config)?;
             #[cfg(test)]
-            for request in std::mem::take(&mut self.drive) {
-                self.ask(&request)?;
+            for (picked, request) in std::mem::take(&mut self.drive) {
+                self.ask(&picked, &request)?;
             }
             if self.hosted.is_some()
                 && loaded.config.runtime == Runtime::Web

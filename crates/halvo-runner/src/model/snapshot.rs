@@ -66,13 +66,6 @@ impl Snapshot {
     /// The snapshot of a message that the agent answers, for a run whose load's slots are `slots`: the From line
     /// `FROM`, the subject and the body each cleaned of the marker strings of A9.5 (`cleaned`) and masked, in the
     /// trial's form `From: ...`, `Subject: ...`, the body.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "r3 U7.4's writer takes it at the join of r3 U7.2b with the main that holds it"
-        )
-    )]
     pub(crate) fn of_a_message(subject: &str, body: &str, slots: &[Slot]) -> Snapshot {
         let forms = forms(slots);
         Snapshot(format!(
@@ -85,6 +78,23 @@ impl Snapshot {
     /// The text, as the request line holds it.
     pub(crate) fn text(&self) -> &str {
         &self.0
+    }
+
+    /// The count of the text's lines, as `str::split` at the line break counts them.
+    pub(crate) fn line_count(&self) -> usize {
+        self.0.split('\n').count()
+    }
+
+    /// The first `count` lines of the text, joined by line breaks: a part of a text that the mask made, which holds
+    /// no text that the whole did not hold (the writer's cut to the door's bound, crate::model::write).
+    pub(crate) fn first_lines(&self, count: usize) -> Snapshot {
+        Snapshot(
+            self.0
+                .split('\n')
+                .take(count)
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
     }
 }
 
