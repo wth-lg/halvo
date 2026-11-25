@@ -1336,9 +1336,13 @@ fn u322g_one_line_turned_behind_the_stored_answers_sends_one_body_with_the_three
 /// the answer that does not say `more` makes the ONE body with the four values. Through the
 /// coordinator: the last line of a first set-up with `more` sends no body and stores no row, and
 /// the item reaches the page byte for byte as the open item that it was; Not now sends nothing and
-/// the item stays; a line turned with `more` sends nothing; the line that does not say `more` sends
-/// ONE body with the turned line in it. Behind Change its answers, four lines with `more` send
-/// nothing, and Not now closes the item with nothing sent or stored.
+/// the item stays. A line that the core does not take leaves its question with no line, an earlier
+/// one goes (the ruling of log line 22120, (11); a rule that stood before this unit): a line for
+/// one question of the full item that is answered ok and not taken, then a line for another
+/// question that does not say `more`, send NO body. Then a line for that question with `more`
+/// sends nothing, and the line that does not say `more` sends ONE body with that line in it.
+/// Behind Change its answers, four lines with `more` send nothing, and Not now closes the item
+/// with nothing sent or stored.
 #[test]
 fn u330_a_set_up_makes_its_body_at_an_answer_that_does_not_say_more_and_at_no_other_move() {
     use crate::items::{setup_step, setup_step_more, Setup, SetupMove, SetupParam, SetupState};
@@ -1451,6 +1455,23 @@ fn u330_a_set_up_makes_its_body_at_an_answer_that_does_not_say_more_and_at_no_ot
     );
     assert!(sent_or_stored(&c, m).is_empty(), "Not now: no body, no row");
     assert_eq!(read(&c), before, "Not now: the item stays");
+    assert_eq!(
+        c.setup_typed_more(item.item(), Param::Range, "zzz", item.step()),
+        Ok(()),
+        "a line of one question of the full item that the core does not take"
+    );
+    assert_eq!(
+        not_taken_of(&c, Param::Range).as_deref(),
+        Some(CELLS_NOT_READ)
+    );
+    assert_eq!(
+        c.setup_typed(item.item(), Param::Source, source, item.step()),
+        Ok(())
+    );
+    assert!(
+        sent_or_stored(&c, m).is_empty(),
+        "then a call that does not say `more` for another question: NO body"
+    );
     assert_eq!(
         c.setup_typed_more(item.item(), Param::Range, "B2:D5", item.step()),
         Ok(())
