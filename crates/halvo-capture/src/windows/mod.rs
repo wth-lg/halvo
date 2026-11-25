@@ -713,9 +713,12 @@ impl Drop for Lifecycle {
 
 /// The process of the window in front, read again when the window in front
 /// changes, and the process of the top-level window under the pointer, read
-/// again when that window changes. A window of the frame host, whose program
-/// can come, go or change while the window stays, and a window whose path
-/// could not be read, are read again at each call.
+/// again when that window changes. In between, each call reads again by
+/// `foreground::front_again`: for a window of the frame host, the program in
+/// it, and the program's path only where the program changed, so that a frame
+/// whose program's path could not be read keeps that answer while the program
+/// stays and its events are left out under unknown lineage; for any other
+/// window whose path could not be read, the whole app.
 #[derive(Debug, Default)]
 pub(crate) struct FrontCache {
     window: usize,

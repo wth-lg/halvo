@@ -359,9 +359,13 @@ pub(crate) fn resolve_front(hwnd: HWND) -> Option<FrontApp> {
 }
 
 /// The app of `hwnd` read again where the app that a cache holds for that
-/// window can have changed while the window stayed: a window of the frame
-/// host, whose program can come, go or change, and a window whose path could
-/// not be read. None where `cached` still stands.
+/// window can have changed while the window stayed. Where `cached` names a
+/// program inside a frame of the frame host, the program in the frame is read
+/// again, and a new app is made only where the program changed, so a program
+/// whose path could not be read keeps its answer while it stays; where
+/// `cached` has no path and is the window's own process, as a frame with no
+/// program found or a window whose path could not be read, the app is read
+/// again whole. None where `cached` still stands.
 #[cfg(target_os = "windows")]
 pub(crate) fn front_again(hwnd: HWND, cached: &FrontApp) -> Option<FrontApp> {
     let mut pid: u32 = 0;
