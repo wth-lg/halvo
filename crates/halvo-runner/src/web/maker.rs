@@ -16,9 +16,11 @@
 //! while its request is held, and a change of the page after the act is not seen before the `begin`; the slots of its
 //! class it reads again at each load.
 //!
-//! What the maker reads as made: the HTTP status of the response of the request that left, as the rule paused it,
-//! 200 alone; every other status is answered, and no response within `STEP_TIMEOUT` is no reply, both of which leave
-//! the effect not known. After a reply read as made, and never while the request is held (r3 U5.10-B), the maker
+//! What the maker reads as made: the HTTP status of the request that left as the executor keeps it
+//! (`Executor::released_status`), that of its response as the rule paused it or, where that response is a 301, 302 or
+//! 303 with a Location, that of the response of the browser's ONE hop after it (r3 U5.10-R), 200 alone; every other
+//! status, a second redirect among them, is answered, and no status within `STEP_TIMEOUT` is no reply, both of which
+//! leave the effect not known. After a reply read as made, and never while the request is held (r3 U5.10-B), the maker
 //! reads the page (`page_after`): its amounts for a `payment` and a `purchase` (`page_amounts`, `amounts_named`), and
 //! for a step with conditions `post` the page that they are read on; then the rule's record, where a request of the
 //! page that the rule failed ends the run `refused` with `origin`; then the step's conditions `post`.

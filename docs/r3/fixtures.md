@@ -365,6 +365,7 @@ the variants in the order of this table, each once.
 | `charged_no_amount` | the frame after a `/charge` that is recorded shows its heading alone and names no amount charged |
 | `form_amount` | the payment frame's form, of both kinds, carries one more hidden field, `amount`, whose value is the amount that the frame shows, written as a page amount; `/charge` reads no posted amount and records the amount that the token stands for |
 | `form_amount_other` | as `form_amount`, but the field carries the shown amount with 100 minor units added, as `amount_changes` adds them, while the frame still shows the amount that the token stands for, and `/charge` records that amount. Choice: where both are on, this variant wins |
+| `charge_redirect` | a `/charge` that is recorded is answered 303 with the Location `/receipt?id=<n>`, relative to the pay host, and `GET /receipt?id=<n>` answers 200 with the frame after that charge, as `/charge` answers it without the variant; an id that no charge gave, and `/receipt` without the variant, get 404. Choice: with `slow_charge` on as well, the answer of `slow_charge` comes and no redirect |
 
 Two variants serve the runner's own cases of A5.4, which the port's suite of U4.2 runs
 (`crates/halvo-runner/src/release/suite.rs`): `no_reply` holds the request of the case
