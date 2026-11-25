@@ -1569,11 +1569,15 @@ impl PasswordGate {
     /// that number. Only a read numbered behind it is a read of the window
     /// since it came in front. The request is the switch's own: a read asked
     /// before the switch that lands after it does not end it. Nothing waits
-    /// for the read.
+    /// for the read. The word counts a move of the cursor's place, as a focus
+    /// event and a latch do, so that a read begun after it lets the kept
+    /// password element go where it finds another element and no focus event
+    /// is in flight.
     pub(crate) fn switched_to(&self, window: usize, now: u32) -> u64 {
         let number = {
             let mut marks = self.shared.lock();
             let number = marks.asked;
+            marks.moves += 1;
             marks.switch = Some((window, number));
             marks.switch_read = Some((now.wrapping_add(ms(LATCH_SETTLE)), number));
             number
