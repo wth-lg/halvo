@@ -4314,17 +4314,15 @@ fn the_first_own_read_after_a_start_reads_the_focused_password_field() {
 /// of the product reads it.
 const ORDER_SECOND_LATER_ENV: &str = "HALVO_VERIFY_ORDER_SECOND_LATER";
 
-/// The bound that the order row prints beside its distances, in tick periods:
-/// how far after the row's own read behind a key's send the key's record could
-/// lie by the counter alone. The record is the clock less the key's age, a
-/// difference of two readings of GetTickCount (the message time of the key's
-/// WM_INPUT and the tick of its release, windows/secure_input.rs), rounded
-/// down to its second; that counter moves at each clock interrupt, "typically
-/// in the range of 10 milliseconds to 16 milliseconds" (Microsoft Learn,
-/// GetTickCount). One period is the age's own error, the other the release's
-/// time between its tick read and the stamp's clock read, which no line
-/// bounds. The row's question does not read it: no record of a later second
-/// passes.
+/// How far after the order row's own read behind a key's send the key's
+/// record may lie, in tick periods. The record is the clock less the key's
+/// age, a difference of two readings of GetTickCount (the message time of the
+/// key's WM_INPUT and the tick of its release, windows/secure_input.rs),
+/// rounded down to its second; that counter moves at each clock interrupt,
+/// "typically in the range of 10 milliseconds to 16 milliseconds" (Microsoft
+/// Learn, GetTickCount). One period is the age's own error, the other the
+/// release's time between its tick read and the stamp's clock read, which no
+/// line bounds. Only a record of the next second can lie after the read.
 const ORDER_EDGE_PERIODS: u128 = 2;
 
 #[test]
@@ -4389,11 +4387,15 @@ fn capture_times_follow_the_input_order() {
         let edge_bound = Duration::from_millis(
             u64::try_from(ORDER_EDGE_PERIODS * tick_period_ms).unwrap_or(u64::MAX),
         );
+        let in_their_second = |at: &SystemTime, sent: &SystemTime| match sent.duration_since(*at) {
+            Ok(before) => before < Duration::from_millis(1_250),
+            Err(after) => after.duration() <= edge_bound,
+        };
         let keys_in_their_second = key_times.len() == ROUNDS
-            && key_times.iter().zip(&keys_sent).all(|(at, sent)| {
-                sent.duration_since(*at)
-                    .is_ok_and(|before| before < Duration::from_millis(1_250))
-            });
+            && key_times
+                .iter()
+                .zip(&keys_sent)
+                .all(|(at, sent)| in_their_second(at, sent));
         let read_after_record =
             |at: &SystemTime, sent: &SystemTime| match sent.duration_since(*at) {
                 Ok(before) => i128::try_from(before.as_millis()).unwrap_or(i128::MAX),
