@@ -5171,23 +5171,27 @@ fn x14_foreground_app_of_a_hosted_app() {
         let start = foreground.begin(SourceContext::new(sink.clone()));
         let (title_sink, title_events) = capture(4096);
         let mut set = ServiceSet::new();
+        let gate = set.password_gate();
         let mut keyboard = set.make(SourceName::Keyboard);
         let mut title = set.gated_title(WindowTitleSource::new());
         let keyboard_start = keyboard
             .as_mut()
             .map(|keyboard| keyboard.begin(SourceContext::new(title_sink.clone())));
         let title_start = title.begin(SourceContext::new(title_sink.clone()));
-        let own_file = own_exe_file();
-        let kept_title = "h".repeat(60);
-        let kept_window =
-            TestWindow::create(&normal_window("HalvoVerifyKept", &kept_title, 90, 90))
-                .expect("the kept window");
+        let mut kept_child = spawn_child("front-on-go", 120);
+        let child_came = Instant::now();
+        let mut kept_window = None;
+        while kept_window.is_none() && child_came.elapsed() < Duration::from_secs(20) {
+            pump_thread(Duration::from_millis(200));
+            kept_window = window_titled("halvo-verify-front-on-go").map(|(hwnd, _)| hwnd);
+        }
+        let kept_window_found = kept_window.is_some();
         let kept = |e: &Seen| {
             e.modality == Modality::WindowTitle
-                && file_name(&e.foreground_app).eq_ignore_ascii_case(&own_file)
-                && e.segment_ref.byte_len == kept_title.len() as u64
+                && file_name(&e.foreground_app).eq_ignore_ascii_case(CHILD_EXE_NAME)
         };
-        let (kept_window_front, _) = foreground_without_input(kept_window.hwnd, true);
+        let kept_window_front =
+            kept_window.is_some_and(|hwnd| foreground_without_input(hwnd, false).0);
         let mut kept_seen = Vec::new();
         let kept_began = Instant::now();
         while kept_began.elapsed() < Duration::from_secs(6) {
@@ -5197,6 +5201,15 @@ fn x14_foreground_app_of_a_hosted_app() {
                 break;
             }
         }
+        let kept_gate_reading = gate.content_reading();
+        std::fs::write(
+            kept_child._dir.path().join("front-1.window"),
+            (anchor.hwnd.0 as usize).to_string(),
+        )
+        .expect("write the window of the child's go");
+        kept_child.go("front-1");
+        pump_thread(Duration::from_millis(500));
+        let anchor_front_again = foreground_window() == anchor.hwnd;
         let launched = Command::new("cmd.exe")
             .args(["/c", "start", "ms-settings:"])
             .status()
@@ -5230,7 +5243,8 @@ fn x14_foreground_app_of_a_hosted_app() {
             .as_mut()
             .map(|keyboard| stop_counted(keyboard.as_mut(), "keyboard"));
         let title_seen = title_events.drain_for(Duration::from_millis(500));
-        drop(kept_window);
+        let _ = kept_child.process.kill();
+        let _ = kept_child.process.wait();
         let _ = Command::new("taskkill.exe")
             .args(["/IM", "SystemSettings.exe", "/F"])
             .output();
@@ -5253,7 +5267,9 @@ fn x14_foreground_app_of_a_hosted_app() {
             format!(
                 "title_events_systemsettings={title_events_systemsettings} \
                  title_events_applicationframehost={title_events_applicationframehost} \
-                 title_events_kept={title_events_kept} kept_window_front={kept_window_front} \
+                 title_events_kept={title_events_kept} kept_window_found={kept_window_found} \
+                 kept_window_front={kept_window_front} kept_gate_reading={kept_gate_reading:?} \
+                 anchor_front_again={anchor_front_again} \
                  keyboard_start={} title_start={} title_stop={} keyboard_stop={}",
                 keyboard_start.as_ref().map_or("none".to_string(), show),
                 show(&title_start),
