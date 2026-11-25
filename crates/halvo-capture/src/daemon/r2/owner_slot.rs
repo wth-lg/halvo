@@ -21,7 +21,12 @@
 //!   those of the newest read from ordinal 0, which can be up to about a minute old; the passes' own list comes
 //!   beside them.
 //! - [`OwnerSlot::hand_over`] hands the owner that runs, in the same frames, the ordinals that passes of the capture
-//!   store's maintenance shredded since the last hand-over ([`Caller::shredded`]). It starts no owner and stops none.
+//!   store's maintenance shredded since the last hand-over ([`Caller::shredded`]). Where no owner runs and such
+//!   ordinals wait, it starts one for them, whatever the search, the power and the idle time are: at most once in
+//!   60 s ([`HAND_OVER_EVERY`]), and none where no derived database stands, whose ordinals it takes and drops. That
+//!   owner ends by its own idle time. The hand-over stops no owner that runs; one that is over (it exited, its channel
+//!   ended or a write on it failed) it kills at once, where its process still lives, and reaps before its start, as
+//!   [`OwnerSlot::turn`] does.
 //! - When the slot is made it reads a `derived/owner.pid` that an earlier daemon left. A file of another user or of a
 //!   mode wider than 0600, a whole line that is not the slot's line, and a process of this user with that pid whose
 //!   start time cannot be read are trusted for nothing: no signal, no unlink, and the slot starts no owner
@@ -75,6 +80,12 @@ pub const REPLY_WAIT: Duration = Duration::from_secs(4);
 /// How long the stop waits for the owner's exit after it closed the channel, before it kills the owner.
 pub const STOP_WAIT: Duration = Duration::from_secs(2);
 
+/// The shortest time from one start of an owner that the hand-over made to the next ([`OwnerSlot::hand_over`]).
+pub const HAND_OVER_EVERY: Duration = Duration::from_secs(60);
+
+/// The database of the derived store in `derived/`, by the name that halvo-derived gives it.
+const DATABASE: &str = "derived.db";
+
 /// How long an orphan has to end after SIGTERM, or on Windows after `TerminateProcess`.
 const ORPHAN_TERM_WAIT: Duration = Duration::from_secs(5);
 
@@ -103,8 +114,9 @@ pub trait Caller: Send + Sync {
     fn report(&self, frame: &[u8]);
 
     /// Whether a read of the capture store stands, so that [`Caller::first_live`] names a figure that a read gave:
-    /// asked at each start before the child is made. Where it answers no, no owner starts and the call answers
-    /// `store_unavailable`. A caller that reads no store answers yes.
+    /// asked at each start before the child is made, and by the hand-over before it takes ordinals for a start. Where
+    /// it answers no, no owner starts and the call answers `store_unavailable`. A caller that reads no store answers
+    /// yes.
     fn read_stands(&self) -> bool {
         true
     }
@@ -118,8 +130,8 @@ pub trait Caller: Send + Sync {
         Vec::new()
     }
 
-    /// Takes the ordinals of the segments that passes shredded since the last hand-over, for the owner that runs
-    /// ([`OwnerSlot::hand_over`]). A caller that reads no store names none.
+    /// Takes the ordinals of the segments that passes shredded since the last hand-over, for the owner that runs or
+    /// for one that the hand-over starts for them ([`OwnerSlot::hand_over`]). A caller that reads no store names none.
     fn shredded(&self) -> Vec<u64> {
         Vec::new()
     }
@@ -232,6 +244,8 @@ pub struct OwnerSlot {
     caller: Arc<dyn Caller>,
     distrust: Option<Distrust>,
     running: Option<Running>,
+    /// When the hand-over last started an owner, whatever the start answered.
+    handed_over_at: Option<Instant>,
 }
 
 impl OwnerSlot {
@@ -259,6 +273,7 @@ impl OwnerSlot {
             caller,
             distrust,
             running: None,
+            handed_over_at: None,
         }
     }
 
@@ -320,24 +335,52 @@ impl OwnerSlot {
         }
     }
 
-    /// Hands the owner that runs the ordinals that passes shredded since the last hand-over ([`Caller::shredded`]), in
-    /// frames `purge` of at most 64, each answer awaited for 4 s. It starts no owner and stops none. With no owner
-    /// running, during the delete of everything and with a pid file trusted for nothing it takes no ordinal, so that
-    /// the next start hands them on. What a frame named is not sent again when the owner answers other than `done`,
-    /// and that owner keeps the rows until its next start: the capture store keeps a shredded segment's row with no
-    /// key, and a start sends the keyless ordinals above the lowest live one as the newest read from ordinal 0 left
-    /// them, which can be up to about a minute old (`daemon_caller::ASK_EVERY`), beside the passes' own list.
+    /// Hands the owner the ordinals that passes shredded since the last hand-over ([`Caller::shredded`]), in frames
+    /// `purge` of at most 64, each answer awaited for 4 s. During the delete of everything and with a pid file trusted
+    /// for nothing it takes no ordinal and starts nothing. Where an owner runs, it hands them to that owner. Where none
+    /// runs, or the one that ran is over, it reaps that one and starts an owner for them as a request does, and then
+    /// hands them to it; it reads no switch, no power and no idle time. Within 60 s of the last start that it made,
+    /// whatever that start answered ([`HAND_OVER_EVERY`]), and while no read of the capture store stands
+    /// ([`Caller::read_stands`]), it takes no ordinal and starts nothing, so that they wait for the next hand-over or
+    /// start. Where no derived database stands no row can name them: it takes them and starts nothing. The owner that
+    /// it started ends by its own idle time, after its last frame. The hand-over stops no owner that runs; the one that
+    /// is over, whose process may still live, it kills at once and reaps before its start, as [`OwnerSlot::turn`]
+    /// does. What a frame named is not sent again when the owner answers other than `done`, or when the start fails
+    /// after it took them, and the rows stay until a later start: the capture store keeps a shredded segment's row
+    /// with no key, and a start sends the keyless ordinals above the lowest live one as the newest read from ordinal
+    /// 0 left them, which can be up to about a minute old (`daemon_caller::ASK_EVERY`), beside the passes' own list.
     pub fn hand_over(&mut self) {
         if self.caller.deleting() || self.distrust.is_some() {
             return;
         }
-        let Some(running) = self.running.as_mut() else {
-            return;
-        };
-        if running.over() {
+        if let Some(running) = self.running.as_mut() {
+            if !running.over() {
+                purge(running, &self.caller.shredded());
+                return;
+            }
+        }
+        let held = self
+            .handed_over_at
+            .is_some_and(|at| at.elapsed() < HAND_OVER_EVERY);
+        if held || !self.caller.read_stands() {
             return;
         }
-        purge(running, &self.caller.shredded());
+        let ordinals = self.caller.shredded();
+        let no_database = matches!(
+            fs::symlink_metadata(self.derived.join(DATABASE)),
+            Err(error) if error.kind() == ErrorKind::NotFound
+        );
+        if ordinals.is_empty() || no_database {
+            return;
+        }
+        if let Some(mut over) = self.running.take() {
+            over.finish(&self.pid_file, Duration::ZERO);
+        }
+        self.handed_over_at = Some(Instant::now());
+        if let Ok(mut running) = self.start(None) {
+            purge(&mut running, &ordinals);
+            self.running = Some(running);
+        }
     }
 
     /// Closes the channel, waits 2 s for the owner's exit, then kills it, reaps it and removes its pid file.
