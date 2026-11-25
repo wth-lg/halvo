@@ -611,8 +611,42 @@ mod tests {
         };
         let chrome = "com.google.Chrome";
         let edge = "com.microsoft.edgemac";
+        let profile_of =
+            |name: &str, units: usize| format!("Inbox - {name} - {}", "a".repeat(units));
+        let (chrome_45, chrome_46) = (
+            profile_of("Google Chrome", 45),
+            profile_of("Google Chrome", 46),
+        );
+        let (edge_44, edge_45) = (
+            profile_of("Microsoft Edge", 44),
+            profile_of("Microsoft Edge", 45),
+        );
         let cases = [
             ("ordinary", chrome, "Inbox - Google Chrome", true),
+            (
+                "chrome-profile-name-of-45-units",
+                chrome,
+                chrome_45.as_str(),
+                true,
+            ),
+            (
+                "chrome-profile-name-of-46-units",
+                chrome,
+                chrome_46.as_str(),
+                false,
+            ),
+            (
+                "edge-profile-name-of-44-units",
+                edge,
+                edge_44.as_str(),
+                true,
+            ),
+            (
+                "edge-profile-name-of-45-units",
+                edge,
+                edge_45.as_str(),
+                false,
+            ),
             (
                 "sound",
                 chrome,
