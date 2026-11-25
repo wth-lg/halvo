@@ -675,11 +675,13 @@ fn may_lack(entry: &KindEntry, key: &str) -> bool {
 }
 
 /// The one parser of a record against an entry: `Ok` when the text is one JSON object whose top-level keys are
-/// the keys of the entry's fields, each once, in any order, and no other, and whose value under each key passes.
+/// the keys of the entry's fields, each once, but a key that the kind may lack (`ABSENT_KEYS`), which stands once or
+/// is missing, in any order, and no other, and whose value under each key passes.
 /// The rule keys, read from the entry, hold what the store's rules read: under the key `day` of a bounded kind one
 /// value of the type `Day`, under `expires` of a window kind one value of the type `Instant`, under `segments` of a
 /// window kind a list of one or more values of the type `Ordinal`, under the key that `workflow_key` names one
-/// value of the type `Id`, and under `v`, where the fields list it, one value of its type; `null`, a list or an
+/// value of the type `Id`, under `v`, where the fields list it, and under a key that the kind may lack, where it
+/// stands, one value of its type; `null`, a list or an
 /// object in place of the one value is refused with the rule `not_one_value`, a value under `segments` that is no
 /// list with `not_a_list` and an empty list there with `empty_list`. Under every other key the value passes the
 /// walk by the types of that key: `null` passes; an object passes whole when `Site` is among the types and it
@@ -692,7 +694,7 @@ fn may_lack(entry: &KindEntry, key: &str) -> bool {
 /// and `_`); a boolean, a number with a fraction or an exponent, and `-0`, which serde reads as a float, never
 /// pass. A record whose lists and objects nest deeper than 128 levels, the record itself the first, is refused
 /// with the rule `too_deep` before it is read, so the walk always answers. The fullest shape alone passes: a
-/// dismissed workflow does not. A key that `ABSENT_KEYS` names for the kind may also be missing. The error is
+/// dismissed workflow does not. The error is
 /// `<kind>: <key>: <rule>` and names a key only where the entry lists it, so it holds no value of the record.
 pub fn check_record(entry: &KindEntry, json: &str) -> Result<(), String> {
     let fail = |key: &str, rule: &str| Err(format!("{}: {key}: {rule}", entry.name));
@@ -727,6 +729,7 @@ pub fn check_record(entry: &KindEntry, json: &str) -> Result<(), String> {
             let checked = match rule_of(entry, key) {
                 Some(Rule::One(types)) => one_value(value, &types),
                 Some(Rule::Segments) => segments(value),
+                None if may_lack(entry, key) => one_value(value, &types),
                 None => walk(value, &types),
             };
             if let Err(rule) = checked {

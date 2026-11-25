@@ -286,9 +286,10 @@ object_type! {
     /// or a balance and is no charge that the record knows of; it stands in a `stopped` line with the cause
     /// `amount_differs` alone, and is null in every other line. `effect` names the effect whose page after the reply
     /// the line tells of (r3 U5.10-P; the coordinator's rulings of log lines 20487 and 20577): it stands in a
-    /// `stopped` line with a cause of `PAGE_CAUSES` alone, and is missing from every other line. A line of a build
-    /// before the key stood has no such key, also where it tells of a page: it reads with none, ties to no effect, and
-    /// keeps its text, since the key is written only where it holds an id.
+    /// `stopped` line with a cause of `PAGE_CAUSES` alone, and is missing from every other line; `null` under it is
+    /// refused, and a line of `amount_matched` holds it always. A line of a build before the key stood has no such key,
+    /// also where it tells of a page: it reads with none, ties to no effect, and keeps its text, since the key is
+    /// written only where it holds an id.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct AgentLog {
         pub v: V1 = "v" => from_json,
@@ -308,7 +309,7 @@ object_type! {
         pub page_amount: Option<u32> = "page_amount" => opt(from_json),
     }
     absent {
-        pub effect: Option<EffectId> = "effect" => opt(from_json),
+        pub effect: Option<EffectId> = "effect" => from_json,
     }
     rules(l) {
         let fail = |key, rule| Err(Refusal::malformed("AgentLog", rule).at(key));
@@ -321,6 +322,9 @@ object_type! {
             && (l.event != LogEvent::Stopped || !l.cause.is_some_and(|c| PAGE_CAUSES.contains(&c)))
         {
             return fail("effect", "effect_of_cause");
+        }
+        if l.cause == Some(Cause::AmountMatched) && l.effect.is_none() {
+            return fail("effect", "amount_matched_without_effect");
         }
         if l.event == LogEvent::StartAccepted {
             if l.seq.get() != 1 {

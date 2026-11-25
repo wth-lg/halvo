@@ -402,8 +402,9 @@ macro_rules! object_type {
         impl $name {
             const KEYS: &'static [&'static str] = &[$(stringify!($tkey),)? $($key),*];
 
-            /// The keys of the section `absent`: each may be missing, which reads as none, and is written only
-            /// where it holds a value, so that a record of a build before the key stood reads and keeps its text.
+            /// The keys of the section `absent`: each may be missing, which reads as none, holds a value where it
+            /// stands, `null` there being refused, and is written only where it holds a value, so that a record of a
+            /// build before the key stood reads and keeps its text.
             #[allow(dead_code)]
             const ABSENT: &'static [&'static str] = &[$($($akey),*)?];
 
@@ -432,7 +433,7 @@ macro_rules! object_type {
                 )?
                 let value = $name {
                     $( $field: obj.read($key, $read)?, )*
-                    $($( $afield: if obj.has($akey) { obj.read($akey, $aread)? } else { None }, )*)?
+                    $($( $afield: if obj.has($akey) { Some(obj.read($akey, $aread)?) } else { None }, )*)?
                 };
                 value.rules()?;
                 value.check_len()?;
