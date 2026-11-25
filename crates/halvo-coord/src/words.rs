@@ -219,6 +219,18 @@ pub const KEYS: &[(&str, &str)] = &[
         "A value in the data file is only number signs (###). A spreadsheet program writes that when a column is too narrow to show a value. In the spreadsheet you saved the file from, widen that column and save the data file again under the same name. Then choose Start now.",
     ),
     (
+        "line.problem.no_agreement",
+        "This agent may use an AI model only after you allow it. To allow it, choose Use an AI model.",
+    ),
+    (
+        "line.problem.no_model_key",
+        "This agent needs a key for its AI model, and no key is saved. Save a key under AI model, then run the agent again.",
+    ),
+    (
+        "line.problem.over_cap",
+        "This agent stopped at your spending limit. It waits until the limit's period ends or until you raise the limit under AI model.",
+    ),
+    (
         "line.problem.not_replaced",
         "Halvo could not save the spreadsheet file. Close it in other programs and check that you may change it, then choose Start now.",
     ),
@@ -250,7 +262,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.run.declined", "You said no, so it stopped."),
     (
         "line.run.handed_back",
-        "It stopped at a step that it could not get past, and it tries again next time.",
+        "It stopped where it could not go on, and it tries again next time.",
     ),
     (
         "line.run.class_mismatch",

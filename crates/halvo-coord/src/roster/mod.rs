@@ -24,8 +24,10 @@ use crate::words;
 /// run with its phase, a queued start, a newest run that the agent store has not ended, a last
 /// run that ended with a cause of the failure class, said by the sentence of the facts'
 /// `last_cause` where they hold one that a row says for the agent's runtime (`FILE_CAUSES` for
-/// the runtime file alone, r4 U3.22a), for a run that paid or ordered with the class of the
-/// agent's category (`StatusLine::Paid`, r4 U3.29), or that its answers are saved where a set-up's answers
+/// the runtime file alone, r4 U3.22a), a last run that ended `handed_back` with a cause of
+/// `MODEL_CAUSES`, said by the sentence of that cause (r3 U7.2a), for a run that paid or ordered
+/// with the class of the agent's category (`StatusLine::Paid`, r4 U3.29), or that its answers are
+/// saved where a set-up's answers
 /// were stored behind that run's end (r4 U3.22a), and the end of the last run. A day with
 /// `starts_per_day` starts reads as a day with one start fewer, since step 2 of a start passes
 /// the person's start on any day (r4 U3.24). `confirm` is the state of the agent's open
@@ -115,6 +117,11 @@ pub fn status_of<C: ConfigView>(
             .filter(|c| said(*c, facts.config.runtime()));
         return cause.map_or(StatusLine::Problem(failure), StatusLine::LastCause);
     }
+    if last == Some(RunEnd::HandedBack) {
+        if let Some(cause) = facts.last_cause.filter(|c| MODEL_CAUSES.contains(c)) {
+            return StatusLine::LastCause(cause);
+        }
+    }
     match last {
         None => StatusLine::New,
         Some(RunEnd::Completed) => StatusLine::Done,
@@ -143,6 +150,16 @@ fn answered_since_the_last_end<C>(facts: &Facts<C>) -> bool {
     });
     matches!((ended, answered), (Some(ended), Some(answered)) if answered > ended)
 }
+
+/// The causes of a compile that handed its work back before anything was sent to a model's host (the agents run's unit
+/// r3 U7.2a): the person has not allowed the model, no key is saved, or the person's spending limit is reached. A row
+/// says the sentence of such a cause for a last run that ended `handed_back` (the coordinator's log line 22216); every
+/// other handed-back run keeps the row line of a run that stopped early.
+pub const MODEL_CAUSES: [LastCause; 3] = [
+    LastCause::NoAgreement,
+    LastCause::NoModelKey,
+    LastCause::OverCap,
+];
 
 /// The causes of a failed run of the runtime file whose sentence a row says for an agent of that
 /// runtime alone (r4 U3.22a): the four that the record holds today, the nine finer ones of the
