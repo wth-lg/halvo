@@ -47,11 +47,14 @@
 # the 12-test copy of halvo-redact's tests, which 22-redact runs in the windows gate, and the part
 # daemon::owner_props of halvo-capture's unit tests (no slice runs H; r8 cut-2, rule R4: a test of code
 # that is the same on both systems runs in the windows job alone); I the tests of the weekly groups
-# whose code holds no cfg by system, which no macos job runs: the test targets of halvo-schema,
+# that no macos job runs, whose own files hold no cfg by system: the test targets of halvo-schema,
 # halvo-schema-core, halvo-seam, halvo-connect, halvo-policy, halvo-agent-store and halvo-sample, five
 # targets by name and the unit tests of halvo-route-gate and halvo-learn-store (wed2 in the windows
-# job alone; a target of those packages whose own file holds a cfg by system stays in its group as well,
-# so the windows job runs it twice in a week).
+# job alone). halvo-agent-store's src/workbook.rs picks a path form by cfg!(windows), and
+# halvo-learn-store depends on that package; of halvo-agent-store's targets, the ten in I hold no case
+# whose result differs by system. A target of those packages whose own file holds a cfg by system,
+# halvo-agent-store's bindings among them, stays in its group as well, so the windows job runs it
+# twice in a week.
 # The seconds of the lines of F are those of the macos job in the pull request runs 45111247085,
 # 45112524657 and 45111386498, from libtest's lines, and for a test line the gaps before its lines in
 # the third run's 12-test/line-seconds.txt. B and D were one group,
@@ -89,7 +92,7 @@ target links D 1 s: its file holds a cfg by system, so both jobs run it in the g
 target split D 1 s: its file holds a cfg by system, so both jobs run it in the group D (the windows job also in the group I)
 targets halvo-schema I 43 test targets: 78 s macos, 56 s windows (run 44877874023); the windows job runs it in the group I (wed2), r8 cut-2 rule R4
 targets halvo-schema-core I 1 test target: under 1 s in each job; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
-targets halvo-seam I 10 test targets: 39 s macos, 18 s windows in the slice mon of the run 45390714934; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
+targets halvo-seam I 10 test targets: 33.7 s macos, 14.9 s windows in the slice mon of the run 45390714934; the windows job runs it in the group I (wed2), r8 cut-2 rule R4
 target set_reader A 1 s: its file holds a cfg by system, so both jobs run it in the group A (the windows job also in the group I)
 targets halvo-sheet D 19 test targets: 42 s macos, 23 s windows
 targets halvo-web D 1 test target: 33 s macos, 33 s windows
