@@ -55,6 +55,7 @@ const OPEN: &str = "email\twrite\tfrontier\tmedium\tline_met\t4\t4";
 
 /// The texts of the stand-in door's answers.
 const PLAIN: &str = "Friday at ten suits me. Thank you for asking.";
+const MARKED: &str = "I will write to [slot reply_senders] on Friday.";
 const SECRET_A: &str = "SECRET-A-the-sender-wants-a-time";
 const SECRET_B: &str = "SECRET-B-friday-could-work";
 const BODY_A: &str = "Friday at ten suits me, see you then.";
@@ -89,6 +90,7 @@ fn output(word: &str) -> Result<String, &'static str> {
         )),
         "open" => Ok(format!("<think>\n{SECRET_B}: I should answer that")),
         "long" => Ok(long_body()),
+        "marked" => Ok(MARKED.to_owned()),
         "bound" => Ok(at_bound(0)),
         "over" => Ok(at_bound(1)),
         "cut" => Err("cut"),
@@ -1185,6 +1187,41 @@ fn with_no_writer_no_agreement_or_the_cap_reached_the_body_is_the_const_text_and
             .map(|s| s.contains("Monday")),
         Some(true)
     );
+    assert_eq!(
+        mailbox.patches(),
+        [
+            ("draft-m1".to_owned(), constant()),
+            ("draft-m2".to_owned(), PLAIN.to_owned())
+        ]
+    );
+    assert_eq!(
+        seen.cards(),
+        [vec![
+            (constant(), Source::Const),
+            (PLAIN.to_owned(), Source::Model)
+        ]]
+    );
+}
+
+/// The coordinator's log line 22541 (3): a body that the writer model wrote and that holds a mark of the mask is no
+/// body: the first message's draft and the card get the const text with `const`, and the second message's body is the
+/// model's text.
+#[test]
+fn u72b_a_written_body_that_holds_a_mark_gives_the_const_text() {
+    let dir = scratch("a-mark-in-a-body");
+    let record = halvo_test_dir::make(&dir, "record").expect("the record directory");
+    let mailbox = Mailbox::start(vec![
+        message("m1", "Who will you write to? [marked]"),
+        message("m2", "Can we meet on Friday? [plain]"),
+    ]);
+    let seen = run_once(&Setup::allowed(), &mailbox, &record);
+    println!(
+        "a mark in a written body: request lines {} patches {:?} cards {:?}",
+        request_lines(&record).len(),
+        mailbox.patches(),
+        seen.cards()
+    );
+    assert_eq!(request_lines(&record).len(), 2);
     assert_eq!(
         mailbox.patches(),
         [

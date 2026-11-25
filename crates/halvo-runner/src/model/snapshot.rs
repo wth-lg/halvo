@@ -123,13 +123,6 @@ fn cleaned(text: &str) -> String {
 
 /// Whether a text that the model wrote holds the mark's head `[slot ` (ASCII letters with no regard to case): such a
 /// text is no body, and the const text stands in its place (the coordinator's log line 22541 (3)).
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "r3 U7.4's writer takes it at the join of r3 U7.2b with the main that holds it"
-    )
-)]
 pub(crate) fn holds_a_mark(text: &str) -> bool {
     text.as_bytes()
         .windows(MARK_HEAD.len())

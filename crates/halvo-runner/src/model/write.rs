@@ -5,13 +5,13 @@
 //! `picked`), and cut at `reply_body` by `cut`, where all of these hold: the router's `pick` for the kind `write`
 //! names the run's own tier (crate::route); the person agreed to that tier (`Runner::agreed`); no earlier body of the
 //! step ended the writer; and the model's answer is a reply whose cut leaves a body of at most `BODY_JSON_MAX` bytes
-//! of JSON. The request's snapshot is the
+//! of JSON that holds no mark of the mask (`holds_a_mark` of crate::model::snapshot). The request's snapshot is the
 //! message in the form of `Snapshot::of_a_message`: the From line the mark of the listed senders, never an address,
 //! and the subject and the body masked. In every other case the body is the const text of A11.4 with the source
 //! `const`: a pick that hands the call back or names another tier, and a missing agreement, ask nothing (no hold, no
 //! key, no door); the person's cap (`over_cap`) and an agreement taken back at the hold (`no_agreement`) end the
-//! writer for the rest of the step; a refusal of the door, a cut that leaves no body and a body over the bound give
-//! the const text for that message. A message whose own newest row is `drafted` with its
+//! writer for the rest of the step; a refusal of the door, a cut that leaves no body, a body over the bound and a body
+//! that holds a mark give the const text for that message. A message whose own newest row is `drafted` with its
 //! draft, a draft of an earlier run that waits, gets no second body: no request, the const text. A missing key
 //! (`no_model_key`) and every other end of `ask` end the run as `ask` says, before any draft.
 
@@ -22,7 +22,7 @@ use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{Cause, Outcome};
 
 use super::ask::{self, Answer, Grammar, Level, ModelRequest};
-use super::snapshot::Snapshot;
+use super::snapshot::{holds_a_mark, Snapshot};
 use super::texts::BOUNDARY;
 use super::Hosted;
 use crate::route::{self, Call};
@@ -171,7 +171,7 @@ impl Runner {
         );
         match self.ask(&picked, &request) {
             Ok(Answer::Reply { text, .. }) => Ok(cut(&text)
-                .filter(|body| json_bytes(body) <= BODY_JSON_MAX)
+                .filter(|body| json_bytes(body) <= BODY_JSON_MAX && !holds_a_mark(body))
                 .map_or_else(Body::constant, |body| Body {
                     text: body.to_owned(),
                     source: Source::Model,
