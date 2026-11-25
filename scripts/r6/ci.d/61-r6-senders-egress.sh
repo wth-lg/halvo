@@ -264,7 +264,14 @@ test --locked --offline -p halvo-runner --test door_run -- --exact --skip s1 --s
   at=0
   if [ -n "$log" ] && [ -f "$log" ]; then
     cp "$log" "$CI_D_ARTIFACTS/control-denied.log"
-    at=$(grep -c " dest=$control_dest " "$log")
+    # The report of a denial can lack the address and keep the port (dest=-:443), as the egress
+    # check's own self-test reads it too.
+    at=$(awk -v dest="$control_dest" '
+      / proto=tcp / && / image=egress_control-/ {
+        if (index($0, " dest=" dest " ")) n++
+        else if (index($0, " dest=-:" substr(dest, index(dest, ":") + 1) " ")) n++
+      }
+      END { print n + 0 }' "$log")
   fi
   read -r passed _ ignored _ <<EOF
 $(tests_counts "$CI_D_ARTIFACTS/control.txt")
