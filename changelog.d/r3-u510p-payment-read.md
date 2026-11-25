@@ -1,0 +1,1 @@
+- Added: The stopped row of the read of the page after a made payment or purchase names its effect, a page that names the card's amount alone writes the new cause amount_matched, list_agents hands out left, and agent_history hands out page_cause and page_amount for each effect.

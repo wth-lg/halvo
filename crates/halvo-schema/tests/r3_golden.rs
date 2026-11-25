@@ -745,6 +745,7 @@ fn log_line() -> AgentLog {
         tokens_in: Some(900),
         tokens_out: Some(40),
         page_amount: None,
+        effect: None,
     }
 }
 
@@ -1076,6 +1077,7 @@ fn listed_agent() -> ListedAgent {
         reply_unknown: YesNo::Yes,
         refused_slots: Vec::new(),
         last_cause: Some(Cause::Unknown),
+        left: YesNo::No,
         window: YesNo::Yes,
         agreement: None,
     }
@@ -1097,6 +1099,8 @@ fn history_run() -> HistoryRun {
             kept(FieldName::File, "/data/books/bills.xlsx"),
             kept(FieldName::Range, "B2:D6"),
         ],
+        page_cause: None,
+        page_amount: None,
         checkpoint: None,
     };
     let mut committed = edit(0x62, 'c', EffectState::Committed, None);
@@ -1115,6 +1119,8 @@ fn history_run() -> HistoryRun {
                 state: ended.state,
                 cause: ended.cause,
                 kept: ended.kept,
+                page_cause: None,
+                page_amount: None,
                 checkpoint: None,
             },
             committed,

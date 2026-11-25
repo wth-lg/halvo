@@ -1976,6 +1976,8 @@ fn the_roster_names_the_cause_of_the_newest_started_run() {
     );
 }
 
+/// A step's `stopped` row of each cause of `GOES_ON_AFTER` gives no `last_cause`, before the run's end and after it
+/// ends `completed`; the row of `amount_matched` names its effect, as every such row does (r3 U5.10-P).
 #[test]
 fn the_roster_names_no_cause_of_a_step_after_which_the_run_went_on() {
     let mut store = store_with("email");
@@ -1986,12 +1988,11 @@ fn the_roster_names_no_cause_of_a_step_after_which_the_run_went_on() {
         "a page that names no amount lets the run go on; another amount ends it"
     );
     for cause in GOES_ON_AFTER {
-        log_line(
-            &mut store,
-            1,
-            1,
-            stopped_line(1, 1, 1, Some(3), cause.as_str()),
-        );
+        let mut line = stopped_line(1, 1, 1, Some(3), cause.as_str());
+        if *cause == Cause::AmountMatched {
+            line["effect"] = json!(effect(1));
+        }
+        log_line(&mut store, 1, 1, line);
     }
     assert_eq!(
         causes(&mut store),
@@ -2171,6 +2172,7 @@ fn as_last_row(store: &MemoryStore, e: u32) -> Value {
     json!({
         "effect": last["effect"], "digest": last["digest"], "class": last["class"],
         "state": last["state"], "cause": last["cause"], "kept": last["kept"],
+        "page_cause": null, "page_amount": null,
     })
 }
 
