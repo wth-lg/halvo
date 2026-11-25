@@ -123,6 +123,7 @@ test store::hardening_tests::page_gap_probe C halvo-capture 2 s macos, 26 s wind
 test windows::input::tests::keys_wait_for_a_held_pointer_pump_and_an_idle_pointer_source_lets_them_through C halvo-capture 12 s windows
 test windows::input::tests::a_keyboard_stop_lets_the_click_route_go_only_when_its_window_and_gate_are_its_own C halvo-capture 9 s windows
 test daemon::owner_props H halvo-capture macos 8 s macos in the run 45111386498, 8 tests; the windows gate runs all 8, so no slice runs them on a Mac (r8 cut-2 rule R4)
+test daemon::supervisor::tests::a_turn_of_the_search_is_kept_in_the_state_file_and_while_it_is_off_no_worker_may_run H halvo-capture macos 0.00 s on a Mac by hand, 1 test (r2 search-switch); its code is the same on both systems, so the windows gate runs it
 doc-tests C 12 s macos after a build of 29 s, in the push run 44893237714
 units halvo-connect H macos 58 tests in 1.42 s in the macos gate of the push run 45421682892; the windows gate runs them
 units halvo-derived H macos 22 tests in 0.23 s in the macos gate of the push run 45421682892; the windows gate runs them

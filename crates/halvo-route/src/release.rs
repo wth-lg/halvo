@@ -139,8 +139,8 @@ mod tests {
         let header = "tier\torigin\tmodel\tadapter\tsource\tdate\n";
         let row = "frontier\thttps://top.invalid\ttop-model\tadapter-b\tfixture:test\t2026-11-22\n";
         let one = format!("{header}{row}");
-        assert_eq!(ruling_of("ruling=none\n", HOSTS, &paid), Ruling::None);
-        assert_eq!(ruling_of("ruling=hosted\n", HOSTS, &paid), Ruling::None);
+        assert_eq!(ruling_of("ruling=none\n", header, &paid), Ruling::None);
+        assert_eq!(ruling_of("ruling=hosted\n", header, &paid), Ruling::None);
         assert_eq!(ruling_of("ruling=none\n", &one, &paid), Ruling::None);
         let open = ruling_of("ruling=hosted\n", &one, &paid);
         assert_eq!(open.allowed(), &[Tier::OnDevice, Tier::Frontier]);
@@ -163,7 +163,7 @@ mod tests {
             "ruling=test_hosted\n",
             "ruling=all\n",
         ] {
-            for hosts in [HOSTS, one.as_str()] {
+            for hosts in [header, one.as_str()] {
                 assert_eq!(ruling_of(text, hosts, &paid), Ruling::None, "{text:?}");
                 assert_eq!(ruling_of(text, hosts, &paid).allowed(), &[Tier::OnDevice]);
                 assert!(ruling_of(text, hosts, &paid).rows().is_empty());

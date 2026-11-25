@@ -82,7 +82,7 @@ const NEXT: [&str; 23] = [
     "reply-closed",
 ];
 
-const CHOICES: [&str; 10] = [
+const CHOICES: [&str; 12] = [
     "reject",
     "allow",
     "decline",
@@ -93,6 +93,8 @@ const CHOICES: [&str; 10] = [
     "choose",
     "skip",
     "start",
+    "switch_off",
+    "seen",
 ];
 
 const PARAMS: [&str; 9] = [
@@ -184,7 +186,6 @@ pub const LIST: [Command; 10] = [
             Cause::Early,
             Cause::Hold,
             Cause::State,
-            Cause::Budget,
             Cause::QueueFull,
             Cause::UnknownItem,
             Cause::NoService,
@@ -256,7 +257,6 @@ pub const LIST: [Command; 10] = [
         errors: &[
             Cause::Hold,
             Cause::State,
-            Cause::Budget,
             Cause::QueueFull,
             Cause::UnknownAgent,
             Cause::NoService,

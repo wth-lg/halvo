@@ -62,7 +62,9 @@ names! {
 }
 
 names! {
-    /// The eight kinds of item, the only things that put an agent under `needs_you` (I3.1).
+    /// The nine kinds of item, the only things that put an agent under `needs_you` (I3.1): the
+    /// eight of I3.1 and `amounts`, the item of a payment or an order whose amount on the site's
+    /// page afterwards could not be matched to the allowed amount (r4 U3.29).
     ItemKind {
         Confirm = "confirm",
         SignIn = "sign_in",
@@ -72,12 +74,14 @@ names! {
         Setup = "setup",
         Ready = "ready",
         Show = "show",
+        Amounts = "amounts",
     }
 }
 
 names! {
-    /// The choices of the kinds of I3.1, in the order of first use there, and `present`, the
-    /// one page choice of a confirmation of the presenter `native` (I3.4).
+    /// The choices of the kinds of I3.1, in the order of first use there, the two of `amounts`
+    /// (r4 U3.29), and `present`, the one page choice of a confirmation of the presenter `native`
+    /// (I3.4).
     Choice {
         Reject = "reject",
         Allow = "allow",
@@ -89,6 +93,8 @@ names! {
         Choose = "choose",
         Skip = "skip",
         Start = "start",
+        SwitchOff = "switch_off",
+        Seen = "seen",
         Present = "present",
     }
 }
@@ -328,11 +334,18 @@ names! {
     /// The causes of the end of an agent's newest started run, of the roster's key `last_cause`
     /// (I6.1), for which the roster has a sentence: a part of the agent store's closed list of
     /// causes, whose other names the reader of the key takes as none (ruling of 2026-11-22
-    /// on `last_cause`). The last fifteen are the causes of a failed run of the runtime file,
-    /// which the roster says for an agent of that runtime alone (r4 U3.22a, `roster::FILE_CAUSES`);
+    /// on `last_cause`). The seventeen from `workbook` to `data_narrow` are the causes of a failed
+    /// run of the runtime file, which the roster says for an agent of that runtime alone (r4
+    /// U3.22a, `roster::FILE_CAUSES`);
     /// the nine from `no_workbook` to `read_only` are the names of the agents run's unit r3 U11.3,
-    /// `no_access` is the name of its unit r3 U11.4 (r4 U3.22d), and `data_encoding` that of its
-    /// unit r3 U11.5.
+    /// `no_access` is the name of its unit r3 U11.4 (r4 U3.22d), `data_encoding` that of its unit
+    /// r3 U11.5, and `two_sheets` and `data_narrow` those of its unit r3 U11.9 (r4 U3.28). The last
+    /// three are the ends of a run that paid or ordered (r4 U3.29), which the reader takes only
+    /// beside the key `left` of the same entry, whether a payment or an order of that run left:
+    /// `amount_differs` with `left` `yes`, the page's amount afterwards could not be matched to the
+    /// allowed amount; `page_unread` with `left` `yes`, the page afterwards could not be read; and
+    /// `amount_not_sent`, the core's name of the store's `amount_differs` with `left` `no`, a
+    /// payment or an order that was held back because its prepared request named another amount.
     LastCause {
         NoChannel = "no_channel",
         BrowserStart = "browser_start",
@@ -352,6 +365,56 @@ names! {
         ReadOnly = "read_only",
         NoAccess = "no_access",
         DataEncoding = "data_encoding",
+        TwoSheets = "two_sheets",
+        DataNarrow = "data_narrow",
+        AmountDiffers = "amount_differs",
+        PageUnread = "page_unread",
+        AmountNotSent = "amount_not_sent",
+    }
+}
+
+names! {
+    /// The class of a payment's or an order's lines on a row and of a run (r4 U3.29), the class of
+    /// the agent's category (way (i) of the coordinator's log line 20557), each named as its class
+    /// of `Class`.
+    PayClass {
+        Payment = "payment",
+        Purchase = "purchase",
+    }
+}
+
+names! {
+    /// The ends of a run that paid or ordered that a row and a run's line say (r4 U3.29), each the
+    /// name of its last cause in `LastCause`.
+    PaidEnd {
+        AmountDiffers = "amount_differs",
+        PageUnread = "page_unread",
+        AmountNotSent = "amount_not_sent",
+    }
+}
+
+impl PaidEnd {
+    /// The end of the last cause `cause`, or none for a cause of another run.
+    pub const fn of(cause: LastCause) -> Option<PaidEnd> {
+        match cause {
+            LastCause::AmountDiffers => Some(PaidEnd::AmountDiffers),
+            LastCause::PageUnread => Some(PaidEnd::PageUnread),
+            LastCause::AmountNotSent => Some(PaidEnd::AmountNotSent),
+            _ => None,
+        }
+    }
+}
+
+impl PayClass {
+    /// The class of the agent's category (way (i) of the coordinator's log line 20557):
+    /// `utility_bill_payment` and `tenant_rent` pay, `shop_order` and `ride_order` order, and any
+    /// other category has none, so that its lines read as the lines of a failed run.
+    pub const fn of(category: Category) -> Option<PayClass> {
+        match category {
+            Category::UtilityBillPayment | Category::TenantRent => Some(PayClass::Payment),
+            Category::ShopOrder | Category::RideOrder => Some(PayClass::Purchase),
+            _ => None,
+        }
     }
 }
 

@@ -1,0 +1,1 @@
+- Added: The row of the spreadsheet agent says why its last run stopped where two sheets of the workbook bear the name of the sheet to fill (two_sheets) or a value of the data file is number signs alone (data_narrow), and what to do, in place of saying only that it could not finish its task (r4 U3.28).

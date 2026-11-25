@@ -731,8 +731,10 @@ impl Sim {
                     *c += 1;
                     *c
                 };
-                if c > self.limits.starts_per_day {
-                    self.fault(format!("{label}: C7 more than starts_per_day starts"));
+                if !by_person && c > self.limits.starts_per_day {
+                    self.fault(format!(
+                        "{label}: C7 a start of the scheduler on a day with starts_per_day starts"
+                    ));
                 }
                 if e.day != self.h.day {
                     self.fault(format!("{label}: a start stored with another day"));
@@ -1078,14 +1080,7 @@ fn drawn_sequences_keep_the_schedule_properties_with_the_limits_of_the_models() 
             .unwrap();
     let seen = run_all(limits, 400);
     covered(&seen, &COVERED);
-    covered(
-        &seen,
-        &[
-            "answer Err(Budget)",
-            "answer Err(QueueFull)",
-            "left Err(State)",
-        ],
-    );
+    covered(&seen, &["answer Err(QueueFull)", "left Err(State)"]);
 }
 
 #[test]

@@ -2547,9 +2547,16 @@ fn a_run_started_whose_acknowledgement_was_lost_is_closed_in_this_life_and_count
     );
     c.ports().ports.set_clock(T0 + 3_000, DAY);
     c.tick();
-    assert_eq!(
-        row_line(&c.snapshot(), 0),
-        text(&halvo_coord::types::StatusLine::TriedToday.key()),
+    let today = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.day == DAY && matches!(e.what, What::RunStarted { .. }))
+        .count();
+    assert!(
+        today >= limits.starts_per_day as usize,
         "the lost row and the next start make starts_per_day"
     );
 }
@@ -5992,48 +5999,36 @@ fn rd52e_a_stop_while_the_run_of_a_gone_workflow_is_stopping_is_unknown_agent() 
 }
 
 #[test]
-fn rd52a_the_start_of_a_ready_item_answers_budget_and_queue_full_as_its_row_says() {
+fn rd52a_the_start_of_a_ready_item_answers_queue_full_as_its_row_says() {
     use halvo_coord::types::commands::LIST;
     let slotted = support::A {
         person: true,
         slotted: true,
     };
     let row = LIST.iter().find(|c| c.name == "agents_answer").unwrap();
-    for (limits, cause) in [
-        (
-            Limits {
-                starts_per_day: 0,
-                ..Limits::PRODUCT
-            },
-            Cause::Budget,
+    let limits = Limits {
+        max_live_runs: 1,
+        queue_max: 0,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, slotted], limits);
+    let (ready, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Ready);
+    start(&c, 0);
+    assert_eq!(
+        c.answer(
+            &ready,
+            Choice::Start,
+            None,
+            shown_step_mark_or_zero(&c, &ready)
         ),
-        (
-            Limits {
-                max_live_runs: 1,
-                queue_max: 0,
-                ..Limits::PRODUCT
-            },
-            Cause::QueueFull,
-        ),
-    ] {
-        let c = coordinator(&[MANUAL, slotted], limits);
-        let (ready, kind) = open_item(&c);
-        assert_eq!(kind, ItemKind::Ready);
-        if cause == Cause::QueueFull {
-            start(&c, 0);
-        }
-        assert_eq!(
-            c.answer(
-                &ready,
-                Choice::Start,
-                None,
-                shown_step_mark_or_zero(&c, &ready)
-            ),
-            Err(cause)
-        );
-        assert!(row.errors.contains(&cause), "{cause:?} in the row");
-        assert!(row.errors.contains(&Cause::Hold), "hold in the row");
-    }
+        Err(Cause::QueueFull)
+    );
+    assert!(
+        row.errors.contains(&Cause::QueueFull),
+        "queue_full in the row"
+    );
+    assert!(row.errors.contains(&Cause::Hold), "hold in the row");
 }
 
 fn ask_confirm_with_send_effects(run: &RunId, n: usize, count: usize) -> RunEvent {

@@ -229,8 +229,10 @@ names! {
     /// `amount_unread` where the page names no amount, after which the run goes on. `page_unread` stands in that
     /// `stopped` line where the page after the reply could not be read at all (no new document within the step's
     /// time, or a failed read of it), after which the run makes no further step and ends with that cause
-    /// (r3 U5.10-B). Eight names are the causes of a run of the runtime `file` that ends `failed` at the fact that
-    /// each names (r3 U11.3): `no_workbook`, no file or folder at the workbook's path, or a path that is no absolute
+    /// (r3 U5.10-B). `amount_matched` stands in that `stopped` line where every amount that the page names is the kept
+    /// `amount`, after which the run goes on (r3 U5.10-P). Eight names are the causes of a run of the runtime `file`
+    /// that ends `failed` at the fact that each names (r3 U11.3):
+    /// `no_workbook`, no file or folder at the workbook's path, or a path that is no absolute
     /// path; `no_sheet`, no sheet of that name; `no_range`, cells that are no range; `data_shape`, data that has not
     /// the cells' rows and columns; `no_data_file`, no file at the data file's path, or a path that is no absolute
     /// path; `data_outside`, a data file outside the workbook's folder; `data_form`, a data file out of its form;
@@ -242,7 +244,9 @@ names! {
     /// keeps `not_replaced`. `data_encoding` stands there where the data file is not UTF-8 (r3 U11.5).
     /// `two_sheets` stands there where two sheets of the workbook bear the sheet's name, and `data_narrow` where a
     /// field of the data file is number signs alone, as a spreadsheet program writes a value whose column was too
-    /// narrow to show it (r3 U11.9).
+    /// narrow to show it (r3 U11.9). `two_paying_steps` is the cause of `check_playbook` of halvo-policy for a
+    /// playbook that holds a second step of the class `payment` or `purchase`, which ends a run `failed` before its
+    /// first step (r3 U5.10-S).
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -282,6 +286,7 @@ names! {
         AmountDiffers = "amount_differs",
         AmountUnread = "amount_unread",
         PageUnread = "page_unread",
+        AmountMatched = "amount_matched",
         NoWorkbook = "no_workbook",
         NoSheet = "no_sheet",
         NoRange = "no_range",
@@ -294,6 +299,7 @@ names! {
         DataEncoding = "data_encoding",
         TwoSheets = "two_sheets",
         DataNarrow = "data_narrow",
+        TwoPayingSteps = "two_paying_steps",
     }
 }
 

@@ -149,7 +149,7 @@ impl LeaveCause {
 /// fn rows(rows: halvo_route::ruling::payload::HostRows) {}
 /// ```
 ///
-/// It can move a grant, print it, and ask `grant`, which refuses under the release ruling:
+/// It can move a grant, print it, and ask `grant`, which refuses under the ruling `None`:
 ///
 /// ```
 /// use halvo_route::leave::{grant, Consent, LeaveCause, LeaveGrant, PartKind};
@@ -160,7 +160,7 @@ impl LeaveCause {
 /// fn look(grant: &LeaveGrant) -> String {
 ///     format!("{grant:?}")
 /// }
-/// let ruling = halvo_route::release::ruling();
+/// let ruling = halvo_route::ruling::Ruling::None;
 /// let answer = grant(
 ///     &ruling,
 ///     Tier::Frontier,
@@ -234,7 +234,6 @@ pub fn grant(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::release;
 
     const LOW: &str = "https://low.invalid";
     const TOP: &str = "https://top.invalid";
@@ -310,7 +309,7 @@ mod tests {
             for ceiling in [Tier::OnDevice, Tier::LowCostHosted, Tier::Frontier] {
                 assert_eq!(
                     answer(
-                        &release::ruling(),
+                        &Ruling::None,
                         tier,
                         ceiling,
                         &[PartKind::Image],
@@ -321,7 +320,7 @@ mod tests {
                     "{tier:?} {ceiling:?}"
                 );
             }
-            for ruling in [release::ruling(), without(tier)] {
+            for ruling in [Ruling::None, without(tier)] {
                 assert_eq!(
                     answer(
                         &ruling,
@@ -355,7 +354,7 @@ mod tests {
 
     #[test]
     fn refusal_leave_local() {
-        for ruling in [release::ruling(), open(), without(Tier::Frontier)] {
+        for ruling in [Ruling::None, open(), without(Tier::Frontier)] {
             for ceiling in Tier::ALL {
                 for consent in Consent::ALL {
                     for parts in [&[PartKind::Text][..], &[PartKind::Image], &[]] {
@@ -568,7 +567,7 @@ mod tests {
 
     #[test]
     fn leave_rules_in_order() {
-        let none = release::ruling();
+        let none = Ruling::None;
         for tier in HOSTED {
             let below = Tier::ALL[tier as usize - 1];
             let missing_row = without(tier);

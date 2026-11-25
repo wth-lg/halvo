@@ -580,7 +580,7 @@ mod tests {
             (good.replace("\"pre\":[]", "\"pre\":null"), "conditions"),
             (good.replace("\"v\":1,", ""), "keys"),
             ("x".to_string(), "json"),
-            (format!("{}{}", &good[..good.len() - 1], &format!(",\"pad\":\"{}\"}}", "x".repeat(2048))), "length"),
+            (format!("{},\"pad\":\"{}\"}}", &good[..good.len() - 1], "x".repeat(2048)), "length"),
         ];
         for (line, want) in cases {
             assert_eq!(

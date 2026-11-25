@@ -26,6 +26,7 @@ pub const CAPTURE: Names = Names {
         "remove_halvo",
         "reset_settings",
         "set_typing",
+        "set_search",
     ],
     reads: &[
         "capture_status",
@@ -61,6 +62,7 @@ pub const WORKFLOWS: Names = Names {
         "approve_workflow",
         "dismiss_workflow",
         "delete_workflow",
+        "set_up_sheet_agent",
     ],
     reads: &[],
 };

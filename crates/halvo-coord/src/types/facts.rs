@@ -163,11 +163,12 @@ pub struct OwnItem {
 
 names! {
     /// The kinds that no run raises (I3.1): `check` from the hold `check`, `setup` from the hold
-    /// `setup`, and `ready` from the scheduler.
+    /// `setup`, `ready` from the scheduler, and `amounts` from the hold `amounts` (r4 U3.29).
     OwnItemKind {
         Check = "check",
         Setup = "setup",
         Ready = "ready",
+        Amounts = "amounts",
     }
 }
 
@@ -192,6 +193,7 @@ impl OwnItemKind {
             OwnItemKind::Check => ItemKind::Check,
             OwnItemKind::Setup => ItemKind::Setup,
             OwnItemKind::Ready => ItemKind::Ready,
+            OwnItemKind::Amounts => ItemKind::Amounts,
         }
     }
 }

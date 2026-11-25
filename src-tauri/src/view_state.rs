@@ -155,6 +155,9 @@ pub struct RunningView {
     /// The control that turns the switch of keys, where the view shows what typing records
     /// ([`typing_shown`]).
     pub typing_switch: Option<TypingSwitch>,
+    /// Whether the search for repeated tasks is on, as the status says; none beside a service
+    /// that sends none, where the page shows no switch.
+    pub search: Option<OnOff>,
     /// The folder of the crash reports of the web view of Halvo's own window, where one stayed at
     /// the app's start on Windows.
     pub crash_reports_left: Option<String>,
@@ -708,6 +711,8 @@ struct WireView<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     typing_switch: Option<&'a TypingSwitch>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    search: Option<OnOff>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     crash_reports_left: Option<&'a str>,
 }
 
@@ -745,6 +750,7 @@ impl Serialize for StatusView {
                 left_out_in_doubt: view.left_out_in_doubt,
                 reset_recorded: view.reset_recorded.as_deref(),
                 typing_switch: view.typing_switch.as_ref(),
+                search: view.search,
                 crash_reports_left: view.crash_reports_left.as_deref(),
             },
             StatusView::NoStatus(view) => WireView {
@@ -781,6 +787,7 @@ impl Serialize for StatusView {
                 left_out_in_doubt: false,
                 reset_recorded: None,
                 typing_switch: None,
+                search: None,
                 crash_reports_left: view.crash_reports_left.as_deref(),
             },
         };
@@ -933,6 +940,7 @@ impl StatusView {
             },
             reset_recorded: (f.state_file == StateFile::Corrupt).then(|| reset_rows(status)),
             typing_switch: typing_shown(status).then(|| typing_switch(status)),
+            search: f.search,
             login_item_written: None,
             screen_not_renewed: false,
             left_out_in_doubt: f.left_out_in_doubt,

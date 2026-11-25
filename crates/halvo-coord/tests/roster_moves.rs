@@ -199,6 +199,7 @@ fn send(n: u32, d: &str) -> PastEffect {
             name: Name::parse("to").unwrap(),
             value: vec!["Ann Lee".into()],
         }],
+        page: None,
     }
 }
 

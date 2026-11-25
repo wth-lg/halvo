@@ -522,6 +522,9 @@ pub struct EntryOutcome {
     pub stops: Vec<(SourceName, Result<(), CaptureError>)>,
     pub settled: Option<Snapshot>,
     pub took: Duration,
+    /// The KIND of the loss line where the entry wrote one that names a
+    /// fault, as that line names it.
+    pub fault: Option<&'static str>,
 }
 
 /// The supervisor of one run.
@@ -601,6 +604,10 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     /// The status's key_class as the last publish gave it, for the same test.
     #[cfg(test)]
     published_keys: Option<Arc<Mutex<Option<bool>>>>,
+    /// The mark of the search for repeated tasks that the driver of the
+    /// analysis reads: the r2 service's own, or a test's.
+    #[cfg(feature = "r2")]
+    search_mark: &'static super::r2::service::Searching,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -659,6 +666,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             published_input: None,
             #[cfg(test)]
             published_keys: None,
+            #[cfg(feature = "r2")]
+            search_mark: super::r2::service::searching(),
         }
     }
 
@@ -809,6 +818,13 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self
     }
 
+    /// The loss of the last life, as the start read it in the run marker,
+    /// which the status prints in `last_stop_kind` and `last_stop_lost`.
+    pub fn with_last_life(mut self, lost: Option<super::board::LastLife>) -> Supervisor<F, L> {
+        self.board.last_life = lost;
+        self
+    }
+
     /// The note of a turn of typing to off that the state file did not take,
     /// with whether the start read it as standing (`kept`), behind
     /// [`Self::with_state`]. Where it stands, the life makes one try at once,
@@ -923,6 +939,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             input_keys,
             held: self.held,
             typing_off_unsaved: self.off_unsaved,
+            search: state.map(|state| state.search),
             left_out_in_doubt: self
                 .ctx
                 .as_ref()
@@ -989,6 +1006,40 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         change: impl FnOnce(&mut super::state::DaemonState),
     ) -> Option<Result<(), StateError>> {
         self.state_file().map(|mut state| state.update(change))
+    }
+
+    /// A client's turn of the search for repeated tasks (`set_search`):
+    /// written through the state file's one writer, and in force only behind
+    /// the write; a turn whose write fails leaves the search as memory holds
+    /// it after the failed write. The mark of the analysis then takes the
+    /// search as memory holds it. None where the supervisor holds no state
+    /// file.
+    #[cfg(any(target_os = "macos", windows))]
+    pub(crate) fn set_search(&mut self, on: bool) -> Option<Result<(), StateError>> {
+        let turned = self.update_state(|state| state.search = on);
+        #[cfg(feature = "r2")]
+        self.mark_the_search();
+        turned
+    }
+
+    /// Hands the mark of the analysis the search as the state file holds it
+    /// in memory, on where the supervisor holds no state file: at each open
+    /// of the capture store and behind each turn.
+    #[cfg(feature = "r2")]
+    pub(crate) fn mark_the_search(&self) {
+        self.search_mark
+            .set(self.state_file().is_none_or(|state| state.state().search));
+    }
+
+    /// The mark of the search that this supervisor sets, in place of the r2
+    /// service's own.
+    #[cfg(all(test, feature = "r2"))]
+    pub(crate) fn with_search_mark(
+        mut self,
+        mark: &'static super::r2::service::Searching,
+    ) -> Supervisor<F, L> {
+        self.search_mark = mark;
+        self
     }
 
     pub fn factory(&self) -> &F {
@@ -1268,7 +1319,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// [`Self::set_slot`] for the slot of a delete request: `reply` gets the
     /// Board of an end routine, as [`Self::follow_the_run_condition`] gives
     /// it, when the stop that the slot asks for meets a source that does not
-    /// stop.
+    /// stop. The slot of a delete takes the loss of the last life back, so
+    /// that no status prints it behind a delete of everything.
     #[cfg(any(target_os = "macos", windows))]
     pub(crate) fn set_slot_answering(
         &mut self,
@@ -1276,6 +1328,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         owner: Option<&dyn OwnerLink>,
         reply: &mut dyn FnMut(&Board),
     ) {
+        if matches!(slot, Slot::Deleting) {
+            self.board.last_life = None;
+        }
         self.slot = slot;
         if let Some(ending) = self.follow_the_run_condition(owner, reply) {
             self.ending = Some(ending);
@@ -2469,10 +2524,12 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         } else {
             status
         };
+        let mut fault = None;
         if let Some(owner) = owner {
             let last = settled.unwrap_or_else(|| owner.snapshot());
             if status == exit::ERROR || last.events_lost + last.events_pending > 0 {
                 let reports: Vec<Report> = owner.reports().try_iter().collect();
+                fault = super::last_fault(&reports);
                 let line =
                     super::loss_line(&last, last.events_lost + last.events_pending, &reports);
                 let _ = writeln!(self.err, "{line}");
@@ -2495,6 +2552,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             stops,
             settled,
             took: self.main_loop.now().saturating_sub(started),
+            fault,
         })
     }
 
@@ -3859,6 +3917,68 @@ mod tests {
                 .start_switches()
                 .is_on(crate::floor::Switch::KeyClass),
             "a store opened behind it starts with typing off"
+        );
+    }
+
+    /// The search for repeated tasks as a new life reads it from the state file in `dir`.
+    fn search_in_the_file(dir: &std::path::Path) -> bool {
+        crate::daemon::state::StateFile::open(
+            crate::daemon::state::StateDir::open(dir).unwrap(),
+            Box::new(crate::daemon::state::tests::TestWrite::default()),
+        )
+        .state()
+        .search
+    }
+
+    /// r2 search-switch, the service: a turn is written by the state file's one writer and a new life reads it;
+    /// the status and the mark of the analysis follow it, and while it is off the mark turns the driver's yes into
+    /// a no; a turn whose write fails is refused, off as on, and changes nothing; a state file that does not load
+    /// reads the search off.
+    #[cfg(feature = "r2")]
+    #[test]
+    fn a_turn_of_the_search_is_kept_in_the_state_file_and_while_it_is_off_no_worker_may_run() {
+        use crate::daemon::r2::service::Searching;
+        use crate::daemon::r2::worker_slot::MayRun;
+        const YES: MayRun = MayRun::Yes { watermark: None };
+        let mark: &'static Searching = Box::leak(Box::new(Searching::new()));
+        let (mut f, dir, writer) = with_state_file(fixture(Factory::new()));
+        f.supervisor = f.supervisor.with_search_mark(mark);
+        f.start(&two());
+        let search_of = |f: &Fixture<Factory>| f.supervisor.status_parts(None).search;
+        assert_eq!(search_of(&f), Some(true), "on by default");
+        assert!(matches!(f.supervisor.set_search(false), Some(Ok(()))));
+        assert_eq!(search_of(&f), Some(false), "off in the status");
+        assert!(!search_in_the_file(dir.path()), "a new life reads off");
+        assert_eq!(mark.may_run(YES), MayRun::No, "off turns a yes into a no");
+        writer.failing.store(true, Ordering::SeqCst);
+        assert!(
+            matches!(f.supervisor.set_search(true), Some(Err(_))),
+            "a turn on whose write fails is refused"
+        );
+        assert_eq!(search_of(&f), Some(false));
+        assert!(!search_in_the_file(dir.path()));
+        assert_eq!(mark.may_run(YES), MayRun::No);
+        writer.failing.store(false, Ordering::SeqCst);
+        assert!(matches!(f.supervisor.set_search(true), Some(Ok(()))));
+        assert_eq!(search_of(&f), Some(true));
+        assert!(search_in_the_file(dir.path()), "a new life reads on");
+        assert_eq!(mark.may_run(YES), YES, "on lets the yes through");
+        writer.failing.store(true, Ordering::SeqCst);
+        assert!(
+            matches!(f.supervisor.set_search(false), Some(Err(_))),
+            "a turn off whose write fails is refused"
+        );
+        assert_eq!(search_of(&f), Some(true), "the search stays on");
+        assert!(search_in_the_file(dir.path()));
+        assert_eq!(mark.may_run(YES), YES);
+        std::fs::write(
+            dir.path().join(halvo_control::paths::STATE_FILE),
+            b"not a state file",
+        )
+        .unwrap();
+        assert!(
+            !search_in_the_file(dir.path()),
+            "a state file that does not load reads the search off"
         );
     }
 
@@ -9398,5 +9518,203 @@ mod tests {
             watchdog.disarm();
             assert_eq!(armed, Some(exit::TIMED_RUN_SOURCE_FAILED));
         }
+    }
+
+    #[cfg(any(target_os = "macos", windows))]
+    fn facts_of_a_start() -> super::super::server::RunFacts {
+        super::super::server::RunFacts {
+            started_at: halvo_control::model::UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+            parent: halvo_control::proto::Parent::None,
+            last_stop: halvo_control::proto::LastStop::None,
+            rss_peak_bytes: 0,
+        }
+    }
+
+    #[cfg(any(target_os = "macos", windows))]
+    use halvo_control::proto::StopKind as Kind;
+
+    #[cfg(any(target_os = "macos", windows))]
+    fn last_life_printed(f: &Fixture<Factory>) -> (Option<Kind>, halvo_control::proto::LostRecord) {
+        let status =
+            super::super::server::status_of(&f.supervisor.status_parts(None), &facts_of_a_start())
+                .expect("the status holds together");
+        (
+            status.fields().last_stop_kind,
+            status.fields().last_stop_lost.clone(),
+        )
+    }
+
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn a_loss_at_an_end_stands_in_the_marker_and_in_the_status_of_the_next_start_alone() {
+        use crate::daemon::board::LastLife;
+        use crate::daemon::counters::Counters;
+        use crate::daemon::run_marker::{at_the_end, begin, HeldRun};
+        use crate::daemon::state::StateDir;
+        use halvo_control::model::UtcSecond;
+        use halvo_control::proto::{LastStop, LostRecord};
+
+        let root = tempfile::tempdir().unwrap();
+        let dir =
+            halvo_control::paths::DataDir::from_flag(root.path().join("data").to_str().unwrap())
+                .unwrap();
+        assert!(begin(&dir).written.is_ok());
+        let run = || HeldRun::of(&StateDir::open(dir.path()).unwrap()).unwrap();
+        let first = 1_800_000_000;
+        let snapshot = |lost: u64, pending: u64| {
+            let mut counters = Counters::default();
+            if lost > 0 {
+                counters.lost(lost, first * 1_000_000_000, (first + 3) * 1_000_000_000);
+            }
+            counters.snapshot(pending, pending > 0)
+        };
+        let record = |events: u64, final_figures: bool| LostRecord {
+            events,
+            first: Some(UtcSecond::from_unix_seconds(first).unwrap()),
+            last: Some(UtcSecond::from_unix_seconds(first + 3).unwrap()),
+            error: Some("no_space".parse().unwrap()),
+            final_figures,
+        };
+        let carried = |closed: Option<u64>, settled: (u64, u64)| -> Option<LostRecord> {
+            let closed = closed.map(|pending| snapshot(settled.0, pending));
+            crate::daemon::carried_loss(
+                closed.as_ref(),
+                Some(&snapshot(settled.0, settled.1)),
+                Some("no_space"),
+            )
+        };
+        assert_eq!(
+            carried(Some(3), (2, 3)),
+            Some(record(5, true)),
+            "a close that held the pending events: what was lost and what was pending"
+        );
+        assert_eq!(
+            carried(Some(0), (2, 3)),
+            Some(record(2, true)),
+            "a close that saved the pending events: what was lost alone"
+        );
+        assert_eq!(
+            carried(None, (2, 3)),
+            Some(record(2, false)),
+            "a close that did not answer: the lost count alone"
+        );
+        assert_eq!(
+            carried(Some(0), (0, 3)),
+            None,
+            "an end whose drain failed at the last settle and whose close saved the pending events"
+        );
+
+        at_the_end(
+            &run(),
+            exit::CLEAN,
+            Some(Kind::Stop),
+            Some(&record(5, true)),
+        )
+        .unwrap();
+        let next = begin(&dir);
+        assert_eq!(
+            next.last_stop,
+            LastStop::Clean,
+            "an end with 0 still reads clean"
+        );
+        let lost = Some(LastLife {
+            kind: Kind::Stop,
+            lost: record(5, true),
+        });
+        assert_eq!(next.lost, lost, "the next start reads the loss");
+        let read = fixture(Factory::new());
+        let read = Fixture {
+            supervisor: read.supervisor.with_last_life(next.lost),
+            ..read
+        };
+        assert_eq!(
+            last_life_printed(&read),
+            (Some(Kind::Stop), record(5, true)),
+            "the status of that life prints it as the last life's loss"
+        );
+        assert_eq!(begin(&dir).lost, None, "the start after it reads none");
+
+        at_the_end(
+            &run(),
+            exit::ERROR,
+            Some(Kind::Signal),
+            Some(&record(2, false)),
+        )
+        .unwrap();
+        let next = begin(&dir);
+        assert_eq!(
+            next.last_stop,
+            LastStop::Unclean,
+            "an end with 1 behind a signal still reads unclean"
+        );
+        assert_eq!(
+            next.lost,
+            Some(LastLife {
+                kind: Kind::Signal,
+                lost: record(2, false),
+            })
+        );
+
+        for (status, kind) in [
+            (exit::ERROR, Kind::Lifeline),
+            (exit::CLEAN, Kind::DeleteAll),
+        ] {
+            let _ = begin(&dir);
+            at_the_end(&run(), status, Some(kind), Some(&record(2, true))).unwrap();
+            assert_eq!(
+                begin(&dir).lost,
+                None,
+                "{status} {kind:?}: no loss is carried"
+            );
+        }
+        let _ = begin(&dir);
+        let before = std::fs::read_to_string(dir.run_marker()).unwrap();
+        at_the_end(
+            &run(),
+            exit::ERROR,
+            Some(Kind::Lifeline),
+            Some(&record(2, true)),
+        )
+        .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dir.run_marker()).unwrap(),
+            before,
+            "an end with 1 by the lifeline adds no write"
+        );
+    }
+
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn behind_a_delete_of_everything_the_status_prints_no_loss_of_the_last_life() {
+        use crate::daemon::board::LastLife;
+        use halvo_control::proto::LostRecord;
+
+        let lost = LostRecord {
+            events: 4,
+            first: None,
+            last: None,
+            error: None,
+            final_figures: true,
+        };
+        let f = fixture(Factory::new());
+        let mut f = Fixture {
+            supervisor: f.supervisor.with_last_life(Some(LastLife {
+                kind: Kind::Stop,
+                lost: lost.clone(),
+            })),
+            ..f
+        };
+        assert_eq!(
+            last_life_printed(&f),
+            (Some(Kind::Stop), lost),
+            "before the delete"
+        );
+        f.supervisor
+            .set_slot_answering(Slot::Deleting, None, &mut |_| {});
+        assert_eq!(
+            last_life_printed(&f),
+            (None, LostRecord::NONE),
+            "behind the delete"
+        );
     }
 }

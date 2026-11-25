@@ -12,8 +12,9 @@ use crate::record::Instant;
 
 use super::json::{self, opt, Obj, Refusal};
 use super::names::{
-    BindResult, CheckAnswer, ConfirmLapse, DoneAnswer, EffectAnswer, Event, HoldCause,
-    HoldSetCause, ItemKind, OtherKind, OtherLapse, ReadyAnswer, RunEnd, SetupAnswer, Trigger,
+    AmountsAnswer, BindResult, CheckAnswer, ConfirmLapse, DoneAnswer, EffectAnswer, Event,
+    HoldCause, HoldSetCause, ItemKind, OtherKind, OtherLapse, ReadyAnswer, RunEnd, SetupAnswer,
+    Trigger,
 };
 
 /// The id of an item: 32 lower-case hex digits from 16 random bytes (contracts.md I0.5).
@@ -76,7 +77,8 @@ pub struct Entry {
 }
 
 /// The `kind` and the `run` of `item_raised`: a kind that a run's request raises names the run, `check` names
-/// the run of a handback or none for the hold `check`, and `setup` and `ready` name none.
+/// the run of a handback or none for the hold `check`, `amounts` names the run whose payment or order its hold
+/// names (r4 U3.29), and `setup` and `ready` name none.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Raised {
     Confirm(RunId),
@@ -87,6 +89,7 @@ pub enum Raised {
     Setup,
     Ready,
     Show(RunId),
+    Amounts(RunId),
 }
 
 impl Raised {
@@ -101,6 +104,7 @@ impl Raised {
             Raised::Setup => ItemKind::Setup,
             Raised::Ready => ItemKind::Ready,
             Raised::Show(_) => ItemKind::Show,
+            Raised::Amounts(_) => ItemKind::Amounts,
         }
     }
 
@@ -111,7 +115,8 @@ impl Raised {
             | Raised::SignIn(r)
             | Raised::LinkAccount(r)
             | Raised::Stuck(r)
-            | Raised::Show(r) => Some(r),
+            | Raised::Show(r)
+            | Raised::Amounts(r) => Some(r),
             Raised::Check(r) => r.as_ref(),
             Raised::Setup | Raised::Ready => None,
         }
@@ -152,6 +157,7 @@ pub enum Answered {
     Setup,
     Ready(ReadyAnswer),
     Show(DoneAnswer),
+    Amounts(AmountsAnswer),
 }
 
 impl Answered {
@@ -166,6 +172,7 @@ impl Answered {
             Answered::Setup => ItemKind::Setup,
             Answered::Ready(_) => ItemKind::Ready,
             Answered::Show(_) => ItemKind::Show,
+            Answered::Amounts(_) => ItemKind::Amounts,
         }
     }
 }
@@ -222,6 +229,7 @@ pub enum Cleared {
     Failures,
     Check { run: RunId, answer: CheckAnswer },
     SignInRefused { run: RunId },
+    Amounts { run: RunId },
 }
 
 /// What the coordinator saw of the defers of a run whose whole life it saw, the keys `defer_launch` and
@@ -406,6 +414,7 @@ fn raised(obj: &Obj<'_>, kind: ItemKind) -> Result<Raised, Refusal> {
         ItemKind::Setup => Raised::Setup,
         ItemKind::Ready => Raised::Ready,
         ItemKind::Show => Raised::Show(obj.read("run", run_id)?),
+        ItemKind::Amounts => Raised::Amounts(obj.read("run", run_id)?),
     })
 }
 
@@ -465,6 +474,10 @@ fn answered(obj: &Obj<'_>, kind: ItemKind) -> Result<Answered, Refusal> {
         ItemKind::Show => {
             obj.null_but(&OWN, &plain)?;
             Answered::Show(obj.read("answer", DoneAnswer::from_raw)?)
+        }
+        ItemKind::Amounts => {
+            obj.null_but(&OWN, &plain)?;
+            Answered::Amounts(obj.read("answer", AmountsAnswer::from_raw)?)
         }
     })
 }
@@ -606,6 +619,12 @@ fn what(obj: &Obj<'_>, event: Event, with_defers: bool) -> Result<What, Refusal>
                         run: obj.read("run", run_id)?,
                     }
                 }
+                HoldCause::Amounts => {
+                    obj.null_but(&OWN, &["cause", "run"])?;
+                    Cleared::Amounts {
+                        run: obj.read("run", run_id)?,
+                    }
+                }
             };
             What::HoldCleared { cleared }
         }
@@ -739,6 +758,10 @@ impl CoordEvent {
                     ("run", Cell::Text(run.as_str())),
                     text("cause", HoldCause::SignInRefused.as_str()),
                 ],
+                Cleared::Amounts { run } => vec![
+                    ("run", Cell::Text(run.as_str())),
+                    text("cause", HoldCause::Amounts.as_str()),
+                ],
             },
             What::SlotSkipped { slot } => vec![("slot", slot.map_or(Cell::Null, Cell::Count))],
             What::RunNotStopped { run } => vec![("run", Cell::Text(run.as_str()))],
@@ -768,6 +791,7 @@ fn plain_answer(answered: &Answered) -> Result<(&'static str, Option<&WebOrigin>
         Answered::Check(a) => (a.as_str(), None),
         Answered::Setup => (SetupAnswer::Choose.as_str(), None),
         Answered::Ready(a) => (a.as_str(), None),
+        Answered::Amounts(a) => (a.as_str(), None),
     })
 }
 

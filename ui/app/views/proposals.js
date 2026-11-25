@@ -27,6 +27,16 @@
   var list;
   var storedLine;
   var stored;
+  var byHand;
+  var view;
+  var searchBox;
+  var searchToggle;
+  var searchLine;
+  /** The search for repeated tasks as the newest status says it, "on" or "off"; null beside a service that says nothing of it. */
+  var search = null;
+  /** The newest reply that the view drew, which a new word of the status draws again. */
+  var lastReply = null;
+  var turning = false;
   var rowsMade = 0;
   var reads = 0;
   /** While the newest reply reads deleting, the view reads again after this many ms, and at no other time. */
@@ -112,6 +122,23 @@
       });
   }
 
+  /** The line and the button of the set-up by hand; a press that succeeded reads the list again, as a decision does. */
+  function byHandOffer() {
+    var line = Halvo.el("p", { id: "by-hand-line", text: w.BY_HAND_LINE });
+    var setUp = Halvo.el("button", { text: w.BY_HAND_SET_UP });
+    setUp.setAttribute("aria-describedby", line.id);
+    setUp.onclick = function () {
+      setUp.disabled = true;
+      return Halvo.ipc
+        .call("set_up_sheet_agent")
+        .then(read, Halvo.showError)
+        .then(function () {
+          setUp.disabled = false;
+        });
+    };
+    return [line, setUp];
+  }
+
   /** A delete that is held back while an agent uses the workflow has a sentence of its own. */
   function notDeleted(e) {
     Halvo.showError(e && e.error === "in_use" ? w.WORKFLOW_IN_USE : e);
@@ -160,19 +187,49 @@
     return Halvo.el("div", { class: "stored-workflow" }, [Halvo.el("div", { class: "row" }, [seen, start]), confirmRow]);
   }
 
+  /** One turn of the switch: one set_search, whose answer the status takes; a refusal shows its sentence and turns nothing. */
+  function onSearchTurn(event) {
+    if (turning || search === null) return Promise.resolve();
+    if (event && event.detail > 1) return Promise.resolve();
+    turning = true;
+    searchToggle.disabled = true;
+    Halvo.showError("");
+    return Halvo.ipc
+      .call("set_search", { on: search !== "on" })
+      .then(function (answer) {
+        Halvo.takeMutationReply(answer);
+      })
+      .catch(Halvo.showError)
+      .then(function () {
+        turning = false;
+        searchToggle.disabled = false;
+      });
+  }
+
+  function onStatus(status) {
+    var said = status && (status.search === "on" || status.search === "off") ? status.search : null;
+    if (said === search) return;
+    search = said;
+    if (lastReply !== null) render(lastReply);
+  }
+
   function clear() {
+    searchBox.remove();
     [stateLine, nothingFound, looksWhen, storedLine].forEach(function (el) {
       el.classList.add("hidden");
     });
     list.replaceChildren();
     stored.replaceChildren();
+    byHand.replaceChildren();
   }
 
   function render(reply) {
     clear();
+    lastReply = null;
     if (reply && Object.prototype.hasOwnProperty.call(withoutList, reply.state)) {
       stateLine.textContent = withoutList[reply.state];
       stateLine.classList.remove("hidden");
+      lastReply = reply;
       return;
     }
     if (!reply || reply.state !== "running" || !Array.isArray(reply.proposals) || !Array.isArray(reply.stored)) {
@@ -184,14 +241,25 @@
     var all = reply.stored.map(function (row) {
       return checked(row, false);
     });
-    if (proposals.length === 0 && all.length === 0) {
-      nothingFound.classList.remove("hidden");
-      looksWhen.classList.remove("hidden");
-      return;
+    var setUpByHand = all.filter(function (row) {
+      return row.by_hand === true;
+    });
+    var noticed = proposals.length > 0 || all.length > setUpByHand.length;
+    if (search === null) {
+      nothingFound.classList.toggle("hidden", noticed);
+      looksWhen.classList.toggle("hidden", noticed);
+    } else {
+      searchToggle.setAttribute("aria-checked", search === "on" ? "true" : "false");
+      searchLine.textContent = search === "on" ? w.LOOKS_WHEN : noticed ? w.SEARCH_OFF_KEPT : w.SEARCH_OFF;
+      view.insertBefore(searchBox, stateLine);
+      nothingFound.classList.toggle("hidden", noticed || search !== "on");
     }
     list.replaceChildren.apply(list, proposals.map(proposalRow));
     stored.replaceChildren.apply(stored, all.map(storedRow));
     storedLine.classList.toggle("hidden", all.length === 0);
+    var parts = setUpByHand.length === 0 ? byHandOffer() : [Halvo.el("p", { text: w.BY_HAND_HELD })];
+    byHand.replaceChildren.apply(byHand, parts);
+    lastReply = reply;
   }
 
   Halvo.views.add({
@@ -205,7 +273,15 @@
       list = Halvo.el("div", { id: "proposals-list" });
       storedLine = Halvo.el("p", { id: "stored-workflows-line", text: w.STORED_WORKFLOWS });
       stored = Halvo.el("div", { id: "stored-workflows" });
-      el.append(stateLine, nothingFound, looksWhen, list, storedLine, stored);
+      byHand = Halvo.el("div", { id: "by-hand" });
+      searchToggle = Halvo.el("button", { id: "look-for-tasks", role: "switch", text: w.LOOK_FOR_TASKS });
+      searchToggle.onclick = onSearchTurn;
+      searchLine = Halvo.el("p", { id: "search-line", class: "muted" });
+      searchToggle.setAttribute("aria-describedby", searchLine.id);
+      searchBox = Halvo.el("div", { id: "search-control" }, [searchToggle, searchLine]);
+      view = el;
+      el.append(stateLine, nothingFound, looksWhen, list, storedLine, stored, byHand);
+      Halvo.feed("status").on(onStatus);
       clear();
     },
     show: function () {

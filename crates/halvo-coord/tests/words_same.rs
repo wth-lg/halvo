@@ -108,7 +108,6 @@ fn expected_keys() -> BTreeSet<String> {
         "problem.refused",
         "problem.budget",
         "problem.kind",
-        "all_set.tried_today",
         "all_set.new",
         "all_set.done",
         "all_set.nothing",
@@ -287,6 +286,22 @@ fn expected_keys() -> BTreeSet<String> {
         k.insert(format!("run.effect.{class}.unknown"));
     }
     k.insert("run.effect.unknown".to_owned());
+    for class in ["payment", "purchase"] {
+        for end in ["amount_differs", "amount_unread", "page_unread"] {
+            k.insert(format!("run.effect.{class}.{end}"));
+        }
+        for field in ["amount_allowed", "page_amount"] {
+            k.insert(format!("field.{class}.{field}"));
+        }
+        for end in ["amount_differs", "page_unread", "amount_not_sent"] {
+            k.insert(format!("line.run.{end}.{class}"));
+            k.insert(format!("line.problem.{end}.{class}"));
+        }
+        k.insert(format!("item.amounts.title.{class}"));
+        k.insert(format!("line.needs_you.amounts.{class}"));
+    }
+    k.insert("choice.amounts.switch_off".to_owned());
+    k.insert("choice.amounts.seen".to_owned());
     k.insert("line.run.stopped".to_owned());
     for key in [
         "line.quitting",
@@ -314,13 +329,13 @@ fn expected_keys() -> BTreeSet<String> {
         "line.problem.data_outside",
         "line.problem.data_form",
         "line.problem.data_encoding",
+        "line.problem.two_sheets",
+        "line.problem.data_narrow",
         "line.problem.not_replaced",
         "line.problem.read_only",
         "line.problem.no_access_mac",
         "line.problem.no_access_windows",
         "line.problem.answers_saved",
-        "line.problem.answers_saved_today",
-        "line.problem.tried_today",
     ] {
         k.insert(key.to_owned());
     }
@@ -541,7 +556,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 378);
+    assert_eq!(seen.len(), 405);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -573,6 +588,9 @@ fn placeholders_are_the_ones_that_the_contract_names() {
     }
     for kind in ItemKind::ALL.iter().filter(|k| **k != ItemKind::Confirm) {
         want.insert(format!("item.{}.title", kind.name()), vec!["name"]);
+    }
+    for class in ["payment", "purchase"] {
+        want.insert(format!("item.amounts.title.{class}"), vec!["name"]);
     }
     want.insert("item.sign_in.bind".into(), vec!["origin"]);
     want.insert("item.sign_in.site".into(), vec!["origin"]);
@@ -799,11 +817,11 @@ fn u24q_the_six_partial_texts_stand_word_for_word() {
     pinned(&[
         (
             "run.effect.payment.partial",
-            "It made this payment, but Halvo shows only the details it could read.",
+            "It sent this payment, but Halvo shows only the details it could read.",
         ),
         (
             "run.effect.purchase.partial",
-            "It placed this order, but Halvo shows only the details it could read.",
+            "It sent this order, but Halvo shows only the details it could read.",
         ),
         (
             "run.effect.send.partial",
@@ -1113,7 +1131,7 @@ fn every_status_line_has_its_key_and_its_status() {
         assert_eq!(line.status().name(), status, "{key}");
         assert!(keys.insert(key));
     }
-    assert_eq!(keys.len(), 31);
+    assert_eq!(keys.len(), 30);
 }
 
 #[test]

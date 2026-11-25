@@ -188,6 +188,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
             })
             .collect(),
         typing_off_unsaved: None,
+        search: None,
         permissions,
         sources,
         kinds: Modality::ALL
@@ -717,6 +718,10 @@ impl ScriptedDaemon {
                         }
                     }
                 });
+                Reply::Status(self.status.clone())
+            }
+            Request::SetSearch { on } => {
+                self.edit(|f| f.search = Some(if on { OnOff::On } else { OnOff::Off }));
                 Reply::Status(self.status.clone())
             }
         }

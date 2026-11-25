@@ -458,7 +458,7 @@ mod tests {
     #[test]
     fn a_hosted_line_with_no_row_is_none() {
         let empty = table(&[]);
-        assert_eq!(empty, include_str!("../data/hosts.tsv"));
+        assert_eq!(empty, "tier\torigin\tmodel\tadapter\tsource\tdate\n");
         assert_eq!(check_hosts(&empty), Ok(0));
         assert_eq!(
             Ruling::read_with_table("ruling=hosted", &empty),

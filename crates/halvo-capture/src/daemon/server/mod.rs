@@ -416,7 +416,8 @@ fn served_by_this_build(request: &Request) -> bool {
         | Request::DeleteAll { .. }
         | Request::SetStorageCap { .. }
         | Request::ResetSettings
-        | Request::SetTyping { .. } => true,
+        | Request::SetTyping { .. }
+        | Request::SetSearch { .. } => true,
         Request::RequestPermission { .. } | Request::AcknowledgeLostPermission { .. } => {
             cfg!(target_os = "macos")
         }
@@ -562,6 +563,9 @@ pub struct StatusParts {
     /// A turn of typing to off that the state file did not take, which the
     /// status carries beside key_class off alone.
     pub typing_off_unsaved: Option<proto::TypingOffUnsaved>,
+    /// Whether the search for repeated tasks is on, as the state file holds
+    /// it in memory; none where the supervisor holds no state file.
+    pub search: Option<bool>,
     /// Whether the floor left out events by doubt in a row since the last record built
     /// ([`crate::floor::exclude::FloorHandle::left_out_in_doubt`]).
     pub left_out_in_doubt: bool,
@@ -687,8 +691,11 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         last_eviction_at: snapshot.and_then(|snapshot| second_of(snapshot.last_eviction_at)),
         last_stop: facts.last_stop,
         last_stop_newest_capture: None,
-        last_stop_kind: None,
-        last_stop_lost: LostRecord::NONE,
+        last_stop_kind: board.last_life.as_ref().map(|life| life.kind),
+        last_stop_lost: board
+            .last_life
+            .as_ref()
+            .map_or(LostRecord::NONE, |life| life.lost.clone()),
         last_stop_sources: Vec::new(),
         state_file: match parts.health {
             StateHealth::Ok => proto::StateFile::Ok,
@@ -712,6 +719,9 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         typing_off_unsaved: parts
             .typing_off_unsaved
             .filter(|_| !parts.switches.is_on(switch_of(SwitchName::KeyClass))),
+        search: parts
+            .search
+            .map(|on| if on { OnOff::On } else { OnOff::Off }),
         permissions,
         sources: lines,
         kinds: Modality::ALL
@@ -956,6 +966,7 @@ mod tests {
                 input_keys: false,
                 held: false,
                 typing_off_unsaved: None,
+                search: None,
                 left_out_in_doubt: false,
             };
             let facts = RunFacts {
@@ -1050,6 +1061,7 @@ mod tests {
             input_keys: false,
             held: false,
             typing_off_unsaved: None,
+            search: None,
             left_out_in_doubt: false,
         };
         let facts = RunFacts {
@@ -1171,6 +1183,7 @@ mod tests {
                 input_keys: false,
                 held: false,
                 typing_off_unsaved: None,
+                search: None,
                 left_out_in_doubt: false,
             };
             let facts = RunFacts {
@@ -1359,6 +1372,7 @@ mod tests {
                 input_keys: false,
                 held: false,
                 typing_off_unsaved: None,
+                search: None,
                 left_out_in_doubt: floor.left_out_in_doubt(),
             };
             let status = status_of(&parts, &facts).unwrap();

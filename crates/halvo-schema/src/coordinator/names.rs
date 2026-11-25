@@ -73,7 +73,8 @@ names! {
 }
 
 names! {
-    /// The eight kinds of item (contracts.md I3.1).
+    /// The nine kinds of item: the eight of contracts.md I3.1 and `amounts`, the item of a payment or an order whose
+    /// amount on the site's page afterwards could not be matched to the allowed amount (r4 U3.29).
     pub enum ItemKind {
         Confirm = "confirm",
         SignIn = "sign_in",
@@ -83,11 +84,12 @@ names! {
         Setup = "setup",
         Ready = "ready",
         Show = "show",
+        Amounts = "amounts",
     }
 }
 
 names! {
-    /// The seven kinds of item other than `confirm`, whose lapse takes a cause of `OtherLapse`.
+    /// The eight kinds of item other than `confirm`, whose lapse takes a cause of `OtherLapse`.
     pub enum OtherKind {
         SignIn = "sign_in",
         LinkAccount = "link_account",
@@ -96,6 +98,7 @@ names! {
         Setup = "setup",
         Ready = "ready",
         Show = "show",
+        Amounts = "amounts",
     }
 }
 
@@ -110,6 +113,7 @@ impl OtherKind {
             OtherKind::Setup => ItemKind::Setup,
             OtherKind::Ready => ItemKind::Ready,
             OtherKind::Show => ItemKind::Show,
+            OtherKind::Amounts => ItemKind::Amounts,
         }
     }
 }
@@ -183,12 +187,14 @@ names! {
 }
 
 names! {
-    /// The `cause` of `hold_cleared`: the hold that ended (contracts.md I7.1, ruling RD-73 4.2).
+    /// The `cause` of `hold_cleared`: the hold that ended (contracts.md I7.1, ruling RD-73 4.2), and `amounts`, the
+    /// hold of an amount that could not be matched, which the person's answer `seen` ends (r4 U3.29).
     pub enum HoldCause {
         Person = "person",
         Failures = "failures",
         Check = "check",
         SignInRefused = "sign_in_refused",
+        Amounts = "amounts",
     }
 }
 
@@ -221,6 +227,14 @@ names! {
     pub enum CheckAnswer {
         TryAgain = "try_again",
         WentThrough = "went_through",
+    }
+}
+
+names! {
+    /// The two choices of `amounts` (r4 U3.29): `switch_off` and `seen`.
+    pub enum AmountsAnswer {
+        SwitchOff = "switch_off",
+        Seen = "seen",
     }
 }
 

@@ -159,6 +159,16 @@ pub fn notrun(cell: &Cell, cause: &str) -> String {
     )
 }
 
+/// The line of the hosted round behind each cell's lines (r3 U0.8b): the requests of the cell that
+/// the door answered with the refusal `cut` (the host's answer ended at the output limit) and with
+/// `declined` (the host declined it), which no line of A13.6 counts as an ask that the model failed.
+pub fn ends(cell: &Cell, cut: u64, declined: u64) -> String {
+    format!(
+        "ends model={} machine={} task={} seed={} cut={cut} declined={declined}",
+        cell.model, cell.machine, cell.task, cell.seed
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

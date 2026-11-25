@@ -179,14 +179,6 @@ pub const KEYS: &[(&str, &str)] = &[
         "Its answers are saved. Choose Start now to try again.",
     ),
     (
-        "line.problem.answers_saved_today",
-        "Its answers are saved. It has started as often as it may today, so it waits until tomorrow.",
-    ),
-    (
-        "line.problem.tried_today",
-        "Last time, it could not finish its task. It has started as often as it may today, so it waits until tomorrow.",
-    ),
-    (
         "line.problem.no_workbook",
         "Halvo did not find the spreadsheet file where you said it is. Then choose Change its answers.",
     ),
@@ -219,6 +211,14 @@ pub const KEYS: &[(&str, &str)] = &[
         "Halvo cannot read the letters in the data file. Open the file in your spreadsheet program and save it again under the same name as a CSV file with UTF-8 text; Excel calls this file type CSV UTF-8. Then choose Start now.",
     ),
     (
+        "line.problem.two_sheets",
+        "The spreadsheet file has two sheets with the name you gave, so Halvo did not know which one to fill. Open the file in your spreadsheet program, give each sheet a name of its own and save it. Then choose Change its answers.",
+    ),
+    (
+        "line.problem.data_narrow",
+        "A value in the data file is only number signs (###). A spreadsheet program writes that when a column is too narrow to show a value. In the spreadsheet you saved the file from, widen that column and save the data file again under the same name. Then choose Start now.",
+    ),
+    (
         "line.problem.not_replaced",
         "Halvo could not save the spreadsheet file. Close it in other programs and check that you may change it, then choose Start now.",
     ),
@@ -237,10 +237,6 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "line.problem.kind",
         "Last time, it asked for something that Halvo does not allow, so Halvo stopped it.",
-    ),
-    (
-        "line.all_set.tried_today",
-        "It has started as often as it may today, so it waits until tomorrow.",
     ),
     ("line.all_set.new", "It has not done its task yet, or not for a long time."),
     ("line.all_set.done", "Last time, it finished its task."),
@@ -390,6 +386,24 @@ pub const KEYS: &[(&str, &str)] = &[
     ("choice.ready.start", "Start now"),
     ("choice.show.decline", "Stop this time"),
     ("choice.show.done", "Done"),
+    ("choice.amounts.switch_off", "Switch it off"),
+    ("choice.amounts.seen", "I have checked it"),
+    (
+        "item.amounts.title.payment",
+        "“{name}” sent a payment, and Halvo could not match its amount",
+    ),
+    (
+        "item.amounts.title.purchase",
+        "“{name}” sent an order, and Halvo could not match its total",
+    ),
+    (
+        "line.needs_you.amounts.payment",
+        "It needs you to look at a payment whose amount Halvo could not match.",
+    ),
+    (
+        "line.needs_you.amounts.purchase",
+        "It needs you to look at an order whose total Halvo could not match.",
+    ),
     ("param.start", "Where to start"),
     ("param.payee", "Who to pay"),
     ("param.instrument", "How to pay"),
@@ -408,6 +422,10 @@ pub const KEYS: &[(&str, &str)] = &[
     ("field.purchase.amount", "Total"),
     ("field.purchase.instrument", "Pay with"),
     ("field.purchase.origin", "Site"),
+    ("field.payment.amount_allowed", "Amount you allowed"),
+    ("field.purchase.amount_allowed", "Total you allowed"),
+    ("field.payment.page_amount", "Amount on the site's page afterwards"),
+    ("field.purchase.page_amount", "Total on the site's page afterwards"),
     ("field.send.to", "To"),
     ("field.send.subject", "Subject"),
     ("field.send.body", "Message"),
@@ -537,8 +555,32 @@ pub const KEYS: &[(&str, &str)] = &[
         "item.setup.overlap_unread",
         "Another of your agents already answers mail from at least one of these people on this mailbox, and Halvo cannot show which one right now. A message that one agent answered can still look unread to the other. Take out the people that the other agent answers and choose again, or switch the other agent off or delete it.",
     ),
-    ("run.effect.payment", "It made this payment."),
-    ("run.effect.purchase", "It placed this order."),
+    ("run.effect.payment", "It sent this payment, and the site's page afterwards showed the amount you allowed."),
+    ("run.effect.purchase", "It sent this order, and the site's page afterwards showed the total you allowed."),
+    (
+        "run.effect.payment.amount_differs",
+        "It sent this payment, but Halvo could not match the amount on the site's page afterwards to the one you allowed. Check your bank or the site to see what was paid.",
+    ),
+    (
+        "run.effect.purchase.amount_differs",
+        "It sent this order, but Halvo could not match the total on the site's page afterwards to the one you allowed. Check the shop's order page to see what was ordered, and for how much.",
+    ),
+    (
+        "run.effect.payment.amount_unread",
+        "It sent this payment, but Halvo found no amount on the site's page afterwards. Check your bank or the site to see whether it was paid, and how much.",
+    ),
+    (
+        "run.effect.purchase.amount_unread",
+        "It sent this order, but Halvo found no total on the site's page afterwards. Check the shop's order page to see whether it was placed, and for how much.",
+    ),
+    (
+        "run.effect.payment.page_unread",
+        "It sent this payment, but Halvo could not read the site's page afterwards. Check your bank or the site to see whether it was paid, and how much.",
+    ),
+    (
+        "run.effect.purchase.page_unread",
+        "It sent this order, but Halvo could not read the site's page afterwards. Check the shop's order page to see whether it was placed, and for how much.",
+    ),
     ("run.effect.send", "It sent this message."),
     ("run.effect.delete", "It removed this."),
     ("run.effect.submit", "It sent this form."),
@@ -546,11 +588,11 @@ pub const KEYS: &[(&str, &str)] = &[
     ("run.effect.local_edit", "It changed this file."),
     (
         "run.effect.payment.unshown",
-        "It made a payment, but Halvo cannot show its details.",
+        "It sent a payment, but Halvo cannot show its details.",
     ),
     (
         "run.effect.purchase.unshown",
-        "It placed an order, but Halvo cannot show its details.",
+        "It sent an order, but Halvo cannot show its details.",
     ),
     (
         "run.effect.send.unshown",
@@ -578,11 +620,11 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "run.effect.payment.partial",
-        "It made this payment, but Halvo shows only the details it could read.",
+        "It sent this payment, but Halvo shows only the details it could read.",
     ),
     (
         "run.effect.purchase.partial",
-        "It placed this order, but Halvo shows only the details it could read.",
+        "It sent this order, but Halvo shows only the details it could read.",
     ),
     (
         "run.effect.send.partial",
@@ -676,6 +718,54 @@ pub const KEYS: &[(&str, &str)] = &[
         "One step may have been done; Halvo could not tell. Check where this agent works before you run it again.",
     ),
     ("line.run.stopped", "It stopped before the task was done."),
+    (
+        "line.run.amount_differs.payment",
+        "It sent a payment, then stopped because Halvo could not match the amount on the site's page afterwards.",
+    ),
+    (
+        "line.run.amount_differs.purchase",
+        "It sent an order, then stopped because Halvo could not match the total on the site's page afterwards.",
+    ),
+    (
+        "line.problem.amount_differs.payment",
+        "Last time, it sent a payment, and Halvo could not match the amount on the site's page afterwards.",
+    ),
+    (
+        "line.problem.amount_differs.purchase",
+        "Last time, it sent an order, and Halvo could not match the total on the site's page afterwards.",
+    ),
+    (
+        "line.run.page_unread.payment",
+        "It sent a payment, then stopped because Halvo could not read the site's page afterwards.",
+    ),
+    (
+        "line.run.page_unread.purchase",
+        "It sent an order, then stopped because Halvo could not read the site's page afterwards.",
+    ),
+    (
+        "line.problem.page_unread.payment",
+        "Last time, it sent a payment, but Halvo could not read the site's page afterwards.",
+    ),
+    (
+        "line.problem.page_unread.purchase",
+        "Last time, it sent an order, but Halvo could not read the site's page afterwards.",
+    ),
+    (
+        "line.run.amount_not_sent.payment",
+        "It did not pay, because the payment that the site prepared named another amount than its page showed.",
+    ),
+    (
+        "line.run.amount_not_sent.purchase",
+        "It did not order, because the order that the site prepared named another total than its page showed.",
+    ),
+    (
+        "line.problem.amount_not_sent.payment",
+        "Last time, it did not pay, because the payment that the site prepared named another amount than its page showed.",
+    ),
+    (
+        "line.problem.amount_not_sent.purchase",
+        "Last time, it did not order, because the order that the site prepared named another total than its page showed.",
+    ),
     ("field.local_edit.file", "File"),
     ("field.local_edit.range", "Where in the file"),
     (

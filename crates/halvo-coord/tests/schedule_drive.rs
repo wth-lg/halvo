@@ -379,6 +379,7 @@ fn what_name(w: &What) -> String {
             Cleared::Failures => "hold_cleared failures".into(),
             Cleared::Check { answer, .. } => format!("hold_cleared check {answer}"),
             Cleared::SignInRefused { .. } => "hold_cleared sign_in_refused".into(),
+            Cleared::Amounts { .. } => "hold_cleared amounts".into(),
         },
         What::SlotSkipped { slot } => format!(
             "slot_skipped {}",
@@ -692,29 +693,6 @@ fn refusal_auto_needs_person() {
         1,
         "the run before the test alone"
     );
-}
-
-#[test]
-fn refusal_over_budget() {
-    let mut w = world(&[manual()]);
-    let day = w.limits.starts_per_day;
-    for _ in 0..day {
-        let run = ok_run(&w.start(0));
-        w.end(&run, Some(Outcome::Completed));
-    }
-    w.forget();
-    let one_more = w.start(0);
-    assert_eq!(one_more.answer, Err(Cause::Budget));
-    assert_eq!(w.calls(), Vec::<String>::new());
-    let today = w
-        .stored()
-        .iter()
-        .filter(|e| e.day == DAY && matches!(e.what, What::RunStarted { .. }))
-        .count();
-    assert_eq!(today, day as usize);
-    w.clock(T0 + 1, DAY + 1);
-    w.tick();
-    ok_run(&w.start(0));
 }
 
 #[test]

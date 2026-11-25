@@ -1664,9 +1664,11 @@ fn with_the_drain_short(
     }
 }
 
+/// The KIND of the last fault of the drain that `reports` name, or none
+/// where the last drain report reads healthy or no drain report stands.
 #[cfg(any(test, target_os = "macos", windows))]
-fn loss_line(settled: &counters::Snapshot, count: u64, reports: &[owner::Report]) -> String {
-    let kind = reports
+fn last_fault(reports: &[owner::Report]) -> Option<&'static str> {
+    reports
         .iter()
         .rev()
         .find_map(|report| match report {
@@ -1675,7 +1677,11 @@ fn loss_line(settled: &counters::Snapshot, count: u64, reports: &[owner::Report]
             _ => None,
         })
         .flatten()
-        .unwrap_or("-");
+}
+
+#[cfg(any(test, target_os = "macos", windows))]
+fn loss_line(settled: &counters::Snapshot, count: u64, reports: &[owner::Report]) -> String {
+    let kind = last_fault(reports).unwrap_or("-");
     format!(
         "halvo-capture: lost events={count} first={} last={} error={kind}",
         owner::capture_second(settled.lost_first_at),
@@ -2623,6 +2629,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     .with_state(state)
     .with_marker(Box::new(supervisor::MarkerFile::new(dir.run_marker())))
     .with_hold(run_marker::held(dir))
+    .with_last_life(begun.lost.clone())
     .with_typing_note(Box::new(supervisor::NoteInRun::new(note_run)), typing_kept)
     .with_life(listening.admitting().ending_life());
     listening
@@ -2857,6 +2864,8 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                             .admitting()
                             .hold_owner(Some(owner.watched.handle.clone()));
                         #[cfg(feature = "r2")]
+                        supervisor.mark_the_search();
+                        #[cfg(feature = "r2")]
                         r2::service::open(
                             dir.path(),
                             children::own_dir(),
@@ -2919,6 +2928,11 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         .map_or(0, |settled| {
             settled.events_lost.saturating_add(settled.events_pending)
         });
+    let before_the_close = outcome
+        .as_ref()
+        .and_then(|outcome| outcome.settled)
+        .or_else(|| store.link().map(|owner| owner.snapshot()));
+    let fault = outcome.as_ref().and_then(|outcome| outcome.fault);
     let status = outcome.map_or(status, |outcome| outcome.status);
     if let HeldStore::Capture(owner) = &store {
         if !supervisor::OwnerLink::is_running(&owner.watched) {
@@ -2929,14 +2943,15 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             );
         }
     }
-    let status = match store {
+    let (status, closed) = match store {
         HeldStore::Capture(owner) => close_the_store(*owner, status, err),
-        HeldStore::None | HeldStore::Maintenance(_) => status,
+        HeldStore::None | HeldStore::Maintenance(_) => (status, None),
     };
+    let carried = carried_loss(closed.as_ref(), before_the_close.as_ref(), fault);
     let ended = held_run
         .as_ref()
         .map_err(|error| std::io::Error::from(error.kind()))
-        .and_then(|run| run_marker::at_the_end(run, status, ended_by));
+        .and_then(|run| run_marker::at_the_end(run, status, ended_by, carried.as_ref()));
     if let Err(error) = ended {
         let _ = writeln!(
             err,
@@ -3111,6 +3126,20 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
             typing_turn(asked, on, supervisor, serving, store);
             return;
         }
+        Request::SetSearch { on } => match supervisor.set_search(on) {
+            None => Reply::Error(ErrorReply::new(
+                ErrorCode::Internal,
+                "the capture service holds no state file",
+            )),
+            Some(Err(error)) => Reply::Error(ErrorReply::new(
+                ErrorCode::StateFile,
+                format!("the search for repeated tasks was not turned: {error}"),
+            )),
+            Some(Ok(())) => status_reply(supervisor, serving).map_or_else(
+                |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+                Reply::Status,
+            ),
+        },
         _ => Reply::Error(ErrorReply::new(
             ErrorCode::UnsupportedOp,
             "this build of the capture service does not serve the op",
@@ -3223,7 +3252,7 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         let _ = if went_on {
             close_unsettled(*owner, err)
         } else {
-            close_the_store(*owner, halvo_control::exit::CLEAN, err)
+            close_the_store(*owner, halvo_control::exit::CLEAN, err).0
         };
     }
     let rows = delete_all::rows();
@@ -3721,8 +3750,15 @@ fn status_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
 #[cfg(any(target_os = "macos", windows))]
 const CLOSE_WAIT: Duration = Duration::from_secs(1);
 
+/// Closes the store by the Shutdown, whose settle makes one more try to write
+/// what is held: the status of the end, and the owner's snapshot of that
+/// answer, read after its last try, or none where it did not answer.
 #[cfg(any(target_os = "macos", windows))]
-fn close_the_store(owner: CaptureOwner, status: i32, err: &mut dyn std::io::Write) -> i32 {
+fn close_the_store(
+    owner: CaptureOwner,
+    status: i32,
+    err: &mut dyn std::io::Write,
+) -> (i32, Option<counters::Snapshot>) {
     close_by(owner, owner::Command::Shutdown, status, err)
 }
 
@@ -3734,6 +3770,42 @@ fn close_unsettled(owner: CaptureOwner, err: &mut dyn std::io::Write) -> i32 {
         halvo_control::exit::CLEAN,
         err,
     )
+    .0
+}
+
+/// What the run marker carries of a loss at an end (contracts.md C2.3,
+/// `last_stop_lost`; ruling DM-4 items 6 and 7): from `closed`, the answer of
+/// the store's close, read after its last try to write, what was lost and
+/// what was still pending, since the process ends behind it; where the close
+/// did not answer, from `before`, the last settle's or else the last
+/// published snapshot, what was lost alone. None where that count is 0.
+#[cfg(any(target_os = "macos", windows))]
+fn carried_loss(
+    closed: Option<&counters::Snapshot>,
+    before: Option<&counters::Snapshot>,
+    fault: Option<&str>,
+) -> Option<halvo_control::proto::LostRecord> {
+    let (snapshot, events, final_figures) = match (closed, before) {
+        (Some(closed), _) => (
+            closed,
+            closed.events_lost.saturating_add(closed.events_pending),
+            true,
+        ),
+        (None, Some(before)) => (before, before.events_lost, false),
+        (None, None) => return None,
+    };
+    let second = |at: Option<i64>| {
+        at.and_then(|nanos| {
+            halvo_control::model::UtcSecond::from_unix_seconds(nanos.div_euclid(1_000_000_000)).ok()
+        })
+    };
+    (events > 0).then(|| halvo_control::proto::LostRecord {
+        events,
+        first: second(snapshot.lost_first_at),
+        last: second(snapshot.lost_last_at),
+        error: fault.and_then(|fault| fault.parse().ok()),
+        final_figures,
+    })
 }
 
 #[cfg(any(target_os = "macos", windows))]
@@ -3742,13 +3814,17 @@ fn close_by(
     command: owner::Command,
     status: i32,
     err: &mut dyn std::io::Write,
-) -> i32 {
+) -> (i32, Option<counters::Snapshot>) {
     let answered = owner
         .watched
         .handle
         .ask(command)
         .ok()
         .and_then(|pending| pending.wait_for(CLOSE_WAIT));
+    let closed = match &answered {
+        Some(owner::Answer::ShutDown(snapshot)) => Some(*snapshot),
+        _ => None,
+    };
     let unclosed = if !matches!(answered, Some(owner::Answer::ShutDown(_))) {
         Some("the store owner did not answer the Shutdown within 1 s")
     } else if owner.watched.join().is_err() {
@@ -3757,15 +3833,15 @@ fn close_by(
         None
     };
     let Some(why) = unclosed else {
-        return status;
+        return (status, closed);
     };
     let _ = writeln!(
         err,
         "halvo-capture: {why}; the store was not closed in order"
     );
     match status {
-        halvo_control::exit::CLEAN => halvo_control::exit::ERROR,
-        status => status,
+        halvo_control::exit::CLEAN => (halvo_control::exit::ERROR, closed),
+        status => (status, closed),
     }
 }
 

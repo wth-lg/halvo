@@ -1,8 +1,8 @@
 use crate::items::params;
 use crate::roster::said_no_at_sign_in;
 use crate::types::{
-    Category, Cause, Cleared, ConfigView, Doing, Facts, HoldSetCause, OwnItemKind, Raised, RunId,
-    Runtime, What, WorkflowState,
+    Category, Cause, Cleared, ConfigView, Doing, Facts, HoldSetCause, LastCause, OwnItemKind,
+    Raised, RunId, Runtime, What, WorkflowState,
 };
 
 /// The holds of I5.4, in their order: each stops every start of its agent.
@@ -21,6 +21,9 @@ pub enum Hold {
     Failures,
     /// `check`.
     Check,
+    /// `amounts`: the hold of a payment or an order whose amount on the site's page afterwards
+    /// could not be matched to the allowed amount, until the person's answer (r4 U3.29).
+    Amounts,
     /// `setup`.
     Setup,
 }
@@ -34,6 +37,7 @@ impl Hold {
         Hold::SiteDeclined,
         Hold::Failures,
         Hold::Check,
+        Hold::Amounts,
         Hold::Setup,
     ];
 
@@ -46,6 +50,7 @@ impl Hold {
             Hold::SiteDeclined => "site_declined",
             Hold::Failures => "failures",
             Hold::Check => "check",
+            Hold::Amounts => "amounts",
             Hold::Setup => "setup",
         }
     }
@@ -195,6 +200,25 @@ fn check<C>(facts: &Facts<C>) -> bool {
         })
 }
 
+/// Whether the hold `amounts` stands (r4 U3.29, the coordinator's log lines 20376, 20377 and
+/// 20557): the agent store has ended the agent's newest run, the newest of `runs`, with the last
+/// cause `amount_differs` behind a payment or an order of that run that left (the core's
+/// `LastCause::AmountDiffers`, which the reader takes beside the key `left` `yes` alone), and no
+/// `hold_cleared` of the cause `amounts` names that run. It reads the record at every read of the
+/// facts and no item, so it stands again in a new life and no lapse of an item ends it; the
+/// person's I have checked it, which stores that `hold_cleared`, ends it, and a switch-off of the
+/// item's other choice leaves it standing. Named limit: the agent store hands out the row that
+/// gives the last cause for 93 days (I7.1), after which the hold is gone with no answer.
+fn amounts<C>(facts: &Facts<C>) -> bool {
+    let Some(newest) = facts.runs.first().filter(|_| facts.store_ended) else {
+        return false;
+    };
+    facts.last_cause == Some(LastCause::AmountDiffers)
+        && !facts.events.iter().any(|e| {
+            matches!(&e.what, What::HoldCleared { cause: Cleared::Amounts { run } } if *run == newest.run)
+        })
+}
+
 /// Each hold that stands for the agent, in the order of I5.4, read from the facts alone:
 /// `not_yet` while its runtime is `none`; `off` from a `hold_set` event with the cause `person`
 /// until a later `hold_cleared` event with the cause `person`, or by the derived hold of
@@ -212,7 +236,8 @@ fn check<C>(facts: &Facts<C>) -> bool {
 /// or the rows gives or a roster read that did not answer, in its life, and for an `email` agent
 /// in the next life too (rulings XB-2, RD-67 3.3, RD-81 8.1, 8.2, 8.4, RD-130, RD-134). Named limit: for an agent of another category whose
 /// key entry left the roster, after Halvo is opened again the card of the earlier life has lapsed
-/// and the agent may start or show its ready card without that answer. `setup` while a parameter
+/// and the agent may start or show its ready card without that answer. `amounts` as `amounts`
+/// reads it (r4 U3.29). `setup` while a parameter
 /// of its category (I3.5) has no slot in its newest bindings. Both `off` and `failures` are
 /// returned where both stand.
 pub fn holds<C: ConfigView>(facts: &Facts<C>) -> Vec<Hold> {
@@ -234,6 +259,9 @@ pub fn holds<C: ConfigView>(facts: &Facts<C>) -> Vec<Hold> {
     }
     if check(facts) {
         out.push(Hold::Check);
+    }
+    if amounts(facts) {
+        out.push(Hold::Amounts);
     }
     let unbound = params(facts.workflow.category)
         .iter()
