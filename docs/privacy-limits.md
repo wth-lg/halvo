@@ -111,15 +111,24 @@ Where a sentence names a unit, that unit makes it true.
   it read the same, with an en dash or a hyphen before the brand. A page whose own
   title ends in a closing bracket is not kept. If Edge marked a private window
   otherwise under some interface language, the titles of that window would be kept.
-- On Windows the title of a Chrome window does not tell a private window (it read
-  `PAGE - Google Chrome` in 3 of 3 runs). Halvo asks the window instead, through UI
-  Automation, and keeps a title only where the window's toolbar holds a button named
-  Back, Forward or Reload and no button of the window carries the word Incognito; it
-  keeps no title of a window in the first two seconds after it first sees the
-  window. So a Chrome window under another interface language keeps no title. If an
-  Incognito window showed one of those English names on its toolbar and no button
-  with the word Incognito, its titles would be kept; no run has yet opened Chrome in
-  Incognito to show the rule on a real window.
+- On Windows the title of a Chrome window does not tell a private window: it reads
+  `PAGE - Google Chrome` in an Incognito and in a Guest window too. Halvo asks the
+  window instead, through UI Automation, and keeps a title of Chrome only where three
+  things hold: the name that Chrome gives the inside of the window ends with
+  ` - Google Chrome`, or with ` - Google Chrome - ` and the name of a profile where Chrome
+  holds several; the browser's own toolbar, outside the page, holds a button named Back,
+  Forward or Reload; and no button of the window carries the word Incognito. In an
+  Incognito or a Guest window that inside name ends with the window's mark instead, so
+  none of their titles is kept, in full screen and in a pop-up too. Halvo also keeps no
+  title of a window in the first two seconds after it first sees the window, none while a
+  page's dialog is in front, none of an app window, none under another interface
+  language, and, by Chrome's public source alone, none of Chrome Beta, Dev or Canary or
+  of Chromium. Four runs on 25 November 2026 opened Chrome on Windows in these states;
+  before this change the titles of a Guest window were kept, and so were those of an
+  Incognito or a Guest window in full screen whose page showed a toolbar of its own. The
+  names are those of the Chrome on the machines of those runs: a version of Chrome that
+  named the inside of a private window as it names an ordinary one's, and showed no
+  button with the word Incognito, would have that window's titles kept.
 - On Windows, Halvo asks the program in front whether the field with the cursor is a
   password field. While the program says yes, Halvo records no window title. Where a
   program gives no answer, Halvo records the window title, also while you type a
