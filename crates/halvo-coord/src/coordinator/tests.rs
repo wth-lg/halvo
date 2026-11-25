@@ -1328,6 +1328,182 @@ fn u322g_one_line_turned_behind_the_stored_answers_sends_one_body_with_the_three
     assert!(sent_or_stored(&lacks, m).is_empty(), "nothing is stored");
 }
 
+/// r4 U3.30, the line that decides (the coordinator's ruling of its log lines 22079 and 22080,
+/// condition (1)): the body of a set-up is made at an answer whose call does not say `more`, and
+/// at no other move. In the step: four answers with `more`, three chosen and one typed, leave the
+/// item open with an answer of every question and no body; from there Not now makes none (it keeps
+/// the item as it was, and closes an item asked again), no move of the owner's side makes one, and
+/// the answer that does not say `more` makes the ONE body with the four values. Through the
+/// coordinator: the last line of a first set-up with `more` sends no body and stores no row, and
+/// the item reaches the page byte for byte as the open item that it was; Not now sends nothing and
+/// the item stays; a line turned with `more` sends nothing; the line that does not say `more` sends
+/// ONE body with the turned line in it. Behind Change its answers, four lines with `more` send
+/// nothing, and Not now closes the item with nothing sent or stored.
+#[test]
+fn u330_a_set_up_makes_its_body_at_an_answer_that_does_not_say_more_and_at_no_other_move() {
+    use crate::items::{setup_step, setup_step_more, Setup, SetupMove, SetupParam, SetupState};
+    use crate::types::Choice;
+    let values = |v: &[&str]| v.iter().map(|s| (*s).to_owned()).collect::<Vec<String>>();
+    let chosen = |param, n| SetupInput::Choose { param, n };
+    let asked = vec![
+        SetupParam {
+            param: Param::Workbook,
+            candidates: vec![(values(&["Rent 2026.xlsx"]), CandidateFrom::Files)],
+        },
+        SetupParam {
+            param: Param::Sheet,
+            candidates: vec![
+                (values(&["March"]), CandidateFrom::Records),
+                (values(&["April"]), CandidateFrom::Records),
+            ],
+        },
+        SetupParam {
+            param: Param::Range,
+            candidates: vec![],
+        },
+        SetupParam {
+            param: Param::Source,
+            candidates: vec![(values(&["receipts.csv"]), CandidateFrom::Site)],
+        },
+    ];
+    let open = Setup::new(
+        ItemId::parse(&format!("{:032x}", 0x30)).unwrap(),
+        sheet_flow(),
+        sheet_agent(),
+        Category::SpreadsheetFill,
+        asked,
+    )
+    .unwrap();
+    let answers = [
+        chosen(Param::Workbook, 1),
+        chosen(Param::Sheet, 2),
+        SetupInput::Typed {
+            param: Param::Range,
+            text: "A1:C20",
+        },
+        chosen(Param::Source, 1),
+    ];
+    let full = answers.iter().fold(open, |s, a| {
+        setup_step_more(&s, *a).expect("an answer with `more` is taken")
+    });
+    assert_eq!(
+        full.state(),
+        &SetupState::Open,
+        "four answers with `more`: no body"
+    );
+    assert!(
+        SHEET_PARAMS.iter().all(|p| full.given(*p).is_some()),
+        "every question holds its answer"
+    );
+    let none = setup_step(&full, SetupMove::Input(SetupInput::None)).unwrap();
+    assert_eq!(none, full, "Not now makes no body and keeps the item");
+    let again = full.clone().asked_again();
+    let closed = setup_step(&again, SetupMove::Input(SetupInput::None)).unwrap();
+    assert_eq!(
+        closed.state(),
+        &SetupState::Closed,
+        "Not now closes an item asked again, with no body"
+    );
+    for mv in [
+        SetupMove::Acknowledged,
+        SetupMove::NotTaken,
+        SetupMove::Overlap,
+        SetupMove::Again,
+    ] {
+        assert_eq!(setup_step(&full, mv), Err(Cause::State), "{mv:?}");
+    }
+    for (mv, ends) in [
+        (SetupMove::Gone, SetupState::Gone),
+        (SetupMove::Binding, SetupState::AgentGone),
+    ] {
+        assert_eq!(setup_step(&full, mv).unwrap().state(), &ends, "{mv:?}");
+    }
+    let last = setup_step(&full, SetupMove::Input(chosen(Param::Source, 1))).unwrap();
+    let SetupState::Owed(body) = last.state() else {
+        panic!("the answer that does not say `more` makes the body");
+    };
+    let slots: Vec<Vec<String>> = body.slots().iter().map(|s| s.value.clone()).collect();
+    let made = [
+        values(&["Rent 2026.xlsx"]),
+        values(&["April"]),
+        values(&["A1:C20"]),
+        values(&["receipts.csv"]),
+    ];
+    assert_eq!(slots, made, "ONE body with the four values");
+
+    let (c, item) = all_answered_but(Param::Source);
+    let read = |c: &Coordinator<Ports<Config>>| serde_json::to_string(&sheet_setup(c)).unwrap();
+    let before = read(&c);
+    let m = mark(&c);
+    let source = good(Param::Source);
+    assert_eq!(
+        c.setup_typed_more(item.item(), Param::Source, source, item.step()),
+        Ok(())
+    );
+    assert!(
+        sent_or_stored(&c, m).is_empty(),
+        "the last line with `more`: no body, no row"
+    );
+    assert_eq!(read(&c), before, "the full item reaches the page as it was");
+    assert_eq!(
+        c.answer(item.item(), Choice::None, None, item.step()),
+        Ok(())
+    );
+    assert!(sent_or_stored(&c, m).is_empty(), "Not now: no body, no row");
+    assert_eq!(read(&c), before, "Not now: the item stays");
+    assert_eq!(
+        c.setup_typed_more(item.item(), Param::Range, "B2:D5", item.step()),
+        Ok(())
+    );
+    assert!(
+        sent_or_stored(&c, m).is_empty(),
+        "a line turned with `more`: no body, no row"
+    );
+    assert_eq!(
+        c.setup_typed(item.item(), Param::Source, source, item.step()),
+        Ok(())
+    );
+    let sent = set_bindings(&c, m);
+    assert_eq!(
+        sent.len(),
+        1,
+        "ONE body, at the line that does not say `more`"
+    );
+    for p in SHEET_PARAMS {
+        let line = if p == Param::Range { "B2:D5" } else { good(p) };
+        assert_eq!(
+            slot_of(&sent[0], p),
+            Some(vec![line.to_owned()]),
+            "{}",
+            p.name()
+        );
+    }
+
+    let (asked_again, item) = put_up_with(kept_answers());
+    let m = mark(&asked_again);
+    for p in SHEET_PARAMS {
+        let typed = asked_again.setup_typed_more(item.item(), p, kept_answer(p), item.step());
+        assert_eq!(typed, Ok(()), "{}", p.name());
+    }
+    assert!(
+        sent_or_stored(&asked_again, m).is_empty(),
+        "four lines with `more`: no body, no row"
+    );
+    assert!(sheet_setup(&asked_again).is_some(), "the item stays open");
+    assert_eq!(
+        asked_again.answer(item.item(), Choice::None, None, item.step()),
+        Ok(())
+    );
+    assert!(
+        sheet_setup(&asked_again).is_none(),
+        "Not now closes the item asked again"
+    );
+    assert!(
+        sent_or_stored(&asked_again, m).is_empty(),
+        "and sends and stores nothing"
+    );
+}
+
 fn pay_agent() -> AgentId {
     AgentId::parse(&format!("{:032x}", 0xa9)).unwrap()
 }

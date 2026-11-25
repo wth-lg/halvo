@@ -728,8 +728,11 @@ fn folder_of(path: &str, system: System) -> &str {
 /// system; a line that `typed_line` does not take is not taken: the parameter holds no value and
 /// carries the reason until its next answer, so that no body is made, and the move is no refusal
 /// (r4 U3.22a).
-/// While a parameter has no answer the item stays open; the answer that gives the last one makes
-/// the one body `set_bindings`, with the slots of the given values, which is owed from then on.
+/// While a parameter has no answer the item stays open. The one body `set_bindings`, with the
+/// slots of the given values, is made by `choose` or a typed line after which no parameter lacks
+/// an answer, and is owed from then on; no other move makes it, `none` among them (r4 U3.30). The
+/// same answer of a call that says that more calls of its press follow is taken and makes none
+/// (`setup_step_more`), so an open item can hold an answer of every parameter and no body.
 /// `overlap` (I3.5 (a); ruling RD-67 3.2) makes an owed item open as `not_taken` does and keeps
 /// its body in memory, never stored, and `again` makes an open item that keeps a body owe it once
 /// more, `state` for an item that keeps none; the answer that makes a new body, `not_taken` and
@@ -752,15 +755,29 @@ fn folder_of(path: &str, system: System) -> &str {
 /// the item is no longer open, the one that makes its body among them, and at every move after
 /// which it asks every parameter again, so that it then starts with empty lines.
 pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
-    let mut next = step_of(setup, mv)?;
+    stepped(setup, mv, false)
+}
+
+/// `setup_step` of the answer `answer` of the person whose call says that more calls of its press
+/// follow (I8.1 `more`; r4 U3.30): the item takes the answer, or refuses it, as `setup_step` does
+/// for `SetupMove::Input`, and makes NO body, also where every parameter then holds an answer. So
+/// an open item can hold an answer of every parameter and no body; it stays open as it is until
+/// an answer comes that does not say `more`.
+pub fn setup_step_more(setup: &Setup, answer: SetupInput<'_>) -> Result<Setup, Cause> {
+    stepped(setup, SetupMove::Input(answer), true)
+}
+
+/// `setup_step` where `more` is false and `setup_step_more` where it is true.
+fn stepped(setup: &Setup, mv: SetupMove<'_>, more: bool) -> Result<Setup, Cause> {
+    let mut next = step_of(setup, mv, more)?;
     if next.state != SetupState::Open || next.step != setup.step {
         next.stored = SheetAnswers::default();
     }
     Ok(next)
 }
 
-/// `setup_step` but for the stored lines.
-fn step_of(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
+/// `stepped` but for the stored lines.
+fn step_of(setup: &Setup, mv: SetupMove<'_>, more: bool) -> Result<Setup, Cause> {
     let mut next = setup.clone();
     if !matches!(mv, SetupMove::Input(SetupInput::None)) {
         next.waits = None;
@@ -860,17 +877,18 @@ fn step_of(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
             }
         }
     }
-    if matches!(
+    let answer = matches!(
         mv,
         SetupMove::Input(
             SetupInput::Choose { .. } | SetupInput::Typed { .. } | SetupInput::Book { .. }
         )
-    ) {
+    );
+    if answer {
         if let Some(Shared::Unread { again }) = next.shared.as_mut() {
             *again = false;
         }
     }
-    if next.state == SetupState::Open {
+    if answer && !more && next.state == SetupState::Open {
         if let Some(body) = next.body() {
             next.state = SetupState::Owed(body);
             next.kept = None;
