@@ -168,7 +168,7 @@ struct Host {
 impl Host {
     /// The host at `origin` for `adapter`. `origin` must be `https://` and a host name alone; a
     /// build with the feature `loopback` takes `http://127.0.0.1:<port>` alone and no named origin,
-    /// so a build that can reach a stand-in reaches no host that is not this machine (r6 U5.2a).
+    /// so in such a build this adapter reaches no host that is not this machine (r6 U5.2a).
     fn new(adapter: Adapter, origin: &str, limit: Duration) -> Result<Host, SendError> {
         let parsed = Url::parse(origin).map_err(|_| SendError::Origin)?;
         let named = !cfg!(feature = "loopback")
@@ -264,7 +264,7 @@ mod host_tests {
     /// r6 U5.2a: a build with the feature `loopback`, which the test builds of this crate, of the
     /// door halvo-model and of the runner turn on, takes `http://127.0.0.1:<port>` alone. A named
     /// origin, which a row of the table of hosts holds, gives `Origin` before any client exists, so
-    /// no test of such a build reaches a host that is not this machine.
+    /// no test of such a build reaches, through this adapter, a host that is not this machine.
     #[test]
     fn a_build_that_can_reach_a_stand_in_takes_no_named_origin() {
         for adapter in Adapter::ALL {
