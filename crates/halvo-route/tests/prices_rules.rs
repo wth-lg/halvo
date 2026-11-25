@@ -104,7 +104,7 @@ fn custom(low: (u64, u64), frontier: (u64, u64)) -> Prices {
 
 #[test]
 fn cost_is_micro_units_per_million_tokens_rounded_up() {
-    let prices = Prices::release();
+    let prices = Prices::parse(GOOD).expect("the price text GOOD parses");
     assert_eq!(prices.cost(Tier::LowCostHosted, 1_000, 1_000), 18_800);
     assert_eq!(prices.cost(Tier::LowCostHosted, 1_000_000, 0), 3_100_000);
     assert_eq!(prices.cost(Tier::LowCostHosted, 0, 1_000_000), 15_700_000);
@@ -120,7 +120,7 @@ fn cost_is_micro_units_per_million_tokens_rounded_up() {
 
 #[test]
 fn cost_computes_in_u128_and_saturates() {
-    let prices = Prices::release();
+    let prices = Prices::parse(GOOD).expect("the price text GOOD parses");
     assert_eq!(
         prices.cost(Tier::Frontier, 10_000_000_000_000, 0),
         155_000_000_000_000
@@ -152,7 +152,7 @@ fn cost_computes_in_u128_and_saturates() {
 
 #[test]
 fn hold_prices_the_body_bytes_and_the_output_limit() {
-    let prices = Prices::release();
+    let prices = Prices::parse(GOOD).expect("the price text GOOD parses");
     assert_eq!(prices.hold(Tier::LowCostHosted, 131_072, 2_048), 438_477);
     assert_eq!(prices.hold(Tier::Frontier, 131_072, 2_048), 2_192_384);
     assert_eq!(prices.hold(Tier::LowCostHosted, 8_192, 256), 29_415);

@@ -16,6 +16,21 @@ use Machine::{GenA, GenB};
 use Seed::{One, Three, Two};
 use Tier::{LowCostHosted, OnDevice};
 
+/// The prices of these lines: the billing run's fixture rates (B-3.2), as a text of this file's own, so that no line
+/// follows the compiled-in price file.
+fn fixture_prices() -> &'static Prices {
+    static PRICES: std::sync::OnceLock<Prices> = std::sync::OnceLock::new();
+    PRICES.get_or_init(|| {
+        Prices::parse(
+            "tier\tinput\toutput\tsource\tdate\n\
+             on_device\t0\t0\tdevice\t2026-11-10\n\
+             low_cost_hosted\t3100000\t15700000\tfixture:B-3.2\t2026-11-10\n\
+             frontier\t15500000\t78500000\tfixture:B-3.2\t2026-11-10\n",
+        )
+        .expect("the fixture prices parse")
+    })
+}
+
 fn row(
     kind: CallKind,
     tier: Tier,
@@ -75,7 +90,7 @@ fn lines_of(router: &dyn Router, draws: u32) -> Vec<String> {
         &hand_table(),
         &Setup::generated(),
         router,
-        Prices::release(),
+        fixture_prices(),
         draws,
     )
     .lines()
@@ -191,7 +206,7 @@ fn bad_routers_fail_for_their_reasons_on_the_specimen() {
     let table = generate(1);
     let setup = Setup::generated();
     let verdict =
-        |router: &dyn Router| score(&table, &setup, router, Prices::release(), DEFAULT_DRAWS);
+        |router: &dyn Router| score(&table, &setup, router, fixture_prices(), DEFAULT_DRAWS);
     let derived = verdict(&PolicyRouter::derived(&table, &setup));
     assert!(derived.passed());
     let peek = verdict(&PolicyRouter::peek(&table, &setup));
@@ -260,7 +275,7 @@ fn a_router_that_routes_a_cell_with_no_model_fails_r1() {
             derived: PolicyRouter::derived(&table, &setup),
             cell,
         };
-        let result = score(&table, &setup, &router, Prices::release(), DEFAULT_DRAWS);
+        let result = score(&table, &setup, &router, fixture_prices(), DEFAULT_DRAWS);
         assert!(!result.passed(), "{cell:?}");
         assert_eq!(
             result.lines().pop().as_deref(),
@@ -298,7 +313,7 @@ fn the_scorer_asks_each_cell_once() {
         derived: PolicyRouter::derived(&table, &setup),
         asked: std::cell::Cell::new(0),
     };
-    let lines = score(&table, &setup, &turncoat, Prices::release(), DEFAULT_DRAWS).lines();
+    let lines = score(&table, &setup, &turncoat, fixture_prices(), DEFAULT_DRAWS).lines();
     assert_eq!(turncoat.asked.get(), 44);
     assert_eq!(
         line(&lines, "versus name=router "),
@@ -325,7 +340,7 @@ fn cells_with_development_rows_alone_count_in_no_comparison() {
     let table = Table::from_rows(&rows).expect("a table");
     let setup = Setup::generated();
     let derived = PolicyRouter::derived(&table, &setup);
-    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    let lines = score(&table, &setup, &derived, fixture_prices(), DEFAULT_DRAWS).lines();
     assert_eq!(
         line(&lines, "cell category=email kind=recover "),
         "cell category=email kind=recover pick=on_device basis=line_met dev_k=4 dev_n=4 held_k=0 held_n=0 lower_pct=47 cost_micro=0 wall_s=0"
@@ -380,7 +395,7 @@ fn a_cell_handed_back_shows_the_counts_of_the_tier_that_the_derivation_wrote() {
     let table = Table::from_rows(&rows).expect("a table");
     let setup = Setup::generated();
     let derived = PolicyRouter::derived(&table, &setup);
-    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    let lines = score(&table, &setup, &derived, fixture_prices(), DEFAULT_DRAWS).lines();
     assert_eq!(
         line(&lines, "cell category=email kind=recover "),
         "cell category=email kind=recover pick=hand_back basis=line_missed dev_k=3 dev_n=4 held_k=1 held_n=2 lower_pct=0 cost_micro=0 wall_s=0"
@@ -428,7 +443,7 @@ fn a_category_with_rows_and_no_routed_cell_is_a_shortfall() {
         derived: PolicyRouter::derived(&table, &setup),
         cells: vec![(CategoryId::TenantRent, Compile)],
     };
-    let lines = score(&table, &setup, &router, Prices::release(), DEFAULT_DRAWS).lines();
+    let lines = score(&table, &setup, &router, fixture_prices(), DEFAULT_DRAWS).lines();
     assert_eq!(
         line(&lines, "category id=tenant_rent "),
         "category id=tenant_rent compile=none recover=hand_back write=hand_back line=shortfall cost_micro=0"
@@ -453,7 +468,7 @@ fn a_category_with_rows_and_no_routed_cell_is_a_shortfall() {
     rows.sort_by_cached_key(Row::to_line);
     let table = Table::from_rows(&rows).expect("a table");
     let derived = PolicyRouter::derived(&table, &setup);
-    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    let lines = score(&table, &setup, &derived, fixture_prices(), DEFAULT_DRAWS).lines();
     assert_eq!(
         line(&lines, "category id=shop_order "),
         "category id=shop_order compile=hand_back recover=hand_back write=hand_back line=shortfall cost_micro=0"
@@ -473,7 +488,7 @@ fn a_breach_of_r3_prints_its_fault_after_the_verdict_and_fails() {
     let table = hand_table();
     let setup = Setup::generated();
     let derived = PolicyRouter::derived(&table, &setup);
-    let result = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS);
+    let result = score(&table, &setup, &derived, fixture_prices(), DEFAULT_DRAWS);
     let lines = result.lines();
     assert!(result.passed() && !result.hindsight_fault);
     assert_eq!(
@@ -523,7 +538,7 @@ fn a_routed_tier_with_one_held_out_attempt_misses_r2() {
     let table = Table::from_rows(&rows).expect("a table");
     let setup = Setup::generated();
     let derived = PolicyRouter::derived(&table, &setup);
-    let result = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS);
+    let result = score(&table, &setup, &derived, fixture_prices(), DEFAULT_DRAWS);
     let lines = result.lines();
     assert_eq!(
         line(&lines, "cell category=email kind=compile "),
@@ -549,7 +564,7 @@ fn cost_sums_beyond_u64_are_u64_max_on_the_cell_and_versus_lines() {
     let table = Table::from_rows(&rows).expect("a table");
     let setup = Setup::generated();
     let derived = PolicyRouter::derived(&table, &setup);
-    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    let lines = score(&table, &setup, &derived, fixture_prices(), DEFAULT_DRAWS).lines();
     assert_eq!(
         line(&lines, "cell category=email kind=write "),
         "cell category=email kind=write pick=low_cost_hosted basis=line_met dev_k=4 dev_n=4 held_k=2 held_n=2 lower_pct=60 cost_micro=18446744073709551615 wall_s=12"
@@ -576,7 +591,7 @@ fn a_routed_cell_that_is_not_clean_has_no_lower_bound() {
     let table = with_compile_held_miss();
     let setup = Setup::generated();
     let derived = PolicyRouter::derived(&table, &setup);
-    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    let lines = score(&table, &setup, &derived, fixture_prices(), DEFAULT_DRAWS).lines();
     assert_eq!(
         line(&lines, "cell category=email kind=compile "),
         "cell category=email kind=compile pick=on_device basis=line_met dev_k=4 dev_n=4 held_k=1 held_n=2 lower_pct=0 cost_micro=0 wall_s=30"
@@ -594,7 +609,7 @@ fn random_attempts_nothing_on_a_table_with_no_held_out_row() {
     let table = Table::from_rows(&rows).expect("a table");
     let setup = Setup::generated();
     let derived = PolicyRouter::derived(&table, &setup);
-    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    let lines = score(&table, &setup, &derived, fixture_prices(), DEFAULT_DRAWS).lines();
     assert_eq!(
         line(&lines, "versus name=random "),
         "versus name=random attempts=0 passed=0 wasted=0 handed_back=0 cost_micro=0 wall_s=0"
@@ -663,7 +678,7 @@ fn gate_of(table: &Table, router: &dyn Router) -> String {
         table,
         &Setup::generated(),
         router,
-        Prices::release(),
+        fixture_prices(),
         DEFAULT_DRAWS,
     )
     .lines();
