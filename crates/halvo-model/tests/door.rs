@@ -550,8 +550,8 @@ const ROUTE_PACKAGE: &str = concat!("halvo", "-route");
 /// THE CLOSED LIST of what the runner may name of the router's crate (r3 U7.2b, the coordinator's
 /// log line 22454): the pick, the policy and the id types of the bridge between the schema's ids
 /// and the router's. In a file under crates/halvo-runner the crate's path name stands only right
-/// before `::` and one of these paths whole, which no sign of a word, no `::` and no word `as`
-/// follows. So the runner names nothing else of the crate, by an alias, a glob import or a group
+/// before `::` and one of these paths whole, behind which its line holds, after white space, `;`
+/// and nothing else: the end of a whole `use` line. So the runner names nothing else of the crate, by an alias, a glob import or a group
 /// import; and since none of these paths makes or gives a grant (the one maker is
 /// `leave::grant`), it holds no way to a grant of the router by the crate's own name.
 const RUNNER_ROUTE_PATHS: [&str; 8] = [
@@ -589,17 +589,8 @@ fn route_names_off_the_list(text: &str) -> Vec<String> {
         }
         let listed = rest.strip_prefix("::").is_some_and(|path| {
             RUNNER_ROUTE_PATHS.iter().any(|listed| {
-                path.strip_prefix(listed).is_some_and(|tail| {
-                    let joined = tail
-                        .chars()
-                        .next()
-                        .is_some_and(|c| rust_sign(c) || c == ':');
-                    let alias = tail
-                        .trim_start()
-                        .strip_prefix("as")
-                        .is_some_and(|after| !after.starts_with(rust_sign));
-                    !joined && !alias
-                })
+                path.strip_prefix(listed)
+                    .is_some_and(|tail| tail.split('\n').next().map(str::trim) == Some(";"))
             })
         });
         if !listed {
@@ -681,7 +672,8 @@ fn name_sign(c: char) -> bool {
 /// gone holds none), each file under crates/halvo-runner that names one of `RUNNER_NAMES`, each
 /// place in such a file that names the router's crate off the closed list `RUNNER_ROUTE_PATHS`,
 /// each line in such a file that names the router's package but the one line
-/// `RUNNER_ROUTE_DEPENDENCY`, each Rust file outside crates/halvo-model/src that starts the door
+/// `RUNNER_ROUTE_DEPENDENCY`, each line of the runner's manifest that holds the word `workspace`,
+/// each Rust file outside crates/halvo-model/src that starts the door
 /// (it names `halvo_model` or the door's built binary `CARGO_BIN_EXE_halvo-model`) and never names
 /// `--loopback-port`, and each fault of the walk.
 fn operation_refusals(base: &std::path::Path, listed: &[(&str, usize, &str)]) -> Vec<String> {
@@ -760,6 +752,17 @@ fn operation_refusals(base: &std::path::Path, listed: &[(&str, usize, &str)]) ->
                     ));
                 }
                 let (manifest, dependency) = RUNNER_ROUTE_DEPENDENCY;
+                if file == manifest {
+                    for line in text
+                        .lines()
+                        .filter(|line| words(line, "workspace", name_sign) > 0)
+                    {
+                        let shown: String = line.trim().chars().take(60).collect();
+                        refusals.push(format!(
+                            "{file}: names workspace on the line `{shown}`; the runner's manifest takes no dependency through a table of the workspace: name the package and its path in this manifest itself"
+                        ));
+                    }
+                }
                 let mut taken = false;
                 for line in text.lines() {
                     if words(line, ROUTE_PACKAGE, name_sign) == 0 {
@@ -809,7 +812,7 @@ fn the_adapter_operation_stands_in_the_door_alone_and_the_runner_names_no_grant(
     plant(
         "crates/halvo-runner/Cargo.toml",
         &format!(
-            "[dependencies]\n{}\nrouter = {{ package = \"{ROUTE_PACKAGE}\" }}\n",
+            "[dependencies]\n{}\nrouter = {{ package = \"{ROUTE_PACKAGE}\" }}\nrouter.workspace = true\n",
             RUNNER_ROUTE_DEPENDENCY.1
         ),
     );
@@ -824,6 +827,10 @@ fn the_adapter_operation_stands_in_the_door_alone_and_the_runner_names_no_grant(
     plant(
         "crates/halvo-runner/src/alias.rs",
         &format!("use {ROUTE_CRATE}::pick::pick as choose;\n"),
+    );
+    plant(
+        "crates/halvo-runner/src/comment_alias.rs",
+        &format!("use {ROUTE_CRATE}::pick::pick /**/ as choose;\n"),
     );
     plant(
         "crates/halvo-runner/src/glob.rs",
@@ -850,7 +857,9 @@ fn the_adapter_operation_stands_in_the_door_alone_and_the_runner_names_no_grant(
         [
             "crates/other/src/lib.rs",
             "crates/halvo-runner/Cargo.toml",
+            "crates/halvo-runner/Cargo.toml",
             "crates/halvo-runner/src/alias.rs",
+            "crates/halvo-runner/src/comment_alias.rs",
             "crates/halvo-runner/src/glob.rs",
             "crates/halvo-runner/src/group.rs",
             "crates/halvo-runner/src/planted.rs",
