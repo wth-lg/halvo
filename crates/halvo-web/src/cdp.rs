@@ -1952,7 +1952,10 @@ impl Executor {
     /// The HTTP status of the response of the one request that `let_through` released in this arm,
     /// as the browser paused that response; none before it and in an arm with no release (the
     /// coordinator's ruling of log line 14732). A response that the rule does not pause, such as
-    /// that of a request that is no document and no script, gives none.
+    /// that of a request that is no document and no script, gives none. Where that response is a
+    /// 301, 302 or 303 with a Location, the status is that of the response of the browser's one hop
+    /// after it, none before that response, and the redirect's own where the rule fails the hop (r3
+    /// U5.10-R, the coordinator's log line 17941); a second redirect is not followed.
     pub fn released_status(&self) -> Option<i64> {
         self.wire.released_status()
     }

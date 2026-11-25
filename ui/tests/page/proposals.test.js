@@ -69,16 +69,53 @@ test("the two empty states say what is true", async () => {
   assert.deepEqual(textsShown(on), [
     "Halvo has not found a repeated task yet.",
     "Halvo looks for repeated tasks while this computer is plugged in and not in use.",
+    "You can also set up an agent yourself, without waiting for Halvo to notice a task. It fills in cells of an Excel workbook (.xlsx) from a data file.",
   ]);
-  for (const page of [off, on]) {
+  for (const [page, controls] of [
+    [off, []],
+    [on, ["Set up a spreadsheet agent"]],
+  ]) {
     assert.equal(page.byId("proposals-list").children.length, 0);
     assert.equal(page.byId("stored-workflows").children.length, 0);
-    assert.equal(controlsOf(page).length, 0);
+    assert.deepEqual(
+      controlsOf(page).map((b) => b.textContent),
+      controls,
+    );
     assert.equal(page.text("error"), "");
   }
   const stored = { id: STORED, category: "ride_order", app: null, site: "example.org", count: 0 };
   const some = await openPage({ replies: { workflows: running([], [stored]) } });
-  assert.deepEqual(textsShown(some), ["Workflows stored on this computer"]);
+  assert.deepEqual(textsShown(some), ["Workflows stored on this computer", "You can also set up an agent yourself, without waiting for Halvo to notice a task. It fills in cells of an Excel workbook (.xlsx) from a data file."]);
+});
+
+test("r4 U3.27: below the stored workflows a person can set up the spreadsheet agent by hand while no workflow set up by hand stands, and reads why not while one stands", async () => {
+  const C1 = "You can also set up an agent yourself, without waiting for Halvo to notice a task. It fills in cells of an Excel workbook (.xlsx) from a data file.";
+  const C2 = "Set up a spreadsheet agent";
+  const C3 = "You have set up a spreadsheet agent yourself. Halvo keeps one such agent at a time: to set up another, delete this one first.";
+  const MAIN = ["Halvo has not found a repeated task yet.", "Halvo looks for repeated tasks while this computer is plugged in and not in use."];
+  const byHand = { id: STORED, category: "spreadsheet_fill", app: null, site: null, count: 0, by_hand: true };
+  const replies = [running([], [])(), running([], [byHand])()];
+  const page = await openPage({ replies: { workflows: () => replies.shift(), set_up_sheet_agent: () => null } });
+  assert.deepEqual(textsShown(page), [...MAIN, C1]);
+  const [setUp] = controlsOf(page);
+  assert.equal(setUp.textContent, C2);
+  assert.equal(page.visible(setUp), true);
+  await page.click(setUp);
+  assert.deepEqual(page.calls("set_up_sheet_agent").map((c) => c.args), [undefined]);
+  assert.equal(page.calls("workflows").length, 2);
+  assert.deepEqual(textsShown(page), [...MAIN, "Workflows stored on this computer", C3]);
+  assert.deepEqual(
+    controlsOf(page).filter((b) => page.visible(b)).map((b) => b.textContent),
+    ["Delete"],
+  );
+  const fromProposal = { ...byHand, by_hand: false };
+  const beside = await openPage({ replies: { workflows: running([], [fromProposal]) } });
+  assert.deepEqual(textsShown(beside), ["Workflows stored on this computer", C1]);
+  assert.deepEqual(
+    controlsOf(beside).filter((b) => beside.visible(b)).map((b) => b.textContent),
+    ["Delete", C2],
+  );
+  assert.equal(page.text("error"), "");
 });
 
 test("each state without a list shows its one text and no row", async () => {
@@ -112,6 +149,7 @@ test("each state without a list shows its one text and no row", async () => {
       ["Delete", false],
       ["Yes, delete it", false],
       ["Cancel", false],
+      ["Set up a spreadsheet agent", false],
     ],
   );
 });

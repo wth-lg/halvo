@@ -1,19 +1,32 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use halvo_route_gate::spendsim::simulate;
+use halvo_route::prices::Prices;
+use halvo_route_gate::spendsim::{simulate, simulate_with};
 
 const SEQUENCES: &str = "../../docs/r6/gateway/sequences.jsonl";
+
+/// The prices of the committed sequences: the billing run's fixture rates (B-3.2), as a text of this test's own, so that
+/// the committed file does not follow the compiled-in price file.
+const FIXTURE_PRICES: &str = "tier\tinput\toutput\tsource\tdate\n\
+on_device\t0\t0\tdevice\t2026-11-10\n\
+low_cost_hosted\t3100000\t15700000\tfixture:B-3.2\t2026-11-10\n\
+frontier\t15500000\t78500000\tfixture:B-3.2\t2026-11-10\n";
+
+/// The default cap of the committed sequences, in minor units.
+const FIXTURE_CAP: u64 = 2_000;
 
 fn committed() -> String {
     std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(SEQUENCES))
         .expect("the committed sequences of docs/r6/gateway")
 }
 
+/// The committed sequences are the export of the seed 1 at the prices `FIXTURE_PRICES` and the cap `FIXTURE_CAP`.
 #[test]
 fn sequences_same() {
     let committed = committed();
-    let fresh = simulate(1).export();
+    let prices = Prices::parse(FIXTURE_PRICES).expect("the fixture prices parse");
+    let fresh = simulate_with(1, &prices, Some(FIXTURE_CAP)).export();
     let first = committed
         .split_inclusive('\n')
         .zip(fresh.split_inclusive('\n'))

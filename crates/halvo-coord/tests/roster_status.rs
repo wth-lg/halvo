@@ -233,20 +233,6 @@ fn a_failed_last_run_whose_browser_did_not_start_or_did_not_answer_gives_that_se
 }
 
 #[test]
-fn a_day_with_starts_per_day_starts_gives_tried_today() {
-    let mut f = utility();
-    let limits = Limits::PRODUCT;
-    for n in 0..limits.starts_per_day - 1 {
-        ended(&mut f, n as u8, TODAY, RunEnd::Completed);
-    }
-    assert_eq!(line(&f), StatusLine::Done);
-    ended(&mut f, 99, TODAY, RunEnd::Completed);
-    assert_eq!(line(&f), StatusLine::TriedToday);
-    f.today = TODAY + 1;
-    assert_eq!(line(&f), StatusLine::Done);
-}
-
-#[test]
 fn the_end_of_the_last_run_gives_the_line_of_all_set() {
     let mut f = utility();
     f.events.clear();
@@ -297,25 +283,6 @@ fn the_store_line_stands_after_queued_and_before_problem_in_the_order_of_i1_3() 
         at(StatusLine::Problem(Failure::ALL[0])),
         at(StatusLine::Store) + 1
     );
-}
-
-#[test]
-fn a_day_whose_last_start_has_no_end_yet_counts_that_start_for_tried_today() {
-    let mut f = utility();
-    let limits = Limits::PRODUCT;
-    for n in 0..limits.starts_per_day - 1 {
-        ended(&mut f, n as u8, TODAY, RunEnd::Completed);
-    }
-    push(
-        &mut f,
-        TODAY,
-        What::RunStarted {
-            run: run(98),
-            trigger: Trigger::Person,
-            slot: None,
-        },
-    );
-    assert_eq!(line(&f), StatusLine::TriedToday);
 }
 
 #[test]
@@ -508,11 +475,6 @@ fn u24r_b5_a_stuck_record_gives_the_record_line_before_every_bucket_of_i1_3() {
     let mut f = utility();
     ended(&mut f, 1, TODAY, RunEnd::from(Failure::ALL[0]));
     buckets.push(("failure", f, StatusLine::Problem(Failure::ALL[0])));
-    let mut f = utility();
-    for n in 0..limits.starts_per_day {
-        ended(&mut f, n as u8, TODAY, RunEnd::Completed);
-    }
-    buckets.push(("tried_today", f, StatusLine::TriedToday));
     let idle = utility();
     let idle_line = status_of(&idle, &limits, None, false);
     buckets.push(("idle", idle, idle_line));
@@ -532,5 +494,5 @@ fn u24r_b5_a_stuck_record_gives_the_record_line_before_every_bucket_of_i1_3() {
         wrong.is_empty(),
         "buckets whose stuck record does not give the record line: {wrong:?}"
     );
-    assert_eq!(buckets.len(), 13);
+    assert_eq!(buckets.len(), 12);
 }

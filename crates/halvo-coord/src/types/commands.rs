@@ -186,7 +186,6 @@ pub const LIST: [Command; 10] = [
             Cause::Early,
             Cause::Hold,
             Cause::State,
-            Cause::Budget,
             Cause::QueueFull,
             Cause::UnknownItem,
             Cause::NoService,
@@ -258,7 +257,6 @@ pub const LIST: [Command; 10] = [
         errors: &[
             Cause::Hold,
             Cause::State,
-            Cause::Budget,
             Cause::QueueFull,
             Cause::UnknownAgent,
             Cause::NoService,

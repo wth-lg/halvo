@@ -179,14 +179,6 @@ pub const KEYS: &[(&str, &str)] = &[
         "Its answers are saved. Choose Start now to try again.",
     ),
     (
-        "line.problem.answers_saved_today",
-        "Its answers are saved. It has started as often as it may today, so it waits until tomorrow.",
-    ),
-    (
-        "line.problem.tried_today",
-        "Last time, it could not finish its task. It has started as often as it may today, so it waits until tomorrow.",
-    ),
-    (
         "line.problem.no_workbook",
         "Halvo did not find the spreadsheet file where you said it is. Then choose Change its answers.",
     ),
@@ -219,6 +211,14 @@ pub const KEYS: &[(&str, &str)] = &[
         "Halvo cannot read the letters in the data file. Open the file in your spreadsheet program and save it again under the same name as a CSV file with UTF-8 text; Excel calls this file type CSV UTF-8. Then choose Start now.",
     ),
     (
+        "line.problem.two_sheets",
+        "The spreadsheet file has two sheets with the name you gave, so Halvo did not know which one to fill. Open the file in your spreadsheet program, give each sheet a name of its own and save it. Then choose Change its answers.",
+    ),
+    (
+        "line.problem.data_narrow",
+        "A value in the data file is only number signs (###). A spreadsheet program writes that when a column is too narrow to show a value. In the spreadsheet you saved the file from, widen that column and save the data file again under the same name. Then choose Start now.",
+    ),
+    (
         "line.problem.not_replaced",
         "Halvo could not save the spreadsheet file. Close it in other programs and check that you may change it, then choose Start now.",
     ),
@@ -237,10 +237,6 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "line.problem.kind",
         "Last time, it asked for something that Halvo does not allow, so Halvo stopped it.",
-    ),
-    (
-        "line.all_set.tried_today",
-        "It has started as often as it may today, so it waits until tomorrow.",
     ),
     ("line.all_set.new", "It has not done its task yet, or not for a long time."),
     ("line.all_set.done", "Last time, it finished its task."),

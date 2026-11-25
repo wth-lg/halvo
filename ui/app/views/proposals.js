@@ -27,6 +27,7 @@
   var list;
   var storedLine;
   var stored;
+  var byHand;
   var rowsMade = 0;
   var reads = 0;
   /** While the newest reply reads deleting, the view reads again after this many ms, and at no other time. */
@@ -112,6 +113,23 @@
       });
   }
 
+  /** The line and the button of the set-up by hand; a press that succeeded reads the list again, as a decision does. */
+  function byHandOffer() {
+    var line = Halvo.el("p", { id: "by-hand-line", text: w.BY_HAND_LINE });
+    var setUp = Halvo.el("button", { text: w.BY_HAND_SET_UP });
+    setUp.setAttribute("aria-describedby", line.id);
+    setUp.onclick = function () {
+      setUp.disabled = true;
+      return Halvo.ipc
+        .call("set_up_sheet_agent")
+        .then(read, Halvo.showError)
+        .then(function () {
+          setUp.disabled = false;
+        });
+    };
+    return [line, setUp];
+  }
+
   /** A delete that is held back while an agent uses the workflow has a sentence of its own. */
   function notDeleted(e) {
     Halvo.showError(e && e.error === "in_use" ? w.WORKFLOW_IN_USE : e);
@@ -166,6 +184,7 @@
     });
     list.replaceChildren();
     stored.replaceChildren();
+    byHand.replaceChildren();
   }
 
   function render(reply) {
@@ -184,14 +203,18 @@
     var all = reply.stored.map(function (row) {
       return checked(row, false);
     });
-    if (proposals.length === 0 && all.length === 0) {
+    var setUpByHand = all.filter(function (row) {
+      return row.by_hand === true;
+    });
+    if (proposals.length === 0 && all.length === setUpByHand.length) {
       nothingFound.classList.remove("hidden");
       looksWhen.classList.remove("hidden");
-      return;
     }
     list.replaceChildren.apply(list, proposals.map(proposalRow));
     stored.replaceChildren.apply(stored, all.map(storedRow));
     storedLine.classList.toggle("hidden", all.length === 0);
+    var parts = setUpByHand.length === 0 ? byHandOffer() : [Halvo.el("p", { text: w.BY_HAND_HELD })];
+    byHand.replaceChildren.apply(byHand, parts);
   }
 
   Halvo.views.add({
@@ -205,7 +228,8 @@
       list = Halvo.el("div", { id: "proposals-list" });
       storedLine = Halvo.el("p", { id: "stored-workflows-line", text: w.STORED_WORKFLOWS });
       stored = Halvo.el("div", { id: "stored-workflows" });
-      el.append(stateLine, nothingFound, looksWhen, list, storedLine, stored);
+      byHand = Halvo.el("div", { id: "by-hand" });
+      el.append(stateLine, nothingFound, looksWhen, list, storedLine, stored, byHand);
       clear();
     },
     show: function () {

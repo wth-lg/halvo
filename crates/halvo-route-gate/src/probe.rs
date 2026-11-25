@@ -456,6 +456,7 @@ mod tests {
             };
             hosted += 1;
             let data = Data {
+                ruling: Ruling::None,
                 policy: &policy,
                 ..Data::release()
             };
@@ -655,6 +656,7 @@ mod tests {
     fn probe_misses_a_hosted_pick_that_the_ruling_does_not_allow() {
         let policy = hosted_policy();
         let data = Data {
+            ruling: Ruling::None,
             policy: &policy,
             ..Data::release()
         };
@@ -681,12 +683,20 @@ mod tests {
             ..Data::release()
         };
         assert!(!run(&over, 1).ok);
+        let fixture = Prices::parse(
+            "tier\tinput\toutput\tsource\tdate\n\
+             on_device\t0\t0\tdevice\t2026-11-10\n\
+             low_cost_hosted\t3100000\t15700000\tfixture:B-3.2\t2026-11-10\n\
+             frontier\t15500000\t78500000\tfixture:B-3.2\t2026-11-10\n",
+        )
+        .expect("a price file");
         let tiny = DefaultCap {
             amount: 1,
             ..release::cap().expect("the release cap")
         };
         let small = Data {
             cap: Some(tiny),
+            prices: &fixture,
             ..Data::release()
         };
         assert!(!run(&small, 1).ok);
@@ -708,6 +718,7 @@ mod tests {
     fn probe_prints_a_miss() {
         let policy = hosted_policy();
         let data = Data {
+            ruling: Ruling::None,
             policy: &policy,
             ..Data::release()
         };

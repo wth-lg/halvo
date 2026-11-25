@@ -63,6 +63,7 @@ InitH ==
      unknown |-> [a \in Agents |-> 0],
      answered |-> {}, alive |-> {},
      heldstarts |-> 0, unacked |-> 0, alone |-> 0, extra |-> 0, after |-> 0, gonestarts |-> 0,
+     overstarts |-> 0,
      wrongend |-> 0, noslot |-> 0, openstarts |-> 0, wrongsend |-> 0, forgotten |-> 0]
 
 Facts(g) == [open |-> [a \in Agents |-> g.store[a].run], unknown |-> g.unknown,
@@ -91,10 +92,13 @@ Queued(s, a) == \E i \in DOMAIN s.queue : s.queue[i].agent = a
 Room(s) == Cardinality(s.runs) < MaxLive
 ModelFree(s, a) == a \notin NeedsModel \/ \A r \in s.runs : r.agent \notin NeedsModel
 
-Decide(s, a) ==
+\* Steps 0 to 4 of a start (I5.5). Step 2 holds for a start of the scheduler alone (byself),
+\* at the tick or leaving the queue; a start of the person passes it on any day, at the press
+\* or leaving the queue (r4 U3.24).
+Decide(s, a, byself) ==
     IF a \in s.gone THEN "state"
     ELSE IF Held(s, a) THEN "hold"
-    ELSE IF s.starts[a][s.day] >= StartsPerDay THEN "budget"
+    ELSE IF byself /\ s.starts[a][s.day] >= StartsPerDay THEN "budget"
     ELSE IF LiveOf(s, a) # {} \/ Queued(s, a) THEN "state"
     ELSE IF s.f.open[a] # 0 THEN "state"
     ELSE IF Room(s) /\ ModelFree(s, a) THEN "go"
@@ -140,7 +144,7 @@ Launch(s, a, trig, port, q) ==
     THEN [r |-> "no_service", st |-> s, run |-> 0,
           out |-> <<[k |-> "defer"]>> \o (IF q THEN <<[k |-> "left", agent |-> a]>> ELSE <<>>)]
     ELSE IF Lag(s, a)
-    THEN [r |-> Decide(Learn(s, a), a), st |-> Learn(s, a), run |-> 0,
+    THEN [r |-> Decide(Learn(s, a), a, trig = "schedule"), st |-> Learn(s, a), run |-> 0,
           out |-> <<[k |-> "defer"]>> \o (IF q THEN <<[k |-> "left", agent |-> a]>> ELSE <<>>)
                   \o Paused(s, a)]
     ELSE LET slot == SlotOf(s, a, trig)
@@ -172,12 +176,12 @@ Enqueue(q, e) ==
     ELSE Append(q, e)
 
 Start(s, a, trig, port) ==
-    LET d == Decide(s, a)
+    LET d == Decide(s, a, trig = "schedule")
     IN IF d = "go" THEN Launch(s, a, trig, port, FALSE)
        ELSE IF d # "wait" THEN [r |-> d, st |-> s, run |-> 0, out |-> <<>>]
        ELSE IF Len(s.queue) >= QueueMax THEN [r |-> "queue_full", st |-> s, run |-> 0, out |-> <<>>]
        ELSE IF a \in s.ready /\ Lag(s, a)
-       THEN [r |-> Decide(Learn(s, a), a), st |-> Learn(s, a), run |-> 0, out |-> Paused(s, a)]
+       THEN [r |-> Decide(Learn(s, a), a, trig = "schedule"), st |-> Learn(s, a), run |-> 0, out |-> Paused(s, a)]
        ELSE [r |-> "queued", run |-> 0,
              out |-> <<[k |-> "queued", agent |-> a]>>,
              st |-> [s EXCEPT !.queue = Enqueue(@, [agent |-> a, trigger |-> trig]),
@@ -202,7 +206,7 @@ Dequeue(s, port) ==
     IF Len(s.queue) = 0 THEN [st |-> s, next |-> <<>>, out |-> <<>>]
     ELSE LET head == Head(s.queue)
              s0 == [s EXCEPT !.queue = Tail(@)]
-             d0 == Decide(s0, head.agent)
+             d0 == Decide(s0, head.agent, head.trigger = "schedule")
              stale == head.trigger = "schedule" /\ d0 \in {"go", "wait"} /\ ~SlotDue(s0, head.agent)
              d == IF stale THEN "state" ELSE d0
          IN IF d = "wait"
@@ -558,6 +562,7 @@ HStarted(acc, e, mv) ==
                         !.extra = IF mv.m = "start" /\ ~direct THEN @ + 1 ELSE @,
                         !.noslot = IF person \/ HDue(g, a) THEN @ ELSE @ + 1,
                         !.gonestarts = IF g.gone[a] # "listed" THEN @ + 1 ELSE @,
+                        !.overstarts = IF ~person /\ g.count[a][g.day] >= StartsPerDay THEN @ + 1 ELSE @,
                         !.after = IF ~person /\ slot \in g.given[a] THEN @ + 1 ELSE @,
                         !.sched[a] = IF ~person /\ slot > 0 THEN [@ EXCEPT ![slot] = @ + 1] ELSE @,
                         !.given[a] = IF slot > 0 THEN @ \cup {slot} ELSE @,
@@ -671,7 +676,7 @@ C4 == h.heldstarts = 0 /\ h.unacked = 0 /\ h.openstarts = 0
 C5 == h.alone = 0 /\ h.extra = 0
 C6 == /\ h.after = 0
       /\ \A a \in Agents : \A d \in Days : h.sched[a][d] <= 1
-C7 == \A a \in Agents : \A d \in Days : h.count[a][d] <= StartsPerDay
+C7 == h.overstarts = 0
 C8 == /\ h.gonestarts = 0
       /\ \A r \in h.live : h.gone[r.agent] = "seen" => r.stop /\ ~r.late
 C9 == \A r \in h.live : ~r.late
@@ -704,7 +709,7 @@ ReachQueueIdle == [][~(/\ st.runs = {}
                        /\ st'.life = st.life
                        /\ st'.nrun > st.nrun
                        /\ Len(st'.queue) < Len(st.queue))]_vars
-ReachBudget == \A a \in Agents : Decide(Now, a) # "budget"
+ReachBudget == \A a \in Agents : Decide(Now, a, TRUE) # "budget"
 ReachTwoLive == ~(/\ Cardinality(h.live) = 2
                   /\ Cardinality({r \in h.live : r.agent \in NeedsModel}) = 1)
 ReachRestart == [][~(st'.life > st.life /\ st.runs # {} /\ Len(st.queue) > 0)]_vars
@@ -738,7 +743,7 @@ ReachQueuedStale == [][~(\E a \in Agents : /\ h.wait[a]["schedule"] = 1
                                            /\ h'.wait[a]["schedule"] = 0
                                            /\ h'.life = h.life
                                            /\ h'.count[a] = h.count[a]
-                                           /\ Decide([st' EXCEPT !.f = Facts(h')], a) \in {"go", "wait"}
+                                           /\ Decide([st' EXCEPT !.f = Facts(h')], a, TRUE) \in {"go", "wait"}
                                            /\ ~SlotDue(st', a))]_vars
 AckOf(a) == h.store[a].run # 0 /\ h.store[a].left /\ h'.store[a].run = 0 /\ h'.unknown[a] = h.store[a].run
 ReachCheckKill == [][~(\E a \in Agents : AckOf(a) /\ h.store[a].by = "kill")]_vars
@@ -748,8 +753,8 @@ ReachCheckAnswered == [][~(\E a \in Agents : /\ h.unknown[a] # 0
                                              /\ h.unknown[a] \in h.answered
                                              /\ h'.count[a] # h.count[a])]_vars
 ReachStoreOpen == \A a \in Agents : ~(/\ h.store[a].run # 0
-                                       /\ Decide(Now, a) = "state"
-                                       /\ Decide([Now EXCEPT !.f.open[a] = 0], a) \in {"go", "wait"})
+                                       /\ Decide(Now, a, TRUE) = "state"
+                                       /\ Decide([Now EXCEPT !.f.open[a] = 0], a, TRUE) \in {"go", "wait"})
 ReachAlive == h.alive = {}
 ReachOwedAgain == [][~(st'.life > st.life /\ \E a \in Agents : /\ h.store[a].run # 0
                                                              /\ h.store[a].dead

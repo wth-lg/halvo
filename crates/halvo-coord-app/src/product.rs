@@ -2422,7 +2422,7 @@ mod tests {
     /// agreement null, and a yes with the ceiling tier, the highest that the ruling allows, and one triple for each
     /// hosted tier that it allows up to it, from the table's rows: the keys in the order op, workflow, agent, tier,
     /// agreement. Each parses as the schema's own `SetModel` and holds those values. No allowed tier gives none, and
-    /// so does main's ruling.
+    /// the yes of this build is the one of the rows of its table of hosts, none where the table holds no row.
     #[test]
     fn the_yes_and_the_way_back_are_written_as_the_set_model_of_r3() {
         use halvo_schema::executable::body::SetModel;
@@ -2486,11 +2486,18 @@ mod tests {
             });
             assert_eq!(read, hosts, "{want}");
         }
-        assert_eq!(yes_text(head, &[]), None, "no allowed tier");
+        assert_eq!(yes_text(head.clone(), &[]), None, "no allowed tier");
+        let ruling = halvo_route::release::ruling();
+        let rows: Vec<[&str; 3]> = ruling
+            .allowed()
+            .iter()
+            .filter_map(|tier| ruling.row(*tier))
+            .map(|row| [row.tier().as_str(), row.origin(), row.model()])
+            .collect();
         assert_eq!(
             body_text(&Body::AgreeHosted { workflow, agent }, &RunsOf::default()),
-            None,
-            "main's ruling allows no hosted tier"
+            yes_text(head, &rows),
+            "the yes of this build names the rows of its table of hosts, and none where the table holds no row"
         );
     }
 
@@ -2643,7 +2650,7 @@ mod tests {
         }
     }
 
-    /// r4 U3.22a at its take-in (the coordinator's log lines 18826 and 18902): each of the fifteen causes whose
+    /// r4 U3.22a at its take-in (the coordinator's log lines 18826 and 18902): each of the seventeen causes whose
     /// sentence a row says for an agent of the runtime file (`roster::FILE_CAUSES`) is a name of the agent store's
     /// closed list of causes, read by halvo-schema's own parse of that list; the test names each that the list lacks.
     #[test]
@@ -2715,7 +2722,7 @@ mod tests {
         .expect("a configuration of the agent store")
     }
 
-    /// r4 U3.17b sentence 1: over this build's table of hosts (`release::ruling()`, which holds no row on main), the
+    /// r4 U3.17b sentence 1: where the build names no host (a table of hosts with no row, as on main, gives none), the
     /// read for a list with an agent whose runtime asks a model sends nothing and hands no model, so that no row offers
     /// either control, whatever the agent's tier and agreement, and no card shows a line of a host.
     #[test]
@@ -2723,7 +2730,7 @@ mod tests {
         let kept = Arc::new(Kept(Mutex::new(Vec::new())));
         let link: Arc<dyn OwnerLink> = kept.clone();
         let memory = RowsMemory::default();
-        let hosting = hosting_of_build(&link, &memory, true);
+        let hosting = hosting(&link, &memory, None, &[], true);
         assert_eq!(hosting, None);
         assert!(lock(&kept.0).is_empty(), "no request");
         let both = Agreement::of(&serde_json::json!({
@@ -2885,5 +2892,105 @@ mod tests {
         let (ask, _) = halvo_coord::roster::use_model_ask(&model).expect("the words");
         let ask = ask.expect("the question");
         assert_eq!(ask.text.last(), Some(&shown));
+    }
+
+    /// r4 U3.27 sentence 2, the walk: a workflow as the decision `set_up` stores it (approved,
+    /// `spreadsheet_fill`, the trigger `manual`, a recurrence of count 1 with no period, the app id
+    /// `by_hand`, no site, no agent), read from a page of the owner's reply by the parse of the
+    /// list, is taken by the creation move as any approved workflow with no agent. The coordinator
+    /// has run a tick over a store with nothing in it; then the row stands, and the stand-in owner
+    /// lists the agent that the agent store's `create_agent` writes for it (the category's preset,
+    /// approved) under the next id that it hands out, the one that the move mints, as the core's
+    /// own tests of the creation stand in for the store's create. After the next tick the agent's
+    /// row, named by its category, reads the line of the hold `setup`, and its set-up item asks
+    /// the four questions of the spreadsheet agent.
+    #[test]
+    fn a_workflow_set_up_by_hand_gets_its_agent_at_the_creation_move_and_the_four_questions() {
+        use halvo_coord::mem::{Call, Config, Ports};
+        use halvo_coord::types::Param;
+        use halvo_coord::Coordinator;
+
+        const DAY: u32 = 20_000;
+        let id = "c1".repeat(16);
+        let reply = format!(
+            r#"{{"v":1,"id":"{}","ok":{{"workflows":[{{"workflow":{{"v":1,"id":"{id}","state":"approved","category":"spreadsheet_fill","site":null,"app":"by_hand","trigger":"manual","recurrence":{{"count":1,"period":null,"first":{DAY},"last":{DAY}}},"confidence":0,"agent":null}},"summaries":[],"hint":null}}],"next":null}}}}"#,
+            "01".repeat(16)
+        );
+        let Ok(ReplyResult::Workflows(page)) = decode_reply(reply.as_bytes()).unwrap().outcome
+        else {
+            panic!("the owner's page of workflows does not read: {reply}");
+        };
+        let ports: Ports<Config> = Ports::with_limits(1_700_000_000_000, DAY, Limits::PRODUCT);
+        let c = Coordinator::new(ports, Limits::PRODUCT);
+        c.tick();
+        for item in &page.workflows {
+            let listed = workflow_of(&item.workflow).expect("the list's parse takes the row");
+            c.ports().workflows.borrow_mut().push(listed);
+        }
+        let workflow = WorkflowId::parse(&id).unwrap();
+        let next = u128::from_be_bytes(c.ports().bytes16().unwrap()) + 1;
+        let agent = AgentId::parse(&format!("{next:032x}")).unwrap();
+        let preset = halvo_policy::preset(
+            halvo_schema::Category::from(halvo_schema::SeedCategory::SpreadsheetFill),
+            halvo_schema::WorkflowId::parse(&id).unwrap(),
+            halvo_schema::AgentId::parse(agent.as_str()).unwrap(),
+        )
+        .expect("the category has a preset");
+        let config = Config::parse(&serde_json::to_string(&preset).unwrap()).unwrap();
+        c.ports().agents.borrow_mut().push(Agent {
+            workflow: workflow.clone(),
+            agent: agent.clone(),
+            config,
+            state: AgentState::Approved,
+            slots: Vec::new(),
+            session: false,
+            window: false,
+            last: None,
+            unknown: Vec::new(),
+            refused_run: None,
+            last_cause: None,
+        });
+        c.tick();
+        let created: Vec<AgentId> = c
+            .ports()
+            .calls
+            .borrow()
+            .iter()
+            .filter_map(|t| match &t.call {
+                Call::Send(Body::CreateAgent {
+                    workflow: of,
+                    agent,
+                }) if *of == workflow => Some(agent.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            created,
+            std::slice::from_ref(&agent),
+            "one create_agent for the workflow"
+        );
+        let snapshot = c.snapshot();
+        let row = snapshot
+            .rows
+            .iter()
+            .find(|r| r.agent == agent)
+            .expect("the agent's row");
+        assert_eq!(
+            (row.name.as_str(), row.line.as_str()),
+            (
+                "Filling in a spreadsheet",
+                "It needs a few answers from you before it can start."
+            )
+        );
+        let item = snapshot
+            .items
+            .iter()
+            .find(|i| i.kind() == ItemKind::Setup && i.agent() == &agent)
+            .expect("the agent's set-up item");
+        let asked: Vec<Param> = item.params().iter().map(|p| p.name).collect();
+        assert_eq!(
+            asked,
+            [Param::Workbook, Param::Sheet, Param::Range, Param::Source]
+        );
     }
 }

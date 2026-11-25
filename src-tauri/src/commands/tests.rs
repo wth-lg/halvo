@@ -263,6 +263,7 @@ fn listed(id: u8, proposed: bool, category: &str, first_summary: u8, count: u8) 
     Listed {
         id: hex(id),
         proposed,
+        by_hand: false,
         category: category.to_string(),
         app: None,
         site: None,
@@ -487,6 +488,7 @@ fn workflows_reads_every_page_and_lists_what_the_owner_holds() {
         app: None,
         site: None,
         count,
+        by_hand: false,
     };
     assert_eq!(
         reply,
@@ -637,7 +639,7 @@ fn a_row_names_the_app_that_the_system_names_and_no_app_id_and_no_day() {
             .map(String::as_str)
             .collect();
         keys.sort_unstable();
-        assert_eq!(keys, ["app", "category", "count", "id", "site"]);
+        assert_eq!(keys, ["app", "by_hand", "category", "count", "id", "site"]);
         let app = match row["id"].as_str() {
             Some(id) if id == hex(0x44) => json!("Safari"),
             Some(id) if id == hex(0x55) => Value::Null,
@@ -645,6 +647,48 @@ fn a_row_names_the_app_that_the_system_names_and_no_app_id_and_no_day() {
         };
         assert_eq!(row["app"], app, "{reply}");
     }
+}
+
+/// r4 U3.27 sentence 3: a listed workflow with the trigger `manual`, one that the person set up by
+/// hand, reads `by_hand` true and no app's name, so that its text is the category's; one with
+/// another trigger reads `by_hand` false and the app's name, as on main.
+#[test]
+fn a_workflow_with_the_trigger_manual_reads_by_hand_and_no_apps_name() {
+    let mut by_hand = page_item(0x66, "approved", "spreadsheet_fill", "by_hand", &[]);
+    by_hand["workflow"]["trigger"] = json!("manual");
+    by_hand["workflow"]["recurrence"] =
+        json!({"count": 1, "period": null, "first": 20767, "last": 20767});
+    by_hand["workflow"]["confidence"] = json!(0);
+    let noticed = page_item(
+        0x77,
+        "approved",
+        "spreadsheet_fill",
+        "com.example.sheets",
+        &[0x72],
+    );
+    let control = Relayed::answering(vec![page(vec![by_hand, noticed], None)]);
+    let every_app_named = |_: &str| Some("Sheets".to_string());
+    let reply = as_the_page_gets_it(read(&control, &every_app_named));
+    let marks: Vec<(Value, Value, Value)> = reply["stored"]
+        .as_array()
+        .expect("a list of stored rows")
+        .iter()
+        .map(|row| {
+            (
+                row["id"].clone(),
+                row["by_hand"].clone(),
+                row["app"].clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        marks,
+        [
+            (json!(hex(0x66)), json!(true), Value::Null),
+            (json!(hex(0x77)), json!(false), json!("Sheets")),
+        ],
+        "{reply}"
+    );
 }
 
 #[cfg(target_os = "macos")]
