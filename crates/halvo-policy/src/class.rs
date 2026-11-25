@@ -162,11 +162,17 @@ mod tests {
         ExecutableStep::parse(json.as_bytes()).expect("a navigate step")
     }
 
-    /// r3 U5.10-S (the coordinator's log line 20879): a playbook holds at most ONE step that pays or orders.
-    /// `check_playbook` takes a playbook with one step of the class `payment` or `purchase`, and refuses one with a
-    /// second, at that second step, with the cause `two_paying_steps`.
+    /// r3 U5.10-S (the coordinator's log lines 20879 and 20959): a playbook holds at most ONE step that pays or
+    /// orders, the classes `payment` and `purchase` counted together. `check_playbook` takes a playbook with one such
+    /// step and refuses one with a second, at that second step, with the cause `two_paying_steps`, for a payment and
+    /// for an order. A payment beside a purchase never reaches that rule: every request step of a playbook gets its
+    /// category's one class (`request_class`), so the purchase step of a payment's playbook is refused first, with
+    /// `class`, at that step.
     #[test]
     fn u510s_check_playbook_refuses_a_second_step_that_pays_or_orders() {
+        let read = |category: SeedCategory, steps: &[ExecutableStep]| {
+            check_playbook(category, steps).map_err(|r| (r.n.get(), r.cause().as_str()))
+        };
         let mut got = Vec::new();
         for (category, class) in [
             (SeedCategory::UtilityBillPayment, ActionClass::Payment),
@@ -179,19 +185,27 @@ mod tests {
                 navigate(3),
                 request(4, class),
             ];
-            let read = |steps: &[ExecutableStep]| {
-                check_playbook(category, steps).map_err(|r| (r.n.get(), r.cause().as_str()))
-            };
-            got.push((class, read(&one), read(&two)));
+            got.push((class.as_str(), read(category, &one), read(category, &two)));
         }
+        let mixed = [
+            navigate(1),
+            request(2, ActionClass::Payment),
+            navigate(3),
+            request(4, ActionClass::Purchase),
+        ];
+        got.push((
+            "payment and purchase",
+            read(SeedCategory::UtilityBillPayment, &mixed[..2]),
+            read(SeedCategory::UtilityBillPayment, &mixed),
+        ));
         assert_eq!(
             got,
-            [ActionClass::Payment, ActionClass::Purchase].map(|class| (
-                class,
-                Ok(()),
-                Err((4, "two_paying_steps"))
-            )),
-            "(class, one paying step, two paying steps)"
+            [
+                ("payment", Ok(()), Err((4, "two_paying_steps"))),
+                ("purchase", Ok(()), Err((4, "two_paying_steps"))),
+                ("payment and purchase", Ok(()), Err((4, "class"))),
+            ],
+            "(row, one paying step, two paying steps)"
         );
     }
 }
