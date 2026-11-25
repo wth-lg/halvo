@@ -1092,7 +1092,7 @@ mod tests {
             path: Some("C:\\Apps\\vault.exe".to_string()),
         };
         let frame = |gate: &PasswordGate| {
-            super::super::screen::frame_event_in(&frames, Some(gate), &app, B).is_some()
+            super::super::screen::frame_event_in(&frames, Some(gate), &app, (B, false)).is_some()
         };
         bench.gate.focus_read_in(Some(A), 900, answered(true));
         bench.ask(B, AskBy::Front, 1_000);
