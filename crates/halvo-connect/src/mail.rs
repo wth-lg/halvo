@@ -80,15 +80,15 @@ pub trait Mail {
         body: &str,
     ) -> Result<Drafted, Box<DraftFailure>>;
 
-    /// `mail_draft_reply`, which hands each draft to `each` as soon as its message is drafted and before the next
-    /// message's request: a draft with a send handle, a draft returned unsent, or the message whose draft of an
-    /// earlier run is lost. An error of `each` ends the call before any further request; what it made until then
-    /// went to `each`.
+    /// `mail_draft_reply`, with the body that `body` gives for each message, which hands each draft to `each` as
+    /// soon as its message is drafted and before the next message's request: a draft with a send handle, a draft
+    /// returned unsent, or the message whose draft of an earlier run is lost. An error of `each` ends the call before
+    /// any further request; what it made until then went to `each`.
     fn mail_draft_reply_each<E>(
         &self,
         token: &Token,
         messages: Messages,
-        body: &str,
+        body: impl FnMut(&Message) -> String,
         each: impl FnMut(Drafting<'_>) -> Result<(), E>,
     ) -> Result<Drafted, DraftStop<E>>;
 
@@ -730,7 +730,7 @@ impl Mail for Graph {
         body: &str,
     ) -> Result<Drafted, Box<DraftFailure>> {
         let none = |_: Drafting<'_>| Ok::<_, Infallible>(());
-        self.mail_draft_reply_each(token, messages, body, none)
+        self.mail_draft_reply_each(token, messages, |_| body.to_owned(), none)
             .map_err(|stop| match stop {
                 DraftStop::Call(failure) => failure,
                 DraftStop::Each(never) => match never {},
@@ -741,16 +741,16 @@ impl Mail for Graph {
         &self,
         token: &Token,
         messages: Messages,
-        body: &str,
+        mut body: impl FnMut(&Message) -> String,
         mut each: impl FnMut(Drafting<'_>) -> Result<(), E>,
     ) -> Result<Drafted, DraftStop<E>> {
-        let content = json!({"body": {"contentType": "text", "content": body}});
         let mut ids = Ids::of(messages.listed.iter().map(String::as_str));
         let mut drafts = Vec::with_capacity(messages.len());
         let mut unsent = Vec::new();
         let mut lost = Vec::new();
         let mut queue = messages.kept.into_iter();
         while let Some(message) = queue.next() {
+            let content = json!({"body": {"contentType": "text", "content": body(&message)}});
             let made = match &message.earlier {
                 Some(draft) => self.draft_again(token, &content, &mut ids, &message, draft),
                 None => self.draft_one(token, &content, &mut ids, &message),

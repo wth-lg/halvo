@@ -539,14 +539,68 @@ const OPERATION_USES: [(&str, usize, &str); 2] = [
 ];
 
 /// The names that no file under crates/halvo-runner holds, as a word of ASCII letters, digits,
-/// underscores and hyphens: the adapter's one operation, the router's grant type and the router's
-/// crate by its path name and its package name.
-const RUNNER_NAMES: [&str; 4] = [
-    OPERATION,
-    concat!("Leave", "Grant"),
-    concat!("halvo", "_route"),
-    concat!("halvo", "-route"),
+/// underscores and hyphens: the adapter's one operation and the router's grant type. The runner
+/// names the router's crate by the closed list `RUNNER_ROUTE_PATHS` alone.
+const RUNNER_NAMES: [&str; 2] = [OPERATION, concat!("Leave", "Grant")];
+
+/// The router's crate by its path name and by its package name.
+const ROUTE_CRATE: &str = concat!("halvo", "_route");
+const ROUTE_PACKAGE: &str = concat!("halvo", "-route");
+
+/// THE CLOSED LIST of what the runner may name of the router's crate (r3 U7.2b, the coordinator's
+/// log line 22454): the pick, the policy and the id types of the bridge between the schema's ids
+/// and the router's. In a file under crates/halvo-runner the crate's path name stands only right
+/// before `::` and one of these paths whole, behind which its line holds, after white space, `;`
+/// and nothing else; the rule reads that tail alone and not the head of the line. So the runner names nothing else of the crate, by an alias, a glob import or a group
+/// import; and since none of these paths makes or gives a grant (the one maker is
+/// `leave::grant`), it holds no way to a grant of the router by the crate's own name.
+const RUNNER_ROUTE_PATHS: [&str; 8] = [
+    "pick::pick",
+    "pick::Pick",
+    "policy::Policy",
+    "release::policy",
+    "tier::CallKind",
+    "tier::CategoryId",
+    "tier::Level",
+    "tier::Tier",
 ];
+
+/// The one line under crates/halvo-runner that names the router's package as a word: the
+/// runner's own dependency in its manifest, under the package's own name.
+const RUNNER_ROUTE_DEPENDENCY: (&str, &str) = (
+    "crates/halvo-runner/Cargo.toml",
+    concat!("halvo", "-route = { path = \"../halvo", "-route\" }"),
+);
+
+/// Each place of `text` where the router's crate is named by its path name otherwise than by a
+/// path of `RUNNER_ROUTE_PATHS` whole behind which its line holds, after white space, `;` and nothing else (the
+/// tail alone, not the head of the line), as the text from that name
+/// to the end of its line, at most 60 signs.
+fn route_names_off_the_list(text: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut from = 0;
+    while let Some(at) = text[from..].find(ROUTE_CRATE) {
+        let start = from + at;
+        let rest = &text[start + ROUTE_CRATE.len()..];
+        from = start + ROUTE_CRATE.len();
+        let longer = text[..start].chars().next_back().is_some_and(rust_sign)
+            || rest.chars().next().is_some_and(rust_sign);
+        if longer {
+            continue;
+        }
+        let listed = rest.strip_prefix("::").is_some_and(|path| {
+            RUNNER_ROUTE_PATHS.iter().any(|listed| {
+                path.strip_prefix(listed)
+                    .is_some_and(|tail| tail.split('\n').next().map(str::trim) == Some(";"))
+            })
+        });
+        if !listed {
+            let line = text[start..].lines().next().unwrap_or_default();
+            found.push(line.chars().take(60).collect());
+        }
+    }
+    found
+}
 
 /// Every file under the directory `dir` of the tree at `base` that `keep` takes by its name, by its
 /// path from `base`, in order: the walk of `rust_files` of crates/halvo-route/tests/
@@ -617,9 +671,12 @@ fn name_sign(c: char) -> bool {
 /// The refusals of the rule over the tree at `base`: each Rust file whose count of the operation's
 /// name differs from its entry of `listed` (a file not listed is allowed none, a listed file that is
 /// gone holds none), each file under crates/halvo-runner that names one of `RUNNER_NAMES`, each
-/// Rust file outside crates/halvo-model/src that starts the door (it names `halvo_model` or the
-/// door's built binary `CARGO_BIN_EXE_halvo-model`) and never names `--loopback-port`, and each
-/// fault of the walk.
+/// place in such a file that names the router's crate off the closed list `RUNNER_ROUTE_PATHS`,
+/// each line in such a file that names the router's package but the one line
+/// `RUNNER_ROUTE_DEPENDENCY`, each line of the runner's manifest that holds the word `workspace`,
+/// each Rust file outside crates/halvo-model/src that starts the door
+/// (it names `halvo_model` or the door's built binary `CARGO_BIN_EXE_halvo-model`) and never names
+/// `--loopback-port`, and each fault of the walk.
 fn operation_refusals(base: &std::path::Path, listed: &[(&str, usize, &str)]) -> Vec<String> {
     let (mut rust, mut faults) = (Vec::new(), Vec::new());
     let is_rust = |name: &str| name.to_ascii_lowercase().ends_with(".rs");
@@ -690,6 +747,37 @@ fn operation_refusals(base: &std::path::Path, listed: &[(&str, usize, &str)]) ->
                         ));
                     }
                 }
+                for shown in route_names_off_the_list(&text) {
+                    refusals.push(format!(
+                        "{file}: names the router's crate as `{shown}`, which is no path of RUNNER_ROUTE_PATHS whole with `;` and nothing else behind it on its line (no alias, no call, no comment); the runner names the pick, the policy and the id types of the bridge alone, each by a `use` line of its own, and holds no way to a grant of the router"
+                    ));
+                }
+                let (manifest, dependency) = RUNNER_ROUTE_DEPENDENCY;
+                if file == manifest {
+                    for line in text
+                        .lines()
+                        .filter(|line| words(line, "workspace", name_sign) > 0)
+                    {
+                        let shown: String = line.trim().chars().take(60).collect();
+                        refusals.push(format!(
+                            "{file}: names workspace on the line `{shown}`; the runner's manifest takes no dependency through a table of the workspace: name the package and its path in this manifest itself"
+                        ));
+                    }
+                }
+                let mut taken = false;
+                for line in text.lines() {
+                    if words(line, ROUTE_PACKAGE, name_sign) == 0 {
+                        continue;
+                    }
+                    if file == manifest && line.trim() == dependency && !taken {
+                        taken = true;
+                        continue;
+                    }
+                    let shown: String = line.trim().chars().take(60).collect();
+                    refusals.push(format!(
+                        "{file}: names the router's package on the line `{shown}`; the one line under crates/halvo-runner that names it is the runner's own dependency `{dependency}` in {manifest}"
+                    ));
+                }
             }
             Err(e) => refusals.push(format!("{file} cannot be read: {e}")),
         }
@@ -720,18 +808,42 @@ fn the_adapter_operation_stands_in_the_door_alone_and_the_runner_names_no_grant(
     plant("target/debug/held.rs", &call);
     plant(
         "crates/halvo-runner/src/planted.rs",
-        &format!("use {}::leave::{};\n", RUNNER_NAMES[2], RUNNER_NAMES[1]),
+        &format!("use {ROUTE_CRATE}::leave::{};\n", RUNNER_NAMES[1]),
     );
     plant(
         "crates/halvo-runner/Cargo.toml",
         &format!(
-            "[dependencies]\nrouter = {{ package = \"{}\" }}\n",
-            RUNNER_NAMES[3]
+            "[dependencies]\n{}\nrouter = {{ package = \"{ROUTE_PACKAGE}\" }}\nrouter.workspace = true\n",
+            RUNNER_ROUTE_DEPENDENCY.1
         ),
     );
     plant(
         "crates/halvo-runner/src/near.rs",
         "use halvo_route_wire::Body; // halvo-route-wire, a granted\n",
+    );
+    plant(
+        "crates/halvo-runner/src/allowed.rs",
+        &format!("use {ROUTE_CRATE}::pick::pick;\nuse {ROUTE_CRATE}::tier::Tier;\n"),
+    );
+    plant(
+        "crates/halvo-runner/src/alias.rs",
+        &format!("use {ROUTE_CRATE}::pick::pick as choose;\n"),
+    );
+    plant(
+        "crates/halvo-runner/src/comment_alias.rs",
+        &format!("use {ROUTE_CRATE}::pick::pick /**/ as choose;\n"),
+    );
+    plant(
+        "crates/halvo-runner/src/glob.rs",
+        &format!("use {ROUTE_CRATE}::tier::*;\n"),
+    );
+    plant(
+        "crates/halvo-runner/src/group.rs",
+        &format!("use {ROUTE_CRATE}::{{pick::pick, leave}};\n"),
+    );
+    plant(
+        "crates/halvo-runner/src/renamed.rs",
+        &format!("extern crate {ROUTE_CRATE} as router;\nuse router::leave::grant;\n"),
     );
     let planted = operation_refusals(
         &tree,
@@ -746,8 +858,14 @@ fn the_adapter_operation_stands_in_the_door_alone_and_the_runner_names_no_grant(
         [
             "crates/other/src/lib.rs",
             "crates/halvo-runner/Cargo.toml",
+            "crates/halvo-runner/Cargo.toml",
+            "crates/halvo-runner/src/alias.rs",
+            "crates/halvo-runner/src/comment_alias.rs",
+            "crates/halvo-runner/src/glob.rs",
+            "crates/halvo-runner/src/group.rs",
             "crates/halvo-runner/src/planted.rs",
             "crates/halvo-runner/src/planted.rs",
+            "crates/halvo-runner/src/renamed.rs",
         ],
         "{planted:#?}"
     );
@@ -757,9 +875,10 @@ fn the_adapter_operation_stands_in_the_door_alone_and_the_runner_names_no_grant(
         .join("..");
     let refusals = operation_refusals(&root, &OPERATION_USES);
     println!(
-        "files that may name the adapter's one operation: {}, names that no file of the runner holds: {}",
+        "files that may name the adapter's one operation: {}, names that no file of the runner holds: {}, paths of the router's crate that the runner may name: {}",
         OPERATION_USES.len(),
-        RUNNER_NAMES.len()
+        RUNNER_NAMES.len(),
+        RUNNER_ROUTE_PATHS.len()
     );
     assert_eq!(refusals, Vec::<String>::new());
 }

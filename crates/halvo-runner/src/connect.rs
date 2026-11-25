@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use halvo_connect::{
     reply_senders, Answered, Calendar, CallError, DraftStop, Drafting, EventCounts, Graph,
-    ListStop, Mail, MailCounts, Messages, ReplyRule, Route, RunDay, Token,
+    ListStop, Mail, MailCounts, Message, Messages, ReplyRule, Route, RunDay, Token,
 };
 use halvo_schema::executable::body::{LoadReplies, LoadReply, PutReplyRow, Stored};
 use halvo_schema::executable::day::day_of;
@@ -30,18 +30,30 @@ use halvo_schema::{RequestId, RunnerRequest};
 
 use crate::clock::{now, random16};
 use crate::link::Broken;
+use crate::model::write::{Body, Writer};
 use crate::run::{cause_of, Failure, Runner, Stop};
 
 /// The one time limit of a request of the adapter, from its start to the end of its answer's body.
 const CALL_LIMIT: Duration = Duration::from_secs(30);
 
-/// The body of each reply: the fallback line without its line end.
-fn body() -> &'static str {
+/// The const text of a reply (A11.4): the fallback line without its line end.
+pub(crate) fn const_body() -> &'static str {
     FALLBACK.strip_suffix('\n').unwrap_or(FALLBACK)
 }
 
-/// The body of a reply when no model is given (A11.4): the one line of the fallback file, without its line end.
+/// The body of a reply that no writer model wrote (A11.4, crate::model::write): the one line of the fallback file,
+/// without its line end, with the source `const`.
 const FALLBACK: &str = include_str!("../playbooks/reply-fallback.txt");
+
+/// The draft of an earlier run that waits for the message of `row`, the agent's own newest row of it: the draft that a
+/// `drafted` row holds, which the list gives to the PATCH (`Answered::Draft`) and for which the writer asks no second
+/// body (crate::model::write).
+fn waiting_draft(row: &AgentReply) -> Option<&str> {
+    if row.state != ReplyState::Drafted {
+        return None;
+    }
+    row.draft.as_ref().map(|draft| draft.as_str())
+}
 
 /// How many times a row of a reply is sent when the store answers it with a fault (`store` or `internal`), each
 /// time with the same request id, as a row of an effect is sent (A7.5, CP-131 (e)).
@@ -75,6 +87,9 @@ pub(crate) struct Lists {
     /// The id and the sender of each message that the list kept, in its order, as `mail_list` gave them.
     #[cfg(feature = "loopback")]
     senders: Vec<(String, String)>,
+    /// The body that the draft step wrote for each message, by the message's id, until the send step takes them.
+    #[cfg(feature = "loopback")]
+    pub(crate) bodies: HashMap<String, Body>,
     /// The events that the list step kept, until the delete step takes them.
     #[cfg(feature = "loopback")]
     calendar: Option<halvo_connect::Events>,
@@ -121,6 +136,11 @@ fn route(origin: &WebOrigin) -> Route {
     }
     let _ = origin;
     Route::System
+}
+
+/// The body that the draft step wrote for the message `id`: its entry of `bodies`, else the const text.
+pub(crate) fn body_of(bodies: &HashMap<String, Body>, id: &str) -> Body {
+    bodies.get(id).cloned().unwrap_or_else(Body::constant)
 }
 
 /// The text of the slot `name` of the load's bindings, its pieces joined with no trim.
@@ -285,17 +305,15 @@ impl Runner {
             if let Some(alone) = alone {
                 self.lists.alone.insert(id.clone(), alone);
                 words.insert(id.clone(), Answered::Leave);
-            } else if let Some(draft) = own
-                .filter(|row| row.state == ReplyState::Drafted)
-                .and_then(|row| row.draft.as_ref())
-            {
-                words.insert(id.clone(), Answered::Draft(draft.as_str().to_owned()));
+            } else if let Some(draft) = own.and_then(waiting_draft) {
+                words.insert(id.clone(), Answered::Draft(draft.to_owned()));
             }
         }
         Ok(words)
     }
 
-    /// `mail_draft_reply_each` of the messages that the list kept, with the fallback body. The rows of each draft
+    /// `mail_draft_reply_each` of the messages that the list kept, each with the body that the writer gives it
+    /// (crate::model::write): the writer model's text cut at `reply_body`, or the const text. The rows of each draft
     /// are stored as the adapter hands it over, before it drafts the next message, so that a run cut in this step
     /// leaves at most one draft with no row: `drafted` for a new draft, then `withheld` for one that the adapter held
     /// back, and `lost` for a draft of an earlier run that the adapter found lost; a draft of an earlier run that
@@ -319,12 +337,26 @@ impl Runner {
                 .map(|m| (m.id().to_owned(), m.sender().to_owned()))
                 .collect();
         }
-        match graph.mail_draft_reply_each(token, messages, body(), |made| self.rows_of(made)) {
+        let mut writer = Writer::default();
+        let mut bodies = HashMap::new();
+        for message in messages.iter() {
+            let waits = self
+                .lists
+                .rows
+                .get(message.id())
+                .and_then(waiting_draft)
+                .is_some();
+            let body = self.reply_body(&mut writer, loaded, message, waits)?;
+            bodies.insert(message.id().to_owned(), body);
+        }
+        let text_of = |message: &Message| body_of(&bodies, message.id()).text;
+        match graph.mail_draft_reply_each(token, messages, text_of, |made| self.rows_of(made)) {
             Ok(drafted) => {
                 self.lists.held_recipient = Some(drafted.held_recipient());
                 #[cfg(feature = "loopback")]
                 {
                     self.lists.drafts = Some(drafted.into_drafts());
+                    self.lists.bodies = bodies;
                 }
                 Ok(())
             }

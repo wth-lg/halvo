@@ -1900,6 +1900,7 @@ dependencies = [
  "halvo-connect",
  "halvo-control",
  "halvo-policy",
+ "halvo-route",
  "halvo-runner",
  "halvo-schema",
  "halvo-sheet",

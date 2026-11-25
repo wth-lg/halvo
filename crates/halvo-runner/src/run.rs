@@ -117,8 +117,8 @@ pub(crate) struct Runner {
     /// The roots under which a run given no `--browser` finds the person's browser (crate::find): this system's, and
     /// none in a unit test unless the test gives some.
     pub(crate) roots: crate::find::Roots,
-    /// The hosted model of a compile that may ask one (crate::model): its tier, its door once `ask` has started it,
-    /// and the id of its next request line; it holds no key.
+    /// The hosted model of a run that may ask one, a compile or the writer of a reply (crate::model): its tier, its
+    /// door once `ask` has started it, and the id of its next request line; it holds no key.
     pub(crate) hosted: Option<crate::model::Hosted>,
     /// The stand-in door that a unit test gives in the place of halvo-model beside the runner.
     #[cfg(test)]
