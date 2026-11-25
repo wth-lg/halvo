@@ -423,11 +423,17 @@ fn is_tap_disabled(etype: CGEventType) -> bool {
 
 const CHORD_MASKS: u64 = 0x001C_0000;
 
+/// The Option bit of the flags, one of the three of [`CHORD_MASKS`].
+const OPTION_MASK: u64 = 0x0008_0000;
+
+/// The class of a key down, from its key code and the flags of its own event.
+/// A key pressed while none of Control, Option and Command is held keeps the
+/// class of its code. A key whose code is of the class printable, pressed while
+/// Option is the only one of the three that is held, stays printable, since a
+/// layout types a sign with it; no line reads which sign. Every other key
+/// pressed while one of the three is held is a shortcut.
 fn key_class(key_code: Option<i64>, flags: u64) -> KeyClass {
-    if flags & CHORD_MASKS != 0 {
-        return KeyClass::Shortcut;
-    }
-    match key_code {
+    let own = match key_code {
         Some(0x24 | 0x4C) => KeyClass::Enter,
         Some(0x30) => KeyClass::Tab,
         Some(0x33 | 0x72 | 0x75) => KeyClass::Editing,
@@ -436,6 +442,11 @@ fn key_class(key_code: Option<i64>, flags: u64) -> KeyClass {
             KeyClass::Printable
         }
         _ => KeyClass::Other,
+    };
+    match flags & CHORD_MASKS {
+        0 => own,
+        OPTION_MASK if own == KeyClass::Printable => own,
+        _ => KeyClass::Shortcut,
     }
 }
 
@@ -4918,7 +4929,7 @@ mod tests {
         let command = 0x10_0000;
         let pad = 0x20_0000;
         let fn_bit = 0x80_0000;
-        let rows: [(i64, u64, KeyClass, &str); 24] = [
+        let rows: [(i64, u64, KeyClass, &str); 28] = [
             (0x00, 0, KeyClass::Printable, "a letter"),
             (0x2D, shift, KeyClass::Printable, "a letter with shift"),
             (0x12, 0, KeyClass::Printable, "a digit"),
@@ -4951,7 +4962,31 @@ mod tests {
                 KeyClass::Shortcut,
                 "an arrow with control",
             ),
-            (0x00, option, KeyClass::Shortcut, "a letter with option"),
+            (0x00, option, KeyClass::Printable, "a letter with option"),
+            (
+                0x13,
+                option | shift,
+                KeyClass::Printable,
+                "a key with option and shift",
+            ),
+            (
+                0x04,
+                option | command,
+                KeyClass::Shortcut,
+                "a letter with option and command",
+            ),
+            (
+                0x00,
+                option | control,
+                KeyClass::Shortcut,
+                "a letter with option and control",
+            ),
+            (
+                0x7B,
+                option | pad | fn_bit,
+                KeyClass::Shortcut,
+                "an arrow with option",
+            ),
             (
                 0x24,
                 command | shift,

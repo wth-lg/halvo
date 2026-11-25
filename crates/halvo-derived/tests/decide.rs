@@ -61,6 +61,14 @@ fn delete(store: &mut Store, id: &WorkflowId) -> Result<(), Error> {
     ))
 }
 
+fn set_up(store: &mut Store, id: &WorkflowId) -> Result<(), Error> {
+    store.decide(&InterfaceDecision::set_up(
+        &InterfaceRole::claim(),
+        request(),
+        id.clone(),
+    ))
+}
+
 fn host(clock: &TestClock, step: impl RecurrenceStep + 'static) -> Host {
     Host::new(Box::new(clock.clone()), Box::new(step))
 }
@@ -376,6 +384,94 @@ fn delete_removes_the_agent_session_rows_of_the_workflow_a_drop_row_among_them()
     drop(store);
     assert_eq!(workflows(&scratch).len(), 0);
     assert_eq!(bodies(&scratch, "agent_session").len(), 0);
+}
+
+/// The decision set_up stores one approved spreadsheet workflow by hand under the key `spreadsheet_fill by_hand`,
+/// at most once in a store, and the delete of that workflow takes every row that names it: the workflow row and the
+/// rows that the agent store's `create_agent` writes under it, its config and its start, with the agent bound by the
+/// state call. A summary of another key stays.
+#[test]
+fn set_up_stores_one_spreadsheet_workflow_by_hand_and_its_delete_takes_every_row_that_names_it() {
+    let scratch = Scratch::new("set-up");
+    let clock = TestClock::at_day(DAY);
+    let hosted = || {
+        host(&clock, Grouping { min: 3 }).handler(
+            "test",
+            Takes::Coordinator(&["set_state"]),
+            Box::new(SetState),
+        )
+    };
+    let mut store = open_host(&scratch, hosted()).unwrap();
+    store
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY, None)],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    drop(store);
+    let summaries = bodies(&scratch, "summary");
+    assert_eq!(summaries.len(), 1);
+    let before = revision(&scratch, "workflow");
+    let first = WorkflowId::from_random([1; 16]);
+    let mut store = open_host(&scratch, hosted()).unwrap();
+    assert_eq!(set_up(&mut store, &first), Ok(()));
+    assert_eq!(
+        set_up(&mut store, &WorkflowId::from_random([2; 16])),
+        Err(Error::Refused(ErrorName::State))
+    );
+    drop(store);
+    assert_eq!(revision(&scratch, "workflow"), before + 1);
+    assert_eq!(
+        bodies(&scratch, "workflow"),
+        vec![format!(
+            r#"{{"v":1,"id":"{}","state":"approved","category":"spreadsheet_fill","site":null,"app":"by_hand","trigger":"manual","recurrence":{{"count":1,"period":null,"first":{DAY},"last":{DAY}}},"confidence":0,"agent":null}}"#,
+            first.as_str()
+        )]
+    );
+    assert_eq!(
+        strings(
+            &scratch,
+            "SELECT wkey FROM rows WHERE kind = 'workflow' AND workflow = ?1",
+            first.as_str()
+        ),
+        vec!["spreadsheet_fill by_hand".to_owned()]
+    );
+    let agent = "4".repeat(32);
+    let config = format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{agent}","rev":1,"category":"spreadsheet_fill","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{{"untrusted":"no","private":"yes","external":"no"}},"limits":{{"steps":20,"wall_s":120,"model_tokens":0}},"budget":null,"permissions":["user_files"],"runtime":"file","playbook":null}}"#,
+        first.as_str()
+    );
+    let start = format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{agent}","day":{DAY},"at":1}}"#,
+        first.as_str()
+    );
+    raw(&scratch)
+        .execute(
+            "INSERT INTO rows (kind, family, class, workflow, body) VALUES ('agent_config', 'agent', 2, ?1, ?2), \
+             ('agent_start', 'agent', 2, ?1, ?3)",
+            (first.as_str(), config, start),
+        )
+        .unwrap();
+    let mut store = open_host(&scratch, hosted()).unwrap();
+    set_state(&mut store, &first, "approved");
+    drop(store);
+    let naming = || {
+        count(
+            &scratch,
+            &format!(
+                "SELECT count(*) FROM rows WHERE workflow = '{0}' OR instr(body, '{0}') > 0",
+                first.as_str()
+            ),
+        )
+    };
+    assert_eq!(naming(), 3);
+    let mut store = open_host(&scratch, hosted()).unwrap();
+    assert_eq!(delete(&mut store, &first), Ok(()));
+    drop(store);
+    assert_eq!(naming(), 0);
+    assert_eq!(bodies(&scratch, "summary"), summaries);
 }
 
 fn common_proposal(ids: &[u64]) -> Proposal {

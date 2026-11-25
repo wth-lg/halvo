@@ -11,9 +11,9 @@ use halvo_schema::executable::names::{HandbackReason, LogEvent, Runtime, StepKin
 use halvo_schema::executable::step::{Target, WebTarget};
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
-    ActionClass, AgentLog, AgentRun, ApprovalId, Cause, EffectState, ExecutableStep, FromRunner,
-    HandbackRequest, HandbackResult, Limits, Outcome, RunnerCall, RunnerReply, StoreRequest,
-    ToRunner, WebOrigin,
+    ActionClass, AgentLog, AgentRun, ApprovalId, Cause, EffectId, EffectState, ExecutableStep,
+    FromRunner, HandbackRequest, HandbackResult, Limits, Outcome, RunnerCall, RunnerReply,
+    StoreRequest, ToRunner, WebOrigin,
 };
 use halvo_schema::{RequestId, RunnerRequest, RunnerRole};
 use halvo_sheet::Value;
@@ -384,17 +384,20 @@ impl Runner {
         step: Option<NonZeroU32>,
         cause: Option<Cause>,
     ) -> Result<(), Stop> {
-        self.log_amount(event, step, cause, None)
+        self.log_amount(event, step, cause, None, None)
     }
 
     /// Stores one line of the run's log with `page_amount`, the amount that the page after a made payment or purchase
-    /// named other than the card's, which the line of `amount_differs` alone holds (r3 U5.10-B).
+    /// named other than the card's, which the line of `amount_differs` alone holds (r3 U5.10-B), and `effect`, the
+    /// effect whose page after the reply the line tells of, which a line of the read of that page alone holds
+    /// (r3 U5.10-P).
     pub(crate) fn log_amount(
         &mut self,
         event: LogEvent,
         step: Option<NonZeroU32>,
         cause: Option<Cause>,
         page_amount: Option<u32>,
+        effect: Option<EffectId>,
     ) -> Result<(), Stop> {
         self.log_seq += 1;
         let at = now();
@@ -414,6 +417,7 @@ impl Runner {
             tokens_in: None,
             tokens_out: None,
             page_amount,
+            effect,
         };
         let call = RunnerCall::Log(PutLog {
             agent: self.args.agent.clone(),
@@ -514,6 +518,7 @@ impl Runner {
                 tokens_in: None,
                 tokens_out: None,
                 page_amount: None,
+                effect: None,
             };
             let call = RunnerCall::Log(PutLog {
                 agent: self.args.agent.clone(),

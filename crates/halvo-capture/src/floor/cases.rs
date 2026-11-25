@@ -140,7 +140,10 @@ pub(crate) enum Key {
 }
 
 /// A modifier key. Command or Windows, Control and Option or Alt make a chord;
-/// Shift does not.
+/// Shift does not. No case presses a printable key with Option or Alt alone,
+/// since its class differs by system: on a Mac it stays printable, as the key
+/// table test of the macOS source reads; on Windows it is a shortcut, as a key
+/// pressed with AltGr is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Modifier {
     Shift,
@@ -325,7 +328,7 @@ pub(crate) const CASES: &[Case] = &[
         expected: &[K(KeyClass::Shortcut)],
     },
     Case {
-        name: "option or alt with a key is a shortcut",
+        name: "option or alt with enter is a shortcut",
         inputs: &[
             KeyDown(ALT),
             KeyDown(Key::Enter),

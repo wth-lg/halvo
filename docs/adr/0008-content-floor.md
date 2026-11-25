@@ -79,3 +79,4 @@ The limits, which docs/privacy-limits.md states with their sources:
   or the Windows key is held, its own class while Shift alone is held. The reason:
   a Shift stored in front of a letter shows which letters of a password are
   capitals (unit lone-modifier-out).
+- 2026-11-25: a key of the class printable that is pressed on a Mac with Option, or with Option and Shift, and neither Command nor Control, is of the class printable and no longer a shortcut. The reason: a shortcut in its place showed where in a password such a sign stands. No line reads which sign a key types. On Windows nothing changes: a key pressed with AltGr is not noted there.
