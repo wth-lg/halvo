@@ -525,6 +525,92 @@ mod tests {
     }
 
     #[test]
+    fn a_chrome_title_is_kept_only_where_it_ends_with_its_own_name_and_no_edge_title_is_kept() {
+        let kept = |id: &str, title: &str| match listed(id) {
+            Listed::Ending(_, words) => !TitleText::for_test(title)
+                .of_a_browser_ending_private_with(words)
+                .is_private(),
+            _ => false,
+        };
+        let chrome = "com.google.Chrome";
+        let edge = "com.microsoft.edgemac";
+        let cases = [
+            ("ordinary", chrome, "Inbox - Google Chrome", true),
+            (
+                "sound",
+                chrome,
+                "Inbox - Audio playing - Google Chrome",
+                true,
+            ),
+            ("pop-up", chrome, "Sign in - Google Chrome", true),
+            ("edge-ordinary", edge, "Inbox - Microsoft Edge", false),
+            ("profiles", chrome, "Inbox - Google Chrome - Work", false),
+            (
+                "incognito",
+                chrome,
+                "Inbox - Google Chrome (Incognito)",
+                false,
+            ),
+            ("guest", chrome, "Inbox - Google Chrome (Guest)", false),
+            (
+                "isolated",
+                chrome,
+                "Inbox - Google Chrome (Isolated)",
+                false,
+            ),
+            (
+                "incognito-pop-up",
+                chrome,
+                "Sign in - Google Chrome (Incognito)",
+                false,
+            ),
+            ("app-window", chrome, "Docs", false),
+            ("dialog", chrome, "example.com says", false),
+            (
+                "dialog-of-a-frame",
+                chrome,
+                "An embedded page at example.com says",
+                false,
+            ),
+            ("dialog-of-a-data-page", chrome, "This page says", false),
+            ("beta-ending", chrome, "Inbox - Google Chrome Beta", false),
+            (
+                "page-named-like-the-browser",
+                chrome,
+                "Notes - Google Chrome - Google Chrome (Incognito)",
+                false,
+            ),
+            (
+                "edge-bracketed-marker",
+                edge,
+                "Inbox - [InPrivate] - Microsoft Edge",
+                false,
+            ),
+            (
+                "edge-inprivate",
+                edge,
+                "Inbox - Microsoft Edge (InPrivate)",
+                false,
+            ),
+            (
+                "edge-profile",
+                edge,
+                "Inbox - Microsoft Edge - Personal",
+                false,
+            ),
+        ];
+        let wrong: Vec<&str> = cases
+            .iter()
+            .filter(|(_, id, title, wanted)| kept(id, title) != *wanted)
+            .map(|(case, ..)| *case)
+            .collect();
+        assert!(
+            wrong.is_empty(),
+            "told against the browser's own name: {wrong:?}"
+        );
+    }
+
+    #[test]
     fn the_site_reader_point_gives_no_site_without_the_feature() {
         assert!(site_of(1).is_none());
     }
