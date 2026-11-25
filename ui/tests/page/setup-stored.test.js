@@ -445,3 +445,97 @@ test("what a press of Use these answers or a pick in a chooser saves is what the
     "the states in which another text is saved than the card shows, a text is saved while a question shows no answer, a call goes while a press is under way, or a call that may save goes behind a refused one",
   );
 });
+
+/** The sentences that stand under the question `name`. */
+const under = (page, name) => setOf(page, name).querySelectorAll("p.hn-full").map((p) => p.textContent);
+/** The list of Which sheet: the name of each entry, and whether it is chosen. */
+const listOf = (page) => radiosOf(page, "sheet").map((r) => [r.parentNode.textContent, r.checked === true]);
+
+test("at Change its answers the sentence under an emptied line of Which cells and the focus on it stay when the workbook's names are read at the press and Which sheet turns into its list: the line is not drawn anew, and nothing is saved", async () => {
+  const core = coreOver(storedItem, ["Notes", STORED.sheet]);
+  const page = await openPage(over(core));
+  await typeLine(page, "range", "");
+  const line = lineOf(page, "range");
+  await page.click(useAnswers(page), { detail: 0 });
+  assert.deepEqual(
+    page.calls("agents_setup_typed").map((c) => [c.args.param, c.args.text, c.args.more]),
+    [
+      ["workbook", STORED.workbook, "yes"],
+      ["sheet", STORED.sheet, "yes"],
+      ["source", STORED.source, "yes"],
+    ],
+    "the three other lines go, each as a call that says that more follow",
+  );
+  assert.deepEqual(
+    listOf(page),
+    [
+      ["Notes", false],
+      [STORED.sheet, true],
+    ],
+    "the names were read at that press: Which sheet is its list, with the sheet of its line chosen",
+  );
+  assert.deepEqual(under(page, "range"), [words["param_typed.needs_answer"]], "the sentence stands under Which cells behind the newer read");
+  assert.ok(page.document.activeElement === lineOf(page, "range"), "the focus is on the card's line of Which cells");
+  assert.ok(lineOf(page, "range") === line, "and that line is the same node as before the press");
+  assert.equal(core.saved(), null, "nothing is saved");
+});
+
+test("a question that is drawn anew at the same step stands under the sentence where the old card showed it there and the question still shows no answer: with Which sheet emptied at the press, the list of the workbook's sheets comes with none chosen, under the sentence, and the focus goes from the line to the card's heading and to no control; and where the list lacks the sheet of the press, the sentence under it still stands behind a second newer read of that one press", async () => {
+  const sentence = words["param_typed.needs_answer"];
+  const readings = [];
+  /** One reading: what the page shows under `what`, printed, beside what the rule asks for. */
+  const read = (what, got, want) => {
+    console.log(`u331 ${what}: ${JSON.stringify(got)}`);
+    readings.push({ what, broken: JSON.stringify(got) !== JSON.stringify(want) });
+  };
+
+  const core = coreOver(storedItem, ["Notes", STORED.sheet]);
+  const page = await openPage(over(core));
+  await typeLine(page, "sheet", "");
+  await page.click(useAnswers(page), { detail: 0 });
+  read("a line that turned into its list, the list", listOf(page), [
+    ["Notes", false],
+    [STORED.sheet, false],
+  ]);
+  read("a line that turned into its list, the sentences under it", under(page, "sheet"), [sentence]);
+  const heading = page.document.querySelector("h3.hn-title");
+  read(
+    "a line that turned into its list, the focus is on the card's heading, whose tab index is -1, and on no entry of the list",
+    [page.document.activeElement === heading, heading.getAttribute("tabindex"), radiosOf(page, "sheet").includes(page.document.activeElement)],
+    [true, "-1", false],
+  );
+  read("a line that turned into its list, saved", core.saved(), null);
+
+  const lacking = coreOver(storedItem, ["Plan", "Actual"]);
+  let answerLast = null;
+  const lastHeld = new Promise((resolve) => {
+    answerLast = resolve;
+  });
+  const options = over(lacking);
+  const twice = await openPage({
+    replies: { ...options.replies, agents_setup_typed: (args) => (args.param === "source" ? lastHeld.then(() => lacking.typed(args)) : lacking.typed(args)) },
+  });
+  await typeLine(twice, "source", "receipts.csv");
+  await twice.click(useAnswers(twice), { detail: 0 });
+  read("one press, behind its first newer read (the list has come), the list", listOf(twice), [
+    ["Plan", false],
+    ["Actual", false],
+  ]);
+  read("one press, behind its first newer read, the sentences under the list", under(twice, "sheet"), [sentence]);
+  read("one press, behind its first newer read, the sentences under the data file's line", under(twice, "source"), []);
+  answerLast();
+  await twice.settle();
+  read("one press, behind its second newer read, the sentences under the data file's line", under(twice, "source"), [words["param_typed.not_path_mac"]]);
+  read("one press, behind its second newer read, the list", listOf(twice), [
+    ["Plan", false],
+    ["Actual", false],
+  ]);
+  read("one press, behind its second newer read, the sentences under the list", under(twice, "sheet"), [sentence]);
+  read("one press, behind its second newer read, saved", lacking.saved(), null);
+
+  assert.deepEqual(
+    readings.filter((r) => r.broken).map((r) => r.what),
+    [],
+    "the readings in which the page shows another thing than the rule asks for",
+  );
+});

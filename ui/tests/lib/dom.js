@@ -73,6 +73,13 @@ class Node {
   get firstElementChild() {
     return this.children[0] ?? null;
   }
+  get firstChild() {
+    return this.childNodes[0] ?? null;
+  }
+  get nextSibling() {
+    const among = this.parentNode ? this.parentNode.childNodes : [];
+    return among[among.indexOf(this) + 1] ?? null;
+  }
   *elements() {
     for (const child of this.children) {
       yield child;
