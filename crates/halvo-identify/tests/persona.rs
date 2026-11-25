@@ -218,24 +218,19 @@ const SEED: u64 = 20261113;
 /// run, line 156: the per-category line that 20 routines can carry).
 const THIN: u32 = 20;
 
-/// A labelled episode of one stream, as its label row and its first step give it: its task, whether that task is a
-/// planted routine, its category, its span on the records' clock, and the site and app of its steps.
+/// A labelled episode of one stream, as its label row gives it: its task, whether that task is a planted routine,
+/// and its category.
 struct Labelled {
     task: String,
     planted: bool,
     category: Category,
-    start: i64,
-    end: i64,
-    site: Option<String>,
-    app: String,
 }
 
-/// An episode of the identifier as the count reads it: its span, its site and its app.
+/// An episode of the identifier as the count reads it: for each record that it names among its segments (its own
+/// records and the title records of their windows), the place among the stream's labelled episodes of the scripted
+/// episode that the record came from, or none for a record of no scripted episode.
 struct Found {
-    start: i64,
-    end: i64,
-    site: Option<String>,
-    app: String,
+    records: Vec<Option<usize>>,
 }
 
 /// A proposal as the count reads it: its category and, for each of its summaries, the place of that summary's
@@ -256,21 +251,42 @@ struct Tally {
 /// The counts of each kind of task.
 type Tallies = BTreeMap<SeedCategory, Tally>;
 
-/// The labelled episode that an episode of the identifier is: of the labelled episodes of its app, of its site where
-/// it holds one, whose span meets its own, the one with the longest overlap, the first of equals in the order of
-/// the label rows; none where no labelled episode meets it.
-fn labelled_of(found: &Found, labelled: &[Labelled]) -> Option<usize> {
-    let mut best: Option<(i64, usize)> = None;
-    for (i, l) in labelled.iter().enumerate() {
-        if l.app != found.app || (found.site.is_some() && l.site != found.site) {
-            continue;
-        }
-        let overlap = found.end.min(l.end) - found.start.max(l.start);
-        if overlap > 0 && best.is_none_or(|(longest, _)| overlap > longest) {
-            best = Some((overlap, i));
-        }
+/// How many episodes of the identifier there are, how many hold the records of two scripted episodes or more, and
+/// how many hold the records of none.
+#[derive(Clone, Copy, Default)]
+struct Held {
+    episodes: u32,
+    mixed: u32,
+    none: u32,
+}
+
+impl Held {
+    fn add(&mut self, found: &Found) {
+        let scripted: BTreeSet<usize> = found.records.iter().flatten().copied().collect();
+        self.episodes += 1;
+        self.mixed += u32::from(scripted.len() > 1);
+        self.none += u32::from(scripted.is_empty());
     }
-    best.map(|(_, i)| i)
+}
+
+/// What one form of the tool counts over a set: the tallies of each kind, and how the episodes of the identifier,
+/// all of them and those that the proposals hold, hold the records of scripted episodes.
+#[derive(Default)]
+struct Form {
+    tallies: Tallies,
+    all: Held,
+    in_proposals: Held,
+}
+
+/// The labelled episode that an episode of the identifier is: the scripted episode that most of its records came
+/// from, the first in the order of the label rows of equals; none where no record of it came from a scripted episode.
+fn labelled_of(found: &Found) -> Option<usize> {
+    let mut counts: BTreeMap<usize, usize> = BTreeMap::new();
+    for &l in found.records.iter().flatten() {
+        *counts.entry(l).or_default() += 1;
+    }
+    let most = counts.values().copied().max()?;
+    counts.into_iter().find(|&(_, n)| n == most).map(|(l, _)| l)
 }
 
 /// Adds one stream to the tallies: each planted routine to its kind's `planted`, each proposal to its category's
@@ -303,7 +319,7 @@ fn count_stream(
         let mut support = BTreeSet::new();
         let mut none = 0;
         for &f in &proposal.support {
-            match labelled_of(&found[f], labelled) {
+            match labelled_of(&found[f]) {
                 Some(l) => {
                     support.insert(l);
                 }
@@ -357,36 +373,56 @@ fn without_site(record: CaptureRecord) -> CaptureRecord {
     .expect("a title record without its site")
 }
 
+/// The place among the labelled episodes of the scripted episode whose range holds the instant `at`, or none:
+/// `ranges` holds the start, the end and the episode's place of each range of a scripted episode, by start, and no
+/// two of them overlap.
+fn scripted_at(ranges: &[(i64, i64, usize)], at: i64) -> Option<usize> {
+    let after = ranges.partition_point(|&(start, _, _)| start <= at);
+    let &(_, end, l) = ranges.get(after.checked_sub(1)?)?;
+    (at < end).then_some(l)
+}
+
 /// The episodes of the identifier over the rendered days of one stream: one call of the episode step with stage A
 /// for each scripted day, as persona_s001 makes it. With `sites` false every title record loses its site first.
-fn episodes_of(days: &BTreeMap<u32, Vec<u8>>, sites: bool) -> Vec<Episode> {
+/// Each record goes in at a segment of its own, its place in the stream from 1, so that an episode's segments name
+/// the records that it holds; every segment of a day expires at the same instant, so the episodes are those of
+/// persona_s001's call. The second value gives, for each segment, the scripted episode that its record came from.
+fn episodes_of(
+    days: &BTreeMap<u32, Vec<u8>>,
+    sites: bool,
+    ranges: &[(i64, i64, usize)],
+) -> (Vec<Episode>, Vec<Option<usize>>) {
     let mut n = 0u128;
     let mut ids = || {
         n += 1;
         SummaryId::from_random(n.to_be_bytes())
     };
     let mut episodes = Vec::new();
-    for (day, bytes) in days {
-        let seg = u64::from(*day);
+    let mut origin: Vec<Option<usize>> = Vec::new();
+    for bytes in days.values() {
         let entries: Vec<Entry> = bytes
             .split_inclusive(|b| *b == b'\n')
             .enumerate()
             .map(|(idx, line)| {
                 let record = CaptureRecord::read_line(line).expect("a rendered line reads");
+                origin.push(scripted_at(ranges, record.at().0));
                 Entry {
                     pos: Position {
-                        seg,
+                        seg: origin.len() as u64,
                         idx: idx as u64,
                     },
                     record: if sites { record } else { without_site(record) },
                 }
             })
             .collect();
-        let first = entries[0].record.at().0;
-        let expiry = [Expiry {
-            seg,
-            at: Instant(first + 93 * DAY),
-        }];
+        let at = Instant(entries[0].record.at().0 + 93 * DAY);
+        let expiry: Vec<Expiry> = entries
+            .iter()
+            .map(|entry| Expiry {
+                seg: entry.pos.seg,
+                at,
+            })
+            .collect();
         let call = Call {
             entries: &entries,
             expiry: &expiry,
@@ -395,12 +431,16 @@ fn episodes_of(days: &BTreeMap<u32, Vec<u8>>, sites: bool) -> Vec<Episode> {
         };
         episodes.extend(episode_step(&call, &StageA, &mut ids).episodes);
     }
-    episodes
+    (episodes, origin)
 }
 
 /// What the identifier finds in one stream and what the recurrence step proposes over it.
-fn found_in(days: &BTreeMap<u32, Vec<u8>>, sites: bool) -> (Vec<Found>, Vec<Proposed>) {
-    let episodes = episodes_of(days, sites);
+fn found_in(
+    days: &BTreeMap<u32, Vec<u8>>,
+    sites: bool,
+    ranges: &[(i64, i64, usize)],
+) -> (Vec<Found>, Vec<Proposed>) {
+    let (episodes, origin) = episodes_of(days, sites, ranges);
     let place: BTreeMap<SummaryId, usize> = episodes
         .iter()
         .enumerate()
@@ -419,57 +459,43 @@ fn found_in(days: &BTreeMap<u32, Vec<u8>>, sites: bool) -> (Vec<Found>, Vec<Prop
     let found = episodes
         .iter()
         .map(|e| Found {
-            start: e.start.0,
-            end: e.end.0,
-            site: site_of(e).map(str::to_owned),
-            app: e.app.as_str().to_owned(),
+            records: e
+                .segments
+                .iter()
+                .map(|seg| origin[seg.get() as usize - 1])
+                .collect(),
         })
         .collect();
     (found, proposed)
 }
 
-/// The labelled episodes of one stream: its label rows as halvo-sample's `rows_of` gives them, each with the site and
-/// the app of the first step of its ranges.
-fn labelled_in(script: &Script, stream: &str) -> Vec<Labelled> {
-    let places: BTreeMap<&str, (Option<String>, String)> = script
-        .episodes
-        .iter()
-        .filter(|(_, e)| e.stream == stream)
-        .map(|(_, e)| {
-            let step = &script.steps[&e.ranges[0].step];
-            (e.episode.as_str(), (step.site.clone(), step.app.clone()))
-        })
-        .collect();
-    rows_of(script, stream)
-        .into_iter()
-        .filter_map(|row| match row {
+/// The labelled episodes of one stream, in the order of its label rows as halvo-sample's `rows_of` gives them, and
+/// the ranges of those episodes by start, each with its episode's place.
+fn labelled_in(script: &Script, stream: &str) -> (Vec<Labelled>, Vec<(i64, i64, usize)>) {
+    let mut labelled = Vec::new();
+    let mut ranges = Vec::new();
+    for row in rows_of(script, stream) {
+        match row {
             Row::Episode {
-                episode,
                 task,
                 category,
                 kind,
-                start,
-                end,
-            } => {
-                let (site, app) = places[episode.as_str()].clone();
-                Some(Labelled {
-                    task,
-                    planted: kind == TaskKind::Planted,
-                    category,
-                    start,
-                    end,
-                    site,
-                    app,
-                })
-            }
-            Row::Range { .. } => None,
-        })
-        .collect()
+                ..
+            } => labelled.push(Labelled {
+                task,
+                planted: kind == TaskKind::Planted,
+                category,
+            }),
+            Row::Range { start, end, .. } => ranges.push((start, end, labelled.len() - 1)),
+        }
+    }
+    ranges.sort_unstable();
+    (labelled, ranges)
 }
 
-/// The tallies of one set of scripts, the first with every site taken out and the second with the scripts' sites,
-/// over every stream that its files hold, and the number of those streams.
-fn tally_set(dir: &Path) -> (usize, [Tallies; 2]) {
+/// What the two forms count over one set of scripts, the first with every site taken out and the second with the
+/// scripts' sites, over every stream that its files hold, and the number of those streams.
+fn tally_set(dir: &Path) -> (usize, [Form; 2]) {
     let mut names: Vec<String> = fs::read_dir(dir)
         .expect("the set's directory reads")
         .map(|entry| {
@@ -480,73 +506,29 @@ fn tally_set(dir: &Path) -> (usize, [Tallies; 2]) {
         .collect();
     names.sort();
     let mut streams = 0;
-    let mut tallies = [BTreeMap::new(), BTreeMap::new()];
+    let mut forms = [Form::default(), Form::default()];
     for name in names {
         let marked = name.replace(".jsonl", ".marked.jsonl");
         let script = Script::read(&[dir.join(&name), dir.join(marked)]).expect("a script reads");
         for stream in script.streams.keys() {
             streams += 1;
             let days = render_stream(&script, stream, SEED);
-            let labelled = labelled_in(&script, stream);
-            for (sites, tally) in [false, true].into_iter().zip(tallies.iter_mut()) {
-                let (found, proposed) = found_in(&days, sites);
-                count_stream(&labelled, &found, &proposed, tally);
+            let (labelled, ranges) = labelled_in(&script, stream);
+            for (sites, form) in [false, true].into_iter().zip(forms.iter_mut()) {
+                let (found, proposed) = found_in(&days, sites, &ranges);
+                for f in &found {
+                    form.all.add(f);
+                }
+                for p in &proposed {
+                    for &f in &p.support {
+                        form.in_proposals.add(&found[f]);
+                    }
+                }
+                count_stream(&labelled, &found, &proposed, &mut form.tallies);
             }
         }
     }
-    (streams, tallies)
-}
-
-/// The rows of one set: a line with its name and the number of its streams, a heading, and one row for each kind
-/// in the order of `SeedCategory::ALL`.
-fn rows(set: &str, streams: usize, tallies: &Tallies) -> String {
-    let mut out = format!("set {set}: {streams} streams\n");
-    out.push_str(&format!(
-        "{:<26} {:>7} {:>8} {:>6}  {:<21} {}\n",
-        "kind", "planted", "proposed", "paired", "precision (plan 0.90)", "recall (plan 0.70)"
-    ));
-    for kind in SeedCategory::ALL {
-        let t = tallies.get(kind).copied().unwrap_or_default();
-        out.push_str(&format!(
-            "{:<26} {:>7} {:>8} {:>6}  {:<21} {}\n",
-            kind.as_str(),
-            t.planted,
-            t.proposed,
-            t.paired,
-            share(t.paired, t.proposed),
-            share(t.paired, t.planted)
-        ));
-    }
-    out
-}
-
-/// The counting tool. It runs by hand and in no CI job, by the one command
-/// `cargo test -p halvo-identify --test persona --locked -- --ignored --exact hit_rates --nocapture`, and prints two
-/// tables, each over the sets seen and unseen: the first with every site taken out of the title records before the
-/// episode step, the second with the scripts' sites. It prints counts and shares of each kind alone: no title, no
-/// site and no stream.
-#[test]
-#[ignore = "a counting tool that runs by hand alone, by --ignored --exact hit_rates --nocapture"]
-fn hit_rates() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/r2/scripts");
-    let sets: Vec<(&str, usize, [Tallies; 2])> = ["seen", "unseen"]
-        .into_iter()
-        .map(|set| {
-            let (streams, tallies) = tally_set(&root.join(set));
-            (set, streams, tallies)
-        })
-        .collect();
-    let heads = [
-        "TABLE 1, the product as it runs today: every site taken out of every title record before the episode step",
-        "TABLE 2, what a site reader would add: the scripts' sites kept",
-    ];
-    for (form, head) in heads.into_iter().enumerate() {
-        println!("{head}");
-        for (set, streams, tallies) in &sets {
-            print!("{}", rows(set, *streams, &tallies[form]));
-        }
-        println!();
-    }
+    (streams, forms)
 }
 
 /// The share `n/d = s` to two decimals, or the counts and `thin` where `d` is under `THIN`.
@@ -558,47 +540,66 @@ fn share(n: u32, d: u32) -> String {
     }
 }
 
-/// The counting of the tool on a stream made by hand, with two kinds. The email routine has three episodes; a
-/// proposal holds two of them and one episode of the identifier that is no labelled episode, so the two meet in 2
-/// of a union of 4, the plan's half, and pair. Nothing finds the shop routine, and the shop proposal holds two
-/// episodes of a task that is no planted routine, so it fits nothing. By hand: email planted 1, proposed 1, paired
-/// 1, precision 1/1 and recall 1/1; shop_order planted 1, proposed 1, paired 0, precision 0/1 and recall 0/1; each
-/// share is thin.
+/// The rows of one set: a line with its name and the number of its streams, a heading, one row for each kind in
+/// the order of `SeedCategory::ALL`, and a line on how the episodes of the identifier hold the records of scripted
+/// episodes.
+fn rows(set: &str, streams: usize, form: &Form) -> String {
+    let mut out = format!("set {set}: {streams} streams\n");
+    out.push_str(&format!(
+        "{:<26} {:>7} {:>8} {:>6}  {:<21} {}\n",
+        "kind", "planted", "proposed", "paired", "precision (plan 0.90)", "recall (plan 0.70)"
+    ));
+    for kind in SeedCategory::ALL {
+        let t = form.tallies.get(kind).copied().unwrap_or_default();
+        out.push_str(&format!(
+            "{:<26} {:>7} {:>8} {:>6}  {:<21} {}\n",
+            kind.as_str(),
+            t.planted,
+            t.proposed,
+            t.paired,
+            share(t.paired, t.proposed),
+            share(t.paired, t.planted)
+        ));
+    }
+    let (a, p) = (form.all, form.in_proposals);
+    out.push_str(&format!(
+        "episodes of the identifier {}: with records of two scripted episodes or more {}, of none {}; \
+         in proposals {}: {} and {}\n",
+        a.episodes, a.mixed, a.none, p.episodes, p.mixed, p.none
+    ));
+    out
+}
+
+/// The counting of the tool on a stream made by hand, with two kinds. The email routine has three episodes, and an
+/// episode of a task that is no routine, of the same app, overlaps the third of them in time. The email proposal
+/// holds an episode of the identifier with the records of the first, one with the records of the third that lies in
+/// time inside both the third and the episode beside it, and one with the records of no scripted episode, so it
+/// meets the routine in 2 of a union of 4, the plan's half, and pairs. Nothing finds the shop routine, and the shop
+/// proposal holds two episodes of a task that is no planted routine, so it fits nothing. By hand: email planted 1,
+/// proposed 1, paired 1, precision 1/1 and recall 1/1; shop_order planted 1, proposed 1, paired 0, precision 0/1
+/// and recall 0/1; each share is thin.
 #[test]
 fn counting_a_tiny_case() {
-    let browser = "org.chromium.Chromium";
-    let l = |task: &str, planted: bool, category: Category, start: i64, site: &str| Labelled {
+    let l = |task: &str, planted: bool, category: Category| Labelled {
         task: task.to_owned(),
         planted,
         category,
-        start,
-        end: start + 100,
-        site: Some(site.to_owned()),
-        app: browser.to_owned(),
     };
     let labelled = [
-        l("t1", true, Category::Email, 0, "mail.test"),
-        l("t1", true, Category::Email, 1_000, "mail.test"),
-        l("t1", true, Category::Email, 2_000, "mail.test"),
-        l("t2", true, Category::ShopOrder, 3_000, "shop.test"),
-        l("t2", true, Category::ShopOrder, 4_000, "shop.test"),
-        l("t2", true, Category::ShopOrder, 5_000, "shop.test"),
-        l("t3", false, Category::ShopOrder, 6_000, "store.test"),
-        l("t3", false, Category::ShopOrder, 7_000, "store.test"),
+        l("t1", true, Category::Email),
+        l("t1", true, Category::Email),
+        l("t4", false, Category::Email),
+        l("t1", true, Category::Email),
+        l("t2", true, Category::ShopOrder),
+        l("t2", true, Category::ShopOrder),
+        l("t2", true, Category::ShopOrder),
+        l("t3", false, Category::ShopOrder),
+        l("t3", false, Category::ShopOrder),
     ];
-    let f = |start: i64, site: &str| Found {
-        start,
-        end: start + 50,
-        site: Some(site.to_owned()),
-        app: browser.to_owned(),
+    let f = |records: &[usize]| Found {
+        records: records.iter().map(|&r| Some(r)).collect(),
     };
-    let found = [
-        f(10, "mail.test"),
-        f(1_010, "mail.test"),
-        f(9_000, "mail.test"),
-        f(6_010, "store.test"),
-        f(7_010, "store.test"),
-    ];
+    let found = [f(&[0, 0]), f(&[3, 3]), f(&[]), f(&[7]), f(&[8])];
     let proposed = [
         Proposed {
             category: SeedCategory::Email,
@@ -625,4 +626,33 @@ fn counting_a_tiny_case() {
     );
     assert_eq!(share(1, 1), "1/1 thin");
     assert_eq!(share(14, 20), "14/20 = 0.70");
+}
+
+/// The counting tool. It runs by hand and in no CI job, by the one command
+/// `cargo test -p halvo-identify --test persona --locked -- --ignored --exact hit_rates --nocapture`, and prints two
+/// tables, each over the sets seen and unseen: the first with every site taken out of the title records before the
+/// episode step, the second with the scripts' sites. In both an episode of the identifier is the scripted episode
+/// whose records it holds. It prints counts and shares of each kind alone: no title, no site and no stream.
+#[test]
+#[ignore = "a counting tool that runs by hand alone, by --ignored --exact hit_rates --nocapture"]
+fn hit_rates() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/r2/scripts");
+    let sets: Vec<(&str, usize, [Form; 2])> = ["seen", "unseen"]
+        .into_iter()
+        .map(|set| {
+            let (streams, forms) = tally_set(&root.join(set));
+            (set, streams, forms)
+        })
+        .collect();
+    let heads = [
+        "TABLE 1, the product as it runs today: every site taken out of every title record before the episode step",
+        "TABLE 2, what a site reader would add: the scripts' sites kept",
+    ];
+    for (form, head) in heads.into_iter().enumerate() {
+        println!("{head}");
+        for (set, streams, forms) in &sets {
+            print!("{}", rows(set, *streams, &forms[form]));
+        }
+        println!();
+    }
 }
