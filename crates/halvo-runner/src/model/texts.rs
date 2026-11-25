@@ -4,13 +4,6 @@
 
 /// The boundary text, the file crates/halvo-runner/prompts/boundary.txt, which stands at the head of the `system`
 /// of every model request (A9.5).
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "no shipped build writes a model request until r3 U7.2b's compile or r3 U7.4's writer does"
-    )
-)]
 pub(crate) const BOUNDARY: &str = include_str!("../../prompts/boundary.txt");
 
 #[cfg(test)]

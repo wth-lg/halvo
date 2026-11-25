@@ -37,13 +37,6 @@ pub(crate) enum Call {
 
 /// The router handed the call back, or picked a tier other than the run's own: the run sends no model request and
 /// ends `handed_back` with the cause `shortfall`.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls level"
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Shortfall;
 
@@ -57,13 +50,6 @@ thread_local! {
 /// policy, for the agent's category and `call`, with the agent's own tier as the ceiling. The pick's level where
 /// the pick's tier is the agent's own tier, the tier that the person allowed and the door is started with; else
 /// `Shortfall`, for a pick that hands the call back and for a pick of a lower tier.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls it"
-    )
-)]
 pub(crate) fn level(loaded: &LoadReply, call: Call) -> Result<ask::Level, Shortfall> {
     #[cfg(test)]
     let table = TEST_POLICY
@@ -87,13 +73,6 @@ pub(crate) fn level(loaded: &LoadReply, call: Call) -> Result<ask::Level, Shortf
 }
 
 /// The router's id of a seed category of the schema, by its equal name (`ids_equal_schema`).
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls level"
-    )
-)]
 fn category(seed: SeedCategory) -> CategoryId {
     match seed {
         SeedCategory::UtilityBillPayment => CategoryId::UtilityBillPayment,
@@ -110,13 +89,6 @@ fn category(seed: SeedCategory) -> CategoryId {
 }
 
 /// The router's tier of a model tier of the schema, by its equal name (`ids_equal_schema`).
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls level"
-    )
-)]
 fn tier(tier: ModelTier) -> Tier {
     match tier {
         ModelTier::OnDevice => Tier::OnDevice,
@@ -126,7 +98,7 @@ fn tier(tier: ModelTier) -> Tier {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use halvo_schema::{AgentId, Category, WorkflowId};
 
     use super::*;
@@ -151,7 +123,7 @@ mod tests {
     }
 
     /// The release policy's text with `cells` in the place of the rows of their category and kind.
-    fn policy_with(cells: &[&str]) -> &'static Policy {
+    pub(crate) fn policy_with(cells: &[&str]) -> &'static Policy {
         let mut text = policy().to_text();
         for cell in cells {
             let head: Vec<&str> = cell.split('\t').take(2).collect();
