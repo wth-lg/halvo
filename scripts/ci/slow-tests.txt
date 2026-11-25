@@ -24,8 +24,8 @@
 # targets of the packages that hold a core promise (scripts/ci/core-promises.txt): halvo,
 # halvo-capture, halvo-derived, halvo-learn, halvo-learn-gate, halvo-learn-store, halvo-redact,
 # halvo-route, halvo-route-gate and halvo-route-wire. In those, a target or a group of unit tests
-# is here when it took about 6 s or more in one of the two jobs. The gate of the macos job runs no
-# test of a package whose code holds no cfg by system: the windows gate runs it (the group H).
+# is here when it took about 6 s or more in one of the two jobs. The gate of the macos job leaves to
+# the windows gate the tests that the group H names.
 # The groups: A the unit tests of halvo-sqlcipher and the seam's target set_reader (the slice mon); B
 # the test targets of halvo-agent-client and halvo-agent-gate, two targets by name and the unit tests
 # of two packages (tue); C the name
@@ -38,8 +38,12 @@
 # windows slice runs it, where the windows gate runs every test of it that a windows build holds); G
 # the test targets of halvo-runner and of the coordinator packages and the unit tests of halvo-web
 # (tue2); H what the gate of the macos job leaves to the
-# windows gate by the job word macos, the tests of the packages whose source and halvo dependencies
-# hold no cfg by system (target_os, unix, windows) but for the targets whose own file holds one, and
+# windows gate by the job word macos, the tests of the packages whose source holds no cfg by system
+# (target_os, unix, windows) and whose halvo dependencies hold none in their source (halvo-derived's
+# dependency halvo-sqlcipher builds its C code for the target's system in its build.rs, and its own
+# unit tests stay in both jobs), but for the targets whose own file holds one; the test target
+# learn_step of halvo-learn-store, whose dependency halvo-agent-store picks a path form by
+# cfg!(windows) in its src/workbook.rs, and which names no path of a file; and
 # the 12-test copy of halvo-redact's tests, which 22-redact runs in the windows gate, and the part
 # daemon::owner_props of halvo-capture's unit tests (no slice runs H; r8 cut-2, rule R4: a test of code
 # that is the same on both systems runs in the windows job alone); I the tests of the weekly groups
