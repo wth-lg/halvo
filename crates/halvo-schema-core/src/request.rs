@@ -26,7 +26,7 @@ pub const INTERFACE_REQUEST_MAX: usize = 4_096;
 pub const REPLY_MAX: usize = 261_120;
 
 /// The names that this module writes in a request or a reply: the keys of the envelope, of the bodies and of a
-/// reply, the five request names, the two names of a read, the three decisions and the four roles. No error name
+/// reply, the five request names, the two names of a read, the four decisions and the four roles. No error name
 /// is among them.
 pub const NAMES: &[&str] = &[
     "v",
@@ -50,6 +50,7 @@ pub const NAMES: &[&str] = &[
     "approve",
     "dismiss",
     "delete",
+    "set_up",
     "analysis",
     "interface",
     "coordinator",
@@ -507,11 +508,13 @@ impl InterfaceRead {
 }
 
 name_enum! {
-    /// The three decisions of the interface.
+    /// The four decisions of the interface. `set_up` stores the spreadsheet workflow that the person sets up by
+    /// hand under the workflow id of the decision, which the app mints.
     pub enum Decision {
         Approve = "approve",
         Dismiss = "dismiss",
         Delete = "delete",
+        SetUp = "set_up",
     }
 }
 
@@ -526,7 +529,7 @@ strict_struct! {
 }
 
 /// The interface decision, a request of the role `interface` and the one request that builds an approval, a
-/// dismissal or a deletion. It takes a workflow id and nothing else.
+/// dismissal, a deletion or a workflow set up by hand. It takes a workflow id and nothing else.
 #[derive(Debug)]
 pub struct InterfaceDecision {
     id: RequestId,
@@ -558,6 +561,16 @@ impl InterfaceDecision {
         InterfaceDecision {
             id,
             decision: Decision::Delete,
+            workflow,
+        }
+    }
+
+    /// The decision `set_up` of the workflow: the spreadsheet workflow that the person sets up by hand, under the
+    /// workflow id that the app mints.
+    pub fn set_up(_role: &InterfaceRole, id: RequestId, workflow: WorkflowId) -> Self {
+        InterfaceDecision {
+            id,
+            decision: Decision::SetUp,
             workflow,
         }
     }
