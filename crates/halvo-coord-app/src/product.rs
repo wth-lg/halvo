@@ -2860,7 +2860,7 @@ mod tests {
             .collect();
         assert_eq!(
             created,
-            [agent.clone()],
+            std::slice::from_ref(&agent),
             "one create_agent for the workflow"
         );
         let snapshot = c.snapshot();
