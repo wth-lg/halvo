@@ -75,8 +75,8 @@ impl TitleText {
     }
 
     /// Whether its browser's rule leaves the title out: it was read from
-    /// Chrome or Edge, and its ending does not end with that browser's own
-    /// name as [`OwnName`] reads it.
+    /// Chrome or Edge, and [`OwnName`] of that browser does not keep its
+    /// ending.
     pub(crate) fn left_out_by_its_browser(&self) -> bool {
         self.own_name.is_some_and(|own| !own.ends(&self.ending))
     }
@@ -158,25 +158,39 @@ fn bounded_title(text: &CFString) -> TitleText {
 pub(crate) const ENGLISH: &str = "en";
 
 /// What a title of Chrome or Edge ends with where Halvo keeps it: the
-/// browser's own name as it ends the title of an ordinary window, and whether
-/// a closing bracket may not be the last letter, digit or closing bracket
-/// before it.
+/// browser's own name as it ends the title of an ordinary window, whether
+/// ` - ` and a profile's name may stand behind the name's last place, and
+/// whether a closing bracket may not be the last letter, digit or closing
+/// bracket before it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct OwnName {
     name: &'static str,
+    profile_after: bool,
     no_bracket_before: bool,
 }
 
 impl OwnName {
     /// Whether `ending`, with zero-width characters and marks of writing
-    /// direction taken out and the blanks at its end trimmed, ends with the
-    /// name, and, where the browser asks it, no closing bracket is the last
-    /// letter, digit or closing bracket before the name.
+    /// direction taken out and the blanks at its end trimmed, holds the name
+    /// with nothing behind its last place, or, where the browser asks it,
+    /// ` - ` and a name of a profile that is not blank; and, where the browser
+    /// asks it, no closing bracket is the last letter, digit or closing
+    /// bracket before the name.
     fn ends(self, ending: &str) -> bool {
         let text: String = ending.chars().filter(|&c| !is_invisible_mark(c)).collect();
-        let Some(head) = text.trim_end().strip_suffix(self.name) else {
+        let text = text.trim_end();
+        let Some(at) = text.rfind(self.name) else {
             return false;
         };
+        let (head, tail) = (&text[..at], &text[at + self.name.len()..]);
+        let tail_kept = tail.is_empty()
+            || (self.profile_after
+                && tail
+                    .strip_prefix(" - ")
+                    .is_some_and(|profile| !profile.trim().is_empty()));
+        if !tail_kept {
+            return false;
+        }
         if !self.no_bracket_before {
             return true;
         }
@@ -199,9 +213,10 @@ fn is_invisible_mark(c: char) -> bool {
 
 /// Chrome and Edge, each matched whole, with the ending of an ordinary
 /// window's title in the localization [`ENGLISH`]. Chrome's is the end of its
-/// format for the accessible title of a tabbed window, ` - Google Chrome`; the
-/// title of its Incognito, Guest or isolated window, of a window under one of
-/// several profiles, of an app window and of a dialog in front ends otherwise.
+/// format for the accessible title of a tabbed window, ` - Google Chrome`,
+/// behind which a window under one of several profiles has ` - ` and the
+/// profile's name; the title of its Incognito, Guest or isolated window, of an
+/// app window and of a dialog in front ends otherwise.
 /// Edge's source is not public: its ` - Microsoft Edge` is the ending of an
 /// ordinary window that a hosted Mac read from Edge 157.0.4341.60, whose
 /// InPrivate and Guest windows and message box ended otherwise; it keeps the
@@ -212,6 +227,7 @@ pub(crate) const NAME_ENDINGS: [(&str, OwnName); 2] = [
         "com.google.Chrome",
         OwnName {
             name: " - Google Chrome",
+            profile_after: true,
             no_bracket_before: false,
         },
     ),
@@ -219,6 +235,7 @@ pub(crate) const NAME_ENDINGS: [(&str, OwnName); 2] = [
         "com.microsoft.edgemac",
         OwnName {
             name: " - Microsoft Edge",
+            profile_after: false,
             no_bracket_before: true,
         },
     ),

@@ -562,7 +562,7 @@ enum TitleRule {
     /// No browser: its title is read and kept as any app's.
     Kept,
     /// Chrome or Edge in a process that runs in English: its title is read,
-    /// and left out unless it ends with that browser's own name.
+    /// and left out unless the rule by that browser's own name keeps it.
     NameEnding(window_title::OwnName),
     /// Any other browser, and the two under another language or at a failed
     /// reading: no title is read.
@@ -606,15 +606,14 @@ struct Decided {
 }
 
 /// The rules that tell, on the title thread, whether the title of the app in
-/// front is read and how it is told private, with the reads of the system
-/// that they make: the places of the apps that the system lists for https
-/// links, and the place of the app in front, at most once for each change of
-/// the app in front whose request reaches the rules; the two places of each
-/// browser's language (its own value and the person's global list), each
-/// after a synchronize call, at the source's start and at each such change;
-/// the start of a process of Chrome or Edge at each of its title requests;
-/// and its localization once, read only from a bundle under an Applications
-/// folder.
+/// front is read and by which browser's own name it is kept, with the reads of
+/// the system that they make: the places of the apps that the system lists for
+/// https links, and the place of the app in front, at most once for each change
+/// of the app in front whose request reaches the rules; the two places of each
+/// browser's language (its own value and the person's global list), each after
+/// a synchronize call, at the source's start and at each such change; the start
+/// of a process of Chrome or Edge at each of its title requests; and its
+/// localization once, read only from a bundle under an Applications folder.
 pub(crate) struct TitleRules {
     handlers: HandlerRead,
     languages: Box<dyn LanguageReads>,
