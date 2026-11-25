@@ -145,7 +145,8 @@ the messages of the reply rule of A1 and asks the model for one body each with t
   thinking block (`<think>`, `</think>`, the one spelling of the saved bodies), trimmed, or the
   whole output when it holds no mark. An output with an opening mark and no closing mark after
   it, a body with a mark left after the cut, and an output whose tokens equal the level's
-  `reply_tokens` have no body. A body counts when it has three words or more, no marker and no
+  `reply_tokens` have no body; in the hosted round the cut is the door's cause `cut` and no count
+  (r3 U0.8b). A body counts when it has three words or more, no marker and no
   address; the floor of three words is this trial's alone. `bodies.txt` keeps each whole output
   with its count and its tokens. A model whose thinking carries no such mark is not cut.
 - The address rule (`names_address`, CP-173 E7, CP-219) reads the text with full-width ASCII
@@ -300,12 +301,21 @@ sh tools/r3-trials/drive/hosted.sh --standin --tier frontier --ceiling 2000 \
   --browser "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --port 18471
 sh tools/r3-trials/drive/hosted.sh --tier frontier --ceiling MINOR --browser PATH --port N \
   --model TOKEN --list FILE --key-file FILE    # the paid round: not run by this unit
+sh tools/r3-trials/drive/hosted.sh ... --cell bill:1    # one cell of the paid form alone (r3 U0.8b)
 ```
 
 - The door starts under `sh scripts/egress/check.sh` with a list of one origin, for each run that
   asks the model (a compile, a recovery, a write). The key is read once from the key file by
   `r3-drive` and goes to the door as its first line behind its length line; the door writes no
-  ready line. A refusal line of the door ends the run, with its cause in the trace.
+  ready line. A refusal line of the door ends the run, with its cause in the trace, but for the
+  door's two ends of r3 U0.8b: `cut` (the host's answer ended at the output limit) and `declined`
+  (the host declined it) are no ask that the model failed. In a compile and in a recovery such a
+  request counts against the run's asks and the run asks again with nothing added to its list; in a
+  write that message gets no body and the run goes on. Each cell's lines are followed by
+  `ends model=.. machine=.. task=.. seed=.. cut=.. declined=..`, the cell's count of the two.
+- `--cell <task>:<seed>` (`bill:1` to `reply:3`) runs that one cell alone, under the same count and
+  bound; no line of such a call enters a verdict, and it is refused beside `--standin`, whose control
+  reads all nine cells.
 - Before each request the harness reserves a hold on the count of `crates/halvo-route`
   (`count.rs`) whose cap is the ceiling in minor units, at the prices of the build
   (`crates/halvo-route/data/prices.tsv`), for the bytes of the body that the door makes and 2,048
@@ -314,7 +324,8 @@ sh tools/r3-trials/drive/hosted.sh --tier frontier --ceiling MINOR --browser PAT
   round's bound `REQUESTS_MAX` of 216 (192 in compiles, 18 in recoveries, 6 for replies), with the
   cause `requests`. After the answer the hold settles at the
   token counts of the door's reply line; after a refusal it settles at 0 where nothing left, and at
-  the whole hold for `no_answer`, `status` and `answer`, after which the request may have left.
+  the whole hold for `no_answer`, `status` and `answer`, after which the request may have left, and
+  for `cut` and `declined`, whose refusal carries none of the counts of the host's answer.
 - The paid form refuses to start (`REFUSED prices`) while the rate of its tier in the tracked price
   file has a source that begins `fixture:`, before it reads the key or starts a browser, a door or
   a count (the coordinator's log line 17658).
@@ -322,8 +333,10 @@ sh tools/r3-trials/drive/hosted.sh --tier frontier --ceiling MINOR --browser PAT
   `words::REPAIR_HOSTED`, `Kept:` lists the names of A9.4 that the run kept, and `Done so far:` the
   steps that the run carried out, as the verb and the page's own reference, then the run's refused
   replies. The model is asked for the next action and the harness takes it when it is the step's.
-- The door's limit of 2,048 output tokens takes the place of the level's `reply_tokens` in the reply
-  rule; the level and the grammar do not leave the door.
+- The door reads each answer's stop reason: an answer that its limit of 2,048 output tokens cut is
+  the refusal `cut`, and that cause takes the place of the count against the level's `reply_tokens`
+  in the reply rule. The level leaves the door as the host's effort (`output_config.effort`); the
+  grammar does not leave it.
 - After the cells the round prints `spend tier=.. requests=.. spent_micro=.. ceiling_minor=..`
   (`requests` counts the requests handed to the door) and
   `egress list=.. origin=.. starts=.. runs=.. denied=..` (the door's starts and the egress check's
@@ -334,8 +347,11 @@ sh tools/r3-trials/drive/hosted.sh --tier frontier --ceiling MINOR --browser PAT
   `scripts/egress/lists/loopback.txt`, builds the door with its feature `loopback`, uses a made-up
   key, reads the lines against `control/hosted-expected.txt` and prints
   `control mode=hosted machine=.. result=..`. The scripted host answers as a right driver walks the
-  task and shows nothing of what a model does. The check `scripts/r3/ci.d/65-drive-hosted.sh` runs
-  the tool's tests, the four whole rounds of its tests against the scripted host
+  task and shows nothing of what a model does; under `--standin` it also ends three answers without
+  one (its walk `Ends`): the round's first action ask at the output limit, its second as declined,
+  and the first ask for a reply body at the output limit, so the control's lines show both counts.
+  The check `scripts/r3/ci.d/65-drive-hosted.sh` runs
+  the tool's tests, the five whole rounds of its tests against the scripted host
   (`cargo test --locked -- --ignored`), the paid form's refusal on the fixture rates and
   `--standin`. It joins no slice and no merge gate (the coordinator's log line 17943): it runs by
   hand with named checks, the windows job alone, before the paid round and at each change of the

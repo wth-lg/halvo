@@ -4,7 +4,7 @@ set -u
 usage() {
   cat <<'EOF'
 usage: sh tools/r3-trials/drive/hosted.sh --tier low_cost_hosted|frontier --ceiling MINOR
-           --browser PATH --port N --model TOKEN --list FILE --key-file FILE
+           --browser PATH --port N --model TOKEN --list FILE --key-file FILE [--cell TASK:SEED]
        sh tools/r3-trials/drive/hosted.sh --standin --tier low_cost_hosted|frontier --ceiling MINOR
            --browser PATH --port N
        sh tools/r3-trials/drive/hosted.sh --help
@@ -24,19 +24,32 @@ origin of the row of the tier in crates/halvo-route/data/hosts.tsv. The key is r
 the key file, by r3-drive, and goes to the door as its first line behind its length line;
 no line and no file of a cell holds it.
 
+--cell TASK:SEED (bill:1 to reply:3) runs that one cell alone, under the same count of the
+ceiling and the same bound of requests, and prints its lines, its ends line and the three lines
+below; no line of such a call enters a verdict, which stands on the nine cells of ONE round. It
+is refused beside --standin, because the control reads all nine cells.
+
 --standin runs the same cells against the scripted host of r3-drive on 127.0.0.1:47201, the
 one entry of scripts/egress/lists/loopback.txt, with the door built with its feature loopback
-and a made-up key that names itself as no key of a host; it reaches no host. It is the
-control of the paid form: it reads the lines against control/hosted-expected.txt, checks
-that the scripted host received as many requests as the spend line counts, and prints last
-"control mode=hosted machine=<m> result=<as_expected|differs>".
+and a made-up key that names itself as no key of a host; it reaches no host. The scripted host
+walks each task as a right driver would, and ends three answers without one: the round's first
+action ask at the output limit, its second as declined, and the first ask for a reply body at
+the output limit. It is the control of the paid form: it reads the lines against
+control/hosted-expected.txt, checks that the scripted host received as many requests as the
+spend line counts, and prints last "control mode=hosted machine=<m> result=<as_expected|differs>".
 
 Before each request the round reserves a hold on a count of crates/halvo-route (count.rs)
 whose cap is MINOR, the ceiling in minor units, at the prices of the build; after the answer
 it settles at the token counts that the door's reply line reports. A cell whose next hold
 does not fit prints "notrun ... cause=ceiling" and sends nothing, and the round stops; so does
 a cell whose next request would pass the round's bound of 216 requests, with the cause
-requests. The round's lines are those of run.sh, then
+requests. The round's lines are those of run.sh, each cell's followed by
+
+  ends model=<token> machine=<m> task=<t> seed=<n> cut=<n> declined=<n>
+
+the requests of the cell that the door refused as cut (the host's answer ended at the output
+limit) or declined (the host declined it): no ask that the model failed, each settled at its
+whole hold. Then
 
   spend tier=<tier> requests=<n> spent_micro=<n> ceiling_minor=<n>
   egress list=<file> origin=<origin> starts=<n> runs=<n> denied=<n>
@@ -74,6 +87,7 @@ port=
 model=
 list=
 key_file=
+cell=
 while [ $# -gt 0 ]; do
   case $1 in
     --help)
@@ -85,9 +99,10 @@ while [ $# -gt 0 ]; do
       standin=yes
       shift
       ;;
-    --tier | --ceiling | --browser | --port | --model | --list | --key-file)
+    --tier | --ceiling | --browser | --port | --model | --list | --key-file | --cell)
       [ $# -ge 2 ] || refuse usage "$1 has no value"
       case $1 in
+        --cell) [ -z "$cell" ] || refuse usage "--cell is given twice"; cell=$2 ;;
         --tier) [ -z "$tier" ] || refuse usage "--tier is given twice"; tier=$2 ;;
         --ceiling) [ -z "$ceiling" ] || refuse usage "--ceiling is given twice"; ceiling=$2 ;;
         --browser) [ -z "$browser" ] || refuse usage "--browser is given twice"; browser=$2 ;;
@@ -101,6 +116,13 @@ while [ $# -gt 0 ]; do
     *) refuse usage "unknown argument $1" ;;
   esac
 done
+if [ -n "$cell" ]; then
+  [ -z "$standin" ] || refuse usage "--cell is not taken with --standin: the control reads all nine cells"
+  case $cell in
+    bill:[123] | order:[123] | reply:[123]) ;;
+    *) refuse usage "--cell takes bill:1 to reply:3" ;;
+  esac
+fi
 case $tier in
   low_cost_hosted | frontier) ;;
   *) refuse usage "--tier takes low_cost_hosted or frontier" ;;
@@ -232,6 +254,7 @@ if [ -n "$standin" ]; then
 else
   set -- "$@" --key-file "$key_file"
 fi
+[ -z "$cell" ] || set -- "$@" --cell "$cell"
 
 pid=
 # shellcheck disable=SC2329
@@ -273,7 +296,7 @@ result=$(awk -v sent="${sent:-0}" '
     if ($1 == "line") { sub(/^line /, ""); want[++nw] = $0 }
     next
   }
-  /^(attempt|drive|reply|notrun|spend|egress|host) / {
+  /^(attempt|drive|reply|ends|notrun|spend|egress|host) / {
     got[++ng] = $0
     if ($1 == "spend") for (i = 2; i <= NF; i++) if ($i ~ /^requests=/) counted = substr($i, 10)
   }

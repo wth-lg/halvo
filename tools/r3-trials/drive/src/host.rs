@@ -23,12 +23,25 @@ pub const MODEL: &str = "stand-in-model";
 /// The adapter's version header (halvo-connect's `VERSION`): a request with another is answered 400.
 pub const VERSION: &str = "2026-10-21";
 
-/// How the host walks: as a right driver, or as one that answers the first recovery ask at each
-/// step that found no control with a `handback`, which the harness refuses, and the next one right.
+/// How the host walks: as a right driver (in the tests' rounds alone); as one that answers the
+/// first recovery ask at each step that found no control with a `handback`, which the harness
+/// refuses, and the next one right; or as a right driver whose host ends three answers without one
+/// (r3 U0.8b; the walk of `--standin-host`): the first action ask that it receives ends at the
+/// output limit (`stop_reason` `max_tokens`), the second is declined (`refusal`), and the first ask
+/// for a reply body ends at the output limit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Walk {
+    #[cfg(test)]
     Right,
     FirstRecoveryRefused,
+    Ends,
+}
+
+/// The asks that the host has answered so far, which `Walk::Ends` reads.
+#[derive(Default)]
+struct Seen {
+    actions: u32,
+    bodies: u32,
 }
 
 /// One request that the host received: its head and its body.
@@ -41,6 +54,8 @@ pub struct Received {
 /// The scripted host on 127.0.0.1. Its thread stops when the value drops, also when a test panics.
 pub struct Host {
     port: u16,
+    /// Every request received so far, which the tests read.
+    #[cfg(test)]
     received: Arc<Mutex<Vec<Received>>>,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
@@ -58,6 +73,7 @@ impl Host {
         let thread = {
             let (received, stop) = (received.clone(), stop.clone());
             std::thread::spawn(move || {
+                let mut seen = Seen::default();
                 for stream in listener.incoming() {
                     if stop.load(Ordering::SeqCst) {
                         break;
@@ -67,7 +83,7 @@ impl Host {
                     let Some(request) = read_request(&mut stream) else {
                         continue;
                     };
-                    let (status, answer) = answer(&request, walk);
+                    let (status, answer) = answer(&request, walk, &mut seen);
                     let n = {
                         let mut all = received.lock().unwrap_or_else(|e| e.into_inner());
                         all.push(request.clone());
@@ -96,6 +112,7 @@ impl Host {
         };
         Ok(Host {
             port,
+            #[cfg(test)]
             received,
             stop,
             thread: Some(thread),
@@ -107,6 +124,7 @@ impl Host {
     }
 
     /// Every request received so far, in order.
+    #[cfg(test)]
     pub fn received(&self) -> Vec<Received> {
         self.received
             .lock()
@@ -166,8 +184,10 @@ fn header<'a>(head: &'a str, name: &str) -> Option<&'a str> {
 }
 
 /// The status and the body of the answer to one request: 400 when it is not of the adapter's form
-/// with the stand-in's model word; else 200 with one text block and the usage.
-fn answer(request: &Received, walk: Walk) -> (u16, String) {
+/// with the stand-in's model word; else 200 with one text block, the stop reason `end_turn` and the
+/// usage, or, where `Walk::Ends` ends the ask, an answer cut at the request's `max_tokens` (a
+/// thinking block and half of the walk's text) or a declined one (no content).
+fn answer(request: &Received, walk: Walk, seen: &mut Seen) -> (u16, String) {
     let refuse = |why: &str| {
         (
             400,
@@ -201,7 +221,20 @@ fn answer(request: &Received, walk: Walk) -> (u16, String) {
         return refuse("model");
     }
     let (prompt, snapshot) = split(content);
-    let text = if prompt.contains("\nDone so far:") {
+    let asks_action = prompt.contains("\nDone so far:");
+    let end = if asks_action {
+        seen.actions += 1;
+        match seen.actions {
+            1 => Some("max_tokens"),
+            2 => Some("refusal"),
+            _ => None,
+        }
+    } else {
+        seen.bodies += 1;
+        (seen.bodies == 1).then_some("max_tokens")
+    }
+    .filter(|_| walk == Walk::Ends);
+    let text = if asks_action {
         let ask = Ask {
             prompt,
             lines: snapshot.lines().filter_map(parse_line).collect(),
@@ -216,14 +249,36 @@ fn answer(request: &Received, walk: Walk) -> (u16, String) {
     } else {
         "Thank you for the message, I will reply soon".to_string()
     };
-    let tokens = |bytes: usize| bytes.div_ceil(4).max(1);
+    let tokens = |bytes: usize| bytes.div_ceil(4).max(1) as u64;
+    let quoted = |t: &str| serde_json::to_string(t).unwrap_or_default();
+    let (blocks, stop, tokens_out) = match end {
+        Some("max_tokens") => {
+            let cut: String = text.chars().take(text.chars().count() / 2).collect();
+            (
+                format!(
+                    "{{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"s\"}},{{\"type\":\"text\",\"text\":{}}}",
+                    quoted(&cut)
+                ),
+                "\"stop_reason\":\"max_tokens\",\"stop_details\":null",
+                body["max_tokens"].as_u64().unwrap_or(0),
+            )
+        }
+        Some(_) => (
+            String::new(),
+            "\"stop_reason\":\"refusal\",\"stop_details\":{\"type\":\"refusal\",\"category\":null,\"explanation\":null}",
+            0,
+        ),
+        None => (
+            format!("{{\"type\":\"text\",\"text\":{}}}", quoted(&text)),
+            "\"stop_reason\":\"end_turn\"",
+            tokens(text.len()),
+        ),
+    };
     (
         200,
         format!(
-            "{{\"id\":\"msg_r3_host\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"{MODEL}\",\"content\":[{{\"type\":\"text\",\"text\":{}}}],\"stop_reason\":\"end_turn\",\"usage\":{{\"input_tokens\":{},\"output_tokens\":{}}}}}",
-            serde_json::to_string(&text).unwrap_or_default(),
-            tokens(system.len() + content.len()),
-            tokens(text.len())
+            "{{\"id\":\"msg_r3_host\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"{MODEL}\",\"content\":[{blocks}],{stop},\"usage\":{{\"input_tokens\":{},\"output_tokens\":{tokens_out}}}}}",
+            tokens(system.len() + content.len())
         ),
     )
 }

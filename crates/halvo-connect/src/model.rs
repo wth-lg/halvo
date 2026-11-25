@@ -2,16 +2,19 @@
 //! `send_under_grant`, takes the router's grant by value, the sender's form of the routing
 //! contract's T9.2: it writes the host's own form of one request from the closed body of T11.3, in
 //! the form that the adapter word of the grant's row names, sends it ONCE to the origin of the
-//! grant's row and to no other, and reads the text and the token counts of the answer. It takes no
-//! origin and no model word from its caller: both come from the grant's row. A rule of the tree
+//! grant's row and to no other, and reads the text and the token counts of an answer that the model
+//! ended (`stop_reason` `end_turn`); an answer that the output limit cut and one that the host
+//! declined give no text. It takes no origin and no model word from its caller: both come from the
+//! grant's row. A rule of the tree
 //! (crates/halvo-model/tests/door.rs) holds that the operation's name stands in this file and the
 //! door's files alone, and that no file under crates/halvo-runner names it, the router's crate or a
 //! grant.
 //!
 //! What leaves: the texts of the body's messages, the model word of the row, the body's output
-//! limit, and the key in the one header `x-api-key`, with the closed list `HEADERS` of headers. The
-//! body's tier and effort do not leave. The path is the adapter's constant: no address and no path
-//! is made from the model word or the adapter word.
+//! limit, the body's effort as the host's effort (`output_config.effort`: `low`, `medium` or
+//! `high`), and the key in the one header `x-api-key`, with the closed list `HEADERS` of headers.
+//! The body's tier does not leave. The path is the adapter's constant: no address and no path is
+//! made from the model word or the adapter word.
 
 use std::fmt;
 use std::io::{self, Read};
@@ -30,8 +33,9 @@ use serde_json::Value;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Adapter {
     /// `POST /v1/messages` of Anthropic's API with the header `anthropic-version: 2026-10-21`: a
-    /// body of `model`, `max_tokens`, `system` and `messages`, and an answer whose `content` holds
-    /// text blocks and whose `usage` holds `input_tokens` and `output_tokens`.
+    /// body of `model`, `max_tokens`, `output_config` with its one key `effort`, `system` and
+    /// `messages`, and an answer whose `content` holds text blocks, whose `stop_reason` says why it
+    /// ended, and whose `usage` holds `input_tokens` and `output_tokens`.
     AnthropicMessages,
 }
 
@@ -99,8 +103,16 @@ pub enum SendError {
     NoAnswer,
     /// The host answered this status, which is not 200.
     Status(u16),
-    /// The answer of status 200 is not of the adapter's form.
+    /// The answer of status 200 is not of the adapter's form, or it ended for a reason that the
+    /// request cannot call for (`stop_sequence`, `tool_use`, `pause_turn`), for none, or for one
+    /// that this adapter does not name.
     Answer,
+    /// The answer of status 200 ended at the request's output limit (`max_tokens`) or at the
+    /// model's context window (`model_context_window_exceeded`): its text is cut, and none of it is
+    /// given.
+    Cut,
+    /// The host declined the request (`refusal`): none of the answer's text is given.
+    Declined,
 }
 
 /// What a host answered: the text of its text blocks, in order, the token counts that its usage
@@ -222,7 +234,7 @@ impl Host {
         }
         let bytes = read_bounded(response, deadline)?;
         let ms = millis(start);
-        let (text, tokens_in, tokens_out) = messages_answer(&bytes).ok_or(SendError::Answer)?;
+        let (text, tokens_in, tokens_out) = messages_answer(&bytes)?;
         Ok(Answered {
             text,
             tokens_in,
@@ -257,7 +269,8 @@ fn loopback(_parsed: &Url, _origin: &str) -> bool {
     false
 }
 
-/// The body of `POST /v1/messages`: `model`, `max_tokens`, `system` when the first message of the
+/// The body of `POST /v1/messages`: `model`, `max_tokens`, `output_config` whose one key `effort`
+/// holds the closed body's effort in the host's own word, `system` when the first message of the
 /// closed body is a system message, and `messages` with the other messages, which are of the roles
 /// user and assistant. A system message after the first, a body with no other message, and a body
 /// outside the limits of T11.3 have no form.
@@ -272,9 +285,10 @@ fn messages_form(model: &str, body: &Body) -> Result<Vec<u8>, SendError> {
     }
     let text = |value: &str| serde_json::to_string(value).map_err(|_| SendError::Form);
     let mut out = format!(
-        "{{\"model\":{},\"max_tokens\":{}",
+        "{{\"model\":{},\"max_tokens\":{},\"output_config\":{{\"effort\":{}}}",
         text(model)?,
-        body.max_output_tokens
+        body.max_output_tokens,
+        text(body.effort.as_str())?
     );
     if let Some(system) = system {
         out.push_str(",\"system\":");
@@ -295,21 +309,78 @@ fn messages_form(model: &str, body: &Body) -> Result<Vec<u8>, SendError> {
     Ok(out.into_bytes())
 }
 
+/// The test of `messages_form`, behind it (r3 U0.8b): the closed body's effort, which the door
+/// takes from the request line's `level`, goes out as the host's `output_config.effort`, in the
+/// host's own word, for each of the three.
+#[cfg(test)]
+#[test]
+fn the_level_goes_out_as_the_hosts_effort() {
+    use halvo_route_wire::{Effort, Message, WireTier, MAX_OUTPUT_TOKENS};
+    let rows: Vec<(Effort, String)> = Effort::ALL
+        .into_iter()
+        .map(|effort| {
+            let body = Body {
+                tier: WireTier::Frontier,
+                effort,
+                max_output_tokens: MAX_OUTPUT_TOKENS,
+                messages: vec![
+                    Message {
+                        role: Role::System,
+                        content: "Be brief.".to_owned(),
+                    },
+                    Message {
+                        role: Role::User,
+                        content: "Pay the bill.".to_owned(),
+                    },
+                ],
+            };
+            let form = messages_form("stand-in-model", &body).expect("a form");
+            (effort, String::from_utf8(form).expect("UTF-8"))
+        })
+        .collect();
+    let want = |word: &str| {
+        format!(
+            r#"{{"model":"stand-in-model","max_tokens":2048,"output_config":{{"effort":"{word}"}},"system":"Be brief.","messages":[{{"role":"user","content":"Pay the bill."}}]}}"#
+        )
+    };
+    assert_eq!(
+        rows,
+        vec![
+            (Effort::Low, want("low")),
+            (Effort::Medium, want("medium")),
+            (Effort::High, want("high")),
+        ]
+    );
+}
+
 /// The text of the text blocks of `content`, in order, and the counts `input_tokens` and
-/// `output_tokens` of `usage`; none when the answer is not one JSON object with an array `content`
-/// whose text blocks hold a string `text` and a `usage` with the two counts.
-fn messages_answer(bytes: &[u8]) -> Option<(String, u64, u64)> {
-    let answer: Value = serde_json::from_slice(bytes).ok()?;
-    let mut text = String::new();
-    for block in answer.get("content")?.as_array()? {
-        if block.get("type")?.as_str()? == "text" {
-            text.push_str(block.get("text")?.as_str()?);
+/// `output_tokens` of `usage`, of an answer whose `stop_reason` is `end_turn`. `Cut` for the stop
+/// reasons `max_tokens` and `model_context_window_exceeded`, `Declined` for `refusal`, and `Answer`
+/// when the answer is not one JSON object with an array `content` whose text blocks hold a string
+/// `text`, a `usage` with the two counts and a string `stop_reason`, or when its stop reason is
+/// none of these four: the form is read first, the stop reason after it.
+fn messages_answer(bytes: &[u8]) -> Result<(String, u64, u64), SendError> {
+    let read = || -> Option<(String, u64, u64, String)> {
+        let answer: Value = serde_json::from_slice(bytes).ok()?;
+        let mut text = String::new();
+        for block in answer.get("content")?.as_array()? {
+            if block.get("type")?.as_str()? == "text" {
+                text.push_str(block.get("text")?.as_str()?);
+            }
         }
+        let usage = answer.get("usage")?;
+        let tokens_in = usage.get("input_tokens")?.as_u64()?;
+        let tokens_out = usage.get("output_tokens")?.as_u64()?;
+        let stop = answer.get("stop_reason")?.as_str()?.to_owned();
+        Some((text, tokens_in, tokens_out, stop))
+    };
+    let (text, tokens_in, tokens_out, stop) = read().ok_or(SendError::Answer)?;
+    match stop.as_str() {
+        "end_turn" => Ok((text, tokens_in, tokens_out)),
+        "max_tokens" | "model_context_window_exceeded" => Err(SendError::Cut),
+        "refusal" => Err(SendError::Declined),
+        _ => Err(SendError::Answer),
     }
-    let usage = answer.get("usage")?;
-    let tokens_in = usage.get("input_tokens")?.as_u64()?;
-    let tokens_out = usage.get("output_tokens")?.as_u64()?;
-    Some((text, tokens_in, tokens_out))
 }
 
 /// The answer's body, at most `ANSWER_BOUND` bytes, read before `deadline`: a read that the
