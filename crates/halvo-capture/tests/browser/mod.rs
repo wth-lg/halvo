@@ -4143,3 +4143,278 @@ fn a_renamed_copy_of_firefox_reads_unknown_and_records_nothing() {
 fn a_renamed_copy_of_chrome_reads_unknown_and_records_nothing() {
     renamed_copy_phases("browser-renamed-chrome", &CHROME);
 }
+
+/// The page of the Chrome row: its title is `base n`, with n counting up each
+/// second, so that the window's title changes behind its first two seconds; it
+/// holds a toolbar of its own with buttons named Back, Forward and Reload.
+const CHROME_ROW_PAGE: &str = r#"<!doctype html>
+<html><head><meta charset="utf-8"><title>chrome row</title></head><body>
+<div role="toolbar" aria-label="page tools"><button>Back</button><button>Forward</button><button>Reload</button></div>
+<p>chrome row</p>
+<script>
+const base = new URLSearchParams(location.search).get('base') || 'chromerow';
+let n = 0;
+function tick() { n++; document.title = base + ' ' + n; }
+tick();
+setInterval(tick, 1000);
+</script></body></html>
+"#;
+
+/// One event as the row reads it: the sink's event and its floor value where
+/// it has one.
+struct Arrived {
+    event: CaptureStreamEvent,
+    floor: Option<halvo_capture::sink::FloorReceived>,
+}
+
+/// The row's own sink and the events that reach it, each kept with its floor
+/// value, so that the row tells a title of chrome.exe by the event's own
+/// program.
+fn row_capture(capacity: usize) -> (SinkHandle, mpsc::Receiver<Arrived>) {
+    let (sink, writer) = channel(capacity);
+    let (tx, rx) = mpsc::channel();
+    std::thread::Builder::new()
+        .name("tf-row-forward".to_string())
+        .spawn(move || loop {
+            match writer.recv_timeout(Duration::from_secs(60)) {
+                Ok(received) => {
+                    let event = received.event().clone();
+                    let floor = received.into_floor().ok();
+                    if tx.send(Arrived { event, floor }).is_err() {
+                        break;
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+        })
+        .expect("spawn the row's forwarder");
+    (sink, rx)
+}
+
+/// Takes the row's events for `window`, keeping each.
+fn drain_row(events: &mpsc::Receiver<Arrived>, window: Duration, seen: &mut Vec<Arrived>) {
+    let deadline = Instant::now() + window;
+    loop {
+        let now = Instant::now();
+        if now >= deadline {
+            break;
+        }
+        match events.recv_timeout(deadline - now) {
+            Ok(arrived) => seen.push(arrived),
+            Err(RecvTimeoutError::Timeout) => break,
+            Err(RecvTimeoutError::Disconnected) => sink_closed(),
+        }
+    }
+}
+
+/// Whether `arrived` is a window title whose own program is chrome.exe.
+fn chrome_title(arrived: &Arrived) -> bool {
+    arrived.event.modality == Modality::WindowTitle
+        && arrived.floor.as_ref().is_some_and(|floor| {
+            seam::view(floor.event(), &["chrome.exe"], &[]).app == seam::AppSeen::Named(0)
+        })
+}
+
+/// What one window of the row gave: whether it came, came in front and came
+/// back in front behind the window with no edit, the titles whose own program
+/// is chrome.exe, and the titles that the title source dropped at the private
+/// window.
+struct ChromeWindowPart {
+    found: bool,
+    front: bool,
+    back: bool,
+    title_events: usize,
+    private_drops: u64,
+}
+
+/// Starts the runner's Chrome on the row's page under `base`, with a profile
+/// of its own and with `flag` where one is given, brings the window in front,
+/// puts it in full screen at once where `full_screen` is set (inside its first
+/// two seconds), sends it behind the window `away` and brings it back, and
+/// ends Chrome.
+fn chrome_window_part(
+    (exe, flag, base): (&Path, Option<&str>, &str),
+    full_screen: bool,
+    (events, title, away): (
+        &mpsc::Receiver<Arrived>,
+        &halvo_capture::windows::sources::Gated<WindowTitleSource>,
+        HWND,
+    ),
+) -> ChromeWindowPart {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_F11;
+    let profile = scratch_dir();
+    let page_path = profile.path().join("chrome.html");
+    let page_written = std::fs::write(&page_path, CHROME_ROW_PAGE).is_ok();
+    let url = format!(
+        "file:///{}?base={base}",
+        page_path.to_string_lossy().replace('\\', "/")
+    );
+    let mut args = vec![
+        format!("--user-data-dir={}", profile.path().join("data").display()),
+        "--no-first-run".to_string(),
+        "--no-default-browser-check".to_string(),
+        "--disable-features=Translate".to_string(),
+    ];
+    args.extend(flag.map(str::to_string));
+    args.push(url);
+    let before = title.source().drops();
+    let started = page_written
+        && Command::new(exe)
+            .args(&args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .is_ok();
+    let came = Instant::now();
+    let mut window = None;
+    while started && came.elapsed() < Duration::from_secs(20) {
+        if let Some((hwnd, _)) = window_titled(&format!("{base} ")) {
+            window = Some(hwnd);
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    let mut seen = Vec::new();
+    let (mut front, mut back) = (false, false);
+    if let Some(window) = window {
+        front = bring_to_front(window, false).0;
+        if full_screen {
+            send(&[key_input(VK_F11, false)]);
+            send(&[key_input(VK_F11, true)]);
+        }
+        drain_row(events, Duration::from_millis(3_500), &mut seen);
+        let _ = bring_to_front(away, false);
+        drain_row(events, Duration::from_millis(400), &mut seen);
+        back = bring_to_front(window, false).0;
+        drain_row(events, Duration::from_millis(4_000), &mut seen);
+    }
+    let _ = Command::new("taskkill.exe")
+        .args(["/IM", "chrome.exe", "/F", "/T"])
+        .output();
+    drain_row(events, Duration::from_millis(900), &mut seen);
+    let after = title.source().drops();
+    ChromeWindowPart {
+        found: window.is_some(),
+        front,
+        back,
+        title_events: seen.iter().filter(|arrived| chrome_title(arrived)).count(),
+        private_drops: after.private_window - before.private_window,
+    }
+}
+
+/// A real ordinary Chrome window gives its titles, and a real Chrome Guest
+/// window and a real Incognito window in full screen whose page holds a
+/// toolbar of its own give none. Each starts on a page of the test's own, with
+/// the keyboard source and the title source of one service set running, comes
+/// in front, goes behind the window with no edit and comes back. The ordinary
+/// window writes at least one title of chrome.exe; each private one writes
+/// none, and the title source drops at least one of its titles at the private
+/// window. A part counts the titles whose own program is chrome.exe alone, so
+/// that the title of the window in front when the sources began, the runner's
+/// terminal in the first run that read it, counts in no part.
+fn chrome_windows_keep_titles_only_when_ordinary(test: &'static str) {
+    use halvo_capture::daemon::sources::SourceFactory;
+    use halvo_control::proto::SourceName;
+    env_report(test);
+    let mut away_child = spawn_child("front-on-go", 120);
+    let came = Instant::now();
+    while window_titled(AWAY_TITLE).is_none() && came.elapsed() < Duration::from_secs(20) {
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    let away = window_titled(AWAY_TITLE)
+        .map(|(hwnd, _)| hwnd)
+        .unwrap_or_default();
+    let exe = CHROME
+        .paths
+        .iter()
+        .map(Path::new)
+        .find(|path| path.is_file())
+        .map(Path::to_path_buf);
+    let (sink, events) = row_capture(8192);
+    let mut set = ServiceSet::new();
+    let mut keyboard = set
+        .make(SourceName::Keyboard)
+        .expect("the set makes a keyboard source");
+    let mut title = set.gated_title(WindowTitleSource::new());
+    let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
+    let title_start = title.begin(SourceContext::new(sink.clone()));
+    let parts = exe.as_ref().map(|exe| {
+        [
+            ("ordinary", None, false, true),
+            ("guest", Some("--guest"), false, false),
+            ("private_full_screen", Some("--incognito"), true, false),
+        ]
+        .map(|(part, flag, full_screen, kept)| {
+            let base = format!("chromerow{part}");
+            (
+                part,
+                kept,
+                chrome_window_part(
+                    (exe.as_path(), flag, base.as_str()),
+                    full_screen,
+                    (&events, &title, away),
+                ),
+            )
+        })
+    });
+    let title_stop = stop_counted(&mut title, "window_title");
+    let keyboard_stop = stop_counted(keyboard.as_mut(), "keyboard");
+    let _ = away_child.process.kill();
+    let _ = away_child.process.wait();
+    away_child.print_output();
+    say(
+        test,
+        format!(
+            "browser=chrome chrome_found={} keyboard_start={} title_start={} keyboard_stop={} \
+             title_stop={}",
+            exe.is_some(),
+            show(&keyboard_start),
+            show(&title_start),
+            show(&keyboard_stop),
+            show(&title_stop)
+        ),
+    );
+    let parts: Vec<(&str, bool, ChromeWindowPart)> = parts.map(Vec::from).unwrap_or_default();
+    for (part, _, got) in &parts {
+        say(
+            test,
+            format!(
+                "part={part} found={} front={} back={} title_events={} private_drops={}",
+                got.found, got.front, got.back, got.title_events, got.private_drops
+            ),
+        );
+    }
+    let wrong: Vec<&str> = parts
+        .iter()
+        .filter(|(_, kept, got)| {
+            let came = got.found && got.front && got.back;
+            let as_ruled = if *kept {
+                got.title_events > 0
+            } else {
+                got.title_events == 0 && got.private_drops > 0
+            };
+            !(came && as_ruled)
+        })
+        .map(|(part, ..)| *part)
+        .collect();
+    assert!(
+        exe.is_some() && wrong.is_empty(),
+        "chrome_found={} wrong={wrong:?}",
+        exe.is_some()
+    );
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn a_chrome_guest_window_gives_no_title() {
+    let test = "a_chrome_guest_window_gives_no_title";
+    let hosted_runner = std::env::var("GITHUB_ACTIONS").ok().as_deref() == Some("true");
+    if !hosted_runner {
+        say(test, format!("hosted_runner={hosted_runner}"));
+        return;
+    }
+    with_deadline(test, Duration::from_secs(150), move || {
+        chrome_windows_keep_titles_only_when_ordinary(test)
+    });
+}
