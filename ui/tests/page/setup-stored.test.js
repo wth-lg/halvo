@@ -187,3 +187,38 @@ test("where the core did not take the stored workbook line and the sheet's line 
   assert.equal(useAnswers(page), null, "the item is gone after that one press");
   assert.equal(page.calls("agents_answer").length, 0, "no other call");
 });
+
+test("on a card drawn anew behind a reopened window, a line that the person empties and types again is held again: a workbook picked behind it waits for the press, and the press sends that line with the lines that the core holds, before a line that the core did not take, so that its new text goes before the call that completes the answers", async () => {
+  const restored = {
+    ...storedItem,
+    params: Object.keys(HINTS).map((n) =>
+      n === "workbook" ? { ...entry(n, true), not_taken: words["param_typed.not_path_mac"] } : entry(n, true),
+    ),
+  };
+  const book = "/Volumes/work/Budget-2027.xlsx";
+  const page = await openPage(replies(restored, { agents_choose_file: { path: book } }));
+  const range = lineOf(page, "range");
+  range.focus();
+  range.value = "";
+  await range.dispatchEvent(makeEvent("input"));
+  await page.settle();
+  const cells = "A2:D11";
+  range.value = cells;
+  await range.dispatchEvent(makeEvent("input"));
+  await page.settle();
+  await page.click(chooseOf(page, "workbook"), { detail: 0 });
+  assert.equal(lineOf(page, "workbook").value, book, "the pick fills the line");
+  assert.equal(page.calls("agents_setup_typed").length, 0, "the pick waits for the press");
+  await page.click(useAnswers(page), { detail: 0 });
+  assert.deepEqual(
+    page.calls("agents_setup_typed").map((c) => [c.args.param, c.args.text]),
+    [
+      ["sheet", STORED.sheet],
+      ["range", cells],
+      ["source", STORED.source],
+      ["workbook", book],
+      ["sheet", STORED.sheet],
+    ],
+    "the line typed again goes before the workbook's line that the core did not take",
+  );
+});

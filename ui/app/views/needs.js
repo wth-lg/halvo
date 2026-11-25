@@ -101,7 +101,6 @@
         return false;
       }
       line.kept = now;
-      if (now.trim() === '' && !line.taken) line.stored = false;
       if (shown === 'needs') show(rest());
       if (change.added === 0) {
         mark = false;
@@ -306,7 +305,7 @@
         a.line.fill(reply.path);
         if (param !== 'workbook' || a.line.kept !== reply.path) return;
         const last = card.answers.every(function (x) {
-          return x === a || (x.line !== null && x.line.stored);
+          return x === a || (x.line !== null && holds(x.line));
         });
         if (last) return;
         const key = card.key;
@@ -370,6 +369,10 @@
     return out;
   }
 
+  function holds(l) {
+    return l.taken || (l.stored && l.kept.trim() !== '');
+  }
+
   function unsettled(l) {
     return l.composing || l.ended;
   }
@@ -418,7 +421,7 @@
       })[0];
       if (lacking) (lacking.line ? lacking.line.field : lacking.radios[0].input).focus();
       if (empty.some(function (a) {
-        return a.line.stored;
+        return holds(a.line);
       })) return;
       const calls = chosen(item, card.answers);
       if (calls.length === 0) return;
