@@ -194,6 +194,25 @@ impl<'a> Obj<'a> {
         Ok(())
     }
 
+    /// `exactly`, where each key of `absent` may also stand or be missing.
+    pub(in crate::executable) fn exactly_or_absent(
+        &self,
+        keys: &[&'static str],
+        absent: &[&'static str],
+    ) -> Result<(), Refusal> {
+        for (key, _) in &self.entries {
+            if !keys.contains(&key.as_str()) && !absent.contains(&key.as_str()) {
+                return Err(Refusal::malformed(self.type_name, "unknown_key"));
+            }
+        }
+        for key in keys {
+            if !self.has(key) {
+                return Err(Refusal::malformed(self.type_name, "missing_key").at(key));
+            }
+        }
+        Ok(())
+    }
+
     pub(in crate::executable) fn has(&self, key: &str) -> bool {
         self.entries.iter().any(|(k, _)| k == key)
     }
@@ -367,6 +386,9 @@ macro_rules! object_type {
         pub struct $name:ident $([$tkey:ident = $tval:literal])? {
             $( $(#[$fmeta:meta])* pub $field:ident : $ty:ty = $key:literal => $read:expr ),* $(,)?
         }
+        $(absent {
+            $( $(#[$ameta:meta])* pub $afield:ident : $aty:ty = $akey:literal => $aread:expr ),* $(,)?
+        })?
         rules($this:pat_param) $rules:block
         $(max_len($max:expr))?
         $(arrives($amax:expr, $arule:literal))?
@@ -374,10 +396,17 @@ macro_rules! object_type {
         $(#[$meta])*
         pub struct $name {
             $( $(#[$fmeta])* pub $field: $ty, )*
+            $($( $(#[$ameta])* pub $afield: $aty, )*)?
         }
 
         impl $name {
             const KEYS: &'static [&'static str] = &[$(stringify!($tkey),)? $($key),*];
+
+            /// The keys of the section `absent`: each may be missing, which reads as none, holds a value where it
+            /// stands, `null` there being refused, and is written only where it holds a value, so that a record of a
+            /// build before the key stood reads and keeps its text.
+            #[allow(dead_code)]
+            const ABSENT: &'static [&'static str] = &[$($($akey),*)?];
 
             /// Checks the rules of the contract that join keys of this object; a parser and `Serialize` call it.
             pub fn rules(&self) -> Result<(), $crate::executable::Refusal> {
@@ -389,7 +418,7 @@ macro_rules! object_type {
                 raw: &serde_json::value::RawValue,
             ) -> Result<Self, $crate::executable::Refusal> {
                 let obj = $crate::executable::json::object(stringify!($name), raw)?;
-                obj.exactly(Self::KEYS)?;
+                obj.exactly_or_absent(Self::KEYS, Self::ABSENT)?;
                 $(
                     let tag = obj.read(stringify!($tkey), |raw| {
                         $crate::executable::json::string(stringify!($name), raw)
@@ -404,6 +433,7 @@ macro_rules! object_type {
                 )?
                 let value = $name {
                     $( $field: obj.read($key, $read)?, )*
+                    $($( $afield: if obj.has($akey) { Some(obj.read($akey, $aread)?) } else { None }, )*)?
                 };
                 value.rules()?;
                 value.check_len()?;
@@ -456,9 +486,15 @@ macro_rules! object_type {
         impl $crate::executable::json::WriteFields for $name {
             fn write_fields<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 use serde::ser::SerializeMap;
-                let mut map = serializer.serialize_map(Some(Self::KEYS.len()))?;
+                let len = Self::KEYS.len() $($( + usize::from(self.$afield.is_some()) )*)?;
+                let mut map = serializer.serialize_map(Some(len))?;
                 $( map.serialize_entry(stringify!($tkey), $tval)?; )?
                 $( map.serialize_entry($key, &self.$field)?; )*
+                $($(
+                    if self.$afield.is_some() {
+                        map.serialize_entry($akey, &self.$afield)?;
+                    }
+                )*)?
                 map.end()
             }
         }

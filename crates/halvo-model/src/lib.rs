@@ -6,8 +6,11 @@
 //! tier, the ceiling and the agreement of its arguments, the part `text` alone and the origin of the
 //! ruling's row for the tier, and hands the grant by value to the one operation of
 //! `halvo_connect::model`, which sends ONE request in the form that the row's adapter word names to
-//! the origin that the grant names and to no other. With no grant it opens no connection. It holds no page, no browser, no store record
-//! and no kept sign-in, reads no variable of its environment, and writes the key into no line.
+//! the origin that the grant names and to no other. An answer that the host's output limit cut, and
+//! one that the host declined, is no reply: the door answers them with the refusals `cut` and
+//! `declined` and writes no byte of the answer's text. With no grant it opens no connection. It
+//! holds no page, no browser, no store record and no kept sign-in, reads no variable of its
+//! environment, and writes the key into no line.
 
 use std::fmt;
 use std::io::{BufRead, Write};
@@ -101,6 +104,11 @@ pub enum Cause {
     Status,
     /// The host's answer is not of the adapter's form.
     Answer,
+    /// The host's answer ended at the output limit or at the model's context window: its text is
+    /// cut, and the door writes none of it.
+    Cut,
+    /// The host declined the request: the door writes none of its answer.
+    Declined,
 }
 
 impl Cause {
@@ -115,6 +123,8 @@ impl Cause {
             Cause::NoAnswer => "no_answer",
             Cause::Status => "status",
             Cause::Answer => "answer",
+            Cause::Cut => "cut",
+            Cause::Declined => "declined",
         }
     }
 }
@@ -292,6 +302,8 @@ fn cause_of(error: SendError) -> Cause {
         SendError::NoAnswer => Cause::NoAnswer,
         SendError::Status(_) => Cause::Status,
         SendError::Answer => Cause::Answer,
+        SendError::Cut => Cause::Cut,
+        SendError::Declined => Cause::Declined,
     }
 }
 
@@ -370,5 +382,190 @@ pub fn run_with_limit<I: BufRead, O: Write, E: Write>(
         {
             return 1;
         }
+    }
+}
+
+/// How the door reads the end of a host's answer (r3 U0.8b). The door runs in this process against
+/// a stand-in host: a listener thread on 127.0.0.1 that the test starts, which answers one request
+/// in the form of the adapter's host with the stop reason of its row. Every run of the door names
+/// the listener's loopback port (the feature `loopback` reaches these tests through the package's
+/// own dev-dependency), and no test speaks to anything but it.
+#[cfg(test)]
+mod tests {
+    use std::io::{Cursor, Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::time::Duration;
+
+    const KEY: &str = "stand-in-key-u08b-5e1d2c";
+
+    const REQUEST: &str = r#"{"id":1,"system":"Be brief.","prompt":"Pay the bill.","snapshot":null,"grammar":"action","level":"medium"}"#;
+
+    /// Reads one request whole (its head, then as many bytes of body as its content-length names),
+    /// so that the answer never meets a request still being written.
+    fn read_request(stream: &mut TcpStream) -> Option<()> {
+        let mut bytes = Vec::new();
+        let mut chunk = [0u8; 4096];
+        let end = loop {
+            if let Some(at) = bytes.windows(4).position(|w| w == b"\r\n\r\n") {
+                break at;
+            }
+            let n = stream.read(&mut chunk).ok()?;
+            if n == 0 {
+                return None;
+            }
+            bytes.extend_from_slice(&chunk[..n]);
+        };
+        let head = String::from_utf8(bytes[..end].to_vec()).ok()?;
+        let length: usize = head
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse().ok())?
+            })
+            .unwrap_or(0);
+        let mut body = bytes.len() - end - 4;
+        while body < length {
+            let n = stream.read(&mut chunk).ok()?;
+            if n == 0 {
+                return None;
+            }
+            body += n;
+        }
+        Some(())
+    }
+
+    /// A stand-in host on a port of its own that answers ONE request with status 200 and `answer`.
+    fn stand_in(answer: &str) -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("a listener on the loopback");
+        let port = listener.local_addr().expect("its address").port();
+        let answer = answer.to_owned();
+        std::thread::spawn(move || {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(20)));
+            if read_request(&mut stream).is_some() {
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{answer}",
+                    answer.len()
+                );
+                let _ = stream.flush();
+            }
+        });
+        port
+    }
+
+    /// The door's exit status, standard output and standard error for ONE request against a
+    /// stand-in host that answers `answer`.
+    fn door_against(answer: &str) -> (i32, String, String) {
+        let port = stand_in(answer).to_string();
+        let args: Vec<String> = [
+            "--tier",
+            "frontier",
+            "--ceiling",
+            "frontier",
+            "--consent",
+            "recorded",
+            "--loopback-port",
+            port.as_str(),
+        ]
+        .iter()
+        .map(|arg| (*arg).to_owned())
+        .collect();
+        let input = format!("{}\n{KEY}\n{REQUEST}\n", KEY.len());
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let code = super::run(&args, Cursor::new(input.into_bytes()), &mut out, &mut err);
+        (
+            code,
+            String::from_utf8(out).expect("UTF-8 output"),
+            String::from_utf8(err).expect("UTF-8 errors"),
+        )
+    }
+
+    /// An answer of status 200 in the host's form with the content blocks `content`, the stop
+    /// reason and stop details `stop` and `tokens_out` output tokens.
+    fn answer(content: &str, stop: &str, tokens_out: u64) -> String {
+        format!(
+            r#"{{"id":"msg_u08b","type":"message","role":"assistant","model":"stand-in-model","content":[{content}],{stop},"usage":{{"input_tokens":12,"output_tokens":{tokens_out}}}}}"#
+        )
+    }
+
+    /// The rows: an answer that the model ended (`end_turn`) is the door's reply line with its
+    /// text; an answer that ended at the output limit (`max_tokens`, its text cut inside an action)
+    /// is the refusal `cut`; an answer that the host declined (`refusal`, with a partial text) is
+    /// the refusal `declined`. Neither refusal holds a byte of the answer's text.
+    #[test]
+    fn an_answer_cut_at_the_limit_or_declined_is_a_refusal_with_no_text() {
+        let thinking = r#"{"type":"thinking","thinking":"","signature":"s"}"#;
+        let rows = [
+            (
+                "end_turn",
+                answer(
+                    &format!(r#"{thinking},{{"type":"text","text":"done"}}"#),
+                    r#""stop_reason":"end_turn","stop_details":null"#,
+                    3,
+                ),
+            ),
+            (
+                "max_tokens",
+                answer(
+                    &format!(r#"{thinking},{{"type":"text","text":"{{\"action\":\"cli"}}"#),
+                    r#""stop_reason":"max_tokens","stop_details":null"#,
+                    2048,
+                ),
+            ),
+            (
+                "refusal",
+                answer(
+                    r#"{"type":"text","text":"Partial"}"#,
+                    r#""stop_reason":"refusal","stop_details":{"type":"refusal","category":null,"explanation":null}"#,
+                    0,
+                ),
+            ),
+        ];
+        let got: Vec<(&str, i32, String, String)> = rows
+            .iter()
+            .map(|(stop, body)| {
+                let (code, out, err) = door_against(body);
+                let line = match serde_json::from_str::<serde_json::Value>(out.trim_end()) {
+                    Ok(reply) if reply.get("text").is_some() => format!(
+                        "lines={} id={} text={} tokens_in={} tokens_out={} keys={}",
+                        out.lines().count(),
+                        reply["id"],
+                        reply["text"],
+                        reply["tokens_in"],
+                        reply["tokens_out"],
+                        reply.as_object().map_or(0, serde_json::Map::len)
+                    ),
+                    _ => out,
+                };
+                (*stop, code, line, err)
+            })
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                (
+                    "end_turn",
+                    0,
+                    "lines=1 id=1 text=\"done\" tokens_in=12 tokens_out=3 keys=6".to_owned(),
+                    String::new()
+                ),
+                (
+                    "max_tokens",
+                    0,
+                    "{\"id\":1,\"refused\":\"cut\"}\n".to_owned(),
+                    String::new()
+                ),
+                (
+                    "refusal",
+                    0,
+                    "{\"id\":1,\"refused\":\"declined\"}\n".to_owned(),
+                    String::new()
+                ),
+            ]
+        );
     }
 }

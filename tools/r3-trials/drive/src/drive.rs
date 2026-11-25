@@ -94,7 +94,9 @@ pub struct Ctx {
     pub prompts: Prompts,
     pub recoveries: u32,
     /// `reply_tokens` of the level `medium`: a reply with this many tokens has no body (CP-179 (6)).
-    pub reply_tokens: u64,
+    /// None in the hosted round (r3 U0.8b), where the door refuses an answer that its limit cut
+    /// (`cut`) and no count of tokens is held against a bound.
+    pub reply_tokens: Option<u64>,
     /// The fixture's variants of the compile run: none in a cell of the trial.
     pub compile_variants: Vec<String>,
     pub stop: Stop,
@@ -322,6 +324,17 @@ async fn end_child(child: Option<Child>) -> Option<bool> {
         .await
         .ok()
         .and_then(|r| r.ok())
+}
+
+/// The door's refusal of a reply for an answer that the host ended without one, `cut` or
+/// `declined` (r3 U0.8b): no ask that the model failed. A compile or a recovery counts the ask
+/// against its asks and asks again with nothing added to its list; a write gives that message no
+/// body and goes on. None for a reply and for every other fault, which ends the run as before.
+fn host_end(reply: &Result<model::Reply, model::Fault>) -> Option<&'static str> {
+    match reply {
+        Err(model::Fault::Refused(cause)) => model::ENDS.iter().copied().find(|end| end == cause),
+        _ => None,
+    }
 }
 
 /// Asks the model once on a thread of the blocking pool, racing the stop.
@@ -1021,6 +1034,10 @@ async fn compile_steps(
         let taken = child.take().ok_or(End::NotRun("model"))?;
         let (back, reply) = ask(ctx, taken, prompt, Some(text.clone()), "action").await?;
         *child = Some(back);
+        if let Some(end) = host_end(&reply) {
+            ctx.trace(&format!("call={call} end={end}"));
+            continue;
+        }
         let reply = match reply {
             Ok(r) => r,
             Err(e) => {
@@ -1369,6 +1386,10 @@ async fn repair(
         let taken = child.take().ok_or(End::NotRun("model"))?;
         let (back, reply) = ask(ctx, taken, prompt, Some(text.clone()), "action").await?;
         *child = Some(back);
+        if let Some(end) = host_end(&reply) {
+            ctx.trace(&format!("recovery attempt={attempt} end={end}"));
+            continue;
+        }
         let reply = match reply {
             Ok(r) => r,
             Err(e) => {
@@ -1456,6 +1477,17 @@ pub async fn write(ctx: &Ctx) -> Result<(Run, usize), End> {
         )
         .await?;
         child = Some(back);
+        if let Some(end) = host_end(&reply) {
+            ctx.trace(&format!("body end={end} counted=false"));
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(ctx.run_dir.join("bodies.txt"))
+            {
+                let _ = writeln!(f, "--- counted=false end={end}");
+            }
+            continue;
+        }
         match reply {
             Ok(r) => {
                 tally.tokens_in += r.tokens_in;

@@ -110,6 +110,12 @@ Before that join the two sides said, each of its own model:
 - U2.4b: The counts of `Schedule` are TLC's own lines from one run of each configuration with three workers on 2026-11-14, at the model change of U2.4b (rulings RD-52 (d) and RD-67 part 5), through the machine's helper for timed runs: `full` took 924.7 s, `days` 152.2 s, and each other one under 20 s. The switch-off's drop of a queued start and the clean run changed the distinct states of `full`, `days` and `holds`; the others found the distinct states of the table before that change again. The counts of `Confirm4` are from the runs of the next table, for `Confirm4.tla` as it stood since commit 6295574; the runs of 2026-11-14, with RD-83's order of `out` in `Lapse`, gave the same lines. The table of costs below is from the rounds before that change.
 - U1.2c: The counts are TLC's own lines, each from the run of the next table, with the workers that it names: for `Schedule.tla` as it stood at commit 3fadf1e, but the row `full`, which is from its run on 2026-11-14 with the model of unit U1.2c, and the rows `days` and `holds`, which hold the switch-off whose `hold_set` lost its acknowledgement (`OffPorts`) and are from the model as unit U1.2c left it; at that model the runs of `queue`, `store`, `left` and `reap`, which hold no switch-off, found the distinct states of this table again, and for `Confirm4.tla` as the second round of unit U1.2c left it (commit 383563cc8), the row `bound` from its run on 2026-11-15 and `full` from its run at that commit. `apart` holds no second step, and its count grew only because the model offers the kill in every run.
 
+At r4 U3.24 (`Decide` with the trigger of the start, C7 on `overstarts`) the six small
+configurations of `Schedule` found the distinct states of this table again, one run each on
+2026-11-25 through the machine's helper for timed runs: `queue` 2.1 s, `store` 16.2 s, `reap`
+3.5 s and `left` 7.9 s with one worker, `holds` 18.3 s with two and `days` 118.6 s with three;
+`full` was not run at that model.
+
 At 66d8c08 the check's runs of the six small configurations of `Schedule` found the
 distinct states of this table again: the change of that commit touches `ready` alone,
 which `VIEW` takes out of the fingerprint. The heap bound `-Xmx2g` keeps
@@ -238,7 +244,8 @@ of the model is one call of the coordinator.
 | `wrongend` | the ends that happened and for which the step stored no `run_ended` event or one with another cause, and the `run_ended` events of runs that had not ended. The end of a run whose workflow is not in the owner's list owes no event, and an event for it is one too many | C10 |
 | `noslot` | the stored starts that no move of the person asked for and whose slot is not due when they are stored, a start that leaves the queue among them: the agent's workflow has no schedule, or its current slot is not open by the served runs of the history, or that slot is older than `catch_up_days` on the day of the history, or a stored start was already given that slot | C11 |
 | `wait` | for each agent, the starts that joined the queue and have not left it, by who asked: the person, when a `start` move of that agent queued it, and the scheduler otherwise; a restart empties it, as I5.8 empties the queue | C3, C5 |
-| `count` | the `run_started` events of each agent and day, a start whose step 7 or 8 failed among them | C7 |
+| `count` | the `run_started` events of each agent and day, a start whose step 7 or 8 failed among them, whoever asked for it | C7, through `overstarts` |
+| `overstarts` | the stored starts that no move of the person asked for, a start that leaves the queue among them unless a `start` move of the person queued it, whose agent already had `StartsPerDay` events of `count` on the history's day (r4 U3.24) | C7 |
 | `holds` | the holds that the stored events ask for: `off` from the switch-off control on, `failures` from the `run_ended` event that completes the streak until a start by the person | C4 |
 | `store` | for each agent, the run that the agent store has not ended, if any: whether the environment's move ended its runner (`dead`), whether a request of it may have left (`left`), whether an `end_run` for it was sent since the last restart (`sent`), and, for a run with `left`, which move ended the runner (`by`), which only the `Reach` properties read | C4, C12 |
 | `unknown`, `answered` | for each agent, the newest run that the store ended with `unknown` above 0, and the runs whose `check` the person answered. The hold `check` stands for an agent whose `unknown` run is not in `answered` | C4 |
@@ -282,7 +289,7 @@ answered `queue_full`.
 | C4 | a run starts only when no hold stands by the stored events and with an acknowledged `run_started` event; `check` comes from the agent store's `unknown` of the agent's newest run, ended in the store, and no run starts while the store has not ended the agent's newest run | `h.heldstarts`, `h.unacked` and `h.openstarts` are 0 |
 | C5 | a run of an agent that needs the person, and the first run of every agent, starts only by a move of the person; a start that leaves the queue counts as one by the person only when a move of the person queued it, whatever trigger the step gives it; and one move of the person leads to at most one `run_started` event | `h.alone` and `h.extra` are 0 |
 | C6 | one slot leads to at most one start by the scheduler, and to none after a start that I5.3 gives that slot | `h.sched` is at most 1 for every agent and slot, and `h.after` is 0 |
-| C7 | an agent has at most `starts_per_day` `run_started` events on one day | `h.count` is at most `StartsPerDay` for every agent and day |
+| C7 | a start of the scheduler, at the tick or leaving the queue, is stored only on a day on which its agent has fewer than `starts_per_day` `run_started` events, whoever asked for them; a start of the person, at the press or leaving the queue, passes step 2 on any day (r4 U3.24) | `h.overstarts` is 0 |
 | C8 | no run starts for a workflow that is not in the owner's list; a run whose workflow left the list is `stopping` or ended after the first tick that follows, and ended after the first tick at which the grace has passed since that stop | `h.gonestarts` is 0, and a run of `h.live` whose workflow is `seen` has `stop` and not `late` |
 | C9 | a run that was stopped is ended after the first tick at which `cancel_grace_s` have passed since its stop, whoever stopped it | no run of `h.live` is `late` |
 | C10 | the cause that a `run_ended` event stores is the cause that I5.6 gives the end that happened, read from the move that ended the run: `failed` for a start whose step 7 or 8 failed and for a last frame `failed` of a run that was not stopped, the cause of its stop for a stopped run, `interrupted` for a run that a restart finds live. This is read for a run whose workflow is in the owner's list at its end; the end of a run whose workflow is gone stores no event | `h.wrongend` is 0 |
@@ -903,6 +910,11 @@ the replay through the key `grace` of a tick.
 ```sh
 sh formal/r4-coordinator/export.sh --jar PATH [--out DIR] [--seed N --count N]
 ```
+
+`traces-schedule.jsonl`, `ScheduleTrace.tla` and `export.sh` hold the old rule of a day's starts,
+from before r4 U3.24, under which step 2 refused a start of the person too: the directed trace
+`over_budget` ends in a person's start answered `budget` and the walks must hold that answer, so
+the export fails at the model of r4 U3.24, and no test or check reads these traces.
 
 The export writes `traces-schedule.jsonl` and `traces-confirm.jsonl`, into this directory
 unless `--out` names another. Without `--seed` and `--count` it takes both from the first
