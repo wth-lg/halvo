@@ -6,7 +6,8 @@ use halvo_checkpoint::LockError;
 /// A cause of the closed list of contracts.md A7.4 that an error of this crate gives the runner:
 /// [`Error::cause`] for a call on the workbook or its folder, [`Error::source_cause`] for
 /// [`crate::Folder::read_source`], the one call on the data file. Each fact on which a person acts
-/// differently has a cause of its own (r3 U11.3, U11.4, U11.5); every other error gives `step_failed`.
+/// differently has a cause of its own (r3 U11.3, U11.4, U11.5, U11.9); every other error gives
+/// `step_failed`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cause {
     /// `workbook`: the cause of [`Error::Workbook`] alone. The crate refused the workbook before
@@ -19,6 +20,8 @@ pub enum Cause {
     NoWorkbook,
     /// `no_sheet`: the workbook has no sheet of that name.
     NoSheet,
+    /// `two_sheets`: two sheets of the workbook bear that name (r3 U11.9).
+    TwoSheets,
     /// `no_range`: the text of the cells is no range.
     NoRange,
     /// `data_shape`: the data has not the rows and columns of the cells.
@@ -31,6 +34,9 @@ pub enum Cause {
     DataForm,
     /// `data_encoding`: the data file is not UTF-8 (r3 U11.5).
     DataEncoding,
+    /// `data_narrow`: a field of the data file is number signs alone, as a spreadsheet program
+    /// writes a value whose column was too narrow to show it (r3 U11.9).
+    DataNarrow,
     /// `read_only`: the person cannot write the workbook.
     ReadOnly,
     /// `no_access`: the system refused, for the permission, the open or the read of the workbook
@@ -52,12 +58,14 @@ impl Cause {
             Cause::Sheet => "sheet",
             Cause::NoWorkbook => "no_workbook",
             Cause::NoSheet => "no_sheet",
+            Cause::TwoSheets => "two_sheets",
             Cause::NoRange => "no_range",
             Cause::DataShape => "data_shape",
             Cause::NoDataFile => "no_data_file",
             Cause::DataOutside => "data_outside",
             Cause::DataForm => "data_form",
             Cause::DataEncoding => "data_encoding",
+            Cause::DataNarrow => "data_narrow",
             Cause::ReadOnly => "read_only",
             Cause::NoAccess => "no_access",
             Cause::NotReplaced => "not_replaced",
@@ -117,6 +125,11 @@ pub enum SourceRefusal {
     TwoSeparators,
     /// The row on this line (counted from 1) has another number of cells than the first row.
     Ragged { line: usize },
+    /// A field on this line (counted from 1), without the spaces at its ends, is one number sign
+    /// `#` or more and nothing else, as a spreadsheet program writes a value whose column was too
+    /// narrow to show it when the file was saved; a field of the first row that is one `#` alone
+    /// is a title and passes. Its cause is `data_narrow` (r3 U11.9).
+    NumberSigns { line: usize },
 }
 
 /// Why the crate refuses a workbook, with the cause `workbook`.
@@ -195,6 +208,10 @@ pub enum Error {
     Range,
     /// The workbook has no sheet of that name.
     NoSheet,
+    /// Two sheets of the workbook bear that name, alike as [`Error::NoSheet`] is told: over every
+    /// element `sheet` of the workbook part, the hidden and the very hidden ones too, its name
+    /// with entities decoded compared byte for byte (r3 U11.9).
+    TwoSheets,
     /// The workbook is refused, with the cause `workbook`.
     Workbook(Refusal),
     /// The values do not have the rows and columns of the range.
@@ -243,8 +260,9 @@ impl Error {
     /// so is a lock of `prepare` that the system refuses for the permission, as for the open of the
     /// workbook's folder that the lock's key needs; a lock held for the whole wait stays
     /// `step_failed`, and a refused rename keeps `not_replaced`, whatever its kind (r3 U11.4). A
-    /// data file that is not UTF-8 is `data_encoding`, every other refusal of its form `data_form`
-    /// (r3 U11.5).
+    /// data file that is not UTF-8 is `data_encoding`, a field of number signs alone in it
+    /// `data_narrow`, every other refusal of its form `data_form` (r3 U11.5, U11.9). A sheet's name
+    /// that two sheets of the workbook bear is `two_sheets` (r3 U11.9).
     pub fn cause(&self) -> Cause {
         match self {
             Error::Workbook(_) => Cause::Workbook,
@@ -255,9 +273,11 @@ impl Error {
             Error::Io(io::ErrorKind::PermissionDenied)
             | Error::Lock(LockError::Io(io::ErrorKind::PermissionDenied)) => Cause::NoAccess,
             Error::NoSheet => Cause::NoSheet,
+            Error::TwoSheets => Cause::TwoSheets,
             Error::Range => Cause::NoRange,
             Error::Shape => Cause::DataShape,
             Error::Source(SourceRefusal::Encoding) => Cause::DataEncoding,
+            Error::Source(SourceRefusal::NumberSigns { .. }) => Cause::DataNarrow,
             Error::Source(_) => Cause::DataForm,
             Error::ReadOnly => Cause::ReadOnly,
             Error::NotReplaced(Kept::Rename(_)) | Error::CopyLeft(Kept::Rename(_)) => {
@@ -304,6 +324,7 @@ impl fmt::Display for Error {
             Error::Source(why) => write!(f, "the source is not of the form of A1.2: {why:?}"),
             Error::Range => f.write_str("the text is not a range"),
             Error::NoSheet => f.write_str("the workbook has no sheet of that name"),
+            Error::TwoSheets => f.write_str("two sheets of the workbook bear that name"),
             Error::Workbook(why) => write!(f, "the workbook is refused: {why:?}"),
             Error::Shape => f.write_str("the values do not have the shape of the range"),
             Error::Value => f.write_str("a text holds a character that a workbook cannot hold"),
@@ -333,7 +354,8 @@ mod tests {
     /// is the workbook's at the first and the data file's at the second. r3 U11.4: a file or a folder that the
     /// system refuses for the permission is `no_access` at both, the lock's open of the workbook's folder among
     /// them, and a refused rename stays `not_replaced`. r3 U11.5: a data file that is not UTF-8 is `data_encoding` at
-    /// both.
+    /// both. r3 U11.9: a field of number signs alone is `data_narrow` at both, and a sheet's name that two sheets bear
+    /// `two_sheets`.
     #[test]
     fn each_error_gives_the_name_of_its_fact_on_the_workbook_and_on_the_data_file() {
         use io::ErrorKind::{NotFound, PermissionDenied};
@@ -409,8 +431,14 @@ mod tests {
                 "data_form",
                 "data_form",
             ),
+            (
+                Error::Source(SourceRefusal::NumberSigns { line: 2 }),
+                "data_narrow",
+                "data_narrow",
+            ),
             (Error::Range, "no_range", "no_range"),
             (Error::NoSheet, "no_sheet", "no_sheet"),
+            (Error::TwoSheets, "two_sheets", "two_sheets"),
             (Error::Workbook(Refusal::Unreadable), "workbook", "workbook"),
             (Error::Shape, "data_shape", "data_shape"),
             (Error::Value, "step_failed", "step_failed"),

@@ -340,6 +340,7 @@ pub fn decide(
         Decision::Approve => InterfaceDecision::approve(&role, request_id(), workflow),
         Decision::Dismiss => InterfaceDecision::dismiss(&role, request_id(), workflow),
         Decision::Delete => InterfaceDecision::delete(&role, request_id(), workflow),
+        Decision::SetUp => InterfaceDecision::set_up(&role, request_id(), workflow),
     }
     .to_bytes()
     .map_err(|_| DecisionError::Other(ActionError::Internal))?;

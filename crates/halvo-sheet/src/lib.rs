@@ -88,7 +88,8 @@ impl Folder {
     /// than 64 MiB, before it is read, and a package over the bounds of its entries
     /// ([`Refusal::Size`]); a file that is no workbook that the crate can read
     /// ([`Refusal::Unreadable`], [`Refusal::Relationship`]); a sheet that the workbook lacks
-    /// ([`Error::NoSheet`]); and a sheet whose used cells, found by a pass of the crate's own
+    /// ([`Error::NoSheet`]) or whose name two of its sheets bear ([`Error::TwoSheets`]); and a
+    /// sheet whose used cells, found by a pass of the crate's own
     /// before the reader sees the sheet, span a rectangle of more than 1,000,000 cells
     /// ([`Refusal::Size`]).
     pub fn read(
@@ -171,7 +172,12 @@ impl Folder {
     /// it holds a carriage return that no line feed follows, a line break inside a quoted field,
     /// text behind a closing quote or a quote that is never closed, the first of them in the file
     /// named, or its rows have different lengths. A file in which the semicolon or the tab holds
-    /// is refused for a fault of its read by that sign, even where the comma holds too.
+    /// is refused for a fault of its read by that sign, even where the comma holds too. Last, with
+    /// the cause `data_narrow`: a file so read in which a field, quoted or not and without the
+    /// spaces at its ends, is one number sign `#` or more and nothing else, as a spreadsheet
+    /// program writes a value whose column was too narrow to show it when the file was saved, the
+    /// first such line named; a field of the first row that is one `#` alone is a title and passes
+    /// (r3 U11.9).
     pub fn read_source(&self, source: &Path) -> Result<Vec<Vec<Value>>, Error> {
         let full = self.file(source)?;
         source::parse(&std::fs::read(full)?)
@@ -207,7 +213,9 @@ impl Folder {
     /// refuse); a workbook that holds a kind of the
     /// executor's refused list
     /// ([`Refusal::Kinds`]: `pivot`, `macro`, `validation`); a sheet that the workbook lacks
-    /// ([`Error::NoSheet`], with the cause `no_sheet`); a sheet whose used cells and the range
+    /// ([`Error::NoSheet`], with the cause `no_sheet`), or whose name two of its sheets bear,
+    /// counted over every sheet, the hidden and the very hidden ones too ([`Error::TwoSheets`],
+    /// with the cause `two_sheets`); a sheet whose used cells and the range
     /// together span more than 1,000,000 cells ([`Refusal::Size`]); a cell of the range in the
     /// header row of a table ([`Refusal::TableHeader`]); a worksheet part that the writer cannot
     /// take ([`Refusal::Part`]); a cell of the range in a shared formula
@@ -407,9 +415,10 @@ pub const SHEET_NAME_BYTES_MAX: usize = parts::NAME_BYTES_MAX;
 /// it is read, and a package over the bounds of its entries ([`Refusal::Size`]); a file that is
 /// no workbook that the crate can read ([`Refusal::Unreadable`], [`Refusal::Relationship`],
 /// [`Refusal::Part`]); a workbook that names two sheets alike, counted over every sheet and
-/// compared as a run finds a sheet by its name, which takes the first of them
-/// ([`Refusal::Relationship`]); a sheet whose relationship does not name its part as the reader
-/// reads it ([`Refusal::Relationship`]); and more than [`SHEET_NAMES_MAX`] names or a name of more
+/// compared as a run finds a sheet by its name, which refuses a run on that name with
+/// [`Error::TwoSheets`] ([`Refusal::Relationship`]); a sheet whose relationship does not name its
+/// part as the reader reads it ([`Refusal::Relationship`]); and more than [`SHEET_NAMES_MAX`]
+/// names or a name of more
 /// than [`SHEET_NAME_BYTES_MAX`] bytes ([`Refusal::Size`]): a refusal, never a cut list.
 pub fn sheet_names(workbook: &Path) -> Result<Vec<String>, Error> {
     let dir = workbook.parent().unwrap_or(Path::new(""));
@@ -470,6 +479,103 @@ mod names_tests {
                 Err(Error::Workbook(Refusal::Relationship)),
                 "{name}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod two_sheets_tests {
+    use super::{Error, Folder, Range, RunId, Value};
+    use crate::testing::{edit, locks, scratch, zipped};
+
+    /// The workbook of the sheets `names` with the edit `from` to `to` of its workbook part.
+    fn edited(names: &[&str], from: &str, to: &str) -> Vec<u8> {
+        let mut all = crate::parts::entries(&crate::made::workbook(names)).expect("the entries");
+        edit(&mut all, "xl/workbook.xml", from, to);
+        zipped(&all)
+    }
+
+    /// r3 U11.9: a run whose sheet name two sheets of the workbook bear, alike as
+    /// `parts::part_of` finds a sheet by its name (the name with its entities decoded, byte for
+    /// byte, over every element `sheet`), is refused with `two_sheets` before any write: two
+    /// worksheets, a hidden or a very hidden sheet beside a worksheet, and two names alike once
+    /// decoded. The folder then holds the workbook alone, as it was. A name that one sheet alone
+    /// bears goes ahead: beside a name that differs in the case of a letter alone, and beside two
+    /// other sheets that are alike.
+    #[test]
+    fn a_run_on_a_workbook_in_which_two_sheets_bear_its_name_is_refused_before_any_write() {
+        let hidden = |state: &str| {
+            let to = format!(r#"<sheet name="Data" sheetId="1" state="{state}""#);
+            edited(&["Data", "Data"], r#"<sheet name="Data" sheetId="1""#, &to)
+        };
+        let decoded = edited(
+            &["A&B", "A&B"],
+            r#"name="A&amp;B" sheetId="2""#,
+            r#"name="A&#38;B" sheetId="2""#,
+        );
+        let cases: [(&str, Vec<u8>, &str, bool); 6] = [
+            (
+                "two worksheets",
+                crate::made::workbook(&["Data", "Data"]),
+                "Data",
+                false,
+            ),
+            ("a hidden one", hidden("hidden"), "Data", false),
+            ("a very hidden one", hidden("veryHidden"), "Data", false),
+            ("alike once decoded", decoded, "A&B", false),
+            (
+                "another case",
+                crate::made::workbook(&["Data", "data"]),
+                "data",
+                true,
+            ),
+            (
+                "two others alike",
+                crate::made::workbook(&["Data", "Data", "Report"]),
+                "Report",
+                true,
+            ),
+        ];
+        let run = RunId::parse(&"0c".repeat(16)).expect("a run id");
+        let range = Range::parse("A1:B1").expect("a range");
+        let values = [vec![Value::Number(1.0), Value::Text("x".to_string())]];
+        for (n, (label, bytes, sheet, ahead)) in cases.into_iter().enumerate() {
+            let dir = scratch(&format!("two-sheets-{n}"));
+            std::fs::write(dir.join("book.xlsx"), &bytes).expect("write the workbook");
+            let folder = Folder::new(&dir, locks()).expect("the folder");
+            let got = folder.prepare(
+                std::path::Path::new("book.xlsx"),
+                &run,
+                sheet,
+                range,
+                &values,
+            );
+            if ahead {
+                assert!(got.is_ok(), "{label}: {:?}", got.err());
+                continue;
+            }
+            let error = got.expect_err(label);
+            assert_eq!(
+                (&error, error.cause().name()),
+                (&Error::TwoSheets, "two_sheets"),
+                "{label}"
+            );
+            let held: Vec<String> = std::fs::read_dir(&dir)
+                .expect("list the folder")
+                .map(|e| {
+                    e.expect("an entry")
+                        .file_name()
+                        .to_string_lossy()
+                        .into_owned()
+                })
+                .collect();
+            assert_eq!(
+                held,
+                ["book.xlsx"],
+                "{label}: nothing written beside the workbook"
+            );
+            let kept = std::fs::read(dir.join("book.xlsx")).expect("read the workbook");
+            assert!(kept == bytes, "{label}: the workbook as it was");
         }
     }
 }
