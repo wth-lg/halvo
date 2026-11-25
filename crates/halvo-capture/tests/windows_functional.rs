@@ -5177,6 +5177,26 @@ fn x14_foreground_app_of_a_hosted_app() {
             .as_mut()
             .map(|keyboard| keyboard.begin(SourceContext::new(title_sink.clone())));
         let title_start = title.begin(SourceContext::new(title_sink.clone()));
+        let own_file = own_exe_file();
+        let kept_title = "h".repeat(60);
+        let kept_window =
+            TestWindow::create(&normal_window("HalvoVerifyKept", &kept_title, 90, 90))
+                .expect("the kept window");
+        let kept = |e: &Seen| {
+            e.modality == Modality::WindowTitle
+                && file_name(&e.foreground_app).eq_ignore_ascii_case(&own_file)
+                && e.segment_ref.byte_len == kept_title.len() as u64
+        };
+        let (kept_window_front, _) = foreground_without_input(kept_window.hwnd, true);
+        let mut kept_seen = Vec::new();
+        let kept_began = Instant::now();
+        while kept_began.elapsed() < Duration::from_secs(6) {
+            pump_thread(Duration::from_millis(100));
+            kept_seen.extend(title_events.drain_for(Duration::from_millis(100)));
+            if kept_seen.iter().any(kept) {
+                break;
+            }
+        }
         let launched = Command::new("cmd.exe")
             .args(["/c", "start", "ms-settings:"])
             .status()
@@ -5204,37 +5224,19 @@ fn x14_foreground_app_of_a_hosted_app() {
         seen.extend(events.drain_for(Duration::from_millis(500)));
         let settings_processes = processes_named("SystemSettings.exe");
         let foreground_now = current_foreground_app().unwrap_or_default();
-        let mut title_seen = title_events.drain_for(Duration::from_millis(200));
-        let kept_window = TestWindow::create(&normal_window(
-            "HalvoVerifyKept",
-            "halvo-verify-kept",
-            90,
-            90,
-        ))
-        .expect("the kept window");
-        let (kept_window_front, _) = foreground_without_input(kept_window.hwnd, true);
-        pump_thread(Duration::from_secs(3));
         let _ = stop_counted(&mut foreground, "foreground");
         let title_stop = stop_counted(&mut title, "window_title");
         let keyboard_stop = keyboard
             .as_mut()
             .map(|keyboard| stop_counted(keyboard.as_mut(), "keyboard"));
-        let kept_seen = title_events.drain_for(Duration::from_millis(500));
+        let title_seen = title_events.drain_for(Duration::from_millis(500));
         drop(kept_window);
         let _ = Command::new("taskkill.exe")
             .args(["/IM", "SystemSettings.exe", "/F"])
             .output();
         drop(anchor);
         summarize("x14", "after-opening-settings", &seen);
-        let own_file = own_exe_file();
-        let title_events_kept = kept_seen
-            .iter()
-            .filter(|e| {
-                e.modality == Modality::WindowTitle
-                    && file_name(&e.foreground_app).eq_ignore_ascii_case(&own_file)
-            })
-            .count();
-        title_seen.extend(kept_seen);
+        let title_events_kept = kept_seen.iter().filter(|e| kept(e)).count();
         let titles_named = |file: &str| {
             title_seen
                 .iter()
