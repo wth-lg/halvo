@@ -31,15 +31,18 @@ else none; under path B the writer is the first candidate with bodies=2 on all s
           point 4: one machine, mac, six drive lines and three reply lines a model, the models in the
           order of their first line; each line of the block begins with a word that the round
           prints (attempt, drive, reply, load, ends, prompt, spend, egress, host, verdict) and one
-          space, and holds the printable signs of ASCII alone (the block is split at LF); each
-          model's call, the run of lines that ends at its host line, ends with its spend, egress and
-          host lines, the spend at or under its ceiling and the egress line with denied=0 and as
-          many runs as starts; prints its verdict line, and with --expect LINE also "verdict check
-          same=yes" or "verdict check same=no" (exit 1). Any other line, with its place in the
-          block, any other sign, with its line and its place in the line, a notrun line (a round
-          with one gives no verdict), an attempt, drive or reply line of another machine, a missing
-          line, a spend or an egress line before its call's last three lines, an end line that fails
-          and every refusal of the block's lines above are refusals with their cause.
+          space, holds the printable signs of ASCII alone (the block is split at LF), and is whole of
+          the form of its kind: every field by its name and in its order, no word behind the last,
+          each value of the form that its printer gives it; each model's call, the run of lines
+          that ends at its host line, names one model and ends with its spend, egress and host
+          lines, the spend at or under its ceiling and of the host line's tier, the egress line with
+          denied=0, as many runs as starts and the host line's origin; prints its verdict line, and
+          with --expect LINE also "verdict check same=yes" or "verdict check same=no" (exit 1). Any
+          other line, with its place in the block, any other sign, with its line and its place in
+          the line, a line that is not whole of its form, a notrun line (a round with one gives no
+          verdict), an attempt, drive, reply, load or ends line of another machine, a missing line,
+          a spend or an egress line before its call's last three lines, an end line that fails and
+          every refusal of the block's lines above are refusals with their cause.
 --self-test runs the rule on fixtures of its own and on each pair of trial files that a test
           of crates/halvo-route-gate/tests/import_rules.rs at d6fca8dc reads, each with the
           importer's detail.
@@ -617,6 +620,76 @@ def outcome(driver, cells, argv):
 
 
 HOSTED_WORDS = ("attempt", "drive", "reply", "load", "ends", "prompt", "spend", "egress", "host", "verdict")
+TIERS = ("low_cost_hosted", "frontier")
+PROMPT_FILES = ("boundary.txt", "goal-bill.txt", "goal-order.txt", "goal-reply.txt", "src/words.rs")
+
+
+def origin_ok(text):
+    """An origin as the reader of the table of hosts takes one (is_origin of crates/halvo-route/src/ruling.rs):
+    https:// and a host name alone, two labels or more of lower-case ASCII letters, digits and hyphens,
+    the last of letters alone and not localhost."""
+    if not text.startswith("https://"):
+        return False
+    labels = text[len("https://") :].split(".")
+    return (
+        len(labels) >= 2
+        and all(re.fullmatch(r"[a-z0-9-]+", label) for label in labels)
+        and re.fullmatch(r"[a-z]+", labels[-1]) is not None
+        and labels[-1] != "localhost"
+    )
+
+
+def table_word(text):
+    """A word of the table of hosts (is_word of crates/halvo-route/src/ruling.rs): 1 to 64 ASCII letters,
+    digits, -, ., _ or :."""
+    return re.fullmatch(r"[A-Za-z0-9._:-]{1,64}", text) is not None
+
+
+def ends_held(v):
+    """An ends line as lines::ends of src/lines.rs prints it, on mac."""
+    return (
+        token_ok(v["model"])
+        and v["machine"] == "mac"
+        and v["task"] in TASKS + ("reply",)
+        and v["seed"] in SEEDS
+        and figure(v["cut"]) is not None
+        and figure(v["declined"]) is not None
+    )
+
+
+def load_held(v):
+    """A load line as lines::load of src/lines.rs prints it, on mac: load1 is a load of the system written
+    with two places behind the point."""
+    return (
+        token_ok(v["model"])
+        and v["machine"] == "mac"
+        and (v["task"], v["kind"]) in PAIRS
+        and v["seed"] in SEEDS
+        and v["i"] in RANGES[v["kind"]]
+        and re.fullmatch(r"(0|[1-9][0-9]*)\.[0-9]{2}", v["load1"]) is not None
+    )
+
+
+def prompt_held(v):
+    """A prompt line as run.sh --prompt-lines prints it: one of its five files, and a SHA-256 in lower-case hex."""
+    return v["file"] in PROMPT_FILES and re.fullmatch(r"[0-9a-f]{64}", v["sha256"]) is not None
+
+
+def verdict_held(v):
+    """A verdict line of the form that this tool prints: a model token or none, A or B, a token or none."""
+    return (
+        (v["driver"] == "none" or token_ok(v["driver"]))
+        and v["path"] in ("A", "B")
+        and (v["writer"] == "none" or token_ok(v["writer"]))
+    )
+
+
+HOSTED_FORMS = {
+    "ends": (("model", "machine", "task", "seed", "cut", "declined"), ends_held),
+    "load": (("model", "machine", "task", "seed", "kind", "i", "load1"), load_held),
+    "prompt": (("file", "sha256"), prompt_held),
+    "verdict": (("driver", "path", "writer"), verdict_held),
+}
 
 
 def hosted_words(body):
@@ -627,8 +700,11 @@ def hosted_words(body):
     gives no verdict for a round with one. The block is split at LF alone, and a line of the round holds
     the printable signs of ASCII alone, space to tilde: any other sign, a carriage return, a tab, a form
     feed, NEL, U+2028 or a sign of no width among them, is refused with its line and its place in the
-    line, so that no record rides inside a line past the reader. Beyond that, the content of prompt,
-    load, ends and verdict lines is not held."""
+    line, so that no record rides inside a line past the reader. An ends, load, prompt or verdict line is
+    held whole against the form of its kind (HOSTED_FORMS): every field by its name and in its order, no
+    word behind the last, and each value of the form that its printer gives it; an ends or a load line
+    names mac. A line that is not whole of its form is refused with its place. read_lines holds attempt,
+    drive and reply lines whole, and hosted_end_lines spend, egress and host lines."""
     for at, line in enumerate(body, 1):
         word, space, rest = line.partition(" ")
         if word == "notrun":
@@ -645,6 +721,15 @@ def hosted_words(body):
                 raise Refusal(
                     "source",
                     "a sign that the round does not print, U+%04X, at line %d, sign %d" % (ord(sign), at, place),
+                )
+        form = HOSTED_FORMS.get(word)
+        if form is not None:
+            values = words(line, word, form[0])
+            if values is None or not form[1](values):
+                raise Refusal(
+                    "source",
+                    "%s %s line is not of its form, at line %d: %s"
+                    % ("an" if word == "ends" else "a", word, at, line[:80]),
                 )
 
 
@@ -672,6 +757,19 @@ def hosted_verdict(body):
             order.append(parts.get("model"))
     if not order:
         raise Refusal("source", "the block names no model")
+    for line in body:
+        # A verdict line of the block in the narrowest form that this tool prints for the block's models: the
+        # driver and the writer each a model of the block or none, path=A exactly when the driver is one, and
+        # under path A the writer the driver or none. It is not held against the line that the rule forms.
+        if line.startswith("verdict "):
+            v = words(line, "verdict", HOSTED_FORMS["verdict"][0])
+            if not (
+                v["driver"] in order + ["none"]
+                and v["writer"] in order + ["none"]
+                and (v["path"] == "A") == (v["driver"] != "none")
+                and (v["path"] == "B" or v["writer"] in (v["driver"], "none"))
+            ):
+                raise Refusal("source", "a verdict line that this tool cannot print for the block's models: " + line[:80])
     for model in order:
         for task in TASKS:
             for seed in SEEDS:
@@ -709,11 +807,14 @@ def hosted_end_lines(body):
     """Each call's three end lines (the rule file's section "The lines that the paid round adds"): a
     call is the run of lines that ends at a host line, and its last three lines are its spend, egress
     and host lines; a spend or an egress line anywhere else in a call, also as the block's first
-    line, is refused; its attempt, drive and reply lines name one model, and no model has two calls.
-    The spend line has spent_micro at most ceiling_minor times 10,000; the egress line has denied=0 and
-    as many runs as starts; the host line stands in its form. Lines after the last host line may be no
-    line of a call."""
-    model_words = ("attempt", "drive", "reply")
+    line, is refused; its attempt, drive, reply, load and ends lines name one model, and no model has
+    two calls. Each end line is held whole, every value of the form that its printer gives it: the tier
+    one of TIERS, the counts by figure(), the list a path of letters, digits, ., _, - and /, the origins
+    as origin_ok takes one, the host's model and adapter as table_word takes one. The spend line has
+    spent_micro at most ceiling_minor times 10,000; the egress line has denied=0 and as many runs as
+    starts; the spend line's tier is the host line's, and the egress line's origin the host line's.
+    Lines after the last host line may be no line of a call."""
+    model_words = ("attempt", "drive", "reply", "load", "ends")
     end_words = ("spend", "egress", "host")
     seen = set()
     start = 0
@@ -751,18 +852,37 @@ def hosted_end_lines(body):
         spend = words(call[-3], "spend", ("tier", "requests", "spent_micro", "ceiling_minor"))
         egress = words(call[-2], "egress", ("list", "origin", "starts", "runs", "denied"))
         host = words(call[-1], "host", ("tier", "origin", "model", "adapter"))
-        if spend is None or any(count(spend[k]) is None for k in ("requests", "spent_micro", "ceiling_minor")):
+        if (
+            spend is None
+            or spend["tier"] not in TIERS
+            or any(count(spend[k]) is None for k in ("requests", "spent_micro", "ceiling_minor"))
+        ):
             raise Refusal("source", "a spend line is not of its form: the call of %s" % model)
         if count(spend["spent_micro"]) > count(spend["ceiling_minor"]) * 10000:
             raise Refusal("source", "a spend line above its ceiling: the call of %s" % model)
-        if egress is None or any(count(egress[k]) is None for k in ("starts", "runs", "denied")):
+        if (
+            egress is None
+            or re.fullmatch(r"[A-Za-z0-9._/-]+", egress["list"]) is None
+            or not origin_ok(egress["origin"])
+            or any(count(egress[k]) is None for k in ("starts", "runs", "denied"))
+        ):
             raise Refusal("source", "an egress line is not of its form: the call of %s" % model)
         if count(egress["denied"]) != 0:
             raise Refusal("source", "an egress line with denied above 0: the call of %s" % model)
         if egress["runs"] != egress["starts"]:
             raise Refusal("source", "an egress line whose runs are not its starts: the call of %s" % model)
-        if host is None:
+        if (
+            host is None
+            or host["tier"] not in TIERS
+            or not origin_ok(host["origin"])
+            or not table_word(host["model"])
+            or not table_word(host["adapter"])
+        ):
             raise Refusal("source", "a host line is not of its form: the call of %s" % model)
+        if spend["tier"] != host["tier"]:
+            raise Refusal("source", "a spend line whose tier is not its host line's: the call of %s" % model)
+        if egress["origin"] != host["origin"]:
+            raise Refusal("source", "an egress line whose origin is not its host line's: the call of %s" % model)
 
 
 def hosted_main(args):
@@ -1978,6 +2098,26 @@ def self_test():
                 "a hosted block with a record behind a carriage return inside a line is refused, with its place",
                 hosted_call(["--hosted", ridden_block]),
                 (2, "", ["REFUSED source: a sign that the round does not print, U+000D, at line 88, sign 65"]),
+            )
+        # The coordinator's ruling of 15:40:25Z, the second closed set: each line whole against the form of
+        # its kind. The line of Q01 with one space in the place of its carriage return is refused; the same
+        # block with the ends line alone, whole of its form, is taken.
+        ends_line = "ends model=m_high machine=mac task=reply seed=3 cut=0 declined=0"
+        record = "egress list=hosted-list.txt origin=https://stand-in.invalid starts=15 runs=15 denied=1"
+        with tempfile.TemporaryDirectory() as root:
+            outcomes = []
+            for name, extra in (("ends-and-record.txt", ends_line + " " + record), ("ends-alone.txt", ends_line)):
+                block = os.path.join(root, name)
+                with open(block, "w", encoding="utf-8", newline="") as f:
+                    f.write("\n".join(lines[:87] + [extra] + lines[87:]))
+                outcomes.append(hosted_call(["--hosted", block]))
+            expect(
+                "a hosted block with an ends line that is not whole of its form is refused; with the ends line alone, taken",
+                outcomes,
+                [
+                    (2, "", ["REFUSED source: an ends line is not of its form, at line 88: " + (ends_line + " " + record)[:80]]),
+                    (0, wanted["driver.txt"] + "\n", []),
+                ],
             )
         expect(
             "a hosted block against a given line: same=yes, and same=no",
