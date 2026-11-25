@@ -37,13 +37,6 @@ pub(crate) enum Call {
 
 /// The router handed the call back, or picked a tier other than the run's own: the run sends no model request and
 /// ends `handed_back` with the cause `shortfall`.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls level"
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Shortfall;
 
@@ -57,13 +50,6 @@ thread_local! {
 /// policy, for the agent's category and `call`, with the agent's own tier as the ceiling. The pick's level where
 /// the pick's tier is the agent's own tier, the tier that the person allowed and the door is started with; else
 /// `Shortfall`, for a pick that hands the call back and for a pick of a lower tier.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls it"
-    )
-)]
 pub(crate) fn level(loaded: &LoadReply, call: Call) -> Result<ask::Level, Shortfall> {
     #[cfg(test)]
     let table = TEST_POLICY
@@ -87,13 +73,6 @@ pub(crate) fn level(loaded: &LoadReply, call: Call) -> Result<ask::Level, Shortf
 }
 
 /// The router's id of a seed category of the schema, by its equal name (`ids_equal_schema`).
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls level"
-    )
-)]
 fn category(seed: SeedCategory) -> CategoryId {
     match seed {
         SeedCategory::UtilityBillPayment => CategoryId::UtilityBillPayment,
@@ -110,19 +89,33 @@ fn category(seed: SeedCategory) -> CategoryId {
 }
 
 /// The router's tier of a model tier of the schema, by its equal name (`ids_equal_schema`).
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "no shipped build asks the router until r3 U7.2b's compile or r3 U7.4's writer calls level"
-    )
-)]
 fn tier(tier: ModelTier) -> Tier {
     match tier {
         ModelTier::OnDevice => Tier::OnDevice,
         ModelTier::LowCostHosted => Tier::LowCostHosted,
         ModelTier::Frontier => Tier::Frontier,
     }
+}
+
+/// A policy for a unit test of another module of the runner (the tests of crate::compile): the release policy's text
+/// with `cells` in the place of the rows of their category and kind, read for both hosted tiers, as the test module's
+/// own `policy_with` makes it.
+#[cfg(test)]
+pub(crate) fn test_policy(cells: &[&str]) -> &'static Policy {
+    let mut text = policy().to_text();
+    for cell in cells {
+        let head: Vec<&str> = cell.split('\t').take(2).collect();
+        let prefix = format!("{}\t{}\t", head[0], head[1]);
+        let line = text
+            .lines()
+            .find(|line| line.starts_with(&prefix))
+            .expect("a row of the cell")
+            .to_owned();
+        text = text.replacen(&format!("{line}\n"), &format!("{cell}\n"), 1);
+    }
+    let table = Policy::parse_for(&text, &[Tier::LowCostHosted, Tier::Frontier])
+        .expect("the test's policy parses");
+    Box::leak(Box::new(table))
 }
 
 #[cfg(test)]
@@ -271,5 +264,40 @@ mod tests {
             "{tiers:?}"
         );
         assert_eq!(tiers.len(), Tier::ALL.len());
+    }
+
+    /// The categories and kinds of call that read the limit `tokens` (A6.5: a compile and a step's recovery) for
+    /// which `table` picks a tier, among the categories whose row of halvo-policy's limits holds `model_tokens` 0: a
+    /// compile of such a category would end `limit` with `tokens` before its first request.
+    fn picked_with_no_tokens(table: &Policy) -> Vec<(&'static str, &'static str)> {
+        let mut picked = Vec::new();
+        for seed in SeedCategory::ALL {
+            if halvo_policy::LIMITS.of(*seed).model_tokens != 0 {
+                continue;
+            }
+            for kind in [CallKind::Compile, CallKind::Recover] {
+                if let Pick::Tier { .. } = pick(table, category(*seed), kind, Tier::Frontier) {
+                    picked.push((seed.as_str(), kind.as_str()));
+                }
+            }
+        }
+        picked
+    }
+
+    /// THE FACT of `model_tokens` 0 (the coordinator's log line 22546): the release policy picks no tier for a call
+    /// that reads `tokens` of a category whose limits give it no tokens, so a data unit that opens such a cell beside
+    /// a 0 fails here, and no person gets a compile that ends at once.
+    #[test]
+    fn u72b_no_call_that_reads_tokens_is_picked_for_a_category_with_no_tokens() {
+        let zero = SeedCategory::ALL
+            .iter()
+            .filter(|seed| halvo_policy::LIMITS.of(**seed).model_tokens == 0)
+            .count();
+        let picked = picked_with_no_tokens(policy());
+        println!(
+            "tokens: categories with model_tokens 0: {zero} of {}; picked calls that read tokens: {picked:?}",
+            SeedCategory::ALL.len()
+        );
+        assert_eq!(picked, Vec::<(&str, &str)>::new());
     }
 }

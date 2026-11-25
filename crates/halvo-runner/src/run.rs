@@ -120,11 +120,18 @@ pub(crate) struct Runner {
     /// The hosted model of a compile that may ask one (crate::model): its tier, its door once `ask` has started it,
     /// and the id of its next request line; it holds no key.
     pub(crate) hosted: Option<crate::model::Hosted>,
+    /// Whether the web step that runs now is a click or a press of a compile's drive (crate::compile), whose failed
+    /// state-changing request to an origin of the bindings is the act of an effect step and no refusal `origin`
+    /// (r3 U7.2b, the coordinator's log line 22533).
+    pub(crate) compiling: bool,
+    /// The origin of the bindings to which such a click or press sent the state-changing request that the rule
+    /// failed, which the drive takes to write the effect step.
+    pub(crate) effect_origin: Option<WebOrigin>,
     /// The stand-in door that a unit test gives in the place of halvo-model beside the runner.
     #[cfg(test)]
     pub(crate) stand_in_door: Option<crate::model::ask::Place>,
-    /// The requests that a unit test's stand-in drive asks after the check of a compile, in the place of the drive
-    /// of r3 U7.2b.
+    /// The requests that a unit test of crate::model asks through `ask` after the check of a compile and before its
+    /// drive (crate::compile).
     #[cfg(test)]
     pub(crate) drive: Vec<crate::model::ask::ModelRequest>,
 }
@@ -188,6 +195,8 @@ impl Runner {
             #[cfg(test)]
             roots: crate::find::Roots::default(),
             hosted: None,
+            compiling: false,
+            effect_origin: None,
             #[cfg(test)]
             stand_in_door: None,
             #[cfg(test)]
@@ -208,6 +217,12 @@ impl Runner {
             #[cfg(test)]
             for request in std::mem::take(&mut self.drive) {
                 self.ask(&request)?;
+            }
+            if self.hosted.is_some()
+                && loaded.config.runtime == Runtime::Web
+                && loaded.playbook.is_none()
+            {
+                return self.compile(&loaded);
             }
         }
         let steps = self.playbook(&loaded)?;
@@ -230,7 +245,7 @@ impl Runner {
     }
 
     /// Ends the run at a limit of its configuration that it has reached: `steps`, then `wall`.
-    fn within(&self, limits: &Limits) -> Result<(), Stop> {
+    pub(crate) fn within(&self, limits: &Limits) -> Result<(), Stop> {
         if self.steps >= limits.steps {
             return Err(Stop::End(Outcome::Limit, Some(Cause::Steps)));
         }

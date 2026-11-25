@@ -16,6 +16,7 @@ use halvo_schema::executable::{Cause, ModelRequestId, Outcome, RunnerCall};
 use halvo_web::start::{start_on_stdio, Spec, Started};
 
 use super::handed_back;
+use super::snapshot::Snapshot;
 use crate::clock::random16;
 use crate::run::{cause_of, Runner, Stop};
 
@@ -73,6 +74,7 @@ impl std::fmt::Debug for Key {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Grammar {
     Action,
+    #[cfg_attr(not(test), expect(dead_code, reason = "r3 U7.4's writer asks with it"))]
     Text,
 }
 
@@ -104,12 +106,13 @@ impl Level {
 }
 
 /// One request of a run to its model: the texts and words of a request line of A12.2 but its id, which `ask` counts.
-/// What the texts may hold is the duty of the caller (A12.7).
+/// What the texts may hold is the duty of the caller (A12.7), but for the snapshot, which is a `Snapshot` that the
+/// mask alone makes, from a page's lines or from a message's text (crate::model::snapshot, r3 U7.2b).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ModelRequest {
     pub(crate) system: String,
     pub(crate) prompt: String,
-    pub(crate) snapshot: Option<String>,
+    pub(crate) snapshot: Option<Snapshot>,
     pub(crate) grammar: Grammar,
     pub(crate) level: Level,
 }
@@ -235,8 +238,8 @@ fn request_line(id: u64, request: &ModelRequest) -> String {
     let text = |s: &str| serde_json::Value::String(s.to_owned()).to_string();
     let snapshot = request
         .snapshot
-        .as_deref()
-        .map_or_else(|| "null".to_owned(), text);
+        .as_ref()
+        .map_or_else(|| "null".to_owned(), |snapshot| text(snapshot.text()));
     format!(
         "{{\"id\":{id},\"system\":{},\"prompt\":{},\"snapshot\":{snapshot},\"grammar\":\"{}\",\"level\":\"{}\"}}",
         text(&request.system),

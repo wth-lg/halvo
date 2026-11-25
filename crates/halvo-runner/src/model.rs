@@ -13,14 +13,8 @@
 //! end is written (`end_door`). Until the compile's drive of r3 U7.2b calls `ask`, no shipped run reaches it, so no
 //! shipped run asks for the key or starts the door; the unit tests do.
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "ask, the key's read, the door's start and the request line have no caller in a shipped build until r3 U7.2b's drive"
-    )
-)]
 pub(crate) mod ask;
+pub(crate) mod snapshot;
 #[cfg(test)]
 mod tests;
 pub(crate) mod texts;
@@ -33,13 +27,6 @@ use crate::run::{Runner, Stop};
 
 /// What a compile that the person allowed to ask a hosted model holds: its tier, the door once `ask` has started it,
 /// and the id of its next request line.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the tier and the count of request lines are read by ask, which r3 U7.2b's drive calls"
-    )
-)]
 pub(crate) struct Hosted {
     tier: ModelTier,
     door: Option<ask::Door>,

@@ -3,8 +3,10 @@
 //! pipes, which reads frames on standard input, writes frames on standard output and carries out one run of one
 //! agent.
 
+mod action;
 mod args;
 mod clock;
+mod compile;
 mod connect;
 mod effect;
 mod file;
@@ -27,6 +29,14 @@ mod run;
 mod secret;
 mod session;
 mod web;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the recovery's texts of the trial's words.rs, copied byte for byte, have no caller until r3 U7.3"
+    )
+)]
+mod words;
 
 use std::ffi::OsString;
 use std::io::Write;
