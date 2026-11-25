@@ -570,14 +570,14 @@ fn rows(set: &str, streams: usize, form: &Form) -> String {
     out
 }
 
-/// The counting of the tool on a stream made by hand, with two kinds. The email routine has three episodes, and an
-/// episode of a task that is no routine, of the same app, overlaps the third of them in time. The email proposal
-/// holds an episode of the identifier with the records of the first, one with the records of the third that lies in
-/// time inside both the third and the episode beside it, and one with the records of no scripted episode, so it
-/// meets the routine in 2 of a union of 4, the plan's half, and pairs. Nothing finds the shop routine, and the shop
-/// proposal holds two episodes of a task that is no planted routine, so it fits nothing. By hand: email planted 1,
-/// proposed 1, paired 1, precision 1/1 and recall 1/1; shop_order planted 1, proposed 1, paired 0, precision 0/1
-/// and recall 0/1; each share is thin.
+/// The counting of the tool on a stream made by hand, with two kinds. The email routine has three labelled episodes,
+/// and in the order of the label rows an episode of a task that is no routine stands before its third. The email
+/// proposal holds an episode of the identifier whose records came from the first, one whose records came from the
+/// third, and one with no record of a scripted episode, so it meets the routine in 2 of a union of 4, the plan's half,
+/// and pairs: the second counts as the third episode, whose records it holds, and not as the episode before it in the
+/// order of the label rows. Nothing finds the shop routine, and the shop proposal holds two episodes of a task that
+/// is no planted routine, so it fits nothing. By hand: email planted 1, proposed 1, paired 1, precision 1/1 and
+/// recall 1/1; shop_order planted 1, proposed 1, paired 0, precision 0/1 and recall 0/1; each share is thin.
 #[test]
 fn counting_a_tiny_case() {
     let l = |task: &str, planted: bool, category: Category| Labelled {
