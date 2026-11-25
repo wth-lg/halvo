@@ -22,8 +22,11 @@ Runs COMMAND with its outbound connections, datagrams and name lookups outside L
 or logged where the mode cannot stop them, and writes each to target/egress/<n>/denied.log
 (contracts.md C26).
 --one-named-host, in the mode sandbox alone, takes a LISTFILE of ONE entry, a name on port 443,
-and lets COMMAND look up names and connect by tcp to port 443 of any address; every other
-connection, datagram and service stays denied and logged. A sandbox profile cannot name one host.
+and lets COMMAND reach the resolver daemon's socket and service whole (a name lookup, and also a
+registration or a browse of a service on the local link and a port mapping asked of the gateway)
+and connect by tcp to port 443 of any address, none of it logged; every other connection, datagram
+and service that it denies without the argument stays denied and logged. A sandbox profile cannot
+name one host.
 EOF
 }
 

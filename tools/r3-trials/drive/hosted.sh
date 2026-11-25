@@ -21,8 +21,10 @@ has a source that begins fixture: (REFUSED prices). It builds the door in releas
 feature loopback, and starts it for each run that asks the model under sh
 scripts/egress/check.sh --one-named-host with the list FILE, which must hold ONE entry, the
 host:443 of the origin of the row of the tier in crates/halvo-route/data/hosts.tsv; the check
-takes a name behind that argument alone, and then lets name lookups and tcp to port 443 through
-and denies and logs all else (r3 U0.8c). The key is read ONCE from
+takes a name behind that argument alone, and then lets the resolver daemon's socket and service
+whole (name lookups, and also local-link service registrations, browses and gateway port
+mappings) and tcp to port 443 through, unlogged, and denies and logs all else that it denies
+without the argument (r3 U0.8c). The key is read ONCE from
 the key file, by r3-drive, and goes to the door as its first line behind its length line;
 no line and no file of a cell holds it.
 

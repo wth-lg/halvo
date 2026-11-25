@@ -36,10 +36,13 @@ with `--cell` runs one of the cells alone (point 8).
    in release without the cargo feature `loopback`, under `sh scripts/egress/check.sh --one-named-host`
    with a list of ONE entry, the host name of the origin of the row below on port 443. Under that
    argument, which the paid form alone passes and no check of CI passes, the check's wall on this Mac
-   opens the name lookup through the system's resolver and tcp to port 443, of any name and any
+   opens the system's resolver daemon whole, its socket and its service, and tcp to port 443 of any
    address, and denies and logs every other connection, datagram and service that it denies without
    the argument: a sandbox profile names a host only as `*` or `localhost`, so the wall cannot name
-   the host. What shows the ONE host is the door: it sends to the origin of its row alone, which the
+   the host. Through that daemon a program can look up any name, and can also register or browse a
+   service on the local link or ask the gateway for a port mapping, none of it logged; the door asks
+   lookups alone, and no run has shown a registration, a browse or a mapping under the profile.
+   What shows the ONE host is the door: it sends to the origin of its row alone, which the
    `host` line below names, and TLS proves the name, since its request leaves only on a connection
    whose certificate the system's trust store takes for that name. The key of the host is read ONCE
    from the file that the command names and goes to the door as its first line behind its length
@@ -110,7 +113,8 @@ below and with the coordinator's line that the verdict stands:
   443, the origin of the row, the number of the door's starts under the egress check with
   `--one-named-host`, the number of the egress check's own lines that the round read, equal to the
   starts, and no denied attempt: no connection to a port other than 443, no datagram, no ICMP, no
-  URL session and no opening of another program. The wall logs no name lookup and no connection to
+  URL session and no opening of another program. The wall logs no request to the resolver daemon, a
+  name lookup among them, and no connection to
   port 443, so `denied=0` does not name the address that the door reached; the `host` line and TLS
   show the one host. Where the lines are fewer or more than the starts, the round says so and gives
   no verdict.
