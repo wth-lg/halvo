@@ -268,12 +268,13 @@ pub fn last_end(dir: &DataDir) -> LastEnd {
 
 /// At a start that cannot bind its channel: where the start read the marker
 /// clean or found none, it puts back the marker that it found (no marker
-/// stays none; the hold and the line of an end in order stay), so that the
-/// next start reads what this one read; where it found the marker of a life
-/// that did not end in order, the marker that `begin` wrote in its place
-/// stays, so that the next start reads unclean too: a start that cannot bind
-/// hides no lost batch; where `begin` wrote no marker, it writes nothing.
-/// It writes through `run`, the held folder.
+/// stays none; the hold, the line of an end in order and the line of a loss
+/// stay), so that the next start reads what this one read; where it found
+/// the marker of a life that did not end in order, the marker that `begin`
+/// wrote in its place stays, so that the next start reads unclean too, and
+/// the line of a loss that the marker held goes with it: no later start
+/// reads that loss; where `begin` wrote no marker, it writes nothing. It
+/// writes through `run`, the held folder.
 pub fn give_back(run: &HeldRun, begun: &Begun) -> io::Result<()> {
     if begun.last_stop == LastStop::Unclean || begun.written.is_err() {
         return Ok(());
