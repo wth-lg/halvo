@@ -13,7 +13,7 @@ use halvo_schema_core::request::{
     decode_reply, ErrorName, InterfaceDecision, InterfaceRead, InterfaceRole, ReplyResult,
 };
 use halvo_schema_core::{
-    Decision, RequestId, SiteValue, Workflow, WorkflowId, WorkflowItem, WorkflowState,
+    Decision, RequestId, SiteValue, Trigger, Workflow, WorkflowId, WorkflowItem, WorkflowState,
 };
 use serde::Serialize;
 use tauri::ipc::Invoke;
@@ -79,9 +79,12 @@ pub struct Listed {
     pub id: String,
     /// Whether the workflow is in the state `proposed`.
     pub proposed: bool,
+    /// Whether the person set the workflow up by hand: its trigger is `manual`, which the
+    /// noticing never gives.
+    pub by_hand: bool,
     pub category: String,
     /// The display name that the operating system gives for the workflow's app, if it gives one;
-    /// never the app id or a part of it.
+    /// never the app id or a part of it, and none for a workflow set up by hand.
     pub app: Option<String>,
     pub site: Option<String>,
     /// The ids of the summaries that support the workflow, in ascending order.
@@ -90,18 +93,20 @@ pub struct Listed {
 
 impl Listed {
     /// One item of a page of the read `workflows`. The app is the name that `app_name` gives for
-    /// the workflow's app id, none where it gives none. The site is the domain of a workflow whose
-    /// site is a domain, and the item's hint for a site that comes from a window title.
+    /// the workflow's app id, none where it gives none and for a workflow set up by hand, whose
+    /// app id names no app. The site is the domain of a workflow whose site is a domain, and the
+    /// item's hint for a site that comes from a window title.
     fn of(item: &WorkflowItem, app_name: &dyn Fn(&str) -> Option<String>) -> Listed {
-        let (id, proposed, category, site, app) = match &item.workflow {
+        let (id, proposed, by_hand, category, site, app) = match &item.workflow {
             Workflow::Full(w) => (
                 &w.id,
                 w.state == WorkflowState::Proposed,
+                w.trigger == Trigger::Manual,
                 w.category,
                 &w.site,
                 &w.app,
             ),
-            Workflow::Dismissed(w) => (&w.id, false, w.category, &w.site, &w.app),
+            Workflow::Dismissed(w) => (&w.id, false, false, w.category, &w.site, &w.app),
         };
         let site = match site {
             Some(SiteValue::Domain { key, .. }) => Some(key.as_str().to_string()),
@@ -113,8 +118,13 @@ impl Listed {
         Listed {
             id: id.as_str().to_string(),
             proposed,
+            by_hand,
             category: category.as_str().to_string(),
-            app: app_name(app.as_str()),
+            app: if by_hand {
+                None
+            } else {
+                app_name(app.as_str())
+            },
             site,
             summaries: item
                 .summaries
@@ -150,8 +160,9 @@ pub fn proposals(listed: &[Listed]) -> Vec<&Listed> {
         .collect()
 }
 
-/// A row of the page: the workflow id, the category id, the app's display name, the site and the
-/// number of supporting summaries. The page composes the text from them.
+/// A row of the page: the workflow id, the category id, the app's display name, the site, the
+/// number of supporting summaries and whether the person set the workflow up by hand. The page
+/// composes the text from them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Row {
     pub id: String,
@@ -159,6 +170,7 @@ pub struct Row {
     pub app: Option<String>,
     pub site: Option<String>,
     pub count: usize,
+    pub by_hand: bool,
 }
 
 impl Row {
@@ -169,6 +181,7 @@ impl Row {
             app: w.app.clone(),
             site: w.site.clone(),
             count: w.summaries.len(),
+            by_hand: w.by_hand,
         })
     }
 }
