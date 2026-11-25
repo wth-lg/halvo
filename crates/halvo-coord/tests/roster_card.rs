@@ -35,6 +35,7 @@ fn payment() -> PastEffect {
             kept("instrument", "Card ending 4242"),
             kept("origin", "https://site1.example:443"),
         ],
+        page: None,
     }
 }
 
@@ -228,6 +229,7 @@ fn rd48h_a_card_holds_the_entries_of_two_classes_in_the_order_of_the_reply() {
             name: Name::parse("to").unwrap(),
             value: vec!["Ann Lee".into()],
         }],
+        page: None,
     };
     for (first, second) in [(payment(), send.clone()), (send.clone(), payment())] {
         let keys = |e: &PastEffect| format!("run.effect.{}", e.class.name());
@@ -466,6 +468,7 @@ fn rejected(n: u32, d: &str) -> PastEffect {
         state: EffectState::Rejected,
         cause: None,
         kept: vec![one_kept("to", "Ann Lee")],
+        page: None,
     }
 }
 

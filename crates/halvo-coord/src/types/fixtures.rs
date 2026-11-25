@@ -1202,7 +1202,10 @@ mod tests {
         let paid = &newer.effects[0];
         assert_eq!(
             (paid.key().as_str(), paid.text()),
-            ("run.effect.payment", "It made this payment.")
+            (
+                "run.effect.payment",
+                "It sent this payment, and the site's page afterwards showed the amount you allowed."
+            )
         );
         let fields: Vec<(&str, &[String], FieldFrom)> = paid
             .fields()

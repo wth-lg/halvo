@@ -287,6 +287,14 @@ fn expected_keys() -> BTreeSet<String> {
         k.insert(format!("run.effect.{class}.unknown"));
     }
     k.insert("run.effect.unknown".to_owned());
+    for class in ["payment", "purchase"] {
+        for end in ["amount_differs", "amount_unread", "page_unread"] {
+            k.insert(format!("run.effect.{class}.{end}"));
+        }
+        for field in ["amount_allowed", "page_amount"] {
+            k.insert(format!("field.{class}.{field}"));
+        }
+    }
     k.insert("line.run.stopped".to_owned());
     for key in [
         "line.quitting",
@@ -541,7 +549,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 378);
+    assert_eq!(seen.len(), 388);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -799,11 +807,11 @@ fn u24q_the_six_partial_texts_stand_word_for_word() {
     pinned(&[
         (
             "run.effect.payment.partial",
-            "It made this payment, but Halvo shows only the details it could read.",
+            "It sent this payment, but Halvo shows only the details it could read.",
         ),
         (
             "run.effect.purchase.partial",
-            "It placed this order, but Halvo shows only the details it could read.",
+            "It sent this order, but Halvo shows only the details it could read.",
         ),
         (
             "run.effect.send.partial",

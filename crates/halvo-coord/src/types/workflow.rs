@@ -232,4 +232,25 @@ pub struct PastEffect {
     pub cause: Option<Name>,
     /// `kept`.
     pub kept: Vec<Kept>,
+    /// What Halvo found on the site's page after a payment or an order left, the keys
+    /// `page_cause` and `page_amount` of the agents run's read, or none (r4 U3.29).
+    pub page: Option<PageCause>,
+}
+
+/// What Halvo found on the site's page after a committed payment or order, as the agents run's
+/// read names it on the effect (r4 U3.29): its key `page_cause`, with the page's amount in minor
+/// units of its key `page_amount` beside `amount_differs` alone. A null cause, a missing key and a
+/// name that the read does not list are no `PageCause`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PageCause {
+    /// `amount_differs`: the page's amount could not be matched to the allowed amount, with the
+    /// first such amount in minor units, or none where the read holds none.
+    AmountDiffers {
+        /// `page_amount`.
+        amount: Option<u32>,
+    },
+    /// `amount_unread`: the page named no amount that Halvo reads.
+    AmountUnread,
+    /// `page_unread`: Halvo could not read the page.
+    PageUnread,
 }

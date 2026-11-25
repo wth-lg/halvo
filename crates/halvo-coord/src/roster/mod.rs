@@ -993,8 +993,8 @@ fn shown_end(events: &[Event], run: &PastRun) -> RunEnd {
 /// that `shown_end` gives, except that a `declined` run with no effect that the person refused
 /// and no no at its sign-in question (`said_no_at_sign_in`) has the neutral `line.run.stopped`
 /// (ruling RD-85 item 3); and, in the order of the reply, one
-/// entry for each committed effect, by `CardEffect::committed` or, where that refuses it,
-/// `CardEffect::unshown`, for each effect whose last row is `rejected` with a null cause, by
+/// entry for each committed effect, by `CardEffect::sent` with what the agents run's read names of
+/// the site's page afterwards (r4 U3.29) or, where that refuses it, `CardEffect::unshown`, for each effect whose last row is `rejected` with a null cause, by
 /// `CardEffect::not_done`, and for each effect whose last state is `unknown`, whatever its
 /// cause, by `CardEffect::unknown` (ruling RD-126 item 10).
 fn card_run(events: &[Event], h: &RunHistory) -> Result<CardRun, Cause> {
@@ -1003,7 +1003,7 @@ fn card_run(events: &[Event], h: &RunHistory) -> Result<CardRun, Cause> {
     for e in &h.effects {
         match (e.state, &e.cause) {
             (EffectState::Committed, _) => effects.push(
-                CardEffect::committed(e.class, &e.kept)
+                CardEffect::sent(e.class, &e.kept, e.page)
                     .or_else(|_| CardEffect::unshown(e.class, &e.kept))?,
             ),
             (EffectState::Rejected, None) => {

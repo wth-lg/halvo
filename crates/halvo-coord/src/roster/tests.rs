@@ -455,3 +455,83 @@ fn u323_on_a_day_with_all_its_starts_used_the_row_offers_no_start_now() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// r4 U3.29 sentence 2: the card's entry of a payment or an order that left says what the site's
+/// page afterwards gave, from the two keys of the agents run's read on its effect, to the letter of
+/// the ruled rows (the coordinator's log lines 20376, 20377 and 20492): no cause, row 1; the amount
+/// could not be matched, row 2 with the amount that the person allowed under row 9 and the page's
+/// amount under row 10 as digits, a point and two decimals; no amount found, row 11; the page
+/// could not be read, row 12; row 9's label in the last three alone; each for an order in its
+/// twin's words.
+#[test]
+fn u329_the_card_says_what_the_page_after_a_payment_or_an_order_gave() {
+    use crate::types::{Digest, EffectId, Name, Outcome, PageCause};
+    let base = facts(State::Card).remove(0);
+    let kept = |name: &str, value: &str| Kept {
+        name: Name::parse(name).unwrap(),
+        value: vec![value.into()],
+    };
+    let differs = PageCause::AmountDiffers { amount: Some(1334) };
+    let rows = [
+        (Class::Payment, None, "It sent this payment, and the site's page afterwards showed the amount you allowed.", vec![("Pay to", "City Power"), ("Amount", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Payment, Some(differs), "It sent this payment, but Halvo could not match the amount on the site's page afterwards to the one you allowed. Check your bank or the site to see what was paid.", vec![("Pay to", "City Power"), ("Amount you allowed", "42.10 USD"), ("Amount on the site's page afterwards", "13.34"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Payment, Some(PageCause::AmountUnread), "It sent this payment, but Halvo found no amount on the site's page afterwards. Check your bank or the site to see whether it was paid, and how much.", vec![("Pay to", "City Power"), ("Amount you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Payment, Some(PageCause::PageUnread), "It sent this payment, but Halvo could not read the site's page afterwards. Check your bank or the site to see whether it was paid, and how much.", vec![("Pay to", "City Power"), ("Amount you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Purchase, None, "It sent this order, and the site's page afterwards showed the total you allowed.", vec![("Shop", "City Power"), ("Total", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Purchase, Some(differs), "It sent this order, but Halvo could not match the total on the site's page afterwards to the one you allowed. Check the shop's order page to see what was ordered, and for how much.", vec![("Shop", "City Power"), ("Total you allowed", "42.10 USD"), ("Total on the site's page afterwards", "13.34"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Purchase, Some(PageCause::AmountUnread), "It sent this order, but Halvo found no total on the site's page afterwards. Check the shop's order page to see whether it was placed, and for how much.", vec![("Shop", "City Power"), ("Total you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+        (Class::Purchase, Some(PageCause::PageUnread), "It sent this order, but Halvo could not read the site's page afterwards. Check the shop's order page to see whether it was placed, and for how much.", vec![("Shop", "City Power"), ("Total you allowed", "42.10 USD"), ("Pay with", "Card ending 4242"), ("Site", "site1.example")]),
+    ];
+    let mut wrong = Vec::new();
+    for (class, page, text, fields) in rows {
+        let first = if class == Class::Payment {
+            "payee"
+        } else {
+            "seller"
+        };
+        let history = [RunHistory {
+            run: PastRun {
+                run: RunId::parse(&format!("{:032x}", 0x7901)).unwrap(),
+                day: base.today,
+                outcome: Outcome::Completed,
+                unknown: 0,
+            },
+            effects: vec![PastEffect {
+                effect: EffectId::parse(&format!("{:032x}", 0x7902)).unwrap(),
+                digest: Digest::parse(&"ab".repeat(32)).unwrap(),
+                class,
+                state: EffectState::Committed,
+                cause: None,
+                kept: vec![
+                    kept(first, "City Power"),
+                    kept("amount", "42.10 USD"),
+                    kept("instrument", "Card ending 4242"),
+                    kept("origin", "https://site1.example:443"),
+                ],
+                page,
+            }],
+        }];
+        let c = card(&base, NAME, &history, &Limits::PRODUCT).unwrap();
+        let entry = &c.runs[0].effects[0];
+        let got: Vec<(&str, String, &str)> = entry
+            .fields()
+            .iter()
+            .map(|f| (f.label.as_str(), f.value.concat(), f.from_text.as_str()))
+            .collect();
+        let want: Vec<(&str, String, &str)> = fields
+            .iter()
+            .map(|(label, value)| {
+                let from = match *label {
+                    "Pay to" | "Shop" | "Pay with" => "You gave this",
+                    "Site" => "Set by Halvo",
+                    _ => "From the site",
+                };
+                (*label, (*value).to_owned(), from)
+            })
+            .collect();
+        if entry.text() != text || got != want {
+            wrong.push(format!("{class} {page:?}: {:?} {got:?}", entry.text()));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}

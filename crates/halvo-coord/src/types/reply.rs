@@ -1,5 +1,6 @@
+use super::YesNo;
 use super::{AgentId, CandidateFrom, Cause, Choice, Class, Control, FieldFrom, ItemId, ItemKind};
-use super::{HistoryRead, Kept, LineKey, Origin, Param, Presenter, Status, WorkflowId, YesNo};
+use super::{HistoryRead, Kept, LineKey, Origin, PageCause, Param, Presenter, Status, WorkflowId};
 use crate::items::{field_from, kept_source};
 use crate::ports::{Refused, Shared};
 use crate::words;
@@ -273,7 +274,7 @@ pub struct CardLine {
 /// assert_eq!(
 ///     serde_json::to_string(&run).unwrap(),
 ///     concat!(
-///         r#"{"day":"24 October 2026","text":"It finished the task.","effects":[{"key":"run.effect.payment","text":"It made this payment.","fields":["#,
+///         r#"{"day":"24 October 2026","text":"It finished the task.","effects":[{"key":"run.effect.payment","text":"It sent this payment, and the site's page afterwards showed the amount you allowed.","fields":["#,
 ///         r#"{"label":"Pay to","value":["City Power"],"from":"you","from_text":"You gave this"},"#,
 ///         r#"{"label":"Amount","value":["42.10 USD"],"from":"site","from_text":"From the site"},"#,
 ///         r#"{"label":"Pay with","value":["Card ending 4242"],"from":"you","from_text":"You gave this"},"#,
@@ -302,8 +303,8 @@ pub struct CardLine {
 ///         .collect()
 /// };
 /// let texts = [
-///     (Class::Payment, &["payee", "amount", "instrument", "origin"][..], "It made this payment.", 4),
-///     (Class::Purchase, &["seller", "amount", "instrument", "origin"][..], "It placed this order.", 4),
+///     (Class::Payment, &["payee", "amount", "instrument", "origin"][..], "It sent this payment, and the site's page afterwards showed the amount you allowed.", 4),
+///     (Class::Purchase, &["seller", "amount", "instrument", "origin"][..], "It sent this order, and the site's page afterwards showed the total you allowed.", 4),
 ///     (Class::Send, &["to"][..], "It sent this message.", 1),
 ///     (Class::Delete, &["items"][..], "It removed this.", 0),
 ///     (Class::Submit, &["origin"][..], "It sent this form.", 1),
@@ -478,6 +479,11 @@ fn shows_nothing(value: &[String]) -> bool {
 /// none where the kept value or its shown part shows nothing (`shows_nothing`), which is no
 /// value; `malformed` where a piece of the shown value would hold more than 1,024 bytes (I3.4).
 fn kept_field(class: Class, k: &Kept) -> Result<Option<Field>, Cause> {
+    kept_field_as(class, k, k.name.as_str())
+}
+
+/// The kept field `k` as `kept_field` shows it, under the label `field.<class>.<label>`.
+fn kept_field_as(class: Class, k: &Kept, label: &str) -> Result<Option<Field>, Cause> {
     let name = k.name.as_str();
     let from = field_from(kept_source(class, name).ok_or(Cause::Malformed)?);
     if shows_nothing(&k.value) {
@@ -495,7 +501,7 @@ fn kept_field(class: Class, k: &Kept) -> Result<Option<Field>, Cause> {
         return Err(Cause::Malformed);
     }
     Ok(Some(Field {
-        label: words::text(&format!("field.{}.{name}", class.name()), &[])?,
+        label: words::text(&format!("field.{}.{label}", class.name()), &[])?,
         value,
         from,
         from_text: words::text(&format!("from.{}", from.name()), &[])?,
@@ -552,6 +558,53 @@ impl CardEffect {
             fields.extend(kept_field(class, k)?);
         }
         let key = format!("run.effect.{}", class.name());
+        Ok(CardEffect {
+            class,
+            text: words::text(&key, &[])?,
+            key,
+            fields,
+        })
+    }
+
+    /// The entry of a committed effect of `class` on which the agents run's read names what the
+    /// site's page afterwards gave, `page` (r4 U3.29, rows 1, 2, 11 and 12 of the ruled words of
+    /// the coordinator's log lines 20376, 20377 and 20492): for a `payment` or a `purchase` with a
+    /// cause, `run.effect.<class>.<cause>` with the kept fields as `committed` shows them, but the
+    /// amount under `field.<class>.amount_allowed` and, beside `amount_differs`, the page's amount
+    /// right after it under `field.<class>.page_amount`, written as digits, a point and two
+    /// decimals with no currency sign, and left out where the read holds none; with no cause, or
+    /// for another class, the entry of `committed`. `malformed` where `committed` refuses the kept
+    /// fields.
+    pub fn sent(class: Class, kept: &[Kept], page: Option<PageCause>) -> Result<CardEffect, Cause> {
+        let plain = CardEffect::committed(class, kept)?;
+        let Some(page) = page.filter(|_| matches!(class, Class::Payment | Class::Purchase)) else {
+            return Ok(plain);
+        };
+        let case = match page {
+            PageCause::AmountDiffers { .. } => "amount_differs",
+            PageCause::AmountUnread => "amount_unread",
+            PageCause::PageUnread => "page_unread",
+        };
+        let mut fields = Vec::new();
+        for k in kept {
+            if k.name.as_str() != "amount" {
+                fields.extend(kept_field(class, k)?);
+                continue;
+            }
+            fields.extend(kept_field_as(class, k, "amount_allowed")?);
+            if let PageCause::AmountDiffers {
+                amount: Some(minor),
+            } = page
+            {
+                fields.push(Field {
+                    label: words::text(&format!("field.{}.page_amount", class.name()), &[])?,
+                    value: vec![format!("{}.{:02}", minor / 100, minor % 100)],
+                    from: FieldFrom::Site,
+                    from_text: words::text("from.site", &[])?,
+                });
+            }
+        }
+        let key = format!("run.effect.{}.{case}", class.name());
         Ok(CardEffect {
             class,
             text: words::text(&key, &[])?,

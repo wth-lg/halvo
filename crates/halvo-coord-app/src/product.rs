@@ -1356,6 +1356,7 @@ fn history_of(run: &Value) -> Option<RunHistory> {
                     c => Some(Name::parse(c.as_str()?).ok()?),
                 },
                 kept: kept_of(&e["kept"])?,
+                page: None,
             })
         })
         .collect::<Option<Vec<_>>>()?;
