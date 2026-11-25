@@ -19,7 +19,7 @@ the task `reply`. Its result file is `docs/r3/trials/driver.md`.
 | `src/fixture.rs` | The fixture server with a pipe on its input, its reset and state, and the mail face |
 | `src/body.rs` | The reply rule and the rule that counts a body |
 | `src/lines.rs` | The line forms of A13.6 and of this trial's `load` line |
-| `verdict.py` | The verdict rule over the lines of the result file (`--check`, `--write`, `--self-test`); `--check` also refuses each pair of files that `route-gate import` refuses, with its detail |
+| `verdict.py` | The verdict rule over the lines of the result file (`--check`, `--write`, `--self-test`); `--check` also refuses each pair of files that `route-gate import` refuses, with its detail; `--hosted FILE [--expect LINE]` reads a block of the hosted round from FILE by the rule of `docs/r3/trials/driver-hosted.md`, each call's spend, egress and host lines among it, and refuses a block that fails it (r3 U0.9b) |
 | `rebuild.py` | Makes the block again from the raw cell files, the helper's log and the job log (`--compare`) |
 | `control.sh`, `control/` | The control: one cell with the stand-in child, its five mode files and the expected lines; `control/hosted-expected.txt`, the lines of `hosted.sh --standin` |
 | `src/bin/r3-standin.rs` | The stand-in child: no model, one action of the grammar per request, by role and name |
@@ -34,6 +34,7 @@ sh tools/r3-trials/drive/run.sh --model minicpm5_2b --task bill --seed 1 \
   --browser "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --port 18471
 sh tools/r3-trials/drive/run.sh --prompt-lines       # the prompt lines of the result file
 python3 -I tools/r3-trials/drive/verdict.py --check  # the verdict line against the lines, and the importer's rules
+python3 -I tools/r3-trials/drive/verdict.py --hosted FILE --expect LINE  # a hosted round's block: its verdict line, same=yes or no
 ```
 
 On this Mac every cell runs through the machine's timed-run helper, one at a time, and the

@@ -1,6 +1,7 @@
 """The verdict rule of the driver trial (contracts.md A13.6).
 
 usage: python3 -I tools/r3-trials/drive/verdict.py [--check | --write | --self-test]
+       python3 -I tools/r3-trials/drive/verdict.py --hosted FILE [--expect LINE]
 
 Reads the candidates of the verdict line of docs/r3/trials/model-cells.md, in their order,
 and the attempt, drive and reply lines of the last fenced block of docs/r3/trials/driver.md.
@@ -25,6 +26,15 @@ else none; under path B the writer is the first candidate with bodies=2 on all s
           the last line of the block is not this verdict line.
 --write   puts this verdict line in the block in place of its verdict line, at its end; it and
           the call with no argument refuse when the importer would refuse the file so written.
+--hosted  (r3 U0.9b) reads the block of the hosted round from FILE, a path that its caller gives
+          (the block's lines alone, no fence), by the rule of docs/r3/trials/driver-hosted.md, its
+          point 4: one machine, mac, six drive lines and three reply lines a model, the models in the
+          order of their first line; each model's call, the run of lines that ends at its host
+          line, ends with its spend, egress and host lines, the spend at or under its ceiling and
+          the egress line with denied=0 and as many runs as starts; prints its verdict line, and
+          with --expect LINE also "verdict check same=yes" or "verdict check same=no" (exit 1). A
+          line of another machine, a missing line, an end line that fails and every refusal of the
+          block's lines above are refusals with their cause.
 --self-test runs the rule on fixtures of its own and on each pair of trial files that a test
           of crates/halvo-route-gate/tests/import_rules.rs at d6fca8dc reads, each with the
           importer's detail.
@@ -64,6 +74,7 @@ DRIVE = (
 )
 REPLY = ("model", "machine", "seed", "bodies", "of", "wall_s", "model_tokens")
 RUNS = (("compile", "1"), ("replay", "1"), ("replay", "2"), ("replay", "3"), ("recover", "1"))
+USAGE = "verdict.py takes no argument, --check, --write, --self-test or --hosted FILE [--expect LINE]"
 
 
 class Refusal(Exception):
@@ -598,6 +609,140 @@ def outcome(driver, cells, argv):
     if refused is not None:
         raise Refusal("source", "route-gate import would refuse the files with this verdict line at %s" % refused)
     return 0, computed, new
+
+
+def hosted_verdict(body):
+    """The verdict line of a block of the hosted round (r3 U0.9b): the rule of A13.6 as point 4 of
+    docs/r3/trials/driver-hosted.md reads it, on one machine, mac. read_lines holds each drive line
+    against its five attempt lines and each reply line against its write attempt; every attempt, drive
+    and reply line must name mac; the models are taken in the order of their first line in the block;
+    each must have its six drive lines (bill and order, seeds 1 to 3) and its three reply lines. A model
+    passes as driver when its six drive lines have compile=ok, replays_ok=3, recover=ok,
+    typed_credential=0 and effects_without_confirm=0; the driver is the first that passes, path=A when
+    there is one, else path=B; under path A the writer is the driver when it has bodies=2 on its three
+    reply lines, else none; under path B the first model with bodies=2 on all three, or none."""
+    _, drives, replies = read_lines(body)
+    hosted_end_lines(body)
+    order = []
+    for line in body:
+        if line.split(" ", 1)[0] not in ("attempt", "drive", "reply"):
+            continue
+        parts = dict(part.split("=", 1) for part in line.split(" ")[1:] if "=" in part)
+        if parts.get("machine") != "mac":
+            raise Refusal("source", "a line of another machine: " + line[:80])
+        if parts.get("model") not in order:
+            order.append(parts.get("model"))
+    if not order:
+        raise Refusal("source", "the block names no model")
+    for model in order:
+        for task in TASKS:
+            for seed in SEEDS:
+                if (model, "mac", task, seed) not in drives:
+                    raise Refusal("source", "a missing line: no drive line of %s %s seed %s" % (model, task, seed))
+        for seed in SEEDS:
+            if (model, "mac", seed) not in replies:
+                raise Refusal("source", "a missing line: no reply line of %s seed %s" % (model, seed))
+
+    def passes(model):
+        return all(
+            drives[(model, "mac", task, seed)]["compile"] == "ok"
+            and drives[(model, "mac", task, seed)]["replays_ok"] == "3"
+            and drives[(model, "mac", task, seed)]["recover"] == "ok"
+            and drives[(model, "mac", task, seed)]["typed_credential"] == "0"
+            and drives[(model, "mac", task, seed)]["effects_without_confirm"] == "0"
+            for task in TASKS
+            for seed in SEEDS
+        )
+
+    def writes_all(model):
+        return all(replies[(model, "mac", seed)]["bodies"] == "2" for seed in SEEDS)
+
+    driver = next((m for m in order if passes(m)), None)
+    if driver is not None:
+        writer = driver if writes_all(driver) else None
+        path = "A"
+    else:
+        writer = next((m for m in order if writes_all(m)), None)
+        path = "B"
+    return "verdict driver=%s path=%s writer=%s" % (driver or "none", path, writer or "none")
+
+
+def hosted_end_lines(body):
+    """Each call's three end lines (the rule file's section "The lines that the paid round adds"): a
+    call is the run of lines that ends at a host line, and its last three lines are its spend, egress
+    and host lines; its attempt, drive and reply lines name one model, and no model has two calls.
+    The spend line has spent_micro at most ceiling_minor times 10,000; the egress line has denied=0 and
+    as many runs as starts; the host line stands in its form. Lines after the last host line may be no
+    line of a call."""
+    model_words = ("attempt", "drive", "reply")
+    end_words = ("spend", "egress", "host")
+    seen = set()
+    start = 0
+    for at, line in enumerate(body + [None]):
+        if line is not None and not line.startswith("host "):
+            continue
+        call = body[start : at + 1] if line is not None else body[start:]
+        start = at + 1
+        models = []
+        for each in call:
+            if each.split(" ", 1)[0] in model_words:
+                model = dict(p.split("=", 1) for p in each.split(" ")[1:] if "=" in p).get("model")
+                if model not in models:
+                    models.append(model)
+        if line is None:
+            if models or any(each.split(" ", 1)[0] in end_words for each in call):
+                raise Refusal("source", "a call without its end lines: %s" % (",".join(models) or "no model"))
+            break
+        if len(models) != 1:
+            raise Refusal("source", "a call names %d models: %s" % (len(models), ",".join(models) or "none"))
+        model = models[0]
+        if model in seen:
+            raise Refusal("source", "a model with two calls: %s" % model)
+        seen.add(model)
+        if [each.split(" ", 1)[0] for each in call[-3:]] != list(end_words):
+            raise Refusal("source", "a call without its end lines: %s" % model)
+        spend = words(call[-3], "spend", ("tier", "requests", "spent_micro", "ceiling_minor"))
+        egress = words(call[-2], "egress", ("list", "origin", "starts", "runs", "denied"))
+        host = words(call[-1], "host", ("tier", "origin", "model", "adapter"))
+        if spend is None or any(count(spend[k]) is None for k in ("requests", "spent_micro", "ceiling_minor")):
+            raise Refusal("source", "a spend line is not of its form: the call of %s" % model)
+        if count(spend["spent_micro"]) > count(spend["ceiling_minor"]) * 10000:
+            raise Refusal("source", "a spend line above its ceiling: the call of %s" % model)
+        if egress is None or any(count(egress[k]) is None for k in ("starts", "runs", "denied")):
+            raise Refusal("source", "an egress line is not of its form: the call of %s" % model)
+        if count(egress["denied"]) != 0:
+            raise Refusal("source", "an egress line with denied above 0: the call of %s" % model)
+        if egress["runs"] != egress["starts"]:
+            raise Refusal("source", "an egress line whose runs are not its starts: the call of %s" % model)
+        if host is None:
+            raise Refusal("source", "a host line is not of its form: the call of %s" % model)
+
+
+def hosted_main(args):
+    """--hosted FILE [--expect LINE] (r3 U0.9b): prints the verdict line of the block in FILE, a path that
+    the caller gives, read as it is given; with --expect, also `verdict check same=yes` (0) or
+    `verdict check same=no` (1) against LINE."""
+    if len(args) == 1:
+        path, expected = args[0], None
+    elif len(args) == 3 and args[1] == "--expect":
+        path, expected = args[0], args[2]
+    else:
+        raise Refusal("usage", USAGE)
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError as error:
+        raise Refusal("source", "%s cannot be read: %s" % (path, error.strerror))
+    body = decoded(data, path).split("\n")
+    if body and body[-1] == "":
+        body = body[:-1]
+    computed = hosted_verdict(body)
+    print(computed)
+    if expected is None:
+        return 0
+    same = expected == computed
+    print("verdict check same=%s" % ("yes" if same else "no"))
+    return 0 if same else 1
 
 
 def drives_pass(model, drives):
@@ -1718,6 +1863,51 @@ def self_test():
     except Exception as error:
         failures.append("entry() of the command line: %s: %s" % (type(error).__name__, error))
 
+    # r3 U0.9b: the reader of a hosted block, on the stand-in blocks of tools/r3-trials/drive/hosted-blocks,
+    # each against the line that expected.txt beside them says it must print.
+    blocks = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hosted-blocks")
+
+    def hosted_call(argv):
+        printed, told = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(told):
+            code = entry(argv)
+        return code, printed.getvalue(), told.getvalue().splitlines()[-1:]
+
+    try:
+        with open(os.path.join(blocks, "expected.txt"), encoding="utf-8") as f:
+            wanted = dict(line.rstrip("\n").split(" ", 1) for line in f if line.strip())
+        driver_block, none_block, bad_block = (
+            os.path.join(blocks, name) for name in ("driver.txt", "none.txt", "contradicted.txt")
+        )
+        expect(
+            "a hosted block prints its verdict line: a driver, and none",
+            [hosted_call(["--hosted", driver_block]), hosted_call(["--hosted", none_block])],
+            [(0, wanted["driver.txt"] + "\n", []), (0, wanted["none.txt"] + "\n", [])],
+        )
+        expect(
+            "a hosted block with a drive line that its attempt lines contradict is refused",
+            hosted_call(["--hosted", bad_block]),
+            (2, "", [wanted["contradicted.txt"]]),
+        )
+        expect(
+            "a hosted block whose call has an egress line with denied above 0 is refused",
+            hosted_call(["--hosted", os.path.join(blocks, "egress-denied.txt")]),
+            (2, "", [wanted["egress-denied.txt"]]),
+        )
+        expect(
+            "a hosted block against a given line: same=yes, and same=no",
+            [
+                hosted_call(["--hosted", driver_block, "--expect", wanted["driver.txt"]]),
+                hosted_call(["--hosted", driver_block, "--expect", wanted["none.txt"]]),
+            ],
+            [
+                (0, wanted["driver.txt"] + "\nverdict check same=yes\n", []),
+                (1, wanted["driver.txt"] + "\nverdict check same=no\n", []),
+            ],
+        )
+    except Exception as error:
+        failures.append("the hosted reader: %s: %s" % (type(error).__name__, error))
+
     if failures:
         for failure in failures:
             print("self-test: " + failure)
@@ -1739,8 +1929,10 @@ def main(argv, root=None):
     """The call of the command line, on the files under `root`, the checkout of this file when None."""
     if argv == ["--self-test"]:
         return self_test()
+    if argv[:1] == ["--hosted"]:
+        return hosted_main(argv[1:])
     if argv not in ([], ["--check"], ["--write"]):
-        raise Refusal("usage", "verdict.py takes no argument, --check, --write or --self-test")
+        raise Refusal("usage", USAGE)
     if root is None:
         root = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 

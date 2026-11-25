@@ -4,7 +4,13 @@ This file holds the rule of the ONE paid round of the driver trial of contract A
 host, written before that round runs. It holds no result line. The round is made by
 `sh tools/r3-trials/drive/hosted.sh` (README.md of `tools/r3-trials/drive` says how), and its lines
 go into a block of their own, which this file does not hold yet. The result of the first trial,
-`docs/r3/trials/driver.md`, stands and does not change.
+`docs/r3/trials/driver.md`, stands and does not change. REVISION OF 2026-11-25 BY r3 U0.9b, of the
+two sentences before it on a result line and on the block: the block of the round lies outside the
+tree, because it holds the lines of one machine's run. This file holds, under the heading "The
+round's block" at its end, the block's sha256, its count of lines and its verdict line, and no other
+line of the block. `python3 -I tools/r3-trials/drive/verdict.py --hosted FILE` reads such a block by
+the verdict rule of A13.6 as point 4 below reads it. The verdict line stands by the coordinator's line
+alone.
 
 ## The verdict rule of A13.6, word for word
 
@@ -140,3 +146,9 @@ A verdict line stands only beside the control of this harness at the same commit
 which walks each task as a right driver would and reads as expected, and which answers the round's
 first ask with the stop reason `max_tokens`, its second with `refusal` and the first ask for a reply
 body with `max_tokens`, so that the control's lines show both ends counted apart.
+
+## The round's block
+
+- sha256 300c17cfdf367b9671ccf2ec33f4d9fc8d4b51e62ff80a99c7dad01a14e8f18b
+- lines 179
+- verdict driver=claude_opus_5_5 path=A writer=claude_opus_5_5
