@@ -26,7 +26,7 @@ use crate::model::ask;
     not(test),
     expect(
         dead_code,
-        reason = "no shipped build asks the router until r3 U7.2b's compile asks with Compile and r3 U7.4's writer with Write"
+        reason = "no shipped code makes the variant Compile; r3 U7.2b makes it live"
     )
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -119,7 +119,7 @@ pub(crate) fn test_policy(cells: &[&str]) -> &'static Policy {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use halvo_schema::{AgentId, Category, WorkflowId};
 
     use super::*;
@@ -144,7 +144,7 @@ mod tests {
     }
 
     /// The release policy's text with `cells` in the place of the rows of their category and kind.
-    fn policy_with(cells: &[&str]) -> &'static Policy {
+    pub(crate) fn policy_with(cells: &[&str]) -> &'static Policy {
         let mut text = policy().to_text();
         for cell in cells {
             let head: Vec<&str> = cell.split('\t').take(2).collect();

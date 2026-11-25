@@ -12,18 +12,20 @@ use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, ExecutableStep};
 
-use super::{body, slot};
+use super::{body_of, slot};
+use crate::model::write::Body;
 use crate::release::{Left, MakerFacts, Paused, Replied, Reply};
 use crate::run::{Failure, Runner};
 
 /// The send of one draft: the adapter and the token of the send step, the draft's handle, the reply that it sends,
-/// its subject as the PATCH answered it, and the facts of the run's own list.
+/// its subject as the PATCH answered it, its body as the draft step wrote it, and the facts of the run's own list.
 struct SendReply {
     graph: Rc<Graph>,
     token: Rc<Token>,
     draft: DraftToSend,
     reply: Reply,
     subject: String,
+    body: Body,
     facts: MakerFacts,
 }
 
@@ -45,7 +47,8 @@ impl Paused for SendReply {
     }
 
     /// `to`, the sender of the message as the run's own `mail_list` gave it (A5.1, CP-146 (1)); `subject`, the
-    /// draft's as the PATCH answered it; and `body`, the reply's fallback line. The object holds no slot, so the
+    /// draft's as the PATCH answered it; and `body`, the body that the draft step wrote, with the source `model` for a
+    /// writer's text and `const` for the const text. The object holds no slot, so the
     /// slots of a later load change nothing.
     fn bound(&mut self, _slots: &[Slot]) -> Result<Bound, Cause> {
         Bound::new(
@@ -53,7 +56,7 @@ impl Paused for SendReply {
             vec![
                 field(FieldName::To, Source::Extract, &self.reply.sender),
                 field(FieldName::Subject, Source::Extract, &self.subject),
-                field(FieldName::Body, Source::Const, body()),
+                field(FieldName::Body, self.body.source, &self.body.text),
             ],
         )
         .map_err(|_| Cause::StepFailed)
@@ -132,6 +135,7 @@ impl Runner {
             let Some((_, sender)) = self.lists.senders.iter().find(|(id, _)| *id == message) else {
                 return Err(Failure::Step(Cause::Adapter));
             };
+            let body = body_of(&self.lists.bodies, &message);
             let reply = Reply {
                 step: step.n,
                 draft: draft.draft().id().to_owned(),
@@ -143,6 +147,7 @@ impl Runner {
                 graph: Rc::clone(&graph),
                 token: Rc::clone(&token),
                 subject: draft.draft().subject().to_owned(),
+                body,
                 draft,
                 reply,
                 facts: facts.clone(),

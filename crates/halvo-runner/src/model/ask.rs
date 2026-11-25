@@ -71,6 +71,13 @@ impl std::fmt::Debug for Key {
 }
 
 /// The grammar of a request line (A12.2): an action, or a text.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the writer of r3 U7.4 asks with Text alone; no shipped build asks with Action until r3 U7.2b's compile"
+    )
+)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Grammar {
     Action,
@@ -234,7 +241,7 @@ fn door_env() -> Option<Vec<(OsString, OsString)>> {
 
 /// The request line of A12.2 for `request` with the id `id`: one JSON object of the six keys in the contract's
 /// order.
-fn request_line(id: u64, request: &ModelRequest) -> String {
+pub(super) fn request_line(id: u64, request: &ModelRequest) -> String {
     let text = |s: &str| serde_json::Value::String(s.to_owned()).to_string();
     let snapshot = request
         .snapshot

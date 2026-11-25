@@ -340,10 +340,11 @@ names! {
     /// the nine from `no_workbook` to `read_only` are the names of the agents run's unit r3 U11.3,
     /// `no_access` is the name of its unit r3 U11.4 (r4 U3.22d), `data_encoding` that of its unit
     /// r3 U11.5, and `two_sheets` and `data_narrow` those of its unit r3 U11.9 (r4 U3.28). The next
-    /// three, `no_agreement`, `no_model_key` and `over_cap`, are the causes of a compile that handed
-    /// its work back before anything was sent to a model's host (the agents run's unit r3 U7.2a),
-    /// which the roster says for a run that ended `handed_back` alone (`roster::MODEL_CAUSES`). The
-    /// last three are the ends of a run that paid or ordered (r4 U3.29), which the reader takes only
+    /// three, `no_agreement`, `no_model_key` and `over_cap`, are the causes of a run that handed its
+    /// work back before anything was sent to a model's host (the agents run's units r3 U7.2a and
+    /// r3 U7.4), which the roster says for a run that ended `handed_back` alone
+    /// (`roster::MODEL_CAUSES`). The last three are the ends of a run that paid or ordered
+    /// (r4 U3.29), which the reader takes only
     /// beside the key `left` of the same entry, whether a payment or an order of that run left:
     /// `amount_differs` with `left` `yes`, the page's amount afterwards could not be matched to the
     /// allowed amount; `page_unread` with `left` `yes`, the page afterwards could not be read; and
