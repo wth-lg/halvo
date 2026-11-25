@@ -442,85 +442,145 @@ fn stands_in_a_document(
     None
 }
 
+/// The reads that the Chrome query makes of one window's tree, each `None`
+/// where the read gives no answer.
+pub(crate) trait ChromeTreeReads {
+    /// The names of the window element's own children of the type Pane.
+    fn panes(&mut self) -> Option<Vec<String>>;
+
+    /// The names of every button below the window.
+    fn buttons(&mut self) -> Option<Vec<String>>;
+
+    /// The toolbars below the window in the order of the tree, each with the
+    /// names of its own buttons and whether it stands inside a document, up to
+    /// the first that stands in none.
+    fn toolbars(&mut self) -> Option<Vec<(Vec<String>, bool)>>;
+}
+
+/// What the query tells of a Chrome window by `reads`, in this order: the
+/// panes, and nothing more where they tell no ordinary window; then the
+/// buttons and the toolbars, answered by [`chrome_window_answer`]; `None`
+/// where a read gives no answer.
+pub(crate) fn chrome_window_query(reads: &mut impl ChromeTreeReads) -> Option<bool> {
+    let panes = reads.panes()?;
+    if !pane_tells_an_ordinary_window(&panes) {
+        return None;
+    }
+    let all = reads.buttons()?;
+    let toolbars = reads.toolbars()?;
+    chrome_window_answer(&panes, &toolbars, &all)
+}
+
+/// The condition of UI Automation that selects the elements of one control
+/// type.
+#[cfg(target_os = "windows")]
+fn of_control_type(
+    automation: &windows::Win32::UI::Accessibility::IUIAutomation,
+    control: i32,
+) -> Option<windows::Win32::UI::Accessibility::IUIAutomationCondition> {
+    use windows::Win32::System::Variant::{VARIANT, VT_I4};
+    use windows::Win32::UI::Accessibility::UIA_ControlTypePropertyId;
+    let mut value = VARIANT::default();
+    // SAFETY: the value holds nothing; the tag and the member that it names
+    // are written together, and an integer owns nothing to free.
+    unsafe {
+        (*value.Anonymous.Anonymous).vt = VT_I4;
+        (*value.Anonymous.Anonymous).Anonymous.lVal = control;
+    }
+    // SAFETY: the call takes the live client and a value that it reads.
+    unsafe { automation.CreatePropertyCondition(UIA_ControlTypePropertyId, &value) }.ok()
+}
+
+/// The names of the elements of `found`, or `None` where one cannot be read.
+#[cfg(target_os = "windows")]
+fn names_of(
+    found: &windows::Win32::UI::Accessibility::IUIAutomationElementArray,
+) -> Option<Vec<String>> {
+    // SAFETY: the calls read a live array of elements and their names.
+    unsafe {
+        let count = found.Length().ok()?;
+        let mut names = Vec::new();
+        for index in 0..count {
+            names.push(
+                found
+                    .GetElement(index)
+                    .ok()?
+                    .CurrentName()
+                    .ok()?
+                    .to_string(),
+            );
+        }
+        Some(names)
+    }
+}
+
+/// The query's reads of one window's element through UI Automation.
+#[cfg(target_os = "windows")]
+struct UiaChromeReads<'a> {
+    automation: &'a windows::Win32::UI::Accessibility::IUIAutomation,
+    element: windows::Win32::UI::Accessibility::IUIAutomationElement,
+}
+
+#[cfg(target_os = "windows")]
+impl ChromeTreeReads for UiaChromeReads<'_> {
+    fn panes(&mut self) -> Option<Vec<String>> {
+        use windows::Win32::UI::Accessibility::{TreeScope_Children, UIA_PaneControlTypeId};
+        let pane = of_control_type(self.automation, UIA_PaneControlTypeId.0)?;
+        // SAFETY: the call takes the live element and a condition that it made.
+        names_of(&unsafe { self.element.FindAll(TreeScope_Children, &pane) }.ok()?)
+    }
+
+    fn buttons(&mut self) -> Option<Vec<String>> {
+        use windows::Win32::UI::Accessibility::{TreeScope_Descendants, UIA_ButtonControlTypeId};
+        let button = of_control_type(self.automation, UIA_ButtonControlTypeId.0)?;
+        // SAFETY: the call takes the live element and a condition that it made.
+        names_of(&unsafe { self.element.FindAll(TreeScope_Descendants, &button) }.ok()?)
+    }
+
+    fn toolbars(&mut self) -> Option<Vec<(Vec<String>, bool)>> {
+        use windows::Win32::UI::Accessibility::{
+            TreeScope_Children, TreeScope_Descendants, UIA_ButtonControlTypeId,
+            UIA_ToolBarControlTypeId,
+        };
+        let button = of_control_type(self.automation, UIA_ButtonControlTypeId.0)?;
+        let toolbar = of_control_type(self.automation, UIA_ToolBarControlTypeId.0)?;
+        // SAFETY: the calls take the live client, element and conditions that
+        // they made; each returns an owned COM pointer, a value or an error.
+        unsafe {
+            let found = self.element.FindAll(TreeScope_Descendants, &toolbar).ok()?;
+            let walker = self.automation.RawViewWalker().ok()?;
+            let mut toolbars = Vec::new();
+            for index in 0..found.Length().ok()? {
+                let bar = found.GetElement(index).ok()?;
+                let in_document =
+                    stands_in_a_document(self.automation, &walker, &self.element, &bar)?;
+                toolbars.push((
+                    names_of(&bar.FindAll(TreeScope_Children, &button).ok()?)?,
+                    in_document,
+                ));
+                if !in_document {
+                    break;
+                }
+            }
+            Some(toolbars)
+        }
+    }
+}
+
 /// What the UI Automation query tells of a Chrome window
-/// ([`chrome_window_answer`]): the names of the window element's own panes
-/// are read first, and nothing more where they tell no ordinary window; then
-/// the names of every button below the window, and the toolbars below it in
-/// the order of the tree, each with whether it stands inside a document,
-/// until the first that stands in none; `None` when the query gives no
-/// answer. The calling thread must be in an apartment of COM.
+/// ([`chrome_window_query`] over the window's element); `None` when the
+/// query gives no answer. The calling thread must be in an apartment of COM.
 #[cfg(target_os = "windows")]
 pub(crate) fn chrome_window_is_private(
     automation: &windows::Win32::UI::Accessibility::IUIAutomation,
     window: windows::Win32::Foundation::HWND,
 ) -> Option<bool> {
-    use windows::Win32::System::Variant::{VARIANT, VT_I4};
-    use windows::Win32::UI::Accessibility::{
-        IUIAutomationElementArray, TreeScope_Children, TreeScope_Descendants,
-        UIA_ButtonControlTypeId, UIA_ControlTypePropertyId, UIA_PaneControlTypeId,
-        UIA_ToolBarControlTypeId,
-    };
-    let of_type = |control: i32| {
-        let mut value = VARIANT::default();
-        // SAFETY: the value holds nothing; the tag and the member that it
-        // names are written together, and an integer owns nothing to free.
-        unsafe {
-            (*value.Anonymous.Anonymous).vt = VT_I4;
-            (*value.Anonymous.Anonymous).Anonymous.lVal = control;
-        }
-        value
-    };
-    let names = |found: &IUIAutomationElementArray| -> Option<Vec<String>> {
-        // SAFETY: the calls read a live array of elements and their names.
-        unsafe {
-            let count = found.Length().ok()?;
-            let mut names = Vec::new();
-            for index in 0..count {
-                names.push(
-                    found
-                        .GetElement(index)
-                        .ok()?
-                        .CurrentName()
-                        .ok()?
-                        .to_string(),
-                );
-            }
-            Some(names)
-        }
-    };
-    // SAFETY: the calls take the live client, a window handle value and the
-    // conditions that they made; each returns an owned COM pointer or an error.
-    unsafe {
-        let element = automation.ElementFromHandle(window).ok()?;
-        let condition = |control: i32| {
-            automation
-                .CreatePropertyCondition(UIA_ControlTypePropertyId, &of_type(control))
-                .ok()
-        };
-        let pane = condition(UIA_PaneControlTypeId.0)?;
-        let panes = names(&element.FindAll(TreeScope_Children, &pane).ok()?)?;
-        if !pane_tells_an_ordinary_window(&panes) {
-            return None;
-        }
-        let button = condition(UIA_ButtonControlTypeId.0)?;
-        let toolbar = condition(UIA_ToolBarControlTypeId.0)?;
-        let all = names(&element.FindAll(TreeScope_Descendants, &button).ok()?)?;
-        let found = element.FindAll(TreeScope_Descendants, &toolbar).ok()?;
-        let walker = automation.RawViewWalker().ok()?;
-        let mut toolbars = Vec::new();
-        for index in 0..found.Length().ok()? {
-            let bar = found.GetElement(index).ok()?;
-            let in_document = stands_in_a_document(automation, &walker, &element, &bar)?;
-            toolbars.push((
-                names(&bar.FindAll(TreeScope_Children, &button).ok()?)?,
-                in_document,
-            ));
-            if !in_document {
-                break;
-            }
-        }
-        chrome_window_answer(&panes, &toolbars, &all)
-    }
+    // SAFETY: the call takes the live client and a window handle value.
+    let element = unsafe { automation.ElementFromHandle(window) }.ok()?;
+    chrome_window_query(&mut UiaChromeReads {
+        automation,
+        element,
+    })
 }
 
 #[cfg(test)]
@@ -1235,6 +1295,72 @@ mod tests {
         assert!(
             wrong.is_empty(),
             "told against the window's named pane: {wrong:?}"
+        );
+    }
+
+    /// The query's reads as a test gives them: each read of the panes takes
+    /// the next list, and a read with no list left gives no answer.
+    struct StandInReads {
+        panes: Vec<Vec<&'static str>>,
+        buttons: Vec<&'static str>,
+        toolbars: Vec<(Vec<&'static str>, bool)>,
+    }
+
+    impl ChromeTreeReads for StandInReads {
+        fn panes(&mut self) -> Option<Vec<String>> {
+            (!self.panes.is_empty())
+                .then(|| self.panes.remove(0).into_iter().map(String::from).collect())
+        }
+
+        fn buttons(&mut self) -> Option<Vec<String>> {
+            Some(self.buttons.iter().map(|name| name.to_string()).collect())
+        }
+
+        fn toolbars(&mut self) -> Option<Vec<(Vec<String>, bool)>> {
+            Some(
+                self.toolbars
+                    .iter()
+                    .map(|(names, in_document)| {
+                        (
+                            names.iter().map(|name| name.to_string()).collect(),
+                            *in_document,
+                        )
+                    })
+                    .collect(),
+            )
+        }
+    }
+
+    #[test]
+    fn a_guest_window_whose_pane_bore_a_dialogs_title_at_the_first_read_keeps_no_title() {
+        let mut reads = StandInReads {
+            panes: vec![
+                vec!["", "Certificate Viewer: x - Google Chrome"],
+                vec!["", "probe11 5 - Google Chrome (Guest)"],
+            ],
+            buttons: vec![
+                "Minimize",
+                "Maximize",
+                "Close",
+                "Back",
+                "Forward",
+                "Reload",
+                "File",
+                "Guest",
+                "Chrome",
+                "Tab search",
+                "Close",
+                "New Tab",
+            ],
+            toolbars: vec![(vec!["Back", "Forward", "Reload", "Guest", "Chrome"], false)],
+        };
+        let told = private_window(Browser::Chrome, "probe11 5 - Google Chrome", || {
+            chrome_window_query(&mut reads)
+        });
+        assert_eq!(
+            told,
+            PrivateWindow::Private,
+            "a Guest window whose pane bore a dialog's title at the first read and its own mark behind the toolbar"
         );
     }
 }
