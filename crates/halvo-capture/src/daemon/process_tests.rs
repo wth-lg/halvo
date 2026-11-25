@@ -3198,6 +3198,7 @@ fn a_settings_reset_writes_the_defaults_with_no_cap_and_is_refused_where_the_fil
             permissions_asked: Vec::new(),
             switches: crate::floor::Switches::default(),
             store_made: true,
+            search: true,
         }
     );
 

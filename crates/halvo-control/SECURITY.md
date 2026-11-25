@@ -37,6 +37,7 @@ Until builds are signed, any process of the same user can read whatever a reply 
 | `acknowledge_lost_permission` | Clear the notice that a permission was lost. |
 | `reset_settings` | Where the daemon's life read the settings file as not loading, write the defaults over it with capture paused and no storage limit, and end the daemon's life so that it starts again; the store stays. Where the life read it as loading or as of a newer version, nothing. |
 | `set_typing` | Turn the switch of keys, `key_class`, in the state file: a turn off stops the key types of the source that holds keys (a Mac's input source, the Windows keyboard source) at once, also where the write fails; a turn on takes effect only behind the write and the removal of the service's note of a turn off that was not saved, and in a life that began with typing off only in the next life, behind the end with status 4. |
+| `set_search` | Turn the search for repeated tasks on or off in the state file: a turn takes effect only behind the write; a turn off then ends a running analysis worker at the next pass of its driver, and none starts while it is off. |
 | `run_start` | Nothing in R1: the name is reserved, and protocol v1 answers it `unsupported_op`. |
 | `run_end` | Nothing in R1: the name is reserved, and protocol v1 answers it `unsupported_op`. |
 

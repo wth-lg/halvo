@@ -18,6 +18,10 @@
 //!   yes into a no: the slot ends a living worker by its kill, with the line `analysis end=ended`, and starts none,
 //!   and the owner that ran keeps running. A pass that held the lock at the request can still start one worker,
 //!   which the next pass ends.
+//! - THE SWITCH. The fourth mark is the person's switch of the search for repeated tasks ([`Searching`]), on until
+//!   the supervisor sets it: from the state file at each open of the capture store, and behind each turn of
+//!   `set_search`, with no lock of the form. While it is off, a pass turns the caller's yes into a no as the
+//!   deadline does, after the hand-over of the shredded segments, which goes on.
 //! - THE SHREDDED SEGMENTS. Before the slot's own pass, each pass of the driver hands the owner that runs the
 //!   ordinals that the store's maintenance shredded since the last hand-over (`OwnerSlot::hand_over`), under the
 //!   lock, whatever the maintenance pass that shredded them answered: it starts no owner and stops none, so a
@@ -103,6 +107,43 @@ struct Form {
     /// The deadline of `defer`: while it holds, a pass turns a yes into a no. `serve` sets it; [`open`], [`stop`] and
     /// [`delete`] leave it.
     deferred: Deferral,
+    /// The switch of the search: while it is off, a pass turns a yes into a no.
+    searching: Searching,
+}
+
+/// The person's switch of the search for repeated tasks, as the supervisor hands it on: on until it is set.
+pub struct Searching(AtomicBool);
+
+impl Searching {
+    /// A switch that is on.
+    pub const fn new() -> Searching {
+        Searching(AtomicBool::new(true))
+    }
+
+    /// Sets the switch on or off.
+    pub fn set(&self, on: bool) {
+        self.0.store(on, Ordering::SeqCst);
+    }
+
+    /// The caller's answer `may_run` under the switch: a no while it is off, and `may_run` itself while it is on.
+    pub fn may_run(&self, may_run: MayRun) -> MayRun {
+        if self.0.load(Ordering::SeqCst) {
+            may_run
+        } else {
+            MayRun::No
+        }
+    }
+}
+
+impl Default for Searching {
+    fn default() -> Searching {
+        Searching::new()
+    }
+}
+
+/// The switch of the search that the form's passes read.
+pub fn searching() -> &'static Searching {
+    &FORM.searching
 }
 
 impl Form {
@@ -161,6 +202,7 @@ static FORM: Form = Form {
     deleting: AtomicBool::new(false),
     stopping: AtomicUsize::new(0),
     deferred: Deferral::new(),
+    searching: Searching::new(),
 };
 
 impl Slot for &'static Form {
@@ -176,7 +218,7 @@ impl Slot for &'static Form {
             Some(open) => {
                 open.slot.owner().hand_over();
                 let may_run = self.deferred.may_run(may_run, Instant::now());
-                open.slot.pass(now, may_run, origin)
+                open.slot.pass(now, self.searching.may_run(may_run), origin)
             }
             None => Answer::Idle,
         }
