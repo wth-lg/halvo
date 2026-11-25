@@ -18,6 +18,7 @@ use std::io::{self, Read, Write};
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::Path;
 
+use halvo_control::model::UtcSecond;
 use halvo_control::paths::DataDir;
 use halvo_control::proto::{LastStop, LostRecord, StopKind};
 
@@ -33,6 +34,8 @@ const ENDED: &str = "ended=";
 const PID: &str = "pid=";
 
 const RECORD: &str = "last_stop=";
+
+const LOST: &str = "lost=";
 
 const TYPING_OFF: &str = "typing-off";
 
@@ -211,7 +214,9 @@ impl LastEnd {
 }
 
 /// Reads the marker that the last life left and writes the marker of this
-/// one, with the hold when the marker that stood held it. No marker and no
+/// one, with the hold when the marker that stood held it. The loss that the
+/// last life carried in its line of a loss is read into [`Begun`], and the
+/// marker of this life holds no such line, so a loss stands for one life. No marker and no
 /// run/ before it is a first life (`none`); no marker in a run/ that stands,
 /// or a marker whose lines are the hold and the line of an end in order,
 /// either or both, is a life that ended in order (`clean`); any other marker
@@ -229,11 +234,12 @@ pub fn begin(dir: &DataDir) -> Begun {
         Ok(Some(_)) | Err(_) => LastStop::Unclean,
     };
     let found = read.as_ref().ok().cloned().flatten();
+    let lost = found.as_deref().and_then(lost_of);
     let written = read.and_then(|text| write(dir, text.as_deref().is_some_and(holds_the_hold)));
     Begun {
         last_stop,
         written,
-        lost: None,
+        lost,
         found,
     }
 }
@@ -291,19 +297,23 @@ pub fn held(dir: &DataDir) -> bool {
 /// end the marker stays as the life left it: its process line alone, the
 /// form of the decision, or the record of ruling PL-3 at an end with 5.
 /// At 1 a marker that cannot be read, or a write that fails, gives what
-/// [`decided`] gives. Every read and write goes through `run`, the held
-/// folder.
+/// [`decided`] gives. Where `lost` holds what the life did not store and a
+/// trigger other than a delete's end stands, those two writes, and no other,
+/// carry it in the line of the loss, which the next start reads ([`begin`]).
+/// Every read and write goes through `run`, the held folder.
 pub fn at_the_end(
     run: &HeldRun,
     status: i32,
     ended_by: Option<StopKind>,
     lost: Option<&LostRecord>,
 ) -> io::Result<()> {
-    let _ = lost;
+    let carried = ended_by
+        .filter(|kind| *kind != StopKind::DeleteAll)
+        .zip(lost);
     match (status, ended_by) {
-        (halvo_control::exit::CLEAN, _) => end(run, ended_by),
+        (halvo_control::exit::CLEAN, _) => end(run, ended_by, carried),
         (halvo_control::exit::ERROR, Some(kind @ (StopKind::Stop | StopKind::Signal))) => {
-            decided(run, kind)
+            decision(run, kind, carried)
         }
         _ => Ok(()),
     }
@@ -321,6 +331,14 @@ pub fn at_the_end(
 /// behind the rename fails, on a Mac, the decision stands and the call
 /// answers that error. It reads and writes through `run`, the held folder.
 pub fn decided(run: &HeldRun, kind: StopKind) -> io::Result<()> {
+    decision(run, kind, None)
+}
+
+fn decision(
+    run: &HeldRun,
+    kind: StopKind,
+    carried: Option<(StopKind, &LostRecord)>,
+) -> io::Result<()> {
     let found = read_in(run)?;
     let mut text = format!("{PID}{}\n", std::process::id());
     if found.as_deref().is_some_and(holds_the_hold) {
@@ -330,17 +348,25 @@ pub fn decided(run: &HeldRun, kind: StopKind) -> io::Result<()> {
     text.push_str(ENDED);
     text.push_str(kind.as_str());
     text.push('\n');
+    if let Some((kind, lost)) = carried {
+        text.push_str(&lost_line(kind, lost));
+    }
     replace_in(run, text.as_bytes())
 }
 
 /// Ends the marker of a life that ended in order: in its place the hold,
-/// while it stands, and the line of `ended_by`, the trigger of the end, by
-/// the durable write. With no trigger, or where that write fails while no
-/// hold stands, a removal of the marker and a sync of run/ are tried, as an
-/// end in order did before the line, which a start that no press stands
-/// behind reads, where the removal was made, as an end that does not tell.
-/// It reads and writes through `run`, the held folder.
-pub fn end(run: &HeldRun, ended_by: Option<StopKind>) -> io::Result<()> {
+/// while it stands, the line of `ended_by`, the trigger of the end, and the
+/// line of the loss that `carried` holds, by the durable write. With no
+/// trigger, or where that write fails while no hold stands, a removal of the
+/// marker and a sync of run/ are tried, as an end in order did before the
+/// line, which a start that no press stands behind reads, where the removal
+/// was made, as an end that does not tell. It reads and writes through
+/// `run`, the held folder.
+pub fn end(
+    run: &HeldRun,
+    ended_by: Option<StopKind>,
+    carried: Option<(StopKind, &LostRecord)>,
+) -> io::Result<()> {
     let hold = read_in(run).is_ok_and(|text| text.as_deref().is_some_and(holds_the_hold));
     let mut text = String::new();
     if hold {
@@ -351,6 +377,9 @@ pub fn end(run: &HeldRun, ended_by: Option<StopKind>) -> io::Result<()> {
         text.push_str(ENDED);
         text.push_str(kind.as_str());
         text.push('\n');
+    }
+    if let Some((kind, lost)) = carried {
+        text.push_str(&lost_line(kind, lost));
     }
     if text.is_empty() {
         return remove_in(run);
@@ -370,7 +399,68 @@ fn ended_in_order(text: &str) -> bool {
                 || line
                     .strip_prefix(ENDED)
                     .is_some_and(|word| word.parse::<StopKind>().is_ok())
+                || line
+                    .strip_prefix(LOST)
+                    .is_some_and(|rest| lost_in(rest).is_some())
         })
+}
+
+/// The line of the loss of a life that ended behind `kind`, in the words of
+/// the status's `last_stop_lost` (contracts.md C2.3) after the kind.
+fn lost_line(kind: StopKind, lost: &LostRecord) -> String {
+    let second = |at: Option<UtcSecond>| at.map_or_else(|| "-".to_owned(), |at| at.to_string());
+    format!(
+        "{LOST}{} events={} first={} last={} error={} final={}\n",
+        kind.as_str(),
+        lost.events,
+        second(lost.first),
+        second(lost.last),
+        lost.error.as_ref().map_or("-", |error| error.as_str()),
+        if lost.final_figures { "yes" } else { "no" },
+    )
+}
+
+/// The loss of the last life in the marker's `text`: its first line of a
+/// loss, where that line reads whole.
+fn lost_of(text: &str) -> Option<LastLife> {
+    text.lines()
+        .find_map(|line| line.strip_prefix(LOST))
+        .and_then(lost_in)
+}
+
+fn lost_in(rest: &str) -> Option<LastLife> {
+    let mut words = rest.split(' ');
+    let kind = words.next()?.parse::<StopKind>().ok()?;
+    let mut field = |name: &str| words.next().and_then(|word| word.strip_prefix(name));
+    let events = field("events=")?.parse().ok()?;
+    let second = |word: &str| match word {
+        "-" => Some(None),
+        word => word.parse::<UtcSecond>().ok().map(Some),
+    };
+    let first = second(field("first=")?)?;
+    let last = second(field("last=")?)?;
+    let error = match field("error=")? {
+        "-" => None,
+        word => Some(word.parse().ok()?),
+    };
+    let final_figures = match field("final=")? {
+        "yes" => true,
+        "no" => false,
+        _ => return None,
+    };
+    if words.next().is_some() {
+        return None;
+    }
+    Some(LastLife {
+        kind,
+        lost: LostRecord {
+            events,
+            first,
+            last,
+            error,
+            final_figures,
+        },
+    })
 }
 
 fn holds_the_hold(text: &str) -> bool {
@@ -616,7 +706,7 @@ mod tests {
         ] {
             let (_root, dir) = scratch();
             assert_eq!(begin(&dir).last_stop, LastStop::None, "{kind:?}");
-            end(&run_of(&dir), Some(kind)).unwrap();
+            end(&run_of(&dir), Some(kind), None).unwrap();
             assert_eq!(
                 marker(&dir),
                 Some(format!("ended={}\n", kind.as_str())),
@@ -636,7 +726,7 @@ mod tests {
         );
         assert_eq!(begin(&dir).last_stop, LastStop::Unclean);
         assert!(held(&dir), "a record's hold goes on into the next life");
-        end(&run_of(&dir), Some(StopKind::Lifeline)).unwrap();
+        end(&run_of(&dir), Some(StopKind::Lifeline), None).unwrap();
         assert_eq!(
             marker(&dir).as_deref(),
             Some("hold=yes\nended=lifeline\n"),
@@ -647,7 +737,7 @@ mod tests {
         assert!(held(&dir), "the next life holds the hold");
         stand(&dir, &format!("pid={}\n", std::process::id()));
         assert!(!held(&dir), "a Resume's marker lifts the hold");
-        end(&run_of(&dir), Some(StopKind::Signal)).unwrap();
+        end(&run_of(&dir), Some(StopKind::Signal), None).unwrap();
         assert_eq!(marker(&dir).as_deref(), Some("ended=signal\n"));
         assert_eq!(begin(&dir).last_stop, LastStop::Clean);
         assert!(!held(&dir), "the hold stays lifted");

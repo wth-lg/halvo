@@ -3769,8 +3769,27 @@ fn carried_loss(
     before: Option<&counters::Snapshot>,
     fault: Option<&str>,
 ) -> Option<halvo_control::proto::LostRecord> {
-    let _ = (closed, before, fault);
-    None
+    let (snapshot, events, final_figures) = match (closed, before) {
+        (Some(closed), _) => (
+            closed,
+            closed.events_lost.saturating_add(closed.events_pending),
+            true,
+        ),
+        (None, Some(before)) => (before, before.events_lost, false),
+        (None, None) => return None,
+    };
+    let second = |at: Option<i64>| {
+        at.and_then(|nanos| {
+            halvo_control::model::UtcSecond::from_unix_seconds(nanos.div_euclid(1_000_000_000)).ok()
+        })
+    };
+    (events > 0).then(|| halvo_control::proto::LostRecord {
+        events,
+        first: second(snapshot.lost_first_at),
+        last: second(snapshot.lost_last_at),
+        error: fault.and_then(|fault| fault.parse().ok()),
+        final_figures,
+    })
 }
 
 #[cfg(any(target_os = "macos", windows))]

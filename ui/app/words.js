@@ -35,6 +35,7 @@
     SOURCE_FAILED: "has stopped",
     SOURCE_WALKBACK: "The steps under Permissions turn it back on.",
     SCREEN_NOT_RENEWED: "Halvo is not recording the screen. Quit Halvo and open it again to record it.",
+    PART_NOT_SAVED: "Halvo could not save part of what it recorded earlier, and that part cannot be brought back.",
     NOT_SAVING: "Not saving:",
     CAUSE_NO_SPACE: "the disk is full.",
     CAUSE_IO: "a read or a write failed.",

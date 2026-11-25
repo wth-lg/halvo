@@ -687,8 +687,11 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         last_eviction_at: snapshot.and_then(|snapshot| second_of(snapshot.last_eviction_at)),
         last_stop: facts.last_stop,
         last_stop_newest_capture: None,
-        last_stop_kind: None,
-        last_stop_lost: LostRecord::NONE,
+        last_stop_kind: board.last_life.as_ref().map(|life| life.kind),
+        last_stop_lost: board
+            .last_life
+            .as_ref()
+            .map_or(LostRecord::NONE, |life| life.lost.clone()),
         last_stop_sources: Vec::new(),
         state_file: match parts.health {
             StateHealth::Ok => proto::StateFile::Ok,

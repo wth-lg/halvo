@@ -1278,7 +1278,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// [`Self::set_slot`] for the slot of a delete request: `reply` gets the
     /// Board of an end routine, as [`Self::follow_the_run_condition`] gives
     /// it, when the stop that the slot asks for meets a source that does not
-    /// stop.
+    /// stop. The slot of a delete takes the loss of the last life back, so
+    /// that no status prints it behind a delete of everything.
     #[cfg(any(target_os = "macos", windows))]
     pub(crate) fn set_slot_answering(
         &mut self,
@@ -1286,6 +1287,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         owner: Option<&dyn OwnerLink>,
         reply: &mut dyn FnMut(&Board),
     ) {
+        if matches!(slot, Slot::Deleting) {
+            self.board.last_life = None;
+        }
         self.slot = slot;
         if let Some(ending) = self.follow_the_run_condition(owner, reply) {
             self.ending = Some(ending);
