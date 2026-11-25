@@ -275,7 +275,7 @@ fn the_request_that_leaves_holds_the_closed_fields_alone() {
     assert_eq!((code, err.as_str()), (0, ""), "{out}");
     let recorded = host.recorded.lock().expect("the record");
     assert_eq!(recorded.len(), 1);
-    let body = r#"{"model":"stand-in-model","max_tokens":2048,"system":"Be brief.","messages":[{"role":"user","content":"Pay the bill.\n<<<DATA\ne1 button \"Pay\"\ne2 link\nDATA>>>"}]}"#;
+    let body = r#"{"model":"stand-in-model","max_tokens":2048,"output_config":{"effort":"high"},"system":"Be brief.","messages":[{"role":"user","content":"Pay the bill.\n<<<DATA\ne1 button \"Pay\"\ne2 link\nDATA>>>"}]}"#;
     let mut lines = recorded[0].head.split("\r\n");
     let request_line = lines.next().expect("a request line");
     let mut headers: Vec<(String, String)> = lines
