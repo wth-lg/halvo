@@ -24,7 +24,9 @@
 //!   store's maintenance shredded since the last hand-over ([`Caller::shredded`]). Where no owner runs and such
 //!   ordinals wait, it starts one for them, whatever the search, the power and the idle time are: at most once in
 //!   60 s ([`HAND_OVER_EVERY`]), and none where no derived database stands, whose ordinals it takes and drops. That
-//!   owner ends by its own idle time. The hand-over stops no owner.
+//!   owner ends by its own idle time. The hand-over stops no owner that runs; one that is over (it exited, its channel
+//!   ended or a write on it failed) it kills at once, where its process still lives, and reaps before its start, as
+//!   [`OwnerSlot::turn`] does.
 //! - When the slot is made it reads a `derived/owner.pid` that an earlier daemon left. A file of another user or of a
 //!   mode wider than 0600, a whole line that is not the slot's line, and a process of this user with that pid whose
 //!   start time cannot be read are trusted for nothing: no signal, no unlink, and the slot starts no owner
@@ -341,11 +343,12 @@ impl OwnerSlot {
     /// whatever that start answered ([`HAND_OVER_EVERY`]), and while no read of the capture store stands
     /// ([`Caller::read_stands`]), it takes no ordinal and starts nothing, so that they wait for the next hand-over or
     /// start. Where no derived database stands no row can name them: it takes them and starts nothing. The owner that
-    /// it started ends by its own idle time, after its last frame; the hand-over stops no owner. What a frame named is
-    /// not sent again when the owner answers other than `done`, or when the start fails after it took them, and the
-    /// rows stay until a later start: the capture store keeps a shredded segment's row with no key, and a start sends
-    /// the keyless ordinals above the lowest live one as the newest read from ordinal 0 left them, which can be up to
-    /// about a minute old (`daemon_caller::ASK_EVERY`), beside the passes' own list.
+    /// it started ends by its own idle time, after its last frame. The hand-over stops no owner that runs; the one that
+    /// is over, whose process may still live, it kills at once and reaps before its start, as [`OwnerSlot::turn`]
+    /// does. What a frame named is not sent again when the owner answers other than `done`, or when the start fails
+    /// after it took them, and the rows stay until a later start: the capture store keeps a shredded segment's row
+    /// with no key, and a start sends the keyless ordinals above the lowest live one as the newest read from ordinal
+    /// 0 left them, which can be up to about a minute old (`daemon_caller::ASK_EVERY`), beside the passes' own list.
     pub fn hand_over(&mut self) {
         if self.caller.deleting() || self.distrust.is_some() {
             return;
