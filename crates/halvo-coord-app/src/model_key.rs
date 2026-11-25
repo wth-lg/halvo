@@ -220,7 +220,8 @@ mod tests {
     use std::sync::Mutex;
 
     /// U3.18 sentence 1: the host is the one origin of the rows without its `https://`: none for no row, the host for
-    /// one row and for two rows of the same origin, none for two origins; main's ruling gives none.
+    /// one row and for two rows of the same origin, none for two origins; this build's host is the one of the rows of its
+    /// release ruling (none with main's table, which holds no row).
     #[test]
     fn the_host_is_the_one_origin_of_the_rows_without_https() {
         assert_eq!(host_of([]), None);
@@ -236,7 +237,11 @@ mod tests {
             host_of(["https://api.host.invalid", "https://other.host.invalid"]),
             None
         );
-        assert_eq!(host(), None);
+        let ruling = halvo_route::release::ruling();
+        assert_eq!(
+            host(),
+            host_of(ruling.rows().iter().map(|row| row.origin()))
+        );
     }
 
     /// What the stand-in owner answers each request: a result, a refusal by its error name, or no reply.

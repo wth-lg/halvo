@@ -73,7 +73,7 @@ fn recorded_setup_takes_the_freeze_lines_and_the_ruling() {
     assert_eq!(
         none,
         Setup {
-            allowed: vec![Tier::OnDevice],
+            allowed: release::ruling().allowed().to_vec(),
             driver: None,
             writer: None,
             recorded: true,

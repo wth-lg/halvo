@@ -61,6 +61,7 @@ pub const WORKFLOWS: Names = Names {
         "approve_workflow",
         "dismiss_workflow",
         "delete_workflow",
+        "set_up_sheet_agent",
     ],
     reads: &[],
 };
