@@ -28,7 +28,7 @@ struct Rule {
     /// The words of the task done: its act as a title names it (`paid`, `payment`, `pay`), or a thing that only
     /// the finished task leaves (`driver`, `outcome`). The rule needs one of them in a step of the episode. A word
     /// that also names what a person only looks at (`addendum`, `screening`, `sign` as in a sign-in) is none of
-    /// them.
+    /// them, though it may be a word of the topic, which names nothing alone.
     done: &'static [&'static str],
 }
 
@@ -47,29 +47,79 @@ const fn rule(category: SeedCategory) -> Rule {
                 "water",
                 "broadband",
                 "energy",
+                "utility",
+                "utilities",
+                "electric",
+                "power",
+                "sewer",
             ],
-            done: &["pay", "paid", "payment"],
+            done: &["pay", "paid", "payment", "paying", "receipt"],
         },
         SeedCategory::TenantRent => Rule {
-            topic: &["rent"],
-            done: &["pay", "paid", "payment"],
+            topic: &["rent", "resident", "residents"],
+            done: &[
+                "pay",
+                "paid",
+                "payment",
+                "paying",
+                "transfer",
+                "transferred",
+                "receipt",
+            ],
         },
         SeedCategory::LeaseRenewalOrChange => Rule {
-            topic: &["lease", "tenancy"],
+            topic: &["lease", "tenancy", "leases", "tenancies"],
             done: &[
-                "renew", "renewed", "renewal", "extended", "amended", "signed", "export",
+                "renew",
+                "renewed",
+                "renewal",
+                "extended",
+                "amended",
+                "signed",
+                "export",
                 "exported",
+                "request",
+                "requested",
+                "submitted",
+                "accepted",
+                "countersigned",
+                "executed",
+                "complete",
+                "completed",
             ],
         },
         SeedCategory::TenantApplicationReview => Rule {
-            topic: &["tenant", "tenants", "applicant", "applicants"],
+            topic: &[
+                "tenant",
+                "tenants",
+                "applicant",
+                "applicants",
+                "application",
+                "applications",
+                "renter",
+                "renters",
+                "referencing",
+                "screening",
+            ],
             done: &[
-                "approved", "declined", "rejected", "reviewed", "screened", "outcome",
+                "approved", "declined", "rejected", "reviewed", "screened", "outcome", "approve",
+                "decline", "reject", "denied", "accepted", "recorded",
             ],
         },
         SeedCategory::Email => Rule {
-            topic: &["mail", "email", "inbox", "mailbox", "message", "messages"],
-            done: &["sent", "replied", "forwarded", "archived"],
+            topic: &[
+                "mail", "email", "inbox", "mailbox", "message", "messages", "emails", "mails",
+                "outbox", "reply",
+            ],
+            done: &[
+                "sent",
+                "replied",
+                "forwarded",
+                "archived",
+                "forward",
+                "compose",
+                "delivered",
+            ],
         },
         SeedCategory::SpreadsheetFill => Rule {
             topic: &[
@@ -81,26 +131,109 @@ const fn rule(category: SeedCategory) -> Rule {
                 "xlsx",
                 "xls",
                 "csv",
+                "workbook",
+                "workbooks",
+                "xlsm",
+                "xlsb",
+                "tsv",
             ],
-            done: &["fill", "filled", "enter", "entered", "saved", "updated"],
+            done: &[
+                "fill", "filled", "enter", "entered", "saved", "updated", "edited", "synced",
+                "imported",
+            ],
         },
         SeedCategory::ShopOrder => Rule {
-            topic: &["order"],
-            done: &["placed", "confirmed"],
+            topic: &[
+                "order", "orders", "cart", "basket", "trolley", "bag", "checkout", "purchase",
+            ],
+            done: &[
+                "placed",
+                "confirmed",
+                "confirm",
+                "confirmation",
+                "place",
+                "thanks",
+                "thank",
+                "purchased",
+                "receipt",
+            ],
         },
         SeedCategory::CalendarCleanup => Rule {
             topic: &[
-                "calendar", "planner", "event", "events", "meeting", "meetings",
+                "calendar",
+                "planner",
+                "event",
+                "events",
+                "meeting",
+                "meetings",
+                "calendars",
+                "agenda",
+                "schedule",
+                "diary",
+                "reminder",
+                "reminders",
+                "appointment",
+                "appointments",
+                "invite",
+                "invites",
+                "invitation",
+                "invitations",
             ],
-            done: &["removed", "deleted", "cancelled", "canceled", "merged"],
+            done: &[
+                "removed",
+                "deleted",
+                "cancelled",
+                "canceled",
+                "merged",
+                "cleared",
+                "resolved",
+                "dismissed",
+                "delete",
+                "cleanup",
+                "cleaned",
+            ],
         },
         SeedCategory::RideOrder => Rule {
-            topic: &["ride", "rides", "trip", "trips", "taxi", "cab"],
-            done: &["booked", "confirmed", "requested", "pickup", "driver"],
+            topic: &[
+                "ride",
+                "rides",
+                "trip",
+                "trips",
+                "taxi",
+                "cab",
+                "cabs",
+                "taxis",
+                "minicab",
+                "rider",
+                "rideshare",
+                "chauffeur",
+            ],
+            done: &[
+                "booked",
+                "confirmed",
+                "requested",
+                "pickup",
+                "driver",
+                "reserved",
+                "scheduled",
+                "dispatched",
+                "arriving",
+            ],
         },
         SeedCategory::DailyChartCheck => Rule {
             topic: &[],
-            done: &["chart", "charts", "trend", "trends", "graph"],
+            done: &[
+                "chart",
+                "charts",
+                "trend",
+                "trends",
+                "graph",
+                "graphs",
+                "stats",
+                "statistics",
+                "analytics",
+                "metrics",
+            ],
         },
     }
 }
@@ -289,8 +422,10 @@ mod tests {
     #[test]
     fn rules_name_each_category() {
         // The second row holds its rule words in capitals, and `Waterfall` in it is no `water`; the fifth row
-        // holds its topic word, `mail`, in the site alone.
-        let rows: [(&str, &str, Option<&str>, Category); 12] = [
+        // holds its topic word, `mail`, in the site alone. The rows from the thirteenth on hold words of the wider
+        // table, one row a category in the same order, and the last row is a page of receipts and transfers that
+        // a person looks at: `receipts` and `transfers` are no `receipt` and no `transfer`.
+        let rows: [(&str, &str, Option<&str>, Category); 23] = [
             (
                 "Water bill paid",
                 "tidewell-supply.example",
@@ -361,6 +496,67 @@ mod tests {
                 "Home",
                 "larchmarket.example",
                 Some("Order placed"),
+                Category::Other,
+            ),
+            (
+                "Receipt for your electric account",
+                "brightline-supply.example",
+                None,
+                Category::UtilityBillPayment,
+            ),
+            (
+                "Resident portal - paying by transfer",
+                "harbourview-lets.example",
+                None,
+                Category::TenantRent,
+            ),
+            (
+                "Tenancy agreement countersigned",
+                "oakmere-homes.example",
+                None,
+                Category::LeaseRenewalOrChange,
+            ),
+            (
+                "Approve or decline two renters",
+                "gatehouse-lets.example",
+                None,
+                Category::TenantApplicationReview,
+            ),
+            ("Reply delivered", "postwick.example", None, Category::Email),
+            (
+                "Allotment workbook — Edited",
+                "plotbook.example",
+                None,
+                Category::SpreadsheetFill,
+            ),
+            (
+                "Thanks for your purchase",
+                "hollyhock-goods.example",
+                None,
+                Category::ShopOrder,
+            ),
+            (
+                "Old reminders cleared",
+                "dayslate.example",
+                None,
+                Category::CalendarCleanup,
+            ),
+            (
+                "Minicab dispatched",
+                "nightjar-cars.example",
+                None,
+                Category::RideOrder,
+            ),
+            (
+                "Sleep stats",
+                "restwell.example",
+                None,
+                Category::DailyChartCheck,
+            ),
+            (
+                "Rent receipts and transfers",
+                "harbourview-lets.example",
+                None,
                 Category::Other,
             ),
         ];
