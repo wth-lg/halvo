@@ -207,7 +207,7 @@ fn closed_lists_have_the_contract_names_in_order() {
     );
     assert_eq!(
         names(&ItemKind::ALL.iter().map(|c| c.name()).collect::<Vec<_>>()),
-        "confirm,sign_in,link_account,stuck,check,setup,ready,show"
+        "confirm,sign_in,link_account,stuck,check,setup,ready,show,amounts"
     );
     assert_eq!(
         names(&RunEnd::ALL.iter().map(|c| c.name()).collect::<Vec<_>>()),

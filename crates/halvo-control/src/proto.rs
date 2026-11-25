@@ -12,7 +12,7 @@ use crate::onboarding::{GrantState, OnboardingState, Permission, RequestOutcome}
 pub const PROTOCOL_VERSION: u64 = 1;
 
 /// The ops of the request table of protocol version 1, in the order of contracts.md C2.1.
-pub const V1_OPS: [&str; 12] = [
+pub const V1_OPS: [&str; 13] = [
     "status",
     "inventory",
     "pause",
@@ -25,6 +25,7 @@ pub const V1_OPS: [&str; 12] = [
     "acknowledge_lost_permission",
     "reset_settings",
     "set_typing",
+    "set_search",
 ];
 
 /// The run marks, request names that a later version may use. Protocol version 1 answers
@@ -82,6 +83,11 @@ pub enum Request {
     SetTyping {
         on: bool,
     },
+    /// Turns the search for repeated tasks on or off in the state file: a turn takes effect only
+    /// behind the write, and a turn whose write fails changes nothing.
+    SetSearch {
+        on: bool,
+    },
 }
 
 impl Request {
@@ -99,6 +105,7 @@ impl Request {
             Request::AcknowledgeLostPermission { .. } => "acknowledge_lost_permission",
             Request::ResetSettings => "reset_settings",
             Request::SetTyping { .. } => "set_typing",
+            Request::SetSearch { .. } => "set_search",
         }
     }
 
@@ -1713,6 +1720,11 @@ pub struct StatusFields {
     /// sends none reads none; the protocol number does not move for it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub typing_off_unsaved: Option<TypingOffUnsaved>,
+    /// Whether the search for repeated tasks is on, as the state file holds it; off while the
+    /// file does not load. Optional, so that a status of a daemon that sends none still reads,
+    /// and a page shows no switch beside it; the protocol number does not move for it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search: Option<OnOff>,
     pub permissions: Vec<PermissionLine>,
     pub sources: Vec<SourceLine>,
     pub kinds: Vec<KindLine>,
@@ -2039,7 +2051,8 @@ pub fn admission(
         | Request::PermissionAsked { .. }
         | Request::AcknowledgeLostPermission { .. }
         | Request::ResetSettings
-        | Request::SetTyping { .. } => Admission::Ending,
+        | Request::SetTyping { .. }
+        | Request::SetSearch { .. } => Admission::Ending,
     }
 }
 
@@ -2169,6 +2182,7 @@ mod tests {
             },
             Request::ResetSettings,
             Request::SetTyping { on: false },
+            Request::SetSearch { on: false },
         ]
     }
 
@@ -4835,7 +4849,8 @@ stopped/kind body
                 "permission_asked",
                 "acknowledge_lost_permission",
                 "reset_settings",
-                "set_typing"
+                "set_typing",
+                "set_search"
             ]
         );
     }
@@ -4967,6 +4982,7 @@ stopped/kind body
             Request::AcknowledgeLostPermission { .. } => "acknowledge_lost_permission",
             Request::ResetSettings => "reset_settings",
             Request::SetTyping { .. } => "set_typing",
+            Request::SetSearch { .. } => "set_search",
         }
     }
 

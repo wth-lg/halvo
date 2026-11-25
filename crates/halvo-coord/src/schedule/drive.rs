@@ -7,10 +7,10 @@ use super::{
 use crate::items::drive::{alone, class_of, Alone, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Shared, Stamp};
 use crate::types::{
-    hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
-    Doing, Event, Facts, HoldSetCause, ItemId, ItemKind, Lapsed, Live, OtherLapse, Outcome,
-    OwnItem, OwnItemKind, Raised, ReadyAnswer, RunEnd, RunId, RunSpec, Trigger, What, Workflow,
-    WorkflowId, WorkflowState,
+    hex, Agent, AgentId, AgentState, AmountsAnswer, Answered, Body, Cause, CheckAnswer, Cleared,
+    ConfigView, Doing, Event, Facts, HoldSetCause, ItemId, ItemKind, Lapsed, Live, OtherLapse,
+    Outcome, OwnItem, OwnItemKind, Raised, ReadyAnswer, RunEnd, RunId, RunSpec, Trigger, What,
+    Workflow, WorkflowId, WorkflowState,
 };
 use std::num::NonZeroU32;
 
@@ -37,6 +37,13 @@ pub enum Move {
         agent: AgentId,
         /// `try_again` or `went_through`.
         answer: CheckAnswer,
+    },
+    /// The person's answer to the item of the hold `amounts` of the agent (r4 U3.29).
+    Amounts {
+        /// The agent.
+        agent: AgentId,
+        /// `switch_off` or `seen`.
+        answer: AmountsAnswer,
     },
     /// The control `switch_on` (I5.4).
     SwitchOn {
@@ -536,6 +543,7 @@ fn take_open_item_from_read<C>(facts: &mut Facts<C>, before: usize) {
                     Raised::Check(None) => OwnItemKind::Check,
                     Raised::Ready => OwnItemKind::Ready,
                     Raised::Setup => OwnItemKind::Setup,
+                    Raised::Amounts(_) => OwnItemKind::Amounts,
                     _ => return None,
                 };
                 Some(OwnItem {
@@ -2152,6 +2160,61 @@ fn answer_check<P: Owner + Rng, C: ConfigView>(
     Report::default()
 }
 
+/// The person's answer to the item `amounts` of member `i`, `item`, whose hold names `run` (r4
+/// U3.29, way (x) of the coordinator's log line 20557), stored in one body: the answer's
+/// `item_answered`, and for I have checked it (`seen`) the `hold_cleared` of the cause `amounts`
+/// that names the run, which ends the hold; for Switch it off the `hold_set` of the cause
+/// `person` where the hold `off` does not stand (`off`), and then the rest of a switch-off, so
+/// that the hold `amounts` stands on and its item comes again at Switch on. Both close the item.
+/// After a refusal `seq` the move reads the owner's events once and logs what they do not hold;
+/// it answers `stale` where they closed the item with another answer.
+fn answer_amounts<P, C>(
+    cx: &MoveContext<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    (item, run): (ItemId, RunId),
+    answer: AmountsAnswer,
+    off: bool,
+    halt: Option<Halt<'_, C>>,
+) -> Report
+where
+    P: Owner + Runs,
+    C: ConfigView,
+{
+    let mut whats = vec![What::ItemAnswered {
+        item: item.clone(),
+        answer: Answered::Amounts(answer),
+    }];
+    match answer {
+        AmountsAnswer::Seen => whats.push(What::HoldCleared {
+            cause: Cleared::Amounts { run },
+        }),
+        AmountsAnswer::SwitchOff if !off => whats.push(What::HoldSet {
+            cause: HoldSetCause::Person,
+        }),
+        AmountsAnswer::SwitchOff => {}
+    }
+    let pressed = |facts: &Facts<C>| {
+        let open = own(&facts.doing, OwnItemKind::Amounts).as_ref() == Some(&item);
+        let given = facts.events.iter().any(|e| {
+            matches!(&e.what, What::ItemAnswered { item: i, answer: Answered::Amounts(a) } if *i == item && *a == answer)
+        });
+        (!open && !given).then_some(Cause::Stale)
+    };
+    let (day, at) = (cx.move_stamp.day(), cx.move_stamp.at());
+    match log_or_reread_once(cx, board, i, whats, day, at, Some(&pressed)) {
+        Ok(Stored::RedecidedFails(c)) => return refused(c),
+        Ok(_) => {}
+        Err(e) => return refused(port_cause(&e)),
+    }
+    let doing = without_item(&board.members[i].facts.doing);
+    board.members[i].facts.doing = doing;
+    match answer {
+        AmountsAnswer::SwitchOff => off_rest(cx, board, i, halt),
+        AmountsAnswer::Seen => Report::default(),
+    }
+}
+
 fn member_move<P, C>(
     cx: &MoveContext<'_, P>,
     board: &mut Board<C>,
@@ -2166,6 +2229,7 @@ where
         Move::Start { agent }
         | Move::Skip { agent }
         | Move::Check { agent, .. }
+        | Move::Amounts { agent, .. }
         | Move::SwitchOn { agent }
         | Move::SwitchOff { agent }
         | Move::Off { agent } => agent.clone(),
@@ -2362,6 +2426,30 @@ where
                 return refused(Cause::State);
             }
             off_rest(cx, board, i, halt)
+        }
+        Move::Amounts { answer, .. } => {
+            if list
+                .as_ref()
+                .is_ok_and(|listed| !listed.contains(&facts.workflow.id))
+            {
+                return refused(Cause::State);
+            }
+            if let Err(e) = read {
+                return refused(port_cause(&e));
+            }
+            let Some(item) = own(&facts.doing, OwnItemKind::Amounts) else {
+                return refused(Cause::State);
+            };
+            let Some(run) = facts
+                .runs
+                .first()
+                .filter(|_| standing.contains(&Hold::Amounts))
+                .map(|r| r.run.clone())
+            else {
+                return refused(Cause::State);
+            };
+            let off = standing.contains(&Hold::Off);
+            answer_amounts(cx, board, i, (item, run), answer, off, halt)
         }
         Move::Tick | Move::End { .. } | Move::Create | Move::Owed | Move::TakeBack { .. } => {
             refused(Cause::State)
