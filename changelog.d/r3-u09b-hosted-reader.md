@@ -1,0 +1,1 @@
+- Added: (agents run, U0.9b) The driver trial's verdict.py reads a hosted round's block from a path given to it (`--hosted FILE [--expect LINE]`), by the hosted rule of one machine and each call's spend, egress and host lines, and prints its verdict line, or same=yes or same=no against a given line.
