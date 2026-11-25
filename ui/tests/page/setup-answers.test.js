@@ -197,8 +197,9 @@ test("behind a line that the core does not take the card keeps every line as typ
       ["range", "A2:C11"],
       ["source", "/Volumes/work/receipts.csv"],
       ["workbook", "/Volumes/work/Budget.xlsx"],
+      ["sheet", "Sheet1"],
     ],
-    "the lines that the core holds go first and the mended line last, so that the body holds what every line shows",
+    "the lines that the core holds go first, then the mended line, then the sheet's line once more, so that the body holds what every line shows",
   );
   core.other("0000000000000000000000000000000a");
   await page.settle();

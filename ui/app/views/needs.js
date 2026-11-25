@@ -333,7 +333,15 @@
         (a.line.stored ? first : calls).push(['agents_setup_typed', { item: item.item, step: item.step, param: a.param, text: a.line.kept }]);
       }
     });
-    return first.concat(calls);
+    const all = first.concat(calls);
+    const at = function (param) {
+      return all.findIndex(function (c) {
+        return c[0] === 'agents_setup_typed' && c[1].param === param;
+      });
+    };
+    const sheet = at('sheet');
+    if (sheet >= 0 && at('workbook') > sheet) all.push(all[sheet]);
+    return all;
   }
 
   function held(card, sent) {

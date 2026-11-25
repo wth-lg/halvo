@@ -159,3 +159,31 @@ test("a line that came filled from the store and that the person empties is no s
     "the list of the picked workbook's sheets comes",
   );
 });
+
+test("where the core did not take the stored workbook line and the sheet's line bears the mark of the store, ONE press of Use these answers sends the sheet's line once more as its last call, behind the workbook's line that the person typed, and the answers are saved by that press", async () => {
+  const dropped = { ...storedItem, params: Object.keys(HINTS).map((n) => entry(n, n !== "workbook")) };
+  const one = replies(dropped);
+  const page = await openPage(one);
+  const typed = "/Volumes/work/Budget-2027.xlsx";
+  const line = lineOf(page, "workbook");
+  line.focus();
+  line.value = typed;
+  await line.dispatchEvent(makeEvent("input"));
+  await page.settle();
+  await page.click(useAnswers(page), { detail: 0 });
+  assert.deepEqual(
+    page.calls("agents_setup_typed").map((c) => [c.args.param, c.args.text]),
+    [
+      ["sheet", STORED.sheet],
+      ["range", STORED.range],
+      ["source", STORED.source],
+      ["workbook", typed],
+      ["sheet", STORED.sheet],
+    ],
+    "the lines that the core holds, the workbook's line, then the sheet's line once more",
+  );
+  one.next({ ...setup, items: [] });
+  await page.settle();
+  assert.equal(useAnswers(page), null, "the item is gone after that one press");
+  assert.equal(page.calls("agents_answer").length, 0, "no other call");
+});

@@ -197,7 +197,7 @@ test("a pick in the chooser of Which spreadsheet file sends its line at once and
   await press(last, useAnswers(last));
   assert.deepEqual(
     last.calls("agents_setup_typed").map((c) => c.args.param),
-    ["sheet", "range", "source", "sheet", "range", "source", "workbook"],
-    "it goes at the press, behind the lines that the core holds",
+    ["sheet", "range", "source", "sheet", "range", "source", "workbook", "sheet"],
+    "it goes at the press, behind the lines that the core holds, and the sheet's line once more behind it",
   );
 });
