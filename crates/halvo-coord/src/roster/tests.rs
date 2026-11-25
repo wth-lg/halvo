@@ -201,6 +201,10 @@ fn u322a_a_failed_file_run_says_why_by_its_last_cause_and_a_web_run_reads_as_tod
             "The spreadsheet file has two sheets with the name you gave, so Halvo did not know which one to fill. Open the file in your spreadsheet program, give each sheet a name of its own and save it. Then choose Change its answers.",
         ),
         (
+            "data_narrow",
+            "A value in the data file is only number signs (###). A spreadsheet program writes that when a column is too narrow to show a value. In the spreadsheet you saved the file from, widen that column and save the data file again under the same name. Then choose Start now.",
+        ),
+        (
             "not_replaced",
             "Halvo could not save the spreadsheet file. Close it in other programs and check that you may change it, then choose Start now.",
         ),
