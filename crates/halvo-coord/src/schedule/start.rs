@@ -9,6 +9,13 @@ pub fn needs_person<C: ConfigView>(config: &C) -> bool {
     config.caps_external()
 }
 
+/// Whether a start of the agent is a compile: its runtime is `web` and it has no stored playbook
+/// (I5.3). The start's mode reads it, and so does the rest of an agent that was never allowed a
+/// model (`rests`, r3 U7.11), since the runner compiles only at a hosted tier.
+pub fn compiles<C: ConfigView>(config: &C) -> bool {
+    config.runtime() == Runtime::Web && config.playbook().is_none()
+}
+
 /// Whether a run of the agent holds the on-device model: its tier is `on_device` and its
 /// `model_tokens` is above 0 (I5.1).
 pub fn needs_model<C: ConfigView>(config: &C) -> bool {
@@ -184,7 +191,7 @@ pub fn start_step<C: ConfigView>(
             verdict: Verdict::Queued,
         };
     }
-    let mode = if facts.config.runtime() == Runtime::Web && facts.config.playbook().is_none() {
+    let mode = if compiles(&facts.config) {
         Mode::Compile
     } else {
         Mode::Replay

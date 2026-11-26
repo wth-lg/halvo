@@ -489,6 +489,7 @@ fn workflows_reads_every_page_and_lists_what_the_owner_holds() {
         site: None,
         count,
         by_hand: false,
+        cannot_do: halvo_coord_app::model_key::cannot_do(category),
     };
     assert_eq!(
         reply,
@@ -639,7 +640,18 @@ fn a_row_names_the_app_that_the_system_names_and_no_app_id_and_no_day() {
             .map(String::as_str)
             .collect();
         keys.sort_unstable();
-        assert_eq!(keys, ["app", "by_hand", "category", "count", "id", "site"]);
+        assert_eq!(
+            keys,
+            [
+                "app",
+                "by_hand",
+                "cannot_do",
+                "category",
+                "count",
+                "id",
+                "site"
+            ]
+        );
         let app = match row["id"].as_str() {
             Some(id) if id == hex(0x44) => json!("Safari"),
             Some(id) if id == hex(0x55) => Value::Null,

@@ -144,14 +144,16 @@
     Halvo.showError(e && e.error === "in_use" ? w.WORKFLOW_IN_USE : e);
   }
 
+  /** A proposal whose task this version cannot do (the row's cannot_do) says so and offers Not now alone. */
   function proposalRow(row) {
     var seen = rowText("p", seenText(row));
     var count = fill(w.SEEN_COUNT, function () {
       return String(row.count);
     });
+    var cannot = row.cannot_do === true;
     var approve = Halvo.el("button", { class: "primary", text: w.APPROVE });
     var notNow = Halvo.el("button", { text: w.NOT_NOW });
-    var buttons = [approve, notNow];
+    var buttons = cannot ? [notNow] : [approve, notNow];
     describedBy(buttons, seen);
     approve.onclick = function () {
       return decide("approve_workflow", row.id, buttons);
@@ -159,7 +161,10 @@
     notNow.onclick = function () {
       return decide("dismiss_workflow", row.id, buttons);
     };
-    return Halvo.el("div", { class: "proposal" }, [seen, Halvo.el("p", { class: "muted", text: count }), Halvo.el("div", { class: "row" }, buttons)]);
+    var parts = [seen, Halvo.el("p", { class: "muted", text: count })];
+    if (cannot) parts.push(Halvo.el("p", { text: w.CANNOT_DO_TASK }));
+    parts.push(Halvo.el("div", { class: "row" }, buttons));
+    return Halvo.el("div", { class: "proposal" }, parts);
   }
 
   /** Delete opens the question on a row below its own and stays where it is, so a second click lands on Delete again. */
