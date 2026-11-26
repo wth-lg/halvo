@@ -1570,7 +1570,7 @@ fn no_reply_of_another_form_answers_load_replies_and_its_reply_answers_no_other_
         .map(|r| RunnerReply::parse(r.as_bytes()).unwrap())
         .collect();
     let ops: std::collections::BTreeSet<&str> = calls.iter().map(|c| c.op()).collect();
-    assert_eq!(ops.len(), 14, "{ops:?}");
+    assert_eq!(ops.len(), 15, "{ops:?}");
     let load_replies = calls
         .iter()
         .find(|c| matches!(c, RunnerCall::LoadReplies(_)))
@@ -1590,9 +1590,13 @@ fn no_reply_of_another_form_answers_load_replies_and_its_reply_answers_no_other_
             RunnerReply::Session(_) => "session",
             RunnerReply::Stored(_) => "stored",
             RunnerReply::Replies(_) => "replies",
+            RunnerReply::Kept(_) => "kept",
         });
     }
-    assert_eq!(forms, ["load", "steps", "session", "stored", "replies"]);
+    assert_eq!(
+        forms,
+        ["load", "steps", "session", "stored", "replies", "kept"]
+    );
 }
 
 #[test]

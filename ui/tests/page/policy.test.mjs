@@ -92,5 +92,5 @@ try {
   await browser.close();
   server.close();
 }
-console.log('policy tests: ' + ran + ', failed: ' + failed + ', browser: ' + build.browser);
+console.log('policy tests passed=' + (ran - failed) + ' failed=' + failed + ' browser=' + build.browser);
 process.exitCode = failed === 0 && ran === 3 ? 0 : 1;

@@ -12,7 +12,9 @@ use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use halvo_schema::executable::body::{LoadRepliesReply, LoadReply, LoadedBindings, Stored};
+use halvo_schema::executable::body::{
+    KeptReply, LoadRepliesReply, LoadReply, LoadedBindings, Stored,
+};
 use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::{
     Approval, Confirm, ConfirmDecision, ConfirmEffect, ConfirmReply, ConfirmRequest, ReplyError,
@@ -310,10 +312,10 @@ fn serve(mut stream: TcpStream, messages: &[Value], seen: &Mutex<Vec<String>>) {
 }
 
 /// What a run of a test is given: the agent's tier and whether the start names it (`--hosted`); whether the test's
-/// policy opens the cell `email write` at `frontier` (else the release table, which hands it back); the stored key;
+/// policy opens the cell `email write` at `frontier` (else the release table); the stored key;
 /// the store's refusal of a `model_hold`; the agent's autonomy, whether `send` is allowed and whether its caps split;
-/// the person's answer on every card; and the messages whose own newest row is `drafted` with the draft
-/// `draft-<id>`.
+/// the person's answer on every card; the messages whose own newest row is `drafted` with the draft
+/// `draft-<id>`; and the text that the store keeps for the draft of such a message (r3 U7.9).
 #[derive(Clone)]
 struct Setup {
     tier: ModelTier,
@@ -326,6 +328,7 @@ struct Setup {
     split: bool,
     answer: Choice,
     waiting: Vec<&'static str>,
+    kept: Vec<(&'static str, String)>,
 }
 
 impl Setup {
@@ -342,6 +345,7 @@ impl Setup {
             split: false,
             answer: Choice::AllowOnce,
             waiting: Vec::new(),
+            kept: Vec::new(),
         }
     }
 }
@@ -407,6 +411,30 @@ impl Seen {
                         })
                         .collect(),
                 ),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The message, the draft and the text of each `reply_row` that carries a text for the store to keep (r3 U7.9).
+    fn kept_rows(&self) -> Vec<(String, String, String)> {
+        self.frames
+            .iter()
+            .filter_map(|frame| match frame {
+                FromRunner::Store(s) => match s.request.body() {
+                    RunnerCall::ReplyRow(b) => b.body.as_ref().map(|body| {
+                        (
+                            b.record.message.as_str().to_owned(),
+                            b.record
+                                .draft
+                                .as_ref()
+                                .map_or("", |d| d.as_str())
+                                .to_owned(),
+                            body.joined(),
+                        )
+                    }),
+                    _ => None,
+                },
                 _ => None,
             })
             .collect()
@@ -561,6 +589,16 @@ fn supervise(
                             .collect(),
                         blocked: Vec::new(),
                         blocked_withheld: Vec::new(),
+                    })),
+                    RunnerCall::LoadReplyBody(b) => Ok(RunnerReply::Kept(KeptReply {
+                        kept: setup
+                            .kept
+                            .iter()
+                            .find(|(id, _)| {
+                                b.message.as_str() == *id
+                                    && b.draft.as_str() == format!("draft-{id}")
+                            })
+                            .map(|(_, text)| OwnValue::new(text)),
                     })),
                     RunnerCall::ModelHold(_) => match setup.hold {
                         Some(name) => Err(ReplyError::Workflow(
@@ -1060,7 +1098,8 @@ fn a_model_written_reply_is_sent_only_after_a_yes_on_a_card_that_shows_its_whole
 /// names no writer for the agent's tier, where the agreement is missing and where the cap is reached, every body is
 /// the const text with `const`, the run goes on to the card, and no request line goes to the door (no door at all
 /// but where the hold was refused); a missing key ends the run `handed_back` with `no_model_key` before any draft;
-/// a message whose draft of an earlier run waits gets no second body: no request line for it, the const text.
+/// a message whose draft of an earlier run waits gets no second body: no request line for it, and the const text
+/// where the store keeps no text for its draft (r3 U7.9).
 #[test]
 fn with_no_writer_no_agreement_or_the_cap_reached_the_body_is_the_const_text_and_nothing_reaches_the_host(
 ) {
@@ -1201,6 +1240,106 @@ fn with_no_writer_no_agreement_or_the_cap_reached_the_body_is_the_const_text_and
             (PLAIN.to_owned(), Source::Model)
         ]]
     );
+}
+
+/// r3 U7.9: a draft that waits keeps the writer model's text at a later start. Run 1 writes the model's text into
+/// the draft and hands it to the store beside the `drafted` row, and its card is answered "Don't send". Run 2, whose
+/// stand-in store keeps that text for the waiting draft, starts no door and sends no request line, writes the kept
+/// text into the draft by its PATCH, shows it on its card with the source `model`, and the one send of the draft
+/// comes after that card, the draft holding the card's text at the mail host.
+#[test]
+fn u79_a_waiting_draft_keeps_the_writers_text_at_a_later_start_and_its_send_holds_what_the_card_showed(
+) {
+    let dir = scratch("u79-kept-draft");
+    let record = halvo_test_dir::make(&dir, "record").expect("the record directory");
+    let mailbox = Mailbox::start(vec![message("m1", "Can we meet on Friday? [plain]")]);
+    let first = run_once(
+        &Setup {
+            answer: Choice::RejectOnce,
+            ..Setup::allowed()
+        },
+        &mailbox,
+        &record,
+    );
+    let kept = first.kept_rows();
+    let (lines, door_starts) = (request_lines(&record).len(), starts(&record));
+    println!(
+        "run 1: cards {:?} kept {kept:?} sends {} request lines {lines} door starts {door_starts} end {:?}",
+        first.cards(),
+        mailbox.sends(),
+        first.end()
+    );
+    assert_eq!(first.cards(), [vec![(PLAIN.to_owned(), Source::Model)]]);
+    assert_eq!(mailbox.sends(), 0, "run 1: no send behind Don't send");
+    assert_eq!(
+        kept,
+        [("m1".to_owned(), "draft-m1".to_owned(), PLAIN.to_owned())],
+        "run 1: the writer's text beside the drafted row"
+    );
+    assert_eq!(lines, 1, "run 1: one request line");
+
+    let second = run_once(
+        &Setup {
+            waiting: vec!["m1"],
+            kept: vec![("m1", kept[0].2.clone())],
+            ..Setup::allowed()
+        },
+        &mailbox,
+        &record,
+    );
+    let requests = mailbox.requests();
+    let send = requests
+        .iter()
+        .position(|r| r.starts_with("POST /v1.0/me/messages/draft-m1/send "))
+        .expect("a send of the draft");
+    let held = requests[..send]
+        .iter()
+        .filter(|r| r.starts_with("PATCH /v1.0/me/messages/draft-m1 "))
+        .filter_map(|r| r.split_once("\r\n\r\n"))
+        .filter_map(|(_, body)| serde_json::from_str::<Value>(body).ok())
+        .filter_map(|v| v["body"]["content"].as_str().map(str::to_owned))
+        .next_back();
+    println!(
+        "run 2: cards {:?} patches {:?} held at the send {held:?} sends {} sends before each card {:?} request lines {} door starts {} end {:?}",
+        second.cards(),
+        mailbox.patches(),
+        mailbox.sends(),
+        second.sends_at_cards,
+        request_lines(&record).len(),
+        starts(&record),
+        second.end()
+    );
+    assert_eq!(starts(&record), door_starts, "run 2: no door start");
+    assert_eq!(
+        request_lines(&record).len(),
+        lines,
+        "run 2: no request line"
+    );
+    assert!(second.model_frames().is_empty(), "run 2: no hold, no key");
+    assert_eq!(second.cards(), [vec![(PLAIN.to_owned(), Source::Model)]]);
+    assert_eq!(
+        mailbox.patches(),
+        [
+            ("draft-m1".to_owned(), PLAIN.to_owned()),
+            ("draft-m1".to_owned(), PLAIN.to_owned())
+        ],
+        "the kept text in the draft"
+    );
+    assert!(
+        second.sends_at_cards.iter().all(|n| *n == 0),
+        "no send before the card"
+    );
+    assert_eq!(mailbox.sends(), 1, "one send");
+    assert_eq!(
+        held.as_deref(),
+        Some(PLAIN),
+        "what leaves is what the card showed"
+    );
+    assert!(
+        second.kept_rows().is_empty(),
+        "no second text for the draft"
+    );
+    assert_eq!(second.end(), (Some(Outcome::Completed), None));
 }
 
 /// The coordinator's log line 22541 (3): a body that the writer model wrote and that holds a mark of the mask is no

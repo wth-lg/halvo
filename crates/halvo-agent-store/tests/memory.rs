@@ -160,6 +160,7 @@ fn the_kind_table_is_the_family_agent() {
             "agent_session",
             "agent_checkpoint",
             "agent_reply",
+            "agent_reply_body",
             "agent_start",
             "agent_finished",
             "agent_agreement",

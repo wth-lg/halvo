@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
-use halvo_schema::executable::body::{LoadRepliesReply, RunnerCall, RunnerReply};
+use halvo_schema::executable::body::{KeptReply, LoadRepliesReply, RunnerCall, RunnerReply};
 use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::{
     Approval, ConfirmDecision, ConfirmEffect, ConfirmReply, SecretReply, StoreReply,
@@ -288,6 +288,20 @@ impl ReplyStore {
         })
     }
 
+    /// The reply to the `load_reply_body` frame `frame` (r3 U7.9): no kept text, since this store keeps the row of
+    /// each `reply_row` alone and no text beside it.
+    pub fn kept(&self, frame: &FromRunner) -> ToRunner {
+        let FromRunner::Store(s) = frame else {
+            panic!("not a store frame")
+        };
+        ToRunner::StoreReply(StoreReplyFrame {
+            reply: StoreReply {
+                id: Some(s.request.id().clone()),
+                outcome: Ok(RunnerReply::Kept(KeptReply { kept: None })),
+            },
+        })
+    }
+
     /// The rows of the agent of `sup` for `message`, in the order stored.
     pub fn of(&self, sup: &Supervisor, message: &str) -> Vec<AgentReply> {
         self.rows
@@ -340,6 +354,9 @@ fn rule(
     }
     if is_op(frame, "load_replies") {
         return Act::With(store.answer(frame));
+    }
+    if is_op(frame, "load_reply_body") {
+        return Act::With(store.kept(frame));
     }
     if matches!(frame, FromRunner::Confirm(_)) {
         return decision(frame, |_| Answer::RejectOnce);

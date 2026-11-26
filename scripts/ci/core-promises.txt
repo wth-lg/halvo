@@ -114,7 +114,7 @@ billing check 10-r7-account by-hand the macos job, 55 s in the slice sat (r8 cut
 billing check 10-r7-account by-hand the windows job, 124 s on an AMD EPYC 7763 in the slice mon of the run 45050615172 (r8 cut-2, rule R3: the account, which no build for a person holds)
 
 egress check 60-r6-egress gate macos job, 69 s there in the push run 44895970784
-egress check 60-r6-egress scheduled wed2 the windows job, 167 s on an AMD EPYC 7763 in the slice wed of the run 45096596639
+egress check 60-r6-egress scheduled tue the windows job, 166 s on an AMD EPYC 7763 in the slice wed2 of the run 45743649121
 egress check 61-r6-senders-egress gate macos job, which alone has the check (the egress check's mode sandbox runs on macOS alone), 41 s on a developer's Mac, its hosted seconds in the run of the pull request that added it; the tests of the packages that can start a sender open no connection outside 127.0.0.1 at the ports 49152 to 65535
 egress check 21-tree-bans gate windows job, whose cargo tree calls name each target and --target all (r8 cut-2, rule R4: it reads the same files and runs the same code on both systems, so the macos gate leaves it to the windows gate)
 egress target halvo-route/no_grant_in_release gate windows job (r8 cut-2, rule R4: its code holds no cfg by system, so the macos gate leaves it to the windows gate); under the release data a grant is made for the origin of the table's row of its tier and for no other; a ruling made for a test names http://127.0.0.1:<port> alone; no Rust file but the maker's own and the listed test files names the maker of that ruling; the pins of five files
@@ -125,7 +125,7 @@ egress check 64-model-egress scheduled sun the macos job, 33 s there in the run 
 egress check 64-model-egress scheduled sun the windows job, 39 s there in the run by hand 45105491927; that job makes the check's first call alone
 egress check 62-build scheduled sun the macos job and sun the windows job (its run of thu left with r8 cut-2), 566 s and 474 s in the two jobs of the slice sun in the run by hand 45105491927, 52 s and 68 s of them the build call of halvo-model; no shipped file, the door halvo-model's among them, holds the marker of the loopback route of halvo-connect
 egress check 10-egress scheduled thu the macos job, 33 s there in the push run 44895970784
-egress check 10-egress scheduled wed2 the windows job, 215 s on an AMD EPYC 7763 in the slice thu of the run 45086425387
+egress check 10-egress scheduled mon the windows job, 220 s on an AMD EPYC 7763 in the slice wed2 of the run 45743649121
 egress check 80-r6-absent scheduled wed2 the windows job, 52 s on an AMD EPYC 7763 in the slice sat of the run 45098472482; the windows job alone runs it (r8 cut-2, rule R4: it reads the same files and runs the same code on both systems)
 egress check 38-app-engine-routes scheduled wed2 the macos job, 136 s on an Apple M1 (Virtual) in the slice wed of the run 45128149906; the engine of the window opens no connection
 egress check 38-app-engine-routes scheduled wed2 the windows job, 197 s on an AMD EPYC 7763 in the slice sat of the run 45098472482

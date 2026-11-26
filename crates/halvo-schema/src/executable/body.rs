@@ -16,9 +16,9 @@ use super::names::{
     MarkState, Mode, ModelTier, ReplyState, RoomState, Way, YesNo,
 };
 use super::record::{
-    checkpoint_copy, hosts_up_to, origins_and_slots, part_of, slot_names_once, AgentCheckpoint,
-    AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, Hosted, Slot, PAGE_CAUSES,
-    SESSION_PARTS_MAX,
+    checkpoint_copy, hosts_up_to, origins_and_slots, part_of, reply_body_fits, slot_names_once,
+    AgentCheckpoint, AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, Hosted, Slot,
+    PAGE_CAUSES, SESSION_PARTS_MAX,
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
 use super::text::{
@@ -367,14 +367,43 @@ object_type! {
 
 object_type! {
     /// `reply_row`: one row of the reply to one message, of the body's agent and run. Which row may follow which is
-    /// the handler's to hold.
+    /// the handler's to hold. Beside a `drafted` row that names no effect, the first row of its draft, the key `body`
+    /// may carry the text of a reply that a writer model wrote, as cut, which the handler keeps beside the row as a
+    /// row of `agent_reply_body` (r3 U7.9); it is refused beside any other row, empty, or with a JSON text of more than
+    /// `REPLY_BODY_JSON_MAX` bytes. A body of a build before the key stood holds none.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct PutReplyRow [op = "reply_row"] {
         pub agent: AgentId = "agent" => json::agent_id,
         pub run: RunId = "run" => from_json,
         pub record: AgentReply = "record" => AgentReply::from_raw,
     }
-    rules(b) { same_run("PutReplyRow", (&b.agent, &b.run), (&b.record.agent, &b.record.run)) }
+    absent {
+        pub body: Option<OwnValue> = "body" => from_json,
+    }
+    rules(b) {
+        same_run("PutReplyRow", (&b.agent, &b.run), (&b.record.agent, &b.record.run))?;
+        let Some(body) = &b.body else {
+            return Ok(());
+        };
+        if b.record.state != ReplyState::Drafted || b.record.effect.is_some() {
+            return Err(Refusal::malformed("PutReplyRow", "body_of_state").at("body"));
+        }
+        reply_body_fits("PutReplyRow", body)
+    }
+}
+
+object_type! {
+    /// `load_reply_body` (r3 U7.9): the kept text of the draft `draft` of the message `message`, which the run asks
+    /// for a message whose own newest row is `drafted` with that draft, a draft of an earlier run that waits. The
+    /// handler answers it only while the agent's own newest row of the message is `drafted` with that draft.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct LoadReplyBody [op = "load_reply_body"] {
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub message: ProviderId = "message" => from_json,
+        pub draft: ProviderId = "draft" => from_json,
+    }
+    rules(_b) { Ok(()) }
 }
 
 object_type! {
@@ -464,6 +493,7 @@ op_enum! {
         DropSession(DropSession) = "drop_session",
         ModelHold(ModelHold) = "model_hold",
         ModelSettle(ModelSettle) = "model_settle",
+        LoadReplyBody(LoadReplyBody) = "load_reply_body",
     }
 }
 
@@ -485,6 +515,7 @@ impl RunnerCall {
             RunnerCall::DropSession(b) => &b.agent,
             RunnerCall::ModelHold(b) => &b.agent,
             RunnerCall::ModelSettle(b) => &b.agent,
+            RunnerCall::LoadReplyBody(b) => &b.agent,
         }
     }
 
@@ -505,6 +536,7 @@ impl RunnerCall {
             RunnerCall::DropSession(b) => &b.run,
             RunnerCall::ModelHold(b) => &b.run,
             RunnerCall::ModelSettle(b) => &b.run,
+            RunnerCall::LoadReplyBody(b) => &b.run,
         }
     }
 }
@@ -614,6 +646,21 @@ object_type! {
 }
 
 object_type! {
+    /// The reply of `load_reply_body` (r3 U7.9): the kept text of the draft, or null where the store hands none out.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct KeptReply {
+        pub kept: Option<OwnValue> = "kept" => opt(from_json),
+    }
+    rules(r) {
+        match &r.kept {
+            Some(body) => reply_body_fits("KeptReply", body),
+            None => Ok(()),
+        }
+    }
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
+}
+
+object_type! {
     /// The reply of the runner bodies `put_playbook`, `put_session`, `effect`, `log`, `finish`, `checkpoint`,
     /// `reply_row`, `drop_session`, `model_hold` and `model_settle`, and of the coordinator bodies `mark_checkpoint` and
     /// `drop_sessions`: the count stored.
@@ -713,6 +760,7 @@ reply_enum! {
         Session(SessionReply) = "data",
         Stored(Stored) = "stored",
         Replies(LoadRepliesReply) = "replies",
+        Kept(KeptReply) = "kept",
     }
 }
 
@@ -729,6 +777,7 @@ impl RunnerReply {
             }
             (RunnerReply::Steps(r), RunnerCall::LoadSteps(b)) => r.agent == b.agent,
             (RunnerReply::Session(r), RunnerCall::LoadSession(b)) => r.agent == b.agent,
+            (RunnerReply::Kept(_), RunnerCall::LoadReplyBody(_)) => true,
             _ => matches!(
                 (self, call),
                 (
