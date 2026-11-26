@@ -4,6 +4,7 @@
   var EXIT_FAULT_REPORTS_ON = 6;
   var w = Halvo.words;
   var status = Halvo.feed("status");
+  var stepRows = Halvo.feed("status-rows");
   var dot;
   var state;
   var reason;
@@ -33,6 +34,10 @@
   var last = {};
   var readsSentBeforeTheLastMutation = 0;
   var ran = null;
+  var drawnState = 0;
+  var rows = null;
+  var rowsAskedAt = null;
+  var windowShown = false;
 
   var SERVICE = {
     connecting: w.CONNECTING,
@@ -81,6 +86,7 @@
   Halvo.takeMutationReply = function (view) {
     Halvo.markAnswer();
     readsSentBeforeTheLastMutation = sent;
+    drawnState += 1;
     status.set(view);
   };
 
@@ -168,14 +174,13 @@
   function render(s) {
     var key = s.service + ":" + s.capture + ":" + s.desired + ":" + pressOf(s);
     if (shown !== null && key !== shown) heldUntil = performance.now() + HOLD_MS;
+    if (key !== shown) drawnState += 1;
     shown = key;
     shownService = s.service;
     dot.classList.toggle("on", !s.hold && s.service === "running" && (s.capture === "running" || s.capture === "partial"));
     state.textContent = heading(s);
-    if (s.hold) reason.textContent = heldReason(s);
-    else if (s.service !== "running") reason.textContent = "";
-    else if (s.capture === "faulted") reason.textContent = FAULT[s.capture_reason] || "";
-    else reason.textContent = leftOutNow(s);
+    drawReason(s);
+    if (windowShown || rows === null || rows.at !== drawnState) askRows(s);
     beforeLine.textContent = leftOutBefore(s);
     renderToggle(s);
     renderSources(s);
@@ -192,6 +197,31 @@
     settingsReset.classList.toggle("hidden", !resetOffered(s));
     settingsDelete.classList.toggle("hidden", s.state_file !== "newer_version");
     renderFirstRun(s);
+  }
+
+  function drawReason(s) {
+    if (s.hold) reason.textContent = heldReason(s);
+    else if (s.service !== "running") reason.textContent = "";
+    else if (s.capture === "faulted") reason.textContent = FAULT[s.capture_reason] || "";
+    else if (s.capture === "paused") reason.textContent = pending === null && rows !== null && rows.at === drawnState && !rows.open ? w.PAUSED_UNTIL_RESUME : "";
+    else reason.textContent = leftOutNow(s);
+  }
+
+  function askRows(s) {
+    if (rowsAskedAt !== null || s.hold || s.service !== "running" || s.capture !== "paused") return;
+    var at = (rowsAskedAt = drawnState);
+    Halvo.ipc
+      .call("onboarding_state")
+      .then(
+        function (o) {
+          stepRows.set({ at: at, open: !(o && Array.isArray(o.walkback) && o.walkback.length === 0) });
+        },
+        function () {},
+      )
+      .then(function () {
+        rowsAskedAt = null;
+        if (at !== drawnState) askRows(last);
+      });
   }
 
   function runs(s) {
@@ -399,6 +429,7 @@
     if (performance.now() < heldUntil) return Promise.resolve();
     var asked = action;
     pending = asked;
+    drawReason(last);
     toggle.disabled = true;
     toggle.textContent = asked === "paused" ? w.PAUSING : w.STARTING;
     Halvo.showError("");
@@ -417,6 +448,7 @@
         pending = null;
         Halvo.showError(asked === "paused" ? w.PAUSE_NOT_REACHED : e);
         renderToggle(last);
+        drawReason(last);
       });
   }
 
@@ -433,6 +465,7 @@
         pending = null;
         Halvo.showError(e && e.error === "deadline" ? w.START_NO_ANSWER.replace("{seconds}", String(Number(e.seconds) || 0)) : e);
         renderToggle(last);
+        drawReason(last);
       });
   }
 
@@ -496,11 +529,20 @@
         last = s;
       });
       status.on(render);
+      stepRows.on(function (r) {
+        rows = r;
+        drawReason(last);
+      });
       status.source(refresh);
       refresh();
       setInterval(refresh, 3000);
     },
-    show: function () {},
-    hide: function () {},
+    show: function () {
+      windowShown = true;
+      askRows(last);
+    },
+    hide: function () {
+      windowShown = false;
+    },
   });
 })();
