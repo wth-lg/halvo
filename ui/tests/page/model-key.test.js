@@ -299,3 +299,74 @@ test("a_key_line_that_cannot_tell_asks_again_by_itself_and_then_no_more", async 
   await loadedHidden.clock.advance(100000);
   assert.deepEqual(asksAt(loadedHidden), [0], "a page that loaded while the window was hidden asks at its load alone");
 });
+
+test("the_parts_that_cannot_tell_ask_again_where_the_page_learns_that_the_service_runs", async () => {
+  const limit = (state) => ({ host: HOST, state, cap: null, spent: null, held: null, period: "month", period_end_ms: null });
+  /** A page whose status reads the fixture `first` and whose parts get an answer only once `service.back` holds; a press of Start or of Resume brings the service. */
+  const open = async (first, back = false) => {
+    const service = { status: first, back };
+    const brings = (reply) => () => {
+      service.status = "running";
+      service.back = true;
+      return fixture(reply);
+    };
+    const page = await openPage({
+      replies: {
+        capture_status: () => fixture(`capture_status-${service.status}`),
+        model_key_state: () => stateOf(service.back ? "none" : "not_known"),
+        model_limit_state: () => limit(service.back ? "none" : "not_known"),
+        start_capture: brings("start_capture-running"),
+        set_capture_state: brings("set_capture_state-running"),
+      },
+    });
+    return { page, service };
+  };
+  const asksAt = (page) => ["model_key_state", "model_limit_state"].map((cmd) => page.calls(cmd).map((c) => c.at));
+  const waits = [0, 1000, 3000, 7000, 15000, 31000];
+
+  for (const [first, button, command] of [
+    ["not-started", "Start", "start_capture"],
+    ["not-running", "Start", "set_capture_state"],
+    ["paused", "Resume", "set_capture_state"],
+  ]) {
+    const { page } = await open(first);
+    await page.clock.advance(40000);
+    assert.deepEqual(asksAt(page), [waits, waits], `the waits are over before the press of ${button} at ${first}`);
+    assert.equal(page.text("toggle"), button);
+    await page.click("toggle");
+    assert.equal(page.calls(command).length, 1, `${button} at ${first} sends ${command}`);
+    assert.deepEqual(asksAt(page), [[...waits, 40000], [...waits, 40000]], `each part asks behind the answer of ${button} at ${first}`);
+    assert.equal(page.text("model-key-state"), STATE.none, "the answer of that ask is drawn");
+    assert.equal(page.visible("model-limit-control"), true, "the limit's control is back");
+    await page.clock.advance(100000);
+    assert.deepEqual(asksAt(page), [[...waits, 40000], [...waits, 40000]], "a part that can tell asks no more, and the status view's read behind the press asks nothing");
+  }
+
+  const byItself = await open("not-running");
+  await byItself.page.clock.advance(40000);
+  byItself.service.status = "running";
+  byItself.service.back = true;
+  await byItself.page.clock.advance(3000);
+  assert.deepEqual(asksAt(byItself.page), [[...waits, 42000], [...waits, 42000]], "each part asks where the status view's own read turns to a running service");
+  assert.equal(byItself.page.text("model-key-state"), STATE.none);
+
+  const hidden = await open("not-running");
+  await hidden.page.clock.advance(40000);
+  await hidden.page.hide();
+  hidden.service.status = "running";
+  hidden.service.back = true;
+  await hidden.page.clock.advance(100000);
+  assert.deepEqual(asksAt(hidden.page), [waits, waits], "a hidden window asks nothing where the status turns to a running service");
+
+  const still = await open("not-running");
+  await still.page.clock.advance(40000);
+  still.service.status = "running";
+  await still.page.clock.advance(100000);
+  const anew = [42000, 43000, 45000, 49000, 57000, 73000];
+  assert.deepEqual(asksAt(still.page), [[...waits, ...anew], [...waits, ...anew]], "a part that still cannot tell begins its waits anew, and then asks no more");
+
+  const told = await open("paused", true);
+  await told.page.click("toggle");
+  assert.equal(told.page.calls("set_capture_state").length, 1);
+  assert.deepEqual(asksAt(told.page), [[0], [0]], "a part that can tell asks nothing behind a press");
+});
