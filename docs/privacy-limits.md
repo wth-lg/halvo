@@ -136,31 +136,33 @@ Where a sentence names a unit, that unit makes it true.
   browser's. Halvo keeps none of these numbers: they are held in memory for that one
   look, and none is stored, shown or sent anywhere. It looks once for a browser that it
   finds running, after you opened that browser or after Halvo's capture service started,
-  and again, at most 25 times, while a look gives it no answer. Where the language file
-  that the browser holds open is the English one, and the browser lies in an
-  Applications folder, Halvo records that browser's titles by the rule above. Where it
-  is the file of another language, where the browser holds none of them or more than
-  one, or where macOS does not give Halvo the numbers, it records no title of that
-  browser, so under any other language it records none. A browser carries more than one
-  file for each language; Halvo takes it for English only where the one that it holds
-  open lies in the folder `en.lproj`, and no run has read a browser that holds another
-  one of them open. A Chrome or Edge that was open before Halvo started is told in the
-  same way as one that you open later. Where the files of the version that runs were
-  taken off the disk while that browser ran, as when its app is replaced by hand, the
-  browser holds files that the disk no longer has: a look then finds none of them, and
-  Halvo records no title of that browser until you quit it and open it again. Two runs
-  on 26 November 2026 read a Mac's Chrome 158.0.8127.37 and Edge 157.0.4341.60: opened
-  in English, each held its English language file open and no other; opened in German,
-  whether by the language that was set for that app or by the argument `-AppleLanguages`
-  on its command line, each held its German one and no other; and so it was at the first
-  window, 20 seconds later and behind a private window. The second of them told each by
-  the two numbers alone; in it a second set of language files appeared inside each app
-  while it ran, as a new version beside the old one would make it, and the look still
-  found the one that the browser held. Those runs did not show Halvo recording a title
-  by this reading, and no run has shown the reading on a person's own Mac. They read no
-  browser that had been open for longer than a minute and none whose files were taken
-  off the disk while it ran, and they read English and German alone. Halvo records no
-  title of any other browser that it knows by
+  and again, at most 25 times, while a look gives it no answer. Only where more than
+  four copies of the same browser run at once, each started as a program of its own, can
+  it look at one of them anew. Where the language file that the browser holds open is
+  the English one, and the browser lies in an Applications folder, Halvo records that
+  browser's titles by the rule above. Where it is the file of another language, where
+  the browser holds none of them or more than one, or where macOS does not give Halvo
+  the numbers, it records no title of that browser, so under any other language it
+  records none. A browser carries more than one file for each language; Halvo takes it
+  for English only where the one that it holds open lies in the folder `en.lproj`, and
+  no run has read a browser that holds another one of them open. A Chrome or Edge that
+  was open before Halvo started is told in the same way as one that you open later.
+  Where the files of the version that runs were taken off the disk while that browser
+  ran, as when its app is replaced by hand, the browser holds files that the disk no
+  longer has: a look then finds none of them, and Halvo records no title of that browser
+  until you quit it and open it again. Two runs on 26 November 2026 read a Mac's Chrome
+  158.0.8127.37 and Edge 157.0.4341.60: opened in English, each held its English
+  language file open and no other; opened in German, whether by the language that was
+  set for that app or by the argument `-AppleLanguages` on its command line, each held
+  its German one and no other; and so it was at the first window, 20 seconds later and
+  behind a private window. The second of them told each by the two numbers alone; in it
+  a second set of language files appeared inside each app while it ran, as a new version
+  beside the old one would make it, and the look still found the one that the browser
+  held. Those runs did not show Halvo recording a title by this reading, and no run has
+  shown the reading on a person's own Mac. They read no browser that had been open for
+  longer than three minutes and none whose files were taken off the disk while it ran,
+  and they read English and German alone. Halvo records no title of any other browser
+  that it knows by
   name, such as Safari, Firefox, Brave, Opera or Vivaldi, with their beta, developer,
   nightly and test builds, and none of an app that your Mac lists as one that can open
   web links. Where Halvo cannot read that list, or cannot tell where such an app lies on
