@@ -46,9 +46,10 @@ const FD_VNODE_INFO: libc::c_int = 1;
 const _: () = assert!(std::mem::size_of::<OpenFileInfo>() == 176);
 
 /// The most open files of a process, and the most language files of a
-/// bundle, that one read takes: beyond either it gives no answer.
+/// bundle, that one read takes: beyond either it gives no answer. A bundle
+/// holds the language files of each of its version folders.
 const OPEN_FILES_READ: usize = 4_096;
-const LANGUAGE_FILES_READ: usize = 512;
+const LANGUAGE_FILES_READ: usize = 4_096;
 
 /// The most entries that the list of a process's open files may take room
 /// for; a process whose list asks for more gives no answer.
@@ -286,13 +287,16 @@ mod tests {
         let app = std::env::temp_dir()
             .join(format!("halvo-held-language-{me}"))
             .join("Made Browser.app");
-        let resources = app
-            .join("Contents/Frameworks/Made Browser Framework.framework/Versions/1.2.3/Resources");
-        for code in ["de", "en"] {
-            let folder = resources.join(format!("{code}.lproj"));
-            std::fs::create_dir_all(&folder).expect("the folder");
-            std::fs::write(folder.join("locale.pak"), code).expect("the file");
+        let versions = app.join("Contents/Frameworks/Made Browser Framework.framework/Versions");
+        let resources = versions.join("1.2.3/Resources");
+        for version in ["1.2.3", "1.2.4"] {
+            for code in ["de", "en"] {
+                let folder = versions.join(format!("{version}/Resources/{code}.lproj"));
+                std::fs::create_dir_all(&folder).expect("the folder");
+                std::fs::write(folder.join("locale.pak"), code).expect("the file");
+            }
         }
+        std::os::unix::fs::symlink("1.2.3", versions.join("Current")).ok();
         let place = app.to_str().expect("a path of plain text");
         let none = SystemLanguages.held_language(me, place);
         let german =
