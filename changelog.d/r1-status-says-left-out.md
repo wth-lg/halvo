@@ -1,0 +1,2 @@
+- Changed: on a Mac the Status page names typing, window titles and screen activity where a password field or another app keeps typing private, also with "Record typing" off, and says nothing of it where the source of the app in front has stopped.
+- Added: the Status page says from when to when Halvo recorded nothing where it could not tell whether to leave out the app in use for a minute or more.
