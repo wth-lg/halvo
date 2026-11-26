@@ -82,6 +82,11 @@ pub struct Board {
     /// The loss of the last life that the start read, until a delete of
     /// everything takes it back.
     pub last_life: Option<LastLife>,
+    /// A Mac's service whose note run/keys-restart stands, whose board reads
+    /// the grant of Input Monitoring, and whose tap still holds no key type
+    /// while typing and key_class are on: its own restart for that grant did
+    /// not help, and the onboarding state carries one step that says so.
+    pub keys_restart_did_not_help: bool,
 }
 
 impl Board {
@@ -111,6 +116,7 @@ impl Board {
                 Platform::Windows => PasswordGuard::Halvo,
             },
             last_life: None,
+            keys_restart_did_not_help: false,
         }
     }
 

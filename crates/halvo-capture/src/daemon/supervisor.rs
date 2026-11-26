@@ -277,8 +277,10 @@ pub enum Ending {
     Signal,
     /// The owner thread is gone.
     OwnerGone,
-    /// A permission was granted after the start: the daemon ends with status
-    /// 4 and its starter starts it again.
+    /// A permission was granted after the start, or a Mac's tap holds no key
+    /// type beside a grant of Input Monitoring that the board reads, once
+    /// for that grant: the daemon ends with status 4 and its starter starts
+    /// it again.
     Restart,
     /// A stop for capture off met a source that did not stop, and the end
     /// routine ended the process with status 5.
@@ -469,6 +471,35 @@ impl TypingNote for NoteInRun {
     }
 }
 
+/// Where the supervisor keeps that a life ended for a grant of Input
+/// Monitoring whose tap held no key type, so that no later life ends for
+/// that grant again: the note run/keys-restart in run/ of its held folder.
+pub trait KeysRestartNote {
+    fn keep(&mut self) -> std::io::Result<()>;
+
+    fn let_go(&mut self) -> std::io::Result<()>;
+}
+
+/// That note in run/ of the folder that the instance lock holds
+/// (`run_marker::keep_keys_restart`, `run_marker::let_keys_restart_go`).
+#[cfg(any(target_os = "macos", windows))]
+impl KeysRestartNote for NoteInRun {
+    fn keep(&mut self) -> std::io::Result<()> {
+        match &self.run {
+            Ok(run) => super::run_marker::keep_keys_restart(run),
+            Err(kind) => Err((*kind).into()),
+        }
+    }
+
+    fn let_go(&mut self) -> std::io::Result<()> {
+        match &self.run {
+            Ok(run) => super::run_marker::let_keys_restart_go(run),
+            Err(std::io::ErrorKind::NotFound) => Ok(()),
+            Err(kind) => Err((*kind).into()),
+        }
+    }
+}
+
 /// The run marker as a file, rewritten whole by a write to a file beside it,
 /// a sync and a rename, and a sync of the directory; the clear of the hold
 /// writes the marker of the running life again, with no record and no hold.
@@ -597,6 +628,15 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     /// Whether the owner of the served context keeps a key event: its floor
     /// holds key_class as it read at the owner's make.
     owner_keeps_keys: bool,
+    /// The note of a life that ended for a grant of Input Monitoring whose
+    /// tap held no key type ([`Self::restart_for_the_keys`]).
+    keys_restart_note: Option<Box<dyn KeysRestartNote>>,
+    /// Whether that note stands, as the start read it and this life kept or
+    /// let it go since.
+    keys_restart_stands: bool,
+    /// A write of that note failed in this life: no further try until an
+    /// answer reads the grant of Input Monitoring missing.
+    keys_restart_refused: bool,
     /// The input source's line as the last publish gave it, for a test that
     /// reads what the service said at the moment of a begin.
     #[cfg(test)]
@@ -662,6 +702,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             note_stands: false,
             off_unsaved: None,
             owner_keeps_keys: false,
+            keys_restart_note: None,
+            keys_restart_stands: false,
+            keys_restart_refused: false,
             #[cfg(test)]
             published_input: None,
             #[cfg(test)]
@@ -883,6 +926,114 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     #[cfg(any(target_os = "macos", windows))]
     pub(crate) fn typing_note_stands(&self) -> bool {
         self.note_stands
+    }
+
+    /// The note of a life that ended for a grant of Input Monitoring whose
+    /// tap held no key type, with whether the start read it as standing
+    /// (`stands`): while it stands no life ends for that grant again
+    /// ([`Self::restart_for_the_keys`]).
+    #[cfg(any(target_os = "macos", windows))]
+    pub fn with_keys_restart_note(
+        mut self,
+        note: Box<dyn KeysRestartNote>,
+        stands: bool,
+    ) -> Supervisor<F, L> {
+        self.keys_restart_note = Some(note);
+        self.keys_restart_stands = stands;
+        self
+    }
+
+    /// Whether the held input source of a Mac holds no key type beside a
+    /// grant of Input Monitoring that the board reads: typing and key_class
+    /// are on, the latch of the key types is not set, no restart of the
+    /// source is due, and its line reads impaired with the reason
+    /// permission, the line of a tap that asked for the pointer types alone.
+    fn keys_lag_the_grant(&self) -> bool {
+        let name = SourceName::Input;
+        self.platform == Platform::Macos
+            && self.holds_keys()
+            && !self.keys_refused
+            && !self.pausing
+            && !self.stopped_for_drain
+            && self
+                .board
+                .permissions
+                .contains(&(Permission::InputMonitoring, GrantState::Granted))
+            && self.sources.holds(name)
+            && matches!(
+                self.sources.state(name),
+                Some((
+                    SourceState::Impaired {
+                        reason: HealthReason::Permission
+                    },
+                    false
+                ))
+            )
+            && !self.backoff.iter().any(|backoff| backoff.name == name)
+    }
+
+    /// The end of a life whose tap holds no key type beside a grant of Input
+    /// Monitoring that the board reads ([`Self::keys_lag_the_grant`]): the
+    /// running process's own reading of listening refused the key types at
+    /// the tap's begin, behind a grant given back after a loss
+    /// ([`Self::restart_granted_again`]) or one given between the begin and
+    /// the probe's first answer. Where the note of such an end does not
+    /// stand, it is written first, and the life ends with the restart's
+    /// status, 4, behind which the app starts the service again; a note that
+    /// is not written ends nothing, and this life tries no second write until
+    /// an answer reads the grant missing. While the note stands no life ends
+    /// for the grant again: it goes at a tick whose tap holds the key types
+    /// (the line reads running while typing and key_class are on) and at a
+    /// probe answer that reads Input Monitoring not granted.
+    fn restart_for_the_keys(&mut self) {
+        if self.ending.is_some() {
+            return;
+        }
+        if self.keys_restart_stands {
+            let name = SourceName::Input;
+            if self.platform == Platform::Macos
+                && self.holds_keys()
+                && self.sources.holds(name)
+                && matches!(
+                    self.sources.state(name),
+                    Some((SourceState::Running, false))
+                )
+            {
+                self.let_the_keys_restart_go();
+            }
+            return;
+        }
+        if self.keys_restart_refused || !self.keys_lag_the_grant() {
+            return;
+        }
+        let kept = self.keys_restart_note.as_mut().map_or_else(
+            || Err(std::io::ErrorKind::NotFound.into()),
+            |note| note.keep(),
+        );
+        match kept {
+            Ok(()) => {
+                self.keys_restart_stands = true;
+                self.ending = Some(Ending::Restart);
+            }
+            Err(error) => {
+                self.keys_restart_refused = true;
+                let _ = writeln!(
+                    self.err,
+                    "halvo-capture: the note run/keys-restart was not written: {}",
+                    error.kind()
+                );
+            }
+        }
+    }
+
+    fn let_the_keys_restart_go(&mut self) {
+        let gone = self
+            .keys_restart_note
+            .as_mut()
+            .map_or(Ok(()), |note| note.let_go());
+        if gone.is_ok() {
+            self.keys_restart_stands = false;
+        }
     }
 
     /// The status that the watchdog is armed with, if it is.
@@ -1495,6 +1646,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if let Some(ending) = self.read_permissions(now, owner) {
             self.ending = Some(ending);
         }
+        self.restart_for_the_keys();
         if let Some(requests) = self.requests.as_mut() {
             requests.running();
         }
@@ -1838,6 +1990,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             .map(|(permission, _)| *permission)
             .collect();
         self.board.permissions = answers;
+        if self.board.permissions.iter().any(|(permission, grant)| {
+            *permission == Permission::InputMonitoring && *grant != GrantState::Granted
+        }) {
+            self.keys_restart_refused = false;
+            if self.keys_restart_stands {
+                self.let_the_keys_restart_go();
+            }
+        }
         match self.board.granted_at_start.clone() {
             None => self.board.granted_at_start = Some(granted.clone()),
             Some(at_start) => {
@@ -2253,8 +2413,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// reason permission is begun again, published as running before it
     /// begins (`restart_due`); that start asks for the key types
     /// only where the service's own reading then allows listening, and
-    /// otherwise asks for the pointer types alone again, so that typing stays
-    /// off until the service starts again.
+    /// otherwise asks for the pointer types alone again, behind which the
+    /// life ends once for the grant ([`Self::restart_for_the_keys`]).
     fn restart_granted_again(&mut self, now: Duration) {
         let keys_back = self.keys_refused && !self.grant_missing(SourceName::Input);
         if keys_back {
@@ -2585,6 +2745,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             self.board.capture_of(&self.wanted)
         };
         self.board.figures = self.factory.figures();
+        self.board.keys_restart_did_not_help =
+            self.ending.is_none() && self.keys_restart_stands && self.keys_lag_the_grant();
         #[cfg(any(target_os = "macos", windows))]
         if let Some(life) = &self.life {
             life.publish(self.status_parts(None));
@@ -3818,6 +3980,94 @@ mod tests {
             .all(|named| named == &[Permission::InputMonitoring]));
     }
 
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn a_grant_given_back_whose_begin_holds_no_key_type_ends_the_life_once_with_the_restart() {
+        let (mut f, answers, _) = probed(fixture(Factory::new()));
+        let note = Note::default();
+        f.supervisor = f
+            .supervisor
+            .with_keys_restart_note(Box::new(note.clone()), false);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        f.start(&two());
+        f.tick();
+        assert_eq!(f.state(SourceName::Input), SourceState::Running);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::NotGranted));
+        f.later(PROBE_INTERVAL);
+        f.supervisor.factory_mut().listen_denied = true;
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        assert_eq!(
+            (f.later(PROBE_INTERVAL), note.read()),
+            (None, false),
+            "the answer that reads the grant back begins the source again first"
+        );
+        let pointer_alone = SourceState::Impaired {
+            reason: HealthReason::Permission,
+        };
+        assert_eq!(
+            (f.tick(), note.read(), f.state(SourceName::Input)),
+            (Some(Ending::Restart), true, pointer_alone),
+            "a begin that holds no key type beside the grant writes the note and ends the life \
+             with the restart"
+        );
+    }
+
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn a_life_started_anew_for_a_grant_ends_nothing_while_its_begin_holds_no_key_type() {
+        let mut factory = Factory::new();
+        factory.listen_denied = true;
+        let (mut f, answers, _) = probed(fixture(factory));
+        let note = Note::default();
+        note.stands.set(true);
+        f.supervisor = f
+            .supervisor
+            .with_keys_restart_note(Box::new(note.clone()), true);
+        f.start(&two());
+        let mut ends = Vec::new();
+        for _ in 0..3 {
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::Granted));
+            ends.push(f.later(PROBE_INTERVAL));
+            ends.push(f.tick());
+        }
+        let steps = |f: &Fixture<Factory>| {
+            super::super::server::status_of(&f.supervisor.status_parts(None), &facts_of_a_start())
+                .expect("the status holds together")
+                .fields()
+                .onboarding
+                .walkback
+                .iter()
+                .filter(|step| step.text == halvo_control::onboarding::KEYS_RESTART_DID_NOT_HELP)
+                .count()
+        };
+        let pointer_alone = SourceState::Impaired {
+            reason: HealthReason::Permission,
+        };
+        assert_eq!(
+            (ends, f.state(SourceName::Input), note.read(), steps(&f)),
+            (vec![None; 6], pointer_alone, true, 1),
+            "while the note stands a tap with no key type beside the grant ends nothing, and the \
+             walkback holds the step"
+        );
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::NotGranted));
+        f.later(PROBE_INTERVAL);
+        assert_eq!(
+            (note.read(), steps(&f)),
+            (false, 0),
+            "an answer that reads the grant missing lets the note go"
+        );
+    }
+
     #[test]
     fn a_turn_to_the_key_types_is_published_before_the_tap_that_asks_for_them_begins() {
         let published: Arc<Mutex<Option<SourceState>>> = Arc::default();
@@ -4160,6 +4410,16 @@ mod tests {
             self.stands.set(false);
             self.new.set(false);
             Ok(())
+        }
+    }
+
+    impl KeysRestartNote for Note {
+        fn keep(&mut self) -> io::Result<()> {
+            TypingNote::keep(self)
+        }
+
+        fn let_go(&mut self) -> io::Result<()> {
+            TypingNote::let_go(self)
         }
     }
 
