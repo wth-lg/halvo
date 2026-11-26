@@ -7234,9 +7234,20 @@ mod tests {
         source.shutdown().expect("the source stops");
     }
 
-    #[test]
-    fn a_hold_of_thirty_seconds_stands_in_the_status_with_what_it_leaves_out_with_typing_on_and_off_and_marks_the_row_with_the_key_types_alone(
-    ) {
+    /// The second, counted from 1970, that the stand-in clocks stand at, for the `since` of a status.
+    fn stand_in_wall() -> u64 {
+        1_800_000_000 + (MONOTONIC.with(Cell::get) - START) / (1_000 * MS)
+    }
+
+    /// The list `left_out` of the line that a service writes for a status over the input figures of
+    /// `counters`: with "Record typing" on or off as the supervisor hands it on, which is the setting and
+    /// the switch key_class together, and with the switches of window titles and of screen activity.
+    fn left_out_written(
+        counters: &InputCounters,
+        record_typing: bool,
+        titles: bool,
+        screen: bool,
+    ) -> Option<String> {
         use crate::daemon::board::Board;
         use crate::daemon::server::{status_of, written_list, RunFacts, StatusParts};
         use crate::daemon::slot::Slot;
@@ -7245,41 +7256,70 @@ mod tests {
         use halvo_control::model::{StorageCap, UtcSecond};
         use halvo_control::proto::{LastStop, Lease, Parent, Platform};
 
-        fn wall() -> u64 {
-            1_800_000_000 + (MONOTONIC.with(Cell::get) - START) / (1_000 * MS)
-        }
+        let mut switches = Switches::default();
+        switches.set(Switch::KeyClass, record_typing);
+        switches.set(Switch::TitleText, titles);
+        switches.set(Switch::ScreenActivity, screen);
+        let mut board = Board::new(Platform::Macos);
+        board.figures = counters.figures();
+        let parts = StatusParts {
+            board,
+            desired: Desired::Running,
+            lease: Lease::Fresh,
+            slot: Slot::Opening,
+            obstructed: None,
+            health: StateHealth::Ok,
+            cap: Cap::Known(StorageCap::DEFAULT),
+            switches,
+            once_granted: Vec::new(),
+            asked: Vec::new(),
+            input_keys: record_typing,
+            held: false,
+            typing_off_unsaved: None,
+            search: None,
+            left_out_in_doubt: false,
+            doubt_told: crate::floor::exclude::DoubtTold::default(),
+        };
+        let facts = RunFacts {
+            started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+            parent: Parent::None,
+            last_stop: LastStop::None,
+            rss_peak_bytes: 0,
+        };
+        written_list(&status_of(&parts, &facts).unwrap(), "left_out")
+    }
+
+    #[test]
+    fn a_hold_read_by_a_tap_of_the_pointer_types_alone_names_no_typing_while_record_typing_is_on() {
+        let mut held = held(100);
+        held.ctx.wall = stand_in_wall;
+        held.ctx.keys_asked = false;
+        let info = std::ptr::from_ref(&*held.ctx).cast_mut().cast::<c_void>();
+        let fire = || fold_timer_fired(std::ptr::null_mut(), info);
+        answer(Reading::On);
+        fire();
+        advance(30_000);
+        fire();
+        assert_eq!(
+            left_out_written(&held.counters, true, true, false),
+            Some(
+                r#"[{"cause":"secure_input","what":["window_titles"],"since":"2027-01-15T08:00:00Z"}]"#
+                    .to_string()
+            ),
+            "Record typing on and a tap that asked no key type: window titles alone"
+        );
+        assert_eq!(
+            left_out_written(&held.counters, true, false, false),
+            None,
+            "and no entry where that leaves nothing"
+        );
+    }
+
+    #[test]
+    fn a_hold_of_thirty_seconds_stands_in_the_status_with_what_it_leaves_out_with_typing_on_and_off_and_marks_the_row_with_the_key_types_alone(
+    ) {
         let written = |held: &Held, typing: bool, titles: bool, screen: bool| {
-            let mut switches = Switches::default();
-            switches.set(Switch::KeyClass, typing);
-            switches.set(Switch::TitleText, titles);
-            switches.set(Switch::ScreenActivity, screen);
-            let mut board = Board::new(Platform::Macos);
-            board.figures = held.counters.figures();
-            let parts = StatusParts {
-                board,
-                desired: Desired::Running,
-                lease: Lease::Fresh,
-                slot: Slot::Opening,
-                obstructed: None,
-                health: StateHealth::Ok,
-                cap: Cap::Known(StorageCap::DEFAULT),
-                switches,
-                once_granted: Vec::new(),
-                asked: Vec::new(),
-                input_keys: typing,
-                held: false,
-                typing_off_unsaved: None,
-                search: None,
-                left_out_in_doubt: false,
-                doubt_told: crate::floor::exclude::DoubtTold::default(),
-            };
-            let facts = RunFacts {
-                started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
-                parent: Parent::None,
-                last_stop: LastStop::None,
-                rss_peak_bytes: 0,
-            };
-            written_list(&status_of(&parts, &facts).unwrap(), "left_out")
+            left_out_written(&held.counters, typing, titles, screen)
         };
         let entry = |what: &str, since: &str| {
             Some(format!(
@@ -7288,7 +7328,7 @@ mod tests {
         };
 
         let mut held = held(100);
-        held.ctx.wall = wall;
+        held.ctx.wall = stand_in_wall;
         let info = std::ptr::from_ref(&*held.ctx).cast_mut().cast::<c_void>();
         let fire = || fold_timer_fired(std::ptr::null_mut(), info);
         answer(Reading::On);
