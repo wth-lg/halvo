@@ -871,6 +871,7 @@ fn u1110_the_row_says_that_halvo_guessed_the_letters_behind_the_line_of_the_run_
     let note = "The data file was not saved as UTF-8 text, so Halvo read its letters the way this computer writes such files. If a letter looks wrong in the spreadsheet, save the data file as CSV UTF-8 and choose Start now.";
     let guessed = Notes {
         letters_guessed: true,
+        texts: None,
     };
     let none = Notes::default();
     let base = facts(State::Ten).remove(0);
@@ -991,6 +992,132 @@ fn u1110_the_row_says_that_halvo_guessed_the_letters_behind_the_line_of_the_run_
             });
         }
         f.last_cause = cause.and_then(|c| LastCause::parse(c).ok());
+        let line = status(&f, &Limits::PRODUCT, None);
+        let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+        assert_eq!(r.line, want, "{state}");
+    }
+}
+
+/// r3 U11.10, the coordinator's way (a) of Q4 and way (b) of line 23338: the row of an agent of the
+/// runtime file says how many values its newest ended run wrote as text and where, behind the
+/// line of that run whatever its end: one value; several in one column; several columns (the first
+/// of them column AA); a later run without the counts says its line alone; a failed run whose
+/// record holds them says its own line and the note; where both notes hold, the values' note
+/// stands first, then the letters' note.
+#[test]
+fn u1110_the_row_says_how_many_values_halvo_wrote_as_text_and_where() {
+    use crate::types::{Failure, Notes, NumberTexts, Outcome, PastRun};
+    let done = "Last time, it finished its task.";
+    let failed = "Last time, it could not finish its task.";
+    let letters = "The data file was not saved as UTF-8 text, so Halvo read its letters the way this computer writes such files. If a letter looks wrong in the spreadsheet, save the data file as CSV UTF-8 and choose Start now.";
+    let texts = |cells, columns, first| Notes {
+        letters_guessed: false,
+        texts: Some(NumberTexts {
+            cells,
+            columns,
+            first,
+        }),
+    };
+    let base = facts(State::Ten).remove(0);
+    let older = RunId::parse(&format!("{:032x}", 0x1110_0011)).unwrap();
+    let newest = RunId::parse(&format!("{:032x}", 0x1110_0012)).unwrap();
+    // The state, the newest run's end and record, the record of the run before it, the line.
+    type Case<'a> = (&'a str, Outcome, Notes, Option<Notes>, String);
+    let cases: [Case; 7] = [
+        ("none", Outcome::Completed, Notes::default(), None, done.to_owned()),
+        (
+            "one",
+            Outcome::Completed,
+            texts(1, 1, 3),
+            None,
+            format!("{done} Halvo wrote 1 value in column C as text, not as a number, so a sum leaves it out."),
+        ),
+        (
+            "several in one column",
+            Outcome::Completed,
+            texts(3, 1, 3),
+            None,
+            format!("{done} Halvo wrote 3 values in column C as text, not as numbers, so a sum leaves them out."),
+        ),
+        (
+            "several columns",
+            Outcome::Completed,
+            texts(5, 2, 27),
+            None,
+            format!("{done} Halvo wrote 5 values in 2 columns, the first of them column AA, as text, not as numbers, so a sum leaves them out."),
+        ),
+        (
+            "a later run with none",
+            Outcome::Completed,
+            Notes::default(),
+            Some(texts(3, 1, 3)),
+            done.to_owned(),
+        ),
+        (
+            "a failed run whose record holds the counts",
+            Outcome::Failed,
+            texts(1, 1, 2),
+            None,
+            format!("{failed} Halvo wrote 1 value in column B as text, not as a number, so a sum leaves it out."),
+        ),
+        (
+            "both notes, the values' note first",
+            Outcome::Completed,
+            Notes {
+                letters_guessed: true,
+                ..texts(3, 1, 3)
+            },
+            None,
+            format!("{done} Halvo wrote 3 values in column C as text, not as numbers, so a sum leaves them out. {letters}"),
+        ),
+    ];
+    for (state, outcome, notes, before, want) in cases {
+        let mut f = base.clone();
+        f.config = config(Tier::OnDevice, Runtime::File, None);
+        f.store_ended = true;
+        let end = match outcome {
+            Outcome::Completed => RunEnd::Completed,
+            _ => RunEnd::from(Failure::Failed),
+        };
+        let mut runs = vec![PastRun {
+            run: newest.clone(),
+            day: f.today,
+            outcome,
+            unknown: 0,
+            notes,
+        }];
+        if let Some(notes) = before {
+            runs.push(PastRun {
+                run: older.clone(),
+                day: f.today,
+                outcome: Outcome::Completed,
+                unknown: 0,
+                notes,
+            });
+        }
+        f.runs = runs;
+        for what in [
+            What::RunStarted {
+                run: newest.clone(),
+                trigger: Trigger::Person,
+                slot: None,
+            },
+            What::RunEnded {
+                run: newest.clone(),
+                cause: end,
+                defers: None,
+            },
+        ] {
+            f.events.push(Event {
+                workflow: f.workflow.id.clone(),
+                agent: f.agent.clone(),
+                seq: std::num::NonZeroU32::MIN.saturating_add(f.events.len() as u32),
+                day: f.today,
+                at: i64::from(f.today) * 86_400_000_000_000,
+                what,
+            });
+        }
+        f.last_cause = None;
         let line = status(&f, &Limits::PRODUCT, None);
         let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
         assert_eq!(r.line, want, "{state}");

@@ -265,6 +265,18 @@ pub const KEYS: &[(&str, &str)] = &[
         "line.note.letters_guessed",
         "The data file was not saved as UTF-8 text, so Halvo read its letters the way this computer writes such files. If a letter looks wrong in the spreadsheet, save the data file as CSV UTF-8 and choose Start now.",
     ),
+    (
+        "line.note.texts_one",
+        "Halvo wrote 1 value in column {column} as text, not as a number, so a sum leaves it out.",
+    ),
+    (
+        "line.note.texts_column",
+        "Halvo wrote {count} values in column {column} as text, not as numbers, so a sum leaves them out.",
+    ),
+    (
+        "line.note.texts_columns",
+        "Halvo wrote {count} values in {columns} columns, the first of them column {column}, as text, not as numbers, so a sum leaves them out.",
+    ),
     ("line.run.completed", "It finished the task."),
     ("line.run.nothing_to_do", "It found nothing to do."),
     ("line.run.declined", "You said no, so it stopped."),

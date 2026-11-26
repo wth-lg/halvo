@@ -523,23 +523,66 @@ fn row_offering<C: ConfigView>(
     Ok(row)
 }
 
-/// The note behind the row's line of the agent's newest ended run, whatever its end (r3 U11.10,
+/// The notes behind the row's line of the agent's newest ended run, whatever its end (r3 U11.10,
 /// the coordinator's way (b)): where `line` is that run's own line, the done sentence
 /// (`StatusLine::Done`), the line of a failed run (`StatusLine::Problem`) or the sentence of its
-/// last cause (`StatusLine::LastCause`), and the agent's newest run record, which names that run
-/// since the store has ended it, holds `letters_guessed`: the sentence of
-/// `line.note.letters_guessed`. Every other line, and a record without the key, gives none.
+/// last cause (`StatusLine::LastCause`), the agent's newest run record, which names that run since
+/// the store has ended it, gives the note of the values that it wrote as text (`texts_note`) where
+/// it holds the counts, and then the sentence of `line.note.letters_guessed` where it holds that
+/// key, one space between. Every other line, and a record without the keys, gives none.
 fn note<C>(facts: &Facts<C>, line: StatusLine) -> Result<Option<String>, Cause> {
     let own = matches!(
         line,
         StatusLine::Done | StatusLine::Problem(_) | StatusLine::LastCause(_)
     );
-    let guessed = facts.runs.first().is_some_and(|r| r.notes.letters_guessed);
-    if own && guessed {
-        text("line.note.letters_guessed", &[]).map(Some)
-    } else {
-        Ok(None)
+    let Some(notes) = facts.runs.first().map(|r| r.notes).filter(|_| own) else {
+        return Ok(None);
+    };
+    let mut said = Vec::new();
+    if let Some(texts) = notes.texts {
+        said.push(texts_note(texts)?);
     }
+    if notes.letters_guessed {
+        said.push(text("line.note.letters_guessed", &[])?);
+    }
+    Ok((!said.is_empty()).then(|| said.join(" ")))
+}
+
+/// The note of the values that a run wrote as text (r3 U11.10): `line.note.texts_one` for one
+/// cell, `line.note.texts_column` for more in one column, `line.note.texts_columns` for more
+/// columns, with the count, the count of columns and the first column's letters.
+fn texts_note(texts: crate::types::NumberTexts) -> Result<String, Cause> {
+    let column = column_letters(texts.first);
+    let count = texts.cells.to_string();
+    let columns = texts.columns.to_string();
+    if texts.columns > 1 {
+        text(
+            "line.note.texts_columns",
+            &[
+                ("count", &count),
+                ("columns", &columns),
+                ("column", &column),
+            ],
+        )
+    } else if texts.cells > 1 {
+        text(
+            "line.note.texts_column",
+            &[("count", &count), ("column", &column)],
+        )
+    } else {
+        text("line.note.texts_one", &[("column", &column)])
+    }
+}
+
+/// The letters of the workbook's column `n`, A being 1 and AA 27.
+fn column_letters(mut n: u32) -> String {
+    let mut letters = Vec::new();
+    while n > 0 {
+        n -= 1;
+        letters.push(char::from(b'A' + (n % 26) as u8));
+        n /= 26;
+    }
+    letters.iter().rev().collect()
 }
 
 fn row_with<C: ConfigView>(

@@ -341,6 +341,9 @@ fn expected_keys() -> BTreeSet<String> {
         "line.problem.no_access_windows",
         "line.problem.answers_saved",
         "line.note.letters_guessed",
+        "line.note.texts_one",
+        "line.note.texts_column",
+        "line.note.texts_columns",
     ] {
         k.insert(key.to_owned());
     }
@@ -561,7 +564,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 410);
+    assert_eq!(seen.len(), 413);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -620,6 +623,12 @@ fn placeholders_are_the_ones_that_the_contract_names() {
     want.insert("ask.use_model.models".into(), vec!["models"]);
     want.insert("line.runs_on.hosted".into(), vec!["host", "models"]);
     want.insert("line.runs_on.asks_again".into(), vec!["host"]);
+    want.insert("line.note.texts_one".into(), vec!["column"]);
+    want.insert("line.note.texts_column".into(), vec!["column", "count"]);
+    want.insert(
+        "line.note.texts_columns".into(),
+        vec!["column", "columns", "count"],
+    );
     want.insert(
         "ask.use_model.bills".into(),
         vec!["amount", "host", "period"],

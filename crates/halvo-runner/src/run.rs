@@ -104,6 +104,9 @@ pub(crate) struct Runner {
     /// Whether the run's file step read its data file by the computer's code page and the write of the workbook
     /// then answered well (r3 U11.10): its record then holds `letters_guessed` `yes`.
     pub(crate) letters_guessed: bool,
+    /// How many cells the write of the workbook wrote as texts of a number's shape, in how many columns, and
+    /// the first of them, where `replace` answered well (r3 U11.10): the record's three counts.
+    pub(crate) number_texts: Option<crate::file::Texts>,
     /// The newest row of each checkpoint of the run that the store took, by the workbook's path as the rows name it.
     pub(crate) checkpoints: HashMap<String, Taken>,
     /// What the run's list and draft steps gave, for its record.
@@ -188,6 +191,7 @@ impl Runner {
             extracts: HashMap::new(),
             read_under: None,
             letters_guessed: false,
+            number_texts: None,
             checkpoints: HashMap::new(),
             lists: Lists::default(),
             web: None,
@@ -572,6 +576,9 @@ impl Runner {
             // run's end is not handed out, a named limit (A7.5).
             let _ = self.log_end(call)?;
         }
+        let texts = self
+            .number_texts
+            .filter(|_| outcome != Outcome::EffectUnknown);
         let mut record = AgentRun {
             v: V1,
             workflow: self.args.workflow.clone(),
@@ -606,6 +613,9 @@ impl Runner {
             earlier_page: None,
             letters_guessed: (self.letters_guessed && outcome != Outcome::EffectUnknown)
                 .then_some(YesNo::Yes),
+            number_texts: texts.map(|t| t.cells),
+            number_text_columns: texts.map(|t| t.columns),
+            number_text_column: texts.map(|t| t.first),
         };
         self.lists.fill(&mut record);
         let call = RunnerCall::Finish(Finish {

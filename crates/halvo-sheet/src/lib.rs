@@ -26,7 +26,7 @@ pub use error::{Cause, Error, Kept, PathRefusal, Refusal, SourceRefusal};
 pub use halvo_checkpoint::{LockError, Locks, RunId, Sha256};
 pub use parts::Kind;
 pub use range::Range;
-pub use source::{Data, Letters, Value};
+pub use source::{number_texts, Data, Letters, Value};
 pub use write::Prepared;
 
 /// The directory that the permission `user_files` names, as the runner gives it. Every path
@@ -161,10 +161,16 @@ impl Folder {
     /// a negative amount: digits with at most one decimal sign and a thousands sign of another
     /// kind in groups of three (`$12.50`, `12,50 €`, `1,234.56`, `1.234,56`, `($1,234.56)`,
     /// `(12,50) €`, `1'234`, `1 234,56` with a no-break space). It is its number where its
-    /// decimal sign, where it has one, is the file's: the point in a file read by commas; in a
+    /// decimal sign, where it has one, is the file's: the point in a file read by commas, but the
+    /// comma for the amounts of a column that holds an amount with a decimal comma and a sign of
+    /// money or a thousands sign, where no field of the file tells the point (a number with a
+    /// point that is not of the thousands point shape, or an amount with a decimal point) and the
+    /// column turns whole (r3 U11.10); in a
     /// file read by semicolons or by tabs the sign that its numbers tell, or where none tells
     /// one, the sign that its amounts tell where they tell one alone; a file with a number of
-    /// each sign has none. Halvo turns the amounts of a column into numbers only where it can
+    /// each sign has none. In a file read by commas whose own amounts show the decimal comma, a
+    /// field of the thousands point shape (`1.250`, `12.500`) is no number but a text, and as such
+    /// it blocks its column (r3 U11.10). Halvo turns the amounts of a column into numbers only where it can
     /// read every value of that column: every field that holds a digit and gets no number blocks
     /// its column, but a field of the first row that holds a letter (a header); a blocked column
     /// reads as before r3 U11.8, and a field that is a number by the forms above stays that
