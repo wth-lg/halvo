@@ -91,6 +91,11 @@ pub trait Source: Send {
 pub trait Slot: Send {
     /// One pass of the slot, as [`WorkerSlot::pass`] has it.
     fn pass(&mut self, now: Instant, may_run: MayRun, origin: &Origin) -> Answer;
+
+    /// Whether the person's switch of the search for repeated tasks is on; a slot with no switch is on.
+    fn searching(&self) -> bool {
+        true
+    }
 }
 
 impl Slot for WorkerSlot {
@@ -253,6 +258,7 @@ mod tests {
         reading: Option<Reading>,
         reads: usize,
         passes: Vec<(MayRun, Origin)>,
+        switched_off: bool,
     }
 
     #[derive(Clone, Default)]
@@ -265,6 +271,10 @@ mod tests {
 
         fn reads(&self) -> usize {
             self.0.lock().unwrap().reads
+        }
+
+        fn switch(&self, on: bool) {
+            self.0.lock().unwrap().switched_off = !on;
         }
 
         /// The answers of the passes so far, and the check that each named the source's origin.
@@ -299,6 +309,10 @@ mod tests {
                 MayRun::Yes { .. } => Answer::Started,
                 MayRun::No => Answer::Idle,
             }
+        }
+
+        fn searching(&self) -> bool {
+            !self.0.lock().unwrap().switched_off
         }
     }
 
@@ -436,5 +450,23 @@ mod tests {
         assert_eq!((shared.reads(), shared.answers().len()), (1, 1));
         driver.turn(secs(601));
         assert_eq!((shared.reads(), shared.answers().len()), (2, 2));
+    }
+
+    /// While the search is switched off a turn reads nothing of the system and passes a no; the first turn behind a
+    /// switch to on reads the system and decides by that reading.
+    #[test]
+    fn a_turn_reads_the_system_only_while_the_search_is_switched_on() {
+        let shared = Shared::default();
+        let mut driver = seen_driver(&shared);
+        shared.set(good(secs(600)));
+        shared.switch(false);
+        driver.turn(secs(600));
+        driver.turn(secs(601));
+        assert_eq!(shared.reads(), 0, "two turns with the search switched off");
+        assert_eq!(shared.answers(), [MayRun::No, MayRun::No]);
+        shared.switch(true);
+        driver.turn(secs(602));
+        assert_eq!(shared.reads(), 1, "the first turn behind a switch to on");
+        assert_eq!(shared.answers(), [MayRun::No, MayRun::No, YES]);
     }
 }
