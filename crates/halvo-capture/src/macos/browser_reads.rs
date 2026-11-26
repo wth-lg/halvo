@@ -45,9 +45,10 @@ const FD_VNODE_INFO: libc::c_int = 1;
 
 const _: () = assert!(std::mem::size_of::<OpenFileInfo>() == 176);
 
-/// The most open files of a process, and the most language files of a
-/// bundle, that one read takes: beyond either it gives no answer. A bundle
-/// holds the language files of each of its version folders.
+/// The most entries of the list of what a process holds open, files and
+/// every other kind together, and the most language files of a bundle, that
+/// one read takes: beyond either it gives no answer. A bundle holds the
+/// language files of each of its version folders.
 const OPEN_FILES_READ: usize = 4_096;
 const LANGUAGE_FILES_READ: usize = 4_096;
 
