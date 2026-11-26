@@ -1598,6 +1598,9 @@ pub enum LeftOutCause {
     /// A Mac's alone: every reading of the system's secure input has read on for 30 seconds
     /// or more.
     SecureInput,
+    /// A Mac's alone: through 30 seconds keys were pressed on the computer and none of
+    /// them reached the input source's tap.
+    NoKeyArrives,
     #[serde(other)]
     Other,
 }

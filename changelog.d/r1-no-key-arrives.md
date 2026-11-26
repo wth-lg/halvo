@@ -1,0 +1,2 @@
+- Added: on a Mac the Status page says that Halvo is not recording typing where through 30 seconds a key was pressed in ten or more of them and no key reached Halvo; for this Halvo asks macOS how long ago a key was last pressed, at most once a second, only in a second in which no key reached it, and never while a password field or another app keeps typing private.
+- Changed: the search for repeated tasks asks the system nothing while it is switched off, and docs/privacy-limits.md says what it asks while it is on: how long ago the last input was, on a Mac and on Windows.

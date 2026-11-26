@@ -1168,7 +1168,8 @@ fn the_view_hands_the_two_lists_of_what_is_left_out_to_the_page_as_a_status_line
 ) {
     let left_out = concat!(
         r#"[{"cause":"doubt","what":["everything"],"since":"2027-01-15T08:00:00Z"},"#,
-        r#"{"cause":"secure_input","what":["typing","window_titles","screen_activity"],"since":"2027-01-15T08:00:30Z"}]"#,
+        r#"{"cause":"secure_input","what":["typing","window_titles","screen_activity"],"since":"2027-01-15T08:00:30Z"},"#,
+        r#"{"cause":"no_key_arrives","what":["typing"],"since":"2027-01-15T08:01:19Z"}]"#,
     );
     let left_out_before = concat!(
         r#"[{"cause":"doubt","what":["everything"],"#,
