@@ -111,7 +111,8 @@ fn helper_run_value() {
         "{HELPER} runs as {ACCOUNT} alone; this account's data folder is {folder}"
     );
     std::fs::create_dir_all(dir.path()).expect("the data folder is made");
-    std::fs::write(dir.state_file(), b"{}\n").expect("the state file of a provisioned folder");
+    std::fs::write(dir.state_file(), b"{\"desired\":\"running\"}\n")
+        .expect("the state file of a provisioned folder");
     say("provisioned=yes");
 
     let spec = StartValueSpec::new(&app).expect("a start value for the built app");
