@@ -409,6 +409,7 @@ fn line_key_names_are_the_six_of_i2_2_and_the_dropped_count() {
             "asks",
             "time",
             "files",
+            "copy",
             "spend",
             "records_dropped"
         ]

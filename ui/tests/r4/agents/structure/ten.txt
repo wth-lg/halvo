@@ -11,7 +11,7 @@
             - {"name":"Filling in a spreadsheet on Site6","role":"button"}
           - {"role":"paragraph","text":"All set"}
           - {"role":"paragraph","text":"Standard"}
-          - {"role":"paragraph","text":"Last time, it found nothing to do."}
+          - {"role":"paragraph","text":"Last time, it found nothing to do. Close the spreadsheet file in other programs before this agent starts."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch off","role":"button"}
           - {"name":"Change its answers","role":"button"}

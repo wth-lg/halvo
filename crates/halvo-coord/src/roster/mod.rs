@@ -301,6 +301,9 @@ pub fn lines<C: ConfigView>(config: &C) -> Vec<CardLine> {
     if config.permissions().contains(&Permission::UserFiles) {
         add(LineKey::Files, "line.files", &[]);
     }
+    if config.runtime() == Runtime::File {
+        add(LineKey::Copy, "line.copy", &[]);
+    }
     if let Some(budget) = config.budget().filter(|_| config.tier() != Tier::OnDevice) {
         let amount = budget.amount.to_string();
         add(
@@ -568,8 +571,9 @@ fn row_offering<C: ConfigView>(
     name: &str,
     offered: Vec<Control>,
 ) -> Result<Row, Cause> {
+    let run_now = offered.contains(&Control::RunNow);
     let mut row = row_with(facts, line.status(), &line.key_on(system), name, offered)?;
-    if let Some(note) = note(facts, line)? {
+    if let Some(note) = note(facts, line, run_now)? {
         row.line = format!("{} {note}", row.line);
     }
     Ok(row)
@@ -581,21 +585,32 @@ fn row_offering<C: ConfigView>(
 /// last cause (`StatusLine::LastCause`), the agent's newest run record, which names that run since
 /// the store has ended it, gives the note of the values that it wrote as text (`texts_note`) where
 /// it holds the counts, and then the sentence of `line.note.letters_guessed` where it holds that
-/// key, one space between. Every other line, and a record without the keys, gives none.
-fn note<C>(facts: &Facts<C>, line: StatusLine) -> Result<Option<String>, Cause> {
+/// key, one space between. Every other line, and a record without the keys, gives none of these
+/// two. The sentence of `line.note.close_first` stands behind them on each row of an agent of the
+/// runtime file that offers `run_now`, but the row of `not_replaced`.
+fn note<C: ConfigView>(
+    facts: &Facts<C>,
+    line: StatusLine,
+    run_now: bool,
+) -> Result<Option<String>, Cause> {
     let own = matches!(
         line,
         StatusLine::Done | StatusLine::Problem(_) | StatusLine::LastCause(_)
     );
-    let Some(notes) = facts.runs.first().map(|r| r.notes).filter(|_| own) else {
-        return Ok(None);
-    };
     let mut said = Vec::new();
-    if let Some(texts) = notes.texts {
-        said.push(texts_note(texts)?);
+    if let Some(notes) = facts.runs.first().map(|r| r.notes).filter(|_| own) {
+        if let Some(texts) = notes.texts {
+            said.push(texts_note(texts)?);
+        }
+        if notes.letters_guessed {
+            said.push(text("line.note.letters_guessed", &[])?);
+        }
     }
-    if notes.letters_guessed {
-        said.push(text("line.note.letters_guessed", &[])?);
+    if run_now
+        && facts.config.runtime() == Runtime::File
+        && line != StatusLine::LastCause(LastCause::NotReplaced)
+    {
+        said.push(text("line.note.close_first", &[])?);
     }
     Ok((!said.is_empty()).then(|| said.join(" ")))
 }
