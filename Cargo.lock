@@ -1958,9 +1958,12 @@ name = "halvo-sheet"
 version = "0.0.0"
 dependencies = [
  "calamine",
+ "codepage",
+ "encoding_rs",
  "halvo-checkpoint",
  "halvo-test-dir",
  "quick-xml",
+ "windows-sys 0.61.2",
  "zip",
 ]
 

@@ -2473,6 +2473,7 @@ fn the_creations_facts_take_the_roster_key_of_the_newest_run() {
             day: DAY - 1,
             outcome: Outcome::Failed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         }),
         unknown: vec![entry(&older, 0), entry(&run, 1)],
         refused_run: None,
@@ -2796,6 +2797,7 @@ fn the_creation_reads_the_reply_rows_of_an_email_agent_with_a_record() {
             day: DAY - 1,
             outcome: Outcome::Failed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         }),
         unknown: vec![],
         refused_run: None,
@@ -3228,6 +3230,7 @@ fn the_check_card_takes_its_kept_fields_from_the_entry_that_made_the_hold_with_n
             day: DAY,
             outcome: Outcome::Failed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.ports().ports.agents.borrow_mut()[0]
@@ -3315,6 +3318,7 @@ fn the_creation_takes_the_key_before_it_reads_the_reply_rows() {
             day: DAY - 1,
             outcome: Outcome::Failed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         }),
         unknown: vec![Unknown {
             run: run.clone(),
@@ -3799,6 +3803,7 @@ fn a_tick_raises_no_check_while_a_record_of_the_agent_keeps_its_place() {
             day: DAY,
             outcome: Outcome::Failed,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.ports().ports.agents.borrow_mut()[0]

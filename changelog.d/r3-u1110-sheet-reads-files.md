@@ -1,0 +1,1 @@
+- Added: (agents run, U11.10) The spreadsheet agent reads a data file in UTF-16 with its byte-order mark, as Excel's Unicode Text saves it, and on Windows a data file in the computer's own code page, as Excel's CSV (Comma delimited) saves it; behind a run that read its file by that page, the agent's row says so.
