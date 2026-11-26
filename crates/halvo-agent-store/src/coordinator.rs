@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
-use halvo_policy::{preset, validate};
+use halvo_policy::{preset, validate, LIMITS};
 use halvo_schema::executable::body::{
     Accepted, AgentHistory, AgentsReply, CreateAgent, DropSessions, HistoryReply, HistoryRun,
     KeyReply, ListAgents, ListedAgent, ListedAgreement, PastCheckpoint, PastEffect, PutModelKey,
@@ -216,15 +216,16 @@ use crate::{bind, bindings, checkpoint, count, day, end, reply, runner};
 ///   rule of a field that it does not change stands in its way. It never answers `state`: a yes and the way back are
 ///   taken while a run of the agent is open. Then in ONE write, the host's removal call `Host::remove_under`
 ///   of `agent_agreement` under the body's workflow, it removes every agreement row of that workflow and stores the
-///   next revision of the agent's set-up, the newest with `rev` plus 1 and the body's tier and every other key
-///   unchanged, and at a yes the agent's agreement row: the workflow, the agent, the tier, the triples as given and
-///   the request's instant. It answers `{"rev":<the revision stored>}`. A repeat of a yes stores one more revision
-///   and a new row with the new instant; a repeat of the way back stores one more revision and removes nothing. A
-///   refusal, and a fault before the commit, leave every row; after a fault behind the commit `store` comes with the
-///   new revision and the new row stored and the old row gone. No runner body reads, writes or removes the kind.
-///   Named limits: a copy or a backup of the store's files keeps an agreement that was taken back; the earlier
-///   revisions of the set-up stay stored with the tier that each held; the body trusts its caller for what the
-///   router's table holds and compares nothing with it.
+///   next revision of the agent's set-up, the newest with `rev` plus 1, the body's tier and, at a yes, the limits of
+///   its category in this build's `LIMITS` (r3 U7.12), and every other key unchanged, and at a yes the agent's
+///   agreement row: the workflow, the agent, the tier, the triples as given and the request's instant. It answers
+///   `{"rev":<the revision stored>}`. A repeat of a yes stores one more revision and a new row with the new instant;
+///   a repeat of the way back stores one more revision and removes nothing. A refusal, and a fault before the
+///   commit, leave every row; after a fault behind the commit `store` comes with the new revision and the new row
+///   stored and the old row gone. No runner body reads, writes or removes the kind. Named limits: a copy or a backup
+///   of the store's files keeps an agreement that was taken back; the earlier revisions of the set-up stay stored
+///   with the tier and the limits that each held; the body trusts its caller for what the router's table holds and
+///   compares nothing with it.
 /// - `model_room` and `set_model_cap` (r7 8.1L; the coordinator's log lines 16775 and 17277): the person's count of
 ///   hosted calls, ONE row of the kind `model_count` for the person and all agents together, which names no workflow;
 ///   each body has `workflow` and `agent` null and needs no stored workflow. Both take the count at the request's
@@ -282,9 +283,10 @@ pub fn coordinator(
 }
 
 /// The person's yes for the agent to a hosted model, or the way back (r3 U7.7): the next revision of the agent's
-/// set-up with the body's tier and every other key of its newest revision, and the agent's agreement row at a yes, in
-/// one write of the host's removal call of `agent_agreement` under the agent's workflow, which removes the row that
-/// stood. A yes passes every rule of `validate`; the way back, `on_device` with no agreement, is checked for its own
+/// set-up with the body's tier, at a yes the limits of its category in this build's `LIMITS` (r3 U7.12), and every
+/// other key of its newest revision, and the agent's agreement row at a yes, in one write of the host's removal call
+/// of `agent_agreement` under the agent's workflow, which removes the row that stood. A yes passes every rule of
+/// `validate`; the way back, `on_device` with no agreement, is checked for its own
 /// pair alone, which always holds, so that no rule of a field that it does not change stands in its way (the
 /// coordinator's log line 17603, point 1).
 fn set_model(host: &mut dyn Host, now: Now, b: &SetModel) -> Result<CoordinatorReply, ErrorName> {
@@ -293,11 +295,14 @@ fn set_model(host: &mut dyn Host, now: Now, b: &SetModel) -> Result<CoordinatorR
         .filter(|c| c.workflow == b.workflow)
         .ok_or(Own::Binding)?;
     let rev = newest.rev.checked_add(1).ok_or(Own::Length)?;
-    let config = AgentConfig {
+    let mut config = AgentConfig {
         rev,
         tier: b.tier,
         ..newest
     };
+    if b.agreement.is_some() {
+        config.limits = LIMITS.of(config.category);
+    }
     let agreement = b.agreement.as_ref().map(|hosts| AgentAgreement {
         v: V1,
         workflow: b.workflow.clone(),

@@ -7,10 +7,12 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
+use halvo_policy::LIMITS;
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::executable::{CoordinatorReply, RunnerReply};
 use halvo_schema::{
-    AgentId, ErrorName, Instant, RowRead, TypedRecord, Workflow, WorkflowId, WorkflowItem,
+    AgentId, ErrorName, Instant, RowRead, SeedCategory, TypedRecord, Workflow, WorkflowId,
+    WorkflowItem,
 };
 use serde_json::{json, Value};
 
@@ -523,6 +525,55 @@ fn the_way_back_is_taken_where_the_stored_set_up_fails_another_rule() {
         );
         assert_eq!(agreement_of(&entry(&mut store, 1)), Value::Null, "{name}");
     }
+}
+
+/// r3 U7.12 (the coordinator's log line 23369): a yes writes the limits of the agent's category in this build's table
+/// into the revision that it stores, and the way back keeps the stored limits. The set-up of a bill agent is planted
+/// as revision 2 with every key of revision 1 but the limits, steps 20, wall_s 120 and model_tokens 1234, unlike the
+/// build's row. The way back answers revision 3 with those limits; the yes up to `frontier` answers revision 4, which
+/// is revision 3 with `rev` 4, the tier `frontier` and the limits of `LIMITS.of(UtilityBillPayment)`, and the
+/// roster's entry hands those limits.
+#[test]
+fn a_yes_writes_the_build_limits_of_its_category_and_the_way_back_keeps_the_stored() {
+    let mut store = unstarted("utility_bill_payment");
+    let mut planted = revisions(&store, 1).pop().expect("revision 1");
+    planted["rev"] = json!(2);
+    planted["limits"] = json!({"steps": 20, "wall_s": 120, "model_tokens": 1234});
+    store
+        .commit(vec![TypedRecord {
+            kind: "agent_config",
+            json: planted.to_string(),
+        }])
+        .expect("a planted revision 2");
+    let row = LIMITS.of(SeedCategory::UtilityBillPayment);
+    let built = json!({"steps": row.steps, "wall_s": row.wall_s, "model_tokens": row.model_tokens});
+    assert_ne!(
+        built, planted["limits"],
+        "the planted limits are the build's"
+    );
+    assert_eq!(the_way_back(&mut store, 1, 1), rev_text(3), "the way back");
+    let kept = revisions(&store, 1).pop().expect("revision 3");
+    assert_eq!(
+        kept["limits"], planted["limits"],
+        "the limits of revision 3"
+    );
+    assert_eq!(
+        set_model(&mut store, 1, 1, "frontier", both()),
+        rev_text(4),
+        "the yes"
+    );
+    let mut expected = kept;
+    expected["rev"] = json!(4);
+    expected["tier"] = json!("frontier");
+    expected["limits"] = built.clone();
+    let revs = revisions(&store, 1);
+    assert_eq!(revs.len(), 4, "{revs:?}");
+    assert_eq!(revs[3], expected, "revision 4 of the set-up");
+    assert_eq!(
+        entry(&mut store, 1)["config"]["limits"],
+        built,
+        "the roster's limits"
+    );
 }
 
 /// A host over a memory store that counts the reads of a request by kind, each call of the rows' `for_each`, and
