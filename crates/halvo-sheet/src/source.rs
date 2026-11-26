@@ -161,42 +161,54 @@ fn four_byte(bytes: &[u8]) -> bool {
     false
 }
 
-/// The rows of a file that the computer's page reads as `text` (r3 U11.10, the coordinator's rule
-/// of log line 23819, R1 to R3, with the builder's reading X of its line RULE): R2, the separator
-/// that `reading` tells for the text with every sign beyond ASCII taken as a plain letter
+/// The rows of a file that the computer's page reads as `text` (r3 U11.10, the coordinator's rules
+/// of log lines 23819 and 24070, R1 to R4, with the builder's reading X of its line RULE): R2, the
+/// separator that `reading` tells for the text with every sign beyond ASCII taken as a plain letter
 /// (`letters`), for the text with every run of such signs taken as one sign of money (`as_money`)
 /// and for the page's own text must be one, else the file is refused with `data_encoding`: the
 /// separator rises with signs taken as money and falls with signs taken as letters, so under every
-/// page that keeps ASCII the file reads by that one separator. R1, every number is that of the
-/// rows with every sign beyond ASCII a plain letter (`rows`), so a cell that holds such a sign is a
-/// text, and every text is the page's own field. R3 follows: under every page that keeps ASCII, in
-/// the list or outside it, the same cells and the same numbers.
+/// page that keeps ASCII the file reads by that one separator. R4, a cell is a number only where the
+/// rows of the text with every sign beyond ASCII taken as a plain letter and the rows of the text
+/// with every run of such signs taken as one sign of money give it the same number (`rows`); every
+/// other cell is a text, the page's own field, so a cell that holds such a sign is a text (R1). The
+/// two texts keep every separator, quote and line end of the page's text in its order and make no
+/// other sign one, so their rows hold the same cells. The page's own text decides no number, so a
+/// number stays the same under every page that keeps ASCII, in the list or outside it (R3).
 fn page_rows(text: &str) -> Result<Vec<Vec<Value>>, Error> {
     let letters: String = text
         .chars()
         .map(|c| if c.is_ascii() { c } else { 'a' })
         .collect();
+    let money = as_money(text);
     let separator = |text: &str| reading(text).map(|(sign, _)| sign);
     let told = separator(&letters)?;
-    if separator(&as_money(text))? != told || separator(text)? != told {
+    if separator(&money)? != told || separator(text)? != told {
         return Err(encoding());
     }
     let numbers = rows(&letters)?;
+    let others = rows(&money)?;
     let (_, fields) = reading(text)?;
     let shape = numbers.len() == fields.len()
-        && numbers.iter().zip(&fields).all(|(a, b)| a.len() == b.len());
+        && others.len() == fields.len()
+        && numbers
+            .iter()
+            .zip(&others)
+            .zip(&fields)
+            .all(|((a, b), c)| a.len() == c.len() && b.len() == c.len());
     if !shape {
         return Err(encoding());
     }
     Ok(numbers
         .into_iter()
+        .zip(others)
         .zip(fields)
-        .map(|(row, cells)| {
+        .map(|((row, other), cells)| {
             row.into_iter()
+                .zip(other)
                 .zip(cells)
-                .map(|(value, cell)| match value {
-                    Value::Number(x) => Value::Number(x),
-                    Value::Text(_) => Value::Text(cell.into_owned()),
+                .map(|((value, other), cell)| match (value, other) {
+                    (Value::Number(x), Value::Number(y)) if x == y => Value::Number(x),
+                    _ => Value::Text(cell.into_owned()),
                 })
                 .collect()
         })
@@ -2837,5 +2849,51 @@ mod tests {
     #[test]
     fn a_file_whose_page_tells_another_separator_than_its_letters_is_refused() {
         assert_eq!(data(READERS_FILE, Some(1252)), Err(encoding()));
+    }
+
+    /// r3 U11.10 round 3, R4 (the coordinator's log line 24070): in a page-read file a cell is a
+    /// number only where the rows with every sign beyond ASCII a plain letter and the rows with
+    /// every run of such signs one sign of money give it the same number. Under 1252: the reader's
+    /// s01 and s02 (`1.250` beside an amount with the euro or the pound sign is a counted text); a
+    /// file whose numbers stay; the reader's s05, a no-break space between groups, which tells
+    /// nothing there, so `1.250` stays 1.25 (a named limit).
+    #[test]
+    fn in_a_page_read_file_a_number_is_one_that_letters_and_money_signs_give_alike() {
+        /// The bytes of a file, its rows and its count by column.
+        type Case = (&'static [u8], Vec<Vec<Value>>, Vec<u32>);
+        let cases: [Case; 4] = [
+            (
+                b"A,\"1.250,00 \x80\"\r\nB,1.250\r\n",
+                vec![vec![t("A"), t("1.250,00 €")], vec![t("B"), t("1.250")]],
+                vec![0, 2],
+            ),
+            (
+                b"A,\"\xa312,50\"\r\nB,1.250\r\n",
+                vec![vec![t("A"), t("£12,50")], vec![t("B"), t("1.250")]],
+                vec![0, 2],
+            ),
+            (
+                b"M\xfcller,12.50,\"$1,234.50\"\r\nGr\xfc\xdfe,3,$9.99\r\n",
+                vec![
+                    vec![t("Müller"), n(12.5), n(1234.5)],
+                    vec![t("Grüße"), n(3.0), n(9.99)],
+                ],
+                vec![0, 0, 0],
+            ),
+            (
+                b"A,\"1\xa0250,00\"\r\nB,1.250\r\n",
+                vec![vec![t("A"), t("1\u{a0}250,00")], vec![t("B"), n(1.25)]],
+                vec![0, 1],
+            ),
+        ];
+        let mut wrong = Vec::new();
+        for (bytes, rows, counts) in cases {
+            let got = data(bytes, Some(1252)).map(|read| read.rows);
+            let count = got.as_deref().map(number_texts).ok();
+            if got != Ok(rows) || count != Some(counts) {
+                wrong.push(format!("{}: got {got:?}, counted {count:?}", shown(bytes)));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
     }
 }
