@@ -22,6 +22,7 @@ use std::time::Duration;
 use halvo_control::model::{CaptureState, Modality, UtcSecond};
 use halvo_control::onboarding::{
     self, AssessInput, GrantState, Grants, OnboardingState, Permission, PermissionSet,
+    WalkbackAction, WalkbackStep,
 };
 use halvo_control::proto::{
     self, Admission, CaptureReason, Custody, DaemonStatus, DaemonVersion, Decoded, DrainError,
@@ -630,6 +631,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         &board.permissions,
         parts.switches,
         parts.input_keys,
+        board.keys_restart_did_not_help,
     );
     DaemonStatus::new(StatusFields {
         daemon_version: env!("CARGO_PKG_VERSION").parse().unwrap_or(DaemonVersion {
@@ -840,6 +842,7 @@ fn onboarding_of(
     answered: &[(Permission, GrantState)],
     switches: Switches,
     input_keys: bool,
+    keys_restart_did_not_help: bool,
 ) -> OnboardingState {
     let set = |pick: fn(&PermissionLine) -> bool| -> PermissionSet {
         lines
@@ -851,7 +854,7 @@ fn onboarding_of(
     let now = lines.iter().fold(Grants::default(), |grants, line| {
         grants.with(line.name, line.grant)
     });
-    onboarding::assess(&AssessInput {
+    let mut state = onboarding::assess(&AssessInput {
         required: &required_of(platform)
             .iter()
             .copied()
@@ -873,7 +876,17 @@ fn onboarding_of(
         macos_major: None,
         settings_entry_name: "Halvo",
         screen_activity: switches.is_on(Switch::ScreenActivity),
-    })
+    });
+    if keys_restart_did_not_help {
+        let permission = Permission::InputMonitoring;
+        state.walkback.push(WalkbackStep {
+            permission,
+            action: WalkbackAction::RestartCapture,
+            settings_url: permission.settings_url().to_string(),
+            text: onboarding::KEYS_RESTART_DID_NOT_HELP.to_string(),
+        });
+    }
+    state
 }
 
 fn switch_of(name: SwitchName) -> Switch {

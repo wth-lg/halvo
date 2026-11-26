@@ -2603,6 +2603,11 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         Ok(run) => run.again(),
         Err(error) => Err(std::io::Error::from(error.kind())),
     };
+    let keys_restart = run_marker::keys_restart_stands(&held_run);
+    let keys_run = match &held_run {
+        Ok(run) => run.again(),
+        Err(error) => Err(std::io::Error::from(error.kind())),
+    };
     let state = state::StateFile::open(folder, writer);
     if let Some(line) = state_line(state.health()) {
         let _ = writeln!(err, "{line}");
@@ -2631,6 +2636,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     .with_hold(run_marker::held(dir))
     .with_last_life(begun.lost.clone())
     .with_typing_note(Box::new(supervisor::NoteInRun::new(note_run)), typing_kept)
+    .with_keys_restart_note(Box::new(supervisor::NoteInRun::new(keys_run)), keys_restart)
     .with_life(listening.admitting().ending_life());
     listening
         .admitting()

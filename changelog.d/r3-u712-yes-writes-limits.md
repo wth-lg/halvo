@@ -1,0 +1,1 @@
+- Changed: (agents run, U7.12) A person's yes for an agent to a hosted model (set_model with an agreement) writes the limits of the agent's category in the running build into the revision that it stores, where it kept the stored limits before; the way back keeps them.
