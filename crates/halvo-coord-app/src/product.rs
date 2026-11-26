@@ -1292,13 +1292,15 @@ fn entry_of(entry: &Value) -> Option<(Agent<AgentConfig>, Option<Agreement>)> {
 pub(crate) struct RowsMemory(Memory);
 
 /// What one list of the agents read of this build's host for the agents' rows (r4 U3.17b): the host, the model words
-/// that a yes covers, whether a key is saved (none where its state does not read) and the person's spending limit.
+/// that a yes covers, whether a key is saved (none where its state does not read), the person's spending limit, and
+/// whether every compile, recover and write row of the router's table hands back (r4 U3.34).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Hosting {
     host: String,
     models: String,
     key: Option<bool>,
     limit: SpendLimit,
+    hands_back: bool,
 }
 
 /// The read of `host` for one list of the agents: none, with nothing sent, where there is no host; else the host and
@@ -1306,13 +1308,14 @@ pub(crate) struct Hosting {
 /// that asks a model (`roster::MODEL_RUNTIMES`), the key's state by ONE body `model_key_state` and the count's state by
 /// ONE body `model_room`, through `ModelLimit` with `memory`, the rows' own memory, never a memory of the limit's
 /// part. Where no agent asks a model nothing is read and the states stand as not read, which no row shows: no row then
-/// offers the question.
+/// offers the question. `hands_back` is handed on as it is given.
 pub(crate) fn hosting(
     link: &Arc<dyn OwnerLink>,
     memory: &RowsMemory,
     host: Option<String>,
     models: &[&str],
     asks: bool,
+    hands_back: bool,
 ) -> Option<Hosting> {
     let host = host?;
     let (key, limit) = if asks {
@@ -1331,11 +1334,13 @@ pub(crate) fn hosting(
         models: models.join(" and "),
         key,
         limit,
+        hands_back,
     })
 }
 
-/// `hosting` with this build's host (`model_key::host`) and the model words of the rows of its table, in the order of
-/// `Ruling::allowed()`. Where the build names no host, it is none and sends nothing.
+/// `hosting` with this build's host (`model_key::host`), the model words of the rows of its table, in the order of
+/// `Ruling::allowed()`, and the fact `model_key::hands_back`. Where the build names no host, it is none and sends
+/// nothing.
 fn hosting_of_build(link: &Arc<dyn OwnerLink>, memory: &RowsMemory, asks: bool) -> Option<Hosting> {
     let ruling = halvo_route::release::ruling();
     let models: Vec<&str> = ruling
@@ -1344,7 +1349,14 @@ fn hosting_of_build(link: &Arc<dyn OwnerLink>, memory: &RowsMemory, asks: bool) 
         .filter_map(|tier| ruling.row(*tier))
         .map(|row| row.model())
         .collect();
-    hosting(link, memory, crate::model_key::host(), &models, asks)
+    hosting(
+        link,
+        memory,
+        crate::model_key::host(),
+        &models,
+        asks,
+        crate::model_key::hands_back(),
+    )
 }
 
 /// The spending limit of the reply of the limit's view: a limit stands in the states `ok`, `near`, `reached` and
@@ -1372,8 +1384,8 @@ fn spend_limit(reply: &LimitReply) -> SpendLimit {
 }
 
 /// What the app hands the core of an agent whose stored tier is `tier` and whose entry held `agreement`, where the
-/// list read `hosting`: none without it; else its host, models and states, and whether the yes stands for the stored
-/// tier, by the gate's ONE function `agreement::stands`.
+/// list read `hosting`: none without it; else its host, models, states and the fact `hands_back`, and whether the yes
+/// stands for the stored tier, by the gate's ONE function `agreement::stands`.
 fn handed(
     hosting: Option<&Hosting>,
     agreement: Option<&Agreement>,
@@ -1386,6 +1398,7 @@ fn handed(
         stands: agreement::stands(agreement, tier),
         key: hosting.key,
         limit: hosting.limit.clone(),
+        hands_back: hosting.hands_back,
     })
 }
 
@@ -2737,7 +2750,7 @@ mod tests {
         let kept = Arc::new(Kept(Mutex::new(Vec::new())));
         let link: Arc<dyn OwnerLink> = kept.clone();
         let memory = RowsMemory::default();
-        let hosting = hosting(&link, &memory, None, &[], true);
+        let hosting = hosting(&link, &memory, None, &[], true, false);
         assert_eq!(hosting, None);
         assert!(lock(&kept.0).is_empty(), "no request");
         let both = Agreement::of(&serde_json::json!({
@@ -2833,7 +2846,7 @@ mod tests {
         ] {
             let link: Arc<dyn OwnerLink> = Ops::new(&[SAVED, ROOM]);
             let memory = RowsMemory::default();
-            let read = hosting(&link, &memory, Some(host.to_owned()), models, true);
+            let read = hosting(&link, &memory, Some(host.to_owned()), models, true, false);
             let model = handed(read.as_ref(), None, Tier::OnDevice).expect("a model");
             let (ask, note) = halvo_coord::roster::use_model_ask(&model).expect("the words");
             assert_eq!(note, None, "{models:?}");
@@ -2895,6 +2908,7 @@ mod tests {
             stands: false,
             key: Some(true),
             limit: spend_limit(&reply),
+            hands_back: false,
         };
         let (ask, _) = halvo_coord::roster::use_model_ask(&model).expect("the words");
         let ask = ask.expect("the question");

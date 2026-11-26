@@ -31,6 +31,7 @@ fn model(stands: bool) -> ModelUse {
             period: "month".to_owned(),
             near: false,
         },
+        hands_back: false,
     }
 }
 

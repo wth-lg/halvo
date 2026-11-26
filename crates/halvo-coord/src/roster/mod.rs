@@ -421,15 +421,18 @@ pub fn asks_a_model<C: ConfigView>(config: &C) -> bool {
 /// The controls of an agent's use of an AI model (r4 U3.17b), in the order of `Control`: none
 /// where the app hands no `ModelUse` (this build's table of hosts holds no row, or its rows name
 /// two origins); `use_model` where the agent's runtime asks a model (`MODEL_RUNTIMES`) and its
-/// stored tier is `on_device` or its stored yes does not stand; `this_computer_only` where its
-/// stored tier is a hosted tier, whatever its runtime: the way back is never withheld.
+/// stored tier is `on_device` or its stored yes does not stand, and not while the app hands that
+/// every compile, recover and write row of the router's table hands back (`ModelUse::hands_back`,
+/// r4 U3.34), so that no question is asked and no yes is given that no agent of the build would
+/// use; `this_computer_only` where its stored tier is a hosted tier, whatever its runtime: the way
+/// back is never withheld. The action `use_model` refuses wherever this list holds no `use_model`.
 pub fn model_controls<C: ConfigView>(config: &C) -> Vec<Control> {
     let Some(model) = config.model() else {
         return Vec::new();
     };
     let hosted = config.tier() != Tier::OnDevice;
     let mut out = Vec::new();
-    if asks_a_model(config) && (!hosted || !model.stands) {
+    if asks_a_model(config) && (!hosted || !model.stands) && !model.hands_back {
         out.push(Control::UseModel);
     }
     if hosted {
