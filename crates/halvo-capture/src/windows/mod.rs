@@ -1585,6 +1585,73 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_push_into_a_full_hand_off_moves_the_status_s_events_lost_by_one_for_each_event_one_into_a_closed_hand_off_does_not_and_a_delete_of_everything_takes_it_back_to_nought(
+    ) {
+        use crate::daemon::server::{status_of, RunFacts};
+        use crate::daemon::slot::Slot;
+        use crate::daemon::supervisor::Supervisor;
+        use crate::daemon::WindowsLoop;
+        use halvo_control::proto::{LastStop, Parent, Platform};
+
+        type Run = Supervisor<sources::ServiceSet, WindowsLoop>;
+        fn events_lost(supervisor: &mut Run, slot: Slot) -> u64 {
+            supervisor.set_slot_answering(slot, None, &mut |_| {});
+            let facts = RunFacts {
+                started_at: halvo_control::model::UtcSecond::from_unix_seconds(1_800_000_000)
+                    .unwrap(),
+                parent: Parent::None,
+                last_stop: LastStop::None,
+                rss_peak_bytes: 0,
+            };
+            status_of(&supervisor.status_parts(None), &facts)
+                .expect("the status holds together")
+                .fields()
+                .events_lost
+        }
+
+        let set = sources::ServiceSet::new();
+        let counts = Arc::new(LossCounts::counting_full_drops_in(set.full_drops()));
+        let mut supervisor = Supervisor::new(Platform::Windows, set, WindowsLoop::new());
+        let (sink, _writer) = crate::sink::channel(1);
+        assert!(forward_one(&sink, pointer("filler")) == Emitted::Queued);
+        let handoff = HandOff::start(sink, "halvo-test-forward", counts).expect("hand-off");
+        let producer = handoff.producer();
+        producer.push(pointer("taken"));
+        wait_until("the forwarder took no packet", || handoff.queued() == 0);
+        assert_eq!(
+            events_lost(&mut supervisor, Slot::Opening),
+            0,
+            "before a full queue"
+        );
+        for _ in 0..HANDOFF_CAPACITY + 3 {
+            producer.push(pointer("queued"));
+        }
+        assert_eq!(
+            events_lost(&mut supervisor, Slot::Opening),
+            3,
+            "three pushes into the full queue"
+        );
+        handoff.close();
+        producer.push(pointer("behind the stop"));
+        producer.push(pointer("behind the stop"));
+        assert_eq!(
+            handoff.counts().lost,
+            3 + HANDOFF_CAPACITY as u64 + 2,
+            "the hand-off's own count holds the queue that the close dropped and both pushes behind it"
+        );
+        assert_eq!(
+            events_lost(&mut supervisor, Slot::Opening),
+            3,
+            "two pushes into the hand-off that the stop closed"
+        );
+        assert_eq!(
+            events_lost(&mut supervisor, Slot::Deleting),
+            0,
+            "behind the slot of a delete of everything"
+        );
+    }
+
+    #[test]
     fn a_gone_writer_closes_the_hand_off_and_counts_what_it_held() {
         let (sink, writer) = crate::sink::channel(1);
         drop(writer);
