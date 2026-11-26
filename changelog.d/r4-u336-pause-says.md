@@ -1,0 +1,1 @@
+- Changed: (interface run, U3.36) While Halvo is paused, the Status page says that it records nothing until Resume, and that "Quit Halvo" pauses it too.
